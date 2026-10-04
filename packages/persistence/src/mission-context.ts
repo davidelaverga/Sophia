@@ -229,14 +229,22 @@ async function readWork(c: pg.PoolClient, projectId: string): Promise<MissionCon
     status: string
     task_id: string | null
     phase: string | null
+    kind: 'draft_brief' | 'research' | null
   }>(
-    `SELECT * FROM (SELECT g.id AS goal_id, g.title, g.status, t.id AS task_id, t.phase, g.created_at
+    `SELECT * FROM (SELECT g.id AS goal_id, g.title, g.status, t.id AS task_id, t.phase, t.kind, g.created_at
         FROM sophia.goals g LEFT JOIN sophia.native_task_view t ON t.project_id = g.project_id AND t.goal_id = g.id
        WHERE g.project_id = $1 ORDER BY g.created_at DESC, g.id DESC LIMIT ${String(WORK_LIMIT)}) latest
       ORDER BY created_at, goal_id`,
     [projectId],
   )
-  return rows.map((r) => ({ goalId: r.goal_id, title: r.title, status: r.status, taskId: r.task_id, phase: r.phase }))
+  return rows.map((r) => ({
+    goalId: r.goal_id,
+    title: r.title,
+    status: r.status,
+    taskId: r.task_id,
+    phase: r.phase,
+    ...(r.kind === null ? {} : { kind: r.kind }),
+  }))
 }
 
 interface PolicyRow {

@@ -15,6 +15,7 @@
     "@sophia/contracts": "workspace:*",
     "@sophia/domain": "workspace:*",
     "@sophia/persistence": "workspace:*",
+    "@sophia/report": "workspace:*",
     "fastify": "5.12.5",
     "jose": "6.2.12",
     "livekit-server-sdk": "2.19.1",

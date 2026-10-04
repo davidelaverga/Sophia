@@ -56,7 +56,7 @@ function installInto({ unit, runtimeDir, layout }) {
   mkdirSync(profileDir, { recursive: true })
   mkdirSync(layout.cwd, { recursive: true })
   for (const file of PROFILE_FILES) copyFileSync(join(PROFILE_SOURCE_DIR, file), join(profileDir, file))
-  copyFileSync(profileLockPath(unit), join(profileDir, 'pnpm-lock.yaml'))
+  copyFileSync(profileLockPath(), join(profileDir, 'pnpm-lock.yaml'))
   copyFileSync(bundleArchivePath(unit), join(profileDir, unit.sophia_bundle.archive))
   const result = runDsh(runtimeDir, ['plugin', '--profile', unit.dsh.profile, 'install', '--frozen-lockfile', '--offline'], {
     env: sanitizedEnv(layout),
@@ -112,7 +112,7 @@ export function profileDrift({ unit, layout }) {
   const drift = []
   for (const file of [...PROFILE_FILES, 'pnpm-lock.yaml']) {
     const installed = join(profileDir, file)
-    const source = file === 'pnpm-lock.yaml' ? profileLockPath(unit) : join(PROFILE_SOURCE_DIR, file)
+    const source = file === 'pnpm-lock.yaml' ? profileLockPath() : join(PROFILE_SOURCE_DIR, file)
     if (!existsSync(installed) || !readFileSync(installed).equals(readFileSync(source))) {
       drift.push(`profile ${file} is not the committed one`)
     }

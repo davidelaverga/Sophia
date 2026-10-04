@@ -70,7 +70,7 @@
   "overrides": [
     {
       // Tests: long scenario functions and assertions on known-present values are fine.
-      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.test.mjs"],
       "rules": {
         "max-lines-per-function": "off",
         "max-nested-callbacks": "off",

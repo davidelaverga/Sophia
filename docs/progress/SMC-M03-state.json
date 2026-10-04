@@ -1,0 +1,362 @@
+{
+  "schema": "sophia.mission-state.v1",
+  "mission_id": "SMC-M03",
+  "current_goal": "G1",
+  "repository": "davidelaverga/Sophia",
+  "branch": "claude/smc-m03-research",
+  "base_commit": "ba983e7",
+  "candidate_commit": "5c068ae",
+  "implementation_pr": 32,
+  "coordination_issue": 31,
+  "status": {
+    "source": "in_progress",
+    "merge": "not_requested",
+    "release": "authorized_in_progress",
+    "hosted_verification": "partial: 1e912b7 deployed with 0036 (OP-0001 r6, CX-0027; runtime 6ec64f3, worker 0391bc6); production acceptance blocked by CX-0026/0027; fixed in 5c068ae (0037, API, Studio, bridge; SMC-M03.md §40), reviewed with no new P0-P2 (CX-0033 on 0f7e14c through 08de517), not deployed",
+    "product_acceptance": "not_requested"
+  },
+  "owners": {
+    "implementation": "Claude Code",
+    "operations_support": "Codex",
+    "product_authority": "Davide",
+    "ui_review": "Luis_when_relevant"
+  },
+  "completed_goals": [],
+  "test_evidence": [
+    {
+      "slice": "S1 part 1",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#6-s1-part-1-readers-first"
+    },
+    {
+      "slice": "S2 part 1",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#8-s2-part-1-execution-policy-the-research-route"
+    },
+    {
+      "slice": "S2 part 2",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#9-s2-part-2-usage-with-cache-counters-and-compaction-calls"
+    },
+    {
+      "slice": "S2 part 3",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#10-s2-part-3-the-specialist-registry"
+    },
+    {
+      "slice": "S3 part 1",
+      "commands": [
+        "pnpm check"
+      ],
+      "ref": "docs/progress/SMC-M03.md#11-s3-part-1-source-adapters-and-guards"
+    },
+    {
+      "slice": "S3 part 2",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#12-s3-part-2-grants-allowances-reservations-and-provenance-0024"
+    },
+    {
+      "slice": "CX-0005 fixes (archive normalization, M03-RF-0004..0007)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#14-cx-0005-one-archive-for-every-platform-and-m03-rf-00040007"
+    },
+    {
+      "slice": "S4 part 1",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#15-s4-part-1-research-admission-and-the-runtime-research-operations-0025"
+    },
+    {
+      "slice": "S4 part 2",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#16-s4-part-2-the-research-tools-the-model-call-meter-and-roles-in-hello"
+    },
+    {
+      "slice": "S4 part 3",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#17-s4-part-3-submit-publication-turn-end-rules-and-the-research-prompt-0026"
+    },
+    {
+      "slice": "S4 part 4",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "browser: 55 checks on the dev stack at 1440x900 and 390x844"
+      ],
+      "ref": "docs/progress/SMC-M03.md#18-s4-part-4-report-facts-the-delivery-ui-and-knowledge-0027"
+    },
+    {
+      "slice": "S4 part 5",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#19-s4-part-5-revocation-t19-and-the-s3-key-byte-store-0028"
+    },
+    {
+      "slice": "CX-0006 (M03-RF-0008..0012)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#20-cx-0006-m03-rf-00080012"
+    },
+    {
+      "slice": "S5a part 1 (PDF kernel, confined)",
+      "commands": [
+        "pnpm check",
+        "node --test renderers/web/pdf/test/render-html.test.ts (real Chromium)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#21-s5a-part-1-the-pdf-kernel-confined-rendererswebpdf"
+    },
+    {
+      "slice": "S5a part 2 (render jobs, runner, supervisor)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "node --test tests/integration/render-supervisor.test.mjs (real API, PostgreSQL, Chromium)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#22-s5a-part-2-render-jobs-the-render-runner-and-the-supervisor-0030"
+    },
+    {
+      "slice": "S5b part 1 (the research PDF: template, render operation, repairs, rendition at submit)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "node --test tests/integration/research-tools.test.mjs (real runtime)",
+        "node --test tests/integration/render-supervisor.test.mjs (real API, PostgreSQL, Chromium)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#23-s5b-part-1-the-research-pdf-printed-by-the-service-0031"
+    },
+    {
+      "slice": "S5b part 2a (the PDF in Studio)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:db",
+        "browser check on the dev stack (32 checks, unprivileged user, sandbox on)",
+        "CSP check: production build under vercel.json enforced"
+      ],
+      "ref": "docs/progress/SMC-M03.md#24-s5b-part-2a-the-pdf-in-studio"
+    },
+    {
+      "slice": "S5b part 2b (Try PDF again, 0032)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "browser check on the dev stack (14 checks, unprivileged user, sandbox on)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#25-s5b-part-2b-try-pdf-again-0032"
+    },
+    {
+      "slice": "CX-0007 fixes (M03-RF-0013..0016, 0033)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db"
+      ],
+      "ref": "docs/progress/SMC-M03.md#26-cx-0007-m03-rf-0013-0016"
+    },
+    {
+      "slice": "S5b part 3 (page checks, render judgement, 0034)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "node --test renderers/web/pdf/test/render-html.test.ts (real Chromium, SOPHIA_RENDERER_REQUIRED=1)",
+        "node --test tests/integration/render-supervisor.test.mjs (real API, PostgreSQL, Chromium)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#27-s5b-part-3-the-printed-pages-read-back-and-the-service-judges-the-pdf-0034"
+    },
+    {
+      "slice": "S6 (guide v1.2, research by voice and text, steer, text-mode notices, 0035) and the OP-C proposal",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "node --test renderers/web/pdf/test/render-html.test.ts renderers/web/pdf/test/host-probe.test.ts (real Chromium, SOPHIA_RENDERER_REQUIRED=1)",
+        "docker run node:24.21.0-bookworm-slim … host-probe.mjs (default and relaxed security options)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#28-s6-research-by-voice-and-text-steer-and-results-told-as-text-guide-v12-0035"
+    },
+    {
+      "slice": "CX-0009 (M03-RF-0017..0020) and two rounds of local review's further fixes",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "node --test renderers/web/pdf/test/render-html.test.ts renderers/web/pdf/test/host-probe.test.ts (real Chromium, SOPHIA_RENDERER_REQUIRED=1, as root with a render user and as a non-root user)",
+        "docker run node:24.21.0-bookworm-slim … host-probe.mjs (default and relaxed security options)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#31-cx-0009-m03-rf-00170020"
+    },
+    {
+      "slice": "main merged at 55ddc1e (PS-01, Studio follow-ups, LFE-00)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "pnpm --filter @sophia/studio test:browser (main's Chromium preservation checks)",
+        "pnpm artifacts:record, then pnpm artifacts"
+      ],
+      "ref": "docs/progress/SMC-M03.md#32-main-merged-2026-10-02-the-personal-space-and-lfe-00"
+    },
+    {
+      "slice": "LFE-02.1 (the report viewer over the room) and the sweep of its kind",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "pnpm --filter @sophia/studio test:browser (17 report checks, each failing without its fix)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#33-lfe-021-the-report-viewer-over-the-room-and-a-sweep-of-its-kind-2026-10-02"
+    },
+    {
+      "slice": "CX-0011 (M03-RF-0021..0023), with main's #47 and #48 merged in",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "pnpm --filter @sophia/studio test:browser (48 checks; 22 report checks, each new one failing without its fix)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#34-cx-0011-m03-rf-00210023-and-mains-4748-2026-10-02"
+    },
+    {
+      "slice": "CX-0015 feasibility: the PDF renderer beside the runtime at 0.5 CPU / 512 MiB (local cgroup measurements, four reviews, three skeptics)",
+      "commands": [
+        "cgroup v1 limits 512/384/256 MiB and quota 50000/100000; the real kernel and headless shell with template-printed reports",
+        "the real dsh runtime under the RuntimeSupervisor against the fixture service and the mock model"
+      ],
+      "ref": "docs/progress/SMC-M03.md#36-cx-0015-the-pdf-renderer-on-the-existing-runtime-host-measured-blocked-as-proposed-2026-10-02"
+    },
+    {
+      "slice": "CX-0016: the no-PDF release's readiness (five reviews) and its P3s fixed in fc0a935",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "pnpm --filter @sophia/studio test:browser (49 checks; 23 report checks, each new one failing without its fix)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#37-cx-0016-the-first-release-without-pdf-checked-and-its-p3s-fixed-2026-10-02"
+    },
+    {
+      "slice": "main's #50 merged at 8f54dca (LFE-06's Resources view)",
+      "commands": [
+        "pnpm check",
+        "pnpm --filter @sophia/studio test:browser (63 checks: 7 room, 11 Explore, 22 resource, 23 report)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#38-mains-50-merged-2026-10-02"
+    },
+    {
+      "slice": "CX-0019..0023 (pilot findings, live captions), 0036 (fact checks; citations picked by the parser and checked in SQL), HTML report pages, main through #61, at 4a33c2b",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "pnpm --filter @sophia/studio test:browser (118 checks; each new one failing without its fix)"
+      ],
+      "ref": "docs/progress/SMC-M03.md#39-the-pilots-findings-cx-00190023-the-fact-checks-0036-and-html-reports-2026-10-03"
+    },
+    {
+      "slice": "CX-0026..0032 acceptance fixes (0037, API, Studio, bridge)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "test:browser"
+      ],
+      "ref": "docs/progress/SMC-M03.md#40-production-acceptance-cx-00260032-preservation-a-truthful-history-facts-for-the-guide-steers-and-the-guides-handoff-2026-100304"
+    }
+  ],
+  "outstanding_operations": [
+    {
+      "operation_id": "SMC-M03-OP-0001",
+      "kind": "inspect_request",
+      "request": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5960693454",
+      "state": "in_progress (revision 4: 6ec64f3 piloted, CX-0019..0023; the pilot grant stays within its approved window and limits; the next deployment is 4a33c2b once Davide approves that exact commit: 0036, Studio and API, bridge last)",
+      "result": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962896818"
+    },
+    {
+      "operation_id": "SMC-M03-OP-0002",
+      "kind": "support_request",
+      "request": "docs/coordination/SMC-M03/SMC-M03-CC-0020.md",
+      "state": "requested (revision 17: review of 6ec64f3..4a33c2b on exactly 4a33c2b; supersedes CC-0018)",
+      "result": null
+    }
+  ],
+  "unknown_effects": [],
+  "hosted_tuple_ref": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962074006",
+  "migration_ledger_ref": "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962074006",
+  "approval_refs": [
+    "https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5962074006 (CX-0018: Davide chose the 6ec64f3 batch, as Codex recorded it)"
+  ],
+  "remaining_allowance_ref": null,
+  "file_ownership": [
+    {
+      "path": "pnpm-lock.yaml",
+      "owner": "Claude Code",
+      "rule": "single writer, in the commit that changes dependencies"
+    },
+    {
+      "path": "db/migrations/0022_*.sql and later (0022 to 0036 so far)",
+      "owner": "Claude Code"
+    },
+    {
+      "path": "packages/contracts/amendments/A11-research-and-knowledge.json",
+      "owner": "Claude Code"
+    },
+    {
+      "path": "db/migrations/0021_personal_space.sql, packages/contracts/amendments/A10-personal-space.json",
+      "owner": "Luis (#30)"
+    }
+  ],
+  "next_action": "CX-0033 found no new P0-P2 in CC-0024 (0f7e14c, reviewed through 08de517) and allows preparing a bounded production-test batch. That batch needs Davide's new approval for the exact candidate (the Oct 3 window expired), in the order 0037, the API and Studio, the bridge last; the runtime (6ec64f3) and the worker (0391bc6) are not redeployed. Then the acceptance cases in CX-0033 and SMC-M03.md §40. Open: Stop with the retained worker, the PDF host, research depth (a proposal), PR #75 (html-report-v2) review, main's opening timing failure (PR #32 comment)",
+  "checkpoint_ref": "docs/progress/SMC-M03.md",
+  "runtime_unit": {
+    "id": "sophia-runtime-m03-dev",
+    "previous": "sophia-runtime-m02-dev",
+    "bundle_archive_sha256": "6a01ce0ef18045abdc9ab7b5390736908c6dc8c0907d2d5cb6a0a7cc872747e1",
+    "bundle_archive_platforms": "one normalized archive and one profile lock for every platform (SMC-M03.md §14); runtime trees recorded per platform (linux-x64, darwin-arm64 e24cb887)",
+    "deployed": false
+  }
+}

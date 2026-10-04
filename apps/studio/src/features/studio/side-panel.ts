@@ -11,19 +11,22 @@ const SETTLED: ReadonlySet<string> = new Set(['complete', 'refused', 'unknown'])
 
 /**
  * What the chat shows, by identity: its newest discussion entry, its newest typed turn, how far the replies have come
- * (every packet of a reply moves its sequence) and how many turns have their outcome. A new message changes it even
- * once the kept history is full and the oldest drops out (the discussion keeps its latest 50, the typed chat 100),
- * which a count could not see; so does a reply that goes on, or ends refused or unconfirmed, behind a closed panel.
- * Null until the project has loaded: a room still loading is no baseline.
+ * (every packet of a reply moves its sequence), how many turns have their outcome, and its newest result notice
+ * (SMC-M03: a finished result told to someone who reads). A new message changes it even once the kept history is full
+ * and the oldest drops out (the discussion keeps its latest 50, the typed chat 100, the notices 20), which a count
+ * could not see; so does a reply that goes on, or ends refused or unconfirmed, behind a closed panel. A notice
+ * delivered again is the same notice. Null until the project has loaded: a room still loading is no baseline.
  */
 export function chatSignature(
   snapshot: Pick<Snapshot, 'discussion'> | undefined,
   turns: readonly { id: string; sequence: number; state: string }[],
+  notices: readonly { key: string }[],
 ): string | null {
   if (!snapshot) return null
   const progress = turns.reduce((n, t) => n + t.sequence + 1, 0)
   const settled = turns.filter((t) => SETTLED.has(t.state)).length
-  return [snapshot.discussion.at(-1)?.id ?? '', turns.at(-1)?.id ?? '', progress, settled].join('|')
+  const notice = notices.at(-1)?.key ?? ''
+  return [snapshot.discussion.at(-1)?.id ?? '', turns.at(-1)?.id ?? '', progress, settled, notice].join('|')
 }
 
 /** The chat has something unseen when what it shows changed since it was last in view, and it isn't in view now. */

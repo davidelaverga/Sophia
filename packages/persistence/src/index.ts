@@ -12,7 +12,7 @@ export {
 export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
 export { readSnapshot } from './snapshot.ts'
-export { admitGoalCommand } from './commands.ts'
+export { admitGoalCommand, canCommand, sentCommand, type SentCommand } from './commands.ts'
 export { createProject } from './projects.ts'
 export { authorizeRoomJoin, transferInputFloor, type MemberRole } from './room.ts'
 export {
@@ -57,13 +57,63 @@ export {
   type RuntimeCaller,
 } from './runtime.ts'
 export {
+  admitResearchTask,
+  researchGateOpen,
+  runtimeResearchCapture,
+  runtimeResearchContext,
+  runtimeResearchDraft,
+  runtimeResearchReserve,
+  runtimeResearchSettle,
+  runtimeResearchSubmit,
+  type ResearchAdmission,
+  type ResearchAdmissionCall,
+  type ResearchAdmissionRequest,
+  type ResearchSpecialist,
+} from './research.ts'
+export {
+  pdfRendererReady,
+  requestResearchRendition,
+  runtimeResearchRender,
+  runtimeResearchRenderResult,
+} from './research-render.ts'
+export {
   admitNativeTask,
   readDiscussion,
   readNativeTask,
   readNativeTasks,
+  readResearchVersion,
+  readResearchVersions,
+  readTaskStandings,
   submitContribution,
   type ContributionOrigin,
+  type ReportVersion,
+  type ReportVersionText,
+  type ResearchVersions,
+  type TaskStanding,
 } from './native-tasks.ts'
+export {
+  editReportSummary,
+  listReports,
+  listReportSources,
+  readArtifactVersions,
+  readReportSource,
+  REPORT_PAGE,
+  searchQuery,
+  type ReportQuery,
+  type ReportSource,
+} from './artifacts.ts'
+export {
+  enqueueRenderJob,
+  rendererClaim,
+  rendererFile,
+  rendererHeartbeat,
+  rendererOutputSlot,
+  rendererRecordOutput,
+  rendererSettle,
+  type RecordedOutput,
+  type RenderFileLocation,
+  type RenderPackageFile,
+} from './renderer.ts'
 export { claimRuntimeOutbox, dispatchRuntimeOutbox, reconcileRuntimeOutbox, type DispatchOutcome } from './dispatch.ts'
 export {
   ackQuiesce,

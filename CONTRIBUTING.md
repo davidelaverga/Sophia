@@ -517,6 +517,42 @@ when you change the room:
   `--type-body` 13, `--type-small` 12, `--type-label` 10.5, under a view's 20
   and a sheet's 15): at most five sizes on a screen, a field's words included,
   checked (`type ·`).
+- **The report viewer has its own checks** (`e2e/report.spec.ts`, SMC-M03): on
+  the room's fixture page, whose API also answers the fixture report
+  (`fixtures/report-data.ts`), Knowledge and a research notice. A report
+  being read is never swapped for a newer version; over the room on a phone
+  or as a full page it keeps mute, the door and the top bar's menus in
+  reach; Esc keeps to the shortcut scope; a notice marks Chat; the focus is
+  handed back and never taken; a description never overwrites a newer one;
+  a failed read is said, with a way to try again, and a refusal as one.
+  Every report downloads as an HTML page (html-report-v1) from its work card,
+  the pane's Document tab and its Knowledge card: the saved file equals the
+  page `@sophia/report/page` prints from the version's checked Markdown, and
+  text that does not match its record (`tamper=text`) saves nothing.
+  History says first what the service's facts show changed (`factsLine`:
+  sections removed and added by name, each in quotes so a heading cannot
+  read as the service's words, cited sources dropped and added, never
+  counting the report's own versions, which a follow-up may list as its base,
+  revisions a count), then Sophia's notes, folded under the facts where a
+  section was removed with no section of its name left, or a source dropped
+  (`notesNeedFacts`), and not shown where the service wrote them from the
+  facts or on a first version, whose note is the service's "First version"
+  (`notesShown`); a Knowledge card shows no notes, since it carries no facts
+  (CX-0026, `history=pilot`). Its comparison by section quotes every heading
+  the same way, named whole (`quotedHeadings`).
+  Change the viewer and they must still pass.
+- **The voice chat has its own checks** (`e2e/voice-chat.spec.ts`, SMC-M03
+  CX-0022 and CX-0023): on the room's fixture page, whose LiveKit fake
+  delivers result cards and live captions as encoded packets through the
+  real dispatch. A member who hears Sophia gets one card per task (its
+  newest revision), whose Open, Download and HTML page keep the focus but do
+  nothing (`aria-disabled`) until the task is read; a brief's card offers no
+  HTML page; every join says its mode, the hello the bridge answers with the
+  cards again. While people talk the chat shows partials, then the final,
+  once and in order, and marks what was cut off; switching to text and back
+  keeps what was said, and a typed message still goes, never a caption; a
+  dropped call or Sophia leaving cuts off what was still being said, and
+  its words reach screen readers. Change the chat and they must still pass.
 
 ## The personal space
 

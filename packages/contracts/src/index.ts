@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs'
 
 export type * from './generated-types.ts'
+export { SPECIALISTS, type SpecialistId } from './specialists.generated.ts'
 
 interface OpenApiDocument {
   components: { schemas: Record<string, Record<string, unknown>> }

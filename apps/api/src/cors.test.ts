@@ -58,7 +58,7 @@ describe('CORS for a deployed Studio', () => {
     })
     assert.equal(res.statusCode, 204)
     const methods = String(res.headers['access-control-allow-methods']).split(/,\s*/)
-    for (const method of ['GET', 'POST', 'PUT', 'DELETE']) assert.ok(methods.includes(method), method)
+    for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']) assert.ok(methods.includes(method), method)
   })
 
   it('gives any other origin nothing, so the browser refuses the call', async () => {

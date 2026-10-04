@@ -13,7 +13,7 @@
     "toolchain:check": "node scripts/toolchain-check.mjs",
     "build": "pnpm --filter @sophia/dsh-bundle --filter @sophia/execution-host run build",
     "typecheck": "pnpm -r --if-present run typecheck && tsc --noEmit -p tsconfig.json",
-    "test": "node --test \"tests/unit/**/*.test.mjs\" \"packages/*/src/**/!(*.db|*.live).test.ts\" \"apps/*/src/**/!(*.db|*.live).test.ts\"",
+    "test": "node --test \"tests/unit/**/*.test.mjs\" \"packages/*/src/**/!(*.db|*.live).test.ts\" \"apps/*/src/**/!(*.db|*.live).test.ts\" \"renderers/*/*/test/*.test.ts\"",
     "test:integration": "node --test --test-concurrency=1 --test-timeout=180000 \"tests/integration/**/*.test.mjs\"",
     "test:sql": "node scripts/db-test.ts",
     "test:db": "node scripts/with-postgres.ts node --test \"packages/*/src/**/*.db.test.ts\" \"apps/*/src/**/*.db.test.ts\"",

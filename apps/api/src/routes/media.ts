@@ -23,7 +23,7 @@ import {
   withService,
 } from '@sophia/persistence'
 import { issueBridgeToken, type LiveKitConfig } from '../livekit.ts'
-import { executeToolCall, TOOL_NAMES } from '../media-tools.ts'
+import { executeToolCall, TOOL_SURFACES, type GuideVersion } from '../media-tools.ts'
 import type { NotificationHub } from '../notification-hub.ts'
 
 /** The routes the media-bridge capability may call, and nothing else may: checked by exact route in app.ts. */
@@ -76,6 +76,18 @@ async function withTokens(
   list: ReadonlyArray<Omit<MediaAssignment, 'roomToken'>>,
 ): Promise<MediaAssignment[]> {
   return Promise.all(list.map(async (a) => ({ ...a, roomToken: await bridgeToken(livekit, a.roomId) })))
+}
+
+/** The tool surface of the guide version the bridge names (A11), v1.1 when it names none. */
+const TOOL_SURFACE_ROUTE = {
+  schema: {
+    querystring: {
+      type: 'object',
+      additionalProperties: false,
+      properties: { guide: { type: 'string', enum: Object.keys(TOOL_SURFACES) } },
+    },
+    response: { 200: { $ref: 'MediaToolSurface#' } },
+  },
 }
 
 export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit }: Deps): void {
@@ -137,8 +149,8 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit }: Deps):
 
   // The bridge activates its guide only when these equal its declarations (A08): an API without a handler for an
   // operation the prompt names must not be talked to by that prompt.
-  app.get('/v1/media/tool-surface', { schema: { response: { 200: { $ref: 'MediaToolSurface#' } } } }, () => ({
-    names: [...TOOL_NAMES],
+  app.get<{ Querystring: { guide?: GuideVersion } }>('/v1/media/tool-surface', TOOL_SURFACE_ROUTE, (req) => ({
+    names: [...TOOL_SURFACES[req.query.guide ?? 'v1.1']],
   }))
 
   app.post<{ Body: MediaToolCall }>(

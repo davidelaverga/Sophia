@@ -25,13 +25,14 @@ import {
   httpMediaService,
   loadMissionGuide,
   MediaBridge,
+  TOOL_SETS,
   type LiveEvents,
   type LiveLink,
   type RoomEvents,
   type RoomLink,
   type RoomPerson,
 } from '@sophia/media-bridge'
-import { createPool, shownReach } from '@sophia/persistence'
+import { admitNativeTask, createPool, shownReach, submitContribution, withActor } from '@sophia/persistence'
 import {
   createTestDatabase,
   registerRuntime,
@@ -241,6 +242,11 @@ describe('media routes: the bridge capability and nothing else (amendment A06)',
     ])
     assert.equal((await call('/v1/media/tool-surface', { bearer: await token(A) })).status, 401)
     assert.equal((await call('/v1/media/tool-surface')).status, 401)
+    // The bridge's own client, for each guide version it can run: the API serves exactly that version's declarations.
+    for (const version of ['v1.1', 'v1.2'] as const) {
+      const names = (await httpMediaService(base, MEDIA_TOKEN).toolSurface(version)).names
+      assert.deepEqual(names, TOOL_SETS[version].names, version)
+    }
   })
 
   it('an exchange does not open when the room’s trusted presence cannot be read, or the room service is not set up', async () => {
@@ -365,6 +371,57 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
       actorId: V,
     })
     assert.equal(out.status, 'clarify')
+  })
+
+  it('the bridge’s client reads what control_work now answers a v1.2 guide, refused or accepted (CX-0026)', async () => {
+    const said = await withActor(pool, E, 'write', (c) =>
+      submitContribution(c, seed.projectId, randomUUID(), {
+        source: null,
+        text: 'Name the runtime crossing first.',
+        threadId: null,
+        artifactVersionId: null,
+        intent: 'discuss',
+      }),
+    )
+    const project = await owner.query<{ mission_revision: string }>(
+      `SELECT mission_revision FROM sophia.projects WHERE id=$1`,
+      [seed.projectId],
+    )
+    const brief = await withActor(pool, E, 'write', (c) =>
+      admitNativeTask(c, seed.projectId, randomUUID(), {
+        kind: 'draft_brief',
+        instruction: 'Draft the brief.',
+        contributionIds: [said.contributionId],
+        expectedMissionRevision: Number(project.rows[0]?.mission_revision),
+      }),
+    )
+    const control = async (callId: string, args: Record<string, unknown>) => {
+      const result = await httpMediaService(base, MEDIA_TOKEN).toolCall({
+        exchangeId,
+        connectionGeneration: 1,
+        callId,
+        name: 'control_work',
+        args: { taskId: brief.taskId, ...args },
+        inputEpoch: 1,
+        actorId: E,
+        guide: 'v1.2',
+      })
+      const output: Record<string, unknown> = { ...result.output }
+      return { status: result.status, output }
+    }
+    // Nothing has dispatched the brief: it is waiting to start.
+    const hold = await control('cx26-hold', { action: 'hold' })
+    assert.deepEqual(
+      [hold.status, hold.output.code, hold.output.applied, hold.output.pending],
+      ['refused', 'not_applied:not_started', false, false],
+    )
+    assert.match(String(hold.output.reason), /^Not applied\. A Hold takes effect once the work is running/)
+    const steer = await control('cx26-steer', { action: 'steer', brief: 'Name the runtime crossing first.' })
+    assert.deepEqual([steer.status, steer.output.accepted, 'stage' in steer.output], ['ok', true, false])
+    assert.equal(
+      steer.output.note,
+      `Steer accepted for waiting-to-start work (taskId ${brief.taskId}). It is not applied yet, and no confirmation comes back here.`,
+    )
   })
 
   it('Stop Speaking over HTTP reaches the bridge through the assignment poll and clears Sophia’s output', async () => {

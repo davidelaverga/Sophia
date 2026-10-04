@@ -1,12 +1,15 @@
-// The chat: the project's recent discussion and the typed conversation with Sophia, newest at the bottom, then the
-// composer. It lives in the room's side panel (StudioShell), as meeting apps have it, so the stage keeps Sophia's
+// The chat: the project's recent discussion and the conversation with Sophia, typed and, as live captions, spoken
+// (CX-0023), newest at the bottom, then the composer. It lives in the room's side panel (StudioShell), as meeting apps have it, so the stage keeps Sophia's
 // light and the people at its centre. Discussion never starts work.
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import type { DiscussionEntry, Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
+import { captionText, type CaptionTurn } from './captions.ts'
+import { chatTimeline, type ChatEntryItem, type ChatTurn } from './chat-view.ts'
 import { Composer } from './Composer.tsx'
 import { authorLabel } from './conversation-view.ts'
+import { NoticeCard } from './NoticeCard.tsx'
 
 interface Props {
   projectId: string
@@ -43,38 +46,28 @@ export function Conversation(props: Props) {
   const following = useRef(true)
   useLayoutEffect(() => {
     if (history.current && following.current) history.current.scrollTop = history.current.scrollHeight
-  }, [room.chat, snapshot?.discussion])
+  }, [room.chat, room.notices, room.captions, snapshot?.discussion])
   useFollowOnResize(history, following)
   const onScroll = () => {
     const el = history.current
     if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64
   }
-  const empty = discussion.length === 0 && room.chat.length === 0
+  const timeline = chatTimeline(room.chat, room.notices, room.captions)
+  const empty = discussion.length === 0 && timeline.length === 0
   return (
     <div className="conversation">
       <div className="conversation-history" ref={history} onScroll={onScroll}>
         {empty && <p className="chat-empty">Messages stay in this conversation. Notes live in the brief.</p>}
         <Discussion entries={discussion} me={me} names={names} />
-        {room.chat.length > 0 && (
+        {timeline.length > 0 && (
           <ol className="chat-messages" aria-label="Conversation with Sophia">
-            {room.chat.map((turn) => (
-              <li key={turn.id}>
-                <div className="chat-message user">
-                  <strong>You</strong>
-                  <p>{turn.text}</p>
-                </div>
-                <div className="chat-message sophia">
-                  <strong>Sophia</strong>
-                  <p>
-                    {turn.reply ||
-                      (turn.state === 'sending' ? 'Sending…' : turn.state === 'responding' ? 'Thinking…' : '')}
-                  </p>
-                  {turn.reason && (
-                    <p className="chat-status" role="status">
-                      {turn.reason}
-                    </p>
-                  )}
-                </div>
+            {timeline.map((entry) => (
+              <li key={entryKey(entry)}>
+                {entry.type === 'turn' && <Turn turn={entry.turn} />}
+                {entry.type === 'notice' && (
+                  <NoticeCard notice={entry.notice} projectId={projectId} identity={identity} />
+                )}
+                {entry.type === 'caption' && <Caption caption={entry.caption} me={me} names={names} />}
               </li>
             ))}
           </ol>
@@ -90,6 +83,49 @@ export function Conversation(props: Props) {
         onShowRoom={onShowRoom}
       />
     </div>
+  )
+}
+
+function entryKey(entry: ChatEntryItem): string {
+  if (entry.type === 'turn') return entry.turn.id
+  return entry.type === 'notice' ? `notice:${entry.notice.key}` : `caption:${entry.caption.id}`
+}
+
+/**
+ * Something said aloud, marked as spoken. Its words reach screen readers once it has ended: a caption still being said
+ * changes with every fragment, which would be read out again and again.
+ */
+function Caption({ caption, me, names }: { caption: CaptionTurn; me: string; names: ReadonlyMap<string, string> }) {
+  const sophia = caption.speaker === 'sophia'
+  const partial = caption.state === 'partial'
+  return (
+    <div className={`chat-message ${sophia ? 'sophia' : 'user'} spoken`} data-state={caption.state}>
+      <strong>{sophia ? 'Sophia' : authorLabel(caption.actorId ?? '', me, names)}</strong>
+      <span className="chat-spoken">Spoken</span>
+      <p aria-hidden={partial || undefined}>{captionText(caption)}</p>
+      {caption.state === 'interrupted' && <p className="chat-status">Cut off</p>}
+    </div>
+  )
+}
+
+/** One typed message and Sophia's reply to it. */
+function Turn({ turn }: { turn: ChatTurn }) {
+  return (
+    <>
+      <div className="chat-message user">
+        <strong>You</strong>
+        <p>{turn.text}</p>
+      </div>
+      <div className="chat-message sophia">
+        <strong>Sophia</strong>
+        <p>{turn.reply || (turn.state === 'sending' ? 'Sending…' : turn.state === 'responding' ? 'Thinking…' : '')}</p>
+        {turn.reason && (
+          <p className="chat-status" role="status">
+            {turn.reason}
+          </p>
+        )}
+      </div>
+    </>
   )
 }
 

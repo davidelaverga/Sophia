@@ -19,11 +19,12 @@ export interface LiveHandlers {
   usage: (usage: UsageMetadata) => void
 }
 
+/** Words, or the marker that a transcription finished, which may come without words (a caption's end, CX-0023). */
 function transcripts(content: LiveServerContent, h: LiveHandlers): void {
   const input = content.inputTranscription
   const output = content.outputTranscription
-  if (input?.text) h.inputTranscript(input.text, input.finished === true)
-  if (output?.text) h.outputTranscript(output.text, output.finished === true)
+  if (input?.text || input?.finished) h.inputTranscript(input.text ?? '', input.finished === true)
+  if (output?.text || output?.finished) h.outputTranscript(output.text ?? '', output.finished === true)
 }
 
 function serverContent(content: LiveServerContent | undefined, h: LiveHandlers): void {
