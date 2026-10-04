@@ -740,26 +740,32 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.doesNotMatch(rich({ markdown: allSaid, limitations: [said] }), /id="report-limitations"/, 'all said: none')
   })
 
-  it('U9 · counts a stored limitation as said only when a whole block of the report says it, word for word (M75)', () => {
-    /** The stored limitations the page prints for a report whose Findings say `findings`. */
-    const printed = (findings: string, stored: string[]) => {
-      const html = page({ markdown: `# T\n\n## Findings\n\n${findings}\n`, limitations: stored })
+  it('U9 · counts a stored limitation as stated only by a whole paragraph or item of a limitations section (M75)', () => {
+    /** The stored limitations the page prints for a report whose section `heading` holds `body`. */
+    const printed = (body: string, stored: string[], heading = 'Limitations') => {
+      const html = page({ markdown: `# T\n\n## Findings\n\nx\n\n## ${heading}\n\n${body}\n`, limitations: stored })
       return [...html.matchAll(/<section id="report-limitations"[^]*?<\/section>/g)].flatMap((m) =>
         [...m[0].matchAll(/<li>([^<]*)<\/li>/g)].map((li) => li[1]),
       )
     }
-    // Said: a whole paragraph, list item or cell, whatever its case, citations, apostrophes, bold or soft hyphens.
-    for (const [findings, stored] of [
+    // Stated: a whole paragraph or list item, whatever its citations, apostrophes, inline tags, soft hyphens, spacing,
+    // case or closing full stop; under any heading the page reads as limitations.
+    for (const [body, stored, heading] of [
       [`Restore times are vendor claims [${A}].`, 'Restore times are vendor claims.'],
       ['The vendor’s figures are unaudited.', "The vendor's figures are unaudited."],
       ['**Vendor**s report their own restore times.', 'Vendors report their own restore times.'],
       ['Prices change of\u00adten.', 'Prices change often.'],
-      ['- One item.\n- RESULTS EXCLUDE ASIA!', 'Results exclude Asia.'],
+      ['- One item.\n- results exclude ASIA', 'Results exclude Asia.'],
+      ['Results exclude\nAsia.', 'Results exclude Asia.'],
+      ['Results exclude  \nAsia.', 'Results exclude Asia.'],
+      ['- Results exclude Asia.', 'Results exclude Asia.', 'Limits of liability'],
+      ['- Results exclude Asia.', 'Results exclude Asia.', 'Conclusions and limitations'],
     ]) {
-      assert.deepEqual(printed(findings ?? '', [stored ?? '']), [], findings)
+      assert.deepEqual(printed(body ?? '', [stored ?? ''], heading), [], body)
     }
-    // Not said, so printed: within a longer block (which may narrow or negate it), across blocks, too short to tell.
-    for (const [findings, stored] of [
+    // Not stated, so printed: inside a longer block (which may narrow or negate it), with other characters, across
+    // blocks, under a line break, a heading, a quotation, a table cell, outside a limitations section, too short.
+    for (const [body, stored, heading] of [
       ['Results exclude Asian subsidiaries.', 'Results exclude Asia.'],
       ['Results exclude Asia-Pacific subsidiaries.', 'Results exclude Asia.'],
       ['Only 2.5% of responses were missing.', '5% of responses were missing.'],
@@ -769,18 +775,37 @@ describe('html-report-v2: what its bytes guarantee', () => {
       ['Critics wrote: the sample is too small. Our power analysis shows otherwise.', 'The sample is too small.'],
       [`Restore times are vendor claims [${A}] and untested.`, 'Restore times are vendor claims.'],
       ['- Prices\n- change often', 'Prices change often.'],
+      ['It is not true that\u0002the sample is too small.', 'The sample is too small.'],
+      ['It is not true that  \nthe sample is too small.', 'The sample is too small.'],
+      ['- It is not true that  \n  the sample is too small.', 'The sample is too small.'],
+      ['Sample size ≥ 30 per arm.', 'Sample size < 30 per arm.'],
+      ['Survey weights = census weights here.', 'Survey weights ≠ census weights here.'],
+      ['Margins moved +3% in 2024.', 'Margins moved -3% in 2024.'],
+      ['The sample is too small?', 'The sample is too small.'],
+      ['The sample is too small!', 'The sample is too small.'],
+      ['ข้อมูล ไม้ ครบ ถ้วน', 'ข้อมูล ไม่ ครบ ถ้วน'],
+      ['I zmir data is missing.', 'İzmir data is missing.'],
+      ['### The sample is too small\n\nOur power analysis shows otherwise.', 'The sample is too small.'],
+      ['Critics wrote:\n\n> The sample is too small.', 'The sample is too small.'],
+      ['| Claim | Status |\n|--|--|\n| The sample is too small. | Refuted |', 'The sample is too small.'],
+      ["- The sample is too small\n  - in the critics' view", 'The sample is too small.'],
+      ['- Critics claim:\n  - The sample is too small.', 'The sample is too small.'],
+      ['The sample is too small.', 'The sample is too small.', 'Findings again'],
       ['Preliminary.', 'Preliminary.'],
       ['| a |\n|--|\n| N/A |', 'N/A'],
       ['It ends here...', '...'],
     ]) {
-      assert.deepEqual(printed(findings ?? '', [stored ?? '']), [esc(stored ?? '')], findings)
+      assert.deepEqual(printed(body ?? '', [stored ?? ''], heading), [esc(stored ?? '')], body)
     }
-    // Said under no limitations heading: nothing printed twice, and never "states no limitations".
+    // Stated outside a limitations section: printed, and never "states no limitations" while any is stored.
     const html = page({
       markdown: '# T\n\n## Findings\n\nPrices change often.\n',
       limitations: ['Prices change often.'],
     })
-    assert.doesNotMatch(html, /id="report-limitations"|states no limitations/)
+    assert.ok(html.includes('<li>Prices change often.</li>') && !/states no limitations/.test(html))
+    // A stored limitation that shows nothing is no limitation: no bullet, and the note stands.
+    const blank = page({ markdown: '# T\n\n## Findings\n\nx\n', limitations: ['\u200b', ' \u00ad '] })
+    assert.ok(!blank.includes('id="report-limitations"') && /states no limitations/.test(blank), 'invisible')
     // Beside the report's own limitations section, the record's is named apart: no two contents entries alike.
     const both = page({
       markdown: '# T\n\n## Findings\n\nx\n\n## Limitations\n\n- Small sample.\n',
