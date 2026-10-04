@@ -1,0 +1,438 @@
+/*
+  The opening (docs/plans/entry-opening.md): Sophia's void and her lockup on the first paint. The halves meet, a light
+  kindles in the line between them, leaps out as the dot of her name and lands on its i; the word appears behind it.
+  Then it holds, breathing, over a thin bar that src/app/entry.ts moves on real milestones. Transforms and opacity only.
+  The lockup's unit is --h, the mark's height: the word and the dot are placed on the brand lockup's own 60-unit grid.
+*/
+html,
+body {
+  margin: 0;
+  background: #050408;
+}
+#entry {
+  --h: 64px;
+  --u: calc(var(--h) / 60);
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+#entry[hidden] {
+  display: none;
+}
+/* A sign-in's return (entry.js): there from the first frame, before the app takes it on. */
+html[data-entering] #entry {
+  display: block;
+}
+/* Its ground covers the page from the first frame: nothing under it shows before the handoff. Over a screen already
+   shown (an in-page sign-in), the opening fades in over it instead. */
+#entry[data-cover] {
+  opacity: 0;
+  animation: entry-show 0.18s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+@media (max-width: 520px) {
+  #entry {
+    --h: 46px;
+  }
+}
+.entry-ground {
+  position: absolute;
+  inset: 0;
+  background: #050408;
+}
+
+/* The lockup: mark, a 14-unit gap, the word (148 units); centred, 44 % down. */
+.entry-lockup {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: calc(var(--u) * 222);
+  height: var(--h);
+  transform: translate(-50%, -50%);
+}
+.entry-mark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--h);
+  height: var(--h);
+  overflow: visible;
+}
+/* Each part its own layer (an HTML box per SVG): its arrival is composited, not painted, while the app loads. Each
+   turns about its own shape's centre on the 48 grid. */
+.entry-mark > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.entry-you {
+  transform-origin: 42% 55%;
+}
+.entry-her,
+.entry-her-glow,
+.entry-halo {
+  transform-origin: 73.7% 31%;
+}
+.entry-kindle {
+  transform-origin: 65.6% 52%;
+}
+.entry-word {
+  position: absolute;
+  left: calc(var(--u) * 74);
+  top: 0;
+  width: calc(var(--u) * 148);
+  height: var(--h);
+}
+/* The word appears behind the dot: a panel of the void, its leading edge soft, slides off it. */
+.entry-wipe {
+  position: absolute;
+  left: -24px;
+  top: -20%;
+  width: calc(100% + 48px);
+  height: 140%;
+  background: linear-gradient(90deg, rgba(5, 4, 8, 0), #050408 24px);
+  animation: entry-wipe 0.78s cubic-bezier(0.4, 0, 0.2, 1) 1.12s forwards;
+}
+.entry-word svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.entry-glint {
+  transform: translateX(-60px) skewX(-18deg);
+  animation: entry-glint 1.2s cubic-bezier(0.4, 0, 0.2, 1) 1.9s forwards;
+}
+
+/* Your half and hers meet; hers holds a light that answers her dot's. */
+.entry-you {
+  opacity: 0;
+  animation: entry-you 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
+}
+.entry-her,
+.entry-her-glow {
+  opacity: 0;
+  animation: entry-her 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.25s forwards;
+}
+.entry-halo {
+  opacity: 0;
+  animation:
+    entry-her 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.25s forwards,
+    entry-breathe 2.8s ease-in-out 2.6s infinite alternate;
+}
+.entry-kindle {
+  opacity: 0;
+  animation: entry-kindle 0.75s cubic-bezier(0.4, 0, 0.2, 1) 0.55s forwards;
+}
+
+/* The dot: kindled in the line between the halves, it leaps in an arc to the i. x and y move on their own curves. */
+.entry-leap {
+  position: absolute;
+  left: calc(var(--u) * 39.4);
+  top: calc(var(--u) * 27.5);
+  width: 0;
+  height: 0;
+  animation: entry-leap-x 0.78s cubic-bezier(0.5, 0, 0.25, 1) 1.05s forwards;
+}
+.entry-rise {
+  animation: entry-leap-y 0.78s linear 1.05s forwards;
+}
+.entry-dot {
+  position: absolute;
+  left: calc(var(--u) * -4.4);
+  top: calc(var(--u) * -4.4);
+  width: calc(var(--u) * 8.8);
+  height: calc(var(--u) * 8.8);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 34%, #ffffff 0%, #e6deff 30%, #b9a8ff 68%, #9c82f5 100%);
+  box-shadow:
+    0 0 calc(var(--u) * 3) rgba(196, 180, 255, 0.95),
+    0 0 calc(var(--u) * 14) rgba(156, 130, 245, 0.55);
+  transform: scale(0);
+  animation:
+    entry-dot 0.55s cubic-bezier(0.34, 1.3, 0.64, 1) 0.7s forwards,
+    entry-land 0.65s ease-out 1.83s;
+}
+.entry-dot::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--u) * -9);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(156, 130, 245, 0.55) 0%, rgba(156, 130, 245, 0) 70%);
+  opacity: 0.6;
+  animation: entry-breathe 2.8s ease-in-out 2.6s infinite alternate;
+}
+.entry-ring {
+  position: absolute;
+  left: calc(var(--u) * (114.46 + 74) - var(--u) * 10);
+  top: calc(var(--u) * 9.5 - var(--u) * 10);
+  width: calc(var(--u) * 20);
+  height: calc(var(--u) * 20);
+  border-radius: 50%;
+  border: calc(var(--u) * 1.1) solid rgba(214, 202, 255, 0.95);
+  box-sizing: border-box;
+  opacity: 0;
+  transform: scale(0.3);
+  animation: entry-ring 1.25s cubic-bezier(0.1, 0.7, 0.2, 1) 1.84s forwards;
+}
+.entry-ring::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--u) * -40);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(185, 168, 255, 0.5) 0%,
+    rgba(156, 130, 245, 0.18) 35%,
+    rgba(156, 130, 245, 0) 70%
+  );
+}
+.entry-bloom {
+  position: absolute;
+  left: calc(var(--u) * (114.46 + 74) - var(--u) * 70);
+  top: calc(var(--u) * 9.5 - var(--u) * 70);
+  width: calc(var(--u) * 140);
+  height: calc(var(--u) * 140);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(196, 180, 255, 0.42) 0%,
+    rgba(156, 130, 245, 0.14) 32%,
+    rgba(156, 130, 245, 0) 68%
+  );
+  opacity: 0;
+  animation: entry-bloom 1.4s cubic-bezier(0.2, 0, 0, 1) 1.84s forwards;
+}
+
+.entry-bar {
+  position: absolute;
+  left: calc(50% - var(--u) * 48);
+  top: calc(44% + var(--h) / 2 + var(--u) * 34);
+  width: calc(var(--u) * 96);
+  height: 2px;
+  border-radius: 1px;
+  overflow: hidden;
+  background: rgba(244, 240, 255, 0.07);
+  opacity: 0;
+  animation: entry-show 0.6s ease 0.6s forwards;
+}
+.entry-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f1dcc7, #b9a8ff);
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: entry-page 4.5s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+/* The work under way, said under the bar (src/app/entry.ts changes it as each step is done). */
+.entry-step {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: calc(44% + var(--h) / 2 + var(--u) * 34 + 16px);
+  margin: 0;
+  text-align: center;
+  font:
+    450 12.5px/1.4 'Geist Variable',
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.01em;
+  color: rgba(244, 240, 255, 0.5);
+  opacity: 0;
+  animation: entry-show 0.6s ease 0.6s forwards;
+}
+/* After 6 s: it says so, with a way out (the page again, without the link). Hidden until then, so nothing reads it. */
+.entry-slow {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: calc(44% + var(--h) / 2 + var(--u) * 34 + 40px);
+  margin: 0;
+  text-align: center;
+  font:
+    13px/1.45 'Geist Variable',
+    system-ui,
+    sans-serif;
+  color: rgba(244, 240, 255, 0.56);
+  visibility: hidden;
+  animation: entry-slow 0.4s ease 6s forwards;
+}
+.entry-again {
+  color: #b9a8ff;
+}
+@keyframes entry-slow {
+  from {
+    visibility: visible;
+    opacity: 0;
+  }
+  to {
+    visibility: visible;
+    opacity: 1;
+  }
+}
+
+@keyframes entry-show {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes entry-page {
+  20% {
+    transform: scaleX(0.16);
+  }
+  to {
+    transform: scaleX(0.36);
+  }
+}
+@keyframes entry-you {
+  from {
+    opacity: 0;
+    transform: translateX(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes entry-her {
+  from {
+    opacity: 0;
+    transform: translateX(4px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes entry-kindle {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+  45% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(0.9);
+  }
+}
+@keyframes entry-dot {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes entry-leap-x {
+  to {
+    transform: translateX(calc(var(--u) * (74 + 114.46 - 39.4)));
+  }
+}
+/* Up over the word and down onto the i: a throw, rising fast and falling into place. */
+@keyframes entry-leap-y {
+  0% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  }
+  48% {
+    transform: translateY(calc(var(--u) * -30));
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+  }
+  100% {
+    transform: translateY(calc(var(--u) * (9.5 - 27.5)));
+  }
+}
+@keyframes entry-wipe {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes entry-glint {
+  to {
+    transform: translateX(220px) skewX(-18deg);
+  }
+}
+/* Landing on the i: a soft give, then back to round. */
+@keyframes entry-land {
+  0% {
+    transform: scale(1);
+  }
+  18% {
+    transform: scale(1.26, 0.82);
+  }
+  55% {
+    transform: scale(0.97, 1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes entry-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  22% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+@keyframes entry-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+@keyframes entry-breathe {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #entry,
+  #entry :not(.entry-slow),
+  #entry *::after {
+    animation: none !important;
+  }
+  #entry,
+  #entry[data-cover],
+  .entry-you,
+  .entry-her,
+  .entry-her-glow,
+  .entry-halo,
+  .entry-bar,
+  .entry-step {
+    opacity: 1;
+  }
+  .entry-wipe {
+    display: none;
+  }
+  .entry-leap {
+    transform: translateX(calc(var(--u) * (74 + 114.46 - 39.4))) translateY(calc(var(--u) * (9.5 - 27.5)));
+  }
+  .entry-dot {
+    transform: none;
+  }
+  .entry-ring,
+  .entry-bloom {
+    display: none;
+  }
+  .entry-fill {
+    transform: scaleX(0.16);
+  }
+}
