@@ -21,6 +21,7 @@ import {
   notesShown,
   progressRatio,
   progressText,
+  quotedHeadings,
   renditionRefusal,
   renditionWords,
   reportFilename,
@@ -295,6 +296,15 @@ describe('a version’s facts line, first in its history entry (CX-0026)', () =>
       'Compared with v1: 1 section added: “The "rest"" unchanged”.',
       'a heading’s own quotes never close the quote',
     )
+  })
+
+  it('quotes every heading of a comparison’s lists, so one with a comma never reads as two sections', () => {
+    assert.equal(
+      quotedHeadings(['Pros, cons and trade-offs', 'Pricing', 'The “rest” unchanged']),
+      '“Pros, cons and trade-offs”, “Pricing”, “The "rest" unchanged”',
+    )
+    const long = `A heading that runs on ${'and on '.repeat(10)}`
+    assert.equal(quotedHeadings([long]), `“${long}”`, 'named whole: the comparison is where a heading is read in full')
   })
 
   it('names at most eight headings of a list, each cut short past 60 characters', () => {

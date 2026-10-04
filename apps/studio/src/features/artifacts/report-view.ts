@@ -345,18 +345,27 @@ const NAMED = 8
 const NAME_LENGTH = 60
 
 /**
- * A heading as the line names it: in quotes, so a heading the worker wrote ("Everything else unchanged") never reads as
- * the service's own words, and cut short past NAME_LENGTH characters. Its own curly double quotes become straight ones,
- * so none of them closes the quote early.
+ * A heading in quotes, so one the worker wrote ("Everything else unchanged", "Pros, cons and trade-offs") never reads
+ * as Studio's own words or as several sections. Its own curly double quotes become straight ones, so none of them
+ * closes the quote early.
  */
+const quoted = (heading: string) => `“${heading.replace(/[“”]/gu, '"')}”`
+
+/** "“A”, “B”": every heading of a list, each quoted (the comparison by section's lists). */
+export const quotedHeadings = (headings: readonly string[]): string => headings.map(quoted).join(', ')
+
+/** A heading as the facts line names it: quoted, and cut short past NAME_LENGTH characters. */
 function nameOf(heading: string): string {
-  const plain = heading.replace(/[“”]/gu, '"')
   // Code points, as the service counts characters: an emoji or another character outside the BMP is never cut in two.
   // oxlint-disable-next-line typescript/no-misused-spread -- code points by design; Firefox 114 lacks Intl.Segmenter
-  const chars = [...plain]
-  if (chars.length <= NAME_LENGTH) return `“${plain}”`
-  const kept = chars.slice(0, NAME_LENGTH - 1).join('')
-  return `“${kept.trimEnd()}…”`
+  const chars = [...heading]
+  if (chars.length <= NAME_LENGTH) return quoted(heading)
+  return quoted(
+    `${chars
+      .slice(0, NAME_LENGTH - 1)
+      .join('')
+      .trimEnd()}…`,
+  )
 }
 
 /** "“A”, “B” and 3 more": a list's headings, quoted, as many as the line names, a long one cut short. */

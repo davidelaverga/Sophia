@@ -538,7 +538,8 @@ when you change the room:
   (`notesNeedFacts`), and not shown where the service wrote them from the
   facts or on a first version, whose note is the service's "First version"
   (`notesShown`); a Knowledge card shows no notes, since it carries no facts
-  (CX-0026, `history=pilot`).
+  (CX-0026, `history=pilot`). Its comparison by section quotes every heading
+  the same way, named whole (`quotedHeadings`).
   Change the viewer and they must still pass.
 - **The voice chat has its own checks** (`e2e/voice-chat.spec.ts`, SMC-M03
   CX-0022 and CX-0023): on the room's fixture page, whose LiveKit fake

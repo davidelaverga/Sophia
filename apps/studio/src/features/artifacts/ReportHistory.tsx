@@ -13,7 +13,7 @@ import { Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { loadReportText } from './download.ts'
 import { compareSections, type SectionChange } from './markdown.ts'
-import { conclusionTopic, factChips, factsLine, notesShown } from './report-view.ts'
+import { conclusionTopic, factChips, factsLine, notesShown, quotedHeadings } from './report-view.ts'
 
 interface Props {
   identity: Identity
@@ -199,7 +199,7 @@ function ChangeLists({ change }: { change: SectionChange }) {
       {LISTS.filter(([k]) => change[k].length > 0).map(([k, label]) => (
         <div key={k}>
           <dt>{label}</dt>
-          <dd>{change[k].join(', ')}</dd>
+          <dd>{quotedHeadings(change[k])}</dd>
         </div>
       ))}
       {topic && (
