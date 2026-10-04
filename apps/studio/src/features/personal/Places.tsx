@@ -8,7 +8,6 @@ import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@so
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
-import { initialOf } from '../../app/profile.ts'
 import type { Place } from '../../app/route.ts'
 import { modalOnScreen, useShortcuts } from '../../app/shortcuts.ts'
 import type { ShowToast } from '../../app/Toast.tsx'
@@ -22,7 +21,18 @@ import { PlaceDialogs } from './PlaceDialogs.tsx'
 import { PlacesBar, type InCall } from './PlacesBar.tsx'
 import { PersonalSpace } from './PersonalSpace.tsx'
 import { usePresses, type Presses } from './presses.ts'
-import { dateLine, firstName, greeting, PLACE_TITLE, READ_FAILED, readState, workDoor, youDoor } from './places-view.ts'
+import {
+  dateLine,
+  firstName,
+  greeting,
+  homeAttention,
+  homeSummary,
+  PLACE_TITLE,
+  READ_FAILED,
+  readState,
+  workCount,
+  youDoor,
+} from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
 import { useEscape } from './useEscape.ts'
 import {
@@ -272,7 +282,7 @@ function useHomeKeys(place: Place, active: boolean, identity: string, nav: Nav) 
 }
 
 /** H, P, W go to the three places; D opens your data; L the padlock; T the notes. Esc closes what opened last. */
-function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav, explain: Explain) {
+function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav) {
   const { place } = props
   const free = !layers.unlock && !layers.privacy && !layers.data
   useShortcuts(
@@ -290,7 +300,7 @@ function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav, explain: Exp
   // With nothing open, Escape takes the place home; each open layer closes first, the latest first. The menus and the
   // sheets close themselves (usePopover, useDialog).
   useEscape(place !== 'home', () => nav.enter('home'))
-  useEscape(place === 'home' && explain.shown, explain.dismiss)
+  // On Home, Esc folds the first-visit note away itself (HomeDoors' Intro), as "Got it" does.
   // Only where the notes are on screen: elsewhere they stay open for the way back, and Esc goes home.
   useEscape(layers.notes && place === 'personal', () => {
     layers.setNotes(false)
@@ -306,7 +316,8 @@ function useExplain(identity: string) {
     dismiss: () => {
       setShown(false)
       writeFlag(identity, 'explained', 'yes')
-      document.querySelector<HTMLElement>('.c2-line .c2-lock')?.focus()
+      // To the padlock the sentence named, without scrolling the page to it (a phone would jump).
+      document.querySelector<HTMLElement>('.c2-line .c2-lock')?.focus({ preventScroll: true })
     },
   }
 }
@@ -357,25 +368,34 @@ const projectsRead = (v: View): Read => ({
 function Home({ v }: { v: View }) {
   const { props, now, nav, layers } = v
   const data = v.personal
-  const work = workDoor(v.projects.data?.projects, now, props.call?.title ?? null)
+  const projects = v.projects.data?.projects
+  const inCall = props.call?.projectId ?? null
   const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
   return (
     <div className="c-home" data-place-view="home" hidden={!v.shown.includes('home')}>
       <HomeDoors
         hello={greeting(now.getHours(), firstName(props.identity), fresh)}
         date={dateLine(now)}
+        summary={homeSummary(projects, now)}
+        attention={homeAttention(projects, now, inCall)}
         explain={v.explain.shown}
         reads={[personalRead(v), projectsRead(v)]}
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
-        work={work}
-        initial={initialOf(props.identity.displayName, props.identity.name)}
+        count={workCount(projects)}
+        projects={projects}
+        now={now}
+        inCallProject={inCall}
         lockedBy={lockedBy(props.lock)}
         actions={{
           personal: () => nav.enter('personal'),
           notes: () => nav.enter('personal', () => layers.setNotes(true)),
-          work: () => (work.joins ? props.onOpenProject(work.joins.projectId, true) : nav.enter('work')),
+          work: () => nav.enter('work'),
+          newProject: () => nav.enter('work', () => layers.setNewProject(true)),
           lock: nav.toggleLock,
           explained: v.explain.dismiss,
+          // Your own call's row takes you back to it; leaving stays with the bar's room pill.
+          room: (id, action) =>
+            action === 'back' ? props.call?.onReturn() : props.onOpenProject(id, action === 'join'),
         }}
       />
     </div>
@@ -545,7 +565,7 @@ export function Places(props: PlacesProps) {
     explain,
   }
   useArrival(place)
-  usePlaceKeys(props, layers, nav, explain)
+  usePlaceKeys(props, layers, nav)
   useOpening(props, layers)
   useDocumentTitle(PLACE_TITLE[place])
   useShutSpace(props, layers.setNotes)

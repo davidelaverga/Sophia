@@ -10,6 +10,10 @@ import {
   PRIVACY_RULES,
   firstName,
   greeting,
+  HOME_ACTION,
+  homeAttention,
+  homeRows,
+  homeSummary,
   otherWaysNote,
   otherWaysShown,
   projectCard,
@@ -17,7 +21,7 @@ import {
   roomCaption,
   sessionWhen,
   UNLOCK,
-  workDoor,
+  workCount,
   youDoor,
 } from './places-view.ts'
 
@@ -93,9 +97,6 @@ describe('home words', () => {
       meta: '',
       notes: null,
     })
-    const loading = workDoor(undefined, NOW, null)
-    assert.deepEqual([loading.verb, loading.meta, loading.count, loading.known], ['Open your projects', '', '', false])
-    assert.equal(workDoor(undefined, NOW, 'Launch plan').meta, 'You’re in Launch plan')
   })
 
   it('tells a read that failed from one that is loading or not asked', () => {
@@ -109,43 +110,24 @@ describe('home words', () => {
     assert.equal(readState({ data: [], isFetching: false, isError: true }), 'ready')
   })
 
-  it('says what the Work door opens: a first project, the projects, or a room about to start', () => {
-    assert.equal(workDoor([], NOW, null).verb, 'Start a project')
-    assert.equal(workDoor([], NOW, null).known, true)
-    const quiet = workDoor([project(), project({ title: 'Pitch deck, Q4' })], NOW, null)
-    assert.deepEqual(
-      [quiet.verb, quiet.meta, quiet.count],
-      ['Open your projects', 'Launch plan and 1 more', '2 projects'],
-    )
-    const pitch = project({ title: 'Pitch deck, Q4', nextSession: session(8) })
-    const soon = workDoor([project(), pitch], NOW, null)
-    assert.deepEqual(
-      [soon.verb, soon.meta, soon.joins?.title],
-      ['Join the room', 'Pitch deck, Q4 · starts in 8 min', 'Pitch deck, Q4'],
-    )
-    assert.equal(workDoor([project(), pitch], NOW, 'Pitch deck, Q4').meta, 'You’re in Pitch deck, Q4')
+  it('counts the projects for All projects, and the notes carried from you; nothing while they load', () => {
+    assert.equal(workCount(undefined), '')
+    assert.equal(workCount([]), '')
+    assert.equal(workCount([project(), project({ title: 'Pitch deck, Q4' })]), '2 projects')
     const mine = project({
       releases: [{ id: 'r', text: 'x', ownerName: 'a', mine: true, createdAt: NOW.toISOString() }],
     })
-    assert.equal(workDoor([mine], NOW, null).count, '1 project · 1 from you')
+    assert.equal(workCount([mine]), '1 project · 1 from you')
   })
 
-  it('offers the session that starts first when several are about to', () => {
-    const later = project({ title: 'Pitch deck, Q4', nextSession: session(8) })
-    const sooner = project({ title: 'Launch plan', nextSession: session(2) })
-    const door = workDoor([later, sooner], NOW, null)
-    assert.deepEqual([door.joins?.title, door.meta], ['Launch plan', 'Launch plan · starts in 2 min'])
-  })
-
-  it('names who is in the busiest room, Sophia last', () => {
+  it('names who is in a room, Sophia last', () => {
     const live = project({ room: { people: ['davide@sophia.test', 'luis@sophia.test'], sophia: true } })
-    const door = workDoor([project({ title: 'Other' }), live], NOW, null)
-    assert.equal(roomCaption(door.shown), 'Davide, Luis and Sophia are in Launch plan')
+    assert.equal(roomCaption(live), 'Davide, Luis and Sophia are in Launch plan')
     assert.equal(
       roomCaption(project({ room: { people: ['luis@sophia.test'], sophia: false } })),
       'Luis is in Launch plan',
     )
-    assert.equal(roomCaption(workDoor([project()], NOW, null).shown), '')
+    assert.equal(roomCaption(project()), '')
   })
 })
 
@@ -165,6 +147,66 @@ describe('project cards', () => {
     assert.equal(projectCard(project({ nextSession: session(-5) }), NOW, false).action, 'join')
     assert.equal(projectCard(live, NOW, true).action, 'leave')
     assert.equal(sessionWhen(project({ nextSession: session(60 * 20) }), NOW), 'tomorrow at 17:00')
+  })
+})
+
+const id = (n: number) => `00000000-0000-4000-8000-00000000000${String(n)}`
+
+describe('home, as a place that knows where you’ll go', () => {
+  const four = [
+    project({ projectId: id(1), title: 'Launch plan' }),
+    project({ projectId: id(2), title: 'Research notes' }),
+    project({ projectId: id(3), title: 'Design review' }),
+    project({ projectId: id(4), title: 'Weekly standup', nextSession: session(10) }),
+  ]
+
+  it('offers Work’s first three, in its order, each read as Work reads it', () => {
+    const rows = homeRows(four, NOW, null)
+    assert.deepEqual(
+      rows.map((r) => r.project.title),
+      ['Weekly standup', 'Launch plan', 'Research notes'],
+    )
+    assert.equal(rows[0]?.soon, true)
+    assert.deepEqual(rows[0]?.card, projectCard(four[3] ?? project(), NOW, false))
+    assert.equal(rows[1]?.soon, false)
+    assert.deepEqual(homeRows([], NOW, null), [])
+  })
+
+  it('a row with people in its room joins it; the call you are in takes you back to it, never hangs up', () => {
+    const live = project({ projectId: id(5), room: { people: ['davide@sophia.test'], sophia: true } })
+    const [row] = homeRows([live], NOW, null)
+    assert.equal(row?.live, true)
+    assert.equal(row?.action, 'join')
+    assert.equal(homeRows([live], NOW, id(5))[0]?.action, 'back')
+    assert.equal(HOME_ACTION.back, 'Back to the room')
+    assert.equal(homeRows([project()], NOW, null)[0]?.action, 'open')
+  })
+
+  it('sums the projects up and names the soonest session; says nothing while they load', () => {
+    assert.equal(homeSummary(four, NOW), '4 projects · Pitch run starts in 10 min')
+    assert.equal(homeSummary([project()], NOW), '1 project')
+    assert.equal(homeSummary([], NOW), 'No projects yet')
+    assert.equal(homeSummary(undefined, NOW), '')
+  })
+
+  it('wants you now for a session about to start, else for people in a room, else not at all', () => {
+    assert.deepEqual(homeAttention(four, NOW, null), {
+      projectId: id(4),
+      words: 'Pitch run in Weekly standup starts in 10 min',
+      tone: 'soon',
+    })
+    const live = project({
+      projectId: id(5),
+      title: 'Pitch deck',
+      room: { people: ['davide@sophia.test'], sophia: true },
+    })
+    assert.deepEqual(homeAttention([project(), live], NOW, null), {
+      projectId: id(5),
+      words: 'Davide and Sophia are in Pitch deck',
+      tone: 'live',
+    })
+    assert.equal(homeAttention([project()], NOW, null), null)
+    assert.equal(homeAttention(four, NOW, id(1)), null) // in a call already: the bar's room pill says so
   })
 })
 

@@ -235,6 +235,11 @@ export class LightEngine {
 
   private resize(width: number, height: number): void {
     this.size = { width, height }
+    // Shown again: its frames start again, from now (no leap for the time it was away).
+    if (!this.frameId && width >= 1 && height >= 1) {
+      this.last = performance.now() / 1000
+      this.frameId = requestAnimationFrame(this.tick)
+    }
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     this.gl?.resize(width, height)
     this.traceCanvas.width = Math.round(width * dpr)
@@ -251,11 +256,15 @@ export class LightEngine {
   }
 
   private readonly tick = (): void => {
+    // A box with no size (a view hidden, as Home is behind another place) asks for no frames until it has one again.
+    if (this.size.width < 1 || this.size.height < 1) {
+      this.frameId = 0
+      return
+    }
     this.frameId = requestAnimationFrame(this.tick)
     const t = performance.now() / 1000
     const raw = t - this.last
     this.last = t
-    if (this.size.width < 1 || this.size.height < 1) return
     if (!this.snapped) this.snap()
     this.pace(raw)
     this.draw(t, this.step(t, Math.min(0.05, raw)))
