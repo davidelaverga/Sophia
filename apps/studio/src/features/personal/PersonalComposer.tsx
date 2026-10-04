@@ -279,21 +279,53 @@ interface FieldProps {
   field: RefObject<HTMLTextAreaElement | null>
   text: string
   state: ComposerState
+  /** The count shows beside the field (Count): the field names it in its description. */
+  counted: boolean
   onChange: (text: string) => void
   onSend: () => void
 }
 
-function Field({ field, text, state, onChange, onSend }: FieldProps) {
+/** The most one message holds; its count shows from NEAR on, so the limit is said before it bites. */
+const MOST = 4000
+const NEAR = 3600
+
+/** How full the field is, once it nears the most one message holds; at the most, why it takes no more. */
+function Count({ length }: { length: number }) {
+  const full = length >= MOST
+  return (
+    <span id="c-count" className={`c3-count${full ? ' full' : ''}`}>
+      {Math.min(length, MOST).toLocaleString('en-US')} / {MOST.toLocaleString('en-US')}
+      {full && ' · the most one message holds'}
+    </span>
+  )
+}
+
+/** Over the field's line: its note (a draft kept, the voice) and, near the most it holds, its count. */
+function Over({ note, count }: { note: React.ReactNode; count: number | null }) {
+  if (!note && count === null) return null
+  return (
+    <div className="c3-over">
+      {note && (
+        <p className="chat-line" role="status">
+          {note}
+        </p>
+      )}
+      {count !== null && <Count length={count} />}
+    </div>
+  )
+}
+
+function Field({ field, text, state, counted, onChange, onSend }: FieldProps) {
   return (
     <textarea
       ref={field}
       id="c-input"
-      aria-describedby="c-private-note"
+      aria-describedby={counted ? 'c-private-note c-count' : 'c-private-note'}
       // Stray typing lands here while it can take it (shortcuts.ts): a message begun with the focus nowhere is a
       // message, never a place's key (its first L would lock the space).
       data-typing-sink={state === 'ready' ? '' : undefined}
       rows={1}
-      maxLength={4000}
+      maxLength={MOST}
       placeholder={PLACEHOLDER[state]}
       value={text}
       disabled={state !== 'ready'}
@@ -455,6 +487,7 @@ export function PersonalComposer(props: Props) {
   const send = useSend(account, draft, ready, busy, onSend)
   useHanded(props, ready, send, draft)
   useStarter(starter, ready && !busy, send)
+  const counted = text.length >= NEAR && !dictation.listening
   return (
     <form
       className="ps-composer"
@@ -463,11 +496,7 @@ export function PersonalComposer(props: Props) {
         void send()
       }}
     >
-      {note && (
-        <p className="chat-line" role="status">
-          {note}
-        </p>
-      )}
+      <Over note={note} count={counted ? text.length : null} />
       <div className={`message-bar${dictation.listening ? ' listening' : ''}`}>
         <span className="c3-private" title="Only she hears this" aria-hidden>
           <Icon name="lock" />
@@ -478,7 +507,7 @@ export function PersonalComposer(props: Props) {
         <span id="c-private-note" className="sr-only">
           Only she hears this
         </span>
-        <Field field={field} text={text} state={state} onChange={change} onSend={() => void send()} />
+        <Field field={field} text={text} state={state} counted={counted} onChange={change} onSend={() => void send()} />
         {dictation.listening && <Listening />}
         {dictation.available && ready && (
           <MicButton
