@@ -1201,6 +1201,10 @@
   gap: 6px;
   max-width: 64ch;
 }
+/* Its status is there from the start, empty and out of the flow until it has a step to say. */
+.review-challenge-said:empty {
+  position: absolute;
+}
 .review-challenge-open {
   justify-self: start;
 }

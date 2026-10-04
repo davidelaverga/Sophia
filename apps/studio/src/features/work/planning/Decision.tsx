@@ -156,11 +156,10 @@ export function Decision(props: Props) {
         {!decided && (
           <Choices decision={decision} mine={mine} chosen={answer.chosen} pressable={pressable} choose={choose} />
         )}
-        {said && (
-          <p className="plan-ask-said" role="status" data-state={saidState}>
-            {said}
-          </p>
-        )}
+        {/* One status from the start, its words changed in place: a screen reader hears each step, the last too. */}
+        <p className="plan-ask-said" role="status" data-state={saidState}>
+          {said && <span key={saidState}>{said}</span>}
+        </p>
       </div>
     </section>
   )

@@ -10,6 +10,7 @@ import { startOver } from './link-accept.ts'
 import { PasskeyLink, usePasskeySignIn } from './PasskeySignIn.tsx'
 import { ProviderButtons } from './ProviderButtons.tsx'
 import { SLOW_NOTE, useSlow } from './useSlow.ts'
+import { Mark } from './Mark.tsx'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
 const LOCAL_AUTH = /^http:\/\/(127\.0\.0\.1|localhost):54321/.test(import.meta.env.VITE_SUPABASE_URL ?? '')
@@ -20,7 +21,7 @@ export function Centered({ title, children, busy }: { title: string; children?: 
     <main className="screen" aria-busy={busy}>
       <SophiaLight mode="rest" target={null} attention={null} working={false} screen />
       <div className="screen-mark">
-        <span className="mark-dot" aria-hidden />
+        <Mark />
         <span className="mark-word">Sophia</span>
       </div>
       <div className="screen-body">

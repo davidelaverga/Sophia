@@ -26,6 +26,7 @@ import { blockedBy, isStale, shownConnection, type Blocked } from './project-doo
 import { StudioShell, useRoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
+import { Mark } from '../../app/Mark.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
 const InviteSheet = lazy(() => import('../access/InviteSheet.tsx').then((m) => ({ default: m.InviteSheet })))
@@ -310,7 +311,7 @@ function ProjectHeader({ title, connection, nav, share, account, onLeave, onWork
   return (
     <header className="topbar">
       <button type="button" className="mark has-tip" onClick={onLeave} aria-label={home}>
-        <span className="mark-dot" data-live={connection === 'live' || undefined} aria-hidden />
+        <Mark live={connection === 'live'} />
         <span className="mark-word">Sophia</span>
         <Tip label={home} keys="H" side="bottom" />
       </button>

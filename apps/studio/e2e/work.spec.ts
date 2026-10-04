@@ -1792,3 +1792,36 @@ test('challenge · none for a viewer who can’t act, nor on a review of an earl
   await expect(reviewCard(page)).toBeVisible()
   await expect(reviewCard(page).getByRole('button', { name: 'Challenge' })).toHaveCount(0)
 })
+
+// ---- One live region per receipt (Codex P2 on #79): the same node says each step, so a screen reader hears the end. ----
+
+/** Marks a node in the page, to tell later whether it is still the same one. */
+const mark = (locator: Locator) => locator.evaluate((el) => el.setAttribute('data-checked-node', 'same'))
+
+test('receipts · a decision’s steps are said by one status that stays, empty before', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const ask = board(page).getByRole('region', { name: 'Davide decides' })
+  await expect(ask).toBeVisible({ timeout: 15_000 })
+  const said = ask.locator('[role="status"]')
+  await expect(said).toHaveText('')
+  await mark(said)
+  await ask.getByRole('button', { name: 'Ship it now' }).click()
+  // WBC-01's words for a recorded choice (the contract's copy); the node is what this check is about.
+  await expect(said).toHaveText('Your choice is recorded. The plan is updating.')
+  await expect(said).toHaveAttribute('data-checked-node', 'same')
+})
+
+test('receipts · a challenge’s steps, sending to recorded, are said by one status that stays', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  // Marked before the line opens: opening it must not replace the status either.
+  const said = reviewCard(page).locator('.review-challenge [role="status"]')
+  await expect(said).toHaveText('')
+  await mark(said)
+  await reviewCard(page).getByRole('button', { name: 'Challenge' }).click()
+  await challengeField(page).fill('The large reports are rare.')
+  await reviewCard(page).getByRole('button', { name: 'Send' }).click()
+  await expect(said).toHaveText('Sending your challenge…')
+  await expect(said).toHaveText('Sent to the lead, for its next review.')
+  await expect(said).toHaveAttribute('data-checked-node', 'same')
+})
