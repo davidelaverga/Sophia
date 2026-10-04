@@ -47,6 +47,8 @@ const PLACEHOLDER: Record<ComposerState, string> = {
   ready: 'Write to Sophia…',
   unavailable: 'Sophia can’t answer here yet',
 }
+/** At night (lightOf), a field that can take words asks gently. */
+const NIGHT = 'Still up? Write to Sophia…'
 
 /**
  * The draft a field opens with in `epoch` (onOpening): words on their way a tab left behind come back ahead of it, and
@@ -279,6 +281,7 @@ interface FieldProps {
   field: RefObject<HTMLTextAreaElement | null>
   text: string
   state: ComposerState
+  night: boolean
   /** The count shows beside the field (Count): the field names it in its description. */
   counted: boolean
   onChange: (text: string) => void
@@ -315,7 +318,7 @@ function Over({ note, count }: { note: React.ReactNode; count: number | null }) 
   )
 }
 
-function Field({ field, text, state, counted, onChange, onSend }: FieldProps) {
+function Field({ field, text, state, night, counted, onChange, onSend }: FieldProps) {
   return (
     <textarea
       ref={field}
@@ -326,7 +329,7 @@ function Field({ field, text, state, counted, onChange, onSend }: FieldProps) {
       data-typing-sink={state === 'ready' ? '' : undefined}
       rows={1}
       maxLength={MOST}
-      placeholder={PLACEHOLDER[state]}
+      placeholder={night && state === 'ready' ? NIGHT : PLACEHOLDER[state]}
       value={text}
       disabled={state !== 'ready'}
       onChange={(e) => onChange(e.target.value)}
@@ -346,6 +349,8 @@ function Field({ field, text, state, counted, onChange, onSend }: FieldProps) {
 interface Props {
   /** Whose draft this is (accountOf). */
   account: string
+  /** It is night where the person is (lightOf): the field asks gently. */
+  night?: boolean
   /** The space's epoch as read (undefined until it has loaded): an erasure anywhere moves it. */
   epoch: number | undefined
   /** The space is out of sight (a lock, another place): dictation stops, and a start still waiting is called off. */
@@ -507,7 +512,12 @@ export function PersonalComposer(props: Props) {
         <span id="c-private-note" className="sr-only">
           Only she hears this
         </span>
-        <Field field={field} text={text} state={state} counted={counted} onChange={change} onSend={() => void send()} />
+        <Field
+          {...{ field, text, state, counted }}
+          night={!!props.night}
+          onChange={change}
+          onSend={() => void send()}
+        />
         {dictation.listening && <Listening />}
         {dictation.available && ready && (
           <MicButton

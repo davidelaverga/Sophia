@@ -19,7 +19,13 @@ export interface Sending {
 export type SuggestionShown = 'open' | 'folded' | 'kept'
 
 export type Row =
-  | { kind: 'day'; key: string; label: string }
+  | {
+      kind: 'day'
+      key: string
+      label: string
+      /** A moment the day carries: where you began, time together, or how long since the day before. */
+      note: string | null
+    }
   | { kind: 'intro'; key: string; text: string }
   /** Ways into a first conversation; the session to get ready for leads them, when there is one (arrive.ts). */
   | { kind: 'starters'; key: string; ways: readonly Way[] }
@@ -95,14 +101,61 @@ export function introText(name: string | null): string {
 interface Layout {
   rows: Row[]
   lastDay: number | null
+  /** The conversation's first day, when it is read from its first turn (whole). */
+  began: number | null
+  now: Date
   /** The side of the last turn row, or null when something else came between (a day, a suggestion). */
   lastSide: 'person' | 'sophia' | null
+}
+
+/** Milestones short of a year, by months together; then every year. */
+const MONTHS_TOGETHER = new Map([
+  [1, 'a month together'],
+  [3, 'three months together'],
+  [6, 'six months together'],
+])
+const YEARS = ['a year', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'].map((n, i) =>
+  i ? `${n} years` : n,
+)
+
+/** How many months on from `began` the day is, when it is that day of the month (the month's last, if shorter). */
+function monthsOn(began: Date, day: Date): number | null {
+  const months = (day.getFullYear() - began.getFullYear()) * 12 + day.getMonth() - began.getMonth()
+  const last = new Date(day.getFullYear(), day.getMonth() + 1, 0).getDate()
+  return months > 0 && day.getDate() === Math.min(began.getDate(), last) ? months : null
+}
+
+function together(months: number): string | null {
+  if (months % 12 !== 0) return MONTHS_TOGETHER.get(months) ?? null
+  const years = months / 12
+  return `${YEARS[years - 1] ?? `${String(years)} years`} together`
+}
+
+/**
+ * The moment a day carries, if any (personal-moments.md §2): the first day, once known, is where you began; today, a
+ * month, three, six months or a year on from it, the time together; else a day a week or more after the one before
+ * says how long it was.
+ */
+function dayNote(day: number, before: number | null, layout: Layout): string | null {
+  const today = startOfDay(layout.now)
+  // Before today only: a first turn stamped a little ahead (a skewed clock) is not yet where you began.
+  if (layout.began !== null && day === layout.began && day < today) return 'Where you began'
+  const months = layout.began !== null && day === today ? monthsOn(new Date(layout.began), new Date(day)) : null
+  const milestone = months === null ? null : together(months)
+  if (milestone) return milestone
+  const away = before === null ? 0 : Math.round((day - before) / DAY_MS)
+  return away >= 7 ? `${String(away)} days later` : null
 }
 
 function addDay(layout: Layout, date: Date, now: Date): void {
   const day = startOfDay(date)
   if (layout.lastDay === day) return
-  layout.rows.push({ kind: 'day', key: `day-${day}`, label: dayLabel(date, now) })
+  layout.rows.push({
+    kind: 'day',
+    key: `day-${day}`,
+    label: dayLabel(date, now),
+    note: dayNote(day, layout.lastDay, layout),
+  })
   layout.lastDay = day
   layout.lastSide = null
 }
@@ -150,6 +203,8 @@ export interface ConversationInput {
   answers?: boolean
   /** A session in your projects to get ready for with her (readyFor), or none. */
   ready?: Way | null
+  /** The conversation is read from its very first turn (no earlier days left to read): its first day is known. */
+  whole?: boolean
 }
 
 /**
@@ -166,10 +221,33 @@ function introduce(layout: Layout, { turns, sending, now, name, answers = true, 
   }
 }
 
+/** A layout to fill, knowing the conversation's first day when it is read whole. */
+function layoutFor({ turns, whole, now }: ConversationInput): Layout {
+  const opening = turns[0]
+  const began = whole && opening ? startOfDay(new Date(opening.createdAt)) : null
+  return { rows: [], lastDay: null, began, now, lastSide: null }
+}
+
+/** What was just sent, at once, under its day. */
+function addSending(layout: Layout, sending: Sending, now: Date): void {
+  addDay(layout, sending.at, now)
+  const first = layout.lastSide !== 'person'
+  layout.rows.push({
+    kind: 'turn',
+    key: 'sending',
+    turn: null,
+    author: 'person',
+    text: sending.text,
+    at: clockOf(sending.at),
+    first,
+  })
+  layout.lastSide = 'person'
+}
+
 /** The rows of the conversation, in order. */
 export function conversationRows(input: ConversationInput): Row[] {
   const { turns, sending, welcoming, now, fromTheStart } = input
-  const layout: Layout = { rows: [], lastDay: null, lastSide: null }
+  const layout = layoutFor(input)
   if (fromTheStart) introduce(layout, input)
   // Whether the person said something after a turn, without a pass over the rest for every turn.
   const lastAsked = turns.findLastIndex((t) => t.author === 'person')
@@ -186,20 +264,7 @@ export function conversationRows(input: ConversationInput): Row[] {
     const { ready } = input
     layout.rows.push({ kind: 'arrive', key: 'arrive', ways: ready ? [ready, ...ARRIVALS] : ARRIVALS })
   }
-  if (sending) {
-    addDay(layout, sending.at, now)
-    const first = layout.lastSide !== 'person'
-    layout.rows.push({
-      kind: 'turn',
-      key: 'sending',
-      turn: null,
-      author: 'person',
-      text: sending.text,
-      at: clockOf(sending.at),
-      first,
-    })
-    layout.lastSide = 'person'
-  }
+  if (sending) addSending(layout, sending, now)
   if (welcoming && !sending) addDay(layout, now, now)
   if (sending || welcoming || turns.some((t) => t.reply === 'pending')) {
     layout.rows.push({ kind: 'typing', key: 'typing', first: layout.lastSide !== 'sophia' })

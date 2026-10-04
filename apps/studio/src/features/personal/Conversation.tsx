@@ -287,8 +287,23 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
   }
   if (row.kind === 'day') {
     return (
-      <button className="c3-day" type="button" id={dayId(row.key)} aria-haspopup="menu" onClick={onDays}>
-        {row.label}
+      <button
+        className="c3-day"
+        type="button"
+        id={dayId(row.key)}
+        data-day={row.label}
+        aria-haspopup="menu"
+        onClick={onDays}
+      >
+        <span>
+          {row.label}
+          {row.note && (
+            <span className="c3-day-note">
+              <span aria-hidden> · </span>
+              {row.note}
+            </span>
+          )}
+        </span>
       </button>
     )
   }
@@ -365,7 +380,8 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
       const top = box.getBoundingClientRect().top
       const days = [...box.querySelectorAll<HTMLElement>('.c3-day')]
       const above = days.filter((d) => d.getBoundingClientRect().top < top).at(-1)
-      setDay(days.length >= 2 && above ? above.textContent : null)
+      // The day alone, as the days' menu names it: not the moment it carries.
+      setDay(days.length >= 2 && above ? (above.dataset['day'] ?? null) : null)
     }
     update()
     box.addEventListener('scroll', update, { passive: true })

@@ -27,7 +27,7 @@ import { focusConversation, focusNotesToggle, focusSoon } from './focus.ts'
 import type { PersonalExtras } from './extras.ts'
 import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
-import { notesLabel, readyFor } from './places-view.ts'
+import { lightOf, notesLabel, readyFor } from './places-view.ts'
 import type { Handed } from './handed.ts'
 import { PersonalComposer, type SendOutcome } from './PersonalComposer.tsx'
 import { usePresses } from './presses.ts'
@@ -244,6 +244,7 @@ function useRows(props: Props) {
             now,
             name,
             fromTheStart: opensWithIntro(turns, earlier, now),
+            whole: !earlier,
             answers,
             ready,
           })
@@ -433,6 +434,7 @@ function Composer(p: {
       {...{ account, epoch, hidden, busy: writes.busy, onBehind: writes.readAgain, starter: p.starter }}
       handed={p.props.handed}
       onHanded={p.props.onHanded}
+      night={lightOf(p.props.now) === 'night'}
       state={!space ? 'loading' : space.companion === 'unavailable' ? 'unavailable' : 'ready'}
       onListening={p.onListening}
       onSend={sender(writes, p.onFailed)}
@@ -512,6 +514,7 @@ export function PersonalSpace(props: Props) {
     <section
       className={`c3-space you${waiting ? ' speaking' : ''}${listening ? ' listening' : ''}`}
       data-place-view="personal"
+      data-hour={lightOf(props.now)}
       hidden={props.hidden}
       aria-labelledby="c-p-h"
       style={{ '--shift': `${-shift}px` }}

@@ -774,3 +774,51 @@ test('touch · a long unbroken word (a pasted link) wraps inside the field; the 
   expect(await field(page).evaluate((f) => f.scrollWidth <= f.clientWidth + 1)).toBe(true)
   await expect(page.locator('.c3-head h2')).toBeInViewport()
 })
+
+// Moments (docs/plans/personal-moments.md §2): her light follows the hour; the days carry where you began, time
+// together and time away. `at=HH:MM` fixes the fixture's clock; `away=N` puts the first day N days back.
+
+test('moments · her light follows the hour: morning, day, evening, night each its own', async ({ page }) => {
+  const washes = new Set<string>()
+  for (const [at, light] of [
+    ['07:30', 'morning'],
+    ['14:00', 'day'],
+    ['19:30', 'evening'],
+    ['23:30', 'night'],
+  ] as const) {
+    await page.goto(`${PAGE}?at=${at}`)
+    await expect(page.locator('.c3-space.you')).toHaveAttribute('data-hour', light)
+    washes.add(await css(page, '.c3-space.you .c3-ambient', 'background-image'))
+  }
+  expect(washes.size).toBe(4)
+})
+
+test('moments · at night the field asks “Still up?”; by day it doesn’t', async ({ page }) => {
+  await page.goto(`${PAGE}?at=23:30`)
+  await expect(field(page)).toHaveAttribute('placeholder', 'Still up? Write to Sophia…')
+  await page.goto(`${PAGE}?at=14:00`)
+  await expect(field(page)).toHaveAttribute('placeholder', 'Write to Sophia…')
+  // Where she can't answer, the field says so, night or day.
+  await page.goto(`${PAGE}?at=23:30&unavailable=1`)
+  await expect(field(page)).toHaveAttribute('placeholder', 'Sophia can’t answer here yet')
+})
+
+test('@phone · moments · the day pill names the day alone, as the days’ menu does', async ({ page }) => {
+  await page.goto(`${PAGE}?at=14:00`)
+  await settled(page)
+  await expect(page.locator('.msgs > .c3-day').first()).toContainText('Where you began')
+  await page.locator('.msgs').evaluate((l) => {
+    l.style.scrollBehavior = 'auto'
+    l.scrollTop = 200
+  })
+  await expect(page.locator('.c3-daypill')).toContainText('Yesterday')
+  await expect(page.locator('.c3-daypill')).not.toContainText('began')
+})
+
+test('moments · the days say where you began, and how long you were away', async ({ page }) => {
+  await page.goto(`${PAGE}?away=12&at=14:00`)
+  const days = page.locator('.msgs > .c3-day')
+  await expect(days.first()).toContainText('Where you began')
+  await expect(days.last()).toHaveText('Today · 12 days later')
+  expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
+})

@@ -306,3 +306,96 @@ describe('a long conversation read back', () => {
     )
   })
 })
+
+/** Each day's name and its moment. */
+const notes = (rows: ReturnType<typeof conversationRows>) =>
+  rows.flatMap((r) => (r.kind === 'day' ? [[r.label, r.note]] : []))
+
+describe('moments on the days (personal-moments.md §2)', () => {
+  const since = (first: Date, more: Partial<ConversationInput> = {}) =>
+    notes(
+      conversationRows(
+        input([turn('person', 'Then', first.toISOString()), turn('person', 'Now', at(0, 9))], { whole: true, ...more }),
+      ),
+    ).at(-1)?.[1]
+
+  it('a day that follows the one before by a week or more says how long it was', () => {
+    const away = [
+      turn('person', 'Before', at(14, 10)),
+      turn('sophia', 'Mm.', at(14, 10, 1)),
+      turn('person', 'Back', at(0, 9)),
+    ]
+    assert.deepEqual(notes(conversationRows(input(away))), [
+      ['Sep 16', null],
+      ['Today', '14 days later'],
+    ])
+    const week = [turn('person', 'Before', at(7, 10)), turn('person', 'Back', at(0, 9))]
+    assert.deepEqual(notes(conversationRows(input(week))).at(-1), ['Today', '7 days later'])
+    const days = [turn('person', 'Before', at(6, 10)), turn('person', 'Back', at(0, 9))]
+    assert.deepEqual(notes(conversationRows(input(days))).at(-1), ['Today', null])
+  })
+
+  it('where you began: the first day, once the whole conversation is read, never on the first day itself', () => {
+    const turns = [turn('person', 'First', at(20, 10)), turn('person', 'Now', at(0, 9))]
+    assert.deepEqual(notes(conversationRows(input(turns, { whole: true }))), [
+      ['Sep 10', 'Where you began'],
+      ['Today', '20 days later'],
+    ])
+    assert.deepEqual(notes(conversationRows(input(turns)))[0], ['Sep 10', null])
+    const today = [turn('person', 'First', at(0, 9))]
+    assert.deepEqual(notes(conversationRows(input(today, { whole: true }))), [['Today', null]])
+  })
+
+  it('a month, three, six months and each year together, on that day; the time away gives way to it', () => {
+    assert.equal(since(new Date(2026, 7, 30, 10)), 'a month together')
+    assert.equal(since(new Date(2026, 5, 30, 10)), 'three months together')
+    assert.equal(since(new Date(2026, 2, 30, 10)), 'six months together')
+    assert.equal(since(new Date(2025, 8, 30, 10)), 'a year together')
+    assert.equal(since(new Date(2024, 8, 30, 10)), 'two years together')
+    // Two months is no milestone: only the time away is said.
+    assert.equal(since(new Date(2026, 6, 30, 10)), '62 days later')
+    // A first day on the 31st comes round on a shorter month's last day.
+    assert.equal(since(new Date(2026, 2, 31, 10)), 'six months together')
+    // Not known without the first day.
+    assert.equal(since(new Date(2026, 7, 30, 10), { whole: false }), '31 days later')
+    // Years in words, past five too; a leap day comes round on Feb 28.
+    assert.equal(since(new Date(2019, 8, 30, 10)), 'seven years together')
+    assert.equal(
+      notes(
+        conversationRows(
+          input(
+            [
+              turn('person', 'Leap', new Date(2024, 1, 29, 10).toISOString()),
+              turn('person', 'Now', new Date(2025, 1, 28, 9).toISOString()),
+            ],
+            { whole: true, now: new Date(2025, 1, 28, 21) },
+          ),
+        ),
+      ).at(-1)?.[1],
+      'a year together',
+    )
+  })
+
+  it('a first turn stamped a little ahead (a clock skewed past midnight) is not yet where you began', () => {
+    const ahead = new Date(NOW.getTime() + 4 * 3_600_000).toISOString() // tomorrow, 01:00
+    assert.deepEqual(notes(conversationRows(input([turn('person', 'Early', ahead)], { whole: true }))), [
+      ['Today', null],
+    ])
+  })
+
+  it('days across a change of clocks still count whole', () => {
+    const zone = process.env['TZ']
+    process.env['TZ'] = 'Europe/Madrid' // clocks go forward on Mar 29, 2026: that day is 23 hours long
+    try {
+      const now = new Date(2026, 3, 5, 12)
+      const turns = [
+        turn('person', 'Before', new Date(2026, 2, 22, 23, 30).toISOString()),
+        turn('person', 'After', new Date(2026, 3, 5, 9).toISOString()),
+      ]
+      assert.equal(notes(conversationRows(input(turns, { now }))).at(-1)?.[1], '14 days later')
+    } finally {
+      if (zone === undefined) delete process.env['TZ']
+      else process.env['TZ'] = zone
+    }
+  })
+})

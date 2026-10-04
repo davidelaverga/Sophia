@@ -31,9 +31,11 @@ Everything here is the Studio's own: the API's data as it is today, no new endpo
   - Evening (18–22): it is warmer.
   - Night (22–5): it is lower and deeper.
   - At night the field says "Still up? Write to Sophia…".
-  - The hour is read when the space opens and every 10 minutes.
+  - The hour follows the app's own clock, which moves every 20 seconds.
 - **Coming back after a while.** A day that follows the one before by 7 days or more says so on its divider: "Today · 12 days later".
-- **Where you began.** When the conversation's first day is loaded, its divider reads "Where you began · Sep 21".
+- **Where you began.** When the conversation's first day is loaded (no earlier days left to read), its divider reads "Sep 21 · Where you began". On the first day itself it says nothing yet. A day's moment is written in her warm hand.
+- **After an erasure** the conversation begins again: its first turn is where you began, and time together counts from it. Erasing is for good.
+- **One moment per day.** Time together comes first, then where you began, then time away.
 - **A month together.** On the day a month, three months, six months or a year has passed since that first day, today's divider says it: "Today · a month together". It shows only while the first day is known.
 
 ## 3. Ease (`personal/ease`)
