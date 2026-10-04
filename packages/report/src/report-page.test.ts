@@ -719,6 +719,9 @@ describe('html-report-v2: what its bytes guarantee', () => {
     )
     assert.ok(html.includes('<li><a href="#report-limitations">Limitations</a></li>'), 'in the contents')
     assert.doesNotMatch(html, /states no limitations/)
+    // Lines of only white space, control or format characters are no limitations: no record, and the note stands.
+    const none = rich({ markdown: without, limitations: ['  ', '\u0007', '\u200b\u00ad', '\ufeff'] })
+    assert.ok(!none.includes('id="report-limitations"') && /states no limitations/.test(none), 'nothing stored')
     // The record is printed even when the report states the same limitation word for word (M75, the cloud review on
     // 85c1ae1): no reading of headings or text proves a limitation stated, so none on record is ever left out.
     const stated = rich({ limitations: ['Restore times are vendor claims.'] })

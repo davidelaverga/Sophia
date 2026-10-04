@@ -498,7 +498,7 @@ export const REPORT_PAGES = {
     sha256: 'b'.repeat(64),
     versionNumber: 3,
     publishedAt: '2026-10-02T12:40:00.000Z',
-    // The report writes none, so the page prints these as its limitations.
+    // The page prints these as "Limitaciones": the report has no limitations section of its own.
     limitations: [
       'El documento de Calder no se pudo leer.',
       'Lo que se dice de Northwind viene de un fragmento de búsqueda, no de su documentación.',

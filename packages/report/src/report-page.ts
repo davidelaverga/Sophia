@@ -100,9 +100,10 @@ function dateOf(iso: string | null | undefined, words: PageWords): string | null
  * A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). Italian and
  * Spanish headings name them with their article (M75): "I limiti", "Los límites", "The limits" read as limitations
  * when the article and the word are the whole heading; "La risposta", "La respuesta" and "The answer" read as the
- * answer as "Answer" does. These read a heading's words, not what the section says, so they decide only how a section
- * is set (its amber rule, the answer first), the method's "states no limitations" and the stored section's title:
- * never which stored limitations are printed (M75: "Limits of liability" read as limitations and the page dropped them).
+ * answer as "Answer" does. These read a heading's words, not what the section says, so they decide only a section's
+ * role (its amber rule, the answer first, its source count in the contents, where the stored limitations go), the
+ * method's "states no limitations" and the stored section's title: never which stored limitations are printed (M75:
+ * "Limits of liability" read as limitations and the page dropped them).
  */
 const LIMITS =
   /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^(limits|limiti|l[ií]mites)\b|^(the|i|los)\s+(limits|limiti|l[ií]mites)\s*[.:]?\s*$/i
@@ -314,17 +315,17 @@ const limitsSection = (s: PageSection) => s.role === 'limitations' || namesLimit
 /** Whether the report states its limitations. It decides the method's note, never what is printed. */
 const statesLimits = (sections: readonly PageSection[]) => sections.some(limitsSection)
 
-/** Whether a stored limitation shows anything: a character that is not white space, a control or a format character. */
+/** Whether a stored line holds anything but white space, control and format characters: one that does not is none. */
 const visible = (text: string) => /[^\s\p{Cc}\p{Cf}]/u.test(text)
 
 /**
- * Every limitation the version stored, as a section of its own: after the last body or summary section, before the
- * conclusion or references that follow it. Always, whatever the report says (M75, the cloud review on 85c1ae1): it is
- * the version's record, as Studio's reader shows it above the report, and no reading of the report's headings or text
- * can tell that the report states one (a heading may be a subject, "Limits of liability"; a sentence may be framed,
- * narrowed or refuted by the one before or after it). A limitation the report also states is printed again here, under
- * "As stated when this version was published"; beside a section of the report's own on its limitations, this one is
- * titled "Limitations on record", so the contents never list two alike.
+ * Every limitation the version stored (`visible`), as a section of its own: after the last body or summary section,
+ * before the conclusion or references that follow it. Always, whatever the report says (M75, the cloud review on
+ * 85c1ae1): it is the version's record, as Studio's reader shows it above the report, and no reading of the report's
+ * headings or text can tell that the report states one (a heading may be a subject, "Limits of liability"; a sentence
+ * may be framed, narrowed or refuted by the one before or after it). A limitation the report also states is printed
+ * again here, under "As stated when this version was published"; beside a section of the report's own on its
+ * limitations, this one is titled "Limitations on record", to tell the record from the report's own.
  */
 function withStoredLimitations(sections: PageSection[], stored: readonly string[], words: PageWords): PageSection[] {
   const lines = stored.map((l) => l.trim()).filter(visible)

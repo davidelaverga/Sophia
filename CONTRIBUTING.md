@@ -589,7 +589,8 @@ when you change the room:
   general rules (nothing runs or loads, safe links, text escaped and no entity
   split, ids used once and links that land) and the seed's own (one policy,
   seven metas and one stylesheet, only the tags and attributes it prints).
-  Besides: every stored limitation prints, whatever the report says or
+  Besides: every stored limitation (a line that holds more than white
+  space, control and format characters) prints, whatever the report says or
   calls its sections, since no reading of headings or text proves one
   stated (M75); beside a section of the report's own on its limitations the
   record's is "Limitations on record"; the method never says "states no
