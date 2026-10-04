@@ -455,8 +455,8 @@ when you change the room:
   target it was sent to), and Ask (a port of real received chunks, no typing
   animation; at most 30 s per event, then failed, with Ask again: the same
   question on its own send, so nothing of an earlier send can fail or answer
-  it, and only while the view allows asking about the task; until then the
-  question is kept, with why); the board by keys. Its fixture's clock runs from NOW; its receipts, answers and
+  it, and only while the view allows asking about the task and a conversation
+  is connected; until then the question is kept, with why); the board by keys. Its fixture's clock runs from NOW; its receipts, answers and
   results are simulated. The `wbc ·` checks are the mission's UI cases; the
   `pre-push ·`, `codex · F-` and `pr76 ·` checks are the findings of its
   pre-push review, Codex's review on #74 and the PR #76 review (`review ·`
@@ -539,7 +539,10 @@ when you change the room:
   before any receipt, then recorded or refused, delivered, and a control's
   effect only once its runtime confirms it; a lost reply is unknown and tried
   again with the same operation; a late or foreign receipt changes nothing.
-  Commands and drafts are kept by work and assignment generation. Stop asks
+  Commands are kept by work and assignment generation, drafts by execution
+  (its attempt and session too); only a command for the execution shown
+  speaks as the latest or is tried again, and an open one for an earlier
+  attempt or session is listed as such, kept as it was. Stop asks
   first and promises nothing it can't see ("Running actions may need time to
   stop"). A task whose session is at it says on its
   tile when its doer's account runs short, and its sheet names where there is

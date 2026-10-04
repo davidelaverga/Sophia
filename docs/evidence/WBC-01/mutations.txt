@@ -96,3 +96,25 @@ H6 merge one status per decision receipt, after #80: FAILS as it should
 # 74 make a check fail; R1b is the redundant key recorded above. R4's target had moved with CC-0004's rule
 # (againable became retryableNow); it was aimed at the new line and fails. L01, first reverted by hand, is now
 # scripted against its check (@phone · one lane under another) and fails.
+
+# Codex's verification at 87c078b (#74, WBC-01-CX-0010; GitHub 4177610532, 4177610537), fixed in d6363c5 and b44a21f
+I1 F-007 a retry needs the execution shown (rule): FAILS as it should
+I1b F-007 a retry needs the execution shown (sheet): FAILS as it should
+I2 F-007 the latest is the execution shown's own: FAILS as it should
+I3 F-007 an earlier execution's command is named as such: FAILS as it should
+I3b F-007 another session is told apart (rule): FAILS as it should
+I4 F-007 a draft belongs to its execution (sheet): FAILS as it should
+I4b F-007 the words sent leave their execution's field (rule): FAILS as it should
+I5 F-007 a Stop asked is never answered on the next execution: FAILS as it should
+I6 F-005 no conversation blocks (rule): FAILS as it should
+I6b F-005 no conversation blocks (sheet): FAILS as it should
+I7 F-006 the goal line reads the review with the plan in force: FAILS as it should
+I7b F-006 no plan in force is said so on the card (rule): FAILS as it should
+I7c F-006 the fixture reads no plan in force as none: FAILS as it should
+
+# 2026-10-04, on the merge with #32 (27f51f2) and the CC-0007 fixes: all 88 entries above run again on that code.
+# 87 make a check fail; R1b is the redundant key recorded above. Re-aimed, each at its moved line or check, and failing:
+# R1 and I5 (the commands block keyed by execution), D2 (retryableNow takes the target), H3 and I7c (the fixture's review
+# read), H2 and H4 (now checked by `lag=1`: with F-006, a proposed-only board's review is stale before their gates).
+# M16 first passed here: F-007's exact-target rule also hides a new generation's history. A new UI-11 check (an open
+# command of the earlier generation isn't listed under the next) catches it again.

@@ -45,13 +45,14 @@ Nine existing checks changed their expected words or lanes, by design. Two Resou
 ## Evidence (fixture, darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 - `pnpm toolchain:check`, `format:check`, `lint`, `build`, `typecheck`, `contracts:check`: exit 0.
-- `pnpm test`: 735 pass (after merging main, #81). `pnpm artifacts`: identities reproduced, and `pnpm test:integration`: 67 pass, 2 skipped. Both last ran at `8afd007`; no runtime path has changed since.
+- `pnpm test`: 1,139 tests: 1,125 pass, 0 fail, 14 skipped (as on the merge with main, before this round's fixes) (after merging main, #32). `pnpm artifacts`: every identity reproduced, and `pnpm test:integration`: 82 pass, 2 skipped, both on this head (main's #32 changed runtime paths).
 - `pnpm --filter @sophia/studio run build`: passes. No board or fixture code is in the bundle.
-- `pnpm --filter @sophia/studio test:browser`: 225 of 225 pass. That includes:
-  - 25 `wbc ·` checks for UI-01–UI-21;
-  - 7 `pre-push ·`, 7 `codex · F-` and 4 `pr76 ·` checks for the reviews' findings;
-  - Luis's 31 checks from #73 and #77–#80 and his 5 brand checks from #81, with 2 more for the merges.
-- **Mutations:** 75 repairs reverted one at a time; each makes a check fail ([mutations.txt](docs/evidence/WBC-01/mutations.txt)). The one exception is a redundant key, recorded.
+- `pnpm --filter @sophia/studio test:browser`: 339 of 339 pass. That includes:
+  - 26 `wbc ·` checks for UI-01–UI-21;
+  - 7 `pre-push ·`, 11 `codex · F-` and 4 `pr76 ·` checks for the reviews' findings;
+  - Luis's 31 checks from #73 and #77–#80, with 3 more for the merges and F-006;
+  - main's own suites since then (brand, sign-in, opening, home, report, voice chat).
+- **Mutations:** 88 repairs reverted one at a time; each makes a check fail ([mutations.txt](docs/evidence/WBC-01/mutations.txt)). The one exception is a redundant key, recorded.
 - **Independent review** of `f736ad7`: 3 P1, 3 P2 and 7 P3. All are fixed except one P3, kept by choice, with regressions ([table](docs/progress/WBC-01.md#independent-review-before-the-push)).
 - **Codex's review** of `8afd007` (#74): F-001, F-002 and F-003, fixed in `5a55cc8` with regressions ([table](docs/progress/WBC-01.md#codexs-review-on-74)). Its second round, at `e4d9734`, found F-002's retry path still open; that is fixed in `38bb9d6`. At `10b9d32` it found no more ([CX-0006](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973969188), READY).
 - **The GitHub Codex review of this PR** (at `10b9d32`): three findings, fixed in `9f3d872` ([table](docs/progress/WBC-01.md#codexs-ready-the-pr-and-its-review)):
@@ -62,15 +63,18 @@ Nine existing checks changed their expected words or lanes, by design. Two Resou
   - **F-004:** each send of a question has its own wait and events, so an earlier send can't fail or answer the question asked again;
   - **F-005:** Ask again follows the view's current Ask availability, at the button and at the send. While blocked, the failed question stays with why;
   - **GitHub P2:** a resource session's controls need its assignment's id and generation. Without them, Act says why and nothing is sent.
-- **Main merged in:** Luis's #73 (`4e7a42b`), #77 (`a31cbe3`), #78 and #79 (`4b68306`), and #80 and #81 (`655fb99`). The progress review, its card and its Challenge read the review beside the board's view, not as a field of the v2 plan. The card and the goal's line compare the review with the same revision. Answering its decision and challenging it are offered only where the plan is in force. Luis's words, tests and checks are kept.
+- **Codex's verification** of those at `87c078b` ([CX-0010](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5980093766)) found three more, two also left by GitHub's reviewer there. They are fixed in `d6363c5` and `b44a21f` ([CC-0007](docs/coordination/WBC-01/WBC-01-CC-0007.md)):
+  - **F-007 (P1):** an earlier attempt's or session's open command is its history, said and never sent again from here. Only the execution shown speaks and retries, and drafts belong to their execution;
+  - **F-005 residual:** with no conversation connected, Ask again isn't offered, and says why;
+  - **F-006:** the goal's line and the review card compare the review with one revision, the plan in force's, or say none is in force.
+- **Main merged in:** Luis's #73 (`4e7a42b`), #77 (`a31cbe3`), #78 and #79 (`4b68306`), #80 and #81 (`655fb99`), and #82–#87 with #32 (`27f51f2`). The progress review, its card and its Challenge read the review beside the board's view, not as a field of the v2 plan. The card and the goal's line compare the review with the same revision. Answering its decision and challenging it are offered only where the plan is in force. Luis's words, tests and checks are kept.
   - **F-003 changes production behavior.** During a live call, every project sheet (task, resource, invitation) shows the call's switches, Leave included, under its head: the sheet covers the mini dock.
   - The shared-shell paths (`app/Sheet.tsx`, `app/call-in-reach.tsx`, `ProjectShell.tsx`, `MiniDock.tsx`, `InviteSheet.tsx`) are under Davide's scope extension.
 - **Not exercised:** a physical iPhone, and a hosted call.
 
 ## Overlap
 
-- **#73** and **#77–#80** (Luis, LFE-07.2) and **#81** (the Umbral brand) have merged. All are merged in here, as above.
-- **#32** (M03): `features/artifacts/` is untouched.
+- **#73** and **#77–#80** (Luis, LFE-07.2), **#81–#87** and **#32** (M03) have merged. All are merged in here, as above. `features/artifacts/` (#32's) is untouched.
 
 ## Backend handoff (WBC-02)
 

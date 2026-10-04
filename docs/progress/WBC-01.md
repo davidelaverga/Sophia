@@ -23,6 +23,8 @@ The amendment and policy v1.1 change who implements, reviews, tests and releases
 
 ### Open work on the same files
 
+Both PRs below have since merged, #73 on 2026-10-03 and #32 on 2026-10-04; each is merged into this branch (see the review sections below). The table keeps how the branch treated them while they were open.
+
 | PR | Owner | Overlap | How this branch treats it |
 |---|---|---|---|
 | [#73](https://github.com/davidelaverga/Sophia/pull/73) LFE-07.2 slice 1, the progress review on the goal's line (open, head `b7caf58`) | Luis (EdX2C) | `plan.ts` (adds `WorkPlan.active_review`/`last_review`), `PlanNext.tsx`, `board.css`, `fixtures/work.tsx`, `fixtures/fixture-api.ts`, `e2e/work.spec.ts`, `docs/progress/LFE-07.md` | Not edited here: `review.ts`, `work-review.ts`, `fixture-api.ts`'s command route, PlanNext's review line, `docs/progress/LFE-07.md`. The other shared files conflict textually; whichever merges second rebases. For that rebase: a running or finished review is a live observation, so `active_review`/`last_review` belong on the goal's view (`GoalView`), not on the plan definition (`WorkPlan` is now `sophia.work.plan.v2`, and activity never changes its revision). `PlanNext` now takes `goal: GoalView`. The fixture's `review=` parameter stays #73's; this branch uses `case=` |
@@ -162,6 +164,16 @@ Luis's eight new checks pass unchanged.
 | **F-004** (P2): an earlier Ask's wait could fail the question asked again, since both had the same question and sequence | Each send of a question has its own number. A wait or an event belongs to its send, and an earlier send's changes nothing |
 | **F-005** (P2): Ask again ignored the current Ask availability | One rule (`askBlocked`) for a first question and for asking again, at the button and at the send. While blocked, the failed question stays with why. A task whose Ask is no longer offered still shows it. Once allowed again, the same question goes |
 | **GitHub P2** (`SessionActs.tsx`): a resource session without its assignment's id and generation still offered Guidance, Hold and Stop | `sessionTarget` needs both. Without them, Act says why and nothing can be sent. The resource fixture's sessions now carry them, and `unfenced=1` shows the case |
+
+## CX-0010, and the merge with #82–#87 and #32
+
+Codex verified CC-0006 at `87c078b` ([CX-0010](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5980093766), CHANGES_REQUIRED): F-004, F-005's availability repair, the Resources fence and the three merges hold. It found three more, two of them also left by GitHub's reviewer. All are handled in [CC-0007](../coordination/WBC-01/WBC-01-CC-0007.md), after merging main again (`27f51f2`: #82–#87 and #32, which conflicted only on the fixture pages' imports).
+
+| Finding | Fix |
+|---|---|
+| **F-007** (P1): after a new attempt or session, the earlier execution's open Stop showed as the latest, and its Try again went to the earlier target. A guidance draft carried over too | History stays by assignment generation, but only a command for the execution shown speaks as the latest or can be tried again. An earlier attempt's or session's open command is listed as such and kept as it was. Drafts are kept by execution, and so is the task sheet's commands block, so a Stop question doesn't survive into the next execution |
+| **F-005 residual** (P2): with no conversation connected, Ask again silently did nothing | A missing conversation is a blocking reason too, said and kept, by the same rule as the view's availability. Connected again, the same question goes |
+| **F-006** (P2): on a proposed-only board, the goal's line and the review card compared the review with different revisions | One reference: the plan in force's revision, null while none is. With none in force, both say which revision the review was of, and its proposal is read only |
 
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
