@@ -10,7 +10,7 @@
   "coordination_issue": 31,
   "status": {
     "source": "in_progress",
-    "merge": "not_requested",
+    "merge": "merged: PR #32 at c15dd1c into main 2712f2c (CX-0035, source only); PR #75 (html-report-v2) open",
     "release": "authorized_in_progress",
     "hosted_verification": "partial: 1e912b7 deployed with 0036 (OP-0001 r6, CX-0027; runtime 6ec64f3, worker 0391bc6); production acceptance blocked by CX-0026/0027; fixed in 5c068ae (0037, API, Studio, bridge; SMC-M03.md §40), reviewed with no new P0-P2 (CX-0033 on 0f7e14c through 08de517), not deployed",
     "product_acceptance": "not_requested"
@@ -350,7 +350,7 @@
       "owner": "Luis (#30)"
     }
   ],
-  "next_action": "CX-0033 found no new P0-P2 in CC-0024 (0f7e14c, reviewed through 08de517) and allows preparing a bounded production-test batch. That batch needs Davide's new approval for the exact candidate (the Oct 3 window expired), in the order 0037, the API and Studio, the bridge last; the runtime (6ec64f3) and the worker (0391bc6) are not redeployed. Then the acceptance cases in CX-0033 and SMC-M03.md §40. Open: Stop with the retained worker, the PDF host, research depth (a proposal), PR #75 (html-report-v2) review, main's opening timing failure (PR #32 comment)",
+  "next_action": "PR #32 is merged (CX-0035, source only). The release needs Davide's new approval for an exact batch: 0037, then the API and Studio, the bridge last; the runtime (6ec64f3) and the worker (0391bc6) are not redeployed. Then the acceptance cases in CX-0033 and SMC-M03.md §40. PR #75 (html-report-v2, now based on main) waits on Codex's re-review of the RF26 fix (5d17753). Open: Stop with the retained worker, the PDF host, research depth (a proposal), main's opening timing failure (PR #32 comment)",
   "checkpoint_ref": "docs/progress/SMC-M03.md",
   "runtime_unit": {
     "id": "sophia-runtime-m03-dev",
