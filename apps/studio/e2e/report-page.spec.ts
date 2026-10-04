@@ -138,6 +138,7 @@ for (const { width, where, tag } of SCREENS) {
       expect(targets.count, `${name}: citations`).toBeGreaterThan(0)
       expect(targets.missed, `${name}: presses on a citation’s square that miss it`).toEqual([])
       expect(targets.overlaps, `${name}: citations whose squares overlap`).toEqual([])
+      expect(targets.lines, `${name}: blocks whose lines holding a citation stand 24px apart or less`).toEqual([])
     }
   })
 }

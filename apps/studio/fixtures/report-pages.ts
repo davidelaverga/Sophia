@@ -2,8 +2,9 @@
 // Studio passes it (@sophia/report/page), with the provenance Studio already holds for a version and its sources.
 // "kitchen" is a research report with every element the template prints (a section break inside a section and one
 // closing it) and every kind of source; "stress" is what a page must survive (a 220-character title, a 12-column table
-// of 40 rows, 50 adjacent citations, a 300-character code line, long addresses, CJK and Arabic text). Vendors, figures
-// and addresses are illustrative; nothing here is live, and the hashes are placeholders the page only prints.
+// of 40 rows, 50 adjacent citations, citations in headings, at a table's edges, beside its frozen column and facing
+// each other across a column, a 300-character code line, long addresses, CJK and Arabic text). Vendors, figures and
+// addresses are illustrative; nothing here is live, and the hashes are placeholders the page only prints.
 import type { PageSource, ReportPageInput } from '@sophia/report/page'
 
 /** A fixture source id. */
@@ -215,9 +216,10 @@ function stressRead(n: number): Read & { url?: null } {
 
 const LONG_WORD = 'Donaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamtengesellschaft'
 
-/** Row `k` of a 12-column comparison: code, a long word, an address and a citation in some cells. */
+/** Row `k` of a 12-column comparison: code, a long word, an address and a citation in some cells, alone in one. */
 const stressRow = (k: number) =>
-  `| Vendor ${k} with a long name | ${k % 2 ? 'yes' : 'no'} | ${k * 3} days | ${k % 3 ? 'second' : 'minute'} | ` +
+  `| Vendor ${k} with a long name | ${k === 4 ? cite(9) : k % 2 ? 'yes' : 'no'} | ` +
+  `${k * 3} days | ${k % 3 ? 'second' : 'minute'} | ` +
   `${(k * 37) % 900} | \`pg_${k}_identifier_value\` | ${k === 3 ? LONG_WORD : 'eu-central-1'} | ` +
   `${k % 4 ? 'partly' : 'yes'} | ${k * 11} | ${k === 5 ? 'https://example.org/a/long/path/in/a/cell' : 'n/a'} | ` +
   `note ${k} ${k === 2 ? cite(9) : ''} | ${k * 1000} |`
@@ -225,7 +227,7 @@ const stressRow = (k: number) =>
 const STRESS_TABLE = [
   '| Host | EU-only | PITR window | Granularity | Cost (USD) | Engine id | Region | Support in EU | Connections | Link ' +
     '| Notes | Rows |',
-  '|:--|:--:|:--|:--|--:|:--|:--|:--|--:|:--|:--|--:|',
+  '|:--|:--|:--|:--|--:|:--|:--|:--|--:|:--|:--|--:|',
   ...Array.from({ length: 40 }, (_, i) => stressRow(i + 1)),
 ].join('\n')
 
@@ -233,13 +235,14 @@ const STRESS = `# ${LONG_WORD} and https://example.org/a/very/long/path/that/nev
 
 Lead with mixed scripts: 中文排版测试：研究报告的正文需要正确换行，不能溢出手机屏幕的宽度，也不能把引用编号放在行首。 العربية: هذا نص عربي لاختبار الاتجاه من اليمين إلى اليسار داخل تقرير ${cite(7)}. 日本語：これは日本語のテキストです。${cite(3)} And ten adjacent citations ${[1, 2, 4, 5, 6, 8, 9, 10, 11, 12].map(cite).join(' ')}.
 
-## Executive summary
+## Executive summary ${cite(1)}
 
 The answer is short ${cite(1)}. A long inline token \`averyveryverylonginlinecodeidentifierwithoutanybreakopportunity_at_all_whatsoever\` and a bare URL https://example.org/this/is/a/very/long/unbroken/url/that/should/wrap/somewhere/on/a/phone?with=query&and=more sit in the summary.
 
 | Option | Verdict |
 |:--|:--|
 | A | ${LONG_WORD} |
+| Northwind ${cite(6)} | ${cite(8)} |
 
 ## CI pipelines and the 2026 outlook
 
@@ -248,6 +251,15 @@ Every source cited once: ${Array.from({ length: 50 }, (_, i) => cite(i + 11)).jo
 1. First step.
    - nested bullet that must not take a number
 2. Second step.
+
+## Evidence by claim
+
+#### What each host's own terms say ${cite(2)}
+
+| Source | What it says | Also in |
+|:--|:--|:--|
+| ${cite(6)} | Support may come from outside the EU: its terms ${cite(8)} and its sub-processor list ${cite(10)} say when | ${[1, 2, 4, 5].map(cite).join(' ')} |
+| ${[8, 10].map(cite).join(' ')} | Backups stay in the region | ${cite(12)} |
 
 ## A wide and long table
 

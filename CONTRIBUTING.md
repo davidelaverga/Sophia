@@ -543,8 +543,13 @@ when you change the room:
   column's box, and no table's frame scrolling further than its table is wide;
   no word of 14 characters or fewer broken in a table cell; every text at
   4.5:1 (3:1 when large), a section break's dots left out as an ornament;
-  every citation pressed on a 24 px square of its own, centred on its numeral,
-  so a group sets its numerals 24 px apart; the answer before the contents and
+  every citation pressed on a 24 px square centred on its numeral, clear of
+  the other citations' squares: a group sets its numerals 24 px apart, a table
+  or a small heading that holds one sets its lines 25 px apart, and such a
+  table sets citations in neighbouring cells 24 px apart and keeps room at its
+  edges and beside a frozen first column (two citations with only a one- or
+  two-letter word between them still share a few pixels, and a citation right
+  after a link covers about 7 px of it); the answer before the contents and
   the body, in the first phone screen; on a desktop the contents beside the
   text as it scrolls, never over it; every table cell in the PDF, its body at
   10.5 pt, and print light for a reader who prefers dark. What its bytes

@@ -188,9 +188,11 @@ const TARGET = 24
 /**
  * Each citation's target, where a finger lands: a square of TARGET centred on its numeral. A press anywhere in it must
  * reach the citation (elementFromPoint at its centre, corners and edge midpoints, half a pixel in, the citation
- * scrolled into view first), and no two citations' squares may overlap (taken where the page lays them out). Returns
- * how many citations there are, one line for each a press missed (the numeral, the probe, what took the press), and
- * one for each pair whose squares overlap.
+ * scrolled into view first, a table's frame no further than it must), and no two citations' squares may overlap (taken
+ * where the page lays them out). The lines that hold a citation must stand more than TARGET apart (its block's line
+ * height), so squares on consecutive lines cannot meet however the text wraps. Returns how many citations there are,
+ * one line for each a press missed (the numeral, the probe, what took the press), one for each pair whose squares
+ * overlap, and each block holding a citation whose lines stand closer (its tag and line height).
  */
 export const citationTargets = (page: Page) =>
   page.evaluate((side) => {
@@ -214,7 +216,11 @@ export const citationTargets = (page: Page) =>
     const h = side / 2 - 0.5
     const probes = [-h, 0, h].flatMap((dx) => [-h, 0, h].map((dy) => [dx, dy] as const))
     const missed = links.flatMap((link) => {
-      link.scrollIntoView({ block: 'center', inline: 'center' })
+      // Where a reader meets it: its table's frame scrolled back to the start, then only as far as shows its square.
+      const frame = link.closest('figure.table')
+      if (frame) frame.scrollLeft = 0
+      link.scrollIntoView({ block: 'center', inline: 'nearest' })
+      if (frame) frame.scrollLeft += Math.max(0, square(link).right - frame.getBoundingClientRect().right)
       const { x, y } = square(link)
       const taken = probes
         .map(([dx, dy]) => ({ dx, dy, hit: document.elementFromPoint(x + dx, y + dy) }))
@@ -224,7 +230,18 @@ export const citationTargets = (page: Page) =>
         `${link.textContent} at ${taken.dx},${taken.dy}: ${taken.hit?.tagName.toLowerCase()}.${taken.hit?.className}`,
       ]
     })
-    return { count: links.length, missed, overlaps }
+    const blocks = new Set(
+      links.map((link) => {
+        let block = link.parentElement
+        while (block?.parentElement && getComputedStyle(block).display === 'inline') block = block.parentElement
+        return block
+      }),
+    )
+    const lines = [...blocks].flatMap((block) => {
+      const height = block ? getComputedStyle(block).lineHeight : 'none'
+      return parseFloat(height) > side ? [] : [`${block?.tagName.toLowerCase()} at ${height}`]
+    })
+    return { count: links.length, missed, overlaps, lines: [...new Set(lines)] }
   }, TARGET)
 
 /**

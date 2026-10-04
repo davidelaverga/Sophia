@@ -244,8 +244,13 @@ table {
 thead { display: table-header-group; }
 th, td { padding: var(--space-xs) var(--space-sm) var(--space-xs) 0; text-align: left; vertical-align: top; overflow-wrap: break-word; hyphens: manual; }
 th:last-child, td:last-child { padding-right: 0; }
-/* On screen a last column that holds a citation keeps room for its target (below), so the frame never scrolls for it. */
-@media screen { figure.table:has(:is(th, td):last-child sup.cite) :is(th, td):last-child { padding-right: var(--space-sm); } }
+/* On screen a table that holds a citation keeps room for its targets (below): after every cell 24px less half an em (a
+   digit is wider), so citations facing each other across a column stand 24px apart and the frame never scrolls for the
+   last column's; and before a first column that holds one, where the frame would cut its target. */
+@media screen {
+  figure.table:has(sup.cite) :is(th, td) { padding-right: calc(1.5rem - 0.5em); }
+  figure.table:has(:is(th, td):first-child sup.cite) :is(th, td):first-child { padding-left: var(--space-sm); }
+}
 th { border-bottom: 1px solid var(--ink); font-weight: 700; vertical-align: bottom; }
 td { border-top: 1px solid var(--rule); }
 tbody tr:first-child td { border-top: 0; }
@@ -282,6 +287,12 @@ sup.cite a.weak { font-weight: 400; text-decoration: underline dotted; text-deco
    covers its neighbour's. The space is a margin, not a box: a box would let a line break before the comma. */
 sup.cite .sep { color: var(--muted); font-weight: 400; margin-right: calc(1.5rem - 1ch); }
 sup.cite a:target { background: var(--mark); box-shadow: 0 0 0 0.2em var(--mark); border-radius: 2px; }
+/* Lines that hold a citation stand more than 24px apart on screen, so squares on consecutive lines never meet: a table
+   that holds one sets all its lines so (its rows stay aligned), and so does a small heading. */
+@media screen {
+  figure.table:has(sup.cite) table,
+  :is(h4, h5, h6, section[data-report-role="summary"] > h2):has(sup.cite) { line-height: max(1.35em, calc(1.5rem + 1px)); }
+}
 .omitted { color: var(--muted); font-style: italic; }
 
 /* ---- Sources: a typeset bibliography with its evidence ----------------------------------------------------------- */
@@ -354,6 +365,9 @@ sup.cite a:target { background: var(--mark); box-shadow: 0 0 0 0.2em var(--mark)
   figure.table:has(th:nth-child(6)) table { min-width: 42rem; }
   figure.table:has(th:nth-child(8)) table { min-width: 52rem; }
   figure.table:has(th:nth-child(5)) :is(th, td):first-child { position: sticky; left: 0; z-index: 1; min-width: 7.5em; background: var(--paper); box-shadow: 1px 0 0 var(--rule); }
+  /* A second column that holds a citation starts clear of the frozen one, which would cover the target of a citation
+     that opens a line. */
+  figure.table:has(th:nth-child(5)):has(:is(th, td):nth-child(2) sup.cite) :is(th, td):nth-child(2) { padding-left: var(--space-sm); }
 }
 
 /* ---- Tablets and laptops: one centred column; a wide table may take the margins ---------------------------------- */
