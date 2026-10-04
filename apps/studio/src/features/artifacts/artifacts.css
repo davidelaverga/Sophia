@@ -460,6 +460,11 @@
 .md .cite-bound {
   white-space: nowrap;
 }
+/* All of a bound word but its last character wraps as text does (MarkdownView's BoundWord), so a long link, an address
+   or emoji never runs past the column (M75-RF-0005); its last character and the numbers stay in the nowrap piece. */
+.md .cite-wrap {
+  white-space: normal;
+}
 /* Past a group's first three numbers, a line may break after a comma (MarkdownView), never before one. */
 .md .cite-more {
   white-space: normal;

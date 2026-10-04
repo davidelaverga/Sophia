@@ -129,7 +129,8 @@ function citeLink(n: number, pass: Pass): string {
 }
 
 /**
- * Citations as bare numerals bound to the word before them (the space before them dropped), adjacent ones in one
+ * Citations as bare numerals bound to the word before them (the white space before them dropped, any the viewer's
+ * `bindCites` trims: a tab or a wide space as well, M75), adjacent ones in one
  * group that wraps between numerals only; an image named in the page's words; a table a named region the keyboard
  * can scroll; room kept beside a citation whose square could reach the next target (`roomed`). Each pattern runs in
  * linear time, since a page is printed whatever its length: a run of spaces is
@@ -140,7 +141,7 @@ function citeLink(n: number, pass: Pass): string {
 function pagePass(html: string, pass: Pass): string {
   return roomed(
     html
-      .replace(/(?<![ \u00a0])[ \u00a0]+(?=<sup class="cite">)/g, '')
+      .replace(/(?<!\s)\s+(?=<sup class="cite">)/g, '')
       .replace(/(?:<sup class="cite"><a href="#cite-\d+">\[\d+\]<\/a><\/sup>)+/g, (run) => {
         const links = [...run.matchAll(/#cite-(\d+)/g)].map((m) => citeLink(Number(m[1]), pass))
         return `<sup class="cite">${links.join('<span class="sep">,</span><wbr>')}</sup>`

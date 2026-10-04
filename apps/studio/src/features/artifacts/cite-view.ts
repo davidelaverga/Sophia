@@ -3,10 +3,11 @@
 // this returns. A citation is a button, and a button lays out as one solid box: a line may break before it even with no
 // space between, so dropping the space is not enough. The word before a citation and the citation go together in one
 // piece the viewer sets without a break (`cite-bound`); citations with only spaces between them are one group, shown
-// with commas, also across the end of bold or emphasis. A link or inline code is never split: one of at most 24
-// characters, none of them a letter a line may break between, goes whole with the citation after it, as a word does
-// (M75: otherwise the citation could start a line); a longer one is not bound. Nor is a citation after bold or
-// emphasis that ends in a space.
+// with commas, also across the end of bold or emphasis. A link or inline code is never split: it goes whole with the
+// citation after it (M75: otherwise the citation could start a line). Inside the piece everything but the word's last
+// character wraps as text does (`lastGrapheme`, MarkdownView's `cite-wrap`); only that character and the numbers stay
+// together, so no bound piece is wider than the column (M75-RF-0005). Not bound: a citation after bold or emphasis
+// that ends in a space.
 import type { ReportSource } from '@sophia/contracts'
 import type { Inline } from './markdown.ts'
 
@@ -57,8 +58,8 @@ export type Piece = Plain | Bound
  * At most this many characters go with a citation onto its line, so a long address before one still wraps. With a
  * group's first numbers (KEPT_WITH_WORD) they measure 241 px in the reading fixture's address (17 px type), inside a
  * 320 px phone's 272 px column. Binding a word adds no break before the piece; it only takes away the one before the
- * citation. A link or code span bound whole (M75) also loses the breaks inside it, within the same 24 characters; in a
- * table cell, which never breaks a word, it can widen its column as a 24-character word already does.
+ * citation. Inside the piece all but the word's last character may still wrap (MarkdownView's BoundWord, M75-RF-0005),
+ * so neither a long word nor a link or code span bound whole (M75) makes a piece wider than the column.
  */
 const MOST_BOUND = 24
 
@@ -140,18 +141,6 @@ function takeWord(out: Piece[]): Inline[] {
   return [split.word]
 }
 
-/** A node's visible characters: its text, or its children's (a link's words, bold inside it); a citation has none. */
-function charsOf(node: Inline): string[] {
-  if (node.kind === 'text' || node.kind === 'code') return Array.from(node.text)
-  return node.kind === 'link' || node.kind === 'strong' || node.kind === 'em' ? node.children.flatMap(charsOf) : []
-}
-
-/** A link or code span that can go whole with a citation: short enough for a phone's line, and no letter of CJK. */
-const wholeWord = (node: Plain) => {
-  const chars = charsOf(node)
-  return chars.length > 0 && chars.length <= MOST_BOUND && !chars.some((c) => BREAKS_BETWEEN.test(c))
-}
-
 /** A node cut before its last word: what stays where it was, and the word that goes with the citation. */
 interface Split {
   rest: Plain | null
@@ -160,7 +149,7 @@ interface Split {
 
 /** A node cut before its last word (inside bold or emphasis, the word keeps its mark); null when it ends in none. */
 function splitWord(node: Plain): Split | null {
-  if (node.kind === 'link' || node.kind === 'code') return wholeWord(node) ? { rest: null, word: node } : null
+  if (node.kind === 'link' || node.kind === 'code') return { rest: null, word: node }
   if (node.kind === 'text') return splitText(node.text)
   return node.kind === 'strong' || node.kind === 'em' ? splitMarked(node) : null
 }
@@ -195,29 +184,84 @@ function boundPart(tail: string): string {
   return chars.slice(from).join('')
 }
 
-/** Whether a run ends in a link, inside bold or emphasis too. */
-function endsInLink(nodes: readonly Inline[]): boolean {
-  const last = nodes.at(-1)
-  if (last?.kind === 'link') return true
-  return (last?.kind === 'strong' || last?.kind === 'em') && endsInLink(last.children)
-}
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-/** Whether a piece starts with a link: a link, a link bound as a word, or one that opens bold or emphasis. */
-function startsWithLink(piece: Piece | Inline | undefined): boolean {
-  if (piece?.kind === 'link') return true
-  if (piece?.kind === 'bound') return startsWithLink(piece.word[0])
-  return (piece?.kind === 'strong' || piece?.kind === 'em') && startsWithLink(piece.children[0])
+/**
+ * A bound word's text cut before its last character as a reader sees one (an emoji with its joiners, a letter with its
+ * marks): the lead may wrap, the last stays on the citation's line. Measured in Chromium at every width from 120 to
+ * 420 px, a break never fell between that character and the citation, where a word joiner did not hold one.
+ */
+export function lastGrapheme(text: string): [lead: string, last: string] {
+  const last = Array.from(GRAPHEMES.segment(text)).at(-1)?.segment ?? ''
+  return [text.slice(0, text.length - last.length), last]
 }
 
 /**
- * Where the touch targets of group `i` must stop at their numerals (M75-RF-0001): before its first number when no
- * word is bound to it or its word is a link, and after its last when a link follows with at most a space between.
- * Elsewhere a target reaches into the words beside it, which take no press.
+ * Fewer visible characters than these between two targets (citation groups or links) may be narrower than their 4 px
+ * reaches need, counted at the narrowest glyph the reading fonts have (an apostrophe, about 0.19em of 17 px): the
+ * sides that face each other stop at their numerals (M75-RF-0004). The page keeps its own room the same way (`roomed`).
+ */
+const ROOM = 3
+
+/** What lies between targets, in reading order: visible characters (a count), a target, or a line break. */
+type Between = number | 'target' | 'break'
+
+/** Characters that count: a letter, digit, punctuation or symbol; a run of white space counts once, a mark nothing. */
+const COUNTED = /[\p{L}\p{N}\p{P}\p{S}]/u
+
+function visible(text: string): number {
+  let n = 0
+  let blank = false
+  for (const ch of text) {
+    const space = /\s/u.test(ch)
+    if (space ? !blank : COUNTED.test(ch)) n += 1
+    blank = space
+  }
+  return n
+}
+
+/** A piece as what it puts between targets: a link and a citation are targets, a word's text is characters. */
+function between(node: Piece | Inline): Between[] {
+  if (node.kind === 'text' || node.kind === 'code') return [visible(node.text)]
+  if (node.kind === 'strong' || node.kind === 'em') return node.children.flatMap(between)
+  if (node.kind === 'bound') return [...node.word.flatMap(between), 'target']
+  return node.kind === 'break' ? ['break'] : ['target']
+}
+
+/** The visible characters before the first target: Infinity at a line break, or when no target comes. */
+function roomIn(run: Iterable<Between>): number {
+  let n = 0
+  for (const step of run) {
+    if (step === 'break') return Infinity
+    if (step === 'target') return n
+    n += step
+  }
+  return Infinity
+}
+
+/** What follows group `i` in reading order, read only as far as it is asked for. */
+function* after(pieces: readonly Piece[], i: number): Generator<Between> {
+  for (let k = i + 1; k < pieces.length; k++) yield* between(pieces[k] ?? { kind: 'break' })
+}
+
+/** What precedes group `i`'s first number (its own word first), backwards, read only as far as it is asked for. */
+function* before(pieces: readonly Piece[], i: number, word: readonly Inline[]): Generator<Between> {
+  yield* word.flatMap(between).toReversed()
+  for (let k = i - 1; k >= 0; k--) yield* between(pieces[k] ?? { kind: 'break' }).toReversed()
+}
+
+/**
+ * Where the touch targets of group `i` must stop at their numerals (M75-RF-0001, RF-0004): before its first number
+ * when no word is bound to it, or fewer than ROOM characters lie between it and the target before (its word a link
+ * included); after its last when fewer than ROOM lie before the next target (a link, or the next group's number).
+ * Elsewhere a target reaches into the words beside it, which take no press. Each side reads only to its nearest
+ * target, so a paragraph's groups cost what its length does.
  */
 export function flushSides(pieces: readonly Piece[], i: number): { start: boolean; end: boolean } {
   const piece = pieces[i]
   if (piece?.kind !== 'bound') return { start: false, end: false }
-  const next = pieces[i + 1]
-  const after = next?.kind === 'text' && next.text.trim() === '' ? pieces[i + 2] : next
-  return { start: piece.word.length === 0 || endsInLink(piece.word), end: startsWithLink(after) }
+  return {
+    start: piece.word.length === 0 || roomIn(before(pieces, i, piece.word)) < ROOM,
+    end: roomIn(after(pieces, i)) < ROOM,
+  }
 }

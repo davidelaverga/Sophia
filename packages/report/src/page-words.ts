@@ -80,7 +80,7 @@ const EN: PageWords = {
     project: () => 'from the project',
   },
   mixHead: (n) => `${n} ${plural(n, 'source', 'sources')}`,
-  weakKey: 'A dotted number in the text cites a source read only in part or only as a search snippet.',
+  weakKey: 'A dotted number in the text cites a source read only in part, only as a search snippet, or not at all.',
   retrieved: (d) => `retrieved ${d}`,
   citedIn: 'cited in',
   intro: 'Introduction',
@@ -137,7 +137,8 @@ const IT: PageWords = {
     project: () => 'dal progetto',
   },
   mixHead: (n) => `${n} ${plural(n, 'fonte', 'fonti')}`,
-  weakKey: 'Un numero punteggiato nel testo cita una fonte letta solo in parte o solo come anteprima di ricerca.',
+  weakKey:
+    'Un numero punteggiato nel testo cita una fonte letta solo in parte, solo come anteprima di ricerca o non letta.',
   // The article elides before a day said with a vowel: l'8, l'11.
   retrieved: (d) => `consultata ${/^(8|11) /.test(d) ? "l'" : 'il '}${d}`,
   citedIn: 'citata in',
@@ -198,7 +199,8 @@ const ES: PageWords = {
     project: () => 'del proyecto',
   },
   mixHead: (n) => `${n} ${plural(n, 'fuente', 'fuentes')}`,
-  weakKey: 'Un número punteado en el texto cita una fuente leída solo en parte o solo como fragmento de búsqueda.',
+  weakKey:
+    'Un número punteado en el texto cita una fuente leída solo en parte, solo como fragmento de búsqueda o no leída.',
   retrieved: (d) => `consultada el ${d}`,
   citedIn: 'citada en',
   intro: 'Introducción',

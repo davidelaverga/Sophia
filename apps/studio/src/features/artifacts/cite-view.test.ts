@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { reportLanguage } from '@sophia/report/language'
 import { renderReportPage, type PageSource } from '@sophia/report/page'
-import { bindCites, citeLabel, flushSides, weaknessOf, type Piece } from './cite-view.ts'
+import { bindCites, citeLabel, flushSides, lastGrapheme, weaknessOf, type Piece } from './cite-view.ts'
 import { parseMarkdown, type Inline } from './markdown.ts'
 
 const A = 'a0000000-0000-4000-8000-000000000001'
@@ -84,7 +84,7 @@ describe('a citation keeps to the word before it', () => {
     assert.equal(shown(pieces), `see ${address.slice(0, -24)}{${address.slice(-24)}|1}`)
   })
 
-  it('binds a short link or code whole, as a word, so the citation never starts a line after it (M75)', () => {
+  it('binds a link or code whole, never split, so the citation never starts a line after it (M75)', () => {
     assert.equal(shown(bindCites(runOf(`[the agreement](https://example.org/dpa) [${A}]`))), '{[the agreement]|1}')
     assert.equal(
       shown(bindCites(runOf(`its [pricing page](https://p.example/)[${A}] says`))),
@@ -92,15 +92,13 @@ describe('a citation keeps to the word before it', () => {
     )
     assert.equal(shown(bindCites(runOf(`run \`pgaudit\` [${A}]`))), 'run {pgaudit|1}')
     assert.equal(shown(bindCites(runOf(`**[Harbor](https://h.example/)** [${A}] [${B}]`))), '{**[Harbor]**|1,2}')
-    const exactly = 'x'.repeat(24)
-    assert.equal(shown(bindCites(runOf(`[${exactly}](https://example.org/) [${A}]`))), `{[${exactly}]|1}`)
+    // However long, or in Chinese: the viewer wraps a bound word inside (cite-word), so width is not counted here.
+    const long = 'WWWWWWWWWWW WWWWWWWWWWWW and more words past twenty-four'
+    assert.equal(shown(bindCites(runOf(`[${long}](https://example.org/) [${A}]`))), `{[${long}]|1}`)
+    assert.equal(shown(bindCites(runOf(`[数据驻留](https://example.org/) [${A}]`))), '{[数据驻留]|1}')
   })
 
-  it('binds nothing it would have to split: a longer link or code, one in CJK, or a run that starts with the citation', () => {
-    const long = 'x'.repeat(25)
-    assert.equal(shown(bindCites(runOf(`[${long}](https://example.org/) [${A}]`))), `[${long}]{|1}`)
-    assert.equal(shown(bindCites(runOf(`run \`${long}\` [${A}]`))), `run ${long}{|1}`)
-    assert.equal(shown(bindCites(runOf(`[数据驻留](https://example.org/) [${A}]`))), '[数据驻留]{|1}')
+  it('binds nothing before a citation that starts a run', () => {
     assert.equal(shown(bindCites(runOf(`[${A}] opens it`))), '{|1} opens it')
   })
 
@@ -140,12 +138,35 @@ describe('a group’s touch targets stop at their numerals only beside a link or
     assert.deepEqual(sides(`[${A}] opens it`), ['s'])
   })
 
+  it('stops the sides of two groups that face each other across fewer than three characters (M75-RF-0004)', () => {
+    assert.deepEqual(sides(`Pair i[${A}]i[${B}].`), ['e', 's'])
+    assert.deepEqual(sides(`x[${A}] y[${B}].`), ['e', 's'])
+    assert.deepEqual(sides(`**a**[${A}]**b**[${B}]`), ['e', 's'])
+    // Three characters are room enough at the narrowest glyph; a combining mark is no room at all.
+    assert.deepEqual(sides(`x[${A}] iii[${B}].`), ['-', '-'])
+    assert.deepEqual(sides(`x[${A}]e\u0301[${B}].`), ['e', 's'])
+    assert.deepEqual(sides(`claim[${A}], other[${B}].`), ['-', '-'])
+    // A line break between them leaves them on different lines.
+    assert.deepEqual(sides(`x[${A}]  \ni[${B}]`), ['-', '-'])
+  })
+
   it('stops after its last number when a link follows with at most a space between, and not past words', () => {
     assert.deepEqual(sides(`claim [${A}] [has a link](https://example.org/b) after`), ['e'])
     assert.deepEqual(sides(`claim [${A}][a link](https://example.org/b)`), ['e'])
     assert.deepEqual(sides(`Calder [${A}] [its notes](https://c.example/) [${B}]`), ['e', 's'])
     assert.deepEqual(sides(`claim [${A}] **[bold link](https://example.org/b)** after`), ['e'])
     assert.deepEqual(sides(`claim [${A}] and the [docs](https://example.org/d)`), ['-'])
+  })
+})
+
+describe('a bound word keeps only its last character with the citation; the rest may wrap (M75-RF-0005)', () => {
+  it('cuts before the last character a reader sees, whole', () => {
+    assert.deepEqual(lastGrapheme('WWWWWWWWWWW WWWWWWWWWWWW'), ['WWWWWWWWWWW WWWWWWWWWWW', 'W'])
+    assert.deepEqual(lastGrapheme('境内处理'), ['境内处', '理'])
+    assert.deepEqual(lastGrapheme('🙂🙂👩‍💻'), ['🙂🙂', '👩‍💻'], 'an emoji with its joiners')
+    assert.deepEqual(lastGrapheme('cafe\u0301'), ['caf', 'e\u0301'], 'a letter with its mark')
+    assert.deepEqual(lastGrapheme('i'), ['', 'i'])
+    assert.deepEqual(lastGrapheme(''), ['', ''])
   })
 })
 

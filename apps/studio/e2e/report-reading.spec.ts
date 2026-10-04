@@ -514,40 +514,55 @@ const touchTargets = (page: Page) =>
   )
 
 /**
- * Where each group's targets reach and stop, read from the page itself: the first number reaches 4 px into a word
- * before it (plain, bold or code) and stops at its numeral after a link or nothing; the last number stops when a link
- * follows with at most a space between, and reaches otherwise. Lists the numbers that do the other.
+ * Where each group's targets must reach or stop, read from the page itself: the first number stops at its numeral when
+ * no word or a link is bound to it, and reaches 4 px into a word of three visible characters or more; the last stops
+ * when a link follows with at most a space between, and reaches across three characters or more of text. Between those
+ * (a group a letter from the next) the targets-meet check decides. Lists the numbers that do otherwise.
  */
 const targetSides = (page: Page) =>
   page.evaluate(
-    ({ link, wraps }) => {
-      const isLink = (n: ChildNode | null): boolean =>
-        n instanceof Element && (n.matches(link) || (n.matches(wraps) && isLink(n.firstChild)))
-      /** Whether the first number stops at its numeral exactly when a link or nothing comes before it. */
-      const startHolds = (bound: Element, first: Element) => {
-        const word = bound.firstChild instanceof Element && bound.firstChild.matches('sup') ? null : bound.firstChild
-        return (word === null || isLink(word)) === (parseFloat(getComputedStyle(first, '::after').left || '0') === 0)
+    ({ link, wraps, counted }) => {
+      const visible = new RegExp(counted, 'gu')
+      // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
+      const reach = (b: Element, side: 'left' | 'right') => parseFloat(getComputedStyle(b, '::after')[side] || '0') < 0
+      /** Visible characters, a run of white space as one. */
+      const seen = (text: string) => text.replace(/\s+/gu, ' ').match(visible) ?? []
+      const ends = (n: Node | null): boolean =>
+        n instanceof Element &&
+        (n.matches(link) || (n.matches(wraps) && n.lastChild === n.lastElementChild && ends(n.lastChild)))
+      const starts = (n: Node | null): boolean =>
+        n instanceof Element && (n.matches(link) || (n.matches(`${wraps}, .cite-bound`) && starts(n.firstChild)))
+      /** The first number, from the word bound to it (what precedes the numbers): what must hold, or null. */
+      const first = (bound: Element) => {
+        const nodes = [...bound.childNodes]
+        const word = nodes.slice(
+          0,
+          nodes.findIndex((n) => n instanceof Element && n.matches('sup')),
+        )
+        const text = word.map((n) => n.textContent ?? '').join('')
+        return word.length === 0 || ends(word.at(-1) ?? null) ? false : seen(text).length >= 3 || null
       }
-      /** Whether the last number stops at its numeral exactly when a link follows with at most a space between. */
-      const endHolds = (bound: Element, last: Element) => {
-        const next = bound.nextSibling
-        const after = next?.nodeType === Node.TEXT_NODE && !next.textContent?.trim() ? next.nextSibling : next
-        return isLink(after) === (parseFloat(getComputedStyle(last, '::after').right || '0') === 0)
+      /** The last number, from what follows the group up to the next element. */
+      const last = (next: Node | null) => {
+        const text = next?.nodeType === Node.TEXT_NODE ? (next.textContent ?? '') : ''
+        if (starts(text.trim() === '' && next ? next.nextSibling : next)) return false
+        return seen(text).length >= 3 || null
       }
       return [...document.querySelectorAll('.md .cite-bound')]
         .filter((bound) => !bound.closest('.md-table'))
         .flatMap((bound) => {
           const buttons = [...bound.querySelectorAll('sup.cite button')]
-          const [first, last] = [buttons[0], buttons.at(-1)]
-          if (!first || !last) return []
-          const at = bound.textContent.trim()
+          const [one, end] = [buttons[0], buttons.at(-1)]
+          if (!one || !end) return []
+          const start = first(bound)
+          const after = last(bound.nextSibling)
           return [
-            ...(startHolds(bound, first) ? [] : [`${at}: ${first.textContent} before`]),
-            ...(endHolds(bound, last) ? [] : [`${at}: ${last.textContent} after`]),
-          ]
+            ...(start === null || start === reach(one, 'left') ? [] : [`${one.textContent} before`]),
+            ...(after === null || after === reach(end, 'right') ? [] : [`${end.textContent} after`]),
+          ].map((w) => `${bound.textContent.trim()}: ${w}`)
         })
     },
-    { link: 'a', wraps: 'strong, em, .cite-bound' },
+    { link: 'a', wraps: 'strong, em', counted: '[\\p{L}\\p{N}\\p{P}\\p{S} ]' },
   )
 
 test('reading @phone · each citation’s target is its own: none meets another, or takes a press on a link', async ({

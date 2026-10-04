@@ -616,17 +616,20 @@ when you change the room:
   word and the group's first three numbers are set without a break, taking
   at most 24 characters of the word so a long address still wraps, and one
   letter of Chinese or Japanese, where a line may break between any two. A
-  link or inline code of at most 24 characters, none of them Chinese or
-  Japanese, goes whole with the citation after it, as a word does; a longer
-  one is never split, and its citation may start a line (M75).
+  link or inline code goes whole with the citation after it, never split
+  (M75). Inside the piece all but the word's last character wraps as text
+  does (`BoundWord`, `.cite-wrap`), so a long link, an address or emoji
+  never runs past the column (M75-RF-0005); a word joiner does not hold the
+  citation in Chromium, the last character in the nowrap piece does.
   Past three numbers a group may wrap after a comma, never before one. A
   number is 0.8 of the text, with a finger-sized target on a touch screen
   (an empty `::after`, none in a table, whose frame it would make scroll),
   and each target is its own (M75-RF-0001, `report-reading.spec.ts`): it
-  reaches 4 px into the words beside it, never across a group's comma or
-  into a link (`flushSides` marks a group beside a link or with no word),
-  and stays shorter than the step between its lines, so no press belongs to
-  two citations or takes a link's. A
+  reaches 4 px into the words beside it, never across a group's comma, into
+  a link, or across fewer than three characters to another group
+  (`flushSides` marks those sides, M75-RF-0004), and stays shorter than the
+  step between its lines, so no press belongs to two citations or takes a
+  link's. A
   citation of a source read in part, as a snippet or not at all is dotted
   (`data-weak`) and named so in the report's language (`reportLanguage`,
   from `@sophia/report/language`, which loads without the page's template).

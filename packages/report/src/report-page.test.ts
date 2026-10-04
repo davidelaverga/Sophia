@@ -572,6 +572,13 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.ok(html.includes('Again<sup class="cite"><a href="#cite-1" aria-label="Source 1">1</a></sup>.'))
   })
 
+  it('U3 · drops any white space before a citation, as the viewer does: a tab or a wide space too (M75)', () => {
+    for (const space of [' ', '\t', '\u00a0', '\u2003', '\u3000', ' \t ']) {
+      const html = page({ markdown: `# T\n\nA claim${space}[${A}] here.\n` })
+      assert.match(html, /A claim<sup class="cite">/, JSON.stringify(space))
+    }
+  })
+
   it('U3 · keeps room beside a citation whose square could reach a link or another citation; none where words do', () => {
     const html = page({
       markdown:
@@ -659,10 +666,20 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.ok(
       html.includes(
         '<p class="src-summary">5 sources: 1 read in full, 1 read in part, 1 snippet only (a search listing), ' +
-          '1 not read, 1 from the project. A dotted number in the text cites a source read only in part or only as ' +
-          'a search snippet.</p>',
+          '1 not read, 1 from the project. A dotted number in the text cites a source read only in part, only as ' +
+          'a search snippet, or not at all.</p>',
       ),
     )
+    // The key names every dotted kind, a source not read included, in the report's language (M75).
+    const italian =
+      '# Rapporto\n\n## Sintesi\n\nIl servizio della rete che offre anche il rendering, per questo sono gli ' +
+      `strumenti delle opzioni nel progetto, alla fine degli studi [${B}] [${C}].`
+    const spanish =
+      '# Informe\n\n## Resumen\n\nEl servicio que ofrece los informes para las empresas, como este proyecto, ' +
+      `también está por encima de las opciones que son más caras [${B}] [${C}].`
+    const key = (markdown: string) => /<p class="src-summary">[^<]*/.exec(rich({ markdown }))?.[0]
+    assert.ok(key(italian)?.endsWith('solo come anteprima di ricerca o non letta.'), key(italian))
+    assert.ok(key(spanish)?.endsWith('solo como fragmento de búsqueda o no leída.'), key(spanish))
     assert.doesNotMatch(textOf(html), /\bsites?\b/i)
     assert.doesNotMatch(page(), /<p class="src-summary">/, 'not when a status is unknown')
     const full = rich({

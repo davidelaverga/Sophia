@@ -11,6 +11,7 @@ import {
   citeLabel,
   flushSides,
   KEPT_WITH_WORD,
+  lastGrapheme,
   weaknessOf,
   type Bound,
   type Cite,
@@ -197,7 +198,7 @@ function BoundCites({
       data-flush-start={flush.start ? '' : undefined}
       data-flush-end={flush.end ? '' : undefined}
     >
-      <Inlines inline={bound.word} citing={citing} />
+      <BoundWord nodes={bound.word} citing={citing} />
       <sup className="cite">
         {bound.cites.slice(0, KEPT_WITH_WORD).map((cite, k) => (
           <Fragment key={k}>
@@ -219,6 +220,53 @@ function BoundCites({
       </sup>
     </span>
   )
+}
+
+/**
+ * A bound word with all but its last character free to wrap (`cite-wrap`), so a long link, an address or emoji never
+ * runs past the column (M75-RF-0005); the last character stays in the piece with the numbers. The cut goes into the
+ * word's last node, so a link or a mark stays one element.
+ */
+function BoundWord({ nodes, citing }: { nodes: readonly Inline[]; citing: Citing }) {
+  const last = nodes.at(-1)
+  if (!last) return null
+  const lead = nodes.slice(0, -1)
+  const before = lead.length > 0 && (
+    <span className="cite-wrap">
+      <Inlines inline={lead} citing={citing} />
+    </span>
+  )
+  return (
+    <>
+      {before}
+      <WordEnd node={last} citing={citing} />
+    </>
+  )
+}
+
+/** The word's last node, its own last character kept out of the wrapping span. */
+function WordEnd({ node, citing }: { node: Inline; citing: Citing }) {
+  if (node.kind === 'text' || node.kind === 'code') {
+    const [rest, end] = lastGrapheme(node.text)
+    const text = (
+      <>
+        {rest && <span className="cite-wrap">{rest}</span>}
+        {end}
+      </>
+    )
+    return node.kind === 'code' ? <code>{text}</code> : text
+  }
+  if (node.kind === 'strong' || node.kind === 'em' || node.kind === 'link') {
+    const inner = <BoundWord nodes={node.children} citing={citing} />
+    if (node.kind === 'strong') return <strong>{inner}</strong>
+    if (node.kind === 'em') return <em>{inner}</em>
+    return (
+      <a href={node.href} target="_blank" rel="noopener noreferrer">
+        {inner}
+      </a>
+    )
+  }
+  return <Inlines inline={[node]} citing={citing} />
 }
 
 function Sep() {
