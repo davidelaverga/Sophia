@@ -2,8 +2,8 @@
 // projects. The query string picks them: `projects=four` (default: Launch plan, Research notes, Design review, and
 // Product launch, whose Standup starts in 10 min), `live` (Davide and Sophia in Pitch deck's room), `none`, `loading`,
 // `failed` (their read failed); `locked=1` (the personal space locked), `call=<id>` (in that project's call);
-// `you=new` (no conversation yet), else one from
-// yesterday with 3 notes; `voice=none` (no speech on this device), else one that hears "the launch felt rushed" when
+// `away=1` (Home starts out of sight, as when someone lands on another place); `you=new` (no conversation yet), else
+// one from yesterday with 3 notes; `voice=none` (no speech on this device), else one that hears "the launch felt rushed" when
 // the check says so (`window.homeFixture.hear()`), if it is still listening. `window.homeFixture.pressed` lists each
 // action taken,
 // as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>".
@@ -21,19 +21,28 @@ import {
   workCount,
   youDoor,
 } from '../src/features/personal/places-view.ts'
+import { homeRowFor } from '../src/features/personal/focus.ts'
 import { Welcome } from '../src/features/personal/Welcome.tsx'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 
 declare global {
   interface Window {
-    homeFixture?: { pressed: string[]; hear: () => void }
+    homeFixture?: { pressed: string[]; hear: () => void; landing: () => string | null }
   }
 }
 
 const query = new URLSearchParams(window.location.search)
 const pressed: string[] = []
-window.homeFixture = { pressed, hear: () => HeardRecognition.listening?.hear() }
+window.homeFixture = {
+  pressed,
+  hear: () => HeardRecognition.listening?.hear(),
+  // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
+  landing: () => {
+    const at = homeRowFor('personal')
+    return at ? at.id || at.tagName.toLowerCase() : null
+  },
+}
 const NOW = new Date()
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 const id = (n: number) => `00000000-0000-4000-8000-00000000000${String(n)}`
@@ -122,7 +131,7 @@ const say = (text: string) => pressed.push(`say ${text}`)
 
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
-  const [away, setAway] = useState(false)
+  const [away, setAway] = useState(query.has('away'))
   return (
     <div className="places" data-place="home">
       <button className="fixture-away" type="button" onClick={() => setAway((was) => !was)}>

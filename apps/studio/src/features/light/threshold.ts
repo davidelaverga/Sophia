@@ -11,6 +11,13 @@ const PULL_MAX = 40
 /** The mark that forms: 96 px (twice its 48 grid, so its gap is two whole pixels) where there is room, else 48. */
 export const markSize = (radius: number) => (radius >= 160 ? 96 : 48)
 
+/** A box this wide or more holds the 96 px mark with room around it. */
+const ROOM_FOR_96 = 320
+
+/** A formed mark in a box of its own (Home), resting where the light would (`at`): 96 px wherever there is room. */
+export const roomForMark = (at: LightTarget, width: number, height: number): LightTarget =>
+  Math.min(width, height) >= ROOM_FOR_96 ? { ...at, radius: Math.max(at.radius, 160) } : at
+
 /** The light condensed behind the mark: a glow a little wider than it. */
 export const condensedRadius = (radius: number) => (markSize(radius) * 3) / 5
 
@@ -46,6 +53,9 @@ export const UMBRAL: Readonly<Record<'you' | 'her', UmbralHalf>> = {
   you: { path: 'M30 14.83A15.19 15.19 0 1 0 30 37.93Z', x: 20.14, y: 26.38, r: 15.19, cut: 30 },
   her: { path: 'M33 6.65A8.57 8.57 0 1 1 33 23.11Z', x: 35.39, y: 14.88, r: 8.57, cut: 33 },
 }
+
+/** Whom the light behind the mark turns to: whom she attends to (Home's line while you write to her), else the pointer. */
+export const aimOf = (attention: Point | null, pointer: Point | null): Point | null => attention ?? pointer
 
 /** Behind the formed mark the light stands on the line between you, between your half and hers (48 grid). */
 export const BEHIND: Point = { x: 31.5, y: 22 }

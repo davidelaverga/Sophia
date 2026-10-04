@@ -204,6 +204,10 @@
 .places .hw-name {
   color: var(--text-3);
 }
+/* A first visit: the line follows its label directly, with the label's own gap. */
+.places .hw-you .hw-label + .hw-say {
+  margin-top: 0;
+}
 .places .hw-says {
   max-width: 460px;
   margin-top: 22px;
@@ -1452,20 +1456,29 @@
     grid-column: 1;
     justify-self: start;
   }
-  /* Phone: one column; her light sits behind the greeting, top right, smaller. */
+  /* Phone: one column; her light sits top right, smaller, its mark on the greeting's line, its right edge on the gutter. */
   .places .hw {
     grid-template-columns: minmax(0, 1fr);
     padding: 32px var(--gutter) 40px;
+    /* Her light's box reaches past the edge; it never makes Home scroll sideways. */
+    overflow-x: clip;
+  }
+  /* The greeting keeps clear of her mark on narrow phones too, its longest words breaking rather than reaching it. */
+  .places .hw-hello {
+    font-size: clamp(30px, 10.5vw, 38px);
+    overflow-wrap: break-word;
   }
   .places .hw-light {
     position: absolute;
     top: 0;
-    right: 0;
+    /* The box's centre is where the 48 px mark rests: her half's right edge (4 px inside the mark) on the gutter. */
+    right: calc(var(--gutter) + 20px - 110px);
     width: 220px;
     height: 220px;
     min-height: 0;
     margin: 0;
     opacity: 0.85;
+    pointer-events: none;
   }
   /* A row in two lines: its note under its title, its action on the right. */
   .places .hw-row {

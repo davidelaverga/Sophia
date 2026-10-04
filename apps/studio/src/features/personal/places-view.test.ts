@@ -70,25 +70,23 @@ describe('home words', () => {
 
   it('says what the Personal door opens, naming the last day by what it was about', () => {
     const base = { locked: null, notes: 3, now: NOW }
-    assert.deepEqual(youDoor({ ...base, turns: [] }), {
-      verb: 'Start talking',
-      meta: 'Sophia is here whenever you are',
-      notes: null,
-    })
+    // Nothing said yet: no row to continue; the line to her is the way in.
+    assert.equal(youDoor({ ...base, turns: [] }), null)
     const yesterday = [turn('I have a pitch on Friday', 60 * 24), turn('Writing things down, I think', 60 * 24 - 3)]
     assert.deepEqual(youDoor({ ...base, turns: yesterday }), {
       verb: 'Continue',
       meta: 'Yesterday · the pitch',
       notes: 3,
     })
-    assert.equal(youDoor({ ...base, turns: [...yesterday, turn('Just talk', 2)] }).meta, 'Just now · a chat')
+    assert.equal(youDoor({ ...base, turns: [...yesterday, turn('Just talk', 2)] })?.meta, 'Just now · a chat')
     // A call shut it, and only the person opens it again: true during the call and after it.
     assert.deepEqual(youDoor({ ...base, locked: 'room', turns: yesterday }), {
       verb: 'Unlock',
       meta: 'Locked when you joined a room',
       notes: null,
     })
-    assert.equal(youDoor({ ...base, locked: 'you', turns: undefined }).meta, 'Locked on this device')
+    assert.equal(youDoor({ ...base, locked: 'you', turns: undefined })?.meta, 'Locked on this device')
+    assert.equal(youDoor({ ...base, locked: 'you', turns: [] })?.verb, 'Unlock')
   })
 
   it('only opens a space still loading: no first conversation offered over one that may exist', () => {
