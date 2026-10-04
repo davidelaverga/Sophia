@@ -2,29 +2,43 @@
 -- every section it removed.
 -- * The truth gate (CX-0026 #1). note_problems (0036) read "nothing changed", the conclusion, the recommendations and a
 --   kept note naming a removed heading in full, so "the remainder of the report is unchanged" was published beside
---   facts that showed seven sections gone. Its rules stay, as amendment_note_problems' first part, which then reads
---   the sections removed (no section of the same anchor remains), a renamed one aside: the only outermost heading on
---   each side under another anchor (research_publish passes it in), or one that shares a key word with an added
---   heading ("Recommendations for buyers", "Revised recommendations").
---   - A removed section that either note calls kept or unchanged ("is retained", "was not removed", "is still
---     there"), by a key word of its own (one no remaining heading has), gets one sentence each: for the kept note in
---     0036's words, for the change note in its own; unless a piece saying it went names it too ("Removed the table,
---     keeping the comparison in prose").
---   - Every other removed section must be disclosed by a piece that does not say "kept": its heading or a key word
---     of its own; a word it shares with a remaining heading only where the piece says something went and names no
---     other removed section ("removed the battery chemistry" says nothing of "Battery costs"); a wholesale removal
---     ("removed the other sections", "everything else was dropped", "rewrote the whole report", "a
---     recommendations-only version", "only the title is kept"), never one negated ("none of the other sections were
---     removed") or of one section ("removed the old recommendations"); or a count ("6 sections removed") that covers
---     it. Otherwise one sentence names them.
+--   facts that showed seven sections gone. Its rules stay, as amendment_note_problems' first part (a kept note that
+--   excepts the heading it names, "everything but the comparison table", aside), which then reads the sections
+--   removed (no section of the same anchor remains) and the sections revised.
+--   - The notes are read as pieces (note_pieces), each saying "kept" (retained, still there, as they were, carried
+--     forward, unaffected...), "changed", or both; whether something went (removed, merged, replaced, not kept, no
+--     longer, except...); and, for "kept", whether the text is the same (unchanged, as it was, not edited) or only
+--     there. A list takes the words of the verb before it ("removed the summary, compatibility and limitations") or
+--     of a keep or a removal after it ("compatibility, charging and limitations are retained"); a list between a
+--     removal and a keep says neither.
+--   - A removed section that either note calls kept or unchanged, in full or by a key word of its own (one no
+--     remaining heading has) that no added heading shares, gets one sentence each: for the kept note in 0036's words,
+--     for the change note in its own; unless a piece saying it went names it too ("Removed the table, keeping the
+--     comparison in prose").
+--   - Every other removed section must be disclosed by a piece that says it went or excepts it: by its heading or a
+--     key word of its own; by a word it shares with a remaining heading where the piece names no other removed section
+--     ("removed the battery chemistry" says nothing of "Battery costs"); by a wholesale removal ("removed the other
+--     sections", "everything else was dropped", "rewrote the whole report", "a recommendations-only version", "only
+--     the title is kept"), never one negated ("none of the other sections were removed") or of one section ("removed
+--     the old recommendations"); or by a count ("6 sections removed") that covers it. A piece that only says something
+--     changed ("updated the comparison table") discloses nothing. A renamed section needs no disclosure: the only
+--     outermost heading on each side under another anchor (research_publish passes it in), or one that shares a key
+--     word of its own with an added heading ("Recommendations for buyers", "Revised recommendations"), unless the
+--     notes claim the rest was kept and name it nowhere else. Otherwise one sentence names them.
+--   - A revised section that a piece calls the same, by its heading or a key word only it has ("the comparison table
+--     is unchanged" of a table that lost rows), gets one sentence, unless a piece that does not say "kept" names it
+--     too. section_facts compares each section's own text, so a heading it lists as revised did change.
 --   - For an amendment whose base the task can still read, a section called kept or left quiet adds a last sentence:
---     the draft replaced the whole report, and where to restore the sections from.
---   Revisions never contradict "the rest is unchanged": the facts carry no heading paths, so a revised subsection of
---   a section the note names cannot be told from a change the note hides (0036's rules still judge the conclusion and
---   the recommendations). The rules read English: notes in another language pass as they did. Every problem is at
---   most 300 characters, distinct after that cut, and at most 20 (the submission contract: a longer one fails the
---   runtime's check after the task's one refusal is spent). The notes are read once, and the removed sections set-wise,
---   so a call costs the length of its facts.
+--     new notes do not bring it back, and where to restore it from. A task that cannot read its base (a rebuild that
+--     dropped a withdrawn one) need not disclose what it removed, but may not claim the rest kept; no problem names a
+--     removed section and the refusal carries no facts, since those headings are the base's.
+--   A claim about the rest is never checked against revisions: the facts carry no heading paths, so a revised
+--   subsection of a section the note names cannot be told from a change the note hides (0036's rules still judge the
+--   conclusion and the recommendations). The rules read English: notes in another language pass as they did. Every
+--   problem is at most 300 characters, distinct after that cut, and at most 20 (the submission contract: a longer one
+--   fails the runtime's check after the task's one refusal is spent). The runtime adds a fixed note to every refusal
+--   asking for new notes, so a problem that new notes cannot fix says so. The notes are read once, and the removed
+--   and revised sections set-wise, so a call costs the length of its facts.
 -- * template_notes keeps whole headings within its 200 characters, the removed first, then the added, then the
 --   revised, and counts what does not fit (", … and 3 more"), where left(..., 200) cut the last heading in half.
 -- * An amendment's draft starts as its base (CX-0026 #2). When its create is dispatched (an admitted or rebuilt task
@@ -35,13 +49,16 @@
 --   create's text (research_task_statement; research_prompt, 0025, is unchanged) says what an update is: the draft is
 --   the whole report, change only what is asked, name what is removed, the base is the document and not a source;
 --   and, for a base longer than one draft call can carry under the route's output limit (20,000 characters), to
---   report a blocker instead of a shorter report.
+--   report a blocker instead of a shorter report. It names the report by its title as a JSON string: the title was
+--   written by a worker that read web pages, and this text is the task, not data.
 -- * research_publish, replaced: the same, and a draft that is still the version it amends, unchanged, is refused
 --   once, with the notes' problems under the same one refusal; an earlier draft of the attempt (the base's copy among
 --   them) leaves the model's list of citations. A version may cite what its base cited from an input of its lineage
 --   that this task was not given again, or an earlier version of the report (research_citable): in the submit's check
 --   and in research_draft_citations, one line changed. Dropped citations stay facts, never a refusal: a source
---   replaced on purpose must publish. The base stays a cited source (CC-0019 #7).
+--   replaced on purpose must publish. The base stays a cited source (CC-0019 #7), but no version of the report counts
+--   as a source added or dropped: the next version's text never names its base, so a base listed once would show as
+--   dropped by every honest follow-up.
 -- * Every research task is asked to keep a length, a section list or a limit on searches or reads its question states,
 --   and to say in its limitations where it could not. Asked, not enforced.
 -- 0001-0036 are not edited. note_problems, template_notes, research_draft_citations, research_publish and
@@ -61,47 +78,93 @@ CREATE FUNCTION sophia.note_words(p_text text) RETURNS text[] LANGUAGE sql IMMUT
 REVOKE ALL ON FUNCTION sophia.note_words(text) FROM PUBLIC;
 
 -- A note as pieces, each with what it says of what it names: 'keep' (unchanged, retained, kept, the same, still there,
--- no changes to, not removed...), 'change' (revised, removed, new, except, other than...) or 'mixed'; and whether it
--- says that something went (removed, dropped, cut, merged, moved, without...). Clauses end at . ; ! ? a line break or a
--- dash, and pieces at a comma, and, but, while, yet... ("everything but X" and "all sections but X" read as except);
--- a piece that says neither takes the words of the piece before it in its clause, else of the one after
--- ("compatibility, charging and limitations are retained"), else its note's: a kept note says what was kept, a change
--- note what changed.
-CREATE FUNCTION sophia.note_pieces(p_note text, p_kept boolean) RETURNS TABLE(body text, polarity text, gone boolean)
+-- carried forward, as they were, no changes to, not removed...), 'change' (revised, removed, new, except, other than...)
+-- or 'mixed'; whether it says that something went or names an exclusion (removed, dropped, merged, without, replaced,
+-- not kept, no longer, except, other than...); and, for a keep, whether it says the text is the same (unchanged,
+-- untouched, as it was, as in version 1, not edited), not only that it is there (kept, retained, still there, not
+-- removed). Clauses end at . ; ! ? a line break or a dash, and pieces at a comma, and, but, while, yet... ("everything
+-- but X" and "all sections but X" read as except). A run of pieces that say neither belongs to the piece after it when
+-- that one names its subject first and the subject may be the whole list ("compatibility, charging and limitations are
+-- retained"; not "the summary is", not "the rest is"); else to the piece before it ("removed the summary, compatibility
+-- and limitations"); else to the one after; else to its note: a kept note says what was kept, a change note what
+-- changed, and neither says that something went. A run between a removal and such a keep ("removed the old
+-- recommendations, and the summary and limitations are as they were") may belong to either, so it says neither.
+CREATE FUNCTION sophia.note_pieces(p_note text, p_kept boolean) RETURNS TABLE(body text, polarity text, gone boolean, same boolean)
 LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog AS $$
-DECLARE negated constant text:='\m(no\s+changes?(\s+(to|in))?|nothing\s+(else\s+)?changed|no\s+other\s+changes?|unchanged)\M'
-  ||'|(\mnot|\mnever|n[''’]t)\s+(been\s+)?(changed?|altered|alter|edited|edit|modified|modify|touched|touch|affected|removed|remove'
-  ||'|dropped|drop|deleted|delete|cut|omitted|omit|moved|move)\M'
-  ||'|\m(no|none|nothing|neither)\M[^,:]{0,80}?\m(removed|dropped|deleted|cut|omitted|touched|lost)\M';
- keeps constant text:='\m(keep_|untouched|intact|retained|retain|retains|retaining|kept|keep|keeps|keeping|preserved|preserve|preserves|preserving|identical|unaltered|unmodified|same|stays?|stayed|remains?|remained|carried\s+over|as\s+before|as\s+it\s+was|as\s+is|as-is|verbatim|left\s+(alone|as)|still\s+(there|here|included|present|in\s+place|in\s+the\s+(report|text|document)))\M'
-  ||'|\mleft\s+[^,;]{0,80}?\s+alone\M';
- changes constant text:='\m(revised|revise|revises|rewrote|rewritten|rewrite|rewrites|updated|update|updates|expanded|expands|extended|added|adds|new|changed|replaced|replace|replaces|removed|remove|removes|dropped|drop|drops|deleted|delete|deletes|cut|cuts|trimmed|shortened|condensed|merged|merge|combined|moved|folded|split|renamed|restructured|reorganized|reorganised|corrected|refined|tightened|reworked|reworded|edited|except|excluding|without|instead|omitted|omits|omit|gone|took\s+out|taken\s+out|left\s+out|other\s+than|besides|apart\s+from|aside\s+from|save)\M';
- went constant text:='\m(removed|remove|removes|dropped|drop|drops|deleted|delete|deletes|cut|cuts|merged|merge|combined|moved|folded|without|omitted|omits|omit|gone|took\s+out|taken\s+out|left\s+out)\M';
- clause text; parts text[]; says text[]; goes boolean[]; t text; k integer; last text; last_goes boolean;
+DECLARE
+ -- Read before the words below, in this order: "not kept", "no longer there" and "nothing else was kept" say that
+ -- something went; "not edited", "no changes to" and "unchanged" that the text is the same; "not removed" that it is
+ -- there.
+ unkept constant text:='(\mnot|\mnever|n[''’]t|\mno\s+longer)\s+(be\s+|been\s+|being\s+)?(kept|keep|retained|retain|preserved|preserve'
+  ||'|included|include|carried\s+(over|forward)|there|present|part\s+of)\M'
+  ||'|\m(nothing|none|no\s+other\s+sections?)\s+(else\s+)?((was|were|is|are|has\s+been|have\s+been)\s+)?(kept|retained|preserved)\M';
+ unedited constant text:='\m(no\s+changes?(\s+(to|in))?|nothing\s+(else\s+)?changed|no\s+other\s+changes?|unchanged|nothing\s+happened\s+to)\M'
+  ||'|(\mnot|\mnever|n[''’]t)\s+(been\s+)?(changed?|altered|alter|edited|edit|modified|modify|touched|touch|affected|revised|revise'
+  ||'|rewritten|rewrite|reworded)\M|\m(no|none|nothing|neither)\M[^,:]{0,80}?\m(touched|changed|altered|edited|modified)\M';
+ unremoved constant text:='(\mnot|\mnever|n[''’]t)\s+(been\s+)?(removed|remove|dropped|drop|deleted|delete|cut|omitted|omit|moved|move|lost)\M'
+  ||'|\m(no|none|nothing|neither)\M[^,:]{0,80}?\m(removed|dropped|deleted|cut|omitted|lost)\M';
+ same_text constant text:='\m(same_|untouched|intact|identical|unaltered|unmodified|unaffected|unedited|unrevised|undisturbed|same|verbatim'
+  ||'|as\s+before|as\s+(it|they)\s+(was|were|stood|stand|stands)|as\s+is|as-is|as\s+(originally\s+)?written'
+  ||'|as\s+in\s+(v|version\s*)?[0-9]+|as\s+in\s+(the\s+)?(earlier|previous|original|prior|first|last|old)'
+  ||'|(follows?|followed|mirrors?|matches|match)\s+(v|version\s*)[0-9]+|(come|comes|came|taken|copied)\s+((straight|directly)\s+)?from\s+(v|version\s*)[0-9]+'
+  ||'|left\s+(alone|as))\M|\mleft\s+[^,;]{0,80}?\s+alone\M';
+ keeps constant text:=same_text||'|\m(keep_|retained|retain|retains|retaining|kept|keep|keeps|keeping|preserved|preserve|preserves|preserving'
+  ||'|maintained|maintain|maintains|maintaining|stays?|stayed|remains?|remained|persists?|persisted|carr(y|ies|ied|ying)\s+(over|forward)'
+  ||'|leave|leaves|leaving|still\s+(there|here|included|present|stands?|part\s+of|in|includes?|including|has|have|contains?|holds?|shows?))\M'
+  ||'|\min\s+place\M(?!\s+of\M)';
+ went constant text:='\m(gone_|removed|remove|removes|dropped|drop|drops|deleted|delete|deletes|cut|cuts|merged|merge|combined|moved|folded'
+  ||'|without|omitted|omits|omit|gone|took\s+out|taken\s+out|left\s+out|replaced|replace|replaces|renamed|retitled|retired|scrapped'
+  ||'|discarded|eliminated|no\s+longer|leaves?\s+out|leaving\s+out|except|excluding|other\s+than|besides|apart\s+from|aside\s+from|save)\M'
+  ||'|\m(took|taken|left|leave|leaves|leaving)\s+[^,;]{0,80}?\s+out\M|\m(turned|turn|turns|converted|made|rewrote|rewritten)\s+[^,;]{0,80}?\s+into\M';
+ changes constant text:=went||'|\m(revised|revise|revises|rewrote|rewritten|rewrite|rewrites|updated|update|updates|expanded|expands|extended'
+  ||'|added|adds|new|changed|split|restructured|reorganized|reorganised|corrected|refined|tightened|reworked|reworded|edited|trimmed'
+  ||'|shortened|condensed|turned)\M';
+ -- Words before a piece's first keep or change word that name no subject ("also revised", "have kept").
+ filler constant text:='\m(the|a|an|i|we|it|its|they|this|that|these|those|have|has|had|also|then|just|only|simply|and|so|first|finally'
+  ||'|both|further|additionally|was|were|is|are|be|been|all|each|every|of|to|in|on|with|for|as|at|by|now|again)\M|[^[:alpha:]]+';
+ -- A subject that is not the list before it: the rest, everything else, the other sections; or a singular verb.
+ own_subject constant text:='\m(the\s+)?(rest|remainder)\M|\meverything\M|\m(all|anything|nothing)\s+else\M'
+  ||'|\m(all|every|each)\s+(of\s+)?(the\s+)?(other|remaining|original|existing)\M|\m(the\s+)?(other|remaining)\s+(sections?|parts?|text|content)\M'
+  ||'|\motherwise\M|\m(is|was|has)\s*$';
+ clause text; parts text[]; says text[]; goes boolean[]; sames boolean[]; heads text[]; t text; head text; k integer; j integer; n integer;
+ src integer;
 BEGIN
  FOREACH clause IN ARRAY regexp_split_to_array(lower(coalesce(p_note,'')),'[.;!?\n]+|\s[-–—]+\s|[–—]') LOOP
   clause:=regexp_replace(clause,'\m(everything|anything|nothing|all|(all|every|each|the)\s+([[:alpha:]]+\s+)?(sections?|parts?|text|content|rest))\s+but\M',
    '\1 except','g');
   parts:=regexp_split_to_array(clause,',|\s+(and|but|while|whereas|though|although|yet|&)\s+');
-  says:='{}'; goes:='{}';
-  FOR k IN 1..cardinality(parts) LOOP
-   t:=regexp_replace(parts[k],negated,' keep_ ','g');
+  n:=cardinality(parts); says:='{}'; goes:='{}'; sames:='{}'; heads:='{}';
+  FOR k IN 1..n LOOP
+   t:=regexp_replace(regexp_replace(regexp_replace(parts[k],unkept,' gone_ ','g'),unedited,' same_ ','g'),unremoved,' keep_ ','g');
    says:=says||CASE WHEN t ~ keeps AND t ~ changes THEN 'mixed' WHEN t ~ keeps THEN 'keep' WHEN t ~ changes THEN 'change' END;
    goes:=goes||CASE WHEN t ~ keeps OR t ~ changes THEN t ~ went END;
+   sames:=sames||CASE WHEN t ~ keeps OR t ~ changes THEN t ~ same_text END;
+   -- Where its subject stands: 'first' (none before its first keep or change word), 'own' (one that is not the list
+   -- before it), else 'last'.
+   head:=regexp_replace(t,'(?:'||keeps||'|'||changes||').*$','');
+   heads:=heads||CASE WHEN says[k] IS NULL THEN NULL WHEN btrim(regexp_replace(head,filler,' ','g'))='' THEN 'first'
+    WHEN head ~ own_subject OR substr(t,length(head)+1) ~ '^\s*(stays|remains|keeps|retains|carries|persists|follows|stands|comes|matches|mirrors)\M'
+    THEN 'own' ELSE 'last' END;
   END LOOP;
-  last:=NULL; last_goes:=NULL;
-  FOR k IN 1..cardinality(parts) LOOP
-   IF says[k] IS NULL THEN says[k]:=last; goes[k]:=last_goes; END IF;
-   last:=says[k]; last_goes:=goes[k];
+  k:=1;
+  WHILE k<=n LOOP
+   IF says[k] IS NOT NULL THEN k:=k+1; CONTINUE; END IF;
+   j:=k;
+   WHILE j<n AND says[j+1] IS NULL LOOP j:=j+1; END LOOP;
+   -- The run k..j: 0 when it may belong to a removal before it or a keep after it.
+   src:=CASE WHEN j<n AND heads[j+1]='last' THEN CASE WHEN k>1 AND goes[k-1] AND says[j+1]='keep' THEN 0 ELSE j+1 END
+    WHEN k>1 THEN k-1 WHEN j<n THEN j+1 END;
+   FOR x IN k..j LOOP
+    says[x]:=CASE src WHEN 0 THEN 'mixed' ELSE says[src] END;
+    goes[x]:=CASE src WHEN 0 THEN false ELSE goes[src] END;
+    sames[x]:=CASE src WHEN 0 THEN false ELSE sames[src] END;
+   END LOOP;
+   k:=j+1;
   END LOOP;
-  last:=NULL; last_goes:=NULL;
-  FOR k IN REVERSE cardinality(parts)..1 LOOP
-   IF says[k] IS NULL THEN says[k]:=last; goes[k]:=last_goes; END IF;
-   last:=says[k]; last_goes:=goes[k];
-  END LOOP;
-  FOR k IN 1..cardinality(parts) LOOP
+  FOR k IN 1..n LOOP
    CONTINUE WHEN btrim(parts[k])='';
    body:=parts[k]; polarity:=coalesce(says[k],CASE WHEN p_kept THEN 'keep' ELSE 'change' END); gone:=coalesce(goes[k],false);
+   same:=coalesce(sames[k],false);
    RETURN NEXT;
   END LOOP;
  END LOOP;
@@ -169,15 +232,17 @@ REVOKE ALL ON FUNCTION sophia.note_names(text[],integer,boolean) FROM PUBLIC;
 
 -- Where an amendment's notes contradict its facts, one distinct sentence each, at most 20 of at most 300 characters.
 -- p_ctx (research_publish's): {"renamed": [the old outermost heading, when the outermost one was renamed], "disclose":
--- whether removals must be disclosed (false when the task cannot read its base: a rebuild that dropped a withdrawn
--- base, or a base withdrawn since), "baseVersion", "baseSourceId": the version the task amends, while it can read it}.
--- With '{}', removals are judged and nothing names a version to restore from.
+-- whether the task can read its base (false for a rebuild that dropped a withdrawn base, or a base withdrawn since):
+-- then removals need not be disclosed, and no problem names a removed section, "baseVersion", "baseSourceId": the
+-- version the task amends, while it can read it}. With '{}', removals are judged and nothing names a version to restore
+-- from.
 CREATE FUNCTION sophia.amendment_note_problems(p_change text, p_kept text, p_facts jsonb, p_ctx jsonb) RETURNS text[]
 LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog AS $$
 DECLARE changed integer:=jsonb_array_length(p_facts->'added')+jsonb_array_length(p_facts->'revised')+jsonb_array_length(p_facts->'removed');
  notes text:=coalesce(p_change,'')||E'.\n'||coalesce(p_kept,''); kept text:=lower(coalesce(p_kept,'')); out text[]:='{}';
- conclusion boolean; recommendation boolean; h text; gone text[]; renamed text[]; called text[]; quiet text[]; covered integer;
- told_quiet boolean:=false; lead text; restore text;
+ readable boolean:=coalesce((p_ctx->>'disclose')::boolean,true); conclusion boolean; recommendation boolean; h text; gone text[];
+ renamed text[]; called text[]; quiet text[]; revised text[]; covered integer; named text[]:='{}'; told_quiet boolean:=false;
+ rest boolean; lead text; restore text; bodies text[]; polarities text[]; goes boolean[]; sames boolean[]; of_kept boolean[];
 BEGIN
  -- 0036's rules, as they were. Which kind changed: the anchors of the changed sections' headings, by section_facts'
  -- own rule.
@@ -197,39 +262,64 @@ BEGIN
  IF (p_facts->>'conclusionChanged')::boolean AND recommendation AND sophia.note_keeps(notes,'recommendations?','conclusions?') THEN
   out:=out||'The note calls the recommendations unchanged, but they changed.'::text; END IF;
  -- The removed sections: each removed heading once, in order, unless a section with that anchor remains (a repeated
- -- heading). A kept note naming one in full, as 0036 refused it.
+ -- heading).
  SELECT coalesce(array_agg(r.x ORDER BY r.i),'{}') INTO gone FROM (SELECT e.x, min(e.i) AS i
    FROM jsonb_array_elements_text(p_facts->'removed') WITH ORDINALITY e(x,i)
    WHERE sophia.heading_anchor(e.x) NOT IN (SELECT sophia.heading_anchor(y) FROM unnest(ARRAY['added','revised','unchanged']) k,
      jsonb_array_elements_text(p_facts->k) y)
    GROUP BY e.x) r;
+ IF cardinality(gone)=0 AND jsonb_array_length(p_facts->'revised')=0 THEN RETURN out[1:20]; END IF;
+
+ -- The notes, read once: pieces with what each says (note_pieces). The rest of the report is claimed kept by a "kept"
+ -- piece about the rest ("the remainder is unchanged", "everything else is retained") or by a piece that says only
+ -- something changed ("only the recommendations changed").
+ SELECT coalesce(array_agg(x.body ORDER BY x.n),'{}'), coalesce(array_agg(x.polarity ORDER BY x.n),'{}'),
+   coalesce(array_agg(x.gone ORDER BY x.n),'{}'), coalesce(array_agg(x.same ORDER BY x.n),'{}'), coalesce(array_agg(x.of_kept ORDER BY x.n),'{}')
+  INTO bodies, polarities, goes, sames, of_kept
+  FROM (SELECT row_number() OVER () AS n, y.* FROM (SELECT z.*, true AS of_kept FROM sophia.note_pieces(p_kept,true) z
+    UNION ALL SELECT z.*, false FROM sophia.note_pieces(p_change,false) z) y) x;
+ SELECT coalesce(bool_or(sophia.note_blanket(u.body,NULL) AND (u.polarity='keep'
+   OR u.body ~ '\m(only|solely|exclusively)\M|-only\M|\m(limited|confined|restricted)\s+to\M')),false) INTO rest
+  FROM unnest(bodies,polarities) u(body,polarity);
+ -- A kept note naming a removed section in full, as 0036 refused it, unless where it says the section went or excepts
+ -- it ("everything except the comparison table"); without its name when the task cannot read its base.
  FOREACH h IN ARRAY gone LOOP
-  IF length(h)>=4 AND strpos(kept,lower(h))>0 THEN
-   out:=out||format('The kept note names "%s", which was removed.',h); END IF;
+  IF length(h)>=4 AND strpos(kept,lower(h))>0 AND NOT EXISTS(SELECT 1 FROM unnest(bodies,polarities,goes,of_kept) u(body,polarity,gone,of_kept)
+    WHERE u.of_kept AND u.polarity<>'keep' AND u.gone AND strpos(u.body,lower(h))>0) THEN
+   out:=out||CASE WHEN readable THEN format('The kept note names "%s", which was removed.',h)
+    ELSE 'The kept note names a section that is no longer in the report.' END;
+   named:=named||h;
+  END IF;
  END LOOP;
 
  IF cardinality(gone)>0 THEN
   SELECT coalesce(array_agg(x),'{}') INTO renamed FROM jsonb_array_elements_text(coalesce(p_ctx->'renamed','[]')) x;
-  -- Each removed section 0036 has not named, as one renamed (positional, or a key word of its own shared with an added
-  -- heading), one called kept or unchanged, one disclosed, or one left quiet. The notes are read once, as pieces with
-  -- their key words and their text as words between single spaces (for a heading named in full, never across two).
-  -- * A piece that says the section went discloses it by its heading or a key word of its own (one no remaining
-  --   heading has), whatever else the notes call kept ("Removed the table, keeping the comparison in prose").
-  -- * Otherwise a "kept" piece naming it by a key word of its own calls it kept, or unchanged (a "kept" piece of the
-  --   change note naming it in full always does).
-  -- * Otherwise a piece that does not say "kept" discloses it by its heading or a key word of its own, and a piece
-  --   that says something went by a word it shares with a remaining heading, unless that piece names another removed
-  --   section by a word of its own ("removed the battery chemistry section" says nothing of "Battery costs").
-  WITH p AS MATERIALIZED (SELECT row_number() OVER () AS n, x.polarity, x.gone, x.of_kept, sophia.note_removes_all(x.body) AS removes,
-     x.body, ' '||btrim(regexp_replace(x.body,'[^[:alnum:]]+',' ','g'))||' ' AS t
-    FROM (SELECT y.*, true AS of_kept FROM sophia.note_pieces(p_kept,true) y
-     UNION ALL SELECT y.*, false FROM sophia.note_pieces(p_change,false) y) x),
+  -- Each removed section 0036 has not named, as one called kept or unchanged, one disclosed, one renamed, or one left
+  -- quiet. A key word of its own is one no remaining heading has; a renamed one (besides the positional rename
+  -- research_publish passes in) shares a word of its own with an added heading ("Recommendations for buyers",
+  -- "Revised recommendations"). Pieces are read with their key words and their text as words between single spaces
+  -- (for a heading named in full, never across two).
+  -- * A "kept" piece of the change note naming it in full calls it unchanged.
+  -- * A piece that says the section went (or excepts it) discloses it by its heading or a key word of its own, whatever
+  --   else the notes call kept ("Removed the table, keeping the comparison in prose").
+  -- * Otherwise a "kept" piece naming it by a key word of its own that no added heading shares calls it kept, or
+  --   unchanged ("the table is retained" of a "Comparison table" become "Comparison at a glance").
+  -- * Otherwise a renamed one is set aside, unless the notes claim the rest was kept and no piece that does not say
+  --   "kept" names it ("Revised the recommendations; the rest is unchanged" of a "Comparison table" become "Comparison
+  --   summary").
+  -- * Otherwise a piece that says something went by a word it shares with a remaining heading discloses it, unless that
+  --   piece names another removed section by a word of its own ("removed the battery chemistry section" says nothing of
+  --   "Battery costs").
+  -- A piece that only says something changed ("updated the comparison table", "rewrote the recommendations, and the
+  -- table and limitations are as they were") discloses nothing.
+  WITH p AS MATERIALIZED (SELECT u.n, u.polarity, u.gone, u.of_kept, sophia.note_removes_all(u.body) AS removes, u.body,
+     ' '||btrim(regexp_replace(u.body,'[^[:alnum:]]+',' ','g'))||' ' AS t
+    FROM unnest(bodies,polarities,goes,of_kept) WITH ORDINALITY u(body,polarity,gone,of_kept,n)),
    pw AS MATERIALIZED (SELECT DISTINCT p.n, w FROM p, unnest(sophia.note_words(p.body)) w),
    texts AS (SELECT coalesce(string_agg(p.t,'|') FILTER (WHERE NOT p.of_kept AND p.polarity='keep'),'') AS unchanged,
-     coalesce(string_agg(p.t,'|') FILTER (WHERE p.polarity<>'keep' AND p.gone),'') AS went,
-     coalesce(string_agg(p.t,'|') FILTER (WHERE p.polarity<>'keep'),'') AS told, coalesce(max(p.removes),0) AS removes FROM p),
+     coalesce(string_agg(p.t,'|') FILTER (WHERE p.polarity<>'keep' AND p.gone),'') AS went, coalesce(max(p.removes),0) AS removes FROM p),
    g AS (SELECT u.h, u.i, btrim(regexp_replace(lower(left(u.h,200)),'[^[:alnum:]]+',' ','g')) AS t FROM unnest(gone) WITH ORDINALITY u(h,i)
-     WHERE NOT (length(u.h)>=4 AND strpos(kept,lower(u.h))>0) AND u.h <> ALL (renamed)),
+     WHERE u.h <> ALL (named) AND u.h <> ALL (renamed)),
    remaining AS MATERIALIZED (SELECT DISTINCT w FROM unnest(ARRAY['revised','unchanged']) k, jsonb_array_elements_text(p_facts->k) y,
      unnest(sophia.note_words(y)) w),
    added AS MATERIALIZED (SELECT DISTINCT w FROM jsonb_array_elements_text(p_facts->'added') y, unnest(sophia.note_words(y)) w),
@@ -237,41 +327,74 @@ BEGIN
      LEFT JOIN remaining r ON r.w=x.w LEFT JOIN added a ON a.w=x.w),
    claimed AS (SELECT DISTINCT p.n FROM words JOIN pw ON pw.w=words.w JOIN p ON p.n=pw.n WHERE words.own AND p.polarity<>'keep' AND p.gone),
    s AS (SELECT words.i, bool_or(words.own AND words.shared) AS renamed,
+      coalesce(bool_or(words.own AND p.polarity<>'keep'),false) AS mentioned,
       coalesce(bool_or(words.own AND p.polarity<>'keep' AND p.gone),false) AS own_went,
-      coalesce(bool_or(words.own AND p.of_kept AND p.polarity='keep'),false) AS own_kept,
-      coalesce(bool_or(words.own AND NOT p.of_kept AND p.polarity='keep'),false) AS own_unchanged,
-      coalesce(bool_or(words.own AND p.polarity<>'keep'),false) AS own_told,
+      coalesce(bool_or(words.own AND NOT words.shared AND p.of_kept AND p.polarity='keep'),false) AS own_kept,
+      coalesce(bool_or(words.own AND NOT words.shared AND NOT p.of_kept AND p.polarity='keep'),false) AS own_unchanged,
       coalesce(bool_or(NOT words.own AND p.polarity<>'keep' AND p.gone AND c.n IS NULL),false) AS shared_went
      FROM words LEFT JOIN pw ON pw.w=words.w LEFT JOIN p ON p.n=pw.n LEFT JOIN claimed c ON c.n=p.n GROUP BY words.i),
    c AS (SELECT g.h, g.i, CASE
-      WHEN s.renamed THEN 'renamed'
       WHEN g.t<>'' AND strpos(texts.unchanged,' '||g.t||' ')>0 THEN 'unchanged'
       WHEN s.own_went OR (g.t<>'' AND strpos(texts.went,' '||g.t||' ')>0) THEN 'disclosed'
       WHEN s.own_kept THEN 'kept'
       WHEN s.own_unchanged THEN 'unchanged'
-      WHEN s.own_told OR s.shared_went OR (g.t<>'' AND strpos(texts.told,' '||g.t||' ')>0) THEN 'disclosed'
+      WHEN s.renamed AND (s.mentioned OR NOT rest) THEN 'renamed'
+      WHEN s.shared_went THEN 'disclosed'
       ELSE 'quiet' END AS kind
     FROM g CROSS JOIN texts LEFT JOIN s ON s.i=g.i)
-  SELECT coalesce(array_agg(format(CASE c.kind WHEN 'kept' THEN 'The kept note names "%s", which was removed.'
-      ELSE 'The change note calls "%s" unchanged, but it was removed.' END,CASE WHEN length(c.h)>200 THEN left(c.h,199)||'…' ELSE c.h END)
-     ORDER BY c.i) FILTER (WHERE c.kind IN ('kept','unchanged')),'{}'),
+  SELECT coalesce(array_agg(CASE WHEN NOT readable AND c.kind='kept' THEN 'The kept note names a section that is no longer in the report.'
+      WHEN NOT readable THEN 'The change note calls a section unchanged that is no longer in the report.'
+      ELSE format(CASE c.kind WHEN 'kept' THEN 'The kept note names "%s", which was removed.' ELSE 'The change note calls "%s" unchanged, but it was removed.' END,
+       CASE WHEN length(c.h)>200 THEN left(c.h,199)||'…' ELSE c.h END) END ORDER BY c.i) FILTER (WHERE c.kind IN ('kept','unchanged')),'{}'),
    coalesce(array_agg(c.h ORDER BY c.i) FILTER (WHERE c.kind='quiet'),'{}'), (SELECT texts.removes FROM texts)
    INTO called, quiet, covered FROM c;
   out:=out||called;
-  -- The quiet ones, unless a wholesale removal or a count covers them.
-  IF cardinality(quiet)>0 AND coalesce((p_ctx->>'disclose')::boolean,true) AND covered<cardinality(quiet) THEN
+  -- The quiet ones, unless a wholesale removal or a count covers them; where the task cannot read its base, only when
+  -- the notes claim the rest was kept, and by their number.
+  IF cardinality(quiet)>0 AND covered<cardinality(quiet) AND readable THEN
    lead:=CASE WHEN sophia.note_blanket(p_change,p_kept) THEN 'The notes say the rest of the report was kept, but ' ELSE 'The notes do not say that ' END
     ||CASE WHEN cardinality(quiet)=1 THEN '1 section was' ELSE cardinality(quiet)||' sections were' END||' removed: ';
    out:=out||(lead||sophia.note_names(quiet,299-length(lead),true)||'.');
    told_quiet:=true;
+  ELSIF cardinality(quiet)>0 AND covered<cardinality(quiet) AND rest THEN
+   out:=out||('The notes say the rest of the report was kept, but '||CASE WHEN cardinality(quiet)=1 THEN '1 section of the earlier version is'
+    ELSE cardinality(quiet)||' sections of the earlier version are' END||' no longer in it.');
   END IF;
   -- Where the task can read its base, a section called kept or left quiet can be restored from it: said last, and
   -- always within the 20.
-  IF (cardinality(called)>0 OR told_quiet) AND coalesce((p_ctx->>'disclose')::boolean,true) AND p_ctx->>'baseVersion' IS NOT NULL THEN
-   restore:=left(format('research_write_draft replaces the whole report, so what your draft leaves out is deleted. If the request did not '
-    ||'ask to remove these sections, restore them from version %s (sourceId %s) and submit again; if it did, name them in changeNote.',
+  IF (cardinality(called)>0 OR told_quiet OR cardinality(named)>0) AND readable AND p_ctx->>'baseVersion' IS NOT NULL THEN
+   restore:=left(format('New notes do not bring these sections back: research_write_draft replaced the whole report. Unless the request asked '
+    ||'to remove them, restore them from version %s (sourceId %s) with research_write_draft, then submit again; if it did, name them in changeNote.',
     p_ctx->>'baseVersion',p_ctx->>'baseSourceId'),300);
   END IF;
+ END IF;
+
+ -- A revised section that a piece saying the text is the same names ("the comparison table is unchanged", "Comparison
+ -- table as it was"), by its whole heading or a key word only it has among the headings, while no piece that does not
+ -- say "kept" names it ("trimmed the comparison table; the rest of it is unchanged"). section_facts compares each
+ -- section's own text, never its subsections', so a named heading it lists as revised is a change the note denies.
+ -- Not a heading that is also unchanged (a repeated one), nor the conclusion or recommendations (0036's rules above);
+ -- and "kept" or "still there" says the section is there, which a revised one is.
+ IF jsonb_array_length(p_facts->'revised')>0 THEN
+  WITH p AS MATERIALIZED (SELECT u.n, u.polarity, u.same, u.body, ' '||btrim(regexp_replace(u.body,'[^[:alnum:]]+',' ','g'))||' ' AS t
+    FROM unnest(bodies,polarities,sames) WITH ORDINALITY u(body,polarity,same,n)),
+   pw AS MATERIALIZED (SELECT DISTINCT p.n, w FROM p, unnest(sophia.note_words(p.body)) w),
+   r AS (SELECT e.x AS h, min(e.i) AS i, btrim(regexp_replace(lower(left(e.x,200)),'[^[:alnum:]]+',' ','g')) AS t
+     FROM jsonb_array_elements_text(p_facts->'revised') WITH ORDINALITY e(x,i)
+     WHERE sophia.heading_anchor(e.x) !~ '(conclusion|recommendation)'
+      AND lower(e.x) NOT IN (SELECT lower(y) FROM jsonb_array_elements_text(p_facts->'unchanged') y)
+     GROUP BY e.x),
+   elsewhere AS MATERIALIZED (SELECT DISTINCT w FROM unnest(ARRAY['added','removed','unchanged']) k, jsonb_array_elements_text(p_facts->k) y,
+     unnest(sophia.note_words(y)) w),
+   alone AS MATERIALIZED (SELECT x.w FROM (SELECT DISTINCT e.x, w FROM jsonb_array_elements_text(p_facts->'revised') e(x),
+     unnest(sophia.note_words(e.x)) w) x WHERE NOT EXISTS(SELECT 1 FROM elsewhere o WHERE o.w=x.w) GROUP BY x.w HAVING count(*)=1),
+   hits AS (SELECT r.i, p.n FROM r JOIN p ON r.t<>'' AND strpos(p.t,' '||r.t||' ')>0
+     UNION SELECT r.i, pw.n FROM r CROSS JOIN LATERAL unnest(sophia.note_words(r.h)) x(w) JOIN alone a ON a.w=x.w JOIN pw ON pw.w=x.w)
+  SELECT coalesce(array_agg(format('The note calls "%s" unchanged, but it was revised.',CASE WHEN length(r.h)>200 THEN left(r.h,199)||'…' ELSE r.h END)
+    ORDER BY r.i),'{}') INTO revised
+   FROM r WHERE EXISTS(SELECT 1 FROM hits JOIN p ON p.n=hits.n WHERE hits.i=r.i AND p.polarity='keep' AND p.same)
+    AND NOT EXISTS(SELECT 1 FROM hits JOIN p ON p.n=hits.n WHERE hits.i=r.i AND p.polarity<>'keep');
+  out:=out||revised;
  END IF;
  out:=coalesce((SELECT array_agg(d.x ORDER BY d.i) FROM (SELECT left(u.y,300) AS x, min(u.i) AS i FROM unnest(out) WITH ORDINALITY u(y,i)
    GROUP BY 1) d),'{}');
@@ -370,7 +493,8 @@ LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
 -- The research create's text: research_prompt's (0025), then what every task is asked. An amendment's says first,
 -- before the question, what an update is (see the header): its draft starts as its base (dispatch_runtime_outbox seeds
 -- it before it sends this). Its lines are application text, model-facing: a change to them changes how the worker
--- updates a report.
+-- updates a report. The report's title is a worker's text, so it is quoted as a JSON string: a quote in it cannot end
+-- the title and start an instruction.
 CREATE FUNCTION sophia.research_task_statement(p_project uuid, p_manifest jsonb) RETURNS text LANGUAGE plpgsql STABLE
 SET search_path=pg_catalog,sophia AS $$
 DECLARE
@@ -388,7 +512,7 @@ BEGIN
   WHERE v.project_id=p_project AND v.id=(p_manifest->'base'->>'versionId')::uuid AND v.source_id=(p_manifest->'base'->>'sourceId')::uuid;
  IF n IS NOT NULL AND cut>0 THEN
   statement:=left(statement,cut+1)||concat_ws(E'\n',
-   format('This task updates version %s of an existing report, "%s". It does not write a new report.',n,title),
+   format('This task updates version %s of an existing report, %s. It does not write a new report.',n,to_json(title)::text),
    format('- Your draft already holds version %s''s full text: research_read_context shows it as your current draft. '
     ||'Read it whole, then edit it. When you write, pass its sha256 as expectedSha256, not null.',n),
    '- research_write_draft replaces the whole report, and the published version is exactly your draft: a section, table, link or '
@@ -512,12 +636,14 @@ GRANT EXECUTE ON FUNCTION sophia.dispatch_runtime_outbox(uuid,uuid,uuid) TO soph
 
 -- research_publish (0027), replaced: the same, and
 -- * an amendment's notes pass amendment_note_problems: with the renamed outermost heading (one on each side, under
---   another anchor), and, while the task can read its base, the base's version to restore removed sections from;
+--   another anchor), and, while the task can read its base, the base's version to restore removed sections from; a
+--   refusal to a task that cannot read its base carries no facts;
 -- * a draft that is still the version it amends, unchanged, is refused, with those problems, under the same one
 --   refusal: the second submit publishes it with notes from the facts, as the refusal says (the model's notes on a
 --   report it did not change cannot be checked against facts that show no change);
 -- * an earlier draft of the attempt (the base's copy among them) leaves the model's list, which must still name a
---   source; the citations are checked with research_citable.
+--   source; the citations are checked with research_citable;
+-- * the sources added and dropped leave out the report's own versions.
 CREATE OR REPLACE FUNCTION sophia.research_publish(s sophia.research_scope, p_key text, p_result jsonb) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE t sophia.research_tasks; j sophia.jobs; g sophia.goals; d sophia.research_drafts; a sophia.artifacts; prev sophia.artifact_versions;
@@ -525,7 +651,8 @@ DECLARE t sophia.research_tasks; j sophia.jobs; g sophia.goals; d sophia.researc
  result sophia.source_objects; v_title text:=btrim(p_result->>'title'); v_summary text:=btrim(p_result->>'summary');
  v_answer text:=btrim(p_result->>'resultSummary'); v_change text:=nullif(btrim(coalesce(p_result->>'changeNote','')),'');
  v_kept text:=nullif(btrim(coalesce(p_result->>'retainedNote','')),''); bad uuid; artifact uuid; v_bytes bigint; v_previous_bytes bigint;
- sections jsonb; problems text[]; replaced boolean:=false; new_text text; old_text text; base jsonb; base_ok boolean; renamed jsonb;
+ sections jsonb; problems text[]; replaced boolean:=false; new_text text; old_text text; base jsonb; base_ok boolean:=false; renamed jsonb;
+ versions uuid[];
 BEGIN
  SELECT * INTO t FROM sophia.research_tasks WHERE project_id=s.project_id AND job_id=s.job_id FOR UPDATE;
  SELECT * INTO j FROM sophia.jobs WHERE project_id=s.project_id AND id=s.job_id FOR UPDATE;
@@ -583,16 +710,18 @@ BEGIN
      WHERE bv.project_id=s.project_id AND bv.id=(base->>'versionId')::uuid) END,
    'baseSourceId',CASE WHEN base_ok THEN base->>'sourceId' END));
   IF d.sha256=prev.source_hash THEN
-   problems:=(format('The draft is version %s unchanged. Make the change the request asks for with research_write_draft; if the report '
-    ||'needs no change, submit it again as it is: it is published as unchanged, with notes written from the facts.',
-    prev.version_number)||problems)[1:20];
+   problems:=(format('This is about the draft, not the notes: it is still version %s, unchanged. Make the requested change with '
+    ||'research_write_draft before you submit again; new notes alone change nothing. If no change is needed, submit it again as it is: it '
+    ||'is published unchanged, with notes from the facts.',prev.version_number)||problems)[1:20];
   END IF;
  END IF;
  IF cardinality(problems)>0 THEN
   IF t.notes_rejected_at IS NULL OR t.notes_rejected_call=p_key THEN
    UPDATE sophia.research_tasks SET notes_rejected_at=coalesce(notes_rejected_at,now()), notes_rejected_call=p_key
     WHERE project_id=s.project_id AND job_id=t.job_id;
-   RETURN jsonb_build_object('taskId',j.id,'outcome','notes_rejected','problems',to_jsonb(problems),'sections',sections);
+   -- The facts name the base's headings: not to a task that cannot read its base.
+   RETURN jsonb_build_object('taskId',j.id,'outcome','notes_rejected','problems',to_jsonb(problems))
+    ||CASE WHEN base_ok THEN jsonb_build_object('sections',sections) ELSE '{}' END;
   END IF;
   SELECT tn.change_note, tn.retained_note INTO v_change, v_kept FROM sophia.template_notes(sections) tn;
   replaced:=true;
@@ -611,6 +740,10 @@ BEGIN
 
  SELECT coalesce(array_agg(dep.source_id ORDER BY dep.source_id),'{}') INTO previous FROM sophia.source_dependencies dep
   WHERE prev.id IS NOT NULL AND dep.project_id=s.project_id AND dep.derived_source_id=prev.source_id;
+ -- A version of this report it cites stays a source (CC-0019 #7), but is no source added or dropped: a version cites
+ -- its base only when the model lists it, and the next one's text does not name it, so it would read as dropped.
+ SELECT coalesce(array_agg(av.source_id),'{}') INTO versions FROM sophia.artifact_versions av
+  WHERE av.project_id=s.project_id AND av.artifact_id=a.id;
  SELECT byte_length INTO v_bytes FROM sophia.source_objects WHERE project_id=s.project_id AND id=d.source_id;
  SELECT byte_length INTO v_previous_bytes FROM sophia.source_objects WHERE project_id=s.project_id AND id=prev.source_id;
  validation:=sophia.put_text_source(s.project_id,s.actor_id,'application/json',jsonb_pretty(jsonb_build_object(
@@ -628,8 +761,8 @@ BEGIN
  VALUES(s.project_id,a.id,prev.id,d.source_id,d.sha256,g.id,g.revision,g.authority_epoch,'stable',validation.id,true,vnum,
   coalesce(v_change,CASE WHEN vnum=1 THEN 'First version' END),v_kept,
   jsonb_build_object('versionNumber',vnum,'previousVersionId',prev.id,'cited',cardinality(citations),
-   'added',(SELECT coalesce(jsonb_agg(x ORDER BY x),'[]') FROM unnest(citations) x WHERE NOT x=ANY(previous)),
-   'dropped',(SELECT coalesce(jsonb_agg(x ORDER BY x),'[]') FROM unnest(previous) x WHERE NOT x=ANY(citations)),
+   'added',(SELECT coalesce(jsonb_agg(x ORDER BY x),'[]') FROM unnest(citations) x WHERE NOT x=ANY(previous) AND NOT x=ANY(versions)),
+   'dropped',(SELECT coalesce(jsonb_agg(x ORDER BY x),'[]') FROM unnest(previous) x WHERE NOT x=ANY(citations) AND NOT x=ANY(versions)),
    'bytes',v_bytes,'previousBytes',v_previous_bytes,'sections',sections,'notesFromFacts',replaced),
   jsonb_strip_nulls(jsonb_build_object('kind','research','taskId',s.job_id,'amendsTaskId',t.amends_job_id)),s.job_id,lims)
  RETURNING * INTO v;
