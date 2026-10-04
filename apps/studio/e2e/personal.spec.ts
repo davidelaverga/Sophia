@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { lowContrast } from './contrast.ts'
+import { typeSizes } from './type-sizes.ts'
 
 // Personal's fixture page (fixtures/personal.tsx): the Studio's own PersonalSpace over a labelled simulated
 // conversation. The "$20" pass (docs/plans/personal-pass.md): speakers marked by Umbral's halves, no bubbles, Home's
@@ -329,6 +330,9 @@ test('detail · every text in Personal reads: no contrast under 4.5:1, its times
   expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
   await page.goto(`${PAGE}?arrive=1&ready=1`)
   expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
+  await page.goto(`${PAGE}?writing=1`)
+  await expect(page.locator('.msg.typing .body')).toHaveText('Sophia is writing…')
+  expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
 })
 
 test('detail · the field shows its focus as Home’s line does, a ring of light, not only a 1 px shift', async ({
@@ -336,7 +340,9 @@ test('detail · the field shows its focus as Home’s line does, a ring of light
 }) => {
   await page.goto(PAGE)
   await field(page).focus()
-  await expect.poll(() => css(page, '.ps-composer .message-bar', 'box-shadow')).toMatch(/rgba\(185, 168, 255/)
+  await expect
+    .poll(() => css(page, '.ps-composer .message-bar', 'box-shadow'))
+    .toMatch(/rgba\(185, 168, 255, 0\.55\) 0px -1px 0px/)
 })
 
 test('detail · every control is at least 24 px tall, the day dividers too', async ({ page }) => {
@@ -353,18 +359,32 @@ test('detail · every control is at least 24 px tall, the day dividers too', asy
   expect(short).toEqual([])
 })
 
-test('detail · one type scale: Personal’s text comes in four sizes', async ({ page }) => {
-  await page.goto(`${PAGE}?all=1&notes=open&arrive=1&ready=1`)
-  const sizes = await page.locator('.c3-space').evaluate((space) => {
-    const seen = new Set<string>()
-    for (const el of space.querySelectorAll('*')) {
-      if (el.closest('.sr-only, .c3-edge, [aria-hidden="true"]')) continue
-      const own = [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim())
-      if (own && el.getBoundingClientRect().width > 0) seen.add(getComputedStyle(el).fontSize)
+test('detail · one type scale: Personal’s text comes in four sizes, in every state it shows', async ({ page }) => {
+  const sizes = new Set<string>()
+  const read = async () => {
+    for (const part of ['.c3-space.you .c3-head', '.c3-space.you .c3-body']) {
+      for (const s of await typeSizes(page, part)) sizes.add(s)
     }
-    return [...seen].toSorted()
-  })
-  expect(sizes).toEqual(['10.5px', '11px', '13px', '15px'])
+  }
+  for (const state of [
+    '?all=1&notes=open&arrive=1&ready=1',
+    '?failed=1',
+    '?suggestion=1',
+    '?writing=1',
+    '?kept=sophia&notes=open',
+  ]) {
+    await page.goto(`${PAGE}${state}`)
+    await read()
+  }
+  // Note this, open; the days, listed.
+  await page.goto(PAGE)
+  const mine = page.locator('.msg.me').last()
+  await mine.hover()
+  await mine.locator('.note-this').click()
+  await read()
+  await page.locator('.c3-day').first().click()
+  await read()
+  expect([...sizes].toSorted()).toEqual(['10.5px', '11px', '13px', '15px'])
 })
 
 test('detail · with less motion asked for, nothing in Personal moves: no breathing wash, no flicker', async ({
@@ -373,10 +393,21 @@ test('detail · with less motion asked for, nothing in Personal moves: no breath
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto(`${PAGE}?writing=1`)
   await page.waitForTimeout(400)
-  const moving = await page
-    .locator('.c3-space')
-    .evaluate((s) => s.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').length)
-  expect(moving).toBe(0)
+  // What loops for ever: under the global 1 ms rule it would flicker every frame.
+  const moving = () =>
+    page
+      .locator('.c3-space')
+      .evaluate(
+        (s) =>
+          s
+            .getAnimations({ subtree: true })
+            .filter((a) => a.playState === 'running' && a.effect?.getTiming().iterations === Infinity).length,
+      )
+  expect(await moving()).toBe(0)
+  await page.goto(PAGE)
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await expect(page.locator('.c3-wave')).toBeVisible()
+  expect(await moving()).toBe(0)
 })
 
 test('@phone · detail · a long way in wraps inside its row, its lines given room, never past it', async ({ page }) => {

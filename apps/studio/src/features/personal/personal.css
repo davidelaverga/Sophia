@@ -864,7 +864,7 @@
   justify-self: start;
   margin-top: -6px;
   color: var(--text-sec);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 /* Touch and narrow screens: no hover, so a tap on a message shows its time under it. */
 /* Narrow screens: the halves stand inside the gutter, the words start after them, and the days still span the column. */
@@ -950,8 +950,13 @@
   left: 50%;
   transform: translateX(-50%);
 }
+/* The days' menu and the note form keep to the scale (theme.css sizes popover rows and fields 12.5 and 13.5). */
+.places .c3-daybar .popover button,
+.places .c3-noteform input {
+  font-size: 13px;
+}
 .places .c3-daybar .popover .muted {
-  font-size: 11.5px;
+  font-size: 11px;
 }
 .places .c3-day {
   display: flex;
@@ -997,7 +1002,7 @@
 .places .c3-noteform .use {
   flex-basis: 100%;
   color: var(--text-sec);
-  font-size: 12px;
+  font-size: 13px;
 }
 /* Sophia never keeps a note silently: she suggests it, you keep it or let it go. */
 .places .c3-suggest {
@@ -1010,7 +1015,7 @@
   padding: 0;
   border: 0;
   background: none;
-  font-size: 14px;
+  font-size: 15px;
   animation: ps-arrive 260ms var(--ease);
 }
 .places .c3-suggest .field-label {
@@ -1030,14 +1035,14 @@
 .places .c3-kept {
   margin-top: -8px;
   color: var(--text-sec);
-  font-size: 12px;
+  font-size: 13px;
 }
 .places .c3-kept q {
   color: var(--text-2);
   quotes: '“' '”';
 }
 .places .c3-kept .text-button {
-  font-size: 12px;
+  font-size: 13px;
 }
 /* A first conversation starts from a blank page; three quiet ways in, gone after the first message. */
 .places .c3-starters {
@@ -1265,7 +1270,7 @@
   gap: 6px;
   margin-top: 3px;
   color: var(--halo-text);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 .places .c2-t .by::before {
   content: '';
@@ -1283,7 +1288,7 @@
 }
 .places .c2-to small {
   color: var(--text-sec);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 .places .c2-to-head {
   display: flex;
@@ -1318,7 +1323,7 @@
 .places .ps-empty {
   padding: 4px 8px;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 /* The edge crosses; it shows a padlock only when the side behind it is locked. */
@@ -1773,6 +1778,7 @@
   .places .hw-mic,
   .places .hw-row.placeholder,
   .places .c3-ambient,
+  .places .c3-wave i,
   .places .msg.typing .c3-who {
     animation: none;
   }
@@ -1956,12 +1962,13 @@
   }
 }
 
-/* Finishing: text you select takes her light; the conversation's scrollbar is a thin line, not a gutter. */
-.places .c3-space ::selection {
+/* Finishing: text you select in Personal takes her light. */
+.places .c3-space.you ::selection {
   background: rgba(156, 130, 245, 0.32);
   color: var(--text);
 }
-.places .msgs {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(236, 235, 241, 0.14) transparent;
+@media (prefers-reduced-motion: reduce) {
+  .places .msgs {
+    scroll-behavior: auto;
+  }
 }

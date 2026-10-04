@@ -342,7 +342,9 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
 function goToDay(key: string) {
   const divider = document.getElementById(dayId(key))
   divider?.focus({ preventScroll: true })
-  divider?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // Under less motion it is simply there.
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+  divider?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' })
 }
 
 /** The last page read back takes "Show earlier days" away: the focus it had goes to the menu's first day. */
