@@ -3,8 +3,13 @@
 // "kitchen" is a research report with every element the template prints (a section break inside a section and one
 // closing it) and every kind of source; "stress" is what a page must survive (a 220-character title, a 12-column table
 // of 40 rows, 50 adjacent citations, citations in headings, at a table's edges, beside its frozen column and facing
-// each other across a column, a 300-character code line, long addresses, CJK and Arabic text). Vendors, figures and
-// addresses are illustrative; nothing here is live, and the hashes are placeholders the page only prints.
+// each other across a column, a 300-character code line, long addresses, CJK and Arabic text, a heading that is one
+// 80-letter word, which the contents rail must wrap rather than scroll). "italiano" is an
+// Italian report with long headings and addresses, citations in a table, a source read in part and one seen only as a
+// search snippet, and limitations it writes itself (M75, A-06); "espanol" is a Spanish narrative of uneven sections,
+// one with no evidence at all, a source that could not be read, a project document, and no limitations of its own, so
+// the version's stored ones stand in. The same inputs serve SDD-01's comparison with a designed page. Vendors, figures
+// and addresses are illustrative; nothing here is live, and the hashes are placeholders the page only prints.
 import type { PageSource, ReportPageInput } from '@sophia/report/page'
 
 /** A fixture source id. */
@@ -273,6 +278,10 @@ const veryLongLine = "${'x'.repeat(300)}"; // and a comment after a 300-characte
 function f() { return 1 }
 \`\`\`
 
+## ${LONG_WORD}
+
+A heading of one word longer than the contents rail is wide: the rail wraps it, and never scrolls sideways.
+
 ## 中文章节：非拉丁文字的标题会怎样换行
 
 数据驻留不仅是区域问题，也是合同问题。只有两家供应商以书面形式承诺支持访问仅限欧盟境内处理${cite(3)}。恢复窗口的差异比价格的差异更大，从三天到三十五天不等。
@@ -298,6 +307,156 @@ const STRESS_SOURCES: PageSource[] = Array.from({ length: 60 }, (_, i) => ({
   ...stressRead(i + 1),
 }))
 
+const ITALIANO = `# Ospitare un database PostgreSQL gestito nell'Unione europea: residenza dei dati, ripristino e costi per una piccola squadra
+
+Quale servizio gestito di PostgreSQL può tenere i dati dei clienti di una piccola squadra all'interno dell'Unione europea, ripristinarli a qualsiasi minuto dell'ultima settimana e restare sotto i 400 euro al mese? Questo rapporto confronta quattro fornitori sulla residenza, sul ripristino, sull'assistenza e sui costi. I fornitori e le cifre sono illustrativi: è un esempio di impaginazione, non una consulenza.
+
+## Sintesi
+
+**Harbor Cloud** è la scelta migliore oggi: regioni solo europee a Francoforte e Parigi, ripristino al secondo per 14 giorni e un preventivo di 290 euro al mese per la nostra configurazione [${id(101)}]. **Northwind** è l'alternativa: costa meno, ma la finestra di ripristino è di 7 giorni e l'assistenza può arrivare da fuori dell'Unione [${id(103)}] [${id(104)}].
+
+- La residenza è una questione di contratto oltre che di regione: solo due fornitori si impegnano per iscritto a un'assistenza interamente europea [${id(104)}].
+- Le finestre di ripristino differiscono più dei prezzi, da 3 a 35 giorni.
+
+## Responsabili del trattamento, sub-responsabili e accesso dell'assistenza tecnica da fuori dell'Unione europea
+
+Harbor Cloud e Calder dichiarano nei loro accordi sul trattamento dei dati che i dati primari, le copie di sicurezza e l'accesso dell'assistenza restano nell'Unione [${id(101)}] [${id(105)}]. Northwind conserva le copie nella regione, ma si riserva un'assistenza a turni da fuori dell'Unione, con il consenso del cliente per ogni intervento [${id(103)}]. La pagina dei prezzi di Lumen è stata letta solo in parte, perché il calcolatore chiede di accedere dopo la prima schermata [${id(102)}].
+
+### Ripristino e continuità del servizio
+
+Nessuno dei fornitori pubblica una misura indipendente dei tempi di ripristino: quelli che seguono sono dichiarati da ciascuno, per un database di circa 200 GB, e non sono stati provati da noi.
+
+| Fornitore | Solo nell'Unione | Ripristino | Granularità | Euro al mese |
+|:--|:--|--:|:--|--:|
+| Harbor Cloud | sì [${id(101)}] | 14 giorni | al secondo | 290 |
+| Northwind | in parte [${id(103)}] | 7 giorni | al minuto | 220 |
+| Calder | sì [${id(105)}] | 35 giorni | al secondo | 380 |
+| Lumen | no [${id(102)}] | 3 giorni | all'ora | 180 |
+
+## Costi a dodici mesi con la crescita prevista dei dati e delle connessioni
+
+Con una crescita di circa 6 GB al mese, il costo di Harbor Cloud sale a circa 330 euro entro un anno; quello di Calder supera il tetto di 400 euro dopo il nono mese [${id(105)}]. Il calcolo usa i calcolatori pubblici dei fornitori, consultati il 2 ottobre 2026, per questa configurazione: https://prezzi.harbor.example/calcolatore/postgresql/regione-eu-central-1/configurazione-4-vcpu-16-gb?archiviazione=250&repliche=1&valuta=EUR
+
+## Rischi e limiti
+
+- I tempi di ripristino sono dichiarati dai fornitori; nessuno è stato misurato.
+- La pagina dei prezzi di Lumen è stata letta solo in parte [${id(102)}].
+- L'impegno di Northwind sull'assistenza è noto solo da un'anteprima di ricerca [${id(104)}].
+
+## Conclusioni e raccomandazioni
+
+Scegliere Harbor Cloud nella regione di Francoforte, con Parigi per la replica, e tenere Northwind come alternativa se il budget scende sotto i 250 euro al mese [${id(101)}] [${id(103)}].
+`
+
+const ITALIANO_SOURCES: PageSource[] = [
+  {
+    id: id(101),
+    title: 'Harbor Cloud: accordo sul trattamento dei dati, edizione europea (rev. 2026-06)',
+    url: 'https://legale.harbor.example/accordo-trattamento-dati/unione-europea?versione=2026-06&lingua=it',
+    ...read('complete', '2026-10-02T09:14:31.000Z'),
+  },
+  {
+    id: id(102),
+    title: 'Lumen Managed Postgres: prezzi e calcolatore',
+    url: 'https://lumen.example/prezzi/postgresql-gestito/calcolatore?regione=eu-west-3',
+    ...read('partial', '2026-10-02T09:21:40.000Z', [
+      'Il calcolatore chiede di accedere dopo la prima schermata; i prezzi oltre il primo livello non sono stati letti.',
+    ]),
+  },
+  {
+    id: id(103),
+    title: 'Northwind: politica di assistenza e sub-responsabili del trattamento',
+    url: 'https://trust.northwind.example/it/assistenza/sub-responsabili',
+    ...read('complete', '2026-10-02T09:17:45.000Z'),
+  },
+  {
+    // A cited search listing, as Sophia stores one: no address, titled by its query.
+    id: id(104),
+    title: 'Ricerca: Northwind assistenza solo nell’Unione europea',
+    url: null,
+    kind: 'search_results',
+    coverage: 'complete',
+    retrievedAt: '2026-10-02T09:12:10.000Z',
+    limitations: [],
+  },
+  {
+    id: id(105),
+    title: 'Calder: accordo sul trattamento dei dati e prezzi per regione',
+    url: 'https://calder.example/legale/accordo-trattamento-dati?sezione=residenza&anno=2026',
+    ...read('complete', '2026-10-02T09:19:58.000Z'),
+  },
+]
+
+const ESPANOL = `# Cómo elegir un proveedor de PostgreSQL gestionado en la Unión Europea cuando la evidencia pública está incompleta
+
+¿Qué proveedor de PostgreSQL gestionado puede mantener los datos de los clientes dentro de la Unión Europea y recuperar cualquier minuto de la última semana? Este informe cuenta lo que se pudo comprobar en documentos completos, lo que solo se vio en un fragmento de búsqueda y lo que no se pudo leer. Los proveedores y las cifras son ilustrativos: es un ejemplo de composición, no un consejo.
+
+## En resumen
+
+**Harbor Cloud** es la opción mejor documentada: sus regiones europeas, su recuperación al segundo durante 14 días y su acuerdo de tratamiento están publicados y se leyeron completos [${id(201)}]. Lo que se dice de **Northwind** se apoya en un fragmento de búsqueda, y el documento de **Calder** no se pudo leer [${id(202)}] [${id(203)}].
+
+## Lo que se comprobó en los documentos completos y cómo se compararon las garantías contractuales de cada proveedor
+
+El equipo empezó por los acuerdos de tratamiento de datos, porque son el único documento que obliga al proveedor. El de Harbor Cloud dice que los datos primarios, las copias de seguridad y el acceso del soporte se quedan en la Unión, y lo dice en una cláusula que el cliente puede citar en su propio contrato [${id(201)}]. La política interna que el equipo subió al proyecto pide exactamente eso: ninguna copia ni ningún acceso fuera de la Unión sin un acuerdo escrito [${id(204)}].
+
+Con Northwind la historia es distinta. Su página de soporte no se abrió desde el lector, y lo único que quedó fue un fragmento de búsqueda que habla de siete días de recuperación y de un soporte «siguiendo el sol» [${id(202)}]. Un fragmento no basta para una decisión, y por eso esa fila de la tabla lleva su nombre.
+
+La documentación de Calder es un PDF, y el lector de esta fase piloto no abre archivos PDF. No se cita ninguna cifra suya como comprobada [${id(203)}]. La dirección del documento era esta: https://calder.example/es/documentacion/postgresql/copias-de-seguridad-y-recuperacion-a-un-punto-en-el-tiempo.pdf?region=eu-west-1&plan=equipo
+
+### Recuperación
+
+| Proveedor | Lo que dice la fuente | Cómo se leyó |
+|:--|:--|:--|
+| Harbor Cloud | Recuperación al segundo durante 14 días [${id(201)}] | completa |
+| Northwind | Siete días, según un fragmento [${id(202)}] | fragmento |
+| Calder | Sin datos comprobados [${id(203)}] | no leída |
+
+## Lo que no se pudo verificar
+
+Nada de lo que se dice sobre el soporte de Northwind fuera de la Unión pudo comprobarse.
+
+## Recomendación
+
+Elegir Harbor Cloud y volver a leer Northwind y Calder cuando su documentación sea accesible, antes de descartarlos [${id(201)}].
+`
+
+const ESPANOL_SOURCES: PageSource[] = [
+  {
+    id: id(201),
+    title: 'Harbor Cloud: acuerdo de tratamiento de datos, edición europea (rev. 2026-06)',
+    url: 'https://legal.harbor.example/es/acuerdo-de-tratamiento-de-datos?version=2026-06',
+    ...read('complete', '2026-10-02T10:02:11.000Z'),
+  },
+  {
+    id: id(202),
+    title: 'Búsqueda: Northwind soporte fuera de la Unión Europea',
+    url: null,
+    kind: 'search_results',
+    coverage: 'complete',
+    retrievedAt: '2026-10-02T10:00:47.000Z',
+    limitations: [],
+  },
+  {
+    // A file the pilot's reader does not open (coverage "unsupported"), with the limitation it stores, as it words it.
+    id: id(203),
+    title: 'Calder: copias de seguridad y recuperación (PDF)',
+    url: 'https://calder.example/es/documentacion/postgresql/copias-de-seguridad-y-recuperacion-a-un-punto-en-el-tiempo.pdf?region=eu-west-1&plan=equipo',
+    kind: 'web_read',
+    coverage: 'unsupported',
+    retrievedAt: '2026-10-02T10:04:30.000Z',
+    limitations: ['pdf: not read in the pilot; the report may cite it only as unread'],
+  },
+  {
+    id: id(204),
+    title: 'Política de residencia de datos del equipo (PDF subido al proyecto)',
+    url: null,
+    kind: 'input',
+    coverage: null,
+    retrievedAt: null,
+    limitations: [],
+  },
+]
+
 /** The labelled fixture reports, as Studio passes a version to the page. */
 export const REPORT_PAGES = {
   kitchen: {
@@ -319,5 +478,30 @@ export const REPORT_PAGES = {
     versionNumber: 4,
     publishedAt: '2026-10-02T00:30:00.000+02:00',
     limitations: [],
+  },
+  italiano: {
+    markdown: ITALIANO,
+    title: 'Rapporto',
+    sources: ITALIANO_SOURCES,
+    citable: ITALIANO_SOURCES.map((s) => s.id),
+    sha256: 'a'.repeat(64),
+    versionNumber: 1,
+    publishedAt: '2026-10-02T11:05:00.000Z',
+    // The report writes its own ("Rischi e limiti"), so these are not printed again.
+    limitations: ['I tempi di ripristino sono dichiarati dai fornitori.'],
+  },
+  espanol: {
+    markdown: ESPANOL,
+    title: 'Informe',
+    sources: ESPANOL_SOURCES,
+    citable: ESPANOL_SOURCES.map((s) => s.id),
+    sha256: 'b'.repeat(64),
+    versionNumber: 3,
+    publishedAt: '2026-10-02T12:40:00.000Z',
+    // The report writes none, so the page prints these as its limitations.
+    limitations: [
+      'El documento de Calder no se pudo leer.',
+      'Lo que se dice de Northwind viene de un fragmento de búsqueda, no de su documentación.',
+    ],
   },
 } satisfies Record<string, ReportPageInput>

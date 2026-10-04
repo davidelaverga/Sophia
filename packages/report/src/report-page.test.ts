@@ -331,7 +331,9 @@ describe('the report as a web page (html-report-v2)', () => {
 
   it('prints the bytes it has always printed for the same report (pinned: a change must be deliberate)', () => {
     const digest = createHash('sha256').update(page()).digest('hex')
-    assert.equal(digest, '9725b221051447e54cec348ee29e26f598842f63d7f949fdea5217bb39e24adc')
+    // Moved by the stylesheet only (M75): the contents rail wraps an entry instead of scrolling sideways (C16, the
+    // "italiano" and "stress" fixtures). With 86f70aa's PAGE_CSS in its place this page is 9725b221…, byte for byte.
+    assert.equal(digest, 'f5676191df941f9fd72b180614fb4db1820d90f1a10a95b95472d5342147f52f')
     const html = page()
     assert.ok(
       html.includes('<meta name="referrer" content="no-referrer"><meta name="color-scheme" content="light dark">'),

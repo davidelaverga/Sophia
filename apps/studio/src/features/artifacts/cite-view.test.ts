@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { reportLanguage } from '@sophia/report/language'
+import { renderReportPage, type PageSource } from '@sophia/report/page'
 import { bindCites, citeLabel, weaknessOf, type Piece } from './cite-view.ts'
 import { parseMarkdown, type Inline } from './markdown.ts'
 
@@ -128,4 +130,55 @@ describe('a citation of a source read only in part is marked and named so', () =
     assert.equal(citeLabel(4, 'snippet', 'es'), 'Fuente 4, solo fragmento')
     assert.equal(citeLabel(5, 'unread', 'es'), 'Fuente 5, no leída')
   })
+})
+
+/** A source whose standing is known (its kind and coverage), as both the page and the viewer read one. */
+type Standing = PageSource & Required<Pick<PageSource, 'kind' | 'coverage'>>
+
+/** One source of each standing: read in full, in part, a search listing, a file not read, the project's own. */
+const STANDINGS: Standing[] = [
+  { id: 'a0000000-0000-4000-8000-0000000000f1', title: 'Full', url: null, kind: 'web_read', coverage: 'complete' },
+  { id: 'a0000000-0000-4000-8000-0000000000f2', title: 'Part', url: null, kind: 'web_read', coverage: 'partial' },
+  {
+    id: 'a0000000-0000-4000-8000-0000000000f3',
+    title: 'Listing',
+    url: null,
+    kind: 'search_results',
+    coverage: 'complete',
+  },
+  { id: 'a0000000-0000-4000-8000-0000000000f4', title: 'File', url: null, kind: 'web_read', coverage: 'unsupported' },
+  { id: 'a0000000-0000-4000-8000-0000000000f5', title: 'Ours', url: null, kind: 'input', coverage: null },
+]
+
+/** A report in each language the page speaks, long enough for reportLanguage to tell. */
+const SAID = {
+  en:
+    'The service is the one that renders, and this is from the team with the hosts, which are for the project of ' +
+    'the year.',
+  it:
+    'Il servizio della rete che offre anche il rendering, per questo sono gli strumenti delle opzioni nel progetto, ' +
+    'alla fine degli studi.',
+  es:
+    'El servicio que ofrece los informes para las empresas, como este proyecto, también está por encima de las ' +
+    'opciones que son más caras.',
+} as const
+
+describe('the viewer names each citation as the HTML page does (M75: the reader and the page cannot drift apart)', () => {
+  for (const [language, words] of Object.entries(SAID)) {
+    it(`in ${language}, for a source of every standing`, () => {
+      const markdown = `# R\n\n## S\n\n${words} ${STANDINGS.map((s) => `x [${s.id}]`).join(' ')}\n`
+      assert.equal(reportLanguage(markdown), language)
+      const html = renderReportPage({
+        markdown,
+        title: 'R',
+        sources: STANDINGS,
+        citable: STANDINGS.map((s) => s.id),
+        sha256: '0'.repeat(64),
+        versionNumber: 1,
+      })
+      const page = [...html.matchAll(/<a href="#cite-(\d+)"[^>]* aria-label="([^"]+)">/g)].map((m) => m[2])
+      const viewer = STANDINGS.map((s, i) => citeLabel(i + 1, weaknessOf(s), language))
+      assert.deepEqual(page, viewer)
+    })
+  }
 })

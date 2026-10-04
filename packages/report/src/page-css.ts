@@ -185,12 +185,12 @@ section[data-report-role="limitations"] > .aside { color: var(--muted); font: 40
 .toc-key { position: absolute; top: 0; right: 0; margin: 0; color: var(--muted); }
 .toc ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--ink); }
 .toc li { display: flex; align-items: baseline; gap: var(--space-md); margin: 0; padding: var(--space-xs) 0; border-bottom: 1px solid var(--rule); break-inside: avoid; }
-.toc li a { flex: 1; color: var(--ink); text-decoration: none; }
+.toc li a { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--ink); text-decoration: none; }
 .toc li a:hover { color: var(--accent); text-decoration: underline; text-decoration-color: var(--accent-line); }
 .toc .n { color: var(--accent); font-weight: 700; }
 .toc li.aux { border-bottom: 0; padding-bottom: 0; }
 .toc li.aux + li.aux { padding-top: var(--space-2xs); }
-.toc li.aux a { flex: none; color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 0.18em; }
+.toc li.aux a { flex: 0 1 auto; color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 0.18em; }
 
 /* ---- Lists ------------------------------------------------------------------------------------------------------- */
 ul, ol { margin: 0 0 var(--space-md); padding-left: 1.5em; }
