@@ -543,34 +543,57 @@ when you change the room:
   (CX-0026, `history=pilot`). Its comparison by section quotes every heading
   the same way, named whole (`quotedHeadings`).
   Change the viewer and they must still pass.
+- **The downloaded page is a fixed template, not a design** (M75). The HTML
+  page is one template applied in the browser to a version's Markdown: no
+  designer, no render review, no stored HTML. It stays as the seed and
+  comparison control for SDD-01's native design and as legacy compatibility
+  for the "HTML page" offers Studio already has; a newly requested HTML
+  deliverable is SDD-01's to design. Nothing calls it designed or reviewed,
+  and no new offer of it appears: `report-page.test.ts` (Studio) pins its
+  callers, so a new one fails until `docs/coordination/M75/HANDOFF_TO_SDD01.md`
+  maps it for SDD-01 to replace. Authored HTML never goes through its passes,
+  which assume the printer's own markup.
 - **The downloaded page has its own checks** (`e2e/report-page.spec.ts`,
   SMC-M03): the bytes `renderReportPage` prints for labelled fixture reports
   (`fixtures/report-pages.ts`: a research report with every element and every
-  kind of source, and a stress report), opened as they are on a phone and a
-  desktop, light and dark, and printed as A4. 60 to 80 characters a line on a
-  desktop and in print, at least 35 on a phone; body text at 17 px or more (18
-  on a desktop), 1.5 to 1.7 lines apart; headings 1.2 times a step apart, at
-  most five font sizes, none under 14 px; nothing past the screen or the
-  column's box, and no table's frame scrolling further than its table is wide;
-  no word of 14 characters or fewer broken in a table cell; every text at
-  4.5:1 (3:1 when large), a section break's dots left out as an ornament;
-  every citation pressed on a 24 px square centred on its numeral, clear of
-  the other citations' squares: a group sets its numerals 24 px apart, a table
-  or a small heading that holds one sets its lines 25 px apart, and such a
-  table sets citations in neighbouring cells 24 px apart and keeps room at its
-  edges and beside a frozen first column (two citations with only a one- or
-  two-letter word between them still share a few pixels, and a citation right
-  after a link covers about 7 px of it); the answer before the contents and
-  the body, in the first phone screen; on a desktop the contents beside the
-  text as it scrolls, never over it; every table cell in the PDF, its body at
-  10.5 pt, and print light for a reader who prefers dark. What its bytes
-  guarantee (one policy, seven metas and one stylesheet, only the tags and
-  attributes it prints, ids used once and links that land, a heading named
-  like one of the page's own parts renamed in the page only, so pdf-report-v1
-  keeps its ids and bytes, the same bytes in any time zone, hostile text
-  escaped, a draft of any length printed in linear time) is checked by
-  `packages/report/src/report-page.test.ts`. Change the page and they must
-  still pass.
+  kind of source, a stress report, and an Italian and a Spanish report with
+  weak, unread and project sources, M75), opened as they are on a phone and a
+  desktop, light and dark, and printed as A4. They come in two groups (M75):
+  - **any report page**, a designed one too: nothing past the screen or the
+    column's box, and no table's frame scrolling further than its table is
+    wide (C4); no word of 14 characters or fewer broken in a table cell (C5);
+    every text at 4.5:1 (3:1 when large), the page's ornaments (a section
+    break's dots) left out (C6); every citation pressed on a 24 px square
+    centred on its numeral, clear of the other citations' squares and of a
+    link beside it (C15: a group sets its numerals 24 px apart, a table or a
+    small heading that holds one sets its lines 25 px apart, such a table sets
+    citations in neighbouring cells 24 px apart and keeps room at its edges
+    and beside a frozen first column, and the printer keeps room beside a
+    citation close to another or to a link); every frame that scrolls sideways
+    focusable and named (C16, which also catches a contents rail that scrolls
+    instead of wrapping); every table whole in print, every cell in the PDF
+    (C9). Its probes find a page's parts through `Marks`
+    (`report-probes.ts`), so another page is measured by its own marks;
+  - **the html-report-v2 seed profile**, the template's own choices, which a
+    designed page is not asked to copy: 60 to 80 characters a line on a
+    desktop and in print, at least 35 on a phone (C1); body text at 17 px or
+    more (18 on a desktop), 1.5 to 1.7 lines apart (C2); headings 1.2 times a
+    step apart, at most five font sizes, none under 14 px (C3); the answer
+    before the contents and the body, in the first phone screen (C7); on a
+    desktop the contents beside the text as it scrolls, never over it (C14);
+    the body at 10.5 pt in print, and print light for a reader who prefers
+    dark (C9); print's running head in the report's own language (C17).
+
+  What its bytes guarantee is checked by
+  `packages/report/src/report-page.test.ts`, in the same two parts: the
+  general rules (nothing runs or loads, safe links, text escaped and no entity
+  split, ids used once and links that land) and the seed's own (one policy,
+  seven metas and one stylesheet, only the tags and attributes it prints).
+  Besides: a heading named like one of the page's own parts is renamed in the
+  page only, so pdf-report-v1 keeps its ids and bytes; the same bytes in any
+  time zone; hostile text escaped; a draft of any length printed in linear
+  time. Its patterns hold only on the printer's own markup; authored HTML
+  needs a parser. Change the page and they must still pass.
 - **The Document tab reads as the HTML page does** (`e2e/report-reading.spec.ts`,
   html-report-v2 §4b): on the same page, a long labelled report with every
   kind of source (`fixtures/reading-data.ts`). One measure in both pane sizes
@@ -592,10 +615,17 @@ when you change the room:
   a button, and a line may break before a button even with no space, so the
   word and the group's first three numbers are set without a break, taking
   at most 24 characters of the word so a long address still wraps, and one
-  letter of Chinese or Japanese, where a line may break between any two.
+  letter of Chinese or Japanese, where a line may break between any two. A
+  link or inline code of at most 24 characters, none of them Chinese or
+  Japanese, goes whole with the citation after it, as a word does; a longer
+  one is never split, and its citation may start a line (M75).
   Past three numbers a group may wrap after a comma, never before one. A
   number is 0.8 of the text, with a finger-sized target on a touch screen
-  (an empty `::after`, none in a table, whose frame it would make scroll). A
+  (an empty `::after`, none in a table, whose frame it would make scroll),
+  and each target is its own (M75-RF-0001, `report-reading.spec.ts`): it
+  reaches 4 px to a side only where no other target is, never across a
+  group's comma or into a link, and stays shorter than the step between its
+  lines, so no press belongs to two citations or takes a link's. A
   citation of a source read in part, as a snippet or not at all is dotted
   (`data-weak`) and named so in the report's language (`reportLanguage`,
   from `@sophia/report/language`, which loads without the page's template).
