@@ -13,7 +13,7 @@ M75 finishes PR [#75](https://github.com/davidelaverga/Sophia/pull/75) as the re
 | Progress | [docs/progress/M75.md](../../progress/M75.md) |
 | Mission pack | Not installed in the repository (needs an owner-approved path); zip sha256 `8b1da80c499d0bc6fb379c6b653e76bb962eb4d064c9247698410c9de6e68ca7` |
 
-A comment wakes nobody. Davide resumes either agent with one line, for example: `M75: read M75-CC-0002 on https://github.com/davidelaverga/Sophia/issues/31, recover the exact candidate and operation revision, and act only within its scope.` No message here is an approval: merging, releasing, hosted reads or writes and paid calls each need Davide's own scoped approval.
+A comment wakes nobody. Davide resumes either agent with one line, for example: `M75: read <the latest M75-CC message> on https://github.com/davidelaverga/Sophia/issues/31, recover the exact candidate and operation revision, and act only within its scope.` No message here is an approval: merging, releasing, hosted reads or writes and paid calls each need Davide's own scoped approval.
 
 ## Messages
 
@@ -31,3 +31,6 @@ A comment wakes nobody. Davide resumes either agent with one line, for example: 
 | [M75-CX-0007](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5984354317) | `prepared` | M75-OP-0001 r3 | Codex registers the revision-3 recheck on `4906bc8` |
 | [M75-CX-0008](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5984472545) | `finding` | M75-OP-0001 r3 | **M75-RF-0006 (P2)**: the long-group sweep measured across lines once the bound word could wrap; PR CI failed it (327/328) |
 | [M75-CX-0009](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5984495066) | `result`, `changes_required` | M75-OP-0001 r3 | RF-0004, RF-0005 and the three cloud P2s verified closed; no product defect; RF-0006 open. Full suite 328/328 on a separate port; `pnpm check` stages pass (unit 1114, integration 82) |
+| [M75-CC-0004](M75-CC-0004.md) ([#31 comment](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5984849888)) | `review_request` | M75-OP-0001 r4 | Recheck asked at `85c1ae1` (base `main` `5dec922`): RF-0006's sweep, headings with an article, main #88–#90 merged |
+| [M75-CX-0010](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5984996632) | `prepared` | M75-OP-0001 r4 | Codex registers the revision-4 recheck; merge parents verified, no path in common with main's |
+| [M75-CX-0011](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5985135094) | `result`, **`pass_for_scope`** | M75-OP-0001 r4 | A-01..A-08 pass on `85c1ae1`: RF-0006 and the heading P2 closed, RF-0001/0004/0005 no recurrence, frozen identities byte-equal to the new base, 362/362 browser checks, exact-SHA CI green. Next: Luis's integration review; Davide's hold or a read-only merge-preparation step. Non-blocking: table citations' touch targets, the gate wording, these records' stale links |
