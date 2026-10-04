@@ -243,58 +243,14 @@ export function workOrder(projects: readonly ProjectSummary[], now: Date): Proje
   })
 }
 
-export interface WorkDoor {
-  verb: string
-  meta: string
-  count: string
-  /** The projects have loaded: until then the door shows no room, not the empty seats of a first project. */
-  known: boolean
-  /** The project whose room the door shows (the busiest), or null to show empty seats. */
-  shown: ProjectSummary | null
-  /** The project "Join the room" joins, when a session is about to start. */
-  joins: ProjectSummary | null
-}
-
-function workMeta(list: readonly ProjectSummary[], callTitle: string | null, now: Date): string {
-  if (callTitle) return `You’re in ${callTitle}`
-  const next = list.find((p) => p.nextSession)
-  const when = next ? sessionWhen(next, now) : null
-  if (next && when) return `${next.title} · ${when}`
-  const first = list[0]
-  return first ? `${first.title}${list.length > 1 ? ` and ${list.length - 1} more` : ''}` : ''
-}
-
-/**
- * What the Work door opens: the projects, a room about to start, or a first project. Until the projects have loaded it
- * only opens them: "Start a project" over a list that is still loading would read as the projects gone.
- */
-export function workDoor(
-  projects: readonly ProjectSummary[] | undefined,
-  now: Date,
-  callTitle: string | null,
-): WorkDoor {
-  const none = { count: '', shown: null, joins: null }
-  if (!projects) {
-    return { verb: 'Open your projects', meta: callTitle ? `You’re in ${callTitle}` : '', known: false, ...none }
-  }
-  if (projects.length === 0) {
-    return { verb: 'Start a project', meta: 'Invite your team when you’re ready', known: true, ...none }
-  }
-  const list = workOrder(projects, now)
-  const joins = callTitle ? null : (list.find((p) => soon(p, now)) ?? null)
+/** All projects' count, under Home's rows: how many, and the notes carried from you. Nothing while they load. */
+export function workCount(projects: readonly ProjectSummary[] | undefined): string {
+  if (!projects || projects.length === 0) return ''
   const carried = projects.reduce((n, p) => n + p.releases.filter((r) => r.mine).length, 0)
-  const busiest = projects.toSorted((a, b) => peopleIn(b) - peopleIn(a))[0]
-  return {
-    verb: joins ? 'Join the room' : 'Open your projects',
-    meta: workMeta(list, callTitle, now),
-    count: `${projects.length} project${projects.length === 1 ? '' : 's'}${carried ? ` · ${carried} from you` : ''}`,
-    known: true,
-    shown: busiest && peopleIn(busiest) > 0 ? busiest : null,
-    joins,
-  }
+  return `${String(projects.length)} project${projects.length === 1 ? '' : 's'}${carried ? ` · ${String(carried)} from you` : ''}`
 }
 
-/** The caption under the Work door's room: who is in it and where. */
+/** Who is in a project's room and where: "Davide and Sophia are in Pitch deck" (Home's attention line). */
 export function roomCaption(project: ProjectSummary | null): string {
   if (!project?.room || project.room.people.length === 0) return ''
   const names = roomNames(project.room)
@@ -334,4 +290,109 @@ export function projectCard(project: ProjectSummary, now: Date, inCallHere: bool
   const meta = `${membersLabel(project.members)}${when ? ` · session ${when}` : ''}`
   const action = inCallHere ? 'leave' : live || soon(project, now) ? 'join' : 'open'
   return { presence, meta, action }
+}
+
+/** How many projects Home offers, one press each: the ones Work shows first, which the opening warmed. */
+export const HOME_ROWS = 3
+
+/**
+ * A row's one press on Home: open the project, join its room, or, for the call you are in, go back to it. Leaving
+ * stays with the bar's room pill: a press on your own project never hangs up.
+ */
+export type HomeAction = 'open' | 'join' | 'back'
+
+export const HOME_ACTION: Record<HomeAction, string> = {
+  open: 'Open',
+  join: 'Join the room',
+  back: 'Back to the room',
+}
+
+export interface HomeRow {
+  project: ProjectSummary
+  /** As Work reads it: its room, or its people and next session. */
+  card: ProjectCard
+  action: HomeAction
+  /** Its session starts within SOON_MIN. */
+  soon: boolean
+  /** When its next session starts, in words (sessionWhen), or null. */
+  when: string | null
+  /** People are in its room now. */
+  live: boolean
+}
+
+/** Home's projects: Work's first ones, in Work's order, each read as Work reads it. */
+export function homeRows(
+  projects: readonly ProjectSummary[],
+  now: Date,
+  inCallProject: string | null,
+  count = HOME_ROWS,
+): HomeRow[] {
+  return workOrder(projects, now)
+    .slice(0, count)
+    .map((project) => {
+      const card = projectCard(project, now, project.projectId === inCallProject)
+      return {
+        project,
+        card,
+        action: card.action === 'leave' ? 'back' : card.action,
+        soon: soon(project, now),
+        when: sessionWhen(project, now),
+        live: peopleIn(project) > 0,
+      }
+    })
+}
+
+/** A piece of what Sophia says on Home: the project it is about is its strong part. */
+export interface Said {
+  text: string
+  strong?: boolean
+}
+
+/**
+ * The one thing that matters now, in Sophia's words, under the greeting: the call you are in, else a session about to
+ * start, else people in a room, else that all is as you left it. Nothing while the projects load.
+ */
+export function sophiaSays(
+  projects: readonly ProjectSummary[] | undefined,
+  now: Date,
+  call: { title: string } | null,
+): Said[] {
+  if (!projects) return []
+  if (call) return [{ text: 'You’re in ' }, { text: call.title, strong: true }, { text: '’s room.' }]
+  if (projects.length === 0) return [{ text: 'Start a project when you’re ready, or just talk to me.' }]
+  return sessionSoon(projects, now) ?? roomLive(projects) ?? [{ text: 'Your projects are as you left them.' }]
+}
+
+/** "Standup in Product launch starts in 10 min.": the session about to start first, if one is. */
+function sessionSoon(projects: readonly ProjectSummary[], now: Date): Said[] | null {
+  const starting = workOrder(projects, now).find((p) => p.nextSession && soon(p, now))
+  const when = starting ? sessionWhen(starting, now) : null
+  if (!starting?.nextSession || !when) return null
+  return [{ text: `${starting.nextSession.title} in ` }, { text: starting.title, strong: true }, { text: ` ${when}.` }]
+}
+
+/** "Davide and Sophia are in Pitch deck.": the busiest room, if anyone is in one. */
+function roomLive(projects: readonly ProjectSummary[]): Said[] | null {
+  const busiest = projects.toSorted((a, b) => peopleIn(b) - peopleIn(a))[0]
+  if (!busiest?.room || peopleIn(busiest) === 0) return null
+  const one = busiest.room.people.length === 1 && !busiest.room.sophia
+  return [
+    { text: `${roomNames(busiest.room)} ${one ? 'is' : 'are'} in ` },
+    { text: busiest.title, strong: true },
+    { text: '.' },
+  ]
+}
+
+/** What a row of the index says quietly on its right: a session soon (amber), people in the room (teal), its people. */
+export function rowNote(row: HomeRow): { text: string; tone: 'soon' | 'live' | 'quiet' } {
+  const { project } = row
+  if (row.action === 'back') return { text: 'You’re in the room', tone: 'live' }
+  if (row.soon && project.nextSession && row.when) {
+    return { text: `${project.nextSession.title} ${row.when}`, tone: 'soon' }
+  }
+  if (row.live && project.room) {
+    const one = project.room.people.length === 1 && !project.room.sophia
+    return { text: `${roomNames(project.room)} ${one ? 'is' : 'are'} here`, tone: 'live' }
+  }
+  return { text: membersLabel(project.members), tone: 'quiet' }
 }
