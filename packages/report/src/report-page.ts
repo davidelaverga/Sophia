@@ -314,34 +314,62 @@ function pageSections(printed: PrintedReport, pass: Pass): PageSection[] {
 const statesLimits = (sections: readonly PageSection[]) =>
   sections.some((s) => s.role === 'limitations' || namesLimits(s.title))
 
-/** Text as a reader compares it: tags dropped, the page's entities read back, one case, one space. */
-const plain = (html: string) =>
-  html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"' })[e] ?? "'")
+/** Tags that end a block of text (`BLOCKS`, as `roomed` reads them): a sentence never runs from one into the next. */
+const BLOCK_TAG = new RegExp(`<\\/?(?:${[...BLOCKS].join('|')})\\b[^>]*>`, 'gi')
+/** A citation group as the page sets it (`pagePass`): its numerals are no words of the sentence around it. */
+const CITE_GROUP = /<sup class="cite[^"]*">(?:[^<]|<(?!\/sup>))*<\/sup>/g
+/** A word (an apostrophe inside it belongs to it), or the marks that end a clause. */
+const WORD_OR_STOP = /([\p{L}\p{N}]+(?:'[\p{L}\p{N}]+)*)|([.;:!?…]+)/gu
+/** Fewer words than this cannot be told from a passing mention ("None.", "N/A", "Preliminary."): always printed. */
+const SAID_WORDS = 3
+
+/** Text as a reader folds it: one apostrophe, no soft hyphen, one case. */
+const folded = (text: string) =>
+  text
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/\u00ad/g, '')
     .normalize('NFC')
     .toLowerCase()
-    .replace(/\s+/g, ' ')
+
+/** Words in reading order, each followed by a space, each that starts a clause marked by a \u0001 before it. */
+function clauses(text: string): string {
+  let out = ''
+  let start = true
+  for (const [, word, stop] of folded(text).matchAll(WORD_OR_STOP)) {
+    if (stop === undefined) out += `${start ? '\u0001' : ''}${word ?? ''} `
+    start = stop !== undefined
+  }
+  return out
+}
+
+/** The report's own text as clauses, block by block (blocks apart by a \u0002): citations and inline tags dropped. */
+const readable = (html: string) =>
+  html
+    .replace(CITE_GROUP, '')
+    .replace(BLOCK_TAG, '\u0002')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"' })[e] ?? "'")
+    .split('\u0002')
+    .map(clauses)
+    .join('\u0002')
 
 /**
- * The stored limitations the report's own words do not already say (M75, the cloud review on 85c1ae1): each is
- * looked for, as a reader compares text, in the lead and the sections, without its closing punctuation. A heading is
- * no proof that a limitation was kept ("Limits of liability" is a subject), and a limitation is never dropped for one;
- * one the report repeats is not printed twice.
+ * The stored limitations the report's own words do not already say (M75, the cloud review on 85c1ae1). A limitation is
+ * said when its words, from a clause's start, stand in one block of the lead or the sections in that order (the
+ * report's sentence may go on: "… claims [3] and untested"). A heading is no proof that a limitation was kept ("Limits
+ * of liability" is a subject), a word inside another is no match ("Asia", "Asian"), nor one in a negation ("It is not
+ * true that the sample is small"), nor a limitation of fewer than SAID_WORDS words: each of those is printed. One the
+ * report repeats is not printed twice; one it paraphrases is printed again, under "As stated when this version was
+ * published".
  */
 function unsaid(stored: readonly string[], lead: string | null, sections: readonly PageSection[]): string[] {
-  const said = plain([lead ?? '', ...sections.map((s) => s.html)].join(' '))
+  const said = readable([lead ?? '', ...sections.map((s) => s.html)].join('\u0002'))
   return stored
     .map((l) => l.trim())
-    .filter(
-      (l) =>
-        l !== '' &&
-        !said.includes(
-          plain(esc(l))
-            .trim()
-            .replace(/[\s.;:!?…]+$/u, ''),
-        ),
-    )
+    .filter((l) => {
+      const words = clauses(l)
+      return l !== '' && ((words.match(/ /g)?.length ?? 0) < SAID_WORDS || !said.includes(words))
+    })
 }
 
 /**
@@ -481,7 +509,9 @@ function methodSection(page: Page): string {
   if (count('unread') > 0) lines.push(['warn', esc(words.unread(count('unread'), n))])
   lines.push(n > 0 ? ['ok', esc(words.gate(n))] : ['note', esc(words.noCites)])
   lines.push(['note', `<strong>${esc(words.review[0])}</strong> ${esc(words.review[1])}`])
-  if (!statesLimits(page.sections)) lines.push(['note', esc(words.noLimits)])
+  // Never "states none" while the version stored some, said in the report or printed from the record (M75).
+  const stored = (page.input.limitations ?? []).some((l) => l.trim() !== '')
+  if (!stored && !statesLimits(page.sections)) lines.push(['note', esc(words.noLimits)])
   lines.push(['note', esc(words.noRecord)])
   const items = lines.map(([kind, text]) => `<li class="${kind}">${text}</li>`).join('')
   return (

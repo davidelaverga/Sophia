@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { describe, it } from 'node:test'
 import { assertGrowth } from '../../test-support/src/growth.ts'
-import { renderReport } from './report-html.ts'
+import { escapeHtml as esc, renderReport } from './report-html.ts'
 import {
   PAGE_CSS,
   PAGE_CSP,
@@ -738,6 +738,45 @@ describe('html-report-v2: what its bytes guarantee', () => {
     }
     const allSaid = without.replace('## Conclusion\n', '## Limits\n\n- Prices change often\n\n')
     assert.doesNotMatch(rich({ markdown: allSaid, limitations: [said] }), /id="report-limitations"/, 'all said: none')
+  })
+
+  it('U9 · says a stored limitation is said only when the report says it, from a clause, in one block (M75)', () => {
+    /** The stored limitations the page prints for a report whose Findings say `findings`. */
+    const printed = (findings: string, stored: string[]) => {
+      const html = page({ markdown: `# T\n\n## Findings\n\n${findings}\n`, limitations: stored })
+      return [...html.matchAll(/<section id="report-limitations"[^]*?<\/section>/g)].flatMap((m) =>
+        [...m[0].matchAll(/<li>([^<]*)<\/li>/g)].map((li) => li[1]),
+      )
+    }
+    // Said: from a clause's start, in one block, whatever the case, a citation mid-sentence, a curly apostrophe,
+    // a word set in bold, a soft hyphen, or the sentence going on.
+    for (const [findings, stored] of [
+      [`Restore times are vendor claims [${A}] and untested.`, 'Restore times are vendor claims.'],
+      ['The vendor’s figures are unaudited.', "The vendor's figures are unaudited."],
+      ['**Vendor**s report their own restore times.', 'Vendors report their own restore times.'],
+      ['Prices change of\u00adten; nobody checked.', 'Prices change often.'],
+      ['Scope. RESULTS EXCLUDE ASIA, for now.', 'Results exclude Asia.'],
+    ]) {
+      assert.deepEqual(printed(findings ?? '', [stored ?? '']), [], findings)
+    }
+    // Not said: a word inside another, a negation, two blocks, too few words to tell, nothing but punctuation.
+    for (const [findings, stored] of [
+      ['Results exclude Asian subsidiaries.', 'Results exclude Asia.'],
+      ['It is not true that the sample is small.', 'The sample is small.'],
+      ['- Prices\n- change often', 'Prices change often.'],
+      ['Preliminary results show growth.', 'Preliminary.'],
+      ['| a |\n|--|\n| N/A |', 'N/A'],
+      ['None of the vendors replied.', 'None.'],
+      ['It ends here...', '...'],
+    ]) {
+      assert.deepEqual(printed(findings ?? '', [stored ?? '']), [esc(stored ?? '')], findings)
+    }
+    // Said in the report but under no limitations heading: nothing printed twice, and never "states no limitations".
+    const html = page({
+      markdown: '# T\n\n## Findings\n\nPrices change often.\n',
+      limitations: ['Prices change often.'],
+    })
+    assert.doesNotMatch(html, /id="report-limitations"|states no limitations/)
   })
 
   it('U10 · reads limitations and answers from their headings, and nothing else', () => {
