@@ -94,11 +94,10 @@ export function Decision({ decision, people, now, viewerId, onDecide }: Props) {
         ) : (
           <p className="plan-ask-choices">{decision.choices.map((c) => c.label).join('  or  ')}</p>
         )}
-        {state && (
-          <p className="plan-ask-said" role="status" data-state={state}>
-            {SAID[state](label(chosen), name)}
-          </p>
-        )}
+        {/* One status from the start, its words changed in place: a screen reader hears each step, the last too. */}
+        <p className="plan-ask-said" role="status" data-state={state ?? undefined}>
+          {state && <span key={state}>{SAID[state](label(chosen), name)}</span>}
+        </p>
       </div>
     </section>
   )

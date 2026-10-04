@@ -66,6 +66,14 @@
 .plan-ask-said {
   color: var(--text-2);
   font-size: var(--type-body);
+}
+/* Empty until there is a receipt: out of the flow, so it adds no space; still there for a screen reader. */
+.plan-ask-said:empty {
+  position: absolute;
+}
+/* Each step arrives: its words are keyed by the step; a block, so its rise plays as well as its fade. */
+.plan-ask-said > span {
+  display: block;
   animation: arrive 0.3s var(--ease) both;
 }
 .plan-ask-said[data-state='recorded'] {
@@ -211,7 +219,7 @@
     transform: none;
   }
   .plan-ask,
-  .plan-ask-said,
+  .plan-ask-said > span,
   .plan-fold-body,
   .plan-mark[data-mark='waiting']::after {
     animation: none;
