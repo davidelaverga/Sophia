@@ -5,6 +5,10 @@
 // deployed API already serves are read: the version list, the text and the version's sources. The page also says
 // what those already hold: when the version was published, its stored limitations, and what was read of each
 // source and when.
+//
+// Legacy (M75): this is a browser-side conversion of a fixed template, not a designed or reviewed HTML deliverable,
+// and it stays only as compatibility until SDD-01's stored, designed HTML replaces it. Its callers are pinned by
+// report-page.test.ts and listed in docs/coordination/M75/HANDOFF_TO_SDD01.md; no new caller may fulfil an HTML request.
 import type { ArtifactVersion, ReportSourceList } from '@sophia/contracts'
 import type { renderReportPage } from '@sophia/report/page'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'

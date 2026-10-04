@@ -1,6 +1,7 @@
 // "Download HTML page" (html-report-v2): a report version saved as one self-contained web page, printed here from its
 // checked Markdown (report-page.ts). The pane's Document tab and each Knowledge card offer it; the work card has its
-// own row (WorkCard). The status line says what was saved, or why nothing was.
+// own row (WorkCard). The status line says what was saved, or why nothing was. A legacy conversion (M75), never
+// called designed: SDD-01 replaces these offers with its stored HTML (docs/coordination/M75/HANDOFF_TO_SDD01.md).
 import { downloadReportPage } from './report-page.ts'
 import { formatBytes } from './report-view.ts'
 import { useTransientStatus } from './useTransientStatus.ts'

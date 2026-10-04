@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { readdirSync, readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import type { ArtifactVersion, ReportSourceList } from '@sophia/contracts'
 import { renderReportPage } from '@sophia/report/page'
@@ -141,5 +142,54 @@ describe('a report’s HTML page is printed from its checked Markdown and saved,
     const { deps, saved } = doubles(text)
     await assert.rejects(downloadReportPage('t', 'a', 'v9', deps), /This version isn’t available\./)
     assert.equal(saved.length, 0)
+  })
+})
+
+/** Studio's source, relative to `src/`: every module but the tests. */
+const SRC = new URL('../../', import.meta.url)
+const modules = () =>
+  readdirSync(SRC, { recursive: true, encoding: 'utf8' })
+    .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
+    .map((f) => f.split('\\').join('/'))
+    .toSorted()
+
+/** What a module takes of the legacy conversion: the printer itself, its download, or the controls that offer it. */
+function conversionUses(source: string): string[] {
+  const uses = /(?:from\s+|import\(\s*)'@sophia\/report\/page'/.test(source) ? ['@sophia/report/page'] : []
+  for (const [, names = '', path = ''] of source.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+'([^']+)'/g)) {
+    const named = names.split(',').map((n) => n.replace(/^\s*type\s+/, '').trim())
+    if (path.endsWith('/report-page.ts')) uses.push(...named.filter((n) => n === 'downloadReportPage'))
+    if (path.endsWith('/PageDownload.tsx'))
+      uses.push(...named.filter((n) => /^(PageDownload|usePageDownload)$/.test(n)))
+  }
+  return uses
+}
+
+describe('the legacy conversion’s callers (M75): each one mapped for SDD-01 to replace', () => {
+  it('is reached only from the places HANDOFF_TO_SDD01.md lists, so no new offer of it goes unmapped', () => {
+    const callers = Object.fromEntries(
+      modules()
+        .map((f) => [f, conversionUses(readFileSync(new URL(f, SRC), 'utf8'))] as const)
+        .filter(([, uses]) => uses.length > 0),
+    )
+    // A change here is a change to docs/coordination/M75/HANDOFF_TO_SDD01.md §3, in the same commit.
+    assert.deepEqual(callers, {
+      'features/artifacts/DocumentPane.tsx': ['PageDownload'],
+      'features/artifacts/KnowledgeReports.tsx': ['PageDownload'],
+      'features/artifacts/PageDownload.tsx': ['downloadReportPage'],
+      'features/artifacts/WorkCard.tsx': ['usePageDownload'],
+      'features/artifacts/report-page.ts': ['@sophia/report/page'],
+      'features/conversation/NoticeCard.tsx': ['downloadReportPage'],
+    })
+  })
+
+  it('finds a caller however it imports the conversion', () => {
+    assert.deepEqual(conversionUses("import { a, downloadReportPage } from '../artifacts/report-page.ts'"), [
+      'downloadReportPage',
+    ])
+    assert.deepEqual(conversionUses("import { usePageDownload } from './PageDownload.tsx'"), ['usePageDownload'])
+    assert.deepEqual(conversionUses("const m = await import('@sophia/report/page')"), ['@sophia/report/page'])
+    assert.deepEqual(conversionUses("import type { PageSource } from '@sophia/report/page'"), ['@sophia/report/page'])
+    assert.deepEqual(conversionUses("import { formatBytes } from './report-view.ts'"), [])
   })
 })

@@ -14,6 +14,12 @@
 // and adds what Studio already holds of the version: when it was published, what was read of each source and when,
 // the limitations it stored, and what Sophia checked when it was published. A part whose input is absent is not
 // printed; the page never prints a fact the record does not hold.
+//
+// What this page is not (M75): a designed deliverable. It is one fixed template applied to a version's Markdown, with
+// no designer, no render review and no stored HTML. It stays as the seed and comparison control for SDD-01's native
+// design, and as legacy compatibility for the "HTML page" downloads Studio already offers; a newly requested HTML
+// deliverable is SDD-01's to design (docs/coordination/M75/HANDOFF_TO_SDD01.md). Its passes are written for
+// printReport's own markup, which escaped text cannot imitate: authored HTML must never be passed through them.
 import { reportLanguage } from './language.ts'
 import { safeHref } from './markdown.ts'
 import { PAGE_CSS } from './page-css.ts'

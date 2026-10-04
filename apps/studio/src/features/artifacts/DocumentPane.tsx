@@ -449,6 +449,9 @@ function PaneBody(props: BodyProps) {
 }
 
 function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion }: BodyProps) {
+  // The Document tab shows one view per format: the PDF rendition, or the Markdown read in the reading voice. A designed
+  // HTML version (SDD-01) is a third view here, of its stored bytes in an isolated frame, beside these and never in
+  // MarkdownView or the Studio's own DOM (docs/coordination/M75/HANDOFF_TO_SDD01.md §4).
   return (
     <>
       {tab === 'document' && data.showPdf && <PdfTab data={data} full={full} />}
