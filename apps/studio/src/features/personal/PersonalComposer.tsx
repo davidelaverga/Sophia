@@ -288,6 +288,7 @@ function Field({ field, text, state, onChange, onSend }: FieldProps) {
     <textarea
       ref={field}
       id="c-input"
+      aria-describedby="c-private-note"
       // Stray typing lands here while it can take it (shortcuts.ts): a message begun with the focus nowhere is a
       // message, never a place's key (its first L would lock the space).
       data-typing-sink={state === 'ready' ? '' : undefined}
@@ -457,9 +458,15 @@ export function PersonalComposer(props: Props) {
         </p>
       )}
       <div className={`message-bar${dictation.listening ? ' listening' : ''}`}>
+        <span className="c3-private" title="Only she hears this" aria-hidden>
+          <Icon name="lock" />
+        </span>
         <label className="sr-only" htmlFor="c-input">
           Message Sophia
         </label>
+        <span id="c-private-note" className="sr-only">
+          Only she hears this
+        </span>
         <Field field={field} text={text} state={state} onChange={change} onSend={() => void send()} />
         {dictation.listening && <Listening />}
         {dictation.available && ready && (
