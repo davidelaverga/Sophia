@@ -8,7 +8,9 @@
 // - hovering a tile draws the threads to the tasks it waits on (Threads.tsx); pressing it opens the task's sheet, to
 //   act on it or ask Sophia (TaskSheet.tsx), and puts it in the address (`#task-<id>`, link.ts), which opens it
 //   again; the arrows move across the board (board-keys.ts);
-// - what it assumes and what was decided, one quiet line (PlanNotes.tsx).
+// - what it assumes and what was decided, one quiet line (PlanNotes.tsx);
+// - a review of the lead's that proposes a change: a pill in the bar, its card in the decisions' slot, one or the
+//   other (ReviewResult.tsx).
 import { useContext, useEffect, useRef, useState } from 'react'
 import { Icon } from '@sophia/ui'
 import { linkedId, showInAddress, TASK } from '../../resources/link.ts'
@@ -27,6 +29,8 @@ import { Lens } from './Lens.tsx'
 import { shows, type LensName } from './lenses.ts'
 import { current, planRows, waitsOn, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
 import { Folded } from './PlanNotes.tsx'
+import { material } from './review.ts'
+import { ReviewResult } from './ReviewResult.tsx'
 import { changedSince, readSeen, whileAway, writeSeen } from './seen.ts'
 import type { Act } from './TaskActions.tsx'
 import { TaskSheet } from './TaskSheet.tsx'
@@ -184,13 +188,84 @@ function DecisionPill({
   )
 }
 
-function Decisions({ decisions, ...rest }: Omit<DecisionsProps, 'plan'> & { decisions: WorkPlan['decisions'] }) {
+function Decisions({
+  decisions,
+  focus,
+  ...rest
+}: Omit<DecisionsProps, 'plan'> & { decisions: WorkPlan['decisions']; focus: string | null }) {
+  const list = useRef<HTMLDivElement>(null)
+  // Opened on one (from a review that waits on it), the focus goes to its first choice.
+  useEffect(() => {
+    if (focus) list.current?.querySelector<HTMLElement>(`[data-decision="${focus}"] button:not(:disabled)`)?.focus()
+  }, [focus])
   return (
-    <div className="board-decisions">
+    <div ref={list} className="board-decisions">
       {decisions.map((d) => (
         <Decision key={`${d.decision_id}:${String(d.revision)}`} decision={d} {...rest} />
       ))}
     </div>
+  )
+}
+
+/** The slot under the bar: the decisions, or the lead's review that proposes a change; one at a time. */
+function useSlot(plan: WorkPlan, viewerId: string | null, now: Date, decider: (id: string) => string) {
+  const asks = useDecisions(plan, viewerId, now)
+  // The review opened, by its id: another review, a later one, comes closed.
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [focus, setFocus] = useState<string | null>(null)
+  const pill = useRef<HTMLButtonElement>(null)
+  const review = material(plan.last_review) ? plan.last_review : null
+  const reviewShown = review !== null && openId === review.review_id
+  return {
+    asks,
+    review,
+    pill,
+    reviewShown,
+    focus,
+    // Opening one closes the other, so the slot holds one at a time.
+    decisionsShown: asks.shown && asks.open.length > 0,
+    toggleDecisions: () => {
+      setOpenId(null)
+      setFocus(null)
+      asks.toggle()
+    },
+    toggleReview: () => {
+      if (!reviewShown && asks.shown) asks.toggle()
+      setOpenId(reviewShown ? null : (review?.review_id ?? null))
+    },
+    openDecisions: (decisionId: string) => {
+      setOpenId(null)
+      setFocus(decisionId)
+      if (!asks.shown) asks.toggle()
+    },
+    closeReview: () => {
+      setOpenId(null)
+      pill.current?.focus()
+    },
+    /** Who a proposal's decision waits on, while open: the viewer, when theirs to answer now, or its decider. */
+    waitsOn: (decisionId: string) => {
+      const d = asks.open.find((o) => o.decision_id === decisionId)
+      if (!d) return null
+      return asks.mine.includes(d) ? { yours: true as const } : { yours: false as const, name: decider(d.decider_id) }
+    },
+  }
+}
+
+/** A review that proposes a change, waiting in the bar: its pill opens its card. */
+function ReviewPill({ slot }: { slot: ReturnType<typeof useSlot> }) {
+  if (!slot.review) return null
+  return (
+    <button
+      ref={slot.pill}
+      type="button"
+      className="decision-pill review-pill"
+      aria-expanded={slot.reviewShown}
+      onClick={slot.toggleReview}
+    >
+      <span className="decision-pill-dot" aria-hidden />
+      Review · a change proposed
+      <Icon name="chevron" size={12} />
+    </button>
   )
 }
 
@@ -277,6 +352,31 @@ function Lanes({
   )
 }
 
+/** Under the bar, one at a time: the decisions, or the lead's review that proposes a change. */
+function Slot({
+  slot,
+  rows,
+  onOpenTask,
+  plan,
+  ...decisions
+}: DecisionsProps & { slot: ReturnType<typeof useSlot>; rows: PlanRow[]; onOpenTask: (id: string) => void }) {
+  const { now } = decisions
+  if (slot.decisionsShown) return <Decisions decisions={slot.asks.open} focus={slot.focus} {...decisions} />
+  if (!slot.reviewShown || !slot.review) return null
+  return (
+    <ReviewResult
+      review={slot.review}
+      plan={plan}
+      rows={rows}
+      now={now}
+      onOpenTask={onOpenTask}
+      waitsOn={slot.waitsOn}
+      onOpenDecisions={slot.openDecisions}
+      onClose={slot.closeReview}
+    />
+  )
+}
+
 interface BoardProps extends Props {
   plan: WorkPlan
   rows: PlanRow[]
@@ -298,7 +398,8 @@ function useBoardActs(rows: readonly PlanRow[], onAct: Act | undefined) {
 
 function Board(props: BoardProps) {
   const { plan, rows, changed, markSeen, board, people, now, viewerId = null, onDecide, onAsk } = props
-  const asks = useDecisions(plan, viewerId, now)
+  const slot = useSlot(plan, viewerId, now, (id) => people[id]?.name ?? 'someone')
+  const { asks } = slot
   const acts = useBoardActs(rows, props.onAct)
   const opened = rows.find((r) => r.item.id === board.open)
   const shortOf = (row: PlanRow) => accountOf(row, props).tile
@@ -310,16 +411,24 @@ function Board(props: BoardProps) {
         <DecisionPill
           count={asks.open.length}
           mine={asks.mine.length}
-          shown={asks.shown}
-          onToggle={asks.toggle}
+          shown={slot.decisionsShown}
+          onToggle={slot.toggleDecisions}
           people={people}
           deciders={asks.open.map((d) => d.decider_id)}
         />
+        <ReviewPill slot={slot} />
         <AwayLine away={whileAway(rows, changed, viewerId)} onSeen={markSeen} className="board-return" />
       </div>
-      {asks.shown && asks.open.length > 0 && (
-        <Decisions decisions={asks.open} people={people} now={now} viewerId={viewerId} onDecide={onDecide} />
-      )}
+      <Slot
+        slot={slot}
+        plan={plan}
+        rows={rows}
+        people={people}
+        now={now}
+        viewerId={viewerId}
+        onDecide={onDecide}
+        onOpenTask={board.setOpen}
+      />
       <Lanes rows={rows} board={board} tile={tile} />
       <Folded plan={plan} people={people} />
       {opened && (
