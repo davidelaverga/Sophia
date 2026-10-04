@@ -487,8 +487,8 @@ export const REPORT_PAGES = {
     sha256: 'a'.repeat(64),
     versionNumber: 1,
     publishedAt: '2026-10-02T11:05:00.000Z',
-    // The report writes its own ("Rischi e limiti"), so these are not printed again.
-    limitations: ['I tempi di ripristino sono dichiarati dai fornitori.'],
+    // The report says it word for word in its own "Rischi e limiti", so it is not printed again (`unsaid`).
+    limitations: ['I tempi di ripristino sono dichiarati dai fornitori; nessuno è stato misurato.'],
   },
   espanol: {
     markdown: ESPANOL,

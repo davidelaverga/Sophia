@@ -318,57 +318,48 @@ const statesLimits = (sections: readonly PageSection[]) =>
 const BLOCK_TAG = new RegExp(`<\\/?(?:${[...BLOCKS].join('|')})\\b[^>]*>`, 'gi')
 /** A citation group as the page sets it (`pagePass`): its numerals are no words of the sentence around it. */
 const CITE_GROUP = /<sup class="cite[^"]*">(?:[^<]|<(?!\/sup>))*<\/sup>/g
-/** A word (an apostrophe inside it belongs to it), or the marks that end a clause. */
-const WORD_OR_STOP = /([\p{L}\p{N}]+(?:'[\p{L}\p{N}]+)*)|([.;:!?…]+)/gu
 /** Fewer words than this cannot be told from a passing mention ("None.", "N/A", "Preliminary."): always printed. */
 const SAID_WORDS = 3
 
-/** Text as a reader folds it: one apostrophe, no soft hyphen, one case. */
-const folded = (text: string) =>
-  text
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/\u00ad/g, '')
-    .normalize('NFC')
-    .toLowerCase()
+/** A block's or a limitation's words as a reader compares them: one apostrophe, no soft hyphen, one case, no marks. */
+const wordsOf = (text: string) =>
+  (
+    text
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/\u00ad/g, '')
+      .normalize('NFC')
+      .toLowerCase()
+      .match(/[\p{L}\p{N}]+/gu) ?? []
+  ).join(' ')
 
-/** Words in reading order, each followed by a space, each that starts a clause marked by a \u0001 before it. */
-function clauses(text: string): string {
-  let out = ''
-  let start = true
-  for (const [, word, stop] of folded(text).matchAll(WORD_OR_STOP)) {
-    if (stop === undefined) out += `${start ? '\u0001' : ''}${word ?? ''} `
-    start = stop !== undefined
-  }
-  return out
-}
-
-/** The report's own text as clauses, block by block (blocks apart by a \u0002): citations and inline tags dropped. */
-const readable = (html: string) =>
-  html
-    .replace(CITE_GROUP, '')
-    .replace(BLOCK_TAG, '\u0002')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"' })[e] ?? "'")
-    .split('\u0002')
-    .map(clauses)
-    .join('\u0002')
+/** The report's own blocks (a paragraph, a list item, a table cell, a heading) as words: citations and tags dropped. */
+const blocksOf = (html: string): ReadonlySet<string> =>
+  new Set(
+    html
+      .replace(CITE_GROUP, '')
+      .replace(BLOCK_TAG, '\u0002')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"' })[e] ?? "'")
+      .split('\u0002')
+      .map(wordsOf),
+  )
 
 /**
- * The stored limitations the report's own words do not already say (M75, the cloud review on 85c1ae1). A limitation is
- * said when its words, from a clause's start, stand in one block of the lead or the sections in that order (the
- * report's sentence may go on: "… claims [3] and untested"). A heading is no proof that a limitation was kept ("Limits
- * of liability" is a subject), a word inside another is no match ("Asia", "Asian"), nor one in a negation ("It is not
- * true that the sample is small"), nor a limitation of fewer than SAID_WORDS words: each of those is printed. One the
- * report repeats is not printed twice; one it paraphrases is printed again, under "As stated when this version was
- * published".
+ * The stored limitations the report does not already say (M75, the cloud review on 85c1ae1). One is said only when a
+ * whole block of the lead or the sections (a paragraph, a list item, a table cell, a heading) says exactly it, word for
+ * word, citations, inline tags, case and punctuation aside, and it has at least SAID_WORDS words. Anything less is no
+ * proof: a heading ("Limits of liability" is a subject), a sentence inside a longer block (which may negate it or
+ * narrow it: "Asia-Pacific", "2.5%", "Critics wrote: …") or a passing mention. Each of those is printed, so a
+ * limitation on record is never dropped; the price is that one the report says inside a longer block is printed again,
+ * under "As stated when this version was published". One block lookup each: linear in the page and the limitations.
  */
 function unsaid(stored: readonly string[], lead: string | null, sections: readonly PageSection[]): string[] {
-  const said = readable([lead ?? '', ...sections.map((s) => s.html)].join('\u0002'))
+  const said = blocksOf([lead ?? '', ...sections.map((s) => s.html)].join('\u0002'))
   return stored
     .map((l) => l.trim())
     .filter((l) => {
-      const words = clauses(l)
-      return l !== '' && ((words.match(/ /g)?.length ?? 0) < SAID_WORDS || !said.includes(words))
+      const words = wordsOf(l)
+      return l !== '' && (words.split(' ').length < SAID_WORDS || !said.has(words))
     })
 }
 
@@ -379,12 +370,14 @@ function unsaid(stored: readonly string[], lead: string | null, sections: readon
 function withStoredLimitations(sections: PageSection[], lines: readonly string[], words: PageWords): PageSection[] {
   if (lines.length === 0) return sections
   const items = lines.map((l) => `<li>${esc(l)}</li>`).join('')
+  // Beside the report's own limitations section, the record's is named apart, so the contents never list two alike.
+  const title = sections.some((s) => s.role === 'limitations') ? words.limitationsOnRecord : words.limitations
   const section: PageSection = {
     id: 'report-limitations',
     role: 'limitations',
-    title: words.limitations,
+    title,
     html:
-      `<section id="report-limitations" data-report-role="limitations"><h2>${esc(words.limitations)}</h2>\n` +
+      `<section id="report-limitations" data-report-role="limitations"><h2>${esc(title)}</h2>\n` +
       `<p class="aside">${esc(words.limitsLead)}</p><ul>${items}</ul></section>`,
     nums: new Set(),
   }

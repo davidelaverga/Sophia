@@ -30,6 +30,8 @@ export interface PageWords {
   key: string
   limitations: string
   limitsLead: string
+  /** The record's limitations when the report has a limitations section of its own (M75). */
+  limitationsOnRecord: string
   method: string
   gate: (n: number) => string
   snippets: (k: number, n: number) => string
@@ -88,6 +90,7 @@ const EN: PageWords = {
   cite: (n, weak) => `Source ${n}${weak ? `, ${weak}` : ''}`,
   key: 'Sources cited',
   limitations: 'Limitations',
+  limitationsOnRecord: 'Limitations on record',
   limitsLead: 'As stated when this version was published.',
   method: 'How this report was made',
   gate: (n) =>
@@ -147,6 +150,7 @@ const IT: PageWords = {
   cite: (n, weak) => `Fonte ${n}${weak ? `, ${weak}` : ''}`,
   key: 'Fonti citate',
   limitations: 'Limiti',
+  limitationsOnRecord: 'Limiti registrati',
   limitsLead: 'Così come dichiarati al momento della pubblicazione di questa versione.',
   method: 'Come è stato fatto questo rapporto',
   gate: (n) =>
@@ -208,6 +212,7 @@ const ES: PageWords = {
   cite: (n, weak) => `Fuente ${n}${weak ? `, ${weak}` : ''}`,
   key: 'Fuentes citadas',
   limitations: 'Limitaciones',
+  limitationsOnRecord: 'Limitaciones registradas',
   limitsLead: 'Tal como se declararon al publicar esta versión.',
   method: 'Cómo se hizo este informe',
   gate: (n) =>

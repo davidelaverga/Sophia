@@ -706,7 +706,7 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.doesNotMatch(quiet, /class="n"|toc-key|report-sources/, 'no counts, no key, no sources row')
   })
 
-  it('U9 · prints the stored limitations where the report wrote none, before its conclusion; never twice', () => {
+  it('U9 · prints the stored limitations the report does not say, before its conclusion; never twice', () => {
     const without = RICH.replace(/## Risks and limitations[^#]*/, '')
     const html = rich({ markdown: without, limitations: ['Restore times are vendor claims.', '  '] })
     assert.ok(
@@ -740,7 +740,7 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.doesNotMatch(rich({ markdown: allSaid, limitations: [said] }), /id="report-limitations"/, 'all said: none')
   })
 
-  it('U9 · says a stored limitation is said only when the report says it, from a clause, in one block (M75)', () => {
+  it('U9 · counts a stored limitation as said only when a whole block of the report says it, word for word (M75)', () => {
     /** The stored limitations the page prints for a report whose Findings say `findings`. */
     const printed = (findings: string, stored: string[]) => {
       const html = page({ markdown: `# T\n\n## Findings\n\n${findings}\n`, limitations: stored })
@@ -748,35 +748,51 @@ describe('html-report-v2: what its bytes guarantee', () => {
         [...m[0].matchAll(/<li>([^<]*)<\/li>/g)].map((li) => li[1]),
       )
     }
-    // Said: from a clause's start, in one block, whatever the case, a citation mid-sentence, a curly apostrophe,
-    // a word set in bold, a soft hyphen, or the sentence going on.
+    // Said: a whole paragraph, list item or cell, whatever its case, citations, apostrophes, bold or soft hyphens.
     for (const [findings, stored] of [
-      [`Restore times are vendor claims [${A}] and untested.`, 'Restore times are vendor claims.'],
+      [`Restore times are vendor claims [${A}].`, 'Restore times are vendor claims.'],
       ['The vendor’s figures are unaudited.', "The vendor's figures are unaudited."],
       ['**Vendor**s report their own restore times.', 'Vendors report their own restore times.'],
-      ['Prices change of\u00adten; nobody checked.', 'Prices change often.'],
-      ['Scope. RESULTS EXCLUDE ASIA, for now.', 'Results exclude Asia.'],
+      ['Prices change of\u00adten.', 'Prices change often.'],
+      ['- One item.\n- RESULTS EXCLUDE ASIA!', 'Results exclude Asia.'],
     ]) {
       assert.deepEqual(printed(findings ?? '', [stored ?? '']), [], findings)
     }
-    // Not said: a word inside another, a negation, two blocks, too few words to tell, nothing but punctuation.
+    // Not said, so printed: within a longer block (which may narrow or negate it), across blocks, too short to tell.
     for (const [findings, stored] of [
       ['Results exclude Asian subsidiaries.', 'Results exclude Asia.'],
+      ['Results exclude Asia-Pacific subsidiaries.', 'Results exclude Asia.'],
+      ['Only 2.5% of responses were missing.', '5% of responses were missing.'],
+      ['At 10:30 vendors did not reply to the survey.', '30 vendors did not reply to the survey.'],
+      ['For the U.S. data covers only 2024; EU data covers 2020 to 2024.', 'Data covers only 2024.'],
       ['It is not true that the sample is small.', 'The sample is small.'],
+      ['Critics wrote: the sample is too small. Our power analysis shows otherwise.', 'The sample is too small.'],
+      [`Restore times are vendor claims [${A}] and untested.`, 'Restore times are vendor claims.'],
       ['- Prices\n- change often', 'Prices change often.'],
-      ['Preliminary results show growth.', 'Preliminary.'],
+      ['Preliminary.', 'Preliminary.'],
       ['| a |\n|--|\n| N/A |', 'N/A'],
-      ['None of the vendors replied.', 'None.'],
       ['It ends here...', '...'],
     ]) {
       assert.deepEqual(printed(findings ?? '', [stored ?? '']), [esc(stored ?? '')], findings)
     }
-    // Said in the report but under no limitations heading: nothing printed twice, and never "states no limitations".
+    // Said under no limitations heading: nothing printed twice, and never "states no limitations".
     const html = page({
       markdown: '# T\n\n## Findings\n\nPrices change often.\n',
       limitations: ['Prices change often.'],
     })
     assert.doesNotMatch(html, /id="report-limitations"|states no limitations/)
+    // Beside the report's own limitations section, the record's is named apart: no two contents entries alike.
+    const both = page({
+      markdown: '# T\n\n## Findings\n\nx\n\n## Limitations\n\n- Small sample.\n',
+      limitations: ['Small sample.'],
+    })
+    assert.ok(both.includes('<h2>Limitations</h2>') && both.includes('<h2>Limitations on record</h2>'), 'named apart')
+    const contents = slice(
+      rich({ limitations: ['A limitation the report never states.'] }),
+      '<nav class="toc"',
+      '</nav>',
+    )
+    assert.ok(contents.includes('>Risks and limitations</a>') && contents.includes('>Limitations on record</a>'))
   })
 
   it('U10 · reads limitations and answers from their headings, and nothing else', () => {
