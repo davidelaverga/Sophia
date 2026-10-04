@@ -160,7 +160,7 @@ export interface YouDoor {
 }
 
 /**
- * What the Personal door opens: the conversation to continue, a first one to start, or a locked space. It names the
+ * What the Personal door opens: the conversation to continue, or a locked space; null before a first word. It names the
  * last day by what it was about (its first topic), or just now by the latest one. Until the space has loaded it only
  * opens: a first conversation offered over one that is still loading would read as the old one gone.
  */
@@ -170,7 +170,7 @@ export function youDoor(input: {
   turns: readonly PersonalTurn[] | undefined
   notes: number
   now: Date
-}): YouDoor {
+}): YouDoor | null {
   if (input.locked) {
     return {
       verb: 'Unlock',
@@ -181,7 +181,8 @@ export function youDoor(input: {
   if (!input.turns) return { verb: 'Open', meta: '', notes: null }
   const said = input.turns.filter((t) => t.author === 'person')
   const last = said.at(-1)
-  if (!last) return { verb: 'Start talking', meta: 'Sophia is here whenever you are', notes: null }
+  // Nothing said yet: nothing to continue. The line to her is the way in (Welcome).
+  if (!last) return null
   const at = new Date(last.createdAt)
   const justNow = input.now.getTime() - at.getTime() < 15 * MINUTE
   const thatDay = said.find((t) => startOfDay(new Date(t.createdAt)) === startOfDay(at)) ?? last

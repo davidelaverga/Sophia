@@ -1,14 +1,15 @@
 // Home, the Welcome (docs/plans/home-welcome.md): an editorial page that knows you. On the left, the date, the greeting
 // and Sophia's one sentence; then you and Sophia (where you left off, your notes, a line to write or speak to her) and
-// your projects (the ones Work shows first); on the right, alone, her own light, which turns to you as you move,
-// listens while you write or speak to her and thinks while it goes.
+// your projects (the ones Work shows first); on the right, alone, her own light behind Umbral, whose rays turn to you as
+// you move and to the line while you write or speak to her.
 import type { ProjectSummary } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react'
 import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
-import type { LightMode } from '../light/engine.ts'
+import { defaultTarget, type LightMode, type LightTarget } from '../light/engine.ts'
 import type { Point } from '../light/motion.ts'
 import { SophiaLight } from '../light/SophiaLight.tsx'
+import { roomForMark } from '../light/threshold.ts'
 import { followPointer } from '../resources/motion.ts'
 import { useDictation } from './dictation.ts'
 import { homeRows, notesLabel, rowNote, type HomeAction, type HomeRow, type Said, type YouDoor } from './places-view.ts'
@@ -22,8 +23,8 @@ interface Props {
   date: string
   /** The one thing that matters now, in Sophia's words (sophiaSays). */
   says: readonly Said[]
-  /** Where you left off with her (youDoor): continue, start, or unlock; and your notes. */
-  you: YouDoor
+  /** Where you left off with her (youDoor): continue or unlock, and your notes; null on a first visit. */
+  you: YouDoor | null
   reads: readonly Read[]
   /** Undefined until they have loaded. */
   projects: readonly ProjectSummary[] | undefined
@@ -307,44 +308,73 @@ function SayLine({ actions, onTalk, line, hidden }: LineProps) {
   )
 }
 
-/** You and Sophia, private: where you left off (or a first word, or the padlock), your notes, and the line to her. */
+/** You and Sophia, private: where you left off (or the padlock), your notes, and the line to her: alone on a first visit. */
 function You({ you, locked, actions, onTalk, line, hidden }: Pick<Props, 'you' | 'locked'> & LineProps) {
   return (
     <section className="hw-section hw-you" aria-labelledby="hw-you-h">
-      <h3 id="hw-you-h" className="hw-label">
+      <h3 id="hw-you-h" className="hw-label" tabIndex={-1}>
         You and Sophia
       </h3>
-      <ol className="hw-index" aria-label="You and Sophia">
-        <li style={{ '--i': 0 }}>
-          <button className="hw-row" type="button" data-tone="you" onClick={actions.personal}>
-            <span className={`hw-n hw-her${locked ? ' locked' : ''}`} aria-hidden>
-              {locked && <Icon name="lock" />}
-            </span>
-            <span className="hw-t">{you.verb}</span>
-            <span className="hw-m">{you.meta}</span>
-            <span className="hw-go">
-              <span aria-hidden>→</span>
-            </span>
-          </button>
-        </li>
-        {you.notes !== null && (
-          <li style={{ '--i': 1 }}>
-            <button className="hw-row hw-more" type="button" onClick={actions.notes}>
-              <span className="hw-n" aria-hidden />
-              <span className="hw-t">{notesLabel(you.notes)}</span>
+      {you && (
+        <ol className="hw-index" aria-label="You and Sophia">
+          <li style={{ '--i': 0 }}>
+            <button className="hw-row" type="button" data-tone="you" onClick={actions.personal}>
+              <span className={`hw-n hw-her${locked ? ' locked' : ''}`} aria-hidden>
+                {locked && <Icon name="lock" />}
+              </span>
+              <span className="hw-t">{you.verb}</span>
+              <span className="hw-m">{you.meta}</span>
               <span className="hw-go">
                 <span aria-hidden>→</span>
               </span>
             </button>
           </li>
-        )}
-      </ol>
+          {you.notes !== null && (
+            <li style={{ '--i': 1 }}>
+              <button className="hw-row hw-more" type="button" onClick={actions.notes}>
+                <span className="hw-n" aria-hidden />
+                <span className="hw-t">{notesLabel(you.notes)}</span>
+                <span className="hw-go">
+                  <span aria-hidden>→</span>
+                </span>
+              </button>
+            </li>
+          )}
+        </ol>
+      )}
       {!locked && <SayLine actions={actions} onTalk={onTalk} line={line} hidden={hidden} />}
     </section>
   )
 }
 
-/** Sophia's own light, alone on the right: she turns to you as you move, listens while you write, thinks as it goes. */
+/** Her light behind Umbral, formed (docs/plans/home-light-mark.md): your half rises to hers once, on arrival. */
+const FORMED = { from: null }
+
+/** Where her mark rests in the light's box, measured as the box changes: 96 px wherever there is room (threshold.ts). */
+function useMarkRest(box: RefObject<HTMLDivElement | null>): LightTarget | null {
+  const [rest, setRest] = useState<LightTarget | null>(null)
+  useLayoutEffect(() => {
+    const b = box.current
+    if (!b) return undefined
+    const measure = () => {
+      const { clientWidth: width, clientHeight: height } = b
+      // Out of sight the box has no size: keep where it was, so the mark is never placed at nothing.
+      if (width < 1 || height < 1) return
+      const next = roomForMark(defaultTarget(width, height), width, height)
+      setRest((was) => (was?.x === next.x && was.y === next.y && was.radius === next.radius ? was : next))
+    }
+    measure()
+    const resized = new ResizeObserver(measure)
+    resized.observe(b)
+    return () => resized.disconnect()
+  }, [box])
+  return rest
+}
+
+/**
+ * Sophia's own light, alone on the right, standing behind the mark: its rays turn to you as you move, and to the line
+ * while you write or speak to her.
+ */
 function Light({ talk, line, hidden }: { talk: Talk; line: RefObject<HTMLElement | null>; hidden: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   const at = usePointerIn(box, hidden)
@@ -360,14 +390,15 @@ function Light({ talk, line, hidden }: { talk: Talk; line: RefObject<HTMLElement
     )
   }, [talk.writing, line])
   const attention = talk.writing ? writingAt : at
+  const rest = useMarkRest(box)
   return (
     <div className="hw-light" ref={box} data-door="personal" aria-hidden>
       <SophiaLight
         mode={moodOf(talk.writing, attention)}
-        target={null}
+        target={rest}
         attention={attention}
         working={false}
-        pull={attention}
+        formed={FORMED}
       />
     </div>
   )

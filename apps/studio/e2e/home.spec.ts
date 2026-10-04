@@ -128,9 +128,14 @@ test('home · you and Sophia: where you left off opens your conversation; your n
   await you.getByRole('button', { name: /Continue/ }).click()
   await you.getByRole('button', { name: /3 notes/ }).click()
   expect(await pressed(page)).toEqual(['personal', 'notes'])
+})
+
+test('home · a first visit: nothing to continue yet, so the line to her is the one way in', async ({ page }) => {
   await page.goto(`${PAGE}?you=new`)
-  await expect(you.getByRole('button')).toHaveCount(1)
-  await expect(you.getByRole('button')).toContainText('Start talking')
+  const section = page.getByRole('region', { name: 'You and Sophia' })
+  await expect(section.getByRole('heading', { name: 'You and Sophia' })).toBeVisible()
+  await expect(section.getByRole('button', { name: /Start talking|Continue/ })).toHaveCount(0)
+  await expect(line(page)).toBeVisible()
 })
 
 test('home · locked, your row unlocks your space, and no line talks to her', async ({ page }) => {
@@ -189,6 +194,47 @@ test('home · without speech on this device, there is no microphone', async ({ p
   await expect(page.getByRole('button', { name: 'Speak instead' })).toHaveCount(0)
 })
 
+test('home · her light is Umbral: your half and hers, her light behind them', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(light(page)).toHaveAttribute('data-mark', /^\d+ \d+ 96$/)
+  await expect(page.locator('.hw-light svg[data-mark="umbral"]')).toBeVisible()
+})
+
+test('home · out of sight at first, her mark is never placed at nothing; it forms when Home is first seen', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const marks: string[] = []
+    Reflect.set(window, 'homeMarks', marks)
+    new MutationObserver((changes) => {
+      for (const c of changes) if (c.target instanceof Element) marks.push(c.target.getAttribute('data-mark') ?? '')
+    }).observe(document, { subtree: true, attributeFilter: ['data-mark'] })
+  })
+  await page.goto(`${PAGE}?away=1`)
+  await page.waitForTimeout(400)
+  await expect(page.locator('.hw-light svg[data-mark="umbral"]')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Back to Home' }).click()
+  await expect(light(page)).toHaveAttribute('data-mark', /^\d+ \d+ 96$/)
+  const forming = await page
+    .locator('.hw-light svg[data-mark="umbral"]')
+    .evaluate((svg) => svg.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').length)
+  expect(forming).toBeGreaterThan(0)
+  const marks = await page.evaluate(() => {
+    const seen: unknown = Reflect.get(window, 'homeMarks')
+    return Array.isArray(seen) ? seen.filter((m): m is string => typeof m === 'string') : []
+  })
+  expect(marks.filter((m) => m.startsWith('0 0'))).toEqual([])
+})
+
+test('home · back from Personal, focus lands on your row; on a first visit, on the section, never in the line', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  expect(await page.evaluate(() => window.homeFixture?.landing())).toBe('button')
+  await page.goto(`${PAGE}?you=new`)
+  expect(await page.evaluate(() => window.homeFixture?.landing())).toBe('hw-you-h')
+})
+
 test('home · Sophia’s light turns to you as you move, and rests when you leave', async ({ page }) => {
   await page.goto(PAGE)
   await expect(light(page)).toHaveAttribute('data-mode', 'rest')
@@ -244,5 +290,64 @@ test('@phone · home · one column, every project one press, a join said before 
   // Said in words of their own width, not only to a screen reader.
   const join = await row(page, 'Pitch deck').getByText('Join the room').boundingBox()
   expect(join?.width).toBeGreaterThan(40)
+  // Nothing past the screen: not the page, and not Home's own scroller either.
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  expect(await page.locator('.c-home').evaluate((c) => c.scrollWidth <= c.clientWidth)).toBe(true)
+})
+
+/** The rectangles of the date and the greeting's words, each as its text draws it. */
+const wordsOf = (page: Page) =>
+  page.locator('.hw-hello span, .hw-date').evaluateAll((spans) =>
+    spans.map((s) => {
+      const range = document.createRange()
+      range.selectNodeContents(s)
+      const r = range.getBoundingClientRect()
+      return { text: s.textContent, x: r.x, y: r.y, width: r.width, height: r.height }
+    }),
+  )
+
+test('@phone · home · her mark sits clear of the date and the greeting, the longest of them, on narrow phones too', async ({
+  page,
+}) => {
+  for (const width of [320, 360, 390]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto(PAGE)
+    const spans = page.locator('.hw-hello span')
+    await spans.nth(0).evaluate((s) => void (s.textContent = 'Good afternoon,'))
+    await spans.nth(1).evaluate((s) => void (s.textContent = 'Jean-Christophe.'))
+    await page.evaluate(() => document.fonts.ready) // measured in the Studio's face, not a fallback's
+    // The longest greeting keeps to one line, smaller on a narrow phone rather than broken.
+    const lines = await spans.nth(0).evaluate((s) => {
+      const range = document.createRange()
+      range.selectNodeContents(s)
+      return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size
+    })
+    expect(lines, `${String(width)} px: "Good afternoon," on one line`).toBe(1)
+    const mark = await page.locator('.hw-light svg[data-mark="umbral"]').boundingBox()
+    if (!mark) throw new Error('no mark on Home')
+    for (const w of await wordsOf(page)) {
+      // Apart by a gap of 8 px at least, so a renderer's sub-pixel difference can't decide it.
+      const gap = 8
+      const apart =
+        mark.x >= w.x + w.width + gap ||
+        mark.x + mark.width + gap <= w.x ||
+        mark.y >= w.y + w.height + gap ||
+        mark.y + mark.height + gap <= w.y
+      expect(apart, `${String(width)} px: ${w.text} reaches her mark`).toBe(true)
+    }
+    expect(await page.locator('.c-home').evaluate((c) => c.scrollWidth <= c.clientWidth)).toBe(true)
+    // Her half's right edge on the gutter, where the line's right edge is, once the mark has formed.
+    await page.locator('.hw-light svg[data-mark="umbral"]').evaluate((svg) =>
+      Promise.all(
+        svg
+          .getAnimations({ subtree: true })
+          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+          .map((a) => a.finished),
+      ),
+    )
+    const her = await page.locator('.hw-light .umbral-sophia').boundingBox()
+    const say = await page.locator('.hw-say').boundingBox()
+    if (!her || !say) throw new Error('no mark or line on Home')
+    expect(Math.abs(her.x + her.width - (say.x + say.width)), `${String(width)} px`).toBeLessThanOrEqual(1.5)
+  }
 })

@@ -1,12 +1,37 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { BEHIND, condensedRadius, lightBehind, markSize, shapedTarget, UMBRAL } from './threshold.ts'
+import {
+  aimOf,
+  BEHIND,
+  condensedRadius,
+  lightBehind,
+  markSize,
+  roomForMark,
+  shapedTarget,
+  UMBRAL,
+} from './threshold.ts'
 
 const base = { x: 640, y: 336, radius: 272 }
 const offset = (p: { x: number; y: number }) => ({ x: p.x - BEHIND.x, y: p.y - BEHIND.y })
 const round = (n: number) => Math.round(n * 1000) / 1000
 
 describe('the threshold’s numbers', () => {
+  it('rests a mark of 96 px in any box with room for it (Home), else of 48', () => {
+    const laptop = roomForMark({ x: 212, y: 178, radius: 144 }, 424, 424)
+    assert.deepEqual(laptop, { x: 212, y: 178, radius: 160 })
+    assert.equal(markSize(laptop.radius), 96)
+    assert.equal(markSize(roomForMark({ x: 240, y: 202, radius: 163 }, 480, 480).radius), 96)
+    assert.equal(markSize(roomForMark({ x: 110, y: 92, radius: 75 }, 220, 220).radius), 48)
+  })
+
+  it('turns the light behind the mark to whom she attends to, else to the pointer', () => {
+    const line = { x: 120, y: 400 }
+    const pointer = { x: 900, y: 80 }
+    assert.deepEqual(aimOf(line, pointer), line)
+    assert.deepEqual(aimOf(null, pointer), pointer)
+    assert.equal(aimOf(null, null), null)
+  })
+
   it('rests where it is with no one writing', () => {
     assert.deepEqual(shapedTarget(base, null, false), base)
   })
