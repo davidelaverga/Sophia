@@ -652,6 +652,9 @@
   cursor: pointer;
   transition: color var(--fast) var(--ease);
 }
+.places .c3-talk-toggle .c3-who {
+  position: static;
+}
 .places .c3-talk-toggle:hover,
 .places .c3-notes-toggle:hover,
 .places .c3-notes-toggle[aria-pressed='true'] {
@@ -769,8 +772,9 @@
   color: var(--text);
 }
 .places .msg.typing .body {
-  color: var(--text-3);
-  font-size: 13.5px;
+  min-height: 24px;
+  color: var(--text-sec);
+  font-size: 13px;
 }
 .places .msg .body {
   font-size: 15px;
@@ -808,9 +812,6 @@
 .places .msg.typing .c3-who {
   animation: ps-who-breathe 1.6s ease-in-out infinite;
 }
-.places .msg.typing .body {
-  min-height: 24px;
-}
 @keyframes ps-who-breathe {
   0%,
   100% {
@@ -823,8 +824,8 @@
 .places .msg .at {
   position: absolute;
   bottom: 6px;
-  color: var(--text-4);
-  font: 10.5px var(--mono);
+  color: var(--text-sec);
+  font: 11px var(--mono);
   opacity: 0;
   transition: opacity var(--fast);
   white-space: nowrap;
@@ -842,9 +843,9 @@
   position: absolute;
   left: 100%;
   top: 0;
-  margin-left: 48px;
+  margin-left: 56px;
   height: 24px;
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
   opacity: 0;
   transition: opacity var(--fast);
@@ -863,7 +864,7 @@
   justify-self: start;
   margin-top: -6px;
   color: var(--text-sec);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 /* Touch and narrow screens: no hover, so a tap on a message shows its time under it. */
 /* Narrow screens: the halves stand inside the gutter, the words start after them, and the days still span the column. */
@@ -949,14 +950,20 @@
   left: 50%;
   transform: translateX(-50%);
 }
+/* The days' menu and the note form keep to the scale (theme.css sizes popover rows and fields 12.5 and 13.5). */
+.places .c3-daybar .popover button,
+.places .c3-noteform input {
+  font-size: 13px;
+}
 .places .c3-daybar .popover .muted {
-  font-size: 11.5px;
+  font-size: 11px;
 }
 .places .c3-day {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
+  min-height: 24px;
   padding: 4px 0;
   border: 0;
   border-radius: 0;
@@ -995,7 +1002,7 @@
 .places .c3-noteform .use {
   flex-basis: 100%;
   color: var(--text-sec);
-  font-size: 12px;
+  font-size: 13px;
 }
 /* Sophia never keeps a note silently: she suggests it, you keep it or let it go. */
 .places .c3-suggest {
@@ -1008,7 +1015,7 @@
   padding: 0;
   border: 0;
   background: none;
-  font-size: 14px;
+  font-size: 15px;
   animation: ps-arrive 260ms var(--ease);
 }
 .places .c3-suggest .field-label {
@@ -1028,14 +1035,14 @@
 .places .c3-kept {
   margin-top: -8px;
   color: var(--text-sec);
-  font-size: 12px;
+  font-size: 13px;
 }
 .places .c3-kept q {
   color: var(--text-2);
   quotes: '“' '”';
 }
 .places .c3-kept .text-button {
-  font-size: 12px;
+  font-size: 13px;
 }
 /* A first conversation starts from a blank page; three quiet ways in, gone after the first message. */
 .places .c3-starters {
@@ -1051,14 +1058,14 @@
   grid-auto-columns: auto;
   align-items: center;
   gap: 12px;
-  height: 44px;
-  padding: 0;
+  min-height: 44px;
+  padding: 10px 0;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   background: none;
   color: var(--text-2);
-  font: 14.5px/1 var(--sans);
+  font: 15px/1.35 var(--sans);
   text-align: left;
   cursor: pointer;
   transition: color var(--fast) var(--ease);
@@ -1066,7 +1073,7 @@
 /* The session about to start, said as Home says it: amber, quiet, mono. */
 .places .c3-way-note {
   color: color-mix(in srgb, #e8c48d 85%, transparent);
-  font: 12px/1 var(--mono);
+  font: 11px/1 var(--mono);
 }
 .places .c3-starters button:focus-visible {
   outline-offset: -2px;
@@ -1100,6 +1107,7 @@
 }
 .places .ps-composer .message-bar:focus-within {
   border-top-color: rgba(185, 168, 255, 0.55);
+  box-shadow: 0 -1px 0 rgba(185, 168, 255, 0.55);
 }
 .places .ps-composer .message-bar.listening {
   border-top-color: rgba(185, 168, 255, 0.7);
@@ -1211,14 +1219,14 @@
     background: transparent;
     box-shadow: none;
   }
-  .places .c3-notes .c2-t {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--line);
-    border-radius: 0;
-  }
-  .places .c3-notes .c2-t:hover {
-    background: none;
-  }
+}
+.places .c3-notes .c2-t {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.places .c3-notes .c2-t:hover {
+  background: none;
 }
 .places #c-notes-h {
   font: 500 10.5px/1 var(--mono);
@@ -1262,7 +1270,7 @@
   gap: 6px;
   margin-top: 3px;
   color: var(--halo-text);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 .places .c2-t .by::before {
   content: '';
@@ -1280,7 +1288,7 @@
 }
 .places .c2-to small {
   color: var(--text-sec);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 .places .c2-to-head {
   display: flex;
@@ -1315,7 +1323,7 @@
 .places .ps-empty {
   padding: 4px 8px;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 /* The edge crosses; it shows a padlock only when the side behind it is locked. */
@@ -1769,6 +1777,8 @@
   .places .hw-label,
   .places .hw-mic,
   .places .hw-row.placeholder,
+  .places .c3-ambient,
+  .places .c3-wave i,
   .places .msg.typing .c3-who {
     animation: none;
   }
@@ -1797,7 +1807,7 @@
 }
 .places .c3-mem p {
   color: var(--text);
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.45;
 }
 /* Its day on the right; on hover (or focus) Correct and Forget take that place, so nothing waits as empty room. */
@@ -1809,7 +1819,7 @@
   transition: opacity var(--fast) var(--ease);
 }
 .places .c3-mem-at {
-  color: var(--text-4);
+  color: var(--text-sec);
   font: 11px/1 var(--mono);
 }
 .places .c3-mem-acts {
@@ -1838,8 +1848,8 @@
 }
 .places .c3-mem-note {
   margin-top: 10px;
-  color: var(--text-3);
-  font-size: 12px;
+  color: var(--text-sec);
+  font-size: 13px;
 }
 @media (hover: none) {
   .places .c3-mem-acts {
@@ -1858,6 +1868,10 @@
   border-top: 1px solid var(--line);
   animation: ps-arrive 280ms var(--ease);
 }
+.places .c3-starters + .c3-week {
+  padding-top: 4px;
+  border-top: 0;
+}
 .places .c3-week-text {
   color: var(--text);
   font-size: 15px;
@@ -1869,7 +1883,7 @@
   gap: 6px 16px;
   margin-top: 10px;
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
-  font: 12px/1.4 var(--mono);
+  font: 11px/1.4 var(--mono);
 }
 .places .c3-week-acts {
   display: flex;
@@ -1945,5 +1959,16 @@
   .places .c3-week,
   .places .c3-talk {
     animation: none;
+  }
+}
+
+/* Finishing: text you select in Personal takes her light. */
+.places .c3-space.you ::selection {
+  background: rgba(156, 130, 245, 0.32);
+  color: var(--text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .places .msgs {
+    scroll-behavior: auto;
   }
 }

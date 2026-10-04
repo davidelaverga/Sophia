@@ -5,7 +5,7 @@
 // it), `notes=none` (none kept yet); `unavailable=1` (Sophia can't answer now). A message sent here is answered 900 ms later.
 // `arrive=1`: yesterday's talk and her line of today, nothing said yet. The parts the API doesn't give yet:
 // `memory=1`, `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
-// `slow=1`: a message takes 1.5 s on its way, not 0.3. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
+// `slow=1`: a message takes 1.5 s on its way, not 0.3. `kept=sophia`: the note was Sophia's. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
@@ -137,7 +137,7 @@ const firstSpace = (): Space => ({
           {
             id: 'note-1',
             text: 'Start the deck from one number I trust',
-            keptBy: 'person',
+            keptBy: query.get('kept') === 'sophia' ? 'sophia' : 'person',
             fromTurnId: null,
             createdAt: ago(DAY),
           },

@@ -21,7 +21,7 @@ import type {
 } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import type { ShowToast } from '../../app/Toast.tsx'
-import { Conversation, type ConversationActions } from './Conversation.tsx'
+import { Conversation, Who, type ConversationActions } from './Conversation.tsx'
 import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack } from './conversation-view.ts'
 import { focusNotesToggle, focusSoon } from './focus.ts'
 import type { PersonalExtras } from './extras.ts'
@@ -264,6 +264,7 @@ function Head({
       <div className="c3-head-acts">
         {onTalk && (
           <button className="c3-talk-toggle" type="button" onClick={onTalk}>
+            <Who who="sophia" />
             Talk with her
           </button>
         )}
