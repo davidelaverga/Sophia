@@ -64,8 +64,8 @@ const proposing = (revision: number): LastReview => ({
 export const reviewedAgain = (p: Reviewed): Reviewed =>
   p.last_review ? { ...p, last_review: { ...p.last_review, review_id: `${p.last_review.review_id}-again` } } : p
 
-/** The review a plan opens with, as `review=` says; none for the modes that wait for a request. */
-export function openedWith(mode: ReviewMode, p: Reviewed): Reviewed {
+/** The review a plan opens with, as `review=` says, of the revision given; none for the modes that wait for a request. */
+export function openedWith(mode: ReviewMode, p: { revision: number }): Reviewed {
   if (mode === 'material') return { ...p, last_review: proposing(p.revision) }
   if (mode === 'material-old') return { ...p, last_review: proposing(p.revision - 1) }
   if (mode === 'material-sent') {

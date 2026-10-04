@@ -1643,6 +1643,10 @@
   font-size: var(--type-small);
   list-style: none;
 }
+/* What it was, and for which execution when not the one shown: a label before what is known of it. */
+.act-earlier-kind {
+  color: var(--text-2);
+}
 .act-boundary {
   font-size: var(--type-small);
 }

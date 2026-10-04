@@ -8,8 +8,11 @@ import { reviewLine, type Reviewed } from './review.ts'
 
 interface Props {
   goal: GoalView | null
-  /** Its plan's progress review, as read now; absent, nothing is said of one. */
-  review?: Omit<Reviewed, 'revision'> | undefined
+  /**
+   * Its plan's progress review, as read now with the plan in force's revision: what the line compares it with, as the
+   * review's card does, never the revision shown here when it is only proposed (Codex F-006). Absent, nothing is said.
+   */
+  review?: Reviewed | undefined
   now: Date
   people: Record<string, Resource['owner']>
   viewerId: string | null
@@ -21,9 +24,7 @@ export function PlanNext({ goal, review, now, people, viewerId }: Props) {
   const { plan, operable } = shown
   // Every other proposal, not only the first (PR #76 review, P2).
   const others = proposed(goal).filter((p) => p !== plan)
-  const line = review
-    ? reviewLine({ ...review, revision: plan.revision }, viewerId, (id) => people[id]?.name ?? 'someone', now)
-    : null
+  const line = review ? reviewLine(review, viewerId, (id) => people[id]?.name ?? 'someone', now) : null
   return (
     <p className="plan-next">
       <span className="field-label">Next</span>

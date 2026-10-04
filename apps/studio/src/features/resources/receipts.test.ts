@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
+  executionOf,
+  executionSaid,
   fold,
   knownSaid,
   lost,
@@ -9,6 +11,7 @@ import {
   readReceipt,
   retryableNow,
   retried,
+  sameTarget,
   scopeOf,
   sending,
   sessionTarget,
@@ -203,11 +206,29 @@ describe('what is known of a command', () => {
 
   it('is tried again only while its kind may be sent here now; otherwise kept, with its operation (Codex F-002)', () => {
     const stop = lost(sending(command('stop')))
-    assert.equal(retryableNow(stop, new Set(['stop', 'hold'])), true)
-    assert.equal(retryableNow(stop, new Set(['hold'])), false) // Stop denied, or the task not observed: nothing to send
-    assert.equal(retryableNow(stop, new Set()), false)
+    assert.equal(retryableNow(stop, new Set(['stop', 'hold']), target), true)
+    assert.equal(retryableNow(stop, new Set(['hold']), target), false) // Stop denied, or not observed: nothing to send
+    assert.equal(retryableNow(stop, new Set(), target), false)
     const recorded = after(command('stop'), receipt(command('stop'), 1))
-    assert.equal(retryableNow(recorded, new Set(['stop'])), false) // recorded: nothing to try again
+    assert.equal(retryableNow(recorded, new Set(['stop']), target), false) // recorded: nothing to try again
+  })
+
+  it('is tried again only for the execution shown, field for field; an earlier one is said as such (Codex F-007)', () => {
+    const stop = lost(sending(command('stop')))
+    const sendable = new Set(['stop'] as const)
+    const nextAttempt = { ...target, attempt_id: 'at-4' }
+    const nextSession = { ...target, session_id: 's-2' }
+    assert.equal(retryableNow(stop, sendable, nextAttempt), false)
+    assert.equal(retryableNow(stop, sendable, nextSession), false)
+    assert.equal(retryableNow(stop, sendable, { ...target, assignment_generation: 4 }), false)
+    assert.equal(executionSaid(stop, nextAttempt), 'for an earlier attempt')
+    assert.equal(executionSaid(stop, nextSession), 'for another session')
+    assert.equal(executionSaid(stop, target), null)
+    // A draft belongs to its execution: another attempt or session starts with none, while history stays by scope.
+    assert.notEqual(executionOf(target), executionOf(nextAttempt))
+    assert.notEqual(executionOf(target), executionOf(nextSession))
+    assert.equal(scopeOf(target), scopeOf(nextAttempt))
+    assert.equal(sameTarget(target, { ...target }), true)
   })
 
   it('keeps commands by work and assignment generation: a session’s next assignment starts afresh (UI-11)', () => {

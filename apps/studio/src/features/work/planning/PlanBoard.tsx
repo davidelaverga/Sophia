@@ -76,8 +76,8 @@ interface Props {
   onDecide?: Decide
   /** Where a command on a task goes (guidance, Hold, Resume, Stop), with its exact target. */
   onCommand?: SendCommand
-  /** Where a question to Sophia about a task goes: the shared conversation. */
-  onAsk?: Ask
+  /** Where a question to Sophia about a task goes: the shared conversation; absent while none is connected. */
+  onAsk?: Ask | undefined
   /** Where a task's result version is read. */
   readResult?: ReadResult
   /** The way to the existing conversation, when Sophia can't be asked from a task. */
@@ -288,7 +288,8 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
   const [focus, setFocus] = useState<string | null>(null)
   const pill = useRef<HTMLButtonElement>(null)
   const review = material(reviewed?.last_review) ? reviewed.last_review : null
-  // Its revision is the one the review is read with, so the card and the goal's line say the same of it.
+  // Its revision is the one the review is read with (null: no plan in force), so the card and the goal's line say the
+  // same of it.
   const revision = reviewed?.revision ?? null
   const reviewShown = review !== null && openId === review.review_id
   // A card closed by a later review takes the focus with it: it goes back to the pill, as Escape and Close do.
@@ -457,7 +458,7 @@ interface SlotProps {
 /** Under the bar, one at a time: the decisions, or the lead's review that proposes a change. */
 function Slot({ slot, rows, onOpenTask, decisions, onChallenge }: SlotProps) {
   if (slot.decisionsShown) return <Decisions decisions={slot.asks.open} focus={slot.focus} {...decisions} />
-  if (!slot.reviewShown || !slot.review || slot.revision === null) return null
+  if (!slot.reviewShown || !slot.review) return null
   return (
     <ReviewResult
       review={slot.review}

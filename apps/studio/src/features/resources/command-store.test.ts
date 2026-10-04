@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { added, commandOf, drafted, received, repeatOf, resent, spaceOf, unanswered } from './command-store.ts'
-import type { Command, Receipt } from './receipts.ts'
+import { executionOf, type Command, type Receipt } from './receipts.ts'
 
 const target = {
   project_id: 'p',
@@ -11,7 +11,8 @@ const target = {
   attempt_id: 'at',
   session_id: 's',
 }
-const scope = 'p|w|a|3'
+/** The execution its drafts belong to: the scope, then its attempt and session (Codex F-007). */
+const draft = 'p|w|a|3|at|s'
 let n = 0
 /** A space of its own for each check: the store lives as long as the module. */
 const fresh = () => `test-space-${String(++n)}`
@@ -40,7 +41,7 @@ describe('the command store', () => {
     const a = fresh()
     const b = fresh()
     added(a, { operation_id: 'op-1', kind: 'stop', target })
-    drafted(a, scope, 'Only in a')
+    drafted(a, draft, 'Only in a')
     assert.equal(spaceOf(a).known.length, 1)
     assert.deepEqual(spaceOf(b), { known: [], drafts: {} })
   })
@@ -60,27 +61,31 @@ describe('the command store', () => {
     assert.equal(repeatOf(space, 'stop', { ...target, session_id: 's-next' }), null)
   })
 
+  it('keys a draft by its execution, so another attempt or session starts with none (Codex F-007)', () => {
+    assert.equal(executionOf(target), draft)
+  })
+
   it('clears the words sent, once recorded, even with the sheet closed or a Hold sent since; never words typed after', () => {
     const space = fresh()
     const guide: Command = { operation_id: 'op-1', kind: 'guidance', text: 'Use the staging fixtures', target }
     added(space, guide)
-    drafted(space, scope, 'Use the staging fixtures')
+    drafted(space, draft, 'Use the staging fixtures')
     added(space, { operation_id: 'op-2', kind: 'hold', target }) // a Hold in between
     received(space, 'op-1', receipt(guide, 1))
-    assert.equal(spaceOf(space).drafts[scope], '')
-    drafted(space, scope, 'Use the staging fixtures') // typed again after
+    assert.equal(spaceOf(space).drafts[draft], '')
+    drafted(space, draft, 'Use the staging fixtures') // typed again after
     received(space, 'op-1', receipt(guide, 2, { delivery: 'delivered' }))
-    assert.equal(spaceOf(space).drafts[scope], 'Use the staging fixtures')
+    assert.equal(spaceOf(space).drafts[draft], 'Use the staging fixtures')
   })
 
   it('keeps a refused guidance’s words to send again', () => {
     const space = fresh()
     const guide: Command = { operation_id: 'op-1', kind: 'guidance', text: 'Use the staging fixtures', target }
     added(space, guide)
-    drafted(space, scope, 'Use the staging fixtures')
+    drafted(space, draft, 'Use the staging fixtures')
     const refusal = { admission: 'rejected' as const, delivery: 'not_sent' as const, effect: 'not_applicable' as const }
     received(space, 'op-1', receipt(guide, 1, { ...refusal, rejection: 'denied' }))
-    assert.equal(spaceOf(space).drafts[scope], 'Use the staging fixtures')
+    assert.equal(spaceOf(space).drafts[draft], 'Use the staging fixtures')
   })
 
   it('says a retry is on its way again, after a lost reply or an unknown admission (every press answers)', () => {

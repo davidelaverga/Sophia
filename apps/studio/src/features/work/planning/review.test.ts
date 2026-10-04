@@ -122,6 +122,16 @@ describe('the card of a review that proposes a change', () => {
     assert.equal(material(null), false)
   })
 
+  it('with no plan in force, the line and the card both say which revision it reviewed (Codex F-006)', () => {
+    const of2 = { ...last('recommendation'), plan_revision: 2 }
+    const proposedOnly = plan({ revision: null, last_review: of2 })
+    assert.equal(line(proposedOnly)?.text, 'Reviewed 12 min ago · a change proposed · of r2')
+    assert.equal(staleSaid(of2, proposedOnly), 'Reviewed r2 · no plan is in force now')
+    // One reference for both: in force at r2, neither says a revision.
+    assert.equal(line(plan({ revision: 2, last_review: of2 }))?.text, 'Reviewed 12 min ago · a change proposed')
+    assert.equal(staleSaid(of2, plan({ revision: 2 })), null)
+  })
+
   it('a review of an earlier revision says so; one of this revision says nothing', () => {
     assert.equal(staleSaid(last('recommendation'), plan()), null)
     assert.equal(staleSaid({ ...last('recommendation'), plan_revision: 2 }, plan()), 'Reviewed r2 · the plan is now r3')

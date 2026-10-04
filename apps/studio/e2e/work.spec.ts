@@ -1491,6 +1491,113 @@ test('codex · F-005 · a failed question is asked again only while asking is al
   expect(second).toEqual(first)
 })
 
+// ---- CX-0010 (Codex on #74): an earlier execution's commands are its history; Ask again needs a conversation. ----
+
+/** Stop, confirmed, on the sheet open. */
+async function stopIn(sheet: Locator) {
+  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
+  await sheet.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
+}
+
+test('codex · F-007 · after a new attempt, the earlier attempt’s open commands are said as its, and never sent again', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await sheet.getByRole('button', { name: /^Hold/ }).click() // lost: the earlier one
+  await stopIn(sheet) // lost: the latest
+  const retries = sheet.getByRole('button', { name: 'Try again' })
+  await expect(retries).toHaveCount(2)
+  const before = await commanded(page)
+  // The same assignment and generation moves to its next attempt, in the same session.
+  await page.evaluate(() => window.workFixture?.nextAttempt?.('work-2', 'attempt'))
+  await expect(sheet.locator('.act-steps')).toHaveCount(0) // nothing speaks for the attempt shown now
+  const earlier = sheet.getByRole('list', { name: 'Earlier, still open' })
+  const kept = 'Not confirmed whether it was recorded. It can’t be sent again from here now; it is kept as it was.'
+  await expect(earlier.locator('li')).toHaveText([
+    `Hold for an earlier attempt ${kept}`,
+    `Stop for an earlier attempt ${kept}`,
+  ])
+  await expect(retries).toHaveCount(0) // neither position offers it
+  expect(await commanded(page)).toEqual(before)
+  // Stop now is the attempt shown's own: a new operation, and its own Try again sends it, to it; the earlier stay.
+  await stopIn(sheet)
+  await expect.poll(async () => (await commanded(page)).length).toBe(3)
+  const now = (await commanded(page))[2]
+  expect(now?.target.attempt_id).toBe(`${before[1]?.target.attempt_id ?? ''}-again`)
+  expect(now?.target.session_id).toBe(before[1]?.target.session_id)
+  await sheet.locator('.act-steps').getByRole('button', { name: 'Try again' }).click()
+  await expect.poll(async () => (await commanded(page)).length).toBe(4)
+  expect((await commanded(page))[3]).toEqual(now)
+  await expect(earlier.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+})
+
+test('codex · F-007 · after a new session, the earlier session’s lost Stop is named, and not sent again', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`)
+  const sheet = await stopReview(page)
+  await expect(sheet.locator('.act-steps').getByRole('button', { name: 'Try again' })).toBeVisible()
+  // A Stop asked of this session, not answered yet, is never answered on the next one.
+  await sheet.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toBeVisible()
+  await page.evaluate(() => window.workFixture?.nextAttempt?.('work-2', 'session'))
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toHaveCount(0)
+  await expect(sheet.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  await expect(sheet.getByRole('list', { name: 'Earlier, still open' })).toContainText('Stop for another session')
+  await expect(sheet.locator('.act-steps')).toHaveCount(0)
+  expect(await commanded(page)).toHaveLength(1)
+})
+
+test('codex · F-007 · a guidance draft belongs to its execution: a new attempt or session starts with none', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  const field = sheet.getByRole('textbox', { name: 'Guidance for its session' })
+  await field.fill('For the first attempt only')
+  await page.evaluate(() => window.workFixture?.nextAttempt?.('work-1', 'attempt'))
+  await expect(field).toHaveValue('')
+  await field.fill('For this session only')
+  await page.evaluate(() => window.workFixture?.nextAttempt?.('work-1', 'session'))
+  await expect(field).toHaveValue('')
+  // What is written now goes to the execution shown, and only what was written for it.
+  await field.fill('For the session shown')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect.poll(async () => (await commanded(page)).length).toBe(1)
+  const [sent] = await commanded(page)
+  expect(sent?.text).toBe('For the session shown')
+  expect([sent?.target.attempt_id, sent?.target.session_id].every((id) => id?.endsWith('-again'))).toBe(true)
+})
+
+test('codex · F-005 · with no conversation connected, a failed question isn’t asked again, and says why', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&ask=silent`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('button', { name: 'Why is it waiting?' }).click()
+  await page.clock.runFor(31_000)
+  const again = sheet.getByRole('button', { name: 'Ask again' })
+  await expect(again).toBeVisible()
+  // The conversation goes; asking is still allowed on the task, but nothing can go.
+  await page.evaluate(() => window.workFixture?.conversation?.(false))
+  await expect(sheet.locator('.ask-blocked')).toHaveText(
+    'It can’t be asked again from here now: The conversation isn’t connected here now. It is kept as it was.',
+  )
+  await expect(again).toHaveCount(0)
+  await expect(sheet.locator('.ask-q')).toHaveText('Why is it waiting?')
+  await expect(sheet.locator('.ask-none')).toContainText('No answer came in time. Nothing was changed.')
+  await expect(sheet.getByRole('button', { name: 'Open the conversation' })).toBeVisible()
+  expect(await questioned(page)).toHaveLength(1)
+  // Connected again: Ask again sends the same question.
+  await page.evaluate(() => window.workFixture?.conversation?.(true))
+  await again.click()
+  await expect(sheet.locator('.ask-a')).toHaveText('Thinking…')
+  const [first, second, ...more] = await questioned(page)
+  expect(more).toHaveLength(0)
+  expect(second).toEqual(first)
+})
+
 // ---- The lead's review that proposes a change (LFE-07.2, slice 2): its pill, and its card in the decisions' slot. ----
 
 const reviewPill = (page: Page) => board(page).getByRole('button', { name: /^Review · a change proposed/ })
@@ -1673,17 +1780,32 @@ test('review card · read with the plan in force: once the plan moves on, the ca
   await expect(reviewCard(page).getByRole('button', { name: /answer it/ })).toHaveCount(0)
 })
 
-test('review card · on a plan only proposed, its decision is named, not offered to answer, nor challenged', async ({
+test('review card · on a plan only proposed, the line and the card say the same revision, and nothing is offered', async ({
   page,
 }) => {
   await page.goto(`${PAGE}?viewer=davide&review=material`)
   await reviewPill(page).click()
   await expect(reviewCard(page).getByRole('button', { name: 'Challenge' })).toBeVisible() // in force: it can be
   await page.goto(`${PAGE}?viewer=davide&review=material&case=replan&proposed=1`)
+  // One reference, the plan in force (none here), for both: the review is said as of r2, never measured against the
+  // revision the board shows (Codex F-006).
+  await expect(page.locator('.plan-next-review')).toHaveText(/· a change proposed · of r2$/)
   await reviewPill(page).click()
-  await expect(reviewCard(page)).toContainText('Waits on Davide’s decision.')
+  await expect(reviewCard(page).locator('.review-result-stale')).toHaveText('Reviewed r2 · no plan is in force now')
   await expect(reviewCard(page).getByRole('button', { name: /answer it/ })).toHaveCount(0)
   await expect(reviewCard(page).getByRole('button', { name: 'Challenge' })).toHaveCount(0) // nothing in it runs
+})
+
+test('review card · read a moment behind the board, it still offers nothing on a plan only proposed', async ({
+  page,
+}) => {
+  // The review's read still names r2 in force; the board's already shows r2 only proposed. The board decides.
+  await page.goto(`${PAGE}?viewer=davide&review=material&case=replan&proposed=1&lag=1`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page).locator('.review-result-stale')).toHaveCount(0)
+  await expect(reviewCard(page)).toContainText('Waits on Davide’s decision.')
+  await expect(reviewCard(page).getByRole('button', { name: /answer it/ })).toHaveCount(0)
+  await expect(reviewCard(page).getByRole('button', { name: 'Challenge' })).toHaveCount(0)
 })
 
 test('@phone · review card: its parts stack, nothing past the screen', async ({ page }) => {

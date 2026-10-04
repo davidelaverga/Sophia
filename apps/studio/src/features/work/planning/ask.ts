@@ -116,14 +116,17 @@ export function stalled(asked: Asked, wait: Sent & { seq: number }): Asked {
 }
 
 const NOT_OFFERED = 'Asking about this task isn’t offered here now.'
+export const NOT_CONNECTED = 'The conversation isn’t connected here now.'
 
 /**
- * Why a question about a task can't be sent from here now, as the view says it (its reason, or nothing offered);
- * null when it can. A first question and a question asked again go by the same rule (Codex F-005).
+ * Why a question about a task can't be sent from here now: as the view says it (its reason, or nothing offered), or
+ * no conversation to send it to; null when it can. A first question and a question asked again go by the same rule
+ * (Codex F-005, its port-loss residual).
  */
-export const askBlocked = (action: ItemAction | null): string | null => {
+export function askBlocked(action: ItemAction | null, connected: boolean): string | null {
   if (!action) return NOT_OFFERED
-  return action.availability === 'allowed' ? null : action.reason
+  if (action.availability !== 'allowed') return action.reason
+  return connected ? null : NOT_CONNECTED
 }
 
 /** What is shown of an answer: the completed one, or what has arrived of it. */

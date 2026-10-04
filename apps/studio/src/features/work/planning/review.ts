@@ -59,9 +59,13 @@ export interface ActiveReview {
   allowance_owner: string | null
 }
 
-/** A goal's progress review as read now, with the revision of its plan in force. Proposed for SCM-04. */
+/**
+ * A goal's progress review as read now, with the revision of its plan in force: the one reference both the goal's line
+ * and the review's card compare the review with (Codex F-006). Proposed for SCM-04.
+ */
 export interface Reviewed {
-  revision: number
+  /** The plan in force's revision; null while none is (a plan only proposed): every review is then of another. */
+  revision: number | null
   active_review?: ActiveReview | null
   last_review?: LastReview | null
 }
@@ -118,11 +122,15 @@ export function reviewLine(plan: Reviewed, viewerId: string | null, name: Name, 
 /** A review worth its card: one that proposes a change. Any other end is said on the goal's line only (PLAN-04). */
 export const material = (last: LastReview | null | undefined): last is LastReview => last?.outcome === 'recommendation'
 
-/** A review of an earlier revision than the plan's, said so: what it proposes may already be out of date. */
-export const staleSaid = (last: LastReview, plan: Pick<Reviewed, 'revision'>) =>
-  last.plan_revision === plan.revision
-    ? null
-    : `Reviewed r${String(last.plan_revision)} · the plan is now r${String(plan.revision)}`
+/**
+ * A review of another revision than the plan in force, said so: what it proposes may already be out of date. With no
+ * plan in force, that is said too: a plan only proposed was never what it reviewed as in force.
+ */
+export function staleSaid(last: LastReview, plan: Pick<Reviewed, 'revision'>): string | null {
+  if (last.plan_revision === plan.revision) return null
+  const now = plan.revision === null ? 'no plan is in force now' : `the plan is now r${String(plan.revision)}`
+  return `Reviewed r${String(last.plan_revision)} · ${now}`
+}
 
 export const EVIDENCE: Record<Evidence['kind'], string> = {
   check: 'Check',

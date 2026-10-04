@@ -7,18 +7,18 @@
 import { useEffect, useRef } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { observedAgo } from '../../resources/resource.ts'
-import type { PlanRow, WorkPlan } from './plan.ts'
+import type { PlanRow } from './plan.ts'
 import type { Challenge } from './challenges.ts'
 import { ReviewChallenge } from './ReviewChallenge.tsx'
-import { EVIDENCE, staleSaid, type Intervention, type LastReview, type Observation } from './review.ts'
+import { EVIDENCE, staleSaid, type Intervention, type LastReview, type Observation, type Reviewed } from './review.ts'
 
 /** A proposal's decision: the viewer's to answer, someone else's, or past its expiry. */
 export type Waiting = { on: 'you' } | { on: 'them'; name: string } | { on: 'expired' }
 
 interface Props {
   review: LastReview
-  /** The revision the review is read with: the plan in force (Reviewed), as the goal's line says it. */
-  plan: Pick<WorkPlan, 'revision'>
+  /** The revision the review is read with: the plan in force (Reviewed; null when none is), as the goal's line says it. */
+  plan: Pick<Reviewed, 'revision'>
   rows: readonly PlanRow[]
   now: Date
   onOpenTask: (id: string) => void

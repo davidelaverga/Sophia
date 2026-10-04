@@ -10,9 +10,11 @@
 // unavailable`; and how the simulated services answer (work-live.ts: `admission=`, `settle=`, `ask=`, `result=`).
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
 // into the plan's next revision; `begin(workId)`, `reassign(workId)`, `replan()`, `arrive()`, `viewAs(viewer)`,
-// `reconnect()`, `replay(operationId)` and `misdeliver(from, to)`. Whoever does a task opens on the resources' fixture.
+// `reconnect()`, `replay(operationId)`, `misdeliver(from, to)` and `conversation(connected)`. Whoever does a task opens
+// on the resources' fixture.
 // `review=…` (LFE-07.2): how the lead answers the goal's Request review (work-review.ts), read beside the board's view;
 // `workFixture.goalCommands` lists each goal command sent, with its key; `reviewAgain()` brings in a later review.
+// `lag=1`: the review is read a moment behind the board, with the plan in force the board no longer shows as such.
 // `challenge=unknown|denied`: how a challenge to the lead's review comes back (recorded by default;
 // `workFixture.challenges` lists each sent); `editor=0`: the viewer can't act on the work, so there is no Challenge.
 import '@fontsource-variable/geist/wght.css'
@@ -39,7 +41,7 @@ import type { Challenge } from '../src/features/work/planning/challenges.ts'
 import { PlanBoard } from '../src/features/work/planning/PlanBoard.tsx'
 import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
 import { PlanTab } from '../src/features/work/planning/PlanTab.tsx'
-import { boardOf, forYou } from '../src/features/work/planning/plan.ts'
+import { accepted, boardOf, forYou, shownPlan } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
@@ -77,7 +79,7 @@ import {
   withActivity,
 } from './work-live.ts'
 import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.ts'
-import type { Question } from '../src/features/work/planning/ask.ts'
+import type { Ask, Question } from '../src/features/work/planning/ask.ts'
 import type { Reviewed } from '../src/features/work/planning/review.ts'
 
 declare global {
@@ -98,6 +100,8 @@ declare global {
       reassign?: (workId: string) => void
       replan?: () => void
       arrive?: () => void
+      /** The shared conversation connected, or not: with none, no question can go (Codex F-005's port residual). */
+      conversation?: (connected: boolean) => void
       viewAs?: (viewer: Viewer) => void
       reconnect?: () => void
       /** Each goal command sent (Request review, Hold, Stop), with its key (LFE-07.2). */
@@ -106,8 +110,8 @@ declare global {
       misdeliver?: (from: string, to: string) => void
       /** The service's next observation of a task: its lifecycle, or one action's availability for this viewer. */
       setLifecycle?: (workId: string, lifecycle: GoalView['items'][number]['lifecycle']) => void
-      /** The same assignment and generation, its next attempt in another native session. */
-      nextAttempt?: (workId: string) => void
+      /** The same assignment and generation, its next attempt, its next native session, or both (the default). */
+      nextAttempt?: (workId: string, part?: 'attempt' | 'session' | 'both') => void
       /** `missing`: the view offers the action no more; any other, it offers it so (added back when missing). */
       setAvailability?: (workId: string, kind: ActionKind, availability: Availability) => void
       /** A later review in the last one's place (LFE-07.2): it arrives with its card closed. */
@@ -318,7 +322,7 @@ const replanned: Change = (g) =>
 function controls(
   update: (change: Change) => void,
   setViewer: (v: Viewer) => void,
-  setArrived: (a: boolean) => void,
+  page: { arrive: () => void; connect: (connected: boolean) => void },
   viewer: Viewer,
   lead: { commands: readonly { kind: string; key: string }[]; again: () => void },
 ) {
@@ -336,33 +340,39 @@ function controls(
     begin: (workId: string) => update(beginWith(workId, viewer)),
     reassign: (workId: string) => update(nextGeneration(workId)),
     replan: () => update(replanned),
-    arrive: () => setArrived(true),
+    arrive: page.arrive,
+    conversation: page.connect,
     viewAs: setViewer,
     reconnect,
     replay,
     misdeliver,
     setLifecycle: (workId: string, lifecycle: GoalView['items'][number]['lifecycle']) =>
       update(observed(workId, () => ({ lifecycle }))),
-    nextAttempt: (workId: string) =>
-      update(
-        observed(workId, (v) =>
-          v.assignment
-            ? {
-                assignment: {
-                  ...v.assignment,
-                  attempt_id: `${v.assignment.attempt_id ?? 'attempt'}-again`,
-                  native_session_id: `${v.assignment.native_session_id ?? 'session'}-again`,
-                },
-              }
-            : {},
-        ),
-      ),
+    nextAttempt: (workId: string, part: Execution = 'both') => update(observed(workId, (v) => nextOf(v, part))),
     setAvailability: (workId: string, kind: ActionKind, availability: Availability) =>
       update(observed(workId, (v) => ({ available_actions: availableAs(v.available_actions, kind, availability) }))),
   }
 }
 
 type Availability = ItemAction['availability'] | 'missing'
+
+/** What moves on in the same assignment and generation: its attempt, its native session, or both. */
+type Execution = 'attempt' | 'session' | 'both'
+
+const nextId = (id: string | null, none: string) => `${id ?? none}-again`
+
+/** The same assignment and generation, its next attempt, its next session, or both, as `part` says. */
+function nextOf(v: GoalView['items'][number], part: Execution): Partial<GoalView['items'][number]> {
+  const a = v.assignment
+  if (!a) return {}
+  return {
+    assignment: {
+      ...a,
+      ...(part !== 'session' && { attempt_id: nextId(a.attempt_id, 'attempt') }),
+      ...(part !== 'attempt' && { native_session_id: nextId(a.native_session_id, 'session') }),
+    },
+  }
+}
 
 /** One action of a task, as the service would observe it next: offered so, or no more. */
 function availableAs(actions: readonly ItemAction[], kind: ActionKind, availability: Availability): ItemAction[] {
@@ -394,10 +404,13 @@ interface Shared {
   board: BoardView
   /** The first goal's progress review, read beside the view (LFE-07.2). */
   review: Reviewed
+  /** The conversation questions go to; none while it is disconnected (`workFixture.conversation(false)`). */
+  asking: Ask | undefined
 }
 
 /** One goal's slot in Tasks: its board, NEXT, its tab in the goals' rail, what finds it, and whether it calls the viewer. */
-function slot(g: GoalView, { resources, viewerId, now, board, review }: Shared, onCommand: ReturnType<typeof serve>) {
+function slot(g: GoalView, shared: Shared, onCommand: ReturnType<typeof serve>) {
+  const { resources, viewerId, now, board, review, asking } = shared
   const shown = boardOf(g, { resources, people, viewerId, project: board.project_id })
   const rows = shown?.rows ?? []
   return {
@@ -414,7 +427,7 @@ function slot(g: GoalView, { resources, viewerId, now, board, review }: Shared, 
         onDecide={decide}
         onCommand={onCommand}
         {...(editor && { onChallenge: challenge })}
-        onAsk={ask}
+        onAsk={asking}
         readResult={readResult}
         onOpenConversation={nothing}
         onOpenResource={(id) =>
@@ -461,26 +474,32 @@ function useClock(update: (change: Change) => void) {
  * The lead's side of Request review (LFE-07.2): the first goal's review, read beside the board's view, on its plan's
  * current revision; goal commands reach it through the fixture API's command route.
  */
+/** The revision the lead reviews: the plan in force's, or the plan shown while none is (only proposed). */
+const reviewedOf = (g: GoalView) => accepted(g)?.revision ?? shownPlan(g)?.plan.revision ?? 1
+
 function useLead(first: GoalView, viewer: Viewer) {
   const [review, setReview] = useState<Reviewed>(() =>
-    reviewAsked(openedWith(reviewAs, { revision: first.current_plan?.revision ?? 1 })),
+    reviewAsked(openedWith(reviewAs, { revision: reviewedOf(first) })),
   )
   const revision = useRef(1)
-  revision.current = first.current_plan?.revision ?? 1
+  revision.current = reviewedOf(first)
   const [lead] = useState(() => reviewer(reviewAs, viewer, setReview, () => revision.current))
   useEffect(() => {
     onGoalCommand = lead.command
   }, [lead])
   const [again] = useState(() => () => setReview(reviewedAgain))
   // Read with the plan in force now, as the service would read the two together: a plan taken further leaves the
-  // review on its own revision, said so.
-  return { review: { ...review, revision: revision.current }, lead, again }
+  // review on its own revision, said so; with none in force (a plan only proposed), the review is said as of its own.
+  // `lag=1`: the review's read lags the board's, still naming as in force the plan the board now shows only proposed.
+  const inForce = query.get('lag') === '1' ? reviewedOf(first) : (accepted(first)?.revision ?? null)
+  return { review: { ...review, revision: inForce }, lead, again }
 }
 
 function Tasks() {
   const [viewer, setViewer] = useState<Viewer>(() => asViewer(query.get('viewer')))
   const [first, setFirst] = useState(() => opening(viewer))
   const [arrived, setArrived] = useState(query.get('later') !== '1')
+  const [connected, setConnected] = useState(true)
   // Each change glides into place, as a live update would (motion.ts): a decided ask folds away, a task changes lanes.
   const [update] = useState(() => (change: Change) => moving(() => setFirst(change)))
   const now = useClock(update)
@@ -495,7 +514,7 @@ function Tasks() {
         setViewer(v)
         setFirst(opening(v))
       },
-      setArrived,
+      { arrive: () => setArrived(true), connect: setConnected },
       viewer,
       { commands: lead.commands, again },
     )
@@ -506,7 +525,8 @@ function Tasks() {
     window.workFixture = { ...window.workFixture, unexpected, refused: read.problems }
     return <p role="alert">The fixture’s view was refused: {read.problems.join('; ')}</p>
   }
-  const shared = { resources: withActivity(owned), viewerId: viewer, now, board: read.value, review }
+  const asking = connected ? ask : undefined
+  const shared = { resources: withActivity(owned), viewerId: viewer, now, board: read.value, review, asking }
   const plans = Object.fromEntries(
     read.value.goals
       .filter((g) => boardOf(g, { resources: [], people, viewerId: viewer }) || g.items.length > 0)

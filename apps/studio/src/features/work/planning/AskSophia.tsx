@@ -6,13 +6,14 @@
 // forgets nothing, and a late answer to an earlier question is let go. Where she can't be asked from here (the view
 // says so, or no conversation is connected), the question is kept with why, and the way to the conversation is
 // offered; no answer is made up. A question that failed is asked again only while the view allows asking about its
-// task (askBlocked), the same rule as a first question; until then it is kept, with why.
+// task and a conversation is connected (askBlocked), the same rule as a first question; until then it is kept, with why.
 import { useState, useSyncExternalStore } from 'react'
 import {
   ASK_LIMIT_MS,
   againOf,
   askBlocked,
   asking,
+  NOT_CONNECTED,
   shownOf,
   unanswerable,
   type Ask,
@@ -25,6 +26,8 @@ import { resultsOf } from './results.ts'
 
 /** The board's questions, the latest per task. */
 export interface Asks {
+  /** Whether a conversation is there to send a question to (its port). */
+  connected: boolean
   of: (workId: string) => Asked | null
   /** Asks; `unavailable` keeps the question with why instead of sending it. */
   ask: (question: Omit<Question, 'question_id'>, unavailable: string | null) => void
@@ -57,11 +60,12 @@ export function useAsks(onAsk: Ask | undefined, space: string, newId: () => stri
     })
   }
   return {
+    connected: onAsk !== undefined,
     of: (workId) => asked[workId] ?? null,
     ask: (q, unavailable) => {
       const question: Question = { ...q, question_id: newId() }
       if (!onAsk || unavailable !== null) {
-        askedOf(space, unanswerable(question, unavailable ?? 'Sophia can’t be asked from here yet.'))
+        askedOf(space, unanswerable(question, unavailable ?? NOT_CONNECTED))
         return
       }
       send(asking(question), onAsk)
@@ -213,7 +217,8 @@ export function AskSophia({ row, plan, asks, viewerId, onOpenConversation }: Pro
   const asked = asks?.of(row.item.id) ?? null
   // Not offered now: nothing to ask, but a question already asked stays, with why it can't be asked again.
   if (!asks || (!action && !asked)) return null
-  const blocked = askBlocked(action)
+  // The view's word on asking, and a conversation to ask in: either missing, nothing goes, first or again.
+  const blocked = askBlocked(action, asks.connected)
   /** Asks, or keeps the question with why it can't go; true when it went. */
   const ask = (text: string) => {
     const about = resultsOf(row.view).current?.version_id ?? null

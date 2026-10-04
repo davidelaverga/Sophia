@@ -111,9 +111,34 @@ export interface Command {
   target: CommandTarget
 }
 
-/** The scope a command and a draft belong to. */
+/** The scope a command belongs to: its history, kept by work, assignment and generation. */
 export const scopeOf = (t: CommandTarget) =>
   [t.project_id, t.work_id, t.assignment_id ?? '-', String(t.assignment_generation ?? '-')].join('|')
+
+/** The execution a command is for, its attempt and session included: what a draft belongs to (Codex F-007). */
+export const executionOf = (t: CommandTarget) => [scopeOf(t), t.attempt_id ?? '-', t.session_id ?? '-'].join('|')
+
+const TARGET_FIELDS = [
+  'project_id',
+  'work_id',
+  'assignment_id',
+  'assignment_generation',
+  'attempt_id',
+  'session_id',
+] as const satisfies readonly (keyof CommandTarget)[]
+
+/** Whether two targets are the same execution, field for field: a new attempt or session is another target. */
+export const sameTarget = (a: CommandTarget, b: CommandTarget) => TARGET_FIELDS.every((field) => a[field] === b[field])
+
+/**
+ * Which execution an earlier command was for, beside the one shown: an earlier attempt, or another session of it; null
+ * when it is the one shown. Such a command is history: said, never sent again from here (Codex F-007).
+ */
+export function executionSaid(k: Known, shown: CommandTarget): string | null {
+  const t = k.command.target
+  if (t.attempt_id !== shown.attempt_id) return 'for an earlier attempt'
+  return t.session_id === shown.session_id ? null : 'for another session'
+}
 
 type Observation = Pick<Receipt, 'revision' | 'admission' | 'delivery' | 'effect' | 'rejection'>
 
@@ -190,12 +215,13 @@ export function unresolved(k: Known): boolean {
 export const againable = (k: Known) => k.local === 'lost' || (k.local === null && k.receipt?.admission === 'unknown')
 
 /**
- * Whether a command may be tried again from here now (Codex F-002): its admission unknown, and its kind among what may
- * be sent here now (on a task, the view's per-viewer actions while its state is observed; on a resource's row, its
- * route). Otherwise it is kept, uncertain, with its own operation, until it may. One rule for the button and the send.
+ * Whether a command may be tried again from here now (Codex F-002, F-007): its admission unknown, its kind among what
+ * may be sent here now (on a task, the view's per-viewer actions while its state is observed; on a resource's row, its
+ * route), and its target the execution shown now, field for field. Otherwise it is kept, uncertain, with its own
+ * operation: until it may, or as an earlier execution's history. One rule for the button and the send.
  */
-export const retryableNow = (k: Known, sendable: ReadonlySet<CommandKind>) =>
-  againable(k) && sendable.has(k.command.kind)
+export const retryableNow = (k: Known, sendable: ReadonlySet<CommandKind>, shown: CommandTarget) =>
+  againable(k) && sendable.has(k.command.kind) && sameTarget(k.command.target, shown)
 
 /** Whether a command's outcome is in doubt: its reply lost, or a dimension the runtime couldn't confirm. */
 export const uncertain = (k: Known) =>

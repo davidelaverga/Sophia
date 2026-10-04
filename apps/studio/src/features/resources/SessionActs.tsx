@@ -5,10 +5,12 @@
 // What happens is said as it is observed, in three dimensions (receipts.ts): Sending before any receipt, then
 // recorded or refused, then delivered, then, for a control, its effect once the runtime confirms it. A reply that
 // never came is unknown and is tried again with the same operation; so is the same request pressed again. Commands
-// and drafts are kept while the page lives (command-store.ts), per space (a project as one viewer sees it) and scope
-// (work, assignment, generation): still said after the row closes, the sheet turns or the board unmounts; a late or
-// foreign receipt changes nothing, and a session's next assignment starts with none of the old one's. The latest
-// command speaks; earlier ones still open stay listed under it, each named, each with its own Try again.
+// and drafts are kept while the page lives (command-store.ts), per space (a project as one viewer sees it): commands
+// by scope (work, assignment, generation), drafts by execution (its attempt and session too). They are still said after
+// the row closes, the sheet turns or the board unmounts; a late or foreign receipt changes nothing, and a session's
+// next assignment starts with none of the old one's. The latest command for the execution shown speaks; earlier ones
+// still open stay listed under it, each named. Only those for the execution shown can be tried again: one for an
+// earlier attempt or another session is said as such, and kept as it was (Codex F-007).
 import { useSyncExternalStore } from 'react'
 import { ConfirmButton, Tip } from '@sophia/ui'
 import {
@@ -24,9 +26,12 @@ import {
 } from './command-store.ts'
 import {
   againable,
+  executionOf,
+  executionSaid,
   knownSaid,
   reached,
   retryableNow,
+  sameTarget,
   scopeOf,
   stepsOf,
   uncertain,
@@ -54,8 +59,9 @@ export interface Acts {
   send: (kind: CommandKind, target: CommandTarget, text?: string) => string
   /** Sends a command again with its own operation: after a lost reply, or an unknown admission. */
   retry: (operationId: string) => void
-  draft: (scope: string) => string
-  setDraft: (scope: string, text: string) => void
+  /** The guidance being written for one execution (receipts.ts `executionOf`). */
+  draft: (execution: string) => string
+  setDraft: (execution: string, text: string) => void
 }
 
 /**
@@ -94,8 +100,8 @@ export function useActs(
       return command.operation_id
     },
     retry,
-    draft: (scope) => state.drafts[scope] ?? '',
-    setDraft: (scope, text) => drafted(space, scope, text),
+    draft: (execution) => state.drafts[execution] ?? '',
+    setDraft: (execution, text) => drafted(space, execution, text),
   }
 }
 
@@ -142,31 +148,41 @@ const KIND_NAME: Readonly<Record<CommandKind, string>> = {
   stop: 'Stop',
 }
 
-/** Earlier commands still open, one line each under the latest: named, and each with its own Try again. */
+/**
+ * Earlier commands still open, one line each under the latest: named, with the execution they were for when it isn't
+ * the one shown, and Try again only for the one shown.
+ */
 interface EarlierProps {
   known: readonly Known[]
+  shown: CommandTarget
   retryable: Retryable
   onRetry: (k: Known) => void
 }
 
-function Earlier({ known, retryable, onRetry }: EarlierProps) {
+function Earlier({ known, shown, retryable, onRetry }: EarlierProps) {
   if (known.length === 0) return null
   return (
     <ul className="act-earlier" aria-label="Earlier, still open">
-      {known.map((k) => (
-        <li key={k.command.operation_id}>
-          <span className="act-earlier-kind">{KIND_NAME[k.command.kind]}</span>{' '}
-          {knownSaid(k, !againable(k) || retryable(k))}
-          {retryable(k) && (
-            <>
-              {' '}
-              <button type="button" className="text-button" onClick={() => onRetry(k)}>
-                Try again
-              </button>
-            </>
-          )}
-        </li>
-      ))}
+      {known.map((k) => {
+        const of = executionSaid(k, shown)
+        return (
+          <li key={k.command.operation_id} data-execution={of ? 'earlier' : undefined}>
+            <span className="act-earlier-kind">
+              {KIND_NAME[k.command.kind]}
+              {of && ` ${of}`}
+            </span>{' '}
+            {knownSaid(k, !againable(k) || retryable(k))}
+            {retryable(k) && (
+              <>
+                {' '}
+                <button type="button" className="text-button" onClick={() => onRetry(k)}>
+                  Try again
+                </button>
+              </>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -202,12 +218,16 @@ interface Props {
 }
 
 /**
- * The guidance being written, kept by scope in the page's store: the words sent leave the field once recorded, if they
- * are still all it holds (command-store.ts). Send waits while a guidance is on its way, so one press is one request.
+ * The guidance being written, kept by execution in the page's store: words written for an earlier attempt or another
+ * session never reach this one. The words sent leave the field once recorded, if they are still all it holds
+ * (command-store.ts). Send waits while a guidance is on its way to this execution, so one press is one request.
  */
-function GuidanceField({ acts, scope, target }: { acts: Acts; scope: string; target: CommandTarget }) {
-  const text = acts.draft(scope)
-  const sending = acts.of(scope).some((k) => k.command.kind === 'guidance' && k.local === 'sending')
+function GuidanceField({ acts, target }: { acts: Acts; target: CommandTarget }) {
+  const execution = executionOf(target)
+  const text = acts.draft(execution)
+  const sending = acts
+    .of(scopeOf(target))
+    .some((k) => k.command.kind === 'guidance' && k.local === 'sending' && sameTarget(k.command.target, target))
   return (
     <form
       className="act-guide"
@@ -221,7 +241,7 @@ function GuidanceField({ acts, scope, target }: { acts: Acts; scope: string; tar
         aria-label="Guidance for its session"
         placeholder="Guidance for its session…"
         value={text}
-        onChange={(e) => acts.setDraft(scope, e.target.value)}
+        onChange={(e) => acts.setDraft(execution, e.target.value)}
       />
       <button type="submit" className="pill" disabled={!text.trim() || sending}>
         Send
@@ -248,19 +268,19 @@ function ControlButton({ offer, onPress }: { offer: Offer; onPress: () => void }
 
 /** The commands offered for one target, each said as it is observed. */
 export function SessionActs({ target, offer, acts }: Props) {
-  const scope = scopeOf(target)
-  const known = acts.of(scope)
-  const latest = known.at(-1)
+  const known = acts.of(scopeOf(target))
+  // The execution shown speaks; another attempt's or session's commands are its history, listed under it.
+  const latest = known.findLast((k) => sameTarget(k.command.target, target))
   const kinds = new Set(offer.map((o) => o.kind))
   const send = (kind: CommandKind) => acts.send(kind, target)
-  const retryable = (k: Known) => retryableNow(k, kinds)
+  const retryable = (k: Known) => retryableNow(k, kinds, target)
   // The boundary itself, not only the button: nothing is sent again unless it may be now.
   const retry = (k: Known) => {
     if (retryable(k)) acts.retry(k.command.operation_id)
   }
   return (
     <div className="session-acts">
-      {kinds.has('guidance') && <GuidanceField acts={acts} scope={scope} target={target} />}
+      {kinds.has('guidance') && <GuidanceField acts={acts} target={target} />}
       <div className="control-row">
         {offer
           .filter((o) => o.kind === 'hold' || o.kind === 'resume')
@@ -279,7 +299,12 @@ export function SessionActs({ target, offer, acts }: Props) {
       </div>
       {/* Mounted before anything is said, so each step of the latest is announced as it comes; the rest is read. */}
       <div role="status">{latest && <Steps known={latest} retryable={retryable} onRetry={() => retry(latest)} />}</div>
-      <Earlier known={known.slice(0, -1).filter(unresolved)} retryable={retryable} onRetry={retry} />
+      <Earlier
+        known={known.filter((k) => k !== latest && unresolved(k))}
+        shown={target}
+        retryable={retryable}
+        onRetry={retry}
+      />
     </div>
   )
 }

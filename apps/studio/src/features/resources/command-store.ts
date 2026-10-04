@@ -4,10 +4,11 @@
 // receipt lands even while nothing shows it. Another viewer's space is another space: nothing crosses. A reload reads
 // the service again and starts from it. Pure apart from the module's own state; tested.
 import {
+  executionOf,
   fold,
   lost,
   retried,
-  scopeOf,
+  sameTarget,
   sending,
   unresolved,
   type Command,
@@ -19,7 +20,7 @@ import {
 export interface Space {
   /** Every command sent in the space, oldest first. */
   known: readonly Known[]
-  /** Each scope's guidance being written. */
+  /** Each execution's guidance being written (receipts.ts `executionOf`). */
   drafts: Readonly<Record<string, string>>
 }
 
@@ -51,8 +52,8 @@ export const added = (space: string, command: Command) =>
 export const updated = (space: string, operationId: string, next: (k: Known) => Known) =>
   change(space, (s) => ({ ...s, known: s.known.map((k) => (k.command.operation_id === operationId ? next(k) : k)) }))
 
-export const drafted = (space: string, scope: string, text: string) =>
-  change(space, (s) => ({ ...s, drafts: { ...s.drafts, [scope]: text } }))
+export const drafted = (space: string, execution: string, text: string) =>
+  change(space, (s) => ({ ...s, drafts: { ...s.drafts, [execution]: text } }))
 
 /** One operation, as it stands. */
 export const commandOf = (space: string, operationId: string) =>
@@ -67,8 +68,8 @@ export function received(space: string, operationId: string, receipt: unknown): 
   const k = commandOf(space, operationId)
   if (!k || k.command.kind !== 'guidance' || k.receipt?.admission !== 'recorded' || cleared.has(operationId)) return
   cleared.add(operationId)
-  const scope = scopeOf(k.command.target)
-  if ((spaceOf(space).drafts[scope] ?? '').trim() === k.command.text) drafted(space, scope, '')
+  const execution = executionOf(k.command.target)
+  if ((spaceOf(space).drafts[execution] ?? '').trim() === k.command.text) drafted(space, execution, '')
 }
 
 /** No reply came in time: unknown. */
@@ -76,17 +77,6 @@ export const unanswered = (space: string, operationId: string) => updated(space,
 
 /** On its way again, the same operation. */
 export const resent = (space: string, operationId: string) => updated(space, operationId, retried)
-
-/** Whether two targets are the same execution, field for field: a new attempt or session is another target. */
-const TARGET_FIELDS = [
-  'project_id',
-  'work_id',
-  'assignment_id',
-  'assignment_generation',
-  'attempt_id',
-  'session_id',
-] as const satisfies readonly (keyof CommandTarget)[]
-const sameTarget = (a: CommandTarget, b: CommandTarget) => TARGET_FIELDS.every((field) => a[field] === b[field])
 
 /**
  * The same request again, when it is one: a control of the same kind still unresolved for exactly the same target

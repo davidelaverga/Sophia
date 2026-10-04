@@ -117,19 +117,23 @@ describe('an answer from Sophia', () => {
   })
 
   it('is asked, first or again, only while the view allows it; otherwise why is said (Codex F-005)', () => {
-    assert.equal(askBlocked(action('allowed')), null)
-    assert.equal(askBlocked(action('denied')), 'No longer allowed for you here.')
-    assert.equal(askBlocked(action('unavailable')), 'No longer allowed for you here.')
-    assert.equal(askBlocked(null), 'Asking about this task isn’t offered here now.')
+    assert.equal(askBlocked(action('allowed'), true), null)
+    assert.equal(askBlocked(action('denied'), true), 'No longer allowed for you here.')
+    assert.equal(askBlocked(action('unavailable'), true), 'No longer allowed for you here.')
+    assert.equal(askBlocked(null, true), 'Asking about this task isn’t offered here now.')
+    // Allowed, with no conversation to send it to (its port gone): blocked too, and said.
+    assert.equal(askBlocked(action('allowed'), false), 'The conversation isn’t connected here now.')
+    assert.equal(askBlocked(action('denied'), false), 'No longer allowed for you here.') // the view's word first
   })
 
   it('Ask again sends the failed question’s next send only while nothing blocks it (Codex F-005)', () => {
     const failed = stalled(asking(question('q1')), wait('q1', 0))
     for (const blocked of ['denied', 'unavailable'] as const) {
-      assert.equal(againOf(failed, askBlocked(action(blocked))), null)
+      assert.equal(againOf(failed, askBlocked(action(blocked), true)), null)
     }
-    assert.equal(againOf(failed, askBlocked(null)), null)
-    assert.deepEqual(againOf(failed, askBlocked(action('allowed'))), askedAgain(failed)) // restored: the same question
+    assert.equal(againOf(failed, askBlocked(null, true)), null)
+    assert.equal(againOf(failed, askBlocked(action('allowed'), false)), null) // no conversation: nothing goes
+    assert.deepEqual(againOf(failed, askBlocked(action('allowed'), true)), askedAgain(failed)) // restored: the same
     assert.equal(againOf(asking(question('q2')), null), null) // still waiting: nothing to ask again
     assert.equal(againOf(undefined, null), null)
   })
