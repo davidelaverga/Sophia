@@ -1,6 +1,7 @@
 // The sign-in's fixture page (e2e/signin.spec.ts): the Studio's own email sign-in, with its two ports answered here
 // instead of Supabase Auth. `fail=1`: the first email can't be sent, as when the Auth service is out of reach;
-// `limit=1`: an email asked for again is refused with the wait Supabase gives, as hosted Auth does within its window.
+// `limit=1`: an email asked for again is refused with the wait Supabase gives, as hosted Auth does within its window;
+// `limit=hour`: refused for the hour's emails, which gives no wait; `stall=1`: an email asked for again never answers.
 // `window.signinFixture.sent` lists each address an email was sent to, for the checks to read.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -27,7 +28,10 @@ const send = (email: string) =>
         fail(new Error('Couldn’t reach the sign-in service. Check your connection and try again.'))
       } else if (query.get('limit') === '1' && sent.length > 1) {
         fail(new Error('An email was just sent. You can ask for another in 17 seconds.'))
-      } else done()
+      } else if (query.get('limit') === 'hour' && sent.length > 1) {
+        fail(new Error('Too many emails were sent in the last hour. The newest one still works; or try again later.'))
+      } else if (query.get('stall') !== '1' || sent.length === 1) done()
+      // stall=1: the second one never settles.
     }, 300),
   )
 const verify = () => new Promise<void>((_, fail) => setTimeout(() => fail(new Error('That code didn’t work.')), 300))

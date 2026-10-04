@@ -925,13 +925,16 @@ img.avatar {
 .field:has(input[aria-invalid='true']) {
   border-color: rgba(240, 150, 170, 0.55);
 }
-/* Send again: its countdown, then what came of it, on one quiet line. */
+/* Send again: its countdown, then what came of it, on one quiet line; a failure in the error colour. */
 .send-again {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: baseline;
   gap: 4px 10px;
+}
+.send-again [data-state='failed'] {
+  color: var(--rose);
 }
 .provider[aria-busy='true'] {
   opacity: 1;

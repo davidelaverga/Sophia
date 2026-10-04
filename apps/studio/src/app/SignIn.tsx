@@ -12,7 +12,7 @@ import { ProviderButtons } from './ProviderButtons.tsx'
 import { SLOW_NOTE, useSlow } from './useSlow.ts'
 import { Mark } from './Mark.tsx'
 import { mailHome, plausibleEmail } from './mail-home.ts'
-import { secondsToWait } from './auth-words.ts'
+import { waitAfter } from './auth-words.ts'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
 const LOCAL_AUTH = /^http:\/\/(127\.0\.0\.1|localhost):54321/.test(import.meta.env.VITE_SUPABASE_URL ?? '')
@@ -245,14 +245,31 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
  * address. Asked sooner, it answers how long is left, and the countdown takes that. */
 const RESEND_AFTER = 60
 
-/** Send again, once the wait has passed: it counts down, sends, and says so. While it waits or sends it can't be
- * pressed (aria-disabled, so the focus stays on it). */
+/** How long a send again may take before it is said not confirmed: Supabase's call has no limit of its own. */
+const SEND_LIMIT_MS = 30_000
+const NOT_CONFIRMED = 'Not confirmed: the email may still arrive. Wait for it, then send again.'
+
+/** A send that ends: it settles, or it is refused as not confirmed once `ms` have passed. */
+function inTime(sending: Promise<void>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<never>((_, fail) => {
+    timer = setTimeout(() => fail(new Error(NOT_CONFIRMED)), ms)
+  })
+  return Promise.race([sending, late]).finally(() => clearTimeout(timer))
+}
+
+/**
+ * Send again, once the wait has passed: it counts down, sends, and says so. While it waits or sends it can't be
+ * pressed (aria-disabled, so the focus stays on it). A refusal is said as one, in the screen's error colour, and waits
+ * as long as it says (or Auth's window, when it says too many and gives no time); a send that never answers ends after
+ * 30 s as not confirmed, and waits the window too, since the email may still arrive.
+ */
 function SendAgain({ email, send }: { email: string; send: (email: string) => Promise<void> }) {
   // Counted from when it may be asked again, not by subtracting ticks: a throttled background tab still reads true.
   const [until, setUntil] = useState(() => Date.now() + RESEND_AFTER * 1000)
   const [now, setNow] = useState(() => Date.now())
   const [sending, setSending] = useState(false)
-  const [said, setSaid] = useState('')
+  const [said, setSaid] = useState<{ text: string; failed: boolean }>({ text: '', failed: false })
   const left = Math.max(0, Math.ceil((until - now) / 1000))
   useEffect(() => {
     const tick = left > 0 ? setInterval(() => setNow(Date.now()), 1000) : undefined
@@ -266,16 +283,15 @@ function SendAgain({ email, send }: { email: string; send: (email: string) => Pr
   const again = async () => {
     if (waiting) return
     setSending(true)
-    setSaid('Sending…')
+    setSaid({ text: 'Sending…', failed: false })
     try {
-      await send(email)
-      setSaid('Sent again. Only the newest link and code work.')
+      await inTime(send(email), SEND_LIMIT_MS)
+      setSaid({ text: 'Sent again. Only the newest link and code work.', failed: false })
       waitFor(RESEND_AFTER)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Could not send it again.'
-      setSaid(message)
-      // Asked too soon: the countdown takes the wait the Auth service gives.
-      waitFor(secondsToWait(message) ?? 0)
+      setSaid({ text: message, failed: true })
+      waitFor(message === NOT_CONFIRMED ? RESEND_AFTER : waitAfter(message, RESEND_AFTER))
     }
     setSending(false)
   }
@@ -284,8 +300,9 @@ function SendAgain({ email, send }: { email: string; send: (email: string) => Pr
       <button type="button" className="text-button" aria-disabled={waiting || undefined} onClick={() => void again()}>
         {left > 0 ? `Send again in ${String(left)} s` : 'Send again'}
       </button>
-      <span className="muted" role="status">
-        {said}
+      {/* One status from the start, its words changed in place; a failure in the error colour. */}
+      <span className="muted" role="status" data-state={said.failed ? 'failed' : undefined}>
+        {said.text}
       </span>
     </p>
   )
