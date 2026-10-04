@@ -624,10 +624,12 @@ when you change the room:
   segmenter is made on first use (`lastGrapheme`, with a test that loads the
   module without one): Firefox before 125 has no `Intl.Segmenter`, and one
   made when the module loaded would stop the whole Studio from loading.
-  Past three numbers a group may wrap after a comma, never before one; the
-  check sweeps every column down to what may never part, the word's last
-  character and the first three numbers, measured on their own line, also
-  from a column where the word wraps above them (M75-RF-0006). A
+  Past three numbers a group may wrap after a comma, never before one ("no
+  line starts with a citation or its comma", 52 widths). That no number
+  runs past the column is swept every second pixel down to what may never
+  part, the word's last character and the first three numbers, measured on
+  their own line, which also never part; the unit is measured again where
+  the word wraps above the numbers and must be the same (M75-RF-0006). A
   number is 0.8 of the text, with a finger-sized target on a touch screen
   (an empty `::after`, none in a table, whose frame it would make scroll),
   and each target is its own (M75-RF-0001, `report-reading.spec.ts`): it

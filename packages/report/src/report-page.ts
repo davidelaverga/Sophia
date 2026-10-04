@@ -97,17 +97,18 @@ function dateOf(iso: string | null | undefined, words: PageWords): string | null
 }
 
 /**
- * A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). A heading may
- * open with its language's article, as natural Italian and Spanish ones do ("I limiti", "La risposta", "Los límites",
- * "La respuesta"; M75): English "the", Italian "il lo la i gli le", Spanish "el la los las".
+ * A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). Italian and
+ * Spanish headings name them with their article (M75): "I limiti", "Los límites", "The limits" read as limitations only
+ * when the article and the word are the whole heading, since "I limiti di velocità" is rate limits, as "Limiti di
+ * velocità" was always read as limitations and the page then drops the version's stored ones; "La risposta", "La
+ * respuesta" and "The answer" read as the answer as "Answer" did.
  */
 const LIMITS =
-  /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^((the|il|lo|la|i|gli|le|el|los|las)\s+)?(limits|limiti|l[ií]mites)\b/i
-/** "Limits" further in: joined to risks or scope, or known ("Rischi e limiti"), never alone ("Rate limits"). */
+  /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^(limits|limiti|l[ií]mites)\b|^(the|i|los)\s+(limits|limiti|l[ií]mites)\s*[.:]?\s*$/i
+/** "Limits" further in: joined to risks or scope, or known ("Rischi e limiti", "I rischi e i limiti"), never alone. */
 const JOINED =
-  /\b(known|(risks|scope|rischi|ambit[oi]|riesgos|alcance)(,|\s+(and|e|y|&)))\s+((the|il|lo|la|i|gli|le|el|los|las)\s+)?(limits|limiti|l[ií]mites)\b/i
-const ANSWER =
-  /^((the|il|lo|la|i|gli|le|el|los|las)\s+)?(answer|bottom line|key findings|risposta|in breve|respuesta|en resumen)\b/i
+  /\b(known|(risks|scope|rischi|ambit[oi]|riesgos|alcance)(,|\s+(and|e|y|&)))\s+((the|i|los)\s+)?(limits|limiti|l[ií]mites)\b/i
+const ANSWER = /^((the|la)\s+)?(answer|bottom line|key findings|risposta|in breve|respuesta|en resumen)\b/i
 
 const namesLimits = (title: string) => LIMITS.test(title) || JOINED.test(title)
 

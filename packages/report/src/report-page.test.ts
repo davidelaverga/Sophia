@@ -746,20 +746,23 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.equal(role('Answer'), 'summary')
     assert.equal(role('The bottom line'), 'summary')
     assert.equal(role('Answering engines compared'), 'body')
-    // Italian and Spanish headings open with their article (M75, the cloud review on 4906bc8); English keeps "the".
-    for (const heading of [
-      'I limiti',
-      'I rischi e i limiti',
-      'Gli ambiti e i limiti',
-      'Los riesgos y los límites',
-      'Los límites',
-      'The limits',
-    ])
+    // Italian and Spanish headings open with their article (M75, the cloud review on 4906bc8): the bare heading reads as
+    // limitations, a longer one ("I limiti di velocità", rate limits) stays body, so the stored limitations still print.
+    for (const heading of ['I limiti', 'Los límites', 'The limits', 'I rischi e i limiti', 'Gli ambiti e i limiti'])
       assert.equal(role(heading), 'limitations', heading)
-    for (const heading of ['La risposta', 'La respuesta', 'The answer', 'Il bottom line'])
-      assert.equal(role(heading), 'summary', heading)
-    for (const heading of ['Le risposte dei fornitori', 'Los limitadores de velocidad', 'La rate limits'])
-      assert.equal(role(heading), 'body', heading)
+    for (const heading of ['La risposta', 'La respuesta', 'The answer']) assert.equal(role(heading), 'summary', heading)
+    const body = [
+      'I limiti di velocità',
+      'Los límites de velocidad',
+      'The limits of liability',
+      'I answer three questions',
+    ]
+    for (const heading of [...body, 'Le risposte dei fornitori']) assert.equal(role(heading), 'body', heading)
+    const stored = page({ markdown: `# T\n\n## I limiti di velocità\n\n${filler(5)}`, limitations: ['Stored.'] })
+    assert.ok(
+      stored.includes('<section id="report-limitations"'),
+      'a rate-limit section leaves the stored ones printed',
+    )
     const pdf = renderReport({
       markdown: `# T\n\n## Answer\n\n${filler(5)}`,
       language: 'en',
