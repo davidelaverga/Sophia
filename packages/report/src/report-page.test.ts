@@ -746,6 +746,20 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.equal(role('Answer'), 'summary')
     assert.equal(role('The bottom line'), 'summary')
     assert.equal(role('Answering engines compared'), 'body')
+    // Italian and Spanish headings open with their article (M75, the cloud review on 4906bc8); English keeps "the".
+    for (const heading of [
+      'I limiti',
+      'I rischi e i limiti',
+      'Gli ambiti e i limiti',
+      'Los riesgos y los límites',
+      'Los límites',
+      'The limits',
+    ])
+      assert.equal(role(heading), 'limitations', heading)
+    for (const heading of ['La risposta', 'La respuesta', 'The answer', 'Il bottom line'])
+      assert.equal(role(heading), 'summary', heading)
+    for (const heading of ['Le risposte dei fornitori', 'Los limitadores de velocidad', 'La rate limits'])
+      assert.equal(role(heading), 'body', heading)
     const pdf = renderReport({
       markdown: `# T\n\n## Answer\n\n${filler(5)}`,
       language: 'en',

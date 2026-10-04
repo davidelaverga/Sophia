@@ -96,11 +96,18 @@ function dateOf(iso: string | null | undefined, words: PageWords): string | null
   return words.date(t.getUTCDate(), t.getUTCMonth(), t.getUTCFullYear())
 }
 
-/** A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). */
-const LIMITS = /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^(limits|limiti|l[ií]mites)\b/i
+/**
+ * A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). A heading may
+ * open with its language's article, as natural Italian and Spanish ones do ("I limiti", "La risposta", "Los límites",
+ * "La respuesta"; M75): English "the", Italian "il lo la i gli le", Spanish "el la los las".
+ */
+const LIMITS =
+  /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^((the|il|lo|la|i|gli|le|el|los|las)\s+)?(limits|limiti|l[ií]mites)\b/i
 /** "Limits" further in: joined to risks or scope, or known ("Rischi e limiti"), never alone ("Rate limits"). */
-const JOINED = /\b(known|(risks|scope|rischi|ambito|riesgos|alcance)(,|\s+(and|e|y|&)))\s+(limits|limiti|l[ií]mites)\b/i
-const ANSWER = /^(the )?(answer|bottom line|key findings|risposta|in breve|respuesta|en resumen)\b/i
+const JOINED =
+  /\b(known|(risks|scope|rischi|ambit[oi]|riesgos|alcance)(,|\s+(and|e|y|&)))\s+((the|il|lo|la|i|gli|le|el|los|las)\s+)?(limits|limiti|l[ií]mites)\b/i
+const ANSWER =
+  /^((the|il|lo|la|i|gli|le|el|los|las)\s+)?(answer|bottom line|key findings|risposta|in breve|respuesta|en resumen)\b/i
 
 const namesLimits = (title: string) => LIMITS.test(title) || JOINED.test(title)
 

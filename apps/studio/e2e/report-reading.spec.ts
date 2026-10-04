@@ -354,37 +354,85 @@ test('reading @phone · no line starts with a citation or its comma, at any widt
   expect(await brokenBindings(page, widths)).toEqual([])
 })
 
+/**
+ * The address's group, swept from the column's width down to the narrowest that holds what may never part (M75-RF-0006):
+ * the bound word's last character, which BoundWord keeps out of its wrapping span, and the group's first numbers. That
+ * unit is measured where it lies, on one line; the word before it may wrap, so the bound piece's own start is no measure
+ * (it can sit on the line above). At each width: no number past the column, the last character and the first number on
+ * one line, and whether the word wrapped above its numbers, which the sweep must meet. `wrappedStart` measures the unit
+ * where the word already wraps, the layout in which the old measure went negative (CX-0008: 48 of 103 widths in CI's).
+ */
+const groupSweep = (p: HTMLElement, { kept, wrappedStart }: { kept: number; wrappedStart: boolean }) => {
+  const md = p.closest<HTMLElement>('.md')
+  const bound = p.querySelector('.cite-bound')
+  const numbers = [...p.querySelectorAll('sup.cite button')]
+  const sup = bound?.querySelector(':scope > sup.cite')
+  const third = numbers[kept - 1]
+  if (!md || !bound || !sup || !third) throw new Error('no group')
+  /** The box of the last character before the numbers, in whatever node of the bound word holds it. */
+  const lastChar = () => {
+    const walk = document.createTreeWalker(bound, NodeFilter.SHOW_TEXT)
+    let text: Text | null = null
+    for (let n = walk.nextNode(); n && !sup.contains(n); n = walk.nextNode()) if (n instanceof Text && n.data) text = n
+    if (!text) throw new Error('no word')
+    const range = document.createRange()
+    range.setStart(text, text.length - (Array.from(text.data).at(-1)?.length ?? 1))
+    range.setEnd(text, text.length)
+    return range.getBoundingClientRect()
+  }
+  /** The unit's width, and whether its two ends share a line (their middles less than half a line apart). */
+  const unit = () => {
+    const [a, b] = [lastChar(), third.getBoundingClientRect()]
+    return { width: Math.ceil(b.right - a.left), together: Math.abs(a.top + a.bottom - b.top - b.bottom) / 2 < 14 }
+  }
+  /** One width: how far a number runs past the column, whether the unit parts, whether the word wrapped above it. */
+  const at = (width: number) => {
+    md.style.maxWidth = `${String(width)}px`
+    const over = Math.max(...numbers.map((b) => b.getBoundingClientRect().right)) - md.getBoundingClientRect().right
+    const wrapped = (bound.getClientRects()[0]?.top ?? 0) < third.getBoundingClientRect().top - 14
+    return { over, parted: !unit().together, wrapped }
+  }
+  /** The column to start from: as it is, or (the countercase) the widest where the word wraps above its numbers. */
+  const start = () => {
+    let from = Math.floor(md.getBoundingClientRect().width)
+    if (!wrappedStart) return from
+    while (from > 0 && !at(from).wrapped) from -= 2
+    return from
+  }
+  /** Every second width from `from` down to the unit: what ran past, what parted, how often the word wrapped above. */
+  const sweep = (from: number, unitWidth: number) => {
+    const result = { from, unit: unitWidth, narrowest: 0, past: [] as string[], parted: [] as string[], wrapped: 0 }
+    for (let width = from; width >= unitWidth + 2; width -= 2) {
+      const seen = at(width)
+      if (seen.over > 0.5) result.past.push(`${String(width)}: ${String(Math.round(seen.over))} px`)
+      if (seen.parted) result.parted.push(String(width))
+      if (seen.wrapped) result.wrapped += 1
+      result.narrowest = width
+    }
+    return result
+  }
+  const from = start()
+  const measured = unit()
+  if (!measured.together || measured.width <= 0) throw new Error(`no unit on one line: ${JSON.stringify(measured)}`)
+  const result = sweep(from, measured.width)
+  md.style.maxWidth = ''
+  return result
+}
+
 test('reading @phone · a long group of citations wraps after a comma rather than run past the column', async ({
   page,
 }) => {
   await openReading(page)
-  // The address's group of six, down to the narrowest column its word and first three numbers fit: kept whole, the
-  // group ran past the column long before that.
-  const sweep = await page
-    .locator('.md p')
-    .filter({ hasText: 'pricing.harbor.example' })
-    .evaluate((p, kept) => {
-      const md = p.closest<HTMLElement>('.md')
-      const bound = p.querySelector('.cite-bound')
-      const numbers = [...p.querySelectorAll('sup.cite button')]
-      const start = bound?.getClientRects()[0]?.left
-      const last = numbers[kept - 1]?.getBoundingClientRect().right
-      if (!md || start === undefined || last === undefined) throw new Error('no group')
-      const lead = Math.ceil(last - start)
-      const past: string[] = []
-      let width = Math.floor(md.getBoundingClientRect().width)
-      for (; width >= lead + 2; width -= 2) {
-        md.style.maxWidth = `${String(width)}px`
-        const right = md.getBoundingClientRect().right
-        const over = Math.max(...numbers.map((b) => b.getBoundingClientRect().right)) - right
-        if (over > 0.5) past.push(`${String(width)}: ${String(Math.round(over))} px`)
-      }
-      md.style.maxWidth = ''
-      return { numbers: numbers.length, lead, narrowest: width + 2, past }
-    }, KEPT_WITH_WORD)
-  expect(sweep.numbers).toBe(6)
-  expect(sweep.narrowest, 'the sweep reaches the word and three numbers').toBeLessThan(300)
-  expect(sweep.past).toEqual([])
+  const address = page.locator('.md p').filter({ hasText: 'pricing.harbor.example' })
+  expect(await address.locator('sup.cite button').count()).toBe(6)
+  for (const wrappedStart of [false, true]) {
+    const sweep = await address.evaluate(groupSweep, { kept: KEPT_WITH_WORD, wrappedStart })
+    const from = wrappedStart ? 'from a column where the word wraps' : 'from the column as it is'
+    expect(sweep.narrowest, `${from}: the sweep reaches the unit`).toBeLessThan(sweep.unit + 4)
+    expect(sweep.wrapped, `${from}: layouts where the word wraps above its numbers`).toBeGreaterThan(0)
+    expect(sweep.past, `${from}: widths where a number runs past the column`).toEqual([])
+    expect(sweep.parted, `${from}: widths where the last character and the first number part`).toEqual([])
+  }
 })
 
 test('reading @phone · the Document tab never scrolls sideways: a long address wraps before its citation', async ({
