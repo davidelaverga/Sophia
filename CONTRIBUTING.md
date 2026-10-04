@@ -542,7 +542,8 @@ when you change the room:
   effect only once its runtime confirms it (a delivery once established is never
   taken back by a later receipt saying less); a lost reply is unknown and tried
   again with the same operation; a late or foreign receipt changes nothing.
-  Commands are kept by work and assignment generation, drafts by execution
+  Commands are kept in one space per project and viewer, shared with Tasks'
+  board, by work and assignment generation, drafts by execution
   (its attempt and session too); only a command for the execution shown
   speaks as the latest or is tried again, and an open one for an earlier
   attempt or session is listed as such, kept as it was. Stop asks

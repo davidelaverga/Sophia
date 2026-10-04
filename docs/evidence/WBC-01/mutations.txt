@@ -176,3 +176,16 @@ Q2 F-015 the updating band holds the plan's own choices: FAILS as it should
 # (the revision fence removed, checked on the board by UI-12) passed: with F-014, UI-12's replayed older receipts no
 # longer showed the fence. UI-12 now also sends a late refusal at the first revision (2136f6b), and M10 fails with
 # M10b. P1–P1c were re-aimed at decidedFor (plan.ts), where F-015 moved the rule, and fail. 115 of 116 fail.
+
+# CX-0016 at 64dd4f7 (#74; GitHub 4179419841, …844, …848, …853), F-016–F-019, fixed in 8143be6 (on the merge with #90)
+S1 F-016 one command space for Resources and Tasks: FAILS as it should
+S1b F-016 a command naming no attempt is said so (rule): FAILS as it should
+S1c F-016 a command naming no attempt is said so (sheet): FAILS as it should
+S2 F-017 a read has its limit: FAILS as it should
+S2b F-017 a reply after the limit changes nothing: FAILS as it should
+S3 F-018 another plan starts its own view: FAILS as it should
+S4 F-019 past its expiry a decision calls no one: FAILS as it should
+
+# 2026-10-05, on 8143be6: all 123 entries above run again. 119 failed; R1b is the redundant key recorded above. M17,
+# M17b and R3 named the board's old key and command space, which F-016 and F-018 rewrote; re-aimed at the new lines,
+# all three fail. 122 of 123 fail.

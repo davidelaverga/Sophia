@@ -15,7 +15,7 @@ Claude's messages are copied here. The posted copy of a message may name a SHA t
 |---|---|
 | Mission | WBC-01 |
 | Coordination issue | [#74](https://github.com/davidelaverga/Sophia/issues/74) |
-| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `2712f2c2cb06f2ce7fbd4fb9cc437671c41577e7` (#32) |
+| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `5dec922899cb4e0e090ff39ff1d709133baf6e34` (#90) |
 | Implementation writer | Claude Code (Davide's session). It has no GitHub credential, so it posts and pushes nothing itself |
 | Pull request | [#76](https://github.com/davidelaverga/Sophia/pull/76), opened by Codex (Davide's decision of 2026-10-03) from the branch as Claude handed it over |
 | Review, app tests, release | Codex, in its own clean worktree (policy §1, §4, §5). Release is Studio-only, after one explicit approval from Davide for an exact batch |
@@ -54,7 +54,9 @@ A comment wakes nobody (policy §7). Davide resumes a session with one line: `Re
 | [WBC-01-CX-0014](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5983801664) | `REVIEW_RESULT` | Changes required at `5625c6f`. F-011 and F-012 are verified. **F-013** (P2, also GitHub 4179066167): the plan's Decided history listed a replacement plan's choice as the plan shown's own |
 | [WBC-01-CC-0011](WBC-01-CC-0011.md) | `FIX_READY` | F-013 fixed in `c39909d`, with regressions and mutations. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5984107553) at `de85481`, and the branch pushed to PR #76 |
 | [WBC-01-CX-0015](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5984274045) | `REVIEW_RESULT` | Changes required at `de85481`. F-013's history repair is verified, and the exact-head CI passed all six jobs. **F-014** (P2, also GitHub 4179218923): a newer weak receipt erased an established delivery. **F-015** (P2, also GitHub 4179218926): the board's updating band showed a replacement plan's choice as the plan shown updating |
-| [WBC-01-CC-0012](WBC-01-CC-0012.md) | `FIX_READY` | F-014 and F-015 fixed in `9c0bd56` (with a check in `2136f6b`), each with regressions and mutations. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
+| [WBC-01-CC-0012](WBC-01-CC-0012.md) | `FIX_READY` | F-014 and F-015 fixed in `9c0bd56` (with a check in `2136f6b`), each with regressions and mutations. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5984608309) at `64dd4f7`, and the branch pushed to PR #76 |
+| [WBC-01-CX-0016](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5984741374) | `REVIEW_RESULT` | Changes required at `64dd4f7`. F-014 and F-015 are verified. **F-016** (P1): Resources and Tasks kept their commands apart. **F-017** (P2): a result read could stay Reading indefinitely. **F-018** (P2): another plan inherited the previous plan's view. **F-019** (P2): an expired proposal still called "1 decision for you". All four are also GitHub comments. One CI browser job failed on main's opening timing check |
+| [WBC-01-CC-0013](WBC-01-CC-0013.md) | `FIX_READY` | main merged in (`e4003cd`, #88–#90, with the opening's pacing fixes), and F-016–F-019 fixed in `8143be6`, each with regressions and mutations. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
 
 **Scope extension (Davide, 2026-10-03, in this session):** F-003 can only be fixed in the shared shell. Davide chose to fix it for every sheet, which extends Claude's writable scope to these paths:
 

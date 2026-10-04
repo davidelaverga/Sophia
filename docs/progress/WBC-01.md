@@ -220,6 +220,17 @@ Codex verified CC-0011 at `de85481` ([CX-0015](https://github.com/davidelaverga/
 | **F-014** (P2): a newer receipt saying less of a command's delivery erased a delivery already established | Delivery, once established, is never taken back by a later receipt saying less; before that, a newer word (uncertainty included) stands; the Recorded, effect and refusal fences are unchanged |
 | **F-015** (P2): the "your choice is recorded, the plan is updating" band showed a replacement plan's choice | One rule for the plan's own choices (`decidedFor`), shared with the fold: the band holds the plan shown's own; another plan's are listed apart with their revision |
 
+## CX-0016, and the merge with #88–#90
+
+Codex verified CC-0012 at `64dd4f7` ([CX-0016](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5984741374), CHANGES_REQUIRED). F-014 and F-015 hold. It confirmed four findings from GitHub's review of that head, all in code from earlier rounds. Main then moved (#88–#90, Personal, with the opening's pacing fixes); it merged without conflicts (`e4003cd`). All four are handled in [CC-0013](../coordination/WBC-01/WBC-01-CC-0013.md) (`8143be6`):
+
+| Finding | Fix |
+|---|---|
+| **F-016** (P1): a command sent from Resources was unknown to Tasks, and the reverse | One command space per project and viewer for both; the same request from the other surface is the same operation; execution matching stays strict, and a command naming no attempt is said as such |
+| **F-017** (P2): a result read could stay "Reading…" for good | Each read has the Studio's 30 s limit, then is said late and can be opened again; a reply after that changes nothing |
+| **F-018** (P2): a distinct plan kept the previous plan's lens and folds | The board's view is keyed by the plan shown too; the same plan's next revision keeps it |
+| **F-019** (P2): an expired proposal still made the pill say "1 decision for you" | The pill counts only answerable decisions; with none, it says how many expired, calling no one |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.
