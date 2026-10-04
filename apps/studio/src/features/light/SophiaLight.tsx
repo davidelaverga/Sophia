@@ -71,12 +71,15 @@ function useShapingSize(box: RefObject<HTMLDivElement | null>, shaping: boolean)
   useLayoutEffect(() => {
     const b = box.current
     if (!shaping || !b) return undefined
-    const measure = () =>
+    const measure = () => {
+      // Out of sight the box has no size: keep the last one, so nothing is shaped (or formed) at nothing.
+      if (b.clientWidth < 1 || b.clientHeight < 1) return
       setSize((was) =>
         was?.width === b.clientWidth && was.height === b.clientHeight
           ? was
           : { width: b.clientWidth, height: b.clientHeight },
       )
+    }
     measure()
     const resized = new ResizeObserver(measure)
     resized.observe(b)

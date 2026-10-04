@@ -17,6 +17,7 @@ import { ShortcutScope } from './shortcuts.ts'
 import { signOutForgetting } from './sign-out.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { Toast, useToast, type ShowToast } from './Toast.tsx'
+import { OpeningPrepares, useOpening } from './useOpening.ts'
 import { useProjectRoute } from './useProjectRoute.ts'
 
 const queryClient = new QueryClient()
@@ -49,6 +50,9 @@ export function App() {
   const signedInAs = state.status === 'signed_in' ? state.identity.name : null
   useEffect(() => () => queryClient.clear(), [signedInAs])
   useDraftsOnlyOfWhoIsIn(state)
+  const joinPage = opensJoinPage(window.location.pathname, state.status)
+  // The opening hands off once all is ready: the Studio's once it has prepared what the person opens first.
+  useOpening(state.status, state.status === 'signed_in' && state.identity.role !== 'guest' && !joinPage)
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
   const switchIdentity = (identity: Identity | null) => {
@@ -64,7 +68,7 @@ export function App() {
 
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question
   // ("Continue as …?") still comes first there, so the session it carries is accepted or declined, never lost.
-  if (opensJoinPage(window.location.pathname, state.status)) {
+  if (joinPage) {
     return (
       <QueryClientProvider client={queryClient}>
         <Suspense fallback={<Centered title="Opening the room…" busy />}>
@@ -83,6 +87,7 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <OpeningPrepares identity={state.identity} />
       <SignedIn
         key={state.identity.name}
         identity={state.identity}

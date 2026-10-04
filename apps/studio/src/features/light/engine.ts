@@ -3,7 +3,7 @@
 // It never decides anything about the room; it only shows it.
 import { handoffFrame, settle, spring, stepSpring, type HandoffFrame, type Point, type Spring } from './motion.ts'
 import { createLightRenderer, type LightFrame, type LightRenderer } from './renderer.ts'
-import { BEHIND, lightBehind } from './threshold.ts'
+import { aimOf, BEHIND, lightBehind } from './threshold.ts'
 import { drawHandoff, drawWorkLine, perimeter } from './trace.ts'
 
 /** rest: present but not in a live room. The others are the four states of the prototype. */
@@ -196,8 +196,10 @@ export class LightEngine {
       if (entry) this.resize(entry.contentRect.width, entry.contentRect.height)
     })
     this.observer.observe(box)
-    if (!this.reduced && window.matchMedia('(pointer: fine)').matches)
+    if (!this.reduced && window.matchMedia('(pointer: fine)').matches) {
       window.addEventListener('pointermove', this.follow, { passive: true })
+      window.addEventListener('pointerout', this.lose, { passive: true })
+    }
     this.frameId = requestAnimationFrame(this.tick)
   }
 
@@ -212,6 +214,16 @@ export class LightEngine {
 
   private readonly follow = (event: PointerEvent): void => {
     this.pointer = this.input.mark ? { x: event.clientX, y: event.clientY } : null
+  }
+
+  /** The pointer gone from the page: the light behind the mark rests instead of aiming at where it was last. */
+  private readonly lose = (event: PointerEvent): void => {
+    if (!event.relatedTarget) this.pointer = null
+  }
+
+  /** Whom the light behind the mark turns to (aimOf); under less motion, no one: it stays where it stands. */
+  private aim(): Point | null {
+    return this.reduced ? null : aimOf(this.input.attention, this.pointerInBox())
   }
 
   /** The pointer in the box's own pixels: the box is measured once a frame, not on every move. */
@@ -230,11 +242,17 @@ export class LightEngine {
     cancelAnimationFrame(this.frameId)
     this.observer.disconnect()
     window.removeEventListener('pointermove', this.follow)
+    window.removeEventListener('pointerout', this.lose)
     this.gl?.dispose()
   }
 
   private resize(width: number, height: number): void {
     this.size = { width, height }
+    // Shown again: its frames start again, from now (no leap for the time it was away).
+    if (!this.frameId && width >= 1 && height >= 1) {
+      this.last = performance.now() / 1000
+      this.frameId = requestAnimationFrame(this.tick)
+    }
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     this.gl?.resize(width, height)
     this.traceCanvas.width = Math.round(width * dpr)
@@ -251,11 +269,15 @@ export class LightEngine {
   }
 
   private readonly tick = (): void => {
+    // A box with no size (a view hidden, as Home is behind another place) asks for no frames until it has one again.
+    if (this.size.width < 1 || this.size.height < 1) {
+      this.frameId = 0
+      return
+    }
     this.frameId = requestAnimationFrame(this.tick)
     const t = performance.now() / 1000
     const raw = t - this.last
     this.last = t
-    if (this.size.width < 1 || this.size.height < 1) return
     if (!this.snapped) this.snap()
     this.pace(raw)
     this.draw(t, this.step(t, Math.min(0.05, raw)))
@@ -283,7 +305,7 @@ export class LightEngine {
       : null
     aimAt(s, flight ? flight.frame.head : this.input.attention)
     s.occlude.target = this.input.mark ? 1 : 0
-    aimSource(s, this.input.mark ?? null, this.pointerInBox())
+    aimSource(s, this.input.mark ?? null, this.aim())
     s.swell.target = flight && !this.reduced ? flight.frame.swell : 0
     for (const sp of Object.values(s)) stepSpring(sp, dt)
     if (!this.reduced)
