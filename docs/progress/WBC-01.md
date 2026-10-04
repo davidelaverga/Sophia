@@ -175,6 +175,16 @@ Codex verified CC-0006 at `87c078b` ([CX-0010](https://github.com/davidelaverga/
 | **F-005 residual** (P2): with no conversation connected, Ask again silently did nothing | A missing conversation is a blocking reason too, said and kept, by the same rule as the view's availability. Connected again, the same question goes |
 | **F-006** (P2): on a proposed-only board, the goal's line and the review card compared the review with different revisions | One reference: the plan in force's revision, null while none is. With none in force, both say which revision the review was of, and its proposal is read only |
 
+## CX-0011
+
+Codex verified CC-0007 at `be46d05` ([CX-0011](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5980774711), CHANGES_REQUIRED). The merge with #32 and F-005 to F-007 hold. GitHub's reviewer left two P2s on the same head. All three are handled in [CC-0008](../coordination/WBC-01/WBC-01-CC-0008.md) (`49a9e12`):
+
+| Finding | Fix |
+|---|---|
+| **F-008** (P1): on Resources, a Stop confirmation opened for one assignment stayed open when the session was given the next, and confirming it stopped the replacement | The shared commands block keys its Stop confirmation by the exact execution, so the confirmation closes on any caller when its target changes |
+| **GitHub P2** (`shape.ts`): date-times without an offset, or impossible dates, were accepted | The reader accepts only RFC 3339 date-times with their offset, on dates the calendar has, and says where one fails |
+| **GitHub P2** (`PlanBoard.tsx`): a decision of the viewer's arriving later stayed folded | A decision not seen before opens the decisions when it arrives, once; one the viewer closed stays closed; arriving over the review's card, it takes the slot |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.

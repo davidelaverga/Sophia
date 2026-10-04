@@ -118,3 +118,17 @@ I7c F-006 the fixture reads no plan in force as none: FAILS as it should
 # read), H2 and H4 (now checked by `lag=1`: with F-006, a proposed-only board's review is stale before their gates).
 # M16 first passed here: F-007's exact-target rule also hides a new generation's history. A new UI-11 check (an open
 # command of the earlier generation isn't listed under the next) catches it again.
+
+# CX-0011 at be46d05 (#74), F-008, and the GitHub review's two P2s there (4177946054, 4177946059), fixed in 49a9e12
+J1 F-008 a Stop asked is keyed by its execution, wherever it shows: FAILS as it should
+J2 PR76 a date-time needs its offset (rule): FAILS as it should
+J2b PR76 a date-time needs its offset (the reader): FAILS as it should
+J2c PR76 a date the calendar has: FAILS as it should
+J3 PR76 a decision arriving later opens for its decider: FAILS as it should
+J3b PR76 one the viewer closed stays closed: FAILS as it should
+J4 PR76 a decision arriving takes the slot from the card: FAILS as it should
+
+# 2026-10-04, on 49a9e12: all 95 entries above run again. 92 failed; R1b is the redundant key recorded above; R1 and
+# I5 passed, because they mutated the task sheet's own key on its commands block, which F-008's shared key (J1) made
+# redundant. That key is removed in 3e7a893; R1 and I5 are re-aimed at the shared key, each with its task-sheet
+# check, and fail with J1. 94 of 95 fail.
