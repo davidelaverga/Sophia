@@ -3,20 +3,26 @@
 // (research-scope.ts, CX-0030); everything else is the server's: who asked (the bound speaker), the specialist and its
 // route (the registry), the allowance (the project's grant) and eligibility. A receipt says admitted, never started; a
 // refusal is typed `not_started:<code>`, and a call whose outcome is unknown is `unconfirmed:<code>`. Neither is
-// retried here. render_research (S6) is "Try PDF again" by voice: the published version of a report that has no PDF,
-// printed again as a binding-less rendition (0032), for the bound speaker.
+// retried here. A follow-up of a report too long for one to revise (0037's limit) is refused before admission.
+// render_research (S6) is "Try PDF again" by voice: the published version of a report that has no PDF, printed again
+// as a binding-less rendition (0032), for the bound speaker.
 import { createHash } from 'node:crypto'
+import type pg from 'pg'
 import type { MediaToolResult } from '@sophia/contracts'
 import { SPECIALISTS } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
   admitResearchTask,
+  canCommand,
   pdfRendererReady,
+  readTaskStandings,
   requestResearchRendition,
+  researchGateOpen,
   withActor,
   type ResearchAdmissionRequest,
 } from '@sophia/persistence'
 import type { ToolContext } from './mission-tools.ts'
+import { TOO_LONG_TO_REVISE, tooLongToRevise } from './report-facts.ts'
 import { admittedQuestion, isRecord, QUESTION_MAX } from './research-scope.ts'
 
 /** No PDF renderer is running (0031): nothing was started, and no other format is promised in its place. */
@@ -134,6 +140,19 @@ function requestOf(args: Record<string, unknown>): ResearchAdmissionRequest | Me
   }
 }
 
+/**
+ * Whether the request is a follow-up of a report longer than a follow-up can revise (tooLongToRevise): admitted, it
+ * would spend a worker turn that 0037 tells to end without a new version. Asked only where admission would get that
+ * far, in its order (0025): a speaker who may not start research hears the role first, and a closed gate is said as
+ * one. A retry comes seconds after its call, before anything the call started could publish, so it gets its answer.
+ */
+async function amendsTooLong(c: pg.PoolClient, projectId: string, request: ResearchAdmissionRequest): Promise<boolean> {
+  if (request.amendsTaskId === undefined) return false
+  if (!(await canCommand(c, projectId)) || !(await researchGateOpen(c, projectId))) return false
+  const [amended] = await readTaskStandings(c, projectId, [request.amendsTaskId])
+  return tooLongToRevise(amended?.current ?? null)
+}
+
 export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> {
   const request = requestOf(ctx.args)
   if ('status' in request) return request
@@ -147,9 +166,15 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
     return { status: 'refused', output: { code: 'not_started:no_specialist', reason: 'The research was not started.' } }
   const more = htmlNote(ctx.args.outputs)
   try {
-    const result = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
-      admitResearchTask(c, ctx.projectId, { key: ctx.key, exchangeId: ctx.call.exchangeId, request, specialist }),
+    const result = await withActor(ctx.pool, ctx.actorId, 'write', async (c) =>
+      (await amendsTooLong(c, ctx.projectId, request))
+        ? null
+        : admitResearchTask(c, ctx.projectId, { key: ctx.key, exchangeId: ctx.call.exchangeId, request, specialist }),
     )
+    if (result === null) {
+      const reason = `${TOO_LONG_TO_REVISE} Nothing was started.`
+      return { status: 'refused', output: { code: 'not_started:too_long_to_revise', reason } }
+    }
     if ('existingTaskId' in result) {
       return {
         status: 'ok',

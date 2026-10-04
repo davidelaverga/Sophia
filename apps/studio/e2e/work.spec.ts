@@ -634,3 +634,310 @@ test('@phone · review: the goal’s line wraps whole, nothing past the screen',
   const box = await reviewLine(page).boundingBox()
   expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(page.viewportSize()?.width ?? 0)
 })
+
+// ---- The lead's review that proposes a change (LFE-07.2, slice 2): its pill, and its card in the decisions' slot. ----
+
+const reviewPill = (page: Page) => board(page).getByRole('button', { name: /^Review · a change proposed/ })
+const reviewCard = (page: Page) => board(page).getByRole('region', { name: 'The lead’s review' })
+
+test('review card · a change proposed waits as a pill; its card reads in four parts, each seen with its evidence', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?review=material`)
+  await expect(reviewPill(page)).toBeVisible({ timeout: 15_000 })
+  await expect(reviewCard(page)).toHaveCount(0) // a pill, not an interruption
+  await reviewPill(page).click()
+  await expect(reviewPill(page)).toHaveAttribute('aria-expanded', 'true')
+  await expect(reviewCard(page)).toBeFocused()
+  for (const part of ['Observed', 'Reading', 'Unsure', 'Proposed']) {
+    await expect(reviewCard(page).locator('.review-part .field-label', { hasText: part })).toBeVisible()
+  }
+  const seen = reviewCard(page).locator('.review-seen')
+  await expect(seen).toHaveCount(2)
+  await expect(seen.first().locator('.review-evidence')).toHaveText('Check · 6 min ago')
+  await expect(seen.first().locator('.review-evidence-ref')).toHaveText('pnpm --filter @sophia/report test')
+  await expect(seen.nth(1).locator('.review-evidence')).toHaveText('Log · 9 min ago')
+  await expect(page.locator('.plan-next-review')).toHaveText(/^Reviewed 4 min ago · a change proposed$/)
+})
+
+test('review card · a routine end has no pill and no card (PLAN-04)', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(board(page)).toBeVisible({ timeout: 15_000 })
+  await expect(reviewPill(page)).toHaveCount(0)
+  await expect(reviewCard(page)).toHaveCount(0)
+})
+
+test('review card · a task it names opens that task’s sheet', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  await reviewCard(page).getByRole('button', { name: 'Implement the PDF retry' }).click()
+  await expect(page.getByRole('dialog', { name: 'Implement the PDF retry' })).toBeVisible()
+})
+
+test('review card · Escape or Close puts it away, the focus back on its pill', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(reviewCard(page)).toHaveCount(0)
+  await expect(reviewPill(page)).toBeFocused()
+  await expect(reviewPill(page)).toHaveAttribute('aria-expanded', 'false')
+  await reviewPill(page).click()
+  await reviewCard(page).getByRole('button', { name: 'Close' }).click()
+  await expect(reviewCard(page)).toHaveCount(0)
+  await expect(reviewPill(page)).toBeFocused()
+})
+
+test('review card · a later review comes closed: the card opened was the last one’s', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeVisible()
+  await page.evaluate(() => window.workFixture?.reviewAgain?.())
+  await expect(reviewCard(page)).toHaveCount(0)
+  await expect(reviewPill(page)).toHaveAttribute('aria-expanded', 'false')
+})
+
+test('review card · a decision whose id holds quotes and brackets still opens with the focus on it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material&odd-id=1`)
+  await reviewPill(page).click()
+  await reviewCard(page).getByRole('button', { name: 'Waits on your decision: answer it' }).click()
+  const ask = board(page).getByRole('region', { name: 'Davide decides' })
+  await expect(ask.getByRole('button', { name: 'Ship it now' })).toBeFocused()
+})
+
+test('review card · replaced by a later review, it closes and the focus goes back to the pill', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeFocused()
+  await page.evaluate(() => window.workFixture?.reviewAgain?.())
+  await expect(reviewCard(page)).toHaveCount(0)
+  await expect(reviewPill(page)).toBeFocused()
+})
+
+test('review card · a decision past its expiry is said expired, to its decider and to anyone', async ({ page }) => {
+  // By its date while still proposed, and as the server marks it (state: expired).
+  for (const [viewer, expired] of [
+    ['davide', '1'],
+    ['luis', '1'],
+    ['davide', 'state'],
+  ]) {
+    await page.goto(`${PAGE}?viewer=${viewer}&review=material&expired=${expired}`)
+    await reviewPill(page).click()
+    await expect(reviewCard(page)).toContainText('Its decision expired before it was answered.')
+    await expect(reviewCard(page)).not.toContainText('Waits on')
+  }
+})
+
+test('review card · a proposal the lead already sent says so, and asks nothing', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material-sent`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toContainText('The lead sent it, within its own authority.')
+  await expect(reviewCard(page).getByRole('button', { name: /answer it/ })).toHaveCount(0)
+})
+
+test('review card · a proposal waiting on someone else’s decision names them, with nothing to press', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?review=material`) // Luis; the decision is Davide's
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toContainText('Waits on Davide’s decision.')
+  await expect(reviewCard(page).getByRole('button', { name: /answer it/ })).toHaveCount(0)
+})
+
+test('review card · one slot: the card and the decisions take turns; its proposal points to the decision', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material`)
+  const ask = board(page).getByRole('region', { name: 'Davide decides' })
+  await expect(ask).toBeVisible({ timeout: 15_000 }) // the decider's own opens by itself
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeVisible()
+  await expect(ask).toHaveCount(0)
+  await reviewCard(page).getByRole('button', { name: 'Waits on your decision: answer it' }).click()
+  await expect(ask).toBeVisible()
+  await expect(reviewCard(page)).toHaveCount(0)
+  await expect(ask.getByRole('button', { name: 'Ship it now' })).toBeFocused()
+})
+
+test('review card · of an earlier revision it says so, and its proposal is read, not acted on', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material-old`)
+  await expect(page.locator('.plan-next-review')).toHaveText(/· a change proposed · of r1$/)
+  await reviewPill(page).click()
+  await expect(reviewCard(page).locator('.review-result-stale')).toHaveText('Reviewed r1 · the plan is now r2')
+  await expect(reviewCard(page).getByRole('button', { name: /answer it/ })).toHaveCount(0)
+})
+
+test('review card · its parts start on one column, the links where their words start', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material`) // Davide decides: the link to his decision shows
+  await reviewPill(page).click()
+  // Where the words start, not the boxes: a stretched button keeps its box aligned and centres its words.
+  const lefts = await reviewCard(page).evaluate((card) => {
+    const part = (label: string) =>
+      [...card.querySelectorAll('.review-part')].find((p) => p.querySelector('.field-label')?.textContent === label)
+    // Reading's words, Proposed's, its link's, and each Observed line's evidence.
+    const starts = [
+      part('Reading')?.querySelector('p'),
+      part('Proposed')?.querySelector('p'),
+      part('Proposed')?.querySelector('button'),
+      ...card.querySelectorAll('.review-evidence'),
+    ]
+    return starts.map((el) => {
+      const range = document.createRange()
+      if (el) range.selectNodeContents(el)
+      return Math.round(range.getClientRects()[0]?.left ?? -1)
+    })
+  })
+  expect(lefts).toHaveLength(5)
+  expect(new Set(lefts).size, lefts.join(' ')).toBe(1)
+})
+
+test('review card · keeps to the type scale', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  const sizes = await typeSizes(page, '.review-result')
+  expect(
+    sizes.filter((s) => !['10.5px', '12px', '13px', '14px'].includes(s)),
+    sizes.join(' '),
+  ).toEqual([])
+})
+
+test('@phone · review card: its parts stack, nothing past the screen', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeVisible()
+  const wide = await reviewCard(page).evaluate((c) => c.scrollWidth <= c.clientWidth + 1)
+  expect(wide).toBe(true)
+  // Each part's label sits above its words, not beside them.
+  const stacked = await reviewCard(page).evaluate((c) =>
+    [...c.querySelectorAll('.review-part')].every(
+      (p) =>
+        (p.querySelector('.field-label')?.getBoundingClientRect().bottom ?? 0) <=
+        (p.querySelector('.review-part-body')?.getBoundingClientRect().top ?? 0) + 1,
+    ),
+  )
+  expect(stacked).toBe(true)
+  const box = await reviewCard(page).boundingBox()
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(page.viewportSize()?.width ?? 0)
+})
+
+// ---- Challenge (LFE-07.2, slice 3): why a proposal doesn't hold, sent to the lead for its next review. ----
+
+const challengeField = (page: Page) => reviewCard(page).getByRole('textbox', { name: 'Why the proposal doesn’t hold' })
+const challengesOf = (page: Page) => page.evaluate(() => window.workFixture?.challenges ?? [])
+
+test('challenge · its reason goes to the lead; the receipt is said, the reason quoted', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  await reviewCard(page).getByRole('button', { name: 'Challenge' }).click()
+  await expect(challengeField(page)).toBeFocused()
+  await expect(reviewCard(page).getByRole('button', { name: 'Send' })).toBeDisabled() // nothing to send yet
+  await challengeField(page).fill('The renderer’s host is shared with the exports.')
+  await reviewCard(page).getByRole('button', { name: 'Send' }).click()
+  await expect(reviewCard(page).getByRole('status')).toHaveText('Sending your challenge…')
+  await expect(challengeField(page)).toBeFocused() // Send is disabled while it goes: the focus stays in the line
+  await expect(reviewCard(page).getByRole('status')).toHaveText('Sent to the lead, for its next review.')
+  await expect(reviewCard(page).locator('.review-challenge-quote')).toHaveText(
+    'The renderer’s host is shared with the exports.',
+  )
+  // Settled, the focus is on its receipt, not lost to the page.
+  await expect(reviewCard(page).locator('.review-challenge')).toBeFocused()
+  expect(await challengesOf(page)).toEqual([
+    { review: 'review-material', text: 'The renderer’s host is shared with the exports.', key: expect.any(String) },
+  ])
+})
+
+test('challenge · not confirmed, it is sent again with the same key and the same words, the card closed meanwhile', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?review=material&challenge=unknown`)
+  await reviewPill(page).click()
+  await reviewCard(page).getByRole('button', { name: 'Challenge' }).click()
+  await challengeField(page).fill('The large reports are rare.')
+  await reviewCard(page).getByRole('button', { name: 'Send' }).click()
+  await expect(reviewCard(page).getByRole('status')).toHaveText(
+    'Not confirmed. Sending again repeats the same request.',
+  )
+  await expect(challengeField(page)).toHaveAttribute('readonly', '')
+  await reviewCard(page).getByRole('button', { name: 'Close' }).click()
+  await reviewPill(page).click()
+  await expect(challengeField(page)).toHaveValue('The large reports are rare.') // kept, open by itself
+  await reviewCard(page).getByRole('button', { name: 'Send again' }).click()
+  await expect(reviewCard(page).getByRole('status')).toHaveText('Sent to the lead, for its next review.')
+  const sent = await challengesOf(page)
+  expect(sent).toHaveLength(2)
+  expect(sent[1]?.key).toBe(sent[0]?.key)
+  expect(sent[1]?.text).toBe(sent[0]?.text)
+})
+
+test('challenge · refused, it says who can', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material&challenge=denied`)
+  await reviewPill(page).click()
+  await reviewCard(page).getByRole('button', { name: 'Challenge' }).click()
+  await challengeField(page).fill('Measure first, then decide.')
+  await reviewCard(page).getByRole('button', { name: 'Send' }).click()
+  await expect(reviewCard(page).getByRole('status')).toHaveText('Only editors and admins can challenge a review.')
+  // Settled: its receipt and its words, no line left to press in vain.
+  await expect(challengeField(page)).toHaveCount(0)
+  await expect(reviewCard(page).getByRole('button', { name: /^Send/ })).toHaveCount(0)
+  await expect(reviewCard(page).getByRole('button', { name: 'Challenge' })).toHaveCount(0)
+})
+
+test('challenge · Escape in its line closes the line, not the card; a draft is kept', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  await reviewCard(page).getByRole('button', { name: 'Challenge' }).click()
+  await challengeField(page).fill('Half a thought')
+  await page.keyboard.press('Escape')
+  await expect(reviewCard(page)).toBeVisible()
+  await expect(challengeField(page)).toHaveCount(0)
+  // The focus goes back to Challenge, so a second Escape closes the card.
+  await expect(reviewCard(page).getByRole('button', { name: 'Challenge' })).toBeFocused()
+  await reviewCard(page).getByRole('button', { name: 'Close' }).click()
+  await reviewPill(page).click()
+  await expect(challengeField(page)).toHaveValue('Half a thought')
+})
+
+test('challenge · none for a viewer who can’t act, nor on a review of an earlier revision', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material&editor=0`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeVisible()
+  await expect(reviewCard(page).getByRole('button', { name: 'Challenge' })).toHaveCount(0)
+  await page.goto(`${PAGE}?review=material-old`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeVisible()
+  await expect(reviewCard(page).getByRole('button', { name: 'Challenge' })).toHaveCount(0)
+})
+
+// ---- One live region per receipt (Codex P2 on #79): the same node says each step, so a screen reader hears the end. ----
+
+/** Marks a node in the page, to tell later whether it is still the same one. */
+const mark = (locator: Locator) => locator.evaluate((el) => el.setAttribute('data-checked-node', 'same'))
+
+test('receipts · a decision’s steps are said by one status that stays, empty before', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const ask = board(page).getByRole('region', { name: 'Davide decides' })
+  await expect(ask).toBeVisible({ timeout: 15_000 })
+  const said = ask.locator('[role="status"]')
+  await expect(said).toHaveText('')
+  await mark(said)
+  await ask.getByRole('button', { name: 'Ship it now' }).click()
+  await expect(said).toHaveText(/^Sent: Ship it now/)
+  await expect(said).toHaveAttribute('data-checked-node', 'same')
+})
+
+test('receipts · a challenge’s steps, sending to recorded, are said by one status that stays', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  // Marked before the line opens: opening it must not replace the status either.
+  const said = reviewCard(page).locator('.review-challenge [role="status"]')
+  await expect(said).toHaveText('')
+  await mark(said)
+  await reviewCard(page).getByRole('button', { name: 'Challenge' }).click()
+  await challengeField(page).fill('The large reports are rare.')
+  await reviewCard(page).getByRole('button', { name: 'Send' }).click()
+  await expect(said).toHaveText('Sending your challenge…')
+  await expect(said).toHaveText('Sent to the lead, for its next review.')
+  await expect(said).toHaveAttribute('data-checked-node', 'same')
+})

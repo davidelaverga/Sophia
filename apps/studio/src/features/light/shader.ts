@@ -1,6 +1,17 @@
 // Sophia's light as one fragment shader. Distances are in units of the light's radius, so the same light
 // fills a room or sits in a video tile. It draws light only: the canvas is composited with `screen`, so
 // where there is no light the page shows through and no edge is ever visible.
+import { UMBRAL, type UmbralHalf } from './threshold.ts'
+
+/** A number as GLSL reads it: always with its decimals. */
+const f = (n: number) => n.toFixed(2)
+/** A half of Umbral as coverage, its edges soft by `SOFT` grid units on either side. */
+const SOFT = 1.2
+const half = (h: UmbralHalf, side: 1 | -1) =>
+  `(1.0 - smoothstep(${f(h.r - SOFT)}, ${f(h.r + SOFT)}, length(g - vec2(${f(h.x)}, ${f(h.y)})))) * ` +
+  (side < 0
+    ? `(1.0 - smoothstep(${f(h.cut - SOFT)}, ${f(h.cut + SOFT)}, g.x))`
+    : `smoothstep(${f(h.cut - SOFT)}, ${f(h.cut + SOFT)}, g.x)`)
 
 export const VERTEX_SHADER = 'attribute vec2 a; void main() { gl_Position = vec4(a, 0.0, 1.0); }'
 
@@ -13,6 +24,11 @@ precision mediump float;
 uniform vec2 u_center, u_dir;
 uniform float u_time, u_radius, u_intensity, u_listen, u_think, u_speak, u_work, u_amp, u_swell, u_lean, u_reduced, u_flow, u_ignite;
 uniform vec3 u_halo, u_core, u_cool, u_ember;
+// The formed mark (Threshold.tsx): its centre and size in canvas pixels, where the light stands behind it on the
+// mark's 48 grid, and how far the mark has formed (0 = no mark, no rays and no cost).
+uniform vec3 u_mark;
+uniform vec2 u_source;
+uniform float u_occlude;
 
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float hash3(vec3 p) { p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -28,6 +44,29 @@ float fbm3(vec3 p) {
   float v = 0.0, a = 0.5;
   for (int i = 0; i < 4; i++) { v += a * noise3(p); p = p * 2.02 + vec3(1.3, 7.1, 3.7); a *= 0.5; }
   return v;
+}
+// Umbral on its 48 grid, as coverage: your half and hers, each a disc cut at the line between you. Its edges are
+// soft on purpose: seen from the light, a soft edge is a penumbra that widens with distance, as real shadows do.
+float umbral(vec2 g) {
+  float you = ${half(UMBRAL.you, -1)};
+  float her = ${half(UMBRAL.her, 1)};
+  return max(you, her);
+}
+// How much of the light behind the mark reaches g, looking back along the line to it: 1 in the open, low in the
+// shadow of a half. Sixteen samples over the light's own extent, where the mark is; the rest of the line is empty.
+float through(vec2 g, float jitter) {
+  vec2 back = g - u_source;
+  float dist = length(back);
+  vec2 dir = back / max(dist, 0.0001);
+  float reach = min(dist, 24.0);
+  float lit = 0.0, sum = 0.0;
+  for (int i = 0; i < 16; i++) {
+    float s = (float(i) + jitter) / 16.0 * reach;
+    float w = exp(-s * s / 180.0);
+    lit += w * (1.0 - umbral(u_source + dir * s));
+    sum += w;
+  }
+  return lit / sum;
 }
 // Toward the person she attends to, the light stretches a little, like a head turning.
 vec2 leaned(vec2 p, vec2 d, float amount) {
@@ -69,8 +108,26 @@ void main() {
   // Depth by temperature: white core, violet bloom, cooler air.
   vec3 bloomCol = mix(mix(u_halo, u_cool, u_think * 0.5), u_ember, u_work * 0.65);
   vec3 airCol = mix(bloomCol, u_cool, 0.45);
-  vec3 light = airCol * air * energy * 0.13 + bloomCol * bloom * energy * 0.62 + u_core * core * energy * 1.25
-    + bloomCol * (sweep * 0.4 + cone * 0.6) * u_intensity;
+
+  // Behind the formed mark: the halves block her light and it pours past them, through the line between you.
+  float shade = 1.0;
+  vec3 shafts = vec3(0.0);
+  if (u_occlude > 0.001) {
+    vec2 g = vec2(frag.x - u_mark.x, u_mark.y - frag.y) / u_mark.z * 48.0 + 24.0;
+    float far = length(g - u_source);
+    // Felt more than seen: soft shafts that fade within a few marks, never across the words below.
+    if (far < 120.0) {
+      float seen = through(g, hash(frag));
+      // A faint grain along the rays, drifting slowly, so they read as light in air rather than a drawn fan.
+      vec2 ray = (g - u_source) / max(far, 0.0001);
+      float streak = mix(1.0, 0.8 + 0.45 * (noise3(vec3(ray * 9.0, t * 0.06)) - 0.5), smoothstep(6.0, 30.0, far));
+      float fall = exp(-max(far - 4.0, 0.0) / 30.0);
+      shade = mix(1.0, 0.4 + 0.6 * seen, u_occlude);
+      shafts = mix(bloomCol, u_core, 0.35 * exp(-far / 6.0)) * seen * streak * fall * u_occlude * u_intensity * 0.5;
+    }
+  }
+  vec3 light = (airCol * air * energy * 0.13 + bloomCol * bloom * energy * 0.62) * shade + u_core * core * energy * 1.25
+    + bloomCol * (sweep * 0.4 + cone * 0.6) * u_intensity + shafts;
   vec3 col = 1.0 - exp(-light * 1.3);
   col += (hash(frag + fract(u_time)) - 0.5) * (1.5 / 255.0);
   gl_FragColor = vec4(max(col, 0.0), 1.0);

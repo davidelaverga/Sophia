@@ -3,19 +3,30 @@
 // worker- or web-derived text, so they appear only as items of JSON arrays, at most HEADINGS per list and HEADING
 // code points each, with a marker that would open a Sophia or Project turn neutralized; the service's own sentence
 // carries counts only. Sections are compared as Studio and 0036 compare them (compareSections), recomputed from the
-// texts rather than read from stored facts, whose 0027-era sections can show phantom revisions.
-import type {
-  ReportVersion,
-  ReportVersionText,
-  ResearchVersions,
-  SectionCounts,
-  TaskStanding,
-} from '@sophia/persistence'
+// texts rather than read from stored facts, whose 0027-era sections can show phantom revisions. read_selected_source
+// and project_status tell one comparison (comparedVersions), so the two never give different counts for a version.
+import type { ReportVersion, ReportVersionText, ResearchVersions } from '@sophia/persistence'
 import { compareSections, parseMarkdown, sectionsOf, type Block, type SectionChange } from '@sophia/report/markdown'
 
 /** At most this many headings in one list, each at most HEADING code points; the counts stay exact. */
 export const HEADINGS = 12
 export const HEADING = 80
+
+/**
+ * The longest report a follow-up can revise, in characters: 0037's rewrite_limit (research_task_statement), past which
+ * a follow-up is told to end with research_report_blocker and change nothing. Change the two together: research.db.test
+ * ("draws the line where 0037 does") fails while they differ.
+ */
+export const REVISABLE_CHARS = 20_000
+
+/** Said wherever a follow-up would be offered or started on a report longer than REVISABLE_CHARS. */
+export const TOO_LONG_TO_REVISE =
+  `A report this long (over ${new Intl.NumberFormat('en-US').format(REVISABLE_CHARS)} characters) cannot be ` +
+  'revised by a follow-up yet: one would end without a new version.'
+
+/** Whether the report's current version is longer than a follow-up can revise; unknown (null) is not. */
+export const tooLongToRevise = (current: Pick<ReportVersion, 'chars'> | null): boolean =>
+  (current?.chars ?? 0) > REVISABLE_CHARS
 
 /** What `text` is, said before it: the guide reads this first. */
 export const WORKER_SUMMARY_ABOUT =
@@ -51,10 +62,30 @@ const tablesIn = (text: string): number => countTables(parseMarkdown(text).block
 
 const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1 ? one : many}`
 
+/** A version's section counts against the version before it. */
+interface SectionCounts {
+  added: number
+  revised: number
+  removed: number
+  unchanged: number
+}
+
 /** The counts one version's facts are told by: sections against the version before, tables, citations. */
 interface Counts {
   sections: SectionCounts | null
   tables: { before: number; after: number } | null
+}
+
+/**
+ * How many of the sources cited are earlier versions of this report, which added and dropped leave out: without it,
+ * "2 sources cited (1 added, 1 dropped)" after a version that cited 1 would not add up. '' when none is.
+ */
+function earlierVersions(own: ReportVersion): string {
+  const n = own.citedVersions ?? 0
+  if (n === 0) return ''
+  return n === 1
+    ? ', 1 of them an earlier version of this report'
+    : `, ${String(n)} of them earlier versions of this report`
 }
 
 /** The comparison clause, counts only, or '' when nothing was compared. */
@@ -70,7 +101,7 @@ function comparison(previous: number, own: ReportVersion, counts: Counts): strin
   if (own.cited !== null) {
     const moved =
       own.added === null || own.dropped === null ? '' : ` (${String(own.added)} added, ${String(own.dropped)} dropped)`
-    parts.push(`${plural(own.cited, 'source', 'sources')} cited${moved}`)
+    parts.push(`${plural(own.cited, 'source', 'sources')} cited${earlierVersions(own)}${moved}`)
   }
   return parts.length === 0 ? '' : ` Compared with version ${String(previous)}: ${parts.join('; ')}.`
 }
@@ -111,7 +142,7 @@ const isLatest = (own: ReportVersion | null, current: ReportVersion | null) =>
 const textOf = (v: ReportVersionText | null): string | null => v?.text ?? null
 
 /** Each text's table count, parsed once however many of the versions share it. */
-function tableCounter() {
+export function tableCounter() {
   const seen = new Map<string, number>()
   return (v: ReportVersionText | null): number | null => {
     const text = textOf(v)
@@ -147,40 +178,61 @@ const versionFields = ({ own, previous, current }: ResearchVersions) => ({
 })
 
 /**
- * read_selected_source's facts for a research task: its version, the one it replaced, the report's current content
- * version and how each compares, from the texts and the stored citation counts.
+ * What this task's version changed against the one it replaced, compared from both texts, and the sentence of counts
+ * that says it: the one comparison both readers tell.
  */
-export function reportOf(v: ResearchVersions) {
-  const { own, previous, current, first } = v
+function comparedVersions(v: ResearchVersions, tables: ReturnType<typeof tableCounter>) {
+  const { own, previous, current } = v
   const change = compared(previous, own)
-  const since = current?.versionNumber === 1 ? null : compared(first, current)
-  const tables = tableCounter()
   const [before, after] = [tables(previous), tables(own)]
-  const currentText = textOf(current)
   const counts: Counts = {
     sections: change && countsOf(change),
     tables: before === null || after === null ? null : { before, after },
   }
+  return { change, before, after, changes: changesOf(own, previous, current, counts) }
+}
+
+/**
+ * read_selected_source's facts for a research task: its version, the one it replaced, the report's current content
+ * version and how each compares, from the texts and the stored citation counts.
+ */
+export function reportOf(v: ResearchVersions) {
+  const { own, current, first } = v
+  const since = current?.versionNumber === 1 ? null : compared(first, current)
+  const tables = tableCounter()
+  const { change, before, after, changes } = comparedVersions(v, tables)
+  const currentText = textOf(current)
   return {
     computedBy: 'service',
     ...versionFields(v),
-    changes: changesOf(own, previous, current, counts),
+    changes,
     sections: change && sectionLists(change),
     currentSections: currentText === null ? null : listOf(headingsOf(currentText)),
     sinceFirstVersion: since && sectionLists(since),
     tables: { thisVersion: after, previousVersion: before, currentVersion: tables(current) },
-    citations: own && { cited: own.cited, added: own.added, dropped: own.dropped },
+    citations: own && {
+      cited: own.cited,
+      ...((own.citedVersions ?? 0) > 0 ? { earlierVersions: own.citedVersions } : {}),
+      added: own.added,
+      dropped: own.dropped,
+    },
     rendition: { pdf: own?.pdf ?? false },
   }
 }
 
-/** project_status's facts for a research task's row: from the stored counts alone, no text is parsed. */
-export function statusReportOf(s: TaskStanding) {
-  const { published, previous, current } = s
+/**
+ * project_status's facts for a research task's row: read_selected_source's own sentence of counts (comparedVersions),
+ * from the same texts, and, when the report is too long for a follow-up to revise, that it is (TOO_LONG_TO_REVISE):
+ * the guide is told elsewhere to revise a finished report with a follow-up. `tables` counts each text once across the
+ * rows of one status.
+ */
+export function statusReportOf(v: ResearchVersions, tables = tableCounter()) {
+  const { own, current } = v
   return {
-    version: published?.versionNumber ?? null,
-    latest: isLatest(published, current),
+    version: own?.versionNumber ?? null,
+    latest: isLatest(own, current),
     currentVersion: current?.versionNumber ?? null,
-    changes: changesOf(published, previous, current, { sections: published?.sections ?? null, tables: null }),
+    changes: comparedVersions(v, tables).changes,
+    ...(tooLongToRevise(current) ? { followUp: TOO_LONG_TO_REVISE } : {}),
   }
 }

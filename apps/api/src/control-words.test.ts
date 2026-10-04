@@ -11,6 +11,7 @@ import {
   type Control,
   type Refused,
 } from './control-words.ts'
+import { REVISABLE_CHARS, TOO_LONG_TO_REVISE } from './report-facts.ts'
 
 const TASK = '00000000-0000-4000-8000-0000000000a1'
 const NEXT = '00000000-0000-4000-8000-0000000000a2'
@@ -24,9 +25,10 @@ const v = (n: number): ReportVersion => ({
   renditionOnly: false,
   pdf: false,
   cited: 1,
+  citedVersions: 0,
   added: 1,
   dropped: 0,
-  sections: null,
+  chars: 3000,
 })
 
 /** One task, under way unless `over` says otherwise; its goal has nothing else under way unless `over` adds it. */
@@ -131,6 +133,22 @@ describe('control_work’s explanation table', () => {
     assert.doesNotMatch(refused('steer', done, { researchGate: false }).next ?? '', /start_research/)
     assert.equal(refused('stop', done).next, undefined, 'only a steer meant a change to the report')
     assert.equal(refused('steer', { ...done, kind: 'draft_brief' }).next, undefined)
+  })
+
+  it('says a report too long for a follow-up cannot be revised by one yet, instead of offering one (0037)', () => {
+    const long = { ...v(2), chars: REVISABLE_CHARS + 1 }
+    const finished = standing({ goalStatus: 'completed', state: 'succeeded', published: v(1), current: long })
+    const blocked = standing({ state: 'failed', phase: 'failed', published: null, current: long })
+    for (const s of [finished, blocked]) {
+      const out = refused('steer', { ...s, latestTaskId: NEXT })
+      assert.equal(out.next, `${TOO_LONG_TO_REVISE} Do not offer one.`, out.code)
+      assert.doesNotMatch(out.next ?? '', /amendsTaskId/)
+    }
+    assert.match(TOO_LONG_TO_REVISE, /over 20,000 characters/)
+    const atLimit = { ...finished, current: { ...long, chars: REVISABLE_CHARS }, latestTaskId: NEXT }
+    assert.match(refused('steer', atLimit).next ?? '', new RegExp(`amendsTaskId ${NEXT}\\)`), 'one at the limit can be')
+    const unread = { ...finished, current: { ...long, chars: null }, latestTaskId: NEXT }
+    assert.match(refused('steer', unread).next ?? '', /amendsTaskId/, 'a length not read is not too long')
   })
 
   it('reads a task’s state from its own job, so a held goal never hides a finished task', () => {

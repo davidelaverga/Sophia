@@ -21,6 +21,7 @@ import {
   notesShown,
   progressRatio,
   progressText,
+  quotedHeadings,
   renditionRefusal,
   renditionWords,
   reportFilename,
@@ -195,6 +196,9 @@ describe('a version’s chips come from its facts, never its notes', () => {
   })
 })
 
+/** No source is one of the report's own versions. */
+const NONE: ReadonlySet<string> = new Set()
+
 /** Sections as the service stores them: none unless given. */
 const sectionFacts = (s: Partial<Record<'added' | 'revised' | 'removed' | 'unchanged', string[]>>) => ({
   added: [],
@@ -249,10 +253,10 @@ const amended = (
 describe('a version’s facts line, first in its history entry (CX-0026)', () => {
   it('names the sections removed and added and counts the sources, from the facts alone', () => {
     assert.equal(
-      factsLine(PILOT, 1),
-      'Compared with v1: 7 sections removed: Summary, Compatibility and standards, Charging speed in practice, ' +
-        'Product claims vs. evidence, Comparison table, Recommendations for buyers, Limitations of this review; ' +
-        '2 added: Revised recommendations, Sources. Cited sources: 5 dropped, 1 added.',
+      factsLine(PILOT, 1, NONE),
+      'Compared with v1: 7 sections removed: “Summary”, “Compatibility and standards”, “Charging speed in practice”, ' +
+        '“Product claims vs. evidence”, “Comparison table”, “Recommendations for buyers”, “Limitations of this review”; ' +
+        '2 added: “Revised recommendations”, “Sources”. Cited sources: 5 dropped, 1 added.',
       'the sources count is "Cited sources", which the section called Sources cannot be read into',
     )
     assert.deepEqual(
@@ -260,97 +264,163 @@ describe('a version’s facts line, first in its history entry (CX-0026)', () =>
       ['Recommendations changed'],
       'nothing the line says is said again as a chip',
     )
-    assert.equal(factsLine(amended({ added: ['Pricing'] }), 1), 'Compared with v1: 1 section added: Pricing.')
+    assert.equal(factsLine(amended({ added: ['Pricing'] }), 1, NONE), 'Compared with v1: 1 section added: “Pricing”.')
     assert.equal(
-      factsLine(amended({ removed: ['Costs'] }, { dropped: ['a'] }), 2),
-      'Compared with v2: 1 section removed: Costs. Cited sources: 1 dropped.',
+      factsLine(amended({ removed: ['Costs'] }, { dropped: ['a'] }), 2, NONE),
+      'Compared with v2: 1 section removed: “Costs”. Cited sources: 1 dropped.',
     )
   })
 
   it('keeps revised sections a count, never names them, and says when none came or went', () => {
     const revised = amended({ revised: ['Pros', 'Cons', 'Pros', 'Cons'], unchanged: ['Options'] })
-    assert.equal(factsLine(revised, 1), 'Compared with v1: no section added or removed.')
+    assert.equal(factsLine(revised, 1, NONE), 'Compared with v1: no section added or removed.')
     assert.deepEqual(
       factChips({ versionNumber: 2, ...revised }).map((c) => c.label),
       ['4 revised'],
     )
   })
 
+  it('quotes each heading, so one the worker wrote never reads as the service’s own words', () => {
+    const line = factsLine(
+      amended({ removed: ['Comparison table; no section added or removed'], added: ['All other sections unchanged'] }),
+      1,
+      NONE,
+    )
+    assert.equal(
+      line,
+      'Compared with v1: 1 section removed: “Comparison table; no section added or removed”; ' +
+        '1 added: “All other sections unchanged”.',
+    )
+    assert.equal(
+      factsLine(amended({ added: ['The “rest”” unchanged'] }), 1, NONE),
+      'Compared with v1: 1 section added: “The "rest"" unchanged”.',
+      'a heading’s own quotes never close the quote',
+    )
+  })
+
+  it('quotes every heading of a comparison’s lists, so one with a comma never reads as two sections', () => {
+    assert.equal(
+      quotedHeadings(['Pros, cons and trade-offs', 'Pricing', 'The “rest” unchanged']),
+      '“Pros, cons and trade-offs”, “Pricing”, “The "rest" unchanged”',
+    )
+    const long = `A heading that runs on ${'and on '.repeat(10)}`
+    assert.equal(quotedHeadings([long]), `“${long}”`, 'named whole: the comparison is where a heading is read in full')
+  })
+
   it('names at most eight headings of a list, each cut short past 60 characters', () => {
     const long = `A heading that runs on ${'and on '.repeat(10)}`
     const removed = [long, ...Array.from({ length: 9 }, (_, i) => `Part ${i + 1}`)]
-    const line = factsLine(amended({ removed }), 1) ?? ''
-    assert.ok(line.startsWith(`Compared with v1: 10 sections removed: ${long.slice(0, 59)}…, Part 1, `), line)
-    assert.ok(line.endsWith('Part 7 and 2 more.'), line)
+    const line = factsLine(amended({ removed }), 1, NONE) ?? ''
+    assert.ok(line.startsWith(`Compared with v1: 10 sections removed: “${long.slice(0, 59)}…”, “Part 1”, `), line)
+    assert.ok(line.endsWith('“Part 7” and 2 more.'), line)
   })
 
   it('counts a heading’s characters as the service does, never cutting a character in two', () => {
-    const cut = factsLine(amended({ added: [`${'x'.repeat(58)}🚀 launch plan`] }), 1) ?? ''
-    assert.equal(cut, `Compared with v1: 1 section added: ${'x'.repeat(58)}🚀….`, 'the emoji kept whole before the cut')
+    const cut = factsLine(amended({ added: [`${'x'.repeat(58)}🚀 launch plan`] }), 1, NONE) ?? ''
+    assert.equal(
+      cut,
+      `Compared with v1: 1 section added: “${'x'.repeat(58)}🚀…”.`,
+      'the emoji kept whole before the cut',
+    )
     assert.doesNotMatch(cut, /[\ud800-\udbff](?![\udc00-\udfff])/, 'no half of a character')
     const whole = `${'x'.repeat(59)}🚀` // 60 characters, 61 UTF-16 units
-    assert.equal(factsLine(amended({ added: [whole] }), 1), `Compared with v1: 1 section added: ${whole}.`)
+    assert.equal(factsLine(amended({ added: [whole] }), 1, NONE), `Compared with v1: 1 section added: “${whole}”.`)
+  })
+
+  it('never counts the report’s own versions as sources, as a follow-up that listed its base stored them', () => {
+    const own = new Set(['v1-source', 'v2-source'])
+    // v2 listed its base beside the source it read; v3 listed its own base and not v2's, and kept every citation.
+    const second = amended({ revised: ['Recommendations'] }, { added: ['v1-source', 'new'], dropped: ['old'] })
+    assert.equal(
+      factsLine(second, 1, own),
+      'Compared with v1: no section added or removed. Cited sources: 1 dropped, 1 added.',
+    )
+    const third = {
+      ...amended({ revised: ['Summary'] }, { added: ['v2-source'], dropped: ['v1-source'] }),
+      changeNote: 'Tightened the summary.',
+    }
+    assert.equal(factsLine(third, 2, own), 'Compared with v2: no section added or removed.')
+    assert.deepEqual([notesNeedFacts(third, own), notesShown(third, own)], [false, 'open'], 'its honest notes in sight')
+    assert.equal(notesShown(third, NONE), 'folded', 'the base counted as a source reads as one dropped')
   })
 
   it('says a version that only adds the PDF shares the text of the one before', () => {
     const pdf = amended({ unchanged: ['Report'] }, {}, { notesFromFacts: true, renditionOnly: true })
-    assert.equal(factsLine(pdf, 3), 'Same text as v3; adds the PDF.')
+    assert.equal(factsLine(pdf, 3, NONE), 'Same text as v3; adds the PDF.')
   })
 
   it('says nothing for a first version, or without facts; the version before when the list lacks it', () => {
-    assert.equal(factsLine({ parentId: null, changeFacts: { cited: 2, added: ['a', 'b'], dropped: [] } }, null), null)
-    assert.equal(factsLine({ parentId: 'v1' }, 1), null)
     assert.equal(
-      factsLine(amended({ added: ['Pricing'] }), null),
-      'Compared with the version before: 1 section added: Pricing.',
+      factsLine({ parentId: null, changeFacts: { cited: 2, added: ['a', 'b'], dropped: [] } }, null, NONE),
+      null,
+    )
+    assert.equal(factsLine({ parentId: 'v1' }, 1, NONE), null)
+    assert.equal(
+      factsLine(amended({ added: ['Pricing'] }), null, NONE),
+      'Compared with the version before: 1 section added: “Pricing”.',
     )
     const older = { parentId: 'v1', changeFacts: { cited: 1, added: [], dropped: ['a'] } }
     assert.equal(
-      factsLine(older, 1),
+      factsLine(older, 1, NONE),
       'Cited sources compared with v1: 1 dropped.',
       'a version published before sections',
     )
-    assert.equal(factsLine({ ...older, changeFacts: { ...older.changeFacts, dropped: [] } }, 1), null)
+    assert.equal(factsLine({ ...older, changeFacts: { ...older.changeFacts, dropped: [] } }, 1, NONE), null)
   })
 })
 
 describe('whether a version’s notes fold under its facts (CX-0026)', () => {
   it('folds them when a section was removed with none of its name left, or sources were dropped', () => {
-    assert.equal(notesNeedFacts(PILOT), true)
-    assert.equal(notesNeedFacts(amended({ removed: ['Comparison table'], unchanged: ['Summary'] })), true)
-    assert.equal(notesNeedFacts(amended({ revised: ['Summary'] }, { dropped: ['a'] })), true, 'a source dropped')
+    assert.equal(notesNeedFacts(PILOT, NONE), true)
+    assert.equal(notesNeedFacts(amended({ removed: ['Comparison table'], unchanged: ['Summary'] }), NONE), true)
+    assert.equal(notesNeedFacts(amended({ revised: ['Summary'] }, { dropped: ['a'] }), NONE), true, 'a source dropped')
   })
 
   it('keeps them open when a removed heading still names a section, by its anchor as the service reads it', () => {
-    assert.equal(notesNeedFacts(amended({ removed: ['Pros'], revised: ['Pros'], unchanged: ['Cons'] })), false)
-    assert.equal(notesNeedFacts(amended({ removed: ['**Pros:**'], unchanged: ['Pros'] })), false, 'markup dropped')
-    assert.equal(notesNeedFacts(amended({ removed: ['Old pricing'], added: ['New pricing'] })), true, 'a new name')
-    assert.equal(notesNeedFacts(amended({ revised: ['Pricing'] }, { added: ['a'] })), false, 'a source added')
-    assert.equal(notesNeedFacts({ changeFacts: { cited: 1, added: [], dropped: [] } }), false, 'no sections')
-    assert.equal(notesNeedFacts({}), false, 'no facts')
+    assert.equal(notesNeedFacts(amended({ removed: ['Pros'], revised: ['Pros'], unchanged: ['Cons'] }), NONE), false)
+    assert.equal(
+      notesNeedFacts(amended({ removed: ['**Pros:**'], unchanged: ['Pros'] }), NONE),
+      false,
+      'markup dropped',
+    )
+    assert.equal(
+      notesNeedFacts(amended({ removed: ['Old pricing'], added: ['New pricing'] }), NONE),
+      true,
+      'a new name',
+    )
+    assert.equal(notesNeedFacts(amended({ revised: ['Pricing'] }, { added: ['a'] }), NONE), false, 'a source added')
+    assert.equal(notesNeedFacts({ changeFacts: { cited: 1, added: [], dropped: [] } }, NONE), false, 'no sections')
+    assert.equal(notesNeedFacts({}, NONE), false, 'no facts')
   })
 
   it('never folds notes the service wrote from the facts, nor a version that only adds the PDF', () => {
-    assert.equal(notesNeedFacts({ changeFacts: { ...PILOT.changeFacts, notesFromFacts: true } }), false)
+    assert.equal(notesNeedFacts({ changeFacts: { ...PILOT.changeFacts, notesFromFacts: true } }, NONE), false)
     const pdf = amended({ removed: ['Costs'] }, { dropped: ['a'] }, { renditionOnly: true })
-    assert.equal(notesNeedFacts(pdf), false)
+    assert.equal(notesNeedFacts(pdf, NONE), false)
   })
 
   it('shows them open, folded, or not at all when the service wrote them from the facts', () => {
     const notes = { changeNote: 'Revised the recommendations.', retainedNote: 'The rest is unchanged.' }
-    assert.equal(notesShown({ ...PILOT, ...notes }), 'folded')
-    assert.equal(notesShown({ ...amended({ revised: ['Pricing'] }), changeNote: 'Expanded the pricing.' }), 'open')
-    assert.equal(notesShown({ parentId: 'v1', retainedNote: 'Everything in v1 is kept' }), 'open', 'a kept note alone')
+    assert.equal(notesShown({ ...PILOT, ...notes }, NONE), 'folded')
+    assert.equal(
+      notesShown({ ...amended({ revised: ['Pricing'] }), changeNote: 'Expanded the pricing.' }, NONE),
+      'open',
+    )
+    assert.equal(
+      notesShown({ parentId: 'v1', retainedNote: 'Everything in v1 is kept' }, NONE),
+      'open',
+      'a kept note alone',
+    )
     const fromFacts = { ...PILOT, changeFacts: { ...PILOT.changeFacts, notesFromFacts: true }, ...notes }
-    assert.equal(notesShown(fromFacts), null, 'the facts line says the same')
-    assert.equal(notesShown(PILOT), null, 'no notes')
+    assert.equal(notesShown(fromFacts, NONE), null, 'the facts line says the same')
+    assert.equal(notesShown(PILOT, NONE), null, 'no notes')
   })
 
   it('shows none on a first version, whose note is the service’s own (0027), never Sophia’s', () => {
     const first = { cited: 2, added: ['a', 'b'], dropped: [], notesFromFacts: false, sections: sectionFacts({}) }
-    assert.equal(notesShown({ parentId: null, changeNote: 'First version', changeFacts: first }), null)
+    assert.equal(notesShown({ parentId: null, changeNote: 'First version', changeFacts: first }, NONE), null)
     assert.equal(
-      notesShown({ parentId: null, changeNote: 'A report on the pricing.' }),
+      notesShown({ parentId: null, changeNote: 'A report on the pricing.' }, NONE),
       null,
       'nor words never checked',
     )

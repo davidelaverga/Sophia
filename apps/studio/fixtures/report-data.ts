@@ -63,6 +63,8 @@ const TEXTS: readonly Text[] = [
 
 /** The pilot-shaped first version's own source, which its second cites in place of the five sources it dropped. */
 const PILOT_V1_SOURCE = '00000000-0000-4000-8000-0000000000c4'
+/** The pilot-shaped second version's own source, which its third cites, as its base, in place of the first's. */
+const PILOT_V2_SOURCE = '00000000-0000-4000-8000-0000000000c5'
 /** The five sources the pilot-shaped first version cites: the one page, and four more. */
 const PILOT_CITED = [CITED, ...['cb', 'cc', 'cd', 'ce'].map((id) => `00000000-0000-4000-8000-0000000000${id}`)]
 
@@ -88,7 +90,7 @@ const PILOT_TEXTS: readonly Text[] = [
     text: `# Fixture report\n\n${PILOT_INTRO}\n\n## Summary\n\nWhat the fixture compares, in short.\n\n## Compatibility and standards\n\nWhich standard each fixture product follows.\n\n## Charging speed in practice\n\nHow fast each one charges, as the fixture measured it.\n\n## Product claims vs. evidence\n\nWhat each product claims, beside what was found.\n\n## Comparison table\n\n| Product | Standard | Speed |\n| --- | --- | --- |\n| A | One | Fast |\n| B | Two | Slow |\n\n## Recommendations for buyers\n\nBuy A for speed.\n\n## Limitations of this review\n\nThe fixture measures nothing real.\n`,
   },
   {
-    sourceId: '00000000-0000-4000-8000-0000000000c5',
+    sourceId: PILOT_V2_SOURCE,
     sha256: 'aa629f71da26a81d735109a3a4b4fe3e061fa31290d6cc223b3141fc1d1cc940',
     text: `# Fixture report\n\n${PILOT_INTRO}\n\n## Revised recommendations\n\nBuy A for speed, or B to spend less.\n\n## Sources\n\n- The first version of this report.\n`,
   },
@@ -143,8 +145,9 @@ const V2: VersionNotes = {
 
 /**
  * The pilot-shaped second version: what 0036 section_facts gives for its two texts (seven sections removed, two
- * added, the title alone unchanged), its five sources dropped and the first version cited in their place, and notes
- * that say the rest was kept, as the pilot's did (synthetic words). They passed the truth gate as it stood (0036).
+ * added, the title alone unchanged), its five sources dropped and the first version cited in their place (a version of
+ * the report, never counted as a source added), and notes that say the rest was kept, as the pilot's did (synthetic
+ * words). They passed the truth gate as it stood (0036).
  */
 const PILOT_V2: VersionNotes = {
   changeNote: 'Revised the recommendations; the rest of the report is unchanged.',
@@ -174,7 +177,9 @@ const PILOT_V2: VersionNotes = {
 
 /**
  * The pilot-shaped third version: what 0036 section_facts gives against the second (LONG_HEADING added, the rest
- * unchanged), the same source cited, and notes that agree with it, one of them naming a file a line cannot break in.
+ * unchanged), and notes that agree with it, one of them naming a file a line cannot break in. It lists its own base,
+ * the second version, among its citations, and not the first, as stored before 0037 left versions out (CX-0026): the
+ * report's own versions, neither a source added nor one dropped.
  */
 const PILOT_V3: VersionNotes = {
   changeNote:
@@ -182,8 +187,8 @@ const PILOT_V3: VersionNotes = {
   retainedNote: 'The recommendations and the sources are unchanged.',
   changeFacts: {
     cited: 1,
-    added: [],
-    dropped: [],
+    added: [PILOT_V2_SOURCE],
+    dropped: [PILOT_V1_SOURCE],
     notesFromFacts: false,
     sections: {
       added: [LONG_HEADING],

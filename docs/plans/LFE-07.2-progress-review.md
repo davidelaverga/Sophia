@@ -28,8 +28,13 @@ A second "Review progress" on the board would ask for the same thing twice, so L
 ## Three slices, one pull request each
 
 1. **The review, said (this note's first PR):** the goal's quiet line shows the review that is running, joined or awaiting, and how the last one ended. A routine end stays in that line (PLAN-01, PLAN-04).
-2. **The result:** a card in four parts (observed, reading, unsure, proposed), each part with its evidence: what kind it is and how long ago it was observed. It also shows a result from an older revision. It shares the slot under the bar with the decisions, one at a time.
-3. **Challenge:** the coordination contract has no command kind for it yet. It is proposed as `context_update`, with `caused_by_command_id` set to the review.
+2. **The result (done in attempt 4):**
+   - a card in four parts: observed, reading, unsure and proposed;
+   - each Observed line is led by its evidence (what kind, how long ago it was observed) and ends with what it was;
+   - a result from an older revision says so, and its proposal is only read;
+   - it shares the slot under the bar with the decisions, one at a time;
+   - a proposal waiting on the viewer's own open decision opens it. One waiting on someone else's names them.
+3. **Challenge:** the coordination contract has no command kind for it yet. It is proposed as `context_update`, with `caused_by_command_id` set to the review. See "Challenge" below.
 
 ## The goal's line
 
@@ -45,7 +50,7 @@ The line sits after the plan's revision, on the goal's second line (`PlanNext`).
 - **Ended:**
   - "Reviewed 12 min ago · no change";
   - "· not enough to tell until *the retry passes*";
-  - "· a change proposed" (its card comes in slice 2);
+  - "· a change proposed" (its card opens from the pill in the board's bar);
   - "The last review didn't finish".
 
   None of these makes a card or a `role=status` announcement (PLAN-04).
@@ -72,11 +77,32 @@ The fixture answers the goal's command (`fixture-api`'s command route) as the le
 - with one running, it joins it;
 - `review=running`, `scheduled`, `old` and `awaiting` open with a review in that state.
 
+## Challenge (slice 3)
+
+The spec says that material changes "show evidence and a way to challenge". A challenge tells the lead why a proposal doesn't hold. It is context for the lead's next review, not a veto: it undoes nothing by itself.
+
+- **Who and when:**
+  - only someone who can act on the work (the Tasks view's `canAct`), so a viewer sees no button;
+  - only on a review of the plan's current revision. A review of an earlier revision is read only.
+- **Where:** in the card, after Proposed: **Challenge**, a quiet text button. Pressed, it opens one line for the reason and a **Send** button, in the guidance field's style (`.act-guide`).
+  - Escape in the field closes the field and keeps the card.
+  - The draft is kept per review and viewer while the page lives, so closing the card loses nothing.
+- **Receipts**, said where it was asked, as an act's are:
+  - sending: "Sending your challenge…";
+  - recorded: "Sent to the lead, for its next review." The reason stays quoted under it, and the field closes. A refusal settles the same way;
+  - not confirmed: "Not confirmed. Sending again can't send it twice." Sending again uses the same key, even after the card was closed and opened;
+  - refused: "Only editors and admins can challenge a review."
+- **Data:** the Studio's port is `challenge(review, text, key)`, which returns `recorded`, `denied` or `unknown` (a rejection means `unknown`). For SCM-04 it is a coordination command:
+  - `kind: 'context_update'`, `delivery: 'next_eligible_episode'`;
+  - `caused_by_command_id`: the review's command;
+  - `content_ref`: the reason's source.
+
+  The fixture answers `challenge=unknown | denied` (recorded by default) and lists what was sent in `workFixture.challenges`.
+
 ## Not in this slice
 
 - Scheduled reviews and their interval (SCM-04's timer).
 - Asking Sophia for a review by voice or chat.
-- The result card and Challenge (slices 2 and 3).
 
 ## Checks
 

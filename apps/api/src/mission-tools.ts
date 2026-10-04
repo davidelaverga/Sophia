@@ -19,7 +19,7 @@ import {
   readMissionSource,
   readNativeTask,
   readResearchVersion,
-  readTaskStandings,
+  readResearchVersions,
   recordMissionEntry,
   researchGateOpen,
   withActor,
@@ -123,7 +123,7 @@ export async function projectStatus(ctx: ToolContext): Promise<MediaToolResult> 
     const v12 = ctx.call.guide === 'v1.2'
     const read = await withActor(ctx.pool, ctx.actorId, 'read', async (c) => {
       const context = await readMissionContext(c, ctx.projectId, { actorId: ctx.actorId, channel: 'voice' })
-      const tasks = (context?.work ?? []).flatMap((w) => (w.taskId === null ? [] : [w.taskId]))
+      const taskIds = (context?.work ?? []).flatMap((w) => (w.taskId === null ? [] : [w.taskId]))
       return {
         context,
         discussion: await readDiscussion(c, ctx.projectId),
@@ -132,8 +132,9 @@ export async function projectStatus(ctx: ToolContext): Promise<MediaToolResult> 
         pdf: v12 ? await pdfRendererReady(c) : undefined,
         // Likewise start_research, which admission refuses while the project's research gate is closed (0025).
         researchGate: v12 ? await researchGateOpen(c, ctx.projectId) : undefined,
-        // And Steer, and what a report's versions say: each task's own state and its report (CX-0026, CX-0027).
-        standings: v12 ? await readTaskStandings(c, ctx.projectId, tasks) : undefined,
+        // And Steer, and what a report's versions say: each task's own state and its report, from the texts
+        // read_selected_source compares (CX-0026, CX-0027).
+        tasks: v12 ? await readResearchVersions(c, ctx.projectId, taskIds) : undefined,
       }
     })
     if (!read.context) return { status: 'refused', output: { readState: 'unavailable', reason: 'Not permitted' } }

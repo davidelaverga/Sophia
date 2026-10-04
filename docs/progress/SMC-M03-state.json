@@ -5,14 +5,14 @@
   "repository": "davidelaverga/Sophia",
   "branch": "claude/smc-m03-research",
   "base_commit": "ba983e7",
-  "candidate_commit": "4a33c2b",
+  "candidate_commit": "5c068ae",
   "implementation_pr": 32,
   "coordination_issue": 31,
   "status": {
     "source": "in_progress",
     "merge": "not_requested",
     "release": "authorized_in_progress",
-    "hosted_verification": "partial: 6ec64f3 piloted in production (CX-0019..0023: research by voice end to end; findings fixed in 4a33c2b); 4a33c2b not deployed",
+    "hosted_verification": "partial: 1e912b7 deployed with 0036 (OP-0001 r6, CX-0027); production acceptance blocked by CX-0026/0027; fixed in 5c068ae (0037, API, Studio, bridge; SMC-M03.md §40), not deployed",
     "product_acceptance": "not_requested"
   },
   "owners": {
@@ -296,6 +296,16 @@
         "pnpm --filter @sophia/studio test:browser (118 checks; each new one failing without its fix)"
       ],
       "ref": "docs/progress/SMC-M03.md#39-the-pilots-findings-cx-00190023-the-fact-checks-0036-and-html-reports-2026-10-03"
+    },
+    {
+      "slice": "CX-0026..0032 acceptance fixes (0037, API, Studio, bridge)",
+      "commands": [
+        "pnpm check",
+        "pnpm test:sql",
+        "pnpm test:db",
+        "test:browser"
+      ],
+      "ref": "docs/progress/SMC-M03.md#40-production-acceptance-cx-00260032-preservation-a-truthful-history-facts-for-the-guide-steers-and-the-guides-handoff-2026-100304"
     }
   ],
   "outstanding_operations": [

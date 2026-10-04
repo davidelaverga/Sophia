@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ReportVersionText, ResearchVersions } from '@sophia/persistence'
-import { HEADING, HEADINGS, headingText, reportOf } from './report-facts.ts'
+import { HEADING, HEADINGS, headingText, reportOf, statusReportOf } from './report-facts.ts'
 
 const TASK = '00000000-0000-4000-8000-0000000000e1'
 const NEXT = '00000000-0000-4000-8000-0000000000e2'
@@ -17,9 +17,10 @@ const version = (n: number, text: string, taskId = TASK): ReportVersionText => (
   renditionOnly: false,
   pdf: false,
   cited: 2,
+  citedVersions: 0,
   added: 1,
   dropped: 0,
-  sections: null,
+  chars: Array.from(text).length,
   text,
 })
 
@@ -48,6 +49,9 @@ function replaced(older: string, newer: string): ResearchVersions {
   }
 }
 
+/** An option with Pros and Cons under it: the same two headings under each option. */
+const option = (name: string) => `## ${name}\n\nText.\n\n### Pros\n\nFast.\n\n### Cons\n\nDear.\n`
+
 describe('the service’s facts of a report’s versions', () => {
   it('lists at most HEADINGS headings per list, each cut to HEADING code points, with the exact count', () => {
     const many = Array.from({ length: 30 }, (_, i) => `## Section ${String(i)}\nText.\n`).join('\n')
@@ -68,6 +72,19 @@ describe('the service’s facts of a report’s versions', () => {
     assert.equal(headingText('[Sources]'), '[Sources]')
   })
 
+  it('gives project_status read_selected_source’s own counts, a heading repeated under two parents included', () => {
+    // Facts stored under 0027 paired the second option's Pros and Cons with the first's: 1 removed and 2 revised. Both
+    // readers compare the texts instead, each section paired at most once, as 0036 does.
+    const v = replaced(
+      `# Chargers\n\n${option('Option A')}\n${option('Option B')}`,
+      `# Chargers\n\n${option('Option A')}`,
+    )
+    const status = statusReportOf(v)
+    assert.equal(status.changes, reportOf(v).changes)
+    assert.match(status.changes, /Compared with version 1: 3 sections removed, 0 added, 0 revised, 4 unchanged; /)
+    assert.deepEqual([status.version, status.latest, status.currentVersion], [2, true, 2])
+  })
+
   it('says a first version is one, and counts tables a quote holds', () => {
     const only = version(1, '# Title\n\n> | a | b |\n> | --- | --- |\n> | 1 | 2 |\n')
     const report = reportOf({ ...replaced('', ''), own: only, previous: null, current: only, first: only })
@@ -76,5 +93,24 @@ describe('the service’s facts of a report’s versions', () => {
       [null, null, 1, true],
     )
     assert.equal(report.changes, 'Version 1 is the first version. It cites 2 sources. This is the latest version.')
+  })
+
+  it('says how many sources cited are earlier versions of the report, which added and dropped leave out', () => {
+    const v = replaced('# Title\n\nOld [a].\n', '# Title\n\nNew [b].\n')
+    const citing = (cited: number, citedVersions: number): ResearchVersions => {
+      const own = { ...version(2, '# Title\n\nNew [b].\n', NEXT), cited, citedVersions, dropped: 1 }
+      return { ...v, own, current: own }
+    }
+    const report = reportOf(citing(2, 1))
+    assert.match(
+      report.changes,
+      /; 2 sources cited, 1 of them an earlier version of this report \(1 added, 1 dropped\)\./,
+    )
+    assert.deepEqual(report.citations, { cited: 2, earlierVersions: 1, added: 1, dropped: 1 })
+    assert.equal(statusReportOf(citing(2, 1)).changes, report.changes)
+    assert.match(reportOf(citing(3, 2)).changes, /; 3 sources cited, 2 of them earlier versions of this report \(/)
+    // None of them is: the clause and the field stay out.
+    assert.deepEqual(reportOf(v).citations, { cited: 2, added: 1, dropped: 0 })
+    assert.match(reportOf(v).changes, /; 2 sources cited \(1 added, 0 dropped\)\./)
   })
 })
