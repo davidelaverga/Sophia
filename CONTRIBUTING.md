@@ -620,14 +620,18 @@ when you change the room:
   (M75). Inside the piece all but the word's last character wraps as text
   does (`BoundWord`, `.cite-wrap`), so a long link, an address or emoji
   never runs past the column (M75-RF-0005); a word joiner does not hold the
-  citation in Chromium, the last character in the nowrap piece does.
+  citation in Chromium, the last character in the nowrap piece does. Its
+  segmenter is made on first use (`lastGrapheme`, with a test that loads the
+  module without one): Firefox before 125 has no `Intl.Segmenter`, and one
+  made when the module loaded would stop the whole Studio from loading.
   Past three numbers a group may wrap after a comma, never before one. A
   number is 0.8 of the text, with a finger-sized target on a touch screen
   (an empty `::after`, none in a table, whose frame it would make scroll),
   and each target is its own (M75-RF-0001, `report-reading.spec.ts`): it
   reaches 4 px into the words beside it, never across a group's comma, into
   a link, or across fewer than three characters to another group
-  (`flushSides` marks those sides, M75-RF-0004), and stays shorter than the
+  (`flushSides` marks those sides, reading past the end of bold or emphasis,
+  M75-RF-0004), and stays shorter than the
   step between its lines, so no press belongs to two citations or takes a
   link's. A
   citation of a source read in part, as a snippet or not at all is dotted

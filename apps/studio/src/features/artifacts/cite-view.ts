@@ -184,84 +184,119 @@ function boundPart(tail: string): string {
   return chars.slice(from).join('')
 }
 
-const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+/** The grapheme segmenter, made on first use; null where the browser has none. Made when the module loaded, it stopped
+ * the Studio from loading at all in Firefox before 125, which has no Intl.Segmenter (report-view.ts avoids it too). */
+let graphemes: Intl.Segmenter | null | undefined
+
+function segmenter(): Intl.Segmenter | null {
+  if (graphemes === undefined) {
+    // Firefox before 125 has no Intl.Segmenter, whatever the types say.
+    graphemes = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null
+  }
+  return graphemes
+}
 
 /**
  * A bound word's text cut before its last character as a reader sees one (an emoji with its joiners, a letter with its
  * marks): the lead may wrap, the last stays on the citation's line. Measured in Chromium at every width from 120 to
- * 420 px, a break never fell between that character and the citation, where a word joiner did not hold one.
+ * 420 px, a break never fell between that character and the citation, where a word joiner did not hold one. Without a
+ * segmenter it cuts before the last code point: a line never breaks before a joiner's partner or a mark anyway.
  */
-export function lastGrapheme(text: string): [lead: string, last: string] {
-  const last = Array.from(GRAPHEMES.segment(text)).at(-1)?.segment ?? ''
+export function lastGrapheme(text: string, by: Intl.Segmenter | null = segmenter()): [lead: string, last: string] {
+  const last = (by ? Array.from(by.segment(text)).at(-1)?.segment : Array.from(text).at(-1)) ?? ''
   return [text.slice(0, text.length - last.length), last]
 }
 
 /**
  * Fewer visible characters than these between two targets (citation groups or links) may be narrower than their 4 px
  * reaches need, counted at the narrowest glyph the reading fonts have (an apostrophe, about 0.19em of 17 px): the
- * sides that face each other stop at their numerals (M75-RF-0004). The page keeps its own room the same way (`roomed`).
+ * sides that face each other stop at their numerals (M75-RF-0004). The page keeps its own room by the same count
+ * (`roomed` in report-page.ts).
  */
 const ROOM = 3
 
-/** What lies between targets, in reading order: visible characters (a count), a target, or a line break. */
-type Between = number | 'target' | 'break'
+/** What lies between targets, in reading order: a visible character, white space, a target, or a line break. */
+export type Between = 1 | 'space' | 'target' | 'break'
 
-/** Characters that count: a letter, digit, punctuation or symbol; a run of white space counts once, a mark nothing. */
-const COUNTED = /[\p{L}\p{N}\p{P}\p{S}]/u
+/**
+ * Characters that count as room, as `roomed` counts them: a letter, digit, punctuation, symbol or no-break space. A
+ * combining mark, a format character and a narrow space (thin, hair, zero width) count nothing.
+ */
+const COUNTED = /[\p{L}\p{N}\p{P}\p{S}\u00a0]/u
+/** White space a line box collapses to one space, across the end of one node and the start of the next too. */
+const COLLAPSED = /[ \t\n\r]/
 
-function visible(text: string): number {
-  let n = 0
-  let blank = false
-  for (const ch of text) {
-    const space = /\s/u.test(ch)
-    if (space ? !blank : COUNTED.test(ch)) n += 1
-    blank = space
-  }
-  return n
+function steps(text: string): Between[] {
+  return Array.from(text).flatMap((ch): Between[] => (COLLAPSED.test(ch) ? ['space'] : COUNTED.test(ch) ? [1] : []))
 }
 
 /** A piece as what it puts between targets: a link and a citation are targets, a word's text is characters. */
 function between(node: Piece | Inline): Between[] {
-  if (node.kind === 'text' || node.kind === 'code') return [visible(node.text)]
+  if (node.kind === 'text' || node.kind === 'code') return steps(node.text)
   if (node.kind === 'strong' || node.kind === 'em') return node.children.flatMap(between)
   if (node.kind === 'bound') return [...node.word.flatMap(between), 'target']
   return node.kind === 'break' ? ['break'] : ['target']
 }
 
-/** The visible characters before the first target: Infinity at a line break, or when no target comes. */
+/** The visible characters before the first target, a run of white space as one: Infinity at a break, or with none. */
 function roomIn(run: Iterable<Between>): number {
   let n = 0
+  let blank = false
   for (const step of run) {
     if (step === 'break') return Infinity
     if (step === 'target') return n
-    n += step
+    if (step === 1 || !blank) n += 1
+    blank = step === 'space'
   }
   return Infinity
 }
 
-/** What follows group `i` in reading order, read only as far as it is asked for. */
-function* after(pieces: readonly Piece[], i: number): Generator<Between> {
-  for (let k = i + 1; k < pieces.length; k++) yield* between(pieces[k] ?? { kind: 'break' })
+/**
+ * What lies beyond a run on each side, read outwards, for a run inside bold or emphasis: its enclosing run's pieces,
+ * and theirs. A run of a whole block has nothing beyond it.
+ */
+export interface Around {
+  before: () => Iterable<Between>
+  after: () => Iterable<Between>
 }
 
-/** What precedes group `i`'s first number (its own word first), backwards, read only as far as it is asked for. */
-function* before(pieces: readonly Piece[], i: number, word: readonly Inline[]): Generator<Between> {
+export const NOTHING_AROUND: Around = { before: () => [], after: () => [] }
+
+/** What follows piece `i` in reading order, then beyond the run, read only as far as it is asked for. */
+function* after(pieces: readonly Piece[], i: number, outer: Around): Generator<Between> {
+  for (let k = i + 1; k < pieces.length; k++) yield* between(pieces[k] ?? { kind: 'break' })
+  yield* outer.after()
+}
+
+/** What precedes piece `i` (from `word` backwards, then its siblings), then beyond the run, read only as asked. */
+function* before(pieces: readonly Piece[], i: number, word: readonly Inline[], outer: Around): Generator<Between> {
   yield* word.flatMap(between).toReversed()
   for (let k = i - 1; k >= 0; k--) yield* between(pieces[k] ?? { kind: 'break' }).toReversed()
+  yield* outer.before()
 }
+
+/** The surroundings of the run inside piece `k` (bold or emphasis): `k`'s siblings, then what lies beyond them. */
+export const around = (pieces: readonly Piece[], k: number, outer: Around): Around => ({
+  before: () => before(pieces, k, [], outer),
+  after: () => after(pieces, k, outer),
+})
 
 /**
  * Where the touch targets of group `i` must stop at their numerals (M75-RF-0001, RF-0004): before its first number
  * when no word is bound to it, or fewer than ROOM characters lie between it and the target before (its word a link
- * included); after its last when fewer than ROOM lie before the next target (a link, or the next group's number).
- * Elsewhere a target reaches into the words beside it, which take no press. Each side reads only to its nearest
- * target, so a paragraph's groups cost what its length does.
+ * included); after its last when fewer than ROOM lie before the next target (a link, or the next group's number),
+ * reading past the end of bold or emphasis (`outer`). Elsewhere a target reaches into the words beside it, which take
+ * no press. Each side reads only to its nearest target, so a paragraph's groups cost what its length does.
  */
-export function flushSides(pieces: readonly Piece[], i: number): { start: boolean; end: boolean } {
+export function flushSides(
+  pieces: readonly Piece[],
+  i: number,
+  outer: Around = NOTHING_AROUND,
+): { start: boolean; end: boolean } {
   const piece = pieces[i]
   if (piece?.kind !== 'bound') return { start: false, end: false }
   return {
-    start: piece.word.length === 0 || roomIn(before(pieces, i, piece.word)) < ROOM,
-    end: roomIn(after(pieces, i)) < ROOM,
+    start: piece.word.length === 0 || roomIn(before(pieces, i, piece.word, outer)) < ROOM,
+    end: roomIn(after(pieces, i, outer)) < ROOM,
   }
 }

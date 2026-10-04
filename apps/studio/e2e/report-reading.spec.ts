@@ -545,7 +545,7 @@ const targetSides = (page: Page) =>
       /** The last number, from what follows the group up to the next element. */
       const last = (next: Node | null) => {
         const text = next?.nodeType === Node.TEXT_NODE ? (next.textContent ?? '') : ''
-        if (starts(text.trim() === '' && next ? next.nextSibling : next)) return false
+        if (starts(next?.nodeType === Node.TEXT_NODE && text.trim() === '' ? next.nextSibling : next)) return false
         return seen(text).length >= 3 || null
       }
       return [...document.querySelectorAll('.md .cite-bound')]

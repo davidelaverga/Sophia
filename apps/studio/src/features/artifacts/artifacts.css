@@ -876,8 +876,9 @@
      Not in a table: past the edge of its frame, the box would make the frame scroll. Each target is its own
      (M75-RF-0001): 6 px above and below keeps it 25.6 px tall, under the 27.2 px between lines, and it reaches 4 px
      to a side only where no other target is. Beside a group's comma it stops at its numeral, so two numbers never
-     share a press; so do a group's first number when its word is a link or no word is bound to it, and its last
-     number when a link follows (MarkdownView marks both, `flushSides` in cite-view.ts). Into a word it reaches. */
+     share a press; so do a group's first and last numbers beside a link, with no word bound, or fewer than three
+     characters from another group (M75-RF-0004; MarkdownView marks them, `flushSides` in cite-view.ts). Into a word
+     it reaches. */
   .md .cite button {
     position: relative;
   }

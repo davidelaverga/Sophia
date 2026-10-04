@@ -2,7 +2,17 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { reportLanguage } from '@sophia/report/language'
 import { renderReportPage, type PageSource } from '@sophia/report/page'
-import { bindCites, citeLabel, flushSides, lastGrapheme, weaknessOf, type Piece } from './cite-view.ts'
+import {
+  around,
+  bindCites,
+  citeLabel,
+  flushSides,
+  lastGrapheme,
+  NOTHING_AROUND,
+  weaknessOf,
+  type Around,
+  type Piece,
+} from './cite-view.ts'
 import { parseMarkdown, type Inline } from './markdown.ts'
 
 const A = 'a0000000-0000-4000-8000-000000000001'
@@ -92,7 +102,7 @@ describe('a citation keeps to the word before it', () => {
     )
     assert.equal(shown(bindCites(runOf(`run \`pgaudit\` [${A}]`))), 'run {pgaudit|1}')
     assert.equal(shown(bindCites(runOf(`**[Harbor](https://h.example/)** [${A}] [${B}]`))), '{**[Harbor]**|1,2}')
-    // However long, or in Chinese: the viewer wraps a bound word inside (cite-word), so width is not counted here.
+    // However long, or in Chinese: the viewer wraps a bound word inside (BoundWord), so width is not counted here.
     const long = 'WWWWWWWWWWW WWWWWWWWWWWW and more words past twenty-four'
     assert.equal(shown(bindCites(runOf(`[${long}](https://example.org/) [${A}]`))), `{[${long}]|1}`)
     assert.equal(shown(bindCites(runOf(`[数据驻留](https://example.org/) [${A}]`))), '{[数据驻留]|1}')
@@ -115,7 +125,7 @@ describe('a citation keeps to the word before it', () => {
   })
 })
 
-describe('a group’s touch targets stop at their numerals only beside a link or no word (M75-RF-0001)', () => {
+describe('a group’s touch targets stop at their numerals beside a link, no word, or a near group (M75-RF-0001)', () => {
   /** Each group's flush sides, in order: "s" when its first target stops, "e" when its last does, "-" for neither. */
   const sides = (markdown: string) => {
     const pieces = bindCites(runOf(markdown))
@@ -159,6 +169,33 @@ describe('a group’s touch targets stop at their numerals only beside a link or
   })
 })
 
+/** Each group's flush sides in reading order, through the runs inside bold and emphasis (MarkdownView's recursion). */
+function sidesThrough(inline: readonly Inline[], outer: Around): string[] {
+  const pieces = bindCites(inline)
+  return pieces.flatMap((p, i) => {
+    if (p.kind === 'strong' || p.kind === 'em') return sidesThrough(p.children, around(pieces, i, outer))
+    if (p.kind !== 'bound') return []
+    const { start, end } = flushSides(pieces, i, outer)
+    return [`${start ? 's' : ''}${end ? 'e' : ''}` || '-']
+  })
+}
+
+describe('a group’s sides read past the end of bold or emphasis, as MarkdownView renders the runs inside', () => {
+  const deep = (markdown: string) => sidesThrough(runOf(markdown), NOTHING_AROUND)
+
+  it('stops a group inside bold that faces one outside across a letter, and the other way round', () => {
+    assert.deepEqual(deep(`x[${A}]**'[${B}] more**`), ['e', 's'])
+    assert.deepEqual(deep(`**claim [${A}]'**[${B}]`), ['e', 's'])
+    assert.deepEqual(deep(`**see [${A}]'**[a link](https://example.org/)`), ['e'])
+    assert.deepEqual(deep(`*one [${A}] and* then two [${B}]`), ['-', '-'])
+  })
+
+  it('counts a narrow or zero-width space as nothing, as the page does', () => {
+    assert.deepEqual(deep(`x[${A}]'\u200a'[${B}].`), ['e', 's'])
+    assert.deepEqual(deep(`x[${A}]'\u2009'[${B}].`), ['e', 's'])
+  })
+})
+
 describe('a bound word keeps only its last character with the citation; the rest may wrap (M75-RF-0005)', () => {
   it('cuts before the last character a reader sees, whole', () => {
     assert.deepEqual(lastGrapheme('WWWWWWWWWWW WWWWWWWWWWWW'), ['WWWWWWWWWWW WWWWWWWWWWW', 'W'])
@@ -167,6 +204,25 @@ describe('a bound word keeps only its last character with the citation; the rest
     assert.deepEqual(lastGrapheme('cafe\u0301'), ['caf', 'e\u0301'], 'a letter with its mark')
     assert.deepEqual(lastGrapheme('i'), ['', 'i'])
     assert.deepEqual(lastGrapheme(''), ['', ''])
+  })
+
+  it('cuts before the last code point where the browser has no segmenter', () => {
+    assert.deepEqual(lastGrapheme('cafe\u0301', null), ['cafe', '\u0301'])
+    assert.deepEqual(lastGrapheme('境内处理', null), ['境内处', '理'])
+  })
+
+  it('loads where the browser has no Intl.Segmenter (Firefox before 125): the Studio must not stop loading', async () => {
+    const kept = Object.getOwnPropertyDescriptor(Intl, 'Segmenter')
+    Reflect.deleteProperty(Intl, 'Segmenter')
+    try {
+      // A fresh copy of the module, loaded without a segmenter: making one on load would throw here.
+      const fresh: unknown = await import(new URL('./cite-view.ts?without-segmenter', import.meta.url).href)
+      const cut = fresh !== null && typeof fresh === 'object' ? Reflect.get(fresh, 'lastGrapheme') : null
+      assert.equal(typeof cut, 'function')
+      assert.deepEqual(Reflect.apply(cut, undefined, ['cafe\u0301']), ['cafe', '\u0301'])
+    } finally {
+      if (kept) Object.defineProperty(Intl, 'Segmenter', kept)
+    }
   })
 })
 

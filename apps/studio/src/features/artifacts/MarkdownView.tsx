@@ -7,12 +7,15 @@
 import { Fragment, useMemo } from 'react'
 import type { ReportSource } from '@sophia/contracts'
 import {
+  around,
   bindCites,
   citeLabel,
   flushSides,
   KEPT_WITH_WORD,
   lastGrapheme,
+  NOTHING_AROUND,
   weaknessOf,
+  type Around,
   type Bound,
   type Cite,
   type Piece,
@@ -134,31 +137,32 @@ function TableView({ block, citing }: { block: Extract<Block, { kind: 'table' }>
   )
 }
 
-function Inlines({ inline, citing }: { inline: readonly Inline[]; citing: Citing }) {
+/** A run of inline nodes, its citations bound; `outer` is what lies beyond a run inside bold or emphasis (flushSides). */
+function Inlines({ inline, citing, outer }: { inline: readonly Inline[]; citing: Citing; outer?: Around }) {
   const pieces = bindCites(inline)
   return pieces.map((piece, i) =>
     piece.kind === 'bound' ? (
-      <BoundCites key={i} bound={piece} citing={citing} flush={flushSides(pieces, i)} />
+      <BoundCites key={i} bound={piece} citing={citing} flush={flushSides(pieces, i, outer)} />
     ) : (
-      <PieceView key={i} piece={piece} citing={citing} />
+      <PieceView key={i} piece={piece} citing={citing} outer={around(pieces, i, outer ?? NOTHING_AROUND)} />
     ),
   )
 }
 
-function PieceView({ piece, citing }: { piece: Exclude<Piece, Bound>; citing: Citing }) {
+function PieceView({ piece, citing, outer }: { piece: Exclude<Piece, Bound>; citing: Citing; outer: Around }) {
   switch (piece.kind) {
     case 'text':
       return <Fragment>{piece.text}</Fragment>
     case 'strong':
       return (
         <strong>
-          <Inlines inline={piece.children} citing={citing} />
+          <Inlines inline={piece.children} citing={citing} outer={outer} />
         </strong>
       )
     case 'em':
       return (
         <em>
-          <Inlines inline={piece.children} citing={citing} />
+          <Inlines inline={piece.children} citing={citing} outer={outer} />
         </em>
       )
     case 'code':
