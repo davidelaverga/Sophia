@@ -981,6 +981,27 @@
 .review-part-body .text-button {
   font-size: var(--type-small);
 }
+/* Challenge: a quiet link at the card's foot; open, one line and Send (the guidance field's), then its receipt. */
+.review-challenge {
+  display: grid;
+  gap: 6px;
+  max-width: 64ch;
+}
+.review-challenge-open {
+  justify-self: start;
+}
+.review-challenge-said {
+  font-size: var(--type-small);
+  color: var(--text-3);
+}
+.review-challenge-said[data-state='unknown'],
+.review-challenge-said[data-state='denied'] {
+  color: var(--amber);
+}
+.review-challenge-quote {
+  font-size: var(--type-small);
+  color: var(--text-2);
+}
 .review-proposal-state {
   font-size: var(--type-small);
   color: var(--text-3);
