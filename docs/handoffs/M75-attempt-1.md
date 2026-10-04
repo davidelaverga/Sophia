@@ -8,7 +8,7 @@ Ending commit/tree and changed files: the candidate named in the latest `M75-CC-
 
 ## Outcome
 
-The browser-side html-report-v2 conversion is marked, in code and in CONTRIBUTING, as the fixed-template seed/control and legacy compatibility, never a design; its four Studio callers are pinned by a test and mapped, with the API receipt and guide declarations that route an HTML request to it, in `docs/coordination/M75/HANDOFF_TO_SDD01.md`. The page's checks are split into general report-page checks (reusable on a designed page through `Marks`) and the seed profile's. Italian and Spanish fixtures found a contents-rail clipping defect, fixed. Codex's findings RF-0001..RF-0006 (reader touch targets, the handoff and wording, print's running head, groups a letter apart, wide bound words, the long-group sweep's measure) and the cloud reviews' P2s are fixed; Codex passed revision 4 (`85c1ae1`) for A-01..A-08 (M75-CX-0011), and revision 5 fixes the cloud review on it (headings that only start with "Limits"; these records).
+The browser-side html-report-v2 conversion is marked, in code and in CONTRIBUTING, as the fixed-template seed/control and legacy compatibility, never a design; its four Studio callers are pinned by a test and mapped, with the API receipt and guide declarations that route an HTML request to it, in `docs/coordination/M75/HANDOFF_TO_SDD01.md`. The page's checks are split into general report-page checks (reusable on a designed page through `Marks`) and the seed profile's. Italian and Spanish fixtures found a contents-rail clipping defect, fixed. Codex's findings RF-0001..RF-0006 (reader touch targets, the handoff and wording, print's running head, groups a letter apart, wide bound words, the long-group sweep's measure) and the cloud reviews' P2s are fixed but one, the table citations' touch targets, open and non-blocking in M75-CX-0011; Codex passed revision 4 (`85c1ae1`) for A-01..A-08 (M75-CX-0011), and revision 5 fixes the cloud review on it (stored limitations printed by what the report says, not its headings; these records).
 
 Not done and not claimed: native design, visual review, stored designed HTML, SDD-01, the design policy in production, a merge, a release, any hosted or real-app verification.
 
@@ -22,7 +22,7 @@ M75 keeps every identity frozen (`pdf-report-v1`, API, guide, runtime unit, migr
 
 ## Remaining obligations
 
-Codex's recheck of the exact candidate; Luis's integration review; Davide's decisions (merge-only or hold, the pack's installation path, any reader-only release). The gate-wording question beside unread sources is open. No effects, spend or hosted state to reconcile from this attempt.
+Codex's recheck of revision 5; Luis's integration review; Davide's decisions (hold for SDD-01 by default, or a read-only merge-preparation step bound to the SHA Codex passes; the pack's installation path; any reader-only release). Open: the gate-wording question beside unread sources; the table citations' touch targets (non-blocking). No effects, spend or hosted state to reconcile from this attempt.
 
 ## Next bounded action
 
