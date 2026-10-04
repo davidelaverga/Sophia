@@ -11,8 +11,8 @@ Mission: [WBC-01](../missions/2026-10-03-workboard-connection/missions/WBC-01_UI
 | Implementation owner | **Davide** (ownership amendment, 2026-10-03; the packet named Luis) | 2026-10-03 |
 | Implementer | Claude Code, this session (Davide's Mac, darwin-arm64) | 2026-10-03 |
 | Design reference | **Luis**. His visual and interaction decisions remain the baseline; his feedback on the walkthroughs is welcome, not a required sign-off (policy v1.1 §1) | — |
-| Pull request | Codex opens it from the branch as handed over (Davide's decision, 2026-10-03) | pending |
-| Independent review, app tests, release | Codex, in its own clean worktree, through [#74](https://github.com/davidelaverga/Sophia/issues/74) (policy v1.1 §3–§5; [app-test plan](../coordination/WBC-01/policy/WBC-01_APP_TEST_PLAN.md) QA-01–QA-16) | pending |
+| Pull request | Codex opened [PR #76](https://github.com/davidelaverga/Sophia/pull/76) from the branch as handed over (Davide's decision) and pushes each handed-over head unchanged | 2026-10-03 |
+| Independent review, app tests, release | Codex, in its own clean worktree, through [#74](https://github.com/davidelaverga/Sophia/issues/74) (policy v1.1 §3–§5; [app-test plan](../coordination/WBC-01/policy/WBC-01_APP_TEST_PLAN.md) QA-01–QA-16). No release yet | 2026-10-03 |
 | Product, contract and release approval | Davide | — |
 
 The amendment and policy v1.1 change who implements, reviews, tests and releases. Scope, preservation, acceptance and exclusions are the packet's.
@@ -135,6 +135,24 @@ Luis's words, tests and nine browser checks are kept. #73's goal commands are `w
 | **P1** A Stop pressed after the same assignment moved to a new attempt or session went again as the earlier attempt's lost request | An operation is reused only for the exact same target, attempt and session included |
 | **P2** An answer that never comes left "Thinking…" forever | Each question waits at most 30 s for its next event, then fails, keeping the question, with Ask again and the conversation |
 | **P2** Only the first of up to three proposals was shown | Every proposal gets its band. With none accepted, the first is the read-only board and the others are "also proposed" |
+
+## CX-0009, #77, and the Resources fence
+
+Codex verified the merge with #73 and the three repairs at `4667905` ([CX-0009](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5975038104), CHANGES_REQUIRED). It found two new problems in Ask again, reported main moving on (#77) and passed on a new GitHub finding. All four are handled in [CC-0006](../coordination/WBC-01/WBC-01-CC-0006.md).
+
+**The merge with #77** (LFE-07.2 slice 2, the card of a review that proposes a change). #77 reads that review from `WorkPlan.last_review`. Here it stays the goal's own read beside the view (`Reviewed`), as with #73:
+- the card's pill sits in the board's bar, and the card shares the decisions' slot;
+- the card compares the review with the revision it is read with, the same as the goal's line, so the two never disagree;
+- "Waits on your decision: answer it" shows only while the board's plan is in force and a decision can be sent;
+- the fixture reads the review with the plan in force, so a plan taken further leaves the review on its own revision.
+
+Luis's twelve `review card ·` checks and three unit tests pass unchanged.
+
+| Finding | Fix |
+|---|---|
+| **F-004** (P2): an earlier Ask's wait could fail the question asked again, since both had the same question and sequence | Each send of a question has its own number. A wait or an event belongs to its send, and an earlier send's changes nothing |
+| **F-005** (P2): Ask again ignored the current Ask availability | One rule (`askBlocked`) for a first question and for asking again, at the button and at the send. While blocked, the failed question stays with why. A task whose Ask is no longer offered still shows it. Once allowed again, the same question goes |
+| **GitHub P2** (`SessionActs.tsx`): a resource session without its assignment's id and generation still offered Guidance, Hold and Stop | `sessionTarget` needs both. Without them, Act says why and nothing can be sent. The resource fixture's sessions now carry them, and `unfenced=1` shows the case |
 
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 

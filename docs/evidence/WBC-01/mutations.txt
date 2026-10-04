@@ -64,3 +64,32 @@ E1b P1 the same request needs the exact target (board): FAILS as it should
 E2 P2 an answer that never comes fails in time: FAILS as it should
 E2b P2 a stalled answer fails (rule): FAILS as it should
 E3 P2 every proposal gets its band: FAILS as it should
+
+# Codex's verification at 4667905 (#74, WBC-01-CX-0009), F-004 and F-005, fixed with CC-0006
+F1 F-004 a wait is its own send's (rule): FAILS as it should
+F1b F-004 a wait is its own send's (sheet): FAILS as it should
+F1c F-004 asked again is a new send (sheet): FAILS as it should
+F1d F-004 an earlier send's late event is let go (rule): FAILS as it should
+F1e F-004 an earlier send's late event is let go (sheet): FAILS as it should
+F2 F-005 the send goes only while nothing blocks it (rule): FAILS as it should
+F2b F-005 Ask again is offered only while nothing blocks it: FAILS as it should
+F2c F-005 the failed question is kept when Ask is offered no more: FAILS as it should
+F2d F-005 a missing action blocks (rule): FAILS as it should
+F2e F-005 a missing action blocks (sheet): FAILS as it should
+F2f F-005 why it can't go again is a line of its own: FAILS as it should
+# Ask again's own guard is the pure againOf (F2), so the send is checked apart from its button.
+
+# The GitHub Codex review of PR #76 at 4667905 (comment 4175536141), fixed with CC-0006
+G1 bot P2 no target without the assignment and its generation (rule): FAILS as it should
+G1b bot P2 no target without the assignment and its generation (sheet): FAILS as it should
+G2 bot P2 the row says why: FAILS as it should
+
+# The merge with main after #77 (a31cbe3), adjusted with CC-0006
+H1 merge the card reads the review's own revision: FAILS as it should
+H2 merge answer it only where a decision can be sent: FAILS as it should
+H3 merge the fixture reads the review with the plan in force: FAILS as it should
+
+# 2026-10-04, after the merge with #77 and the CC-0006 fixes: all 72 entries above run again on the new code.
+# 71 make a check fail; R1b is the redundant key recorded above. R4's target had moved with CC-0004's rule
+# (againable became retryableNow); it was aimed at the new line and fails. L01, first reverted by hand, is now
+# scripted against its check (@phone · one lane under another) and fails.

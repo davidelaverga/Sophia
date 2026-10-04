@@ -45,27 +45,31 @@ Nine existing checks changed their expected words or lanes, by design. Two Resou
 ## Evidence (fixture, darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 - `pnpm toolchain:check`, `format:check`, `lint`, `build`, `typecheck`, `contracts:check`: exit 0.
-- `pnpm test`: 720 pass (after merging main, #73). `pnpm artifacts`: identities reproduced, and `pnpm test:integration`: 67 pass, 2 skipped. Both last ran at `8afd007`; no runtime path has changed since.
+- `pnpm test`: 729 pass (after merging main, #77). `pnpm artifacts`: identities reproduced, and `pnpm test:integration`: 67 pass, 2 skipped. Both last ran at `8afd007`; no runtime path has changed since.
 - `pnpm --filter @sophia/studio run build`: passes. No board or fixture code is in the bundle.
-- `pnpm --filter @sophia/studio test:browser`: 193 of 193 pass. That includes:
+- `pnpm --filter @sophia/studio test:browser`: 210 of 210 pass. That includes:
   - 25 `wbc ·` checks for UI-01–UI-21;
-  - 7 `pre-push ·`, 5 `codex · F-` and 3 `pr76 ·` checks for the reviews' findings;
-  - Luis's 9 `review ·` checks from #73.
-- **Mutations:** 55 repairs reverted one at a time; each makes a check fail ([mutations.txt](docs/evidence/WBC-01/mutations.txt)). The one exception is a redundant key, recorded.
+  - 7 `pre-push ·`, 7 `codex · F-` and 4 `pr76 ·` checks for the reviews' findings;
+  - Luis's 9 `review ·` checks from #73 and 12 `review card ·` checks from #77, with 2 more for the merge.
+- **Mutations:** 72 repairs reverted one at a time; each makes a check fail ([mutations.txt](docs/evidence/WBC-01/mutations.txt)). The one exception is a redundant key, recorded.
 - **Independent review** of `f736ad7`: 3 P1, 3 P2 and 7 P3. All are fixed except one P3, kept by choice, with regressions ([table](docs/progress/WBC-01.md#independent-review-before-the-push)).
 - **Codex's review** of `8afd007` (#74): F-001, F-002 and F-003, fixed in `5a55cc8` with regressions ([table](docs/progress/WBC-01.md#codexs-review-on-74)). Its second round, at `e4d9734`, found F-002's retry path still open; that is fixed in `38bb9d6`. At `10b9d32` it found no more ([CX-0006](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973969188), READY).
 - **The GitHub Codex review of this PR** (at `10b9d32`): three findings, fixed in `9f3d872` ([table](docs/progress/WBC-01.md#codexs-ready-the-pr-and-its-review)):
   - **P1:** an operation is reused only for the exact target, attempt and session included;
   - **P2:** an answer waits at most 30 s per event, then fails with Ask again;
   - **P2:** every proposal is shown.
-- **Main merged in** (`4e7a42b`): Luis's #73. Its progress review stays its own read beside the board's view, not a field of the v2 plan; his words, tests and checks are kept.
+- **Codex's verification** of those at `4667905` ([CX-0009](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5975038104)), and a second GitHub finding there, are fixed in `40cfbc9` ([CC-0006](docs/coordination/WBC-01/WBC-01-CC-0006.md)):
+  - **F-004:** each send of a question has its own wait and events, so an earlier send can't fail or answer the question asked again;
+  - **F-005:** Ask again follows the view's current Ask availability, at the button and at the send. While blocked, the failed question stays with why;
+  - **GitHub P2:** a resource session's controls need its assignment's id and generation. Without them, Act says why and nothing is sent.
+- **Main merged in:** Luis's #73 (`4e7a42b`) and #77 (`a31cbe3`). The progress review, and the card of one that proposes a change, stay their own read beside the board's view, not a field of the v2 plan. The card and the goal's line compare it with the same revision. Luis's words, tests and checks are kept.
   - **F-003 changes production behavior.** During a live call, every project sheet (task, resource, invitation) shows the call's switches, Leave included, under its head: the sheet covers the mini dock.
   - The shared-shell paths (`app/Sheet.tsx`, `app/call-in-reach.tsx`, `ProjectShell.tsx`, `MiniDock.tsx`, `InviteSheet.tsx`) are under Davide's scope extension.
 - **Not exercised:** a physical iPhone, and a hosted call.
 
 ## Overlap
 
-- **#73** (Luis, LFE-07.2) has merged. It is merged in here, as above.
+- **#73** and **#77** (Luis, LFE-07.2 slices 1 and 2) have merged. Both are merged in here, as above.
 - **#32** (M03): `features/artifacts/` is untouched.
 
 ## Backend handoff (WBC-02)
