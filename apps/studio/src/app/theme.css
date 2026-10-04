@@ -812,6 +812,37 @@ img.avatar {
 .light-gl {
   mix-blend-mode: screen;
 }
+/* The threshold, formed (Threshold.tsx): Umbral where the light rests, over its condensed glow; her halo breathes. */
+.threshold {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+.threshold path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.threshold .umbral-you {
+  fill: var(--warm);
+}
+.threshold .umbral-sophia {
+  fill: var(--core);
+  animation: threshold-breathe 4.8s ease-in-out 1.2s infinite alternate;
+}
+@keyframes threshold-breathe {
+  from {
+    filter: drop-shadow(0 0 4px rgba(156, 130, 245, 0.45));
+  }
+  to {
+    filter: drop-shadow(0 0 12px rgba(156, 130, 245, 0.85));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .threshold .umbral-sophia {
+    animation: none;
+    filter: drop-shadow(0 0 6px rgba(156, 130, 245, 0.6));
+  }
+}
 .light[data-fallback] .light-gl {
   display: none;
 }

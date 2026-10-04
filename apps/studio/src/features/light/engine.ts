@@ -3,6 +3,7 @@
 // It never decides anything about the room; it only shows it.
 import { handoffFrame, settle, spring, stepSpring, type HandoffFrame, type Point, type Spring } from './motion.ts'
 import { createLightRenderer, type LightFrame, type LightRenderer } from './renderer.ts'
+import { BEHIND, lightBehind } from './threshold.ts'
 import { drawHandoff, drawWorkLine, perimeter } from './trace.ts'
 
 /** rest: present but not in a live room. The others are the four states of the prototype. */
@@ -14,6 +15,13 @@ export interface LightTarget {
   radius: number
 }
 
+/** The mark formed where the light rests (the sign-in's threshold): centre and size in CSS pixels of the box. */
+export interface MarkAt {
+  x: number
+  y: number
+  size: number
+}
+
 export interface LightInput {
   mode: LightMode
   /** Where the light sits, in CSS pixels of its box; null centers it in the upper part of the box. */
@@ -22,6 +30,8 @@ export interface LightInput {
   attention: Point | null
   /** Work is running in the background: the edge of the box is faintly lit. */
   working: boolean
+  /** A mark formed in front of the light: it blocks her and she pours past its edges. */
+  mark?: MarkAt | null
 }
 
 type SpringName =
@@ -40,6 +50,9 @@ type SpringName =
   | 'amp'
   | 'lean'
   | 'workLine'
+  | 'occlude'
+  | 'sourceX'
+  | 'sourceY'
 type Springs = Record<SpringName, Spring>
 
 function createSprings(reduced: boolean): Springs {
@@ -63,7 +76,17 @@ function createSprings(reduced: boolean): Springs {
     amp: spring(0, 18),
     lean: spring(1, 3),
     workLine: spring(0, 1.6),
+    occlude: spring(0, reduced ? 12 : 1.9),
+    sourceX: spring(BEHIND.x, turn),
+    sourceY: spring(BEHIND.y, turn),
   }
+}
+
+/** The light behind the mark leans towards the pointer, as she leans towards whoever writes (threshold.ts). */
+function aimSource(s: Springs, mark: MarkAt | null, pointer: Point | null): void {
+  const at = lightBehind(mark, pointer)
+  s.sourceX.target = at.x
+  s.sourceY.target = at.y
 }
 
 /**
@@ -101,9 +124,15 @@ function aimAt(s: Springs, look: Point | null): void {
   s.dirY.target = len > 1 ? dy / len : dy
 }
 
-function toFrame(s: Springs, time: number, flow: number): LightFrame {
+function toFrame(s: Springs, time: number, flow: number, mark: MarkAt | null): LightFrame {
   const v = (name: SpringName) => s[name].value
   return {
+    markX: mark?.x ?? 0,
+    markY: mark?.y ?? 0,
+    markSize: mark?.size ?? 0,
+    occlude: mark ? v('occlude') : 0,
+    sourceX: v('sourceX'),
+    sourceY: v('sourceY'),
     time,
     flow,
     x: v('x'),
@@ -153,8 +182,12 @@ export class LightEngine {
   private flow = 0
   private snapped = false
   private relayoutUntil = 0
+  /** The pointer on the page while a mark is shown (fine pointers, full motion only); placed in the box per frame. */
+  private pointer: Point | null = null
+  private readonly box: HTMLElement
 
   constructor(box: HTMLElement, glCanvas: HTMLCanvasElement, traceCanvas: HTMLCanvasElement) {
+    this.box = box
     this.gl = createLightRenderer(glCanvas, this.reduced)
     if (!this.gl) box.dataset.fallback = ''
     this.traceCanvas = traceCanvas
@@ -163,11 +196,29 @@ export class LightEngine {
       if (entry) this.resize(entry.contentRect.width, entry.contentRect.height)
     })
     this.observer.observe(box)
+    if (!this.reduced && window.matchMedia('(pointer: fine)').matches)
+      window.addEventListener('pointermove', this.follow, { passive: true })
     this.frameId = requestAnimationFrame(this.tick)
   }
 
   update(input: LightInput): void {
     this.input = input
+    // The mark gone, its shadows go with it, at once: none falls around an empty place.
+    if (!input.mark) {
+      this.springs.occlude.target = 0
+      settle(this.springs.occlude)
+    }
+  }
+
+  private readonly follow = (event: PointerEvent): void => {
+    this.pointer = this.input.mark ? { x: event.clientX, y: event.clientY } : null
+  }
+
+  /** The pointer in the box's own pixels: the box is measured once a frame, not on every move. */
+  private pointerInBox(): Point | null {
+    if (!this.pointer || !this.input.mark) return null
+    const at = this.box.getBoundingClientRect()
+    return { x: this.pointer.x - at.left, y: this.pointer.y - at.top }
   }
 
   /** The floor travels from one person, through Sophia, to the next. */
@@ -178,6 +229,7 @@ export class LightEngine {
   stop(): void {
     cancelAnimationFrame(this.frameId)
     this.observer.disconnect()
+    window.removeEventListener('pointermove', this.follow)
     this.gl?.dispose()
   }
 
@@ -230,6 +282,8 @@ export class LightEngine {
       ? { frame: handoffFrame(h.from, { x: s.x.value, y: s.y.value }, h.to, t - h.started), from: h.from, to: h.to }
       : null
     aimAt(s, flight ? flight.frame.head : this.input.attention)
+    s.occlude.target = this.input.mark ? 1 : 0
+    aimSource(s, this.input.mark ?? null, this.pointerInBox())
     s.swell.target = flight && !this.reduced ? flight.frame.swell : 0
     for (const sp of Object.values(s)) stepSpring(sp, dt)
     if (!this.reduced)
@@ -239,7 +293,7 @@ export class LightEngine {
   }
 
   private draw(t: number, flight: HandoffStep | null): void {
-    this.gl?.draw(toFrame(this.springs, t, this.flow))
+    this.gl?.draw(toFrame(this.springs, t, this.flow, this.input.mark ?? null))
     if (!this.trace) return
     this.trace.clearRect(0, 0, this.size.width, this.size.height)
     drawWorkLine(this.trace, this.edge, this.springs.workLine.value)

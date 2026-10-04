@@ -1,11 +1,23 @@
 // The email sign-in, without friction: the field ready on arrival, an address checked in the page's words, the code
 // ready once the email went, its inbox one press away, and sending again once a little while has passed.
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { typeSizes } from './type-sizes.ts'
 
 const PAGE = '/signin.html'
 const email = (page: Page) => page.getByRole('textbox', { name: 'Email' })
 const sentTo = (page: Page) => page.evaluate(() => window.signinFixture?.sent ?? [])
+// The threshold (docs/plans/signin-threshold.md): the light's mood and the mark are read from the light's own box.
+const light = (page: Page) => page.locator('.light')
+const threshold = (page: Page) => page.locator('.threshold[data-mark="umbral"]')
+const numbers = async (page: Page, name: string) =>
+  ((await light(page).getAttribute(name)) ?? '').split(' ').map(Number)
+
+/** The centre and width of `of`, in the light's box. */
+async function inLight(page: Page, of: Locator) {
+  const [box, at] = await Promise.all([light(page).boundingBox(), of.boundingBox()])
+  if (!box || !at) throw new Error('not laid out')
+  return { x: at.x + at.width / 2 - box.x, y: at.y + at.height / 2 - box.y, width: at.width }
+}
 
 async function sendTo(page: Page, address: string) {
   await email(page).fill(address)
@@ -132,11 +144,89 @@ test('signin · a send again that never answers ends, says so, and waits Auth’
   await expect(again(page)).toHaveText(/^Send again in (59|60) s$/) // the window, a second already gone
 })
 
-test('signin · another email brings the address back, ready', async ({ page }) => {
+test('signin · another email brings the address back, ready, and the mark goes', async ({ page }) => {
   await page.goto(PAGE)
   await sendTo(page, 'luis@sophia.test')
   await page.getByRole('button', { name: 'Use another email' }).click()
   await expect(email(page)).toBeFocused()
+  await expect(threshold(page)).toHaveCount(0)
+  await expect(light(page)).not.toHaveAttribute('data-mark')
+  // The new field is the one she listens to: focused she listens, even emptied; left empty, she rests.
+  await expect(light(page)).toHaveAttribute('data-mode', 'listen')
+  await email(page).fill('')
+  await expect(light(page)).toHaveAttribute('data-mode', 'listen')
+  const field = await inLight(page, email(page))
+  const [x = NaN, y = NaN] = await numbers(page, 'data-attention')
+  expect(Math.abs(x - field.x) + Math.abs(y - field.y)).toBeLessThan(4)
+  await email(page).blur()
+  await expect(light(page)).toHaveAttribute('data-mode', 'rest')
+})
+
+test('signin · Sophia listens while the address is written, thinks while it goes, rests once through', async ({
+  page,
+}) => {
+  await held(page)
+  await email(page).focus()
+  await expect(light(page)).toHaveAttribute('data-mode', 'listen')
+  const field = await inLight(page, email(page))
+  const [x = NaN, y = NaN] = await numbers(page, 'data-attention')
+  // Her attention is the field's centre, in the light's box.
+  expect(Math.abs(x - field.x)).toBeLessThan(2)
+  expect(Math.abs(y - field.y)).toBeLessThan(2)
+  await email(page).blur()
+  await expect(light(page)).toHaveAttribute('data-mode', 'rest') // an empty field, left: she rests
+  await email(page).fill('luis@sophia.test')
+  await email(page).blur()
+  await expect(light(page)).toHaveAttribute('data-mode', 'listen') // words in it: she still listens
+  await page.getByRole('button', { name: 'Email me a link' }).click()
+  await expect(light(page)).toHaveAttribute('data-mode', 'think')
+  await page.clock.runFor(400)
+  await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible()
+  await expect(light(page)).toHaveAttribute('data-mode', 'rest')
+})
+
+test('signin · through, Umbral forms where the light rests, and the light stands behind it', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(email(page)).toBeVisible({ timeout: 15_000 })
+  await expect(light(page)).not.toHaveAttribute('data-mark')
+  await sendTo(page, 'luis@sophia.test')
+  await expect(threshold(page)).toBeVisible()
+  const [x = NaN, y = NaN, size = NaN] = await numbers(page, 'data-mark')
+  const mark = await inLight(page, threshold(page))
+  const width = (await light(page).boundingBox())?.width ?? NaN
+  expect(Math.abs(x - width / 2)).toBeLessThan(1) // over the words, centred, as the light rests
+  expect([48, 96]).toContain(size)
+  expect(mark.width).toBe(size)
+  expect(Math.abs(mark.x - x)).toBeLessThan(1)
+  expect(Math.abs(mark.y - y)).toBeLessThan(1)
+  // It forms: her half grows from the light and yours rises, two gestures of its own besides her halo's breath.
+  const formed = await threshold(page).evaluate(
+    (svg) => svg.getAnimations({ subtree: true }).filter((a) => !(a instanceof CSSAnimation)).length,
+  )
+  expect(formed).toBe(2)
+})
+
+test('signin · a window resized once through keeps the mark centred over the words', async ({ page }) => {
+  await page.goto(PAGE)
+  await sendTo(page, 'luis@sophia.test')
+  await expect(threshold(page)).toBeVisible()
+  await page.setViewportSize({ width: 1000, height: 720 })
+  await expect
+    .poll(async () => {
+      const width = (await light(page).boundingBox())?.width ?? NaN
+      const [x = NaN] = await numbers(page, 'data-mark')
+      const mark = await inLight(page, threshold(page))
+      return Math.round(Math.abs(x - width / 2) + Math.abs(mark.x - width / 2))
+    })
+    .toBeLessThan(2)
+})
+
+test('signin · with less motion asked for, the mark is simply there, formed and still', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto(PAGE)
+  await sendTo(page, 'luis@sophia.test')
+  await expect(threshold(page)).toBeVisible()
+  expect(await threshold(page).evaluate((svg) => svg.getAnimations({ subtree: true }).length)).toBe(0)
 })
 
 test('@phone · signin · on touch the code waits too, so the keyboard doesn’t cover the inbox', async ({ page }) => {

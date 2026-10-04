@@ -1,6 +1,8 @@
 // Sign-in screens: Supabase magic link, dev identities, or a configuration hint. Each is a quiet room
 // with Sophia's light at rest above the words.
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { LightMode } from '../features/light/engine.ts'
+import type { Point } from '../features/light/motion.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import { LINK_SLOW } from './auth-callback.ts'
 import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
@@ -18,10 +20,41 @@ import { waitAfter } from './auth-words.ts'
 const LOCAL_AUTH = /^http:\/\/(127\.0\.0\.1|localhost):54321/.test(import.meta.env.VITE_SUPABASE_URL ?? '')
 const MAILPIT_URL = 'http://127.0.0.1:54324'
 
-export function Centered({ title, children, busy }: { title: string; children?: React.ReactNode; busy?: boolean }) {
+/**
+ * What the light does on a quiet screen: rests, by default; listens to whoever writes, leaning towards them; thinks
+ * while something goes; and, once they are through, condenses into the mark (`formed`, from where they wrote).
+ */
+export interface ScreenLight {
+  mode: LightMode
+  attention: Point | null
+  pull?: Point | null
+  formed?: { from: Point | null }
+}
+
+const AT_REST: ScreenLight = { mode: 'rest', attention: null }
+
+export function Centered({
+  title,
+  children,
+  busy,
+  light = AT_REST,
+}: {
+  title: string
+  children?: React.ReactNode
+  busy?: boolean
+  light?: ScreenLight
+}) {
   return (
     <main className="screen" aria-busy={busy}>
-      <SophiaLight mode="rest" target={null} attention={null} working={false} screen />
+      <SophiaLight
+        mode={light.mode}
+        target={null}
+        attention={light.attention}
+        working={false}
+        screen
+        pull={light.pull ?? null}
+        formed={light.formed ?? null}
+      />
       <div className="screen-mark">
         <Mark />
         <span className="mark-word">Sophia</span>
@@ -163,6 +196,46 @@ function useFocusOnPointer(shown: boolean) {
 
 const NOT_AN_ADDRESS = 'Check the address: it needs a name, an @ and a domain.'
 
+/**
+ * The threshold (docs/plans/signin-threshold.md): Sophia notices whoever writes their address. While the field has the
+ * focus or holds words she listens, leaning towards it; while the email goes she thinks; otherwise she rests. Her
+ * attention is the field's centre, in the light's own box, read again when the window changes.
+ */
+function useListening(field: React.RefObject<HTMLInputElement | null>, email: string, step: Step['step']): ScreenLight {
+  // The form is shown again after "Use another email", with a new field: she listens to that one.
+  const shown = step !== 'sent'
+  const [focused, setFocused] = useState(false)
+  const [attention, setAttention] = useState<Point | null>(null)
+  useEffect(() => {
+    const input = field.current
+    const box = input?.closest('.screen')?.querySelector('.light')
+    if (!input || !box) return undefined
+    const aim = () => {
+      const f = input.getBoundingClientRect()
+      const b = box.getBoundingClientRect()
+      setAttention({ x: f.left + f.width / 2 - b.left, y: f.top + f.height / 2 - b.top })
+    }
+    const focus = () => {
+      aim()
+      setFocused(true)
+    }
+    const blur = () => setFocused(false)
+    // A field shown again starts from where the focus is, not from the one before it.
+    if (document.activeElement === input) focus()
+    else blur()
+    input.addEventListener('focus', focus)
+    input.addEventListener('blur', blur)
+    window.addEventListener('resize', aim)
+    return () => {
+      input.removeEventListener('focus', focus)
+      input.removeEventListener('blur', blur)
+      window.removeEventListener('resize', aim)
+    }
+  }, [field, shown])
+  if (step === 'sending') return { mode: 'think', attention }
+  return focused || email.trim() !== '' ? { mode: 'listen', attention, pull: attention } : AT_REST
+}
+
 /** The address and its sending: checked here first, then sent; its step, and whether the field itself is wrong. */
 function useAddress(send: (email: string) => Promise<void>) {
   const [email, setEmail] = useState('')
@@ -199,11 +272,22 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
   const { email, state, setState, field, invalid } = address
   const showError = useCallback((message: string) => setState({ step: 'error', message }), [setState])
   const passkey = usePasskeySignIn(showError)
+  const listening = useListening(field, email, state.step)
+  // Through: she rests and the mark forms, rising from where the address was written. Kept while the screen stays.
+  const through = useMemo<ScreenLight>(
+    () => ({ mode: 'rest', attention: null, formed: { from: listening.attention } }),
+    [listening.attention],
+  )
+  // One screen for both steps: the light carries on from listening to formed, instead of starting again.
   if (state.step === 'sent') {
-    return <LinkSent email={email.trim()} send={send} verify={verify} onReset={() => setState({ step: 'idle' })} />
+    return (
+      <Centered title="Check your email" light={through}>
+        <LinkSent email={email.trim()} send={send} verify={verify} onReset={() => setState({ step: 'idle' })} />
+      </Centered>
+    )
   }
   return (
-    <Centered title="Sign in to Sophia">
+    <Centered title="Sign in to Sophia" light={listening}>
       {notice && (
         <p className="form-error" role="alert">
           {notice}
@@ -321,7 +405,7 @@ function LinkSent({
 }) {
   const home = mailHome(email)
   return (
-    <Centered title="Check your email">
+    <>
       <p>
         We sent a sign-in link and a code to <strong>{email}</strong>. Open the link in this browser, or enter the code
         here if you read your email somewhere else.
@@ -345,7 +429,7 @@ function LinkSent({
       <button type="button" className="text-button" onClick={onReset}>
         Use another email
       </button>
-    </Centered>
+    </>
   )
 }
 

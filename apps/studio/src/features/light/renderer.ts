@@ -22,6 +22,14 @@ export interface LightFrame {
   lean: number
   flow: number
   ignite: number
+  /** The formed mark, in CSS pixels of the box (size 0 without one), and how far it has formed, 0…1. */
+  markX: number
+  markY: number
+  markSize: number
+  occlude: number
+  /** Where the light stands behind the mark, on its 48 grid. */
+  sourceX: number
+  sourceY: number
 }
 
 const SCALARS = [
@@ -36,8 +44,21 @@ const SCALARS = [
   'lean',
   'flow',
   'ignite',
+  'occlude',
 ] as const
-const UNIFORMS = [...SCALARS, 'center', 'dir', 'radius', 'reduced', 'halo', 'core', 'cool', 'ember'] as const
+const UNIFORMS = [
+  ...SCALARS,
+  'center',
+  'dir',
+  'radius',
+  'mark',
+  'source',
+  'reduced',
+  'halo',
+  'core',
+  'cool',
+  'ember',
+] as const
 type UniformName = (typeof UNIFORMS)[number]
 
 const rgb = (hex: string): number[] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
@@ -107,6 +128,8 @@ export function createLightRenderer(canvas: HTMLCanvasElement, reduced: boolean)
     gl.uniform2f(at('center'), f.x * scale, (size.height - f.y) * scale)
     gl.uniform2f(at('dir'), f.dirX, -f.dirY)
     gl.uniform1f(at('radius'), Math.max(1, f.radius * scale))
+    gl.uniform3f(at('mark'), f.markX * scale, (size.height - f.markY) * scale, Math.max(1, f.markSize * scale))
+    gl.uniform2f(at('source'), f.sourceX, f.sourceY)
     for (const name of SCALARS) gl.uniform1f(at(name), f[name])
     gl.drawArrays(gl.TRIANGLES, 0, 3)
   }
