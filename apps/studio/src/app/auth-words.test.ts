@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { secondsToWait, sendFailure } from './auth-words.ts'
+import { secondsToWait, sendFailure, waitAfter } from './auth-words.ts'
 
 const EMAIL = 'ana@sophia.test'
 
@@ -46,5 +46,20 @@ describe('how long to wait, from the page’s own words', () => {
     assert.equal(secondsToWait('An email was just sent. You can ask for another in 41 seconds.'), 41)
     assert.equal(secondsToWait('An email was just sent. You can ask for another in 1 second.'), 1)
     assert.equal(secondsToWait('Couldn’t reach the sign-in service.'), null)
+  })
+})
+
+describe('how long to wait after a refusal', () => {
+  // The sentences are sendFailure's own, so a change in its words can't silently stop the wait.
+  const said = (code: string, message: string, status = 429) => sendFailure({ code, message, status }, EMAIL)
+  it('takes the wait it gives; Auth’s window when it says too many and gives none; nothing for anything else', () => {
+    const soon = said(
+      'over_email_send_rate_limit',
+      'For security purposes, you can only request this after 17 seconds.',
+    )
+    assert.equal(waitAfter(soon, 60), 17)
+    assert.equal(waitAfter(said('over_email_send_rate_limit', 'email rate limit exceeded'), 60), 60)
+    assert.equal(waitAfter(said('over_request_rate_limit', 'x'), 60), 60)
+    assert.equal(waitAfter(sendFailure({ message: 'Failed to fetch', status: 0 }, EMAIL), 60), 0)
   })
 })

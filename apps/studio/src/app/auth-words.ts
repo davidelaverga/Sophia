@@ -17,6 +17,14 @@ export function secondsToWait(sentence: string): number | null {
   return seconds ? Number(seconds) : null
 }
 
+/**
+ * How long to wait before asking again after a refusal, in seconds: the wait it gives; `windowS` when it says too
+ * many were sent and gives none (the hour's cap, too many tries); nothing for anything else, which can be tried again
+ * at once (a lost connection).
+ */
+export const waitAfter = (sentence: string, windowS: number) =>
+  secondsToWait(sentence) ?? (sentence.startsWith('Too many') ? windowS : 0)
+
 /** Supabase says how long to wait between two emails to one address ("… after 41 seconds."). */
 const waitSeconds = (message: string) => /after (\d+) seconds?/.exec(message)?.[1]
 

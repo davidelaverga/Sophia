@@ -102,6 +102,36 @@ test('signin · asked again too soon for Auth, the countdown takes the wait it g
   await expect(again(page)).toHaveText(/^Send again in 1[67] s$/)
 })
 
+test('signin · refused for the hour, with no wait given, it still waits Auth’s window, said as a failure', async ({
+  page,
+}) => {
+  await held(page, '?limit=hour')
+  await sendHeld(page, 'luis@sophia.test')
+  await page.clock.fastForward(60_000)
+  await page.clock.runFor(1000)
+  await again(page).click()
+  await page.clock.runFor(400)
+  await expect(againSaid(page)).toHaveText(/^Too many emails were sent in the last hour/)
+  await expect(againSaid(page)).toHaveAttribute('data-state', 'failed')
+  // The screen's error colour (--rose), not the quiet grey of progress.
+  expect(await againSaid(page).evaluate((s) => getComputedStyle(s).color)).toBe('rgb(238, 159, 176)')
+  await expect(again(page)).toHaveText('Send again in 60 s') // Auth's whole window, not again at once
+})
+
+test('signin · a send again that never answers ends, says so, and waits Auth’s window', async ({ page }) => {
+  await held(page, '?stall=1')
+  await sendHeld(page, 'luis@sophia.test')
+  await page.clock.fastForward(60_000)
+  await page.clock.runFor(1000)
+  await again(page).click()
+  await expect(againSaid(page)).toHaveText('Sending…')
+  await page.clock.fastForward(30_000)
+  await page.clock.runFor(1000)
+  await expect(againSaid(page)).toHaveText('Not confirmed: the email may still arrive. Wait for it, then send again.')
+  await expect(againSaid(page)).toHaveAttribute('data-state', 'failed')
+  await expect(again(page)).toHaveText(/^Send again in (59|60) s$/) // the window, a second already gone
+})
+
 test('signin · another email brings the address back, ready', async ({ page }) => {
   await page.goto(PAGE)
   await sendTo(page, 'luis@sophia.test')
