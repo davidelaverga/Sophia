@@ -11,6 +11,20 @@ export interface AuthFailure {
 
 const CLOSED = (email: string) => `New accounts are closed on this server, so ${email} can’t sign up yet.`
 
+/** How long the page's own words say to wait before another email ("…another in 41 seconds."), if they say it. */
+export function secondsToWait(sentence: string): number | null {
+  const seconds = /another in (\d+) seconds?/.exec(sentence)?.[1]
+  return seconds ? Number(seconds) : null
+}
+
+/**
+ * How long to wait before asking again after a refusal, in seconds: the wait it gives; `windowS` when it says too
+ * many were sent and gives none (the hour's cap, too many tries); nothing for anything else, which can be tried again
+ * at once (a lost connection).
+ */
+export const waitAfter = (sentence: string, windowS: number) =>
+  secondsToWait(sentence) ?? (sentence.startsWith('Too many') ? windowS : 0)
+
 /** Supabase says how long to wait between two emails to one address ("… after 41 seconds."). */
 const waitSeconds = (message: string) => /after (\d+) seconds?/.exec(message)?.[1]
 

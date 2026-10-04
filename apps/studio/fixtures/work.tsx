@@ -9,7 +9,9 @@
 // `staggered=1`: Sophia answers the first question slower than the next. `workFixture.replan()` replaces the first
 // goal's plan with a new one (a new plan id), as the lead would. `later=1` (with `two=1`): the second goal's plan is
 // held back until `workFixture.arrive()`, as a slower read would. `review=…`: how the lead answers the goal's Request
-// review (work-review.ts); `workFixture.commands` lists each goal command sent, with its key.
+// review (work-review.ts); `workFixture.commands` lists each goal command sent, with its key. `challenge=unknown|denied`:
+// how a challenge to the lead's review comes back (recorded by default; `workFixture.challenges` lists each sent);
+// `editor=0`: the viewer can't act on the work, so there is no Challenge.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -18,6 +20,7 @@ import { createRoot } from 'react-dom/client'
 import type { GoalCommand } from '@sophia/contracts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
+import type { Challenge } from '../src/features/work/planning/challenges.ts'
 import type { Decide } from '../src/features/work/planning/Decision.tsx'
 import { PlanBoard } from '../src/features/work/planning/PlanBoard.tsx'
 import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
@@ -32,7 +35,7 @@ import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { actions, NOW, observations, people, resources, tightClaude } from './resources-data.ts'
 import { act, ask, carried, nextActivity, withActivity } from './work-live.ts'
-import { openedWith, reviewer, reviewMode } from './work-review.ts'
+import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.ts'
 import { goal, manyTasks, moreGoals, morePlans, plan, secondGoal, secondPlan, unplannedGoal } from './work-data.ts'
 
 declare global {
@@ -46,6 +49,8 @@ declare global {
       replan?: () => void
       arrive?: () => void
       commands?: { kind: string; key: string }[]
+      reviewAgain?: () => void
+      challenges?: { review: string; text: string; key: string }[]
     }
   }
 }
@@ -115,16 +120,53 @@ const decide: Decide = (decision, choice) => {
   return new Promise((done) => setTimeout(() => done(said), 300))
 }
 
-/** `expired=1`: the decision waiting on Davide is past its expiry. */
-const expiredIf = (p: WorkPlan): WorkPlan =>
-  query.get('expired') === '1'
-    ? {
-        ...p,
-        decisions: p.decisions.map((d) =>
-          d.state === 'proposed' ? { ...d, expires_at: new Date(NOW.getTime() - 3_600_000).toISOString() } : d,
-        ),
-      }
-    : p
+/** `odd-id=1`: the decision waiting on Davide has an id with quotes and brackets, as the wire allows (any string). */
+const ODD = 'd1"] [x'
+const oddIf = (p: WorkPlan): WorkPlan => {
+  if (query.get('odd-id') !== '1') return p
+  const renamed = (id: string | null) => (id === 'd1' ? ODD : id)
+  const intervention = p.last_review?.intervention
+  return {
+    ...p,
+    decisions: p.decisions.map((d) => ({ ...d, decision_id: renamed(d.decision_id) ?? d.decision_id })),
+    ...(p.last_review && {
+      last_review: {
+        ...p.last_review,
+        ...(intervention && { intervention: { ...intervention, decision_id: renamed(intervention.decision_id) } }),
+      },
+    }),
+  }
+}
+
+const challenges: NonNullable<NonNullable<Window['workFixture']>['challenges']> = []
+/** A challenge to the lead's review, taken as the lead's port would: recorded, unless the page asks otherwise. */
+const challenge: Challenge = (challenged, text, key) => {
+  challenges.push({ review: challenged.review_id, text, key })
+  const said = query.get('challenge')
+  return new Promise((done, fail) =>
+    setTimeout(() => {
+      if (said === 'unknown' && challenges.length === 1) fail(new Error('not confirmed'))
+      else done(said === 'denied' ? 'denied' : 'recorded')
+    }, 300),
+  )
+}
+const editor = query.get('editor') !== '0'
+
+/**
+ * `expired=1`: the decision waiting on Davide is past its expiry, still proposed; `expired=state`: the server has
+ * marked it expired.
+ */
+const expiredIf = (p: WorkPlan): WorkPlan => {
+  const how = query.get('expired')
+  if (how !== '1' && how !== 'state') return p
+  const past = new Date(NOW.getTime() - 3_600_000).toISOString()
+  return {
+    ...p,
+    decisions: p.decisions.map((d) =>
+      d.state === 'proposed' ? { ...d, expires_at: past, ...(how === 'state' && { state: 'expired' as const }) } : d,
+    ),
+  }
+}
 
 /** The lead's next revision with a recorded answer: the decision accepted with the choice its decider gave. */
 const settled = (p: WorkPlan, id: string): WorkPlan => {
@@ -162,6 +204,7 @@ function slot(p: WorkPlan, now: Date, shared: Shared) {
         plan={p}
         now={now}
         onDecide={decide}
+        {...(editor && { onChallenge: challenge })}
         onAct={act}
         onAsk={ask}
         onOpenResource={(id) =>
@@ -180,7 +223,7 @@ function slot(p: WorkPlan, now: Date, shared: Shared) {
 
 function Tasks() {
   const [first, setFirst] = useState(() =>
-    openedWith(review, expiredIf(query.get('many') === '1' ? manyTasks(plan(state)) : plan(state))),
+    oddIf(openedWith(review, expiredIf(query.get('many') === '1' ? manyTasks(plan(state)) : plan(state)))),
   )
   const [lead] = useState(() => reviewer(review, viewer, setFirst))
   useEffect(() => {
@@ -211,6 +254,8 @@ function Tasks() {
       replan: () => setFirst((p) => ({ ...p, plan_id: 'plan-1b', revision: 1 })),
       arrive: () => setArrived(true),
       commands: lead.commands,
+      reviewAgain: () => setFirst(reviewedAgain),
+      challenges,
     }
   }, [lead])
   const shared = { resources: live, people, viewerId: viewer, actions }

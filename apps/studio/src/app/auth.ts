@@ -248,15 +248,6 @@ const OFFERED = (import.meta.env.VITE_AUTH_PROVIDERS ?? '').split(',').map((s) =
 export const oauthProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter((p) => OFFERED.includes(p))
 
 /**
- * Providers on their way (VITE_AUTH_PROVIDERS_SOON="azure"): shown greyed in the row, with a tip saying so, so
- * the row keeps its shape while an app is being set up. A provider already offered is never "soon".
- */
-const SOON = (import.meta.env.VITE_AUTH_PROVIDERS_SOON ?? '').split(',').map((s) => s.trim())
-export const upcomingProviders: readonly OAuthProvider[] = KNOWN_PROVIDERS.filter(
-  (p) => SOON.includes(p) && !OFFERED.includes(p),
-)
-
-/**
  * Passkeys are bound to one domain, Supabase Auth's Relying Party ID (VITE_PASSKEY_RP_ID="sophia-ei.com"). The
  * same build is served on other hosts too (the vercel.app address), where a passkey can't work, so passkeys are
  * offered only on that domain and its subdomains, and only when "passkey" is in VITE_AUTH_PROVIDERS.

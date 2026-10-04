@@ -541,17 +541,22 @@ select {
 button.mark:hover {
   background: rgba(236, 235, 241, 0.05);
 }
-.mark-dot {
-  width: 7px;
-  height: 7px;
+/* Umbral (Mark.tsx): you in warm, Sophia in core with a soft halo, brighter while the feed is live. */
+.umbral {
+  display: block;
   flex: none;
-  border-radius: 50%;
-  background: var(--core);
-  box-shadow: 0 0 6px 1px rgba(156, 130, 245, 0.45);
-  transition: box-shadow 1s var(--ease);
+  overflow: visible;
 }
-.mark-dot[data-live] {
-  box-shadow: 0 0 12px 2px rgba(156, 130, 245, 0.75);
+.umbral-you {
+  fill: var(--warm);
+}
+.umbral-sophia {
+  fill: var(--core);
+  filter: drop-shadow(0 0 2px rgba(156, 130, 245, 0.45));
+  transition: filter 1s var(--ease);
+}
+.umbral[data-live] .umbral-sophia {
+  filter: drop-shadow(0 0 4px rgba(156, 130, 245, 0.85));
 }
 .mark-word {
   font-weight: 600;
@@ -807,6 +812,37 @@ img.avatar {
 .light-gl {
   mix-blend-mode: screen;
 }
+/* The threshold, formed (Threshold.tsx): Umbral where the light rests, over its condensed glow; her halo breathes. */
+.threshold {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+.threshold path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.threshold .umbral-you {
+  fill: var(--warm);
+}
+.threshold .umbral-sophia {
+  fill: var(--core);
+  animation: threshold-breathe 4.8s ease-in-out 1.2s infinite alternate;
+}
+@keyframes threshold-breathe {
+  from {
+    filter: drop-shadow(0 0 4px rgba(156, 130, 245, 0.45));
+  }
+  to {
+    filter: drop-shadow(0 0 12px rgba(156, 130, 245, 0.85));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .threshold .umbral-sophia {
+    animation: none;
+    filter: drop-shadow(0 0 6px rgba(156, 130, 245, 0.6));
+  }
+}
 .light[data-fallback] .light-gl {
   display: none;
 }
@@ -876,6 +912,10 @@ img.avatar {
   color: var(--text-2);
   max-width: 42ch;
 }
+/* A quiet screen speaks in three sizes: its title, its text (words, fields, buttons alike), and a label. */
+.screen-body :where(p, input, .pill, .text-button) {
+  font-size: 14px;
+}
 /* An error on a quiet screen still reads as one: the rule above would give it the body's grey. */
 .screen-body .form-error {
   color: var(--rose);
@@ -913,20 +953,19 @@ img.avatar {
 .provider:disabled {
   opacity: 0.55;
 }
-/* A provider on its way: the mark in grey, no lift, and no hover beyond its tip. */
-.provider.soon {
-  cursor: default;
-  box-shadow: none;
-  background: transparent;
-  border-style: dashed;
+.field:has(input[aria-invalid='true']) {
+  border-color: rgba(240, 150, 170, 0.55);
 }
-.provider.soon svg {
-  filter: grayscale(1);
-  opacity: 0.4;
+/* Send again: its countdown, then what came of it, on one quiet line; a failure in the error colour. */
+.send-again {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 4px 10px;
 }
-.provider.soon:hover {
-  border-color: var(--line-2);
-  background: transparent;
+.send-again [data-state='failed'] {
+  color: var(--rose);
 }
 .provider[aria-busy='true'] {
   opacity: 1;
@@ -1759,6 +1798,9 @@ img.avatar {
 @media (prefers-reduced-motion: reduce) {
   .sophia-looking-dot {
     animation: none;
+  }
+  .umbral-sophia {
+    transition: none;
   }
 }
 .mini-dock .sophia-looking {
