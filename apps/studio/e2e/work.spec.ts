@@ -860,6 +860,19 @@ test('wbc · UI-11 · a draft and a command stay with their work and generation:
   await expect(field()).toHaveValue('')
 })
 
+test('wbc · UI-11 · an open command of the earlier generation stays with it: the next generation lists none', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await sheet.getByRole('button', { name: /^Hold/ }).click() // lost: still open
+  await expect(sheet.getByRole('button', { name: 'Try again' })).toBeVisible()
+  // Given again at its next generation, it is another assignment: not even its earlier attempt's history shows.
+  await page.evaluate(() => window.workFixture?.reassign?.('work-2'))
+  await expect(sheet.locator('.act-steps')).toHaveCount(0)
+  await expect(sheet.getByRole('list', { name: 'Earlier, still open' })).toHaveCount(0)
+})
+
 test('wbc · UI-12 · a receipt repeated, late, or for another task changes nothing', async ({ page }) => {
   await paused(page, `${PAGE}?viewer=davide&settle=confirmed`)
   const review = await openTask(page, 'work-2', 'Review the report pane')
