@@ -62,6 +62,14 @@ test('personal · the head is Home’s: a quiet label, and the notes as a count 
   expect(notes.width).toBeLessThan(120)
 })
 
+test('personal · with no notes yet, the toggle is still there, says so, and opens them', async ({ page }) => {
+  await page.goto(`${PAGE}?notes=none`)
+  const toggle = page.getByRole('button', { name: /No notes/ })
+  await expect(toggle).toBeVisible()
+  await toggle.click()
+  await expect(page.locator('#c-notes')).toBeVisible()
+})
+
 test('personal · nothing said yet: the ways to start are rows, each a sentence and an arrow; one press sends it', async ({
   page,
 }) => {

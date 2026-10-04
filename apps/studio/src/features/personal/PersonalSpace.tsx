@@ -245,7 +245,7 @@ function Head({ count, notes }: { count: number | undefined; notes: Props['notes
         You and Sophia
       </h2>
       <div className="c3-head-acts">
-        {((count ?? 0) > 0 || notes.open) && (
+        {(count !== undefined || notes.open) && (
           <button
             className="c3-notes-toggle has-tip"
             type="button"

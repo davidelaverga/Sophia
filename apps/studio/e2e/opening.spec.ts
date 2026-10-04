@@ -94,10 +94,12 @@ test('opening · says its work as it does it, warms the likeliest projects, then
   const said = seen.filter((f) => f.up).map((f) => f.said)
   const order = ['Signing you in', 'Opening your space', 'Getting your projects ready', 'Ready']
   expect([...new Set(said)]).toEqual(order)
-  // Each one reads: its words stay at least 0.4 s, however fast the work went.
-  for (const words of order.slice(0, -1)) {
-    const when = seen.filter((f) => f.up && f.said === words).map((f) => f.t)
-    expect(Math.max(...when) - Math.min(...when), words).toBeGreaterThan(400)
+  // Each one reads: its words stay at least 0.4 s, however fast the work went. Measured from the first frame that says
+  // them to the first that says the next, so frames a loaded runner spaces out can't shorten it from both ends.
+  for (const [i, words] of order.slice(0, -1).entries()) {
+    const from = seen.find((f) => f.up && f.said === words)?.t ?? 0
+    const to = seen.find((f) => f.up && f.said === order[i + 1])?.t ?? 0
+    expect(to - from, words).toBeGreaterThan(400)
   }
   // The arrival lands whole before it leaves.
   const shown = seen.filter((f) => f.up).map((f) => f.t)

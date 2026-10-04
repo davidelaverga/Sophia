@@ -2,7 +2,7 @@
 // labelled simulated conversation that answers. The query string picks it: `talk=new` (nothing said yet: Sophia's
 // introduction and the ways to start), else one from yesterday and today; `writing=1` (Sophia is writing her reply);
 // `failed=1` (her last reply failed: Ask again); `suggestion=1` (she suggests a note); `notes=open` (the notes beside
-// it); `unavailable=1` (Sophia can't answer now). A message sent here is answered 900 ms later.
+// it), `notes=none` (none kept yet); `unavailable=1` (Sophia can't answer now). A message sent here is answered 900 ms later.
 // `window.personalFixture.sent` lists what was sent.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -115,26 +115,32 @@ const receipt = (operation: PersonalReceipt['operation']): PersonalReceipt => ({
   erased: null,
 })
 
+/** The space as first read: the query string picks its turns and notes. */
+const firstSpace = (): Space => ({
+  companion: query.has('unavailable') ? 'unavailable' : 'rehearsal',
+  revision: 1,
+  turns: talk(),
+  earlier: false,
+  notes:
+    query.get('notes') === 'none'
+      ? []
+      : [
+          {
+            id: 'note-1',
+            text: 'Start the deck from one number I trust',
+            keptBy: 'person',
+            fromTurnId: null,
+            createdAt: ago(DAY),
+          },
+        ],
+  releases: [],
+  epoch: 1,
+  days: 2,
+})
+
 /** The space and its writes, as the API would keep them: a message is listed at once and answered 900 ms later. */
 function useSimulated() {
-  const [space, setSpace] = useState<Space>(() => ({
-    companion: query.has('unavailable') ? 'unavailable' : 'rehearsal',
-    revision: 1,
-    turns: talk(),
-    earlier: false,
-    notes: [
-      {
-        id: 'note-1',
-        text: 'Start the deck from one number I trust',
-        keptBy: 'person',
-        fromTurnId: null,
-        createdAt: ago(DAY),
-      },
-    ],
-    releases: [],
-    epoch: 1,
-    days: 2,
-  }))
+  const [space, setSpace] = useState<Space>(firstSpace)
   const [sending, setSending] = useState<Sending | null>(null)
   const [busy, setBusy] = useState(false)
   const answer = useRef(0)
