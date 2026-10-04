@@ -589,15 +589,11 @@ when you change the room:
   general rules (nothing runs or loads, safe links, text escaped and no entity
   split, ids used once and links that land) and the seed's own (one policy,
   seven metas and one stylesheet, only the tags and attributes it prints).
-  Besides: each stored limitation prints unless a whole paragraph or
-  top-level list item of the report's own limitations sections reads exactly
-  as it, character for character but for citations, inline tags, spacing,
-  apostrophes, soft hyphens, case and a closing full stop, with three words
-  or more (`unsaid`): a heading, a longer block, a quotation, a table cell, a
-  nested item or the same words elsewhere prove nothing, so it prints again;
-  beside the report's own limitations section the record's is "Limitations
-  on record"; the method never says "states no limitations" while any is
-  stored (M75); a heading named like one of the
+  Besides: every stored limitation prints, whatever the report says or
+  calls its sections, since no reading of headings or text proves one
+  stated (M75); beside a section of the report's own on its limitations the
+  record's is "Limitations on record"; the method never says "states no
+  limitations" while any is stored; a heading named like one of the
   page's own parts is renamed in the page only, so pdf-report-v1 keeps its
   ids and bytes; the same bytes in any
   time zone; hostile text escaped; a draft of any length printed in linear

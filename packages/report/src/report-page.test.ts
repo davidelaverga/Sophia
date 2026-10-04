@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { describe, it } from 'node:test'
 import { assertGrowth } from '../../test-support/src/growth.ts'
-import { escapeHtml as esc, renderReport } from './report-html.ts'
+import { renderReport } from './report-html.ts'
 import {
   PAGE_CSS,
   PAGE_CSP,
@@ -706,118 +706,68 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.doesNotMatch(quiet, /class="n"|toc-key|report-sources/, 'no counts, no key, no sources row')
   })
 
-  it('U9 · prints the stored limitations the report does not say, before its conclusion; never twice', () => {
+  it('U9 · prints every stored limitation, before the conclusion, whatever the report says or calls its sections', () => {
     const without = RICH.replace(/## Risks and limitations[^#]*/, '')
-    const html = rich({ markdown: without, limitations: ['Restore times are vendor claims.', '  '] })
+    const html = rich({ markdown: without, limitations: ['Restore times are vendor claims.', '  ', '\u200b\u00ad'] })
     assert.ok(
       html.includes(
         '<section id="report-limitations" data-report-role="limitations"><h2>Limitations</h2>\n' +
           '<p class="aside">As stated when this version was published.</p><ul><li>Restore times are vendor claims.</li>' +
           '</ul></section>\n<section id="conclusion"',
       ),
+      'one bullet: a line that shows nothing is no limitation',
     )
     assert.ok(html.includes('<li><a href="#report-limitations">Limitations</a></li>'), 'in the contents')
+    assert.doesNotMatch(html, /states no limitations/)
+    // The record is printed even when the report states the same limitation word for word (M75, the cloud review on
+    // 85c1ae1): no reading of headings or text proves a limitation stated, so none on record is ever left out.
     const stated = rich({ limitations: ['Restore times are vendor claims.'] })
-    assert.doesNotMatch(stated, /id="report-limitations"/)
-    assert.equal(stated.match(/<section id="[^"]+" data-report-role="limitations"/g)?.length, 1)
-    // A heading is no proof that a limitation was kept (M75, the cloud review on 85c1ae1): what the report says is not
-    // printed twice, whatever its heading; what it does not say is printed, whatever its heading.
-    const said = 'Prices change often.'
-    for (const heading of [
-      'Risks and limits',
-      'Conclusions and limitations',
-      'Limits of liability',
-      'Limiti dello studio',
-    ]) {
-      const named = without.replace('## Conclusion\n', `## ${heading}\n\n- prices CHANGE often\n\n`)
-      const out = rich({ markdown: named, limitations: [said, 'Not said anywhere.'] })
-      const printed = slice(out, '<section id="report-limitations"', '</section>')
-      assert.ok(printed.includes('<li>Not said anywhere.</li>'), `${heading}: what the report does not say is printed`)
-      assert.ok(!printed.includes(said), `${heading}: what it says is not printed twice`)
-      assert.equal(out.match(/id="report-limitations"/g)?.length, 1, heading)
-    }
-    const allSaid = without.replace('## Conclusion\n', '## Limits\n\n- Prices change often\n\n')
-    assert.doesNotMatch(rich({ markdown: allSaid, limitations: [said] }), /id="report-limitations"/, 'all said: none')
-  })
-
-  it('U9 · counts a stored limitation as stated only by a whole paragraph or item of a limitations section (M75)', () => {
-    /** The stored limitations the page prints for a report whose section `heading` holds `body`. */
-    const printed = (body: string, stored: string[], heading = 'Limitations') => {
-      const html = page({ markdown: `# T\n\n## Findings\n\nx\n\n## ${heading}\n\n${body}\n`, limitations: stored })
-      return [...html.matchAll(/<section id="report-limitations"[^]*?<\/section>/g)].flatMap((m) =>
-        [...m[0].matchAll(/<li>([^<]*)<\/li>/g)].map((li) => li[1]),
-      )
-    }
-    // Stated: a whole paragraph or list item, whatever its citations, apostrophes, inline tags, soft hyphens, spacing,
-    // case or closing full stop; under any heading the page reads as limitations.
-    for (const [body, stored, heading] of [
-      [`Restore times are vendor claims [${A}].`, 'Restore times are vendor claims.'],
-      ['The vendor’s figures are unaudited.', "The vendor's figures are unaudited."],
-      ['**Vendor**s report their own restore times.', 'Vendors report their own restore times.'],
-      ['Prices change of\u00adten.', 'Prices change often.'],
-      ['- One item.\n- results exclude ASIA', 'Results exclude Asia.'],
-      ['Results exclude\nAsia.', 'Results exclude Asia.'],
-      ['Results exclude  \nAsia.', 'Results exclude Asia.'],
-      ['- Results exclude Asia.', 'Results exclude Asia.', 'Limits of liability'],
-      ['- Results exclude Asia.', 'Results exclude Asia.', 'Conclusions and limitations'],
-    ]) {
-      assert.deepEqual(printed(body ?? '', [stored ?? ''], heading), [], body)
-    }
-    // Not stated, so printed: inside a longer block (which may narrow or negate it), with other characters, across
-    // blocks, under a line break, a heading, a quotation, a table cell, outside a limitations section, too short.
-    for (const [body, stored, heading] of [
-      ['Results exclude Asian subsidiaries.', 'Results exclude Asia.'],
-      ['Results exclude Asia-Pacific subsidiaries.', 'Results exclude Asia.'],
-      ['Only 2.5% of responses were missing.', '5% of responses were missing.'],
-      ['At 10:30 vendors did not reply to the survey.', '30 vendors did not reply to the survey.'],
-      ['For the U.S. data covers only 2024; EU data covers 2020 to 2024.', 'Data covers only 2024.'],
-      ['It is not true that the sample is small.', 'The sample is small.'],
-      ['Critics wrote: the sample is too small. Our power analysis shows otherwise.', 'The sample is too small.'],
-      [`Restore times are vendor claims [${A}] and untested.`, 'Restore times are vendor claims.'],
-      ['- Prices\n- change often', 'Prices change often.'],
-      ['It is not true that\u0002the sample is too small.', 'The sample is too small.'],
-      ['It is not true that  \nthe sample is too small.', 'The sample is too small.'],
-      ['- It is not true that  \n  the sample is too small.', 'The sample is too small.'],
-      ['Sample size ≥ 30 per arm.', 'Sample size < 30 per arm.'],
-      ['Survey weights = census weights here.', 'Survey weights ≠ census weights here.'],
-      ['Margins moved +3% in 2024.', 'Margins moved -3% in 2024.'],
-      ['The sample is too small?', 'The sample is too small.'],
-      ['The sample is too small!', 'The sample is too small.'],
-      ['ข้อมูล ไม้ ครบ ถ้วน', 'ข้อมูล ไม่ ครบ ถ้วน'],
-      ['I zmir data is missing.', 'İzmir data is missing.'],
-      ['### The sample is too small\n\nOur power analysis shows otherwise.', 'The sample is too small.'],
-      ['Critics wrote:\n\n> The sample is too small.', 'The sample is too small.'],
-      ['| Claim | Status |\n|--|--|\n| The sample is too small. | Refuted |', 'The sample is too small.'],
-      ["- The sample is too small\n  - in the critics' view", 'The sample is too small.'],
-      ['- Critics claim:\n  - The sample is too small.', 'The sample is too small.'],
-      ['The sample is too small.', 'The sample is too small.', 'Findings again'],
-      ['Preliminary.', 'Preliminary.'],
-      ['| a |\n|--|\n| N/A |', 'N/A'],
-      ['It ends here...', '...'],
-    ]) {
-      assert.deepEqual(printed(body ?? '', [stored ?? ''], heading), [esc(stored ?? '')], body)
-    }
-    // Stated outside a limitations section: printed, and never "states no limitations" while any is stored.
-    const html = page({
-      markdown: '# T\n\n## Findings\n\nPrices change often.\n',
-      limitations: ['Prices change often.'],
-    })
-    assert.ok(html.includes('<li>Prices change often.</li>') && !/states no limitations/.test(html))
-    // A stored limitation that shows nothing is no limitation: no bullet, and the note stands.
-    const blank = page({ markdown: '# T\n\n## Findings\n\nx\n', limitations: ['\u200b', ' \u00ad '] })
-    assert.ok(!blank.includes('id="report-limitations"') && /states no limitations/.test(blank), 'invisible')
-    // Beside the report's own limitations section, the record's is named apart: no two contents entries alike.
-    const both = page({
-      markdown: '# T\n\n## Findings\n\nx\n\n## Limitations\n\n- Small sample.\n',
-      limitations: ['Small sample.'],
-    })
-    assert.ok(both.includes('<h2>Limitations</h2>') && both.includes('<h2>Limitations on record</h2>'), 'named apart')
-    const contents = slice(
-      rich({ limitations: ['A limitation the report never states.'] }),
-      '<nav class="toc"',
-      '</nav>',
+    const record = slice(stated, '<section id="report-limitations"', '</section>')
+    assert.ok(
+      record.includes('<h2>Limitations on record</h2>') && record.includes('<li>Restore times are vendor claims.</li>'),
     )
+    assert.equal(
+      stated.match(/<section id="[^"]+" data-report-role="limitations"/g)?.length,
+      2,
+      'its own and the record',
+    )
+    const contents = slice(stated, '<nav class="toc"', '</nav>')
     assert.ok(contents.includes('>Risks and limitations</a>') && contents.includes('>Limitations on record</a>'))
+    // Whatever the headings: a subject ("Limits of liability", "Limiti di velocità"), a section of limitations under
+    // another role, or the limitation said, framed or refuted anywhere in the report.
+    const said = 'The sample is too small.'
+    for (const [heading, body, title] of [
+      ['Limits of liability', `- ${said}`, 'Limitations on record'],
+      ['Limiti di velocità', `- ${said}`, 'Limitations on record'],
+      ['Límites de tasa', `- ${said}`, 'Limitations on record'],
+      ['I limiti di velocità', `- ${said}`, 'Limitations'],
+      ['Conclusions and limitations', `- ${said}`, 'Limitations on record'],
+      ['Limitations', `Critics claim:\n\n- ${said}`, 'Limitations on record'],
+      ['Limitations', `- ${said}\n\nThat is what critics claim; it is false.`, 'Limitations on record'],
+      ['Limitations', `${said}\n  - in the critics' view`, 'Limitations on record'],
+      ['Findings', said, 'Limitations'],
+    ]) {
+      const out = page({ markdown: `# T\n\n## Background\n\nx\n\n## ${heading}\n\n${body}\n`, limitations: [said] })
+      const printed = slice(out, '<section id="report-limitations"', '</section>')
+      assert.ok(printed.includes(`<h2>${title}</h2>`) && printed.includes(`<li>${said}</li>`), heading)
+      assert.equal(out.match(/id="report-limitations"/g)?.length, 1, heading)
+      assert.doesNotMatch(out, /states no limitations/, heading)
+    }
+    // Italian and Spanish pages title the record in their own language.
+    for (const [md, title] of [
+      [
+        '# Rapporto\n\n## Rischi e limiti\n\nIl servizio della rete che offre anche il rendering, per questo sono gli ' +
+          'strumenti delle opzioni nel progetto, alla fine degli studi.\n',
+        'Limiti registrati',
+      ],
+      [
+        '# Informe\n\n## Riesgos y límites\n\nEl servicio que ofrece los informes para las empresas, como este ' +
+          'proyecto, también está por encima de las opciones que son más caras.\n',
+        'Limitaciones registradas',
+      ],
+    ]) {
+      assert.ok(page({ markdown: md ?? '', limitations: ['x y z'] }).includes(`<h2>${title}</h2>`), title)
+    }
   })
 
   it('U10 · reads limitations and answers from their headings, and nothing else', () => {
@@ -840,7 +790,8 @@ describe('html-report-v2: what its bytes guarantee', () => {
     assert.equal(role('The bottom line'), 'summary')
     assert.equal(role('Answering engines compared'), 'body')
     // Italian and Spanish headings open with their article (M75, the cloud review on 4906bc8): the bare heading reads as
-    // limitations, a longer one ("I limiti di velocità", rate limits) stays body, so the stored limitations still print.
+    // limitations, a longer one ("I limiti di velocità", rate limits) stays body. Headings set only a section's role:
+    // the stored limitations print whatever they are (U9).
     for (const heading of ['I limiti', 'Los límites', 'The limits', 'I rischi e i limiti', 'Gli ambiti e i limiti'])
       assert.equal(role(heading), 'limitations', heading)
     for (const heading of ['La risposta', 'La respuesta', 'The answer']) assert.equal(role(heading), 'summary', heading)
@@ -851,12 +802,6 @@ describe('html-report-v2: what its bytes guarantee', () => {
       'I answer three questions',
     ]
     for (const heading of [...body, 'Le risposte dei fornitori']) assert.equal(role(heading), 'body', heading)
-    // A heading that opens with "Limits" may be a subject ("Limits of liability", rate limits): however it is set, the
-    // stored limitations it does not say still print (the cloud review on 85c1ae1, `unsaid`).
-    for (const heading of ['Limits of liability', 'Limiti di velocità', 'Límites de tasa', 'I limiti di velocità']) {
-      const stored = page({ markdown: `# T\n\n## ${heading}\n\n${filler(5)}`, limitations: ['Stored.'] })
-      assert.ok(stored.includes('<section id="report-limitations"'), `${heading}: the stored ones still print`)
-    }
     for (const heading of ['Limits', 'Limiti.', 'Límites:']) assert.equal(role(heading), 'limitations', heading)
     const pdf = renderReport({
       markdown: `# T\n\n## Answer\n\n${filler(5)}`,

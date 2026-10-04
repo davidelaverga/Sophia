@@ -100,10 +100,9 @@ function dateOf(iso: string | null | undefined, words: PageWords): string | null
  * A heading the page reads as limitations, or as the answer (a body section by printReport's own roles). Italian and
  * Spanish headings name them with their article (M75): "I limiti", "Los límites", "The limits" read as limitations
  * when the article and the word are the whole heading; "La risposta", "La respuesta" and "The answer" read as the
- * answer as "Answer" does. These read a heading's words, not what the section says, so they decide how a section is
- * set (its amber rule, the answer first), the method's "states no limitations" and where `unsaid` looks for a stored
- * limitation stated word for word: never on their own that one is left out (M75: "Limits of liability" read as
- * limitations and the page dropped them all).
+ * answer as "Answer" does. These read a heading's words, not what the section says, so they decide only how a section
+ * is set (its amber rule, the answer first), the method's "states no limitations" and the stored section's title:
+ * never which stored limitations are printed (M75: "Limits of liability" read as limitations and the page dropped them).
  */
 const LIMITS =
   /\b(limitations?|caveats?|limitazioni|limitaciones|salvedades)\b|^(limits|limiti|l[ií]mites)\b|^(the|i|los)\s+(limits|limiti|l[ií]mites)\s*[.:]?\s*$/i
@@ -312,115 +311,26 @@ function pageSections(printed: PrintedReport, pass: Pass): PageSection[] {
  * them under another role ("Conclusions and limitations", "Sources and limitations"). */
 const limitsSection = (s: PageSection) => s.role === 'limitations' || namesLimits(s.title)
 
-/** Whether the report states its limitations. It decides the method's note, never on its own what is printed. */
+/** Whether the report states its limitations. It decides the method's note, never what is printed. */
 const statesLimits = (sections: readonly PageSection[]) => sections.some(limitsSection)
 
-/** Tags that start or end a block of text (`BLOCKS`, but a line break, which stays inside its paragraph): captured, the
- * slash of a closing tag and the tag's name. */
-const BLOCK_TAG = new RegExp(`<(\\/?)(${[...BLOCKS].filter((t) => t !== 'br').join('|')})\\b[^>]*>`, 'gi')
-/** A citation group as the page sets it (`pagePass`): its numerals are not part of the text around it. */
-const CITE_GROUP = /<sup class="cite[^"]*">(?:[^<]|<(?!\/sup>))*<\/sup>/g
-/** Fewer words than this cannot be told from a passing mention ("Preliminary.", "N/A"): always printed. */
-const SAID_WORDS = 3
-
-/** Whether a stored limitation shows anything: a letter, digit, mark of punctuation or symbol. */
-const visible = (text: string) => /[\p{L}\p{N}\p{P}\p{S}]/u.test(text)
+/** Whether a stored limitation shows anything: a character that is not white space, a control or a format character. */
+const visible = (text: string) => /[^\s\p{Cc}\p{Cf}]/u.test(text)
 
 /**
- * Plain text as a reader compares it: one apostrophe, no soft hyphen, one case, one space, no closing full stop. Every
- * other character counts as it is ("<" is not "≥", "?" is not ".", "-3%" is not "+3%").
+ * Every limitation the version stored, as a section of its own: after the last body or summary section, before the
+ * conclusion or references that follow it. Always, whatever the report says (M75, the cloud review on 85c1ae1): it is
+ * the version's record, as Studio's reader shows it above the report, and no reading of the report's headings or text
+ * can tell that the report states one (a heading may be a subject, "Limits of liability"; a sentence may be framed,
+ * narrowed or refuted by the one before or after it). A limitation the report also states is printed again here, under
+ * "As stated when this version was published"; beside a section of the report's own on its limitations, this one is
+ * titled "Limitations on record", so the contents never list two alike.
  */
-const plain = (text: string) =>
-  text
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/\u00ad/g, '')
-    .normalize('NFC')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\s*\.$/, '')
-
-/** A run of the printer's escaped markup between two block tags, read as plain text: a line break a space, inline tags
- * dropped, the escaper's entities read back. */
-const blockText = (html: string) =>
-  plain(
-    html
-      .replace(/<br\b[^>]*>/gi, ' ')
-      .replace(/<[^>]*>/g, '')
-      .replace(/&(amp|lt|gt|quot|#39);/g, (_, e: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"' })[e] ?? "'"),
-  )
-
-/**
- * The statements of a section, as plain text, citations dropped: each paragraph, and each top-level list item without
- * items under it, whose whole text runs from its start tag to its end tag (no other block inside it). A heading (a
- * topic), a quotation (someone else's words), a table cell (read with its row and its column), a nested item (read
- * under its parent: "Critics say:") and an item with items under it state nothing on their own and are left out.
- * printReport sets a nested item as `<li class="dN">` after its parent's `</li>`.
- */
-function statementsOf(html: string): string[] {
-  const text = html.replace(CITE_GROUP, '')
-  const statements: string[] = []
-  let place: Place = { quoted: 0, open: null, from: 0 }
-  let pending: string | null = null
-  for (const m of text.matchAll(BLOCK_TAG)) {
-    const closing = m[1] === '/'
-    const tag = (m[2] ?? '').toLowerCase()
-    const nested = !closing && tag === 'li' && m[0] !== '<li>'
-    if (pending !== null && !nested) statements.push(pending)
-    pending = null
-    if (closing && place.open === tag && place.quoted === 0) {
-      pending = blockText(text.slice(place.from, m.index))
-    }
-    place = nextPlace(place, closing, m[0], tag, m.index + m[0].length)
-  }
-  if (pending !== null) statements.push(pending)
-  return statements
-}
-
-/** Where the text after a block tag sits: how deep in quotations, and the paragraph or top-level list item it opens,
- * if any, from where. A table cell never opens one: printReport sets a cell's text inline. */
-interface Place {
-  quoted: number
-  open: string | null
-  from: number
-}
-
-function nextPlace(place: Place, closing: boolean, whole: string, tag: string, from: number): Place {
-  return {
-    quoted: tag === 'blockquote' ? Math.max(0, place.quoted + (closing ? -1 : 1)) : place.quoted,
-    open: whole === '<p>' || whole === '<li>' ? tag : null,
-    from,
-  }
-}
-
-/**
- * The stored limitations the report does not already state (M75, the cloud review on 85c1ae1). One is stated only when
- * a whole paragraph or top-level list item of the report's own limitations sections (`limitsSection`, `statementsOf`)
- * reads exactly as it, character for character but for citations, inline tags, spacing, apostrophes, soft hyphens,
- * case and a closing full stop, and it has at least SAID_WORDS words. Nothing else is proof: a heading ("Limits of
- * liability" is a subject), a sentence inside a longer block (which may narrow or negate it: "Asia-Pacific", "2.5%",
- * "Critics wrote: …"), the same words outside a limitations section, a quotation, a table cell, a nested item or a
- * passing mention. Each of those is printed, so the price is that a limitation the report states in other words, or
- * inside a longer block, is printed again under "As stated when this version was published". What this cannot see: a
- * block of the limitations section framed by the one before it ("Critics claim:" then "- The sample is too small.").
- * One lookup each: linear.
- */
-function unsaid(stored: readonly string[], sections: readonly PageSection[]): string[] {
-  const stated = new Set(sections.filter(limitsSection).flatMap((s) => statementsOf(s.html)))
-  return stored
-    .map((l) => l.trim())
-    .filter((l) => visible(l) && ((l.match(/[\p{L}\p{N}]+/gu) ?? []).length < SAID_WORDS || !stated.has(plain(l))))
-}
-
-/**
- * The limitations the version stored that the report does not already say (`unsaid`), as a section of their own: after
- * the last body or summary section, before the conclusion or references that follow it.
- */
-function withStoredLimitations(sections: PageSection[], lines: readonly string[], words: PageWords): PageSection[] {
+function withStoredLimitations(sections: PageSection[], stored: readonly string[], words: PageWords): PageSection[] {
+  const lines = stored.map((l) => l.trim()).filter(visible)
   if (lines.length === 0) return sections
   const items = lines.map((l) => `<li>${esc(l)}</li>`).join('')
-  // Beside the report's own limitations section, the record's is named apart, so the contents never list two alike.
-  const title = sections.some((s) => s.role === 'limitations') ? words.limitationsOnRecord : words.limitations
+  const title = sections.some(limitsSection) ? words.limitationsOnRecord : words.limitations
   const section: PageSection = {
     id: 'report-limitations',
     role: 'limitations',
@@ -551,8 +461,7 @@ function methodSection(page: Page): string {
   if (count('unread') > 0) lines.push(['warn', esc(words.unread(count('unread'), n))])
   lines.push(n > 0 ? ['ok', esc(words.gate(n))] : ['note', esc(words.noCites)])
   lines.push(['note', `<strong>${esc(words.review[0])}</strong> ${esc(words.review[1])}`])
-  // page.sections holds the record's limitations section when any stored one is printed (`unsaid`), and any stored one
-  // not printed is stated in a limitations section: the note never says "none" while the version stores some (M75).
+  // page.sections holds the record's limitations whenever the version stored any (`withStoredLimitations`).
   if (!statesLimits(page.sections)) lines.push(['note', esc(words.noLimits)])
   lines.push(['note', esc(words.noRecord)])
   const items = lines.map(([kind, text]) => `<li class="${kind}">${text}</li>`).join('')
@@ -648,8 +557,7 @@ function passParts(input: ReportPageInput, words: PageWords, printed: PrintedRep
   const part = (prefix: string) => printed.body.find((p) => p.startsWith(prefix)) ?? null
   const leadPart = part('<div class="lead">')
   const lead = leadPart === null ? null : pagePass(leadPart, pass)
-  const own = pageSections(printed, pass)
-  const sections = withStoredLimitations(own, unsaid(input.limitations ?? [], own), words)
+  const sections = withStoredLimitations(pageSections(printed, pass), input.limitations ?? [], words)
   const page: Page = { words, printed, input, known, status, lead: numsOf(lead ?? ''), seen: pass.seen, sections }
   return { page, lead, nav: part('<nav class="toc"'), sources: part('<section class="sources"') }
 }
