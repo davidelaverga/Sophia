@@ -203,6 +203,14 @@ Codex verified CC-0009 at `18471ee` ([CX-0013](https://github.com/davidelaverga/
 | **F-011** (P2): F-009's long reason, as a chip that doesn't wrap, widened the phone sheet past the screen | A few words in the chip, "Not shown as complete"; why on a line of the sheet that wraps |
 | **F-012** (P2): a task whose current result went away was said to have started | A result lost is said as lost (none current, withdrawn, or two claiming to be); a task's mark only when it moved |
 
+## CX-0014
+
+Codex verified CC-0010 at `5625c6f` ([CX-0014](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5983801664), CHANGES_REQUIRED). F-011 holds at 375, 390 and 430 px, and F-012 holds through the reader. It confirmed one finding from GitHub's review of that head, handled in [CC-0011](../coordination/WBC-01/WBC-01-CC-0011.md) (`c39909d`):
+
+| Finding | Fix |
+|---|---|
+| **F-013** (P2): a choice made for a replacement plan showed in the plan in force's Decided history | A plan's history holds its own choices, at its revision or earlier, so carried-forward history stays. Another plan's choices are listed apart, each named by its plan's revision |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.

@@ -157,3 +157,11 @@ N2d F-012 a result lost is said (board): FAILS as it should
 # 2026-10-04, on f8a8ac5: all 108 entries above run again. 105 failed; R1b is the redundant key recorded above; M04 and
 # K1c named F-009's old long reasons, which F-011 moved into the status's detail. Re-aimed at the new reasons, both
 # fail. 107 of 108 fail. N2b first passed: its board check ruled out only "started"; it now counts the task's mentions.
+
+# CX-0014 at 5625c6f (#74; GitHub 4179066167), F-013, fixed in c39909d
+P1 F-013 a plan lists only its own choices: FAILS as it should
+P1b F-013 a later revision of the same plan is another plan: FAILS as it should
+P1c F-013 history carried forward stays: FAILS as it should
+P2 F-013 another plan's choice is named by its revision: FAILS as it should
+
+# 2026-10-04, on c39909d: all 112 entries above run again. 111 make a check fail; R1b is the redundant key recorded above.

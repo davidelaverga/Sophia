@@ -447,7 +447,8 @@ when you change the room:
   only while it can be answered); four lanes, Active, Up next, Unassigned and
   Complete (`plan.ts`: a view over each item's observed state; Complete only
   by its own policy with evidence, and a check of the version it holds, never
-  one no single current version matches), and Closed work with its reasons; every plan
+  one no single current version matches), and Closed work with its reasons; a
+  plan's Decided history its own (another plan's choices listed apart); every plan
   proposed (up to three) beside the one shown, compared, never operated;
   threads to what a
   task waits on; a task's sheet with its typed waits, its result (exact
