@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { lowContrast } from './contrast.ts'
 
 // Personal's fixture page (fixtures/personal.tsx): the Studio's own PersonalSpace over a labelled simulated
 // conversation. The "$20" pass (docs/plans/personal-pass.md): speakers marked by Umbral's halves, no bubbles, Home's
@@ -314,6 +315,104 @@ test('@phone · $20 · the day’s answers, the week and a talk fit the phone', 
   const talk = page.getByRole('dialog', { name: 'Talking with Sophia' })
   await expect(talk.getByRole('button', { name: 'End' })).toBeInViewport()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+// Detail and access (docs/plans/personal-detail.md): measured, not judged.
+
+test('detail · every text in Personal reads: no contrast under 4.5:1, its times and notes included', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?all=1&notes=open`)
+  const mine = page.locator('.msg.me').last()
+  await mine.hover()
+  await expect.poll(() => mine.locator('.at').evaluate((n) => getComputedStyle(n).opacity)).toBe('1')
+  expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
+  await page.goto(`${PAGE}?arrive=1&ready=1`)
+  expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
+})
+
+test('detail · the field shows its focus as Home’s line does, a ring of light, not only a 1 px shift', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await field(page).focus()
+  await expect.poll(() => css(page, '.ps-composer .message-bar', 'box-shadow')).toMatch(/rgba\(185, 168, 255/)
+})
+
+test('detail · every control is at least 24 px tall, the day dividers too', async ({ page }) => {
+  await page.goto(`${PAGE}?all=1`)
+  const short = await page
+    .locator('.c3-space button:visible, .c3-space input:visible, .c3-space textarea:visible')
+    .evaluateAll(
+      (all) =>
+        all
+          .filter((el) => !el.closest('[inert], .c3-edge'))
+          .map((el) => ({ name: el.textContent.trim().slice(0, 20), h: el.getBoundingClientRect().height }))
+          .filter((c) => c.h < 23.5), // 24 px, a renderer's sub-pixel aside
+    )
+  expect(short).toEqual([])
+})
+
+test('detail · one type scale: Personal’s text comes in four sizes', async ({ page }) => {
+  await page.goto(`${PAGE}?all=1&notes=open&arrive=1&ready=1`)
+  const sizes = await page.locator('.c3-space').evaluate((space) => {
+    const seen = new Set<string>()
+    for (const el of space.querySelectorAll('*')) {
+      if (el.closest('.sr-only, .c3-edge, [aria-hidden="true"]')) continue
+      const own = [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim())
+      if (own && el.getBoundingClientRect().width > 0) seen.add(getComputedStyle(el).fontSize)
+    }
+    return [...seen].toSorted()
+  })
+  expect(sizes).toEqual(['10.5px', '11px', '13px', '15px'])
+})
+
+test('detail · with less motion asked for, nothing in Personal moves: no breathing wash, no flicker', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto(`${PAGE}?writing=1`)
+  await page.waitForTimeout(400)
+  const moving = await page
+    .locator('.c3-space')
+    .evaluate((s) => s.getAnimations({ subtree: true }).filter((a) => a.playState === 'running').length)
+  expect(moving).toBe(0)
+})
+
+test('@phone · detail · a long way in wraps inside its row, its lines given room, never past it', async ({ page }) => {
+  await page.goto(`${PAGE}?arrive=1&ready=1`)
+  const rows = await page.locator('.c3-starters button').evaluateAll((all) =>
+    all.map((r) => {
+      const way = r.querySelector('.c3-way')
+      const s = way ? getComputedStyle(way) : null
+      return {
+        over: r.scrollHeight > r.clientHeight + 1,
+        leading: s ? parseFloat(s.lineHeight) / parseFloat(s.fontSize) : 0,
+      }
+    }),
+  )
+  expect(rows.filter((r) => r.over)).toEqual([])
+  expect(Math.min(...rows.map((r) => r.leading))).toBeGreaterThanOrEqual(1.25)
+})
+
+test('@phone · detail · in the notes, what she remembers and your notes line up, each under its own label', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?memory=1&notes=open`)
+  const notes = page.locator('#c-notes')
+  await expect(notes.getByRole('heading', { name: 'Your notes' })).toBeVisible()
+  const [memory, note] = [
+    await notes.locator('.c3-mem p').first().boundingBox(),
+    await notes.locator('.c2-t p').first().boundingBox(),
+  ]
+  expect(Math.abs((memory?.x ?? 0) - (note?.x ?? 1))).toBeLessThanOrEqual(1)
+})
+
+test('detail · “Talk with her” carries her half, as her turns do', async ({ page }) => {
+  await page.goto(`${PAGE}?voice=1`)
+  await expect(
+    page.getByRole('button', { name: 'Talk with her' }).locator('svg.c3-who[data-who="sophia"]'),
+  ).toBeAttached()
 })
 
 test('$20 · a talk covers the whole screen: nothing behind it, the bar included, can be pressed', async ({ page }) => {

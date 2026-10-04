@@ -140,6 +140,7 @@ export function NotesPanel(props: Props) {
         </button>
       </header>
       {props.memory && <Memory {...props.memory} />}
+      {props.memory && props.memory.items.length > 0 && <h3 className="c3-label">Your notes</h3>}
       {notes?.length === 0 && <p className="ps-empty">{NOTES_EMPTY}</p>}
       {notes?.map((note) => (
         <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>
