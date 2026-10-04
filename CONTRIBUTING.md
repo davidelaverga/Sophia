@@ -539,7 +539,8 @@ when you change the room:
   them couldn't be refused as stale. What is known of each command is said
   in three dimensions as its receipts come (`receipts.ts`, WBC-01): Sending
   before any receipt, then recorded or refused, delivered, and a control's
-  effect only once its runtime confirms it; a lost reply is unknown and tried
+  effect only once its runtime confirms it (a delivery once established is never
+  taken back by a later receipt saying less); a lost reply is unknown and tried
   again with the same operation; a late or foreign receipt changes nothing.
   Commands are kept by work and assignment generation, drafts by execution
   (its attempt and session too); only a command for the execution shown

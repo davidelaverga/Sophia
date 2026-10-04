@@ -211,6 +211,15 @@ Codex verified CC-0010 at `5625c6f` ([CX-0014](https://github.com/davidelaverga/
 |---|---|
 | **F-013** (P2): a choice made for a replacement plan showed in the plan in force's Decided history | A plan's history holds its own choices, at its revision or earlier, so carried-forward history stays. Another plan's choices are listed apart, each named by its plan's revision |
 
+## CX-0015
+
+Codex verified CC-0011 at `de85481` ([CX-0015](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5984274045), CHANGES_REQUIRED). F-013 holds, and the exact-head CI passed all six jobs. It confirmed two findings from GitHub's review of that head, both handled in [CC-0012](../coordination/WBC-01/WBC-01-CC-0012.md) (`9c0bd56`):
+
+| Finding | Fix |
+|---|---|
+| **F-014** (P2): a newer receipt saying less of a command's delivery erased a delivery already established | Delivery, once established, is never taken back by a later receipt saying less; before that, a newer word (uncertainty included) stands; the Recorded, effect and refusal fences are unchanged |
+| **F-015** (P2): the "your choice is recorded, the plan is updating" band showed a replacement plan's choice | One rule for the plan's own choices (`decidedFor`), shared with the fold: the band holds the plan shown's own; another plan's are listed apart with their revision |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.

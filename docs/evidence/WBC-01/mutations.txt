@@ -165,3 +165,14 @@ P1c F-013 history carried forward stays: FAILS as it should
 P2 F-013 another plan's choice is named by its revision: FAILS as it should
 
 # 2026-10-04, on c39909d: all 112 entries above run again. 111 make a check fail; R1b is the redundant key recorded above.
+
+# CX-0015 at de85481 (#74; GitHub 4179218923, 4179218926), F-014 and F-015, fixed in 9c0bd56
+Q1 F-014 delivery once established stays (rule): FAILS as it should
+Q1b F-014 delivery once established stays (board): FAILS as it should
+Q1c F-014 before it is established, a newer word stands: FAILS as it should
+Q2 F-015 the updating band holds the plan's own choices: FAILS as it should
+
+# 2026-10-04, on 9c0bd56: all 116 entries above run again. 114 failed; R1b is the redundant key recorded above. M10
+# (the revision fence removed, checked on the board by UI-12) passed: with F-014, UI-12's replayed older receipts no
+# longer showed the fence. UI-12 now also sends a late refusal at the first revision (2136f6b), and M10 fails with
+# M10b. P1–P1c were re-aimed at decidedFor (plan.ts), where F-015 moved the rule, and fail. 115 of 116 fail.
