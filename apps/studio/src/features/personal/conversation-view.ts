@@ -2,9 +2,11 @@
 // from the same side grouped, Sophia's turn opening with her dot, her suggested note after the reply it belongs to,
 // and the wait for her reply at the end. Pure: the component renders these rows and owns nothing but the scroll.
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
+import { ARRIVALS, arriving, type Way } from './arrive.ts'
 
 /** Three quiet ways into a first conversation, gone after the first message. */
 export const STARTERS = ['Something’s on my mind', 'Help me get ready for something', 'Just talk'] as const
+const STARTER_WAYS: readonly Way[] = STARTERS.map((words) => ({ label: words, note: null, words }))
 
 /** A message the person sent that the server has not answered for yet (shown at once, then replaced). */
 export interface Sending {
@@ -19,7 +21,10 @@ export type SuggestionShown = 'open' | 'folded' | 'kept'
 export type Row =
   | { kind: 'day'; key: string; label: string }
   | { kind: 'intro'; key: string; text: string }
-  | { kind: 'starters'; key: string }
+  /** Ways into a first conversation; the session to get ready for leads them, when there is one (arrive.ts). */
+  | { kind: 'starters'; key: string; ways: readonly Way[] }
+  /** How you arrive, under her first line of a new day; the session to get ready for leads them too. */
+  | { kind: 'arrive'; key: string; ways: readonly Way[] }
   | {
       kind: 'turn'
       key: string
@@ -143,18 +148,22 @@ export interface ConversationInput {
   fromTheStart: boolean
   /** Sophia can answer here (a companion is set up): only then are there ways to start. */
   answers?: boolean
+  /** A session in your projects to get ready for with her (readyFor), or none. */
+  ready?: Way | null
 }
 
 /**
  * The introduction leads a conversation from its start; ways to start follow while nothing has been said, where Sophia
  * can answer.
  */
-function introduce(layout: Layout, { turns, sending, now, name, answers = true }: ConversationInput) {
+function introduce(layout: Layout, { turns, sending, now, name, answers = true, ready = null }: ConversationInput) {
   addDay(layout, turns[0] ? new Date(turns[0].createdAt) : now, now)
   layout.rows.push({ kind: 'intro', key: 'intro', text: introText(name) })
   layout.lastSide = 'sophia'
   const first = !sending && !turns.some((t) => t.author === 'person')
-  if (answers && first) layout.rows.push({ kind: 'starters', key: 'starters' })
+  if (answers && first) {
+    layout.rows.push({ kind: 'starters', key: 'starters', ways: ready ? [ready, ...STARTER_WAYS] : STARTER_WAYS })
+  }
 }
 
 /** The rows of the conversation, in order. */
@@ -173,6 +182,10 @@ export function conversationRows(input: ConversationInput): Row[] {
     const movedOn = !!sending || i < lastAsked
     addSuggestion(layout, turn, movedOn)
   })
+  if ((input.answers ?? true) && arriving(turns, now, !!sending)) {
+    const { ready } = input
+    layout.rows.push({ kind: 'arrive', key: 'arrive', ways: ready ? [ready, ...ARRIVALS] : ARRIVALS })
+  }
   if (sending) {
     addDay(layout, sending.at, now)
     const first = layout.lastSide !== 'person'

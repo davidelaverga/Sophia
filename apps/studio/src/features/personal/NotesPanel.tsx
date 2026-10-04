@@ -4,7 +4,9 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PersonalNote, ProjectSummary } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
+import type { Memory as Remembered } from './extras.ts'
 import { focusSoon } from './focus.ts'
+import { Memory } from './Memory.tsx'
 import { membersLabel } from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
 
@@ -20,6 +22,10 @@ interface Props {
   /** Whether a note's carry is on its way: it stays crossed, out of reach, until it settles (back if it failed). */
   carrying: (noteId: string) => boolean
   onStartProject: () => void
+  /** What she remembers of you, at the top, once the API gives it (extras.ts). */
+  memory?: Remembered | undefined
+  /** Under a talk: out of reach until it ends. */
+  under?: boolean
 }
 
 /** How long a carried note takes to slide across before it leaves the list. */
@@ -125,7 +131,7 @@ export function NotesPanel(props: Props) {
   // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
   useEffect(() => panel.current?.focus({ preventScroll: true }), [])
   return (
-    <aside ref={panel} id="c-notes" className="c3-notes" aria-labelledby="c-notes-h" tabIndex={-1}>
+    <aside ref={panel} id="c-notes" className="c3-notes" aria-labelledby="c-notes-h" tabIndex={-1} inert={props.under}>
       <header className="sheet-head">
         <h2 id="c-notes-h">Notes</h2>
         <button type="button" className="round has-tip" aria-label="Close notes" onClick={onClose}>
@@ -133,6 +139,8 @@ export function NotesPanel(props: Props) {
           <Tip label="Close" keys="Esc" side="bottom" align="end" />
         </button>
       </header>
+      {props.memory && <Memory {...props.memory} />}
+      {props.memory && props.memory.items.length > 0 && notes !== undefined && <h3 className="c3-label">Your notes</h3>}
       {notes?.length === 0 && <p className="ps-empty">{NOTES_EMPTY}</p>}
       {notes?.map((note) => (
         <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>
