@@ -14,7 +14,8 @@ export const HEADING = 80
 
 /**
  * The longest report a follow-up can revise, in characters: 0037's rewrite_limit (research_task_statement), past which
- * a follow-up is told to end with research_report_blocker and change nothing. Change the two together.
+ * a follow-up is told to end with research_report_blocker and change nothing. Change the two together: research.db.test
+ * ("draws the line where 0037 does") fails while they differ.
  */
 export const REVISABLE_CHARS = 20_000
 

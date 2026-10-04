@@ -30,7 +30,7 @@ import {
 import { dispatchOnce } from '@sophia/worker'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
-import { TOO_LONG_TO_REVISE, type reportOf } from './report-facts.ts'
+import { REVISABLE_CHARS, TOO_LONG_TO_REVISE, type reportOf } from './report-facts.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
@@ -1686,8 +1686,6 @@ describe('control_work says what a refused or accepted control did (CX-0026)', (
   })
 })
 
-// CX-0030: the owner asked for a length, four sections and limits on searches and reads, and later for a revision of
-// one section that kept the rest; the stored questions carried none of it, so the worker could not keep to it.
 /** As the owner: how many research tasks the project has. */
 async function researchTasks(w: World): Promise<number> {
   const owner = new pg.Client({ connectionString: db.ownerUrl })
@@ -1703,7 +1701,74 @@ async function researchTasks(w: World): Promise<number> {
   }
 }
 
+/**
+ * As the owner: 0037's task statement for an admitted follow-up, as it was sent, and for the same follow-up had it
+ * been asked of the report `other` published instead.
+ */
+async function statements(w: World, followUp: string, other: string): Promise<[string, string]> {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    const { rows } = await owner.query<{ sent: string; instead: string }>(
+      `WITH m AS (SELECT t.body::jsonb AS manifest FROM sophia.jobs j
+                    JOIN sophia.source_texts t ON t.project_id=j.project_id AND t.source_id=j.input_source_id
+                   WHERE j.project_id=$1 AND j.id=$2),
+            o AS (SELECT jsonb_build_object('artifactId',v.artifact_id,'versionId',v.id,'sourceId',v.source_id) AS base
+                    FROM sophia.artifact_versions v WHERE v.project_id=$1 AND v.job_id=$3)
+       SELECT sophia.research_task_statement($1, m.manifest) AS sent,
+              sophia.research_task_statement($1, jsonb_set(m.manifest, '{base}', o.base)) AS instead FROM m, o`,
+      [w.projectId, followUp, other],
+    )
+    const row = rows[0]
+    assert.ok(row, 'the follow-up and the other report were found')
+    return [row.sent, row.instead]
+  } finally {
+    await owner.end()
+  }
+}
+
+/** A text's lines that name research_report_blocker. */
+const blockers = (text: string) => text.split('\n').filter((line) => line.includes('research_report_blocker'))
+
+/** As the owner: the length in characters of the text a task published, as 0037 measures a follow-up's base. */
+async function charsOf(w: World, taskId: string): Promise<number | undefined> {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    const { rows } = await owner.query<{ n: number }>(
+      `SELECT char_length(t.body) AS n FROM sophia.artifact_versions v
+         JOIN sophia.source_texts t ON t.project_id=v.project_id AND t.source_id=v.source_id
+        WHERE v.project_id=$1 AND v.job_id=$2`,
+      [w.projectId, taskId],
+    )
+    return rows[0]?.n
+  } finally {
+    await owner.end()
+  }
+}
+
 describe('a report too long for a follow-up to revise (0037’s limit, 20,000 characters)', () => {
+  it('draws the line where 0037 does: past REVISABLE_CHARS, and only then, 0037 tells a follow-up to end blocked', async () => {
+    const w = await world()
+    // PILOT_V1 and an appendix, CITE becoming the captured source's id (36 characters): `chars` characters in all.
+    const head = `${PILOT_V1}\n## Appendix\n`
+    const size = Array.from(head).length + (head.split('CITE').length - 1) * 32
+    const sized = (chars: number) => `${head}${'Words '.repeat(chars).slice(0, chars - size)}`
+    const at = await researched(w, { text: sized(REVISABLE_CHARS) })
+    const past = await researched(w, { text: sized(REVISABLE_CHARS + 1) })
+    assert.deepEqual([await charsOf(w, at), await charsOf(w, past)], [REVISABLE_CHARS, REVISABLE_CHARS + 1])
+
+    const follow = await tool(w, { question: 'Shorten the summary.', amendsTaskId: at })
+    assert.equal(follow.status, 'admitted', JSON.stringify(follow))
+    const refused = await tool(w, { question: 'Shorten the summary.', amendsTaskId: past })
+    assert.equal(refused.output.code, 'not_started:too_long_to_revise')
+    // The two reports differ only in length and ids (the same title, both a version 1): only the longer one's statement
+    // has a line more that names research_report_blocker, the line telling the follow-up to end with it.
+    const [sent, instead] = await statements(w, String(follow.output.taskId), past)
+    const more = blockers(instead).filter((line) => !blockers(sent).includes(line))
+    assert.deepEqual([more.length, blockers(instead).length], [1, blockers(sent).length + 1], instead)
+  })
+
   it('is never offered a follow-up, nor starts one, and project_status says so; the limit counts characters', async () => {
     const w = await world()
     const appendix = (word: string, times: number) => `${PILOT_V1}\n## Appendix\n${`${word} `.repeat(times)}\n`
@@ -1743,6 +1808,8 @@ describe('a report too long for a follow-up to revise (0037’s limit, 20,000 ch
   })
 })
 
+// CX-0030: the owner asked for a length, four sections and limits on searches and reads, and later for a revision of
+// one section that kept the rest; the stored questions carried none of it, so the worker could not keep to it.
 describe('start_research stores what the speaker asked beyond the topic as lines of the question (CX-0030)', () => {
   const asOwner = async <T>(read: (owner: pg.Client) => Promise<T>): Promise<T> => {
     const owner = new pg.Client({ connectionString: db.ownerUrl })
