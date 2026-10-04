@@ -1,7 +1,7 @@
 // What a research task and its report say on screen (plan §2.8.2, §2.8.3, §2.9), kept out of React so they are
-// tested: the card's state in words, its progress and spend, the file a version downloads as, the chips a version's
-// change facts give, and how each cited source was retrieved. Every word here comes from a record, never a guess:
-// a partial is never called a fallback, and an origin status the extractor did not report stays unknown.
+// tested: the card's state in words, its progress and spend, the file a version downloads as, the line and the chips a
+// version's change facts give, and how each cited source was retrieved. Every word here comes from a record, never a
+// guess: a partial is never called a fallback, and an origin status the extractor did not report stays unknown.
 import type {
   ArtifactVersion,
   NativeTask,
@@ -321,28 +321,115 @@ export function conclusionTopic(
 
 /**
  * The chips of a version's history entry, from the facts the service computed at publication (never from the notes):
- * sources added and dropped, sections added, revised and removed, a changed conclusion or recommendations section
- * (named by the headings that changed), and notes the service wrote.
+ * how many sources a first version cites; on a later one, how many sections were revised and a changed conclusion or
+ * recommendations section (named by the headings that changed). What was removed and added, and the sources, are the
+ * facts line's (factsLine), said once.
  */
 export function factChips(version: Pick<ArtifactVersion, 'changeFacts' | 'versionNumber'>): Chip[] {
   const f = version.changeFacts
   if (!f) return []
   if (version.versionNumber === 1) return [{ label: plural(f.cited, 'source', 'sources'), tone: 'muted' }]
-  if (f.renditionOnly) return [{ label: 'PDF added', tone: 'teal' }]
-  const chips: Chip[] = []
-  if (f.added.length > 0) chips.push({ label: `+${plural(f.added.length, 'source', 'sources')}`, tone: 'teal' })
-  if (f.dropped.length > 0) chips.push({ label: `−${plural(f.dropped.length, 'source', 'sources')}`, tone: 'rose' })
   const s = f.sections
-  if (s) {
-    if (s.added.length > 0)
-      chips.push({ label: `${plural(s.added.length, 'section', 'sections')} added`, tone: 'teal' })
-    if (s.revised.length > 0) chips.push({ label: `${s.revised.length} revised`, tone: 'lav' })
-    if (s.removed.length > 0) chips.push({ label: `${s.removed.length} removed`, tone: 'rose' })
-    const topic = conclusionTopic(s)
-    if (topic) chips.push({ label: `${topic} changed`, tone: 'amber' })
-  }
-  if (f.notesFromFacts) chips.push({ label: 'Notes written from the facts', tone: 'muted' })
+  if (f.renditionOnly || !s) return []
+  const chips: Chip[] = []
+  if (s.revised.length > 0) chips.push({ label: `${s.revised.length} revised`, tone: 'lav' })
+  const topic = conclusionTopic(s)
+  if (topic) chips.push({ label: `${topic} changed`, tone: 'amber' })
   return chips
+}
+
+type ChangeFacts = NonNullable<ArtifactVersion['changeFacts']>
+
+/** At most this many headings of one list are named in the facts line, each cut short past NAME_LENGTH characters. */
+const NAMED = 8
+const NAME_LENGTH = 60
+
+/** A heading as the line names it: cut short past NAME_LENGTH characters. */
+function nameOf(heading: string): string {
+  // Code points, as the service counts characters: an emoji or another character outside the BMP is never cut in two.
+  // oxlint-disable-next-line typescript/no-misused-spread -- code points by design; Firefox 114 lacks Intl.Segmenter
+  const chars = [...heading]
+  if (chars.length <= NAME_LENGTH) return heading
+  const kept = chars.slice(0, NAME_LENGTH - 1).join('')
+  return `${kept.trimEnd()}…`
+}
+
+/** "A, B and 3 more": a list's headings, as many as the line names, a long one cut short. */
+function named(headings: readonly string[]): string {
+  const names = headings.slice(0, NAMED).map(nameOf)
+  const more = headings.length - names.length
+  return more > 0 ? `${names.join(', ')} and ${more} more` : names.join(', ')
+}
+
+/** "7 sections removed: …; 2 added: …", or that none was removed or added. Revisions are a chip (factChips). */
+function sectionChanges(s: Pick<ReportSections, 'added' | 'removed'>): string {
+  const removed =
+    s.removed.length > 0 ? `${plural(s.removed.length, 'section', 'sections')} removed: ${named(s.removed)}` : null
+  if (s.added.length === 0) return removed ?? 'no section added or removed'
+  const added = `${removed ? s.added.length : plural(s.added.length, 'section', 'sections')} added: ${named(s.added)}`
+  return removed ? `${removed}; ${added}` : added
+}
+
+/** "5 dropped, 1 added": how the sources cited changed, or null when they are the same. */
+function sourceChanges(f: Pick<ChangeFacts, 'added' | 'dropped'>): string | null {
+  const parts = [
+    f.dropped.length > 0 ? `${f.dropped.length} dropped` : '',
+    f.added.length > 0 ? `${f.added.length} added` : '',
+  ]
+  const said = parts.filter((p) => p !== '')
+  return said.length > 0 ? said.join(', ') : null
+}
+
+/**
+ * The first line of a version's history entry: what the service found changed against the version it replaced (its
+ * parent; `before` is that version's number, null when the list does not hold it), from the facts computed at
+ * publication, never from the notes. It names the sections removed and added and counts the cited sources dropped and
+ * added ("Cited sources", so a section called Sources cannot read as the start of that count); revised sections stay a
+ * count chip, since facts stored under 0027 can count a repeated heading as revised when it was not. A version that
+ * only adds the PDF says so. Null for a first version, or a version without facts.
+ */
+export function factsLine(
+  version: Pick<ArtifactVersion, 'changeFacts' | 'parentId'>,
+  before: number | null,
+): string | null {
+  const f = version.changeFacts
+  if (!f || version.parentId === null) return null
+  const was = before === null ? 'the version before' : `v${before}`
+  if (f.renditionOnly) return `Same text as ${was}; adds the PDF.`
+  const sources = sourceChanges(f)
+  if (!f.sections) return sources === null ? null : `Cited sources compared with ${was}: ${sources}.`
+  return `Compared with ${was}: ${sectionChanges(f.sections)}.${sources === null ? '' : ` Cited sources: ${sources}.`}`
+}
+
+/**
+ * Whether a version's notes go under its facts, folded: its facts show a section removed with no section of that name
+ * left (anchorOf, the rule of the service's truth gate, 0036 note_problems), or sources dropped. Never for notes the
+ * service wrote from the facts, or a version that only adds the PDF. It never reads the notes: it says only that the
+ * facts hold something the notes may leave out.
+ */
+export function notesNeedFacts(version: Pick<ArtifactVersion, 'changeFacts'>): boolean {
+  const f = version.changeFacts
+  if (!f || f.notesFromFacts || f.renditionOnly) return false
+  if (f.dropped.length > 0) return true
+  const s = f.sections
+  if (!s) return false
+  const left = new Set([...s.added, ...s.revised, ...s.unchanged].map(anchorOf))
+  return s.removed.some((h) => !left.has(anchorOf(h)))
+}
+
+/**
+ * How a version's notes show under its facts, as Sophia's: in sight, folded (notesNeedFacts), or not at all when there
+ * are none, when the service wrote them from the facts, which the facts line already says, or when the version replaced
+ * none (a first version). Such a version has no facts line, and its note is the service's own "First version" (0027
+ * research_publish), which is not Sophia's, or words the truth gate never read, since it runs only against a version
+ * before.
+ */
+export function notesShown(
+  version: Pick<ArtifactVersion, 'changeFacts' | 'changeNote' | 'parentId' | 'retainedNote'>,
+): 'open' | 'folded' | null {
+  if (version.parentId === null || version.changeFacts?.notesFromFacts) return null
+  if (!version.changeNote && !version.retainedNote) return null
+  return notesNeedFacts(version) ? 'folded' : 'open'
 }
 
 export interface SourceWords {

@@ -2,7 +2,7 @@
 // viewer's membership, the brief and a room token. Any other request is recorded and refused, so a check that
 // reached for something else fails instead of passing on a real service. A background update is an event on the
 // open stream: the Studio's own feed applies it and refetches the snapshot, as it does with the API.
-import type { Snapshot } from '@sophia/contracts'
+import type { GoalCommand, Receipt, Snapshot } from '@sophia/contracts'
 import { projectEvent, membership, mission, PROJECT, roomToken, snapshot } from './data.ts'
 import {
   content,
@@ -34,6 +34,8 @@ interface Project {
   reportVersions: number
   /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
   reportTitle: string
+  /** Its first two versions are shaped like the pilot's (`history=pilot`, report-data.ts). */
+  pilot?: boolean
   /** Someone is waiting at the door (report-data.ts). */
   waiting: boolean
   /** The report's description on Knowledge (report-data.ts). */
@@ -57,6 +59,8 @@ interface Project {
   work: boolean
   /** The project's goals (the work fixture's one, LFE-07). */
   goals?: Snapshot['goals']
+  /** A goal's command (Request review, Hold, Stop), with its idempotency key; absent, a command is unexpected. */
+  onCommand?: (command: GoalCommand, key: string) => void
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -114,7 +118,29 @@ export function publish(project: Project): void {
   for (const controller of streams) controller.enqueue(frameOf(project.revision))
 }
 
-function answer(project: Project, method: string, url: URL, signal: AbortSignal | null | undefined, body: unknown) {
+const isCommand = (value: unknown): value is GoalCommand =>
+  typeof value === 'object' && value !== null && 'kind' in value && 'goalId' in value
+
+/** A goal's command, admitted as the API admits it: its receipt says sent, never done. */
+function admitted(project: Project, init: RequestInit | undefined): Response | null {
+  if (!project.onCommand || typeof init?.body !== 'string') return null
+  const command: unknown = JSON.parse(init.body)
+  if (!isCommand(command)) return null
+  project.onCommand(command, new Headers(init.headers).get('idempotency-key') ?? '')
+  const receipt: Receipt = {
+    commandId: crypto.randomUUID(),
+    projectId: PROJECT,
+    cursor: String(project.revision),
+    stage: 'admitted',
+    goalId: command.goalId,
+    goalRevision: command.expectedGoalRevision,
+    authorityEpoch: command.expectedAuthorityEpoch,
+  }
+  return json(receipt)
+}
+
+function answer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  const signal = init?.signal
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
   if (method === 'GET' && path === `${base}/snapshot`) {
@@ -129,31 +155,27 @@ function answer(project: Project, method: string, url: URL, signal: AbortSignal 
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
-  if (method === 'POST' && path === `${base}/room-token`) return json(roomToken)
-  return answerReports(project, method, url, body)
+  return method === 'POST' ? posted(project, path, init) : answerReports(project, method, url, init)
 }
 
 /** The reports' requests: the long report the reading checks read (reading-data.ts), else the fixture report's. */
-function answerReports(project: Project, method: string, url: URL, body: unknown) {
+function answerReports(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const reading = method === 'GET' ? readingRead(url.pathname) : null
-  return reading ? json(reading) : answerReport(project, method, url, body)
+  return reading ? json(reading) : answerReport(project, method, url, init)
 }
 
 /**
  * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
  * task, its card, and an edit of its description.
  */
-function answerReport(project: Project, method: string, url: URL, body: unknown) {
+function answerReport(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const path = url.pathname
-  if (method === 'PATCH' && path === `/api/v1/artifacts/${REPORT}/summary`) {
-    const { next, reply } = editDescription(project.description, body, membership.actorId)
-    project.description = next
-    return reply
-  }
+  if (method === 'PATCH') return edited(project, path, init)
   if (method !== 'GET') return null
   if (path === '/api/v1/knowledge/reports') {
     const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
-    return json(reportList(project.reportVersions, project.description, url.searchParams.get('cursor'), filter))
+    const published = versions(project.reportVersions, project.reportTitle, project.pilot)
+    return json(reportList(published, project.description, url.searchParams.get('cursor'), filter))
   }
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
@@ -161,6 +183,22 @@ function answerReport(project: Project, method: string, url: URL, body: unknown)
   const text = source ? content(source, project.textTampered) : null
   if (text) return textRead(project, text)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
+  return null
+}
+
+/** An edit of the report's description on Knowledge, answered as the API answers it. */
+function edited(project: Project, path: string, init: RequestInit | undefined) {
+  if (path !== `/api/v1/artifacts/${REPORT}/summary`) return null
+  const { next, reply } = editDescription(project.description, init?.body, membership.actorId)
+  project.description = next
+  return reply
+}
+
+/** What the page posts: a room token, or a goal's command. */
+function posted(project: Project, path: string, init: RequestInit | undefined) {
+  const base = `/api/v1/projects/${PROJECT}`
+  if (path === `${base}/room-token`) return json(roomToken)
+  if (path === `${base}/commands`) return admitted(project, init)
   return null
 }
 
@@ -201,7 +239,7 @@ function versionsRead(project: Project): Response {
     return new Response(JSON.stringify(body), { status: failure.status })
   }
   served.push(`versions:${String(project.reportVersions)}`)
-  return json(versions(project.reportVersions, project.reportTitle))
+  return json(versions(project.reportVersions, project.reportTitle, project.pilot))
 }
 
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */
@@ -238,7 +276,7 @@ export function installFixtureApi(project: Project): void {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const url = new URL(hrefOf(input), window.location.href)
-    const response = answer(project, method, url, init?.signal, init?.body)
+    const response = answer(project, method, url, init)
     if (response) return Promise.resolve(response)
     unexpected.push(`${method} ${url.pathname}`)
     console.error(`[fixture] unexpected request: ${method} ${url.pathname}`)

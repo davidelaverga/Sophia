@@ -2,7 +2,9 @@
 // record_mission_note, propose_mission_change and decide_mission_change. Each runs for the speaker the input epoch
 // binds, under that speaker's own role, through the same use cases as the member routes. Arguments come from the
 // model and are data: an id it names must exist in this project, and nothing it says grants authority or confirms a
-// decision. A write's outcome is reported as it is: committed, proposed, conflict, denied or unknown.
+// decision. A write's outcome is reported as it is: committed, proposed, conflict, denied or unknown. A research
+// task's text is its worker's summary, so read_selected_source says so and adds the task's own state and what the
+// service computed of the report's versions (CX-0027); a brief reads exactly as before.
 import type pg from 'pg'
 import type { MediaToolCall, MediaToolResult } from '@sophia/contracts'
 import { DomainError, type ErrorCode } from '@sophia/domain'
@@ -16,13 +18,18 @@ import {
   readMissionContext,
   readMissionSource,
   readNativeTask,
+  readResearchVersion,
+  readTaskStandings,
   recordMissionEntry,
   researchGateOpen,
   withActor,
   type MissionTurn,
   type NoteWrite,
   type ProposalWrite,
+  type ResearchVersions,
 } from '@sophia/persistence'
+import { taskStateOf } from './control-words.ts'
+import { reportOf, WORKER_SUMMARY_ABOUT } from './report-facts.ts'
 import { cursorOffset, pageOf } from './source-page.ts'
 import { voiceStatus } from './voice-status.ts'
 
@@ -113,15 +120,22 @@ export function writeFailure(err: unknown): MediaToolResult {
 /** project_status: the mission context for this speaker; `unavailable` is never reported as an empty project. */
 export async function projectStatus(ctx: ToolContext): Promise<MediaToolResult> {
   try {
-    const read = await withActor(ctx.pool, ctx.actorId, 'read', async (c) => ({
-      context: await readMissionContext(c, ctx.projectId, { actorId: ctx.actorId, channel: 'voice' }),
-      discussion: await readDiscussion(c, ctx.projectId),
-      target: await readConfirmationTarget(c, ctx.call.exchangeId),
-      // Only a v1.2 guide hears of render_research, so only it needs to know whether a PDF renderer runs.
-      pdf: ctx.call.guide === 'v1.2' ? await pdfRendererReady(c) : undefined,
-      // Likewise start_research, which admission refuses while the project's research gate is closed (0025).
-      researchGate: ctx.call.guide === 'v1.2' ? await researchGateOpen(c, ctx.projectId) : undefined,
-    }))
+    const v12 = ctx.call.guide === 'v1.2'
+    const read = await withActor(ctx.pool, ctx.actorId, 'read', async (c) => {
+      const context = await readMissionContext(c, ctx.projectId, { actorId: ctx.actorId, channel: 'voice' })
+      const tasks = (context?.work ?? []).flatMap((w) => (w.taskId === null ? [] : [w.taskId]))
+      return {
+        context,
+        discussion: await readDiscussion(c, ctx.projectId),
+        target: await readConfirmationTarget(c, ctx.call.exchangeId),
+        // Only a v1.2 guide hears of render_research, so only it needs to know whether a PDF renderer runs.
+        pdf: v12 ? await pdfRendererReady(c) : undefined,
+        // Likewise start_research, which admission refuses while the project's research gate is closed (0025).
+        researchGate: v12 ? await researchGateOpen(c, ctx.projectId) : undefined,
+        // And Steer, and what a report's versions say: each task's own state and its report (CX-0026, CX-0027).
+        standings: v12 ? await readTaskStandings(c, ctx.projectId, tasks) : undefined,
+      }
+    })
     if (!read.context) return { status: 'refused', output: { readState: 'unavailable', reason: 'Not permitted' } }
     const output = voiceStatus({
       ...read,
@@ -156,29 +170,38 @@ interface Readable {
   textKind: 'sophia_paraphrase' | 'member_text' | 'runtime_result'
   state: string
   pending?: { revision: number }
+  /** A research task's report versions, which its facts are computed from; never for a brief. */
+  research?: ResearchVersions
+}
+
+/** A task's result source, or its context while it has none; a research task's with its report versions. */
+async function readableTask(c: pg.PoolClient, projectId: string, taskId: string): Promise<Readable> {
+  const detail = await readNativeTask(c, projectId, taskId)
+  const versions = detail.task.kind === 'research' ? await readResearchVersion(c, projectId, taskId) : null
+  const research = versions ? { research: versions } : {}
+  const r = detail.result
+  return r
+    ? {
+        sourceId: r.sourceId,
+        sha256: r.sha256,
+        text: r.markdown,
+        textKind: 'runtime_result',
+        state: detail.task.phase,
+        ...research,
+      }
+    : {
+        sourceId: detail.task.contextSourceId,
+        sha256: null,
+        text: null,
+        textKind: 'runtime_result',
+        state: detail.task.phase,
+        ...research,
+      }
 }
 
 async function readable(ctx: ToolContext, ref: SourceRef): Promise<Readable | null> {
   return withActor(ctx.pool, ctx.actorId, 'read', async (c) => {
-    if (ref.kind === 'taskId') {
-      const detail = await readNativeTask(c, ctx.projectId, ref.id)
-      const r = detail.result
-      return r
-        ? {
-            sourceId: r.sourceId,
-            sha256: r.sha256,
-            text: r.markdown,
-            textKind: 'runtime_result',
-            state: detail.task.phase,
-          }
-        : {
-            sourceId: detail.task.contextSourceId,
-            sha256: null,
-            text: null,
-            textKind: 'runtime_result',
-            state: detail.task.phase,
-          }
-    }
+    if (ref.kind === 'taskId') return readableTask(c, ctx.projectId, ref.id)
     if (ref.kind === 'contributionId') {
       const entry = (await readDiscussion(c, ctx.projectId)).find((d) => d.id === ref.id)
       return entry
@@ -205,6 +228,21 @@ async function putToSpeaker(ctx: ToolContext, decisionId: string): Promise<boole
   }
 }
 
+/**
+ * A research task's text is its worker's summary, not the report: said before it, with the service's facts of the
+ * report's versions, and the task's own state beside `state`, whose phase a goal's Hold or Stop can hide (0022).
+ * `text`, its hash, `exact` and the paging stay as they were (the summary is what is stored).
+ */
+const researchFacts = (research: ResearchVersions | undefined) =>
+  research
+    ? {
+        taskState: taskStateOf(research.standing),
+        textIs: 'worker_summary',
+        about: WORKER_SUMMARY_ABOUT,
+        report: reportOf(research),
+      }
+    : {}
+
 /** read_selected_source: exact eligible text, one page at a time, with its coverage and continuation. */
 export async function readSelectedSource(ctx: ToolContext): Promise<MediaToolResult> {
   const ref = sourceRef(ctx.args)
@@ -225,6 +263,7 @@ export async function readSelectedSource(ctx: ToolContext): Promise<MediaToolRes
     sha256: source.sha256,
     textKind: source.textKind,
     state: source.state,
+    ...researchFacts(source.research),
   }
   if (source.text === null) return { status: 'ok', output: { ...base, text: null, coverage: 'none' } }
   const put = source.pending ? await putToSpeaker(ctx, ref.id) : false

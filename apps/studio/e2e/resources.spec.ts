@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { reaches } from './reach.ts'
 import { typeSizes } from './type-sizes.ts'
 
 // LFE-06's resource checks (RES-01 … RES-03): the real ResourcePanel inside the Studio's own ProjectShell, on its
@@ -16,13 +17,6 @@ async function open(page: Page, name: string) {
   await expect(sheet(page, name)).toBeVisible()
   return sheet(page, name)
 }
-/** Whether a press `by` px above an element still reaches it (its touch target, past what it draws). */
-const reaches = (l: Locator, by: number) =>
-  l.evaluate((e, dy) => {
-    const r = e.getBoundingClientRect()
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top - dy)
-    return Boolean(hit && (hit === e || e.contains(hit)))
-  }, by)
 const leftOf = (l: Locator) => l.evaluate((e) => e.getBoundingClientRect().left)
 const capacity = (page: Page, name: string) => sheet(page, name).getByRole('group', { name: 'Capacity' })
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search resources' })
@@ -873,6 +867,40 @@ test('Codex’s review · a dragged tile becomes the Tab stop; Alt at an end cha
   await expect(sortButton(page)).toHaveText('SortAttention') // still live, not frozen
   await tile(page, 'Luis · Claude Code').dragTo(tile(page, 'Davide · Codex'))
   await expect(tile(page, 'Luis · Claude Code')).toHaveAttribute('tabindex', '0')
+  await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
+})
+
+test('a tile dragged without taking the focus becomes the Tab stop; the arrows start from the focused tile', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1`)
+  await tile(page, 'Davide · Claude Code').focus()
+  // As Safari and Firefox on a Mac drag: the pressed tile doesn't take the focus.
+  const dragged = tile(page, 'Luis · Claude Code')
+  const onto = tile(page, 'Davide · Codex')
+  const data = await page.evaluateHandle(() => new DataTransfer())
+  await dragged.dispatchEvent('dragstart', { dataTransfer: data })
+  await onto.dispatchEvent('dragover', { dataTransfer: data })
+  await onto.dispatchEvent('drop', { dataTransfer: data })
+  await dragged.dispatchEvent('dragend', { dataTransfer: data })
+  await expect(grid(page).getByRole('button').nth(1)).toHaveAccessibleName(/Luis · Claude Code/)
+  await expect(dragged).toHaveAttribute('tabindex', '0')
+  await expect(tile(page, 'Davide · Claude Code')).toBeFocused()
+  await page.keyboard.press('ArrowRight') // from Davide's Claude Code, first: the next is Luis's, now second
+  await expect(dragged).toBeFocused()
+})
+
+test('the Tab stop is a tile, not a place: when the tiles re-sort by themselves it stays on the same one', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1`)
+  await page.evaluate(() => window.resourcesFixture?.addRequest?.()) // Codex waits too
+  await tile(page, 'Davide · Claude Code').focus()
+  await expect(tile(page, 'Davide · Claude Code')).toHaveAttribute('tabindex', '0')
+  // Its request answered, Davide's Claude Code no longer waits: Codex goes first, by attention.
+  await page.evaluate(() => window.resourcesFixture?.answerRequest?.())
+  await expect(grid(page).getByRole('button').first()).toHaveAccessibleName(/Davide · Codex/)
+  await expect(tile(page, 'Davide · Claude Code')).toHaveAttribute('tabindex', '0')
   await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
 })
 

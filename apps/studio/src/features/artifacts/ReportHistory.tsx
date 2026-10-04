@@ -1,7 +1,11 @@
-// A report's History tab (plan §2.9): every published version, newest first, with what changed and what was kept
-// (the notes) and the chips the service's facts give (never the notes). Any two versions compare by section, computed
-// here from their checked texts; nothing about the comparison is stored. A pressed control keeps the focus: Show this
-// version turns into "On screen" in place, a comparison takes the focus as it opens and hands it back to its Compare.
+// A report's History tab (plan §2.9): every published version, newest first. Each says first what the service's facts
+// show changed (factsLine, then its chips: never from the notes), then what the research worker said changed and was
+// kept, as Sophia's notes. Where the facts hold what the notes may leave out (a section removed, a source dropped), the
+// notes fold under the facts; notes the service wrote from the facts are not repeated, and a first version's note, most
+// often the service's own "First version", is not credited to Sophia (CX-0026). Any two versions compare by section,
+// computed here from their checked texts; nothing about the comparison is stored. A pressed control keeps the focus:
+// Show this version turns into "On screen" in place, a comparison takes the focus as it opens and hands it back to its
+// Compare.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
@@ -9,7 +13,7 @@ import { Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { loadReportText } from './download.ts'
 import { compareSections, type SectionChange } from './markdown.ts'
-import { conclusionTopic, factChips } from './report-view.ts'
+import { conclusionTopic, factChips, factsLine, notesShown } from './report-view.ts'
 
 interface Props {
   identity: Identity
@@ -30,6 +34,7 @@ export function ReportHistory({ identity, versions, shown, onShow }: Props) {
     setCompare(null)
     list.current?.querySelector<HTMLElement>(`[data-compare="${newer}"]`)?.focus()
   }
+  const numbers = new Map(versions.map((v) => [v.id, v.versionNumber ?? null]))
   return (
     <>
       <ol ref={list} className="report-history">
@@ -39,6 +44,7 @@ export function ReportHistory({ identity, versions, shown, onShow }: Props) {
             <VersionRow
               key={v.id}
               version={v}
+              before={v.parentId === null ? null : (numbers.get(v.parentId) ?? null)}
               shown={v.id === shown || (shown === null && i === 0)}
               onShow={() => onShow(v.id)}
               onCompare={older ? () => setCompare({ older, newer: v }) : null}
@@ -53,12 +59,16 @@ export function ReportHistory({ identity, versions, shown, onShow }: Props) {
 
 interface RowProps {
   version: ArtifactVersion
+  /** The number of the version it replaced, which its facts compare with; null when the list does not hold it. */
+  before: number | null
   shown: boolean
   onShow: () => void
   onCompare: (() => void) | null
 }
 
-function VersionRow({ version, shown, onShow, onCompare }: RowProps) {
+function VersionRow({ version, before, shown, onShow, onCompare }: RowProps) {
+  const facts = factsLine(version, before)
+  const chips = factChips(version)
   return (
     <li className="report-version" data-shown={shown || undefined}>
       <div className="report-version-head">
@@ -66,15 +76,17 @@ function VersionRow({ version, shown, onShow, onCompare }: RowProps) {
         <span className="muted">{dateOf(version.createdAt)}</span>
         {version.state === 'stable' && <Tag tone="teal">Current</Tag>}
       </div>
-      {version.changeNote && <p>{version.changeNote}</p>}
-      {version.retainedNote && <p className="muted">Kept: {version.retainedNote}</p>}
-      <div className="report-chips">
-        {factChips(version).map((c) => (
-          <Tag key={c.label} tone={c.tone}>
-            {c.label}
-          </Tag>
-        ))}
-      </div>
+      {facts && <p className="report-facts">{facts}</p>}
+      {chips.length > 0 && (
+        <div className="report-chips">
+          {chips.map((c) => (
+            <Tag key={c.label} tone={c.tone}>
+              {c.label}
+            </Tag>
+          ))}
+        </div>
+      )}
+      <VersionNotes version={version} />
       <div className="control-row">
         {/* Pressed, it stays where it is as "On screen": aria-disabled, never disabled or removed under the focus. */}
         <button
@@ -92,6 +104,36 @@ function VersionRow({ version, shown, onShow, onCompare }: RowProps) {
         )}
       </div>
     </li>
+  )
+}
+
+/**
+ * What the research worker said about a version, as it submitted it: Sophia's notes, after the facts. Folded when the
+ * facts hold what the notes may leave out, so the facts are read first; not shown when the service wrote them from the
+ * facts, or on a first version (notesShown).
+ */
+function VersionNotes({ version }: { version: ArtifactVersion }) {
+  const shown = notesShown(version)
+  if (shown === null) return null
+  const notes = (
+    <>
+      {version.changeNote && <p>{version.changeNote}</p>}
+      {version.retainedNote && <p className="muted">Kept: {version.retainedNote}</p>}
+    </>
+  )
+  if (shown === 'folded') {
+    return (
+      <details className="report-notes">
+        <summary>Sophia’s notes</summary>
+        {notes}
+      </details>
+    )
+  }
+  return (
+    <div className="report-notes">
+      <p className="report-notes-by">Sophia’s notes</p>
+      {notes}
+    </div>
   )
 }
 

@@ -2,6 +2,7 @@
 // the operations its manifest names, in order: M01's six for v1.1, and v1.2 adds the two research operations and
 // steer. Together they are the contract's MediaToolCall names; nothing retired or future is declared.
 import { Behavior, FunctionResponseScheduling } from '@google/genai'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
@@ -114,6 +115,7 @@ describe('the Live tool surface', () => {
     assert.deepEqual(research.required, ['question'])
     assert.deepEqual(Object.keys(research.properties), [
       'question',
+      'scope',
       'outputs',
       'inputSourceIds',
       'urls',
@@ -136,6 +138,72 @@ describe('the Live tool surface', () => {
     }
     assert.deepEqual(older.properties.action?.enum, ['hold', 'resume', 'stop'])
     assert.equal('brief' in older.properties, false)
+  })
+
+  it('v1.2 says where a steer reaches and how a finished report changes; v1.1’s six stay byte for byte (CX-0026)', () => {
+    const control = String(TOOL_SETS['v1.2'].declarations.find((d) => d.name === 'control_work')?.description)
+    assert.ok(
+      control.endsWith(
+        ' Steer reaches only research that project_status shows waiting or running; a finished report is changed with start_research and amendsTaskId. Do not say a control took effect before its result arrives; a refused control changed nothing.',
+      ),
+      control,
+    )
+    const amends = schema('start_research').properties.amendsTaskId as { description?: string }
+    assert.equal(
+      amends.description,
+      'A finished research task this request revises. The report is edited in place: say in question exactly what to change and anything the speaker wants kept as it is, and fill scope’s change and keep.',
+    )
+    // M01's declarations as qualified, before CX-0026: a v1.1 guide is offered exactly these bytes.
+    const v11 = createHash('sha256').update(JSON.stringify(TOOL_DECLARATIONS), 'utf8').digest('hex')
+    assert.equal(v11, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
+  })
+
+  it('v1.2 asks for the whole request, and for the scope the speaker stated (CX-0030)', () => {
+    const research = schema('start_research')
+    const question = research.properties.question as { maxLength: number; description: string }
+    assert.deepEqual(
+      [question.maxLength, question.description],
+      [
+        2000,
+        'The whole request in the speaker’s own words and language: the topic and every instruction they gave about it (what to change and what to keep as it is, a length, the sections they want, limits on web searches or page reads). Never shortened to a topic.',
+      ],
+    )
+    // Optional, and only the parts the API keeps, at the API's sizes and the allowance's caps (5 searches, 8 reads).
+    assert.deepEqual(research.required, ['question'])
+    assert.deepEqual(research.properties.scope, {
+      type: 'object',
+      description:
+        'Fill only the parts the speaker stated; leave out the others and do not ask for them. The research worker reads it with the question.',
+      properties: {
+        change: {
+          type: 'string',
+          maxLength: 500,
+          description: 'What the speaker wants changed, mostly for a revision.',
+        },
+        keep: { type: 'string', maxLength: 500, description: 'What they want kept as it is.' },
+        length: { type: 'string', maxLength: 100, description: 'The length they asked for, e.g. "about 500 words".' },
+        sections: {
+          type: 'array',
+          items: { type: 'string', maxLength: 100 },
+          maxItems: 12,
+          description: 'The sections they want, in their order.',
+        },
+        maxSearches: { type: 'integer', minimum: 0, maximum: 5, description: 'The most web searches they allow.' },
+        maxReads: { type: 'integer', minimum: 0, maximum: 8, description: 'The most page reads they allow.' },
+      },
+      additionalProperties: false,
+    })
+  })
+
+  it('names each version’s declarations by their SHA-256, which provider.setup logs (CX-0026)', () => {
+    for (const version of ['v1.1', 'v1.2'] as const) {
+      const json = JSON.stringify(TOOL_SETS[version].declarations)
+      assert.equal(TOOL_SETS[version].sha256, createHash('sha256').update(json, 'utf8').digest('hex'), version)
+    }
+    assert.equal(TOOL_SETS['v1.1'].sha256, '9717b92ed6e587f3e8df8cef4ad8b9559e316ca3b222137ac69e9e53cedffea4')
+    // Deliberately: v1.2's control_work and amendsTaskId texts (CX-0026), then start_research's question and scope
+    // (CX-0030).
+    assert.equal(TOOL_SETS['v1.2'].sha256, '57cdfdadd238ceb5851045d1da1bd2c12a72547b406144a3f10f6f694598dcf6')
   })
 
   it('an unattributed call is answered with a question', () => {

@@ -1,9 +1,10 @@
 // start_research (SMC-M03 S4, plan §2.4): the guide's one research operation. The model supplies the question, the
-// formats and what the person said about sources and depth; everything else is the server's: who asked (the bound
-// speaker), the specialist and its route (the registry), the allowance (the project's grant) and eligibility. A receipt
-// says admitted, never started; a refusal is typed `not_started:<code>`, and a call whose outcome is unknown is
-// `unconfirmed:<code>`. Neither is retried here. render_research (S6) is "Try PDF again" by voice: the published
-// version of a report that has no PDF, printed again as a binding-less rendition (0032), for the bound speaker.
+// formats, what the person said about sources and depth, and the scope they stated, kept as lines of the question
+// (research-scope.ts, CX-0030); everything else is the server's: who asked (the bound speaker), the specialist and its
+// route (the registry), the allowance (the project's grant) and eligibility. A receipt says admitted, never started; a
+// refusal is typed `not_started:<code>`, and a call whose outcome is unknown is `unconfirmed:<code>`. Neither is
+// retried here. render_research (S6) is "Try PDF again" by voice: the published version of a report that has no PDF,
+// printed again as a binding-less rendition (0032), for the bound speaker.
 import { createHash } from 'node:crypto'
 import type { MediaToolResult } from '@sophia/contracts'
 import { SPECIALISTS } from '@sophia/contracts'
@@ -16,9 +17,22 @@ import {
   type ResearchAdmissionRequest,
 } from '@sophia/persistence'
 import type { ToolContext } from './mission-tools.ts'
+import { admittedQuestion, isRecord, QUESTION_MAX } from './research-scope.ts'
 
 /** No PDF renderer is running (0031): nothing was started, and no other format is promised in its place. */
 const PDF_UNAVAILABLE = 'PDF reports are not available, so nothing was started.'
+/**
+ * Said with every admission: the receipt is never updated, so a later question is answered from project_status, never
+ * from this receipt (CX-0026: a finished report was still believed admitted, and a steer promised for later).
+ */
+const RECEIPT_STAYS =
+  'This receipt is not updated later; project_status says whether it is waiting, running or finished.'
+/**
+ * Said with existingTaskId: admission returns the research under way and stores nothing of this call, so what the call
+ * adds to that research (its question, its scope) reaches no worker (CX-0030). Steer is how it does.
+ */
+const NOT_PASSED_ON =
+  'What this call adds to it (a length, sections, limits, what to change or keep) was not passed on: to add it, steer that research with control_work.'
 /** Said when the speaker asked for HTML: every report downloads as an HTML page Studio prints from its Markdown. */
 const HTML_NOTE = ' When it is ready, its card also downloads it as an HTML page.'
 
@@ -66,8 +80,6 @@ function refusal(err: unknown): MediaToolResult {
   }
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
-
 /** Up to eight items that each pass `ok`; absent is none, anything else is null (ask again). */
 const listOf = (v: unknown, ok: (x: unknown) => boolean): string[] | null =>
   v === undefined ? [] : Array.isArray(v) && v.length <= 8 && v.every(ok) ? v.map(String) : null
@@ -98,7 +110,9 @@ function preferencesOf(value: unknown): NonNullable<ResearchAdmissionRequest['pr
 
 /** The model's arguments as an admission request, or the one question that would make them one. */
 function requestOf(args: Record<string, unknown>): ResearchAdmissionRequest | MediaToolResult {
-  if (!isText(args.question, 2000)) return clarify('What should I research?')
+  if (!isText(args.question, QUESTION_MAX)) return clarify('What should I research?')
+  const asked = admittedQuestion(args.question.trim(), args.scope)
+  if ('ask' in asked) return clarify(asked.ask)
   const outputs = formatsOf(args.outputs)
   if (!outputs) return clarify('Which format should the report be in?')
   const inputSourceIds = listOf(args.inputSourceIds, isUuid)
@@ -109,7 +123,7 @@ function requestOf(args: Record<string, unknown>): ResearchAdmissionRequest | Me
   if (!assumptions) return clarify('What should I assume where the request is open?')
   if (args.amendsTaskId !== undefined && !isUuid(args.amendsTaskId)) return clarify('Which research should I amend?')
   return {
-    question: args.question.trim(),
+    question: asked.question,
     outputs,
     inputSourceIds,
     urls,
@@ -141,7 +155,7 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
         status: 'ok',
         output: {
           existingTaskId: result.existingTaskId,
-          note: `Research you asked for in this conversation is already under way. Say if this is a separate question.${more}`,
+          note: `Research you asked for in this conversation is already under way. Say if this is a separate question. ${NOT_PASSED_ON}${more}`,
         },
       }
     }
@@ -150,7 +164,7 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
       output: {
         taskId: result.admitted.taskId,
         stage: 'admitted',
-        note: `Admitted, not started yet: the report arrives later, and the work card shows when it runs.${more}`,
+        note: `Admitted, not started yet: the report arrives later, and the work card shows when it runs. ${RECEIPT_STAYS}${more}`,
       },
     }
   } catch (err: unknown) {

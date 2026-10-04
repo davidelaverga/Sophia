@@ -9,7 +9,7 @@
 // finishes its call at once with top-level `scheduling` and `willContinue: false`.
 import { Behavior, FunctionResponseScheduling, type FunctionDeclaration, type FunctionResponse } from '@google/genai'
 import type { MediaToolCall, MediaToolResult } from '@sophia/contracts'
-import type { GuideVersion } from './guide.ts'
+import { sha256, type GuideVersion } from './guide.ts'
 
 export type ToolName = MediaToolCall['name']
 
@@ -124,7 +124,7 @@ const CONTROL_V12: FunctionDeclaration = {
   name: 'control_work',
   behavior: Behavior.NON_BLOCKING,
   description:
-    'Hold, resume, stop or steer one piece of existing work (taskId from project_status). Only when the speaker explicitly asks. Steer passes a short brief of what they want the running work to change. It does not stop speech, looking or the exchange, and it creates no work.',
+    'Hold, resume, stop or steer one piece of existing work (taskId from project_status). Only when the speaker explicitly asks. Steer passes a short brief of what they want the running work to change. It does not stop speech, looking or the exchange, and it creates no work. Steer reaches only research that project_status shows waiting or running; a finished report is changed with start_research and amendsTaskId. Do not say a control took effect before its result arrives; a refused control changed nothing.',
   parametersJsonSchema: {
     type: 'object',
     properties: {
@@ -149,7 +149,35 @@ const START_RESEARCH: FunctionDeclaration = {
   parametersJsonSchema: {
     type: 'object',
     properties: {
-      question: { type: 'string', maxLength: 2000, description: 'The research question, in the speaker’s language.' },
+      question: {
+        type: 'string',
+        maxLength: 2000,
+        description:
+          'The whole request in the speaker’s own words and language: the topic and every instruction they gave about it (what to change and what to keep as it is, a length, the sections they want, limits on web searches or page reads). Never shortened to a topic.',
+      },
+      scope: {
+        type: 'object',
+        description:
+          'Fill only the parts the speaker stated; leave out the others and do not ask for them. The research worker reads it with the question.',
+        properties: {
+          change: {
+            type: 'string',
+            maxLength: 500,
+            description: 'What the speaker wants changed, mostly for a revision.',
+          },
+          keep: { type: 'string', maxLength: 500, description: 'What they want kept as it is.' },
+          length: { type: 'string', maxLength: 100, description: 'The length they asked for, e.g. "about 500 words".' },
+          sections: {
+            type: 'array',
+            items: { type: 'string', maxLength: 100 },
+            maxItems: 12,
+            description: 'The sections they want, in their order.',
+          },
+          maxSearches: { type: 'integer', minimum: 0, maximum: 5, description: 'The most web searches they allow.' },
+          maxReads: { type: 'integer', minimum: 0, maximum: 8, description: 'The most page reads they allow.' },
+        },
+        additionalProperties: false,
+      },
       outputs: {
         type: 'array',
         items: { type: 'string', enum: ['markdown', 'html', 'pdf'] },
@@ -184,7 +212,11 @@ const START_RESEARCH: FunctionDeclaration = {
         },
         additionalProperties: false,
       },
-      amendsTaskId: { ...UUID_SCHEMA, description: 'A finished research task this request revises.' },
+      amendsTaskId: {
+        ...UUID_SCHEMA,
+        description:
+          'A finished research task this request revises. The report is edited in place: say in question exactly what to change and anything the speaker wants kept as it is, and fill scope’s change and keep.',
+      },
       newRequest: { type: 'boolean', description: 'Only after the speaker confirms a separate report.' },
     },
     required: ['question'],
@@ -209,11 +241,14 @@ const RENDER_RESEARCH: FunctionDeclaration = {
 export interface ToolSet {
   declarations: readonly FunctionDeclaration[]
   names: readonly string[]
+  /** The SHA-256 of the declarations as JSON, the bytes Google receives: what a setup log names, never their text. */
+  sha256: string
 }
 
 const toolSet = (declarations: FunctionDeclaration[]): ToolSet => ({
   declarations,
   names: declarations.map((t) => t.name ?? ''),
+  sha256: sha256(Buffer.from(JSON.stringify(declarations), 'utf8')),
 })
 
 export const TOOL_SETS: Readonly<Record<GuideVersion, ToolSet>> = {

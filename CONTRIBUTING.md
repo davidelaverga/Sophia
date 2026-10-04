@@ -531,6 +531,14 @@ when you change the room:
   what the version and its sources already hold (when it was published, its
   limitations, what was read of each source and when), and text that does not
   match its record (`tamper=text`) saves nothing.
+  History says first what the service's facts show changed (`factsLine`:
+  sections removed and added by name, cited sources dropped and added,
+  revisions a count), then Sophia's notes, folded under the facts where a
+  section was removed with no section of its name left, or a source dropped
+  (`notesNeedFacts`), and not shown where the service wrote them from the
+  facts or on a first version, whose note is the service's "First version"
+  (`notesShown`); a Knowledge card shows no notes, since it carries no facts
+  (CX-0026, `history=pilot`).
   Change the viewer and they must still pass.
 - **The downloaded page has its own checks** (`e2e/report-page.spec.ts`,
   SMC-M03): the bytes `renderReportPage` prints for labelled fixture reports

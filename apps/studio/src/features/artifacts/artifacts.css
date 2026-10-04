@@ -626,12 +626,39 @@
   padding: 0;
   list-style: none;
 }
+/* A version's entry keeps to the work views' type scale (theme.css --type-*): body for what it says and its controls,
+   small for its chips and for whose notes they are. A heading or a note with nowhere to break a line (no space, hyphen
+   or slash) wraps all the same, never widening the entry past the pane, which would cut it off. */
 .report-version {
   display: grid;
   gap: 6px;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--r-3);
+  font-size: var(--type-body);
+  overflow-wrap: anywhere;
+}
+.report-version .tag {
+  font-size: var(--type-small);
+}
+/* Sophia's notes, under the facts: who wrote them in small grey, or the line that unfolds them when they are folded.
+   A grey that reads at this size: --text-3 falls under 4.5:1 on the pane, and the folded line is the only way in. */
+.report-notes {
+  display: grid;
+  gap: 4px;
+}
+.report-notes-by,
+.report-notes > summary {
+  width: fit-content;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.report-notes > summary {
+  cursor: pointer;
+  transition: color var(--fast) var(--ease);
+}
+.report-notes > summary:hover {
+  color: var(--text);
 }
 .report-version[data-shown] {
   border-color: var(--line-3);
@@ -778,9 +805,6 @@
   padding: 8px 11px;
   resize: vertical;
 }
-.report-change {
-  font-size: 13px;
-}
 
 /* Beside the side pane, as beside the room's side panel: the page and the room narrow, and what floats on the right
    (the lobby, a project's opening note, the mini dock) keeps clear. A phone's pane covers the page instead. One
@@ -855,6 +879,16 @@
   }
   .md-table .cite button::after {
     content: none;
+  }
+  /* The line that unfolds Sophia's notes reaches past its words, as an inline .text-button does (theme.css), so the
+     entry keeps its height. */
+  .report-notes > summary {
+    position: relative;
+  }
+  .report-notes > summary::after {
+    content: '';
+    position: absolute;
+    inset: -7px -4px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
