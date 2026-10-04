@@ -1970,6 +1970,73 @@ test('codex · F-019 · past its expiry, a decision calls no one: the pill says 
   await expect(board(page).getByRole('region', { name: 'Davide decides' })).toContainText('expired')
 })
 
+// ---- CX-0017 (Codex on #74; GitHub 4179628491, 4179628493). ----
+
+test('codex · F-020 · complete with evidence, but its check of this version not passed: not Complete, and said why', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=unpassed`)
+  await expect(board(page)).toBeVisible({ timeout: 15_000 })
+  const complete = await titles(lane(page, 'Complete'))
+  for (const [id, name, why, review] of [
+    ['work-1', 'Implement the PDF retry', 'is still pending', 'Review pending'],
+    ['work-2', 'Review the report pane', 'found changes needed', 'Review found changes needed'],
+    ['work-3', 'Write the export’s release note', 'was inconclusive', 'Review inconclusive'],
+  ] as const) {
+    expect(complete).not.toContain(name)
+    await expect(tile(page, id).locator('.task-chip')).toHaveText('Not shown as complete')
+    const sheet = await openTask(page, id, name)
+    await expect(sheet.locator('.task-sheet-detail')).toHaveText(`Its check of the version it holds now ${why}.`)
+    await expect(sheet.locator('.task-result-review')).toHaveText(review)
+    await page.keyboard.press('Escape')
+  }
+})
+
+test('codex · F-021 · with no command port, what was sent stays said and followed; nothing new goes, nor again', async ({
+  page,
+}) => {
+  const unsendable = 'Nothing can be sent from here now. What was sent is still followed as its receipts come.'
+  await page.goto(`${PAGE}?viewer=davide&admission=slow`) // a receipt only after 7 s
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await stopIn(sheet)
+  const steps = sheet.locator('.act-steps')
+  await expect(steps).toContainText('Sending…')
+  await page.evaluate(() => window.workFixture?.commandPort?.(false))
+  await expect(sheet.locator('.session-acts .act-note')).toHaveText(unsendable)
+  await expect(steps).toContainText('Sending…') // still said
+  await expect(sheet.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
+  await expect(sheet.getByRole('button', { name: /^Hold/ })).toHaveCount(0)
+  // Its receipts land meanwhile, from the port it went through.
+  await expect(steps).toContainText('Stop requested; waiting for the runtime to confirm.', { timeout: 15_000 })
+  await page.evaluate(() => window.workFixture?.commandPort?.(true))
+  await expect(sheet.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+  await expect(steps).toContainText('Stop requested; waiting for the runtime to confirm.')
+  expect(await commanded(page)).toHaveLength(1)
+})
+
+test('codex · F-021 · in Resources too: a lost Stop stays said with no port, and isn’t tried again until one is back', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&admission=lost&attempt=none`)
+  await expect(board(page)).toBeVisible({ timeout: 15_000 })
+  const worker = await workerInResources(page)
+  await stopIn(worker)
+  const retry = worker.getByRole('button', { name: 'Try again' })
+  await expect(retry).toBeVisible()
+  await page.evaluate(() => window.workFixture?.commandPort?.(false))
+  await expect(worker.locator('.act-steps')).toContainText(
+    'Not confirmed whether it was recorded. It can’t be sent again from here now; it is kept as it was.',
+  )
+  await expect(retry).toHaveCount(0)
+  await expect(worker.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
+  // Back, the same Stop can be tried again, with its own operation.
+  await page.evaluate(() => window.workFixture?.commandPort?.(true))
+  await retry.click()
+  await expect.poll(async () => (await commanded(page)).length).toBe(2)
+  const [first, again] = await commanded(page)
+  expect(again).toEqual(first)
+})
+
 // ---- The lead's review that proposes a change (LFE-07.2, slice 2): its pill, and its card in the decisions' slot. ----
 
 const reviewPill = (page: Page) => board(page).getByRole('button', { name: /^Review · a change proposed/ })

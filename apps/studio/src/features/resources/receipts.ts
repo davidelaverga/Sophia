@@ -343,6 +343,9 @@ export function sessionTarget(project: string, session: Session): CommandTarget 
   }
 }
 
+/** While no command port is connected: nothing goes, and what went is still followed (Codex F-021). */
+export const NOT_SENDABLE = 'Nothing can be sent from here now. What was sent is still followed as its receipts come.'
+
 /** Why a session at work can't be acted on yet: its assignment isn't fenced (sessionTarget). */
 export const UNFENCED =
   'Nothing can be sent to it yet: its runtime hasn’t said which assignment this is, or its generation, so a command could reach work that replaced it.'

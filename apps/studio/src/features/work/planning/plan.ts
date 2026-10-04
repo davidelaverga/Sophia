@@ -283,12 +283,28 @@ const UNCERTIFIED: Readonly<Partial<Record<ReviewOf, string>>> = {
 }
 
 /**
- * A complete item, shown as complete only with its evidence, and with its check of the version it holds now. A check
- * bound to no version leaves its policy's word as it is.
+ * Why a check of the version it holds now doesn't certify it: it hasn't passed (Codex F-020). Pending, it is still to
+ * come; found changes needed or inconclusive, it says otherwise.
+ */
+const UNPASSED: Readonly<Partial<Record<ItemView['review']['state'], string>>> = {
+  pending: 'Its check of the version it holds now is still pending.',
+  changes_required: 'Its check of the version it holds now found changes needed.',
+  inconclusive: 'Its check of the version it holds now was inconclusive.',
+}
+
+/** Why a complete item isn't shown as such, or null: a check of another version, of none matched, or not passed. */
+function uncertifiedOf(view: ItemView): string | null {
+  const of = reviewOf(view)
+  return UNCERTIFIED[of] ?? (of === 'current' ? (UNPASSED[view.review.state] ?? null) : null)
+}
+
+/**
+ * A complete item, shown as complete only with its evidence, and with a passed check of the version it holds now. A
+ * check bound to no version (a review's own deliverable, a task with none asked) leaves its policy's word as it is.
  */
 function completed(view: ItemView): Status {
   if (!completeByPolicy(view)) return at('unknown', NOT_COMPLETE, 'Its policy isn’t satisfied with evidence.')
-  const uncertified = UNCERTIFIED[reviewOf(view)]
+  const uncertified = uncertifiedOf(view)
   return uncertified ? at('unknown', NOT_COMPLETE, uncertified) : at('complete', 'Complete')
 }
 

@@ -31,7 +31,7 @@ import { EffortPicker } from './EffortPicker.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import type { Room } from './room.ts'
-import { sessionTarget, UNFENCED } from './receipts.ts'
+import { sessionTarget, UNFENCED, type CommandTarget } from './receipts.ts'
 import { actsSaid, canAct, routeOffers, SessionActs, type Acts } from './SessionActs.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
 
@@ -300,6 +300,12 @@ function ActToggle({ open, controls, said, onToggle }: ToggleProps) {
   )
 }
 
+/** What Act holds, in its tip: the acts its route supports, or why nothing can be sent. */
+const actTip = (resource: Resource, target: CommandTarget | null, acts: Acts) => {
+  if (!target) return 'Nothing can be sent yet'
+  return acts.canSend ? actsSaid(resource) : 'Nothing can be sent from here now'
+}
+
 function SessionRow({ session, resource, live, now, control, tasks, acts }: SessionProps) {
   const work = session.assignment
   const target = acts ? sessionTarget(acts.project, session) : null
@@ -324,7 +330,7 @@ function SessionRow({ session, resource, live, now, control, tasks, acts }: Sess
         <ActToggle
           open={acting}
           controls={actsId}
-          said={target ? actsSaid(resource) : 'Nothing can be sent yet'}
+          said={actTip(resource, target, acts)}
           onToggle={() => setActing((o) => !o)}
         />
       )}

@@ -273,6 +273,23 @@ describe('where an item stands', () => {
       standingWhy({ lifecycle: 'complete', completion: satisfied, candidates: versions, review: v2Check }),
       ['complete', 'Complete', undefined],
     )
+    // Codex F-020: a check of the version it holds now certifies only once passed.
+    for (const [state, why] of [
+      ['pending', 'Its check of the version it holds now is still pending.'],
+      ['changes_required', 'Its check of the version it holds now found changes needed.'],
+      ['inconclusive', 'Its check of the version it holds now was inconclusive.'],
+    ] as const) {
+      assert.deepEqual(
+        standingWhy({
+          lifecycle: 'complete',
+          completion: satisfied,
+          candidates: versions,
+          review: { ...v2Check, state },
+        }),
+        ['unknown', 'Not shown as complete', why],
+        state,
+      )
+    }
     const unbound = { ...v2Check, candidate_version_ref: null }
     assert.deepEqual(
       standing({ lifecycle: 'complete', completion: satisfied, candidates: [...versions, v3], review: unbound }),

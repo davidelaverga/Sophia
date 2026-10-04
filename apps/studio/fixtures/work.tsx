@@ -12,8 +12,8 @@
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
 // into the plan's next revision; `decisionArrives(deciderId)` brings a new one; `begin(workId)`, `reassign(workId)`,
 // `replan()`, `arrive()`, `viewAs(viewer)`, `reconnect()`, `replay(operationId)`, `weaken(operationId)`,
-// `stale(operationId)`, `misdeliver(from, to)` and `conversation(connected)`. Whoever does a task opens on the
-// resources' fixture.
+// `stale(operationId)`, `misdeliver(from, to)`, `conversation(connected)` and `commandPort(connected)`. Whoever does
+// a task opens on the resources' fixture.
 // `review=…` (LFE-07.2): how the lead answers the goal's Request review (work-review.ts), read beside the board's view;
 // `workFixture.goalCommands` lists each goal command sent, with its key; `reviewAgain()` brings in a later review.
 // `lag=1`: the review is read a moment behind the board, with the plan in force the board no longer shows as such.
@@ -111,6 +111,8 @@ declare global {
       arrive?: () => void
       /** The shared conversation connected, or not: with none, no question can go (Codex F-005's port residual). */
       conversation?: (connected: boolean) => void
+      /** The command port connected, or not: with none, nothing is sent, and what was sent stays said (Codex F-021). */
+      commandPort?: (connected: boolean) => void
       viewAs?: (viewer: Viewer) => void
       reconnect?: () => void
       /** Each goal command sent (Request review, Hold, Stop), with its key (LFE-07.2). */
@@ -388,7 +390,7 @@ const replanned: Change = (g) =>
 function controls(
   update: (change: Change) => void,
   setViewer: (v: Viewer) => void,
-  page: { arrive: () => void; connect: (connected: boolean) => void },
+  page: { arrive: () => void; connect: (connected: boolean) => void; port: (connected: boolean) => void },
   viewer: Viewer,
   lead: { commands: readonly { kind: string; key: string }[]; again: () => void },
 ) {
@@ -409,6 +411,7 @@ function controls(
     replan: () => update(replanned),
     arrive: page.arrive,
     conversation: page.connect,
+    commandPort: page.port,
     viewAs: setViewer,
     reconnect,
     replay,
@@ -478,7 +481,7 @@ interface Shared {
 }
 
 /** One goal's slot in Tasks: its board, NEXT, its tab in the goals' rail, what finds it, and whether it calls the viewer. */
-function slot(g: GoalView, shared: Shared, onCommand: ReturnType<typeof serve>) {
+function slot(g: GoalView, shared: Shared, onCommand: SendCommand | undefined) {
   const { resources, viewerId, now, board, review, asking } = shared
   const shown = boardOf(g, { resources, people, viewerId, project: board.project_id })
   const rows = shown?.rows ?? []
@@ -494,7 +497,7 @@ function slot(g: GoalView, shared: Shared, onCommand: ReturnType<typeof serve>) 
         viewerId={viewerId}
         now={now}
         onDecide={decide}
-        onCommand={onCommand}
+        {...(onCommand && { onCommand })}
         {...(editor && { onChallenge: challenge })}
         onAsk={asking}
         readResult={readResult}
@@ -569,6 +572,7 @@ function Tasks() {
   const [first, setFirst] = useState(() => opening(viewer))
   const [arrived, setArrived] = useState(query.get('later') !== '1')
   const [connected, setConnected] = useState(true)
+  const [ported, setPorted] = useState(true)
   // Each change glides into place, as a live update would (motion.ts): a decided ask folds away, a task changes lanes.
   const [update] = useState(() => (change: Change) => moving(() => setFirst(change)))
   const now = useClock(update)
@@ -583,7 +587,7 @@ function Tasks() {
         setViewer(v)
         setFirst(opening(v))
       },
-      { arrive: () => setArrived(true), connect: setConnected },
+      { arrive: () => setArrived(true), connect: setConnected, port: setPorted },
       viewer,
       { commands: lead.commands, again },
     )
@@ -599,7 +603,7 @@ function Tasks() {
   const plans = Object.fromEntries(
     read.value.goals
       .filter((g) => boardOf(g, { resources: [], people, viewerId: viewer }) || g.items.length > 0)
-      .map((g) => [g.goal_id, slot(g, shared, onCommand)]),
+      .map((g) => [g.goal_id, slot(g, shared, ported ? onCommand : undefined)]),
   )
   return (
     <>
@@ -607,7 +611,7 @@ function Tasks() {
         Simulated — no lead, tool, host or conversation read · viewing as {people[viewer].name}
         {scenario ? ` · ${scenario}` : ''}
       </p>
-      <Shell plans={plans} viewer={viewer} now={now} onCommand={onCommand} />
+      <Shell plans={plans} viewer={viewer} now={now} onCommand={ported ? onCommand : undefined} />
     </>
   )
 }
@@ -616,7 +620,7 @@ interface ShellProps {
   plans: Readonly<Record<string, ReturnType<typeof slot>>>
   viewer: Viewer
   now: Date
-  onCommand: SendCommand
+  onCommand: SendCommand | undefined
 }
 
 /**
@@ -645,7 +649,7 @@ function Shell({ plans, viewer, now, onCommand }: ShellProps) {
           now={now}
           scope="fixture-work"
           projectId={PROJECT}
-          onAct={onCommand}
+          {...(onCommand && { onAct: onCommand })}
         />
       }
     />

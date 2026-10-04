@@ -39,6 +39,32 @@ const twoCurrent: Change = (g, viewer) =>
     available_actions: [...commands(viewer, true), ask],
   }))
 
+/**
+ * Codex F-020: three tasks complete by their policy, with evidence, each with a check bound to the version it holds
+ * now that hasn't passed: pending (the retry), found changes needed (the report pane), inconclusive (the release note).
+ */
+const unpassed: Change = (g) => {
+  const checked =
+    (
+      workId: string,
+      [source, id, hash]: [string, string, string],
+      state: ItemView['review']['state'],
+    ): ((g: GoalView) => GoalView) =>
+    (into) =>
+      update(into, workId, () => ({
+        lifecycle: 'complete',
+        waiting_on: [],
+        completion: { policy_ref: `fixture-policy-${workId}`, status: 'satisfied', evidence_refs: [`fixture-${id}`] },
+        candidates: [version(source, id, 'current', 60, hash)],
+        review: { state, candidate_version_ref: id, evidence_refs: state === 'pending' ? [] : [`fixture-check-${id}`] },
+      }))
+  return [
+    checked('work-1', ['retry', 'retry-v1', 'a'], 'pending'),
+    checked('work-2', ['review-pane', 'pane-v1', 'b'], 'changes_required'),
+    checked('work-3', ['release-note', 'note-v1', 'c'], 'inconclusive'),
+  ].reduce((into, change) => change(into), g)
+}
+
 /** UI-04: the review found defects. The review itself is complete; the retry needs changes. */
 const defects: Change = (g, viewer) =>
   update(
@@ -396,6 +422,7 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   'two-current': twoCurrent,
   'replan-decided': replanDecided,
   'replan-updating': replanUpdating,
+  unpassed,
 }
 
 /** The first goal's view in a scenario; as it is without one. */
