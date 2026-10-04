@@ -30,7 +30,7 @@ import { shows, type LensName } from './lenses.ts'
 import { current, planRows, waitsOn, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
 import { Folded } from './PlanNotes.tsx'
 import { material } from './review.ts'
-import { ReviewResult } from './ReviewResult.tsx'
+import { ReviewResult, type Waiting } from './ReviewResult.tsx'
 import { changedSince, readSeen, whileAway, writeSeen } from './seen.ts'
 import type { Act } from './TaskActions.tsx'
 import { TaskSheet } from './TaskSheet.tsx'
@@ -194,9 +194,13 @@ function Decisions({
   ...rest
 }: Omit<DecisionsProps, 'plan'> & { decisions: WorkPlan['decisions']; focus: string | null }) {
   const list = useRef<HTMLDivElement>(null)
-  // Opened on one (from a review that waits on it), the focus goes to its first choice.
+  // Opened on one (from a review that waits on it), the focus goes to its first choice. Found by comparing ids, never
+  // by putting one in a selector: a decision's id is any string.
   useEffect(() => {
-    if (focus) list.current?.querySelector<HTMLElement>(`[data-decision="${focus}"] button:not(:disabled)`)?.focus()
+    const asked = [...(list.current?.querySelectorAll<HTMLElement>('[data-decision]') ?? [])].find(
+      (d) => d.dataset.decision === focus,
+    )
+    asked?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
   }, [focus])
   return (
     <div ref={list} className="board-decisions">
@@ -216,6 +220,13 @@ function useSlot(plan: WorkPlan, viewerId: string | null, now: Date, decider: (i
   const pill = useRef<HTMLButtonElement>(null)
   const review = material(plan.last_review) ? plan.last_review : null
   const reviewShown = review !== null && openId === review.review_id
+  // A card closed by a later review takes the focus with it: it goes back to the pill, as Escape and Close do.
+  const wasShown = useRef(reviewShown)
+  useEffect(() => {
+    if (wasShown.current && !reviewShown && document.activeElement === document.body)
+      pill.current?.focus({ preventScroll: true })
+    wasShown.current = reviewShown
+  }, [reviewShown])
   return {
     asks,
     review,
@@ -242,11 +253,12 @@ function useSlot(plan: WorkPlan, viewerId: string | null, now: Date, decider: (i
       setOpenId(null)
       pill.current?.focus()
     },
-    /** Who a proposal's decision waits on, while open: the viewer, when theirs to answer now, or its decider. */
-    waitsOn: (decisionId: string) => {
+    /** What a proposal's decision waits on, while open: the viewer's answer, its decider's, or nothing: it expired. */
+    waitsOn: (decisionId: string): Waiting | null => {
       const d = asks.open.find((o) => o.decision_id === decisionId)
       if (!d) return null
-      return asks.mine.includes(d) ? { yours: true as const } : { yours: false as const, name: decider(d.decider_id) }
+      if (!actionable(d, now)) return { on: 'expired' }
+      return d.decider_id === viewerId ? { on: 'you' } : { on: 'them', name: decider(d.decider_id) }
     },
   }
 }

@@ -697,6 +697,34 @@ test('review card · a later review comes closed: the card opened was the last o
   await expect(reviewPill(page)).toHaveAttribute('aria-expanded', 'false')
 })
 
+test('review card · a decision whose id holds quotes and brackets still opens with the focus on it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material&odd-id=1`)
+  await reviewPill(page).click()
+  await reviewCard(page).getByRole('button', { name: 'Waits on your decision: answer it' }).click()
+  const ask = board(page).getByRole('region', { name: 'Davide decides' })
+  await expect(ask.getByRole('button', { name: 'Ship it now' })).toBeFocused()
+})
+
+test('review card · replaced by a later review, it closes and the focus goes back to the pill', async ({ page }) => {
+  await page.goto(`${PAGE}?review=material`)
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeFocused()
+  await page.evaluate(() => window.workFixture?.reviewAgain?.())
+  await expect(reviewCard(page)).toHaveCount(0)
+  await expect(reviewPill(page)).toBeFocused()
+})
+
+test('review card · a decision past its expiry is said expired, to its decider and to anyone', async ({ page }) => {
+  for (const viewer of ['davide', 'luis']) {
+    await page.goto(`${PAGE}?viewer=${viewer}&review=material&expired=1`)
+    await reviewPill(page).click()
+    await expect(reviewCard(page)).toContainText('Its decision expired before it was answered.')
+    await expect(reviewCard(page)).not.toContainText('Waits on')
+  }
+})
+
 test('review card · a proposal the lead already sent says so, and asks nothing', async ({ page }) => {
   await page.goto(`${PAGE}?review=material-sent`)
   await reviewPill(page).click()

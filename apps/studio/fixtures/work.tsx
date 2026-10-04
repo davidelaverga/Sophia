@@ -105,6 +105,24 @@ const decide: Decide = (decision, choice) => {
   return new Promise((done) => setTimeout(() => done(said), 300))
 }
 
+/** `odd-id=1`: the decision waiting on Davide has an id with quotes and brackets, as the wire allows (any string). */
+const ODD = 'd1"] [x'
+const oddIf = (p: WorkPlan): WorkPlan => {
+  if (query.get('odd-id') !== '1') return p
+  const renamed = (id: string | null) => (id === 'd1' ? ODD : id)
+  const intervention = p.last_review?.intervention
+  return {
+    ...p,
+    decisions: p.decisions.map((d) => ({ ...d, decision_id: renamed(d.decision_id) ?? d.decision_id })),
+    ...(p.last_review && {
+      last_review: {
+        ...p.last_review,
+        ...(intervention && { intervention: { ...intervention, decision_id: renamed(intervention.decision_id) } }),
+      },
+    }),
+  }
+}
+
 /** `expired=1`: the decision waiting on Davide is past its expiry. */
 const expiredIf = (p: WorkPlan): WorkPlan =>
   query.get('expired') === '1'
@@ -170,7 +188,7 @@ function slot(p: WorkPlan, now: Date, shared: Shared) {
 
 function Tasks() {
   const [first, setFirst] = useState(() =>
-    openedWith(review, expiredIf(query.get('many') === '1' ? manyTasks(plan(state)) : plan(state))),
+    oddIf(openedWith(review, expiredIf(query.get('many') === '1' ? manyTasks(plan(state)) : plan(state)))),
   )
   const [lead] = useState(() => reviewer(review, viewer, setFirst))
   useEffect(() => {
