@@ -778,6 +778,12 @@
 .task-waits li[data-mine] .task-wait-who {
   color: var(--amber);
 }
+/* Why a task stands as its chip says, when the chip's few words can't say it: a line that wraps. */
+.task-sheet-detail {
+  margin: 0;
+  font-size: var(--type-body);
+  overflow-wrap: anywhere;
+}
 .task-sheet-closed {
   display: grid;
   gap: 2px;

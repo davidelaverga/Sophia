@@ -130,7 +130,10 @@ export type Lane = 'active' | 'next' | 'unassigned' | 'complete' | 'closed'
 
 export interface Status {
   mark: Mark
+  /** In a few words: what a chip says, on its tile and atop its sheet, on one line. */
   text: string
+  /** Why, when those few words can't say it: read in the task's sheet, where it wraps (Codex F-011). */
+  detail?: string
   rank: number
   /** Whom a waiting task waits on first: the viewer when a request names them; null when no person answers it. */
   on?: Person | null
@@ -165,7 +168,12 @@ export const LANE: Readonly<Record<Mark, Lane>> = {
   closed: 'closed',
 }
 
-const at = (mark: Mark, text: string): Status => ({ mark, text, rank: MARKS.indexOf(mark) })
+const at = (mark: Mark, text: string, detail?: string): Status => ({
+  mark,
+  text,
+  rank: MARKS.indexOf(mark),
+  ...(detail ? { detail } : {}),
+})
 
 /** One thing a row waits on, with the person who answers it, when one does. */
 export interface WaitRow {
@@ -258,10 +266,13 @@ const MOVING: Readonly<Partial<Record<Lifecycle, [Mark, string]>>> = {
 export const completeByPolicy = (view: ItemView) =>
   view.lifecycle === 'complete' && view.completion.status === 'satisfied' && view.completion.evidence_refs.length > 0
 
+/** A complete item not shown as such, in its chip; why, in its sheet (Codex F-011). */
+const NOT_COMPLETE = 'Not shown as complete'
+
 /** Why a check bound to a version doesn't certify the item now: of another version, or of none matched (F-009). */
 const UNCERTIFIED: Readonly<Partial<Record<ReviewOf, string>>> = {
-  another: 'Not shown as complete: its check was of another version',
-  unmatched: 'Not shown as complete: its check can’t be matched to a single current version',
+  another: 'Its check was of another version than the one it holds now.',
+  unmatched: 'Its check can’t be matched to a single current version: two claim to be current, or none is.',
 }
 
 /**
@@ -269,9 +280,9 @@ const UNCERTIFIED: Readonly<Partial<Record<ReviewOf, string>>> = {
  * bound to no version leaves its policy's word as it is.
  */
 function completed(view: ItemView): Status {
-  if (!completeByPolicy(view)) return at('unknown', 'Not shown as complete: no evidence')
+  if (!completeByPolicy(view)) return at('unknown', NOT_COMPLETE, 'Its policy isn’t satisfied with evidence.')
   const uncertified = UNCERTIFIED[reviewOf(view)]
-  return uncertified ? at('unknown', uncertified) : at('complete', 'Complete')
+  return uncertified ? at('unknown', NOT_COMPLETE, uncertified) : at('complete', 'Complete')
 }
 
 /**

@@ -211,6 +211,11 @@ function Activity({ row, now }: { row: PlanRow; now: Date }) {
   )
 }
 
+/** Why it stands as its chip says, when the chip's few words can't say it (Codex F-011): a line that wraps. */
+function Detail({ row }: { row: PlanRow }) {
+  return row.status.detail ? <p className="task-sheet-detail muted">{row.status.detail}</p> : null
+}
+
 /** Why a closed task closed, in its own words. */
 function Closed({ row }: { row: PlanRow }) {
   if (row.status.mark !== 'closed') return null
@@ -234,6 +239,7 @@ export function TaskSheet(props: Props) {
     <Sheet id={`task-${item.id}`} title={item.purpose} onClose={onClose}>
       <div className="task-sheet">
         <Who row={row} viewerId={viewerId} onOpenResource={onOpenResource} />
+        <Detail row={row} />
         <Activity row={row} now={now} />
         <Closed row={row} />
         <Account account={props.account} onOpenResource={onOpenResource} />

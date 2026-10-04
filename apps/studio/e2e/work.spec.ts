@@ -1658,7 +1658,10 @@ test('codex · F-009 · complete with evidence, but two versions claim to be cur
   expect(await titles(lane(page, 'Complete'))).not.toContain('Implement the PDF retry')
   expect(await titles(lane(page, 'Active'))).toContain('Implement the PDF retry')
   const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
-  await expect(sheet).toContainText('Not shown as complete: its check can’t be matched to a single current version')
+  await expect(sheet.locator('.task-chip')).toHaveText('Not shown as complete')
+  await expect(sheet.locator('.task-sheet-detail')).toHaveText(
+    'Its check can’t be matched to a single current version: two claim to be current, or none is.',
+  )
   await expect(sheet.locator('.task-result-review')).toHaveText(
     'Review passed for retry-v2, no single current version to match it to',
   )
@@ -1673,6 +1676,66 @@ test('codex · F-010 · back after a decision expired, it is said expired, never
   // Still answerable, the same return says it waits on him.
   await page.goto(`${PAGE}?viewer=davide&since=2`)
   await expect(away).toContainText('A decision waits on you: Ship the retry before')
+})
+
+// ---- CX-0013 (Codex on #74; GitHub 4178716683): a short chip on a phone; a result lost said as lost. ----
+
+/** Where an element's right edge falls on the page. */
+async function right(l: Locator) {
+  const box = await l.boundingBox()
+  return (box?.x ?? 0) + (box?.width ?? 0)
+}
+
+test('@phone · codex · F-011 · a task not shown as complete keeps to the screen: a short chip, its reason wrapping', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=two-current`)
+  const width = page.viewportSize()?.width ?? 0
+  const chip = tile(page, 'work-1').locator('.task-chip')
+  await expect(chip).toHaveText('Not shown as complete', { timeout: 15_000 })
+  expect(await right(chip)).toBeLessThanOrEqual(width)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await expect(sheet.locator('.task-sheet-detail')).toContainText('can’t be matched to a single current version')
+  await settled(page)
+  // Against the device's width, not the document's own: a mobile page can widen its layout viewport to its content.
+  const fits = await page.evaluate(() => ({
+    inner: window.innerWidth,
+    page: document.documentElement.scrollWidth,
+    dialog: (() => {
+      const d = document.querySelector('[role="dialog"]')
+      return d ? d.scrollWidth - d.clientWidth : -1
+    })(),
+  }))
+  expect(fits.inner).toBe(width)
+  expect(fits.page).toBeLessThanOrEqual(width)
+  expect(fits.dialog).toBeLessThanOrEqual(1)
+  expect(await right(sheet.locator('.task-chip'))).toBeLessThanOrEqual(width)
+  expect(await right(sheet.locator('.task-sheet-detail'))).toBeLessThanOrEqual(width)
+})
+
+test('codex · F-012 · a result lost since the last look is said lost, not as the task starting', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&case=two-current`)
+  await expect(tile(page, 'work-1')).toBeVisible({ timeout: 15_000 })
+  // The last look, as kept: the same board, but when retry-v2 was the task's one current result.
+  await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => k.startsWith('sophia.plan.seen.v2.'))
+    if (!key) throw new Error('no look kept')
+    const kept: unknown = JSON.parse(localStorage.getItem(key) ?? '{}', (field: string, value: unknown) =>
+      field === 'work-1' && typeof value === 'object' && value !== null ? { ...value, result: 'retry-v2' } : value,
+    )
+    localStorage.setItem(key, JSON.stringify(kept))
+  })
+  await page.reload()
+  const away = board(page).locator('.board-return')
+  await expect(away).toContainText(
+    'Implement the PDF retry has no single current result now: two versions claim to be current',
+    {
+      timeout: 15_000,
+    },
+  )
+  // Its mark didn't move: nothing else is said of it (not "started", not "isn't observed now").
+  const said = (await away.innerText()).split('Implement the PDF retry').length - 1
+  expect(said).toBe(1)
 })
 
 // ---- The lead's review that proposes a change (LFE-07.2, slice 2): its pill, and its card in the decisions' slot. ----

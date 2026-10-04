@@ -58,6 +58,13 @@ function standing(
   return [row?.status.mark, row?.status.text]
 }
 
+/** Where it stands, and why when its chip's few words can't say it (Codex F-011). */
+function standingWhy(over: Partial<ItemView>) {
+  const one = item('one')
+  const row = rowsOf(goal(plan([one]), [view('one', over)])).find((r) => r.item.id === 'one')
+  return [row?.status.mark, row?.status.text, row?.status.detail]
+}
+
 /** A review of the retry's candidate that also comes after it. */
 const blocked = item('one', {
   blocked_by: ['build'],
@@ -224,9 +231,10 @@ describe('where an item stands', () => {
   it('complete only by its own policy, satisfied with evidence; a closed one is closed, never done (UI-06)', () => {
     const satisfied = { policy_ref: 'p', status: 'satisfied' as const, evidence_refs: ['e1'] }
     assert.deepEqual(standing({ lifecycle: 'complete', completion: satisfied }), ['complete', 'Complete'])
-    assert.deepEqual(standing({ lifecycle: 'complete', completion: { ...satisfied, evidence_refs: [] } }), [
+    assert.deepEqual(standingWhy({ lifecycle: 'complete', completion: { ...satisfied, evidence_refs: [] } }), [
       'unknown',
-      'Not shown as complete: no evidence',
+      'Not shown as complete',
+      'Its policy isn’t satisfied with evidence.',
     ])
     // A check that passed for v1 doesn't make v2 complete (UI-05).
     const v2 = {
@@ -240,28 +248,29 @@ describe('where an item stands', () => {
     const versions = [v2]
     const oldCheck = { state: 'passed' as const, candidate_version_ref: 'v1', evidence_refs: ['check-v1'] }
     assert.deepEqual(
-      standing({ lifecycle: 'complete', completion: satisfied, candidates: versions, review: oldCheck }),
-      ['unknown', 'Not shown as complete: its check was of another version'],
+      standingWhy({ lifecycle: 'complete', completion: satisfied, candidates: versions, review: oldCheck }),
+      ['unknown', 'Not shown as complete', 'Its check was of another version than the one it holds now.'],
     )
     // Codex F-009: a check of v2 beside two versions both claiming to be current, or beside none current, can't be
     // matched to the version held now: not complete, said why. Bound to no version, the policy's word stands.
     const v2Check = { ...oldCheck, candidate_version_ref: 'v2' }
     const v3 = { ...v2, version_id: 'v3', sha256: 'c'.repeat(64) }
-    const unmatched = 'Not shown as complete: its check can’t be matched to a single current version'
+    const unmatched = 'Its check can’t be matched to a single current version: two claim to be current, or none is.'
     for (const candidates of [
       [...versions, v3],
       [{ ...v2, state: 'previous' as const }],
       [{ ...v2, state: 'withdrawn' as const }],
       [],
     ]) {
-      assert.deepEqual(standing({ lifecycle: 'complete', completion: satisfied, candidates, review: v2Check }), [
+      assert.deepEqual(standingWhy({ lifecycle: 'complete', completion: satisfied, candidates, review: v2Check }), [
         'unknown',
+        'Not shown as complete', // a few words in its chip, the reason where it wraps (Codex F-011)
         unmatched,
       ])
     }
     assert.deepEqual(
-      standing({ lifecycle: 'complete', completion: satisfied, candidates: versions, review: v2Check }),
-      ['complete', 'Complete'],
+      standingWhy({ lifecycle: 'complete', completion: satisfied, candidates: versions, review: v2Check }),
+      ['complete', 'Complete', undefined],
     )
     const unbound = { ...v2Check, candidate_version_ref: null }
     assert.deepEqual(

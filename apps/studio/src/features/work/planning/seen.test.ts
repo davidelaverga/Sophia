@@ -138,6 +138,40 @@ describe('a decision, said while away (Codex F-010)', () => {
   })
 })
 
+/** A task at work, with these versions. */
+const running = (candidates: ItemView['candidates']): Partial<ItemView> => ({
+  lifecycle: 'running',
+  assignment: assignment('a'),
+  candidates,
+})
+
+describe('a result lost while away (Codex F-012)', () => {
+  const had = candidate('v1')
+  const seen = glance(rowsOf([['a', running([had])]]), [])
+  const away = (candidates: ItemView['candidates']) => {
+    const said = whileAway(rowsOf([['a', running(candidates)]]), [], seen, { viewerId: 'davide', people, now: NOW })
+    return [...said.phrases, ...said.rest]
+  }
+
+  it('is said lost, and no move its mark didn’t make: removed, withdrawn, or two claiming to be current', () => {
+    assert.deepEqual(away([]), ['Task a has no current result now: v1 isn’t current any more'])
+    assert.deepEqual(away([{ ...had, state: 'withdrawn' }]), [
+      'Task a has no current result now: v1 isn’t current any more',
+    ])
+    assert.deepEqual(away([had, { ...candidate('v2'), sha256: 'f'.repeat(64) }]), [
+      'Task a has no single current result now: two versions claim to be current',
+    ])
+  })
+
+  it('still says a new result, and a mark that moved', () => {
+    assert.deepEqual(away([candidate('v2')]), ['Task a has a new result: v2'])
+    const waiting = { ...waitingOn('davide'), candidates: [had] }
+    const waited = whileAway(rowsOf([['a', waiting]]), [], seen, { viewerId: 'davide', people, now: NOW })
+    assert.deepEqual(waited.phrases, ['Task a now waits on you'])
+    assert.deepEqual(away([had]), []) // nothing moved
+  })
+})
+
 describe('a lens', () => {
   it('shows what its name says: what a request asks of you or you do by hand, what waits, what is unassigned', () => {
     const rows = rowsOf(

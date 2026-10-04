@@ -135,9 +135,38 @@ const decisionsSaid = (decisions: readonly BoardDecision[], seen: Seen, looking:
     .filter((d) => seen.decisions[d.decision_id] !== decisionState(d))
     .flatMap((d) => decisionSaid(d, looking) ?? [])
 
+/** A task's current result now: its version, or none (none current, or two claiming to be). */
+const resultNow = (r: PlanRow) => resultsOf(r.view).current?.version_id ?? null
+
 /**
- * What changed while the viewer was away, most pressing first: decisions, then new results, then what blocks or needs
- * someone, then the rest. A few phrases are said; the rest are counted, and kept to be read in full on request.
+ * A result it had, lost since: none is current now, or two claim to be (Codex F-012). Said as such, never as a move
+ * its mark didn't make.
+ */
+function lostSaid(r: PlanRow, had: string): string {
+  return resultsOf(r.view).ambiguous
+    ? `${r.item.purpose} has no single current result now: two versions claim to be current`
+    : `${r.item.purpose} has no current result now: ${had} isn’t current any more`
+}
+
+/** What moved since the last look, by kind: a new result, a result lost, a mark that changed (or a task new since). */
+function movesOf(rows: readonly PlanRow[], seen: Seen) {
+  const changed = changedSince(rows, seen)
+  const moved = rows.filter((r) => changed.has(r.item.id))
+  const had = (r: PlanRow) => seen.items[r.item.id]?.result ?? null
+  const resulted = moved.filter((r) => resultNow(r) !== null && resultNow(r) !== had(r))
+  const lost = moved.flatMap((r) => {
+    const was = had(r)
+    return resultNow(r) === null && was !== null ? [{ row: r, was }] : []
+  })
+  // Its mark is said only when its mark moved, or the task is new: a result changing moves no mark.
+  const marked = moved.filter((r) => !resulted.includes(r) && seen.items[r.item.id]?.mark !== r.status.mark)
+  return { resulted, lost, marked }
+}
+
+/**
+ * What changed while the viewer was away, most pressing first: decisions, then results new or lost, then what blocks
+ * or needs someone, then the rest. A few phrases are said; the rest are counted, and kept to be read in full on
+ * request.
  */
 export function whileAway(
   rows: readonly PlanRow[],
@@ -147,13 +176,7 @@ export function whileAway(
 ): { phrases: string[]; more: number; rest: string[] } {
   if (!seen) return { phrases: [], more: 0, rest: [] }
   const { viewerId } = looking
-  const changed = changedSince(rows, seen)
-  const moved = rows.filter((r) => changed.has(r.item.id))
-  const resulted = moved.filter(
-    (r) =>
-      (resultsOf(r.view).current?.version_id ?? null) !== (seen.items[r.item.id]?.result ?? null) &&
-      resultsOf(r.view).current,
-  )
+  const { resulted, lost, marked } = movesOf(rows, seen)
   const markSaid = (r: PlanRow) =>
     SAID[r.status.mark](
       r.item.purpose,
@@ -162,9 +185,10 @@ export function whileAway(
     )
   const all = [
     ...decisionsSaid(decisions, seen, looking),
-    ...resulted.map((r) => `${r.item.purpose} has a new result: ${resultsOf(r.view).current?.version_id ?? ''}`),
-    ...moved.filter((r) => !resulted.includes(r) && PRESSING.has(r.status.mark)).map(markSaid),
-    ...moved.filter((r) => !resulted.includes(r) && !PRESSING.has(r.status.mark)).map(markSaid),
+    ...resulted.map((r) => `${r.item.purpose} has a new result: ${resultNow(r) ?? ''}`),
+    ...lost.map(({ row, was }) => lostSaid(row, was)),
+    ...marked.filter((r) => PRESSING.has(r.status.mark)).map(markSaid),
+    ...marked.filter((r) => !PRESSING.has(r.status.mark)).map(markSaid),
   ]
   return { phrases: all.slice(0, 3), more: Math.max(0, all.length - 3), rest: all.slice(3) }
 }
