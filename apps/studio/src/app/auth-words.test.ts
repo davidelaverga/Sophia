@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { sendFailure } from './auth-words.ts'
+import { secondsToWait, sendFailure } from './auth-words.ts'
 
 const EMAIL = 'ana@sophia.test'
 
@@ -38,5 +38,13 @@ describe('why a sign-in email was not sent', () => {
   it('keeps the Auth service’s own sentence for anything else', () => {
     const other = { code: 'email_address_invalid', message: 'Email address "x" is invalid', status: 400 }
     assert.equal(sendFailure(other, EMAIL), 'Email address "x" is invalid')
+  })
+})
+
+describe('how long to wait, from the page’s own words', () => {
+  it('reads the seconds a refusal gives, and nothing from another sentence', () => {
+    assert.equal(secondsToWait('An email was just sent. You can ask for another in 41 seconds.'), 41)
+    assert.equal(secondsToWait('An email was just sent. You can ask for another in 1 second.'), 1)
+    assert.equal(secondsToWait('Couldn’t reach the sign-in service.'), null)
   })
 })

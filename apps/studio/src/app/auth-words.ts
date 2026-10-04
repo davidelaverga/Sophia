@@ -11,6 +11,12 @@ export interface AuthFailure {
 
 const CLOSED = (email: string) => `New accounts are closed on this server, so ${email} can’t sign up yet.`
 
+/** How long the page's own words say to wait before another email ("…another in 41 seconds."), if they say it. */
+export function secondsToWait(sentence: string): number | null {
+  const seconds = /another in (\d+) seconds?/.exec(sentence)?.[1]
+  return seconds ? Number(seconds) : null
+}
+
 /** Supabase says how long to wait between two emails to one address ("… after 41 seconds."). */
 const waitSeconds = (message: string) => /after (\d+) seconds?/.exec(message)?.[1]
 
