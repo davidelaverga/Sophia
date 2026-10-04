@@ -5,7 +5,7 @@
 // it), `notes=none` (none kept yet); `unavailable=1` (Sophia can't answer now). A message sent here is answered 900 ms later.
 // `arrive=1`: yesterday's talk and her line of today, nothing said yet. The parts the API doesn't give yet:
 // `memory=1`, `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
-// `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
+// `slow=1`: a message takes 1.5 s on its way, not 0.3. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
@@ -198,7 +198,7 @@ function useSimulated() {
       sent.push(text)
       setBusy(true)
       setSending({ text, at: new Date(), epoch: 1 })
-      await new Promise((r) => setTimeout(r, 300))
+      await new Promise((r) => setTimeout(r, query.has('slow') ? 1500 : 300))
       add(turn('person', text, new Date().toISOString(), { reply: 'pending' }))
       setSending(null)
       setBusy(false)
@@ -234,6 +234,12 @@ function Personal() {
   const [locked, setLocked] = useState(false)
   return (
     <div className="places" data-place="personal">
+      {/* The places' bar, as Places draws it above every place: a talk must cover it too. */}
+      <header className="topbar places-bar">
+        <button type="button" className="ghost">
+          Home
+        </button>
+      </header>
       <button className="fixture-lock" type="button" onClick={() => setLocked((was) => !was)}>
         {locked ? 'Unlock (fixture)' : 'Lock (fixture)'}
       </button>

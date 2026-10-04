@@ -13,7 +13,8 @@ import { focusConversation, focusIfDropped, focusSoon } from './focus.ts'
 import { WeekLook } from './WeekLook.tsx'
 
 export interface ConversationActions {
-  start: (text: string) => void
+  /** Sends a way to start's words; whether they went (not while another message is on its way). */
+  start: (text: string) => boolean
   decide: (suggestion: PersonalSuggestion, decision: 'keep' | 'dismiss') => void
   openNotes: () => void
   /** Resolves to whether it was kept. */

@@ -1881,13 +1881,13 @@
 
 /* Talking with her (Talk.tsx): over the conversation, her light as Umbral in the middle, the last lines under it. */
 .places .c3-talk {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 6;
+  z-index: 40;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto auto auto;
   justify-items: center;
-  padding: 8px 0 var(--floor);
+  padding: max(24px, env(safe-area-inset-top)) var(--gutter, 16px) var(--floor);
   background: var(--void);
   animation: ps-arrive 280ms var(--ease);
 }

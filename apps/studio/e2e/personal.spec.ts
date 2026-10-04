@@ -315,3 +315,29 @@ test('@phone · $20 · the day’s answers, the week and a talk fit the phone', 
   await expect(talk.getByRole('button', { name: 'End' })).toBeInViewport()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
+
+test('$20 · a talk covers the whole screen: nothing behind it, the bar included, can be pressed', async ({ page }) => {
+  await page.goto(`${PAGE}?voice=1&step=150`)
+  await page.getByRole('button', { name: 'Talk with her' }).click()
+  const talk = page.getByRole('dialog', { name: 'Talking with Sophia' })
+  await talk.evaluate((t) => Promise.all(t.getAnimations().map((a) => a.finished)))
+  const box = await talk.boundingBox()
+  const view = page.viewportSize()
+  expect(box?.x).toBe(0)
+  expect(box?.y).toBe(0)
+  expect(box?.width).toBe(view?.width)
+  expect(box?.height).toBe(view?.height)
+  expect(await page.evaluate(() => !!document.elementFromPoint(4, 4)?.closest('.c3-talk'))).toBe(true)
+})
+
+test('$20 · while a message is on its way, “Talk about it” waits: the week stays until her prompt goes', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?week=1&slow=1`)
+  await field(page).fill('One more thing about Thursday.')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.msg.me .body').last()).toHaveText('One more thing about Thursday.') // on its way
+  await page.getByRole('button', { name: 'Talk about it' }).click()
+  await expect(page.getByRole('region', { name: 'Your week with Sophia' })).toBeVisible()
+  expect(await sent(page)).toEqual(['One more thing about Thursday.'])
+})

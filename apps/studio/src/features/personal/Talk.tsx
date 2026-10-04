@@ -3,6 +3,7 @@
 // End (Esc too). A modal: nothing behind it can be reached. Ending writes what was said into the conversation as turns
 // (extras.ts). Shown only once the API gives a voice.
 import { useEffect, useRef, useState, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import type { LightMode } from '../light/engine.ts'
 import { SophiaLight } from '../light/SophiaLight.tsx'
 import { Who } from './Conversation.tsx'
@@ -78,7 +79,9 @@ export function Talk({ voice, onEnd }: { voice: Voice; onEnd: () => void }) {
   const box = useRef<HTMLElement>(null)
   useEffect(() => end.current?.focus({ preventScroll: true }), [])
   useModalKeys(box, onEnd)
-  return (
+  // Over the whole screen, the places' bar included: placed at their root, nothing behind it can be pressed.
+  const host = document.querySelector('.places')
+  const view = (
     <section ref={box} className="c3-talk" role="dialog" aria-modal="true" aria-label="Talking with Sophia">
       <div className="c3-talk-light" aria-hidden>
         <SophiaLight mode={moodOf(state.speaking)} target={null} attention={null} working={false} formed={FORMED} />
@@ -113,4 +116,5 @@ export function Talk({ voice, onEnd }: { voice: Voice; onEnd: () => void }) {
       </div>
     </section>
   )
+  return host ? createPortal(view, host) : view
 }

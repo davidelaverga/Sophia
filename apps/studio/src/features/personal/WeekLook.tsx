@@ -9,7 +9,7 @@ import { focusConversation } from './focus.ts'
 export const talkAboutWeek = (themes: readonly string[]) =>
   themes.length > 0 ? `Let’s talk about my week: ${themes.join(', ')}.` : 'Let’s talk about my week.'
 
-export function WeekLook({ week, onTalk }: { week: Week; onTalk: (words: string) => void }) {
+export function WeekLook({ week, onTalk }: { week: Week; onTalk: (words: string) => boolean }) {
   const { look } = week
   return (
     <section className="c3-week" aria-labelledby="c-week-h">
@@ -30,7 +30,8 @@ export function WeekLook({ week, onTalk }: { week: Week; onTalk: (words: string)
           className="pill"
           type="button"
           onClick={() => {
-            onTalk(talkAboutWeek(look.themes))
+            // Put away only once her prompt went: while another message is on its way, the week stays.
+            if (!onTalk(talkAboutWeek(look.themes))) return
             week.dismiss(look.id)
             focusConversation()
           }}
