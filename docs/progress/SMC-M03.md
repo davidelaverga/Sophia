@@ -932,3 +932,143 @@ Run here (linux-x64) at `4a33c2b`:
 - `test:browser`: 118/118 (room, Explore, Resources, the report viewer and the new voice chat checks);
 - each fix's check run without it, and failing.
 
+
+## 40. Production acceptance (CX-0026..0032): preservation, a truthful History, facts for the guide, steers and the guide's handoff (2026-10-03/04)
+
+Davide approved OP-0001 revision 6, and Codex deployed `1e912b7` with 0036 ([CX-0027](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5970534698)). Production acceptance then failed:
+
+- **[CX-0026](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5970393374) P1:** v2's kept note said the rest was unchanged, while its own facts recorded 7 sections removed.
+- **CX-0026 P2:** a follow-up asked to revise only the recommendations, but it replaced the report. It dropped its 5 citations and cited the prior report alone.
+- **CX-0027, a later return to the report:** Sophia called the removed comparison table retained.
+- **CX-0027, steers:** steers sent after publication were described as "admitted, not begun" and promised for later.
+- **[CX-0029](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5970899061):** the merge and the redeploy were withheld, and Davide found the report design poor and the research shallow.
+- **[CX-0030](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5971799423), Codex's read-only answers to [CC-0022](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-5971626747):**
+  - The stored questions carried none of Davide's limits: no length, sections, keep instruction or caps. The guide had passed the topic alone.
+  - The false return answer followed reads of the summaries only.
+
+Davide's rule for the fixes: no frozen asset changes.
+
+**How it was done.**
+- **Investigation.** Five read-only investigations ran, each checked by a skeptic, and became one plan.
+- **Implementation.** Four owners worked in separate worktrees (0037, API, bridge, Studio), each with two reviewers and a fix pass, and a fifth owner handled the guide's handoff (CX-0030).
+- **Cross-feature review.** A review of the integrated head (`88f8228`) checked four things:
+  - one amendment end to end;
+  - every mixed-version state during the rollout;
+  - the production failures, reworded in ways the tests had not seen;
+  - security.
+
+  Two skeptics checked each finding. 13 of 16 held, among them one P1: the gate still passed some reworded "kept" notes. Those 13 were fixed, reviewed again and fixed again (`b4e113e`, `5c068ae`).
+- **Checks.** Every fix has a check that fails without it.
+
+### What changed
+
+**CX-0026 P1: the notes truth gate (0037).**
+- `amendment_note_problems` runs 0036's rules first. Then every removed section must be disclosed in a part of the notes that says it went: by name, by a key word only it has, by a wholesale phrase, or by a count.
+- A removed or revised section that either note calls kept or unchanged is refused by name. Negations and exceptions are read first, so "neither changed nor removed" is not a removal and "everything but the comparison table" is an exception.
+- While the base can still be read, a restore line names the version and the source to restore from.
+- The refusal is one-shot as before. A second contradiction publishes notes written from the facts.
+- At most 20 problems of at most 300 characters each, the frozen runtime's contract.
+- `template_notes` never cuts a heading.
+
+**Defence in depth: History and Knowledge (Studio).**
+- History says the facts first (`factsLine`: sections removed and added by name, cited sources dropped and added, revisions as a count).
+- Sophia's notes follow, labelled as hers. They fold under the facts when a section was removed with none of its name left, or a source was dropped.
+- Notes are hidden when the service wrote them, and on a first version.
+- Worker headings are quoted, so they cannot read as the service's words.
+- Knowledge cards show no notes.
+- So a note the gate misses still cannot stand as fact, and stored versions such as the pilot's v2 read truthfully without being repaired.
+
+**CX-0026 P2: amendments edit their report (0037).**
+- **Seeded draft.** Dispatch seeds an amendment's draft with a copy of the base (never the base itself, so the follow-up stays out of v1's withdrawal closure). `research_read_context` shows it as the worker's draft.
+- **Update brief.** The first message carries an update brief. It says:
+  - the draft is the whole report, and what it leaves out is deleted;
+  - change only what is asked;
+  - remove a section only on request, and name it;
+  - keep the citations.
+
+  The title goes in as a JSON string.
+- **Long bases.** A base over 20,000 characters is reported as a blocker, never shortened. The API mirrors that limit (`REVISABLE_CHARS`), and a test ties the two.
+- **Unedited draft.** Submit refuses once a draft that is still the base unchanged.
+- **Carried citations.** `research_citable` keeps the base's own citations citable.
+- **The base as a source.** The base stays citable (CC-0019 #7), but a report's own versions are never counted as a source added or dropped.
+
+**CX-0027: the return answer (API).**
+- `read_selected_source` on a research task still returns the worker's summary verbatim (Davide's decision). It is now labelled as the worker's claim.
+- A `report` block computed by the service comes first. It gives:
+  - the version, and whether it is the latest, with the current version and its task;
+  - the sections removed, added, revised and unchanged, recomputed from the texts;
+  - the sections since version 1;
+  - the number of tables, the citations, and whether a PDF exists.
+- `project_status` v1.2 rows carry the same counts. Change and kept notes never reach the guide.
+
+**Steers (API, bridge).**
+- A refused control says "Not applied" and why, with the next step when there is one:
+  - a finished task: it published version N; offer a follow-up if research is on;
+  - ended without a report, on hold, stopped, not started, not held, or changed.
+- A steer on finished research is refused before anything is admitted.
+- A lost commit reads "unknown", and a retry replays the first receipt.
+- The v1.2 declarations say that a steer reaches only research waiting or running, and that a refused control changed nothing.
+- A safety net in the bridge rewrites a raw `invalid_state` from an older API. A write whose reply was lost is answered as unknown.
+
+**CX-0030: the guide's handoff (API, bridge).**
+- The v1.2 `start_research` asks for the whole request in the speaker's words, never shortened to a topic.
+- An optional `scope` carries what to change, what to keep, the length, the sections and the search and read limits. The API writes each stated part into the stored question under "Asked by the speaker:", so the worker sees it.
+- Without a scope, the stored question is byte-identical to before.
+- If research is already under way, the receipt says that added instructions were not passed on, and to steer it.
+- The worker's first message asks it to keep to stated limits and say where it could not.
+
+**Also.**
+- `provider.setup` logs the SHA-256 of the declarations it sends. v1.1 is `9717b92e…`, unchanged. v1.2 is `57cdfdad…`.
+- `main` merged through #73.
+
+### Unchanged
+
+- The guide's prompt, skill and manifest hashes.
+- The runtime bundle `6a01ce0e…` and `config/runtime-unit.json`.
+- Migrations 0001–0036: 0036 is still `5e010674…`.
+- The contracts.
+- The runtime (`6ec64f3`) and the worker are not redeployed.
+
+### Deferred, and known limits
+
+- **The gate reads English notes with heuristics.** New wordings will keep appearing. The one-shot refusal publishes truthful template notes on the second contradiction. The facts-first History and the guide's facts mean a missed wording cannot surface as a false claim.
+- **Gate gaps the reviews found:**
+  - a count covers removed sections whatever it names;
+  - a claim made with a key word that a renamed section shares can pass;
+  - revisions are not checked against blanket claims.
+- **Not enforced:** search and read caps per task. They reach the worker as words; the allowance per lineage still caps both.
+- **Research depth (CC-0022) is a proposal only:** criteria D1–D9 and G1–G3, and a brief for 0038, awaiting Davide.
+- **The pilot's stored versions are not repaired.** Their History now reads facts first.
+- **A scoped question's goal title** can carry the start of the "Asked by the speaker" block.
+- **The uncertain Jina read `c6ed167d`** stays uncertain until Davide's usage export (CX-0030).
+- **`@livekit/rtc-node` 1.1.0, the latest release (main's dependency):**
+  - it segfaults on libwebrtc's signaling thread about once in 150 runs of `rtc.livekit.test.ts`, also on `main` (`7734108`);
+  - a native backtrace is on [PR #32](https://github.com/davidelaverga/Sophia/pull/32#issuecomment-5975063435);
+  - the production bridge runs the same library;
+  - this is for LiveKit upstream.
+- **LFE-06's J/K sheet race** in `resources.spec.ts` is unchanged, as reported.
+
+### Release order and rollback
+
+1. **0037** (Supabase), applied in one transaction. Old API, Studio, bridge and runtime work on it unchanged:
+   - problems stay within the frozen contract;
+   - the seeded draft is a contract-valid draft;
+   - the create text stays under 200,000 characters.
+
+   An amendment dispatched before 0037 meets only the new submit checks.
+2. **The API and Studio,** in either order. Neither needs 0037. The API's additions are tool output, and Studio reads only fields already in the contract.
+3. **The bridge, last.** Its declarations (v1.2 digest `57cdfdad…`) name `project_status` states and the `scope` field that the new API understands. An older API ignores `scope`.
+
+Roll back in reverse: the bridge, then Studio and the API, then, only if needed, a 0038 that restores the 0025, 0027 and 0036 function bodies. Never edit 0037 once it is applied. Seeded drafts already written stay as harmless drafts.
+
+Acceptance checks for Codex, after deployment:
+- the CX-0026 request repeated on a new public-topic lineage;
+- a return that asks whether the table is still there;
+- a steer after publication;
+- two spoken requests carrying limits, with each stored question compared with what was said.
+
+Run here (linux-x64) at `5c068ae`:
+- `pnpm check`: 1,038 unit tests (1,037 passed, 1 skipped) and 95 integration tests (93 passed, 2 skipped); `pnpm artifacts` reproduces every identity;
+- `pnpm test:sql`: 37 migrations, 3 test files; `pnpm test:db`: 439/439;
+- `test:browser`: 211/211;
+- each fix's check was run without the fix, and failed.
