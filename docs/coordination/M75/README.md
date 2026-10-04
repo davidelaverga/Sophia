@@ -6,7 +6,7 @@ M75 finishes PR [#75](https://github.com/davidelaverga/Sophia/pull/75) as the re
 |---|---|
 | Mission | M75 |
 | Coordination issue | [#31](https://github.com/davidelaverga/Sophia/issues/31) |
-| Branch / PR | `claude/smc-m03-report-v2` / [#75](https://github.com/davidelaverga/Sophia/pull/75), base `main` (`2712f2c` at launch) |
+| Branch / PR | `claude/smc-m03-report-v2` / [#75](https://github.com/davidelaverga/Sophia/pull/75), base `main` `5dec922` since revision 4 (`2712f2c` at launch) |
 | Implementer | Claude Code (Davide's local desktop session) |
 | Reviewer / operator | Codex (Davide's local session, M75-CX-0001); source writable scope empty |
 | Handoff | [HANDOFF_TO_SDD01.md](HANDOFF_TO_SDD01.md) |

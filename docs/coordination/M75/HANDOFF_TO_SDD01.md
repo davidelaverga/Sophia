@@ -130,6 +130,7 @@ C16 is deliberately stricter than axe's `scrollable-region-focusable` (which als
 | M75 observation: gate wording beside unread sources | P3 question | Open, not changed | "All N cited sources are ones this task retrieved or was given" sits under "K of N … could not be read"; accurate for a captured record, possibly confusing. Owner/SDD-01 wording decision; changing it moves page bytes |
 | M75 observation: forward HTML path | Policy gap | Open, SDD-01's | §3: an HTML request is admitted as Markdown and fulfilled by conversion |
 | `main`'s opening timing check (`opening.spec.ts:86`) | Flake | Not #75's | Reported on #32 with root cause |
+| Pre-push review observation (revision 5): `markdown.ts` stack depth | P3 | Open, not M75's | `markdown.ts:484` (`out.push(...citing(...))`) throws "Maximum call stack size exceeded" at about 80k citations in one block (3.3 MB); also on `85c1ae1`. `markdown.ts` is `pdf-report-v1`'s frozen file, so not changed here: the claim that a draft of any length prints does not hold beyond it |
 
 ## 7. Release scope and sequencing
 
