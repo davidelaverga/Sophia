@@ -29,6 +29,7 @@ import { Lens } from './Lens.tsx'
 import { shows, type LensName } from './lenses.ts'
 import { current, planRows, waitsOn, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
 import { Folded } from './PlanNotes.tsx'
+import type { Challenge } from './challenges.ts'
 import { material } from './review.ts'
 import { ReviewResult, type Waiting } from './ReviewResult.tsx'
 import { changedSince, readSeen, whileAway, writeSeen } from './seen.ts'
@@ -61,6 +62,8 @@ interface Props {
    * names where there is room. Absent, nothing is said.
    */
   observations?: readonly QuotaObservation[]
+  /** Where a challenge to the lead's review goes (LFE-07.2); absent for whoever can't act on the work. */
+  onChallenge?: Challenge
 }
 
 type Lane = { key: string; label: string; mark: Mark; marks: Mark[]; empty: string }
@@ -253,10 +256,13 @@ function useSlot(plan: WorkPlan, viewerId: string | null, now: Date, decider: (i
       setOpenId(null)
       pill.current?.focus()
     },
-    /** What a proposal's decision waits on, while open: the viewer's answer, its decider's, or nothing: it expired. */
+    /**
+     * What a proposal's decision waits on: the viewer's answer, its decider's, or nothing: it expired (by its date, or
+     * marked so). A decision already answered or replaced waits on no one.
+     */
     waitsOn: (decisionId: string): Waiting | null => {
-      const d = asks.open.find((o) => o.decision_id === decisionId)
-      if (!d) return null
+      const d = plan.decisions.find((o) => o.decision_id === decisionId)
+      if (!d || (d.state !== 'proposed' && d.state !== 'expired')) return null
       if (!actionable(d, now)) return { on: 'expired' }
       return d.decider_id === viewerId ? { on: 'you' } : { on: 'them', name: decider(d.decider_id) }
     },
@@ -370,9 +376,15 @@ function Slot({
   rows,
   onOpenTask,
   plan,
+  onChallenge,
   ...decisions
-}: DecisionsProps & { slot: ReturnType<typeof useSlot>; rows: PlanRow[]; onOpenTask: (id: string) => void }) {
-  const { now } = decisions
+}: DecisionsProps & {
+  slot: ReturnType<typeof useSlot>
+  rows: PlanRow[]
+  onOpenTask: (id: string) => void
+  onChallenge: Challenge | undefined
+}) {
+  const { now, viewerId } = decisions
   if (slot.decisionsShown) return <Decisions decisions={slot.asks.open} focus={slot.focus} {...decisions} />
   if (!slot.reviewShown || !slot.review) return null
   return (
@@ -385,6 +397,8 @@ function Slot({
       waitsOn={slot.waitsOn}
       onOpenDecisions={slot.openDecisions}
       onClose={slot.closeReview}
+      viewerId={viewerId}
+      onChallenge={onChallenge}
     />
   )
 }
@@ -440,6 +454,7 @@ function Board(props: BoardProps) {
         viewerId={viewerId}
         onDecide={onDecide}
         onOpenTask={board.setOpen}
+        onChallenge={props.onChallenge}
       />
       <Lanes rows={rows} board={board} tile={tile} />
       <Folded plan={plan} people={people} />
