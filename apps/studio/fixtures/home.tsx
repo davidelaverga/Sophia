@@ -1,7 +1,8 @@
 // Home's fixture page (e2e/home.spec.ts): the Studio's own HomeDoors, inside Places' frame, over labelled simulated
 // projects. The query string picks them: `projects=four` (default: Launch plan, Research notes, Design review, and
 // Product launch, whose Standup starts in 10 min), `live` (Davide and Sophia in Pitch deck's room), `none`, `loading`;
-// `explain=1` (the first-visit note), `locked=1` (the personal space locked), `call=<id>` (in that project's call).
+// `failed` (their read failed); `explain=1` (the first-visit note), `locked=1` (the personal space locked),
+// `call=<id>` (in that project's call), `modal=1` (a sheet open over Home, as Your data would be).
 // `window.homeFixture.pressed` lists each action taken, as "open <id>", "join <id>", "personal", "work"...
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -14,6 +15,7 @@ import {
   greeting,
   homeAttention,
   homeSummary,
+  READ_FAILED,
   workCount,
   youDoor,
 } from '../src/features/personal/places-view.ts'
@@ -63,10 +65,12 @@ const SETS: Record<string, ProjectSummary[] | undefined> = {
   ],
   none: [],
   loading: undefined,
+  failed: undefined,
 }
 const projects = SETS[query.get('projects') ?? 'four']
 const locked = query.get('locked') === '1'
 const inCall = query.get('call')
+const failed = query.get('projects') === 'failed'
 
 function Home() {
   const [explain, setExplain] = useState(query.get('explain') === '1')
@@ -80,7 +84,8 @@ function Home() {
           summary={homeSummary(projects, NOW)}
           attention={homeAttention(projects, NOW, inCall)}
           explain={explain}
-          reads={[]}
+          reads={failed ? [{ state: 'failed', failed: READ_FAILED.projects, retry: () => undefined }] : []}
+          loadingProjects={!projects && !failed}
           you={youDoor({ locked: locked ? 'you' : null, turns: [], notes: 0, now: NOW })}
           count={workCount(projects)}
           projects={projects}
@@ -98,6 +103,11 @@ function Home() {
           }}
         />
       </div>
+      {query.get('modal') === '1' && (
+        <div className="fixture-sheet" role="dialog" aria-modal="true" aria-label="Your data">
+          A sheet over Home
+        </div>
+      )}
     </div>
   )
 }

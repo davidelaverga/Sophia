@@ -383,6 +383,7 @@ function Home({ v }: { v: View }) {
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
         count={workCount(projects)}
         projects={projects}
+        loadingProjects={readState(v.projects) === 'loading'}
         now={now}
         inCallProject={inCall}
         lockedBy={lockedBy(props.lock)}

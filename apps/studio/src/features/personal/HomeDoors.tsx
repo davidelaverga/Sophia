@@ -5,6 +5,7 @@
 import type { ProjectSummary } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
 import { SophiaLight } from '../light/SophiaLight.tsx'
 import type { Point } from '../light/motion.ts'
 import { followPointer } from '../resources/motion.ts'
@@ -36,6 +37,8 @@ interface Props {
   count: string
   /** Undefined until they have loaded. */
   projects: readonly ProjectSummary[] | undefined
+  /** Their read is on its way: placeholders until it lands; a read that failed has its own note (ReadNotes). */
+  loadingProjects: boolean
   now: Date
   inCallProject: string | null
   lockedBy: LockedBy | null
@@ -65,7 +68,9 @@ function Intro({ onDone }: { onDone: () => void }) {
   // Esc folds it the same way, while Home is on screen; elsewhere Esc is the place's own (Places.tsx).
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented && note.current?.checkVisibility()) fold()
+      // A sheet open over Home owns its Esc; the note stays explained only once it is read and put away.
+      if (e.key !== 'Escape' || e.defaultPrevented || modalOnScreen()) return
+      if (note.current && onScreen(note.current)) fold()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -127,6 +132,9 @@ function Main({ verb, meta, onOpen }: { verb: string; meta: string; onOpen: () =
   )
 }
 
+/** Less motion asked for: her light keeps still, it doesn't follow the pointer. */
+const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 /**
  * Sophia's own light in her door: at rest, turning and leaning a little towards you while you point at it, as she does
  * towards whoever writes on the sign-in. Locked, she rests, greyed.
@@ -138,7 +146,7 @@ function useNotices(locked: boolean) {
   // One update a frame, however fast the pointer moves: the light follows, the door doesn't re-render per event.
   const follow = (e: PointerEvent<HTMLElement>) => {
     const b = box.current?.getBoundingClientRect()
-    if (!b || locked || e.pointerType === 'touch' || frame.current) return
+    if (!b || locked || e.pointerType === 'touch' || frame.current || still()) return
     const point = { x: Math.round(e.clientX - b.left), y: Math.round(e.clientY - b.top) }
     frame.current = requestAnimationFrame(() => {
       frame.current = 0
@@ -251,12 +259,10 @@ function Row({ row, index, onPress }: { row: HomeRow; index: number; onPress: ()
   )
 }
 
-function Projects({
-  projects,
-  now,
-  inCallProject,
-  actions,
-}: Pick<Props, 'projects' | 'now' | 'inCallProject' | 'actions'>) {
+function Projects(props: Pick<Props, 'projects' | 'loadingProjects' | 'now' | 'inCallProject' | 'actions'>) {
+  const { projects, now, inCallProject, actions } = props
+  // A read that failed says so above the doors (ReadNotes); no rows keep loading beside it.
+  if (!projects && !props.loadingProjects) return null
   if (!projects) {
     return (
       <ul className="c2-rows" aria-label="Your projects" aria-busy="true">
@@ -297,13 +303,21 @@ function Projects({
   )
 }
 
-function WorkDoorView(props: Pick<Props, 'count' | 'projects' | 'now' | 'inCallProject' | 'actions'>) {
+function WorkDoorView(
+  props: Pick<Props, 'count' | 'projects' | 'loadingProjects' | 'now' | 'inCallProject' | 'actions'>,
+) {
   const { count, projects, actions } = props
   return (
     <article className="c2-door job" data-door="work" aria-labelledby="c-work-h">
       <span className="field-label">Work</span>
       <h3 id="c-work-h">Your projects</h3>
-      <Projects projects={projects} now={props.now} inCallProject={props.inCallProject} actions={actions} />
+      <Projects
+        projects={projects}
+        loadingProjects={props.loadingProjects}
+        now={props.now}
+        inCallProject={props.inCallProject}
+        actions={actions}
+      />
       <div className="c2-foot">
         <Main verb="All projects" meta={count} onOpen={actions.work} />
       </div>
@@ -348,6 +362,7 @@ export function HomeDoors(props: Props) {
         <WorkDoorView
           count={props.count}
           projects={props.projects}
+          loadingProjects={props.loadingProjects}
           now={props.now}
           inCallProject={props.inCallProject}
           actions={actions}

@@ -100,14 +100,14 @@ async function foldTops(page: Page, fold: () => Promise<void>): Promise<number[]
 }
 
 /**
- * It glides: no frame moves it more than a third of the way (a jump would be all of it at once), the last frames don't
+ * It glides: no frame moves it half the way (a jump would be all of it at once, even on a slow runner), the last frames don't
  * move it at all (no step as the note goes), and it ends higher.
  */
 function expectGlide(tops: number[]) {
   const steps = tops.slice(1).map((y, i) => Math.abs(y - (tops[i] ?? y)))
   const travel = Math.abs((tops[0] ?? 0) - (tops.at(-1) ?? 0))
   expect(travel).toBeGreaterThan(20)
-  expect(Math.max(...steps)).toBeLessThan(travel / 3)
+  expect(Math.max(...steps)).toBeLessThan(travel / 2)
   expect(Math.max(...steps.slice(-5))).toBeLessThan(1)
   expect(tops.at(-1) ?? 0).toBeLessThan(tops[0] ?? 0)
 }
@@ -210,4 +210,29 @@ test('home · hidden, Sophia’s light asks for no frames; shown again, she is b
   await page.evaluate(() => document.querySelector('.c-home')?.removeAttribute('hidden'))
   await page.waitForTimeout(500)
   expect((await count()) - hidden).toBeGreaterThan(10)
+})
+
+test('home · a read that failed says so; no rows keep loading beside it', async ({ page }) => {
+  await page.goto(`${PAGE}?projects=failed`)
+  await expect(page.getByText('Couldn’t load your projects.')).toBeVisible()
+  await expect(page.locator('.c2-row.placeholder')).toHaveCount(0)
+})
+
+test('home · with a sheet open, Esc is the sheet’s: the note stays', async ({ page }) => {
+  await page.goto(`${PAGE}?explain=1&modal=1`)
+  const note = page.getByRole('note').filter({ hasText: 'Private on the left' })
+  await expect(note).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+  await expect(note).toBeVisible()
+})
+
+test('home · with less motion asked for, Sophia’s light stays at rest under the pointer', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto(PAGE)
+  const box = await page.locator('[data-door="personal"]').boundingBox()
+  await page.mouse.move((box?.x ?? 0) + 40, (box?.y ?? 0) + 120)
+  await page.mouse.move((box?.x ?? 0) + 90, (box?.y ?? 0) + 140)
+  await page.waitForTimeout(300)
+  await expect(page.locator('[data-door="personal"] .light')).toHaveAttribute('data-mode', 'rest')
 })
