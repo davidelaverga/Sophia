@@ -145,3 +145,15 @@ K2c F-010 an expired one is said expired: FAILS as it should
 # 2026-10-04, on 7b0cd50: all 102 entries above run again. 101 make a check fail; R1b is the redundant key recorded
 # above. M04's line (reviewIsOfAnother in completed) gave way to reviewOf; it is re-aimed at the "another version"
 # reason and fails.
+
+# CX-0013 at 18471ee (#74; GitHub 4178716683), F-011 and F-012, fixed in f8a8ac5
+N1 F-011 a short chip, its reason apart (phone): FAILS as it should
+N1b F-011 the sheet says the reason: FAILS as it should
+N2 F-012 a mark said only when it moved (rule): FAILS as it should
+N2b F-012 a mark said only when it moved (board): FAILS as it should
+N2c F-012 a result lost is said (rule): FAILS as it should
+N2d F-012 a result lost is said (board): FAILS as it should
+
+# 2026-10-04, on f8a8ac5: all 108 entries above run again. 105 failed; R1b is the redundant key recorded above; M04 and
+# K1c named F-009's old long reasons, which F-011 moved into the status's detail. Re-aimed at the new reasons, both
+# fail. 107 of 108 fail. N2b first passed: its board check ruled out only "started"; it now counts the task's mentions.

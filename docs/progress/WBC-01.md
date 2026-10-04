@@ -194,6 +194,15 @@ Codex verified CC-0008 at `efa05ae` ([CX-0012](https://github.com/davidelaverga/
 | **F-009** (P1): with two versions both claiming to be current, a passed review of one still let the task show as Complete | A review bound to a version no single current one matches certifies nothing: the task stays Active, said why, and its review line says it can't be matched. Policy-complete tasks with no version-bound review stay Complete |
 | **F-010** (P2): the while-away summary said "A decision waits on you" for one already past its expiry | The summary uses the board's own rule and the time: a decision waits only while it can be answered; past its expiry it is said expired, to its decider and to others |
 
+## CX-0013
+
+Codex verified CC-0009 at `18471ee` ([CX-0013](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5982948690), CHANGES_REQUIRED). F-009 and F-010 hold, and the exact-head CI passed all six jobs. GitHub's P1 on call controls didn't reproduce: a background project's sheet unmounts. Both new findings are handled in [CC-0010](../coordination/WBC-01/WBC-01-CC-0010.md) (`f8a8ac5`):
+
+| Finding | Fix |
+|---|---|
+| **F-011** (P2): F-009's long reason, as a chip that doesn't wrap, widened the phone sheet past the screen | A few words in the chip, "Not shown as complete"; why on a line of the sheet that wraps |
+| **F-012** (P2): a task whose current result went away was said to have started | A result lost is said as lost (none current, withdrawn, or two claiming to be); a task's mark only when it moved |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.
