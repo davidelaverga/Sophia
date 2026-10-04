@@ -1,6 +1,6 @@
 // Sign-in screens: Supabase magic link, dev identities, or a configuration hint. Each is a quiet room
 // with Sophia's light at rest above the words.
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import { LINK_SLOW } from './auth-callback.ts'
 import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
@@ -11,6 +11,8 @@ import { PasskeyLink, usePasskeySignIn } from './PasskeySignIn.tsx'
 import { ProviderButtons } from './ProviderButtons.tsx'
 import { SLOW_NOTE, useSlow } from './useSlow.ts'
 import { Mark } from './Mark.tsx'
+import { mailHome, plausibleEmail } from './mail-home.ts'
+import { secondsToWait } from './auth-words.ts'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
 const LOCAL_AUTH = /^http:\/\/(127\.0\.0\.1|localhost):54321/.test(import.meta.env.VITE_SUPABASE_URL ?? '')
@@ -139,26 +141,67 @@ function DevIdentityPicker({ onChoose }: { onChoose: (identity: Identity) => voi
   )
 }
 
-type Step = { step: 'idle' | 'sending' | 'sent' } | { step: 'error'; message: string }
+type Step = { step: 'idle' | 'sending' | 'sent' } | { step: 'error'; message: string; field?: boolean }
 
-function EmailSignIn({ notice }: { notice: string | undefined }) {
+/** Where a sign-in email goes, and where its code is checked: Supabase Auth, or a fixture's own. */
+export interface EmailPorts {
+  send?: ((email: string) => Promise<void>) | undefined
+  verify?: ((email: string, code: string) => Promise<void>) | undefined
+}
+
+/** A screen with a pointer: there a field can take the focus; on touch it waits, so no keyboard covers the page. */
+const finePointer = () => window.matchMedia('(pointer: fine)').matches
+
+/** The address field takes the focus with a pointer, on arrival and each time the form comes back (another email). */
+function useFocusOnPointer(shown: boolean) {
+  const field = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (shown && finePointer()) field.current?.focus()
+  }, [shown])
+  return field
+}
+
+const NOT_AN_ADDRESS = 'Check the address: it needs a name, an @ and a domain.'
+
+/** The address and its sending: checked here first, then sent; its step, and whether the field itself is wrong. */
+function useAddress(send: (email: string) => Promise<void>) {
   const [email, setEmail] = useState('')
   const [state, setState] = useState<Step>({ step: 'idle' })
-  const showError = useCallback((message: string) => setState({ step: 'error', message }), [])
-  const passkey = usePasskeySignIn(showError)
-
+  const field = useFocusOnPointer(state.step !== 'sent')
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    // Checked here, said in the page's own words, not in the browser's bubble.
+    if (!plausibleEmail(email)) {
+      setState({ step: 'error', message: NOT_AN_ADDRESS, field: true })
+      field.current?.focus()
+      return
+    }
     setState({ step: 'sending' })
     try {
-      await sendMagicLink(email.trim())
+      await send(email.trim())
       setState({ step: 'sent' })
     } catch (err: unknown) {
       setState({ step: 'error', message: err instanceof Error ? err.message : 'Could not send the link.' })
+      // Send was disabled while it went: the focus goes back to the address, to try again.
+      field.current?.focus()
     }
   }
+  const invalid = state.step === 'error' && state.field === true
+  const change = (value: string) => {
+    setEmail(value)
+    if (invalid) setState({ step: 'idle' })
+  }
+  return { email, state, setState, field, submit, invalid, change }
+}
 
-  if (state.step === 'sent') return <LinkSent email={email} onReset={() => setState({ step: 'idle' })} />
+export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: string | undefined } & EmailPorts) {
+  const address = useAddress(send)
+  const { email, state, setState, field, invalid } = address
+  const showError = useCallback((message: string) => setState({ step: 'error', message }), [setState])
+  const passkey = usePasskeySignIn(showError)
+  if (state.step === 'sent') {
+    return <LinkSent email={email.trim()} send={send} verify={verify} onReset={() => setState({ step: 'idle' })} />
+  }
   return (
     <Centered title="Sign in to Sophia">
       {notice && (
@@ -167,25 +210,28 @@ function EmailSignIn({ notice }: { notice: string | undefined }) {
         </p>
       )}
       <ProviderButtons />
-      <form className="field" onSubmit={(e) => void submit(e)}>
+      <form className="field" noValidate onSubmit={(e) => void address.submit(e)}>
         <label htmlFor="email" className="sr-only">
           Email
         </label>
         <input
+          ref={field}
           id="email"
           type="email"
           required
           autoComplete={passkeysOffered ? 'username webauthn' : 'email'}
           placeholder="you@company.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? 'email-error' : undefined}
+          onChange={(e) => address.change(e.target.value)}
         />
         <button type="submit" className="pill primary" disabled={state.step === 'sending'}>
           {state.step === 'sending' ? 'Sending…' : 'Email me a link'}
         </button>
       </form>
       {state.step === 'error' && (
-        <p className="form-error" role="alert">
+        <p id="email-error" className="form-error" role="alert">
           {state.message}
         </p>
       )}
@@ -195,14 +241,80 @@ function EmailSignIn({ notice }: { notice: string | undefined }) {
   )
 }
 
-function LinkSent({ email, onReset }: { email: string; onReset: () => void }) {
+/** How long a new email waits before it can be asked for again, in seconds: hosted Supabase Auth's own window per
+ * address. Asked sooner, it answers how long is left, and the countdown takes that. */
+const RESEND_AFTER = 60
+
+/** Send again, once the wait has passed: it counts down, sends, and says so. While it waits or sends it can't be
+ * pressed (aria-disabled, so the focus stays on it). */
+function SendAgain({ email, send }: { email: string; send: (email: string) => Promise<void> }) {
+  // Counted from when it may be asked again, not by subtracting ticks: a throttled background tab still reads true.
+  const [until, setUntil] = useState(() => Date.now() + RESEND_AFTER * 1000)
+  const [now, setNow] = useState(() => Date.now())
+  const [sending, setSending] = useState(false)
+  const [said, setSaid] = useState('')
+  const left = Math.max(0, Math.ceil((until - now) / 1000))
+  useEffect(() => {
+    const tick = left > 0 ? setInterval(() => setNow(Date.now()), 1000) : undefined
+    return () => clearInterval(tick)
+  }, [left])
+  const waitFor = (seconds: number) => {
+    setNow(Date.now())
+    setUntil(Date.now() + seconds * 1000)
+  }
+  const waiting = left > 0 || sending
+  const again = async () => {
+    if (waiting) return
+    setSending(true)
+    setSaid('Sending…')
+    try {
+      await send(email)
+      setSaid('Sent again. Only the newest link and code work.')
+      waitFor(RESEND_AFTER)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Could not send it again.'
+      setSaid(message)
+      // Asked too soon: the countdown takes the wait the Auth service gives.
+      waitFor(secondsToWait(message) ?? 0)
+    }
+    setSending(false)
+  }
+  return (
+    <p className="send-again">
+      <button type="button" className="text-button" aria-disabled={waiting || undefined} onClick={() => void again()}>
+        {left > 0 ? `Send again in ${String(left)} s` : 'Send again'}
+      </button>
+      <span className="muted" role="status">
+        {said}
+      </span>
+    </p>
+  )
+}
+
+function LinkSent({
+  email,
+  send,
+  verify,
+  onReset,
+}: {
+  email: string
+  send: (email: string) => Promise<void>
+  verify: EmailPorts['verify']
+  onReset: () => void
+}) {
+  const home = mailHome(email)
   return (
     <Centered title="Check your email">
       <p>
         We sent a sign-in link and a code to <strong>{email}</strong>. Open the link in this browser, or enter the code
         here if you read your email somewhere else.
       </p>
-      <CodeForm email={email} />
+      {home && (
+        <a className="pill" href={home.url} target="_blank" rel="noreferrer">
+          Open {home.name}
+        </a>
+      )}
+      <CodeForm email={email} verify={verify} />
       {LOCAL_AUTH && (
         <p className="muted">
           Local stack: the email is in{' '}
@@ -212,6 +324,7 @@ function LinkSent({ email, onReset }: { email: string; onReset: () => void }) {
           .
         </p>
       )}
+      <SendAgain email={email} send={send} />
       <button type="button" className="text-button" onClick={onReset}>
         Use another email
       </button>
@@ -219,13 +332,14 @@ function LinkSent({ email, onReset }: { email: string; onReset: () => void }) {
   )
 }
 
-/** The emailed code signs in on this browser whichever device the email was read on. */
-export function CodeForm({ email }: { email: string }) {
+/** The emailed code signs in on this browser whichever device the email was read on. It takes the focus: it is the one
+ * thing left to do here. */
+export function CodeForm({ email, verify = verifyEmailCode }: { email: string } & Pick<EmailPorts, 'verify'>) {
   const [state, setState] = useState<Step>({ step: 'idle' })
   const check = async (code: string) => {
     setState({ step: 'sending' })
     try {
-      await verifyEmailCode(email, code)
+      await verify(email, code)
       // Signed in: the auth listener replaces this screen with the project.
     } catch (err: unknown) {
       setState({ step: 'error', message: err instanceof Error ? err.message : 'That code did not work.' })
@@ -237,6 +351,7 @@ export function CodeForm({ email }: { email: string }) {
         id="email-code"
         action="Sign in with code"
         busy={state.step === 'sending'}
+        focus={finePointer()}
         onCheck={(code) => void check(code)}
       />
       {state.step === 'error' && (

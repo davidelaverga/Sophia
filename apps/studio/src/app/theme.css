@@ -881,6 +881,10 @@ img.avatar {
   color: var(--text-2);
   max-width: 42ch;
 }
+/* A quiet screen speaks in three sizes: its title, its text (words, fields, buttons alike), and a label. */
+.screen-body :where(p, input, .pill, .text-button) {
+  font-size: 14px;
+}
 /* An error on a quiet screen still reads as one: the rule above would give it the body's grey. */
 .screen-body .form-error {
   color: var(--rose);
@@ -918,20 +922,16 @@ img.avatar {
 .provider:disabled {
   opacity: 0.55;
 }
-/* A provider on its way: the mark in grey, no lift, and no hover beyond its tip. */
-.provider.soon {
-  cursor: default;
-  box-shadow: none;
-  background: transparent;
-  border-style: dashed;
+.field:has(input[aria-invalid='true']) {
+  border-color: rgba(240, 150, 170, 0.55);
 }
-.provider.soon svg {
-  filter: grayscale(1);
-  opacity: 0.4;
-}
-.provider.soon:hover {
-  border-color: var(--line-2);
-  background: transparent;
+/* Send again: its countdown, then what came of it, on one quiet line. */
+.send-again {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 4px 10px;
 }
 .provider[aria-busy='true'] {
   opacity: 1;
