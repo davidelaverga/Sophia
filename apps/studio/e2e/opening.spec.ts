@@ -10,6 +10,8 @@ const COLD = '00000000-0000-4000-8000-000000000003'
 interface Watch {
   /** Each frame: the page's clock, whether the opening is up, its bar, its words. */
   frames: { t: number; up: boolean; fill: number; said: string; flying: number }[]
+  /** Each time its words change, at the moment they do (not at the next frame a busy page may delay). */
+  words: { t: number; said: string }[]
 }
 
 declare global {
@@ -21,8 +23,12 @@ declare global {
 /** Every frame of the page, from the first: what the opening shows. */
 async function watch(page: Page) {
   await page.addInitScript(() => {
-    const seen: Watch = { frames: [] }
+    const seen: Watch = { frames: [], words: [] }
     window.openingWatch = seen
+    new MutationObserver(() => {
+      const said = document.querySelector('#entry .entry-step')?.textContent ?? ''
+      if (said && seen.words.at(-1)?.said !== said) seen.words.push({ t: performance.now(), said })
+    }).observe(document, { subtree: true, childList: true, characterData: true })
     const look = () => {
       const entry = document.getElementById('entry')
       const fill = entry?.querySelector('.entry-fill')
@@ -94,12 +100,12 @@ test('opening · says its work as it does it, warms the likeliest projects, then
   const said = seen.filter((f) => f.up).map((f) => f.said)
   const order = ['Signing you in', 'Opening your space', 'Getting your projects ready', 'Ready']
   expect([...new Set(said)]).toEqual(order)
-  // Each one reads: its words stay at least 0.4 s, however fast the work went. Measured from the first frame that says
-  // them to the first that says the next, so frames a loaded runner spaces out can't shorten it from both ends.
+  // Each one reads: its words stay at least 0.4 s, however fast the work went, from the moment they land to the
+  // moment the next ones do.
+  const changes = await page.evaluate(() => window.openingWatch?.words ?? [])
+  expect(changes.map((w) => w.said)).toEqual(order)
   for (const [i, words] of order.slice(0, -1).entries()) {
-    const from = seen.find((f) => f.up && f.said === words)?.t ?? 0
-    const to = seen.find((f) => f.up && f.said === order[i + 1])?.t ?? 0
-    expect(to - from, words).toBeGreaterThan(400)
+    expect((changes[i + 1]?.t ?? 0) - (changes[i]?.t ?? 0), words).toBeGreaterThan(400)
   }
   // The arrival lands whole before it leaves.
   const shown = seen.filter((f) => f.up).map((f) => f.t)

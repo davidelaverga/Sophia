@@ -114,13 +114,16 @@ function run(p: Parts): void {
   if (!frame) frame = requestAnimationFrame(tick)
 }
 
-/** The work now under way, said under the bar: the old words fade, the new ones come in. */
-function say(p: Parts, words: string): void {
-  if (p.step.textContent === words) return
+/**
+ * The work now under way, said under the bar: the old words fade, the new ones come in. `landed` runs once they are
+ * there: a loaded page can stretch the fade, so their time to be read counts from then, not from the asking.
+ */
+function say(p: Parts, words: string, landed: () => void): void {
   const out = p.step.animate([{ opacity: 0 }], { duration: reduced() ? 0 : 140, easing: EASE, fill: 'forwards' })
   out.onfinish = () => {
     p.step.textContent = words
     p.step.animate([{ opacity: 0 }, { opacity: 1 }], { duration: reduced() ? 0 : 260, easing: EASE, fill: 'forwards' })
+    landed()
   }
 }
 
@@ -142,11 +145,15 @@ function pace(p: Parts): void {
     queued.shift()
     stage = next
     doneAt = performance.now()
-    if (words !== p.step.textContent) {
-      say(p, words)
-      saidAt = doneAt
+    if (words === p.step.textContent) {
+      pace(p)
+      return
     }
-    pace(p)
+    // The next step waits for these words to land, then gives them their full time.
+    say(p, words, () => {
+      saidAt = performance.now()
+      pace(p)
+    })
   }, hold)
 }
 
