@@ -586,14 +586,14 @@ test('CX-0019 · History names the recommendations, not the conclusion, when onl
   await v2.getByRole('button', { name: 'Compare with the version before' }).click()
   const region = pane(page).getByRole('region', { name: 'v1 to v2' })
   await expect(region.locator('dt')).toHaveText(['Revised', 'Unchanged', 'Recommendations'])
-  await expect(region.locator('dd')).toHaveText(['Fixture report, Recommendations', 'Conclusion', 'Changed'])
+  await expect(region.locator('dd')).toHaveText(['“Fixture report”, “Recommendations”', '“Conclusion”', 'Changed'])
 })
 
 /** The pilot-shaped v2's facts line (`history=pilot`, CX-0026): what the History entry says first. */
 const PILOT_FACTS =
-  'Compared with v1: 7 sections removed: Summary, Compatibility and standards, Charging speed in practice, ' +
-  'Product claims vs. evidence, Comparison table, Recommendations for buyers, Limitations of this review; ' +
-  '2 added: Revised recommendations, Sources. Cited sources: 5 dropped, 1 added.'
+  'Compared with v1: 7 sections removed: “Summary”, “Compatibility and standards”, “Charging speed in practice”, ' +
+  '“Product claims vs. evidence”, “Comparison table”, “Recommendations for buyers”, “Limitations of this review”; ' +
+  '2 added: “Revised recommendations”, “Sources”. Cited sources: 5 dropped.'
 /** Its notes, which say the rest was kept (synthetic words, as the pilot's said it). */
 const PILOT_CHANGE = 'Revised the recommendations; the rest of the report is unchanged.'
 const PILOT_KEPT = 'Kept: Compatibility, charging speed, product claims and limitations are kept as they were.'
@@ -621,18 +621,18 @@ async function above(upper: Locator, lower: Locator): Promise<boolean> {
 }
 
 /**
- * Whether every History entry lies across the pane's width, its boxes and its lines of text too (text can run past the
- * box that holds it): the pane clips what runs past its edge, so the page itself never scrolls sideways. The pane
- * scrolls down, so the height is not compared.
+ * Whether every History entry (or what else `part` names: the comparison) lies across the pane's width, its boxes
+ * and its lines of text too (text can run past the box that holds it): the pane clips what runs past its edge, so the
+ * page itself never scrolls sideways. The pane scrolls down, so the height is not compared.
  */
-async function entriesFit(page: Page): Promise<boolean> {
+async function entriesFit(page: Page, part = '.report-history'): Promise<boolean> {
   const side = await pane(page).boundingBox()
   if (!side) return false
   return pane(page)
-    .locator('.report-history')
+    .locator(part)
     .evaluate(
       (list, { left, right }) => {
-        const rects = [...list.querySelectorAll(':scope > li, :scope > li *')].map((el) => el.getBoundingClientRect())
+        const rects = [...list.querySelectorAll(':scope *')].map((el) => el.getBoundingClientRect())
         const walk = document.createTreeWalker(list, NodeFilter.SHOW_TEXT)
         for (let text = walk.nextNode(); text; text = walk.nextNode()) {
           const range = document.createRange()
@@ -766,10 +766,28 @@ for (const phone of [false, true]) {
   test(`CX-0026${at} · a heading or a note a line cannot break in wraps inside its History entry`, async ({ page }) => {
     const v3 = await historyAt(page, `/room.html?report=${REPORT}&versions=3&history=pilot`, 3)
     const facts = v3.locator('.report-facts')
-    await expect(facts).toHaveText(`Compared with v2: 1 section added: ${LONG_HEADING}.`) // named whole: 59 characters
+    await expect(facts).toHaveText(`Compared with v2: 1 section added: “${LONG_HEADING}”.`) // named whole: 59 characters
     const note = v3.getByText(/^Added the charging times, from measured_/)
-    await expect(note).toBeVisible() // nothing removed, no source dropped: the notes are in sight
+    // Nothing removed and no source dropped (its own versions are none): the notes are in sight.
+    await expect(note).toBeVisible()
     expect(await entriesFit(page), 'the heading and the file name wrap inside the pane').toBe(true)
+  })
+
+  test(`CX-0026${at} · the comparison by section quotes every heading, as the facts line does, and wraps in the pane`, async ({
+    page,
+  }) => {
+    const v2 = await historyAt(page, `/room.html?report=${REPORT}&versions=2&version=${V2}&history=pilot`)
+    await v2.getByRole('button', { name: 'Compare with the version before' }).click()
+    const region = pane(page).getByRole('region', { name: 'v1 to v2' })
+    await expect(region.locator('dt')).toHaveText(['Added', 'Removed', 'Unchanged', 'Recommendations'])
+    await expect(region.locator('dd')).toHaveText([
+      '“Revised recommendations”, “Sources”',
+      '“Summary”, “Compatibility and standards”, “Charging speed in practice”, “Product claims vs. evidence”, ' +
+        '“Comparison table”, “Recommendations for buyers”, “Limitations of this review”',
+      '“Fixture report”',
+      'Changed',
+    ])
+    expect(await entriesFit(page, '.report-compare'), 'the lists wrap in the pane').toBe(true)
   })
 
   test(`CX-0026${at} · a Knowledge card shows no notes of what changed, never “Kept:”; its History says the facts`, async ({

@@ -30,7 +30,7 @@ import {
 import { dispatchOnce } from '@sophia/worker'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
-import type { reportOf } from './report-facts.ts'
+import { REVISABLE_CHARS, TOO_LONG_TO_REVISE, type reportOf } from './report-facts.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
@@ -938,6 +938,9 @@ The worker wrote this heading.
 One search.
 `
 
+/** An option with Pros and Cons under it: the same two headings under each option. */
+const option = (name: string, line: string) => `## ${name}\n${line}\n\n### Pros\nFast.\n\n### Cons\nDear.\n`
+
 /** The worker's claim in CX-0026, as a result summary: false against the facts. */
 const FALSE_SUMMARY = 'Revised the recommendations; the comparison table and every other section are retained.'
 
@@ -949,6 +952,8 @@ interface Research {
   summary?: string
   /** Ends the task with research_report_blocker instead. */
   blocker?: string
+  /** More sources its result lists as cited, after the one its search captured: a base, as the pilot's v2 listed. */
+  citeAlso?: string[]
 }
 
 /**
@@ -1017,7 +1022,7 @@ async function researched(w: World, r: Research): Promise<string> {
     summary: 'Which phone chargers are worth buying.',
     resultSummary: r.summary ?? 'Three chargers compared.',
     limitations: [],
-    citations: [cited],
+    citations: [cited, ...(r.citeAlso ?? [])],
     ...r.notes,
   }
   let done = await submit('s1', { result })
@@ -1220,7 +1225,125 @@ describe('read_selected_source on research: the worker’s summary, and the serv
     )
     assert.equal(r.changes, `This task has published no version. The report is at version 1 (task ${v1}).`)
   })
+
+  it('project_status and read_selected_source give one count for a version whose facts 0027 stored', async () => {
+    const w = await world()
+    const both = `# Chargers\nTwo options [CITE].\n\n${option('Option A', 'A.')}\n${option('Option B', 'B.')}`
+    const v1 = await researched(w, { text: both })
+    const onlyA = `# Chargers\nTwo options [CITE].\n\n${option('Option A', 'A.')}`
+    const v2 = await researched(w, { amends: v1, text: onlyA, notes: { changeNote: 'Removed Option B.' } })
+    // What 0027's section_facts stored for such a version: the second option's Pros and Cons paired with the first's.
+    const sections = {
+      added: [],
+      revised: ['Chargers', 'Pros', 'Cons'],
+      removed: ['Option B'],
+      unchanged: ['Option A', 'Pros', 'Cons'],
+      conclusionChanged: false,
+    }
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    await owner.query(
+      `UPDATE sophia.artifact_versions SET change_facts = change_facts || jsonb_build_object('sections', $3::jsonb)
+        WHERE project_id=$1 AND job_id=$2`,
+      [w.projectId, v2, JSON.stringify(sections)],
+    )
+    await owner.end()
+    const read = (await readTask(w, v2)).report.changes
+    assert.match(read, /Compared with version 1: 3 sections removed, 0 added, 1 revised, 3 unchanged; /)
+    const rows = (await tool(w, {}, E, { name: 'project_status', guide: 'v1.2' })).output.work as Array<{
+      taskId: string
+      report?: { changes: string }
+    }>
+    assert.equal(rows.find((r) => r.taskId === v2)?.report?.changes, read)
+  })
+
+  it('never counts the report’s own versions as sources added or dropped, as a follow-up that listed its base stored them', async () => {
+    const w = await world()
+    const v1 = await researched(w, { text: PILOT_V1 })
+    const v2 = await researched(w, {
+      amends: v1,
+      text: PILOT_V2,
+      notes: { changeNote: 'Rewrote the recommendations.' },
+    })
+    const kept = PILOT_V2.replace('a 65 W one', 'a 45 W one')
+    const v3 = await researched(w, { amends: v2, text: kept, notes: { changeNote: 'Changed the laptop advice.' } })
+    // Each task cited its own capture in place of the one before: one source added and one dropped, every time. Stored
+    // as the pilot's were (CX-0026): v2 listed its base too, and v3 listed its own base and not v2's.
+    const [base1, base2] = [await versionSource(w, v1), await versionSource(w, v2)]
+    await storedAlso(w, v2, { added: [base1] })
+    await storedAlso(w, v3, { added: [base2], dropped: [base1] })
+    const [second, third] = [(await readTask(w, v2)).report, (await readTask(w, v3)).report]
+    assert.deepEqual(
+      [second.citations, third.citations],
+      [
+        { cited: 1, added: 1, dropped: 1 },
+        { cited: 1, added: 1, dropped: 1 },
+      ],
+    )
+    assert.match(third.changes, /; 1 source cited \(1 added, 1 dropped\)\. This is the latest version\.$/)
+    const rows = (await tool(w, {}, E, { name: 'project_status', guide: 'v1.2' })).output.work as Array<{
+      taskId: string
+      report?: { changes: string }
+    }>
+    const told = rows.find((r) => r.taskId === v3)?.report?.changes ?? ''
+    assert.match(told, /; 1 source cited \(1 added, 1 dropped\)\. This is the latest version\.$/)
+  })
+
+  it('says how many of the sources cited are earlier versions of the report, as a follow-up citing its base does', async () => {
+    const w = await world()
+    const v1 = await researched(w, { text: PILOT_V1 })
+    const v2 = await researched(w, {
+      amends: v1,
+      text: PILOT_V2,
+      notes: { changeNote: 'Rewrote the recommendations.' },
+      citeAlso: [await versionSource(w, v1)],
+    })
+    const read = (await readTask(w, v2)).report
+    // Its own capture in place of v1's, and v1 itself: cited twice, yet one source added and one dropped.
+    assert.deepEqual(read.citations, { cited: 2, earlierVersions: 1, added: 1, dropped: 1 })
+    const said = /; 2 sources cited, 1 of them an earlier version of this report \(1 added, 1 dropped\)\. This is the/
+    assert.match(read.changes, said)
+    const rows = (await tool(w, {}, E, { name: 'project_status', guide: 'v1.2' })).output.work as Array<{
+      taskId: string
+      report?: { changes: string }
+    }>
+    assert.equal(rows.find((r) => r.taskId === v2)?.report?.changes, read.changes)
+  })
 })
+
+/** As the owner: the source of the version a task published. */
+async function versionSource(w: World, taskId: string): Promise<string> {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    const { rows } = await owner.query<{ source_id: string }>(
+      `SELECT source_id FROM sophia.artifact_versions WHERE project_id=$1 AND job_id=$2`,
+      [w.projectId, taskId],
+    )
+    const source = rows[0]?.source_id
+    assert.ok(source)
+    return source
+  } finally {
+    await owner.end()
+  }
+}
+
+/** As the owner: more sources in the added and dropped facts of the version a task published. */
+async function storedAlso(w: World, taskId: string, more: { added?: string[]; dropped?: string[] }) {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    await owner.query(
+      `UPDATE sophia.artifact_versions SET change_facts = change_facts
+         || jsonb_build_object('added', (change_facts->'added') || to_jsonb($3::text[]),
+                               'dropped', (change_facts->'dropped') || to_jsonb($4::text[]))
+        WHERE project_id=$1 AND job_id=$2`,
+      [w.projectId, taskId, more.added ?? [], more.dropped ?? []],
+    )
+  } finally {
+    await owner.end()
+  }
+}
 
 /** control_work as a v1.2 guide calls it, for the editor holding the floor. */
 const control = (w: World, args: object) => tool(w, args, E, { name: 'control_work', guide: 'v1.2' })
@@ -1559,6 +1682,128 @@ describe('control_work says what a refused or accepted control did (CX-0026)', (
       await owner.query('DROP TRIGGER IF EXISTS fail_steer_commit ON sophia.commands')
       await owner.query('DROP FUNCTION IF EXISTS sophia.fail_at_commit()')
       await owner.end()
+    }
+  })
+})
+
+/** As the owner: how many research tasks the project has. */
+async function researchTasks(w: World): Promise<number> {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    const { rows } = await owner.query<{ n: number }>(
+      `SELECT count(*)::integer AS n FROM sophia.research_tasks WHERE project_id=$1`,
+      [w.projectId],
+    )
+    return rows[0]?.n ?? 0
+  } finally {
+    await owner.end()
+  }
+}
+
+/**
+ * As the owner: 0037's task statement for an admitted follow-up, as it was sent, and for the same follow-up had it
+ * been asked of the report `other` published instead.
+ */
+async function statements(w: World, followUp: string, other: string): Promise<[string, string]> {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    const { rows } = await owner.query<{ sent: string; instead: string }>(
+      `WITH m AS (SELECT t.body::jsonb AS manifest FROM sophia.jobs j
+                    JOIN sophia.source_texts t ON t.project_id=j.project_id AND t.source_id=j.input_source_id
+                   WHERE j.project_id=$1 AND j.id=$2),
+            o AS (SELECT jsonb_build_object('artifactId',v.artifact_id,'versionId',v.id,'sourceId',v.source_id) AS base
+                    FROM sophia.artifact_versions v WHERE v.project_id=$1 AND v.job_id=$3)
+       SELECT sophia.research_task_statement($1, m.manifest) AS sent,
+              sophia.research_task_statement($1, jsonb_set(m.manifest, '{base}', o.base)) AS instead FROM m, o`,
+      [w.projectId, followUp, other],
+    )
+    const row = rows[0]
+    assert.ok(row, 'the follow-up and the other report were found')
+    return [row.sent, row.instead]
+  } finally {
+    await owner.end()
+  }
+}
+
+/** A text's lines that name research_report_blocker. */
+const blockers = (text: string) => text.split('\n').filter((line) => line.includes('research_report_blocker'))
+
+/** As the owner: the length in characters of the text a task published, as 0037 measures a follow-up's base. */
+async function charsOf(w: World, taskId: string): Promise<number | undefined> {
+  const owner = new pg.Client({ connectionString: db.ownerUrl })
+  await owner.connect()
+  try {
+    const { rows } = await owner.query<{ n: number }>(
+      `SELECT char_length(t.body) AS n FROM sophia.artifact_versions v
+         JOIN sophia.source_texts t ON t.project_id=v.project_id AND t.source_id=v.source_id
+        WHERE v.project_id=$1 AND v.job_id=$2`,
+      [w.projectId, taskId],
+    )
+    return rows[0]?.n
+  } finally {
+    await owner.end()
+  }
+}
+
+describe('a report too long for a follow-up to revise (0037’s limit, 20,000 characters)', () => {
+  it('draws the line where 0037 does: past REVISABLE_CHARS, and only then, 0037 tells a follow-up to end blocked', async () => {
+    const w = await world()
+    // PILOT_V1 and an appendix, CITE becoming the captured source's id (36 characters): `chars` characters in all.
+    const head = `${PILOT_V1}\n## Appendix\n`
+    const size = Array.from(head).length + (head.split('CITE').length - 1) * 32
+    const sized = (chars: number) => `${head}${'Words '.repeat(chars).slice(0, chars - size)}`
+    const at = await researched(w, { text: sized(REVISABLE_CHARS) })
+    const past = await researched(w, { text: sized(REVISABLE_CHARS + 1) })
+    assert.deepEqual([await charsOf(w, at), await charsOf(w, past)], [REVISABLE_CHARS, REVISABLE_CHARS + 1])
+
+    const follow = await tool(w, { question: 'Shorten the summary.', amendsTaskId: at })
+    assert.equal(follow.status, 'admitted', JSON.stringify(follow))
+    const refused = await tool(w, { question: 'Shorten the summary.', amendsTaskId: past })
+    assert.equal(refused.output.code, 'not_started:too_long_to_revise')
+    // The two reports differ only in length and ids (the same title, both a version 1): only the longer one's statement
+    // has a line more that names research_report_blocker, the line telling the follow-up to end with it.
+    const [sent, instead] = await statements(w, String(follow.output.taskId), past)
+    const more = blockers(instead).filter((line) => !blockers(sent).includes(line))
+    assert.deepEqual([more.length, blockers(instead).length], [1, blockers(sent).length + 1], instead)
+  })
+
+  it('is never offered a follow-up, nor starts one, and project_status says so; the limit counts characters', async () => {
+    const w = await world()
+    const appendix = (word: string, times: number) => `${PILOT_V1}\n## Appendix\n${`${word} `.repeat(times)}\n`
+    const long = await researched(w, { text: appendix('Résumé', 3000) }) // about 21,600 characters
+    const wide = await researched(w, { text: appendix('éééééé', 2400) }) // about 17,400 characters, 31,800 bytes
+    const tasks = await researchTasks(w)
+
+    const start = await tool(w, { question: 'Shorten the summary.', amendsTaskId: long })
+    assert.deepEqual(start, {
+      status: 'refused',
+      output: { code: 'not_started:too_long_to_revise', reason: `${TOO_LONG_TO_REVISE} Nothing was started.` },
+    })
+    assert.equal(await researchTasks(w), tasks, 'nothing admitted')
+    const steer = (await control(w, { taskId: long, action: 'steer', brief: 'Shorten the summary.' })).output
+    assert.deepEqual([steer.code, steer.next], ['not_applied:finished', `${TOO_LONG_TO_REVISE} Do not offer one.`])
+    const rows = (await tool(w, {}, E, { name: 'project_status', guide: 'v1.2' })).output.work as Array<{
+      taskId: string
+      report?: { followUp?: string }
+    }>
+    const followUp = (taskId: string) => rows.find((r) => r.taskId === taskId)?.report?.followUp
+    assert.deepEqual([followUp(long), followUp(wide)], [TOO_LONG_TO_REVISE, undefined])
+
+    // Its bytes are past the limit, its characters are not: a follow-up is offered, and starts.
+    assert.match((await control(w, { taskId: wide, action: 'steer', brief: 'x' })).output.next, /amendsTaskId/)
+    assert.equal((await tool(w, { question: 'Shorten the summary.', amendsTaskId: wide })).status, 'admitted')
+  })
+
+  it('answers in admission’s order: the role first, then a closed gate, then the length', async () => {
+    const text = `${PILOT_V1}\n## Appendix\n${'Résumé '.repeat(3000)}\n`
+    for (const speaker of [V, E]) {
+      const w = await world(ROLES, speaker)
+      const long = await researched(w, { text })
+      if (speaker === E) await setGate(w, 'disabled')
+      const out = (await tool(w, { question: 'Shorten the summary.', amendsTaskId: long }, speaker)).output
+      assert.equal(out.code, speaker === V ? 'not_started:forbidden' : 'not_started:research_gate_closed')
     }
   })
 })

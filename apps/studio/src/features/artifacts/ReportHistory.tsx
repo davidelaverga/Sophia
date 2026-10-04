@@ -13,7 +13,7 @@ import { Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { loadReportText } from './download.ts'
 import { compareSections, type SectionChange } from './markdown.ts'
-import { conclusionTopic, factChips, factsLine, notesShown } from './report-view.ts'
+import { conclusionTopic, factChips, factsLine, notesShown, quotedHeadings } from './report-view.ts'
 
 interface Props {
   identity: Identity
@@ -35,6 +35,8 @@ export function ReportHistory({ identity, versions, shown, onShow }: Props) {
     list.current?.querySelector<HTMLElement>(`[data-compare="${newer}"]`)?.focus()
   }
   const numbers = new Map(versions.map((v) => [v.id, v.versionNumber ?? null]))
+  // The report's own versions, which a version's facts may list among its sources: never counted as one (factsLine).
+  const own = new Set(versions.map((v) => v.sourceId))
   return (
     <>
       <ol ref={list} className="report-history">
@@ -45,6 +47,7 @@ export function ReportHistory({ identity, versions, shown, onShow }: Props) {
               key={v.id}
               version={v}
               before={v.parentId === null ? null : (numbers.get(v.parentId) ?? null)}
+              own={own}
               shown={v.id === shown || (shown === null && i === 0)}
               onShow={() => onShow(v.id)}
               onCompare={older ? () => setCompare({ older, newer: v }) : null}
@@ -61,13 +64,15 @@ interface RowProps {
   version: ArtifactVersion
   /** The number of the version it replaced, which its facts compare with; null when the list does not hold it. */
   before: number | null
+  /** The source ids of the report's versions. */
+  own: ReadonlySet<string>
   shown: boolean
   onShow: () => void
   onCompare: (() => void) | null
 }
 
-function VersionRow({ version, before, shown, onShow, onCompare }: RowProps) {
-  const facts = factsLine(version, before)
+function VersionRow({ version, before, own, shown, onShow, onCompare }: RowProps) {
+  const facts = factsLine(version, before, own)
   const chips = factChips(version)
   return (
     <li className="report-version" data-shown={shown || undefined}>
@@ -86,7 +91,7 @@ function VersionRow({ version, before, shown, onShow, onCompare }: RowProps) {
           ))}
         </div>
       )}
-      <VersionNotes version={version} />
+      <VersionNotes version={version} own={own} />
       <div className="control-row">
         {/* Pressed, it stays where it is as "On screen": aria-disabled, never disabled or removed under the focus. */}
         <button
@@ -112,8 +117,8 @@ function VersionRow({ version, before, shown, onShow, onCompare }: RowProps) {
  * facts hold what the notes may leave out, so the facts are read first; not shown when the service wrote them from the
  * facts, or on a first version (notesShown).
  */
-function VersionNotes({ version }: { version: ArtifactVersion }) {
-  const shown = notesShown(version)
+function VersionNotes({ version, own }: { version: ArtifactVersion; own: ReadonlySet<string> }) {
+  const shown = notesShown(version, own)
   if (shown === null) return null
   const notes = (
     <>
@@ -194,7 +199,7 @@ function ChangeLists({ change }: { change: SectionChange }) {
       {LISTS.filter(([k]) => change[k].length > 0).map(([k, label]) => (
         <div key={k}>
           <dt>{label}</dt>
-          <dd>{change[k].join(', ')}</dd>
+          <dd>{quotedHeadings(change[k])}</dd>
         </div>
       ))}
       {topic && (

@@ -5,9 +5,9 @@
 // also reads each task's own state, whether Steer reaches it, and a research task's report in counts (CX-0026,
 // CX-0027); a v1.1 guide reads the work exactly as before.
 import type { DiscussionEntry, MissionContext, MissionDecision, MissionEntry } from '@sophia/contracts'
-import type { ConfirmationTarget, TaskStanding } from '@sophia/persistence'
+import type { ConfirmationTarget, ResearchVersions } from '@sophia/persistence'
 import { steerOf, taskStateOf } from './control-words.ts'
-import { statusReportOf } from './report-facts.ts'
+import { statusReportOf, tableCounter } from './report-facts.ts'
 
 const EXCERPT = 280
 const NOTES = 12
@@ -29,8 +29,11 @@ export interface VoiceStatusInput {
    * Absent means unknown.
    */
   researchGate?: boolean | undefined
-  /** Where each listed task stands, read for a v1.2 guide only. */
-  standings?: readonly TaskStanding[] | undefined
+  /**
+   * Where each listed task stands, with its report's versions and their texts (what read_selected_source compares),
+   * read for a v1.2 guide only.
+   */
+  tasks?: readonly ResearchVersions[] | undefined
 }
 
 /** `speaker` for the current speaker, else `member-N` in order of first appearance. */
@@ -157,21 +160,24 @@ function targetView(target: ConfirmationTarget | null, speakerId: string, now: n
 
 /**
  * The work as a v1.2 guide reads it: each task's own state (never only its goal's, which a lineage shares), whether
- * Steer reaches it, and for research its report, keeping every field a v1.1 guide reads. A task not read is as before.
+ * Steer reaches it, and for research its report, as read_selected_source counts it, keeping every field a v1.1 guide
+ * reads. A task not read is as before.
  */
-function workView(work: MissionContext['work'], standings: readonly TaskStanding[]) {
-  const byTask = new Map(standings.map((s) => [s.taskId, s]))
+function workView(work: MissionContext['work'], tasks: readonly ResearchVersions[]) {
+  const byTask = new Map(tasks.map((t) => [t.standing.taskId, t]))
+  const tables = tableCounter()
   return work.map((w) => {
-    const s = w.taskId === null ? undefined : byTask.get(w.taskId)
-    if (!s) return w
-    const report = s.kind === 'research' ? { report: statusReportOf(s) } : {}
+    const t = w.taskId === null ? undefined : byTask.get(w.taskId)
+    if (!t) return w
+    const s = t.standing
+    const report = s.kind === 'research' ? { report: statusReportOf(t, tables) } : {}
     return { ...w, taskState: taskStateOf(s), steer: steerOf(s), ...report }
   })
 }
 
 /** The project_status output for one speaker. */
 export function voiceStatus(input: VoiceStatusInput) {
-  const { context: ctx, speakerId, discussion, target, now, guide, pdf, researchGate, standings } = input
+  const { context: ctx, speakerId, discussion, target, now, guide, pdf, researchGate, tasks } = input
   const who = aliases(speakerId)
   const notes = ctx.entries.slice(-NOTES)
   const policy = ctx.notePolicy
@@ -187,7 +193,7 @@ export function voiceStatus(input: VoiceStatusInput) {
     recentDecisions: ctx.decided.slice(-DECIDED).map((d) => decisionView(d, who)),
     notes: notes.map((n) => noteView(n, who)),
     notesNotShown: ctx.entries.length - notes.length + ctx.excluded.olderEntries,
-    work: guide === 'v1.2' && standings ? workView(ctx.work, standings) : ctx.work,
+    work: guide === 'v1.2' && tasks ? workView(ctx.work, tasks) : ctx.work,
     discussion: discussion.slice(-DISCUSSION).map((d) => ({
       contributionId: d.id,
       by: who(d.actorId),

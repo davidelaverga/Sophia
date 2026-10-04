@@ -312,17 +312,11 @@ export async function readNativeTask(c: pg.PoolClient, projectId: string, taskId
   }
 }
 
-/** A version's section counts against the version before it, as publication stored them (0027, 0036). */
-export interface SectionCounts {
-  added: number
-  revised: number
-  removed: number
-  unchanged: number
-}
-
 /**
- * One published version of a research report, as the guide's readers compare them (CX-0026, CX-0027). Counts are what
- * publication stored; nothing here is the worker's notes.
+ * One published version of a research report, as the guide's readers compare them (CX-0026, CX-0027). Citation counts
+ * are what publication stored, the sources added and dropped less the report's own versions; nothing here is the
+ * worker's notes. Sections are compared from the texts (ReportVersionText), never read from the stored counts, which
+ * 0027 paired otherwise.
  */
 export interface ReportVersion {
   id: string
@@ -335,11 +329,22 @@ export interface ReportVersion {
   renditionOnly: boolean
   /** Whether a PDF of this text exists: on the version itself, or on a rendition-only version made of it. */
   pdf: boolean
-  /** Sources cited, and added and dropped against the version before; null where publication stored none. */
+  /**
+   * Sources cited, as stored (what the Sources tab lists), and added and dropped against the version before; null where
+   * publication stored none. Added and dropped leave out the report's own versions: a follow-up that lists its base
+   * (the pilot's v2 did, CX-0026, and 0037 keeps the base citable) changed no source, and the next version, which does
+   * not list it again, dropped none.
+   */
   cited: number | null
+  /** How many of the sources cited are earlier versions of the same report; null with `cited`. */
+  citedVersions: number | null
   added: number | null
   dropped: number | null
-  sections: SectionCounts | null
+  /**
+   * Its text's length in characters, as 0037 measures a follow-up's base (char_length of the stable version's text,
+   * which a rendition-only version shares); null when the text can no longer be read.
+   */
+  chars: number | null
 }
 
 /** Where one task stands, read under the member's RLS (CX-0026 STEER, CX-0027 RET). */
@@ -421,18 +426,24 @@ interface VersionRow {
   rendition_only: boolean
   pdf: boolean
   cited: number | null
+  cited_versions: number | null
   added: number | null
   dropped: number | null
-  sections: SectionCounts | null
+  chars: number | null
 }
 
-/** The length of a stored facts array; null when publication stored none. */
-const stored = (path: string) => `CASE WHEN jsonb_typeof(${path}) = 'array' THEN jsonb_array_length(${path}) END`
+/**
+ * How many sources of a stored facts array are not a version of the same report (any of its versions, as 0037's
+ * research_citable lets a follow-up cite one); null when publication stored none.
+ */
+const movedSources = (path: string) =>
+  `CASE WHEN jsonb_typeof(${path}) = 'array' THEN (SELECT count(*)::integer FROM jsonb_array_elements_text(${path}) s(id)
+     WHERE NOT EXISTS(SELECT 1 FROM sophia.artifact_versions o
+                       WHERE o.project_id = v.project_id AND o.artifact_id = v.artifact_id AND o.source_id::text = s.id)) END`
 
 /** Every published, numbered version of these reports, newest first. */
 async function readReportVersions(c: pg.PoolClient, projectId: string, artifactIds: string[]): Promise<VersionRow[]> {
   if (artifactIds.length === 0) return []
-  const sections = (k: string) => stored(`v.change_facts->'sections'->'${k}'`)
   const { rows } = await c.query<VersionRow>(
     `SELECT v.id, v.artifact_id, v.version_number, v.parent_id, v.source_id, v.job_id,
             coalesce(j.parent_job_id, j.id) AS task_id,
@@ -440,10 +451,13 @@ async function readReportVersions(c: pg.PoolClient, projectId: string, artifactI
             EXISTS(SELECT 1 FROM sophia.artifact_renditions r
                     WHERE r.project_id = v.project_id AND r.artifact_version_id = v.id AND r.format = 'pdf') AS pdf,
             CASE WHEN jsonb_typeof(v.change_facts->'cited') = 'number' THEN (v.change_facts->>'cited')::integer END AS cited,
-            ${stored(`v.change_facts->'added'`)} AS added, ${stored(`v.change_facts->'dropped'`)} AS dropped,
-            CASE WHEN jsonb_typeof(v.change_facts->'sections') = 'object' THEN jsonb_build_object(
-              'added', ${sections('added')}, 'revised', ${sections('revised')},
-              'removed', ${sections('removed')}, 'unchanged', ${sections('unchanged')}) END AS sections
+            CASE WHEN jsonb_typeof(v.change_facts->'cited') = 'number' THEN (SELECT count(DISTINCT o.source_id)::integer
+               FROM sophia.artifact_versions o JOIN sophia.source_dependencies d ON d.project_id = o.project_id
+                AND d.source_id = o.source_id AND d.derived_source_id = v.source_id
+              WHERE o.project_id = v.project_id AND o.artifact_id = v.artifact_id) END AS cited_versions,
+            ${movedSources(`v.change_facts->'added'`)} AS added, ${movedSources(`v.change_facts->'dropped'`)} AS dropped,
+            (SELECT char_length(t.body) FROM sophia.source_texts t
+              WHERE t.project_id = v.project_id AND t.source_id = v.source_id) AS chars
        FROM sophia.artifact_versions v LEFT JOIN sophia.jobs j ON j.project_id = v.project_id AND j.id = v.job_id
       WHERE v.project_id = $1 AND v.artifact_id = ANY($2::uuid[]) AND v.state IN ('stable', 'superseded')
         AND v.version_number IS NOT NULL
@@ -462,9 +476,10 @@ const toReportVersion = (r: VersionRow, all: readonly VersionRow[]): ReportVersi
   renditionOnly: r.rendition_only,
   pdf: r.pdf || all.some((x) => x.rendition_only && x.parent_id === r.id && x.pdf),
   cited: r.cited,
+  citedVersions: r.cited_versions,
   added: r.added,
   dropped: r.dropped,
-  sections: r.sections,
+  chars: r.chars,
 })
 
 /** The versions a task's readers name: its own, the one it replaced, the report's current content version and v1. */
@@ -492,6 +507,16 @@ const standingOf = (r: StandingRow, versions: ReturnType<typeof versionsOf>): Ta
   inFlight: r.in_flight,
 })
 
+/** These tasks (at most ten; a task not visible is left out), each with the versions its readers name. */
+async function readTasksWithVersions(c: pg.PoolClient, projectId: string, taskIds: readonly string[]) {
+  const ids = [...new Set(taskIds)].slice(0, STANDINGS)
+  if (ids.length === 0) return []
+  const tasks = await readStandingRows(c, projectId, ids)
+  const artifacts = [...new Set(tasks.flatMap((t) => (t.artifact_id === null ? [] : [t.artifact_id])))]
+  const all = await readReportVersions(c, projectId, artifacts)
+  return tasks.map((task) => ({ task, versions: versionsOf(task, all) }))
+}
+
 /**
  * Where each of these tasks stands (at most ten; a task not visible is left out): its own state, never only its goal's
  * (0022's phase lets a goal's Hold hide a finished task), what it published and where its report is now. Call inside
@@ -502,18 +527,16 @@ export async function readTaskStandings(
   projectId: string,
   taskIds: readonly string[],
 ): Promise<TaskStanding[]> {
-  const ids = [...new Set(taskIds)].slice(0, STANDINGS)
-  if (ids.length === 0) return []
-  const tasks = await readStandingRows(c, projectId, ids)
-  const artifacts = [...new Set(tasks.flatMap((t) => (t.artifact_id === null ? [] : [t.artifact_id])))]
-  const versions = await readReportVersions(c, projectId, artifacts)
-  return tasks.map((t) => standingOf(t, versionsOf(t, versions)))
+  return (await readTasksWithVersions(c, projectId, taskIds)).map(({ task, versions }) => standingOf(task, versions))
 }
 
 /** A version with its Markdown; null text when it can no longer be read (its source was withdrawn). */
 export type ReportVersionText = ReportVersion & { text: string | null }
 
-/** What read_selected_source compares for a research task: the versions its facts are computed from (CX-0027). */
+/**
+ * What the guide's readers compare for a task: the versions a research task's facts are computed from (CX-0027), all
+ * null for a brief or a task whose report has no version yet.
+ */
 export interface ResearchVersions {
   standing: TaskStanding
   own: ReportVersionText | null
@@ -523,19 +546,18 @@ export interface ResearchVersions {
 }
 
 /**
- * A research task's own version, the one it replaced, the report's current content version (never a rendition-only
- * one, which keeps the text before it) and version 1, with their texts. A task that published nothing (blocked,
- * running) still gets the report's current version. Null when the task is not visible. Call inside withActor.
+ * Each task's own version, the one it replaced, the report's current content version (never a rendition-only one,
+ * which keeps the text before it) and version 1, with their texts (at most ten tasks; a task not visible is left out).
+ * A task that published nothing (blocked, running) still gets the report's current version. read_selected_source and
+ * project_status read the same, so both compare the same texts the same way. Call inside withActor.
  */
-export async function readResearchVersion(
+export async function readResearchVersions(
   c: pg.PoolClient,
   projectId: string,
-  taskId: string,
-): Promise<ResearchVersions | null> {
-  const [task] = await readStandingRows(c, projectId, [taskId])
-  if (!task) return null
-  const versions = versionsOf(task, await readReportVersions(c, projectId, task.artifact_id ? [task.artifact_id] : []))
-  const named = [versions.own, versions.previous, versions.current, versions.first]
+  taskIds: readonly string[],
+): Promise<ResearchVersions[]> {
+  const read = await readTasksWithVersions(c, projectId, taskIds)
+  const named = read.flatMap(({ versions: v }) => [v.own, v.previous, v.current, v.first])
   const sources = [...new Set(named.flatMap((v) => (v ? [v.sourceId] : [])))]
   const { rows } = await c.query<{ source_id: string; body: string }>(
     `SELECT source_id, body FROM sophia.source_texts WHERE project_id = $1 AND source_id = ANY($2::uuid[])`,
@@ -543,11 +565,20 @@ export async function readResearchVersion(
   )
   const texts = new Map(rows.map((r) => [r.source_id, r.body]))
   const withText = (v: ReportVersion | null) => (v ? { ...v, text: texts.get(v.sourceId) ?? null } : null)
-  return {
+  return read.map(({ task, versions }) => ({
     standing: standingOf(task, versions),
     own: withText(versions.own),
     previous: withText(versions.previous),
     current: withText(versions.current),
     first: withText(versions.first),
-  }
+  }))
+}
+
+/** One task's versions with their texts (readResearchVersions); null when the task is not visible. */
+export async function readResearchVersion(
+  c: pg.PoolClient,
+  projectId: string,
+  taskId: string,
+): Promise<ResearchVersions | null> {
+  return (await readResearchVersions(c, projectId, [taskId]))[0] ?? null
 }

@@ -530,13 +530,16 @@ when you change the room:
   page `@sophia/report/page` prints from the version's checked Markdown, and
   text that does not match its record (`tamper=text`) saves nothing.
   History says first what the service's facts show changed (`factsLine`:
-  sections removed and added by name, cited sources dropped and added,
+  sections removed and added by name, each in quotes so a heading cannot
+  read as the service's words, cited sources dropped and added, never
+  counting the report's own versions, which a follow-up may list as its base,
   revisions a count), then Sophia's notes, folded under the facts where a
   section was removed with no section of its name left, or a source dropped
   (`notesNeedFacts`), and not shown where the service wrote them from the
   facts or on a first version, whose note is the service's "First version"
   (`notesShown`); a Knowledge card shows no notes, since it carries no facts
-  (CX-0026, `history=pilot`).
+  (CX-0026, `history=pilot`). Its comparison by section quotes every heading
+  the same way, named whole (`quotedHeadings`).
   Change the viewer and they must still pass.
 - **The voice chat has its own checks** (`e2e/voice-chat.spec.ts`, SMC-M03
   CX-0022 and CX-0023): on the room's fixture page, whose LiveKit fake

@@ -82,13 +82,13 @@ export {
   readNativeTask,
   readNativeTasks,
   readResearchVersion,
+  readResearchVersions,
   readTaskStandings,
   submitContribution,
   type ContributionOrigin,
   type ReportVersion,
   type ReportVersionText,
   type ResearchVersions,
-  type SectionCounts,
   type TaskStanding,
 } from './native-tasks.ts'
 export {

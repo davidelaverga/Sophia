@@ -5,6 +5,7 @@
 // to the guide when it is. A task's state is its own job's, never only its goal's: a lineage shares its goal, and
 // 0022's phase lets the goal's Hold or Stop hide that a task already finished.
 import type { TaskStanding } from '@sophia/persistence'
+import { TOO_LONG_TO_REVISE, tooLongToRevise } from './report-facts.ts'
 
 export type Control = 'hold' | 'resume' | 'stop' | 'steer'
 
@@ -81,11 +82,15 @@ export interface Refused {
   researchGate: boolean | null
 }
 
-/** For a steer on research that ended: offer a follow-up, which the person confirms, only while one can start. */
+/**
+ * For a steer on research that ended: offer a follow-up, which the person confirms, only while one can start and could
+ * revise the report (0037 tells a follow-up of a report past REVISABLE_CHARS to change nothing).
+ */
 function followUp(r: Refused, s: TaskStanding): string | undefined {
   if (r.action !== 'steer' || s.kind !== 'research' || s.latestTaskId === null) return undefined
   if (r.researchGate === false)
     return 'A follow-up cannot be started now: research is not switched on for this project.'
+  if (tooLongToRevise(s.current)) return `${TOO_LONG_TO_REVISE} Do not offer one.`
   return `If they want it changed, offer a follow-up (start_research with amendsTaskId ${s.latestTaskId}); start it only if they confirm.`
 }
 
