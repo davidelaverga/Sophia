@@ -12,10 +12,19 @@ export function focusConversation(): void {
   ;(field ?? document.getElementById('c-log'))?.focus({ preventScroll: true })
 }
 
-/** Where the focus lands in a place when what had it is gone: home's Personal door, else the place's heading. */
+/**
+ * Home's row for a side: your row with Sophia, else (a first visit) its section's heading, never the line, which would
+ * open a phone's keyboard and set her listening (Personal); or the first project's row (Work).
+ */
+export const homeRowFor = (side: string): HTMLElement | null =>
+  side === 'work'
+    ? document.querySelector<HTMLElement>('.hw-index[data-door="work"] .hw-row')
+    : (document.querySelector<HTMLElement>('.hw-you .hw-row') ?? document.getElementById('hw-you-h'))
+
+/** Where the focus lands in a place when what had it is gone: home's row with Sophia (or its heading), else a heading. */
 export function placeLanding(): HTMLElement | null {
-  const landings = document.querySelectorAll<HTMLElement>('[data-door="personal"] .c2-main, #c-w-h, #c-p-h')
-  return [...landings].find((el) => onScreen(el)) ?? null
+  const landings = [homeRowFor('personal'), document.getElementById('c-w-h'), document.getElementById('c-p-h')]
+  return landings.find((el) => el && onScreen(el)) ?? null
 }
 
 /**

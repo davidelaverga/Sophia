@@ -8,21 +8,36 @@ import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@so
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
-import { initialOf } from '../../app/profile.ts'
 import type { Place } from '../../app/route.ts'
 import { modalOnScreen, useShortcuts } from '../../app/shortcuts.ts'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { DataSheet } from './DataSheet.tsx'
 import { epochNow } from './epoch.ts'
-import { focusConversation, focusLater, focusNotesToggle, focusPersonalSwitch, placesAccount } from './focus.ts'
-import { HomeDoors } from './HomeDoors.tsx'
+import {
+  focusConversation,
+  focusLater,
+  focusNotesToggle,
+  focusPersonalSwitch,
+  homeRowFor,
+  placesAccount,
+} from './focus.ts'
 import { OPEN, lockedBy, shut, type Lock } from './lock.ts'
 import { NOTICE } from './notice-view.ts'
 import { PlaceDialogs } from './PlaceDialogs.tsx'
 import { PlacesBar, type InCall } from './PlacesBar.tsx'
 import { PersonalSpace } from './PersonalSpace.tsx'
 import { usePresses, type Presses } from './presses.ts'
-import { dateLine, firstName, greeting, PLACE_TITLE, READ_FAILED, readState, workDoor, youDoor } from './places-view.ts'
+import {
+  dateLine,
+  firstName,
+  greeting,
+  PLACE_TITLE,
+  READ_FAILED,
+  readState,
+  sophiaSays,
+  youDoor,
+  workCount,
+} from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
 import { useEscape } from './useEscape.ts'
 import {
@@ -35,6 +50,8 @@ import {
   type ReadBack,
 } from './usePersonal.ts'
 import { usePlaceMotion } from './usePlaceMotion.ts'
+import type { Handed } from './handed.ts'
+import { Welcome } from './Welcome.tsx'
 import { WorkSpace } from './WorkSpace.tsx'
 import { personalFailure } from './write-words.ts'
 import './personal.css'
@@ -155,13 +172,13 @@ function useCarried(place: Place) {
 
 type Carried = ReturnType<typeof useCarried>
 
-/** Where to land after arriving: the door left, the conversation (focusConversation), or Work's heading. */
+/** Where to land after arriving: Home's row for the side left, the conversation (focusConversation), Work's heading. */
 function focusOnArrival(place: Place, left: Place) {
   if (place === 'personal') {
     focusConversation()
     return
   }
-  const door = place === 'home' ? document.querySelector<HTMLElement>(`[data-door="${left}"] .c2-main`) : null
+  const door = place === 'home' ? homeRowFor(left) : null
   ;(door ?? document.getElementById(place === 'work' ? 'c-w-h' : 'c-p-h'))?.focus({ preventScroll: true })
 }
 
@@ -242,29 +259,18 @@ function takeBack(writes: PersonalWrites, toast: ShowToast, presses: Presses) {
 }
 
 /** What a key does at home: Enter from nowhere goes in; an arrow outside a field, a menu or the switch picks a door. */
-function homeKey(e: KeyboardEvent): 'enter' | 'personal' | 'work' | null {
+function homeKey(e: KeyboardEvent): 'enter' | null {
   if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return null
-  if (e.key === 'Enter') return document.activeElement === document.body ? 'enter' : null
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return null
-  if (
-    e.target instanceof Element &&
-    e.target.closest('.segmented, [role="menu"], [role="dialog"], input, textarea, select')
-  ) {
-    return null
-  }
-  return e.key === 'ArrowLeft' ? 'personal' : 'work'
+  return e.key === 'Enter' && document.activeElement === document.body ? 'enter' : null
 }
 
-/** Enter at home goes to the side used last; the arrows move between the doors. */
+/** Enter at home goes to the side used last ("/" reaches Sophia's line, ↑/↓ the index: Welcome.tsx). */
 function useHomeKeys(place: Place, active: boolean, identity: string, nav: Nav) {
   useEffect(() => {
     if (place !== 'home' || !active) return undefined
     const onKey = (e: KeyboardEvent) => {
       const key = modalOnScreen() ? null : homeKey(e) // a sheet on screen owns the keys
       if (key === 'enter') nav.enter(readFlag(identity, 'last') === 'work' ? 'work' : 'personal')
-      if (key !== 'personal' && key !== 'work') return
-      e.preventDefault()
-      document.querySelector<HTMLElement>(`[data-door="${key}"] .c2-main`)?.focus()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -272,7 +278,7 @@ function useHomeKeys(place: Place, active: boolean, identity: string, nav: Nav) 
 }
 
 /** H, P, W go to the three places; D opens your data; L the padlock; T the notes. Esc closes what opened last. */
-function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav, explain: Explain) {
+function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav) {
   const { place } = props
   const free = !layers.unlock && !layers.privacy && !layers.data
   useShortcuts(
@@ -290,28 +296,12 @@ function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav, explain: Exp
   // With nothing open, Escape takes the place home; each open layer closes first, the latest first. The menus and the
   // sheets close themselves (usePopover, useDialog).
   useEscape(place !== 'home', () => nav.enter('home'))
-  useEscape(place === 'home' && explain.shown, explain.dismiss)
   // Only where the notes are on screen: elsewhere they stay open for the way back, and Esc goes home.
   useEscape(layers.notes && place === 'personal', () => {
     layers.setNotes(false)
     focusNotesToggle()
   })
 }
-
-/** The first visit explains the line in one sentence above the doors, until "Got it". */
-function useExplain(identity: string) {
-  const [shown, setShown] = useState(() => readFlag(identity, 'explained') === null)
-  return {
-    shown,
-    dismiss: () => {
-      setShown(false)
-      writeFlag(identity, 'explained', 'yes')
-      document.querySelector<HTMLElement>('.c2-line .c2-lock')?.focus()
-    },
-  }
-}
-
-type Explain = ReturnType<typeof useExplain>
 
 /** A sheet asked for from a project opens here, once. */
 function useOpening(props: PlacesProps, layers: Layers) {
@@ -339,7 +329,21 @@ interface View {
   shown: readonly Place[]
   nav: Nav
   carried: Carried
-  explain: Explain
+  /** Words said to Sophia from Home, on their way to Personal's composer (useHanded), and how to hand some. */
+  handed: Handed | null
+  hand: (words: string) => void
+  taken: () => void
+}
+
+/** Words said to Sophia from Home wait here for Personal's composer to take them; each handing is its own. */
+function useHand() {
+  const [handed, setHanded] = useState<Handed | null>(null)
+  const next = useRef(0)
+  return {
+    handed,
+    hand: (words: string) => setHanded({ words, id: (next.current += 1) }),
+    taken: () => setHanded(null),
+  }
 }
 
 const personalRead = (v: View): Read => ({
@@ -355,27 +359,40 @@ const projectsRead = (v: View): Read => ({
 })
 
 function Home({ v }: { v: View }) {
-  const { props, now, nav, layers } = v
+  const { props, now, nav } = v
   const data = v.personal
-  const work = workDoor(v.projects.data?.projects, now, props.call?.title ?? null)
+  const projects = v.projects.data?.projects
   const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
   return (
     <div className="c-home" data-place-view="home" hidden={!v.shown.includes('home')}>
-      <HomeDoors
-        hello={greeting(now.getHours(), firstName(props.identity), fresh)}
+      <Welcome
+        hello={greeting(now.getHours(), null, fresh)}
+        name={firstName(props.identity)}
         date={dateLine(now)}
-        explain={v.explain.shown}
-        reads={[personalRead(v), projectsRead(v)]}
+        says={sophiaSays(projects, now, props.call ?? null)}
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
-        work={work}
-        initial={initialOf(props.identity.displayName, props.identity.name)}
-        lockedBy={lockedBy(props.lock)}
+        reads={[personalRead(v), projectsRead(v)]}
+        projects={projects}
+        loadingProjects={readState(v.projects) === 'loading'}
+        now={now}
+        inCallProject={props.call?.projectId ?? null}
+        count={workCount(projects)}
+        locked={props.lock.locked}
+        hidden={!v.shown.includes('home')}
         actions={{
           personal: () => nav.enter('personal'),
-          notes: () => nav.enter('personal', () => layers.setNotes(true)),
-          work: () => (work.joins ? props.onOpenProject(work.joins.projectId, true) : nav.enter('work')),
-          lock: nav.toggleLock,
-          explained: v.explain.dismiss,
+          notes: () => nav.enter('personal', () => v.layers.setNotes(true)),
+          work: () => nav.enter('work'),
+          newProject: () => nav.enter('work', () => v.layers.setNewProject(true)),
+          unlock: nav.toggleLock,
+          // Your own call's row takes you back to it; leaving stays with the bar's room pill.
+          room: (id, action) =>
+            action === 'back' ? props.call?.onReturn() : props.onOpenProject(id, action === 'join'),
+          // Your words go to Personal at once, and its composer sends them as its own (useHanded).
+          say: (text) => {
+            v.hand(text)
+            nav.enter('personal')
+          },
         }}
       />
     </div>
@@ -387,6 +404,8 @@ function Personal({ v }: { v: View }) {
   return (
     <PersonalSpace
       hidden={!v.shown.includes('personal') || props.lock.locked}
+      handed={v.handed}
+      onHanded={v.taken}
       locked={props.lock.locked}
       now={v.now}
       account={accountOf(props.identity)}
@@ -525,11 +544,11 @@ export function Places(props: PlacesProps) {
   const { place, identity, lock } = props
   const root = useRef<HTMLDivElement>(null)
   const layers = useLayers()
-  const explain = useExplain(identity.name)
   const nav = usePlaceNavigation(props, layers)
   const space = usePersonalSpace(identity, !lock.locked)
   const projects = useProjects(identity)
   useReadAgainOnErasure(identity, lock.locked ? undefined : space.data, projects.data)
+  const hand = useHand()
   const v: View = {
     props,
     now: useNow(),
@@ -542,10 +561,10 @@ export function Places(props: PlacesProps) {
     shown: usePlaceMotion(place, root),
     nav,
     carried: useCarried(place),
-    explain,
+    ...hand,
   }
   useArrival(place)
-  usePlaceKeys(props, layers, nav, explain)
+  usePlaceKeys(props, layers, nav)
   useOpening(props, layers)
   useDocumentTitle(PLACE_TITLE[place])
   useShutSpace(props, layers.setNotes)
