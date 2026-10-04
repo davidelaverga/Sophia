@@ -41,20 +41,20 @@ All on fixtures. See [progress](../progress/WBC-01.md) for the before/after tabl
 Each line names the command and its result, on darwin-arm64 with Node 24.21.0 and pnpm 11.7.0:
 
 - `pnpm toolchain:check`, `pnpm format:check`, `pnpm lint`, `pnpm build`, `pnpm typecheck`, `pnpm contracts:check`: exit 0.
-- `pnpm test`: 1,144 tests: 1,130 pass, 0 fail, 14 skipped (as on the merge with main, before CC-0007's fixes), after merging main (#73, #77–#87, #32). On the baseline, the Studio's own unit tests were 423; they are now 614.
-- `pnpm artifacts`: every identity reproduced for darwin-arm64, on the merge with #32 (CC-0007; CC-0008 changes no runtime path).
+- `pnpm test`: 1,148 tests: 1,134 pass, 0 fail, 14 skipped (as on the merge with main, before CC-0007's fixes), after merging main (#73, #77–#87, #32). On the baseline, the Studio's own unit tests were 423; they are now 618.
+- `pnpm artifacts`: every identity reproduced for darwin-arm64, on the merge with #32 (CC-0007; CC-0008 and CC-0009 change no runtime path).
 - `pnpm test:integration`: 84 tests, 82 pass, 2 skipped, 0 fail, on the merge with #32 (run after `pnpm artifacts`: before it, a stale bundle archive fails it).
 - `pnpm --filter @sophia/studio run build`: passes, with Vite's existing large-chunk warning. Strings found only on the board (`Closed work`, `sophia.work.board.v1`, the new Stop copy) are absent from `dist/`. Its one "Simulated" is LiveKit's own code.
-- `pnpm --filter @sophia/studio exec playwright test`: 342 of 342 pass, desktop and phone. That includes:
+- `pnpm --filter @sophia/studio exec playwright test`: 344 of 344 pass, desktop and phone. That includes:
   - 26 `wbc ·` checks for the UI cases;
   - 7 `pre-push ·` checks for the pre-push review's findings;
-  - 12 `codex · F-` checks for Codex's, F-004–F-008 included;
+  - 14 `codex · F-` checks for Codex's, F-004–F-010 included;
   - 6 `pr76 ·` checks for the PR #76 reviews' (one in `resources.spec.ts`);
   - Luis's 31 checks from #73 and #77–#80 (`review ·`, `review card ·`, `challenge ·`, `receipts ·`; one adapted to this branch's words), and 3 `review card ·` checks for the merges and F-006;
   - main's own suites since: #81's brand, #84's sign-in, #85–#87's opening and home, #32's report and voice chat.
 
   `e2e/work.spec.ts --repeat-each=2` passed before the reviews' fixes.
-- **Mutations:** 95 in all. Each reverted one repair; all but one (R1b) made a check fail. Codex's findings are C1–C7, D1–D3, F1–F2f, I1–I7c and J1, the PR #76 reviews' E1–E3, G1–G2 and J2–J4, and the merges' H1–H6, all failing. The command retry handler's own guard sits behind a button that isn't rendered, so the UI can't check it. Ask again's guard is the pure `againOf`, unit-checked (F2).
+- **Mutations:** 102 in all. Each reverted one repair; all but one (R1b) made a check fail. Codex's findings are C1–C7, D1–D3, F1–F2f, I1–I7c, J1 and K1–K2c, the PR #76 reviews' E1–E3, G1–G2 and J2–J4, and the merges' H1–H6, all failing. The command retry handler's own guard sits behind a button that isn't rendered, so the UI can't check it. Ask again's guard is the pure `againOf`, unit-checked (F2).
   - The one that doesn't is the per-task key of the Stop question. It is redundant by design: the scope key inside it already includes the work. Removing both keys fails the J check.
   - Four first passed and showed a gap in a test. Each now fails with the gap closed:
     - the same attempt at an older generation;
@@ -78,7 +78,7 @@ None operational: no effect, job or deployment was started.
 
 Pending:
 - Davide's `CONTRACT_ACCEPTED`, or his changes, on WBC-01-CC-0001.
-- Codex's verification of the fixes for F-008 and the GitHub review's two P2s (WBC-01-CC-0008), and its `REVIEW_RESULT`.
+- Codex's verification of the fixes for F-009 and F-010 (WBC-01-CC-0009), and its `REVIEW_RESULT`.
 - This session still can't push: Codex updates PR #76 from Claude's clone.
 - Luis's optional feedback.
 
@@ -88,9 +88,9 @@ This session has no GitHub CLI or credential. CC-0001 and CC-0002 are posted on 
 
 1. Codex fetches `lfe-07/workboard-readiness` from Claude's clone into its own worktree, then:
    - pushes it unchanged to PR #76, and updates the PR's body from `docs/coordination/WBC-01/PR_DESCRIPTION.md`;
-   - posts CC-0008 on #74 for Claude, giving the head's full SHA.
+   - posts CC-0009 on #74 for Claude, giving the head's full SHA.
 2. Davide answers CC-0001.
-3. Codex verifies the delta from `be46d05`, and sends `FINDING` records or a `REVIEW_RESULT`.
+3. Codex verifies the delta from `efa05ae`, and sends `FINDING` records or a `REVIEW_RESULT`.
 4. Claude repairs on this branch and answers with `FIX_READY`.
 5. The release, if any, is Codex's `RELEASE_REQUEST` and Davide's approval.
 

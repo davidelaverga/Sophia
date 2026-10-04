@@ -132,3 +132,16 @@ J4 PR76 a decision arriving takes the slot from the card: FAILS as it should
 # I5 passed, because they mutated the task sheet's own key on its commands block, which F-008's shared key (J1) made
 # redundant. That key is removed in 3e7a893; R1 and I5 are re-aimed at the shared key, each with its task-sheet
 # check, and fail with J1. 94 of 95 fail.
+
+# CX-0012 at efa05ae (#74; GitHub 4178085242, 4178085246), F-009 and F-010, fixed in 7b0cd50
+K1 F-009 a check no single current version matches certifies nothing (rule): FAILS as it should
+K1b F-009 the same, on the board: FAILS as it should
+K1c F-009 completion refuses it, said why: FAILS as it should
+K1d F-009 the review line says it: FAILS as it should
+K2 F-010 waiting only while answerable (rule): FAILS as it should
+K2b F-010 waiting only while answerable (board): FAILS as it should
+K2c F-010 an expired one is said expired: FAILS as it should
+
+# 2026-10-04, on 7b0cd50: all 102 entries above run again. 101 make a check fail; R1b is the redundant key recorded
+# above. M04's line (reviewIsOfAnother in completed) gave way to reviewOf; it is re-aimed at the "another version"
+# reason and fails.

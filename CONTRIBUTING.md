@@ -443,10 +443,11 @@ when you change the room:
   at a time from a rail (search with `/`; another goal's request for the
   viewer is one link under it, never a switch); the goal in two lines with its
   NEXT; lenses, a decision pill and what changed since the last look
-  (decisions and results first, opened in full on press); four lanes, Active,
-  Up next, Unassigned and Complete (`plan.ts`: a view over each item's
-  observed state; Complete only by its own policy with evidence, and a check
-  of the version it holds), and Closed work with its reasons; every plan
+  (decisions and results first, opened in full on press; a decision waits
+  only while it can be answered); four lanes, Active, Up next, Unassigned and
+  Complete (`plan.ts`: a view over each item's observed state; Complete only
+  by its own policy with evidence, and a check of the version it holds, never
+  one no single current version matches), and Closed work with its reasons; every plan
   proposed (up to three) beside the one shown, compared, never operated;
   threads to what a
   task waits on; a task's sheet with its typed waits, its result (exact
