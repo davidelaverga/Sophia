@@ -47,10 +47,11 @@ import {
   type WorkPlan,
 } from './plan.ts'
 import { Folded } from './PlanNotes.tsx'
+import type { Challenge } from './challenges.ts'
 import { ProposalBand } from './Proposal.tsx'
 import type { ReadResult } from './results.ts'
 import { material, type Reviewed } from './review.ts'
-import { ReviewResult } from './ReviewResult.tsx'
+import { ReviewResult, type Waiting } from './ReviewResult.tsx'
 import { glance, readSeen, whileAway, writeSeen, changedSince, type Seen, type SeenAt } from './seen.ts'
 import { TaskSheet } from './TaskSheet.tsx'
 import { TaskTile, type TileFlags, type TileProps } from './TaskTile.tsx'
@@ -90,6 +91,8 @@ interface Props {
   observations?: readonly QuotaObservation[]
   /** The goal's progress review (LFE-07.2), read beside the view: one that proposes a change has its card. */
   review?: Reviewed | undefined
+  /** Where a challenge to the lead's review goes (LFE-07.2); absent for whoever can't act on the work. */
+  onChallenge?: Challenge
 }
 
 type LaneView = { key: Exclude<Lane, 'closed'>; label: string; mark: Mark; empty: string }
@@ -248,8 +251,13 @@ interface DecisionsProps {
 
 function Decisions({ decisions, plan, className = 'board-decisions', focus = null, ...rest }: DecisionsProps) {
   const list = useRef<HTMLDivElement>(null)
+  // Opened on one (from a review that waits on it), the focus goes to its first choice. Found by comparing ids, never
+  // by putting one in a selector: a decision's id is any string.
   useEffect(() => {
-    if (focus) list.current?.querySelector<HTMLElement>(`[data-decision="${focus}"] button:not(:disabled)`)?.focus()
+    const asked = [...(list.current?.querySelectorAll<HTMLElement>('[data-decision]') ?? [])].find(
+      (d) => d.dataset.decision === focus,
+    )
+    asked?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
   }, [focus])
   if (decisions.length === 0) return null
   return (
@@ -283,6 +291,13 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
   // Its revision is the one the review is read with, so the card and the goal's line say the same of it.
   const revision = reviewed?.revision ?? null
   const reviewShown = review !== null && openId === review.review_id
+  // A card closed by a later review takes the focus with it: it goes back to the pill, as Escape and Close do.
+  const wasShown = useRef(reviewShown)
+  useEffect(() => {
+    if (wasShown.current && !reviewShown && document.activeElement === document.body)
+      pill.current?.focus({ preventScroll: true })
+    wasShown.current = reviewShown
+  }, [reviewShown])
   return {
     asks,
     review,
@@ -310,13 +325,15 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
       setOpenId(null)
       pill.current?.focus()
     },
-    /** Who a proposal's decision waits on, while open: the viewer, when theirs to answer now, or its decider. */
-    waitsOn: (decisionId: string) => {
-      const d = asks.open.find((o) => o.decision_id === decisionId)
-      if (!d) return null
-      return answerable && asks.mine.includes(d)
-        ? { yours: true as const }
-        : { yours: false as const, name: decider(d.decider_id) }
+    /**
+     * What a proposal's decision waits on: the viewer's answer (only where a decision can be sent), its decider's, or
+     * nothing: it expired (by its date, or marked so). A decision already answered or replaced waits on no one.
+     */
+    waitsOn: (decisionId: string): Waiting | null => {
+      const d = decisions.find((o) => o.decision_id === decisionId)
+      if (!d || (d.state !== 'proposed' && d.state !== 'expired')) return null
+      if (!actionable(d, now)) return { on: 'expired' }
+      return d.decider_id === viewerId && answerable ? { on: 'you' } : { on: 'them', name: decider(d.decider_id) }
     },
   }
 }
@@ -433,10 +450,12 @@ interface SlotProps {
   rows: readonly PlanRow[]
   onOpenTask: (id: string) => void
   decisions: Omit<DecisionsProps, 'decisions'>
+  /** Where a challenge to the review goes; absent, there is no Challenge. */
+  onChallenge: Challenge | undefined
 }
 
 /** Under the bar, one at a time: the decisions, or the lead's review that proposes a change. */
-function Slot({ slot, rows, onOpenTask, decisions }: SlotProps) {
+function Slot({ slot, rows, onOpenTask, decisions, onChallenge }: SlotProps) {
   if (slot.decisionsShown) return <Decisions decisions={slot.asks.open} focus={slot.focus} {...decisions} />
   if (!slot.reviewShown || !slot.review || slot.revision === null) return null
   return (
@@ -449,6 +468,8 @@ function Slot({ slot, rows, onOpenTask, decisions }: SlotProps) {
       waitsOn={slot.waitsOn}
       onOpenDecisions={slot.openDecisions}
       onClose={slot.closeReview}
+      viewerId={decisions.viewerId}
+      onChallenge={onChallenge}
     />
   )
 }
@@ -572,7 +593,13 @@ function BoardBody(props: BodyProps) {
       <Notices board={board} coverage={props.coverage} operable={operable} />
       <ProposalBand current={plan} proposals={proposed(goal).filter((p) => p !== plan)} operable={operable} />
       <Decisions decisions={decidedOf(goal.decisions)} className="board-decisions board-decided" {...decisionProps} />
-      <Slot slot={slot} rows={rows} onOpenTask={view.setOpen} decisions={decisionProps} />
+      <Slot
+        slot={slot}
+        rows={rows}
+        onOpenTask={view.setOpen}
+        decisions={decisionProps}
+        onChallenge={operable ? props.onChallenge : undefined}
+      />
       <Lanes rows={rows} board={view} tile={tile} />
       <ClosedWork rows={inLane(rows, 'closed')} onOpen={view.setOpen} />
       <OutsideWork outside={board.outside} />

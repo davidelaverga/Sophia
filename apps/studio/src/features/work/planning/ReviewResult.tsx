@@ -8,7 +8,12 @@ import { useEffect, useRef } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { observedAgo } from '../../resources/resource.ts'
 import type { PlanRow, WorkPlan } from './plan.ts'
+import type { Challenge } from './challenges.ts'
+import { ReviewChallenge } from './ReviewChallenge.tsx'
 import { EVIDENCE, staleSaid, type Intervention, type LastReview, type Observation } from './review.ts'
+
+/** A proposal's decision: the viewer's to answer, someone else's, or past its expiry. */
+export type Waiting = { on: 'you' } | { on: 'them'; name: string } | { on: 'expired' }
 
 interface Props {
   review: LastReview
@@ -17,11 +22,14 @@ interface Props {
   rows: readonly PlanRow[]
   now: Date
   onOpenTask: (id: string) => void
-  /** Who a proposal's decision waits on, while it is open: the viewer (who can answer it now) or someone named. */
-  waitsOn: (decisionId: string) => { yours: true } | { yours: false; name: string } | null
+  /** What a proposal's decision waits on, while open: the viewer, someone named, or nothing more: it expired. */
+  waitsOn: (decisionId: string) => Waiting | null
   /** Opens the decisions on this one, where the viewer answers it. */
   onOpenDecisions: (decisionId: string) => void
   onClose: () => void
+  viewerId: string | null
+  /** Where a challenge goes (slice 3); absent for whoever can't act on the work: no Challenge. */
+  onChallenge?: Challenge | undefined
 }
 
 /** One labelled part; nothing when it has nothing to say. */
@@ -53,20 +61,22 @@ function Seen({ seen, rows, now, onOpenTask }: { seen: Observation } & Pick<Prop
   )
 }
 
-/** Its decision, while open: the viewer's to answer now, or someone else's to wait on. */
+/** Its decision, while open: the viewer's to answer now, someone else's to wait on, or one that expired. */
 function Waits({
   decisionId,
   waitsOn,
   onOpenDecisions,
 }: { decisionId: string } & Pick<Props, 'waitsOn' | 'onOpenDecisions'>) {
-  const on = waitsOn(decisionId)
-  if (!on) return null
-  return on.yours ? (
+  const waiting = waitsOn(decisionId)
+  if (!waiting) return null
+  if (waiting.on === 'expired')
+    return <p className="review-proposal-state">Its decision expired before it was answered.</p>
+  return waiting.on === 'you' ? (
     <button type="button" className="text-button" onClick={() => onOpenDecisions(decisionId)}>
       Waits on your decision: answer it
     </button>
   ) : (
-    <p className="review-proposal-state">Waits on {on.name}’s decision.</p>
+    <p className="review-proposal-state">Waits on {waiting.name}’s decision.</p>
   )
 }
 
@@ -89,7 +99,8 @@ function Proposed({
   )
 }
 
-export function ReviewResult({ review, plan, rows, now, onOpenTask, waitsOn, onOpenDecisions, onClose }: Props) {
+export function ReviewResult(props: Props) {
+  const { review, plan, rows, now, onOpenTask, waitsOn, onOpenDecisions, onClose, viewerId, onChallenge } = props
   const card = useRef<HTMLElement>(null)
   // Opened, it takes the focus, so Escape puts it away at once.
   useEffect(() => card.current?.focus(), [])
@@ -137,6 +148,15 @@ export function ReviewResult({ review, plan, rows, now, onOpenTask, waitsOn, onO
           />
         )}
       </Part>
+      {/* A review of this revision can be challenged; one of an earlier revision is only read. */}
+      {onChallenge && !stale && (
+        <div className="review-part">
+          <span aria-hidden />
+          <div className="review-part-body">
+            <ReviewChallenge review={review} viewerId={viewerId} onChallenge={onChallenge} />
+          </div>
+        </div>
+      )}
     </section>
   )
 }

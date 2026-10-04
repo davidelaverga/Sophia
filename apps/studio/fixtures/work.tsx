@@ -4,7 +4,8 @@
 // shown as refused, never drawn. The query string picks who is looking, `viewer=davide|luis|mara` (default: Luis;
 // Mara is a viewer who reads); `case=…` a scenario (work-cases.ts); `proposed=1` (no plan accepted yet: the first
 // goal's plan is proposed); `superseded=1` (none shows); `two=1` (a second goal, its plan proposed); `goals=6`;
-// `many=1`; `unplanned=1`; `since=1` (an earlier look); `expired=1`; `conflict=1` and `unknown=1` (how a decision's
+// `many=1`; `unplanned=1`; `since=1` (an earlier look); `expired=1|state` (the decision waiting on Davide past its
+// expiry, or marked expired); `odd-id=1` (its id with quotes and brackets); `conflict=1` and `unknown=1` (how a decision's
 // answer comes back); `later=1` (the second goal's plan held back until `workFixture.arrive()`); `coverage=partial|
 // unavailable`; and how the simulated services answer (work-live.ts: `admission=`, `settle=`, `ask=`, `result=`).
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
@@ -12,6 +13,8 @@
 // `reconnect()`, `replay(operationId)` and `misdeliver(from, to)`. Whoever does a task opens on the resources' fixture.
 // `review=…` (LFE-07.2): how the lead answers the goal's Request review (work-review.ts), read beside the board's view;
 // `workFixture.goalCommands` lists each goal command sent, with its key; `reviewAgain()` brings in a later review.
+// `challenge=unknown|denied`: how a challenge to the lead's review comes back (recorded by default;
+// `workFixture.challenges` lists each sent); `editor=0`: the viewer can't act on the work, so there is no Challenge.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -32,6 +35,7 @@ import {
   type ItemAction,
 } from '../src/features/work/planning/board-view.ts'
 import type { DecisionAnswer } from '../src/features/work/planning/Decision.tsx'
+import type { Challenge } from '../src/features/work/planning/challenges.ts'
 import { PlanBoard } from '../src/features/work/planning/PlanBoard.tsx'
 import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
 import { PlanTab } from '../src/features/work/planning/PlanTab.tsx'
@@ -107,6 +111,7 @@ declare global {
       setAvailability?: (workId: string, kind: ActionKind, availability: Availability) => void
       /** A later review in the last one's place (LFE-07.2): it arrives with its card closed. */
       reviewAgain?: () => void
+      challenges?: { review: string; text: string; key: string }[]
     }
   }
 }
@@ -115,7 +120,6 @@ const query = new URLSearchParams(window.location.search)
 /** `two=1`: a second goal with its own plan; `goals=6`: four more, to see the goals' rail scroll. */
 const six = query.get('goals') === '6'
 const two = six || query.get('two') === '1'
-/** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
 /** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
 let onGoalCommand: ((command: GoalCommand, key: string) => void) | null = null
 installFixtureApi({
@@ -171,10 +175,7 @@ if (query.get('since') === '1') {
 function opening(viewer: Viewer): GoalView {
   let g = inCase(scenario, firstGoal(viewer), viewer)
   if (query.get('many') === '1') g = manyTasks(g)
-  if (query.get('expired') === '1') {
-    const past = new Date(NOW.getTime() - 3_600_000).toISOString()
-    g = { ...g, decisions: g.decisions.map((d) => (d.state === 'proposed' ? { ...d, expires_at: past } : d)) }
-  }
+  g = decisionsAsked(g)
   const current = g.current_plan
   if (current && query.get('proposed') === '1') {
     // Its scenario's own proposals stay beside it (`case=replan`).
@@ -189,6 +190,44 @@ function opening(viewer: Viewer): GoalView {
 
 type Change = (g: GoalView) => GoalView
 const { action, claude } = fixtureParts
+
+/** `odd-id=1`: the decision waiting on Davide has an id with quotes and brackets, as the wire allows (any string). */
+const ODD = 'd1"] [x'
+const odd = query.get('odd-id') === '1'
+const renamed = (id: string) => (odd && id === 'd1' ? ODD : id)
+
+/** The first goal's decisions, as `expired=` and `odd-id=` ask: past expiry or marked so, and the odd id. */
+const decisionsAsked: Change = (g) => {
+  const how = query.get('expired')
+  const past = new Date(NOW.getTime() - 3_600_000).toISOString()
+  const expiring = (d: GoalView['decisions'][number]) =>
+    d.state === 'proposed' && (how === '1' || how === 'state')
+      ? { ...d, expires_at: past, ...(how === 'state' && { state: 'expired' as const }) }
+      : d
+  return { ...g, decisions: g.decisions.map((d) => ({ ...expiring(d), decision_id: renamed(d.decision_id) })) }
+}
+
+/** The review's proposal names the decision by the same id (`odd-id=1`). */
+const reviewAsked = (r: Reviewed): Reviewed => {
+  const last = r.last_review
+  const proposal = last?.intervention
+  if (!last || !proposal?.decision_id) return r
+  return { ...r, last_review: { ...last, intervention: { ...proposal, decision_id: renamed(proposal.decision_id) } } }
+}
+
+const challenges: NonNullable<NonNullable<Window['workFixture']>['challenges']> = []
+/** A challenge to the lead's review, taken as the lead's port would: recorded, unless the page asks otherwise. */
+const challenge: Challenge = (challenged, text, key) => {
+  challenges.push({ review: challenged.review_id, text, key })
+  const said = query.get('challenge')
+  return new Promise((done, fail) =>
+    setTimeout(() => {
+      if (said === 'unknown' && challenges.length === 1) fail(new Error('not confirmed'))
+      else done(said === 'denied' ? 'denied' : 'recorded')
+    }, 300),
+  )
+}
+const editor = query.get('editor') !== '0'
 
 /** A task's projection changed, as the service's next observation would. */
 const observed =
@@ -276,6 +315,7 @@ function controls(
     unexpected,
     goalCommands: lead.commands,
     reviewAgain: lead.again,
+    challenges,
     answered: answers,
     questions,
     commands,
@@ -362,6 +402,7 @@ function slot(g: GoalView, { resources, viewerId, now, board, review }: Shared, 
         now={now}
         onDecide={decide}
         onCommand={onCommand}
+        {...(editor && { onChallenge: challenge })}
         onAsk={ask}
         readResult={readResult}
         onOpenConversation={nothing}
@@ -411,7 +452,7 @@ function useClock(update: (change: Change) => void) {
  */
 function useLead(first: GoalView, viewer: Viewer) {
   const [review, setReview] = useState<Reviewed>(() =>
-    openedWith(reviewAs, { revision: first.current_plan?.revision ?? 1 }),
+    reviewAsked(openedWith(reviewAs, { revision: first.current_plan?.revision ?? 1 })),
   )
   const revision = useRef(1)
   revision.current = first.current_plan?.revision ?? 1
