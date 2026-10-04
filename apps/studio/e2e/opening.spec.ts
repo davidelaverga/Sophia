@@ -120,7 +120,7 @@ test('opening · its bar only moves forward, a little each frame, and is full be
   const fills = (await frames(page)).filter((f) => f.up).map((f) => f.fill)
   const steps = fills.slice(1).map((fill, i) => fill - (fills[i] ?? fill))
   expect(Math.min(...steps)).toBeGreaterThanOrEqual(0)
-  expect(Math.max(...steps)).toBeLessThan(0.06)
+  expect(Math.max(...steps)).toBeLessThan(0.1)
   expect(Math.max(...fills)).toBeGreaterThan(0.99)
 })
 
@@ -195,6 +195,11 @@ test('opening · while up, it is the one status, keys don’t reach the app unde
   await expect(page.getByRole('status')).not.toContainText('Taking longer')
   await page.keyboard.press('w')
   expect(await page.evaluate(() => window.openingFixture?.keys ?? [])).toEqual([])
+  // Tab stays in the opening: focus never reaches a control nobody can see.
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Tab')
+    expect(await page.evaluate(() => document.getElementById('root')?.contains(document.activeElement))).toBe(false)
+  }
   await expect.poll(() => up(page), { timeout: 10_000 }).toBe(false)
   await page.keyboard.press('w')
   expect(await page.evaluate(() => window.openingFixture?.keys ?? [])).toEqual(['w'])

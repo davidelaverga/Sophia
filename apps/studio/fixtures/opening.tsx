@@ -75,6 +75,9 @@ function Home() {
         <span className="mark-word">Sophia</span>
       </span>
       <h1>Home</h1>
+      <button type="button" onClick={() => seen.keys.push('pressed Account')}>
+        Account
+      </button>
     </header>
   )
 }

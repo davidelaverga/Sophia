@@ -52,10 +52,14 @@ export function aimFor(stage: EntryStage, since: number): number {
   return from + (AT[after(stage)] - from) * share
 }
 
+/** A frame the device was late for counts as this long at most: after a hitch the bar catches up, it doesn't leap. */
+const FRAME_AT_MOST_MS = 34
+
 /** The bar a frame later: `dt` ms closer to `aim`, smoothly, and never back. */
 export function follow(shown: number, aim: number, dt: number, lag = FOLLOW_MS): number {
   if (aim <= shown) return shown
-  return shown + (aim - shown) * (1 - Math.exp(-Math.max(0, dt) / lag))
+  const step = Math.min(Math.max(0, dt), FRAME_AT_MOST_MS)
+  return shown + (aim - shown) * (1 - Math.exp(-step / lag))
 }
 
 /** The later of two steps: the bar never goes back. */

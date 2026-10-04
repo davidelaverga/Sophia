@@ -84,10 +84,17 @@ function tick(now: number): void {
 }
 
 /**
- * While it is up, keys go nowhere: the app under it (its shortcuts) must not act unseen. The browser's own keys still
- * work; only the app's listeners don't hear them.
+ * While it is up, keys go nowhere the person can't see: the app's listeners don't hear them, and Tab stays in the
+ * opening (its Start over, once shown), so focus never reaches a control under it. Keys on the opening's own link work.
  */
-const guard = (event: KeyboardEvent) => event.stopImmediatePropagation()
+function guard(event: KeyboardEvent): void {
+  if (event.target instanceof Node && live?.root.contains(event.target)) return
+  event.stopImmediatePropagation()
+  if (event.type !== 'keydown' || event.key !== 'Tab') return
+  event.preventDefault()
+  const again = live?.root.querySelector('.entry-again')
+  if (again instanceof HTMLElement && again.checkVisibility()) again.focus()
+}
 const KEYS = ['keydown', 'keyup', 'keypress'] as const
 
 /** The bar's own loop takes over from where index.html's arrival left it. */
@@ -95,6 +102,10 @@ function run(p: Parts): void {
   live = p
   still = reduced()
   for (const type of KEYS) window.addEventListener(type, guard, true)
+  // Nothing under it keeps the focus: Enter or Space can't press what nobody sees.
+  if (document.activeElement instanceof HTMLElement && !p.root.contains(document.activeElement)) {
+    document.activeElement.blur()
+  }
   shown = new DOMMatrix(getComputedStyle(p.fill).transform).a
   // Held where index.html's arrival has it before that arrival stops: not a frame back at nothing.
   p.fill.style.transform = `scaleX(${String(shown)})`

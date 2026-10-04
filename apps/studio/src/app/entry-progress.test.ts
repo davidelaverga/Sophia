@@ -40,6 +40,8 @@ describe('the opening’s bar', () => {
     const next = follow(0.2, 0.6, 16)
     assert.ok(next > 0.2 && next < 0.3)
     assert.ok(follow(0.2, 0.6, 1000) < 0.6)
+    // A frame the device was late for moves it no further than a short one would: no jump after a hitch.
+    assert.equal(follow(0.2, 0.6, 1000), follow(0.2, 0.6, 34))
     assert.equal(follow(0.5, 0.3, 16), 0.5)
   })
 
