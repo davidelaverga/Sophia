@@ -7,6 +7,7 @@ import {
   actionable,
   allowed,
   boardOf,
+  decidedFor,
   forViewer,
   forYou,
   LANE,
@@ -493,6 +494,15 @@ describe('decisions and a session’s last report', () => {
     choice_receipt_id: null,
     plan_reaction: 'not_needed',
   }
+
+  it('is a plan’s choice only when made for it, at its revision or before (Codex F-013, F-015)', () => {
+    const r2 = plan([item('build')])
+    assert.equal(r2.revision, 2)
+    assert.equal(decidedFor(decision, r2), true)
+    assert.equal(decidedFor({ ...decision, plan_revision: 1 }, r2), true) // carried forward
+    assert.equal(decidedFor({ ...decision, plan_revision: 3 }, r2), false) // a later revision, not in force
+    assert.equal(decidedFor({ ...decision, plan_id: 'plan-1-alt' }, r2), false) // another plan
+  })
 
   it('answers a decision only while proposed and not past its expiry; one past it calls no one', () => {
     assert.equal(actionable(decision, now), true)

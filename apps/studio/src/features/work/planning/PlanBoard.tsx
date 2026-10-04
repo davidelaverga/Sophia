@@ -35,6 +35,7 @@ import { shows, type LensName } from './lenses.ts'
 import {
   actionable,
   boardOf,
+  decidedFor,
   laneOf,
   proposed,
   waitsOn,
@@ -571,8 +572,20 @@ function Bar({ view, rows, viewerId, slot, people, away, onSeen }: BarProps) {
 }
 
 /** A choice already made, while the plan takes it in. */
-const decidedOf = (decisions: readonly BoardDecision[]) =>
-  decisions.filter((d) => d.state === 'accepted' && (d.plan_reaction === 'pending' || d.plan_reaction === 'unknown'))
+/**
+ * A choice made for the plan shown, while it takes it in. Another plan's choice is never said as this plan updating:
+ * it is listed with its own plan's revision, apart (Folded; Codex F-015).
+ */
+const decidedOf = (decisions: readonly BoardDecision[], plan: WorkPlan) =>
+  decisions.filter(
+    (d) =>
+      d.state === 'accepted' && (d.plan_reaction === 'pending' || d.plan_reaction === 'unknown') && decidedFor(d, plan),
+  )
+
+/** The plan shown's own choices made, while it takes them in, over its board. */
+const Updating = ({ decisions, ...props }: DecisionsProps) => (
+  <Decisions decisions={decidedOf(decisions, props.plan)} className="board-decisions board-decided" {...props} />
+)
 
 function BoardBody(props: BodyProps) {
   const { goal, board, people, now, viewerId = null, onDecide } = props
@@ -602,7 +615,7 @@ function BoardBody(props: BodyProps) {
       <Bar view={view} rows={rows} viewerId={viewerId} slot={slot} people={people} away={away} onSeen={markSeen} />
       <Notices board={board} coverage={props.coverage} operable={operable} />
       <ProposalBand current={plan} proposals={proposed(goal).filter((p) => p !== plan)} operable={operable} />
-      <Decisions decisions={decidedOf(goal.decisions)} className="board-decisions board-decided" {...decisionProps} />
+      <Updating decisions={goal.decisions} {...decisionProps} />
       <Slot
         slot={slot}
         rows={rows}

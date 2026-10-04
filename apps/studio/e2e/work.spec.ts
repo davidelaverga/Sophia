@@ -1774,6 +1774,47 @@ test('codex · F-013 · superseded, the replacement shown keeps its own choice a
   await expect(elsewhere(page).locator('li')).toHaveText([/Luis chose Use the alternative route · for plan r4$/])
 })
 
+// ---- CX-0015 (Codex on #74; GitHub 4179218923, 4179218926): delivery once established stays; a plan's band is its own. ----
+
+test('codex · F-014 · a delivered guidance stays delivered when a newer receipt says less of it', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('textbox', { name: 'Guidance for its session' }).fill('Use the staging report fixtures')
+  await sheet.getByRole('button', { name: 'Send', exact: true }).click()
+  const steps = sheet.locator('.act-steps')
+  await expect(steps).toContainText('Delivered to the session; not yet verified in the result.')
+  const [sent] = await commanded(page)
+  // The service's next receipt for it, a newer revision, says it is only queued.
+  await page.evaluate((op) => window.workFixture?.weaken?.(op), sent?.operation_id ?? '')
+  await expect.poll(() => page.evaluate(() => window.workFixture?.receipts?.length)).toBe(4)
+  await page.waitForTimeout(200) // the board has taken it in
+  await expect(steps.locator('li[data-reached]')).toHaveCount(3)
+  await expect(steps).toContainText('Delivered to the session; not yet verified in the result.')
+  await expect(steps).not.toContainText('delivery pending')
+})
+
+test('codex · F-015 · the plan’s updating band holds its own choices only; another plan’s are listed with that plan', async ({
+  page,
+}) => {
+  // r2 in force; r3 (the same plan) and plan-1-alt r4 each taking a choice in, pending and unknown. Proposed only too.
+  for (const query of ['', '&proposed=1']) {
+    await page.goto(`${PAGE}?viewer=davide&case=replan-updating${query}`)
+    await expect(fold(page)).toHaveText(/1 decided · 2 for another plan/, { timeout: 15_000 })
+    await expect(board(page).locator('.board-decided')).toHaveCount(0)
+    await fold(page).click()
+    await expect(elsewhere(page).locator('li')).toHaveText([/for plan r3$/, /for plan r4$/])
+  }
+  // The plan's own choice, recorded, is said there while it takes it in (UI-14), and only it.
+  await page.goto(`${PAGE}?viewer=davide&case=replan-updating`)
+  await board(page).getByRole('region', { name: 'Davide decides' }).getByRole('button', { name: 'Ship it now' }).click()
+  await page.evaluate(() => window.workFixture?.settle?.('d1'))
+  const updating = board(page).locator('.board-decided')
+  await expect(updating).toContainText('Your choice is recorded. The plan is updating.')
+  await expect(updating.locator('.plan-ask')).toHaveCount(1)
+  await expect(updating).not.toContainText('Use the second host')
+  await expect(updating).not.toContainText('Use the alternative route')
+})
+
 // ---- The lead's review that proposes a change (LFE-07.2, slice 2): its pill, and its card in the decisions' slot. ----
 
 const reviewPill = (page: Page) => board(page).getByRole('button', { name: /^Review · a change proposed/ })

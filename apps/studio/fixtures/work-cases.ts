@@ -213,6 +213,19 @@ const replanDecided: Change = (g, viewer) => {
   return { ...r, decisions: [...r.decisions, ...made] }
 }
 
+/**
+ * Codex F-015: as `replan-decided`, but neither replacement has taken its choice in yet: r3's is pending, plan-1-alt
+ * r4's unknown. The plan in force (r2) isn't the one updating.
+ */
+const replanUpdating: Change = (g, viewer) => {
+  const r = replanDecided(g, viewer)
+  const reaction: Record<string, BoardDecision['plan_reaction']> = { 'd-r3': 'pending', 'd-alt': 'unknown' }
+  return {
+    ...r,
+    decisions: r.decisions.map((d) => ({ ...d, plan_reaction: reaction[d.decision_id] ?? d.plan_reaction })),
+  }
+}
+
 /** UI-14: Davide's choice is recorded; the lead hasn't taken it into the plan yet. */
 const reacting: Change = (g) => ({
   ...g,
@@ -382,6 +395,7 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   unobserved,
   'two-current': twoCurrent,
   'replan-decided': replanDecided,
+  'replan-updating': replanUpdating,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

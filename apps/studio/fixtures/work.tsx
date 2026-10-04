@@ -10,8 +10,8 @@
 // unavailable`; and how the simulated services answer (work-live.ts: `admission=`, `settle=`, `ask=`, `result=`).
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
 // into the plan's next revision; `decisionArrives(deciderId)` brings a new one; `begin(workId)`, `reassign(workId)`,
-// `replan()`, `arrive()`, `viewAs(viewer)`, `reconnect()`, `replay(operationId)`, `misdeliver(from, to)` and
-// `conversation(connected)`. Whoever does a task opens on the resources' fixture.
+// `replan()`, `arrive()`, `viewAs(viewer)`, `reconnect()`, `replay(operationId)`, `weaken(operationId)`,
+// `misdeliver(from, to)` and `conversation(connected)`. Whoever does a task opens on the resources' fixture.
 // `review=…` (LFE-07.2): how the lead answers the goal's Request review (work-review.ts), read beside the board's view;
 // `workFixture.goalCommands` lists each goal command sent, with its key; `reviewAgain()` brings in a later review.
 // `lag=1`: the review is read a moment behind the board, with the plan in force the board no longer shows as such.
@@ -76,6 +76,7 @@ import {
   reconnect,
   replay,
   serve,
+  weaken,
   withActivity,
 } from './work-live.ts'
 import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.ts'
@@ -109,6 +110,8 @@ declare global {
       /** Each goal command sent (Request review, Hold, Stop), with its key (LFE-07.2). */
       goalCommands?: readonly { kind: string; key: string }[]
       replay?: (operationId: string) => void
+      /** A newer receipt for an operation saying less of its delivery (Codex F-014). */
+      weaken?: (operationId: string) => void
       misdeliver?: (from: string, to: string) => void
       /** The service's next observation of a task: its lifecycle, or one action's availability for this viewer. */
       setLifecycle?: (workId: string, lifecycle: GoalView['items'][number]['lifecycle']) => void
@@ -382,6 +385,7 @@ function controls(
     viewAs: setViewer,
     reconnect,
     replay,
+    weaken,
     misdeliver,
     setLifecycle: (workId: string, lifecycle: GoalView['items'][number]['lifecycle']) =>
       update(observed(workId, () => ({ lifecycle }))),

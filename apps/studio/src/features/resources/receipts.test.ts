@@ -153,6 +153,45 @@ describe('what is known of a command', () => {
     assert.equal(knownSaid(later), 'Stop requested. The runtime’s state is not confirmed yet.')
   })
 
+  it('never takes an established delivery back for a later receipt saying less (Codex F-014)', () => {
+    const guide = command('guidance', { text: 'Use the staging fixtures' })
+    const delivered = after(guide, receipt(guide, 1, { delivery: 'delivered', evidence_refs: ['a', 'd'] }))
+    assert.deepEqual([reached(delivered), unresolved(delivered)], [2, false])
+    for (const weaker of ['queued', 'not_sent', 'unknown', 'not_applicable'] as const) {
+      const later = fold(delivered, receipt(guide, 2, { delivery: weaker }))
+      assert.equal(later.receipt?.delivery, 'delivered', weaker)
+      assert.deepEqual([reached(later), unresolved(later)], [2, false], weaker)
+      assert.equal(knownSaid(later), 'Delivered to the session; not yet verified in the result.', weaker)
+    }
+    // Consumed by the session is further still: a later "delivered" doesn't take it back.
+    const consumed = after(guide, receipt(guide, 1, { delivery: 'native_consumed' }))
+    assert.equal(fold(consumed, receipt(guide, 2, { delivery: 'delivered' })).receipt?.delivery, 'native_consumed')
+    assert.equal(
+      fold(delivered, receipt(guide, 2, { delivery: 'native_consumed' })).receipt?.delivery,
+      'native_consumed',
+    )
+    // The older delivered one, replayed after, changes nothing either.
+    const weakened = fold(delivered, receipt(guide, 2, { delivery: 'queued' }))
+    assert.equal(fold(weakened, receipt(guide, 1, { delivery: 'delivered' })), weakened)
+  })
+
+  it('takes a newer word on delivery until one is established, uncertainty included (Codex F-014)', () => {
+    const stop = command('stop')
+    const queued = after(stop, receipt(stop, 1, { delivery: 'queued' }))
+    assert.equal(fold(queued, receipt(stop, 2, { delivery: 'unknown' })).receipt?.delivery, 'unknown')
+    assert.equal(fold(queued, receipt(stop, 2, { delivery: 'delivered' })).receipt?.delivery, 'delivered')
+    // A Stop's effect, once settled, and Recorded, stay as they were, whatever delivery says next.
+    const settled = after(
+      stop,
+      receipt(stop, 1, { delivery: 'delivered', effect: 'stopped', evidence_refs: ['a', 'b'] }),
+    )
+    const later = fold(settled, receipt(stop, 2, { admission: 'unknown', delivery: 'queued', effect: 'pending' }))
+    assert.deepEqual(
+      [later.receipt?.admission, later.receipt?.delivery, later.receipt?.effect],
+      ['recorded', 'delivered', 'stopped'],
+    )
+  })
+
   it('never settles a command from another project’s receipt, whatever else matches (Codex F-001)', () => {
     const stop = command('stop')
     const foreign = receipt(stop, 3, {

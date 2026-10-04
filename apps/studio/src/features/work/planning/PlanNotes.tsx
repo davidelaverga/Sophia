@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Icon } from '@sophia/ui'
 import type { Resource } from '../../resources/resource.ts'
-import type { BoardDecision, WorkPlan } from './plan.ts'
+import { decidedFor, type BoardDecision, type WorkPlan } from './plan.ts'
 
 type Person = Resource['owner']
 
@@ -14,12 +14,6 @@ interface Props {
   decisions: readonly BoardDecision[]
   people: Record<string, Person>
 }
-
-/**
- * A choice made for this plan, at this revision or an earlier one: history it carries forward. One made for another
- * plan, a replacement proposed, or a revision of it not in force, isn't this plan's (Codex F-013).
- */
-const ofThisPlan = (d: BoardDecision, plan: WorkPlan) => d.plan_id === plan.plan_id && d.plan_revision <= plan.revision
 
 /** Choices made, each with who made it; for another plan, which revision it was for. */
 function Choices({ label, decisions, people, elsewhere }: ChoicesProps) {
@@ -54,8 +48,8 @@ interface ChoicesProps {
 export function Folded({ plan, decisions, people }: Props) {
   const [open, setOpen] = useState(false)
   const accepted = decisions.filter((d) => d.state === 'accepted')
-  const decided = accepted.filter((d) => ofThisPlan(d, plan))
-  const elsewhere = accepted.filter((d) => !ofThisPlan(d, plan))
+  const decided = accepted.filter((d) => decidedFor(d, plan))
+  const elsewhere = accepted.filter((d) => !decidedFor(d, plan))
   if (plan.assumptions.length === 0 && accepted.length === 0) return null
   const said = [
     plan.assumptions.length > 0 && `${plan.assumptions.length} assumed`,

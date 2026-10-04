@@ -154,6 +154,18 @@ export function replay(operationId: string): void {
   for (const r of receipts.filter((x) => x.operation_id === operationId).toReversed()) listener?.(r)
 }
 
+/**
+ * One operation's next receipt, a newer revision that says less of its delivery than the last one did, as a successive
+ * dimension update can (Codex F-014): established delivery must not be taken back.
+ */
+export function weaken(operationId: string, delivery: Receipt['delivery'] = 'queued'): void {
+  const last = receipts.findLast((x) => x.operation_id === operationId)
+  if (!last) return
+  const r = { ...last, revision: last.revision + 1, delivery, receipt_id: `${last.receipt_id}-weaker` }
+  receipts.push(r)
+  listeners.get(operationId)?.(r)
+}
+
 /** One operation's receipts, sent to another operation's command: a receipt for other work, which changes nothing. */
 export function misdeliver(from: string, to: string): void {
   const listener = listeners.get(to)

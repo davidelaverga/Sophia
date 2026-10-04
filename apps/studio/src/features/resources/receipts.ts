@@ -168,9 +168,32 @@ function speaksOf(known: Known, r: Receipt): boolean {
   )
 }
 
+/** How far delivery got. Unknown is no step: it says nothing of a delivery already established. */
+const DELIVERY_RANK: Readonly<Record<Receipt['delivery'], number>> = {
+  unknown: -1,
+  not_applicable: 0,
+  not_sent: 0,
+  queued: 1,
+  delivered: 2,
+  native_consumed: 3,
+}
+
 /**
- * What a newer receipt adds to what was observed: Recorded is never taken back. A later receipt that says unknown keeps
- * it; one that says refused contradicts it, so delivery and effect become unknown rather than "nothing was sent".
+ * Delivery as it now stands: what the newer receipt says, except that a delivery once established (delivered, or
+ * consumed by the session) is never taken back by a later one saying less, queued, not sent or unknown, as successive
+ * dimension updates can (Codex F-014). Before it is established, a newer word, uncertainty included, stands. A
+ * contradiction (recorded, then refused) makes it unknown, as before.
+ */
+function deliveryOf(before: Observation | null, r: Receipt, contradicted: boolean): Receipt['delivery'] {
+  if (contradicted) return 'unknown'
+  if (!before || !DELIVERED.has(before.delivery)) return r.delivery
+  return DELIVERY_RANK[r.delivery] >= DELIVERY_RANK[before.delivery] ? r.delivery : before.delivery
+}
+
+/**
+ * What a newer receipt adds to what was observed: Recorded is never taken back, nor a delivery established, nor a
+ * settled effect. A later receipt that says unknown keeps them; one that says refused contradicts Recorded, so delivery
+ * and effect become unknown rather than "nothing was sent".
  */
 function observed(before: Observation | null, r: Receipt): Observation {
   const keep = before?.admission === 'recorded' && r.admission !== 'recorded'
@@ -178,7 +201,7 @@ function observed(before: Observation | null, r: Receipt): Observation {
   return {
     revision: r.revision,
     admission: keep ? 'recorded' : r.admission,
-    delivery: contradicted ? 'unknown' : r.delivery,
+    delivery: deliveryOf(before, r, contradicted),
     effect: before && FINAL.has(before.effect) ? before.effect : contradicted ? 'unknown' : r.effect,
     rejection: keep ? null : r.rejection,
   }

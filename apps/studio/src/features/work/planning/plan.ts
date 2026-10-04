@@ -33,6 +33,13 @@ type Person = Resource['owner']
 export const actionable = (d: BoardDecision, now: Date) =>
   d.state === 'proposed' && Date.parse(d.expires_at) > now.getTime()
 
+/**
+ * Whether a choice was made for this plan, at its revision or an earlier one: history it carries forward. One made for
+ * another plan, a replacement proposed or a later revision of it not in force, isn't this plan's (Codex F-013, F-015).
+ */
+export const decidedFor = (d: BoardDecision, plan: WorkPlan) =>
+  d.plan_id === plan.plan_id && d.plan_revision <= plan.revision
+
 /** The plan in force, when one is accepted. A superseded or withdrawn plan is history, not the plan. */
 export const accepted = (goal: GoalView | null | undefined): WorkPlan | null =>
   goal?.current_plan?.state === 'accepted' ? goal.current_plan : null
