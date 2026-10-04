@@ -1,8 +1,9 @@
 // A plan's progress review, as the goal's quiet line says it (LFE-07.2, SCM-04 G3). It is asked with the goal's own
 // Request review (WorkControls: its receipt, and a retry with the same key), bound later to the contract's
 // requestProgressReview, which coalesces a request into the review already running (PLAN-01). So the line names the
-// one review running: who asked it, or that it was scheduled, and of which revision. A review the allowance can't fund waits, said as such, never dropped.
-// Once it ends, the line says when and how, and nothing more: a routine end makes no card and no announcement (PLAN-04).
+// one review running: who asked it, or that it was scheduled, and of which revision. A review the allowance can't fund
+// waits, said as such, never dropped. Once it ends, the line says when and how, and of which revision when the plan
+// has moved on since; nothing more: a routine end makes no card and no announcement (PLAN-04).
 // A review is a live observation of a goal's plan, read beside the board's view (WBC-01): never a field of the plan
 // definition, whose revision only a planning decision changes. This module reads it with the plan's revision.
 import { observedAgo } from '../../resources/resource.ts'
@@ -18,6 +19,32 @@ export interface LastReview {
   outcome: ReviewOutcome
   /** Not enough to tell: the checkpoint the lead waits for, when it names one. */
   checkpoint: { label: string } | null
+  /** A change proposed (slice 2): what the lead saw, made of it, can't tell yet, and proposes. */
+  observations?: Observation[]
+  interpretation?: string | null
+  uncertainty?: string | null
+  intervention?: Intervention | null
+}
+
+/** What a review rests on: a check run, a change made, a report, a log, or a candidate; and when it was observed. */
+export interface Evidence {
+  kind: 'check' | 'change' | 'report' | 'log' | 'candidate'
+  observed_at: string
+  ref: string
+}
+
+/** One thing the lead saw, tied to its evidence and, when it is about one, to a task. */
+export interface Observation {
+  text: string
+  item_id: string | null
+  evidence: Evidence
+}
+
+/** What the lead proposes: a change it sent within its own authority, or one waiting on a decision. */
+export interface Intervention {
+  text: string
+  decision_id: string | null
+  status: 'proposed' | 'sent_by_lead'
 }
 
 /** Proposed for SCM-04: the review asked and not ended yet, running or waiting for the allowance to fund it. */
@@ -47,13 +74,17 @@ export interface ReviewLine {
   text: string
 }
 
+/** Of which revision, when not the plan's own: what was reviewed may not be what the plan now says. */
+const ofRevision = (revision: number, plan: Pick<Reviewed, 'revision'>) =>
+  revision === plan.revision ? '' : ` · of r${String(revision)}`
+
 /** Who asked the review running, and of which revision when not this one. */
 function runningSaid(active: ActiveReview, plan: Reviewed, viewerId: string | null, name: Name, now: Date) {
   const who = active.asked_by && (active.asked_by === viewerId ? 'you' : name(active.asked_by))
   const said = who
     ? `The lead is reviewing · asked by ${who} ${observedAgo(active.asked_at, now)}`
     : 'The lead is reviewing · scheduled'
-  return active.plan_revision === plan.revision ? said : `${said} · of r${String(active.plan_revision)}`
+  return `${said}${ofRevision(active.plan_revision, plan)}`
 }
 
 const ENDED: Record<Exclude<ReviewOutcome, 'failed'>, (checkpoint: string | null) => string> = {
@@ -79,6 +110,24 @@ export function reviewLine(plan: Reviewed, viewerId: string | null, name: Name, 
     const text = `Awaiting review: the project’s allowance is spent.${who ? ` ${who} can extend it.` : ''}`
     return { kind: 'awaiting', text }
   }
-  const ended = lastSaid(plan.last_review, now)
-  return ended ? { kind: 'ended', text: ended } : null
+  const last = plan.last_review
+  const ended = lastSaid(last, now)
+  return last && ended ? { kind: 'ended', text: `${ended}${ofRevision(last.plan_revision, plan)}` } : null
+}
+
+/** A review worth its card: one that proposes a change. Any other end is said on the goal's line only (PLAN-04). */
+export const material = (last: LastReview | null | undefined): last is LastReview => last?.outcome === 'recommendation'
+
+/** A review of an earlier revision than the plan's, said so: what it proposes may already be out of date. */
+export const staleSaid = (last: LastReview, plan: Pick<Reviewed, 'revision'>) =>
+  last.plan_revision === plan.revision
+    ? null
+    : `Reviewed r${String(last.plan_revision)} · the plan is now r${String(plan.revision)}`
+
+export const EVIDENCE: Record<Evidence['kind'], string> = {
+  check: 'Check',
+  change: 'Change',
+  report: 'Report',
+  log: 'Log',
+  candidate: 'Candidate',
 }

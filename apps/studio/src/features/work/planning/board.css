@@ -1096,6 +1096,111 @@
   }
 }
 
+/* ---- The lead's review that proposes a change: its pill (the decisions', in lavender) and its card, in the
+   decisions' slot. Four labelled parts down one column; Observed lines lead with their evidence, in mono. ---- */
+.review-pill {
+  border-color: rgba(185, 168, 255, 0.32);
+  background: rgba(185, 168, 255, 0.08);
+  color: var(--halo-text);
+}
+.review-pill:hover {
+  background: rgba(185, 168, 255, 0.14);
+}
+.review-result {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(185, 168, 255, 0.2);
+  border-radius: var(--r-3);
+  background: linear-gradient(90deg, rgba(185, 168, 255, 0.07), rgba(185, 168, 255, 0.02));
+  animation: arrive 0.4s var(--ease) both;
+}
+.review-result:focus-visible {
+  outline: none;
+  border-color: rgba(185, 168, 255, 0.5);
+}
+.review-result-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.review-result-head > .field-label {
+  color: var(--halo-text);
+}
+.review-result-when,
+.review-result-stale {
+  font-size: var(--type-small);
+  color: var(--text-3);
+}
+.review-result-stale {
+  color: var(--amber);
+}
+.review-result-close {
+  margin-left: auto;
+}
+.review-part {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  font-size: var(--type-body);
+}
+.review-part-body {
+  display: grid;
+  gap: 6px;
+  color: var(--text-2);
+}
+.review-part-body p {
+  max-width: 72ch;
+}
+/* Its links sit where its words start, not stretched across the part (a grid item would be). */
+.review-part-body > button {
+  justify-self: start;
+}
+.review-seen-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.review-seen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+.review-evidence {
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.review-seen-text {
+  color: var(--text);
+}
+/* What the evidence is, quietly after the line: the check run, the log read. */
+.review-evidence-ref {
+  font-family: var(--mono);
+  font-size: var(--type-label);
+  color: var(--text-4);
+}
+.review-task,
+.review-part-body .text-button {
+  font-size: var(--type-small);
+}
+.review-proposal-state {
+  font-size: var(--type-small);
+  color: var(--text-3);
+}
+@media (max-width: 760px) {
+  .review-part {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+
 /* An account running short, said where its work shows (a task's tile and sheet): amber words after a small gauge, a
    ring two-thirds full. */
 .task-tile-short,

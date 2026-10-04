@@ -139,7 +139,12 @@ export function Decision(props: Props) {
   const { decision, now, about } = props
   const { answer, pressable, choose, decider, name, mine, decided, said, saidState } = useDecisionView(props)
   return (
-    <section className="plan-ask" aria-label={`${name} decides`} data-mine={mine || undefined}>
+    <section
+      className="plan-ask"
+      aria-label={`${name} decides`}
+      data-decision={decision.decision_id}
+      data-mine={mine || undefined}
+    >
       {decider && <Avatar identity={face(decider)} />}
       <div className="plan-ask-body">
         <p className="plan-ask-head">

@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { lastSaid, reviewLine, type ActiveReview, type LastReview, type Reviewed } from './review.ts'
+import {
+  lastSaid,
+  material,
+  reviewLine,
+  staleSaid,
+  type ActiveReview,
+  type LastReview,
+  type Reviewed,
+} from './review.ts'
 
 const NOW = new Date('2026-10-03T12:00:00Z')
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
@@ -68,6 +76,13 @@ describe('reviewLine', () => {
     )
   })
 
+  it('a finished review of an older revision says which, so the plan now isn’t taken as reviewed', () => {
+    assert.equal(
+      line(plan({ last_review: { ...last('no_change'), plan_revision: 2 } }))?.text,
+      'Reviewed 12 min ago · no change · of r2',
+    )
+  })
+
   it('unfunded, it waits and names who can extend the allowance', () => {
     const waiting = active({ state: 'awaiting_allowance', allowance_owner: 'davide' })
     assert.deepEqual(line(plan({ active_review: waiting })), {
@@ -95,5 +110,20 @@ describe('lastSaid', () => {
     assert.equal(lastSaid(last('insufficient_evidence'), NOW), 'Reviewed 12 min ago · not enough to tell yet')
     assert.equal(lastSaid(last('recommendation'), NOW), 'Reviewed 12 min ago · a change proposed')
     assert.equal(lastSaid(last('failed'), NOW), 'The last review didn’t finish')
+  })
+})
+
+describe('the card of a review that proposes a change', () => {
+  it('only a review that proposes a change has a card; any other end stays on the line (PLAN-04)', () => {
+    assert.equal(material(last('recommendation')), true)
+    for (const outcome of ['no_change', 'insufficient_evidence', 'failed'] as const) {
+      assert.equal(material(last(outcome)), false)
+    }
+    assert.equal(material(null), false)
+  })
+
+  it('a review of an earlier revision says so; one of this revision says nothing', () => {
+    assert.equal(staleSaid(last('recommendation'), plan()), null)
+    assert.equal(staleSaid({ ...last('recommendation'), plan_revision: 2 }, plan()), 'Reviewed r2 · the plan is now r3')
   })
 })

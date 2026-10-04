@@ -11,7 +11,9 @@
 // - hovering a tile draws the threads to the tasks it waits on (Threads.tsx); pressing it opens the task's sheet, to
 //   act on it or ask Sophia (TaskSheet.tsx), and puts it in the address (`#task-<id>`, link.ts), which opens it
 //   again; the arrows move across the board (board-keys.ts);
-// - what it assumes and what was decided, one quiet line (PlanNotes.tsx).
+// - what it assumes and what was decided, one quiet line (PlanNotes.tsx);
+// - a review of the lead's that proposes a change: a pill in the bar, its card in the decisions' slot, one or the
+//   other (ReviewResult.tsx). The review is the goal's own read, beside the view (review.ts), never part of the plan.
 // Everything the viewer did here (commands, drafts, questions, the lens) is theirs: another viewer starts afresh.
 import { useContext, useEffect, useRef, useState } from 'react'
 import { Icon } from '@sophia/ui'
@@ -47,6 +49,8 @@ import {
 import { Folded } from './PlanNotes.tsx'
 import { ProposalBand } from './Proposal.tsx'
 import type { ReadResult } from './results.ts'
+import { material, type Reviewed } from './review.ts'
+import { ReviewResult } from './ReviewResult.tsx'
 import { glance, readSeen, whileAway, writeSeen, changedSince, type Seen, type SeenAt } from './seen.ts'
 import { TaskSheet } from './TaskSheet.tsx'
 import { TaskTile, type TileFlags, type TileProps } from './TaskTile.tsx'
@@ -84,6 +88,8 @@ interface Props {
    * names where there is room. Absent, nothing is said.
    */
   observations?: readonly QuotaObservation[]
+  /** The goal's progress review (LFE-07.2), read beside the view: one that proposes a change has its card. */
+  review?: Reviewed | undefined
 }
 
 type LaneView = { key: Exclude<Lane, 'closed'>; label: string; mark: Mark; empty: string }
@@ -236,16 +242,97 @@ interface DecisionsProps {
   viewerId: string | null
   onDecide?: Decide | undefined
   className?: string
+  /** Opened on one (from a review that waits on it): the focus goes to its first choice. */
+  focus?: string | null
 }
 
-function Decisions({ decisions, plan, className = 'board-decisions', ...rest }: DecisionsProps) {
+function Decisions({ decisions, plan, className = 'board-decisions', focus = null, ...rest }: DecisionsProps) {
+  const list = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (focus) list.current?.querySelector<HTMLElement>(`[data-decision="${focus}"] button:not(:disabled)`)?.focus()
+  }, [focus])
   if (decisions.length === 0) return null
   return (
-    <div className={className}>
+    <div ref={list} className={className}>
       {decisions.map((d) => (
         <Decision key={`${d.decision_id}:${String(d.revision)}`} decision={d} about={aboutOf(d, plan)} {...rest} />
       ))}
     </div>
+  )
+}
+
+interface SlotOf {
+  decisions: readonly BoardDecision[]
+  /** The goal's review, read beside the view; only one that proposes a change has a card. */
+  reviewed: Reviewed | undefined
+  viewerId: string | null
+  now: Date
+  /** Whether a decision can be answered on this board now (its plan is in force). */
+  answerable: boolean
+  decider: (id: string) => string
+}
+
+/** The slot under the bar: the decisions, or the lead's review that proposes a change; one at a time. */
+function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: SlotOf) {
+  const asks = useDecisions(decisions, viewerId, now)
+  // The review opened, by its id: another review, a later one, comes closed.
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [focus, setFocus] = useState<string | null>(null)
+  const pill = useRef<HTMLButtonElement>(null)
+  const review = material(reviewed?.last_review) ? reviewed.last_review : null
+  const reviewShown = review !== null && openId === review.review_id
+  return {
+    asks,
+    review,
+    pill,
+    reviewShown,
+    focus,
+    // Opening one closes the other, so the slot holds one at a time.
+    decisionsShown: asks.shown && asks.open.length > 0,
+    toggleDecisions: () => {
+      setOpenId(null)
+      setFocus(null)
+      asks.toggle()
+    },
+    toggleReview: () => {
+      if (!reviewShown && asks.shown) asks.toggle()
+      setOpenId(reviewShown ? null : (review?.review_id ?? null))
+    },
+    openDecisions: (decisionId: string) => {
+      setOpenId(null)
+      setFocus(decisionId)
+      if (!asks.shown) asks.toggle()
+    },
+    closeReview: () => {
+      setOpenId(null)
+      pill.current?.focus()
+    },
+    /** Who a proposal's decision waits on, while open: the viewer, when theirs to answer now, or its decider. */
+    waitsOn: (decisionId: string) => {
+      const d = asks.open.find((o) => o.decision_id === decisionId)
+      if (!d) return null
+      return answerable && asks.mine.includes(d)
+        ? { yours: true as const }
+        : { yours: false as const, name: decider(d.decider_id) }
+    },
+  }
+}
+
+/** A review that proposes a change, waiting in the bar: its pill opens its card. */
+function ReviewPill({ slot }: { slot: ReturnType<typeof useSlot> }) {
+  if (!slot.review) return null
+  return (
+    <button
+      ref={slot.pill}
+      type="button"
+      className="decision-pill review-pill"
+      aria-expanded={slot.reviewShown}
+      onClick={slot.toggleReview}
+    >
+      <span className="decision-pill-dot" aria-hidden />
+      Review · a change proposed
+      <Icon name="chevron" size={12} />
+    </button>
   )
 }
 
@@ -338,6 +425,31 @@ function Notices({ board, coverage, operable }: { board: Board; coverage: Props[
   ))
 }
 
+interface SlotProps {
+  slot: ReturnType<typeof useSlot>
+  rows: readonly PlanRow[]
+  onOpenTask: (id: string) => void
+  decisions: Omit<DecisionsProps, 'decisions'>
+}
+
+/** Under the bar, one at a time: the decisions, or the lead's review that proposes a change. */
+function Slot({ slot, rows, onOpenTask, decisions }: SlotProps) {
+  if (slot.decisionsShown) return <Decisions decisions={slot.asks.open} focus={slot.focus} {...decisions} />
+  if (!slot.reviewShown || !slot.review) return null
+  return (
+    <ReviewResult
+      review={slot.review}
+      plan={decisions.plan}
+      rows={rows}
+      now={decisions.now}
+      onOpenTask={onOpenTask}
+      waitsOn={slot.waitsOn}
+      onOpenDecisions={slot.openDecisions}
+      onClose={slot.closeReview}
+    />
+  )
+}
+
 /** What an observed item is doing, in a few words: "running", "ready for review". */
 const lifeSaid = (v: ItemView) => v.lifecycle.replaceAll('_', ' ')
 
@@ -394,14 +506,18 @@ interface BarProps {
   view: ReturnType<typeof useBoard>
   rows: readonly PlanRow[]
   viewerId: string | null
-  asks: ReturnType<typeof useDecisions>
+  slot: ReturnType<typeof useSlot>
   people: Record<string, Person>
   away: ReturnType<typeof whileAway>
   onSeen: () => void
 }
 
-/** The board's bar: the lenses, what waits on a decision, and what changed while the viewer was away. */
-function Bar({ view, rows, viewerId, asks, people, away, onSeen }: BarProps) {
+/**
+ * The board's bar: the lenses, what waits on a decision, a review that proposes a change, and what changed while the
+ * viewer was away.
+ */
+function Bar({ view, rows, viewerId, slot, people, away, onSeen }: BarProps) {
+  const { asks } = slot
   return (
     <div className="board-bar">
       <Lens lens={view.lens} rows={rows} viewerId={viewerId} onChange={view.setLens} />
@@ -409,11 +525,12 @@ function Bar({ view, rows, viewerId, asks, people, away, onSeen }: BarProps) {
         viewerId={viewerId}
         count={asks.open.length}
         mine={asks.mine.length}
-        shown={asks.shown}
-        onToggle={asks.toggle}
+        shown={slot.decisionsShown}
+        onToggle={slot.toggleDecisions}
         people={people}
         deciders={asks.open.map((d) => d.decider_id)}
       />
+      <ReviewPill slot={slot} />
       <AwayLine away={away} onSeen={onSeen} className="board-return" />
     </div>
   )
@@ -431,7 +548,14 @@ function BoardBody(props: BodyProps) {
   const space = `${props.projectId}|${viewerId ?? ''}`
   const { seen, markSeen } = useSeen(at, rows, goal.decisions)
   const view = useBoard(rows, viewerId, changedSince(rows, seen))
-  const asks = useDecisions(goal.decisions, viewerId, now)
+  const slot = useSlot({
+    decisions: goal.decisions,
+    reviewed: props.review,
+    viewerId,
+    now,
+    answerable: operable && !!onDecide,
+    decider: (id) => people[id]?.name ?? 'someone',
+  })
   const acts = useActs(operable ? props.onCommand : undefined, props.projectId, space)
   const questions = useAsks(props.onAsk, space)
   const opened = rows.find((r) => r.item.id === view.open)
@@ -441,11 +565,11 @@ function BoardBody(props: BodyProps) {
   const away = whileAway(rows, goal.decisions, seen, viewerId, people)
   return (
     <section className="board" aria-label={`Plan r${String(plan.revision)}`} data-lens={view.lens}>
-      <Bar view={view} rows={rows} viewerId={viewerId} asks={asks} people={people} away={away} onSeen={markSeen} />
+      <Bar view={view} rows={rows} viewerId={viewerId} slot={slot} people={people} away={away} onSeen={markSeen} />
       <Notices board={board} coverage={props.coverage} operable={operable} />
       <ProposalBand current={plan} proposals={proposed(goal).filter((p) => p !== plan)} operable={operable} />
       <Decisions decisions={decidedOf(goal.decisions)} className="board-decisions board-decided" {...decisionProps} />
-      {asks.shown && <Decisions decisions={asks.open} {...decisionProps} />}
+      <Slot slot={slot} rows={rows} onOpenTask={view.setOpen} decisions={decisionProps} />
       <Lanes rows={rows} board={view} tile={tile} />
       <ClosedWork rows={inLane(rows, 'closed')} onOpen={view.setOpen} />
       <OutsideWork outside={board.outside} />

@@ -11,7 +11,7 @@
 // into the plan's next revision; `begin(workId)`, `reassign(workId)`, `replan()`, `arrive()`, `viewAs(viewer)`,
 // `reconnect()`, `replay(operationId)` and `misdeliver(from, to)`. Whoever does a task opens on the resources' fixture.
 // `review=…` (LFE-07.2): how the lead answers the goal's Request review (work-review.ts), read beside the board's view;
-// `workFixture.goalCommands` lists each goal command sent, with its key.
+// `workFixture.goalCommands` lists each goal command sent, with its key; `reviewAgain()` brings in a later review.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -64,7 +64,7 @@ import {
   serve,
   withActivity,
 } from './work-live.ts'
-import { openedWith, reviewer, reviewMode } from './work-review.ts'
+import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.ts'
 import type { Reviewed } from '../src/features/work/planning/review.ts'
 
 declare global {
@@ -94,6 +94,8 @@ declare global {
       /** The same assignment and generation, its next attempt in another native session. */
       nextAttempt?: (workId: string) => void
       setAvailability?: (workId: string, kind: string, availability: 'allowed' | 'denied' | 'unavailable') => void
+      /** A later review in the last one's place (LFE-07.2): it arrives with its card closed. */
+      reviewAgain?: () => void
     }
   }
 }
@@ -257,11 +259,12 @@ function controls(
   setViewer: (v: Viewer) => void,
   setArrived: (a: boolean) => void,
   viewer: Viewer,
-  goalCommands: readonly { kind: string; key: string }[],
+  lead: { commands: readonly { kind: string; key: string }[]; again: () => void },
 ) {
   return {
     unexpected,
-    goalCommands,
+    goalCommands: lead.commands,
+    reviewAgain: lead.again,
     answered: answers,
     commands,
     receipts,
@@ -354,6 +357,7 @@ function slot(g: GoalView, { resources, viewerId, now, board, review }: Shared, 
           window.location.assign(`resources.html${carried(window.location.search)}${linkHash(id)}`)
         }
         observations={readings}
+        review={g.goal_id === goal.id ? review : undefined}
       />
     ),
     next: (
@@ -403,7 +407,10 @@ function useLead(first: GoalView, viewer: Viewer) {
   useEffect(() => {
     onGoalCommand = lead.command
   }, [lead])
-  return { review, lead }
+  const [again] = useState(() => () => setReview(reviewedAgain))
+  // Read with the plan in force now, as the service would read the two together: a plan taken further leaves the
+  // review on its own revision, said so.
+  return { review: { ...review, revision: revision.current }, lead, again }
 }
 
 function Tasks() {
@@ -416,7 +423,7 @@ function Tasks() {
   const looking = useRef(viewer)
   looking.current = viewer
   const [onCommand] = useState(() => serve((command, effect) => update(settled(command, effect, looking.current))))
-  const { review, lead } = useLead(first, viewer)
+  const { review, lead, again } = useLead(first, viewer)
   useEffect(() => {
     window.workFixture = controls(
       update,
@@ -426,9 +433,9 @@ function Tasks() {
       },
       setArrived,
       viewer,
-      lead.commands,
+      { commands: lead.commands, again },
     )
-  }, [update, viewer, lead])
+  }, [update, viewer, lead, again])
   const board = viewOf(first, arrived, now)
   const read = readBoardView(board)
   if (!read.ok) {
