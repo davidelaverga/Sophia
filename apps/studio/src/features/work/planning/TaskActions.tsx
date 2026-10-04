@@ -6,7 +6,7 @@
 // Hold is offered while a task isn't held; Resume only while it genuinely is, and never on its own. Commands go to the
 // exact assignment and generation shown: with no assignment known, nothing is sent.
 import { SessionActs, type Acts } from '../../resources/SessionActs.tsx'
-import { executionOf, scopeOf } from '../../resources/receipts.ts'
+import { scopeOf } from '../../resources/receipts.ts'
 import { boundaries, COMMANDS, notOffered, offered, targetOf, writable } from './actions.ts'
 import { actionOf, type PlanRow } from './plan.ts'
 
@@ -45,9 +45,9 @@ export function TaskActions({ row, acts }: Props) {
   return (
     <section className="sheet-section task-actions">
       <h3>Act on it</h3>
-      {/* Keyed by its exact execution: a Stop asked on one task, generation, attempt or session is never answered on
-          another (Codex F-007). */}
-      {commands && <SessionActs key={executionOf(commands)} target={commands} offer={offer} acts={acts} />}
+      {/* Its Stop question is keyed by its exact execution inside SessionActs: one asked on one task, generation,
+          attempt or session is never answered on another (Codex F-007, F-008). */}
+      {commands && <SessionActs target={commands} offer={offer} acts={acts} />}
       <Notes notes={boundaries(row)} className="act-boundary" />
       {unaddressed && <p className="act-note muted">Its assignment isn’t known now, so nothing can be sent to it.</p>}
       <Notes notes={reasons} className="act-note" />
