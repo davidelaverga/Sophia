@@ -302,7 +302,7 @@ const wordsOf = (page: Page) =>
       const range = document.createRange()
       range.selectNodeContents(s)
       const r = range.getBoundingClientRect()
-      return { x: r.x, y: r.y, width: r.width, height: r.height }
+      return { text: s.textContent, x: r.x, y: r.y, width: r.width, height: r.height }
     }),
   )
 
@@ -315,12 +315,25 @@ test('@phone · home · her mark sits clear of the date and the greeting, the lo
     const spans = page.locator('.hw-hello span')
     await spans.nth(0).evaluate((s) => void (s.textContent = 'Good afternoon,'))
     await spans.nth(1).evaluate((s) => void (s.textContent = 'Jean-Christophe.'))
+    await page.evaluate(() => document.fonts.ready) // measured in the Studio's face, not a fallback's
+    // The longest greeting keeps to one line, smaller on a narrow phone rather than broken.
+    const lines = await spans.nth(0).evaluate((s) => {
+      const range = document.createRange()
+      range.selectNodeContents(s)
+      return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size
+    })
+    expect(lines, `${String(width)} px: "Good afternoon," on one line`).toBe(1)
     const mark = await page.locator('.hw-light svg[data-mark="umbral"]').boundingBox()
     if (!mark) throw new Error('no mark on Home')
     for (const w of await wordsOf(page)) {
+      // Apart by a gap of 8 px at least, so a renderer's sub-pixel difference can't decide it.
+      const gap = 8
       const apart =
-        mark.x >= w.x + w.width || mark.x + mark.width <= w.x || mark.y >= w.y + w.height || mark.y + mark.height <= w.y
-      expect(apart, `${String(width)} px`).toBe(true)
+        mark.x >= w.x + w.width + gap ||
+        mark.x + mark.width + gap <= w.x ||
+        mark.y >= w.y + w.height + gap ||
+        mark.y + mark.height + gap <= w.y
+      expect(apart, `${String(width)} px: ${w.text} reaches her mark`).toBe(true)
     }
     expect(await page.locator('.c-home').evaluate((c) => c.scrollWidth <= c.clientWidth)).toBe(true)
     // Her half's right edge on the gutter, where the line's right edge is, once the mark has formed.

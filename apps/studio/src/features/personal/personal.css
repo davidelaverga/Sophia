@@ -1463,8 +1463,10 @@
     /* Her light's box reaches past the edge; it never makes Home scroll sideways. */
     overflow-x: clip;
   }
-  /* The greeting keeps clear of her mark on narrow phones too, its longest words breaking rather than reaching it. */
+  /* The greeting keeps clear of her mark (44 px drawn, and a gap) on narrow phones too: smaller, and a long name breaks
+     before it reaches her. */
   .places .hw-hello {
+    padding-right: 56px;
     font-size: clamp(30px, 10.5vw, 38px);
     overflow-wrap: break-word;
   }
