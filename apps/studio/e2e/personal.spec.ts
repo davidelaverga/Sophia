@@ -888,6 +888,7 @@ test('ease · offline, the field says so before you send: your words wait, and g
   await page.goto(PAGE)
   await context.setOffline(true)
   await expect(page.locator('.ps-composer .chat-line')).toHaveText('You’re offline. Your words wait here.')
+  expect(await lowContrast(page, '.ps-composer')).toEqual([])
   await expect(field(page)).toHaveAttribute('placeholder', 'You’re offline. Your words wait here.')
   await field(page).fill('Still here.')
   await expect(page.locator('.ps-composer .send')).toBeDisabled()
@@ -979,4 +980,84 @@ test('ease · behind the padlock, Ctrl F is the browser’s, and find comes back
   await page.getByRole('button', { name: 'Find', exact: true }).click()
   await expect(finder(page)).toHaveValue('')
   await expect(page.locator('.msgs mark')).toHaveCount(0)
+})
+
+// Codex's P2s on #89 and #90 (docs/plans/personal-codex-p2.md).
+
+test('codex · while another tab sends, “Talk about it” waits: the week stays until her prompt can go', async ({
+  page,
+  context,
+}) => {
+  await page.goto(`${PAGE}?week=1`)
+  const other = await context.newPage()
+  await other.goto(PAGE)
+  // The device's send, held by the other tab until it goes (its name is draft.ts's sendLock for the fixture's account).
+  await other.evaluate(
+    () =>
+      new Promise<void>((held) => {
+        void navigator.locks.request('sophia.personal.send.fixture', () => {
+          held()
+          return new Promise(() => undefined)
+        })
+      }),
+  )
+  const week = page.getByRole('region', { name: 'Your week with Sophia' })
+  await page.getByRole('button', { name: 'Talk about it' }).click()
+  await expect(page.locator('.ps-composer .chat-line')).toBeVisible() // the wait is said
+  await expect(week).toBeVisible()
+  expect(await sent(page)).toEqual([])
+  await other.close() // the other tab's send lets go
+  await expect.poll(() => page.evaluate(async () => ((await navigator.locks.query()).held ?? []).length)).toBe(0)
+  await page.getByRole('button', { name: 'Talk about it' }).click()
+  await expect(week).toHaveCount(0)
+  await expect.poll(() => sent(page)).toHaveLength(1)
+})
+
+test('codex · starting a talk stops the field’s dictation first: one microphone at a time', async ({ page }) => {
+  await page.goto(`${PAGE}?voice=1`)
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await expect(page.locator('.ps-composer .c3-wave')).toBeVisible()
+  await page.getByRole('button', { name: 'Talk with her' }).click()
+  await expect(page.getByRole('dialog', { name: 'Talking with Sophia' })).toBeVisible()
+  await expect(page.locator('.ps-composer .c3-wave')).toHaveCount(0)
+})
+
+test('codex · every Personal state reads at 4.5:1: no notes yet, and a talk', async ({ page }) => {
+  await page.goto(`${PAGE}?notes=none`)
+  await page.getByRole('button', { name: 'No notes' }).click()
+  await expect(page.locator('.ps-empty')).toBeVisible()
+  expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
+  // The days' menu, with what each day was about.
+  await page.locator('.msgs > .c3-day').first().click()
+  await expect(page.getByRole('menu')).toBeVisible()
+  expect(await lowContrast(page, '[role="menu"]')).toEqual([])
+  await page.goto(`${PAGE}?voice=1&step=600`)
+  await page.getByRole('button', { name: 'Talk with her' }).click()
+  const talk = page.getByRole('dialog', { name: 'Talking with Sophia' })
+  await expect(talk).toBeVisible()
+  await talk.evaluate((t) =>
+    Promise.all(
+      t
+        .getAnimations({ subtree: true })
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
+  // The status line says who speaks only while someone does: it is measured the moment it has words. Then, once
+  // there are earlier lines, they step back and still read.
+  const status = await talk.locator('.c3-talk-who').evaluate(async (who) => {
+    for (let i = 0; i < 200 && !who.textContent; i++) await new Promise((r) => setTimeout(r, 15))
+    const grounds: string[] = []
+    let opacity = 1
+    for (let up: Element | null = who; up; up = up.parentElement) {
+      grounds.push(getComputedStyle(up).backgroundColor)
+      opacity *= parseFloat(getComputedStyle(up).opacity)
+    }
+    return { words: who.textContent, ink: getComputedStyle(who).color, opacity, grounds, size: 10.5 }
+  })
+  expect(status.words).not.toBe('')
+  expect(contrastOf(status)).toBeGreaterThanOrEqual(4.5)
+  // Your words among the earlier lines too (the third line on).
+  await expect.poll(() => talk.locator('.c3-talk-lines li').count()).toBeGreaterThan(2)
+  expect(await lowContrast(page, '.c3-talk')).toEqual([])
 })

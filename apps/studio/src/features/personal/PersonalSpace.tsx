@@ -124,10 +124,10 @@ function useActions(
 ): ConversationActions & {
   carry: (note: PersonalNote, project: ProjectSummary) => void
   /** Where the composer puts its send for a way to start. */
-  starter: RefObject<((words: string) => boolean) | null>
+  starter: RefObject<((words: string) => Promise<boolean>) | null>
 } {
   const { writes, toast, onCarried } = props
-  const starter = useRef<((words: string) => boolean) | null>(null)
+  const starter = useRef<((words: string) => Promise<boolean>) | null>(null)
   const presses = usePresses()
   const attempt = useCallback(
     (work: () => Promise<unknown>) => {
@@ -139,7 +139,7 @@ function useActions(
     starter,
     waits: presses.waits,
     // A way to start goes as the field's words do, through the composer (one at a time, its own key, kept on its way).
-    start: (text) => starter.current?.(text) ?? false,
+    start: (text) => starter.current?.(text) ?? Promise.resolve(false),
     decide: (suggestion: PersonalSuggestion, decision) =>
       presses.press(suggestion.id, () => writes.decide(suggestion.id, decision).catch(onFailed)),
     openNotes: () => props.notes.set(true),
@@ -454,11 +454,14 @@ const sender =
 /** The field: an erasure forgets the draft too, so the composer starts afresh. */
 function Composer(p: {
   props: Props
-  starter: RefObject<((words: string) => boolean) | null>
+  starter: RefObject<((words: string) => Promise<boolean>) | null>
   onFailed: (err: unknown) => void
   onListening: (listening: boolean) => void
+  /** A talk runs over the field: like a space out of sight, its dictation stops first (one microphone at a time). */
+  talking: boolean
 }) {
-  const { account, epoch, hidden, space, writes } = p.props
+  const { account, epoch, space, writes } = p.props
+  const hidden = p.props.hidden || p.talking
   return (
     <PersonalComposer
       key={writes.erasures}
@@ -534,7 +537,13 @@ export function PersonalSpace(props: Props) {
   const latest = useLatestInSight(list, grows(turns, writes.sending, waiting, props.hidden))
   const find = useFind(rows, !props.hidden && !talk.talking && !covered, props.readBack.more, actions.readEarlier)
   const composer = props.locked ? null : (
-    <Composer props={props} starter={actions.starter} onFailed={onFailed} onListening={setListening} />
+    <Composer
+      props={props}
+      starter={actions.starter}
+      onFailed={onFailed}
+      onListening={setListening}
+      talking={talk.talking}
+    />
   )
   return (
     <section
