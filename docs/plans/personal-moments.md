@@ -41,12 +41,13 @@ Everything here is the Studio's own: the API's data as it is today, no new endpo
 ## 3. Ease (`personal/ease`)
 
 - **Find in your conversation.**
-  - **Opening it:** the head carries a find button (tip "Find · Ctrl F"). Ctrl or Cmd F opens it while you are in Personal; anywhere else, the browser keeps it.
-  - **Results:** matches are marked in the turns with "2 of 5". Enter goes to the next, Shift Enter to the one before. Esc closes it and gives the focus back.
-  - **Earlier days:** it searches what is loaded. When earlier days exist, "Look further back" loads them.
+  - **Opening it:** "Find" in the head, beside the notes (tip "Find in your conversation · Ctrl+F", ⌘F on a Mac). Ctrl or ⌘ F opens it while Personal is in sight, through the Studio's shortcuts; anywhere else the browser keeps it. The line is drawn and focused within the key's own event, so the letters typed next are the finder's.
+  - **Results:** a line under the head. The matches are marked in the turns (whatever their case), the current one in her light and in sight, with "2 of 5" or "No match". Enter goes to the next, Shift Enter to the one before, round at either end. Esc closes it, clears the marks and gives the focus back to where it was.
+  - **Earlier days:** it searches what is loaded. When earlier days exist, "Look further back" reads them.
+  - **Out of sight** (another place, the padlock, a talk), it closes.
 - **Offline, said before you send.**
-  - **The field:** while the browser is offline it says "You're offline. Your words wait here", and send waits. The draft is already kept.
-  - **Back online:** it says nothing; the field is ready again.
+  - **The field:** while the browser is offline, the line over the field and the empty field say "You're offline. Your words wait here." Send and the ways in wait; you can still write, and the draft is kept.
+  - **Back online:** the line goes and the words can go.
 
 ## Not in this pass
 

@@ -23,6 +23,7 @@ import { Icon, Tip } from '@sophia/ui'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { Conversation, Who, type ConversationActions } from './Conversation.tsx'
 import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack } from './conversation-view.ts'
+import { FIND_KEYS, useFind } from './Find.tsx'
 import { focusConversation, focusNotesToggle, focusSoon } from './focus.ts'
 import type { PersonalExtras } from './extras.ts'
 import { NotesPanel } from './NotesPanel.tsx'
@@ -272,16 +273,35 @@ function useTicked(count: number | undefined): boolean {
   return ticked
 }
 
+/** Find in the head: it opens the find line (useFind), which it controls while open. */
+function FindToggle({ find }: { find: ReturnType<typeof useFind> }) {
+  return (
+    <button
+      className="c3-find-toggle has-tip"
+      type="button"
+      aria-expanded={find.open}
+      aria-controls={find.open ? 'c-find' : undefined}
+      onClick={find.openFind}
+    >
+      Find
+      <Tip label="Find in your conversation" keys={FIND_KEYS} side="bottom" align="end" />
+    </button>
+  )
+}
+
 /** `count` is undefined until the space has loaded: the toggle shows no number before. */
 function Head({
   count,
   notes,
   onTalk,
+  find,
   under,
 }: {
   count: number | undefined
   notes: Props['notes']
   onTalk: (() => void) | null
+  /** Find (useFind): its toggle opens it, and its line sits under the head while open. */
+  find: ReturnType<typeof useFind>
   /** A talk runs over everything: the head is out of reach until it ends. */
   under: boolean
 }) {
@@ -292,6 +312,7 @@ function Head({
         You and Sophia
       </h2>
       <div className="c3-head-acts">
+        <FindToggle find={find} />
         {onTalk && (
           <button className="c3-talk-toggle" type="button" onClick={onTalk}>
             <Who who="sophia" />
@@ -319,6 +340,7 @@ function Head({
           </button>
         )}
       </div>
+      {find.bar}
     </header>
   )
 }
@@ -396,6 +418,15 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
   }, [list])
   return { behind: behind && !hidden, toEnd }
 }
+
+/** What makes the conversation grow, from what it holds. */
+const grows = (turns: readonly PersonalTurn[], sending: unknown, writing: boolean, hidden: boolean): Grows => ({
+  newest: turns.at(-1)?.seq ?? 0,
+  hers: turns.at(-1)?.author === 'sophia',
+  sending,
+  writing,
+  hidden,
+})
 
 /** What makes the conversation grow, and whether it is out of sight (another place, the padlock). */
 interface Grows {
@@ -500,13 +531,8 @@ export function PersonalSpace(props: Props) {
   useWelcomeBack(props, turns)
   const waiting = rows.some((r) => r.kind === 'typing')
   const said = useHeard(space, turns, waiting)
-  const latest = useLatestInSight(list, {
-    newest: turns.at(-1)?.seq ?? 0,
-    hers: turns.at(-1)?.author === 'sophia',
-    sending: writes.sending,
-    writing: waiting,
-    hidden: props.hidden,
-  })
+  const latest = useLatestInSight(list, grows(turns, writes.sending, waiting, props.hidden))
+  const find = useFind(rows, !props.hidden && !talk.talking && !covered, props.readBack.more, actions.readEarlier)
   const composer = props.locked ? null : (
     <Composer props={props} starter={actions.starter} onFailed={onFailed} onListening={setListening} />
   )
@@ -523,7 +549,7 @@ export function PersonalSpace(props: Props) {
       <p className="sr-only" role="status">
         {said}
       </p>
-      <Head count={space?.notes.length} notes={notes} onTalk={talk.start} under={talk.talking} />
+      <Head count={space?.notes.length} {...{ notes, find }} onTalk={talk.start} under={talk.talking} />
       <div className="c3-body" ref={body} data-beside={beside || undefined}>
         <Conversation
           {...{ rows, turns, list, actions, composer, more: props.readBack.more }}
@@ -533,6 +559,7 @@ export function PersonalSpace(props: Props) {
           setEarlier={earlier.set}
           week={props.extras?.week}
           answered={latest.behind ? <Answered onPress={latest.toEnd} /> : null}
+          lens={find.lens}
         />
         {talk.view}
         <Notes props={props} actions={actions} under={talk.talking} />
