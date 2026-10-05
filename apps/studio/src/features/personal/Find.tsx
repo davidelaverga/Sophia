@@ -44,11 +44,19 @@ interface BarProps {
   more: boolean
   onQuery: (query: string) => void
   onStep: (by: 1 | -1) => void
-  onMore: () => void
+  /** Reads the earlier days; resolves once they are in (or the read failed). */
+  onMore: () => Promise<void>
   onClose: () => void
 }
 
 function FindBar({ query, count, at, more, onQuery, onStep, onMore, onClose }: BarProps) {
+  // While the earlier days are read, it says so and waits: a second press reads nothing more.
+  const [reading, setReading] = useState(false)
+  const readMore = () => {
+    if (reading) return
+    setReading(true)
+    void onMore().finally(() => setReading(false))
+  }
   const said = !query.trim() ? '' : count ? `${String(at + 1)} of ${String(count)}` : 'No match'
   return (
     <div className="c3-find" role="search" aria-label="Find in your conversation">
@@ -79,8 +87,8 @@ function FindBar({ query, count, at, more, onQuery, onStep, onMore, onClose }: B
         ↓
       </button>
       {more && (
-        <button className="text-button" type="button" onClick={onMore}>
-          Look further back
+        <button className="text-button" type="button" aria-disabled={reading || undefined} onClick={readMore}>
+          {reading ? 'Reading…' : 'Look further back'}
         </button>
       )}
       <button className="ghost has-tip" type="button" aria-label="Close find" onClick={onClose}>
@@ -187,7 +195,7 @@ export function useFind(
   rows: readonly Row[],
   on: boolean,
   more: boolean,
-  readEarlier: () => void,
+  readEarlier: () => Promise<void>,
   uncover: (() => void) | null,
 ) {
   const [query, setQuery] = useState('')
@@ -223,7 +231,7 @@ export function useFind(
         // page is read, so the focus waits in the finder.
         setHeld(current)
         document.querySelector<HTMLInputElement>('#c-find')?.focus({ preventScroll: true })
-        readEarlier()
+        return readEarlier()
       }}
       onClose={close}
     />

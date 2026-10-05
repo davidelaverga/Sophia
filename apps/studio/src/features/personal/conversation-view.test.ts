@@ -384,7 +384,8 @@ describe('moments on the days (personal-moments.md §2)', () => {
   })
 
   it('days across a change of clocks still count whole', () => {
-    const zone = process.env['TZ']
+    // The zone in force now, by name: deleting TZ wouldn't bring it back (on Windows it falls to UTC).
+    const zone = process.env['TZ'] ?? Intl.DateTimeFormat().resolvedOptions().timeZone
     process.env['TZ'] = 'Europe/Madrid' // clocks go forward on Mar 29, 2026: that day is 23 hours long
     try {
       const now = new Date(2026, 3, 5, 12)
@@ -394,8 +395,32 @@ describe('moments on the days (personal-moments.md §2)', () => {
       ]
       assert.equal(notes(conversationRows(input(turns, { now }))).at(-1)?.[1], '14 days later')
     } finally {
-      if (zone === undefined) delete process.env['TZ']
-      else process.env['TZ'] = zone
+      process.env['TZ'] = zone
     }
+  })
+})
+
+describe('today’s moment before anything is said (personal-small-p2.md)', () => {
+  it('a return after a week or more, or on a milestone, opens today’s divider with its moment', () => {
+    const away = [turn('person', 'Before', at(12, 10))]
+    assert.deepEqual(notes(conversationRows(input(away))).at(-1), ['Today', '12 days later'])
+    const month = [turn('person', 'First', new Date(2026, 7, 30, 10).toISOString())]
+    assert.deepEqual(notes(conversationRows(input(month, { whole: true }))).at(-1), ['Today', 'a month together'])
+    // Nothing to say of today: no divider for it yet.
+    const yesterday = [turn('person', 'Before', at(1, 10))]
+    assert.deepEqual(notes(conversationRows(input(yesterday))).at(-1), ['Yesterday', null])
+    // A last turn stamped tomorrow (a skewed clock) on a milestone day: one Today, never two.
+    const skewed = [
+      turn('person', 'First', new Date(2026, 7, 30, 10).toISOString()),
+      turn('person', 'Ahead', new Date(NOW.getTime() + 4 * 3_600_000).toISOString()),
+    ]
+    const days = notes(conversationRows(input(skewed, { whole: true }))).map(([label]) => label)
+    assert.equal(days.filter((d) => d === 'Today').length, 1)
+    // Words on their way today bring today's divider, once.
+    const going = conversationRows(input(away, { sending: { text: 'Back', at: new Date(NOW), epoch: 1 } }))
+    assert.deepEqual(
+      notes(going).filter(([label]) => label === 'Today'),
+      [['Today', '12 days later']],
+    )
   })
 })
