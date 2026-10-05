@@ -74,14 +74,26 @@ Stated limits:
 - The GPU process runs without seccomp (its state is recorded in the receipt); the renderers, which parse the report, are sandboxed.
 - Fonts are the host's. The renderer image installs licensed EN, IT and ES fonts with glyph fixtures (S5b).
 
+## Capture kernel (`capture-html.mjs`, `capture-page.mjs`), SDD-01
+
+`capture-html.mjs --job job.json`, or `captureHtml(job, { signal })`. One designed HTML page (html-design-v1: self-contained, no assets) is loaded in the same confined browser as the PDF kernel, with page JavaScript off, at each admitted target: `w390-light` (390×844) and `w1280-light` (1280×800), screen media, light scheme, reduced motion. A job names `sourceRoot`, `entry` (path and SHA-256), `language`, `targets`, `outputDir`, and optionally `sections` (the ones to capture; every one by default).
+
+At each target the kernel:
+- **measures** the page with `capture-page.mjs`, run through the browser's protocol: the page's size and horizontal overflow (and the outermost elements past the edge), each `[data-section]`'s box, and each `[data-block]`'s box, font size, issues and text contrast. A block's issues are `not_rendered`, `hidden`, `transparent`, `no_visible_text`, `off_page`, `text_cut` (its own overflow hides text), `clipped` (an ancestor that hides overflow cuts it), `scrolls` (inside a scrolling container, not whole on screen), `covered` (something not fixed or sticky is drawn over its first line) and `low_contrast` (below 4.5, or 3 for large text, WCAG 2). Contrast is painted on a canvas, so any colour syntax resolves; over a gradient it is the worst stop; over an image it is unknown, never passed;
+- **captures** with `Page.captureScreenshot` beyond the viewport (the viewport, and so `vh`, never changes): overview tiles of the whole page scaled down (0.5 at 390, 0.375 at 1280, each at most 2400 px tall), readable tiles of each section at full scale (at most 1200 or 900 CSS px tall), and readable tiles of every stretch outside the sections (head, gaps, foot) when every section is asked for.
+
+Captures are bounded (72 per job, 8 MiB each, 64 MiB in all, the first 48,000 CSS px of a page). Whatever is left is named in the target's coverage (`captured`, `missing`, `truncated`), never dropped. Any request but the entry document fails the capture, and a failed or cancelled capture keeps no image.
+
+The receipt (`sophia.html-capture-receipt.v1`) names the kernel's identity (`captureSha256`: its files, `CAPTURE_KERNEL_FILES`), Playwright, the browser, the sandbox verdict, the platform fonts the text was drawn with, each target's measures and coverage, every capture (name, target, kind, section, tile, clip, scale, size, SHA-256) and its checks: `source_verified`, `sandbox_active`, `requests_contained`, `source_unchanged`, and per target `layout_overflow`, `blocks_visible`, `contrast` and `captures_complete`.
+
 ## Supervisor (`supervisor.mjs`)
 
 The trusted process on the renderer host (S5a part 2). It holds only a render runner capability and talks only to the Sophia API (`/v1/renderer/*`, A11). It never holds a database URL, a storage URL or a storage key. For each job it:
-1. claims the job under a lease (`POST /v1/renderer/claim`);
+1. claims the job under a lease (`POST /v1/renderer/claim`), naming the formats it renders (`pdf`, `png`). A runner that names none is a PDF runner and is never handed a capture;
 2. fetches every file of the source package through the API, each checked against the package's SHA-256 and size, into a fresh job directory;
 3. runs the kernel as its own process group. The kernel's environment carries only the render user and the browser's path, never the capability. The supervisor resolves that path itself, because the kernel's home is the job directory;
 4. sends heartbeats while the kernel runs. A Hold or a Stop, or a lost lease, kills the kernel, and nothing is uploaded or settled;
-5. uploads the PDF once (`PUT …/output`) if the kernel succeeded, then settles with the kernel's receipt (`POST …/settle`);
+5. uploads the PDF once (`PUT …/output`) if the kernel succeeded, then settles with the kernel's receipt (`POST …/settle`). A capture job (SDD-01, `format: png`) runs the capture kernel instead and uploads each PNG its receipt names (`PUT …/captures/{name}`), each checked against the receipt, before it settles;
 6. removes the job directory.
 
 Configuration:

@@ -9,6 +9,9 @@
 // - sends heartbeats while it runs: a Hold or a Stop (or a lost lease) kills the kernel, and nothing is uploaded;
 // - uploads the PDF once if the kernel succeeded, then settles with the kernel's receipt;
 // - removes the job directory, whatever happened.
+// SDD-01: a claim names the formats this host renders (`pdf`, and `png` for the capture kernel, capture-html.mjs); a
+// capture job runs that kernel instead and uploads each PNG its receipt names, checked against the receipt, before it
+// settles. A runner that names no formats is a PDF runner and is never handed a capture.
 // Usage: supervisor.mjs, with SOPHIA_API_URL, SOPHIA_RENDER_RUNNER_TOKEN_FILE (or SOPHIA_RENDER_RUNNER_TOKEN),
 // SOPHIA_RENDER_WORK (a directory), and for the kernel SOPHIA_RENDER_UID (when root), SOPHIA_CHROMIUM_PATH or
 // PLAYWRIGHT_BROWSERS_PATH (or Playwright's default cache in HOME).
@@ -20,7 +23,15 @@ import { fileURLToPath } from 'node:url'
 import { chromiumPath } from './confine.mjs'
 import { sha256Hex } from './source-manifest.mjs'
 
-const KERNEL = fileURLToPath(new URL('./render-html.mjs', import.meta.url))
+/** The kernel each format runs. */
+const KERNELS = {
+  pdf: fileURLToPath(new URL('./render-html.mjs', import.meta.url)),
+  png: fileURLToPath(new URL('./capture-html.mjs', import.meta.url)),
+}
+/** The formats this host renders, as its claims name them. */
+export const FORMATS = /** @type {const} */ (['pdf', 'png'])
+/** A capture's file name, as the capture kernel writes it and the API accepts it. */
+const CAPTURE_NAME = /^[a-z0-9][a-z0-9.-]{0,150}\.png$/
 /** What the kernel inherits besides the browser's path: the render user and nothing else (never the capability). */
 const KERNEL_ENV = ['SOPHIA_RENDER_UID', 'SOPHIA_RENDER_GID']
 const KILL_GRACE_MS = 10_000
@@ -29,7 +40,8 @@ const KILL_GRACE_MS = 10_000
  * @typedef {{ apiUrl: string, token: string, workDir: string, env?: NodeJS.ProcessEnv, heartbeatMs?: number,
  *   pollMs?: number, beforeRender?: (job: RenderJob) => Promise<void>, log?: (line: string) => void }} SupervisorConfig
  * @typedef {{ jobId: string, leaseToken: string, language: string, sourceManifestHash: string, timeoutMs: number,
- *   files: { path: string, role: 'entry' | 'asset', sha256: string, byteLength: number }[] }} RenderJob
+ *   files: { path: string, role: 'entry' | 'asset', sha256: string, byteLength: number }[], format: 'pdf' | 'png',
+ *   targets: string[], sections: string[] | null }} RenderJob
  * @typedef {{ claimed: false } | { claimed: true, jobId: string, outcome: string }} RunOutcome
  */
 
@@ -50,7 +62,7 @@ export class ApiError extends Error {
  * One call to the API with the runner's capability.
  * @param {SupervisorConfig} cfg
  * @param {string} route
- * @param {{ method?: string, lease?: string, json?: unknown, pdf?: Buffer }} [init]
+ * @param {{ method?: string, lease?: string, json?: unknown, bytes?: { type: string, data: Buffer } }} [init]
  */
 async function api(cfg, route, init = {}) {
   /** @type {Record<string, string>} */
@@ -58,9 +70,9 @@ async function api(cfg, route, init = {}) {
   if (init.lease) headers['x-sophia-render-lease'] = init.lease
   /** @type {string | Uint8Array<ArrayBuffer> | undefined} */
   let body
-  if (init.pdf) {
-    headers['content-type'] = 'application/pdf'
-    body = Uint8Array.from(init.pdf)
+  if (init.bytes) {
+    headers['content-type'] = init.bytes.type
+    body = Uint8Array.from(init.bytes.data)
   } else if (init.json !== undefined) {
     headers['content-type'] = 'application/json'
     body = JSON.stringify(init.json)
@@ -86,10 +98,11 @@ const stateOf = (reply) =>
  * @param {unknown} receipt
  */
 function receiptFacts(receipt) {
-  if (typeof receipt !== 'object' || receipt === null || !('status' in receipt) || !('output' in receipt)) {
+  if (typeof receipt !== 'object' || receipt === null || !('status' in receipt)) {
     throw new Error('the kernel wrote no receipt')
   }
-  const output = receipt.output
+  /** @type {unknown} */
+  const output = Reflect.get(receipt, 'output')
   const outputSha256 =
     typeof output === 'object' && output !== null && 'sha256' in output && typeof output.sha256 === 'string'
       ? output.sha256
@@ -145,6 +158,9 @@ function jobOf(reply) {
   /** @type {unknown} */
   const timeout = Reflect.get(job, 'timeoutMs')
   if (!Array.isArray(files)) throw new Error('the API answered the claim with a malformed job')
+  const format = textOf(job, 'format') || 'pdf'
+  if (format !== 'pdf' && format !== 'png')
+    throw new Error(`the API handed a ${format} job to a host that renders pdf and png`)
   return {
     jobId: textOf(job, 'jobId'),
     leaseToken: textOf(job, 'leaseToken'),
@@ -152,8 +168,19 @@ function jobOf(reply) {
     sourceManifestHash: textOf(job, 'sourceManifestHash'),
     timeoutMs: typeof timeout === 'number' ? timeout : 120_000,
     files: files.map((/** @type {unknown} */ f) => jobFileOf(f)),
+    format,
+    targets: textsOf(Reflect.get(job, 'targets')) ?? [],
+    sections: textsOf(Reflect.get(job, 'sections')),
   }
 }
+
+/**
+ * A list of strings, or null when the value is not one.
+ * @param {unknown} value
+ * @returns {string[] | null}
+ */
+const textsOf = (value) =>
+  Array.isArray(value) && value.every((v) => typeof v === 'string') ? value.map(String) : null
 
 /**
  * Fetch every file of the package into `sourceRoot`, each checked against its hash and size, written once.
@@ -188,16 +215,17 @@ const ref = (f) => ({ path: f.path, sha256: f.sha256 })
 function kernelJob(job, where) {
   const entry = job.files.find((f) => f.role === 'entry')
   if (!entry) throw new Error('the package has no entry')
-  return {
+  const common = {
     jobId: job.jobId,
     sourceRoot: where.sourceRoot,
     entry: ref(entry),
-    assets: job.files.filter((f) => f.role === 'asset').map(ref),
     language: job.language,
     outputDir: where.outputDir,
     scratchDir: where.dir,
     timeoutMs: job.timeoutMs,
   }
+  if (job.format === 'png') return { ...common, targets: job.targets, sections: job.sections }
+  return { ...common, assets: job.files.filter((f) => f.role === 'asset').map(ref) }
 }
 
 /**
@@ -213,7 +241,7 @@ function runKernel(cfg, job, jobFile, browser) {
   /** @type {NodeJS.ProcessEnv} */
   const env = { PATH: '/usr/bin:/bin', HOME: path.dirname(jobFile), SOPHIA_CHROMIUM_PATH: browser }
   for (const key of KERNEL_ENV) if (source[key]) env[key] = source[key]
-  const child = spawn(process.execPath, [KERNEL, '--job', jobFile], {
+  const child = spawn(process.execPath, [KERNELS[job.format], '--job', jobFile], {
     env,
     detached: true,
     stdio: ['ignore', 'ignore', 'pipe'],
@@ -248,7 +276,48 @@ function runKernel(cfg, job, jobFile, browser) {
 }
 
 /**
- * Upload the PDF when the kernel succeeded, then settle with its receipt.
+ * The captures a capture receipt names, each with its file name and hash.
+ * @param {unknown} receipt
+ * @returns {{ name: string, sha256: string }[]}
+ */
+function capturesOf(receipt) {
+  /** @type {unknown} */
+  const list = typeof receipt === 'object' && receipt !== null ? Reflect.get(receipt, 'captures') : null
+  if (!Array.isArray(list)) throw new Error('the capture receipt names no captures')
+  return list.map((/** @type {unknown} */ c) => {
+    const name = typeof c === 'object' && c !== null ? textOf(c, 'name') : ''
+    const sha256 = typeof c === 'object' && c !== null ? textOf(c, 'sha256') : ''
+    if (!CAPTURE_NAME.test(name)) throw new Error('the capture receipt names a capture the API would not accept')
+    return { name, sha256 }
+  })
+}
+
+/**
+ * Upload what the kernel produced, each file checked against its receipt: the PDF, or every capture.
+ * @param {SupervisorConfig} cfg
+ * @param {RenderJob} job
+ * @param {string} outputDir
+ * @param {unknown} receipt
+ * @param {string | null} outputSha256
+ */
+async function upload(cfg, job, outputDir, receipt, outputSha256) {
+  if (job.format === 'pdf') {
+    const pdf = fs.readFileSync(path.join(outputDir, 'report.pdf'))
+    if (sha256Hex(pdf) !== outputSha256) throw new Error('the PDF does not match its receipt')
+    const bytes = { type: 'application/pdf', data: pdf }
+    await api(cfg, `/v1/renderer/jobs/${job.jobId}/output`, { method: 'PUT', lease: job.leaseToken, bytes })
+    return
+  }
+  for (const capture of capturesOf(receipt)) {
+    const png = fs.readFileSync(path.join(outputDir, capture.name))
+    if (sha256Hex(png) !== capture.sha256) throw new Error(`the capture ${capture.name} does not match its receipt`)
+    const route = `/v1/renderer/jobs/${job.jobId}/captures/${capture.name}`
+    await api(cfg, route, { method: 'PUT', lease: job.leaseToken, bytes: { type: 'image/png', data: png } })
+  }
+}
+
+/**
+ * Upload the outputs when the kernel succeeded, then settle with its receipt.
  * @param {SupervisorConfig} cfg
  * @param {RenderJob} job
  * @param {string} outputDir
@@ -259,11 +328,8 @@ async function deliver(cfg, job, outputDir) {
   /** @type {unknown} */
   const receipt = JSON.parse(fs.readFileSync(receiptFile, 'utf8'))
   const facts = receiptFacts(receipt)
-  if (facts.status === 'succeeded') {
-    const pdf = fs.readFileSync(path.join(outputDir, 'report.pdf'))
-    if (sha256Hex(pdf) !== facts.outputSha256) throw new Error('the PDF does not match its receipt')
-    await api(cfg, `/v1/renderer/jobs/${job.jobId}/output`, { method: 'PUT', lease: job.leaseToken, pdf })
-  } else cfg.log?.(`render ${job.jobId} ${String(facts.status)}: ${facts.errorCode || 'no error code'}`)
+  if (facts.status === 'succeeded') await upload(cfg, job, outputDir, receipt, facts.outputSha256)
+  else cfg.log?.(`render ${job.jobId} ${String(facts.status)}: ${facts.errorCode || 'no error code'}`)
   const res = await api(cfg, `/v1/renderer/jobs/${job.jobId}/settle`, { json: { leaseToken: job.leaseToken, receipt } })
   return stateOf(await res.json())
 }
@@ -293,7 +359,7 @@ function hostReady(cfg) {
  */
 export async function runOnce(cfg) {
   const browser = hostReady(cfg)
-  const job = jobOf(await (await api(cfg, '/v1/renderer/claim')).json())
+  const job = jobOf(await (await api(cfg, '/v1/renderer/claim', { json: { formats: FORMATS } })).json())
   if (!job) return { claimed: false }
   const dir = fs.mkdtempSync(path.join(cfg.workDir, 'job-'))
   try {
