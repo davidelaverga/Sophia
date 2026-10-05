@@ -42,17 +42,17 @@ All on fixtures. See [progress](../progress/WBC-01.md) for the before/after tabl
 Each line names the command and its result, on darwin-arm64 with Node 24.21.0 and pnpm 11.7.0:
 
 - `pnpm toolchain:check`, `pnpm format:check`, `pnpm lint`, `pnpm build`, `pnpm typecheck`, `pnpm contracts:check`: exit 0.
-- `pnpm test`: 1,221 tests: 1,207 pass, 0 fail, 14 skipped (the same 14 as before), after merging main (#73, #77–#90, #32, #75). On the baseline, the Studio's own unit tests were 423; they are now 671, main's new report tests included.
+- `pnpm test`: 1,221 tests: 1,207 pass, 0 fail, 14 skipped (the same 14 as before), after merging main (#73, #77–#90, #32, #75, #91). On the baseline, the Studio's own unit tests were 423; they are now 671, main's new report tests included.
 - `pnpm artifacts`: every identity reproduced for darwin-arm64, on the merge with #75 (`bb7ba05`).
 - `pnpm test:integration`: 84 tests: 82 pass, 0 fail, 2 skipped, on the merge with #75 (run after `pnpm artifacts`: before it, a stale bundle archive fails it).
 - `pnpm --filter @sophia/studio run build`: passes, with Vite's existing large-chunk warning. Strings found only on the board (`Closed work`, `sophia.work.board.v1`, the new Stop copy) are absent from `dist/`. Its one "Simulated" is LiveKit's own code.
-- `pnpm --filter @sophia/studio exec playwright test`: 442 of 442 pass, desktop and phone, in one run on the merge with #75 (`bb7ba05`), on Claude's own fixture server (port 5207). After F-025 (`f3bd434`), `e2e/work.spec.ts` passes 143 of 143. The six specs whose request guard names port 5199 ran with it set to 5207 for that run ([CC-0015](../coordination/WBC-01/WBC-01-CC-0015.md)). Main's flaky `personal.spec.ts:227` is fixed: its memory checks passed 60 of 60 one-worker repeats. That includes:
+- `pnpm --filter @sophia/studio exec playwright test`: 442 of 442 pass, desktop and phone, in one run on the merge with #75 (`bb7ba05`), on Claude's own fixture server (port 5207). After F-025 (`f3bd434`), `e2e/work.spec.ts` passes 143 of 143; on the merge with #91 (`95996e0`), `e2e/personal.spec.ts` passes 44 of 44. The six specs whose request guard names port 5199 ran with it set to 5207 for that run ([CC-0015](../coordination/WBC-01/WBC-01-CC-0015.md)). Main's flaky `personal.spec.ts:227` is fixed: its memory checks passed 60 of 60 one-worker repeats. That includes:
   - 26 `wbc ·` checks for the UI cases;
   - 7 `pre-push ·` checks for the pre-push review's findings;
   - 37 `codex · F-` checks for Codex's, F-004–F-025 included;
   - 6 `pr76 ·` checks for the PR #76 reviews' (one in `resources.spec.ts`);
   - Luis's 31 checks from #73 and #77–#80 (`review ·`, `review card ·`, `challenge ·`, `receipts ·`; one adapted to this branch's words), and 3 `review card ·` checks for the merges and F-006;
-  - main's own suites since: #81's brand, #84's sign-in, #85–#87's opening and home, #32's report and voice chat, #88–#90's Personal, #75's report page and reading.
+  - main's own suites since: #81's brand, #84's sign-in, #85–#87's opening and home, #32's report and voice chat, #88–#90's Personal, #75's report page and reading, #91's Personal presence.
 
   `e2e/work.spec.ts --repeat-each=2` passed before the reviews' fixes.
 - **Mutations:** 147 in all. Each reverted one repair; all but one (R1b) made a check fail, after UI-12 gained a late stale refusal for M10. Codex's findings are C1–C7, D1–D3, F1–F2f, I1–I7c, J1, K1–K2c, N1–N2d, P1–P2, Q1–Q2, S1–S4, T1–T3, V1–V1f, W1–W2c, X1–X3 and Y1–Y2, the PR #76 reviews' E1–E3, G1–G2 and J2–J4, the merges' H1–H6, and Personal's U1, all failing. The command retry handler's own guard, and `useActs`' send and retry guards without a port, sit behind controls that aren't rendered then, so the UI can't check them. An answer's `clearTimeout` on its reply is cleanup: the send fence already makes its limit say nothing. Ask again's guard is the pure `againOf`, unit-checked (F2).
@@ -79,7 +79,7 @@ None operational: no effect, job or deployment was started.
 
 Pending:
 - Davide's `CONTRACT_ACCEPTED`, or his changes, on WBC-01-CC-0001.
-- Codex's verification of the fix for F-025 (WBC-01-CC-0016), and its `REVIEW_RESULT`.
+- Codex's verification of the merge with #91 (WBC-01-CC-0017), and its `REVIEW_RESULT`.
 - This session still can't push: Codex updates PR #76 from Claude's clone.
 - Luis's optional feedback.
 
@@ -89,9 +89,9 @@ This session posts and pushes nothing. Since CX-0018 it can read #74 and PR #76 
 
 1. Codex fetches `lfe-07/workboard-readiness` from Claude's clone into its own worktree, then:
    - pushes it unchanged to PR #76, and updates the PR's body from `docs/coordination/WBC-01/PR_DESCRIPTION.md`;
-   - posts CC-0016 on #74 for Claude, giving the head's full SHA.
+   - posts CC-0017 on #74 for Claude, giving the head's full SHA.
 2. Davide answers CC-0001.
-3. Codex verifies the delta from `226889e`, and sends `FINDING` records or a `REVIEW_RESULT`.
+3. Codex verifies the merge with #91 and the delta from `5568176`, and sends `FINDING` records or a `REVIEW_RESULT`.
 4. Claude repairs on this branch and answers with `FIX_READY`.
 5. Merging PR #76, deploying main's existing Studio and testing it are Codex's, under Davide's overnight delegation (CX-0018). WBC-02 is not authorized.
 

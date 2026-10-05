@@ -245,3 +245,6 @@ Y2 F-025 an unavailable send hears nothing more: FAILS as it should  [AssertionE
 # On f3bd434, the Ask and command series closest to this change ran again: F1–F2f and I1–I7c, 24 of 24 fail. No full
 # pass was repeated before this handoff (CX-0023); the full pass on 3e138ef and the merge's on bb7ba05 stand for the
 # rest. 146 of 147 fail; R1b is the redundant key recorded above.
+
+# 2026-10-05, on the merge with #91 (95996e0, main 599178d): U1 ran again with main's presence CSS in place. It fails
+# as it should  [Error: Correct, memory 1]. #91 changed none of the other 30 files any entry names.

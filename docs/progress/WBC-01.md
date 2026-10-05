@@ -261,6 +261,10 @@ Codex reviewed `226889e` ([CX-0023](https://github.com/davidelaverga/Sophia/issu
 |---|---|
 | **F-025** (P2): a send of a question that had failed (past its wait, or as said) or was unavailable took a later chunk or answer of the same send, and came back | A send that has ended, answered, failed or unavailable, takes nothing more; what was said stays. Ask again's next send hears only its own events |
 
+## CX-0024, and the merge with #91
+
+Codex passed F-025 at `5568176` ([CX-0024](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987041022)). Main had moved to `599178d` (#91, Luis's Personal presence), and the PR's merge CI failed. Both sides had added a module-level `settled` helper to `personal.spec.ts`. The merge `95996e0` keeps main's helper as it is and renames this branch's `hoveredAtRest`, with no assertion changed. `personal.css` merged on its own, keeping main's presence rules and this branch's pointer repair. See [CC-0017](../coordination/WBC-01/WBC-01-CC-0017.md).
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.

@@ -15,7 +15,7 @@ Claude's messages are copied here. The posted copy of a message may name a SHA t
 |---|---|
 | Mission | WBC-01 |
 | Coordination issue | [#74](https://github.com/davidelaverga/Sophia/issues/74) |
-| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `cec394738c177460cb37450d624b567445db3933` (#75) |
+| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `599178d4c5a6f5ee5cfa85ba40ce6d8f9e6799b2` (#91) |
 | Implementation writer | Claude Code (Davide's session). It has no GitHub credential, so it posts and pushes nothing itself |
 | Pull request | [#76](https://github.com/davidelaverga/Sophia/pull/76), opened by Codex (Davide's decision of 2026-10-03) from the branch as Claude handed it over |
 | Review, app tests, release | Codex, in its own clean worktree (policy §1, §4, §5). Release is Studio-only. On 2026-10-05 Davide delegated merge and deployment of main's existing Studio to Codex overnight (CX-0018); WBC-02 stays unauthorized |
@@ -66,7 +66,9 @@ A comment wakes nobody (policy §7). Davide resumes a session with one line: `Re
 | [WBC-01-CX-0022](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986558522) | `REVIEW_RESULT` | PASS for the repair scope: F-022, F-023, F-024 and the Personal repair verified on `3e138ef` and `cbd1731`. On `3e138ef`, Codex's own full browser run passed 400 of 400 in one run, with one worker on port 5205. Main moved to `cec3947` (#75, M75), and its dry merge with `cbd1731` is clean (`cdd252e`). M75 holds the main/Studio production window |
 | [WBC-01-CC-0015](WBC-01-CC-0015.md) | `FIX_READY` | F-022 and F-023 fixed in `3e138ef`, F-024 in `cbd1731`, and Personal's Correct/Forget interception repaired, each with regressions and mutations; main merged in (`bb7ba05`, #75). [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986751178) at `226889e`, and the branch pushed to PR #76 |
 | [WBC-01-CX-0023](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986904177) | `FINDING` | Changes required at `226889e`. Its predecessor `bb7ba05` is green on Codex's own checks: the ordinary checks, artifacts, integration (82 pass, 2 skipped) and full Chromium, 442 of 442. Both CI runs on the head pass all six jobs. **F-025** (P2, also GitHub 4180194401): a failed or unavailable send of a question took a later event of the same send and came back. M75 has returned the release window |
-| [WBC-01-CC-0016](WBC-01-CC-0016.md) | `FIX_READY` | F-025 fixed in `f3bd434`, with regressions and mutations. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
+| [WBC-01-CC-0016](WBC-01-CC-0016.md) | `FIX_READY` | F-025 fixed in `f3bd434`, with regressions and mutations. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987012084) at `5568176`, and the branch pushed to PR #76 |
+| [WBC-01-CX-0024](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987041022) | `REVIEW_RESULT` | PASS for F-025 at `5568176`: 37 assertions of Codex's own, a focused 47 of 47 browser run, and unit tests at 1,207 passing. Main moved to `599178d` (#91, Personal presence). The PR's merge CI failed lint and browser collection, because both sides had added a `settled` helper to `personal.spec.ts` |
+| [WBC-01-CC-0017](WBC-01-CC-0017.md) | `FIX_READY` | main merged in (`95996e0`, #91), the duplicate helper reconciled (this branch's renamed `hoveredAtRest`), both sides' checks and the pointer repair kept. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
 
 **Scope extension (Davide, 2026-10-03, in this session):** F-003 can only be fixed in the shared shell. Davide chose to fix it for every sheet, which extends Claude's writable scope to these paths:
 
