@@ -743,8 +743,10 @@
   z-index: 0;
   overflow: auto;
   display: grid;
-  align-content: start;
-  gap: 24px;
+  /* The conversation rests on the field: a short one sits just above where you write, under her light; a long one
+     still scrolls to its first turn (safe). */
+  align-content: safe end;
+  gap: 28px;
   /* The list reaches a lane to its left so the speakers' halves have room and aren't clipped by the scroll box. */
   padding: 18px 0 18px var(--gut);
   margin-left: calc(-1 * var(--gut));
@@ -768,8 +770,12 @@
 .places .msg.sophia {
   justify-self: start;
 }
+/* Hers is the reading voice, a size above yours. */
 .places .msg.sophia .body {
   color: var(--text);
+  font-size: 17px;
+  line-height: 1.55;
+  letter-spacing: -0.008em;
 }
 .places .msg.typing .body {
   min-height: 24px;
@@ -783,9 +789,14 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* Turns from the same side group together; the time shows on hover. Each side's first turn starts with its half of
-   Umbral, centred on the first line, its right edge 9 px before the words. */
+/* Turns from the same side group together, and her answer stays close to what you said: an exchange reads as one,
+   with room before the next; rows tied to a turn (a failed reply, Note this, her suggestion) keep their distance
+   from it. The time shows on hover. Each side's first turn starts with its half of Umbral, centred on the first line,
+   its right edge 9 px before the words. */
 .places .msg.cont {
+  margin-top: -20px;
+}
+.places .msg.me + .msg.sophia {
   margin-top: -16px;
 }
 .places .c3-who {
@@ -800,6 +811,10 @@
   height: 8.6px;
   fill: var(--core);
   filter: drop-shadow(0 0 5px rgba(156, 130, 245, 0.7));
+}
+/* Her turns' first line is taller (17 px at 1.55): her half sits a pixel lower to stay centred on it. */
+.places .msg.sophia:not(.typing) .c3-who {
+  top: 9px;
 }
 .places .c3-who[data-who='you'] {
   top: 4.5px;
@@ -862,7 +877,7 @@
 }
 .places .c3-failed {
   justify-self: start;
-  margin-top: -6px;
+  margin-top: -16px;
   color: var(--text-sec);
   font-size: 13px;
 }
@@ -992,7 +1007,7 @@
   flex-wrap: wrap;
   justify-self: start;
   width: min(460px, 100%);
-  margin-top: -8px;
+  margin-top: -12px;
   animation: ps-arrive 200ms var(--ease);
 }
 .places .c3-noteform .field {
@@ -1011,7 +1026,7 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-top: -12px;
+  margin-top: -16px;
   padding: 0;
   border: 0;
   background: none;
@@ -1033,7 +1048,7 @@
   gap: 4px;
 }
 .places .c3-kept {
-  margin-top: -8px;
+  margin-top: -12px;
   color: var(--text-sec);
   font-size: 13px;
 }
@@ -1048,7 +1063,7 @@
 .places .c3-starters {
   display: grid;
   width: min(480px, 100%);
-  margin-top: -6px;
+  margin-top: -10px;
   animation: ps-arrive 260ms var(--ease);
 }
 .places .c3-starters button {
@@ -1120,6 +1135,10 @@
 }
 .places .ps-composer textarea {
   font-size: 15px;
+}
+.places .ps-composer textarea::placeholder {
+  color: var(--text-sec);
+  opacity: 1;
 }
 .places .ps-composer .send:not(:disabled) {
   background: rgba(156, 130, 245, 0.16);
