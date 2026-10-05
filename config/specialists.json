@@ -1,6 +1,6 @@
 {
   "schema": "sophia.specialists.v1",
-  "description": "The one registry of Sophia's specialist roles (SMC-M03 plan §2.2). The dsh bundle's role presets for these roles are generated from it (scripts/generate-specialists.mjs), the runtime unit's role routes must equal it, and the API resolves research admission against it (S4). config/roles.json keeps the roles before M03.",
+  "description": "The one registry of Sophia's specialist roles (SMC-M03 plan §2.2). The dsh bundle's role presets for these roles are generated from it (packages/contracts/scripts/generate-specialists.ts), the runtime unit's role routes must equal it, and the API resolves research admission (S4) and source-review admission (WBC-02) against it. config/roles.json keeps the roles before M03.",
   "specialists": [
     {
       "id": "sophia-research-md-v1",
@@ -45,6 +45,25 @@
       "output_profile": "pdf-report-v1",
       "admission": { "required": ["question", "outputs"], "optional_preferences": ["depth", "source_constraints"] },
       "source_policy": "web-pilot-v1",
+      "continuation_owner": "sophia_episode",
+      "workflow": false,
+      "peer": false,
+      "raw_host_shell": false
+    },
+    {
+      "id": "sophia-source-review-v1",
+      "family": "review",
+      "task_kind": "source_review",
+      "outputs": ["markdown"],
+      "route": "source-review-luna-high-v1",
+      "native_tools": [
+        "read_review_source",
+        "submit_source_review",
+        "report_review_blocker"
+      ],
+      "output_profile": "source-review-v1",
+      "admission": { "required": ["goal", "criteria", "sources", "allowance"], "optional_preferences": ["purpose"] },
+      "source_policy": "source-review-v1",
       "continuation_owner": "sophia_episode",
       "workflow": false,
       "peer": false,

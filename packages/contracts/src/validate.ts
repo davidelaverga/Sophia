@@ -37,6 +37,11 @@ import {
   validatePersonalTurnPage,
   validateProjectCreated,
   validateProjectList,
+  validateWorkBoardView,
+  validateWorkReceipt,
+  validateWorkResult,
+  validateSourceReviewProposal,
+  validateSourceReviewAvailability,
   validateReceipt,
   validateRoomSession,
   validateRoomToken,
@@ -104,6 +109,11 @@ export const parsePersonalEarlierTurns = parser('PersonalEarlierTurns', validate
 export const parsePersonalExport = parser('PersonalExport', validatePersonalExport)
 export const parsePersonalReceipt = parser('PersonalReceipt', validatePersonalReceipt)
 export const parseProjectList = parser('ProjectList', validateProjectList)
+export const parseWorkBoardView = parser('WorkBoardView', validateWorkBoardView)
+export const parseWorkReceipt = parser('WorkReceipt', validateWorkReceipt)
+export const parseWorkResult = parser('WorkResult', validateWorkResult)
+export const parseSourceReviewProposal = parser('SourceReviewProposal', validateSourceReviewProposal)
+export const parseSourceReviewAvailability = parser('SourceReviewAvailability', validateSourceReviewAvailability)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {

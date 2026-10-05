@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Generate the specialist module from config/specialists.json (SMC-M03 plan §2.2), after validating the registry
-// against config/schemas/specialists.schema.json. The same module is written twice: into the dsh bundle, which derives
+// against config/schemas/specialists.schema.json. Each specialist carries its task kind and the route it runs on as the
+// runtime unit records it (config/runtime-unit.json model_routes: provider, model, effort, output ceiling, prices), so
+// admission can show the priced route before anyone accepts it (WBC-02); a route the unit does not record fails. The same module is written twice: into the dsh bundle, which derives
 // its specialist role presets from it (the bundle archive is self-contained), and into this package, where the API
 // resolves research admission against it. The registry is the one source: an id, route or tool policy is never restated.
 //   node scripts/generate-specialists.ts          write both specialists.generated.ts files
@@ -20,10 +22,19 @@ interface Specialist {
   native_tools: string[]
 }
 
+interface RecordedRoute {
+  provider: string
+  model: string
+  reasoningEffort: string | null
+  maxTokens: number
+  prices: { input: number; cacheRead: number; cacheWrite: number; output: number }
+}
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const alternate = process.argv.indexOf('--registry')
 const registryPath = alternate === -1 ? join(root, 'config', 'specialists.json') : (process.argv[alternate + 1] ?? '')
 const schemaPath = join(root, 'config', 'schemas', 'specialists.schema.json')
+const unitPath = join(root, 'config', 'runtime-unit.json')
 const targets = [
   join(root, 'packages', 'dsh-bundle', 'src', 'specialists.generated.ts'),
   join(root, 'packages', 'contracts', 'src', 'specialists.generated.ts'),
@@ -32,9 +43,12 @@ const targets = [
 const readJson = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8')) as unknown
 const quote = (value: string) => `'${value}'`
 
+/** The source reviewer's tools (WBC-02): a source review has exactly these, and no other specialist has any. */
+const REVIEW_TOOLS = ['read_review_source', 'submit_source_review', 'report_review_blocker']
+
 /**
- * The registry's problems beyond its schema: duplicate ids, a PDF output without the tool that renders it, and the
- * render inspector without the renderer (it reads PDF renders only, S5b).
+ * The registry's problems beyond its schema: duplicate ids, a PDF output without the tool that renders it, the
+ * render inspector without the renderer (it reads PDF renders only, S5b), and review tools outside a source review.
  */
 function problems(specialists: readonly Specialist[]): string[] {
   const found: string[] = []
@@ -49,6 +63,15 @@ function problems(specialists: readonly Specialist[]): string[] {
     if (s.native_tools.includes('research_inspect_output') !== renders) {
       found.push(`${s.id}: the research_inspect_output and research_render_pdf tools go together`)
     }
+    const review = s.native_tools.filter((t) => REVIEW_TOOLS.includes(t))
+    if (
+      s.task_kind === 'source_review' &&
+      (review.length !== REVIEW_TOOLS.length || review.length !== s.native_tools.length)
+    ) {
+      found.push(`${s.id}: a source review has exactly the review tools (${REVIEW_TOOLS.join(', ')})`)
+    }
+    if (s.task_kind !== 'source_review' && review.length > 0)
+      found.push(`${s.id}: only a source review has review tools`)
   }
   return found
 }
@@ -68,14 +91,52 @@ function load(): Specialist[] {
   return specialists
 }
 
+/** The route each specialist runs on, as the runtime unit records it; a route the unit does not record is an error. */
+function recordedRoutes(specialists: readonly Specialist[]): Map<string, RecordedRoute> {
+  const routes = fields(fields(readJson(unitPath))?.model_routes)
+  const found = new Map<string, RecordedRoute>()
+  for (const s of specialists) {
+    const route = routes?.[s.route]
+    if (!isRecordedRoute(route))
+      throw new Error(`${s.id}: route ${s.route} is not recorded in config/runtime-unit.json model_routes`)
+    found.set(s.route, route)
+  }
+  return found
+}
+
+const fields = (value: unknown): Record<string, unknown> | null =>
+  typeof value === 'object' && value !== null ? { ...value } : null
+
+function isRecordedRoute(value: unknown): value is RecordedRoute {
+  const r = fields(value)
+  const prices = fields(r?.prices)
+  return (
+    r !== null &&
+    prices !== null &&
+    typeof r.provider === 'string' &&
+    typeof r.model === 'string' &&
+    (typeof r.reasoningEffort === 'string' || r.reasoningEffort === null) &&
+    Number.isInteger(r.maxTokens) &&
+    ['input', 'cacheRead', 'cacheWrite', 'output'].every((k) => typeof prices[k] === 'number')
+  )
+}
+
+const routeLiteral = (r: RecordedRoute): string =>
+  `{ provider: ${quote(r.provider)}, model: ${quote(r.model)}, reasoningEffort: ${r.reasoningEffort === null ? 'null' : quote(r.reasoningEffort)}, ` +
+  `maxTokens: ${String(r.maxTokens)}, prices: { input: ${String(r.prices.input)}, cacheRead: ${String(r.prices.cacheRead)}, ` +
+  `cacheWrite: ${String(r.prices.cacheWrite)}, output: ${String(r.prices.output)} } }`
+
 function generated(specialists: readonly Specialist[]): string {
+  const routes = recordedRoutes(specialists)
   const entries = specialists.map((s) =>
     [
       '  {',
       `    id: ${quote(s.id)},`,
       `    family: ${quote(s.family)},`,
+      `    taskKind: ${quote(s.task_kind)},`,
       `    outputs: [${s.outputs.map(quote).join(', ')}],`,
       `    route: ${quote(s.route)},`,
+      `    routeSpec: ${routeLiteral(routes.get(s.route) ?? missingRoute(s))},`,
       `    nativeTools: [${s.native_tools.map(quote).join(', ')}],`,
       '  },',
     ].join('\n'),
@@ -83,7 +144,8 @@ function generated(specialists: readonly Specialist[]): string {
   return [
     '// Generated by packages/contracts/scripts/generate-specialists.ts from config/specialists.json; do not edit.',
     '',
-    '/** The specialist roles of the registry: what the bundle composes for each (id, route, native tool policy). */',
+    '/** The specialist roles of the registry: what the bundle composes for each (id, route, native tool policy), with the',
+    ' * route as the runtime unit records it (USD per million tokens). */',
     'export const SPECIALISTS = [',
     ...entries,
     '] as const',
@@ -91,6 +153,10 @@ function generated(specialists: readonly Specialist[]): string {
     "export type SpecialistId = (typeof SPECIALISTS)[number]['id']",
     '',
   ].join('\n')
+}
+
+function missingRoute(s: Specialist): never {
+  throw new Error(`${s.id}: route ${s.route} is not recorded`)
 }
 
 if (alternate !== -1) {

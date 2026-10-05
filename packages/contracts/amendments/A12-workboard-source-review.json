@@ -1,0 +1,3762 @@
+{
+  "id": "A12",
+  "goal": "WBC-02",
+  "title": "One managed source review: the work board, its decision and commands, the reviewer and the Paperclip adapter",
+  "why": [
+    "WBC-02 connects the Tasks board WBC-01 made ready to one real source review, admitted by a person, scheduled by Paperclip and executed by the existing dsh bridge. The packet's sophia.work.board.v1 and sophia.work.receipt.v1 schemas become components here field for field (the plan as sophia.work.plan.v2), so the Studio can drop its feature-local reader for the generated one.",
+    "Members propose one fixed source-review plan (POST .../plans/source-review), answer its decision once (POST .../decisions/{id}/answer), command the assignment (POST .../assignments/{id}/commands: Hold, Resume, Stop; guidance unavailable), follow their own operation (GET .../work/operations/{id}) and open the exact result (GET .../work/{id}/result). Receipts carry admission, delivery and effect apart.",
+    "The reviewer's runtime operations (/v1/runtime/review/*) authenticate like research's: the runtime lease and a binding it owns, fenced by the work's current authority. Its model calls reserve and settle through the shared research accounting (the research reserve and settle shapes), at most eight per review.",
+    "The Paperclip adapter asks Sophia for an effect permit per run (/v1/coordination/*), with its own capability bound to one Paperclip company. Sophia attaches a run to a live attempt instead of starting a second, denies held, stopped, finished or withdrawn work before any effect, and reports per-run usage with an unknown cost left null."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/securitySchemes/coordinationCapability",
+      "value": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The Paperclip dsh adapter's credential: an opaque secret held by the Paperclip service, stored by Sophia only as SHA-256, bound to one Paperclip company. It is not a member identity and not a Paperclip token."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkPlanItem",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "deliverable_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "criteria_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blocked_by": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "maxItems": 30,
+            "uniqueItems": true
+          },
+          "assignee_kind": {
+            "enum": ["assignment", "human", "unassigned"]
+          },
+          "assignee_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_scope_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "review_policy_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "recipe_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "activation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": ["immediate", "dependencies_satisfied", "candidate_ready"]
+              },
+              "producer_work_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["kind", "producer_work_id"],
+            "allOf": [
+              {
+                "if": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "candidate_ready"
+                    }
+                  }
+                },
+                "then": {
+                  "type": "object",
+                  "properties": {
+                    "producer_work_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "purpose",
+          "deliverable_ref",
+          "criteria_ref",
+          "parent_id",
+          "blocked_by",
+          "assignee_kind",
+          "assignee_id",
+          "source_scope_ref",
+          "review_policy_ref",
+          "recipe_ref",
+          "activation"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkPlanDefinition",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": "sophia.work.plan.v2"
+          },
+          "plan_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "project_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "goal_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "goal_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "criteria_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "mission_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source_manifest_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "state": {
+            "enum": ["proposed", "accepted", "superseded", "withdrawn"]
+          },
+          "decision_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 700
+                },
+                "status": {
+                  "enum": ["unresolved", "supported", "contradicted"]
+                },
+                "evidence_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "minItems": 0,
+                  "maxItems": 100
+                }
+              },
+              "required": ["id", "text", "status", "evidence_refs"]
+            },
+            "minItems": 0,
+            "maxItems": 20
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkPlanItem"
+            },
+            "minItems": 1,
+            "maxItems": 30
+          }
+        },
+        "required": [
+          "schema_version",
+          "plan_id",
+          "project_id",
+          "goal_id",
+          "goal_revision",
+          "criteria_ref",
+          "revision",
+          "mission_revision",
+          "source_manifest_ref",
+          "state",
+          "decision_ref",
+          "assumptions",
+          "items"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "const": "accepted"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "decision_ref": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkAssignment",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "assignment_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "attempt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "native_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "executor": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": ["sophia_native", "owner_native", "human"]
+              },
+              "display_name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "role": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "owner_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resource_id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["kind", "display_name", "role", "owner_id", "resource_id"]
+          },
+          "observation_state": {
+            "enum": ["observed", "unknown", "offline"]
+          }
+        },
+        "required": ["assignment_id", "generation", "attempt_id", "native_session_id", "executor", "observation_state"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkWait",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": ["product_decision", "native_permission", "dependency", "capacity", "connection", "external"]
+          },
+          "reference_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "respondent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 700
+          },
+          "state": {
+            "enum": ["pending", "resolved", "expired", "unknown"]
+          }
+        },
+        "required": ["kind", "reference_id", "respondent_id", "detail", "state"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkCandidate",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "media_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "enum": ["current", "previous", "withdrawn"]
+          }
+        },
+        "required": ["source_id", "version_id", "sha256", "media_type", "created_at", "state"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkAction",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": ["guidance", "hold", "resume", "stop", "ask_sophia", "open_result", "review_candidate"]
+          },
+          "availability": {
+            "enum": ["allowed", "denied", "unavailable"]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 700
+          },
+          "boundary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["kind", "availability", "reason", "boundary"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkActivity",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "observation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "attempt_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "assignment_generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "said": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 700
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "connection": {
+            "enum": ["online", "offline", "unknown"]
+          }
+        },
+        "required": ["observation_id", "attempt_id", "assignment_generation", "said", "observed_at", "connection"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkItemView",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "work_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "lifecycle": {
+            "enum": [
+              "planned",
+              "queued",
+              "running",
+              "waiting",
+              "held",
+              "ready_for_review",
+              "changes_required",
+              "complete",
+              "stopped",
+              "cancelled",
+              "failed",
+              "superseded",
+              "unknown"
+            ]
+          },
+          "assignment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkAssignment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waiting_on": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkWait"
+            },
+            "minItems": 0,
+            "maxItems": 15
+          },
+          "activity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkActivity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkCandidate"
+            },
+            "minItems": 0,
+            "maxItems": 10
+          },
+          "review": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "enum": ["not_requested", "pending", "passed", "changes_required", "inconclusive"]
+              },
+              "candidate_version_ref": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "evidence_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "minItems": 0,
+                "maxItems": 100
+              }
+            },
+            "required": ["state", "candidate_version_ref", "evidence_refs"]
+          },
+          "completion": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "policy_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "status": {
+                "enum": ["not_evaluated", "satisfied", "not_satisfied"]
+              },
+              "evidence_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "minItems": 0,
+                "maxItems": 100
+              }
+            },
+            "required": ["policy_ref", "status", "evidence_refs"]
+          },
+          "closed_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 700
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "available_actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkAction"
+            },
+            "minItems": 0,
+            "maxItems": 7
+          }
+        },
+        "required": [
+          "work_id",
+          "lifecycle",
+          "assignment",
+          "waiting_on",
+          "activity",
+          "candidates",
+          "review",
+          "completion",
+          "closed_reason",
+          "available_actions"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "lifecycle": {
+                  "const": "complete"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "completion": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "const": "satisfied"
+                    },
+                    "evidence_refs": {
+                      "type": "array",
+                      "minItems": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkDecision",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "work_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "plan_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "plan_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "candidate_version_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1200
+          },
+          "decider_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                }
+              },
+              "required": ["key", "label"]
+            },
+            "minItems": 2,
+            "maxItems": 10
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "enum": ["proposed", "accepted", "declined", "expired", "superseded"]
+          },
+          "selected_choice": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "choice_receipt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan_reaction": {
+            "enum": ["not_needed", "pending", "recorded", "unknown"]
+          }
+        },
+        "required": [
+          "decision_id",
+          "revision",
+          "work_id",
+          "plan_id",
+          "plan_revision",
+          "candidate_version_ref",
+          "question",
+          "decider_id",
+          "choices",
+          "expires_at",
+          "state",
+          "selected_choice",
+          "choice_receipt_id",
+          "plan_reaction"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkGoalView",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "goal_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "current_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkPlanDefinition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposed_plans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkPlanDefinition"
+            },
+            "minItems": 0,
+            "maxItems": 3
+          },
+          "next_checkpoint": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "item_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["label", "item_id"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkItemView"
+            },
+            "minItems": 0,
+            "maxItems": 30
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkDecision"
+            },
+            "minItems": 0,
+            "maxItems": 30
+          }
+        },
+        "required": ["goal_id", "current_plan", "proposed_plans", "next_checkpoint", "items", "decisions"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkBoardView",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": "sophia.work.board.v1"
+          },
+          "project_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "snapshot_cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "coverage": {
+            "enum": ["complete", "partial", "unavailable"]
+          },
+          "goals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkGoalView"
+            },
+            "minItems": 0,
+            "maxItems": 30
+          }
+        },
+        "required": ["schema_version", "project_id", "snapshot_cursor", "observed_at", "coverage", "goals"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": "sophia.work.receipt.v1"
+          },
+          "operation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "receipt_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "project_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "work_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "assignment_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assignment_generation": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": ["guidance", "hold", "resume", "stop", "decision", "ask_sophia"]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "admission": {
+            "enum": ["recorded", "rejected", "unknown"]
+          },
+          "delivery": {
+            "enum": ["not_applicable", "not_sent", "queued", "delivered", "native_consumed", "unknown"]
+          },
+          "effect": {
+            "enum": ["not_applicable", "pending", "held", "stopped", "resumed", "choice_recorded", "unknown"]
+          },
+          "rejection": {
+            "anyOf": [
+              {
+                "enum": ["conflict", "denied", "unavailable", "expired"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "minItems": 0,
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "receipt_id",
+          "project_id",
+          "work_id",
+          "assignment_id",
+          "assignment_generation",
+          "kind",
+          "revision",
+          "observed_at",
+          "admission",
+          "delivery",
+          "effect",
+          "rejection",
+          "evidence_refs"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "admission": {
+                  "const": "rejected"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "delivery": {
+                  "const": "not_sent"
+                },
+                "effect": {
+                  "const": "not_applicable"
+                },
+                "rejection": {
+                  "enum": ["conflict", "denied", "unavailable", "expired"]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "effect": {
+                  "enum": ["held", "stopped", "resumed", "choice_recorded"]
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "admission": {
+                  "const": "recorded"
+                },
+                "evidence_refs": {
+                  "type": "array",
+                  "minItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "effect": {
+                  "const": "held"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "hold"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "effect": {
+                  "const": "stopped"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "stop"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "effect": {
+                  "const": "resumed"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "resume"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "type": "object",
+              "properties": {
+                "effect": {
+                  "const": "choice_recorded"
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "decision"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SourceReviewLimits",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "maxSources": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "maxInputBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32768
+          },
+          "maxModelRequests": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "maxReportBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16384
+          },
+          "web": {
+            "const": false
+          },
+          "shell": {
+            "const": false
+          },
+          "connectors": {
+            "const": false
+          }
+        },
+        "required": ["maxSources", "maxInputBytes", "maxModelRequests", "maxReportBytes", "web", "shell", "connectors"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SourceReviewRoute",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$"
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "reasoningEffort": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxTokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "prices": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "input": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "cacheRead": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "cacheWrite": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "output": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              }
+            },
+            "required": ["input", "cacheRead", "cacheWrite", "output"]
+          },
+          "priceUnit": {
+            "const": "usd_per_million_tokens"
+          }
+        },
+        "required": ["role", "id", "provider", "model", "reasoningEffort", "maxTokens", "prices", "priceUnit"],
+        "description": "The registry's priced route the reviewer runs on: what its model calls are reserved and settled at."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SourceReviewProposalRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "goalId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "goalRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "criterionIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          "sourceIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "allowanceUsd": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": ["goalId", "goalRevision", "sourceIds", "allowanceUsd"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SourceReviewProposal",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "planId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "planRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "decisionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "decisionRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "workId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "goalId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "goalRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "criteriaRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "manifestSourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "allowanceUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "limits": {
+            "$ref": "#/components/schemas/SourceReviewLimits"
+          },
+          "route": {
+            "$ref": "#/components/schemas/SourceReviewRoute"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^[0-9]{1,19}$"
+          }
+        },
+        "required": [
+          "projectId",
+          "planId",
+          "planRevision",
+          "decisionId",
+          "decisionRevision",
+          "workId",
+          "goalId",
+          "goalRevision",
+          "criteriaRef",
+          "manifestSourceId",
+          "allowanceUsd",
+          "limits",
+          "route",
+          "cursor"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SourceReviewCandidate",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "mime": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["sourceId", "label", "mime", "byteLength", "createdAt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/SourceReviewAvailability",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runtimeReady": {
+            "type": "boolean"
+          },
+          "maxAllowanceUsd": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limits": {
+            "$ref": "#/components/schemas/SourceReviewLimits"
+          },
+          "route": {
+            "$ref": "#/components/schemas/SourceReviewRoute"
+          },
+          "sources": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/SourceReviewCandidate"
+            }
+          }
+        },
+        "required": ["enabled", "reason", "runtimeReady", "maxAllowanceUsd", "limits", "route", "sources"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkDecisionAnswer",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "choice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "work_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "plan_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "plan_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "candidate_version_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "operation_id",
+          "decision_id",
+          "revision",
+          "choice",
+          "work_id",
+          "plan_id",
+          "plan_revision",
+          "candidate_version_ref"
+        ],
+        "description": "The exact answer the Studio sends (WBC-01 CC-0001). operation_id equals the Idempotency-Key."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkCommand",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["guidance", "hold", "resume", "stop"]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "work_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "assignment_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "assignment_generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "attempt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["operation_id", "kind", "work_id", "assignment_id", "assignment_generation", "attempt_id"],
+        "description": "One shared task command (WBC-01 CC-0001). Only Hold, Resume and Stop are qualified; guidance is refused as unavailable."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewFinding",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["supported", "contradicted", "not_established"]
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "sourceIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "criterionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        },
+        "required": ["status", "statement", "sourceIds"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/WorkResult",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["ready", "pending", "withdrawn", "unavailable"]
+          },
+          "workId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "resultId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "versionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "mediaType": {
+            "const": "text/markdown"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["supported", "changes_required", "insufficient_evidence"]
+          },
+          "findings": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "$ref": "#/components/schemas/ReviewFinding"
+            }
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 16384
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["state", "workId"],
+        "description": "A review's exact result while it may be served; otherwise why not. Never a URL."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewContextRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16000
+          }
+        },
+        "required": ["attemptId", "nativeSessionId"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewCriterion",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "description", "required"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewTaskContext",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "workId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "goal": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "outcome": {
+                "type": "string",
+                "maxLength": 4000
+              },
+              "criteriaRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "criteria": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": {
+                  "$ref": "#/components/schemas/ReviewCriterion"
+                }
+              }
+            },
+            "required": ["id", "revision", "title", "outcome", "criteriaRef", "criteria"]
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^S[1-3]$"
+                },
+                "sourceId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "mime": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "byteLength": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "readable": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["ref", "sourceId", "sha256", "mime", "byteLength", "readable"]
+            }
+          },
+          "limits": {
+            "$ref": "#/components/schemas/SourceReviewLimits"
+          },
+          "allowance": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "capUsd": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "committedUsd": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "modelCallsLeft": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 8
+              }
+            },
+            "required": ["capUsd", "committedUsd", "modelCallsLeft"]
+          }
+        },
+        "required": ["workId", "goal", "purpose", "sources", "limits", "allowance"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewContextReply",
+      "value": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewTaskContext"
+          },
+          {
+            "$ref": "#/components/schemas/ResearchSourcePage"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewSubmitRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": ["supported", "changes_required", "insufficient_evidence"]
+              },
+              "report": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16384
+              },
+              "findings": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 40,
+                "items": {
+                  "$ref": "#/components/schemas/ReviewFinding"
+                }
+              }
+            },
+            "required": ["verdict", "report", "findings"]
+          },
+          "blocker": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "missing": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              }
+            },
+            "required": ["reason"]
+          }
+        },
+        "required": ["attemptId", "nativeSessionId", "callId"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewSubmission",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": ["published", "blocked"]
+          },
+          "resultId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["supported", "changes_required", "insufficient_evidence"]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": ["outcome", "sourceId"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/CoordinationPermitRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "companyId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+          },
+          "issueId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+          },
+          "runId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+          },
+          "agentId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+          }
+        },
+        "required": ["companyId", "issueId", "runId"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/CoordinationPermit",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["start", "attach", "deny"]
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "workId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "assignmentId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "attemptId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nativeSessionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "permitExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["permitted", "started", "attached", "ended"]
+          }
+        },
+        "required": ["decision"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/CoordinationRunRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "companyId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+          },
+          "runId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+          },
+          "final": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": ["companyId", "runId"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/CoordinationStart",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "workId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "started": {
+            "type": "boolean"
+          },
+          "denied": {
+            "const": true
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": ["workId"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/CoordinationUsage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "calls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uncertainCalls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "inputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cachedInputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "costUsd": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "models": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "providers": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "basis": {
+            "const": "per_run"
+          }
+        },
+        "required": [
+          "calls",
+          "uncertainCalls",
+          "inputTokens",
+          "outputTokens",
+          "cachedInputTokens",
+          "costUsd",
+          "models",
+          "providers",
+          "basis"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/CoordinationObservation",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "phase": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "holding",
+              "held",
+              "stopping",
+              "stopped",
+              "result_ready",
+              "blocked",
+              "failed",
+              "withdrawn",
+              "unknown"
+            ]
+          },
+          "workId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "attemptId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nativeSessionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "resultId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "sourceId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "verdict": {
+                    "type": "string",
+                    "enum": ["supported", "changes_required", "insufficient_evidence"]
+                  },
+                  "findings": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": ["current", "withdrawn"]
+                  }
+                },
+                "required": ["resultId", "sourceId", "sha256", "verdict", "findings", "state"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoordinationUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["phase", "workId", "attemptId", "nativeSessionId", "reason", "result", "usage"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1plans",
+      "value": {
+        "get": {
+          "operationId": "getWorkBoard",
+          "summary": "The viewer's work board (sophia.work.board.v1): accepted and proposed plans, live item facts and what the viewer may do. Its snapshot_cursor is the project event cursor.",
+          "tags": ["work"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The board",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/WorkBoardView"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Not a member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1plans~1source-review",
+      "value": {
+        "get": {
+          "operationId": "getSourceReviewAvailability",
+          "summary": "Whether the caller may propose a source review here now, its bounds, its priced route, and the report versions it may review.",
+          "tags": ["work"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Availability",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SourceReviewAvailability"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Not a member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        },
+        "post": {
+          "operationId": "proposeSourceReview",
+          "summary": "Propose one fixed source-review plan for a goal, its criteria and 1-3 eligible sources with a positive allowance. Runs no model and creates no issue: it records the plan and its decision.",
+          "tags": ["work"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceReviewProposalRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Proposed (or already proposed under this key)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SourceReviewProposal"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Not a member who can edit, source review not enabled, or a source not eligible",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The goal changed since it was read, or an idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or the pilot bounds",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1decisions~1{decisionId}~1answer",
+      "value": {
+        "post": {
+          "operationId": "answerWorkDecision",
+          "summary": "Commit the decider's exact answer to one decision revision, once. Accepting a plan admits its work and enqueues its one commission; declining or expiry dispatches nothing. A stale, foreign or expired answer is a recorded refusal.",
+          "tags": ["work"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "decisionId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkDecisionAnswer"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Its receipt (sophia.work.receipt.v1)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/WorkReceipt"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Not a member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names an unknown decision or choice",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1assignments~1{assignmentId}~1commands",
+      "value": {
+        "post": {
+          "operationId": "admitWorkCommand",
+          "summary": "Hold, Resume or Stop an assignment's work, bound to its generation. Guidance is refused as unavailable before anything is sent. A stale generation or a viewer's command is a recorded refusal.",
+          "tags": ["work"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "assignmentId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkCommand"
+                }
+              }
+            }
+          },
+          "responses": {
+            "202": {
+              "description": "Its receipt as it stands",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/WorkReceipt"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Not a member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names no assignment",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable; retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1work~1operations~1{operationId}",
+      "value": {
+        "get": {
+          "operationId": "getWorkOperation",
+          "summary": "The caller's own decision answer or command, with its receipt as the effect stands now (admission, delivery, effect).",
+          "tags": ["work"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "operationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Its current receipt",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/WorkReceipt"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Not a member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "No such operation of the caller",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1work~1{workId}~1result",
+      "value": {
+        "get": {
+          "operationId": "getWorkResult",
+          "summary": "A work item's exact result version under the caller's current access, while every source it drew on is still eligible; otherwise pending, withdrawn or unavailable.",
+          "tags": ["work"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "workId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "version",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The result, or why it is not served",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/WorkResult"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Not a member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "No such work",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1review~1context",
+      "value": {
+        "post": {
+          "operationId": "runtimeReviewContext",
+          "summary": "The source review's task (goal, criteria, sources, limits, allowance), or a page of one of its manifest sources while it is still eligible. A page read here may be cited. Fenced.",
+          "tags": ["runtime"],
+          "security": [
+            {
+              "runtimeCapability": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 160
+              }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "enum": ["1"]
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewContextRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Done (or already done)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ReviewContextReply"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown runtime capability"
+            },
+            "403": {
+              "description": "The operation names an attempt or native session this runtime does not own, or a withdrawn source",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Another bridge holds the lease, the review is not active (Hold or Stop), its call limit is reached, or a reused idempotency key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a source or reservation the review cannot use",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1review~1reserve",
+      "value": {
+        "post": {
+          "operationId": "runtimeReviewReserve",
+          "summary": "Reserve one model call from the review's allowance (the shared research accounting), at most eight in all. Model calls only. Idempotent by native session and call id. Fenced.",
+          "tags": ["runtime"],
+          "security": [
+            {
+              "runtimeCapability": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 160
+              }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "enum": ["1"]
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchReserveRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Done (or already done)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ResearchReservation"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown runtime capability"
+            },
+            "403": {
+              "description": "The operation names an attempt or native session this runtime does not own, or a withdrawn source",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Another bridge holds the lease, the review is not active (Hold or Stop), its call limit is reached, or a reused idempotency key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a source or reservation the review cannot use",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1review~1settle",
+      "value": {
+        "post": {
+          "operationId": "runtimeReviewSettle",
+          "summary": "End a model call's reservation from its reported usage (settled, released or uncertain). Never fenced.",
+          "tags": ["runtime"],
+          "security": [
+            {
+              "runtimeCapability": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 160
+              }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "enum": ["1"]
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchSettleRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Done (or already done)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ResearchSettlement"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown runtime capability"
+            },
+            "403": {
+              "description": "The operation names an attempt or native session this runtime does not own, or a withdrawn source",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Another bridge holds the lease, the review is not active (Hold or Stop), its call limit is reached, or a reused idempotency key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a source or reservation the review cannot use",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1review~1submit",
+      "value": {
+        "post": {
+          "operationId": "runtimeReviewSubmit",
+          "summary": "Publish the review (bounded Markdown report with findings citing read manifest sources) or record its blocker. Fenced; one result per attempt, a retry answers with it.",
+          "tags": ["runtime"],
+          "security": [
+            {
+              "runtimeCapability": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 160
+              }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "enum": ["1"]
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSubmitRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Done (or already done)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ReviewSubmission"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown runtime capability"
+            },
+            "403": {
+              "description": "The operation names an attempt or native session this runtime does not own, or a withdrawn source",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Another bridge holds the lease, the review is not active (Hold or Stop), its call limit is reached, or a reused idempotency key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a source or reservation the review cannot use",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1coordination~1permit",
+      "value": {
+        "post": {
+          "operationId": "coordinationPermit",
+          "summary": "May this Paperclip run act on its issue's work: start the work's first attempt, attach to the live one, or deny before any effect (unknown or foreign issue, held, stopped or finished work, withdrawn input, spent allowance).",
+          "tags": ["coordination"],
+          "security": [
+            {
+              "coordinationCapability": []
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinationPermitRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Answered from Sophia's records",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/CoordinationPermit"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown integration credential"
+            },
+            "403": {
+              "description": "The credential belongs to another company, or the run names another issue",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The permit expired, another run started the work, or the run attaches rather than starts",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names no permit",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1coordination~1start",
+      "value": {
+        "post": {
+          "operationId": "coordinationStart",
+          "summary": "Start the permitted run's attempt through Sophia's native path, immediately after the adapter's onDispatch. Idempotent per run.",
+          "tags": ["coordination"],
+          "security": [
+            {
+              "coordinationCapability": []
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinationRunRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Answered from Sophia's records",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/CoordinationStart"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown integration credential"
+            },
+            "403": {
+              "description": "The credential belongs to another company, or the run names another issue",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The permit expired, another run started the work, or the run attaches rather than starts",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names no permit",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1coordination~1observe",
+      "value": {
+        "post": {
+          "operationId": "coordinationObserve",
+          "summary": "The run's attempt as Sophia knows it. With final, the run's own usage (per_run; cost null when any call is uncertain).",
+          "tags": ["coordination"],
+          "security": [
+            {
+              "coordinationCapability": []
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinationRunRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Answered from Sophia's records",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/CoordinationObservation"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown integration credential"
+            },
+            "403": {
+              "description": "The credential belongs to another company, or the run names another issue",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The permit expired, another run started the work, or the run attaches rather than starts",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names no permit",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1coordination~1cancel",
+      "value": {
+        "post": {
+          "operationId": "coordinationCancel",
+          "summary": "Paperclip cancelled the run: the work is held (fenced and settled through the native path), never stopped or lost.",
+          "tags": ["coordination"],
+          "security": [
+            {
+              "coordinationCapability": []
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinationRunRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Answered from Sophia's records",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/CoordinationObservation"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown integration credential"
+            },
+            "403": {
+              "description": "The credential belongs to another company, or the run names another issue",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The permit expired, another run started the work, or the run attaches rather than starts",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names no permit",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    }
+  ]
+}

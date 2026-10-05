@@ -33,7 +33,7 @@
       "properties": {
         "id": { "type": "string", "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$" },
         "family": { "$ref": "#/$defs/name" },
-        "task_kind": { "enum": ["research"] },
+        "task_kind": { "enum": ["research", "source_review"] },
         "outputs": {
           "type": "array",
           "minItems": 1,

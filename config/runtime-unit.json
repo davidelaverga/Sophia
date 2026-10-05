@@ -196,11 +196,38 @@
       "model_entry_source": "declared in the Sophia bundle patch with values from the pi-ai 0.99.2 catalog entry (chat:gpt-6.1-sol); pi-ai 0.87.1 at this pin has no such entry. Prices for Sophia's own spend accounting: $2 input, $0.10 cached input, $2.50 cache write, $10 output per million tokens below 272,000 input tokens",
       "live_verified": false,
       "live_checklist": "Codex, under a recorded allowance: tools with strict:false accepted; cached_tokens > 0 on turn 2 or later; cache_write_tokens reported; a 400 on prompt_cache_retention as a negative control; the real context limit"
+    },
+    "source-review-luna-high-v1": {
+      "status": "review_route",
+      "decided": "WBC-02 (2026-10-05, implementation proposal for Davide's approval in the operation request): the source reviewer runs on the currently approved development route, OpenAI GPT-6 Luna at high reasoning (model_route above), through a provider alias of its own so the bridge can bound every call's output at 16,000 tokens and meter it against the work's allowance. Not a new vendor, model or effort; the payer is the route's credential below until the owner names another",
+      "adapter": "@deepseek-ai/dsh-llm-pi-ai",
+      "provider": "openai-review",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "high",
+      "maxTokens": 16000,
+      "prices": {
+        "input": 0.1,
+        "cacheRead": 0.01,
+        "cacheWrite": 0.125,
+        "output": 0.5
+      },
+      "contextWindow": 272000,
+      "baseURL": "https://api.openai.com/v1",
+      "cacheRetention": null,
+      "compat": {
+        "supportsStrictMode": false,
+        "supportsLongCacheRetention": false
+      },
+      "credential_ref": "OPENAI_API_KEY",
+      "model_entry_source": "declared in the Sophia bundle patch with the values of the pi-ai 0.87.1 catalog entry openai/gpt-6-luna that this pin ships (window 272,000, the compat of model_route), its output capped at 16,000. Prices for Sophia's own spend accounting, from that catalog entry: $0.10 input, $0.01 cached input, $0.125 cache write, $0.50 output per million tokens below 272,000 input tokens",
+      "live_verified": false,
+      "live_checklist": "Codex, under the pilot's recorded allowance: one review completes within eight model calls; every call reserved and settled; the bridge refuses a ninth; usage reported per run; the effective provider, model and effort on the attempt's identity"
     }
   },
   "role_routes": {
     "sophia-research-md-v1": "research-sol-medium-v1",
-    "sophia-research-pdf-v1": "research-sol-medium-v1"
+    "sophia-research-pdf-v1": "research-sol-medium-v1",
+    "sophia-source-review-v1": "source-review-luna-high-v1"
   },
   "research_sources": {
     "decided": "2026-09-30 by Davide (owner), plan §2.6 and D1: Tavily Search and Jina Reader for the web pilot, each on its own key with a provider-side hard budget; keys pass to the runtime by reference only",

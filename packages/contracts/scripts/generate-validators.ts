@@ -10,6 +10,7 @@ import { _, Ajv } from 'ajv'
 import addFormats from 'ajv-formats'
 import standaloneCode from 'ajv/dist/standalone/index.js'
 import { componentSchemas } from '../src/index.ts'
+import { inlineUcs2length } from './ucs2length.ts'
 
 /** Component schema → exported validator. Only what a client parses from the wire. */
 const EXPORTS = [
@@ -51,6 +52,11 @@ const EXPORTS = [
   'PersonalExport',
   'PersonalReceipt',
   'ProjectList',
+  'WorkBoardView',
+  'WorkReceipt',
+  'WorkResult',
+  'SourceReviewProposal',
+  'SourceReviewAvailability',
 ] as const
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -77,7 +83,7 @@ function compiler(): Ajv {
 
 function generatedCode(): string {
   const names = Object.fromEntries(EXPORTS.map((name) => [`validate${name}`, `${name}#`]))
-  const code = standaloneCode.default(compiler(), names)
+  const code = inlineUcs2length(standaloneCode.default(compiler(), names))
   const runtime = [...code.matchAll(/require\("([^"]+)"\)/g)].map((m) => m[1])
   if (runtime.length > 0) throw new Error(`unexpected runtime require(s) in generated code: ${runtime.join(', ')}`)
   const body = code.replace(/^"use strict";/, '')
