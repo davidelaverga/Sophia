@@ -9,7 +9,7 @@ authorizes and Codex performs, through an `OPS_REQUEST` bound to an exact commit
 
 | Part | Where | Holds |
 |---|---|---|
-| Sophia API, worker, database (migration `0038`) | Sophia's existing services | the plan, the human decision, the allowance, eligibility, the effect permit, the fence, the result |
+| Sophia API, worker, database (migration `0042`) | Sophia's existing services | the plan, the human decision, the allowance, eligibility, the effect permit, the fence, the result |
 | Paperclip (`paperclipai/paperclip@5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb`) | one private service with **its own** PostgreSQL | the core issue and its runs, nothing else of Sophia's |
 | `sophia.coordination` plugin | inside that Paperclip | the commission's binding to its issue, applied controls, envelope nonces (its namespace only) |
 | `sophia_dsh` external adapter | inside that Paperclip | Sophia's coordination capability (env), never a provider credential |
@@ -58,7 +58,7 @@ Plugin configuration, per company (`ctx.config`): `signingPublicKey` (the matchi
 `integrationUserId` (that board user's id: no other board user may call the routes), and `projects`: one
 `{ sophiaProjectId, companyId, paperclipProjectId }` for the pilot.
 
-Sophia database (migration owner, after `0038`):
+Sophia database (migration owner, after `0042`):
 
 ```sql
 SELECT sophia.set_research_grant(<project>, 'enabled', <task cap>, <total cap>, 'web-pilot-v1', '<approval ref>');  -- if not already
@@ -68,7 +68,7 @@ SELECT sophia.register_coordination_integration('<company id>', '\x<sha256 of SO
 
 ## Release order (readers first)
 
-1. **Migration `0038_source_review_coordination.sql`.** Additive; it replaces `capture_native_result` and
+1. **Migration `0042_source_review_coordination.sql`.** Additive; it replaces `capture_native_result` and
    `dispatch_runtime_outbox` with versions that keep every existing branch byte-equivalent and add the source-review
    branch. Today's API and worker run unchanged on it.
 2. **API and worker** of the reviewed commit. Without the three worker variables the coordinator stays off and says so;
@@ -90,7 +90,7 @@ SELECT sophia.register_coordination_integration('<company id>', '\x<sha256 of SO
 - A running review: Hold or Stop from the board (fenced at once); a Paperclip cancel holds it too.
 - Runtime: back to `sophia-runtime-m03-dev`, rebuilt from its own commit; the reviewer is then unavailable, research is
   untouched.
-- Code: the previous API, worker and Studio run on `0038` unchanged. `0038` itself stays (no down migration); its
+- Code: the previous API, worker and Studio run on `0042` unchanged. `0042` itself stays (no down migration); its
   tables are idle without a grant.
 - Paperclip: uninstall the plugin and the adapter, or stop the service. Sophia's records stay authoritative; a
   commission whose delivery is unknown is reconciled by its key, never created twice.

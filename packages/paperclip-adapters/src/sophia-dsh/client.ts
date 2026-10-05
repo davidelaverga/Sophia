@@ -1,5 +1,5 @@
 /**
- * Sophia's coordination routes (/v1/coordination/*, amendment A12) as the adapter calls them: its own capability, on
+ * Sophia's coordination routes (/v1/coordination/*, amendment A13) as the adapter calls them: its own capability, on
  * a fixed origin the operator configured in the Paperclip service's environment (never an agent's config). An answer
  * Sophia gave is returned; a refusal is a SophiaRefusal with its code; no answer is a SophiaUnreachable, which the
  * adapter never reads as a decision.

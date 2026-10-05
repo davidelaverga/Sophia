@@ -28,10 +28,23 @@ Hold, Resume and Stop from the board fence the runtime at once and are mirrored 
 | Spend uses the existing research grant, allowance and reservation tables (`reserve_research`, `end_research_reservation`) | The addendum: reuse safety and cumulative-budget mechanisms, no competing accounting. A project needs both its research grant and the new coordination grant |
 | Route `source-review-luna-high-v1` = the approved development model (`gpt-6-luna`, high) under a provider alias `openai-review`, `maxTokens` 16 000, catalog prices | No new vendor, model or effort; the alias lets the bridge tell the reviewer's calls from the default route's and bound/meter them. **Needs Davide's confirmation of the route and its payer (`OPENAI_API_KEY`)** before any live call |
 | New runtime unit `sophia-runtime-wbc02-dev` (previous `sophia-runtime-m03-dev`) | A bundle change is a new recorded unit; research roles, routes, presets and compaction are unchanged |
-| Migration `0038`, amendment `A12` | Reserved after reading every remote branch on 2026-10-05: none holds `0038+` or `A12+`. SDD-01 takes the next free ones |
+| Migration `0042`, amendment `A13`; runtime operations under `/v1/runtime/source-review/*` (`runtime_source_review_*`, schemas `SourceReview*`) | SDD-01 reserved `0038`–`0041`, `A12` and the `/v1/runtime/review/*` names first ([its binding map §9](https://github.com/davidelaverga/Sophia/blob/claude/sdd01-native-html-design/docs/coordination/SDD-01/BINDING_MAP.md), PR #104, 17:19 UTC). This branch first took `0038`/`A12` after reading only the files on remote branches, not that written reservation; corrected here. See "Shared boundaries with SDD-01" |
 | The admission decision of a review proposed under a goal with no plan in force is answered at the pilot entry | The board keeps WBC-01's reviewed rule that a plan only proposed is read only (Codex F-006 and the e2e checks); once a plan is in force, the board answers the next proposal itself |
 | The board and receipt routes check their whole reply against the contract (Ajv) and send plain JSON | `fast-json-stringify` cannot compile the packet's conditional rules; a reply that breaks the contract is never sent |
 | A Paperclip run cancel is a Sophia **Hold** | Losing a run must never lose the work; only an explicit Resume continues it |
+
+## Shared boundaries with SDD-01
+
+SDD-01 (PR #104, thread #103) runs in parallel under the same addendum. Its binding map §9 states the reservations and the order for the shared files; this branch follows it.
+
+| Boundary | SDD-01 | WBC-02 (this branch) | Who resolves it |
+|---|---|---|---|
+| Migrations | `0038`–`0041` | `0042` | done |
+| Contract amendment | `A12` | `A13` | done |
+| Runtime review operations | `/v1/runtime/review/{context,capture,submit}`, `runtime_review_*`, schemas `Review*` | `/v1/runtime/source-review/{context,reserve,settle,submit}`, `runtime_source_review_*`, schemas `SourceReview*`; transport `sourceReview*` | done: no route, SQL function, schema or transport name is defined by both |
+| `capture_native_result`, `dispatch_runtime_outbox` | replaced in `0040` | replaced in `0042` | the PR that lands second rebases and keeps both lanes' branches in its replacement (a later `CREATE OR REPLACE` would otherwise drop the other's) |
+| Registry, its schema and generator (`config/specialists.json`, `config/schemas/specialists.schema.json`, `generate-specialists.ts`) | the single writer until #104 merges; `task_kind` becomes an enum (`design`, `design_review`) | adds the source reviewer additively today; after #104 merges, `source_review` joins SDD-01's enum | order: Davide and Codex (SDD-01 O-6) |
+| Runtime unit (`config/runtime-unit.json`), `cordis.patch.yml`, bridge | `sophia-runtime-sdd01-dev` | `sophia-runtime-wbc02-dev` | the PR that lands second rebuilds one combined unit with every role of both (addendum: neither release removes the other's roles) |
 
 ## Binding table (pin `paperclipai/paperclip@5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb`)
 
@@ -52,7 +65,7 @@ Hold, Resume and Stop from the board fence the runtime at once and are mirrored 
 | Compile-time proof | the pin's `PluginContext`, `PluginApiRequestInput`, `PaperclipPluginManifestV1`, `ServerAdapterModule` | `scripts/paperclip-build.mjs` typechecks the structural bindings against them |
 | Behavioural proof | `createTestHarness` (`plugins/sdk/src/testing.ts` 483) | `scripts/paperclip-verify.mjs` |
 
-Sophia's side (amendment `A12`, `packages/contracts/amendments/A12-workboard-source-review.json`):
+Sophia's side (amendment `A13`, `packages/contracts/amendments/A13-workboard-source-review.json`):
 
 | Route | Who | Does |
 |---|---|---|
@@ -63,7 +76,7 @@ Sophia's side (amendment `A12`, `packages/contracts/amendments/A12-workboard-sou
 | `GET /api/v1/projects/{id}/work/operations/{operationId}` | the operation's actor | the receipt as its effect stands |
 | `GET /api/v1/projects/{id}/work/{workId}/result?version=` | members | the exact version, or withdrawn/unavailable |
 | `POST /v1/coordination/{permit,start,observe,cancel}` | the adapter's capability, per company | the effect permit, the one start, observation with per-run usage, cancel → Hold |
-| `POST /v1/runtime/review/{context,reserve,settle,submit}` | the runtime capability and its binding | the reviewer's reads, metering and publication, fenced |
+| `POST /v1/runtime/source-review/{context,reserve,settle,submit}` | the runtime capability and its binding | the reviewer's reads, metering and publication, fenced |
 
 ## INT evidence (levels: **unit**, **sql-run** = real PostgreSQL through the real API over HTTP, **pinned-dsh** = the real pinned dsh with a stub model endpoint, **pinned-harness** = the pinned Paperclip SDK's own plugin test harness, **browser-local** = Chromium on a synthetic local stack; **not_run** = needs a live service or provider)
 

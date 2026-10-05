@@ -400,7 +400,7 @@ export class ControlBridge {
     // cap, and has no finalize step: a refused reservation refuses the call, and the model is told why.
     const review = attempt.role?.taskKind === 'source_review'
     const accounts = review
-      ? { reserve: transport.reviewReserve.bind(transport), settle: transport.reviewSettle.bind(transport), what: 'review' }
+      ? { reserve: transport.sourceReviewReserve.bind(transport), settle: transport.sourceReviewSettle.bind(transport), what: 'review' }
       : { reserve: transport.researchReserve.bind(transport), settle: transport.researchSettle.bind(transport), what: 'research' }
     return (async function* () {
       let reservationId: string

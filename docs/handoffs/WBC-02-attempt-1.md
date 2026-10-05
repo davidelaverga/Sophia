@@ -22,13 +22,14 @@ Not verified: a real Paperclip instance, a real provider call, any hosted servic
 
 ## Decisions and changes
 
-See the decisions table in [docs/progress/WBC-02.md](../progress/WBC-02.md#decisions-and-their-reasons). Preserved: the research roles, route, presets and compaction; the mission ledger; the source abstraction; WBC-01's board rules (a plan only proposed stays read only); M03's registry entries. Reserved after reading every remote branch: migration `0038`, amendment `A12`, runtime unit `sophia-runtime-wbc02-dev`. Shared files changed additively: `config/specialists.json` (a new role, no older preset broadened), the dsh bridge (review tools and metering beside research), `ProjectShell.tsx`/`GoalList.tsx` (the served plans and the entry). No new authorization was assumed: no deployment, schema application, paid probe or infrastructure.
+See the decisions table in [docs/progress/WBC-02.md](../progress/WBC-02.md#decisions-and-their-reasons). Preserved: the research roles, route, presets and compaction; the mission ledger; the source abstraction; WBC-01's board rules (a plan only proposed stays read only); M03's registry entries. Reserved after reading every remote branch: migration `0042`, amendment `A13`, runtime unit `sophia-runtime-wbc02-dev`. Shared files changed additively: `config/specialists.json` (a new role, no older preset broadened), the dsh bridge (review tools and metering beside research), `ProjectShell.tsx`/`GoalList.tsx` (the served plans and the entry). No new authorization was assumed: no deployment, schema application, paid probe or infrastructure.
 
 ## Remaining obligations
 
 - Davide: D1–D5 in [WBC-02-CC-0001](../coordination/WBC-02/WBC-02-CC-0001.md) (route and payer, limits, Paperclip hosting after Codex's cost quote, the WBC-02 thread).
 - Codex: review and reproduction; then only the authorized operations, in the release order of `deploy/paperclip/README.md`.
 - Luis: the Studio binding (the pilot entry, and the admission answered there while no plan is in force).
+- Davide and Codex: the merge order with SDD-01 (#104; its O-6). WBC-02 now uses `0042`, `A13` and `/v1/runtime/source-review/*`, after SDD-01's earlier reservation of `0038`–`0041`, `A12` and `/v1/runtime/review/*` (this session first missed that written reservation). The PR that lands second rebases: both lanes' branches in `capture_native_result` and `dispatch_runtime_outbox`, its kind in the registry enum, one combined runtime unit ([progress, "Shared boundaries with SDD-01"](../progress/WBC-02.md#shared-boundaries-with-sdd-01)).
 - Nothing active, no retained secret, no uncertain effect: this session made no remote effect besides the push and the PR.
 
 ## Next bounded action

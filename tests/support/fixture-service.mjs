@@ -44,7 +44,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       pdf: { sourceId: uuid(5999), sha256: 'c'.repeat(64), bytes: 2048, pages: 2 } }),
   }
 
-  // The source reviewer's operations (WBC-02, A12), recorded and answered the same way: a one-source task, a page of
+  // The source reviewer's operations (WBC-02, A13), recorded and answered the same way: a one-source task, a page of
   // fixture text, a reservation and its settlement, and a published review.
   const review = []
   const reviewDefaults = {
@@ -111,7 +111,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       const answer = (state.research[op] ?? researchDefaults[op])(json)
       return answer && answer.status ? reply(answer.status, answer.body) : reply(200, answer)
     }
-    const reviewOp = req.method === 'POST' && /^\/v1\/runtime\/review\/(context|reserve|settle|submit)$/.exec(url.pathname)?.[1]
+    const reviewOp = req.method === 'POST' && /^\/v1\/runtime\/source-review\/(context|reserve|settle|submit)$/.exec(url.pathname)?.[1]
     if (reviewOp) {
       review.push({ op: reviewOp, body: json })
       notify()

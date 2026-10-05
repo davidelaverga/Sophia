@@ -1266,9 +1266,9 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.review_scope_of(bytea,text,text,jsonb,boolean) FROM PUBLIC;
 
--- POST /v1/runtime/review/context: without a source, the task (goal, criteria, sources, limits, allowance); with one, a
+-- POST /v1/runtime/source-review/context: without a source, the task (goal, criteria, sources, limits, allowance); with one, a
 -- page of that manifest source, while it can still be read. A source read here may be cited.
-CREATE FUNCTION sophia.runtime_review_context(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
+CREATE FUNCTION sophia.runtime_source_review_context(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE s sophia.review_scope:=sophia.review_scope_of(p_token_sha256,p_unit,p_bridge,p_request,true); manifest jsonb;
  al sophia.research_allowances; body text; src uuid; off integer; size integer; total integer; calls integer;
@@ -1301,10 +1301,10 @@ BEGIN
    'modelCallsLeft',greatest((manifest->'limits'->>'maxModelRequests')::integer-calls,0)));
 END $$;
 
--- POST /v1/runtime/review/reserve: before one model call (the only paid call a review makes), from the work's
+-- POST /v1/runtime/source-review/reserve: before one model call (the only paid call a review makes), from the work's
 -- allowance through the shared accounting (reserve_research), and at most maxModelRequests of them in all, including
 -- compaction and retries. Idempotent by native session and call id.
-CREATE FUNCTION sophia.runtime_review_reserve(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
+CREATE FUNCTION sophia.runtime_source_review_reserve(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE s sophia.review_scope:=sophia.review_scope_of(p_token_sha256,p_unit,p_bridge,p_request,true); r sophia.research_reservations;
  key text; calls integer;
@@ -1326,9 +1326,9 @@ BEGIN
  RETURN jsonb_build_object('reservationId',r.id,'state',r.state,'kind',r.kind,'purpose',r.purpose,'amountUsd',r.reserved_usd,'target','null'::jsonb);
 END $$;
 
--- POST /v1/runtime/review/settle: end a model call's reservation from its reported usage. Never fenced: a call already
+-- POST /v1/runtime/source-review/settle: end a model call's reservation from its reported usage. Never fenced: a call already
 -- paid for is always accounted, also after a Hold or Stop.
-CREATE FUNCTION sophia.runtime_review_settle(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
+CREATE FUNCTION sophia.runtime_source_review_settle(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE s sophia.review_scope:=sophia.review_scope_of(p_token_sha256,p_unit,p_bridge,p_request,false); r sophia.research_reservations;
 BEGIN
@@ -1382,10 +1382,10 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.review_checks(sophia.review_scope,jsonb,jsonb) FROM PUBLIC;
 
--- POST /v1/runtime/review/submit: publish the review (result) or record what blocks it (blocker). Fenced: a review
+-- POST /v1/runtime/source-review/submit: publish the review (result) or record what blocks it (blocker). Fenced: a review
 -- held or stopped publishes nothing. The result is stored as an immutable source before result-ready, and an attempt
 -- publishes once: a repeated or retried submit answers with the result already published.
-CREATE FUNCTION sophia.runtime_review_submit(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
+CREATE FUNCTION sophia.runtime_source_review_submit(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE s sophia.review_scope; j sophia.jobs; w sophia.work_items; manifest jsonb; res sophia.work_results; checks jsonb;
  src sophia.source_objects; key text; inspected uuid[]; blocker text; g sophia.goals;
@@ -1697,8 +1697,8 @@ REVOKE ALL ON FUNCTION sophia.propose_source_review(uuid,text,jsonb,jsonb), soph
  sophia.source_review_availability(uuid,text,text),
  sophia.coordination_permit(bytea,jsonb), sophia.coordination_start(bytea,jsonb), sophia.coordination_observe(bytea,jsonb),
  sophia.coordination_cancel(bytea,jsonb),
- sophia.runtime_review_context(bytea,text,text,jsonb), sophia.runtime_review_reserve(bytea,text,text,jsonb),
- sophia.runtime_review_settle(bytea,text,text,jsonb), sophia.runtime_review_submit(bytea,text,text,jsonb),
+ sophia.runtime_source_review_context(bytea,text,text,jsonb), sophia.runtime_source_review_reserve(bytea,text,text,jsonb),
+ sophia.runtime_source_review_settle(bytea,text,text,jsonb), sophia.runtime_source_review_submit(bytea,text,text,jsonb),
  sophia.claim_coordination_outbox(text,integer,integer), sophia.record_coordination_delivery(uuid,uuid,uuid,text,jsonb,text),
  sophia.expire_coordination_leases() FROM PUBLIC;
 -- Members, through the API's actor context.
@@ -1708,8 +1708,8 @@ GRANT EXECUTE ON FUNCTION sophia.propose_source_review(uuid,text,jsonb,jsonb), s
 -- The adapter and the runtime, through the API with their own capabilities (never a member identity).
 GRANT EXECUTE ON FUNCTION sophia.coordination_permit(bytea,jsonb), sophia.coordination_start(bytea,jsonb),
  sophia.coordination_observe(bytea,jsonb), sophia.coordination_cancel(bytea,jsonb),
- sophia.runtime_review_context(bytea,text,text,jsonb), sophia.runtime_review_reserve(bytea,text,text,jsonb),
- sophia.runtime_review_settle(bytea,text,text,jsonb), sophia.runtime_review_submit(bytea,text,text,jsonb) TO sophia_api;
+ sophia.runtime_source_review_context(bytea,text,text,jsonb), sophia.runtime_source_review_reserve(bytea,text,text,jsonb),
+ sophia.runtime_source_review_settle(bytea,text,text,jsonb), sophia.runtime_source_review_submit(bytea,text,text,jsonb) TO sophia_api;
 -- The worker delivers to the plugin.
 GRANT EXECUTE ON FUNCTION sophia.claim_coordination_outbox(text,integer,integer), sophia.record_coordination_delivery(uuid,uuid,uuid,text,jsonb,text),
  sophia.expire_coordination_leases() TO sophia_worker;

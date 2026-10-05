@@ -1,4 +1,4 @@
-// The coordination deliverer (WBC-02, db/migrations/0038): moves a work item's commission and its mirrored controls
+// The coordination deliverer (WBC-02, db/migrations/0042): moves a work item's commission and its mirrored controls
 // from Sophia's coordination outbox to the Paperclip plugin, each under a signed envelope. It is a transport step:
 // it never decides, retries an effect blind or schedules work. Each pass
 //   1. marks deliveries whose lease ran out outcome_unknown (they may have reached the plugin),

@@ -1,4 +1,4 @@
-// WBC-02 (db/migrations/0038, amendment A12): one Paperclip-managed source review. The member operations run inside
+// WBC-02 (db/migrations/0042, amendment A13): one Paperclip-managed source review. The member operations run inside
 // withActor; the adapter's and the runtime's inside withService (the sophia.* functions authenticate their own
 // capability and refuse a member identity); the worker's on its own sophia_worker pool. Every decision is the
 // database's: these functions pass the request through and read back what it recorded.
@@ -13,10 +13,10 @@ import type {
   ResearchReserveRequest,
   ResearchSettleRequest,
   ResearchSettlement,
-  ReviewContextReply,
-  ReviewContextRequest,
-  ReviewSubmission,
-  ReviewSubmitRequest,
+  SourceReviewContextReply,
+  SourceReviewContextRequest,
+  SourceReviewSubmission,
+  SourceReviewSubmitRequest,
   SourceReviewAvailability,
   SourceReviewProposal,
   SourceReviewProposalRequest,
@@ -150,7 +150,7 @@ async function readPlans(c: pg.PoolClient, projectId: string): Promise<PlanFact[
 }
 
 async function readDecisions(c: pg.PoolClient, projectId: string): Promise<DecisionFact[]> {
-  // The receipt id is the one work_receipt (0038) gives the answer's operation: its first and only revision.
+  // The receipt id is the one work_receipt (0042) gives the answer's operation: its first and only revision.
   const { rows } = await c.query<DecisionRow>(
     `SELECT id, revision, plan_id, plan_revision, work_id, question, decider_id, choices, ${iso('expires_at')} AS expires_at,
             state, selected_choice,
@@ -261,18 +261,18 @@ const runtime = <T>(c: pg.PoolClient, fn: string, who: RuntimeCaller, request: u
     fn,
   )
 
-export const runtimeReviewContext = (c: pg.PoolClient, who: RuntimeCaller, request: ReviewContextRequest) =>
-  runtime<ReviewContextReply>(c, 'runtime_review_context', who, request)
-export const runtimeReviewReserve = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchReserveRequest) =>
-  runtime<ResearchReservation>(c, 'runtime_review_reserve', who, request)
-export const runtimeReviewSettle = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchSettleRequest) =>
-  runtime<ResearchSettlement>(c, 'runtime_review_settle', who, request)
-export const runtimeReviewSubmit = (c: pg.PoolClient, who: RuntimeCaller, request: ReviewSubmitRequest) =>
-  runtime<ReviewSubmission>(c, 'runtime_review_submit', who, request)
+export const runtimeSourceReviewContext = (c: pg.PoolClient, who: RuntimeCaller, request: SourceReviewContextRequest) =>
+  runtime<SourceReviewContextReply>(c, 'runtime_source_review_context', who, request)
+export const runtimeSourceReviewReserve = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchReserveRequest) =>
+  runtime<ResearchReservation>(c, 'runtime_source_review_reserve', who, request)
+export const runtimeSourceReviewSettle = (c: pg.PoolClient, who: RuntimeCaller, request: ResearchSettleRequest) =>
+  runtime<ResearchSettlement>(c, 'runtime_source_review_settle', who, request)
+export const runtimeSourceReviewSubmit = (c: pg.PoolClient, who: RuntimeCaller, request: SourceReviewSubmitRequest) =>
+  runtime<SourceReviewSubmission>(c, 'runtime_source_review_submit', who, request)
 
 // --- the worker's deliveries to the plugin (sophia_worker) ----------------------------------------------------------------
 
-/** One claimed delivery, as claim_coordination_outbox (0038) returns it. */
+/** One claimed delivery, as claim_coordination_outbox (0042) returns it. */
 export interface CoordinationDelivery {
   readonly projectId: string
   readonly id: string

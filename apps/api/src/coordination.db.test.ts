@@ -1,7 +1,7 @@
 // WBC-02 end to end through real HTTP (level: sql-run): a member proposes a source review and accepts it; the worker
 // commissions one Paperclip issue through the sophia.coordination plugin (memory-host.ts: synthetic core issues, the
 // plugin's namespace in its own PostgreSQL database); the sophia_dsh adapter is permitted, starts the one attempt
-// through Sophia's native path, and observes; the runtime reviews over /v1/runtime/review/*; Hold, Resume and Stop,
+// through Sophia's native path, and observes; the runtime reviews over /v1/runtime/source-review/*; Hold, Resume and Stop,
 // a cancelled run, a lost reply and a withdrawn source each settle where Sophia's records say. Synthetic HS256 tokens
 // stand in for Supabase Auth; no model, provider or Paperclip service is contacted.
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto'
@@ -316,9 +316,9 @@ const REPORT = [
 /** What the bridge does for one review: the task, one metered model call, each source read, then a submit. */
 async function reviewed(w: World, attemptId: string, cost = 0.000275) {
   const at = { attemptId, nativeSessionId: `sophia-${attemptId}` }
-  const task = await w.runtime('/v1/runtime/review/context', at)
+  const task = await w.runtime('/v1/runtime/source-review/context', at)
   assert.equal(task.status, 200, JSON.stringify(task.json))
-  const reserve = await w.runtime('/v1/runtime/review/reserve', {
+  const reserve = await w.runtime('/v1/runtime/source-review/reserve', {
     ...at,
     callId: 'm1',
     kind: 'model',
@@ -333,7 +333,7 @@ async function reviewed(w: World, attemptId: string, cost = 0.000275) {
     provider: 'openai-review',
     model: 'gpt-6-luna',
   }
-  const settle = await w.runtime('/v1/runtime/review/settle', {
+  const settle = await w.runtime('/v1/runtime/source-review/settle', {
     ...at,
     reservationId: reserve.json.reservationId,
     outcome: 'settled',
@@ -342,7 +342,7 @@ async function reviewed(w: World, attemptId: string, cost = 0.000275) {
   })
   assert.equal(settle.status, 200, JSON.stringify(settle.json))
   for (const sourceId of [w.sourceA, w.sourceB]) {
-    const page = await w.runtime('/v1/runtime/review/context', { ...at, sourceId })
+    const page = await w.runtime('/v1/runtime/source-review/context', { ...at, sourceId })
     assert.equal(page.status, 200, JSON.stringify(page.json))
   }
   const findings = [
@@ -353,7 +353,7 @@ async function reviewed(w: World, attemptId: string, cost = 0.000275) {
       criterionId: 'c1',
     },
   ]
-  return w.runtime('/v1/runtime/review/submit', {
+  return w.runtime('/v1/runtime/source-review/submit', {
     ...at,
     callId: 's1',
     result: { verdict: 'changes_required', report: REPORT, findings },
@@ -482,7 +482,7 @@ describe('one Paperclip-managed source review', () => {
     assert.equal((await itemOf(w)).lifecycle, 'running')
 
     const at = { attemptId: started.attemptId, nativeSessionId: `sophia-${started.attemptId}` }
-    const unread = await w.runtime('/v1/runtime/review/submit', {
+    const unread = await w.runtime('/v1/runtime/source-review/submit', {
       ...at,
       callId: 's0',
       result: {
@@ -496,7 +496,7 @@ describe('one Paperclip-managed source review', () => {
     assert.equal(published.json.outcome, 'published', JSON.stringify(published.json))
     // INT-09: a submit whose answer was lost is answered with the same immutable result; nothing runs again.
     const again = [{ status: 'supported', statement: 'A different submission.', sourceIds: [w.sourceA] }]
-    const replay = await w.runtime('/v1/runtime/review/submit', {
+    const replay = await w.runtime('/v1/runtime/source-review/submit', {
       ...at,
       callId: 's1',
       result: { verdict: 'supported', report: REPORT, findings: again },
@@ -628,7 +628,7 @@ describe('control', () => {
     const at = { attemptId, nativeSessionId: `sophia-${attemptId}` }
     assert.equal(
       (
-        await w.runtime('/v1/runtime/review/reserve', {
+        await w.runtime('/v1/runtime/source-review/reserve', {
           ...at,
           callId: 'm9',
           kind: 'model',
@@ -773,7 +773,7 @@ describe('bounds and recovery', () => {
     const { attemptId } = await running(w)
     const at = { attemptId, nativeSessionId: `sophia-${attemptId}` }
     for (let i = 1; i <= 8; i += 1) {
-      const r = await w.runtime('/v1/runtime/review/reserve', {
+      const r = await w.runtime('/v1/runtime/source-review/reserve', {
         ...at,
         callId: `m${String(i)}`,
         kind: 'model',
@@ -782,7 +782,7 @@ describe('bounds and recovery', () => {
       })
       assert.equal(r.status, 200, JSON.stringify(r.json))
     }
-    const ninth = await w.runtime('/v1/runtime/review/reserve', {
+    const ninth = await w.runtime('/v1/runtime/source-review/reserve', {
       ...at,
       callId: 'm9',
       kind: 'model',
@@ -790,7 +790,7 @@ describe('bounds and recovery', () => {
       amountUsd: 0.01,
     })
     assert.equal(ninth.json.code, 'research_limit_reached', JSON.stringify(ninth.json))
-    const search = await w.runtime('/v1/runtime/review/reserve', {
+    const search = await w.runtime('/v1/runtime/source-review/reserve', {
       ...at,
       callId: 'w1',
       kind: 'search',

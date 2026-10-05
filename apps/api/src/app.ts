@@ -41,7 +41,7 @@ declare module 'fastify' {
     runtimeCaller: RuntimeCaller | null
     /** On a RENDERER_ROUTES request only: the render runner capability's hash (A11, 0030). */
     rendererToken: Buffer | null
-    /** On a COORDINATION_ROUTES request only: the Paperclip adapter's capability hash (A12, 0038). */
+    /** On a COORDINATION_ROUTES request only: the Paperclip adapter's capability hash (A13, 0042). */
     coordinationToken: Buffer | null
   }
 }
@@ -141,7 +141,7 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.work_command(uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.read_work_result(uuid,uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.coordination_permit(bytea,jsonb)') IS NOT NULL
-  AND to_regprocedure('sophia.runtime_review_submit(bytea,text,text,jsonb)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.runtime_source_review_submit(bytea,text,text,jsonb)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
@@ -231,7 +231,7 @@ function rendererTokenOf(req: FastifyRequest): Buffer {
   return runtimeTokenHash(token)
 }
 
-/** The Paperclip adapter's capability, hashed; the database checks it against its company (0038). */
+/** The Paperclip adapter's capability, hashed; the database checks it against its company (0042). */
 function coordinationTokenOf(req: FastifyRequest): Buffer {
   const token = /^Bearer ([A-Za-z0-9._~+/=-]{32,512})$/.exec(req.headers.authorization ?? '')?.[1]
   if (!token) throw new DomainError('coordination_capability_required', 'Integration credential required')

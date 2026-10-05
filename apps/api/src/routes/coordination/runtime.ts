@@ -1,4 +1,4 @@
-// The source reviewer's runtime operations (WBC-02, amendment A12): authenticated like the research operations (the
+// The source reviewer's runtime operations (WBC-02, amendment A13): authenticated like the research operations (the
 // runtime capability in app.ts, then the lease and a source-review binding in SQL), fenced by the work's current
 // authority except settle. Its model calls reserve and settle through the shared research accounting.
 import type { FastifyInstance, FastifyRequest } from 'fastify'
@@ -6,25 +6,25 @@ import type pg from 'pg'
 import type {
   ResearchReserveRequest,
   ResearchSettleRequest,
-  ReviewContextRequest,
-  ReviewSubmitRequest,
+  SourceReviewContextRequest,
+  SourceReviewSubmitRequest,
 } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
-  runtimeReviewContext,
-  runtimeReviewReserve,
-  runtimeReviewSettle,
-  runtimeReviewSubmit,
+  runtimeSourceReviewContext,
+  runtimeSourceReviewReserve,
+  runtimeSourceReviewSettle,
+  runtimeSourceReviewSubmit,
   withService,
   type RuntimeCaller,
 } from '@sophia/persistence'
 
 /** The review routes a runtime capability may call; app.ts adds them to the runtime routes. */
 export const REVIEW_RUNTIME_ROUTES: readonly string[] = [
-  '/v1/runtime/review/context',
-  '/v1/runtime/review/reserve',
-  '/v1/runtime/review/settle',
-  '/v1/runtime/review/submit',
+  '/v1/runtime/source-review/context',
+  '/v1/runtime/source-review/reserve',
+  '/v1/runtime/source-review/settle',
+  '/v1/runtime/source-review/submit',
 ]
 
 const runtimeHeaders = {
@@ -51,24 +51,24 @@ const review = (body: string, response: string) => ({
 })
 
 export function reviewRuntimeRoutes(app: FastifyInstance, pool: pg.Pool): void {
-  app.post<{ Body: ReviewContextRequest }>(
-    '/v1/runtime/review/context',
-    review('ReviewContextRequest', 'ReviewContextReply'),
-    async (req) => withService(pool, (c) => runtimeReviewContext(c, callerOf(req), req.body)),
+  app.post<{ Body: SourceReviewContextRequest }>(
+    '/v1/runtime/source-review/context',
+    review('SourceReviewContextRequest', 'SourceReviewContextReply'),
+    async (req) => withService(pool, (c) => runtimeSourceReviewContext(c, callerOf(req), req.body)),
   )
   app.post<{ Body: ResearchReserveRequest }>(
-    '/v1/runtime/review/reserve',
+    '/v1/runtime/source-review/reserve',
     review('ResearchReserveRequest', 'ResearchReservation'),
-    async (req) => withService(pool, (c) => runtimeReviewReserve(c, callerOf(req), req.body)),
+    async (req) => withService(pool, (c) => runtimeSourceReviewReserve(c, callerOf(req), req.body)),
   )
   app.post<{ Body: ResearchSettleRequest }>(
-    '/v1/runtime/review/settle',
+    '/v1/runtime/source-review/settle',
     review('ResearchSettleRequest', 'ResearchSettlement'),
-    async (req) => withService(pool, (c) => runtimeReviewSettle(c, callerOf(req), req.body)),
+    async (req) => withService(pool, (c) => runtimeSourceReviewSettle(c, callerOf(req), req.body)),
   )
-  app.post<{ Body: ReviewSubmitRequest }>(
-    '/v1/runtime/review/submit',
-    review('ReviewSubmitRequest', 'ReviewSubmission'),
-    async (req) => withService(pool, (c) => runtimeReviewSubmit(c, callerOf(req), req.body)),
+  app.post<{ Body: SourceReviewSubmitRequest }>(
+    '/v1/runtime/source-review/submit',
+    review('SourceReviewSubmitRequest', 'SourceReviewSubmission'),
+    async (req) => withService(pool, (c) => runtimeSourceReviewSubmit(c, callerOf(req), req.body)),
   )
 }

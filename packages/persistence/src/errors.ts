@@ -19,7 +19,7 @@ const RULES: readonly Rule[] = [
     code: 'runtime_capability_required',
     publicMessage: 'Render runner capability not recognized',
   },
-  // The Paperclip adapter's credential (0038): unknown is refused like an unknown runtime, without saying more.
+  // The Paperclip adapter's credential (0042): unknown is refused like an unknown runtime, without saying more.
   {
     sqlstate: '28000',
     when: (m) => m.startsWith('Integration credential'),
@@ -48,7 +48,7 @@ const RULES: readonly Rule[] = [
   // 0032: a rendition needs a render runner that is asking for work.
   { sqlstate: '55000', when: (m) => m.startsWith('No PDF renderer'), code: 'native_capability_unavailable' },
   { sqlstate: '55000', when: (m) => m === 'Research gate closed', code: 'research_gate_closed' },
-  // WBC-02 (0038): the pilot gate says why it is closed; nothing about a project the caller cannot read.
+  // WBC-02 (0042): the pilot gate says why it is closed; nothing about a project the caller cannot read.
   { sqlstate: '55000', when: (m) => m.startsWith('Source review is not enabled'), code: 'coordination_closed' },
   {
     sqlstate: '55000',
@@ -63,7 +63,7 @@ const RULES: readonly Rule[] = [
       m.startsWith('Research finalize step has used its calls') ||
       // 0030: at most three renders per research task.
       m.startsWith('Research render limit reached') ||
-      // 0038: a source review makes at most eight model calls.
+      // 0042: a source review makes at most eight model calls.
       m.startsWith('Review model request limit reached'),
     code: 'research_limit_reached',
   },

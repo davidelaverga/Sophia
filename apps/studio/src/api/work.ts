@@ -1,4 +1,4 @@
-// The work board's calls (WBC-02, amendment A12): the project's board as Sophia serves it, the source-review pilot
+// The work board's calls (WBC-02, amendment A13): the project's board as Sophia serves it, the source-review pilot
 // entry, a decision's answer, a command on an assignment, an operation's receipt and a work item's result. Every
 // reply is checked against its contract here; the board is read once more by the board's own reader (board-view.ts).
 // Nothing here reaches Paperclip: the Studio talks to Sophia only.

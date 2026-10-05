@@ -4,7 +4,7 @@
  * offered them; its tool guard also refuses them to any role whose policy does not name them.
  *
  * Every tool works for the attempt that owns the calling agent, through the service's runtime review operations
- * (/v1/runtime/review/*, A12): the service authenticates the runtime and the binding, fences the call (Hold and Stop
+ * (/v1/runtime/source-review/*, A13): the service authenticates the runtime and the binding, fences the call (Hold and Stop
  * apply at once), serves only the sources of the review's manifest while they can still be read, and records which
  * ones this attempt read: a finding may cite only those. There is no web, shell, file or connector tool; the review's
  * model calls are metered by the bridge, not by a tool. Source text reaches the model only inside the
@@ -18,10 +18,10 @@ import { callKeyOf, type ResearchSession } from './research-tools.js'
 import { envelope } from './source-containment.js'
 import { TransportError } from './transport.js'
 import type { ServiceTransport } from './transport.js'
-import type { ReviewFinding } from './runtime-wire-types.generated.js'
+import type { SourceReviewFinding } from './runtime-wire-types.generated.js'
 
 /** The service operations the tools use (the bridge's transport). */
-export type ReviewClient = Pick<ServiceTransport, 'reviewContext' | 'reviewSubmit'>
+export type ReviewClient = Pick<ServiceTransport, 'sourceReviewContext' | 'sourceReviewSubmit'>
 
 export interface ReviewToolDeps {
   readonly client: ReviewClient
@@ -87,7 +87,7 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
       try {
-        const reply = await deps.client.reviewContext(
+        const reply = await deps.client.sourceReviewContext(
           { ...ids(session), ...(args.sourceId === undefined ? {} : { sourceId: args.sourceId, offset: args.offset ?? 0 }) },
           exec.signal,
         )
@@ -132,14 +132,14 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
     },
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
-      const findings: ReviewFinding[] = args.findings.map((f) => ({
+      const findings: SourceReviewFinding[] = args.findings.map((f) => ({
         status: f.status,
         statement: f.statement,
         sourceIds: f.sourceIds,
         ...(f.criterionId ? { criterionId: f.criterionId } : {}),
       }))
       try {
-        const done = await deps.client.reviewSubmit({ ...ids(session), callId: callKeyOf(exec.callId), result: { verdict: args.verdict, report: args.report, findings } })
+        const done = await deps.client.sourceReviewSubmit({ ...ids(session), callId: callKeyOf(exec.callId), result: { verdict: args.verdict, report: args.report, findings } })
         return asJson({ ...done, note: 'Published. The review has ended; Sophia tells the team, and the team decides what it means.' })
       } catch (error) {
         if (error instanceof TransportError) return serviceProblem(error)
@@ -166,7 +166,7 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
       try {
-        const done = await deps.client.reviewSubmit({
+        const done = await deps.client.sourceReviewSubmit({
           ...ids(session),
           callId: callKeyOf(exec.callId),
           blocker: { reason: args.reason, ...(args.missing ? { missing: args.missing } : {}) },

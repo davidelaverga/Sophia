@@ -4,7 +4,7 @@ import { projectBoard, type BoardFacts, type WorkFact } from '@sophia/coordinati
 import { readBoardView } from './board-view.ts'
 import { boardOf, laneOf } from './plan.ts'
 
-// WBC-02 G5: the board Sophia serves (its projection, as the API sends it after checking it against A12) is read by the
+// WBC-02 G5: the board Sophia serves (its projection, as the API sends it after checking it against A13) is read by the
 // Studio's own reader, unchanged, in each state a source review passes through, and lands in the lanes the board shows.
 const P = '00000000-0000-4000-8000-0000000000aa'
 const GOAL = '00000000-0000-4000-8000-000000000010'

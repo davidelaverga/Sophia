@@ -109,7 +109,7 @@ async function readProject(c: pg.PoolClient, projectId: string): Promise<Project
 
 async function readGoals(c: pg.PoolClient, projectId: string): Promise<Goal[]> {
   const { rows } = await c.query<GoalRow>(
-    // A source review's execution goal (0038) is the work item's own fence, shown on the work board, not a goal.
+    // A source review's execution goal (0042) is the work item's own fence, shown on the work board, not a goal.
     `SELECT id, title, revision, authority_epoch, status, outcome, criteria, state_revision
        FROM sophia.goals g WHERE project_id = $1
         AND NOT EXISTS (SELECT 1 FROM sophia.work_items w WHERE w.project_id = g.project_id AND w.execution_goal_id = g.id)

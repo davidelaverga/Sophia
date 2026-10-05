@@ -1,6 +1,6 @@
-// The work board for members (WBC-02, amendment A12): the board, the source-review pilot entry, decision answers,
+// The work board for members (WBC-02, amendment A13): the board, the source-review pilot entry, decision answers,
 // assignment commands, an operation's receipt and a work item's result. Every write runs under the member's own
-// identity and Idempotency-Key, and is decided in SQL (0038); a business refusal is a recorded receipt, not an error.
+// identity and Idempotency-Key, and is decided in SQL (0042); a business refusal is a recorded receipt, not an error.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import type {

@@ -10008,9 +10008,9 @@
         "x-sophia-release-goal": "WBC-02"
       }
     },
-    "/v1/runtime/review/context": {
+    "/v1/runtime/source-review/context": {
       "post": {
-        "operationId": "runtimeReviewContext",
+        "operationId": "runtimeSourceReviewContext",
         "summary": "The source review's task (goal, criteria, sources, limits, allowance), or a page of one of its manifest sources while it is still eligible. A page read here may be cited. Fenced.",
         "tags": [
           "runtime"
@@ -10056,7 +10056,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReviewContextRequest"
+                "$ref": "#/components/schemas/SourceReviewContextRequest"
               }
             }
           }
@@ -10067,7 +10067,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReviewContextReply"
+                  "$ref": "#/components/schemas/SourceReviewContextReply"
                 }
               }
             }
@@ -10120,9 +10120,9 @@
         "x-sophia-release-goal": "WBC-02"
       }
     },
-    "/v1/runtime/review/reserve": {
+    "/v1/runtime/source-review/reserve": {
       "post": {
-        "operationId": "runtimeReviewReserve",
+        "operationId": "runtimeSourceReviewReserve",
         "summary": "Reserve one model call from the review's allowance (the shared research accounting), at most eight in all. Model calls only. Idempotent by native session and call id. Fenced.",
         "tags": [
           "runtime"
@@ -10232,9 +10232,9 @@
         "x-sophia-release-goal": "WBC-02"
       }
     },
-    "/v1/runtime/review/settle": {
+    "/v1/runtime/source-review/settle": {
       "post": {
-        "operationId": "runtimeReviewSettle",
+        "operationId": "runtimeSourceReviewSettle",
         "summary": "End a model call's reservation from its reported usage (settled, released or uncertain). Never fenced.",
         "tags": [
           "runtime"
@@ -10344,9 +10344,9 @@
         "x-sophia-release-goal": "WBC-02"
       }
     },
-    "/v1/runtime/review/submit": {
+    "/v1/runtime/source-review/submit": {
       "post": {
-        "operationId": "runtimeReviewSubmit",
+        "operationId": "runtimeSourceReviewSubmit",
         "summary": "Publish the review (bounded Markdown report with findings citing read manifest sources) or record its blocker. Fenced; one result per attempt, a retry answers with it.",
         "tags": [
           "runtime"
@@ -10392,7 +10392,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReviewSubmitRequest"
+                "$ref": "#/components/schemas/SourceReviewSubmitRequest"
               }
             }
           }
@@ -10403,7 +10403,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReviewSubmission"
+                  "$ref": "#/components/schemas/SourceReviewSubmission"
                 }
               }
             }
@@ -22041,7 +22041,7 @@
         ],
         "description": "One shared task command (WBC-01 CC-0001). Only Hold, Resume and Stop are qualified; guidance is refused as unavailable."
       },
-      "ReviewFinding": {
+      "SourceReviewFinding": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -22127,7 +22127,7 @@
             "type": "array",
             "maxItems": 40,
             "items": {
-              "$ref": "#/components/schemas/ReviewFinding"
+              "$ref": "#/components/schemas/SourceReviewFinding"
             }
           },
           "text": {
@@ -22156,7 +22156,7 @@
         ],
         "description": "A review's exact result while it may be served; otherwise why not. Never a URL."
       },
-      "ReviewContextRequest": {
+      "SourceReviewContextRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -22187,7 +22187,7 @@
           "nativeSessionId"
         ]
       },
-      "ReviewCriterion": {
+      "SourceReviewCriterion": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -22211,7 +22211,7 @@
           "required"
         ]
       },
-      "ReviewTaskContext": {
+      "SourceReviewTaskContext": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -22249,7 +22249,7 @@
                 "minItems": 1,
                 "maxItems": 20,
                 "items": {
-                  "$ref": "#/components/schemas/ReviewCriterion"
+                  "$ref": "#/components/schemas/SourceReviewCriterion"
                 }
               }
             },
@@ -22355,17 +22355,17 @@
           "allowance"
         ]
       },
-      "ReviewContextReply": {
+      "SourceReviewContextReply": {
         "anyOf": [
           {
-            "$ref": "#/components/schemas/ReviewTaskContext"
+            "$ref": "#/components/schemas/SourceReviewTaskContext"
           },
           {
             "$ref": "#/components/schemas/ResearchSourcePage"
           }
         ]
       },
-      "ReviewSubmitRequest": {
+      "SourceReviewSubmitRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -22403,7 +22403,7 @@
                 "minItems": 1,
                 "maxItems": 40,
                 "items": {
-                  "$ref": "#/components/schemas/ReviewFinding"
+                  "$ref": "#/components/schemas/SourceReviewFinding"
                 }
               }
             },
@@ -22439,7 +22439,7 @@
           "callId"
         ]
       },
-      "ReviewSubmission": {
+      "SourceReviewSubmission": {
         "type": "object",
         "additionalProperties": false,
         "properties": {

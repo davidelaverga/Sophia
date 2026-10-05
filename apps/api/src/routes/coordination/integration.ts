@@ -1,4 +1,4 @@
-// The Paperclip dsh adapter's routes (WBC-02, amendment A12): a run asks Sophia for an effect permit, starts the
+// The Paperclip dsh adapter's routes (WBC-02, amendment A13): a run asks Sophia for an effect permit, starts the
 // work's one attempt, observes it and reports a cancellation. They take the adapter's own capability (app.ts), never a
 // member token and never a Paperclip token; the sophia.coordination_* functions check it against its company and
 // decide everything else.
