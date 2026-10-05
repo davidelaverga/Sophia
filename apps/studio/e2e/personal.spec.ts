@@ -1063,6 +1063,54 @@ test('codex · every Personal state reads at 4.5:1: no notes yet, and a talk', a
   expect(await lowContrast(page, '.c3-talk')).toEqual([])
 })
 
+test('codex · words handed from Home wait in the field when another tab is sending, never lost', async ({
+  page,
+  context,
+}) => {
+  const other = await context.newPage()
+  await other.goto(PAGE)
+  // The device's send, held by the other tab (draft.ts's sendLock for the fixture's account).
+  await other.evaluate(
+    () =>
+      new Promise<void>((held) => {
+        void navigator.locks.request('sophia.personal.send.fixture', () => {
+          held()
+          return new Promise(() => undefined)
+        })
+      }),
+  )
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('I want to talk about Thursday.')}`)
+  await expect(field(page)).toHaveValue('I want to talk about Thursday.')
+  await expect(page.locator('.ps-composer .chat-line')).toContainText('on its way')
+  expect(await sent(page)).toEqual([])
+})
+
+test('codex · handed words that wait come after what you had written', async ({ page, context }) => {
+  // Words written earlier, kept on this device as the draft.
+  await page.goto(PAGE)
+  await field(page).fill('Before that, one thing:')
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText('Draft kept on this device')
+  const other = await context.newPage()
+  await other.goto(PAGE)
+  await other.evaluate(
+    () =>
+      new Promise<void>((held) => {
+        void navigator.locks.request('sophia.personal.send.fixture', () => {
+          held()
+          return new Promise(() => undefined)
+        })
+      }),
+  )
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('I want to talk about Thursday.')}`)
+  await expect(field(page)).toHaveValue('Before that, one thing: I want to talk about Thursday.')
+})
+
+test('codex · words handed from Home go at once when nothing else is sending', async ({ page }) => {
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('I want to talk about Thursday.')}`)
+  await expect.poll(() => sent(page)).toEqual(['I want to talk about Thursday.'])
+  await expect(field(page)).toHaveValue('')
+})
+
 // Codex on #92: a late copy is taken back once Personal is out of sight; words past the limit are said, never hidden.
 
 test('touch · a copy that settles after the padlock shut is taken back off the clipboard', async ({ page }) => {
@@ -1151,7 +1199,33 @@ test('codex · without Promise.withResolvers (Safari 16.4), a message still goes
   await expect.poll(() => sent(page)).toHaveLength(2)
 })
 
-test('codex · handed words longer than one message wait in the field, said too long, never lost', async ({ page }) => {
+test('codex · handed words that take the field past its limit are kept whole, how much over said, Send waiting', async ({
+  page,
+  context,
+}) => {
+  await page.goto(PAGE)
+  await field(page).fill('a'.repeat(3990))
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText('Draft kept on this device')
+  const other = await context.newPage()
+  await other.goto(PAGE)
+  await other.evaluate(
+    () =>
+      new Promise<void>((held) => {
+        void navigator.locks.request('sophia.personal.send.fixture', () => {
+          held()
+          return new Promise(() => undefined)
+        })
+      }),
+  )
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('I want to talk about Thursday.')}`)
+  await expect(field(page)).toHaveValue(`${'a'.repeat(3990)} I want to talk about Thursday.`)
+  await expect(page.locator('#c-count')).toContainText('over')
+  await expect(page.locator('.ps-composer .send')).toBeDisabled()
+})
+
+test('codex · handed words longer than one message wait in the field, said too long, never said to be waiting', async ({
+  page,
+}) => {
   const long = 'b'.repeat(4100)
   await page.goto(`${PAGE}?handed=${long}`)
   await expect(field(page)).toHaveValue(long)
@@ -1162,8 +1236,67 @@ test('codex · handed words longer than one message wait in the field, said too 
   expect(await sent(page)).toEqual([])
 })
 
+test('codex · handed words too long, arriving offline, say too long once back, not “send when ready”', async ({
+  page,
+  context,
+}) => {
+  const long = 'b'.repeat(4100)
+  await page.goto(`${PAGE}?handed=${long}&handedAfter=1500`)
+  await context.setOffline(true)
+  await expect(field(page)).toHaveValue(long)
+  await context.setOffline(false)
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText(
+    'From Home · longer than one message: shorten it to send',
+  )
+})
+
 test('@phone · touch · on a touch screen, “Sophia answered” is a full-size target', async ({ page }) => {
   await readUpWhileSheAnswers(page)
   const box = await answeredLine(page).boundingBox()
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(40)
+})
+
+test('codex · a send that fails comes back beside words another tab kept meanwhile, never over them', async ({
+  page,
+  context,
+}) => {
+  // Tab A sends slowly, and fails; it hears no other tab (their storage events haven't reached it yet).
+  await page.goto(`${PAGE}?slow=1&sendFails=1`)
+  await page.evaluate(() => window.addEventListener('storage', (e) => e.stopImmediatePropagation(), true))
+  await field(page).fill('From A.')
+  await page.keyboard.press('Enter')
+  // Tab B, meanwhile: words from Home that can't go while A sends, kept in the field and on the device.
+  const other = await context.newPage()
+  await other.goto(`${PAGE}?handed=${encodeURIComponent('From B.')}`)
+  await expect(field(other)).toHaveValue('From B.')
+  // A's send fails: its words come back, and B's stay.
+  await expect(field(page)).toHaveValue('From A.\nFrom B.', { timeout: 5000 })
+  const kept = await page.evaluate(() => localStorage.getItem('sophia.personal.draft.v2.fixture') ?? '')
+  expect(kept).toContain('From A.')
+  expect(kept).toContain('From B.')
+})
+
+test('codex · with the device keeping nothing (site data blocked), words typed while a send fails stay', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(window, 'localStorage', {
+      get: () => {
+        throw new DOMException('blocked', 'SecurityError')
+      },
+    }),
+  )
+  await page.goto(`${PAGE}?slow=1&sendFails=1`)
+  await field(page).fill('Sent first.')
+  await page.keyboard.press('Enter')
+  await expect(field(page)).toHaveValue('')
+  await field(page).fill('Typed meanwhile.')
+  await expect(field(page)).toHaveValue(/Sent first\.[\s\S]*Typed meanwhile\.|Typed meanwhile\.[\s\S]*Sent first\./, {
+    timeout: 5000,
+  })
+})
+
+test('codex · words handed from Home before the space’s epoch is known wait for it, then go', async ({ page }) => {
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('Before it all loaded.')}&epochAfter=800`)
+  await expect.poll(() => sent(page), { timeout: 5000 }).toEqual(['Before it all loaded.'])
 })

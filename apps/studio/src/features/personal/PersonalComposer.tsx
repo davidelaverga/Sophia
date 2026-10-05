@@ -16,6 +16,7 @@ import {
   draftKey,
   draftOf,
   goingOut,
+  keptOnDevice,
   oneAtATime,
   onOpening,
   readKept,
@@ -210,11 +211,14 @@ function useDraft(account: string, epoch: number | undefined) {
   }
   useFollowsDevice(account, epoch, sending, show, setAt)
   // Kept with the epoch they are written in; none is known while the space loads, and nothing is typed then.
+  // What the device keeps now, or null where it keeps nothing (no epoch yet, site data blocked, storage full): then the
+  // page's own words are all there is, and the field goes by them.
   const keep = (change: (kept: ReturnType<typeof readKept>) => ReturnType<typeof readKept>) => {
     if (epoch === undefined) return null
     const now = change(readKept(account, epoch))
-    setAt(writeKept(account, now, epoch))
-    return now
+    const keptIn = keptOnDevice(account, now, epoch)
+    setAt(keptIn ?? epoch)
+    return keptIn === null ? null : now
   }
   /** Words in the field: the device keeps them as its draft, with what is on its way (any tab's) as it is. */
   const set = (draft: Draft | null, why: string) => {
@@ -249,10 +253,11 @@ function useDraft(account: string, epoch: number | undefined) {
     /** Not sent: the words come back to the field, under the key they went with when nothing was typed meanwhile. */
     back: (words: Draft, why: string) => {
       sending.current = null
-      const typed = latest.current?.text ?? ''
-      const draft = typed.trim() ? draftOf(restoredDraft(words.text, typed)) : words
-      show(draft, why)
-      keep((kept) => ({ ...afterSent(kept, words), draft }))
+      // Beside the draft as the device keeps it now, not as this tab last heard it: another tab may have kept words
+      // since (handed from Home while this one sent), and its word of that may not have reached this one yet.
+      const beside = (typed: string) => (typed.trim() ? draftOf(restoredDraft(words.text, typed)) : words)
+      const kept = keep((stored) => ({ ...afterSent(stored, words), draft: beside(stored.draft?.text ?? '') }))
+      show(kept ? kept.draft : beside(latest.current?.text ?? ''), why)
     },
   }
 }
@@ -390,7 +395,8 @@ interface Props {
 /**
  * Words handed from Home go as the field's would: one at a time, under their own key, kept on their way, and back in
  * the field if they don't go. While the space can't take them yet (still loading, Sophia unavailable, an erasure to
- * read first), they wait in the field, said, for the person to send (handed.ts).
+ * read first), or another tab's message is on its way, they wait in the field, said, for the person to send; while one
+ * of this tab's is (busy), they wait to go after it (handed.ts).
  */
 function useHanded(
   p: Props,
@@ -399,16 +405,25 @@ function useHanded(
   draft: ReturnType<typeof useDraft>,
 ) {
   const taken = useRef(0)
+  const mounted = useMounted()
   const { handed, onHanded, busy } = p
   useEffect(() => {
     const what = handing(handed, taken.current, ready, busy)
     if (!handed || what === 'none' || what === 'wait') return
     taken.current = handed.id
     onHanded()
-    // Longer than one message (Home's line has no limit), they can't go: they wait in the field, said so, never lost.
-    const long = handed.words.length > MOST
-    if (what === 'send' && !long) void send(draftOf(handed.words))
-    else draft.change(draft.text ? `${draft.text} ${handed.words}` : handed.words, long ? HANDED_LONG : HANDED)
+    const { words } = handed
+    // Into the field, after what the person may have typed meanwhile (addWords).
+    // Longer than one message (Home's line has no limit): they wait in the field to be shortened, said so, whether or
+    // not the space could take them now.
+    if (words.length > MOST) addWords(draft, words, HANDED_LONG)
+    else if (what === 'keep') addWords(draft, words, HANDED)
+    else
+      // Declined: another tab's message is on its way (a send failing before that is known says the same, the words
+      // safe in the field). A composer that went meanwhile (signing out, an erasure) takes nothing back.
+      void send(draftOf(words)).then((went) => {
+        if (!went && mounted.current) addWords(draft, words, NOTICE.waits)
+      })
   })
 }
 

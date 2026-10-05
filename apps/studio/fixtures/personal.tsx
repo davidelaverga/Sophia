@@ -9,7 +9,7 @@
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
-import { StrictMode, useMemo, useRef, useState } from 'react'
+import { StrictMode, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Sending } from '../src/features/personal/conversation-view.ts'
 import type { TalkLine } from '../src/features/personal/extras.ts'
@@ -210,6 +210,12 @@ function useSimulated() {
       setBusy(true)
       setSending({ text, at: new Date(), epoch: 1 })
       await new Promise((r) => setTimeout(r, query.has('slow') ? 1500 : 300))
+      // `sendFails=1`: the message doesn't go (a lost connection); its words come back to the field.
+      if (query.has('sendFails')) {
+        setSending(null)
+        setBusy(false)
+        throw new Error('not sent (fixture)')
+      }
       add(turn('person', text, new Date().toISOString(), { reply: 'pending' }))
       setSending(null)
       setBusy(false)
@@ -267,6 +273,35 @@ function useReadBack() {
   return { older, more, readMore }
 }
 
+/** The space's epoch as the page knows it, held back with `epochAfter=ms`. */
+function useEpochKnown(): boolean {
+  // `epochAfter=ms`: the space's epoch is known only that much later (both reads still on their way).
+  const [known, setKnown] = useState(!query.has('epochAfter'))
+  useEffect(() => {
+    if (known) return undefined
+    const later = window.setTimeout(() => setKnown(true), Number(query.get('epochAfter')))
+    return () => window.clearTimeout(later)
+  }, [known])
+  return known
+}
+
+/** Words handed from Home, as `handed=` and `handedAfter=` say. */
+function useHanded() {
+  // `handed=words`: words said to Sophia from Home, handed to the composer to send; `handedAfter=ms`: handed that
+  // much later, not at once.
+  const [handed, setHanded] = useState<{ words: string; id: number } | null>(() => {
+    const words = query.get('handed')
+    return words && !query.has('handedAfter') ? { words, id: 1 } : null
+  })
+  useEffect(() => {
+    const words = query.get('handed')
+    if (!words || !query.has('handedAfter')) return undefined
+    const later = window.setTimeout(() => setHanded({ words, id: 1 }), Number(query.get('handedAfter')))
+    return () => window.clearTimeout(later)
+  }, [])
+  return [handed, setHanded] as const
+}
+
 function Personal() {
   const { space, writes, wrote } = useSimulated()
   const readBack = useReadBack()
@@ -275,11 +310,8 @@ function Personal() {
   const [notes, setNotes] = useState(query.get('notes') === 'open')
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
-  // `handed=words`: words said to Sophia from Home, handed to the composer to send.
-  const [handed, setHanded] = useState(() => {
-    const words = query.get('handed')
-    return words ? { words, id: 1 } : null
-  })
+  const epochKnown = useEpochKnown()
+  const [handed, setHanded] = useHanded()
   return (
     <div className="places" data-place="personal">
       {/* The places' bar, as Places draws it above every place: a talk must cover it too. */}
@@ -300,7 +332,7 @@ function Personal() {
         account="fixture"
         name="Luis"
         space={space}
-        epoch={space.epoch}
+        epoch={epochKnown ? space.epoch : undefined}
         readBack={readBack}
         read={idle}
         projects={projects}

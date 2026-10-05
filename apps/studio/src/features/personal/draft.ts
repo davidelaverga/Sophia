@@ -95,8 +95,11 @@ export function keptEpoch(stored: string | null, epoch: number): number {
   return Math.max(epoch, at ?? epoch)
 }
 
-/** Keeps `kept` on the device, in `epoch` or the newer one it keeps; the epoch kept in. */
-export function writeKept(account: string, kept: Kept, epoch: number): number {
+/**
+ * Keeps `kept` on the device, in `epoch` or the newer one it keeps; the epoch kept in, or null when the device keeps
+ * nothing (site data blocked, storage full).
+ */
+export function keptOnDevice(account: string, kept: Kept, epoch: number): number | null {
   try {
     const at = keptEpoch(localStorage.getItem(draftKey(account)), epoch)
     const stored = keptAs(kept, at)
@@ -104,9 +107,13 @@ export function writeKept(account: string, kept: Kept, epoch: number): number {
     else localStorage.removeItem(draftKey(account))
     return at
   } catch {
-    return epoch // storage unavailable: the draft lasts for this page only
+    return null
   }
 }
+
+/** Keeps `kept` on the device, as keptOnDevice; without storage the draft lasts for this page only. */
+export const writeKept = (account: string, kept: Kept, epoch: number): number =>
+  keptOnDevice(account, kept, epoch) ?? epoch
 
 /**
  * The words go, until `until`: out of the draft when it holds them (another tab's newer words, under another key,
