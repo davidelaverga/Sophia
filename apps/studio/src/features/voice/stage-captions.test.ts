@@ -52,6 +52,13 @@ describe('stage captions', () => {
     assert.equal(shown[0]?.older, false)
   })
 
+  it('shows a long caption’s end, where the words are now', () => {
+    const long = `${'early words '.repeat(15)}and the latest`
+    const [shown] = stageCaptions([turn('a', long)], label)
+    assert.ok(shown?.words.startsWith('…'))
+    assert.ok(shown?.words.endsWith('and the latest'))
+  })
+
   it('keeps how far each has been said', () => {
     assert.equal(stageCaptions([turn('a', 'Mid', { state: 'partial', end: null })], label)[0]?.said, 'partial')
   })
