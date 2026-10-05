@@ -311,7 +311,7 @@ function Count({ length }: { length: number }) {
   return (
     <span id="c-count" className={`c3-count${over >= 0 ? ' full' : ''}`}>
       {length.toLocaleString('en-US')} / {MOST.toLocaleString('en-US')}
-      {over > 0 ? ` · ${String(over)} over` : over === 0 && ' · the most one message holds'}
+      {over > 0 ? ` · ${over.toLocaleString('en-US')} over` : over === 0 && ' · the most one message holds'}
     </span>
   )
 }
@@ -421,12 +421,6 @@ function useHanded(
 
 const HANDED = 'From Home · send it when Sophia is ready'
 
-/**
- * Sending the field's words. Closing the page while they are on their way loses nothing: they come back as the draft.
- * A composer that went meanwhile (signing out, an erasure) takes nothing back: those words went with the rest. One
- * message is on its way at a time, as the device keeps one: while one is (`busy`, also a way to start's), the next
- * waits, and what is typed meanwhile stays.
- */
 const nothing = () => undefined
 
 /** A promise and the way to settle it, as Promise.withResolvers gives (which Safari 16.4 lacks). */
@@ -438,6 +432,12 @@ function settleable<T>(): { promise: Promise<T>; settle: (value: T) => void } {
   return { promise, settle: (value) => settle(value) }
 }
 
+/**
+ * Sending the field's words. Closing the page while they are on their way loses nothing: they come back as the draft.
+ * A composer that went meanwhile (signing out, an erasure) takes nothing back: those words went with the rest. One
+ * message is on its way at a time, as the device keeps one: while one is (`busy`, also a way to start's), the next
+ * waits, and what is typed meanwhile stays.
+ */
 function useSend(
   account: string,
   draft: ReturnType<typeof useDraft>,
@@ -455,7 +455,7 @@ function useSend(
     const current = given ?? draft.current()
     const text = current?.text.trim() ?? ''
     // Past the most one message holds (words heard or handed), nothing goes: the count says how much over.
-    if (!current || !text || text.length > MOST || !ready || busy) return Promise.resolve(false)
+    if (!current || !text || current.text.length > MOST || !ready || busy) return Promise.resolve(false)
     const words = { text, key: current.key }
     const { promise: admitted, settle: admit } = settleable<boolean>()
     void oneAtATime(account, async (taken) => {
@@ -605,7 +605,8 @@ export function PersonalComposer(props: Props) {
   const { online, ready, waiting: offline } = useWaiting(state, behind)
   const send = useSend(account, draft, ready, busy, onSend)
   useHanded(props, ready, send, draft)
-  useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, OFFLINE) : null)
+  // Offline, a way's words wait as a draft: the line says offline while it is, and the draft once back.
+  useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, KEPT) : null)
   const counted = text.length >= NEAR && !dictation.listening
   return (
     <form

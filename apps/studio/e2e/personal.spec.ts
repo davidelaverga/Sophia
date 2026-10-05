@@ -1141,9 +1141,12 @@ test('touch · dictation past the limit is counted as it is, how much over said,
   const length = await field(page).evaluate((f: HTMLTextAreaElement) => f.value.length)
   expect(length).toBeGreaterThan(4000)
   await expect(page.locator('#c-count')).toHaveText(
-    `${length.toLocaleString('en-US')} / 4,000 · ${String(length - 4000)} over`,
+    `${length.toLocaleString('en-US')} / 4,000 · ${(length - 4000).toLocaleString('en-US')} over`,
   )
   await expect(page.locator('.ps-composer .send')).toBeDisabled()
+  await field(page).press('Enter')
+  await page.waitForTimeout(400)
+  expect(await sent(page)).toEqual([])
 })
 
 // Codex on #94: offline, a microphone listening keeps its Stop, and a way in adds to what you wrote; Find stays shut
@@ -1167,13 +1170,20 @@ test('ease · offline, a way in adds its words after what you wrote, never over 
   await context.setOffline(true)
   await page.getByRole('button', { name: /Just talk/ }).click()
   await expect(field(page)).toHaveValue(/^First, one thing\. .+/)
+  // Back online, the line no longer says offline: the words wait as a draft.
+  await context.setOffline(false)
+  await expect(page.locator('.ps-composer .chat-line', { hasText: 'offline' })).toHaveCount(0)
 })
 
 test('@phone · ease · while the notes cover the conversation, Find stays shut', async ({ page }) => {
   await page.goto(PAGE)
   await page.locator('.c3-notes-toggle').click()
   await expect(page.locator('#c-notes')).toBeVisible()
-  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  // It says so, rather than looking pressable and doing nothing.
+  const toggle = page.locator('.c3-find-toggle')
+  await expect(toggle).toHaveAttribute('aria-disabled', 'true')
+  await expect(toggle.locator('.tip')).toContainText('Close the notes to find')
+  await toggle.click({ force: true }) // pressed anyway, it opens nothing
   await expect(finder(page)).toHaveCount(0)
 })
 
