@@ -3,6 +3,10 @@ import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 
+// The vision flag (src/app/vision.ts): the fixture pages answer the APIs proposed in issue #105, so they show them.
+// Vite hands VITE_ variables of its own process to import.meta.env.
+process.env.VITE_SOPHIA_VISION = '1'
+
 const fakeLiveKit = fileURLToPath(new URL('./fixtures/fake-livekit.ts', import.meta.url))
 const studioPage = fileURLToPath(new URL('./index.html', import.meta.url))
 

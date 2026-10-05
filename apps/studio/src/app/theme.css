@@ -3720,3 +3720,118 @@ div.empty {
     z-index: 31;
   }
 }
+
+/* A report shown to everyone (PresentedReport, docs/plans/room-present.md): where a shared screen goes, as a page of
+   its own: its head with who shows it and the way back, then the text at the reading measure, scrolled on its own. */
+.report-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--plane);
+  animation: arrive 0.4s var(--ease) both;
+}
+.report-main-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.report-main-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin-right: auto;
+}
+.report-main-title {
+  overflow: hidden;
+  font-size: var(--type-title);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-main-meta {
+  color: var(--text-3);
+  font: 500 var(--type-label) / 1.3 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.report-main-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.report-main-body {
+  overflow: auto;
+  padding: 20px 24px 40px;
+}
+.report-main-body > .md {
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+/* Who shows what to everyone, under Sophia's line, with Follow: the made object's glass, one line. */
+.stage-showing {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(420px, 100%);
+  margin-bottom: 10px;
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: var(--lift);
+  animation: arrive 0.3s var(--ease) both;
+}
+.showing-words {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+/* What a show's press said when it didn't simply go through: one line beside its button. */
+.focus-said {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+/* With video on the stage, the card floats at its top, over the gallery or the shared screen. */
+.stage-over-video {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  z-index: 4;
+  width: min(420px, calc(100% - 2 * var(--gutter)));
+  transform: translateX(-50%);
+}
+.stage-over-video .stage-showing {
+  margin: 0;
+}
+/* A show's line under its button in the made object's card, so the card's own words keep their width. */
+.made-acts {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.made-acts .focus-said:empty {
+  display: none;
+}
+.made-acts .focus-said {
+  flex-basis: 100%;
+  justify-content: flex-end;
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-main,
+  .stage-showing {
+    animation: none;
+  }
+}

@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Identity } from '../../app/dev-identity.ts'
 import { ShortcutScope } from '../../app/shortcuts.ts'
 import { DocumentPane } from './DocumentPane.tsx'
+import type { ShowRender } from '../voice/ShowEveryone.tsx'
 import type { Passage } from './PassageBar.tsx'
 import {
   openedLink,
@@ -111,6 +112,8 @@ interface Props {
   /** The call's switches and its note, for the pane's head where it covers the dock or the mini dock. */
   call?: ReactNode
   note?: string | null
+  /** «Show everyone» for the report on screen, where it is offered (showRenderOf); shown, the pane closes. */
+  show?: ShowRender | undefined
   /** Where the project's feed is: the open report's versions are read again when it moves. */
   cursor?: string | undefined
   /** In the room: a passage of the report, asked about in the chat (PassageBar). */
@@ -170,6 +173,7 @@ export function DocumentViewerProvider(props: Props) {
           note={note ?? null}
           onAsk={askAbout}
           cursor={props.cursor}
+          show={props.show}
         />
       )}
     </ViewerContext.Provider>

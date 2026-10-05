@@ -15,8 +15,9 @@ import { MissionPanel } from '../mission/MissionPanel.tsx'
 import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
-import { useStageCaptions } from '../voice/StageCaptions.tsx'
+import { useStageCaptions, type RoomNames } from '../voice/StageCaptions.tsx'
 import { madeOnTheStage, type StageMadeState } from '../voice/StageMade.tsx'
+import { showRenderOf, useStagePresent } from '../voice/StagePresent.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { chatSignature, mergeNames, panelNote, toggled, type Panel } from './side-panel.ts'
@@ -162,11 +163,28 @@ export function PanelCallSwitches({
   )
 }
 
-export function StudioShell({ projectId, identity, room, snapshot, panel, looking, captions: held, made }: Props) {
-  const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
-  const chatDraft = useAskedInto(panel, state.drafts.converse ?? '', (text) => setDraft('converse', text))
-  const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
-  const names = useKnownNames(room)
+interface Extras {
+  snapshot: Snapshot | undefined
+  room: ProjectRoom
+  made: StageMadeState
+  panel: RoomPanel
+  common: { projectId: string; identity: Identity; me: string; names: ReadonlyMap<string, string> }
+  who: RoomNames
+}
+
+/**
+ * Under her line in Converse, what she made (with Show everyone, where it is offered); and what the room shows to
+ * everyone: presented on the stage, or the card that says who shows what.
+ */
+function useUnderTheLine({ snapshot, room, made, panel, common, who }: Extras, chatOpen: boolean) {
+  const present = useStagePresent(snapshot, room, common)
+  const show = showRenderOf(snapshot, room, common)
+  const object = madeOnTheStage(made, room, { chatOpen, anyOpen: panel.panel !== null }, { ...common, who, show })
+  return { present, under: object }
+}
+
+/** The room's own keys: a lens by its number, Chat and the brief by their letters. */
+function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
   useShortcuts({
     '1': () => setLens('converse'),
     '2': () => setLens('explore'),
@@ -174,10 +192,20 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
     c: () => panel.toggle('chat'),
     b: () => panel.toggle('brief'),
   })
+}
+
+export function StudioShell({ projectId, identity, room, snapshot, panel, looking, captions: held, made }: Props) {
+  const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
+  const chatDraft = useAskedInto(panel, state.drafts.converse ?? '', (text) => setDraft('converse', text))
+  const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
+  const names = useKnownNames(room)
+  useShellKeys(setLens, panel)
   const common = { projectId, identity, me, names }
   const who = { me, names, guests: useKnownGuests(room) }
   const chatOpen = panel.panel === 'chat'
   const captions = useStageCaptions(held, room, chatOpen, who)
+  const stageExtras = { snapshot, room, made, panel, common, who }
+  const { present, under } = useUnderTheLine(stageExtras, chatOpen)
   return (
     <div className="studio">
       <RoomStage
@@ -186,13 +214,10 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
         projectId={projectId}
         identity={identity}
         lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
-        lensBody={
-          <LensBody
-            lens={state.lens}
-            made={madeOnTheStage(made, room, { chatOpen, anyOpen: panel.panel !== null }, { projectId, identity, who })}
-          />
-        }
+        lensBody={<LensBody lens={state.lens} made={under} />}
         captions={captions}
+        presented={present.presented}
+        showing={present.card}
         corner={
           <PanelToggles
             open={panel.panel}

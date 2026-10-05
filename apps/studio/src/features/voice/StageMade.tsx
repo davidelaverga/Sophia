@@ -25,6 +25,7 @@ import { escapeStepsDown } from '../artifacts/report-view.ts'
 import { noticeActions, noticeOpenRequest, noticeTitle, type ChatNoticeItem } from '../conversation/chat-view.ts'
 import { factWords, madeFacts, madeHeading, madeKey, madeOnStage } from './made-view.ts'
 import { memberLabel, withMe, type RoomNames } from './StageCaptions.tsx'
+import type { ShowRender } from './ShowEveryone.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
 /** A name inside a sentence: "Asked by you", "Asked by a member". */
@@ -62,7 +63,7 @@ export function madeOnTheStage(
   made: StageMadeState,
   room: Pick<ProjectRoom, 'status' | 'participants'>,
   panel: { chatOpen: boolean; anyOpen: boolean },
-  context: { projectId: string; identity: Identity; who: RoomNames },
+  context: { projectId: string; identity: Identity; who: RoomNames; show?: ShowRender | undefined },
 ): ReactNode {
   const { notice } = made
   const inCall = room.status === 'live' || room.status === 'reconnecting'
@@ -79,6 +80,7 @@ export function madeOnTheStage(
       keys={!panel.anyOpen}
       onBorn={made.wasBorn}
       onPutAway={made.putAway}
+      show={context.show}
     />
   )
 }
@@ -95,6 +97,8 @@ interface Props {
   keys: boolean
   onBorn: (notice: ChatNoticeItem) => void
   onPutAway: (notice: ChatNoticeItem) => void
+  /** «Show everyone», where it is offered (showRenderOf): shown, the object goes, as it does once opened. */
+  show?: ShowRender | undefined
 }
 
 /** The task's record, its report's version (the one the record names) and its card on Knowledge. */
@@ -125,7 +129,9 @@ function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | '
   const version = versions?.find((v) => v.id === outputs[0]?.artifactVersionId)
   // A read that failed is said, with a way to try again: never an Open that waits for ever.
   const failed = task.isError && !detail
-  return { detail, artifactId, version, card, outputs, failed, retry: () => void task.refetch() }
+  // The room shows what is current: a version since replaced isn't offered to everyone.
+  const current = !!version && versions?.[0]?.id === version.id
+  return { detail, artifactId, version, current, card, outputs, failed, retry: () => void task.refetch() }
 }
 
 /** The Chat toggle of this stage, which holds the object's card: where the focus goes once the object is gone. */
@@ -308,6 +314,7 @@ export function StageMade(props: Props) {
       )}
       <span className="made-acts">
         {record.failed ? <RetryRead onRetry={record.retry} /> : <OpenButton ready={ready} keyOn={key} onOpen={open} />}
+        {props.show && version && record.current && props.show(version.id, () => props.onPutAway(notice))}
       </span>
       <button type="button" className="round made-close" aria-label="Close" onClick={close}>
         <Icon name="close" />
