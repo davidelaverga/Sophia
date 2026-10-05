@@ -14,6 +14,7 @@ import { StrictMode, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Sending } from '../src/features/personal/conversation-view.ts'
 import type { TalkLine } from '../src/features/personal/extras.ts'
+import { useSharedRead } from '../src/features/personal/shared-read.ts'
 import { PersonalSpace } from '../src/features/personal/PersonalSpace.tsx'
 import type { PersonalWrites } from '../src/features/personal/usePersonal.ts'
 import { projectsFor, useExtras } from './personal-extras.ts'
@@ -265,14 +266,15 @@ function useReadBack() {
   const [older, setOlder] = useState<PersonalTurn[]>([])
   const more = query.has('earlier') && older.length === 0
   // `readSlow=1`: the earlier page takes 1.5 s to come.
-  const readMore = async () => {
+  const read = async () => {
     if (query.has('readSlow')) await new Promise((r) => setTimeout(r, 1500))
     setOlder([
       turn('person', 'I made a promise to myself to rest on Sundays.', ago(21 * DAY + 30), { seq: -2 }),
       turn('sophia', 'What would rest look like, this Sunday?', ago(21 * DAY + 29), { seq: -1 }),
     ])
   }
-  return { older, more, readMore }
+  const shared = useSharedRead(read)
+  return { older, more, readMore: shared.run, reading: shared.reading }
 }
 
 /** Whether something the page reads has come: at once, or `param=ms` later. */

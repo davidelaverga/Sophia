@@ -1348,3 +1348,49 @@ test('small · “Look further back” says it is reading, and waits, until the 
   await expect(findCount(page)).toHaveText('2 of 2', { timeout: 5000 })
   await expect(reading).toHaveCount(0)
 })
+
+// Follow-ups (docs/plans/personal-follow-ups-3.md).
+
+test('follow · spaces around a message don’t count: 4,000 letters and a space go', async ({ page }) => {
+  await page.goto(PAGE)
+  await field(page).fill(`${'a'.repeat(4000)}   `)
+  await expect(page.locator('#c-count')).toHaveText('4,000 / 4,000 · the most one message holds')
+  await expect(page.locator('.ps-composer .send')).toBeEnabled()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => sent(page)).toEqual(['a'.repeat(4000)])
+})
+
+test('follow · earlier days being read are said the same everywhere: the days’ menu and Find both say “Reading…”', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?earlier=1&readSlow=1`)
+  await page.locator('.msgs > .c3-day').first().click()
+  await page.getByRole('menuitem', { name: 'Show earlier days' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Reading…' })).toHaveAttribute('aria-disabled', 'true')
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await finder(page).fill('promise')
+  await expect(page.getByRole('button', { name: 'Reading…' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(findCount(page)).toHaveText('2 of 2', { timeout: 5000 })
+})
+
+test('follow · a conversation that fits, then doesn’t (a window made shorter), keeps its latest exchange in sight', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 1100 })
+  await page.goto(PAGE)
+  expect(await page.locator('.msgs').evaluate((l) => l.scrollHeight <= l.clientHeight)).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 520 })
+  await expect(page.locator('.msg.sophia').last()).toBeInViewport()
+})
+
+test('follow · a conversation whose rows grow (a font loading, a row reflowed) keeps its latest exchange in sight', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 1100 })
+  await page.goto(PAGE)
+  expect(await page.locator('.msgs').evaluate((l) => l.scrollHeight <= l.clientHeight)).toBe(true)
+  // The rows grow; the list's own box doesn't.
+  await page.addStyleTag({ content: '.places .msg .body { font-size: 30px !important; line-height: 1.8 !important; }' })
+  await expect(page.locator('.msg.sophia').last()).toBeInViewport()
+})

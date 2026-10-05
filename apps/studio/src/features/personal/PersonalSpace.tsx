@@ -390,7 +390,26 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
       if (atEnd.current) setBehind(false)
     }
     box.addEventListener('scroll', read, { passive: true })
-    return () => box.removeEventListener('scroll', read)
+    // The list made shorter (a rotation, a window resized) or its rows taller (a font loading, a row reflowed):
+    // whoever read at its end stays there, also as it starts to overflow, where its end-alignment falls back to the
+    // start. Its rows are watched as well as its box, and again as rows come and go.
+    const sized = new ResizeObserver(() => {
+      // At once, not smoothly: a second resize mid-glide must still find the reader at the end.
+      if (atEnd.current) box.scrollTo({ top: box.scrollHeight, behavior: 'instant' })
+    })
+    const watch = () => {
+      sized.disconnect()
+      sized.observe(box)
+      for (const row of box.children) sized.observe(row)
+    }
+    watch()
+    const rows = new MutationObserver(watch)
+    rows.observe(box, { childList: true })
+    return () => {
+      box.removeEventListener('scroll', read)
+      sized.disconnect()
+      rows.disconnect()
+    }
   }, [list])
   useEffect(() => {
     const box = list.current
@@ -532,8 +551,9 @@ function useConversationFind(
   covered: boolean,
 ) {
   const uncover = covered ? () => props.notes.set(false) : null
+  const { more, reading } = props.readBack
   // Only once the conversation is read: before, a search would say "No match" over one still loading.
-  return useFind(rows, !!props.space && !props.hidden && !over, props.readBack.more, readEarlier, uncover)
+  return useFind(rows, !!props.space && !props.hidden && !over, { more, reading, read: readEarlier }, uncover)
 }
 
 export function PersonalSpace(props: Props) {
@@ -577,7 +597,7 @@ export function PersonalSpace(props: Props) {
       <Head count={space?.notes.length} {...{ notes, find }} onTalk={talk.start} under={talk.talking} />
       <div className="c3-body" ref={body} data-beside={beside || undefined}>
         <Conversation
-          {...{ rows, turns, list, actions, composer, more: props.readBack.more }}
+          {...{ rows, turns, list, actions, composer, more: props.readBack.more, reading: props.readBack.reading }}
           covered={covered || talk.talking}
           notice={<ReadNotes reads={[props.read]} />}
           earlier={earlier.open}
