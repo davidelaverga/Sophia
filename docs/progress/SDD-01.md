@@ -72,3 +72,14 @@ Levels (binding map §10): L0 source and fixtures; L1 pinned dsh, confined Chrom
 4. **Host probe.** The renderer host probe qualifies the PDF kernel only; the capture kernel is covered by its tests and CI's confined-renderer job, not by the probe.
 5. **Supervisor crossing.** The supervisor's capture upload path is unit-tested; no integration test runs the real capture kernel against the API and database end to end.
 6. **Guide v1.3.** Guide v1.2 already sends `html`, so admission works; its wording ("every report also downloads as an HTML page") becomes false at cutover and needs Davide's decision (O-4).
+
+## 5. Evidence at the G2–G4 candidate (implementer, linux-x64, Node 24.21.0, pnpm 11.7.0)
+
+| Check | Result |
+|---|---|
+| `pnpm check` | Exit 0. Unit 1366: 1365 pass, 1 skipped. `pnpm artifacts`: every identity of `sophia-runtime-sdd01-dev` reproduced. Integration 86: 84 pass, 2 skipped (as on `main`), including `tests/integration/design-tools.test.mjs` |
+| `pnpm test:sql` (repo and pack), `pnpm test:db` | Pass; `test:db` 442/442 on a local PostgreSQL 16 (Docker is not available on this host) |
+| Studio e2e, all specs | 562 run: 559 pass. Three failed under the full parallel load: two animation-frame timing checks (Home's light, sign-in's attention) and the reading check that this change edited after the run started. All three spec groups pass when re-run (21/21). Local runs use the preinstalled Chromium 141 through `executablePath`; CI runs the pinned browser |
+| Capture kernel | `renderers/web/pdf/test/capture-html.test.ts` with the real confined Chromium (render user, user namespaces), inside `pnpm test` |
+| G6 control | `node scripts/g6-control.mjs --check`: the inputs and control pages reproduce; four control captures, sandbox active, every kernel check passed |
+
