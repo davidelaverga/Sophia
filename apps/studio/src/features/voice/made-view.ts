@@ -57,9 +57,15 @@ export function madeHeading(
   return { title: version?.title ?? cardTitle ?? studioWords, meta: n ? `Report · v${String(n)}` : 'Report' }
 }
 
-/** The notice the stage shows: the newest, unless this person put it away (opened or closed it). */
+/** The kinds whose result is a report someone can open: a drafted brief delivers no file, so it stays in the chat. */
+const OPENS: ReadonlySet<string> = new Set(['research'])
+
+/**
+ * The notice the stage shows: the newest of a kind that delivers a report, unless this person put it away (opened or
+ * closed it).
+ */
 export function madeOnStage(notices: readonly ChatNoticeItem[], away: ReadonlySet<string>): ChatNoticeItem | null {
-  const newest = notices.toSorted((a, b) => b.at - a.at)[0]
+  const newest = notices.filter((n) => OPENS.has(n.taskKind)).toSorted((a, b) => b.at - a.at)[0]
   return newest && !away.has(madeKey(newest)) ? newest : null
 }
 

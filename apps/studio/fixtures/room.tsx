@@ -77,6 +77,8 @@ interface Fixture {
   noticeBrief: () => void
   /** The research task's record, held since the page opened (`hold=task`), comes now. */
   releaseTask: () => void
+  /** Reads of the research task fail from now on; given false, they succeed again. */
+  failTask: (fails?: boolean) => void
   /** A live caption packet reaches this member, as the bridge sends what is said aloud (CX-0023): synthetic text. */
   caption: (packet: ChatCaption) => void
   /** Sophia's participant leaves the room (her bridge lost its link, or restarted). */
@@ -181,6 +183,7 @@ const project = {
   textHeld: query.get('hold') === 'text',
   taskRevision: 1 as 1 | 2,
   taskHeld: query.get('hold') === 'task',
+  taskFails: false,
   textTampered: query.get('tamper') === 'text',
   work: query.get('place') === 'work',
 }
@@ -204,6 +207,9 @@ window.fixture = {
   },
   noticeBrief: () => deliverNotice(briefNotice),
   releaseTask: () => releaseTask(project),
+  failTask: (fails = true) => {
+    project.taskFails = fails
+  },
   caption: deliverCaption,
   sophiaLeaves,
   describeElsewhere: (text) => {

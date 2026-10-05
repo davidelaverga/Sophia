@@ -14,7 +14,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
-import { Icon } from '@sophia/ui'
+import { Icon, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReports } from '../../api/artifacts.ts'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -97,10 +97,11 @@ interface Props {
 
 /** The task's record, its report's version (the one the record names) and its card on Knowledge. */
 function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | 'projectId' | 'identity'>) {
-  const detail = useQuery({
+  const task = useQuery({
     queryKey: ['native-task', projectId, notice.taskId, 'notice', notice.resultRevision, identity.name],
     queryFn: () => getNativeTask(identity.token, projectId, notice.taskId),
-  }).data
+  })
+  const detail = task.data
   const artifactId = detail?.task.artifactId
   const versions = useQuery({
     queryKey: ['report-versions', artifactId, identity.name],
@@ -120,7 +121,9 @@ function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | '
   const outputs = detail?.result?.outputs ?? []
   // Only the version the record names: a list cached before a revision would show the older one.
   const version = versions?.find((v) => v.id === outputs[0]?.artifactVersionId)
-  return { detail, artifactId, version, card, outputs }
+  // A read that failed is said, with a way to try again: never an Open that waits for ever.
+  const failed = task.isError && !detail
+  return { detail, artifactId, version, card, outputs, failed, retry: () => void task.refetch() }
 }
 
 /** The Chat toggle of this stage, which holds the object's card: where the focus goes once the object is gone. */
@@ -208,19 +211,32 @@ function MadeSummary({ summary, by }: { summary: string; by: string | null }) {
   )
 }
 
-/** Open, with its key's hint only while the key works: a hint for a key that does nothing would be a dead end. */
+/** Open, its key in the Studio's tip while the key works; once a read failed, Try again instead. */
 function OpenButton({ ready, keyOn, onOpen }: { ready: boolean; keyOn: boolean; onOpen: () => void }) {
   return (
     <button
       type="button"
-      className="pill primary"
+      className="pill primary has-tip"
       onClick={onOpen}
       aria-disabled={!ready || undefined}
       aria-keyshortcuts={keyOn ? 'o' : undefined}
     >
       Open
-      {keyOn && <kbd aria-hidden="true">O</kbd>}
+      {keyOn && <Tip label="Open the report" keys="O" />}
     </button>
+  )
+}
+
+function RetryRead({ onRetry }: { onRetry: () => void }) {
+  return (
+    <>
+      <span className="made-failed" role="status">
+        It couldn’t be read just now.
+      </span>
+      <button type="button" className="pill" onClick={onRetry}>
+        Try again
+      </button>
+    </>
   )
 }
 
@@ -259,7 +275,7 @@ export function StageMade(props: Props) {
         />
       )}
       <span className="made-acts">
-        <OpenButton ready={ready} keyOn={key} onOpen={open} />
+        {record.failed ? <RetryRead onRetry={record.retry} /> : <OpenButton ready={ready} keyOn={key} onOpen={open} />}
       </span>
       <button type="button" className="round made-close" aria-label="Close" onClick={close}>
         <Icon name="close" />

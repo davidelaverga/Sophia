@@ -1542,6 +1542,12 @@ img.avatar {
   grid-column: 3;
   grid-row: 1;
   display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.made-failed {
+  color: var(--text-3);
+  font-size: 12px;
 }
 .made-close {
   grid-column: 4;

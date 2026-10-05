@@ -73,6 +73,12 @@ describe('the notice on the stage', () => {
     assert.equal(madeOnStage([older, newest], new Set([madeKey(newest)])), null)
   })
 
+  it('leaves a drafted brief to the chat: it delivers no report to open', () => {
+    const brief = { ...notice('b', 1, 9), taskKind: 'draft_brief' }
+    assert.equal(madeOnStage([notice('a', 1, 5), brief], new Set())?.taskId, 'a')
+    assert.equal(madeOnStage([brief], new Set()), null)
+  })
+
   it('is none without notices', () => {
     assert.equal(madeOnStage([], new Set()), null)
   })

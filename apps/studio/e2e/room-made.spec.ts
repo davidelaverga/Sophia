@@ -309,12 +309,33 @@ test('made · O’s hint shows only while O works', async ({ page }) => {
   await enter(page)
   await notice(page)
   const open = made(page).getByRole('button', { name: 'Open', exact: true })
-  await expect(open.locator('kbd')).toBeVisible()
+  // In the Studio's tip, as every control's key.
+  await expect(open.locator('.tip kbd')).toHaveText('O')
   await expect(open).toHaveAttribute('aria-keyshortcuts', 'o')
   await page
     .getByRole('button', { name: /^Brief/ })
     .first()
     .click()
-  await expect(open.locator('kbd')).toHaveCount(0)
+  await expect(open.locator('.tip')).toHaveCount(0)
   await expect(open).not.toHaveAttribute('aria-keyshortcuts')
+})
+
+test('made · a read that failed is said, with Try again, never an Open that waits for ever', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failTask())
+  await notice(page)
+  await expect(made(page).getByRole('status')).toHaveText('It couldn’t be read just now.', { timeout: 15_000 })
+  await page.evaluate(() => window.fixture?.failTask(false))
+  await made(page).getByRole('button', { name: 'Try again', exact: true }).click()
+  await expect(made(page).locator('.made-title')).toHaveText('Fixture report')
+  await expect(made(page).getByRole('button', { name: 'Open', exact: true })).not.toHaveAttribute('aria-disabled')
+})
+
+test('made · a drafted brief stays in the chat: no object with an Open that can’t act', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.noticeBrief())
+  await chatToggle(page).click()
+  await expect(page.getByRole('group', { name: 'Brief ready' })).toHaveCount(1)
+  await chatToggle(page).click()
+  await expect(made(page)).toHaveCount(0)
 })
