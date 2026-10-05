@@ -1150,3 +1150,20 @@ test('codex · without Promise.withResolvers (Safari 16.4), a message still goes
   await page.getByRole('button', { name: 'Talk about it' }).click()
   await expect.poll(() => sent(page)).toHaveLength(2)
 })
+
+test('codex · handed words longer than one message wait in the field, said too long, never lost', async ({ page }) => {
+  const long = 'b'.repeat(4100)
+  await page.goto(`${PAGE}?handed=${long}`)
+  await expect(field(page)).toHaveValue(long)
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText(
+    'From Home · longer than one message: shorten it to send',
+  )
+  await expect(page.locator('#c-count')).toContainText('100 over')
+  expect(await sent(page)).toEqual([])
+})
+
+test('@phone · touch · on a touch screen, “Sophia answered” is a full-size target', async ({ page }) => {
+  await readUpWhileSheAnswers(page)
+  const box = await answeredLine(page).boundingBox()
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(40)
+})
