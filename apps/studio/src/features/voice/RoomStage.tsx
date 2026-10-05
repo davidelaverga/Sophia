@@ -38,6 +38,8 @@ interface Props {
   line?: RoomLine
   /** The stage's bottom-right corner, level with the dock (the Studio puts its chat and brief there). */
   corner?: ReactNode
+  /** What is being said, just above the dock (StageCaptions), when the page shows it there. */
+  captions?: ReactNode
 }
 
 /** The time, again every half minute: enough for "starts in 12 min". */
@@ -186,7 +188,7 @@ function conversationLine(
   return typing ? { text: 'Chatting with Sophia', note: null } : roomLine(room.status, floor, running, sophia)
 }
 
-export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line, corner }: Props) {
+export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line, corner, captions }: Props) {
   const stage = useRef<HTMLElement>(null)
   const now = useNow()
   const light = useRef<SophiaLightHandle>(null)
@@ -231,6 +233,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
       ) : (
         <VideoStage mode={mode} people={people} feeds={room.feeds} floor={floor} />
       )}
+      {captions}
       <RoomDock
         room={room}
         floor={floor}

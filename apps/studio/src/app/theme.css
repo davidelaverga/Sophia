@@ -1425,6 +1425,62 @@ img.avatar {
   text-wrap: balance;
 }
 /*
+ * Captions on the stage (docs/plans/room-stage-captions.md): Meet's place for them, on the stage's axis just above the
+ * dock. Each line names its speaker the way the dock labels things; the earlier of the two is quieter. While they
+ * show, the video and the lens body end above them (StageCaptions publishes their height as --captions-h).
+ */
+.stage-captions {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--floor) + var(--dock-h, 48px) + 16px);
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: min(40rem, calc(100% - 2 * var(--gutter)));
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+  animation: veil var(--base) var(--ease) both;
+}
+.stage-caption {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.45;
+  text-wrap: balance;
+  transition: color var(--base) var(--ease);
+}
+.stage-caption[data-older] {
+  color: var(--text-3);
+}
+.caption-who {
+  margin-right: 10px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.stage-caption[data-speaker='sophia'] .caption-who {
+  color: var(--halo-text);
+}
+.room-stage:has(> .stage-captions) > :is(.gallery, .present, .stage-body) {
+  bottom: calc(var(--floor) + var(--dock-h, 48px) + 16px + var(--captions-h, 0px) + 12px);
+}
+@media (max-width: 560px) {
+  .stage-caption {
+    font-size: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage-captions {
+    animation: none;
+  }
+}
+
+/*
  * The lens body sits between Sophia's line and the dock, anchored to the dock: it never covers her line (whose
  * words are the room's state), and what does not fit scrolls inside it instead.
  */
