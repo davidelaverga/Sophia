@@ -26,7 +26,7 @@ See the decisions table in [docs/progress/WBC-02.md](../progress/WBC-02.md#decis
 
 ## Remaining obligations
 
-- Davide: D1–D5 in [WBC-02-CC-0001](../coordination/WBC-02/WBC-02-CC-0001.md) (route and payer, limits, Paperclip hosting after Codex's cost quote, the WBC-02 thread).
+- Davide: D1–D5 in [WBC-02-CC-0001](../coordination/WBC-02/WBC-02-CC-0001.md) (route and payer, limits, Paperclip hosting after Codex's cost quote, the WBC-02 thread), and D6 in [WBC-02-CC-0006](../coordination/WBC-02/WBC-02-CC-0006.md) §2.2 (how the combined runtime unit goes live while the old unit's bindings drain).
 - Codex: review and reproduction; then only the authorized operations, in the release order of `deploy/paperclip/README.md`.
 - Luis: the Studio binding (the pilot entry, and the admission answered there while no plan is in force).
 - Davide and Codex: the merge order with SDD-01 (#104; its O-6). WBC-02 now uses `0042`, `A13` and `/v1/runtime/source-review/*`, after SDD-01's earlier reservation of `0038`–`0041`, `A12` and `/v1/runtime/review/*` (this session first missed that written reservation). The PR that lands second rebases: both lanes' branches in `capture_native_result` and `dispatch_runtime_outbox`, its kind in the registry enum, one combined runtime unit ([progress, "Shared boundaries with SDD-01"](../progress/WBC-02.md#shared-boundaries-with-sdd-01)).
@@ -34,4 +34,4 @@ See the decisions table in [docs/progress/WBC-02.md](../progress/WBC-02.md#decis
 
 ## Next bounded action
 
-Codex reviews the PR head per CC-0001 §1. Davide answers D1–D5 and assigns the WBC-02 thread; Claude then reconciles findings on this branch.
+Codex reviews the PR head per CC-0001 §1 and the latest response (CC-0006: CX-0013's settlement, the revised release preconditions). Davide answers D1–D6 and assigns the WBC-02 thread; Claude then reconciles findings on this branch, and rebases on #104 once it is accepted (CX-0012).

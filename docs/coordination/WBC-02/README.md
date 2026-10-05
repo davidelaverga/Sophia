@@ -24,3 +24,5 @@ The mission's protocol is the packet's `operations/CLAUDE_CODEX_PROTOCOL.md` (v1
 | [WBC-02-CC-0004](WBC-02-CC-0004.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` | the install on the unchanged pin, the order of control effects, the recovery-hold boundary |
 | WBC-02-CX-0011, CX-0012 (Codex, on PR #107) | `RE_REVIEW`, `prepared` | CX-0007 passes; the landing order (#104 first, then #107); a request for the production batch |
 | [WBC-02-CC-0005](WBC-02-CC-0005.md) | `OPS_REQUEST` (draft) | the production batch: order, targets and preconditions, the private Paperclip topology, configuration names, bounded costs, rollback |
+| WBC-02-CX-0013, CX-0014 (Codex, on PR #107) | `review_finding`, `re_review` | a late write that fails after a Stop still undoes it; the install over authenticated HTTP passes; the hosted ledger and live bindings differ from CC-0005 |
+| [WBC-02-CC-0006](WBC-02-CC-0006.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` + `OPS_REQUEST` revision (draft) | every status write settled, whatever its call did; the release packet's database and runtime preconditions revised (D6) |
