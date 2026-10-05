@@ -216,9 +216,9 @@ function useDraft(account: string, epoch: number | undefined) {
   const keep = (change: (kept: ReturnType<typeof readKept>) => ReturnType<typeof readKept>) => {
     if (epoch === undefined) return null
     const now = change(readKept(account, epoch))
-    const at = keptOnDevice(account, now, epoch)
-    setAt(at ?? epoch)
-    return at === null ? null : now
+    const keptIn = keptOnDevice(account, now, epoch)
+    setAt(keptIn ?? epoch)
+    return keptIn === null ? null : now
   }
   /** Words in the field: the device keeps them as its draft, with what is on its way (any tab's) as it is. */
   const set = (draft: Draft | null, why: string) => {

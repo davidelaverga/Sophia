@@ -273,21 +273,20 @@ function useReadBack() {
   return { older, more, readMore }
 }
 
-function Personal() {
-  const { space, writes, wrote } = useSimulated()
-  const readBack = useReadBack()
-  const extras = useExtras(query, pressed, ago, wrote)
-  const projects = useMemo(() => projectsFor(query, ahead), [])
-  const [notes, setNotes] = useState(query.get('notes') === 'open')
-  const [earlier, setEarlier] = useState(false)
-  const [locked, setLocked] = useState(false)
+/** The space's epoch as the page knows it, held back with `epochAfter=ms`. */
+function useEpochKnown(): boolean {
   // `epochAfter=ms`: the space's epoch is known only that much later (both reads still on their way).
-  const [epochKnown, setEpochKnown] = useState(!query.has('epochAfter'))
+  const [known, setKnown] = useState(!query.has('epochAfter'))
   useEffect(() => {
-    if (epochKnown) return undefined
-    const later = window.setTimeout(() => setEpochKnown(true), Number(query.get('epochAfter')))
+    if (known) return undefined
+    const later = window.setTimeout(() => setKnown(true), Number(query.get('epochAfter')))
     return () => window.clearTimeout(later)
-  }, [epochKnown])
+  }, [known])
+  return known
+}
+
+/** Words handed from Home, as `handed=` and `handedAfter=` say. */
+function useHanded() {
   // `handed=words`: words said to Sophia from Home, handed to the composer to send; `handedAfter=ms`: handed that
   // much later, not at once.
   const [handed, setHanded] = useState<{ words: string; id: number } | null>(() => {
@@ -300,6 +299,19 @@ function Personal() {
     const later = window.setTimeout(() => setHanded({ words, id: 1 }), Number(query.get('handedAfter')))
     return () => window.clearTimeout(later)
   }, [])
+  return [handed, setHanded] as const
+}
+
+function Personal() {
+  const { space, writes, wrote } = useSimulated()
+  const readBack = useReadBack()
+  const extras = useExtras(query, pressed, ago, wrote)
+  const projects = useMemo(() => projectsFor(query, ahead), [])
+  const [notes, setNotes] = useState(query.get('notes') === 'open')
+  const [earlier, setEarlier] = useState(false)
+  const [locked, setLocked] = useState(false)
+  const epochKnown = useEpochKnown()
+  const [handed, setHanded] = useHanded()
   return (
     <div className="places" data-place="personal">
       {/* The places' bar, as Places draws it above every place: a talk must cover it too. */}
