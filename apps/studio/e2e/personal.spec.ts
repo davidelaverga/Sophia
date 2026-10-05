@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { contrastOf, lowContrast } from './contrast.ts'
 import { typeSizes } from './type-sizes.ts'
 
@@ -125,6 +125,8 @@ test('personal · Note this opens its form under your turn, on the words’ side
   const [form, words] = [await page.locator('.c3-noteform').boundingBox(), await mine.locator('.body').boundingBox()]
   if (!form || !words) throw new Error('no form')
   expect(Math.abs(form.x - words.x)).toBeLessThanOrEqual(1)
+  // While its form is open, the turn offers no second Note this.
+  await expect(mine.locator('.note-this')).toHaveCount(0)
 })
 
 test('personal · while she writes, her half breathes; with less motion asked for, it is still', async ({ page }) => {
@@ -603,4 +605,228 @@ test('presence · her half stays centred on her first line, a size up', async ({
     })
   expect(off).not.toBeNull()
   expect(Math.abs(off ?? 99)).toBeLessThanOrEqual(1)
+})
+
+// Touch (docs/plans/personal-moments.md §1): her words copied, a reply that lands while you read up, the field's limit
+// said before it bites, a kept note that lands somewhere.
+
+test('touch · her words can be copied from her turn, and it says so', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto(PAGE)
+  const hers = page.locator('.msg.sophia:not(.typing)').last()
+  await hers.hover()
+  await hers.getByRole('button', { name: 'Copy' }).click()
+  await expect(hers.getByRole('button', { name: 'Copied' })).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(await hers.locator('.body').innerText())
+  await expect(hers.getByRole('button', { name: 'Copy' })).toBeAttached({ timeout: 3000 })
+  // Your own turns keep Note this, not Copy.
+  await expect(page.locator('.msg.me').getByRole('button', { name: 'Copy' })).toHaveCount(0)
+})
+
+test('touch · a copy the browser refuses says so', async ({ page }) => {
+  await page.goto(PAGE)
+  await page.evaluate(() => {
+    navigator.clipboard.writeText = () => Promise.reject(new DOMException('refused', 'NotAllowedError'))
+  })
+  const hers = page.locator('.msg.sophia:not(.typing)').last()
+  await hers.hover()
+  await hers.getByRole('button', { name: 'Copy' }).click()
+  await expect(hers.getByRole('button', { name: 'Couldn’t copy' })).toBeVisible()
+})
+
+/** Sends a message with `slow=1` (her answer 2.5 s after it lands) and reads further up before she answers. */
+async function readUpWhileSheAnswers(page: Page) {
+  await page.goto(`${PAGE}?slow=1`)
+  await field(page).fill('One more thing.')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.msg.me .body').last()).toHaveText('One more thing.', { timeout: 5000 })
+  const list = page.locator('.msgs')
+  await list.evaluate((l) => {
+    l.style.scrollBehavior = 'auto'
+    l.scrollTop = 0
+  })
+  await expect(page.locator('.msg.sophia .body').last()).toHaveText('I’m here. Tell me more about that.', {
+    timeout: 5000,
+  })
+  return list
+}
+
+const answeredLine = (page: Page) => page.getByRole('button', { name: 'Sophia answered' })
+const toEndOf = (list: Locator) => list.evaluate((l) => l.scrollHeight - l.scrollTop - l.clientHeight)
+
+test('@phone · touch · a reply that lands while you read further up waits below, and a press brings you to it', async ({
+  page,
+}) => {
+  const list = await readUpWhileSheAnswers(page)
+  await expect(answeredLine(page)).toBeVisible()
+  // She didn't pull you down: you are still nearer where you read than her reply.
+  expect(await list.evaluate((l) => l.scrollTop < (l.scrollHeight - l.clientHeight) / 2)).toBe(true)
+  // Pressed from the keyboard: the line goes, and the focus stays in the conversation, never the page.
+  await answeredLine(page).focus()
+  await page.keyboard.press('Enter')
+  await expect(answeredLine(page)).toHaveCount(0)
+  await expect.poll(() => toEndOf(list)).toBeLessThan(48)
+  expect(await page.evaluate(() => !!document.activeElement?.closest('.c3-convo'))).toBe(true)
+})
+
+test('@phone · touch · reading down to her reply clears the line too', async ({ page }) => {
+  const list = await readUpWhileSheAnswers(page)
+  await expect(answeredLine(page)).toBeVisible()
+  await list.evaluate((l) => {
+    l.scrollTop = l.scrollHeight
+  })
+  await expect(answeredLine(page)).toHaveCount(0)
+})
+
+test('@phone · touch · a reply that lands while you read at the end needs no line', async ({ page }) => {
+  await page.goto(PAGE)
+  expect(await page.locator('.msgs').evaluate((l) => l.scrollHeight > l.clientHeight)).toBe(true)
+  // Never shown, not even for a moment.
+  await page.evaluate(() => {
+    new MutationObserver(() => {
+      if (document.querySelector('.c3-answered')) document.body.dataset['answered'] = 'seen'
+    }).observe(document.body, { childList: true, subtree: true })
+  })
+  await field(page).fill('One more thing.')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.msg.sophia .body').last()).toHaveText('I’m here. Tell me more about that.')
+  await expect(answeredLine(page)).toHaveCount(0)
+  expect(await page.evaluate(() => document.body.dataset['answered'])).toBeUndefined()
+})
+
+test('touch · the field says its limit before it bites: a count from 3,600, warm at 4,000', async ({ page }) => {
+  await page.goto(PAGE)
+  const count = page.locator('#c-count')
+  await field(page).fill('a'.repeat(3599))
+  await expect(count).toHaveCount(0)
+  expect(await field(page).getAttribute('aria-describedby')).not.toContain('c-count')
+  await field(page).fill('a'.repeat(3600))
+  await expect(count).toBeVisible()
+  await expect(count).toHaveText('3,600 / 4,000')
+  expect(await field(page).getAttribute('aria-describedby')).toContain('c-count')
+  await field(page).fill('a'.repeat(3999))
+  await expect(count).not.toHaveClass(/full/)
+  await field(page).fill('a'.repeat(4000))
+  await expect(count).toHaveText('4,000 / 4,000 · the most one message holds')
+  await expect(count).toHaveClass(/full/)
+})
+
+test('@phone · touch · at the limit, the count fits the phone: the field and send stay in the column', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await field(page).fill('Something I keep coming back to. '.repeat(125).slice(0, 4000))
+  await expect(page.locator('#c-count')).toHaveClass(/full/)
+  const box = async (selector: string) => {
+    const b = await page.locator(selector).boundingBox()
+    if (!b) throw new Error(`${selector} not laid out`)
+    return { right: b.x + b.width, width: b.width }
+  }
+  const column = await box('.c3-convo')
+  expect((await box('.ps-composer .message-bar')).right).toBeLessThanOrEqual(column.right + 1)
+  expect((await box('.ps-composer .send')).right).toBeLessThanOrEqual(column.right + 1)
+  expect((await box('#c-input')).width).toBeGreaterThan(220)
+})
+
+/** Keeps a note on your last turn, counting the lights that fly to the notes. */
+async function keepWatching(page: Page) {
+  await page.evaluate(() => {
+    document.body.dataset['flown'] = '0'
+    new MutationObserver((records) => {
+      for (const r of records) {
+        for (const n of r.addedNodes) {
+          if (n instanceof Element && n.classList.contains('c3-noteflight')) {
+            document.body.dataset['flown'] = String(Number(document.body.dataset['flown']) + 1)
+          }
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true })
+  })
+  const mine = page.locator('.msg.me').last()
+  await mine.hover()
+  await mine.locator('.note-this').click()
+  await page.locator('#c-note-in').fill('Say it to him directly')
+  await page.getByRole('button', { name: 'Keep', exact: true }).click()
+  await expect(page.locator('.c3-notes-toggle')).toHaveClass(/ticked/)
+  return page.evaluate(() => Number(document.body.dataset['flown']))
+}
+
+test('touch · a note kept flies to the notes as a small light, and their count brightens once', async ({ page }) => {
+  await page.goto(PAGE)
+  expect(await keepWatching(page)).toBe(1)
+  await expect(page.locator('.c3-notes-toggle')).not.toHaveClass(/ticked/, { timeout: 3000 })
+  await expect(page.locator('.c3-noteflight')).toHaveCount(0) // the light is gone once it lands
+})
+
+test('touch · with less motion asked for, a note kept doesn’t fly; the count still brightens', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto(PAGE)
+  expect(await keepWatching(page)).toBe(0)
+})
+
+test('touch · a long unbroken word (a pasted link) wraps inside the field; the column stays where it is', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  const column = await page.locator('.c3-convo').boundingBox()
+  await field(page).fill(`https://example.test/${'a'.repeat(1500)}`)
+  const bar = await page.locator('.ps-composer .message-bar').boundingBox()
+  expect(bar?.width ?? Infinity).toBeLessThanOrEqual((column?.width ?? 0) + 1)
+  expect(await field(page).evaluate((f) => f.scrollWidth <= f.clientWidth + 1)).toBe(true)
+  await expect(page.locator('.c3-head h2')).toBeInViewport()
+})
+
+// Codex on #92: a late copy is taken back once Personal is out of sight; words past the limit are said, never hidden.
+
+test('touch · a copy that settles after the padlock shut is taken back off the clipboard', async ({ page }) => {
+  await page.goto(PAGE)
+  // A clipboard that answers late (a permission prompt), noting what it was given.
+  await page.evaluate(() => {
+    document.body.dataset['clip'] = ''
+    navigator.clipboard.writeText = (words: string) => {
+      document.body.dataset['clip'] += `[${words}]`
+      return words
+        ? new Promise<void>((done) => window.addEventListener('release', () => done(), { once: true }))
+        : Promise.resolve()
+    }
+  })
+  const hers = page.locator('.msg.sophia:not(.typing)').last()
+  await hers.hover()
+  await hers.getByRole('button', { name: 'Copy' }).click()
+  await page.getByRole('button', { name: 'Lock (fixture)' }).click()
+  await page.evaluate(() => window.dispatchEvent(new Event('release')))
+  await expect.poll(() => page.evaluate(() => document.body.dataset['clip'])).toMatch(/\]\[\]$/)
+})
+
+test('touch · dictation past the limit is counted as it is, how much over said, and Send waits', async ({ page }) => {
+  await page.goto(`${PAGE}?heard=${encodeURIComponent('and one more thing I wanted to say')}`)
+  await field(page).fill('a'.repeat(3990))
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await page.getByRole('button', { name: 'Stop listening' }).click()
+  const length = await field(page).evaluate((f: HTMLTextAreaElement) => f.value.length)
+  expect(length).toBeGreaterThan(4000)
+  await expect(page.locator('#c-count')).toHaveText(
+    `${length.toLocaleString('en-US')} / 4,000 · ${(length - 4000).toLocaleString('en-US')} over`,
+  )
+  await expect(page.locator('.ps-composer .send')).toBeDisabled()
+  await field(page).press('Enter')
+  await page.waitForTimeout(400)
+  expect(await sent(page)).toEqual([])
+})
+
+test('codex · handed words longer than one message wait in the field, said too long, never lost', async ({ page }) => {
+  const long = 'b'.repeat(4100)
+  await page.goto(`${PAGE}?handed=${long}`)
+  await expect(field(page)).toHaveValue(long)
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText(
+    'From Home · longer than one message: shorten it to send',
+  )
+  await expect(page.locator('#c-count')).toContainText('100 over')
+  expect(await sent(page)).toEqual([])
+})
+
+test('@phone · touch · on a touch screen, “Sophia answered” is a full-size target', async ({ page }) => {
+  await readUpWhileSheAnswers(page)
+  const box = await answeredLine(page).boundingBox()
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(40)
 })

@@ -5,7 +5,7 @@
 // it), `notes=none` (none kept yet); `unavailable=1` (Sophia can't answer now). A message sent here is answered 900 ms later.
 // `arrive=1`: yesterday's talk and her line of today, nothing said yet. The parts the API doesn't give yet:
 // `memory=1`, `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
-// `slow=1`: a message takes 1.5 s on its way, not 0.3. `kept=sophia`: the note was Sophia's. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
+// `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
@@ -103,7 +103,10 @@ class QuietRecognition extends EventTarget {
   start() {
     return undefined
   }
+  // `heard=words`: what it heard, said as it stops.
   stop() {
+    const heard = query.get('heard')
+    if (heard) this.dispatchEvent(Object.assign(new Event('result'), { results: [[{ transcript: heard }]] }))
     this.dispatchEvent(new Event('end'))
   }
   abort() {
@@ -203,19 +206,33 @@ function useSimulated() {
       setSending(null)
       setBusy(false)
       window.clearTimeout(answer.current)
-      answer.current = window.setTimeout(() => {
-        setSpace((s) => ({
-          ...s,
-          turns: s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' } : t)),
-        }))
-        add(turn('sophia', 'I’m here. Tell me more about that.', new Date().toISOString()))
-      }, 900)
+      answer.current = window.setTimeout(
+        () => {
+          setSpace((s) => ({
+            ...s,
+            turns: s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' } : t)),
+          }))
+          add(turn('sophia', 'I’m here. Tell me more about that.', new Date().toISOString()))
+        },
+        query.has('slow') ? 2500 : 900,
+      )
       return receipt('send_turn')
     },
     retry: () => Promise.resolve(receipt('retry_turn')),
     decide: () => Promise.resolve(receipt('decide_suggestion')),
-    keep: () => Promise.resolve(receipt('keep_note')),
-    forget: () => Promise.resolve(receipt('forget_note')),
+    // A note kept is in the notes as the API reads it back.
+    keep: (text, turnId) => {
+      const id = `note-${String(Date.now())}`
+      setSpace((s) => ({
+        ...s,
+        notes: [...s.notes, { id, text, keptBy: 'person', fromTurnId: turnId, createdAt: new Date().toISOString() }],
+      }))
+      return Promise.resolve({ ...receipt('keep_note'), noteId: id })
+    },
+    forget: (id) => {
+      setSpace((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }))
+      return Promise.resolve(receipt('forget_note'))
+    },
     carry: () => Promise.resolve(receipt('carry_note')),
     takeBack: () => Promise.resolve(receipt('take_back')),
     erase: () => Promise.resolve(receipt('erase')),
@@ -232,6 +249,11 @@ function Personal() {
   const [notes, setNotes] = useState(query.get('notes') === 'open')
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
+  // `handed=words`: words said to Sophia from Home, handed to the composer to send.
+  const [handed, setHanded] = useState(() => {
+    const words = query.get('handed')
+    return words ? { words, id: 1 } : null
+  })
   return (
     <div className="places" data-place="personal">
       {/* The places' bar, as Places draws it above every place: a talk must cover it too. */}
@@ -245,8 +267,8 @@ function Personal() {
       </button>
       <PersonalSpace
         hidden={locked}
-        handed={null}
-        onHanded={() => undefined}
+        handed={handed}
+        onHanded={() => setHanded(null)}
         locked={locked}
         now={NOW}
         account="fixture"

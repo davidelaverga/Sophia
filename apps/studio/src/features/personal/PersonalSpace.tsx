@@ -23,7 +23,7 @@ import { Icon, Tip } from '@sophia/ui'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { Conversation, Who, type ConversationActions } from './Conversation.tsx'
 import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack } from './conversation-view.ts'
-import { focusNotesToggle, focusSoon } from './focus.ts'
+import { focusConversation, focusNotesToggle, focusSoon } from './focus.ts'
 import type { PersonalExtras } from './extras.ts'
 import { NotesPanel } from './NotesPanel.tsx'
 import { NOTICE } from './notice-view.ts'
@@ -168,6 +168,16 @@ function useActions(
   }
 }
 
+/** Her reply landed while you read further up: it waits below, and a press brings you to it. */
+function Answered({ onPress }: { onPress: () => void }) {
+  return (
+    <button className="c3-answered" type="button" onClick={onPress}>
+      Sophia answered
+      <span aria-hidden>↓</span>
+    </button>
+  )
+}
+
 function Edge({ edge, onCross }: { edge: Props['edge']; onCross: () => void }) {
   return (
     <button
@@ -243,6 +253,24 @@ function useRows(props: Props) {
   return { turns, rows }
 }
 
+/** The notes' count brightens once when it grows: a note kept has landed. */
+function useTicked(count: number | undefined): boolean {
+  const [ticked, setTicked] = useState(false)
+  const last = useRef(count)
+  useEffect(() => {
+    const grew = count !== undefined && last.current !== undefined && count > last.current
+    last.current = count
+    if (!grew) return undefined
+    setTicked(true)
+    const done = window.setTimeout(() => setTicked(false), 1200)
+    return () => {
+      window.clearTimeout(done)
+      setTicked(false)
+    }
+  }, [count])
+  return ticked
+}
+
 /** `count` is undefined until the space has loaded: the toggle shows no number before. */
 function Head({
   count,
@@ -256,6 +284,7 @@ function Head({
   /** A talk runs over everything: the head is out of reach until it ends. */
   under: boolean
 }) {
+  const ticked = useTicked(count)
   return (
     <header className="c3-head" inert={under}>
       <h2 id="c-p-h" tabIndex={-1}>
@@ -270,7 +299,7 @@ function Head({
         )}
         {(count !== undefined || notes.open) && (
           <button
-            className="c3-notes-toggle has-tip"
+            className={`c3-notes-toggle has-tip${ticked ? ' ticked' : ''}`}
             type="button"
             aria-pressed={notes.open}
             aria-controls="c-notes"
@@ -321,17 +350,21 @@ const AT_END_PX = 48
 /**
  * The latest turn comes into sight as the conversation grows (a turn, a message settling, Sophia writing) while the
  * person reads at its end, also once they are back from another place, and always as they send. Whoever reads further
- * up stays where they read.
+ * up stays where they read; a reply of hers that lands meanwhile waits below (`behind`), until they reach the end or
+ * press to go there (`toEnd`).
  */
 function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) {
-  const { newest, sending, writing, hidden } = grows
+  const { newest, hers, sending, writing, hidden } = grows
   const atEnd = useRef(true)
   const sent = useRef<unknown>(null)
+  const seen = useRef(newest)
+  const [behind, setBehind] = useState(false)
   useEffect(() => {
     const box = list.current
     if (!box) return undefined
     const read = () => {
       atEnd.current = box.scrollHeight - box.scrollTop - box.clientHeight < AT_END_PX
+      if (atEnd.current) setBehind(false)
     }
     box.addEventListener('scroll', read, { passive: true })
     return () => box.removeEventListener('scroll', read)
@@ -339,15 +372,35 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
   useEffect(() => {
     const box = list.current
     const theirs = sending !== null && sending !== sent.current
+    const landed = newest !== seen.current
     sent.current = sending
-    if (newest === 0) atEnd.current = true // nothing read yet (a lock, an erasure): it opens at its end
-    if (box && !hidden && (atEnd.current || theirs)) box.scrollTop = box.scrollHeight
-  }, [list, newest, sending, writing, hidden])
+    // A reply that lands while the space is out of sight still counts as unseen once it is back.
+    if (!hidden) seen.current = newest
+    if (newest === 0) {
+      atEnd.current = true // nothing read yet (a lock, an erasure): it opens at its end
+      setBehind(false)
+    }
+    if (hidden) return
+    if (box && (atEnd.current || theirs)) {
+      box.scrollTop = box.scrollHeight
+      setBehind(false)
+    } else if (landed && hers) setBehind(true)
+  }, [list, newest, hers, sending, writing, hidden])
+  // Pressed, the line goes: the focus stays in the conversation (the field, or the list on touch), never the page.
+  const toEnd = useCallback(() => {
+    const box = list.current
+    if (box) box.scrollTop = box.scrollHeight
+    setBehind(false)
+    focusConversation()
+  }, [list])
+  return { behind: behind && !hidden, toEnd }
 }
 
 /** What makes the conversation grow, and whether it is out of sight (another place, the padlock). */
 interface Grows {
   newest: number
+  /** Whether the newest turn is Sophia's. */
+  hers: boolean
   sending: unknown
   writing: boolean
   hidden: boolean
@@ -445,8 +498,9 @@ export function PersonalSpace(props: Props) {
   useWelcomeBack(props, turns)
   const waiting = rows.some((r) => r.kind === 'typing')
   const said = useHeard(space, turns, waiting)
-  useLatestInSight(list, {
+  const latest = useLatestInSight(list, {
     newest: turns.at(-1)?.seq ?? 0,
+    hers: turns.at(-1)?.author === 'sophia',
     sending: writes.sending,
     writing: waiting,
     hidden: props.hidden,
@@ -475,6 +529,7 @@ export function PersonalSpace(props: Props) {
           earlier={earlier.open}
           setEarlier={earlier.set}
           week={props.extras?.week}
+          answered={latest.behind ? <Answered onPress={latest.toEnd} /> : null}
         />
         {talk.view}
         <Notes props={props} actions={actions} under={talk.talking} />

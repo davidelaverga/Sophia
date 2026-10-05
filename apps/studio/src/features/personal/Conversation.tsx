@@ -1,15 +1,17 @@
 // The conversation's rows (conversation-view.ts), rendered: day dividers that list the days, turns grouped by side, each
 // side's first turn marked by its half of Umbral, times on hover (a tap on touch), "Note this" on the person's own turns with its short form in their own
-// words, Sophia's suggested note (keep it or let it go), and the wait for her reply.
+// words, "Copy" on hers, Sophia's suggested note (keep it or let it go), and the wait for her reply.
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon } from '@sophia/ui'
+import { onScreen } from '../../app/shortcuts.ts'
 import { usePopover } from '../../app/usePopover.ts'
 import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
 import { daysOf, notePrefill, suggestionFor, type Row } from './conversation-view.ts'
 import type { Week } from './extras.ts'
 import { focusConversation, focusIfDropped, focusSoon } from './focus.ts'
+import { noteFlight } from './note-flight.ts'
 import { WeekLook } from './WeekLook.tsx'
 
 export interface ConversationActions {
@@ -162,8 +164,48 @@ interface TurnProps {
   onNote: () => void
 }
 
+/** Her words, copied: it says so (or that the browser refused) for a moment, then offers it again. */
+function Copy({ text }: { text: string }) {
+  const button = useRef<HTMLButtonElement>(null)
+  const [said, setSaid] = useState<string | null>(null)
+  useEffect(() => {
+    if (!said) return undefined
+    const done = window.setTimeout(() => setSaid(null), 1600)
+    return () => window.clearTimeout(done)
+  }, [said])
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      setSaid('Couldn’t copy')
+      return
+    }
+    // A copy that settles once Personal is out of sight (the padlock shut, another place, signed out) is taken back, as
+    // far as the browser lets a page write then: her words don't stay on the clipboard behind the privacy screen.
+    if (button.current && onScreen(button.current)) setSaid('Copied')
+    else await navigator.clipboard.writeText('').catch(() => undefined)
+  }
+  return (
+    <button ref={button} className="ghost c3-copy" type="button" onClick={() => void copy()}>
+      <span aria-live="polite">{said ?? 'Copy'}</span>
+    </button>
+  )
+}
+
 /** Touch and narrow screens have no hover: a tap on a message shows its time. */
 const tapShowsTime = () => matchMedia('(hover: none), (max-width: 860px)').matches
+
+/** What a turn offers beside its time: Note this on yours (not while its form is open), Copy on hers. */
+function TurnAct({ row, noting, onNote }: TurnProps) {
+  if (!row.turn) return null
+  if (row.author !== 'person') return <Copy text={row.text} />
+  if (noting) return null
+  return (
+    <button className="ghost note-this" type="button" data-note-turn={row.turn.id} onClick={onNote}>
+      Note this
+    </button>
+  )
+}
 
 function Turn({ row, noting, onNote }: TurnProps) {
   const [showAt, setShowAt] = useState(false)
@@ -171,6 +213,7 @@ function Turn({ row, noting, onNote }: TurnProps) {
   return (
     <div
       className={`msg ${me ? 'me' : 'sophia'} ${row.first ? 'first' : 'cont'}${showAt ? ' show-at' : ''}`}
+      data-turn={row.turn?.id}
       onClick={(e) => {
         if (tapShowsTime() && !(e.target instanceof Element && e.target.closest('button'))) setShowAt(!showAt)
       }}
@@ -179,11 +222,7 @@ function Turn({ row, noting, onNote }: TurnProps) {
       <span className="sr-only">{me ? 'You' : 'Sophia'}: </span>
       <div className="body">{row.text}</div>
       <span className="at">{row.at}</span>
-      {me && row.turn && !noting && (
-        <button className="ghost note-this" type="button" data-note-turn={row.turn.id} onClick={onNote}>
-          Note this
-        </button>
-      )}
+      <TurnAct row={row} noting={noting} onNote={onNote} />
     </div>
   )
 }
@@ -298,7 +337,10 @@ function TurnWithForm(props: Omit<RowProps, 'row' | 'onDays'> & { row: Extract<R
   const keep = (text: string) => {
     close()
     void actions.keepNote(text, turn.id, suggestionFor(turns, turn.id)).then((kept) => {
-      if (kept) return
+      if (kept) {
+        noteFlight(document.querySelector(`.msg[data-turn="${turn.id}"]`))
+        return
+      }
       setRefused(text)
       setNoteAt((open) => open ?? turn.id)
     })
@@ -434,10 +476,12 @@ interface ConversationProps {
   actions: ConversationActions
   /** Her look back at your week, the newest thing in the conversation while it waits (extras.ts). */
   week?: Week | undefined
+  /** Her reply that landed while you read further up, waiting at the end of what you see. */
+  answered?: React.ReactNode
 }
 
 export function Conversation(props: ConversationProps) {
-  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, week } = props
+  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, week, answered } = props
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const day = useDayPill(list, rows)
   // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
@@ -460,6 +504,7 @@ export function Conversation(props: ConversationProps) {
         ))}
         {week && <WeekLook week={week} onTalk={actions.start} />}
       </div>
+      <div className="c3-answerbar">{answered}</div>
       {composer}
     </div>
   )

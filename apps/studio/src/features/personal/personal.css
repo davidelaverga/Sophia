@@ -853,8 +853,8 @@
   left: 100%;
   margin-left: 12px;
 }
-/* On your turn, Note this sits after its time, on the first line. */
-.places .msg .note-this {
+/* On your turn, Note this sits after its time, on the first line; on hers, Copy does. */
+.places .msg :is(.note-this, .c3-copy) {
   position: absolute;
   left: 100%;
   top: 0;
@@ -865,14 +865,18 @@
   opacity: 0;
   transition: opacity var(--fast);
 }
-.places .msg.me:has(.note-this) .at {
+.places .msg:has(:is(.note-this, .c3-copy)) .at {
   top: 6px;
   bottom: auto;
 }
+/* Her first line is taller (17 px): Copy sits a pixel lower to stay centred on it. */
+.places .msg.sophia .c3-copy {
+  top: 1px;
+}
 .places .msg:hover .at,
 .places .msg:focus-within .at,
-.places .msg:hover .note-this,
-.places .msg:focus-within .note-this {
+.places .msg:hover :is(.note-this, .c3-copy),
+.places .msg:focus-within :is(.note-this, .c3-copy) {
   opacity: 1;
 }
 .places .c3-failed {
@@ -899,13 +903,13 @@
   }
 }
 @media (hover: none), (max-width: 860px) {
-  .places .msg .note-this {
+  .places .msg :is(.note-this, .c3-copy) {
     position: static;
     margin: 0;
     display: none;
     opacity: 1;
   }
-  .places .msg.show-at .note-this {
+  .places .msg.show-at :is(.note-this, .c3-copy) {
     display: inline-flex;
   }
   .places .msg .at {
@@ -918,7 +922,7 @@
     display: block;
   }
   .places .msg.me .at,
-  .places .msg .note-this {
+  .places .msg :is(.note-this, .c3-copy) {
     justify-self: start;
   }
 }
@@ -1133,8 +1137,11 @@
   width: 16px;
   color: var(--text-3);
 }
+/* A long unbroken word (a pasted link) wraps inside the field: sized to its words, it would otherwise widen the
+   column past the screen. */
 .places .ps-composer textarea {
   font-size: 15px;
+  overflow-wrap: anywhere;
 }
 .places .ps-composer textarea::placeholder {
   color: var(--text-sec);
@@ -1762,6 +1769,7 @@
   .places .c3-talk-toggle,
   .places .hw-mic,
   .places .c3-daypill,
+  .places .c3-answered,
   .places .c3-edge .c2-lock {
     min-width: 40px;
     min-height: 40px;
@@ -1990,4 +1998,72 @@
   .places .msgs {
     scroll-behavior: auto;
   }
+}
+
+/* ---------- Touch (docs/plans/personal-moments.md §1) ---------- */
+/* Her reply that landed while you read further up waits at the foot of what you see, the day pill's counterpart: on a
+   bar of no height between the list and the field, so its coming and going moves nothing. A press brings you to it. */
+.places .c3-answerbar {
+  position: relative;
+  z-index: 3;
+  height: 0;
+  display: flex;
+  justify-content: center;
+}
+.places .c3-answered {
+  position: absolute;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(185, 168, 255, 0.35);
+  border-radius: var(--r-2);
+  /* Near opaque: it sits over words, which must not read through it. */
+  background: color-mix(in srgb, var(--void) 94%, rgb(156, 130, 245));
+  color: var(--text);
+  font: 13px/1 var(--sans);
+  cursor: pointer;
+  animation: ps-arrive 220ms var(--ease);
+}
+.places .c3-answered:hover {
+  border-color: rgba(185, 168, 255, 0.6);
+}
+/* Over the field's line: its note (a draft kept, the voice) at the left, its count at the right once it nears the most
+   one message holds, warm once it is reached; on a phone they take two lines if they must. */
+.places .ps-composer .c3-over {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.places .ps-composer .c3-count {
+  margin-left: auto;
+  color: var(--text-sec);
+  font: 11px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.places .ps-composer .c3-count.full {
+  color: var(--warm);
+}
+/* A note kept: a small light flies from its turn to the notes' count, which brightens as it lands. */
+.c3-noteflight {
+  position: fixed;
+  z-index: 60;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(250, 248, 255, 0.95) 0 25%, rgba(156, 130, 245, 0.5) 60%, transparent 75%);
+  transform: translate(-50%, -50%);
+}
+.places .c3-notes-toggle {
+  transition:
+    color var(--fast) var(--ease),
+    text-shadow 600ms var(--ease);
+}
+.places .c3-notes-toggle.ticked {
+  color: var(--text);
+  text-shadow: 0 0 12px rgba(185, 168, 255, 0.8);
 }
