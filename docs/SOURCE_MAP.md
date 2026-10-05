@@ -171,6 +171,23 @@ Vendor sources for S3's adapters, read on 2026-09-30 (the vendors' documentation
 | `jina-ai/reader` | `1574bfd`: `crawler-options.ts`, `snapshot-formatter.ts`, `crawler.ts` | Headers (`X-Respond-With`, `X-No-Cache`, `DNT`, `X-Timeout` ≤ 180, `X-Max-Tokens` trims silently, `X-Set-Cookie`, `X-Proxy-Url`); `data.url` is the requested URL; the origin status only as a warning string for an error; `numPages` for PDFs | `packages/dsh-bundle/src/source-jina.ts` |
 | jina-ai/reader#1103 | GitHub issue | An origin 404 answered as JSON `code: 200` with a warning | `tests/unit/sources.test.mjs` |
 
+## 2f. Upstream sources at WBC-02
+
+Read in a checkout of `paperclipai/paperclip@5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb` outside this tree (P-PLUGIN and P-ADAPTER in §2d now have Sophia files). Nothing is copied: the plugin's and the adapter's types are declared structurally here and checked against the pin's own by `scripts/paperclip-build.mjs`; `scripts/paperclip-verify.mjs` runs the built plugin under the pin's test harness.
+
+| Source id | Upstream file (at `5edf55d`) | Used for | Sophia files |
+|---|---|---|---|
+| PC-01 | `packages/shared/src/types/plugin.ts` 425–435, 613–627, 708 | `PluginManagedAgentResolution.agentId`; `PluginApiRouteDeclaration` (`routeKey`, `method`, `path`, `auth`, `capability`, `companyResolution`); manifest `apiRoutes` | `packages/paperclip-plugin/src/manifest.ts`, `bind.ts` |
+| PC-02 | `server/src/routes/plugins.ts` 173, 1840–1935 | A scoped route: plugin ready and worker running, route matched, `assertScopedApiAuth`, company resolved and access checked, JSON only, 1 MB body; `actor.userId` is the user's id for a board actor; the plugin's `{status, body}` is the HTTP answer; a worker error is 5xx | `packages/paperclip-plugin/src/coordination.ts` (refusals as 4xx with `{error: {code, message}}`), `apps/worker/src/coordination-dispatch.ts` (4xx definite, other answers unknown) |
+| PC-03 | `packages/plugins/sdk/src/types.ts` 443–450, 623–632, 1422–1520, 1669–1673 | `ctx.config.get`; `ctx.db.namespace/query/execute`; `ctx.issues.list/get/create/update/requestWakeup` with `originKind` under `plugin:<key>`; `ctx.agents.managed.reconcile` | `packages/paperclip-plugin/src/host.ts`, `bind.ts` |
+| PC-04 | `server/src/services/issues.ts` 3050–3066, 6270 | `originKind`/`originId` filters are exact equality within the company, and an origin filter includes plugin issues | `coordination.ts` (lookup by the commission key before any create) |
+| PC-05 | `packages/plugins/sdk/src/define-plugin.ts` 160–182, 328; `worker-rpc-host.ts` 282–302 | `PluginApiRequestInput`; `onApiRequest`; `runWorker` starts the RPC host only when the module is the process entry | `bind.ts`, the entry `scripts/paperclip-build.mjs` writes, `scripts/paperclip-verify.mjs` (imports the built worker) |
+| PC-06 | `packages/plugins/sdk/src/testing.ts` 77–146, 483, 734–740, 1681–1692, 2110–2140 | `createTestHarness`: capability checks, the plugin origin-kind rule, wakeup rules, managed agents created from the manifest; its `db` keeps no tables | `scripts/paperclip-verify.mjs` |
+| PC-07 | `packages/adapter-utils/src/types.ts` 77–115, 143–147, 197–236, 322–334, 456–550 | `AdapterExecutionResult` (`usageBasis`, nullable `costUsd`, `sessionParams`), `AdapterSessionCodec`, `AdapterExecutionContext` (`signal`, `onCancellationReady`, `onDispatch`), `AdapterEnvironmentTestContext`, `ServerAdapterModule` | `packages/paperclip-adapters/src/sophia-dsh/types.ts`, `execute.ts`, `environment.ts`, `index.ts` |
+| PC-08 | `server/src/adapters/plugin-loader.ts` 73–77, 151–159 | An external adapter package's `exports["."]` must export `createServerAdapter()` | `packages/paperclip-adapters/src/sophia-dsh/index.ts`, `scripts/paperclip-build.mjs` (package layout) |
+| PC-09 | `server/src/services/heartbeat.ts` 992, 1013 | An issue-driven run carries `context.issueId` | `execute.ts` |
+| PC-10 | pi-ai 0.87.1 `dist/providers/data/openai.json` (`gpt-6-luna`) | Window 272 000; prices 0.10 / 0.01 / 0.125 / 0.50 USD per million tokens (input, cache read, cache write, output) | `config/runtime-unit.json#model_routes.source-review-luna-high-v1`, `packages/dsh-bundle/cordis.patch.yml` (`openai-review`) |
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

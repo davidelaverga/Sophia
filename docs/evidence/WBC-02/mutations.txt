@@ -1,0 +1,16 @@
+# WBC-02 mutation checks (linux-x64, 2026-10-05)
+# Each line reverts one guard, runs the check meant to catch it, and restores the file.
+# 'FAILS as it should' = a check caught the reverted guard.
+
+M01 a replayed envelope is refused (plugin nonce): FAILS as it should
+M02 a resend finds the issue its key holds (plugin, INT-05): FAILS as it should
+M03 the body is the one the envelope signed (digest): FAILS as it should
+M04 a pre-aborted run asks Sophia nothing (adapter, INT-07): FAILS as it should
+M05 a cancelled run waits for the Hold to settle (adapter): FAILS as it should
+M05b an unsettled Hold is never said held (adapter): FAILS as it should
+M06 a second run attaches, never a second attempt (SQL, INT-06): FAILS as it should
+M07 usage is reported by one run only (SQL, INT-17): FAILS as it should
+M08 a finding cites only a source the review read (SQL): FAILS as it should
+M09 a withdrawn input withdraws the result (SQL, INT-13): FAILS as it should
+M10 a result is shown only if its bytes hash to its version (Studio, INT-16): FAILS as it should
+M11 a command naming no assignment never leaves (Studio): FAILS as it should
