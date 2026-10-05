@@ -394,12 +394,15 @@ function useHanded(
     if (!handed || what === 'none' || what === 'wait') return
     taken.current = handed.id
     onHanded()
-    if (what === 'send') void send(draftOf(handed.words))
-    else draft.change(draft.text ? `${draft.text} ${handed.words}` : handed.words, HANDED)
+    // Longer than one message (Home's line has no limit), they can't go: they wait in the field, said so, never lost.
+    const long = handed.words.length > MOST
+    if (what === 'send' && !long) void send(draftOf(handed.words))
+    else draft.change(draft.text ? `${draft.text} ${handed.words}` : handed.words, long ? HANDED_LONG : HANDED)
   })
 }
 
 const HANDED = 'From Home · send it when Sophia is ready'
+const HANDED_LONG = 'From Home · longer than one message: shorten it to send'
 
 /**
  * Sending the field's words. Closing the page while they are on their way loses nothing: they come back as the draft.
