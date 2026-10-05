@@ -16,7 +16,8 @@ CREATE TABLE plugin_sophia_coordination_00c896da3d.commissions (
   work_id text NOT NULL,
   state text NOT NULL CHECK (state IN ('creating', 'created')),
   issue_id uuid REFERENCES public.issues(id),
-  -- The effect lease: one delivery at a time changes the issue of this commission (effect_holder until effect_until).
+  -- The effect lease: one delivery at a time changes the issue of this commission (effect_holder until effect_until),
+  -- renewed before each write so that a write is only begun with more lease left than the host call can take.
   effect_holder text,
   effect_until timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -40,6 +41,21 @@ CREATE TABLE plugin_sophia_coordination_00c896da3d.controls (
   received_at timestamptz NOT NULL DEFAULT now(),
   applied_at timestamptz,
   CHECK ((state = 'applied') = (applied_at IS NOT NULL))
+);
+
+-- One row per issue status write the plugin makes for a commission (a control effect or a settlement), recorded
+-- before the write. A host call can fail after its write was durable, or land after its caller stopped waiting, so
+-- every write is open until a settlement has read the issue after the write ended. ended_at is set when the host
+-- answered the call, with the issue or an error (it answers once it finished with it); a call it never answered, or
+-- whose worker died, counts as ended once it is stale. settled_at is set by the settlement that read the issue after
+-- it ended; until then no delivery of the commission is confirmed against it.
+CREATE TABLE plugin_sophia_coordination_00c896da3d.effects (
+  effect_id text PRIMARY KEY,
+  commission_key text NOT NULL REFERENCES plugin_sophia_coordination_00c896da3d.commissions(commission_key),
+  status text NOT NULL,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  ended_at timestamptz,
+  settled_at timestamptz
 );
 
 -- One row per wakeup the plugin asks the host for (for a commission, for a Resume), keyed by the delivery that asks it.

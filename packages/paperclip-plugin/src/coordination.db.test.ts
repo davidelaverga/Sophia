@@ -16,6 +16,7 @@ import {
   type Lookup,
 } from '@sophia/coordination/plugin-wire'
 import { createEmptyDatabase, type EmptyDatabase } from '@sophia/test-support'
+import { settleOpenWrites } from './coordination.ts'
 import {
   installNamespace,
   memoryPaperclip,
@@ -47,7 +48,7 @@ after(async () => {
 })
 beforeEach(async () => {
   await client.query(
-    `TRUNCATE ${NAMESPACE}.controls, ${NAMESPACE}.wakes, ${NAMESPACE}.commissions, ${NAMESPACE}.envelope_nonces, public.heartbeat_runs`,
+    `TRUNCATE ${NAMESPACE}.controls, ${NAMESPACE}.effects, ${NAMESPACE}.wakes, ${NAMESPACE}.commissions, ${NAMESPACE}.envelope_nonces, public.heartbeat_runs`,
   )
 })
 
@@ -173,6 +174,31 @@ const leaseOf = async (key: string): Promise<string | null> =>
       [key],
     )
   ).rows[0]?.holder ?? null
+
+/** A commission's status writes that no settlement has read the issue after yet. */
+const openWrites = async (key: string): Promise<number> =>
+  Number(
+    (
+      await client.query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM ${NAMESPACE}.effects WHERE commission_key = $1 AND settled_at IS NULL`,
+        [key],
+      )
+    ).rows[0]?.n,
+  )
+
+/** The delivery holding the lease outlived it (its host call is still in flight): another may take it over. */
+const expireLease = async (key: string) =>
+  client.query(
+    `UPDATE ${NAMESPACE}.commissions SET effect_until = now() - interval '1 second' WHERE commission_key = $1`,
+    [key],
+  )
+
+/** Ages the writes the host never answered past the time it may still act on them. */
+const ageUnended = async (key: string) =>
+  client.query(
+    `UPDATE ${NAMESPACE}.effects SET started_at = started_at - interval '3 minutes' WHERE commission_key = $1 AND ended_at IS NULL`,
+    [key],
+  )
 
 async function waitUntil(check: () => Promise<boolean>) {
   for (let i = 0; i < 100; i += 1) {
@@ -592,21 +618,176 @@ describe('control', () => {
       const original = p.request(controlRequest(c, issueId, 'hold', 'hold-late'))
       await waitUntil(async () => (await leaseOf(c.key)) !== null)
       gate = null // the resend's update lands at once
-      // The original outlived its lease (its host call is still in flight), so the resend may take it over.
-      await client.query(
-        `UPDATE ${NAMESPACE}.commissions SET effect_until = now() - interval '1 second' WHERE commission_key = $1`,
-        [c.key],
-      )
+      await expireLease(c.key)
       const resend = await p.request(controlRequest(c, issueId, 'hold', 'hold-late'))
-      assert.equal(outcome(resend.body).outcome, 'applied')
+      assert.equal(outcome(resend.body).outcome, 'applied', 'the write in flight can only set what the Hold wants')
       const stop = await p.request(controlRequest(c, issueId, 'stop', 'stop-after'))
-      assert.equal(outcome(stop.body).outcome, 'applied')
+      assert.equal(stop.status, 503, 'the Stop is not confirmed while a Hold write may still land')
+      assert.equal((code(stop.body) as { code: string }).code, 'effect_unsettled')
       assert.equal(p.issues.get(issueId)?.status, 'cancelled')
+      assert.equal(await stateOf('stop-after'), 'applied', 'its effect took place')
       held.resolve() // the original's write lands now, after the Stop
       const late = await original
       assert.equal(late.status, 200)
       assert.equal(p.issues.get(issueId)?.status, 'cancelled', 'the later Stop stands')
+      const confirmed = await p.request(controlRequest(c, issueId, 'stop', 'stop-after'))
+      assert.deepEqual(confirmed.body, { outcome: 'already', issueId, status: 'cancelled', wakeQueued: false })
       assert.deepEqual([await stateOf('hold-late'), await stateOf('stop-after')], ['applied', 'applied'])
+      assert.equal(await openWrites(c.key), 0)
+    },
+  )
+
+  /** A Hold whose original delivery is held in its update, then lands `blocked` and fails, after its resend and a Stop. */
+  async function lateFailingHold(settleFails = { now: false }) {
+    let late = true
+    const gate = Promise.withResolvers<void>()
+    const p = paperclip({
+      beforeUpdate: (_id, status) => (status === 'blocked' && late ? gate.promise : undefined),
+      fails: {
+        update: (status) => {
+          if (status === 'blocked' && late) return 'after'
+          return status === 'cancelled' && settleFails.now ? 'before' : null
+        },
+      },
+    })
+    const c = commissionOf()
+    await p.request(commissionRequest(c))
+    const issueId = [...p.issues.keys()][0] ?? ''
+    const original = p.request(controlRequest(c, issueId, 'hold', 'hold-x'))
+    await waitUntil(async () => (await leaseOf(c.key)) !== null)
+    late = false
+    await expireLease(c.key)
+    assert.equal(outcome((await p.request(controlRequest(c, issueId, 'hold', 'hold-x'))).body).outcome, 'applied')
+    const stop = await p.request(controlRequest(c, issueId, 'stop', 'stop-x'))
+    assert.equal(stop.status, 503)
+    assert.equal(p.issues.get(issueId)?.status, 'cancelled')
+    return { p, c, issueId, gate, original }
+  }
+
+  it(
+    'a delayed original Hold that writes after a later Stop and then fails is settled before its error: the Stop stands (WBC-02-CX-0013)',
+    { timeout: 20_000 },
+    async () => {
+      const { p, c, issueId, gate, original } = await lateFailingHold()
+      gate.resolve() // the original writes blocked, then the host answers an error
+      await assert.rejects(original, /durable, then the call failed/)
+      assert.equal(p.issues.get(issueId)?.status, 'cancelled', 'settled before the error was answered')
+      for (const [op, key] of [
+        ['stop', 'stop-x'],
+        ['hold', 'hold-x'],
+      ] as const) {
+        const again = await p.request(controlRequest(c, issueId, op, key))
+        assert.deepEqual(again.body, { outcome: 'already', issueId, status: 'cancelled', wakeQueued: false })
+      }
+      assert.deepEqual([await stateOf('hold-x'), await stateOf('stop-x')], ['applied', 'applied'])
+      assert.equal(await openWrites(c.key), 0)
+      assert.equal(await leaseOf(c.key), null)
+    },
+  )
+
+  it(
+    'a settlement that itself fails leaves the late write open: no delivery is confirmed until the settle job settles it (WBC-02-CX-0013)',
+    { timeout: 20_000 },
+    async () => {
+      const settleFails = { now: false }
+      const { p, c, issueId, gate, original } = await lateFailingHold(settleFails)
+      settleFails.now = true
+      gate.resolve()
+      await assert.rejects(original, /durable, then the call failed/)
+      assert.equal(p.issues.get(issueId)?.status, 'blocked', 'the late write landed and its settlement failed')
+      assert.ok((await openWrites(c.key)) > 0, 'it stays open')
+      await assert.rejects(p.request(controlRequest(c, issueId, 'stop', 'stop-x')), /issue update failed/)
+      assert.equal(await leaseOf(c.key), null, 'a failed settlement releases its lease')
+      settleFails.now = false
+      assert.equal(await settleOpenWrites(p.host), 1)
+      assert.equal(p.issues.get(issueId)?.status, 'cancelled')
+      assert.equal(await openWrites(c.key), 0)
+      const again = await p.request(controlRequest(c, issueId, 'stop', 'stop-x'))
+      assert.deepEqual(again.body, { outcome: 'already', issueId, status: 'cancelled', wakeQueued: false })
+    },
+  )
+
+  it('a write the host never answered stays open until stale: landing late it is undone, and only then is the Stop confirmed (WBC-02-CX-0013)', async () => {
+    let unanswered = true
+    const p = paperclip({ fails: { update: (status) => (status === 'blocked' && unanswered ? 'unanswered' : null) } })
+    const c = commissionOf()
+    await p.request(commissionRequest(c))
+    const issueId = [...p.issues.keys()][0] ?? ''
+    await assert.rejects(p.request(controlRequest(c, issueId, 'hold', 'hold-u')), /did not answer/)
+    assert.equal(p.issues.get(issueId)?.status, 'todo', 'nothing landed yet')
+    unanswered = false
+    assert.equal(outcome((await p.request(controlRequest(c, issueId, 'hold', 'hold-u'))).body).outcome, 'applied')
+    const stop = await p.request(controlRequest(c, issueId, 'stop', 'stop-u'))
+    assert.equal((code(stop.body) as { code: string }).code, 'effect_unsettled')
+    const issue = p.issues.get(issueId)
+    assert.equal(issue?.status, 'cancelled')
+    if (issue) issue.status = 'blocked' // the host acts on the unanswered call now
+    const early = await p.request(controlRequest(c, issueId, 'stop', 'stop-u'))
+    assert.equal(early.status, 503, 'still open: the host may act on it until it is stale')
+    assert.equal(p.issues.get(issueId)?.status, 'cancelled', 'the late write is undone at once')
+    await ageUnended(c.key)
+    const confirmed = await p.request(controlRequest(c, issueId, 'stop', 'stop-u'))
+    assert.deepEqual(confirmed.body, { outcome: 'already', issueId, status: 'cancelled', wakeQueued: false })
+    assert.equal(await openWrites(c.key), 0)
+  })
+
+  it("the settle job settles a write whose worker died, restoring Sophia's latest control over it and leaving the host's own status alone", async () => {
+    const { p, c, issueId } = await commissioned()
+    await p.request(controlRequest(c, issueId, 'hold', 'hold-d'))
+    await p.request(controlRequest(c, issueId, 'resume', 'resume-d'))
+    const died = async () =>
+      client.query(
+        `INSERT INTO ${NAMESPACE}.effects (effect_id, commission_key, status, started_at)
+         VALUES ($1, $2, 'blocked', now() - interval '3 minutes')`,
+        [randomUUID(), c.key],
+      )
+    const issue = p.issues.get(issueId)
+    assert.ok(issue)
+    await died()
+    issue.status = 'blocked' // its write landed after the Resume
+    assert.equal(await settleOpenWrites(p.host), 1)
+    assert.equal(issue.status, 'todo', 'the Resume stands')
+    await died()
+    issue.status = 'in_progress' // the host started the run since
+    assert.equal(await settleOpenWrites(p.host), 1)
+    assert.equal(issue.status, 'in_progress', 'a status no open write made is the host’s own')
+    assert.equal(await openWrites(c.key), 0)
+    assert.equal(await settleOpenWrites(p.host), 0)
+  })
+
+  it(
+    'a delivery whose lease ran out while a host call was slow writes nothing: it is told to ask again (WBC-02-CX-0013)',
+    { timeout: 20_000 },
+    async () => {
+      let armed: PromiseWithResolvers<void> | null = null
+      let key = ''
+      const p = paperclip({
+        beforeGet: async () => {
+          const gate = armed
+          if (gate && (await leaseOf(key)) !== null) {
+            armed = null
+            await gate.promise
+          }
+        },
+      })
+      const c = commissionOf()
+      key = c.key
+      await p.request(commissionRequest(c))
+      const issueId = [...p.issues.keys()][0] ?? ''
+      const gate = Promise.withResolvers<void>()
+      armed = gate
+      const slow = p.request(controlRequest(c, issueId, 'hold', 'hold-slow')) // its read of the issue is held
+      await waitUntil(() => Promise.resolve(armed === null))
+      await expireLease(c.key)
+      assert.equal(outcome((await p.request(controlRequest(c, issueId, 'stop', 'stop-fast'))).body).outcome, 'applied')
+      gate.resolve()
+      const late = await slow
+      assert.equal(late.status, 503)
+      assert.equal((code(late.body) as { code: string }).code, 'control_in_progress')
+      assert.equal(p.issues.get(issueId)?.status, 'cancelled', 'it wrote nothing')
+      assert.equal(await stateOf('hold-slow'), 'pending')
+      const resend = await p.request(controlRequest(c, issueId, 'hold', 'hold-slow'))
+      assert.deepEqual(resend.body, { outcome: 'already', issueId, status: 'cancelled', wakeQueued: false })
     },
   )
 

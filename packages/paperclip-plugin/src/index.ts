@@ -7,8 +7,10 @@ export {
   handleControl,
   handleLookup,
   readConfig,
+  settleOpenWrites,
   type CoordinationConfig,
   type ProjectMapping,
 } from './coordination.ts'
+export { UnansweredHostCall } from './host.ts'
 export type { ApiRequest, ApiResponse, CoordinationHost, HostIssue, HostIssueCreate } from './host.ts'
-export { manifest, REVIEWER_AGENT_KEY } from './manifest.ts'
+export { manifest, REVIEWER_AGENT_KEY, SETTLE_JOB_KEY } from './manifest.ts'

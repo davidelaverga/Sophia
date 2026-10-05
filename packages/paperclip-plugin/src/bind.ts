@@ -7,9 +7,17 @@
  * @module @sophia/paperclip-plugin/bind
  */
 import type { IssueStatus } from '@sophia/coordination/plugin-wire'
-import { handleApiRequest } from './coordination.ts'
-import type { ApiResponse, CoordinationHost, HostIssue, HostIssueCreate, OriginKind, Row } from './host.ts'
-import { REVIEWER_AGENT_KEY } from './manifest.ts'
+import { handleApiRequest, settleOpenWrites } from './coordination.ts'
+import {
+  UnansweredHostCall,
+  type ApiResponse,
+  type CoordinationHost,
+  type HostIssue,
+  type HostIssueCreate,
+  type OriginKind,
+  type Row,
+} from './host.ts'
+import { REVIEWER_AGENT_KEY, SETTLE_JOB_KEY } from './manifest.ts'
 
 /** The Issue fields read (shared/src/types/issue.ts). */
 interface SdkIssue {
@@ -47,6 +55,7 @@ export interface SdkContext {
     execute(sql: string, params?: unknown[]): Promise<{ rowCount: number }>
   }
   readonly config: { get(companyId?: string): Promise<Record<string, unknown>> }
+  readonly jobs: { register(key: string, fn: (job: unknown) => Promise<void>): void }
 }
 
 export interface SdkApiRequest {
@@ -66,6 +75,20 @@ const issueOf = (issue: SdkIssue): HostIssue => ({
   originId: issue.originId ?? null,
 })
 
+/** The pinned SDK's JsonRpcCallError code for a worker-to-host call it stopped waiting for (PLUGIN_RPC_ERROR_CODES). */
+const RPC_TIMEOUT = -32003
+
+/** A host call's result; a call the worker stopped waiting for is told apart from the host's own error. */
+async function answered<T>(call: Promise<T>): Promise<T> {
+  try {
+    return await call
+  } catch (err: unknown) {
+    if (typeof err === 'object' && err !== null && 'code' in err && err.code === RPC_TIMEOUT)
+      throw new UnansweredHostCall(err instanceof Error ? err.message : 'The host did not answer the call')
+    throw err
+  }
+}
+
 export function hostOf(ctx: SdkContext, clock: () => number = Date.now): CoordinationHost {
   return {
     issues: {
@@ -75,7 +98,8 @@ export function hostOf(ctx: SdkContext, clock: () => number = Date.now): Coordin
         return issue ? issueOf(issue) : null
       },
       create: async (input) => issueOf(await ctx.issues.create(input)),
-      update: async (issueId, patch, companyId) => issueOf(await ctx.issues.update(issueId, patch, companyId)),
+      update: async (issueId, patch, companyId) =>
+        issueOf(await answered(ctx.issues.update(issueId, patch, companyId))),
       requestWakeup: async (issueId, companyId, options) => ({
         queued: (await ctx.issues.requestWakeup(issueId, companyId, options)).queued,
       }),
@@ -94,7 +118,7 @@ const NOT_READY: ApiResponse = {
   body: { error: { code: 'not_ready', message: 'The plugin is starting' } },
 }
 
-/** The plugin's `setup` and `onApiRequest`; one instance per worker. */
+/** The plugin's `setup` (which registers the settle job) and `onApiRequest`; one instance per worker. */
 export function pluginHandlers(): {
   setup(ctx: SdkContext): Promise<void>
   onApiRequest(input: SdkApiRequest): Promise<ApiResponse>
@@ -102,7 +126,11 @@ export function pluginHandlers(): {
   let host: CoordinationHost | null = null
   return {
     setup(ctx) {
-      host = hostOf(ctx)
+      const bound = hostOf(ctx)
+      host = bound
+      ctx.jobs.register(SETTLE_JOB_KEY, async () => {
+        await settleOpenWrites(bound)
+      })
       return Promise.resolve()
     },
     onApiRequest(input) {

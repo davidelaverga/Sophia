@@ -14,7 +14,15 @@ import { fileURLToPath } from 'node:url'
 import type pg from 'pg'
 import type { IssueStatus } from '@sophia/coordination/plugin-wire'
 import { handleApiRequest } from './coordination.ts'
-import type { ApiRequest, ApiResponse, CoordinationHost, HostIssue, HostIssueCreate, Row } from './host.ts'
+import {
+  UnansweredHostCall,
+  type ApiRequest,
+  type ApiResponse,
+  type CoordinationHost,
+  type HostIssue,
+  type HostIssueCreate,
+  type Row,
+} from './host.ts'
 import { checkExecute, checkQuery } from './host-sql.ts'
 import { manifest } from './manifest.ts'
 
@@ -51,15 +59,20 @@ export interface MemoryPaperclipOptions {
   readonly now?: () => number
   /** Runs inside create before the issue exists, e.g. to hold a create in flight. */
   readonly beforeCreate?: () => Promise<void>
-  /**
-   * Fault injection while its check says so: a status update fails, changing nothing; a wakeup fails `before` it is
-   * durable (no run), or `after` (its run is queued, then the call fails, as when the host's activity log fails), or
-   * is `not_queued` (the host answers `{queued: false, runId: null}`, as for an agent left in error).
-   */
+  /** Runs inside an issue read before it answers, e.g. to hold one in flight. */
+  readonly beforeGet?: (issueId: string) => Promise<void> | undefined
   /** Runs inside a status update before it lands, e.g. to hold one in flight (a delayed host call). */
   readonly beforeUpdate?: (issueId: string, status: string) => Promise<void> | undefined
+  /**
+   * Fault injection while its check says so: a status update fails `before` it lands (`true` alike), changing
+   * nothing, or `after` it landed (the status changed, then the host answers an error, as when its activity log fails
+   * after `issues.update`, plugin-host-services.ts), or is `unanswered` (the worker stops waiting, nothing landed yet:
+   * a test lands it later by hand); a wakeup fails `before` it is durable (no run), or `after` (its run is queued,
+   * then the call fails), or is `not_queued` (the host answers `{queued: false, runId: null}`, as for an agent left
+   * in error).
+   */
   readonly fails?: {
-    readonly update?: () => boolean
+    readonly update?: (status: string) => boolean | 'before' | 'after' | 'unanswered' | null
     readonly wake?: () => 'before' | 'after' | 'not_queued' | null
   }
 }
@@ -108,9 +121,10 @@ function issueService(
           .slice(0, input.limit)
           .map(view),
       ),
-    get: (issueId, companyId) => {
+    get: async (issueId, companyId) => {
+      await options.beforeGet?.(issueId)
       const issue = issues.get(issueId)
-      return Promise.resolve(issue?.companyId === companyId ? view(issue) : null)
+      return issue?.companyId === companyId ? view(issue) : null
     },
     create: async (input) => {
       await options.beforeCreate?.()
@@ -120,10 +134,13 @@ function issueService(
       return view(issue)
     },
     update: async (issueId, patch: { status: IssueStatus }, companyId) => {
-      if (options.fails?.update?.() === true) throw new Error('injected: issue update failed')
+      const fault = options.fails?.update?.(patch.status) ?? null
+      if (fault === true || fault === 'before') throw new Error('injected: issue update failed')
+      if (fault === 'unanswered') throw new UnansweredHostCall('injected: the host did not answer the update')
       await options.beforeUpdate?.(issueId, patch.status)
       const issue = owned(issueId, companyId)
       issue.status = patch.status
+      if (fault === 'after') throw new Error('injected: issue update durable, then the call failed')
       return view(issue)
     },
     requestWakeup: async (issueId, companyId, wake) => {

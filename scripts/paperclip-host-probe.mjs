@@ -168,12 +168,14 @@ describe("sophia_dsh on the pinned heartbeat (WBC-02-CX-0007)", () => {
     const loader = pluginLoader(db, { enableNpmDiscovery: false });
     const installed = await loader.installPlugin({ localPath: process.env.SOPHIA_PLUGIN_DIR });
     expect(installed.manifest?.id).toBe("sophia.coordination");
+    // The settle job passed the pin's manifest validation (capability and cron schedule); WBC-02-CX-0013.
+    expect((installed.manifest?.jobs ?? []).map((job) => [job.jobKey, job.schedule])).toEqual([["settle-status-writes", "* * * * *"]]);
     const tables = await db.execute(
       sql.raw("SELECT table_name FROM information_schema.tables WHERE table_schema = 'plugin_sophia_coordination_00c896da3d' ORDER BY table_name"),
     );
     const names = Array.from(tables).map((row) => row.table_name);
     console.log("[probe] installed namespace tables", JSON.stringify(names));
-    expect(names).toEqual(["commissions", "controls", "envelope_nonces", "wakes"]);
+    expect(names).toEqual(["commissions", "controls", "effects", "envelope_nonces", "wakes"]);
   }, 120_000);
 });
 `

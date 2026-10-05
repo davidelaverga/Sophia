@@ -2,13 +2,17 @@
  * The plugin's manifest (PaperclipPluginManifestV1 at the pinned source). Its routes are the Sophia-owned plugin
  * routes of 03_PAPERCLIP_INTEGRATION §4, declared through the manifest's `apiRoutes` contract: board callers only (the
  * integration board principal), the company resolved by the host from the body or from the issue, never from a
- * free field. Capabilities are the issue, wakeup, managed-agent and namespace ones the handlers use, nothing broader.
+ * free field. Capabilities are the issue, wakeup, managed-agent and namespace ones the handlers use, and the schedule
+ * of the one job that settles status writes, nothing broader.
  * @module @sophia/paperclip-plugin/manifest
  */
 import { PLUGIN_ID, ROUTES } from '@sophia/coordination/plugin-wire'
 
 /** The managed agent commissioned issues are assigned to; its adapter is the external `sophia_dsh` adapter. */
 export const REVIEWER_AGENT_KEY = 'source-reviewer'
+
+/** The job that settles status writes no delivery settled (coordination.ts, settleOpenWrites). */
+export const SETTLE_JOB_KEY = 'settle-status-writes'
 
 export const manifest = {
   id: PLUGIN_ID,
@@ -29,9 +33,19 @@ export const manifest = {
     'issues.update',
     'issues.wakeup',
     'agents.managed',
+    'jobs.schedule',
   ],
   entrypoints: { worker: './dist/worker.js' },
   database: { migrationsDir: 'migrations', coreReadTables: ['issues', 'heartbeat_runs'] },
+  jobs: [
+    {
+      jobKey: SETTLE_JOB_KEY,
+      displayName: 'Settle status writes',
+      description:
+        'Settles any status write on a Sophia issue that its own delivery could not settle, so a late write never undoes a later control.',
+      schedule: '* * * * *',
+    },
+  ],
   agents: [
     {
       agentKey: REVIEWER_AGENT_KEY,

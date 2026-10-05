@@ -7,6 +7,7 @@
  * - issues.list/get/create/update/requestWakeup: PluginIssuesClient (packages/plugins/sdk/src/types.ts), served by
  *   server/src/services/plugin-host-services.ts. `list` filters originKind and originId by exact equality within
  *   the company (server/src/services/issues.ts); a plugin may only use origin kinds under `plugin:<its key>`.
+ *   `update` rejects with UnansweredHostCall when the host never answered it.
  * - reviewerAgent: `ctx.agents.managed.reconcile(agentKey, companyId)` (PluginManagedAgentResolution.agentId).
  * - query/execute: PluginDatabaseClient on the host-derived namespace (SELECT; namespace INSERT/UPDATE/DELETE).
  * - config: PluginConfigClient.get(companyId).
@@ -70,6 +71,18 @@ export interface CoordinationHost {
   config(companyId: string): Promise<Readonly<Record<string, unknown>>>
   /** Seconds since the epoch. */
   now(): number
+}
+
+/**
+ * A host call the host never answered: the pinned worker stopped waiting for it (its own timeout, JsonRpcCallError
+ * PLUGIN_RPC_ERROR_CODES.TIMEOUT in packages/plugins/sdk/src/worker-rpc-host.ts). The host may still act on it. Any
+ * other error is the host's answer, sent only once its handler finished (plugin-worker-manager.ts, handleWorkerRequest).
+ */
+export class UnansweredHostCall extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UnansweredHostCall'
+  }
 }
 
 /** The request the host hands the plugin's onApiRequest after enforcing auth, company access and route matching. */

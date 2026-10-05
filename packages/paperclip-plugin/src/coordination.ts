@@ -4,7 +4,7 @@
  * configured); Sophia's signed envelope for exactly this body, operation, company and time; the configured mapping of
  * the Sophia project to this company and Paperclip project; and its nonce, kept so a replay is refused. A refusal
  * changes nothing. The issue is a core record changed only through the host's issue APIs; the namespace keeps only
- * the commission's binding, the applied controls and the nonces.
+ * the commission's binding, the controls, the nonces, the wakeups asked and the status writes until they settle.
  *
  * Creating is serialized per commission key: a namespace row claims the key, the core issue is looked up by its
  * exact origin (`plugin:sophia.coordination:commission`, the key) before anything is created, and a create whose
@@ -31,9 +31,10 @@ import {
   type Control,
   type ControlOp,
   type ControlReply,
+  type IssueStatus,
   type LookupReply,
 } from '@sophia/coordination/plugin-wire'
-import type { ApiRequest, ApiResponse, CoordinationHost, HostIssue } from './host.ts'
+import { UnansweredHostCall, type ApiRequest, type ApiResponse, type CoordinationHost, type HostIssue } from './host.ts'
 
 /** How long a claimed but unfinished create blocks another (a worker that died mid-create releases it after this). */
 const CREATING_STALE_SECONDS = 120
@@ -379,8 +380,14 @@ export async function handleControl(host: CoordinationHost, input: ApiRequest): 
     ],
   )
   const recorded = await recordControl(host, control, target.id)
-  if (recorded.state === 'applied')
-    return { outcome: 'already', issueId: target.id, status: target.status, wakeQueued: false }
+  if (recorded.state === 'applied') {
+    const settled = await confirmSettled(host, {
+      commissionKey: control.commissionKey,
+      issueId: target.id,
+      companyId: input.companyId,
+    })
+    return { outcome: 'already', issueId: target.id, status: settled ?? target.status, wakeQueued: false }
+  }
   return applyControl(host, { companyId: input.companyId, issue: target, control, seq: recorded.seq })
 }
 
@@ -391,44 +398,92 @@ interface Pending {
   readonly seq: string
 }
 
+/** The issue of one commission, as its writes and settlements name it. */
+interface Subject {
+  readonly commissionKey: string
+  readonly issueId: string
+  readonly companyId: string
+}
+
+const subjectOf = (p: Pending): Subject => ({
+  commissionKey: p.control.commissionKey,
+  issueId: p.issue.id,
+  companyId: p.companyId,
+})
+
 /**
  * A pending control's effect, under its commission's effect lease, so one delivery at a time changes the issue: a
  * delivery whose host call is still in flight holds it, and a resend or a later control waits (503 while it is held).
- * A holder whose call outlived its lease, which another delivery then took, may have written after a later control:
- * it settles that (`settleStale`) before it answers.
+ * Every effect ends with a settlement, whether it returned or failed (`settleAfter`): a host call can land after its
+ * lease ran out, or fail after its write was durable, so no delivery is answered done while a write of its commission
+ * is unsettled (503 `effect_unsettled`, which the worker asks again).
  */
 async function applyControl(host: CoordinationHost, p: Pending): Promise<ControlReply> {
+  const s = subjectOf(p)
   const token = randomUUID()
-  if (!(await takeLease(host, p.control.commissionKey, token)))
+  if (!(await takeLease(host, s.commissionKey, token)))
     refuse(503, 'control_in_progress', 'Another delivery is changing this issue; ask again later')
+  let result: Settled | null = null
   try {
-    if (await superseded(host, p.control.commissionKey, p.seq)) {
-      await markApplied(host, p.control.key)
-      return { outcome: 'already', issueId: p.issue.id, status: p.issue.status, wakeQueued: false }
-    }
-    const effect = CONTROL_EFFECT[p.control.op]
-    const current = (await host.issues.get(p.issue.id, p.companyId)) ?? p.issue
-    const updated =
-      current.status === effect.status
-        ? current
-        : await host.issues.update(p.issue.id, { status: effect.status }, p.companyId)
-    const queued = effect.wake ? await wakeOnce(host, updated, p.control.key) : false
-    await markApplied(host, p.control.key)
-    if (!(await keepsLease(host, p.control.commissionKey, token))) await settleStale(host, p)
-    return { outcome: 'applied', issueId: updated.id, status: updated.status, wakeQueued: queued }
+    const reply = await effectOf(host, p, token)
+    result = await settleAfter(host, s, token)
+    if (!result.settled) refuse(503, 'effect_unsettled', UNSETTLED_MESSAGE)
+    return { ...reply, status: result.status ?? reply.status }
   } finally {
-    await releaseLease(host, p.control.commissionKey, token)
+    // The effect failed (its write may still have landed): settle what it may have written before the error is sent.
+    if (result === null) await settleAfter(host, s, token)
+    await releaseLease(host, s.commissionKey, token)
   }
 }
 
-/** How long one delivery holds its commission's effect lease before another may take it over. */
-const EFFECT_LEASE_SECONDS = 30
+async function effectOf(host: CoordinationHost, p: Pending, token: string): Promise<ControlReply> {
+  if (await superseded(host, p.control.commissionKey, p.seq)) {
+    await markApplied(host, p.control.key)
+    return { outcome: 'already', issueId: p.issue.id, status: p.issue.status, wakeQueued: false }
+  }
+  const effect = CONTROL_EFFECT[p.control.op]
+  const current = (await host.issues.get(p.issue.id, p.companyId)) ?? p.issue
+  const updated =
+    current.status === effect.status ? current : await writeStatus(host, subjectOf(p), token, effect.status)
+  const queued = effect.wake ? await wakeOnce(host, updated, p.control.key) : false
+  await markApplied(host, p.control.key)
+  return { outcome: 'applied', issueId: updated.id, status: updated.status, wakeQueued: queued }
+}
+
+const UNSETTLED_MESSAGE = 'A status write of this issue is not settled yet; ask again later'
+
+/**
+ * A delivery answered from its record ('already') is confirmed only once every write of its commission is settled:
+ * an open one is settled first, under the lease.
+ */
+async function confirmSettled(host: CoordinationHost, s: Subject): Promise<string | null> {
+  const open = await host.query<{ open: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM ${host.namespace}.effects WHERE commission_key = $1 AND settled_at IS NULL) AS open`,
+    [s.commissionKey],
+  )
+  if (open[0]?.open !== true) return null
+  const result = await settleLeased(host, s, LEASE_WAIT_MS)
+  if (result === null) refuse(503, 'control_in_progress', 'Another delivery is changing this issue; ask again later')
+  if (!result.settled) refuse(503, 'effect_unsettled', UNSETTLED_MESSAGE)
+  return result.status
+}
+
+/**
+ * How long one delivery holds its commission's effect lease before another may take it over: twice the pinned
+ * worker's 30 s timeout for one host call (worker-rpc-host.ts, DEFAULT_RPC_TIMEOUT_MS), renewed before each write.
+ */
+const EFFECT_LEASE_SECONDS = 60
 /** How long a delivery waits for the lease before it answers 503 (the worker asks again). */
 const LEASE_WAIT_MS = 2000
 const LEASE_POLL_MS = 100
 
-async function takeLease(host: CoordinationHost, commissionKey: string, token: string): Promise<boolean> {
-  const deadline = Date.now() + LEASE_WAIT_MS
+async function takeLease(
+  host: CoordinationHost,
+  commissionKey: string,
+  token: string,
+  waitMs = LEASE_WAIT_MS,
+): Promise<boolean> {
+  const deadline = Date.now() + waitMs
   for (;;) {
     const taken = await host.execute(
       `UPDATE ${host.namespace}.commissions SET effect_holder = $2, effect_until = now() + make_interval(secs => $3)
@@ -441,10 +496,12 @@ async function takeLease(host: CoordinationHost, commissionKey: string, token: s
   }
 }
 
-async function keepsLease(host: CoordinationHost, commissionKey: string, token: string): Promise<boolean> {
+/** Renews this delivery's lease if it still holds it (nobody took it over); false once another delivery has. */
+async function renewLease(host: CoordinationHost, commissionKey: string, token: string): Promise<boolean> {
   const kept = await host.execute(
-    `UPDATE ${host.namespace}.commissions SET effect_until = effect_until WHERE commission_key = $1 AND effect_holder = $2`,
-    [commissionKey, token],
+    `UPDATE ${host.namespace}.commissions SET effect_until = now() + make_interval(secs => $3)
+      WHERE commission_key = $1 AND effect_holder = $2`,
+    [commissionKey, token, EFFECT_LEASE_SECONDS],
   )
   return kept.rowCount === 1
 }
@@ -458,28 +515,140 @@ async function releaseLease(host: CoordinationHost, commissionKey: string, token
 }
 
 /**
- * This delivery lost its lease while its host call was in flight: if a later control took effect meanwhile and the
- * issue still shows this control's status (its write landed after the later one's), the later status is restored,
- * under the lease. Any other status (the host's own, or the later control's) is left alone.
+ * One status write, made only while this delivery holds the lease (renewed first, so the call ends before the lease
+ * runs out) and recorded before it is asked. It ends when the host answers, with the issue or with an error: the host
+ * answers only once it finished with the call, whatever it wrote. A call the host never answered (UnansweredHostCall)
+ * may still land and stays unended. Until a settlement reads the issue after it ended, the write is open. A delivery
+ * that lost the lease writes nothing (503).
  */
-async function settleStale(host: CoordinationHost, p: Pending) {
-  const token = randomUUID()
-  if (!(await takeLease(host, p.control.commissionKey, token))) return
+async function writeStatus(host: CoordinationHost, s: Subject, token: string, status: IssueStatus): Promise<HostIssue> {
+  if (!(await renewLease(host, s.commissionKey, token)))
+    refuse(503, 'control_in_progress', 'Another delivery took over this issue; ask again later')
+  const id = randomUUID()
+  await host.execute(`INSERT INTO ${host.namespace}.effects (effect_id, commission_key, status) VALUES ($1, $2, $3)`, [
+    id,
+    s.commissionKey,
+    status,
+  ])
+  let updated: HostIssue
   try {
-    const rows = await host.query<{ op: ControlOp; later: boolean }>(
-      `SELECT op, seq > $2::bigint AS later FROM ${host.namespace}.controls
-        WHERE commission_key = $1 AND state = 'applied' ORDER BY seq DESC LIMIT 1`,
-      [p.control.commissionKey, p.seq],
-    )
-    const latest = rows[0]
-    if (latest?.later !== true) return
-    const mine = CONTROL_EFFECT[p.control.op].status
-    const wanted = CONTROL_EFFECT[latest.op].status
-    const issue = await host.issues.get(p.issue.id, p.companyId)
-    if (issue?.status === mine && mine !== wanted) await host.issues.update(p.issue.id, { status: wanted }, p.companyId)
-  } finally {
-    await releaseLease(host, p.control.commissionKey, token)
+    updated = await host.issues.update(s.issueId, { status }, s.companyId)
+  } catch (err: unknown) {
+    if (!(err instanceof UnansweredHostCall)) await endWrite(host, id)
+    throw err
   }
+  await endWrite(host, id)
+  return updated
+}
+
+async function endWrite(host: CoordinationHost, id: string) {
+  await host.execute(`UPDATE ${host.namespace}.effects SET ended_at = now() WHERE effect_id = $1`, [id])
+}
+
+/**
+ * When a write that never ended (the host never answered it, or its worker died) counts as finished: four times the
+ * pinned worker's 30 s host-call timeout, after which the host is no longer acting on it.
+ */
+const EFFECT_STALE_SECONDS = 120
+/** The reads and writes one settlement makes at most; what is left stays open for the next one. */
+const SETTLE_ROUNDS = 3
+
+interface Settled {
+  /** Every open write finished and was read after, or cannot change the status the latest control wants. */
+  readonly settled: boolean
+  /** The issue's status as the settlement last read it (null when it read none). */
+  readonly status: string | null
+}
+
+const UNSETTLED: Settled = { settled: false, status: null }
+
+/**
+ * Settles the open writes of a commission, under its lease. The status Sophia wants is the one of the latest control
+ * the plugin received (Sophia sends the next only once this one is answered). If the issue shows a status one of the
+ * open writes may have made, and not the wanted one, a stale write landed after a later control: the wanted status is
+ * written again (itself an open write, settled in the next round). Any other status, the host's own included, is left
+ * alone. The writes that finished before the issue was read are then settled.
+ */
+async function settle(host: CoordinationHost, s: Subject, token: string): Promise<Settled> {
+  let status: string | null = null
+  for (let round = 0; round < SETTLE_ROUNDS; round += 1) {
+    const open = await host.query<{ status: string; finished: boolean; at: string }>(
+      `SELECT status, ended_at IS NOT NULL OR started_at < now() - make_interval(secs => $2) AS finished, now()::text AS at
+         FROM ${host.namespace}.effects WHERE commission_key = $1 AND settled_at IS NULL`,
+      [s.commissionKey, EFFECT_STALE_SECONDS],
+    )
+    const at = open[0]?.at
+    if (at === undefined) return { settled: true, status }
+    const want = await wantedStatus(host, s.commissionKey)
+    status = (await host.issues.get(s.issueId, s.companyId))?.status ?? null
+    if (want !== null && status !== null && status !== want && open.some((e) => e.status === status)) {
+      status = (await writeStatus(host, s, token, want)).status
+      continue
+    }
+    await host.execute(
+      `UPDATE ${host.namespace}.effects SET settled_at = now()
+        WHERE commission_key = $1 AND settled_at IS NULL
+          AND (ended_at <= $2::timestamptz OR started_at < $2::timestamptz - make_interval(secs => $3))`,
+      [s.commissionKey, at, EFFECT_STALE_SECONDS],
+    )
+    return { settled: open.every((e) => e.finished || e.status === want), status }
+  }
+  return { settled: false, status }
+}
+
+async function wantedStatus(host: CoordinationHost, commissionKey: string): Promise<IssueStatus | null> {
+  const rows = await host.query<{ op: ControlOp }>(
+    `SELECT op FROM ${host.namespace}.controls WHERE commission_key = $1 ORDER BY seq DESC LIMIT 1`,
+    [commissionKey],
+  )
+  const latest = rows[0]
+  return latest === undefined ? null : CONTROL_EFFECT[latest.op].status
+}
+
+/** A settlement under a lease taken for it; null when another delivery holds the lease (it settles before it answers). */
+async function settleLeased(host: CoordinationHost, s: Subject, waitMs: number): Promise<Settled | null> {
+  const token = randomUUID()
+  if (!(await takeLease(host, s.commissionKey, token, waitMs))) return null
+  try {
+    return await settle(host, s, token)
+  } finally {
+    await releaseLease(host, s.commissionKey, token)
+  }
+}
+
+/**
+ * The settlement a control effect ends with, whether it returned or failed: under this delivery's lease while it still
+ * holds it, else under the lease taken again. It never fails the delivery itself: a settlement that cannot take the
+ * lease, or whose own calls fail, leaves the writes open for the next delivery of the commission or the settle job.
+ */
+async function settleAfter(host: CoordinationHost, s: Subject, token: string): Promise<Settled> {
+  try {
+    if (await renewLease(host, s.commissionKey, token)) return await settle(host, s, token)
+    return (await settleLeased(host, s, LEASE_WAIT_MS)) ?? UNSETTLED
+  } catch {
+    return UNSETTLED
+  }
+}
+
+/**
+ * The plugin's settle job (manifest `jobs`, every minute): every commission with an open write is settled under its
+ * lease, so a write whose settlement failed or never ran (its worker died) is settled without waiting for Sophia's
+ * next delivery. A commission whose lease is held is left to its holder. Returns how many commissions it settled.
+ */
+export async function settleOpenWrites(host: CoordinationHost): Promise<number> {
+  const rows = await host.query<{ commission_key: string; company_id: string; issue_id: string }>(
+    `SELECT DISTINCT c.commission_key, c.company_id, c.issue_id::text AS issue_id
+       FROM ${host.namespace}.effects e JOIN ${host.namespace}.commissions c ON c.commission_key = e.commission_key
+      WHERE e.settled_at IS NULL AND c.issue_id IS NOT NULL`,
+    [],
+  )
+  let settled = 0
+  for (const row of rows) {
+    const s = { commissionKey: row.commission_key, issueId: row.issue_id, companyId: row.company_id }
+    const result = await settleLeased(host, s, 0).catch(() => null)
+    if (result?.settled === true) settled += 1
+  }
+  return settled
 }
 
 /**

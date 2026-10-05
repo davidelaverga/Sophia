@@ -11,7 +11,7 @@ authorizes and Codex performs, through an `OPS_REQUEST` bound to an exact commit
 |---|---|---|
 | Sophia API, worker, database (migration `0042`) | Sophia's existing services | the plan, the human decision, the allowance, eligibility, the effect permit, the fence, the result |
 | Paperclip (`paperclipai/paperclip@5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb`) | one private service with **its own** PostgreSQL | the core issue and its runs, nothing else of Sophia's |
-| `sophia.coordination` plugin | inside that Paperclip | the commission's binding to its issue, applied controls, envelope nonces (its namespace only) |
+| `sophia.coordination` plugin | inside that Paperclip | the commission's binding to its issue, its controls, envelope nonces, wakeup asks and its status writes until settled (its namespace only); one scheduled job, `settle-status-writes`, every minute (capability `jobs.schedule`) |
 | `sophia_dsh` external adapter | inside that Paperclip | Sophia's coordination capability (env), never a provider credential |
 | The source reviewer | Sophia's runtime unit `sophia-runtime-wbc02-dev` | the review's model calls, metered through Sophia |
 
@@ -38,13 +38,15 @@ file's sha256 and the Sophia commit it was built from. `scripts/paperclip-verify
 test harness (`createTestHarness`: issue service, origin-kind and wakeup rules, managed agents, capability checks) with
 the namespace migration on a throwaway database, runs every statement the worker sends and the migration through the
 pin's own `ctx.db` validators (`server/src/services/plugin-database.ts`; hence the db package build), and loads the built
-adapter. The harness ignores a wakeup's idempotency key, so wake deduplication is not claimed: the plugin reconciles
+adapter, and runs the settle job through the harness (a stale write that landed after a Stop is undone). The harness
+ignores a wakeup's idempotency key, so wake deduplication is not claimed: the plugin reconciles
 wakeups itself against `public.heartbeat_runs`, which its manifest reads (`coreReadTables: ['issues', 'heartbeat_runs']`;
 the installer approves both). `scripts/paperclip-host-probe.mjs` runs the built adapter in the pin's own heartbeat on a
 throwaway database with every pinned Paperclip migration and a scripted Sophia: a Hold made in Sophia, a review that
 ended blocked and a denied permit must leave the managed reviewer runnable (a failed run would leave it in error), and
 the Resume wakeup must queue a run; and the built plugin must install through the pin's own loader, which checks each
-raw migration statement (no comment in it may hold a quote character). Its test file is written into the checkout's
+raw migration statement (no comment in it may hold a quote character) and validates the manifest, the settle job's
+capability and cron schedule included. Its test file is written into the checkout's
 server tests for the run only. The
 `OPS_REQUEST` names the manifest's digests; a different build is a different request.
 
