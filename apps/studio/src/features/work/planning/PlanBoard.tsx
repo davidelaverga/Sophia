@@ -38,6 +38,7 @@ import {
   boardOf,
   decidedFor,
   laneOf,
+  latestDecisions,
   outsideOf,
   proposed,
   waitsOn,
@@ -212,7 +213,8 @@ const askedKey = (d: BoardDecision) => JSON.stringify([d.decision_id, d.revision
  * when it arrives later, so nothing of theirs hides; one the viewer closed stays closed (GitHub review on PR #76).
  */
 function useDecisions(decisions: readonly BoardDecision[], viewerId: string | null, now: Date) {
-  const open = decisions.filter((d) => d.state === 'proposed')
+  // Each decision at its latest revision, in any state: an older one still proposed is history (Codex F-048).
+  const open = latestDecisions(decisions).filter((d) => d.state === 'proposed')
   // Past its expiry, it is read, not answered: it isn't anyone's to act on now, so it calls no one (Codex F-019).
   const active = open.filter((d) => actionable(d, now))
   const mine = active.filter((d) => d.decider_id === viewerId)

@@ -117,7 +117,8 @@ function Waits({ waits, viewerId }: { waits: readonly WaitRow[]; viewerId: strin
       <ul className="task-waits">
         {now.map((w) => (
           <li
-            key={`${w.wait.kind}:${w.wait.reference_id}`}
+            // Its kind and reference as a tuple: a reference holding a colon names no other wait (Codex F-049).
+            key={JSON.stringify([w.wait.kind, w.wait.reference_id])}
             data-mine={(w.who !== null && w.who.id === viewerId) || undefined}
           >
             <span className="field-label">{WAIT_NAME[w.wait.kind]}</span>

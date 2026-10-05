@@ -215,6 +215,37 @@ describe('two revisions of one decision in a look (Codex F-038)', () => {
   })
 })
 
+describe('an older revision of a decision, while away (Codex F-048)', () => {
+  const rows = rowsOf([['a', {}]])
+  const seen = glance(rows, [])
+  const older = decision('proposed') // revision 4, still answerable at NOW
+  const said = (decisions: BoardDecision[], viewerId = 'davide') =>
+    whileAway(rows, decisions, seen, { viewerId, people, now: NOW }).phrases
+
+  it('is history under a later one: never said waiting, whichever comes first', () => {
+    const revised = { ...decision('proposed'), revision: 5, question: 'Ship it, as revised?' }
+    assert.deepEqual(said([older, revised]), ['A decision waits on you: Ship it, as revised?'])
+    assert.deepEqual(said([revised, older]), ['A decision waits on you: Ship it, as revised?'])
+    assert.deepEqual(said([older, revised], 'luis'), ['Davide has a decision to make: Ship it, as revised?'])
+    for (const state of ['accepted', 'declined', 'expired', 'superseded'] as const) {
+      const ended = { ...decision(state), revision: 5 }
+      const phrases = [...said([older, ended]), ...said([ended, older])]
+      assert.ok(
+        phrases.every((p) => !p.includes('waits on') && !p.includes('to make')),
+        state,
+      )
+    }
+    // An older revision's choice is history, still said; one decision apart still waits.
+    const chosen = { ...decision('accepted'), revision: 3 }
+    const apart = { ...decision('proposed'), decision_id: 'd2', question: 'Hold it?' }
+    assert.deepEqual(said([chosen, older, apart]), [
+      'You chose Ship it now: Ship it?',
+      'A decision waits on you: Ship it?',
+      'A decision waits on you: Hold it?',
+    ])
+  })
+})
+
 /** Runs `check` with a storage of its own, put back as it was after. */
 function withStorage(check: (store: Map<string, string>) => void) {
   const store = new Map<string, string>()

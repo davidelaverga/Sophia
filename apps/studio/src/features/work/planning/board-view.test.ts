@@ -277,6 +277,50 @@ describe('readBoardView', () => {
     }
   })
 
+  it('refuses a task waiting twice on one kind and reference; other waits, and the same on another task, read (Codex F-049)', () => {
+    const board = example('board-review-ready.json')
+    const read = readBoardView(board)
+    if (!read.ok) throw new Error(read.problems.join('\n'))
+    const first = read.value.goals[0]?.items[0]
+    const [wait] = first?.waiting_on ?? []
+    if (!first || !wait) throw new Error('no wait in the packet')
+    const waits = ['goals', 0, 'items', 0, 'waiting_on']
+    const alice = { ...wait, respondent_id: 'fixture-human-alice', detail: 'Alice answers it.' }
+    const bob = { ...wait, respondent_id: 'fixture-human-bob', detail: 'Bob answers it.', state: 'unknown' as const }
+    const odd = { ...wait, kind: 'dependency' as const, reference_id: 'x","y:z' }
+    // Alike, or said by two people, in either order, or among others: refused at the second, by its path.
+    for (const [twice, at] of [
+      [[wait, { ...wait }], 1],
+      [[alice, bob], 1],
+      [[bob, alice], 1],
+      [[odd, alice, { ...odd, state: 'resolved' as const }], 2],
+    ] as const) {
+      const same = readBoardView(edited(board, waits, twice))
+      assert.equal(same.ok, false)
+      if (!same.ok) {
+        assert.deepEqual(same.problems, [
+          `$.goals[0].items[0].waiting_on[${String(at)}]: another wait of this task has this kind and reference`,
+        ])
+      }
+    }
+    // The same reference of another kind, other references (separators in them too), and distinct waits: read.
+    const kinds = [wait, { ...wait, kind: 'external' as const }]
+    const references = [
+      { ...odd, reference_id: 'x' },
+      { ...odd, reference_id: 'x","y' },
+      odd,
+      { ...odd, reference_id: 'x:y' },
+    ]
+    for (const distinct of [kinds, references, [alice, odd]]) {
+      const ok = readBoardView(edited(board, waits, distinct))
+      assert.equal(ok.ok, true, ok.ok ? '' : ok.problems.join('\n'))
+    }
+    // The same wait on another task is that task's own.
+    const other = { ...first, work_id: 'fixture-other' }
+    const twoTasks = readBoardView(edited(board, ['goals', 0, 'items', 1], other))
+    assert.equal(twoTasks.ok, true, twoTasks.ok ? '' : twoTasks.problems.join('\n'))
+  })
+
   it('refuses a date-time without its offset, or one the calendar doesn’t have (GitHub review on PR #76)', () => {
     const board = example('board-review-ready.json')
     for (const at of ['2026-10-03T15:00', '2026-10-03T15:00:00', '2026-02-30T15:00:00Z']) {

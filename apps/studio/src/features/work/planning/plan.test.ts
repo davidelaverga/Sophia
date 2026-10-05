@@ -11,6 +11,7 @@ import {
   forViewer,
   forYou,
   LANE,
+  latestDecisions,
   outsideOf,
   relation,
   shownPlan,
@@ -575,6 +576,30 @@ describe('decisions and a session’s last report', () => {
     assert.equal(actionable({ ...decision, state: 'accepted' }, now), false)
     assert.equal(forYou([], [decision], 'davide', now), true)
     assert.equal(forYou([], [{ ...decision, expires_at: '2026-10-02T11:00:00Z' }], 'davide', now), false)
+  })
+
+  it('takes each decision at its latest revision, in any state and either order (Codex F-048)', () => {
+    const r1 = decision
+    const r2 = { ...decision, revision: 2, question: 'q, revised' }
+    const other = { ...decision, decision_id: 'e', decider_id: 'luis' }
+    // Two revisions proposed, in either order: only the later one is open.
+    assert.deepEqual(latestDecisions([r1, r2]), [r2])
+    assert.deepEqual(latestDecisions([r2, r1]), [r2])
+    // The later one answered, expired or superseded: the older one proposed stays history, nothing is open of it.
+    for (const state of ['accepted', 'declined', 'expired', 'superseded'] as const) {
+      const ended = { ...r2, state }
+      assert.deepEqual(latestDecisions([r1, ended]), [ended], state)
+      assert.deepEqual(latestDecisions([ended, r1]), [ended], state)
+      assert.equal(forYou([], [r1, ended], 'davide', now), false, state)
+      assert.equal(forYou([], [ended, r1], 'davide', now), false, state)
+    }
+    // Decisions apart stay apart, in the order each first appears; one revision alone is itself.
+    assert.deepEqual(latestDecisions([r1, other, r2]), [r2, other])
+    assert.deepEqual(latestDecisions([other, r2, r1]), [other, r2])
+    assert.deepEqual(latestDecisions([other]), [other])
+    assert.equal(forYou([], [r1, r2], 'davide', now), true)
+    assert.equal(forYou([], [{ ...r2, expires_at: '2026-10-02T11:00:00Z' }, r1], 'davide', now), false)
+    assert.equal(forYou([], [r1, { ...r2, state: 'accepted' }, other], 'luis', now), true)
   })
 
   it('says how long ago a report was seen, to the second while fresh, and how fresh it still is', () => {

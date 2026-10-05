@@ -64,6 +64,9 @@ export const CASES = [
   'no-plan-twice',
   'proposed-in-force',
   'accepted-proposal',
+  'twice-open',
+  'twice-waiting',
+  'waits-apart',
 ] as const
 export type Case = (typeof CASES)[number]
 

@@ -34,6 +34,20 @@ export const actionable = (d: BoardDecision, now: Date) =>
   d.state === 'proposed' && Date.parse(d.expires_at) > now.getTime()
 
 /**
+ * Each decision as it stands now: of its revisions on the board, the latest, whatever their states or their order. An
+ * older revision is history, read and never answered: one still proposed under a later one, proposed or answered,
+ * expired or superseded, is no one's to act on (Codex F-048). Listed in the order the decisions first appear.
+ */
+export function latestDecisions(decisions: readonly BoardDecision[]): BoardDecision[] {
+  const latest = new Map<string, BoardDecision>()
+  for (const d of decisions) {
+    const was = latest.get(d.decision_id)
+    if (!was || d.revision > was.revision) latest.set(d.decision_id, d)
+  }
+  return [...latest.values()]
+}
+
+/**
  * Whether a choice was made for this plan, at its revision or an earlier one: history it carries forward. One made for
  * another plan, a replacement proposed or a later revision of it not in force, isn't this plan's (Codex F-013, F-015).
  */
@@ -401,7 +415,7 @@ export const forYou = (
 ) =>
   viewerId !== null &&
   (rows.some((r) => r.waits.some((w) => w.wait.state === 'pending' && w.wait.respondent_id === viewerId)) ||
-    decisions.some((d) => d.decider_id === viewerId && actionable(d, now)))
+    latestDecisions(decisions).some((d) => d.decider_id === viewerId && actionable(d, now)))
 
 /** Its last report, when it is its current attempt's, in its current generation. */
 const currentActivity = (view: ItemView | null): Activity | null => {

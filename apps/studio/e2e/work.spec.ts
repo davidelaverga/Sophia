@@ -2982,3 +2982,80 @@ test('codex · F-047 · a plan in force only proposed, or a proposal accepted, i
   })
   await expect(board(page)).toHaveCount(0)
 })
+
+// ---- CX-0043 (Codex on #74; F-048, F-049): a decision at its latest revision; each wait of a task once. ----
+
+/** The decisions open over the lanes: not the plan's own choices being taken in. */
+const asked = (page: Page) => board(page).locator('.board-decisions:not(.board-decided) .plan-ask')
+
+test('codex · F-048 · only a decision’s latest revision is asked; its older one, ended or not, never comes back', async ({
+  page,
+}) => {
+  const latest = 'Ship the retry before the report pane’s review is done?'
+  const first = 'Ship the retry now, as first asked?'
+  // Both revisions proposed, in either order: the latest alone is asked, opened for Davide; one decision in the pill.
+  await page.goto(`${PAGE}?viewer=davide&case=twice-open`)
+  for (const reversed of [false, true]) {
+    if (reversed) await page.evaluate(() => window.workFixture?.reverseDecisions?.())
+    await expect(pill(page)).toHaveText(/^1 decision for you/, { timeout: 15_000 })
+    await expect(pill(page)).toHaveAttribute('aria-expanded', 'true')
+    await expect(asked(page)).toHaveCount(1)
+    await expect(asked(page)).toContainText(latest)
+    await expect(board(page).getByText(first)).toHaveCount(0)
+  }
+  // The latest ended, however, in either order: nothing open or calling; the older one, still proposed, isn't back.
+  for (const state of ['accepted', 'declined', 'expired', 'superseded'] as const) {
+    for (const reversed of [false, true]) {
+      await page.goto(`${PAGE}?viewer=davide&case=twice-open`)
+      await expect(asked(page)).toHaveCount(1, { timeout: 15_000 })
+      if (reversed) await page.evaluate(() => window.workFixture?.reverseDecisions?.())
+      await page.evaluate((s) => window.workFixture?.endDecision?.('d1', 4, s), state)
+      await expect(pill(page), state).toHaveCount(0)
+      await expect(asked(page), state).toHaveCount(0)
+      await expect(board(page).locator('.plan-ask[data-mine]'), state).toHaveCount(0)
+      await expect(board(page).getByText(first), state).toHaveCount(0)
+    }
+  }
+  // Closed by Davide, a revision arriving opens it again by itself: the new one alone, the older ones history.
+  await page.goto(`${PAGE}?viewer=davide&case=twice-open`)
+  await expect(asked(page)).toHaveCount(1, { timeout: 15_000 })
+  await pill(page).click()
+  await expect(asked(page)).toHaveCount(0)
+  await page.evaluate(() => window.workFixture?.reviseDecision?.('d1'))
+  await expect(pill(page)).toHaveAttribute('aria-expanded', 'true')
+  await expect(asked(page)).toHaveCount(1)
+  await expect(asked(page)).toContainText(`${latest} (revised)`)
+  // Another decision is its own: asked beside it.
+  await page.evaluate(() => window.workFixture?.decisionArrives?.('davide'))
+  await expect(pill(page)).toHaveText(/^2 decisions for you/)
+  await expect(asked(page)).toHaveCount(2)
+})
+
+test('codex · F-049 · a task waiting twice on one kind and reference is refused; waits apart are each read', async ({
+  page,
+}) => {
+  const keyWarnings: string[] = []
+  page.on('console', (m) => {
+    if (/same key|unique "key"/i.test(m.text())) keyWarnings.push(m.text())
+  })
+  // Its one permission, Luis's and then Davide's: the view is refused, never said by whichever comes first.
+  await page.goto(`${PAGE}?viewer=davide&case=twice-waiting`)
+  await expect(page.getByRole('alert')).toContainText(
+    'waiting_on[1]: another wait of this task has this kind and reference',
+    { timeout: 15_000 },
+  )
+  await expect(board(page)).toHaveCount(0)
+  // One reference under two kinds, references holding a joined key's separators, the same wait on another task: read.
+  await page.goto(`${PAGE}?viewer=davide&case=waits-apart`)
+  await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Waiting on you', { timeout: 15_000 })
+  await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Waiting on you')
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  const waits = sheet.locator('.task-waits li')
+  await expect(waits).toHaveText([
+    /Run the report’s tests \(action:1\)\.\s*You answer it$/,
+    /Choose the limit \(action:1\)\.\s*Luis answers it$/,
+    /Edit the export config \(action","1\)\.\s*Luis answers it$/,
+    /Open the report pane \(action\)\.\s*You answer it$/,
+  ])
+  expect(keyWarnings).toEqual([])
+})

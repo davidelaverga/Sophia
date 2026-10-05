@@ -486,8 +486,30 @@ function goalRules(goal: GoalView, at: string, project: string): string[] {
       ? []
       : [`${at}.items[${String(i)}].candidates: each version its own id`],
   )
+  const waits = waitsOnce(goal, at)
   const choices = goal.decisions.flatMap((d, i) => decisionRules(d, `${at}.decisions[${String(i)}]`))
-  return [...plans, ...slotRules(goal, at), ...plansOnce(goal, at), ...items, ...versions, ...choices]
+  return [...plans, ...slotRules(goal, at), ...plansOnce(goal, at), ...items, ...versions, ...waits, ...choices]
+}
+
+/**
+ * Each wait of a task once: its kind and what it waits on name it. Two alike would each be said, which answers it chosen
+ * by their order, under one key (Codex F-049). The same reference of another kind, the same wait on another task, or
+ * another reference, is another wait.
+ */
+function waitsOnce(goal: GoalView, at: string): string[] {
+  return goal.items.flatMap((item, i) => {
+    const named = new Set<string>()
+    return item.waiting_on.flatMap((w, j) => {
+      const pair = JSON.stringify([w.kind, w.reference_id])
+      if (!named.has(pair)) {
+        named.add(pair)
+        return []
+      }
+      return [
+        `${at}.items[${String(i)}].waiting_on[${String(j)}]: another wait of this task has this kind and reference`,
+      ]
+    })
+  })
 }
 
 /**

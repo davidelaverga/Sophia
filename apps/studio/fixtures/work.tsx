@@ -14,7 +14,8 @@
 // into the plan's next revision; `decisionArrives(deciderId)` brings a new one; `begin(workId)`, `reassign(workId)`,
 // `replan()`, `arrive()`, `viewAs(viewer)`, `reconnect()`, `replay(operationId)`, `weaken(operationId)`,
 // `stale(operationId)`, `misdeliver(from, to)`, `conversation(connected)`, `commandPort(connected)`,
-// `grantTwice(workId, kind, first, second)`, `reverseDecisions()` and `dropDecision(id, revision)`. Whoever does a task opens on the resources' fixture.
+// `grantTwice(workId, kind, first, second)`, `reverseDecisions()`, `dropDecision(id, revision)`,
+// `endDecision(id, revision, state)` and `reviseDecision(id)`. Whoever does a task opens on the resources' fixture.
 // `review=…` (LFE-07.2): how the lead answers the goal's Request review (work-review.ts), read beside the board's view;
 // `workFixture.goalCommands` lists each goal command sent, with its key; `reviewAgain()` brings in a later review.
 // `lag=1`: the review is read a moment behind the board, with the plan in force the board no longer shows as such.
@@ -38,6 +39,7 @@ import type { Resource } from '../src/features/resources/resource.ts'
 import {
   readBoardView,
   type ActionKind,
+  type BoardDecision,
   type BoardView,
   type GoalView,
   type ItemAction,
@@ -136,6 +138,10 @@ declare global {
       /** The goal's decisions in the reverse order, or without one at its revision (Codex F-041). */
       reverseDecisions?: () => void
       dropDecision?: (decisionId: string, revision: number) => void
+      /** One decision at its revision ended so: answered (its first choice), declined, expired or superseded (F-048). */
+      endDecision?: (decisionId: string, revision: number, state: Ended) => void
+      /** A decision's next revision arriving, asked again: its question said "(revised)" (Codex F-048). */
+      reviseDecision?: (decisionId: string) => void
       /** The view offers one kind twice, in this order: ambiguous, never a grant (Codex F-026). */
       grantTwice?: (workId: string, kind: ActionKind, first: Granted, second: Granted) => void
       /** A later review in the last one's place (LFE-07.2): it arrives with its card closed. */
@@ -453,8 +459,50 @@ function controls(
       })),
     grantTwice: (workId: string, kind: ActionKind, first: Granted, second: Granted) =>
       update(observed(workId, (v) => ({ available_actions: twice(v.available_actions, kind, [first, second]) }))),
+    endDecision: (decisionId: string, revision: number, state: Ended) =>
+      update((g) => ({
+        ...g,
+        decisions: g.decisions.map((d) =>
+          d.decision_id === decisionId && d.revision === revision ? endedAs(d, state) : d,
+        ),
+      })),
+    reviseDecision: (decisionId: string) => update(revised(decisionId)),
   }
 }
+
+type Ended = Exclude<BoardDecision['state'], 'proposed'>
+
+/** A decision's next revision, after its highest one here: proposed, nothing chosen. */
+const revised =
+  (decisionId: string): Change =>
+  (g) => {
+    const last = g.decisions
+      .filter((d) => d.decision_id === decisionId)
+      .reduce<BoardDecision | undefined>((top, d) => (top && top.revision >= d.revision ? top : d), undefined)
+    if (!last) return g
+    const next: BoardDecision = {
+      ...last,
+      revision: last.revision + 1,
+      question: `${last.question} (revised)`,
+      state: 'proposed',
+      selected_choice: null,
+      choice_receipt_id: null,
+      plan_reaction: 'not_needed',
+    }
+    return { ...g, decisions: [...g.decisions, next] }
+  }
+
+/** A decision ended so: answered with its first choice, taken in later; or ended with none chosen. */
+const endedAs = (d: BoardDecision, state: Ended): BoardDecision =>
+  state === 'accepted'
+    ? {
+        ...d,
+        state,
+        selected_choice: d.choices[0]?.key ?? null,
+        choice_receipt_id: `fixture-choice-${d.decision_id}-${String(d.revision)}`,
+        plan_reaction: 'pending',
+      }
+    : { ...d, state, selected_choice: null, choice_receipt_id: null, plan_reaction: 'not_needed' }
 
 type Availability = ItemAction['availability'] | 'missing'
 type Granted = ItemAction['availability']

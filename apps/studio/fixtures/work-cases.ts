@@ -576,6 +576,46 @@ const proposedInForce: Change = (g) =>
 const acceptedProposal: Change = (g) =>
   g.current_plan ? { ...g, proposed_plans: [{ ...g.current_plan, revision: g.current_plan.revision + 1 }] } : g
 
+/**
+ * Codex F-048: d1 open at revision 3 and at its latest, 4, both proposed: only 4 is asked. `workFixture.endDecision`
+ * ends 4, leaving 3 history.
+ */
+const twiceOpen: Change = (g) => withRevisions(g, (d1) => [{ ...d1, revision: 3, question: FIRST_ASKED }, d1])
+
+/** A pending wait for a native permission, `reference`, answered by `respondent`. */
+const permission = (reference: string, respondent: string, detail: string): ItemView['waiting_on'][number] => ({
+  kind: 'native_permission',
+  reference_id: reference,
+  respondent_id: respondent,
+  detail,
+  state: 'pending',
+})
+
+/** Codex F-049: work-1 waits twice on its one permission, Luis's and then Davide's: the view is refused. */
+const twiceWaiting: Change = (g) =>
+  update(g, 'work-1', () => ({
+    waiting_on: [
+      permission('action-1', 'luis', 'Luis allows the shell command.'),
+      permission('action-1', 'davide', 'Davide allows the shell command.'),
+    ],
+  }))
+
+/**
+ * Codex F-049: waits apart, each read. On work-1, one reference under two kinds and references holding the separators a
+ * joined key would use; work-2 waits on work-1's first, as its own.
+ */
+const waitsApart: Change = (g) => {
+  const first = permission('action:1', 'davide', 'Run the report’s tests (action:1).')
+  const waits = [
+    first,
+    { ...first, kind: 'product_decision' as const, respondent_id: 'luis', detail: 'Choose the limit (action:1).' },
+    permission('action","1', 'luis', 'Edit the export config (action","1).'),
+    permission('action', 'davide', 'Open the report pane (action).'),
+  ]
+  const apart = update(g, 'work-1', () => ({ waiting_on: waits }))
+  return update(apart, 'work-2', () => ({ lifecycle: 'waiting', waiting_on: [first] }))
+}
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -612,6 +652,9 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   'no-plan-twice': noPlanTwice,
   'proposed-in-force': proposedInForce,
   'accepted-proposal': acceptedProposal,
+  'twice-open': twiceOpen,
+  'twice-waiting': twiceWaiting,
+  'waits-apart': waitsApart,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

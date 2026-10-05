@@ -5,7 +5,7 @@
 // moves no task, and no task text is kept, only ids and states. Kept per project, goal, plan and viewer, so another
 // viewer's look never leaks into this one; a browser that refuses storage just forgets.
 import type { BoardDecision } from './board-view.ts'
-import { actionable, type Mark, type PlanRow } from './plan.ts'
+import { actionable, latestDecisions, type Mark, type PlanRow } from './plan.ts'
 import { resultsOf } from './results.ts'
 
 /** Whose look, at which plan. */
@@ -144,10 +144,20 @@ function choiceSaid(d: BoardDecision, by: string): string | null {
   return d.state === 'accepted' && choice ? `${by} chose ${choice}: ${d.question}` : null
 }
 
-const decisionsSaid = (decisions: readonly BoardDecision[], seen: Seen, looking: Looking) =>
-  decisions
+/**
+ * The decisions changed since the last look. Each is said as it stands at its latest revision; an older one is history,
+ * said only as a choice made, never as waiting or expired (Codex F-048).
+ */
+function decisionsSaid(decisions: readonly BoardDecision[], seen: Seen, looking: Looking) {
+  const latest = new Set(latestDecisions(decisions))
+  return decisions
     .filter((d) => seen.decisions[decisionKey(d)] !== decisionState(d))
-    .flatMap((d) => decisionSaid(d, looking) ?? [])
+    .flatMap((d) => (latest.has(d) ? decisionSaid(d, looking) : historySaid(d, looking)) ?? [])
+}
+
+/** An older revision of a decision, said only as the choice made in it, when one was. */
+const historySaid = (d: BoardDecision, { viewerId, people = {} }: Looking) =>
+  choiceSaid(d, d.decider_id === viewerId ? 'You' : (people[d.decider_id]?.name ?? 'Someone'))
 
 /** A task's current result now: its version, or none (none current, or two claiming to be). */
 const resultNow = (r: PlanRow) => resultsOf(r.view).current?.version_id ?? null
