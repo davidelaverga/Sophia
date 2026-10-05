@@ -418,6 +418,17 @@ const HANDED = 'From Home · send it when Sophia is ready'
  * message is on its way at a time, as the device keeps one: while one is (`busy`, also a way to start's), the next
  * waits, and what is typed meanwhile stays.
  */
+const nothing = () => undefined
+
+/** A promise and the way to settle it, as Promise.withResolvers gives (which Safari 16.4 lacks). */
+function settleable<T>(): { promise: Promise<T>; settle: (value: T) => void } {
+  let settle: (value: T) => void = nothing
+  const promise = new Promise<T>((resolve) => {
+    settle = resolve
+  })
+  return { promise, settle: (value) => settle(value) }
+}
+
 function useSend(
   account: string,
   draft: ReturnType<typeof useDraft>,
@@ -437,7 +448,7 @@ function useSend(
     // Past the most one message holds (words heard or handed), nothing goes: the count says how much over.
     if (!current || !text || text.length > MOST || !ready || busy) return Promise.resolve(false)
     const words = { text, key: current.key }
-    const { promise: admitted, resolve: admit } = Promise.withResolvers<boolean>()
+    const { promise: admitted, settle: admit } = settleable<boolean>()
     void oneAtATime(account, async (taken) => {
       const waits = draft.waits(words, taken)
       admit(!waits)

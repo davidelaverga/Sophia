@@ -1128,3 +1128,16 @@ test('@phone · ease · while the notes cover the conversation, Find stays shut'
   await page.getByRole('button', { name: 'Find', exact: true }).click()
   await expect(finder(page)).toHaveCount(0)
 })
+
+test('codex · without Promise.withResolvers (Safari 16.4), a message still goes, and “Talk about it” too', async ({
+  page,
+}) => {
+  await page.addInitScript(() => Reflect.deleteProperty(Promise, 'withResolvers'))
+  await page.goto(`${PAGE}?week=1`)
+  await field(page).fill('Still here.')
+  await page.keyboard.press('Enter')
+  await expect.poll(() => sent(page)).toEqual(['Still here.'])
+  await expect(page.locator('.msg.sophia .body').last()).toHaveText('I’m here. Tell me more about that.')
+  await page.getByRole('button', { name: 'Talk about it' }).click()
+  await expect.poll(() => sent(page)).toHaveLength(2)
+})
