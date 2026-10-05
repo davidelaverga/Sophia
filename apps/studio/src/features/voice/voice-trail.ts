@@ -19,10 +19,23 @@ export function latestSpoken(turns: readonly CaptionTurn[]): string | null {
   return text === '' ? null : text
 }
 
-/** A heading the section index names: its anchor and its words. */
+/** A heading the section index names: its anchor, which of the headings with that anchor it is, and its words. */
 export interface IndexEntry {
+  /** `anchor#n`: the n-th heading with that anchor, so two sections with one name are two entries. */
+  key: string
   anchor: string
+  occurrence: number
   text: string
+}
+
+/** A key per heading, `anchor#n`, in reading order: the n-th heading with that anchor. */
+export function headingKeys(anchors: readonly string[]): string[] {
+  const seen = new Map<string, number>()
+  return anchors.map((anchor) => {
+    const n = seen.get(anchor) ?? 0
+    seen.set(anchor, n + 1)
+    return `${anchor}#${String(n)}`
+  })
 }
 
 /** An inline run's words as a reader sees them (a citation's number is not one of them). */
@@ -37,11 +50,22 @@ function wordsIn(node: Inline): string {
   return inlineText(node.children)
 }
 
-/** The section index: the report's top headings (its title and the sections under it), in order. */
+/**
+ * The section index: the report's top headings, whatever level they are written at. A single heading at the top level
+ * is the report's title: it is named, with the sections at the next level under it.
+ */
 export function sectionIndex(blocks: readonly Block[]): IndexEntry[] {
-  return blocks.flatMap((b) =>
-    b.kind === 'heading' && b.level <= 2 && b.anchor ? [{ anchor: b.anchor, text: inlineText(b.children).trim() }] : [],
-  )
+  const headings = blocks.flatMap((b) => (b.kind === 'heading' && b.anchor ? [b] : []))
+  const levels = headings.map((h) => h.level)
+  const top = Math.min(...levels)
+  const titled = levels.filter((l) => l === top).length === 1
+  const sections = titled ? Math.min(...levels.filter((l) => l > top)) : top
+  const keys = headingKeys(headings.map((h) => h.anchor))
+  return headings.flatMap((h, i) => {
+    const key = keys[i]
+    if (!key || (h.level !== top && h.level !== sections)) return []
+    return [{ key, anchor: h.anchor, occurrence: Number(key.split('#')[1]), text: inlineText(h.children).trim() }]
+  })
 }
 
 /** A word in a text: its form for matching, and where it is. */

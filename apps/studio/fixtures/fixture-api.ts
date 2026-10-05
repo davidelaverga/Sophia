@@ -298,6 +298,7 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
 function missionAnswer(project: Project, method: string, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}/mission`
   if (method === 'GET' && path === base) {
+    if (project.notes?.unread) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
     served.push(`mission:${project.revision}`)
     return json(mission(project.revision, project.notes?.kept, !project.notes?.refused))
   }
@@ -389,6 +390,14 @@ const isFloorRequest = (value: unknown): value is FloorRequest =>
   typeof value.nextActorId === 'string' &&
   'expectedRoomRevision' in value &&
   typeof value.expectedRoomRevision === 'number'
+
+/** The API's answer when its database is out of reach (packages/domain/src/errors.ts). */
+const UNAVAILABLE = {
+  code: 'unavailable',
+  message: 'Sophia is unavailable',
+  requestId: '00000000-0000-4000-8000-0000000000bd',
+  retry: 'safe_read',
+}
 
 /** The API's answer to a key used before for another request (packages/domain/src/errors.ts). */
 const keyConflict = () =>

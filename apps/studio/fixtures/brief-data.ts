@@ -22,6 +22,8 @@ export interface Notes {
   builtOn: boolean
   /** The brief allows this person no note (`notes=off`). */
   refused: boolean
+  /** The brief can't be read (`notes=unread`): its reads fail as an API without its database fails them. */
+  unread?: boolean
 }
 
 const AT = '2026-10-05T12:00:00.000Z'

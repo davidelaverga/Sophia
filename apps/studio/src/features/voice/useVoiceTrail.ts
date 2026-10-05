@@ -3,7 +3,7 @@
 // tree stays its own), and the section she is in is named for the stage's section index. Where the API is missing,
 // the block's mark is enough.
 import { useLayoutEffect, useState, type RefObject } from 'react'
-import { sectionAmong, spokenBlock } from './voice-trail.ts'
+import { headingKeys, sectionAmong, spokenBlock } from './voice-trail.ts'
 
 /** The highlight's name, which theme.css styles as `::highlight(sophia-spoken)`. */
 export const SPOKEN = 'sophia-spoken'
@@ -14,17 +14,22 @@ const BLOCKS = 'p, li, td, th'
 const highlighting = (): HighlightRegistry | null =>
   'highlights' in CSS && 'Highlight' in globalThis ? CSS.highlights : null
 
-/** A block's text as a reader sees it: a citation's number is a space, not a word; and where each text node sits in it. */
+/**
+ * A block's text as a reader sees it: a citation's number is a space, not a word, and so is a hard line break; and
+ * where each text node sits in it.
+ */
 export interface BlockText {
   text: string
   pieces: readonly { node: Text; at: number }[]
 }
 
 export function blockText(block: HTMLElement): BlockText {
-  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
   const pieces: { node: Text; at: number }[] = []
   let text = ''
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    // A hard line break separates words as a space does: «two<br>three» are two words.
+    if (node instanceof HTMLBRElement && !text.endsWith(' ')) text += ' '
     if (!(node instanceof Text)) continue
     if (node.parentElement?.closest('sup.cite')) {
       if (!text.endsWith(' ')) text += ' '
@@ -47,11 +52,16 @@ export function rangeIn(block: BlockText, start: number, end: number): Range | n
   return range
 }
 
-/** The anchors of the headings before a block, in order. */
-const headingsBefore = (root: Element, block: Element): string[] =>
-  [...root.querySelectorAll('[id^="md-"]')]
-    .filter((h) => h.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING)
-    .map((h) => h.id.slice('md-'.length))
+/** The keys (`anchor#n`, headingKeys) of the headings before a block, in order. */
+function headingsBefore(root: Element, block: Element): string[] {
+  // The report's own headings, as sectionIndex counts them: a quote's heading is the quote's, not a section.
+  const headings = [...root.querySelectorAll(':scope > [id^="md-"]')]
+  const keys = headingKeys(headings.map((h) => h.id.slice('md-'.length)))
+  return keys.filter((_, i) => {
+    const h = headings[i]
+    return !!h && (h.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+  })
+}
 
 /**
  * Lights her latest words in the report under `body`, again when they or the text change; returns the section she is
@@ -61,7 +71,7 @@ export function useVoiceTrail(
   body: RefObject<HTMLElement | null>,
   spoken: string | null,
   text: unknown,
-  /** The section index's anchors: her mark goes to the section of the index she is in, never a sub-heading. */
+  /** The section index's keys: her mark goes to the section of the index she is in, never a sub-heading. */
   sections: ReadonlySet<string>,
 ): string | null {
   const [section, setSection] = useState<string | null>(null)

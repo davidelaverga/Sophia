@@ -141,7 +141,11 @@ function usePaneData(identity: Identity, link: ReportLink, cursor: string | unde
   // The report's own language: the viewer names a citation in it.
   const language = useMemo(() => (text.data ? reportLanguage(text.data.text) : 'und'), [text.data])
   const renditions = useRenditions(identity, link, version)
-  const shown = shownOf(version, text.data, parsed, sources.status)
+  // The Markdown is in sight on the Document tab unless the PDF or the designed page is shown there instead.
+  const shown = shownOf(version, text.data, parsed, {
+    sources: sources.status,
+    inSight: tab === 'document' && !renditions.showPdf && !renditions.showHtml,
+  })
   // A linked passage is decided for the pane, so the Sources tab and back keep it (usePassageArrival).
   const arrival = usePassageArrival(version, parsed, shown.sourcesSettled, tab === 'document')
   return {
@@ -193,8 +197,15 @@ const shownOf = (
   version: ArtifactVersion | undefined,
   loaded: { text: string } | undefined,
   parsed: ParsedReport | null,
-  sources: 'pending' | 'error' | 'success',
-): Shown => ({ version, text: loaded?.text, parsed, sourcesSettled: sources !== 'pending' })
+  at: { sources: 'pending' | 'error' | 'success'; inSight: boolean },
+): Shown => ({
+  version,
+  text: loaded?.text,
+  parsed,
+  sourcesSettled: at.sources === 'success',
+  sourcesDone: at.sources !== 'pending',
+  inSight: at.inSight,
+})
 
 /** The project's feed moved (a version may have been published there): the list is read again, as on focus. */
 function useFeedRead(cursor: string | undefined, refetch: () => unknown) {
@@ -378,16 +389,19 @@ function usePaneBehaviour(
     },
   }
   const current = currentOffer(data.versions.data, data.version)
-  const offer = current
-    ? {
-        words: offerWords(current, data.version?.id ?? ''),
-        onShow: () => {
-          showing(current.id)
-          recover.show(current.id)
-        },
-      }
-    : null
-  return { title, top: usePaneTop(), offer, recover }
+  // Offered once the text on screen is read (or its read failed), so what changed is compared with it (useLiveVersion).
+  const offer =
+    current && (data.text.data || data.text.isError)
+      ? {
+          words: offerWords(current, data.version?.id ?? ''),
+          onShow: () => {
+            showing(current.id)
+            recover.show(current.id)
+          },
+        }
+      : null
+  // Whether the version on screen is the report's current one: only that one is shown to everyone.
+  return { title, top: usePaneTop(), offer, recover, onCurrent: current === null }
 }
 
 export function DocumentPane(props: Props) {
@@ -395,7 +409,7 @@ export function DocumentPane(props: Props) {
   const pane = useRef<HTMLElement>(null)
   const data = usePaneData(identity, link, props.cursor, tab)
   const live = useLiveVersion(pane, data.shown, data.versions.data)
-  const { title, top, offer, recover } = usePaneBehaviour(props, data, live.showing)
+  const { title, top, offer, recover, onCurrent } = usePaneBehaviour(props, data, live.showing)
   const width = usePaneWidth()
   const status = useTransientStatus()
   const { focusSource, cite, choose } = useCitation(tab, onTab)
@@ -412,7 +426,7 @@ export function DocumentPane(props: Props) {
             {...headOf(data)}
             current={offer}
             // Only the current version is shown to everyone: the room shows what is current (present-view.ts).
-            show={data.version && !offer && props.show?.(data.version.id, onClose)}
+            show={data.version && onCurrent && props.show?.(data.version.id, onClose)}
             full={full}
             onDownload={() => void viewerDownload(data, status.show)}
             onEnlarge={onEnlarge}

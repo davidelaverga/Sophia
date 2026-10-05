@@ -25,7 +25,11 @@ interface Props extends FocusTarget {
   versionId: string | null
   label: string
   className?: string
+  /** Before the request: the feed may present it before its answer comes. */
+  onPress?: () => void
   onShown?: () => void
+  /** The request didn't go through (refused, or no reply). */
+  onFailed?: () => void
 }
 
 /** One intent: what to show, against the room as it was read when it was pressed. */
@@ -38,7 +42,8 @@ interface FocusIntent {
 function focusWords(state: ReturnType<typeof useFocusWrite>['state']): string {
   if (state.status === 'unknown') return 'Not confirmed.'
   if (state.status !== 'rejected') return ''
-  return state.error.code === 'stale_revision' ? 'The room changed. Show it again.' : state.error.message
+  if (state.error.code !== 'stale_revision') return state.error.message
+  return state.args.versionId === null ? 'The room changed. Stop it again.' : 'The room changed. Show it again.'
 }
 
 function useFocusWrite({ projectId, identity, roomId }: Omit<FocusTarget, 'revision'>) {
@@ -56,25 +61,32 @@ function useFocusWrite({ projectId, identity, roomId }: Omit<FocusTarget, 'revis
   })
 }
 
-export function FocusButton({ versionId, label, className = 'pill', onShown, revision, ...target }: Props) {
+export function FocusButton(props: Props) {
+  const { versionId, label, className = 'pill', onPress, onShown, onFailed, revision, ...target } = props
   const write = useFocusWrite(target)
+  // Refused against a room that moved, it waits for the room's new revision: pressed again before it, it would be too.
+  const state = write.state
+  const waiting =
+    state.status === 'rejected' && state.error.code === 'stale_revision' && state.args.revision === revision
   // After no reply, a press is the open intent again, with its own request and key (pressFor), never a second one.
   const press = async () => {
+    onPress?.()
     if (await write.send({ versionId, revision })) onShown?.()
+    else onFailed?.()
   }
   return (
     <>
       <button
         type="button"
         className={className}
-        disabled={write.state.status === 'sending'}
+        disabled={state.status === 'sending' || waiting}
         onClick={() => void press()}
       >
-        {write.state.status === 'unknown' ? 'Try again' : label}
+        {state.status === 'unknown' ? 'Try again' : label}
       </button>
       {/* Mounted all along, so what it says is announced. */}
       <span className="focus-said" role="status">
-        {focusWords(write.state)}
+        {focusWords(state)}
       </span>
     </>
   )

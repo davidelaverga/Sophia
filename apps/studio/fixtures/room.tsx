@@ -226,6 +226,7 @@ const project = {
     loseReply: false,
     builtOn: false,
     refused: query.get('notes') === 'off',
+    unread: query.get('notes') === 'unread',
   } as Notes,
 }
 installFixtureApi(project)

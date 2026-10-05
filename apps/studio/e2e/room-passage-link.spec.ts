@@ -142,9 +142,13 @@ test('link · a reader who moved to another version before the text came is not 
   await open(page)
   await paragraph(page, 'Read it once.').selectText()
   const link = await copyLink(page)
-  // The text waits; meanwhile the reader takes the offer of v2, whose text also has these words.
+  // The text waits; meanwhile the reader goes to v2 from History, whose text also has these words.
   await page.goto(`${link.pathname}${link.search}&versions=2&hold=text`)
-  await pane(page).getByRole('button', { name: 'Show it' }).click()
+  await pane(page)
+    .getByRole('tab', { name: /^History/ })
+    .click()
+  await pane(page).getByRole('button', { name: 'Show this version' }).click()
+  await pane(page).getByRole('tab', { name: 'Document' }).click()
   await page.evaluate(() => window.fixture?.releaseText())
   await expect(pane(page).getByText('Read it once, then again.')).toBeVisible()
   await expect(linked(page)).toHaveCount(0)
