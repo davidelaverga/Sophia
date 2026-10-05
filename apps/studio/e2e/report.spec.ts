@@ -106,7 +106,7 @@ test('ART-02 · a report opened on its current version keeps it when a newer one
   // The window's focus comes back: the viewer reads the report's versions again, as it does in use.
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
   await expect.poll(async () => (await fixture(page)).served).toContain('versions:2')
-  const offer = pane(page).getByText('v2 is the current version.')
+  const offer = pane(page).getByText('v2 is here · 2 sections changed.')
   await expect(offer).toBeVisible()
   await expect(pane(page).getByText(FIRST)).toBeVisible() // never swapped in under the reader
 
@@ -168,7 +168,7 @@ test('LFE-02.1 · History keeps the focus on what was pressed: a version shown, 
   await expect(pane(page).getByText(FIRST)).toBeVisible()
   await page.evaluate(() => window.fixture?.publishReport())
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
-  await expect(pane(page).getByText('v2 is the current version.')).toBeVisible()
+  await expect(pane(page).getByText('v2 is here · 2 sections changed.')).toBeVisible()
   await pane(page)
     .getByRole('tab', { name: /^History/ })
     .click()
@@ -521,7 +521,7 @@ test('CX-0019 · with a long title, the current version’s offer and Close stay
   await expect(side.getByText(FIRST)).toBeVisible()
   await page.evaluate(() => window.fixture?.publishReport())
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
-  await expect(side.getByText('v2 is the current version.')).toBeVisible()
+  await expect(side.getByText('v2 is here · 2 sections changed.')).toBeVisible()
   for (const control of [
     side.getByRole('button', { name: 'Show it' }),
     side.getByRole('button', { name: 'Close', exact: true }),
