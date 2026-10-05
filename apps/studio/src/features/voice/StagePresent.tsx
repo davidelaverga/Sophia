@@ -20,6 +20,8 @@ interface Context {
   /** My actor id: the focus is mine when I guide it. */
   me: string
   names: ReadonlyMap<string, string>
+  /** What Sophia is saying now (latestSpoken): the report on the stage lights it. */
+  spoken: string | null
 }
 
 /** Where the room's focus is written, once the snapshot is read. */
@@ -102,7 +104,7 @@ function useFollowing(shown: Shown | null) {
 
 /** The presented report for the stage (or null), and the card for the stage (or null). */
 export function useStagePresent(snapshot: Snapshot | undefined, room: Room, context: Context) {
-  const { projectId, identity, me, names } = context
+  const { projectId, identity, me, names, spoken } = context
   const shown = shownOf(snapshot?.sharedFocus, snapshot?.artifacts, me)
   const { following, stopped, focused, follow, unfollow } = useFollowing(shown)
   const screen = room.feeds.some((f) => f.source === 'screen')
@@ -121,7 +123,13 @@ export function useStagePresent(snapshot: Snapshot | undefined, room: Room, cont
     )
     return {
       presented: (
-        <PresentedReport version={shown.version} identity={identity} by={guide} action={stop ?? unfollowing} />
+        <PresentedReport
+          version={shown.version}
+          identity={identity}
+          by={guide}
+          action={stop ?? unfollowing}
+          spoken={spoken}
+        />
       ),
       card: null,
     }

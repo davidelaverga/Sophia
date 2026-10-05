@@ -17,7 +17,10 @@ export interface ReportLink {
   format: ViewerFormat
 }
 
-export const REPORT_PARAMS = ['report', 'version', 'view', 'format'] as const
+/** A passage of the version a link names (passage-link.ts): gone with any step of the viewer, as the others are. */
+export const PASSAGE_PARAM = 'passage'
+
+export const REPORT_PARAMS = ['report', 'version', 'view', 'format', PASSAGE_PARAM] as const
 
 const formatOf = (value: string | null): ViewerFormat => (value === 'pdf' || value === 'html' ? value : 'markdown')
 
@@ -49,8 +52,18 @@ export function withReportLink(search: string, link: ReportLink | null): string 
   return out ? `?${out}` : ''
 }
 
-/** Only the report's parameters of a search string, for a move to another view of the same project. */
-export const reportSearch = (search: string): string => withReportLink('', readReportLink(search))
+/**
+ * Only the report's parameters of a search string, for a move to another view of the same project. A passage it names
+ * stays with it, so a passage's link survives the route settling as the page opens.
+ */
+export function reportSearch(search: string): string {
+  const out = withReportLink('', readReportLink(search))
+  const passage = new URLSearchParams(search).get(PASSAGE_PARAM)
+  if (!out || !passage) return out
+  const q = new URLSearchParams(out)
+  q.set(PASSAGE_PARAM, passage)
+  return `?${q.toString()}`
+}
 
 /** What a viewer's open asks for: a report, and optionally its version and format. */
 export interface OpenAsk {

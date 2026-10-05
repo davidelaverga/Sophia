@@ -1265,3 +1265,42 @@
     padding: 0 14px;
   }
 }
+
+/* A passage a link names (usePassageArrival, docs/plans/room-passage-link.md): its words lit warm, apart from Sophia's
+   lavender, and its block marked at its edge; and the note when the version doesn't hold it. */
+::highlight(report-passage) {
+  background-color: rgba(239, 191, 134, 0.26);
+  color: var(--text);
+}
+.md [data-linked] {
+  box-shadow: -10px 0 0 -8px var(--amber);
+}
+.report-passage-note {
+  max-width: var(--measure);
+  margin-bottom: 12px;
+  color: var(--amber);
+  font-size: 13px;
+}
+/* What Link did, in the pane's foot; the link itself, when it has to be copied by hand. */
+.passage-linked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 16px 10px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.passage-linked:empty {
+  padding: 0;
+}
+.passage-linked input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--plane-2);
+  color: var(--text);
+  font: 400 var(--type-small) / 1.3 var(--mono);
+}

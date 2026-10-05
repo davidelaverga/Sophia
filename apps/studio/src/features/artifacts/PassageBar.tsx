@@ -10,6 +10,9 @@ import { useAdmission } from '../../api/useAdmission.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
 import { forgetReach, missionKey } from '../mission/mission-view.ts'
+import { LinkedLine, useLinkCopy } from './PassageLink.tsx'
+import { locate, PASSAGE_BLOCKS, type Locator } from './passage-link.ts'
+import { blockText, type BlockText } from '../voice/useVoiceTrail.ts'
 import { keptLine, keptText, passageText, undoable, type Check, type PassageSource } from './passage.ts'
 
 /** A passage and where it came from, as Ask Sophia hands it to the chat. */
@@ -21,6 +24,8 @@ export interface Passage {
 /** The selected passage, and where it is in the pane: its top and bottom, its middle, and the top of the pane's body. */
 interface Spot {
   text: string
+  /** Where it is, for a link to it (passage-link.ts): its first block's words it touches; null when it touches none. */
+  locator: Locator | null
   top: number
   bottom: number
   middle: number
@@ -39,18 +44,49 @@ function wordsOf(range: Range): string | null {
 }
 
 /**
+ * Where a selection begins and ends in a block's text (blockText), whatever node it begins or ends on (an element, a
+ * citation's number): from the first of the block's text nodes it touches to the last, or the block's end.
+ */
+function offsetsIn(shape: BlockText, block: HTMLElement, range: Range): { from: number; to: number } | null {
+  const touched = shape.pieces.filter((p) => range.intersectsNode(p.node))
+  const first = touched[0]
+  const last = touched.at(-1)
+  if (!first || !last) return null
+  const from = first.at + (first.node === range.startContainer ? range.startOffset : 0)
+  const inside = block.contains(range.endContainer)
+  const to = last.at + (inside && last.node === range.endContainer ? range.endOffset : last.node.length)
+  return { from, to: inside ? to : shape.text.length }
+}
+
+/**
+ * Where a selection is, for a link: in the block it begins in, every word it touches from where it begins to where it
+ * ends (or the block's end, when it goes on into the next).
+ */
+function locatorOf(md: Element, range: Range): Locator | null {
+  const start = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement
+  const block = start?.closest<HTMLElement>(PASSAGE_BLOCKS)
+  const index = block ? [...md.querySelectorAll(PASSAGE_BLOCKS)].indexOf(block) : -1
+  if (!block || index < 0) return null
+  const shape = blockText(block)
+  const at = offsetsIn(shape, block, range)
+  return at ? locate(index, shape.text, at.from, at.to) : null
+}
+
+/**
  * The selection, when it lies in the report's text (never its head, tabs or sources) and in sight in the pane's body:
  * scrolled under the head or past the foot, nothing is offered.
  */
 function selectedIn(pane: HTMLElement | null): Spot | null {
   const range = pane ? rangeIn(pane) : null
   const passage = range ? wordsOf(range) : null
-  if (!pane || !range || !passage) return null
+  const md = pane?.querySelector('.report-pane-body .md')
+  if (!pane || !range || !passage || !md) return null
   const at = range.getBoundingClientRect()
   const frame = pane.getBoundingClientRect()
   const floor = (pane.querySelector('.report-pane-body')?.getBoundingClientRect().top ?? frame.top) - frame.top
   const spot = { top: at.top - frame.top, bottom: at.bottom - frame.top, middle: at.left + at.width / 2 - frame.left }
-  return spot.bottom < floor || spot.top > frame.height ? null : { text: passage, ...spot, floor }
+  if (spot.bottom < floor || spot.top > frame.height) return null
+  return { text: passage, locator: locatorOf(md, range), ...spot, floor }
 }
 
 /** The selection's range, when it lies in the report's text. */
@@ -234,42 +270,68 @@ export function PassageBar({ pane, version, viewer }: Props) {
   usePlaced(bar, pane, spot)
   const allowed = useNoteAllowed(projectId, identity, !!spot)
   const kept = useKeep(projectId, identity)
+  const link = useLinkCopy()
   const keeps = allowed && !kept.said.busy
-  const offered = spot && source && (onAsk || keeps) ? { text: spot.text, source } : null
+  // Link is offered wherever the version is known: no chat or brief needed to point a teammate at a passage.
+  const linkable = version && spot?.locator ? { version, at: spot.locator } : null
+  const tools: Tool[] = [
+    ...(onAsk ? [{ label: 'Ask Sophia', className: 'passage-ask', act: onAsk }] : []),
+    ...(keeps ? [{ label: 'Keep', act: (p: Passage) => kept.keep(keptText(p.text, p.source)) }] : []),
+    ...(linkable
+      ? [
+          {
+            label: 'Link',
+            act: () =>
+              link.copy({ artifactId: linkable.version.artifactId, versionId: linkable.version.id }, linkable.at),
+          },
+        ]
+      : []),
+  ]
+  const offered = spot && source && tools.length > 0 ? { text: spot.text, source } : null
   useEscapeBar(!!offered, bar, pane)
-  // A press keeps the selection (some engines clear it on a button's mousedown); once used, it goes.
-  const pressed = (act: (passage: Passage) => void) => () => {
-    if (!offered) return
-    act(offered)
-    window.getSelection()?.removeAllRanges()
-  }
   return (
     <>
-      {offered && (
-        <div ref={bar} className="passage-bar" role="toolbar" aria-label="The selected passage">
-          {onAsk && (
-            <button
-              type="button"
-              className="passage-ask"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={pressed(onAsk)}
-            >
-              Ask Sophia
-            </button>
-          )}
-          {keeps && (
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={pressed((p) => kept.keep(keptText(p.text, p.source)))}
-            >
-              Keep
-            </button>
-          )}
-        </div>
-      )}
+      {offered && <PassageTools bar={bar} tools={tools} passage={offered} />}
       <KeptLine {...kept} />
+      <LinkedLine copied={link.copied} />
     </>
+  )
+}
+
+/** One of the bar's buttons: its words, and what it does with the passage. */
+interface Tool {
+  label: string
+  className?: string
+  act: (passage: Passage) => void
+}
+
+/** The bar over the selection. A press keeps the selection (some engines clear it on mousedown); once used, it goes. */
+function PassageTools({
+  bar,
+  tools,
+  passage,
+}: {
+  bar: RefObject<HTMLDivElement | null>
+  tools: readonly Tool[]
+  passage: Passage
+}) {
+  return (
+    <div ref={bar} className="passage-bar" role="toolbar" aria-label="The selected passage">
+      {tools.map((tool) => (
+        <button
+          key={tool.label}
+          type="button"
+          className={tool.className}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            tool.act(passage)
+            window.getSelection()?.removeAllRanges()
+          }}
+        >
+          {tool.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
