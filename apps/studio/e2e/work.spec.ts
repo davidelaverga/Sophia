@@ -2549,3 +2549,69 @@ test('codex · F-023 · the first send’s late reply changes nothing while the 
   expect(sent).toHaveLength(2)
   expect(sent[1]).toEqual(sent[0])
 })
+
+// ---- CX-0021 (Codex on #74): a challenge sent before the read went stale stays said, its receipt landing. ----
+
+const reason = 'The renderer’s host is shared with the exports.'
+const challengeSaid = (page: Page) => reviewCard(page).locator('.review-challenge [role="status"]')
+
+test('codex · F-024 · a challenge sent before the read went stale stays said, its late receipt landing; sent once', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&review=material`) // its receipt comes 300 ms after it is sent
+  await reviewPill(page).click()
+  await reviewCard(page).getByRole('button', { name: 'Challenge' }).click()
+  await challengeField(page).fill(reason)
+  await reviewCard(page).getByRole('button', { name: 'Send' }).click()
+  await expect(challengeSaid(page)).toHaveText('Sending your challenge…')
+  // The read goes stale while it is on its way: its words and its status stay, with nothing to send.
+  await readAs(page, 'unavailable')
+  await expect(board(page).locator('.board-notice').first()).toHaveText(staleRead)
+  await expect(reviewCard(page).locator('.review-challenge-quote')).toHaveText(reason)
+  await expect(challengeSaid(page)).toHaveText('Sending your challenge…')
+  await expect(challengeField(page)).toHaveCount(0)
+  await expect(reviewCard(page).getByRole('button', { name: /^(Send|Challenge)/ })).toHaveCount(0)
+  // Its receipt comes while the read is still stale, and is said.
+  await page.clock.runFor(1_000)
+  await expect(challengeSaid(page)).toHaveText('Sent to the lead, for its next review.')
+  // Read again: the same receipt, nothing sent again.
+  await readAs(page, 'complete')
+  await expect(board(page).locator('.board-notice')).not.toContainText([staleRead])
+  await expect(challengeSaid(page)).toHaveText('Sent to the lead, for its next review.')
+  await expect(reviewCard(page).locator('.review-challenge-quote')).toHaveText(reason)
+  expect(await challengesOf(page)).toEqual([{ review: 'review-material', text: reason, key: expect.any(String) }])
+})
+
+test('codex · F-024 · not confirmed while the read is stale, it is kept, never sent again; read again, the same goes', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&review=material&challenge=unknown`) // the first reply is lost
+  await reviewPill(page).click()
+  await reviewCard(page).getByRole('button', { name: 'Challenge' }).click()
+  await challengeField(page).fill(reason)
+  await reviewCard(page).getByRole('button', { name: 'Send' }).click()
+  await readAs(page, 'unavailable')
+  await page.clock.runFor(1_000)
+  const unconfirmed = 'Not confirmed. Sending again repeats the same request.'
+  await expect(challengeSaid(page)).toHaveText(unconfirmed)
+  await expect(reviewCard(page).locator('.review-challenge .act-note')).toHaveText(
+    'It can’t be sent again from here now; it is kept as it was.',
+  )
+  await expect(reviewCard(page).getByRole('button', { name: 'Send again' })).toHaveCount(0)
+  // Luis, looking meanwhile, sees no challenge of Davide's; back as Davide, it is as it was.
+  await page.evaluate(() => window.workFixture?.viewAs?.('luis'))
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeVisible()
+  await expect(reviewCard(page).locator('.review-challenge')).toHaveCount(0)
+  await page.evaluate(() => window.workFixture?.viewAs?.('davide'))
+  await reviewPill(page).click()
+  await expect(challengeSaid(page)).toHaveText(unconfirmed)
+  // Read again: Send again goes, with the same key and the same words.
+  await readAs(page, 'complete')
+  await reviewCard(page).getByRole('button', { name: 'Send again' }).click()
+  await page.clock.runFor(1_000)
+  await expect(challengeSaid(page)).toHaveText('Sent to the lead, for its next review.')
+  const sent = await challengesOf(page)
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(sent[0])
+})

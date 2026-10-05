@@ -3,7 +3,9 @@
 // the guidance field's style; Escape closes the line, back to Challenge, and keeps the card. Its receipt is said where
 // it was asked, by one status kept from the start, open line or not; once settled (recorded, or refused), only the words
 // stay, quoted over it. The focus never falls to the page: it stays in the line while sending, and moves to the receipt
-// once settled. Only for whoever can act on the work, on a review of this revision.
+// once settled. Only for whoever can act on the work, on a review of this revision. With nowhere to send it now (the
+// board's live state can't be read), one already sent stays said, its words quoted, and its receipt still lands; nothing
+// is offered to send, or to send again (Codex F-024).
 import { useEffect, useRef, useState } from 'react'
 import {
   challengeKey,
@@ -22,8 +24,12 @@ import type { LastReview } from './review.ts'
 interface Props {
   review: LastReview
   viewerId: string | null
-  onChallenge: Challenge
+  /** Where it goes; absent, nothing can be sent from here now. */
+  onChallenge?: Challenge | undefined
 }
+
+/** Why one not confirmed isn't offered again: nowhere to send it now. */
+const NOT_NOW = 'It can’t be sent again from here now; it is kept as it was.'
 
 /** Sends the challenge as the page memory holds it now: a new key for a draft, the same one for one not confirmed. */
 function sender(review: LastReview, key: string, onChallenge: Challenge) {
@@ -109,12 +115,25 @@ function useChallengeFocus(c: Challenged | null) {
   }
 }
 
+/** Sent and not settled, with nowhere to send now: its words, and why it isn't offered again. */
+function Kept({ c }: { c: Challenged | null }) {
+  if (!c || c.state === 'draft') return null
+  return (
+    <>
+      <q className="review-challenge-quote">{c.text}</q>
+      {c.state === 'unknown' && <p className="act-note muted">{NOT_NOW}</p>}
+    </>
+  )
+}
+
 export function ReviewChallenge({ review, viewerId, onChallenge }: Props) {
   const at = challengeKey(review.review_id, viewerId)
   const c = useChallenge(at)
   const focus = useChallengeFocus(c)
   const body = settled(c) ? (
     <q className="review-challenge-quote">{c.text}</q>
+  ) : !onChallenge ? (
+    <Kept c={c} />
   ) : focus.open ? (
     <Field c={c} at={at} send={sender(review, at, onChallenge)} onClose={focus.closeLine} />
   ) : (

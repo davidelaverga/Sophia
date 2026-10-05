@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { observedAgo } from '../../resources/resource.ts'
 import type { PlanRow } from './plan.ts'
-import type { Challenge } from './challenges.ts'
+import { challengeKey, useChallenge, type Challenge } from './challenges.ts'
 import { ReviewChallenge } from './ReviewChallenge.tsx'
 import { EVIDENCE, staleSaid, type Intervention, type LastReview, type Observation, type Reviewed } from './review.ts'
 
@@ -28,7 +28,10 @@ interface Props {
   onOpenDecisions: (decisionId: string) => void
   onClose: () => void
   viewerId: string | null
-  /** Where a challenge goes (slice 3); absent for whoever can't act on the work: no Challenge. */
+  /**
+   * Where a challenge goes (slice 3); absent for whoever can't act on the work, or while the board's live state can't
+   * be read: no Challenge, and one already sent is still said, its receipt landing (Codex F-024).
+   */
   onChallenge?: Challenge | undefined
 }
 
@@ -99,6 +102,23 @@ function Proposed({
   )
 }
 
+/**
+ * The card's foot: Challenge, where one can be sent; else this viewer's challenge to this review once sent, still said
+ * with nowhere to send it now, its receipt landing (Codex F-024). Nothing for a draft or none.
+ */
+function ChallengeFoot({ review, viewerId, onChallenge }: Pick<Props, 'review' | 'viewerId' | 'onChallenge'>) {
+  const challenged = useChallenge(challengeKey(review.review_id, viewerId))
+  if (!onChallenge && (challenged === null || challenged.state === 'draft')) return null
+  return (
+    <div className="review-part">
+      <span aria-hidden />
+      <div className="review-part-body">
+        <ReviewChallenge review={review} viewerId={viewerId} onChallenge={onChallenge} />
+      </div>
+    </div>
+  )
+}
+
 export function ReviewResult(props: Props) {
   const { review, plan, rows, now, onOpenTask, waitsOn, onOpenDecisions, onClose, viewerId, onChallenge } = props
   const card = useRef<HTMLElement>(null)
@@ -149,14 +169,7 @@ export function ReviewResult(props: Props) {
         )}
       </Part>
       {/* A review of this revision can be challenged; one of an earlier revision is only read. */}
-      {onChallenge && !stale && (
-        <div className="review-part">
-          <span aria-hidden />
-          <div className="review-part-body">
-            <ReviewChallenge review={review} viewerId={viewerId} onChallenge={onChallenge} />
-          </div>
-        </div>
-      )}
+      {!stale && <ChallengeFoot review={review} viewerId={viewerId} onChallenge={onChallenge} />}
     </section>
   )
 }
