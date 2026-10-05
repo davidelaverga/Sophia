@@ -27,6 +27,7 @@ import '../src/app/theme.css'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked } from './data.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, sophiaLeaves } from './fake-livekit.ts'
 import {
+  count,
   endPause,
   nameOf,
   oneOfUs,
@@ -131,9 +132,9 @@ const room: RoomAsked = {
   holder: holderAsked(query.get('floor')),
   voice: oneOf(VOICES, query.get('voice')),
   pauseReason: oneOf(PAUSES, query.get('paused')),
-  // She sees a screen only while one is shared (`video=screen`): the first person's.
+  // She sees a screen only while one is shared (`video=screen`): the first person's, so there must be one.
   looking:
-    query.get('looking') === 'screen' && query.get('video') === 'screen'
+    query.get('looking') === 'screen' && query.get('video') === 'screen' && count > 0
       ? { participantIdentity: personId(1), source: 'screen' }
       : null,
 }

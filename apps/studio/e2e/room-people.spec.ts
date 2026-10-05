@@ -144,6 +144,12 @@ test('video · a shared screen Sophia sees: the present layout, said', async ({ 
   await expect(page.getByText('Sophia sees Marco’s screen').first()).toBeVisible()
 })
 
+test('video · no one to share a screen: Sophia is never said to see one', async ({ page }) => {
+  await enter(page, 'sophia=here&video=screen&looking=screen')
+  await expect(line(page)).toHaveText('Sophia is here, not listening yet')
+  await expect(page.getByText(/Sophia sees/)).toHaveCount(0)
+})
+
 test('@phone · the gallery fits a phone: nothing runs off the side', async ({ page }) => {
   await enter(page, 'people=3&video=camera')
   await expect(page.locator('.gallery .tile')).toHaveCount(5)
