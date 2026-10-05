@@ -1,7 +1,7 @@
 ---
 id: critique/ledger-format
 source: EverMind-AI/Raven@3632e6040c7038a60ec418ce39ccae185c72c19f plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/ledger-format.md (blob 0233bfc219c2eb61a00e44cb53a17e31ab1e5246)
-status: Sophia-authored English adaptation; recorded with design_record_work (kind risk_ledger) instead of ANTI-SLOP-CHECK.md
+status: Sophia-authored English adaptation; recorded with design_record_work (kind risk) instead of ANTI-SLOP-CHECK.md
 ---
 
 # Risk ledger format

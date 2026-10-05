@@ -92,6 +92,8 @@ export interface DesignRole {
   /** Prompt sections, then skills, installed in this order; nothing is discovered. */
   readonly promptSections: readonly string[]
   readonly skills: readonly string[]
+  /** The references it may read (ids or `prefix/*`), read-only (SDD-01-RF-0002). */
+  readonly references: readonly string[]
   /** The role inspects real captures, so it runs only on a route that declares image input. */
   readonly imageInput: boolean
 }
@@ -99,7 +101,7 @@ export interface DesignRole {
 export const DESIGN_ROLES: ReadonlyMap<string, DesignRole> = new Map(
   SPECIALISTS.flatMap((s): Array<[string, DesignRole]> =>
     'promptSections' in s
-      ? [[s.id, { id: s.id, family: s.family, promptSections: s.promptSections, skills: s.skills, imageInput: s.imageInput }]]
+      ? [[s.id, { id: s.id, family: s.family, promptSections: s.promptSections, skills: s.skills, references: s.references, imageInput: s.imageInput }]]
       : [],
   ),
 )

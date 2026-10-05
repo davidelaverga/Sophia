@@ -20,6 +20,7 @@ interface Specialist {
   native_tools: string[]
   prompt_sections?: string[]
   skills?: string[]
+  references?: string[]
   image_input?: boolean
 }
 
@@ -88,6 +89,7 @@ function generated(specialists: readonly Specialist[]): string {
       ...(s.task_kind === 'research' ? [] : [`    taskKind: ${quote(s.task_kind)},`]),
       ...(s.prompt_sections ? [`    promptSections: [${s.prompt_sections.map(quote).join(', ')}],`] : []),
       ...(s.skills ? [`    skills: [${s.skills.map(quote).join(', ')}],`] : []),
+      ...(s.references ? [`    references: [${s.references.map(quote).join(', ')}],`] : []),
       ...(s.image_input === undefined ? [] : [`    imageInput: ${String(s.image_input)},`]),
       '  },',
     ].join('\n'),

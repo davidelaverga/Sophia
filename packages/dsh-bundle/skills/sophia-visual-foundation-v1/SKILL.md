@@ -57,7 +57,7 @@ CONTRACT → REFERENCE_LOCKED → VISUAL_THESIS_LOCKED → REPRESENTATIVE_FRAME
 
 **[F3.2]** Never claim what a reference looks like from its name, a brand impression, a genre or memory before you have seen it. Record three to six invariants that the final frame can verify; do not write a long design story that licenses arbitrary colour, decoration or exceptions. Without a viewable reference, propose the lowest-assumption direction derived from the task, content, reader and hard constraints, and disclose the evidence gap. "Restrained neutral" is not a default skin you may reuse across tasks.
 
-**[F3.3] Gallery check before any direction (mandatory).** Follow the critique procedure: read the anti-pattern gallery index and the specimen pages your actual risks route to, and keep the risk ledger in your work record (`design_record_work`, kind `risk_ledger`). **Adaptation:** Raven keeps it as `ANTI-SLOP-CHECK.md` in the working directory; here the work record is the durable equivalent.
+**[F3.3] Gallery check before any direction (mandatory).** Follow the critique procedure: read the anti-pattern gallery index and the specimen pages your actual risks route to, and keep the risk ledger in your work record (`design_record_work`, kind `risk`). **Adaptation:** Raven keeps it as `ANTI-SLOP-CHECK.md` in the working directory; here the work record is the durable equivalent.
 
 **[F3.4] Texture gate. Adaptation:** imagery whose quality depends on material and light (metal, glass, volumetric light, depth of field, rendering) needs real image generation in Raven. Image generation is not a capability of this profile, and a research report does not need such imagery. Never simulate it with CSS gradients, glowing arcs or abstract geometry (gallery group D).
 

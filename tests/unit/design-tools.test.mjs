@@ -111,13 +111,10 @@ test('a role composes exactly its prompt sections, then its skills, in order, ea
   assert.deepEqual(assets.prompts.map((p) => p.order), assets.prompts.map((_, i) => 640 + i))
   const recorded = new Map([...manifest.promptSections, ...manifest.skills].map((f) => [f.id, f.sha256]))
   for (const p of assets.prompts) assert.equal(p.sha256, recorded.get(p.name), p.name)
-  // The reviewer reads only its own skill's references; the designer reads all four skills'.
+  // The reviewer composes its own view of the critique procedure, and reads only what its scope names
+  // (SDD-01-RF-0002; tests/unit/design-roles.test.mjs checks each role's scope and closure).
   const review = loadDesignAssets(reviewer).assets
-  assert.deepEqual(review.prompts.map((p) => p.name), ['sophia-visual-reviewer', 'sophia-visual-critique-v1'])
-  for (const id of review.references.keys()) {
-    const ref = manifest.references.find((r) => r.id === id)
-    assert.ok(ref ? ref.skill === 'sophia-visual-critique-v1' : id === 'sophia-visual-critique-v1', `${id} is the critique skill's`)
-  }
+  assert.deepEqual(review.prompts.map((p) => p.name), ['sophia-visual-reviewer', 'sophia-visual-critique-review-v1'])
   assert.ok(assets.references.size > review.references.size)
 })
 
@@ -133,10 +130,12 @@ test('a changed byte, a missing file or a path leaving the bundle makes the role
     assert.deepEqual([changed.ok, /does not match its recorded SHA-256/.test(changed.reason)], [false, true])
     // The reviewer does not compose that section, so it stays available.
     assert.equal(loadDesignAssets(reviewer, url).ok, true)
-    const escaped = { ...manifest, references: [{ ...manifest.references[0], path: '../outside.md' }] }
+    const escaped = { ...manifest, references: manifest.references.map((r, i) => (i === 0 ? { ...r, path: '../outside.md' } : r)) }
     writeFileSync(join(dir, 'manifest.json'), JSON.stringify(escaped))
     assert.match(loadDesignAssets(reviewer, url).reason, /leaves the skills directory/)
-    assert.equal(loadDesignAssets({ promptSections: ['sophia-unknown'], skills: [] }).ok, false)
+    assert.equal(loadDesignAssets({ promptSections: ['sophia-unknown'], skills: [], references: [] }).ok, false)
+    // A scope pattern that names no reference in the bundle is refused, never read as "nothing".
+    assert.match(loadDesignAssets({ ...reviewer, references: ['web/missing/*'] }).reason, /web\/missing\/\* names no reference/)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

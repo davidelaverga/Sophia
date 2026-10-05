@@ -1,7 +1,7 @@
 ---
 id: sophia-visual-critique-v1
 source: EverMind-AI/Raven@3632e6040c7038a60ec418ce39ccae185c72c19f plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/SKILL.md (blob cf27ed13b88c0082228fc5db11fcce9e5516d64a)
-status: Sophia-authored English adaptation; the clause map is docs/coordination/SDD-01/RAVEN_PARITY.md
+status: Sophia-authored English adaptation, the maker's view (the designer loads it); the independent reviewer's clauses C4.1–C4.3 are in REVIEW.md, the reviewer's view; the clause map is docs/coordination/SDD-01/RAVEN_PARITY.md
 ---
 
 # Visual critique against AI patterns
@@ -16,7 +16,7 @@ Use this when creating, editing or reviewing any human-visible artifact. Before 
 
 For a research report the groups to consider first are **G** (grey AI micro-text: caveats, sources and method set smallest and greyest), **N** (number cards), **B** (expression blocks: insight cards, coloured left-border summaries), **H** (placeholders for missing evidence), **T** (pill stacks), **O** (bilingual or spaced-caps eyebrows), **S** (numbering rituals) and **W** (template copy); **P** (palette templates) when you choose colour; **D** (illustration style) does not arise because no imagery is admitted.
 
-**[C1.2] The ledger.** Keep it in the work record (`design_record_work`, kind `risk_ledger`), written in the format of `critique/ledger-format`. **Adaptation:** Raven writes `ANTI-SLOP-CHECK.md` in the working directory; the work record is Sophia's durable equivalent and is part of the candidate's evidence.
+**[C1.2] The ledger.** Keep it in the work record (`design_record_work`, kind `risk`), written in the format of `critique/ledger-format`. **Adaptation:** Raven writes `ANTI-SLOP-CHECK.md` in the working directory; the work record is Sophia's durable equivalent and is part of the candidate's evidence.
 
 **[C1.3]** The ledger records only the high and medium risk groups you routed to, the current visible symptoms, the matching specimen, the positive benchmark mechanism, the change and the re-render evidence. Low-risk and inapplicable groups get no empty section. Before delivery, scan the whole artifact once more and add newly found risks. Missing a group that actually occurs means the work is unfinished; length and a verdict per group are not quality evidence.
 
@@ -33,11 +33,3 @@ For a research report the groups to consider first are **G** (grey AI micro-text
 **[C3.3]** The reviewer receives only: the person's original request, the references it may view, the frozen research content and constraints, and the current rendered pixels. Never your rationale, your design thesis, your change summary or a self-rating. Sophia's service builds that input; nothing you write can enter it.
 
 **[C3.4]** Without an independent reviewer, run an isolated self-check and mark the result `SELF_REVIEW_ONLY`. That is an evidence source, not an independent pass.
-
-## For the independent reviewer
-
-**[C4.1]** You did not author the candidate. Read the original request, frozen content and criteria with `review_read_context`; look at the actual pixels with `review_inspect_render`; read the gallery and precedents with `review_read_reference`. A path, markup, a successful build or a tool count is not visual evidence.
-
-**[C4.2]** Apply the gates by risk (direction for a new or changed direction, system across sections and widths, final after the last visible change, positive completeness beyond the gallery), cover every required section and width at readable scale, and check that every content block, value, caveat and citation is visible and intelligible. Missing targets or image access are blocked or incomplete coverage, never a pass.
-
-**[C4.3]** Submit with `review_submit_result`: the exact candidate, source, render and criteria identities; the captures you inspected and what coverage is missing; the verdict (`pass`, `needs_revision` or `blocked`); concrete findings with severity, location, observed evidence, the requirement, and the earliest layer to repair; unresolved limitations. A pass is scoped to this evidence and version. Return actionable findings, not an unexplained score. For an Edit, judge the declared target, the protected regions and permitted reflow; do not ask for a broad redesign to express a preference when a local correction was requested.

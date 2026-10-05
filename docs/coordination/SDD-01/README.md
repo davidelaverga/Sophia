@@ -23,4 +23,7 @@ A comment wakes nobody. Davide resumes either agent with one line, for example: 
 | Id | Kind | Operation | State |
 |---|---|---|---|
 | [SDD-01-CC-0001](https://github.com/davidelaverga/Sophia/issues/103#issuecomment-5999501561) | review_request | OP-0001 r1: G0 binding and G1 import at `16fb5c6` | Awaiting Codex |
-| SDD-01-CC-0002 | review_request | OP-0002 r1: G2–G4 and the G5/G6 parts at the head named in the message | Posted on #103 with this push |
+| [SDD-01-CC-0002](https://github.com/davidelaverga/Sophia/issues/103#issuecomment-6001384489) | review_request | OP-0002 r1: G2–G4 and the G5/G6 parts at `a53480b` | Superseded by r2, r3 (CC-0003, CC-0004: main merged) |
+| [SDD-01-CX-0001](https://github.com/davidelaverga/Sophia/issues/103#issuecomment-6002542800) | prepared | OP-0001 r1 | Codex's G0/G1 review started |
+| [SDD-01-CX-0002](https://github.com/davidelaverga/Sophia/issues/103#issuecomment-6002761520) | review_finding | OP-0002 r3 at `b1e227e` | RF-0001, RF-0002 (P2): changes required; review continues |
+| SDD-01-CC-0005 | review_request | OP-0002 r4: RF-0001 and RF-0002 fixed, at the candidate it names | Posted on #103 with this push |

@@ -35,7 +35,7 @@ Levels (binding map §10): L0 source and fixtures; L1 pinned dsh, confined Chrom
 |---|---|---|
 | B-01 prompt/skill missing | L1 | A changed byte, a missing file or a path leaving the bundle makes the role unavailable (`tests/unit/design-tools.test.mjs`); the bridge then neither advertises it nor starts it (`control-bridge.ts` `designProblem`, `installDesign`) |
 | B-02 donor inventory | L0 | `tests/unit/design-skills.test.mjs`, `tools/test_inventory_raven.py`, [RAVEN_PARITY.md](../coordination/SDD-01/RAVEN_PARITY.md) |
-| B-03 scoped composition | L1 | The designer is offered exactly its nine tools and the reviewer its four (no `design_*`), no workspace, host or research tool; a design tool called by the reviewer is refused (`tests/integration/design-tools.test.mjs`) |
+| B-03 scoped composition | L1 | The designer is offered exactly its nine tools and the reviewer its four (no `design_*`), no workspace, host or research tool; a design tool called by the reviewer is refused (`tests/integration/design-tools.test.mjs`). Every tool a role's texts name is its own, and the reviewer loads none of the maker's instructions (`tests/unit/design-roles.test.mjs`, RF-0002) |
 | B-04 Markdown request | L1 | `research.db.test.ts` (unchanged research path), `design.db.test.ts` admission cases |
 | B-05 new HTML request | L1 | `design.db.test.ts`: admitted, recorded on the task, designed after the research; no conversion path remains in Studio (`legacy-conversion.test.ts`) |
 | B-06 frozen content | L0/L1 | Content-map mutants in `design.test.ts` (dropped block, changed number or cell, dropped/added citation, invented block, dropped source or limitation, padded claim); hidden text is caught by the render (`capture-html.test.ts` defects, `blocks_visible` refusal in `design.db.test.ts`) |
@@ -61,7 +61,7 @@ Levels (binding map §10): L0 source and fixtures; L1 pinned dsh, confined Chrom
 | B-26 billing and limits | L1 | Every designer and reviewer model call reserved and settled through `design/reserve` and `design/settle` against the lineage allowance (`tests/integration/design-tools.test.mjs`) |
 | B-27 legacy compatibility | L1 | MD/PDF readers and ids unchanged; `renderReportPage` kept for G6 only |
 | B-28 versioned recovery | L1 | Presets recorded by digest (unchanged mechanism); assets re-verified at every create and resume |
-| B-29 private/shared context | L1 | Reference reads limited to the role's own skills (`design-tools.test.mjs`); runtime operations authenticated by capability and binding |
+| B-29 private/shared context | L1 | Reference reads limited to each role's registry scope, exactly (`design-roles.test.mjs`, RF-0002); runtime operations authenticated by capability and binding |
 | B-30 real-app episode | — | Codex, G7 |
 
 ## 4. Known gaps at this candidate
@@ -82,4 +82,11 @@ Levels (binding map §10): L0 source and fixtures; L1 pinned dsh, confined Chrom
 | Studio e2e, all specs | 562 run: 559 pass. Three failed under the full parallel load: two animation-frame timing checks (Home's light, sign-in's attention) and the reading check that this change edited after the run started. All three spec groups pass when re-run (21/21). Local runs use the preinstalled Chromium 141 through `executablePath`; CI runs the pinned browser |
 | Capture kernel | `renderers/web/pdf/test/capture-html.test.ts` with the real confined Chromium (render user, user namespaces), inside `pnpm test` |
 | G6 control | `node scripts/g6-control.mjs --check`: the inputs and control pages reproduce; four control captures, sandbox active, every kernel check passed |
+
+## 6. Review findings
+
+| Finding | From | State | Fix and evidence |
+|---|---|---|---|
+| SDD-01-RF-0001 (P2): the risk ledger named a work-record kind the API refuses (`risk_ledger`) | Codex, CX-0002 at `b1e227e` | Fixed; awaiting Codex's recheck | The critique, foundation and web-finish skills and `critique/ledger-format` name `risk`. `tests/unit/design-roles.test.mjs` checks every kind any bundle text names against the tool's schema and both SQL lists (0038 constraint, 0039 check); with `risk_ledger` put back it fails |
+| SDD-01-RF-0002 (P2): the reviewer's procedure required precedents it could not read, and it loaded the maker's instructions | Codex, CX-0002 at `b1e227e` | Fixed; awaiting Codex's recheck | Registry `references` gives each design role an explicit read-only scope; the loader reads by scope, not by skill. The reviewer loads `sophia-visual-critique-review-v1` (`REVIEW.md`, the reviewer's clauses only) and reads the gallery and the precedents. Per-role tool and reference closure in `design-roles.test.mjs` (fails with the reviewer composed as before); its precedent read reaches the provider as an image in `tests/integration/design-tools.test.mjs` |
 

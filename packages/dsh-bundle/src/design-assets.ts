@@ -3,9 +3,10 @@
  * loads explicitly, and the reference texts and images its skills name, all shipped in the bundle under `skills/`
  * with the SHA-256 `skills/manifest.json` records (scripts/design-skills.mjs keeps the manifest equal to the files).
  *
- * Nothing here is discovered: a role names its sections and skills in the registry (config/specialists.json), and an
- * asset whose bytes do not match the manifest makes the role unavailable rather than loaded with something else. The
- * references are read-only and scoped: a role reads only the references of its own skills, by id.
+ * Nothing here is discovered: a role names its sections, skills and reference scope in the registry
+ * (config/specialists.json), and an asset whose bytes do not match the manifest makes the role unavailable rather than
+ * loaded with something else. The references are read-only and scoped by the registry, not by which skill holds them
+ * (SDD-01-RF-0002): the reviewer reads the gallery and the precedents without loading any maker's instructions.
  * @module @sophia/dsh-bundle/design-assets
  */
 
@@ -34,11 +35,17 @@ interface Manifest {
   readonly references: readonly ManifestReference[]
 }
 
-/** What a design role composes from the registry: its sections and skills. */
+/** What a design role composes from the registry: its sections, its skills and the references it may read. */
 export interface DesignRoleAssets {
   readonly promptSections: readonly string[]
   readonly skills: readonly string[]
+  /** Reference ids, or `prefix/*` patterns; a pattern that names no reference in the bundle makes the role unavailable. */
+  readonly references: readonly string[]
 }
+
+/** Whether a reference id is inside a role's scope. */
+export const inReferenceScope = (scope: readonly string[], id: string): boolean =>
+  scope.some((p) => (p.endsWith('/*') ? id.startsWith(p.slice(0, -1)) : id === p))
 
 /** One prompt section the preset installs, in order. */
 export interface DesignPrompt {
@@ -96,9 +103,17 @@ function find(list: readonly ManifestFile[], id: string): ManifestFile {
   return file
 }
 
+/** The manifest's references inside a role's scope; every pattern must name at least one. */
+function scoped(manifest: Manifest, scope: readonly string[]): ManifestReference[] {
+  for (const p of scope) {
+    if (!manifest.references.some((r) => inReferenceScope([p], r.id))) throw new Error(`${p} names no reference in the bundle`)
+  }
+  return manifest.references.filter((r) => inReferenceScope(scope, r.id))
+}
+
 /**
  * Load and verify everything a design role composes: its prompt sections, then its skills (both as prompt sections, in
- * the registry's order), and the references of its skills. Any missing or changed byte makes the outcome `ok: false`
+ * the registry's order), and the references its scope names. Any missing or changed byte makes the outcome `ok: false`
  * with the reason; the bridge then does not advertise the role.
  * @param role - the registry's sections and skills for the role.
  * @param dir - the skills directory (the bundle's own by default; a test passes a copy).
@@ -114,7 +129,7 @@ export function loadDesignAssets(role: DesignRoleAssets, dir: URL = SKILLS_DIR):
       return { name: id, order: FIRST_ORDER + i, text: decode(bytes), sha256: file.sha256 }
     })
     const references = new Map<string, DesignReference>()
-    for (const ref of manifest.references.filter((r) => role.skills.includes(r.skill))) {
+    for (const ref of scoped(manifest, role.references)) {
       const bytes = verified(dir, ref)
       references.set(
         ref.id,

@@ -31,6 +31,15 @@ const SKILLS = {
   'sophia-visual-critique-v1': { donor: 'review-against-ai-patterns', blob: 'cf27ed13b88c0082228fc5db11fcce9e5516d64a', prefix: 'critique' },
 }
 
+/**
+ * Role views of a native skill: another text adapted from the same donor skill, kept in that skill's directory, with
+ * no references of its own (a role reads references by the scope the registry gives it). SDD-01-RF-0002: the
+ * independent reviewer loads only the reviewer's clauses of the critique procedure, never the maker's.
+ */
+const VIEWS = {
+  'sophia-visual-critique-review-v1': { of: 'sophia-visual-critique-v1', file: 'REVIEW.md' },
+}
+
 /** Image directories under a skill's references: local dir → reference id segment and donor directory. */
 const IMAGE_DIRS = {
   gallery: { segment: 'gallery', donor: 'review-against-ai-patterns/references/anti-slop-gallery' },
@@ -70,6 +79,15 @@ function skillEntries(id, spec) {
   return { skill, references }
 }
 
+/** A role view's entry: its own text and hash, and the donor of the skill it is a view of. */
+function viewEntry(id, view) {
+  const path = join(SKILLS_DIR, view.of, view.file)
+  const bytes = readFileSync(path)
+  if (/^id: (\S+)$/m.exec(bytes.toString('utf8'))?.[1] !== id) throw new Error(`${relative(SKILLS_DIR, path)} must declare id: ${id}`)
+  const spec = SKILLS[view.of]
+  return { id, path: relative(SKILLS_DIR, path), sha256: sha256(bytes), donor: { path: `${DONOR_ROOT}/${spec.donor}/SKILL.md`, gitBlob: spec.blob }, viewOf: view.of }
+}
+
 function imageEntry(skillId, spec, images, path) {
   const bytes = readFileSync(path)
   const page = /^page-(\d+)\.jpg$/.exec(relative(join(SKILLS_DIR, skillId, 'references', images.segment), path))
@@ -102,6 +120,7 @@ export function buildSkillsManifest() {
     skills.push(entries.skill)
     references.push(...entries.references)
   }
+  for (const [id, view] of Object.entries(VIEWS)) skills.push(viewEntry(id, view))
   references.sort((a, b) => a.id.localeCompare(b.id))
   return { schema: 'sophia.design-skills.v1', donor: DONOR, notice: 'RAVEN-NOTICE.md', promptSections, skills, references }
 }

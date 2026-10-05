@@ -60,7 +60,7 @@ target_frames: the widths, densities and states that decide the direction
 **[W2.2]** Keep two pieces of working evidence in the work record (`design_record_work`), each a short decision ledger, not a report, recording only decisions that change facts, pixels, behaviour or acceptance:
 
 - **brief** (kind `contract` and `stage`): the decision card; any reference contract; direction candidates only when real uncertainty remains (then two or three mutually exclusive ones with their key trade-off; otherwise adopt the locked direction); the precedent decision you took and where it lands in each section; the **detail contract** below.
-- **risk ledger** (kind `risk_ledger`): the critique procedure's format.
+- **risk ledger** (kind `risk`): the critique procedure's format.
 
 **[W2.3] Detail contract.** A *surface manifest*: every top-level section (`data-section`) with its job, main object, order and final evidence; and a *behaviour map*: every link class (citation to source, contents to section, source to external page) and every disclosure, with what it does and how it was checked. Repeated instances share visual evidence, but every target is checked.
 

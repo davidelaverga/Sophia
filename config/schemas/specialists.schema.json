@@ -76,6 +76,13 @@
           "uniqueItems": true,
           "items": { "type": "string", "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$" }
         },
+        "references": {
+          "description": "SDD-01-RF-0002: the bundle references the role may read, read-only, by id or by a `prefix/*` pattern; nothing outside it, whatever skill it belongs to.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z]+(/[a-z0-9]+(-[a-z0-9]+)*)*(/\\*)?$" }
+        },
         "image_input": {
           "description": "SDD-01: the role inspects real images; it is advertised only on a route that declares image input.",
           "type": "boolean"
@@ -99,9 +106,10 @@
               "outputs": { "const": ["html"] },
               "prompt_sections": { "type": "array" },
               "skills": { "type": "array" },
+              "references": { "type": "array" },
               "image_input": { "const": true }
             },
-            "required": ["prompt_sections", "skills", "image_input"]
+            "required": ["prompt_sections", "skills", "references", "image_input"]
           }
         },
         {
@@ -112,9 +120,10 @@
               "outputs": { "const": ["review"] },
               "prompt_sections": { "type": "array" },
               "skills": { "type": "array" },
+              "references": { "type": "array" },
               "image_input": { "const": true }
             },
-            "required": ["prompt_sections", "skills", "image_input"]
+            "required": ["prompt_sections", "skills", "references", "image_input"]
           }
         }
       ]

@@ -1,6 +1,6 @@
 {
   "schema": "sophia.specialists.v1",
-  "description": "The one registry of Sophia's specialist roles (SMC-M03 plan §2.2). The dsh bundle's role presets for these roles are generated from it (scripts/generate-specialists.mjs), the runtime unit's role routes must equal it, and the API resolves research admission against it (S4). config/roles.json keeps the roles before M03. SDD-01 adds the native HTML designer and the separate visual reviewer: each loads its prompt sections and native skills explicitly (prompt_sections, skills) and is advertised only on an image-capable route (image_input).",
+  "description": "The one registry of Sophia's specialist roles (SMC-M03 plan §2.2). The dsh bundle's role presets for these roles are generated from it (scripts/generate-specialists.mjs), the runtime unit's role routes must equal it, and the API resolves research admission against it (S4). config/roles.json keeps the roles before M03. SDD-01 adds the native HTML designer and the separate visual reviewer: each loads its prompt sections and native skills explicitly (prompt_sections, skills), reads only the references its scope names (references, SDD-01-RF-0002) and is advertised only on an image-capable route (image_input).",
   "specialists": [
     {
       "id": "sophia-research-md-v1",
@@ -81,6 +81,7 @@
         "sophia-web-finish-v1",
         "sophia-visual-critique-v1"
       ],
+      "references": ["critique/*", "editorial/*", "foundation/*", "web/*"],
       "image_input": true
     },
     {
@@ -98,7 +99,14 @@
       "peer": false,
       "raw_host_shell": false,
       "prompt_sections": ["sophia-visual-reviewer"],
-      "skills": ["sophia-visual-critique-v1"],
+      "skills": ["sophia-visual-critique-review-v1"],
+      "references": [
+        "critique/anti-slop-review",
+        "critique/gallery-index",
+        "critique/gallery/*",
+        "web/precedents-index",
+        "web/precedents/*"
+      ],
       "image_input": true
     }
   ]

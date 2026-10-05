@@ -30,7 +30,7 @@
     {
       "id": "sophia-visual-foundation-v1",
       "path": "sophia-visual-foundation-v1/SKILL.md",
-      "sha256": "f0bd8bf963a2d1677b0c0dbbe9e0d61825e7997ab5e667ff551b56bb7d8ccf28",
+      "sha256": "3107876e32b3fd4f8fb7e05baef56750b5f7ec111cba17aaca85115277724b84",
       "donor": {
         "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/SKILL.md",
         "gitBlob": "5f6962e4cf2ed0899dd78a1f89aa2e103c8e7d16"
@@ -48,7 +48,7 @@
     {
       "id": "sophia-web-finish-v1",
       "path": "sophia-web-finish-v1/SKILL.md",
-      "sha256": "445f5bb41a44495741fa7196b706604d380f6b985c8ed1fc355ea0bbbedf9f97",
+      "sha256": "552ed258a7128b6a86d283b1dbbc74383cf4a642e693a8faa4f64647b50b4644",
       "donor": {
         "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/SKILL.md",
         "gitBlob": "14ff3aeb7b2d888b561e4cb2794c307ec58e7283"
@@ -57,11 +57,21 @@
     {
       "id": "sophia-visual-critique-v1",
       "path": "sophia-visual-critique-v1/SKILL.md",
-      "sha256": "9e248ce8ba5a9383d223ff0bde05687a7b0e015129eb23a4d7761e5d48eb8f86",
+      "sha256": "c062f149bf73232de9ec56c229bbc4577ef51b2a490bcbb2f82056932c129967",
       "donor": {
         "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/SKILL.md",
         "gitBlob": "cf27ed13b88c0082228fc5db11fcce9e5516d64a"
       }
+    },
+    {
+      "id": "sophia-visual-critique-review-v1",
+      "path": "sophia-visual-critique-v1/REVIEW.md",
+      "sha256": "2cd91817357dbd793ce2916f6e923e5b73e8047a674e6be281f8a4fcb1d58b1f",
+      "donor": {
+        "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/SKILL.md",
+        "gitBlob": "cf27ed13b88c0082228fc5db11fcce9e5516d64a"
+      },
+      "viewOf": "sophia-visual-critique-v1"
     }
   ],
   "references": [
@@ -287,8 +297,8 @@
       "kind": "text",
       "mediaType": "text/markdown",
       "path": "sophia-visual-critique-v1/references/ledger-format.md",
-      "sha256": "f988955d69c297a1712c6e82e13f1d1adbbe679aef1f373003d9bcceaf7fa18f",
-      "bytes": 1826,
+      "sha256": "8fa6d431584e3c2b74fbb49c98a3c3c8c10fba0377da9db41757f3314a164199",
+      "bytes": 1819,
       "donor": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/ledger-format.md"
     },
     {

@@ -186,7 +186,7 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     const ref: DesignReference | undefined = assets?.references.get(id)
     if (!ref) {
       const known = assets ? [...assets.references.keys()].join(', ') : 'none'
-      return { code: 'not_found', message: `No reference ${id} for this role. Its references: ${known}.` }
+      return { code: 'not_found', message: `No reference ${id} in this role's scope. Its references: ${known}.` }
     }
     if (ref.kind === 'image') {
       const [image] = await stored(exec, [{ data: ref.data, mediaType: ref.mediaType === 'image/png' ? 'image/png' : 'image/jpeg', name: id }])
@@ -219,11 +219,11 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
   const readReferenceTool = (name: 'design_read_reference' | 'review_read_reference', record: boolean) => defineTool({
     name,
     description:
-      'Read one reference of your native skills by id: a skill\'s whole text (its id), a reference section, or a ' +
-      'specimen image (returned as the image itself). Text is paged (12000 characters; pass offset). Ids outside your ' +
-      'skills are refused. A specimen shows a risk or a precedent; it is never a template to copy.',
+      'Read one reference your role may read, by id: one of your skills\' whole text (its id), a reference section, or ' +
+      'a specimen image (returned as the image itself). Text is paged (12000 characters; pass offset). Ids outside your ' +
+      'role\'s reference scope are refused. A specimen shows a risk or a precedent; it is never a template to copy.',
     parameters: {
-      id: { type: 'string', required: true, description: 'The reference id, e.g. critique/gallery-index or sophia-web-finish-v1.' },
+      id: { type: 'string', required: true, description: 'The reference id, e.g. critique/gallery-index or web/precedents/page-04.' },
       offset: { type: 'integer', description: 'Where a text page starts.' },
     },
     output: { schema: { type: 'json' }, render: (_args, value) => referenceBlocks(value) },

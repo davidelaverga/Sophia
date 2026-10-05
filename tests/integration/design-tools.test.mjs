@@ -100,12 +100,14 @@ test('the designer is offered its tools and skills, pays through the design mete
   assert.equal(image.bytes.toString('base64'), w.service.capturePng, 'the renderer\'s pixels, byte for byte')
 })
 
-test('the reviewer is offered no design tool, and inspects through the review operation', async (t) => {
+test('the reviewer is offered no design tool, inspects through the review operation and reads a precedent', async (t) => {
   const w = await world(t)
   await w.start()
   w.llm.script(
     { toolCall: { name: 'design_write_source', arguments: { expectedSha256: null, html: '<main>x</main>' } } },
     { toolCall: { name: 'review_inspect_render', arguments: { names: [CAPTURE] } } },
+    // SDD-01-RF-0002: the precedent its procedure names is in its scope and reaches the model as an image.
+    { toolCall: { name: 'review_read_reference', arguments: { id: 'web/precedents/page-04' } } },
     { toolCall: { name: 'review_submit_result', arguments: { verdict: 'pass', summary: 'Nothing blocking remains.' } } },
     { text: 'Reviewed.' },
   )
@@ -118,6 +120,13 @@ test('the reviewer is offered no design tool, and inspects through the review op
   assert.deepEqual(ops, ['review/capture', 'review/submit'], 'no design operation, no source written')
   const seen = imagesIn(w.llm.requests[2])
   assert.deepEqual(seen.map((i) => i.bytes.toString('base64')), [w.service.capturePng], 'the reviewer saw the capture')
+  const precedent = imagesIn(w.llm.requests[3]).at(-1)
+  assert.equal(imagesIn(w.llm.requests[3]).length, 2, 'the capture, then the precedent')
+  assert.match(precedent.mime, /^image\//)
+  assert.doesNotMatch(JSON.stringify(w.llm.requests[3].body.input), /No reference web\/precedents\/page-04/)
+  // Its system prompt carries none of the maker's tools or ledger (RF-0002).
+  assert.doesNotMatch(system(w.llm.requests[0]), /\bdesign_[a-z_]+|risk ledger/)
+  assert.match(system(w.llm.requests[0]), /Visual critique against AI patterns: the independent reviewer/)
   const submitted = w.service.design.find((o) => o.op === 'review/submit').body
   assert.deepEqual([submitted.result.verdict, submitted.result.findings], ['pass', []])
 })

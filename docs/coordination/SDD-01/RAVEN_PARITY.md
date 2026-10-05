@@ -49,7 +49,7 @@ Status words: **preserved** (kept with its meaning; images byte for byte), **ada
 | `design-editorial-and-presentations/SKILL.md` | `b6edaae4f6b4` | `4a4be10915be` | 9227 | adapted | `sophia-editorial-html-v1/SKILL.md` | Clause map §3 |
 | `design-editorial-and-presentations/references/patterns.md` | `bb65eed93175` | `e9fe2ec4e290` | 11014 | adapted | `editorial/patterns` | §5 paginated, §6 presentation and §9 accessible PDF deferred |
 | `design-editorial-and-presentations/references/tool-profiles.md` | `9cd5a1bf2004` | `7564993f3dea` | 17779 | deferred | — | Profiles of InDesign, Affinity, Scribus, PowerPoint, Keynote, Slidev, Astro, Quarto, Paged.js, Vivliostyle, Typst and Acrobat: none is available; the one qualified tool is Sophia's static HTML path (E3.2) |
-| `review-against-ai-patterns/SKILL.md` | `cf27ed13b88c` | `789fa7320722` | 3213 | adapted | `sophia-visual-critique-v1/SKILL.md` | Clause map §5 |
+| `review-against-ai-patterns/SKILL.md` | `cf27ed13b88c` | `789fa7320722` | 3213 | adapted | `sophia-visual-critique-v1/SKILL.md` (the maker's view); `sophia-visual-critique-v1/REVIEW.md` (`sophia-visual-critique-review-v1`, the reviewer's view) | Clause map §5 |
 | `review-against-ai-patterns/agents/openai.yaml` | `5ef6b19e3462` | `e03646ae89c8` | 383 | excluded | — | Raven host agent display metadata; Sophia composes presets itself |
 | `review-against-ai-patterns/references/anti-slop-gallery/page-1.jpg` | `5369b41a9d34` | `b7773bdedb9e` | 218437 | preserved | `critique/gallery/page-01` | Bundled byte for byte; groups in `critique/gallery-index` |
 | `review-against-ai-patterns/references/anti-slop-gallery/page-10.jpg` | `1478b83d1d08` | `b61d90dee449` | 189322 | preserved | `critique/gallery/page-10` | Bundled byte for byte; groups in `critique/gallery-index` |
@@ -204,21 +204,23 @@ Status words: **preserved** (kept with its meaning; images byte for byte), **ada
 | 552–592 | completion conditions | adapted | W8.1–W8.12 | Imagery and content-web conditions excluded |
 | 593–594 | read decision traces | adapted | footer | `web/decision-traces` |
 
-## 5. RV-04 `review-against-ai-patterns/SKILL.md` → `sophia-visual-critique-v1`
+## 5. RV-04 `review-against-ai-patterns/SKILL.md` → `sophia-visual-critique-v1` and its reviewer view
+
+SDD-01-RF-0002: one donor procedure, two role views. The designer loads `SKILL.md` (C0–C3, the maker's clauses). The independent reviewer loads `REVIEW.md` (`sophia-visual-critique-review-v1`): C0.1, C1.1, C2.1, C3.1, C3.3 and C4.1–C4.3, written for a reviewer, with none of the maker's ledger, stop rules or tools. Each role reads only the references its registry scope names.
 
 | Donor lines / heading | Imperative | Status | Native | Reason / evidence |
 |---|---|---|---|---|
-| 1–5 front matter | always-on for visual artifacts: gallery before direction, stop on hit, global scan | preserved | C0.1 | Loaded explicitly for both roles (not by discovery) |
+| 1–5 front matter | always-on for visual artifacts: gallery before direction, stop on hit, global scan | preserved | C0.1 | Loaded explicitly, never by discovery: the maker's view by the designer, the reviewer's view by the reviewer |
 | 9–11 | central home of gallery, ledger, review | preserved | C0.2 | |
-| 13–17 | risk route: index page, 2–4 relevant pages, keep reading to cover, no padding | preserved | C1.1 | Group index in `critique/gallery-index`; research risk groups named (RB-05) |
-| 18–21 | ledger file ANTI-SLOP-CHECK.md in the session working dir | adapted | C1.2 | Work record kind `risk_ledger` |
+| 13–17 | risk route: index page, 2–4 relevant pages, keep reading to cover, no padding | preserved | C1.1 | Group index in `critique/gallery-index`; research risk groups named (RB-05); in both views |
+| 18–21 | ledger file ANTI-SLOP-CHECK.md in the session working dir | adapted | C1.2 | Work record kind `risk`, the kind `design_record_work` admits (SDD-01-RF-0001); maker's view only |
 | 22–25 | ledger content; global scan; missing a group is unfinished | preserved | C1.3 | |
-| 26–31 | stop and restructure on any group | preserved | C2.1 | |
-| 33–35 | gates and protocols in anti-slop-review | preserved | C3.1 | |
+| 26–31 | stop and restructure on any group | preserved | C2.1 | Maker's view: stop and restructure; reviewer's view: the same groups are findings |
+| 33–35 | gates and protocols in anti-slop-review | preserved | C3.1 | In both views |
 | 37–39 | model decides reviewer calls within limits; runner does not judge | adapted | C3.2 | The service admits the reviewer within admitted ceilings (pack 03 G3) |
-| 39–40 | reviewer input: request, refs, semantics, pixels; no rationale or self-rating | preserved | C3.3 | Enforced by the service's review context (B-10) |
+| 39–40 | reviewer input: request, refs, semantics, pixels; no rationale or self-rating | preserved | C3.3 | Enforced by the service's review context (B-10); in both views |
 | 40–41 | no reviewer → isolated self-check, SELF_REVIEW_ONLY | preserved | C3.4 | |
-| (new) | reviewer's own procedure | adapted | C4.1–C4.3 | From the pack's `runtime/VISUAL_REVIEWER_SYSTEM.v1.md` and anti-slop-review §6–§7 |
+| (new) | reviewer's own procedure | adapted | C4.1–C4.3 | Reviewer's view only. From the pack's `runtime/VISUAL_REVIEWER_SYSTEM.v1.md` and anti-slop-review §6–§7; C4.1 names the precedents, which the reviewer's scope admits (SDD-01-RF-0002) |
 
 ## 6. RV-04 `references/anti-slop-review.md` → `critique/anti-slop-review`
 
@@ -266,9 +268,9 @@ Status words: **preserved** (kept with its meaning; images byte for byte), **ada
 |---|---|---|---|
 | RB-01 | Create / Edit / Audit; minimal contract | Admitted mode; `design_record_work` kind `contract`; Audit refused any source write | `docs/progress/SDD-01.md` §3 |
 | RB-02 | Inspect existing identity first | F1.4; admitted assets only | not applicable at this profile (no identity assets admitted); stated |
-| RB-03 | One primary domain + companion, no selector call | F1.3; both roles load the same four skills explicitly | registry `skills`; bridge prompt sections |
+| RB-03 | One primary domain + companion, no selector call | F1.3; the designer loads the four skills explicitly, the reviewer its view of the critique procedure; each reads only its registry reference scope | registry `skills` and `references`; bridge prompt sections; `tests/unit/design-roles.test.mjs` |
 | RB-04 | Actual references | `design_read_reference` returns the image bytes; access recorded | progress §3 |
-| RB-05 | Risk gallery and ledger | C1.1–C1.3; work record kind `risk_ledger` | progress §3 |
+| RB-05 | Risk gallery and ledger | C1.1–C1.3; work record kind `risk` (SDD-01-RF-0001) | progress §3; `tests/unit/design-roles.test.mjs` |
 | RB-06 | Representative frame | F2.5, E5.1, W4.1; captures at 390/1280 | progress §3 |
 | RB-07 | Accepted vs provisional | Review verdict, `self_review_only`, labels in Studio | progress §3 |
 | RB-08 | Design follows the reader's task | E4.1–E4.3; reviewer checks | L2 (paid) |

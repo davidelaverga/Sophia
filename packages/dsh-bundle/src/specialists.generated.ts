@@ -25,6 +25,7 @@ export const SPECIALISTS = [
     taskKind: 'design',
     promptSections: ['sophia-html-designer', 'sophia-html-procedure'],
     skills: ['sophia-visual-foundation-v1', 'sophia-editorial-html-v1', 'sophia-web-finish-v1', 'sophia-visual-critique-v1'],
+    references: ['critique/*', 'editorial/*', 'foundation/*', 'web/*'],
     imageInput: true,
   },
   {
@@ -35,7 +36,8 @@ export const SPECIALISTS = [
     nativeTools: ['review_read_context', 'review_read_reference', 'review_inspect_render', 'review_submit_result'],
     taskKind: 'design_review',
     promptSections: ['sophia-visual-reviewer'],
-    skills: ['sophia-visual-critique-v1'],
+    skills: ['sophia-visual-critique-review-v1'],
+    references: ['critique/anti-slop-review', 'critique/gallery-index', 'critique/gallery/*', 'web/precedents-index', 'web/precedents/*'],
     imageInput: true,
   },
 ] as const
