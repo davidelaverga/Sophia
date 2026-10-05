@@ -17,7 +17,8 @@ import { ResourceSheet, type EffortControl, type TaskLinks } from './ResourceShe
 import { glance, readSeen, whileAway, writeSeen, type Seen } from './away.ts'
 import { AwayLine } from './AwayLine.tsx'
 import { roomElsewhere } from './room.ts'
-import { useActs, type SessionAct } from './SessionActs.tsx'
+import { commandSpace } from './command-store.ts'
+import { useActs, type SendCommand } from './SessionActs.tsx'
 import { SortMenu } from './SortMenu.tsx'
 import { TileGrid } from './TileGrid.tsx'
 import {
@@ -59,10 +60,16 @@ interface Props {
   /** The way to a session's task on the plan's board (LFE-07.1); absent, a session's task is only its title. */
   tasks?: TaskLinks
   /** Where an owner's guidance, Hold or Stop on a session goes (LFE-06.6); absent, none is offered. */
-  onAct?: SessionAct
+  onAct?: SendCommand
+  /** The project the panel's commands are for; absent, none is offered (a command names its project exactly). */
+  projectId?: string
   /** Where the viewer's last look is kept (LFE-06.7): the project's id, so two projects' never mix. */
   scope?: string
 }
+
+/** The panel's commands, for the project its scope names, in the space Tasks shares (command-store.ts). */
+const usePanelActs = ({ onAct, projectId, viewerId }: Props) =>
+  useActs(projectId ? onAct : undefined, projectId ?? '', commandSpace(projectId ?? '', viewerId))
 
 /**
  * What changed since the viewer last looked (away.ts): a glance kept in this browser, the line it makes, and the tiles
@@ -379,8 +386,8 @@ export function ResourcePanel(given: Props) {
   const view = useView(props)
   const ultra = useUltra()
   const effort = useEffort(props.onEffort)
-  // Each session's last act, kept here: still said after its row closes or the sheet turns.
-  const acts = useActs(props.onAct)
+  // Each session's commands, kept here by their work and generation: still said after its row closes or the sheet turns.
+  const acts = usePanelActs(props)
   const away = useAway(props)
   // The sheet steps through what the viewer is looking at: the shown tiles, in their order; all of them otherwise.
   const order = view.shown.some((r) => r.id === open) ? view.shown : resources

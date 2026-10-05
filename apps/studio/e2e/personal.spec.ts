@@ -247,6 +247,63 @@ test('$20 · what she remembers: each yours to correct or have her forget', asyn
   expect(await pressed(page)).toEqual(['forget m1', 'correct m2 You say a hard date early.'])
 })
 
+/** Where across `name` in `row`, at its middle height, a press lands on something else drawn over it; none when it reaches the button everywhere. */
+const covered = (row: ReturnType<Page['locator']>, name: string) =>
+  row.getByRole('button', { name }).evaluate((b) => {
+    const box = b.getBoundingClientRect()
+    const y = box.y + box.height / 2
+    const off: string[] = []
+    for (let x = box.left + 2; x <= box.right - 2; x += 4) {
+      const at = document.elementFromPoint(x, y)
+      if (at !== b && !b.contains(at))
+        off.push(`${String(Math.round(x - box.left))}px: ${at?.textContent ?? 'nothing'}`)
+    }
+    return off
+  })
+
+/** Hovered, and at rest: the day faded out and the actions in, no fade still running. */
+async function hoveredAtRest(row: ReturnType<Page['locator']>) {
+  await row.hover()
+  await expect.poll(() => row.evaluate((r) => r.getAnimations({ subtree: true }).length)).toBe(0)
+}
+
+/** On every memory, Correct and Forget take the press all across them; then, pressed at rest, each does what it says. */
+async function pressesReach(page: Page) {
+  // `memory=old`: the first memory was learned last year, its day said in full, wide enough to reach under Correct too.
+  await page.goto(`${PAGE}?memory=old&notes=open`)
+  const rows = page.getByRole('region', { name: 'She remembers' }).getByRole('listitem')
+  await expect(rows).toHaveCount(3)
+  await expect(rows.first()).toContainText(/[A-Z][a-z]{2} \d{1,2}, \d{4}/)
+  for (let i = 0; i < 3; i++) {
+    const row = rows.nth(i)
+    await hoveredAtRest(row)
+    for (const name of ['Correct', 'Forget'])
+      expect(await covered(row, name), `${name}, memory ${String(i + 1)}`).toEqual([])
+  }
+  const first = rows.first()
+  await hoveredAtRest(first)
+  await first.getByRole('button', { name: 'Correct' }).click({ timeout: 5_000 })
+  await expect(first.getByRole('textbox', { name: 'What she should remember instead' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(first.getByRole('button', { name: 'Correct' })).toBeFocused()
+  await hoveredAtRest(first)
+  await first.getByRole('button', { name: 'Forget' }).click({ timeout: 5_000 })
+  await expect(rows).toHaveCount(2)
+  expect(await pressed(page)).toEqual(['forget m1'])
+}
+
+test('$20 · what she remembers: Correct and Forget take the press across them, never the faded day under them', async ({
+  page,
+}) => {
+  await pressesReach(page)
+})
+
+test('@phone · $20 · what she remembers: Correct and Forget, on their own line, take the press across them', async ({
+  page,
+}) => {
+  await pressesReach(page)
+})
+
 test('$20 · her look back at your week: talk about it, keep it, or not now', async ({ page }) => {
   await page.goto(`${PAGE}?week=1`)
   const week = page.getByRole('region', { name: 'Your week with Sophia' })
@@ -835,7 +892,7 @@ test('ease · Ctrl F finds in the conversation: each match marked, “1 of N”,
   await page.goto(PAGE)
   await field(page).focus()
   // Typed at once, as a person does: every letter lands in the finder, none in the message.
-  await page.keyboard.press('Control+f')
+  await page.keyboard.press('ControlOrMeta+f')
   await page.keyboard.type('keep')
   await expect(finder(page)).toHaveValue('keep')
   await expect(field(page)).toHaveValue('')

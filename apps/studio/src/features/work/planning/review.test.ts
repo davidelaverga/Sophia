@@ -1,23 +1,20 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { WorkPlan } from './plan.ts'
-import { lastSaid, material, reviewLine, staleSaid, type ActiveReview, type LastReview } from './review.ts'
+import {
+  lastSaid,
+  material,
+  reviewLine,
+  staleSaid,
+  type ActiveReview,
+  type LastReview,
+  type Reviewed,
+} from './review.ts'
 
 const NOW = new Date('2026-10-03T12:00:00Z')
 const at = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 
-const plan = (over: Partial<WorkPlan> = {}): WorkPlan => ({
-  plan_id: 'p1',
-  revision: 3,
-  mission_revision: 1,
-  state: 'accepted',
-  items: [],
-  goal_id: 'g1',
-  next_checkpoint: null,
-  assumptions: [],
-  decisions: [],
-  ...over,
-})
+/** A goal's review, read with its plan at revision 3. */
+const plan = (over: Partial<Reviewed> = {}): Reviewed => ({ revision: 3, ...over })
 
 const active = (over: Partial<ActiveReview> = {}): ActiveReview => ({
   review_id: 'r1',
@@ -38,7 +35,7 @@ const last = (outcome: LastReview['outcome'], checkpoint: string | null = null):
 })
 
 const name = (id: string) => ({ luis: 'Luis', davide: 'Davide' })[id] ?? id
-const line = (p: WorkPlan) => reviewLine(p, 'luis', name, NOW)
+const line = (p: Reviewed) => reviewLine(p, 'luis', name, NOW)
 
 describe('reviewLine', () => {
   it('nothing before the first review', () => {
@@ -123,6 +120,16 @@ describe('the card of a review that proposes a change', () => {
       assert.equal(material(last(outcome)), false)
     }
     assert.equal(material(null), false)
+  })
+
+  it('with no plan in force, the line and the card both say which revision it reviewed (Codex F-006)', () => {
+    const of2 = { ...last('recommendation'), plan_revision: 2 }
+    const proposedOnly = plan({ revision: null, last_review: of2 })
+    assert.equal(line(proposedOnly)?.text, 'Reviewed 12 min ago · a change proposed · of r2')
+    assert.equal(staleSaid(of2, proposedOnly), 'Reviewed r2 · no plan is in force now')
+    // One reference for both: in force at r2, neither says a revision.
+    assert.equal(line(plan({ revision: 2, last_review: of2 }))?.text, 'Reviewed 12 min ago · a change proposed')
+    assert.equal(staleSaid(of2, plan({ revision: 2 })), null)
   })
 
   it('a review of an earlier revision says so; one of this revision says nothing', () => {

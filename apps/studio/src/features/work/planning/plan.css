@@ -131,6 +131,33 @@
   border-style: dashed;
   border-color: var(--text-4);
 }
+/* WBC-01: what a review found to change, rose; ready for review, a teal ring; held, a ring that stays; not observed,
+   dashed; complete by its policy, teal; closed, struck through and never teal. */
+.plan-mark[data-mark='changes'] {
+  border-color: var(--rose);
+  background: var(--rose);
+}
+.plan-mark[data-mark='review'] {
+  border-color: var(--teal);
+}
+.plan-mark[data-mark='held'] {
+  border-color: var(--text-2);
+  box-shadow:
+    inset 0 0 0 1.5px var(--plane-2),
+    inset 0 0 0 3px var(--text-2);
+}
+.plan-mark[data-mark='unknown'] {
+  border-style: dashed;
+  border-color: var(--text-3);
+}
+.plan-mark[data-mark='complete'] {
+  border-color: var(--teal);
+  background: var(--teal);
+}
+.plan-mark[data-mark='closed'] {
+  border-color: var(--text-4);
+  background: linear-gradient(135deg, transparent 42%, var(--text-3) 42% 58%, transparent 58%);
+}
 
 .plan-nobody {
   display: block;

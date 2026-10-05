@@ -2235,6 +2235,18 @@ img.avatar {
   padding-top: var(--sheet-top);
   background: var(--plane);
 }
+/* A live call's switches under a sheet's head: the sheet covers the room's own (call-in-reach.tsx). */
+.sheet-call {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+.sheet-call .field-label {
+  margin-right: auto;
+}
 .sheet-head {
   display: flex;
   align-items: center;

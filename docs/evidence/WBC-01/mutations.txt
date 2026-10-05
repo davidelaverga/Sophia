@@ -1,0 +1,357 @@
+# WBC-01 mutation checks (darwin-arm64, 2026-10-03)
+# Each line reverts one repair, runs the check meant to catch it, and restores the file.
+# 'FAILS as it should' = a check caught the reverted repair.
+
+M01 exact assignment, not a session by work id: FAILS as it should
+M02 report bound to current attempt and generation: FAILS as it should
+M03 complete only with satisfied policy and evidence: FAILS as it should
+M04 a check of another version certifies nothing: FAILS as it should
+M05 failed work is closed, never begun or done: FAILS as it should
+M06 unknown stays unknown, never unassigned: FAILS as it should
+M07 owning the account is not a request for you: FAILS as it should
+M08 a command the view does not mention is unavailable: FAILS as it should
+M09 Recorded is never taken back: FAILS as it should
+M10 an older or repeated receipt changes nothing: FAILS as it should
+M10b an older or repeated receipt changes nothing (unit): FAILS as it should
+M11 a receipt for other work changes nothing: FAILS as it should
+M12 a lost reply is retried with the same operation: FAILS as it should
+M13 Stop promises nothing it cannot see: FAILS as it should
+M14 a delivered Stop is requested, not stopped: FAILS as it should
+M15 an unconfirmed answer is retried with its own operation: FAILS as it should
+M16 commands and drafts are kept by generation: FAILS as it should
+M17 another viewer starts afresh (the board): FAILS as it should (after the UI-20 lens assertion was added)
+M17b another viewer starts afresh (the store space): FAILS as it should
+M18 a proposed plan inherits no execution: FAILS as it should
+M19 chunks show as they arrive: FAILS as it should
+M20 the accepted plan stays the board beside a proposal: FAILS as it should
+M21 no fixture reaches the build: FAILS as it should
+M22 decision copy: the choice and the plan said apart: FAILS as it should
+R1 a Stop question is keyed by its exact scope: FAILS as it should
+R2a Send waits while its guidance goes: FAILS as it should
+R2b the same words again are the same operation: FAILS as it should
+R3 commands outlive the board: FAILS as it should
+R4 an earlier command has its own Try again: FAILS as it should
+R5 work outside the plan is said: FAILS as it should
+R6 a plan of another project or goal is refused: FAILS as it should
+R7 a later refusal never takes Recorded back: FAILS as it should
+R8 a bare completion after a gap is no answer: FAILS as it should
+R9 two current versions are no result: FAILS as it should
+R10 Try again after an unknown admission answers: FAILS as it should
+R11 a plan of another project is not operated: FAILS as it should
+R1b a Stop question belongs to its task: redundant by design (the inner scope key includes the work); removing both keys FAILS the J check
+L01 lens labels stay on one line on a phone: FAILS as it should
+
+# Codex's findings on 8afd007 (#74, WBC-01-CX-0001), fixed in 5a55cc8
+C1 F-001 a receipt of another project changes nothing: FAILS as it should
+C2 F-002 work past planning with no assignment is not observed: FAILS as it should
+C3 F-002 nothing is offered to send while unobserved: FAILS as it should
+C3b F-002 nothing is offered to send while unobserved (unit): FAILS as it should
+C4 F-003 a sheet shows the call: FAILS as it should
+C5 F-003 a resource sheet shows the call: FAILS as it should
+C6 F-003 the shell hands the call to its sheets: FAILS as it should
+C7 F-003 leaving from a sheet keeps the focus in it: FAILS as it should
+
+# Codex's second round on e4d9734 (#74, WBC-01-CX-0004), F-002's residual, fixed in 38bb9d6
+D1 F-002 a retry needs its kind sendable now (rule): FAILS as it should
+D1b F-002 a retry needs its kind sendable now (board): FAILS as it should
+D2 F-002 the sheet uses the rule for its buttons: FAILS as it should
+D3 F-002 the words promise no retry where none may go: FAILS as it should
+# Not checkable through the UI: the retry handler's own guard, behind a button that isn't rendered (same rule).
+
+# The GitHub Codex review of PR #76 at 10b9d32, fixed in 9f3d872
+E1 P1 the same request needs the exact target (rule): FAILS as it should
+E1b P1 the same request needs the exact target (board): FAILS as it should
+E2 P2 an answer that never comes fails in time: FAILS as it should
+E2b P2 a stalled answer fails (rule): FAILS as it should
+E3 P2 every proposal gets its band: FAILS as it should
+
+# Codex's verification at 4667905 (#74, WBC-01-CX-0009), F-004 and F-005, fixed with CC-0006
+F1 F-004 a wait is its own send's (rule): FAILS as it should
+F1b F-004 a wait is its own send's (sheet): FAILS as it should
+F1c F-004 asked again is a new send (sheet): FAILS as it should
+F1d F-004 an earlier send's late event is let go (rule): FAILS as it should
+F1e F-004 an earlier send's late event is let go (sheet): FAILS as it should
+F2 F-005 the send goes only while nothing blocks it (rule): FAILS as it should
+F2b F-005 Ask again is offered only while nothing blocks it: FAILS as it should
+F2c F-005 the failed question is kept when Ask is offered no more: FAILS as it should
+F2d F-005 a missing action blocks (rule): FAILS as it should
+F2e F-005 a missing action blocks (sheet): FAILS as it should
+F2f F-005 why it can't go again is a line of its own: FAILS as it should
+# Ask again's own guard is the pure againOf (F2), so the send is checked apart from its button.
+
+# The GitHub Codex review of PR #76 at 4667905 (comment 4175536141), fixed with CC-0006
+G1 bot P2 no target without the assignment and its generation (rule): FAILS as it should
+G1b bot P2 no target without the assignment and its generation (sheet): FAILS as it should
+G2 bot P2 the row says why: FAILS as it should
+
+# The merges with main after #77 (a31cbe3, adjusted in 40cfbc9), after #78 and #79 (4b68306), and after #80 and #81 (655fb99)
+H1 merge the card reads the review's own revision: FAILS as it should
+H2 merge answer it only where a decision can be sent: FAILS as it should
+H3 merge the fixture reads the review with the plan in force: FAILS as it should
+H4 merge a Challenge only where the plan is in force: FAILS as it should
+H5 merge an expired decision is said expired, after #78 (sheet): FAILS as it should
+H6 merge one status per decision receipt, after #80: FAILS as it should
+
+# 2026-10-04, on the merge with #81 (655fb99), after the CC-0006 fixes: all 75 entries above run again on that code.
+# 74 make a check fail; R1b is the redundant key recorded above. R4's target had moved with CC-0004's rule
+# (againable became retryableNow); it was aimed at the new line and fails. L01, first reverted by hand, is now
+# scripted against its check (@phone · one lane under another) and fails.
+
+# Codex's verification at 87c078b (#74, WBC-01-CX-0010; GitHub 4177610532, 4177610537), fixed in d6363c5 and b44a21f
+I1 F-007 a retry needs the execution shown (rule): FAILS as it should
+I1b F-007 a retry needs the execution shown (sheet): FAILS as it should
+I2 F-007 the latest is the execution shown's own: FAILS as it should
+I3 F-007 an earlier execution's command is named as such: FAILS as it should
+I3b F-007 another session is told apart (rule): FAILS as it should
+I4 F-007 a draft belongs to its execution (sheet): FAILS as it should
+I4b F-007 the words sent leave their execution's field (rule): FAILS as it should
+I5 F-007 a Stop asked is never answered on the next execution: FAILS as it should
+I6 F-005 no conversation blocks (rule): FAILS as it should
+I6b F-005 no conversation blocks (sheet): FAILS as it should
+I7 F-006 the goal line reads the review with the plan in force: FAILS as it should
+I7b F-006 no plan in force is said so on the card (rule): FAILS as it should
+I7c F-006 the fixture reads no plan in force as none: FAILS as it should
+
+# 2026-10-04, on the merge with #32 (27f51f2) and the CC-0007 fixes: all 88 entries above run again on that code.
+# 87 make a check fail; R1b is the redundant key recorded above. Re-aimed, each at its moved line or check, and failing:
+# R1 and I5 (the commands block keyed by execution), D2 (retryableNow takes the target), H3 and I7c (the fixture's review
+# read), H2 and H4 (now checked by `lag=1`: with F-006, a proposed-only board's review is stale before their gates).
+# M16 first passed here: F-007's exact-target rule also hides a new generation's history. A new UI-11 check (an open
+# command of the earlier generation isn't listed under the next) catches it again.
+
+# CX-0011 at be46d05 (#74), F-008, and the GitHub review's two P2s there (4177946054, 4177946059), fixed in 49a9e12
+J1 F-008 a Stop asked is keyed by its execution, wherever it shows: FAILS as it should
+J2 PR76 a date-time needs its offset (rule): FAILS as it should
+J2b PR76 a date-time needs its offset (the reader): FAILS as it should
+J2c PR76 a date the calendar has: FAILS as it should
+J3 PR76 a decision arriving later opens for its decider: FAILS as it should
+J3b PR76 one the viewer closed stays closed: FAILS as it should
+J4 PR76 a decision arriving takes the slot from the card: FAILS as it should
+
+# 2026-10-04, on 49a9e12: all 95 entries above run again. 92 failed; R1b is the redundant key recorded above; R1 and
+# I5 passed, because they mutated the task sheet's own key on its commands block, which F-008's shared key (J1) made
+# redundant. That key is removed in 3e7a893; R1 and I5 are re-aimed at the shared key, each with its task-sheet
+# check, and fail with J1. 94 of 95 fail.
+
+# CX-0012 at efa05ae (#74; GitHub 4178085242, 4178085246), F-009 and F-010, fixed in 7b0cd50
+K1 F-009 a check no single current version matches certifies nothing (rule): FAILS as it should
+K1b F-009 the same, on the board: FAILS as it should
+K1c F-009 completion refuses it, said why: FAILS as it should
+K1d F-009 the review line says it: FAILS as it should
+K2 F-010 waiting only while answerable (rule): FAILS as it should
+K2b F-010 waiting only while answerable (board): FAILS as it should
+K2c F-010 an expired one is said expired: FAILS as it should
+
+# 2026-10-04, on 7b0cd50: all 102 entries above run again. 101 make a check fail; R1b is the redundant key recorded
+# above. M04's line (reviewIsOfAnother in completed) gave way to reviewOf; it is re-aimed at the "another version"
+# reason and fails.
+
+# CX-0013 at 18471ee (#74; GitHub 4178716683), F-011 and F-012, fixed in f8a8ac5
+N1 F-011 a short chip, its reason apart (phone): FAILS as it should
+N1b F-011 the sheet says the reason: FAILS as it should
+N2 F-012 a mark said only when it moved (rule): FAILS as it should
+N2b F-012 a mark said only when it moved (board): FAILS as it should
+N2c F-012 a result lost is said (rule): FAILS as it should
+N2d F-012 a result lost is said (board): FAILS as it should
+
+# 2026-10-04, on f8a8ac5: all 108 entries above run again. 105 failed; R1b is the redundant key recorded above; M04 and
+# K1c named F-009's old long reasons, which F-011 moved into the status's detail. Re-aimed at the new reasons, both
+# fail. 107 of 108 fail. N2b first passed: its board check ruled out only "started"; it now counts the task's mentions.
+
+# CX-0014 at 5625c6f (#74; GitHub 4179066167), F-013, fixed in c39909d
+P1 F-013 a plan lists only its own choices: FAILS as it should
+P1b F-013 a later revision of the same plan is another plan: FAILS as it should
+P1c F-013 history carried forward stays: FAILS as it should
+P2 F-013 another plan's choice is named by its revision: FAILS as it should
+
+# 2026-10-04, on c39909d: all 112 entries above run again. 111 make a check fail; R1b is the redundant key recorded above.
+
+# CX-0015 at de85481 (#74; GitHub 4179218923, 4179218926), F-014 and F-015, fixed in 9c0bd56
+Q1 F-014 delivery once established stays (rule): FAILS as it should
+Q1b F-014 delivery once established stays (board): FAILS as it should
+Q1c F-014 before it is established, a newer word stands: FAILS as it should
+Q2 F-015 the updating band holds the plan's own choices: FAILS as it should
+
+# 2026-10-04, on 9c0bd56: all 116 entries above run again. 114 failed; R1b is the redundant key recorded above. M10
+# (the revision fence removed, checked on the board by UI-12) passed: with F-014, UI-12's replayed older receipts no
+# longer showed the fence. UI-12 now also sends a late refusal at the first revision (2136f6b), and M10 fails with
+# M10b. P1–P1c were re-aimed at decidedFor (plan.ts), where F-015 moved the rule, and fail. 115 of 116 fail.
+
+# CX-0016 at 64dd4f7 (#74; GitHub 4179419841, …844, …848, …853), F-016–F-019, fixed in 8143be6 (on the merge with #90)
+S1 F-016 one command space for Resources and Tasks: FAILS as it should
+S1b F-016 a command naming no attempt is said so (rule): FAILS as it should
+S1c F-016 a command naming no attempt is said so (sheet): FAILS as it should
+S2 F-017 a read has its limit: FAILS as it should
+S2b F-017 a reply after the limit changes nothing: FAILS as it should
+S3 F-018 another plan starts its own view: FAILS as it should
+S4 F-019 past its expiry a decision calls no one: FAILS as it should
+
+# 2026-10-05, on 8143be6: all 123 entries above run again. 119 failed; R1b is the redundant key recorded above. M17,
+# M17b and R3 named the board's old key and command space, which F-016 and F-018 rewrote; re-aimed at the new lines,
+# all three fail. 122 of 123 fail.
+
+# CX-0017 at b603e1d (#74; GitHub 4179628491, 4179628493), F-020 and F-021, fixed in 93a7268
+T1 F-020 a check not passed certifies nothing (rule): FAILS as it should
+T1b F-020 a check not passed certifies nothing (board): FAILS as it should
+T2 F-021 history stays shown without a port: FAILS as it should
+T2b F-021 nothing offered to send without a port: FAILS as it should
+T3 F-021 nothing tried again without a port: FAILS as it should
+# Not checkable through the UI: useActs' own send and retry guards without a port, behind controls not then rendered.
+
+# 2026-10-05, on 93a7268: all 128 entries above run again. 125 failed; R1b is the redundant key recorded above. M12
+# and D2 named SessionActs lines F-021 rewrote (the dispatch through `followed`, the retry rule with canSend); re-aimed,
+# both fail. 127 of 128 fail.
+
+# CX-0019 at 8892325 (#74; GitHub 4179798118, 4179798123), F-022 and F-023, and Personal's Correct and Forget (main's,
+# repaired at Codex's request), fixed in 3e138ef. Browser checks ran on Claude's own fixture server (port 5207, started
+# and stopped by each run, one worker). Each failure below is a check's own assertion, never only a timeout.
+U1 the faded day lets the press through to Correct and Forget: FAILS as it should  [Error: Correct, memory 1]
+V1 F-022 a stale read sends nothing (the gate): FAILS as it should  [expect(locator).toContainText]
+V1b F-022 no command from a stale read: FAILS as it should  [expect(locator).toHaveText]
+V1c F-022 no choice from a stale read: FAILS as it should  [expect(locator).toContainText]
+V1d F-022 no challenge from a stale read: FAILS as it should  [expect(locator).toHaveCount]
+V1e F-022 no question from a stale read: FAILS as it should  [expect(locator).toContainText]
+V1f F-022 a question kept says the read is stale: FAILS as it should  [expect(locator).toContainText]
+W1 F-023 a choice waits at most a write limit (board): FAILS as it should  [expect(locator).toHaveText]
+W1b F-023 a choice waits at most a write limit (rule): FAILS as it should  [AssertionError]
+W1c F-023 not before the write limit: FAILS as it should  [expect(locator).toHaveText]
+W2 F-023 an earlier send’s reply changes nothing (board): FAILS as it should  [expect(locator).toHaveText]
+W2b F-023 an earlier send’s reply changes nothing (rule): FAILS as it should  [AssertionError]
+W2c F-023 a reply after its limit changes nothing: FAILS as it should  [AssertionError]
+# Not checkable: the clearTimeout when an answer's reply comes is cleanup; the send fence already makes the limit say
+# nothing. W1 and W1b were re-aimed once the deadline became a const (prefer-const): the limit fires and says nothing.
+
+# 2026-10-05, on 3e138ef: all 141 entries above run again, on Claude's own fixture server (port 5207, one worker), the
+# five specs whose request guard names port 5199 set to 5207 for the run and restored from the commit after it. 137
+# failed, each on a check's own assertion; R1b is the redundant key recorded above. H2, H4 and I6 named lines F-022
+# rewrote (answerable and onChallenge now come from portsOf; askBlocked's closed reason): re-aimed at the new lines,
+# all three fail. 140 of 141 fail.
+
+# CX-0021 at 3e138ef (#74), F-024, fixed in cbd1731
+X1 F-024 a challenge sent stays said with nowhere to send it: FAILS as it should  [expect(locator).toHaveText]
+X2 F-024 nothing offered to send with nowhere to send it: FAILS as it should  [expect(locator).toHaveText]
+X3 F-024 one not confirmed says why it isn’t sent again: FAILS as it should  [expect(locator).toHaveText]
+# X1–X3 are the only entries on the files F-024 changed (ReviewResult.tsx, ReviewChallenge.tsx); H2, H4 and I6 ran
+# again on that code too. 143 of 144 fail.
+
+# 2026-10-05, on the merge with #75 (bb7ba05, main cec3947): this round's entries (U1, V1–V1f, W1–W2c, X1–X3) and the
+# re-aimed H2, H4, I6 and I6b ran again: 20 of 20 fail, each on a check's own assertion. #75 changed none of the 31
+# files any entry names; the full pass on 3e138ef stands for the rest. 143 of 144 fail.
+
+# CX-0023 at 226889e (#74; GitHub 4180194401), F-025, fixed in f3bd434
+Y1 F-025 a send that has ended hears nothing more (rule): FAILS as it should  [AssertionError]
+Y1b F-025 a send past its wait keeps failed against its late answer (board): FAILS as it should  [expect(locator).toContainText]
+Y2 F-025 an unavailable send hears nothing more: FAILS as it should  [AssertionError]
+# On f3bd434, the Ask and command series closest to this change ran again: F1–F2f and I1–I7c, 24 of 24 fail. No full
+# pass was repeated before this handoff (CX-0023); the full pass on 3e138ef and the merge's on bb7ba05 stand for the
+# rest. 146 of 147 fail; R1b is the redundant key recorded above.
+
+# 2026-10-05, on the merge with #91 (95996e0, main 599178d): U1 ran again with main's presence CSS in place. It fails
+# as it should  [Error: Correct, memory 1]. #91 changed none of the other 30 files any entry names.
+
+# CX-0025 at 31d0e28 (#74; GitHub 4180308536, 4180308543), F-026 and F-027, fixed in cc4f61b
+Z1 F-026 a kind offered twice is no grant (rule): FAILS as it should  [AssertionError]
+Z1b F-026 a command offered twice is never offered (board): FAILS as it should  [expect(locator).toHaveCount]
+Z1c F-026 a result or question offered twice is unavailable (board): FAILS as it should  [expect(locator).toHaveCount]
+Z2 F-027 a scope keeps each id whole: FAILS as it should  [AssertionError]
+Z3 F-027 an execution keeps each id whole (rule): FAILS as it should  [AssertionError]
+Z3b F-027 an execution keeps each id whole (board): FAILS as it should  [expect(locator).toHaveValue]
+Z4 F-027 a space keeps project and viewer whole: FAILS as it should  [AssertionError]
+# On cc4f61b, every entry above on the three files changed (receipts.ts, command-store.ts, plan.ts) ran again: 45, of
+# which 44 failed; M16 named the old scope line, and re-aimed at the new tuple it fails. No full pass was repeated
+# before this handoff (CX-0025). 153 of 154 fail; R1b is the redundant key recorded above.
+
+# CX-0026 at 31d0e28 (#74; GitHub 4180347593, 4180347601, 4180347608), F-028 to F-030, fixed in f0052a9
+Z5 F-028 one key per choice (rule): FAILS as it should  [AssertionError]
+Z5b F-028 one key per choice (board): FAILS as it should  [expect(locator).toContainText]
+Z6 F-029 a decision is named from the plan it is bound to: FAILS as it should  [expect(locator).toHaveText]
+Z6b F-029 another revision of the plan lends no words: FAILS as it should  [expect(locator).toHaveText]
+Z7 F-030 what a task waits on is compared as values: FAILS as it should  [AssertionError]
+Z7b F-030 its blockers in any order: FAILS as it should  [AssertionError]
+# On f0052a9, every entry above on board-view.ts, proposal.ts and PlanBoard.tsx ran again: 21 of 21 fail. 159 of 160
+# fail; R1b is the redundant key recorded above.
+
+# CX-0027 at b3bd683 (#74; GitHub 4180471001, 4180471004), F-031 and F-032, and CX-0028's F-033, fixed in 8852296
+AA1 F-031 a wait begun again ends the one before: FAILS as it should  [AssertionError]
+AA2 F-031 an ended send leaves nothing waiting: FAILS as it should  [AssertionError]
+AA3 F-031 an event that changes nothing puts no wait off: FAILS as it should  [AssertionError]
+AA4 F-031 a change that changes nothing tells no one: FAILS as it should  [AssertionError]
+AB1 F-032 an accepted decision names one of its choices (rule): FAILS as it should  [AssertionError]
+AB1b F-032 an accepted decision names one of its choices (board): FAILS as it should  [expect(locator).toContainText]
+AC1 F-033 the focus goes to the sheet before its page turns, not a frame later: FAILS as it should  [expect(received).toEqual]
+# On 8852296, every entry above on AskSophia.tsx, ask.ts, ask-store.ts, board-view.ts and ResourceSheet.tsx ran again:
+# 25, of which 24 failed; E2 named AskSophia's first wait, moved to sendQuestion, and re-aimed there it fails. Z5 and
+# Z5b were re-aimed earlier in this round at decisionRules' `new Set(keys)`. 166 of 167 fail; R1b is the redundant key.
+
+# CX-0029 at 9d4ad10 (#74; GitHub 4180579675, 4180579679, 4180579681, and its audit) and CX-0030, F-034 to F-038,
+# fixed in 7946e15
+AD1 F-034 a look is kept under its whole scope (rule): FAILS as it should  [AssertionError]
+AD1b F-034 a look is kept under its whole scope, the old key left (board): FAILS as it should  [expect(locator).toHaveCount]
+AE1 F-035 one decision per id and revision (rule): FAILS as it should  [AssertionError]
+AE1b F-035 one decision per id and revision (board): FAILS as it should  [expect(locator).toContainText]
+AF1 F-036 a decision not yet decided names none (rule): FAILS as it should  [AssertionError]
+AF1b F-036 a decision not yet decided names none (board): FAILS as it should  [expect(locator).toContainText]
+AG1 F-037 an answer is kept under its whole key: FAILS as it should  [AssertionError]
+AG2 F-037 a challenge is kept under its whole key: FAILS as it should  [AssertionError]
+AH1 F-038 a look keeps each revision of a decision: FAILS as it should  [AssertionError]
+# Not checkable on the board: PlanBoard's own key as a tuple (the fixture's ids hold no separator).
+# On 7946e15, every entry above on seen.ts, PlanBoard.tsx, answers.ts, challenges.ts and board-view.ts ran again (41),
+# and those on seen.ts again after F-038 (7): all fail but M17 and S3, which named the board's old joined key;
+# re-aimed at the tuple, both fail. 175 of 176 fail; R1b is the redundant key recorded above.
+
+# 2026-10-05, on the merge with #92–#96 (3b19267, main 5e402c7): U1 runs again with main's Personal changes in place,
+# and fails as it should  [Error: Correct, memory 1].
+
+# CX-0033 at 5dd6ec8 (#74; GitHub 4180694992, 4180694995, 4180694998), F-039 to F-041, fixed in 5ef5358
+AI1 F-039 one plan per id and revision in a goal: FAILS as it should  [AssertionError]
+AJ1 F-040 the review waits on its decision as its latest revision stands: FAILS as it should  [expect(locator).toBeVisible]
+AK1 F-041 a decided row per decision and revision: FAILS as it should  [expect(locator).toHaveText]
+# On 5ef5358, every entry above on board-view.ts, PlanBoard.tsx and PlanNotes.tsx ran again: 32 of 32 fail. 178 of
+# 179 fail; R1b is the redundant key recorded above.
+
+# CX-0035 at ba826b9 (#74; GitHub 4180785541, 4180785544), F-042 and F-043, fixed in 4bbc2a8
+AL1 F-042 each version of an item its own id (rule): FAILS as it should  [AssertionError]
+AL1b F-042 each version of an item its own id (board): FAILS as it should  [expect(locator).toContainText]
+AM1 F-043 each goal once on the board (rule): FAILS as it should  [AssertionError]
+AM1b F-043 each goal once on the board (board): FAILS as it should  [expect(locator).toContainText]
+# On 4bbc2a8, every entry above on board-view.ts ran again (10): nine failed; AI1 named the goal rules' last line,
+# which now lists the versions rule too, and re-aimed there it fails. 182 of 183 fail; R1b is the redundant key.
+
+# 2026-10-05, on the merge with #97 (93c0267, main a41132e): U1 runs again with main's Personal changes in place, and
+# fails as it should  [Error: Correct, memory 1]. #97 changed none of the files any other entry names.
+
+# 2026-10-05, on the merge with #98 and #99 (f1a3ba2, main 458f5d7): U1 runs again with main's Personal changes in
+# place, and fails as it should  [Error: Correct, memory 1]. #98 and #99 changed none of the files any entry names.
+
+# F-045 (GitHub 4183052368 on 28ff0c9, reproduced by Codex on 37a8ae9), fixed in 3ec9a00
+AN1 F-045 outside work once per id (rule): FAILS as it should  [AssertionError]
+AN1b F-045 outside work once per id (board): FAILS as it should  [expect(locator).toHaveCount]
+AN2 F-045 no plan in force lists outside work by the same rule: FAILS as it should  [expect(locator).toHaveText]
+AN3 F-045 no plan in force says a task is observed twice: FAILS as it should  [expect(locator).toContainText]
+# On 3ec9a00, R5 (the outside-work entry) ran again and fails; all 187 entries' text is found in the code, none stale.
+# 186 of 187 fail; R1b is the redundant key recorded above.
+
+# CX-0041 at be26ede (#74; GitHub 4183258509, 4183258514), F-046 and F-047, fixed in c7cb5a7
+AO1 F-046 a completion with no words is no answer (rule): FAILS as it should  [AssertionError]
+AO1b F-046 a completion with no words is no answer (board): FAILS as it should  [expect(locator).toContainText]
+AP1 F-047 each plan in its slot (rule): FAILS as it should  [AssertionError]
+AP1b F-047 each plan in its slot (board): FAILS as it should  [expect(locator).toContainText]
+# On c7cb5a7, every entry above on ask.ts and board-view.ts ran again: all fail. AI1 named the goal rules' last line,
+# which now lists the slots rule too, and re-aimed there it fails. All 191 entries' text is found, none stale. 190 of
+# 191 fail; R1b is the redundant key recorded above.
+
+# CX-0043 at 44083c2 (#74; GitHub 4183442383, 4183442398), F-048 and F-049, fixed in b270812
+AQ1 F-048 the decisions asked are each at its latest revision (board): FAILS as it should  [expect(locator).toHaveText]
+AQ2 F-048 for you only by a decision at its latest revision (rule): FAILS as it should  [AssertionError]
+AQ3 F-048 the latest is the highest revision, whatever the order (rule): FAILS as it should  [AssertionError]
+AQ3b F-048 the latest is the highest revision, whatever the order (board): FAILS as it should  [expect(locator).toContainText]
+AQ4 F-048 an older revision is history while away (rule): FAILS as it should  [AssertionError]
+AR1 F-049 each wait of a task once (rule): FAILS as it should  [AssertionError]
+AR1b F-049 each wait of a task once (board): FAILS as it should  [expect(locator).toContainText]
+AR2 F-049 a wait named by its kind and reference, not by who answers it (rule): FAILS as it should  [AssertionError]
+AR3 F-049 the same reference of another kind is another wait (rule): FAILS as it should  [AssertionError]
+AR4 F-049 a wait's key holds its kind and reference (sheet): FAILS as it should  [expect(received).toEqual: a duplicate-key warning]
+# On b270812, every entry above on plan.ts, PlanBoard.tsx, seen.ts, TaskSheet.tsx and board-view.ts ran again (86 with
+# the new ten): 85 fail, R1b passes as recorded. AI1 named the goal rules' last line, which now lists the waits rule
+# too, and re-aimed there it fails. All 201 entries' text is found, none stale. 200 of 201 fail; R1b is the redundant
+# key recorded above.

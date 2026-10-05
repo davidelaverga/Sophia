@@ -1496,7 +1496,8 @@ test('act · its owner acts on a session at work from its row, each step said; n
   await worker.getByRole('button', { name: 'Send', exact: true }).click()
   const steps = worker.locator('.act-steps')
   await expect(steps.locator('li[data-reached]')).toHaveCount(3) // recorded, queued, delivered, as observed
-  await expect(steps).toContainText('Delivered to its session. Not seen acting on it yet.')
+  // Delivered is not followed (WBC-01): nothing is said of what the session did with it.
+  await expect(steps).toContainText('Delivered to the session; not yet verified in the result.')
   expect(await page.evaluate(() => window.resourcesFixture?.acted)).toEqual([
     // It names the work it was meant for, as shown: its runtime refuses it for any other.
     { sessionId: 'claude-worker', kind: 'guidance', text: 'Use the staging report fixtures', workId: 'work-1' },
@@ -1504,7 +1505,9 @@ test('act · its owner acts on a session at work from its row, each step said; n
   // Stop asks first; keeping it working sends nothing, and the focus comes back to Stop, where J and K still work.
   const stop = worker.getByRole('button', { name: 'Stop', exact: true })
   await stop.click()
-  await expect(worker.getByText('Ends its session’s work at once.')).toBeVisible()
+  await expect(
+    worker.getByText('Stop this task? Completed work is kept. Running actions may need time to stop.'),
+  ).toBeVisible()
   await worker.getByRole('button', { name: 'Keep it working' }).click()
   await expect(stop).toBeFocused()
   expect(await page.evaluate(() => window.resourcesFixture?.acted?.length)).toBe(1)
@@ -1512,13 +1515,13 @@ test('act · its owner acts on a session at work from its row, each step said; n
   await stop.click()
   await worker.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
   await expect(stop).toBeFocused()
-  await expect(steps).toContainText('Delivered: asked to stop. Not seen stopping yet.')
+  await expect(steps).toContainText('Stop requested; waiting for the runtime to confirm.')
   expect(await page.evaluate(() => window.resourcesFixture?.acted?.at(-1)?.kind)).toBe('stop')
   // Closed and opened again, its row still says its last act.
   await act.click()
   await expect(steps).toHaveCount(0)
   await act.click()
-  await expect(steps).toContainText('Delivered: asked to stop. Not seen stopping yet.')
+  await expect(steps).toContainText('Stop requested; waiting for the runtime to confirm.')
   // A session with nothing at work has no Act.
   const reviewer = s.locator('.resource-session').filter({ hasText: 'No assignment' })
   await expect(reviewer.getByRole('button', { name: 'Act' })).toHaveCount(0)
@@ -1548,10 +1551,13 @@ test('act · a late step of an earlier act never speaks over the latest one', as
   // The guidance is delivered (1.7 s) while the Hold is only queued: the row says the Hold's step, not the guidance's.
   await page.clock.runFor(1500)
   const steps = worker.locator('.act-steps')
-  await expect(steps).toContainText('Queued…')
-  await expect(steps).not.toContainText('Delivered to its session')
-  await page.clock.runFor(1500) // then the Hold is delivered
-  await expect(steps).toContainText('Delivered: asked to hold at its next safe point. Not seen holding yet.')
+  await expect(steps).toContainText('Hold requested; waiting for the runtime to confirm.')
+  await expect(steps.locator('li[data-reached]')).toHaveCount(1) // recorded, not delivered yet
+  await expect(steps).not.toContainText('Delivered to the session')
+  await page.clock.runFor(1500) // then the Hold is delivered: requested, never said held before the runtime confirms
+  await expect(steps.locator('li[data-reached]')).toHaveCount(2)
+  await expect(steps).toContainText('Hold requested; waiting for the runtime to confirm.')
+  await expect(steps).not.toContainText('Held.')
 })
 
 test('@phone · its owner opens Act and the row keeps to one column', async ({ page }) => {
@@ -1566,6 +1572,57 @@ test('@phone · its owner opens Act and the row keeps to one column', async ({ p
   expect(work, 'the task under the role').toBeCloseTo(role, 0)
   expect(acts, 'the acts under it too').toBeCloseTo(role, 0)
   expect(await worker.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+})
+
+test('pr76 · P2 · a session whose assignment isn’t identified offers no act, and says why', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&unfenced=1#resource-davide-claude`)
+  const worker = sheet(page, 'Davide · Claude Code')
+    .locator('.resource-session')
+    .filter({ hasText: 'Implement the PDF retry' })
+  await worker.getByRole('button', { name: 'Act' }).click()
+  await expect(worker.locator('.resource-session-acts')).toHaveText(
+    'Nothing can be sent to it yet: its runtime hasn’t said which assignment this is, or its generation, so a command could reach work that replaced it.',
+  )
+  await expect(worker.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  for (const name of ['Send', 'Hold', 'Stop']) {
+    await expect(worker.getByRole('button', { name, exact: true })).toHaveCount(0)
+  }
+  expect(await page.evaluate(() => window.resourcesFixture?.commands?.length)).toBe(0)
+  // Identified, the same session offers its acts, and a command names that assignment at that generation.
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-claude`)
+  await page.reload()
+  await worker.getByRole('button', { name: 'Act' }).click()
+  await worker.getByRole('button', { name: 'Hold', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => window.resourcesFixture?.commands?.length)).toBe(1)
+  const target = await page.evaluate(() => window.resourcesFixture?.commands?.[0]?.target)
+  expect([target?.assignment_id, target?.assignment_generation]).toEqual(['assignment-claude-worker', 3])
+})
+
+test('codex · F-008 · a Stop asked of one assignment is never answered on the next; asked again, it goes to it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide#resource-davide-codex`)
+  const rows = sheet(page, 'Davide · Codex').locator('.resource-session')
+  const reviewer = rows.filter({ hasText: 'Review the report pane' })
+  await reviewer.getByRole('button', { name: 'Act' }).click()
+  await reviewer.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect(reviewer.getByRole('group', { name: 'Stop' })).toBeVisible()
+  // While the question is open, the same native session is given its next assignment, at the next generation.
+  await page.evaluate(() => window.resourcesFixture?.reassign?.('codex-reviewer'))
+  const next = rows.filter({ hasText: 'The next assignment' })
+  await expect(next.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+  await expect(next.getByRole('group', { name: 'Stop' })).toHaveCount(0) // the old question is gone, unanswered
+  expect(await page.evaluate(() => window.resourcesFixture?.commands?.length)).toBe(0)
+  // Asked of this assignment, and confirmed, the Stop goes to it.
+  await next.getByRole('button', { name: 'Stop', exact: true }).click()
+  await next.getByRole('group', { name: 'Stop' }).getByRole('button', { name: 'Stop' }).click()
+  await expect.poll(() => page.evaluate(() => window.resourcesFixture?.commands?.length)).toBe(1)
+  const target = await page.evaluate(() => window.resourcesFixture?.commands?.[0]?.target)
+  expect([target?.work_id, target?.assignment_id, target?.assignment_generation]).toEqual([
+    'next-work',
+    'assignment-next',
+    2,
+  ])
 })
 
 test('away · what changed since the last look is one line, its tiles marked, until Mark seen', async ({ page }) => {
@@ -1766,4 +1823,50 @@ test('type · the view and its sheet keep to the scale: at most five sizes each'
   const inSheet = await typeSizes(page, '.resource-sheet')
   expect(inSheet.length, inSheet.join(' ')).toBeLessThanOrEqual(5)
   expect(inSheet.filter((s) => !['10.5px', '12px', '13px', '14px', '15px'].includes(s))).toEqual([])
+})
+
+// ---- CX-0028 (Codex on #74): a page turned keeps the focus in the sheet at once. ----
+
+/**
+ * Presses a control in the sheet, then, before any frame can come (only microtasks run between), says where the focus
+ * is and what J does from there.
+ */
+const turnedAt = (page: Page, control: string) =>
+  page.evaluate(async (name) => {
+    const pressed = [...document.querySelectorAll<HTMLButtonElement>('.resource-sheet button')].find(
+      (b) => (b.getAttribute('aria-label') ?? b.textContent.trim()) === name,
+    )
+    if (!pressed) return null
+    pressed.focus()
+    pressed.click()
+    await Promise.resolve() // what the page does after the press, in this same task
+    const turned = document.querySelector('.resource-sheet')
+    const focused = document.activeElement === turned
+    const turnedTo = turned?.getAttribute('aria-label') ?? null
+    document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true }))
+    await Promise.resolve()
+    return { focused, turnedTo, afterJ: document.querySelector('.resource-sheet')?.getAttribute('aria-label') ?? null }
+  }, control)
+
+test('codex · F-033 · a page turned by its control keeps the focus in the sheet at once: J steps on, no frame between', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1`)
+  await open(page, 'Davide · Grok')
+  expect(await turnedAt(page, 'Next resource')).toEqual({
+    focused: true,
+    turnedTo: 'Davide · Claude Code',
+    afterJ: 'Davide · Codex',
+  })
+  await expect(sheet(page, 'Davide · Codex')).toBeFocused()
+  // Escape still closes it, as before.
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  // Show, from the room line, turns the page the same way.
+  await page.goto(`${PAGE}?tight=1`)
+  await open(page, 'Davide · Claude Code')
+  const shown = await turnedAt(page, 'Show')
+  expect(shown?.focused).toBe(true)
+  expect(shown?.turnedTo).toBe('Davide · Codex')
+  expect(shown?.afterJ).not.toBe('Davide · Codex') // J stepped on from it
 })

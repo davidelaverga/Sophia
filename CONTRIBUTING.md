@@ -194,7 +194,12 @@ writing a new one, and keep the rule when you change the code around it.
   screen that is on shows wherever this person is, with its off switch: the
   dock in the room, and everywhere else the dock's own toggles
   (`CallSwitches`: the chat panel's head, the mini dock, the places' bar).
-  Nothing keeps sending out of sight because the view changed.
+  A sheet is modal and covers the mini dock, so while a call is live every
+  project sheet shows the same switches, Leave included, in a row under its
+  head (`SheetCall`, `app/call-in-reach.tsx`, filled by `ProjectShell`): the
+  pointer, the keyboard and a screen reader reach them inside the dialog, and
+  leaving from there keeps the focus in the sheet (`codex · F-003` checks, on
+  a phone too). Nothing keeps sending out of sight because the view changed.
 - **A guest is always marked as one** (`presenceRole`, `screenCaption` in
   `room-view.ts`, with tests). A visitor chooses their own name, so the word
   "guest" is what tells them from a member of the same name: it stays while
@@ -424,17 +429,57 @@ when you change the room:
   time; a viewer sees who chooses; the keyboard and a phone reach everything.
   Explore in the Studio still says it is coming: it shows the gallery once
   S1-06 serves real candidates.
-- **The lead's plan has its own checks** (`e2e/work.spec.ts`, LFE-07.1): on
-  `fixtures/work.html`, labelled "Simulated — no lead, tool or host read"
-  (`viewer=davide`, `goals=6`, `many=1`, `since=1`, `proposed=1`,
-  `superseded=1`, `conflict=1`), the Studio's own `ProjectShell` on Tasks,
-  with each goal's plan as a board (`PlanBoard`) in the `plans` slot
-  (production shows the goals alone until SCM-04 serves plans). One goal at a
-  time from a rail (search with `/`); the goal in two lines with its NEXT;
-  lenses, a decision pill and what changed since the last look; four lanes of
-  live tiles (a session's last report, a freshness ring); threads to what a
-  task waits on; a task's sheet to act on it or ask Sophia; the board by keys.
-  Its fixture's clock runs from NOW, and its acts and answers are simulated.
+- **The lead's plan has its own checks** (`e2e/work.spec.ts`, LFE-07.1,
+  WBC-01): on `fixtures/work.html`, labelled "Simulated — no lead, tool, host
+  or conversation read" (`viewer=davide|luis|mara`, `goals=6`, `many=1`,
+  `since=1`, `proposed=1`, `superseded=1`, `conflict=1`, `case=…` for one
+  scenario each, `admission=`, `settle=`, `ask=`, `result=`, `decide=` for
+  how the simulated services answer, `coverage=`), the Studio's own `ProjectShell` on Tasks, with
+  each goal's plan as a board (`PlanBoard`) in the `plans` slot (production
+  shows the goals alone until a service serves a board; `fixture-boundary.test.ts`
+  keeps fixtures out of the build). The page builds a proposed
+  `sophia.work.board.v1` view and passes it through the Studio's own reader
+  (`readBoardView`, `board-view.ts`): a refused view is never drawn, and from
+  a read that may be stale (coverage unavailable) nothing is sent, answered,
+  challenged or asked (`portsOf`), while what was sent stays said. One goal
+  at a time from a rail (search with `/`; another goal's request for the
+  viewer is one link under it, never a switch); the goal in two lines with its
+  NEXT; lenses, a decision pill and what changed since the last look
+  (decisions and results first, opened in full on press; a look kept per
+  project, goal, plan and viewer, each whole, a decision by its id at its
+  revision; a decision waits
+  only at its latest revision, an older one history, and only while it can
+  be answered, and an answer at most a write's 90 s, then
+  is not confirmed, `sendAnswer`; each choice its own key, accepted only
+  naming one and proposed naming none, one id at one revision on the board,
+  its task named from the plan it is bound to, a review waiting on its latest
+  revision; a goal's plans each one id at one revision, a goal once on the
+  board, an item's versions each their own id, a task's waits each once by
+  kind and reference, and a plan in force never only proposed nor a proposal
+  accepted); four lanes, Active, Up next, Unassigned and
+  Complete (`plan.ts`: a view over each item's observed state; Complete only
+  by its own policy with evidence, and a passed check of the version it
+  holds, never one no single current version matches), and Closed work with its reasons; a
+  plan's Decided history its own (another plan's choices listed apart); every plan
+  proposed (up to three) beside the one shown, compared field by field as
+  values, never operated;
+  threads to what a
+  task waits on; a task's sheet with its typed waits, its result (exact
+  versions through a port), the commands the view allows this viewer
+  (`actions.ts`; a kind it offers more than once is no grant, in any order;
+  a command goes again with its operation only to the exact target it was
+  sent to, its keys tuples of whole ids), and Ask (a port of real received chunks, no typing
+  animation; at most 30 s per event, one wait per send, then failed, as is an
+  answer with no words, with Ask again: the same
+  question on its own send, so nothing of an earlier send can fail or answer
+  it, and a send that has ended, answered, failed or unavailable, takes nothing
+  more, and only while the view allows asking about the task and a conversation
+  is connected; until then the question is kept, with why); the board by keys. Its fixture's clock runs from NOW; its receipts, answers and
+  results are simulated. The `wbc ·` checks are the mission's UI cases; the
+  `pre-push ·`, `codex · F-` and `pr76 ·` checks are the findings of its
+  pre-push review, Codex's review on #74 and the PR #76 review (`review ·`
+  is LFE-07.2's progress review); each repair was reverted once to see its
+  check fail (`docs/evidence/WBC-01/mutations.txt`).
 - **The resource panel has its own checks** (`e2e/resources.spec.ts`,
   LFE-06): on `fixtures/resources.html`, labelled "Simulated — no tool, host
   or account read" (`more=1` adds Grok and Gemini CLI, `quiet=1` leaves
@@ -477,7 +522,8 @@ when you change the room:
   Each session's effort is a small bar in its tool's own look (`effort.ts`):
   Claude's dots, alive and saying "Ultracode" in that mode; GPT's gradient,
   sparkling at Ultra; a plain, still bar for the others.
-  In a sheet, J and K step through the shown resources. Two Claude Code
+  In a sheet, J and K step through the shown resources, the focus kept in the
+  sheet as its page turns. Two Claude Code
   tiles side by side greet (`buddies.ts`), and typing "ultracode" on the
   view sends a wave across the tiles (`ultra.ts`); with reduced motion, both
   are still.
@@ -504,8 +550,23 @@ when you change the room:
   shows it.
   A session's owner acts on it from its row (LFE-06.6): Act opens guidance,
   Hold and Stop as its route supports them (`SessionActs.tsx`, shared with a
-  task's sheet; the panel's `onAct`), each said as observed (recorded, queued,
-  delivered), Stop asked first. A task whose session is at it says on its
+  task's sheet; the panel's `onAct`), once its runtime names the session's
+  assignment and its generation (`sessionTarget`, `receipts.ts`); until then
+  Act says why and nothing can be sent (`unfenced=1`), since a command without
+  them couldn't be refused as stale. What is known of each command is said
+  in three dimensions as its receipts come (`receipts.ts`, WBC-01): Sending
+  before any receipt, then recorded or refused, delivered, and a control's
+  effect only once its runtime confirms it (a delivery once established is never
+  taken back by a later receipt saying less); a lost reply is unknown and tried
+  again with the same operation; a late or foreign receipt changes nothing.
+  Commands are kept in one space per project and viewer, shared with Tasks'
+  board, by work and assignment generation, drafts by execution
+  (its attempt and session too); only a command for the execution shown
+  speaks as the latest or is tried again, and an open one for an earlier
+  attempt or session is listed as such, kept as it was; with no command port,
+  what was sent stays said and followed, and nothing is sent. Stop asks
+  first and promises nothing it can't see ("Running actions may need time to
+  stop"). A task whose session is at it says on its
   tile when its doer's account runs short, and its sheet names where there is
   room (the board's `observations`; `work.html?tight=1`).
   What changed since the viewer last looked is one line under the requests

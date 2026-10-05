@@ -1,0 +1,20 @@
+{
+  "schema_version": "sophia.work.receipt.v1",
+  "operation_id": "fixture-stop-1",
+  "receipt_id": "fixture-stop-receipt",
+  "project_id": "fixture-project",
+  "work_id": "fixture-review",
+  "assignment_id": "fixture-assignment",
+  "assignment_generation": 2,
+  "kind": "stop",
+  "revision": 3,
+  "observed_at": "2026-10-03T15:01:04Z",
+  "admission": "recorded",
+  "delivery": "delivered",
+  "effect": "stopped",
+  "rejection": null,
+  "evidence_refs": [
+    "fixture-admission-10",
+    "fixture-native-settled-12"
+  ]
+}

@@ -1443,8 +1443,31 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   white-space: nowrap;
   text-overflow: ellipsis;
+  cursor: pointer;
+}
+.away-line-said:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Pressed, the line opens whole: every phrase, the counted rest included. */
+.away-line[data-open] {
+  align-items: flex-start;
+  height: auto;
+  min-height: 32px;
+  padding-block: 7px;
+  border-radius: var(--r-4);
+}
+.away-line[data-open] .away-line-said {
+  white-space: normal;
 }
 .away-line-seen {
   flex: none;
@@ -1606,8 +1629,26 @@
   color: var(--text-2);
   font-size: var(--type-body);
 }
-.act-steps[data-at='refused'] p {
+.act-steps[data-at='rejected'] p,
+.act-steps[data-uncertain] p {
   color: var(--amber);
+}
+/* Earlier commands still open, one line each, under the latest; the mandate a command acts within. */
+.act-earlier {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  list-style: none;
+}
+/* What it was, and for which execution when not the one shown: a label before what is known of it. */
+.act-earlier-kind {
+  color: var(--text-2);
+}
+.act-boundary {
+  font-size: var(--type-small);
 }
 
 /* ---- Live, shared with the plan's board: a ring around a picture, emptying as its session's last report ages (its

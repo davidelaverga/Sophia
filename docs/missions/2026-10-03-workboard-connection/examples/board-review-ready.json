@@ -1,0 +1,156 @@
+{
+  "schema_version": "sophia.work.board.v1",
+  "project_id": "fixture-project",
+  "snapshot_cursor": "fixture-cursor-9",
+  "observed_at": "2026-10-03T15:00:01Z",
+  "coverage": "complete",
+  "goals": [
+    {
+      "goal_id": "fixture-goal",
+      "current_plan": {
+        "schema_version": "sophia.work.plan.v2",
+        "plan_id": "fixture-plan-1",
+        "project_id": "fixture-project",
+        "goal_id": "fixture-goal",
+        "goal_revision": 3,
+        "criteria_ref": "fixture-criteria-v3",
+        "revision": 1,
+        "mission_revision": 7,
+        "source_manifest_ref": "fixture-manifest",
+        "state": "accepted",
+        "decision_ref": "fixture-admission-decision",
+        "assumptions": [
+          {
+            "id": "fixture-assumption",
+            "text": "The supplied sources cover the intended feature boundary.",
+            "status": "unresolved",
+            "evidence_refs": []
+          }
+        ],
+        "items": [
+          {
+            "id": "fixture-review",
+            "purpose": "Review the selected feature sources",
+            "deliverable_ref": "fixture-review-result",
+            "criteria_ref": "fixture-review-policy",
+            "parent_id": null,
+            "blocked_by": [],
+            "assignee_kind": "assignment",
+            "assignee_id": "fixture-assignment",
+            "source_scope_ref": "fixture-manifest",
+            "review_policy_ref": "fixture-structural-review",
+            "recipe_ref": "sophia-source-review-v1",
+            "activation": {
+              "kind": "immediate",
+              "producer_work_id": null
+            }
+          }
+        ]
+      },
+      "proposed_plans": [],
+      "next_checkpoint": {
+        "label": "Inspect the source review",
+        "item_id": "fixture-review"
+      },
+      "items": [
+        {
+          "work_id": "fixture-review",
+          "lifecycle": "ready_for_review",
+          "assignment": {
+            "assignment_id": "fixture-assignment",
+            "generation": 2,
+            "attempt_id": "fixture-attempt-2",
+            "native_session_id": "fixture-native-2",
+            "executor": {
+              "kind": "sophia_native",
+              "display_name": "Sophia",
+              "role": "Source reviewer",
+              "owner_id": null,
+              "resource_id": null
+            },
+            "observation_state": "observed"
+          },
+          "waiting_on": [
+            {
+              "kind": "product_decision",
+              "reference_id": "fixture-review-decision",
+              "respondent_id": "fixture-human-A",
+              "detail": "Inspect the review findings.",
+              "state": "pending"
+            }
+          ],
+          "activity": {
+            "observation_id": "fixture-observation-8",
+            "attempt_id": "fixture-attempt-2",
+            "assignment_generation": 2,
+            "said": "Submitted the review findings.",
+            "observed_at": "2026-10-03T15:00:00Z",
+            "connection": "online"
+          },
+          "candidates": [
+            {
+              "source_id": "fixture-review-source",
+              "version_id": "fixture-review-source-v1",
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "media_type": "text/markdown",
+              "created_at": "2026-10-03T15:00:00Z",
+              "state": "current"
+            }
+          ],
+          "review": {
+            "state": "pending",
+            "candidate_version_ref": "fixture-review-source-v1",
+            "evidence_refs": []
+          },
+          "completion": {
+            "policy_ref": "fixture-policy",
+            "status": "not_evaluated",
+            "evidence_refs": []
+          },
+          "closed_reason": null,
+          "available_actions": [
+            {
+              "kind": "open_result",
+              "availability": "allowed",
+              "reason": "A readable result exists.",
+              "boundary": null
+            },
+            {
+              "kind": "ask_sophia",
+              "availability": "unavailable",
+              "reason": "Contextual conversation is not connected in this slice.",
+              "boundary": null
+            }
+          ]
+        }
+      ],
+      "decisions": [
+        {
+          "decision_id": "fixture-review-decision",
+          "revision": 2,
+          "work_id": "fixture-review",
+          "plan_id": "fixture-plan-1",
+          "plan_revision": 1,
+          "candidate_version_ref": "fixture-review-source-v1",
+          "question": "Do these findings need follow-up?",
+          "decider_id": "fixture-human-A",
+          "choices": [
+            {
+              "key": "follow_up",
+              "label": "Request follow-up"
+            },
+            {
+              "key": "noted",
+              "label": "Record as reviewed"
+            }
+          ],
+          "expires_at": "2026-10-04T15:00:00Z",
+          "state": "proposed",
+          "selected_choice": null,
+          "choice_receipt_id": null,
+          "plan_reaction": "not_needed"
+        }
+      ]
+    }
+  ]
+}

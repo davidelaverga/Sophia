@@ -4,8 +4,9 @@
 // one review running: who asked it, or that it was scheduled, and of which revision. A review the allowance can't fund
 // waits, said as such, never dropped. Once it ends, the line says when and how, and of which revision when the plan
 // has moved on since; nothing more: a routine end makes no card and no announcement (PLAN-04).
+// A review is a live observation of a goal's plan, read beside the board's view (WBC-01): never a field of the plan
+// definition, whose revision only a planning decision changes. This module reads it with the plan's revision.
 import { observedAgo } from '../../resources/resource.ts'
-import type { WorkPlan } from './plan.ts'
 
 /** How a review ended: nothing to change, not enough to tell, a change proposed, or it didn't finish. */
 export type ReviewOutcome = 'no_change' | 'insufficient_evidence' | 'recommendation' | 'failed'
@@ -58,6 +59,17 @@ export interface ActiveReview {
   allowance_owner: string | null
 }
 
+/**
+ * A goal's progress review as read now, with the revision of its plan in force: the one reference both the goal's line
+ * and the review's card compare the review with (Codex F-006). Proposed for SCM-04.
+ */
+export interface Reviewed {
+  /** The plan in force's revision; null while none is (a plan only proposed): every review is then of another. */
+  revision: number | null
+  active_review?: ActiveReview | null
+  last_review?: LastReview | null
+}
+
 type Name = (personId: string) => string
 
 /** The goal's line about its review: running (with a pinging dot), awaiting its allowance, or how the last ended. */
@@ -67,11 +79,11 @@ export interface ReviewLine {
 }
 
 /** Of which revision, when not the plan's own: what was reviewed may not be what the plan now says. */
-const ofRevision = (revision: number, plan: WorkPlan) =>
+const ofRevision = (revision: number, plan: Pick<Reviewed, 'revision'>) =>
   revision === plan.revision ? '' : ` · of r${String(revision)}`
 
 /** Who asked the review running, and of which revision when not this one. */
-function runningSaid(active: ActiveReview, plan: WorkPlan, viewerId: string | null, name: Name, now: Date) {
+function runningSaid(active: ActiveReview, plan: Reviewed, viewerId: string | null, name: Name, now: Date) {
   const who = active.asked_by && (active.asked_by === viewerId ? 'you' : name(active.asked_by))
   const said = who
     ? `The lead is reviewing · asked by ${who} ${observedAgo(active.asked_at, now)}`
@@ -93,7 +105,7 @@ export function lastSaid(last: LastReview | null | undefined, now: Date): string
   return `Reviewed ${observedAgo(last.completed_at, now)} · ${ENDED[last.outcome](last.checkpoint?.label ?? null)}`
 }
 
-export function reviewLine(plan: WorkPlan, viewerId: string | null, name: Name, now: Date): ReviewLine | null {
+export function reviewLine(plan: Reviewed, viewerId: string | null, name: Name, now: Date): ReviewLine | null {
   const active = plan.active_review
   if (active?.state === 'running') return { kind: 'running', text: runningSaid(active, plan, viewerId, name, now) }
   if (active?.state === 'awaiting_allowance') {
@@ -110,11 +122,15 @@ export function reviewLine(plan: WorkPlan, viewerId: string | null, name: Name, 
 /** A review worth its card: one that proposes a change. Any other end is said on the goal's line only (PLAN-04). */
 export const material = (last: LastReview | null | undefined): last is LastReview => last?.outcome === 'recommendation'
 
-/** A review of an earlier revision than the plan's, said so: what it proposes may already be out of date. */
-export const staleSaid = (last: LastReview, plan: WorkPlan) =>
-  last.plan_revision === plan.revision
-    ? null
-    : `Reviewed r${String(last.plan_revision)} · the plan is now r${String(plan.revision)}`
+/**
+ * A review of another revision than the plan in force, said so: what it proposes may already be out of date. With no
+ * plan in force, that is said too: a plan only proposed was never what it reviewed as in force.
+ */
+export function staleSaid(last: LastReview, plan: Pick<Reviewed, 'revision'>): string | null {
+  if (last.plan_revision === plan.revision) return null
+  const now = plan.revision === null ? 'no plan is in force now' : `the plan is now r${String(plan.revision)}`
+  return `Reviewed r${String(last.plan_revision)} · ${now}`
+}
 
 export const EVIDENCE: Record<Evidence['kind'], string> = {
   check: 'Check',

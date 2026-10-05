@@ -1,53 +1,90 @@
-// Asking Sophia about a task, from its sheet: the questions its state invites, offered as one-press asks, or one's own.
-// Her answer writes itself in, word by word, under her light. The answer comes from wherever the page sends the ask
-// (`onAsk`); the panel never makes one up.
-import { useEffect, useRef, useState } from 'react'
-import type { Mark, PlanRow } from './plan.ts'
+// Asking Sophia about a task, from its sheet (WBC-01 G5): the questions its state invites, as one-press asks, or one's
+// own. It is an entry into the one shared conversation (ask.ts), with this task's exact references, never another
+// chatbot, a microphone or a message to the worker; an ordinary question amends nothing. Her answer shows as it is
+// received, chunk by chunk, or whole at once, never at a made-up typing speed. Each task's latest question is kept
+// while the page lives (useAsks, ask-store.ts), so turning the sheet, closing it, choosing another goal or a reconnect
+// forgets nothing, and a late answer to an earlier question is let go. Where she can't be asked from here (the view
+// says so, no conversation is connected, or the board's live state can't be read), the question is kept with why, and
+// the way to the conversation is offered; no answer is made up. A question that failed is asked again only while the
+// view allows asking about its task and a conversation is connected (askBlocked), the same rule as a first question;
+// until then it is kept, with why.
+import { useState, useSyncExternalStore } from 'react'
+import {
+  againOf,
+  askBlocked,
+  asking,
+  NOT_CONNECTED,
+  shownOf,
+  unanswerable,
+  type Ask,
+  type Asked,
+  type Question,
+} from './ask.ts'
+import { askedOf, asksOf, sendQuestion, subscribe } from './ask-store.ts'
+import { actionOf, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
+import { resultsOf } from './results.ts'
 
-export type Ask = (row: PlanRow, question: string) => Promise<string>
+/** The board's questions, the latest per task. */
+export interface Asks {
+  /** Whether a conversation is there to send a question to (its port). */
+  connected: boolean
+  /** Why no question goes while it isn't: no conversation connected, or the board's live state unread. */
+  closed: string
+  of: (workId: string) => Asked | null
+  /** Asks; `unavailable` keeps the question with why instead of sending it. */
+  ask: (question: Omit<Question, 'question_id'>, unavailable: string | null) => void
+  /**
+   * Asks a task's latest question again, the same question, after it failed; `blocked` (askBlocked, as the view says
+   * now) keeps it as it is instead.
+   */
+  again: (workId: string, blocked: string | null) => void
+}
 
-/** The questions a task's state invites. Waiting, "say yes" is asked only by the one its request waits on (invited). */
-const INVITED: Record<Mark, string[]> = {
+/** The questions of one space (a project as one viewer sees it), kept while the page lives (ask-store.ts). */
+export function useAsks(
+  onAsk: Ask | undefined,
+  space: string,
+  closed = NOT_CONNECTED,
+  newId: () => string = () => crypto.randomUUID(),
+): Asks {
+  const asked = useSyncExternalStore(subscribe, () => asksOf(space))
+  /**
+   * Sends a question with its one wait (ask-store.ts sendQuestion): the wait and the events are this send's own, so an
+   * earlier send of the same question can't fail or answer this one.
+   */
+  const send = (fresh: Asked, port: Ask) => sendQuestion(space, fresh, port)
+  return {
+    connected: onAsk !== undefined,
+    closed,
+    of: (workId) => asked[workId] ?? null,
+    ask: (q, unavailable) => {
+      const question: Question = { ...q, question_id: newId() }
+      if (!onAsk || unavailable !== null) {
+        askedOf(space, unanswerable(question, unavailable ?? closed))
+        return
+      }
+      send(asking(question), onAsk)
+    },
+    again: (workId, blocked) => {
+      const next = againOf(asksOf(space)[workId], blocked)
+      if (onAsk && next) send(next, onAsk)
+    },
+  }
+}
+
+/** The questions a task's state invites. Waiting, "say yes" is asked only by the one its request waits on. */
+const INVITED: Readonly<Record<Mark, string[]>> = {
   waiting: ['Why is it waiting?', 'What does it wait for?'],
+  changes: ['What needs to change?'],
+  review: ['What is left to review?', 'Who should review it?'],
+  unknown: ['What do we know about it?'],
+  held: ['Why is it held?'],
   working: ['What is it doing now?', 'When will it have a candidate?'],
   queued: ['What is it queued behind?'],
   later: ['What does it wait for?', 'Can it start sooner?'],
   free: ['Who could take it?', 'Why isn’t anyone on it?'],
-  finished: ['What’s left to check it?', 'Who should check it?'],
-  checked: ['What did the check find?'],
-}
-
-/** An answer revealed word by word, as speech arrives; at once when less motion is asked for. */
-function useWords(text: string | null): string {
-  const [shown, setShown] = useState(0)
-  const words = text?.split(' ') ?? []
-  useEffect(() => {
-    setShown(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? Infinity : 0)
-    if (!text) return undefined
-    const timer = setInterval(() => setShown((n) => n + 1), 45)
-    return () => clearInterval(timer)
-  }, [text])
-  return words.slice(0, shown).join(' ')
-}
-
-/** A question to Sophia and her answer: only the latest question's answer is written, a late earlier one let go. */
-function useAsk(row: PlanRow, onAsk: Ask | undefined) {
-  const [question, setQuestion] = useState('')
-  const [asked, setAsked] = useState<string | null>(null)
-  const [answer, setAnswer] = useState<string | null>(null)
-  const latest = useRef(0)
-  const ask = (q: string) => {
-    if (!onAsk) return
-    const n = ++latest.current
-    setAsked(q)
-    setAnswer(null)
-    setQuestion('')
-    const answered = (a: string) => {
-      if (n === latest.current) setAnswer(a)
-    }
-    onAsk(row, q).then(answered, () => answered('I couldn’t reach the plan just now. Nothing was changed.'))
-  }
-  return { question, setQuestion, asked, answer, ask }
+  complete: ['What did the check find?'],
+  closed: ['Why did it stop?'],
 }
 
 /** The questions a task invites from this viewer. */
@@ -56,27 +93,94 @@ const invited = (row: PlanRow, viewerId: string | null) =>
     ? ['Why is it waiting?', 'What happens if I say yes?']
     : INVITED[row.status.mark]
 
-export function AskSophia({
-  row,
-  onAsk,
-  viewerId,
-}: {
-  row: PlanRow
-  onAsk?: Ask | undefined
-  viewerId: string | null
-}) {
-  const { question, setQuestion, asked, answer, ask } = useAsk(row, onAsk)
-  const shown = useWords(answer)
-  if (!onAsk) return null
+const FAILED = 'I couldn’t reach the conversation just now. Nothing was changed.'
+
+interface ThreadProps {
+  asked: Asked
+  onOpenConversation?: (() => void) | undefined
+  /** Asks the same question again, after it failed. */
+  onAgain?: (() => void) | undefined
+  /** Why it can't be asked again from here now (askBlocked); null when it can. */
+  blocked: string | null
+}
+
+/** No answer here, and why: a question that failed can be asked again; either can be taken to the conversation. */
+function NotAnswered({
+  why,
+  failed,
+  onAgain,
+  blocked,
+  onOpenConversation,
+}: { why: string; failed: boolean } & Omit<ThreadProps, 'asked'>) {
+  const againable = failed && onAgain && blocked === null
   return (
-    <section className="sheet-section ask-sophia">
-      <h3>
-        <span className="ask-light" aria-hidden />
-        Ask Sophia
-      </h3>
+    <p className="ask-a ask-none">
+      {why}{' '}
+      {againable && (
+        <button type="button" className="text-button" onClick={onAgain}>
+          Ask again
+        </button>
+      )}
+      {failed && blocked !== null && (
+        <span className="ask-blocked">It can’t be asked again from here now: {blocked} It is kept as it was.</span>
+      )}{' '}
+      {onOpenConversation && (
+        <button type="button" className="text-button" onClick={onOpenConversation}>
+          Open the conversation
+        </button>
+      )}
+    </p>
+  )
+}
+
+/** The question and what came back of it. */
+function Thread({ asked, onOpenConversation, onAgain, blocked }: ThreadProps) {
+  const said = shownOf(asked)
+  const failed = asked.state === 'failed'
+  const quiet = failed || asked.state === 'unavailable'
+  const why = failed ? (asked.reason ?? FAILED) : `Not answered here: ${asked.reason ?? ''}`
+  return (
+    <div className="ask-thread" data-state={asked.state}>
+      <p className="ask-q">{asked.question.text}</p>
+      {quiet ? (
+        <NotAnswered
+          why={why}
+          failed={failed}
+          onAgain={onAgain}
+          blocked={blocked}
+          onOpenConversation={onOpenConversation}
+        />
+      ) : (
+        // Seen as it arrives; heard once, whole.
+        <p className="ask-a" data-thinking={said === '' || undefined} aria-hidden>
+          <span className="ask-light" />
+          {said === '' ? 'Thinking…' : said}
+        </p>
+      )}
+      <p className="sr-only" aria-live="polite">
+        {asked.state === 'answered' ? (asked.answer ?? '') : quiet ? why : 'Sophia is thinking'}
+      </p>
+    </div>
+  )
+}
+
+interface Props {
+  row: PlanRow
+  plan: WorkPlan
+  asks?: Asks | undefined
+  viewerId: string | null
+  /** The way to the existing conversation, offered when she can't be asked from here. */
+  onOpenConversation?: (() => void) | undefined
+}
+
+/** The questions the task invites, and one's own, to ask. */
+function Asking({ row, viewerId, onAsk }: { row: PlanRow; viewerId: string | null; onAsk: (text: string) => boolean }) {
+  const [question, setQuestion] = useState('')
+  return (
+    <>
       <div className="ask-chips">
         {invited(row, viewerId).map((q) => (
-          <button key={q} type="button" className="ask-chip" onClick={() => ask(q)}>
+          <button key={q} type="button" className="ask-chip" onClick={() => onAsk(q)}>
             {q}
           </button>
         ))}
@@ -85,7 +189,8 @@ export function AskSophia({
         className="act-guide"
         onSubmit={(e) => {
           e.preventDefault()
-          if (question.trim()) ask(question.trim())
+          // A question that can't go keeps its words in the field, to take to the conversation.
+          if (question.trim() && onAsk(question.trim())) setQuestion('')
         }}
       >
         <input
@@ -98,18 +203,38 @@ export function AskSophia({
           Ask
         </button>
       </form>
+    </>
+  )
+}
+
+export function AskSophia({ row, plan, asks, viewerId, onOpenConversation }: Props) {
+  const action = actionOf(row, 'ask_sophia')
+  const asked = asks?.of(row.item.id) ?? null
+  // Not offered now: nothing to ask, but a question already asked stays, with why it can't be asked again.
+  if (!asks || (!action && !asked)) return null
+  // The view's word on asking, and a conversation to ask in: either missing, nothing goes, first or again.
+  const blocked = askBlocked(action, asks.connected, asks.closed)
+  /** Asks, or keeps the question with why it can't go; true when it went. */
+  const ask = (text: string) => {
+    const about = resultsOf(row.view).current?.version_id ?? null
+    const ref = { work_id: row.item.id, plan_id: plan.plan_id, plan_revision: plan.revision }
+    asks.ask({ ...ref, candidate_version_ref: about, text }, blocked)
+    return blocked === null
+  }
+  return (
+    <section className="sheet-section ask-sophia">
+      <h3>
+        <span className="ask-light" aria-hidden />
+        Ask Sophia
+      </h3>
+      {action && <Asking row={row} viewerId={viewerId} onAsk={ask} />}
       {asked && (
-        <div className="ask-thread">
-          <p className="ask-q">{asked}</p>
-          {/* Seen word by word; heard once, whole. */}
-          <p className="ask-a" data-thinking={answer === null || undefined} aria-hidden>
-            <span className="ask-light" />
-            {answer === null ? 'Thinking…' : shown}
-          </p>
-          <p className="sr-only" aria-live="polite">
-            {answer ?? 'Sophia is thinking'}
-          </p>
-        </div>
+        <Thread
+          asked={asked}
+          onOpenConversation={onOpenConversation}
+          blocked={blocked}
+          onAgain={() => asks.again(row.item.id, blocked)}
+        />
       )}
     </section>
   )

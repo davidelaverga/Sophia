@@ -4,10 +4,10 @@
 // and nothing new starts (PLAN-01). `review=running` opens with Davide's from 3 min ago, `scheduled` with a scheduled
 // one, `old` with one of the plan's previous revision, `awaiting` with one the allowance can't fund. `material` opens
 // with a finished review that proposes a change (its card), `material-old` with the same review of the previous
-// revision, `material-sent` with one whose proposal the lead already sent.
+// revision, `material-sent` with one whose proposal the lead already sent. The review is the goal's own read beside
+// the board's view (review.ts, WBC-01), never a field of the plan.
 import type { GoalCommand } from '@sophia/contracts'
-import type { WorkPlan } from '../src/features/work/planning/plan.ts'
-import type { ActiveReview, LastReview, ReviewOutcome } from '../src/features/work/planning/review.ts'
+import type { ActiveReview, LastReview, ReviewOutcome, Reviewed } from '../src/features/work/planning/review.ts'
 import { NOW } from './resources-data.ts'
 
 const MODES = [
@@ -61,11 +61,11 @@ const proposing = (revision: number): LastReview => ({
 })
 
 /** A later review taking the last one's place, as the lead's next one would: a new id, the same proposal. */
-export const reviewedAgain = (p: WorkPlan): WorkPlan =>
+export const reviewedAgain = (p: Reviewed): Reviewed =>
   p.last_review ? { ...p, last_review: { ...p.last_review, review_id: `${p.last_review.review_id}-again` } } : p
 
-/** The review a plan opens with, as `review=` says; none for the modes that wait for a request. */
-export function openedWith(mode: ReviewMode, p: WorkPlan): WorkPlan {
+/** The review a plan opens with, as `review=` says, of the revision given; none for the modes that wait for a request. */
+export function openedWith(mode: ReviewMode, p: { revision: number }): Reviewed {
   if (mode === 'material') return { ...p, last_review: proposing(p.revision) }
   if (mode === 'material-old') return { ...p, last_review: proposing(p.revision - 1) }
   if (mode === 'material-sent') {
@@ -96,13 +96,13 @@ export function openedWith(mode: ReviewMode, p: WorkPlan): WorkPlan {
 
 const ENDS: Partial<Record<ReviewMode, ReviewOutcome>> = { insufficient: 'insufficient_evidence', failed: 'failed' }
 
-type Update = (change: (p: WorkPlan) => WorkPlan) => void
+type Update = (change: (p: Reviewed) => Reviewed) => void
 
 /**
  * The lead's side of Request review: starts a review, or joins the one running (nothing new starts). Each command is
  * kept, for checks. A review ends after 2 s, unless another has taken its place.
  */
-export function reviewer(mode: ReviewMode, viewerId: string, update: Update) {
+export function reviewer(mode: ReviewMode, viewerId: string, update: Update, revisionNow: () => number) {
   const commands: { kind: GoalCommand['kind']; key: string }[] = []
   const command = (cmd: GoalCommand, key: string) => {
     commands.push({ kind: cmd.kind, key })
@@ -116,7 +116,7 @@ export function reviewer(mode: ReviewMode, viewerId: string, update: Update) {
             ...p,
             active_review: {
               review_id,
-              plan_revision: p.revision,
+              plan_revision: revisionNow(),
               state: 'running',
               asked_by: viewerId,
               asked_at,

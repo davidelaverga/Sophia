@@ -1,0 +1,27 @@
+[
+  {
+    "viewport": "desktop",
+    "width": 1440,
+    "height": 1000,
+    "document_overflow": false,
+    "question_anchor_top": 28.34375,
+    "copy_or_selection_worked": true,
+    "javascript_errors": [],
+    "external_requests": [],
+    "test_transport": "in_memory_document"
+  },
+  {
+    "viewport": "phone",
+    "width": 390,
+    "height": 844,
+    "document_overflow": false,
+    "question_anchor_top": 27.71875,
+    "copy_or_selection_worked": true,
+    "javascript_errors": [],
+    "external_requests": [],
+    "test_transport": "in_memory_document"
+  },
+  {
+    "javascript_disabled_reading_and_details": true
+  }
+]

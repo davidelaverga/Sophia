@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proposed work-operation receipt; not a command authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sophia.work.receipt.v1"
+    },
+    "operation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "receipt_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "work_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "assignment_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "assignment_generation": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kind": {
+      "enum": [
+        "guidance",
+        "hold",
+        "resume",
+        "stop",
+        "decision",
+        "ask_sophia"
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "admission": {
+      "enum": [
+        "recorded",
+        "rejected",
+        "unknown"
+      ]
+    },
+    "delivery": {
+      "enum": [
+        "not_applicable",
+        "not_sent",
+        "queued",
+        "delivered",
+        "native_consumed",
+        "unknown"
+      ]
+    },
+    "effect": {
+      "enum": [
+        "not_applicable",
+        "pending",
+        "held",
+        "stopped",
+        "resumed",
+        "choice_recorded",
+        "unknown"
+      ]
+    },
+    "rejection": {
+      "anyOf": [
+        {
+          "enum": [
+            "conflict",
+            "denied",
+            "unavailable",
+            "expired"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "minItems": 0,
+      "maxItems": 100
+    }
+  },
+  "required": [
+    "schema_version",
+    "operation_id",
+    "receipt_id",
+    "project_id",
+    "work_id",
+    "assignment_id",
+    "assignment_generation",
+    "kind",
+    "revision",
+    "observed_at",
+    "admission",
+    "delivery",
+    "effect",
+    "rejection",
+    "evidence_refs"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "admission": {
+            "const": "rejected"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "delivery": {
+            "const": "not_sent"
+          },
+          "effect": {
+            "const": "not_applicable"
+          },
+          "rejection": {
+            "enum": [
+              "conflict",
+              "denied",
+              "unavailable",
+              "expired"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "effect": {
+            "enum": [
+              "held",
+              "stopped",
+              "resumed",
+              "choice_recorded"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "admission": {
+            "const": "recorded"
+          },
+          "evidence_refs": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "effect": {
+            "const": "held"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "const": "hold"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "effect": {
+            "const": "stopped"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "const": "stop"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "effect": {
+            "const": "resumed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "const": "resume"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "effect": {
+            "const": "choice_recorded"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "kind": {
+            "const": "decision"
+          }
+        }
+      }
+    }
+  ]
+}

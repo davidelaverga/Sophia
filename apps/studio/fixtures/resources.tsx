@@ -13,7 +13,9 @@
 // its stop unconfirmed, and `nextRun(sessionId)` starts its next run with what was asked. The sessions at work report
 // what they do, as on the plan's fixture (work-live.ts: Codex's reviewer moves on every 9 s), and a session's task
 // opens on that fixture's board (work.html#task-<id>), as Tasks would, when it is on it (Gemini's onboarding copy
-// isn't). An owner's act on a session is taken as a runtime would (`acted` records it), as on the plan's page.
+// isn't). An owner's act on a session is taken as a runtime would (`acted` records it, `commands` each with its exact
+// target), as on the plan's page; `reassign(sessionId)` gives a session its next assignment. `unfenced=1`: the runtimes report each session's work, but not which assignment it
+// is or its generation, so nothing can be sent to them (PR #76 review).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -29,10 +31,11 @@ import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import type { EffortAsk } from '../src/features/resources/change.ts'
+import type { Command } from '../src/features/resources/receipts.ts'
 import type { Resource, Session } from '../src/features/resources/resource.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
-import { plan, secondPlan } from './work-data.ts'
-import { acted, actOn, carried, nextActivity, withActivity } from './work-live.ts'
+import { plan, secondView } from './work-data.ts'
+import { acted, actOn, carried, commands, nextActivity, withActivity } from './work-live.ts'
 import {
   actions,
   arriving,
@@ -57,7 +60,9 @@ declare global {
       /** What owners asked of their sessions' effort, in order: for the checks to read. */
       asked?: { sessionId: string; level: string | null; when: string | null }[]
       /** Each act an owner sent on a session, in order. */
-      acted?: readonly { sessionId: string; kind: string; text?: string; workId: string; epoch?: number }[]
+      acted?: readonly { sessionId: string; kind: string; text?: string; workId: string }[]
+      /** The same, as the commands sent, each with its exact target. */
+      commands?: readonly Command[]
       addRequest?: () => void
       answerRequest?: () => void
       load?: () => void
@@ -65,6 +70,8 @@ declare global {
       advance?: (sessionId: string) => void
       failStop?: (sessionId: string) => void
       nextRun?: (sessionId: string) => void
+      /** The same native session is given its next assignment, at the next generation (Codex F-008). */
+      reassign?: (sessionId: string) => void
       /** The runtime refuses a session's last effort request: nothing changes. */
       refuseEffort?: (sessionId: string) => void
       spendCredits?: (left: number) => void
@@ -98,7 +105,18 @@ const asked: NonNullable<NonNullable<Window['resourcesFixture']>['asked']> = []
 const query = new URLSearchParams(window.location.search)
 const viewer = query.get('viewer') === 'davide' ? people.davide : people.luis
 const more = query.get('more') === '1'
-const shown = more ? [...resources, ...moreResources] : resources
+/** Each session's assignment without its id and generation, as `unfenced=1` says. */
+const unfenced = (list: Resource[]): Resource[] =>
+  list.map((r) => ({
+    ...r,
+    sessions: r.sessions.map((s) =>
+      s.assignment
+        ? { ...s, assignment: { workId: s.assignment.workId, title: s.assignment.title, state: s.assignment.state } }
+        : s,
+    ),
+  }))
+const listed = more ? [...resources, ...moreResources] : resources
+const shown = query.get('unfenced') === '1' ? unfenced(listed) : listed
 const stale = query.get('stale') === '1'
 const busy = query.get('busy') === '1'
 const spent = query.get('spent') === '1'
@@ -130,7 +148,7 @@ if (query.get('since') === '1') {
 }
 
 /** The tasks on the plan's fixture board: only those open there; any other work is only its title. */
-const planned = new Set([...plan('accepted').items, ...secondPlan.items].map((i) => i.id))
+const planned = new Set([...plan.items, ...secondView.proposed_plans.flatMap((p) => p.items)].map((i) => i.id))
 const tasks: TaskLinks = {
   has: (workId) => planned.has(workId),
   open: (workId) => window.location.assign(`work.html${carried(window.location.search)}${linkHash(workId, TASK)}`),
@@ -154,6 +172,21 @@ const withSession = (l: LiveState, id: string, change: (s: Session) => Session):
   ...l,
   resources: l.resources.map((r) => ({ ...r, sessions: r.sessions.map((s) => (s.id === id ? change(s) : s)) })),
 })
+
+/** The same native session, given its next assignment at the next generation, as its runtime would report it. */
+const nextAssignment = (s: Session): Session =>
+  s.assignment
+    ? {
+        ...s,
+        assignment: {
+          workId: 'next-work',
+          title: 'The next assignment',
+          state: 'running',
+          id: 'assignment-next',
+          epoch: (s.assignment.epoch ?? 0) + 1,
+        },
+      }
+    : s
 
 /** A session started with a level: ultracode is Claude Code's mode, over the effort it had. */
 const startedWith = (s: Session, level: string): Session => ({
@@ -198,6 +231,7 @@ function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): Non
     unexpected,
     asked,
     acted,
+    commands,
     load: () => setLive((l) => ({ ...l, loading: false })),
     answerRequest: () =>
       setLive((l) => ({ ...l, actions: l.actions.map((a, i) => (i === 0 ? { ...a, state: 'resolved' } : a)) })),
@@ -234,6 +268,7 @@ function controls(setLive: React.Dispatch<React.SetStateAction<LiveState>>): Non
         if (ask?.when !== 'next') return l
         return { ...withSession(l, id, (s) => startedWith(s, ask.level)), asks: { ...l.asks, [id]: undefined } }
       }),
+    reassign: (id) => setLive((l) => withSession(l, id, nextAssignment)),
     setHost: (id, state) =>
       setLive((l) => ({
         ...l,
@@ -283,6 +318,7 @@ function Live() {
           history={earlierReadings(read)}
           tasks={tasks}
           scope="fixture"
+          projectId={PROJECT}
           onAct={actOn}
           onEffort={(sessionId, ask, refused) => {
             asked.push({ sessionId, level: ask?.level ?? null, when: ask?.when ?? null })

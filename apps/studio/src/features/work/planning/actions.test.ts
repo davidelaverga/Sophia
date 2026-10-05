@@ -1,0 +1,144 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import { boundaries, notOffered, offered, targetOf, writable } from './actions.ts'
+import { assignment, goal, item, plan, view } from './board-samples.ts'
+import type { ItemAction, ItemView } from './board-view.ts'
+import { askBlocked } from './ask.ts'
+import { actionOf, AMBIGUOUS, boardOf } from './plan.ts'
+
+const allowed = (kind: ItemAction['kind'], boundary: string | null = null, reason = `${kind} allowed`): ItemAction => ({
+  kind,
+  availability: 'allowed',
+  reason,
+  boundary,
+})
+const denied = (kind: ItemAction['kind'], reason: string): ItemAction => ({
+  kind,
+  availability: 'denied',
+  reason,
+  boundary: null,
+})
+
+/** The one row of a plan of `build`, observed as `over` says. */
+function rowOf(over: Partial<ItemView>) {
+  const row = boardOf(
+    goal(plan([item('build')]), [view('build', { lifecycle: 'running', assignment: assignment('build'), ...over })]),
+    {
+      resources: [],
+      people: {},
+      viewerId: 'luis',
+    },
+  )?.rows[0]
+  if (!row) throw new Error('no row')
+  return row
+}
+
+describe('a command the view offers more than once (Codex F-026)', () => {
+  const said = 'Stop: Offered here more than once, so it isn’t allowed until the view says it once.'
+  it('is never offered, whatever the order of its entries, and says why', () => {
+    for (const twice of [
+      [allowed('stop'), denied('stop', 'Not yours.')],
+      [denied('stop', 'Not yours.'), allowed('stop')],
+      [allowed('stop'), allowed('stop')],
+    ]) {
+      const row = rowOf({ available_actions: [allowed('guidance'), ...twice] })
+      assert.deepEqual(offered(row), [{ kind: 'guidance' }])
+      assert.deepEqual(notOffered(row), [said])
+    }
+  })
+
+  it('makes a result or a question offered more than once unavailable too, said why', () => {
+    const row = rowOf({
+      available_actions: [
+        allowed('open_result'),
+        denied('open_result', 'Not yours.'),
+        allowed('ask_sophia'),
+        allowed('ask_sophia'),
+      ],
+    })
+    assert.deepEqual(actionOf(row, 'open_result'), {
+      kind: 'open_result',
+      availability: 'unavailable',
+      reason: AMBIGUOUS,
+      boundary: null,
+    })
+    assert.equal(askBlocked(actionOf(row, 'ask_sophia'), true), AMBIGUOUS)
+    assert.equal(actionOf(row, 'stop'), null) // not offered at all is still none
+  })
+
+  it('leaves a command offered once as the view says it', () => {
+    const row = rowOf({ available_actions: [allowed('guidance'), allowed('stop')] })
+    assert.deepEqual(offered(row), [{ kind: 'guidance' }, { kind: 'stop' }])
+    assert.deepEqual(notOffered(row), [])
+  })
+})
+
+describe('what a task’s sheet offers to send (G3)', () => {
+  it('offers only what the view allows; a command it doesn’t mention is unavailable, not allowed', () => {
+    const row = rowOf({ available_actions: [allowed('guidance'), allowed('stop')] })
+    assert.deepEqual(offered(row), [{ kind: 'guidance' }, { kind: 'stop' }])
+    assert.deepEqual(offered(rowOf({ available_actions: [] })), [])
+  })
+
+  it('says why the rest isn’t offered, one line per reason, names listed as said (UI-08)', () => {
+    const viewer = 'Viewers ask and read; they don’t retask.'
+    const row = rowOf({
+      available_actions: [denied('guidance', viewer), denied('hold', viewer), denied('stop', viewer)],
+    })
+    assert.deepEqual(notOffered(row), ['Guidance, Hold and Stop: Viewers ask and read; they don’t retask.'])
+    assert.deepEqual(offered(row), [])
+  })
+
+  it('says the mandate a builder acts within, once', () => {
+    const mandate = 'Within Davide’s contribution to this project.'
+    const row = rowOf({
+      available_actions: [allowed('guidance', mandate), allowed('hold', mandate), allowed('stop', mandate)],
+    })
+    assert.deepEqual(boundaries(row), [mandate])
+  })
+
+  it('offers Hold while it isn’t held, and Resume only while it is; each with what it does', () => {
+    const actions = [
+      allowed('hold', null, 'Holds at its next safe point.'),
+      allowed('resume', null, 'Resumes from its saved state.'),
+    ]
+    assert.deepEqual(offered(rowOf({ available_actions: actions })), [
+      { kind: 'hold', tip: 'Holds at its next safe point.' },
+    ])
+    assert.deepEqual(offered(rowOf({ lifecycle: 'held', available_actions: actions })), [
+      { kind: 'resume', tip: 'Resumes from its saved state.' },
+    ])
+  })
+
+  it('offers nothing to send while its state isn’t observed, and says why; reading and asking stay (Codex F-002)', () => {
+    const mandate = 'Within Davide’s contribution to this project.'
+    const actions = [allowed('stop', mandate), allowed('hold', mandate), allowed('ask_sophia')]
+    const unknown = rowOf({ lifecycle: 'unknown', available_actions: actions })
+    const offline = rowOf({
+      assignment: assignment('build', { observation_state: 'offline' }),
+      available_actions: actions,
+    })
+    const unassigned = rowOf({ lifecycle: 'running', assignment: null, available_actions: actions })
+    for (const row of [unknown, offline, unassigned]) {
+      assert.equal(writable(row), false)
+      assert.deepEqual(offered(row), [])
+      assert.deepEqual(boundaries(row), [])
+      assert.deepEqual(notOffered(row), [
+        'Hold and Stop: Its state isn’t observed now, so nothing can be sent to it until it is.',
+      ])
+      assert.equal(row.actions.find((a) => a.kind === 'ask_sophia')?.availability, 'allowed')
+    }
+  })
+
+  it('aims at the exact assignment, generation and attempt shown; with none known, at nothing', () => {
+    assert.deepEqual(targetOf(rowOf({}), 'project-1'), {
+      project_id: 'project-1',
+      work_id: 'build',
+      assignment_id: 'assignment-build',
+      assignment_generation: 3,
+      attempt_id: 'attempt-build-3',
+      session_id: 's-build',
+    })
+    assert.equal(targetOf(rowOf({ assignment: null }), 'project-1'), null)
+  })
+})

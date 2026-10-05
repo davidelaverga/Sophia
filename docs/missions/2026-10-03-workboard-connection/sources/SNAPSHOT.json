@@ -1,0 +1,154 @@
+{
+  "observed_date": "2026-10-03",
+  "sophia_main": "c8dd5aa975fb8f0a872e32a89d7d674a356e79f2",
+  "pr63": {
+    "state": "merged",
+    "head": "df4b6f0068fe187bd6e9870b6e029338beafffea",
+    "merge_commit": "1bb40f0c0d932420b9fe75fc3f80d8fc850b37b5"
+  },
+  "paperclip_plan_pin": "5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb",
+  "source_inspection_only": true,
+  "missions_executed": false,
+  "sources": [
+    {
+      "id": "S01",
+      "title": "PR #63 status and original UI proposal",
+      "url": "https://github.com/davidelaverga/Sophia/pull/63",
+      "limit": "Re-read as merged; merge 1bb40f0c0d932420b9fe75fc3f80d8fc850b37b5. Description contains fixture claims and proposed endpoints, not backend implementation."
+    },
+    {
+      "id": "S02",
+      "title": "Current main source identity",
+      "url": "https://github.com/davidelaverga/Sophia/commit/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2",
+      "limit": "Inspected c8dd5aa; includes #69 work type-scale follow-up. Source identity is not deployment identity."
+    },
+    {
+      "id": "S03",
+      "title": "Installed unified continuation",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/docs/execution/2026-10-01-unified/00_START_HERE.md",
+      "limit": "v2.0 forward planning baseline, not the older Python/DeerFlow maps."
+    },
+    {
+      "id": "S04",
+      "title": "Plan model and current corrections",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/apps/studio/src/features/work/planning/plan.ts",
+      "limit": "Recursive rows; decision revision/actionability; improved assignee and wait lookup; still limited outcome states."
+    },
+    {
+      "id": "S05",
+      "title": "Shared session actions",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/apps/studio/src/features/resources/SessionActs.tsx",
+      "limit": "Sending state and stale-action suppression already exist. Stop confirmation and incomplete settlement/owner semantics need the selected extension."
+    },
+    {
+      "id": "S06",
+      "title": "Task action wrapper",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/apps/studio/src/features/work/planning/TaskActions.tsx",
+      "limit": "Still owner-only for shared task actions; this is narrower than SCM-03 policy."
+    },
+    {
+      "id": "S07",
+      "title": "Decision UI",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/apps/studio/src/features/work/planning/Decision.tsx",
+      "limit": "Expiry and same-choice unknown retry improved; lead-records-choice copy and full receipt binding remain."
+    },
+    {
+      "id": "S08",
+      "title": "Ask UI",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/apps/studio/src/features/work/planning/AskSophia.tsx",
+      "limit": "Latest-answer guard exists; full-answer Promise plus 45 ms word reveal remains."
+    },
+    {
+      "id": "S09",
+      "title": "Task sheet and board",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/apps/studio/src/features/work/planning/TaskSheet.tsx",
+      "limit": "Task keyed actions/Ask and resource links are already present. Add exact result entry; preserve current resource capacity display."
+    },
+    {
+      "id": "S10",
+      "title": "Active M03 PR",
+      "url": "https://github.com/davidelaverga/Sophia/pull/32",
+      "limit": "Latest PR collection inspected: open; description reserves A11/0022-0035 and reports Markdown-first release direction. Refresh at launch; no hosted verification here."
+    },
+    {
+      "id": "S11",
+      "title": "Current packages",
+      "url": "https://github.com/davidelaverga/Sophia/tree/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/packages",
+      "limit": "No coordination/plugin/adapter package in the inspected main directory listing; new paths are proposed."
+    },
+    {
+      "id": "S12",
+      "title": "Runtime unit",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/config/runtime-unit.json",
+      "limit": "dsh 0.2.0-rc.2, pinned development route; historic readiness text is not current hosted evidence."
+    },
+    {
+      "id": "S13",
+      "title": "SCM-01 first managed outcome",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/docs/execution/2026-10-01-unified/goals/SCM-01.md",
+      "limit": "One source-review item; not retired draft_brief; real cancellation/reconciliation and source-backed result required."
+    },
+    {
+      "id": "S14",
+      "title": "SCM-03 shared guidance and controls",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/docs/execution/2026-10-01-unified/goals/SCM-03.md",
+      "limit": "Cross-owner shared builders, scoped peers and fenced controls. These are plan requirements, not deployed proof."
+    },
+    {
+      "id": "S15",
+      "title": "SCM-04 technical lead",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/docs/execution/2026-10-01-unified/goals/SCM-04.md",
+      "limit": "Plan, review and replan decomposition; WBC-02 deliberately consumes only a narrow source-review plan template."
+    },
+    {
+      "id": "S16",
+      "title": "Selected Paperclip integration",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/docs/execution/2026-10-01-unified/coordination/03_PAPERCLIP_INTEGRATION.md",
+      "limit": "Separate service/database, integration identity, plugin and adapter targets; retained normative mapping."
+    },
+    {
+      "id": "S17",
+      "title": "LFE-07 retained scope",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/docs/execution/2026-10-01-unified/frontend/LFE-07.md",
+      "limit": "Board, lead review, capacity warning and handover remain distinct sessions."
+    },
+    {
+      "id": "S18",
+      "title": "Current board lanes",
+      "url": "https://github.com/davidelaverga/Sophia/blob/c8dd5aa975fb8f0a872e32a89d7d674a356e79f2/apps/studio/src/features/work/planning/PlanBoard.tsx",
+      "limit": "Read lines 1-143; existing In motion/Up next/Open/Done mapping and improved per-viewer seen state."
+    },
+    {
+      "id": "P01",
+      "title": "Implemented plugin surface at selected pin",
+      "url": "https://github.com/paperclipai/paperclip/blob/5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb/doc/plugins/PLUGIN_AUTHORING_GUIDE.md",
+      "limit": "Read implemented alpha guide, not speculative PLUGIN_SPEC. Namespace routes, host issue APIs and namespace-only DB mutation."
+    },
+    {
+      "id": "P02",
+      "title": "External-adapter cancellation contract at selected pin",
+      "url": "https://github.com/paperclipai/paperclip/blob/5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb/packages/adapter-utils/src/types.ts",
+      "limit": "Read relevant context sections: signal, onCancellationReady, onDispatch, session and event contracts. Does not qualify every runtime behavior."
+    },
+    {
+      "id": "P03",
+      "title": "Current official external-adapter documentation",
+      "url": "https://docs.paperclip.ing/reference/adapters/external-adapters/",
+      "limit": "External package/factory installation; independently versioned. Checked 3 October; pin-specific source wins on an API discrepancy."
+    },
+    {
+      "id": "P04",
+      "title": "Current official Adapter Manager documentation",
+      "url": "https://docs.paperclip.ing/guides/org/adapters/",
+      "limit": "Alpha version pinning; menu hiding is not execution revocation."
+    },
+    {
+      "id": "S19",
+      "title": "Final main recheck / PR70 typography follow-up",
+      "url": "https://github.com/davidelaverga/Sophia/commit/2c13747cbea08f937ca133769dab17f5d559f5c0",
+      "limit": "PR70: search-field typography, type-size test helper, CONTRIBUTING and handoff/progress only"
+    }
+  ],
+  "sophia_final_main_recheck": "2c13747cbea08f937ca133769dab17f5d559f5c0",
+  "recheck_diff_scope": "PR70: search-field typography, type-size test helper, CONTRIBUTING and handoff/progress only"
+}

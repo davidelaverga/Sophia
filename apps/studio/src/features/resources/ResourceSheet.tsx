@@ -5,6 +5,7 @@
 // returns to the tile it was opened from.
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { Icon, Tag, Tip } from '@sophia/ui'
+import { SheetCall } from '../../app/call-in-reach.tsx'
 import { useDialog } from '../../app/useDialog.ts'
 import { CapacityBlock } from './CapacityBlock.tsx'
 import { ResourceRequests } from './RequiredActions.tsx'
@@ -30,7 +31,8 @@ import { EffortPicker } from './EffortPicker.tsx'
 import { ModelChip } from './ModelChip.tsx'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import type { Room } from './room.ts'
-import { actsSaid, canAct, SessionActs, type Acts } from './SessionActs.tsx'
+import { sessionTarget, UNFENCED, type CommandTarget } from './receipts.ts'
+import { actsSaid, canAct, routeOffers, SessionActs, type Acts } from './SessionActs.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
 
 const HOST = { online: 'online', offline: 'offline', unknown: 'unknown' } as const
@@ -298,8 +300,15 @@ function ActToggle({ open, controls, said, onToggle }: ToggleProps) {
   )
 }
 
+/** What Act holds, in its tip: the acts its route supports, or why nothing can be sent. */
+const actTip = (resource: Resource, target: CommandTarget | null, acts: Acts) => {
+  if (!target) return 'Nothing can be sent yet'
+  return acts.canSend ? actsSaid(resource) : 'Nothing can be sent from here now'
+}
+
 function SessionRow({ session, resource, live, now, control, tasks, acts }: SessionProps) {
   const work = session.assignment
+  const target = acts ? sessionTarget(acts.project, session) : null
   const [acting, setActing] = useState(false)
   const actsId = useId()
   return (
@@ -318,13 +327,22 @@ function SessionRow({ session, resource, live, now, control, tasks, acts }: Sess
         <span className="resource-work idle">No assignment</span>
       )}
       {work && acts && (
-        <ActToggle open={acting} controls={actsId} said={actsSaid(resource)} onToggle={() => setActing((o) => !o)} />
+        <ActToggle
+          open={acting}
+          controls={actsId}
+          said={actTip(resource, target, acts)}
+          onToggle={() => setActing((o) => !o)}
+        />
       )}
       <SessionLive session={session} live={live} now={now} />
       <SessionEarlier session={session} now={now} />
       {work && acts && acting && (
         <div id={actsId} className="resource-session-acts">
-          <SessionActs resource={resource} session={session} acts={acts} />
+          {target ? (
+            <SessionActs target={target} offer={routeOffers(resource)} acts={acts} />
+          ) : (
+            <p className="act-note muted">{UNFENCED}</p>
+          )}
         </div>
       )}
     </li>
@@ -413,6 +431,7 @@ function Head({ resource, mine, onClose, onStep }: HeadProps) {
           </button>
         </span>
       </header>
+      <SheetCall />
     </div>
   )
 }
@@ -491,24 +510,24 @@ function RoomLine({ room, onShow }: { room: Room; onShow: ((id: string) => void)
 }
 
 /**
- * Turning the page (a step, or Show) may take the control pressed with it: the focus stays in the sheet, where J and K
- * work.
+ * Turning the page (a step, or Show) replaces all the sheet holds, its content keyed by the resource, the control
+ * pressed with it. So the focus goes to the sheet itself first, which stays: J and K work at once on the next page,
+ * never lost to the page behind until a later frame (Codex F-033).
  */
 function usePageTurns(panel: React.RefObject<HTMLDivElement | null>, onStep: Props['onStep'], onShow: Props['onShow']) {
-  const keepFocus = () =>
-    requestAnimationFrame(() => {
-      if (!panel.current?.contains(document.activeElement)) panel.current?.focus()
-    })
+  const keepFocus = () => {
+    if (document.activeElement !== panel.current) panel.current?.focus()
+  }
   const turn = onStep
     ? (by: 1 | -1) => {
-        onStep(by)
         keepFocus()
+        onStep(by)
       }
     : undefined
   const show = onShow
     ? (id: string) => {
-        onShow(id)
         keepFocus()
+        onShow(id)
       }
     : undefined
   return { turn, show }
