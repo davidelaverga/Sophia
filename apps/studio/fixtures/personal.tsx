@@ -6,7 +6,7 @@
 // `arrive=1`: yesterday's talk and her line of today, nothing said yet. The parts the API doesn't give yet:
 // `memory=1`, `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
 // `spaceAfter=ms`, `epochAfter=ms`: the space, or its epoch, read that much later; `readSlow=1`: earlier days take
-// 1.5 s. `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
+// 1.5 s. `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `holdReply=1`: her answer waits for `window.personalFixture.answer()`. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
@@ -23,7 +23,7 @@ import '../src/features/personal/personal.css'
 
 declare global {
   interface Window {
-    personalFixture?: { sent: string[]; pressed: string[] }
+    personalFixture?: { sent: string[]; pressed: string[]; answer?: () => void }
   }
 }
 
@@ -228,17 +228,16 @@ function useSimulated() {
       add(turn('person', text, new Date().toISOString(), { reply: 'pending' }))
       setSending(null)
       setBusy(false)
+      const reply = () => {
+        setSpace((s) => ({
+          ...s,
+          turns: s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' } : t)),
+        }))
+        add(turn('sophia', REPLY, new Date().toISOString()))
+      }
       window.clearTimeout(answer.current)
-      answer.current = window.setTimeout(
-        () => {
-          setSpace((s) => ({
-            ...s,
-            turns: s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' } : t)),
-          }))
-          add(turn('sophia', REPLY, new Date().toISOString()))
-        },
-        query.has('slow') ? 2500 : 900,
-      )
+      if (query.has('holdReply') && window.personalFixture) window.personalFixture.answer = reply
+      else answer.current = window.setTimeout(reply, query.has('slow') ? 2500 : 900)
       return receipt('send_turn')
     },
     retry: () => Promise.resolve(receipt('retry_turn')),

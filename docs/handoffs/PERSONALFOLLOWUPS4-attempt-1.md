@@ -40,6 +40,7 @@ Ending commit/tree and changed files: the content commit before this handoff. Th
   - `lengthOf`, `capped` (paste and growth), the note's prefill, the note field, words handed before the epoch, the waiting line, the line where the conversation fits;
   - the two return-case mutants, 20 runs each.
   - Clearing "at the end" while away was found unnecessary by its mutant (20 of 20 without it), so it was taken out.
+- **CI flake, fixed:** one CI run failed the phone return case. On a slow runner her reply could land before the space was locked, so it was seen and rightly not marked. The fixture's `holdReply=1` now holds her answer until the test releases it with the space shut, in both return cases. Afterwards: 20 of 20; without the fix, the phone case fails 3 of 5.
 
 **From the repo root:** `pnpm format:check`, `lint`, `typecheck` and the Studio's build pass.
 

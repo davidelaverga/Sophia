@@ -1400,13 +1400,15 @@ test('follow · a conversation whose rows grow (a font loading, a row reflowed) 
 test('@phone · follow · a reply that came while Personal was out of sight waits below when you are back', async ({
   page,
 }) => {
-  await page.goto(`${PAGE}?slow=1&longReply=1`)
+  await page.goto(`${PAGE}?holdReply=1&longReply=1`)
   await field(page).fill('One more thing.')
   await page.keyboard.press('Enter')
   await expect(page.locator('.msg.me .body').last()).toHaveText('One more thing.', { timeout: 5000 })
   await page.getByRole('button', { name: 'Lock (fixture)' }).click()
-  // Her reply lands while the space is shut (hidden rows count too).
-  await expect(page.locator('.msg.sophia:not(.typing)')).toHaveCount(5, { timeout: 8000 })
+  // Her reply lands only once the space is shut (hidden rows count too), however slow the machine.
+  await page.waitForFunction(() => window.personalFixture?.answer !== undefined)
+  await page.evaluate(() => window.personalFixture?.answer?.())
+  await expect(page.locator('.msg.sophia:not(.typing)')).toHaveCount(5)
   await page.getByRole('button', { name: 'Unlock (fixture)' }).click()
   await expect(page.getByRole('button', { name: 'Sophia answered' })).toBeVisible()
 })
@@ -1446,11 +1448,13 @@ test('follow · in a conversation that fits, a reply that came while away is sim
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 1300 })
-  await page.goto(`${PAGE}?slow=1`)
+  await page.goto(`${PAGE}?holdReply=1`)
   await field(page).fill('One more thing.')
   await page.keyboard.press('Enter')
   await page.getByRole('button', { name: 'Lock (fixture)' }).click()
-  await expect(page.locator('.msg.sophia:not(.typing)')).toHaveCount(5, { timeout: 8000 })
+  await page.waitForFunction(() => window.personalFixture?.answer !== undefined)
+  await page.evaluate(() => window.personalFixture?.answer?.())
+  await expect(page.locator('.msg.sophia:not(.typing)')).toHaveCount(5)
   await page.getByRole('button', { name: 'Unlock (fixture)' }).click()
   expect(await page.locator('.msgs').evaluate((l) => l.scrollHeight <= l.clientHeight)).toBe(true)
   await expect(page.locator('.msg.sophia').last()).toBeInViewport()
