@@ -77,6 +77,10 @@ interface Fixture {
   noticeBrief: () => void
   /** The research task's record, held since the page opened (`hold=task`), comes now. */
   releaseTask: () => void
+  /** The running research task has read `reads` sources (`research=running`). */
+  researchProgress: (reads: number) => void
+  /** The running research task finished: it stays in the project's work, its result ready, as the API keeps it. */
+  researchDone: () => void
   /** Reads of the research task fail from now on; given false, they succeed again. */
   failTask: (fails?: boolean) => void
   /** A live caption packet reaches this member, as the bridge sends what is said aloud (CX-0023): synthetic text. */
@@ -184,6 +188,7 @@ const project = {
   taskRevision: 1 as 1 | 2,
   taskHeld: query.get('hold') === 'task',
   taskFails: false,
+  researching: query.get('research') === 'running' ? { reads: 0 } : null,
   textTampered: query.get('tamper') === 'text',
   work: query.get('place') === 'work',
 }
@@ -207,6 +212,14 @@ window.fixture = {
   },
   noticeBrief: () => deliverNotice(briefNotice),
   releaseTask: () => releaseTask(project),
+  researchProgress: (reads) => {
+    project.researching = { reads }
+  },
+  researchDone: () => {
+    project.researching = null
+    project.work = true
+    publish(project)
+  },
   failTask: (fails = true) => {
     project.taskFails = fails
   },

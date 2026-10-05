@@ -327,6 +327,26 @@ export const researchTask: NativeTaskDetail = {
   },
 }
 
+/** The same research task while it runs (`research=running`, room-work checks): no result yet, `reads` sources read. */
+export function researchRunning(reads: number): NativeTaskDetail {
+  return {
+    ...researchTask,
+    task: { ...researchTask.task, state: 'running', phase: 'running', resultSourceId: null },
+    result: null,
+    research: {
+      question: 'A labelled fixture question.',
+      specialist: 'sophia-researcher-v1',
+      outputs: ['markdown', 'pdf'],
+      rootTaskId: TASK,
+      capUsd: 5,
+      committedUsd: 0.4,
+      spentUsd: 0.3,
+      searches: { used: 2, max: 5 },
+      reads: { used: reads, max: 8 },
+    },
+  }
+}
+
 /**
  * The same task's record once its result is revised (`window.fixture.noticeRevised`, CX-0022): its result is version
  * `n`'s Markdown, the files a card opens and saves.
