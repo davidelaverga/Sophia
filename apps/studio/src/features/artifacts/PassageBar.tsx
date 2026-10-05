@@ -162,19 +162,22 @@ function usePlaced(bar: RefObject<HTMLDivElement | null>, pane: RefObject<HTMLEl
   })
 }
 
-/** Whether the brief allows this person a note: read once there is a passage to keep, so a pane never read for nothing. */
+/**
+ * Whether the brief allows this person a note: read once there is a passage to keep, so a pane never read for nothing.
+ * A read that failed offers Keep: the write itself says why, if it is refused.
+ */
 function useNoteAllowed(projectId: string, identity: Identity, wanted: boolean): boolean {
   const [asked, setAsked] = useState(false)
   if (wanted && !asked) setAsked(true)
-  return (
-    useQuery({
-      queryKey: [...missionKey(projectId), identity.name, 'note'],
-      queryFn: () => getMission(identity.token, projectId),
-      select: (ctx) => ctx.capabilities.recordNote.available,
-      enabled: asked,
-      staleTime: 30_000,
-    }).data ?? false
-  )
+  const allowed = useQuery({
+    queryKey: [...missionKey(projectId), identity.name, 'note'],
+    queryFn: () => getMission(identity.token, projectId),
+    select: (ctx) => ctx.capabilities.recordNote.available,
+    enabled: asked,
+    staleTime: 30_000,
+    retry: 1,
+  })
+  return allowed.data ?? allowed.isError
 }
 
 const SHOWN_MS = 8000

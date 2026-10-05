@@ -51,9 +51,9 @@ function SectionIndex(props: {
   const { entries, here, body } = props
   if (entries.length < 2) return null
   // The reader goes there, focus and all, so a screen reader reads on from the section.
-  const go = (anchor: string) => {
+  const go = (entry: IndexEntry) => {
     const area = body.current
-    const heading = area?.querySelector<HTMLElement>(`#md-${CSS.escape(anchor)}`)
+    const heading = area?.querySelectorAll<HTMLElement>(`.md > [id="md-${CSS.escape(entry.anchor)}"]`)[entry.occurrence]
     if (!area || !heading) return
     area.scrollTop += heading.getBoundingClientRect().top - area.getBoundingClientRect().top - 8
     heading.tabIndex = -1
@@ -63,18 +63,18 @@ function SectionIndex(props: {
     <nav className="report-sections" aria-label="Sections">
       {entries.map((entry) => (
         <a
-          key={entry.anchor}
+          key={entry.key}
           href={`#md-${entry.anchor}`}
-          data-sophia={entry.anchor === here || undefined}
+          data-sophia={entry.key === here || undefined}
           onClick={(e) => {
             // A plain press goes there; a press meant for a new tab or window is the browser's.
             if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
             e.preventDefault()
-            go(entry.anchor)
+            go(entry)
           }}
         >
           {entry.text}
-          {entry.anchor === here && <span className="sr-only"> (Sophia is here)</span>}
+          {entry.key === here && <span className="sr-only"> (Sophia is here)</span>}
         </a>
       ))}
     </nav>
@@ -105,7 +105,7 @@ export function PresentedReport({ version, identity, by, action, spoken }: Props
   const self = useFocusOnArrival()
   const body = useRef<HTMLDivElement>(null)
   const entries = useMemo(() => (parsed ? sectionIndex(parsed.blocks) : []), [parsed])
-  const anchors = useMemo(() => new Set(entries.map((e) => e.anchor)), [entries])
+  const anchors = useMemo(() => new Set(entries.map((e) => e.key)), [entries])
   const here = useVoiceTrail(body, spoken, parsed, anchors)
   const viewer = useDocumentViewer()
   const title = version.title ?? 'Report'

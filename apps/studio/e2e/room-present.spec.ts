@@ -127,6 +127,17 @@ test('present · a show whose reply is lost is known from the room itself: shown
   expect(await shows(page)).toEqual([`focus:${V1}`])
 })
 
+test('present · stopping against a room that moved says so in its own words', async ({ page }) => {
+  await enter(page, 'people=2&floor=1&sophia=listening&video=screen')
+  await page.evaluate(() => {
+    window.fixture?.show('me')
+    window.fixture?.moveRoom()
+  })
+  await card(page).getByRole('button', { name: 'Stop showing' }).click()
+  await expect(card(page)).toContainText('The room changed. Stop it again.')
+  expect(await shows(page)).toEqual([])
+})
+
 test('present · someone else showing asks again: my view doesn’t move without my press', async ({ page }) => {
   await enter(page)
   await page.evaluate(() => window.fixture?.show(1))
@@ -153,6 +164,16 @@ test('present · an earlier version open in the pane isn’t offered to everyone
   const pane = page.getByRole('complementary', { name: 'Fixture report' })
   await expect(pane.getByText('The first version of a labelled fixture report.')).toBeVisible()
   await expect(pane.locator('.report-current')).toBeVisible()
+  await expect(pane.getByRole('button', { name: 'Show everyone' })).toHaveCount(0)
+})
+
+test('present · nor while its text is still being read', async ({ page }) => {
+  await page.goto(
+    `/room.html?call=on&people=2&floor=1&sophia=listening&versions=2&report=${REPORT}&version=${V1}&hold=text`,
+  )
+  const pane = page.getByRole('complementary', { name: 'Fixture report' })
+  await expect(pane.getByText('Loading the report…')).toBeVisible()
+  await expect.poll(async () => (await served(page)).includes('versions:2')).toBe(true)
   await expect(pane.getByRole('button', { name: 'Show everyone' })).toHaveCount(0)
 })
 

@@ -102,6 +102,31 @@ describe('the section index', () => {
       ],
     )
   })
+
+  it('takes the report’s own top level: sections written at ## with no title, or at ### under a ## title', () => {
+    const untitled = parseMarkdown(`${['## One', 'x', '### Detail', 'y', '## Two', 'z'].join('\n\n')}\n`)
+    assert.deepEqual(
+      sectionIndex(untitled.blocks).map((e) => e.anchor),
+      ['one', 'two'],
+    )
+    const deep = parseMarkdown(`${['## Title', 'x', '### One', 'y', '### Two', 'z'].join('\n\n')}\n`)
+    assert.deepEqual(
+      sectionIndex(deep.blocks).map((e) => e.anchor),
+      ['title', 'one', 'two'],
+    )
+  })
+
+  it('gives two sections with one name two entries, each its own heading', () => {
+    const notes = parseMarkdown(`${['# R', 'x', '## Notes', 'y', '## Notes', 'z'].join('\n\n')}\n`)
+    assert.deepEqual(
+      sectionIndex(notes.blocks).map((e) => [e.key, e.occurrence]),
+      [
+        ['r#0', 0],
+        ['notes#0', 0],
+        ['notes#1', 1],
+      ],
+    )
+  })
 })
 
 describe('where she is in one turn', () => {
@@ -118,8 +143,8 @@ describe('where she is in one turn', () => {
 
 describe('her section', () => {
   it('is the last heading before her words that the index names, never a sub-heading', () => {
-    const index = new Set(['fixture-report', 'conclusion', 'recommendations'])
-    assert.equal(sectionAmong(['fixture-report', 'conclusion', 'a-detail'], index), 'conclusion')
-    assert.equal(sectionAmong(['a-detail'], index), null)
+    const index = new Set(['fixture-report#0', 'conclusion#0', 'recommendations#0'])
+    assert.equal(sectionAmong(['fixture-report#0', 'conclusion#0', 'a-detail#0'], index), 'conclusion#0')
+    assert.equal(sectionAmong(['a-detail#0'], index), null)
   })
 })
