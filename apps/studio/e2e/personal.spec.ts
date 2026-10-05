@@ -1223,3 +1223,14 @@ test('codex · handed words that take the field past its limit are kept whole, h
   await expect(page.locator('#c-count')).toContainText('over')
   await expect(page.locator('.ps-composer .send')).toBeDisabled()
 })
+
+test('codex · handed words longer than one message wait in the field, said too long, never said to be waiting', async ({
+  page,
+}) => {
+  const long = 'b'.repeat(4100)
+  await page.goto(`${PAGE}?handed=${long}`)
+  await expect(field(page)).toHaveValue(long)
+  await expect(page.locator('.ps-composer .chat-line', { hasText: 'on its way' })).toHaveCount(0)
+  await expect(page.locator('#c-count')).toContainText('100 over')
+  expect(await sent(page)).toEqual([])
+})
