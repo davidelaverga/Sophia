@@ -174,7 +174,8 @@ function floorLine(floor: FloorView): string {
   return floor.holder.present ? `${name} has the floor` : `${name} has the floor but isn’t here`
 }
 
-const WORKING_PHASES: ReadonlySet<NativeTask['phase']> = new Set([
+/** The phases of a native task that is still work in progress. */
+export const WORKING_PHASES: ReadonlySet<NativeTask['phase']> = new Set([
   'queued',
   'dispatched',
   'running',
@@ -200,6 +201,10 @@ export function runningWork(snapshot: Pick<Snapshot, 'goals' | 'work'> | undefin
   return active.size
 }
 
+/** Work in progress by count, when her line can't say what it is. */
+const workCountText = (n: number): string | null =>
+  n > 0 ? `Working on ${n} ${n === 1 ? 'task' : 'tasks'} in the background` : null
+
 /**
  * What Sophia's line says about the room right now. Only what is true: while she is in the conversation her
  * line is what the bridge observes (sophia-view.ts), never inferred from the room being live.
@@ -209,8 +214,10 @@ export function roomLine(
   floor: FloorView,
   workCount: number,
   sophia: SophiaLineView | null = null,
+  /** What she is doing, when one task of hers is the only work (work-line.ts); else the count says it. */
+  doing: string | null = null,
 ): RoomLine {
-  const work = workCount > 0 ? `Working on ${workCount} ${workCount === 1 ? 'task' : 'tasks'} in the background` : null
+  const work = doing ?? workCountText(workCount)
   if (status === 'joining') return { text: 'Joining the room…', note: null }
   if (status === 'reconnecting') return { text: 'Reconnecting…', note: work }
   if (sophia?.inConversation) return { text: sophia.label, note: sophia.note ?? work ?? floorLine(floor) }
