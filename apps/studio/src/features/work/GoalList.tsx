@@ -36,6 +36,8 @@ interface Props {
   onInvite: () => void
   /** Tasks: each goal's plan, by the goal's id, shown inside that goal's row (LFE-07.1). */
   plans?: Readonly<Record<string, GoalPlan>> | undefined
+  /** Tasks: what Sophia offers to start under a goal (the source-review pilot, WBC-02), under its plan. */
+  entry?: ((goal: Goal) => React.ReactNode) | undefined
 }
 
 /** The goal whose plan has a task, by its id; undefined when none has. */
@@ -125,7 +127,17 @@ function Head(props: {
   )
 }
 
-export function GoalList({ snapshot, projectId, identity, controls, canAct, onOpenStudio, onInvite, plans }: Props) {
+export function GoalList({
+  snapshot,
+  projectId,
+  identity,
+  controls,
+  canAct,
+  onOpenStudio,
+  onInvite,
+  plans,
+  entry,
+}: Props) {
   const planned = (id: string) => plans?.[id]?.view
   const [query, setQuery] = useState('')
   const { tabbed, shown, listed, anyPlan, choose, followed } = useChosenGoal(snapshot, plans, query)
@@ -161,6 +173,7 @@ export function GoalList({ snapshot, projectId, identity, controls, canAct, onOp
               next={plans?.[g.id]?.next}
             >
               {planned(g.id)}
+              {entry?.(g)}
             </GoalCard>
           ))}
         </ol>

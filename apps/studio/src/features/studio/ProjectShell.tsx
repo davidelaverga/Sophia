@@ -30,6 +30,8 @@ import { blockedBy, isStale, shownConnection, type Blocked } from './project-doo
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
+import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
+import type { Feed } from '../../projectors/projection.ts'
 import { Mark } from '../../app/Mark.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
@@ -232,16 +234,40 @@ function CallKeptInReach({
   return <CallInReach.Provider value={call}>{children}</CallInReach.Provider>
 }
 
+/** Tasks' plans: the page's own (a fixture), else the work board Sophia serves for the project, and its pilot entry (WBC-02). */
+function useTasksWork(
+  props: Props,
+  feed: Feed | null,
+  membership: Membership | undefined,
+  blocked: Blocked | null,
+): ServedWork {
+  const { projectId, identity } = props
+  const served = useServedWork({
+    projectId,
+    identity,
+    feed,
+    canAct: canInvite(membership),
+    enabled: !blocked && !props.plans,
+  })
+  return { plans: props.plans ?? served.plans, entry: served.entry }
+}
+
+/** What the door lets through: whether a snapshot ever loaded, why the project is closed, and what may be acted on. */
+function doorOf(snapshot: ReturnType<typeof useProjectFeed>['snapshot']) {
+  const loaded = snapshot.data !== undefined
+  const blocked = blockedBy(snapshot.error, loaded)
+  // Behind a closed door the project's last snapshot may still be in the cache: nothing acts on it (Invite, I).
+  return { loaded, blocked, shown: blocked ? undefined : snapshot.data }
+}
+
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
   const membership = useMembership(projectId, identity.name, identity.token).data
   const [inviting, setInviting] = useState(false)
-  const loaded = snapshot.data !== undefined
-  const blocked = blockedBy(snapshot.error, loaded)
-  // Behind a closed door the project's last snapshot may still be in the cache: nothing acts on it (Invite, I).
-  const shown = blocked ? undefined : snapshot.data
+  const { loaded, blocked, shown } = doorOf(snapshot)
+  const work = useTasksWork(props, feed, membership, blocked)
   const invite = () => setInviting(true)
   useLeaveBehindClosedDoor(blocked, room)
   useBeyondTheView(props, snapshot.data, room)
@@ -286,7 +312,7 @@ export function ProjectShell(props: Props) {
             onInvite={invite}
             background={!!props.background}
             resources={props.resources}
-            plans={props.plans}
+            {...work}
           />
         )}
       </div>
@@ -369,6 +395,8 @@ interface BodyProps {
   background: boolean
   resources: React.ReactNode
   plans: Readonly<Record<string, GoalPlan>> | undefined
+  /** The source-review pilot's entry under each goal in Tasks (WBC-02), where Sophia offers it. */
+  entry?: ServedWork['entry']
 }
 
 /**
@@ -472,7 +500,7 @@ function pageClass(work: boolean, plans: BodyProps['plans']): string {
  * A page other than the room: Goals and Work list the goals (Tasks with each goal's plan), Knowledge its reports; the
  * views still to come say so.
  */
-function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite, plans }: BodyProps) {
+function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite, plans, entry }: BodyProps) {
   if (view === 'knowledge') {
     return <KnowledgeReports projectId={projectId} identity={identity} canEdit={canInvite(membership)} />
   }
@@ -485,6 +513,7 @@ function PageBody({ view, projectId, identity, membership, snapshot, onShow, onI
         controls={view === 'work'}
         canAct={canInvite(membership)}
         plans={view === 'work' ? plans : undefined}
+        entry={view === 'work' ? entry : undefined}
         onOpenStudio={() => onShow('studio')}
         onInvite={onInvite}
       />
