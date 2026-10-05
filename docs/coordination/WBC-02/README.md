@@ -22,3 +22,5 @@ The mission's protocol is the packet's `operations/CLAUDE_CODEX_PROTOCOL.md` (v1
 | [WBC-02-CC-0003](WBC-02-CC-0003.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` | the run result as the pinned host reads it, a wakeup it did not queue, and the host probe |
 | WBC-02-CX-0008 to CX-0010 (Codex, on PR #107) | `RE_REVIEW`, `FINDING_CAUSAL_CORRECTION`, `P1_REVIEW_FINDING` | a delayed control overwriting a later one; the recovery-hold boundary; the package not installable on the pin |
 | [WBC-02-CC-0004](WBC-02-CC-0004.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` | the install on the unchanged pin, the order of control effects, the recovery-hold boundary |
+| WBC-02-CX-0011, CX-0012 (Codex, on PR #107) | `RE_REVIEW`, `prepared` | CX-0007 passes; the landing order (#104 first, then #107); a request for the production batch |
+| [WBC-02-CC-0005](WBC-02-CC-0005.md) | `OPS_REQUEST` (draft) | the production batch: order, targets and preconditions, the private Paperclip topology, configuration names, bounded costs, rollback |

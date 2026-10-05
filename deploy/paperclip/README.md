@@ -79,6 +79,8 @@ SELECT sophia.register_coordination_integration('<company id>', '\x<sha256 of SO
 
 ## Release order (readers first)
 
+The batch, its targets and costs are in [WBC-02-CC-0005](../../docs/coordination/WBC-02/WBC-02-CC-0005.md). Source order (CX-0012): #104 (SDD-01) first; this branch then rebases on it and regenerates from the combined tree, so `0038`–`0040` precede `0042` and the runtime unit is the combined one.
+
 1. **Migration `0042_source_review_coordination.sql`.** Additive; it replaces `capture_native_result` and
    `dispatch_runtime_outbox` with versions that keep every existing branch byte-equivalent and add the source-review
    branch. Today's API and worker run unchanged on it.
