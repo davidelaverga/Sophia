@@ -1,0 +1,230 @@
+/**
+ * One Paperclip run of a Sophia-commissioned issue (WBC-02 G3/G4). The adapter is an observer with a permit, never
+ * a second writer: Sophia's existing native path runs the review, Sophia decides whether this run may act, and a
+ * cancelled or lost run never starts another attempt. In order:
+ *
+ * 1. Opt into cancellation (`onCancellationReady`) before anything else; an already-aborted run returns at once,
+ *    having asked Sophia nothing.
+ * 2. Ask Sophia for an effect permit for this exact issue and run: start (the work's first attempt), attach (an
+ *    attempt that is live or whose state is uncertain), or deny (unknown or foreign issue, held, stopped, finished or
+ *    withdrawn work, spent allowance). A denial returns before any effect.
+ * 3. To start: `onDispatch` immediately before asking Sophia to start, and only then. A start whose answer was lost is
+ *    never repeated: the run observes what Sophia recorded.
+ * 4. Observe until the work settles. On cancellation Sophia holds the work (fenced and settled through its native
+ *    path) and the run waits, bounded, for that settlement; an unconfirmed Hold is said as unconfirmed, never as held.
+ * 5. Report: the run's own usage (per_run; a cost Sophia could not settle is null, never zero), the native session, and
+ *    a published review as success. A review with adverse findings is a successful review, not acceptance.
+ * @module @sophia/paperclip-adapters/sophia-dsh/execute
+ */
+import type { CoordinationObservation, CoordinationRunRequest } from '@sophia/contracts'
+import { SophiaRefusal, SophiaUnreachable, type SophiaClient } from './client.ts'
+import type { AdapterExecutionContext, AdapterExecutionResult } from './types.ts'
+
+export interface ExecuteDeps {
+  readonly client: SophiaClient
+  /** How often the run looks at Sophia while the work runs. */
+  readonly pollMs: number
+  /** How long a cancelled run waits for Sophia to confirm the Hold settled. */
+  readonly settleMs: number
+  /** How long one run observes before it lets go (the attempt continues; a later run attaches). */
+  readonly maxRunMs: number
+  readonly now: () => number
+  readonly sleep: (ms: number, signal?: AbortSignal) => Promise<void>
+}
+
+/** Phases after which nothing more will happen without a person: the run reports and ends. */
+const SETTLED: ReadonlySet<CoordinationObservation['phase']> = new Set([
+  'held',
+  'stopped',
+  'result_ready',
+  'blocked',
+  'failed',
+  'withdrawn',
+])
+
+const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() !== '' ? value : null)
+
+const failure = (
+  errorCode: string,
+  errorMessage: string,
+  extra: Partial<AdapterExecutionResult> = {},
+): AdapterExecutionResult => ({
+  exitCode: null,
+  signal: null,
+  timedOut: false,
+  errorCode,
+  errorMessage,
+  ...extra,
+})
+
+const CANCELLED_BEFORE_START = failure(
+  'cancelled_before_start',
+  'The run was cancelled before it asked Sophia for anything; nothing was started.',
+)
+
+/** Ask Sophia; null when it did not answer (the caller keeps what it last knew), a refusal is rethrown. */
+async function ask<T>(call: () => Promise<T>): Promise<T | null> {
+  try {
+    return await call()
+  } catch (err: unknown) {
+    if (err instanceof SophiaUnreachable) return null
+    throw err
+  }
+}
+
+interface Watch {
+  last: CoordinationObservation | null
+  cancelledAt: number | null
+}
+
+/** Observe until settled, cancelled and settled (or the settle wait ends), or the run's observation limit. */
+async function watch(ctx: AdapterExecutionContext, deps: ExecuteDeps, run: CoordinationRunRequest): Promise<Watch> {
+  const state: Watch = { last: null, cancelledAt: null }
+  const deadline = deps.now() + deps.maxRunMs
+  for (;;) {
+    const cancelling = ctx.signal?.aborted === true && state.cancelledAt === null
+    if (cancelling) state.cancelledAt = deps.now()
+    state.last = (await ask(() => (cancelling ? deps.client.cancel(run) : deps.client.observe(run)))) ?? state.last
+    if (state.last !== null && SETTLED.has(state.last.phase)) return state
+    if (state.cancelledAt !== null ? deps.now() - state.cancelledAt >= deps.settleMs : deps.now() >= deadline)
+      return state
+    await deps.sleep(deps.pollMs, state.cancelledAt === null ? ctx.signal : undefined)
+  }
+}
+
+const UNSETTLED: Readonly<Record<string, readonly [string, string]>> = {
+  holding: [
+    'sophia_hold_unsettled',
+    "Hold requested; Sophia has not confirmed that the runtime settled. The work's state is not confirmed.",
+  ],
+  stopping: [
+    'sophia_stop_unsettled',
+    "Stop requested; Sophia has not confirmed that the runtime stopped. The work's state is not confirmed.",
+  ],
+}
+
+const ENDED: Readonly<Record<string, readonly [number | null, string, string]>> = {
+  held: [
+    null,
+    'sophia_held',
+    'Held in Sophia. Work and remaining allowance are kept; only an explicit Resume in Sophia continues it.',
+  ],
+  stopped: [null, 'sophia_stopped', 'Stopped in Sophia. Completed work is kept.'],
+  withdrawn: [null, 'sophia_withdrawn', 'An input of this review was withdrawn; its result is not served.'],
+  blocked: [1, 'sophia_review_blocked', 'The review reported a blocker.'],
+  failed: [1, 'sophia_review_failed', 'The review ended without a result.'],
+}
+
+/** The run's report from what Sophia last said. */
+function report(final: CoordinationObservation | null, watched: Watch): AdapterExecutionResult {
+  const seen = final ?? watched.last
+  if (seen === null)
+    return failure('sophia_unreachable', "Sophia did not answer; this run cannot say what the work's attempt did.")
+  const usage = seen.usage
+  const common: Partial<AdapterExecutionResult> = {
+    sessionParams: {
+      sophiaWorkId: seen.workId,
+      sophiaAttemptId: seen.attemptId,
+      nativeSessionId: seen.nativeSessionId,
+    },
+    sessionDisplayId: seen.nativeSessionId,
+    resultJson: { workId: seen.workId, attemptId: seen.attemptId, phase: seen.phase, result: seen.result },
+    ...(usage
+      ? {
+          usage: {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            cachedInputTokens: usage.cachedInputTokens,
+          },
+          usageBasis: 'per_run' as const,
+          costUsd: usage.costUsd,
+          billingType: 'metered_api' as const,
+          biller: 'sophia',
+          provider: usage.providers[0] ?? null,
+          model: usage.models[0] ?? null,
+        }
+      : { usageBasis: null, costUsd: null }),
+  }
+  if (seen.phase === 'result_ready' && seen.result !== null) {
+    return {
+      exitCode: 0,
+      signal: null,
+      timedOut: false,
+      summary: `Source review published (${seen.result.verdict}); result ${seen.result.sourceId}.`,
+      ...common,
+    }
+  }
+  const unsettled = UNSETTLED[seen.phase]
+  if (unsettled) return failure(unsettled[0], unsettled[1], common)
+  const ended = ENDED[seen.phase]
+  if (ended)
+    return { ...failure(ended[1], seen.reason ? `${ended[2]} ${seen.reason}` : ended[2], common), exitCode: ended[0] }
+  return failure(
+    'sophia_observer_released',
+    'This run stopped observing; the attempt continues in Sophia under its own controls, and a later run attaches to it.',
+    common,
+  )
+}
+
+/** How many times a start whose answer was lost is asked again: Sophia starts once per run, so asking again reconciles. */
+const START_TRIES = 3
+
+/**
+ * Start the permitted attempt, `onDispatch` first. A refusal ends the run. A lost answer is asked again under the same
+ * run: Sophia's start is idempotent per run (it answers the attempt it already started), so this never starts a second
+ * attempt; if Sophia still does not answer, the run observes what Sophia recorded.
+ */
+async function start(
+  ctx: AdapterExecutionContext,
+  deps: ExecuteDeps,
+  run: CoordinationRunRequest,
+): Promise<AdapterExecutionResult | null> {
+  if (ctx.signal?.aborted === true) return CANCELLED_BEFORE_START
+  ctx.onDispatch?.()
+  for (let tries = 1; tries <= START_TRIES; tries += 1) {
+    const started = await ask(() => deps.client.start(run))
+    if (started?.denied === true)
+      return failure(
+        `sophia_permit_denied:${started.code ?? 'denied'}`,
+        started.reason ?? 'Sophia refused to start the work.',
+      )
+    if (started !== null) return null
+    await deps.sleep(deps.pollMs)
+  }
+  return null
+}
+
+/** Permit, start when permitted to, observe, report. */
+async function permitted(
+  ctx: AdapterExecutionContext,
+  deps: ExecuteDeps,
+  run: CoordinationRunRequest,
+  issueId: string,
+): Promise<AdapterExecutionResult> {
+  const permit = await deps.client.permit({ ...run, issueId, agentId: ctx.agent.id })
+  if (permit.decision === 'deny')
+    return failure(`sophia_permit_denied:${permit.code ?? 'denied'}`, permit.reason ?? 'Sophia denied this run.')
+  const refused = permit.decision === 'start' ? await start(ctx, deps, run) : null
+  if (refused !== null) return refused
+  const watched = await watch(ctx, deps, run)
+  return report(await ask(() => deps.client.observe({ ...run, final: true })), watched)
+}
+
+export async function execute(ctx: AdapterExecutionContext, deps: ExecuteDeps): Promise<AdapterExecutionResult> {
+  const issueId = text(ctx.context.issueId) ?? text(ctx.context.taskId)
+  if (issueId === null)
+    return failure(
+      'sophia_no_issue',
+      'This run names no issue; the Sophia adapter runs only issues Sophia commissioned.',
+    )
+  await ctx.onCancellationReady?.()
+  if (ctx.signal?.aborted === true) return CANCELLED_BEFORE_START
+  try {
+    return await permitted(ctx, deps, { companyId: ctx.agent.companyId, runId: ctx.runId }, issueId)
+  } catch (err: unknown) {
+    if (err instanceof SophiaRefusal) return failure(`sophia_refused:${err.code}`, err.message)
+    if (err instanceof SophiaUnreachable)
+      return failure('sophia_unreachable', `${err.message}; nothing was started by this run.`)
+    throw err
+  }
+}

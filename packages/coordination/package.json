@@ -1,0 +1,17 @@
+{
+  "name": "@sophia/coordination",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./envelope": "./src/envelope.ts",
+    "./plugin-wire": "./src/plugin-wire.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@sophia/contracts": "workspace:*"
+  }
+}
