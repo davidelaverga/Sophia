@@ -9,15 +9,16 @@ import type {
   MissionNotePolicy,
   RoomToken,
   Snapshot,
+  SophiaPresence,
 } from '@sophia/contracts'
 import type { Identity } from '../src/app/dev-identity.ts'
 
 export const PROJECT = '00000000-0000-4000-8000-0000000000aa'
 const ME = '00000000-0000-4000-8000-0000000000a1'
 const OTHER = '00000000-0000-4000-8000-0000000000a2'
-const ROOM = '00000000-0000-4000-8000-0000000000ab'
+export const ROOM = '00000000-0000-4000-8000-0000000000ab'
 const SOURCE = '00000000-0000-4000-8000-0000000000ac'
-const EXCHANGE = '00000000-0000-4000-8000-0000000000ae'
+export const EXCHANGE = '00000000-0000-4000-8000-0000000000ae'
 const AT = '2026-10-02T00:00:00.000Z'
 
 /** A dev identity: the fixture page never signs in, and no request carries this token anywhere. */
@@ -37,17 +38,77 @@ const said = (text: string, n: number): DiscussionEntry => ({
   createdAt: AT,
 })
 
+/** A holder who isn't in the room (`floor=absent`, and a pause because the holder left). */
+export const ABSENT = '00000000-0000-4000-8000-0000000000b9'
+
+/**
+ * The room as the page asked for it (room-people checks): who holds the floor (an actor id; null, open; left out, the
+ * viewer while Sophia's conversation is open, or someone gone when she paused because the holder left), how many
+ * times it was passed (`inputEpoch`), and what her presence says of her voice, a pause and what she sees. A pause and
+ * a voice belong to an open conversation only, as the API reads them.
+ */
+export interface RoomAsked {
+  holder?: string | null | undefined
+  inputEpoch?: number | undefined
+  voice?: SophiaPresence['voice'] | undefined
+  pauseReason?: SophiaPresence['pauseReason'] | undefined
+  looking?: SophiaPresence['looking'] | undefined
+}
+
+/** Who holds the floor: asked for, else the viewer in Sophia's conversation (someone gone once she paused for it). */
+function holderOf(exchange: boolean, room: RoomAsked): string | null {
+  if (room.holder !== undefined) return room.holder
+  if (!exchange) return null
+  return room.pauseReason === 'holder_left' ? ABSENT : ME
+}
+
+const NO_CONVERSATION: SophiaPresence = {
+  exchangeId: null,
+  exchange: 'none',
+  pauseReason: null,
+  voice: 'not_connected',
+  inputActorId: null,
+  inputEpoch: null,
+  playbackEpoch: null,
+  observationEpoch: null,
+  allowVision: false,
+  looking: null,
+  reason: null,
+  reportedAt: null,
+}
+
+/** Sophia's presence in the snapshot: none outside a conversation; in one, its pause, voice and what she sees. */
+function presenceOf(exchange: boolean, holder: string | null, room: RoomAsked): SophiaPresence {
+  if (!exchange) return NO_CONVERSATION
+  const looking = room.looking ?? null
+  return {
+    ...NO_CONVERSATION,
+    exchangeId: EXCHANGE,
+    exchange: room.pauseReason ? 'paused' : 'open',
+    pauseReason: room.pauseReason ?? null,
+    voice: room.voice ?? 'ready',
+    inputActorId: holder,
+    inputEpoch: room.inputEpoch ?? 1,
+    observationEpoch: looking ? 1 : null,
+    allowVision: !!looking,
+    looking,
+  }
+}
+
 /**
  * The project as a snapshot at `revision`: a later revision is a background update reaching the viewer. `exchange`:
  * a conversation with Sophia is open and this viewer holds the floor, so the chat's message bar is there. `messages`:
  * what other members wrote in the discussion, oldest first. `goals`: the project's goals (the work fixture's one).
+ * `room`: the floor and Sophia's presence otherwise (RoomAsked).
  */
 export function snapshot(
   revision: number,
   exchange: boolean,
   messages: readonly string[] = [],
   goals: Snapshot['goals'] = [],
+  room: RoomAsked = {},
 ): Snapshot {
+  const holder = holderOf(exchange, room)
   return {
     projectId: PROJECT,
     title: 'Fixture project',
@@ -60,26 +121,7 @@ export function snapshot(
     humanActions: [],
     artifacts: [],
     sharedFocus: null,
-    room: {
-      id: ROOM,
-      revision,
-      inputActorId: exchange ? ME : null,
-      mode: 'invoked',
-      sophia: {
-        exchangeId: exchange ? EXCHANGE : null,
-        exchange: exchange ? 'open' : 'none',
-        pauseReason: null,
-        voice: exchange ? 'ready' : 'not_connected',
-        inputActorId: exchange ? ME : null,
-        inputEpoch: exchange ? 1 : null,
-        playbackEpoch: null,
-        observationEpoch: null,
-        allowVision: false,
-        looking: null,
-        reason: null,
-        reportedAt: null,
-      },
-    },
+    room: { id: ROOM, revision, inputActorId: holder, mode: 'invoked', sophia: presenceOf(exchange, holder, room) },
     lobby: [],
     sessions: [],
     discussion: messages.map(said),

@@ -2,8 +2,18 @@
 // viewer's membership, the brief and a room token. Any other request is recorded and refused, so a check that
 // reached for something else fails instead of passing on a real service. A background update is an event on the
 // open stream: the Studio's own feed applies it and refetches the snapshot, as it does with the API.
-import type { GoalCommand, Receipt, Snapshot } from '@sophia/contracts'
-import { projectEvent, membership, mission, PROJECT, roomToken, snapshot } from './data.ts'
+import type { ExchangeReceipt, FloorRequest, GoalCommand, Receipt, Snapshot } from '@sophia/contracts'
+import {
+  EXCHANGE,
+  projectEvent,
+  membership,
+  mission,
+  PROJECT,
+  ROOM,
+  roomToken,
+  snapshot,
+  type RoomAsked,
+} from './data.ts'
 import {
   content,
   editDescription,
@@ -61,6 +71,10 @@ interface Project {
   goals?: Snapshot['goals']
   /** A goal's command (Request review, Hold, Stop), with its idempotency key; absent, a command is unexpected. */
   onCommand?: (command: GoalCommand, key: string) => void
+  /** The floor and Sophia's presence as the page asked for them (data.ts, room-people checks). */
+  room?: RoomAsked
+  /** The floor passed on to this actor; absent, passing it is unexpected. */
+  onFloor?: (actorId: string) => void
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -107,7 +121,7 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
  * task in its work on the Work page (`place=work`).
  */
 function snapshotOf(project: Project) {
-  const now = snapshot(project.revision, project.exchange, project.messages, project.goals)
+  const now = snapshot(project.revision, project.exchange, project.messages, project.goals, project.room)
   const work = project.work ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1).task] } : now
   return project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work
 }
@@ -194,12 +208,52 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
   return reply
 }
 
-/** What the page posts: a room token, or a goal's command. */
+/** What the page posts: a room token, a goal's command, or the floor passed on. */
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/room-token`) return json(roomToken)
   if (path === `${base}/commands`) return admitted(project, init)
+  if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
   return null
+}
+
+const isFloorRequest = (value: unknown): value is FloorRequest =>
+  typeof value === 'object' &&
+  value !== null &&
+  'nextActorId' in value &&
+  typeof value.nextActorId === 'string' &&
+  'expectedRoomRevision' in value &&
+  typeof value.expectedRoomRevision === 'number'
+
+/** The API's answer to a pass made against a room that moved meanwhile (packages/domain/src/errors.ts). */
+const staleRoom = () =>
+  new Response(
+    JSON.stringify({
+      code: 'stale_revision',
+      message: 'The room changed',
+      requestId: '00000000-0000-4000-8000-0000000000bb',
+      retry: 'never',
+    }),
+    { status: 409 },
+  )
+
+/**
+ * The floor passed on, as the API moves it: refused when the room moved since the page read it; else the holder
+ * changes and the room's next revision, published, names them.
+ */
+function floorPassed(project: Project, init: RequestInit | undefined): Response | null {
+  const request: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  if (!project.onFloor || !isFloorRequest(request)) return null
+  if (request.expectedRoomRevision !== project.revision) return staleRoom()
+  project.onFloor(request.nextActorId)
+  publish(project)
+  const receipt: ExchangeReceipt = {
+    exchangeId: EXCHANGE,
+    roomId: ROOM,
+    revision: project.revision,
+    inputActorId: request.nextActorId,
+  }
+  return json(receipt)
 }
 
 /** Reads of the research task the page holds, each waiting to be let through (`window.fixture.releaseTask`). */
