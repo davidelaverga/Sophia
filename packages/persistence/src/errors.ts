@@ -19,6 +19,13 @@ const RULES: readonly Rule[] = [
     code: 'runtime_capability_required',
     publicMessage: 'Render runner capability not recognized',
   },
+  // The Paperclip adapter's credential (0038): unknown is refused like an unknown runtime, without saying more.
+  {
+    sqlstate: '28000',
+    when: (m) => m.startsWith('Integration credential'),
+    code: 'coordination_capability_required',
+    publicMessage: 'Integration credential not recognized',
+  },
   { sqlstate: '28000', code: 'runtime_capability_required', publicMessage: 'Runtime capability not recognized' },
   {
     sqlstate: '42501',
@@ -27,6 +34,8 @@ const RULES: readonly Rule[] = [
       m.startsWith('Receipt names') ||
       m.startsWith('Observation names') ||
       m.startsWith('Research operation names') ||
+      m.startsWith('Review operation names') ||
+      m.startsWith('Integration ') ||
       m.startsWith('A media-bridge call') ||
       m.startsWith('The speaker is not bound') ||
       m.startsWith('Announcement names'),
@@ -39,6 +48,8 @@ const RULES: readonly Rule[] = [
   // 0032: a rendition needs a render runner that is asking for work.
   { sqlstate: '55000', when: (m) => m.startsWith('No PDF renderer'), code: 'native_capability_unavailable' },
   { sqlstate: '55000', when: (m) => m === 'Research gate closed', code: 'research_gate_closed' },
+  // WBC-02 (0038): the pilot gate says why it is closed; nothing about a project the caller cannot read.
+  { sqlstate: '55000', when: (m) => m.startsWith('Source review is not enabled'), code: 'coordination_closed' },
   {
     sqlstate: '55000',
     when: (m) =>
@@ -51,7 +62,9 @@ const RULES: readonly Rule[] = [
       m.startsWith('Research is finalizing') ||
       m.startsWith('Research finalize step has used its calls') ||
       // 0030: at most three renders per research task.
-      m.startsWith('Research render limit reached'),
+      m.startsWith('Research render limit reached') ||
+      // 0038: a source review makes at most eight model calls.
+      m.startsWith('Review model request limit reached'),
     code: 'research_limit_reached',
   },
   // The mission ledger (0018): the note policy's refusals say what would allow the write, so their words are kept.

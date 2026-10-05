@@ -13,6 +13,7 @@ import type { InviteConfig } from './invite-token.ts'
 import type { Mailer } from './mail.ts'
 import { accessRoutes, GUEST_ROUTES, PUBLIC_ACCESS_ROUTES } from './routes/access.ts'
 import { commandRoutes } from './routes/commands.ts'
+import { COORDINATION_ROUTES, coordinationRoutes, REVIEW_RUNTIME_ROUTES } from './routes/coordination/index.ts'
 import { conversationRoutes } from './routes/conversations.ts'
 import { exchangeRoutes } from './routes/exchanges.ts'
 import { knowledgeRoutes } from './routes/knowledge.ts'
@@ -40,6 +41,8 @@ declare module 'fastify' {
     runtimeCaller: RuntimeCaller | null
     /** On a RENDERER_ROUTES request only: the render runner capability's hash (A11, 0030). */
     rendererToken: Buffer | null
+    /** On a COORDINATION_ROUTES request only: the Paperclip adapter's capability hash (A12, 0038). */
+    coordinationToken: Buffer | null
   }
 }
 
@@ -132,7 +135,13 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.forget_personal_note(text,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.carry_personal_note(text,uuid,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.take_back_personal_release(text,uuid)') IS NOT NULL
-  AND to_regprocedure('sophia.erase_personal_space(text,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.erase_personal_space(text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.propose_source_review(uuid,text,jsonb,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.answer_work_decision(uuid,uuid,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.work_command(uuid,uuid,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.read_work_result(uuid,uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.coordination_permit(bytea,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.runtime_review_submit(bytea,text,text,jsonb)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
@@ -176,6 +185,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   sourceRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
   rendererRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
   knowledgeRoutes(app, { pool: deps.pool })
+  coordinationRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   const companion = deps.companion
     ? new CompanionRunner(deps.pool, deps.companion, (err) =>
@@ -221,6 +231,16 @@ function rendererTokenOf(req: FastifyRequest): Buffer {
   return runtimeTokenHash(token)
 }
 
+/** The Paperclip adapter's capability, hashed; the database checks it against its company (0038). */
+function coordinationTokenOf(req: FastifyRequest): Buffer {
+  const token = /^Bearer ([A-Za-z0-9._~+/=-]{32,512})$/.exec(req.headers.authorization ?? '')?.[1]
+  if (!token) throw new DomainError('coordination_capability_required', 'Integration credential required')
+  return runtimeTokenHash(token)
+}
+
+/** The runtime capability's routes: the bridge's own, the research operations and the source reviewer's. */
+const CAPABILITY_RUNTIME_ROUTES: ReadonlySet<string> = new Set([...RUNTIME_ROUTES, ...REVIEW_RUNTIME_ROUTES])
+
 function requireMediaCapability(req: FastifyRequest, expected: Buffer | null): void {
   const token = /^Bearer ([A-Za-z0-9._~+/=-]{32,512})$/.exec(req.headers.authorization ?? '')?.[1]
   if (!token || !expected || !timingSafeEqual(runtimeTokenHash(token), expected)) {
@@ -234,10 +254,11 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
   app.decorateRequest('actorAnonymous', false)
   app.decorateRequest('runtimeCaller', null)
   app.decorateRequest('rendererToken', null)
+  app.decorateRequest('coordinationToken', null)
   app.addHook('onRequest', async (req) => {
     const route = req.routeOptions.url ?? ''
     if (PUBLIC_ROUTES.has(route)) return
-    if (RUNTIME_ROUTES.has(route)) {
+    if (CAPABILITY_RUNTIME_ROUTES.has(route)) {
       req.runtimeCaller = runtimeCallerOf(req)
       return
     }
@@ -247,6 +268,10 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
     }
     if (RENDERER_ROUTES.has(route)) {
       req.rendererToken = rendererTokenOf(req)
+      return
+    }
+    if (COORDINATION_ROUTES.has(route)) {
+      req.coordinationToken = coordinationTokenOf(req)
       return
     }
     try {

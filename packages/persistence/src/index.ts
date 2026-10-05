@@ -204,3 +204,25 @@ export {
   type CompanionContext,
 } from './personal.ts'
 export { listProjects, PROJECT_LIST_BOUNDS, type ProjectListing } from './project-list.ts'
+export {
+  admitWorkCommand,
+  answerWorkDecision,
+  claimCoordinationOutbox,
+  coordinationCancel,
+  coordinationObserve,
+  coordinationPermit,
+  coordinationStart,
+  expireCoordinationLeases,
+  proposeSourceReview,
+  readBoardFacts,
+  readWorkResult,
+  recordCoordinationDelivery,
+  runtimeReviewContext,
+  runtimeReviewReserve,
+  runtimeReviewSettle,
+  runtimeReviewSubmit,
+  sourceReviewAvailability,
+  workOperationReceipt,
+  type CoordinationDelivery,
+  type DeliveryOutcome,
+} from './coordination.ts'
