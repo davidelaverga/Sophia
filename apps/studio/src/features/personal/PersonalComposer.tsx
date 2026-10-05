@@ -298,7 +298,7 @@ function Count({ length }: { length: number }) {
   return (
     <span id="c-count" className={`c3-count${over >= 0 ? ' full' : ''}`}>
       {length.toLocaleString('en-US')} / {MOST.toLocaleString('en-US')}
-      {over > 0 ? ` · ${String(over)} over` : over === 0 && ' · the most one message holds'}
+      {over > 0 ? ` · ${over.toLocaleString('en-US')} over` : over === 0 && ' · the most one message holds'}
     </span>
   )
 }
@@ -415,7 +415,7 @@ function useSend(
     const current = given ?? draft.current()
     const text = current?.text.trim() ?? ''
     // Past the most one message holds (words heard or handed), nothing goes: the count says how much over.
-    if (!current || !text || text.length > MOST || !ready || busy) return
+    if (!current || !text || current.text.length > MOST || !ready || busy) return
     const words = { text, key: current.key }
     await oneAtATime(account, async (taken) => {
       if (draft.waits(words, taken)) return
