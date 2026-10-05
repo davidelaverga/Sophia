@@ -302,13 +302,16 @@ interface FieldProps {
 const MOST = 4000
 const NEAR = 3600
 
-/** How full the field is, once it nears the most one message holds; at the most, why it takes no more. */
+/**
+ * How full the field is, once it nears the most one message holds: at the most, why it takes no more; past it (words
+ * heard or handed can go past), by how much.
+ */
 function Count({ length }: { length: number }) {
-  const full = length >= MOST
+  const over = length - MOST
   return (
-    <span id="c-count" className={`c3-count${full ? ' full' : ''}`}>
-      {Math.min(length, MOST).toLocaleString('en-US')} / {MOST.toLocaleString('en-US')}
-      {full && ' · the most one message holds'}
+    <span id="c-count" className={`c3-count${over >= 0 ? ' full' : ''}`}>
+      {length.toLocaleString('en-US')} / {MOST.toLocaleString('en-US')}
+      {over > 0 ? ` · ${String(over)} over` : over === 0 && ' · the most one message holds'}
     </span>
   )
 }
@@ -431,7 +434,8 @@ function useSend(
   return (given?: Draft): Promise<boolean> => {
     const current = given ?? draft.current()
     const text = current?.text.trim() ?? ''
-    if (!current || !text || !ready || busy) return Promise.resolve(false)
+    // Past the most one message holds (words heard or handed), nothing goes: the count says how much over.
+    if (!current || !text || text.length > MOST || !ready || busy) return Promise.resolve(false)
     const words = { text, key: current.key }
     const { promise: admitted, resolve: admit } = Promise.withResolvers<boolean>()
     void oneAtATime(account, async (taken) => {
@@ -508,6 +512,12 @@ function useStarter(
   })
 }
 
+/** Words added to the field after what is written there, never over it. */
+function addWords(draft: ReturnType<typeof useDraft>, words: string, why: string): void {
+  const typed = draft.current()?.text ?? ''
+  draft.change(typed ? `${typed} ${words}` : words, why)
+}
+
 /** Offline, nothing goes: whether words can go, and whether they wait (they could go, but the browser is offline). */
 function useWaiting(state: ComposerState, behind: boolean) {
   const online = useOnline()
@@ -543,7 +553,8 @@ function Bar({ field, text, state, counted, placeholder, ready, busy, dictation,
       </span>
       <Field {...{ field, text, state, counted, placeholder, onChange, onSend }} />
       {dictation.listening && <Listening />}
-      {dictation.available && ready && (
+      {/* A microphone listening keeps its Stop whatever else changed (offline, a send on its way). */}
+      {dictation.available && (ready || dictation.listening) && (
         <MicButton
           listening={dictation.listening}
           onPress={() => (dictation.listening ? dictation.stop() : dictation.start())}
@@ -553,7 +564,7 @@ function Bar({ field, text, state, counted, placeholder, ready, busy, dictation,
         type="submit"
         className="send has-tip"
         aria-label="Send"
-        disabled={!ready || !text.trim()}
+        disabled={!ready || !text.trim() || text.length > MOST}
         aria-disabled={busy || undefined}
       >
         <Icon name="send" />
@@ -574,7 +585,7 @@ export function PersonalComposer(props: Props) {
   const { online, ready, waiting: offline } = useWaiting(state, behind)
   const send = useSend(account, draft, ready, busy, onSend)
   useHanded(props, ready, send, draft)
-  useStarter(starter, ready && !busy, send, offline ? change : null)
+  useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, OFFLINE) : null)
   const counted = text.length >= NEAR && !dictation.listening
   return (
     <form

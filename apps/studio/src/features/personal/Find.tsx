@@ -115,6 +115,8 @@ export function useFind(rows: readonly Row[], on: boolean, more: boolean, readEa
   const current = found[index] ?? null
   // The line is drawn and takes the focus within the key's own event: the letters typed next are the finder's.
   const openFind = () => {
+    // Out of reach (the notes over the conversation, a talk, out of sight), it doesn't open.
+    if (!on) return
     if (!open) back.current = focused()
     flushSync(() => setOpen(true))
     const input = document.querySelector<HTMLInputElement>('#c-find')
