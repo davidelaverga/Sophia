@@ -580,7 +580,8 @@ export function PersonalComposer(props: Props) {
   const { online, ready, waiting: offline } = useWaiting(state, behind)
   const send = useSend(account, draft, ready, busy, onSend)
   useHanded(props, ready, send, draft)
-  useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, OFFLINE) : null)
+  // Offline, a way's words wait as a draft: the line says offline while it is, and the draft once back.
+  useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, KEPT) : null)
   const counted = text.length >= NEAR && !dictation.listening
   return (
     <form

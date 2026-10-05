@@ -173,5 +173,5 @@ export function useFind(rows: readonly Row[], on: boolean, more: boolean, readEa
     />
   ) : null
   const lens = open && query.trim() ? { query, current } : null
-  return { open, openFind, bar, lens }
+  return { open, openFind, bar, lens, available: on }
 }

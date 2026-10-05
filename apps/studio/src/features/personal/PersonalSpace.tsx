@@ -281,10 +281,16 @@ function FindToggle({ find }: { find: ReturnType<typeof useFind> }) {
       type="button"
       aria-expanded={find.open}
       aria-controls={find.open ? 'c-find' : undefined}
+      // While the notes cover the conversation it says why it waits, rather than looking pressable.
+      aria-disabled={!find.available || undefined}
       onClick={find.openFind}
     >
       Find
-      <Tip label="Find in your conversation" keys={FIND_KEYS} side="bottom" align="end" />
+      {find.available ? (
+        <Tip label="Find in your conversation" keys={FIND_KEYS} side="bottom" align="end" />
+      ) : (
+        <Tip label="Close the notes to find" side="bottom" align="end" />
+      )}
     </button>
   )
 }
