@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Identity } from '../../app/dev-identity.ts'
 import { ShortcutScope } from '../../app/shortcuts.ts'
 import { DocumentPane } from './DocumentPane.tsx'
+import type { Passage } from './PassageBar.tsx'
 import {
   openedLink,
   readReportLink,
@@ -110,11 +111,13 @@ interface Props {
   /** The call's switches and its note, for the pane's head where it covers the dock or the mini dock. */
   call?: ReactNode
   note?: string | null
+  /** In the room: a passage of the report, asked about in the chat (PassageBar). */
+  askAbout?: ((passage: Passage) => void) | undefined
   children: ReactNode
 }
 
 export function DocumentViewerProvider(props: Props) {
-  const { projectId, identity, panelOpen, closePanel, openChat, chatUnread, call, note, children } = props
+  const { projectId, identity, panelOpen, closePanel, openChat, chatUnread, call, note, askAbout, children } = props
   const { link, write, back } = useReportHistory(projectId)
   const [tab, setTab] = useState<ViewerTab>('document')
   // What opened the report, read before the side panel closes and takes it out of sight: the focus returns there.
@@ -148,6 +151,7 @@ export function DocumentViewerProvider(props: Props) {
       {link && (
         <DocumentPane
           key={link.artifactId}
+          projectId={projectId}
           identity={identity}
           link={link}
           opener={opener}
@@ -162,6 +166,7 @@ export function DocumentViewerProvider(props: Props) {
           chatUnread={chatUnread ?? false}
           call={call}
           note={note ?? null}
+          onAsk={askAbout}
         />
       )}
     </ViewerContext.Provider>

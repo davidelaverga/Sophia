@@ -453,6 +453,7 @@ function WithViewer({ projectId, identity, view, room, panel, looking, children 
       panelOpen={studio && panel.panel !== null}
       closePanel={() => panel.show(null)}
       openChat={studio ? () => panel.toggle('chat') : undefined}
+      askAbout={studio ? panel.ask : undefined}
       chatUnread={panel.unread}
       call={<PanelCallSwitches room={room} looking={looking} keys={studio} />}
       note={room.mediaError ?? room.error}

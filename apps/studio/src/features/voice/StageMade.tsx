@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -18,8 +19,9 @@ import { Icon, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReports } from '../../api/artifacts.ts'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { modalOnScreen, ShortcutScope, useShortcuts } from '../../app/shortcuts.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
+import { escapeStepsDown } from '../artifacts/report-view.ts'
 import { noticeActions, noticeOpenRequest, noticeTitle, type ChatNoticeItem } from '../conversation/chat-view.ts'
 import { factWords, madeFacts, madeHeading, madeKey, madeOnStage } from './made-view.ts'
 import { memberLabel, withMe, type RoomNames } from './StageCaptions.tsx'
@@ -130,6 +132,35 @@ function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | '
 const focusChatOf = (el: HTMLElement | null) =>
   el?.closest('.room-stage')?.querySelector<HTMLElement>('.panel-toggles [data-panel="chat"]')?.focus()
 
+/**
+ * Esc puts it away wherever the focus is, as long as nothing else owns the key: a field, a dialog, a panel (`enabled`
+ * is false while one holds the keys) or a report on screen, whose own Esc steps down.
+ */
+function useEscapeAway(enabled: boolean, away: () => void) {
+  const inSight = useContext(ShortcutScope)
+  const latest = useRef(away)
+  useEffect(() => {
+    latest.current = away
+  })
+  useEffect(() => {
+    if (!enabled) return undefined
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const t = e.target instanceof HTMLElement ? e.target : null
+      const owned = !!t && (t.isContentEditable || !!t.closest('[role="dialog"], input, textarea, select'))
+      if (
+        !escapeStepsDown({ defaultPrevented: e.defaultPrevented, repeat: e.repeat, owned }, inSight, modalOnScreen())
+      ) {
+        return
+      }
+      e.preventDefault()
+      latest.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [enabled, inSight])
+}
+
 /** Open, Close and their key: Open shows the report in the viewer; either puts the object away. */
 function useMadeActions(
   props: Props,
@@ -159,6 +190,7 @@ function useMadeActions(
   // O only while it does something: the report is ready, no report is on screen, no panel holds the keys.
   const key = keys && ready && !viewer?.shown
   useShortcuts({ o: open }, key)
+  useEscapeAway(keys && !viewer?.shown, close)
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return
     e.stopPropagation()

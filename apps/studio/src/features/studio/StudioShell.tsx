@@ -2,11 +2,13 @@
 // viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); the room, goals and events
 // are shared. The chat and the brief sit in a side panel beside the stage, as meeting apps have them, so the
 // stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { useMembership } from '../access/useAccess.ts'
+import { askDraft } from '../artifacts/passage.ts'
+import type { Passage } from '../artifacts/PassageBar.tsx'
 import type { CaptionTurn } from '../conversation/captions.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
@@ -46,11 +48,22 @@ export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, 
   const [opener, setOpener] = useState<Panel | null>(null)
   const unread = useUnread(chatSignature(snapshot, room.chat, room.notices), studio && panel === 'chat')
   const brief = useBriefUpdates(studio && panel === 'brief')
+  // A passage asked about from the report (PassageBar), until the chat's message takes it.
+  const [asked, setAsked] = useState<Passage | null>(null)
   return {
     panel,
     opener,
     unread,
     brief,
+    asked,
+    /** A passage asked about: Chat opens, and its message takes the passage (useAskedInto). */
+    ask: (passage: Passage) => {
+      setAsked(passage)
+      setPanel('chat')
+      setOpener('chat')
+    },
+    /** The chat's message took the passage. */
+    answered: () => setAsked(null),
     /** A corner toggle or its key opens, swaps or closes the panel, and is where the focus returns on closing. */
     toggle: (p: Panel) => {
       setPanel((open) => toggled(open, p))
@@ -75,6 +88,26 @@ interface Props {
   captions: readonly CaptionTurn[]
   /** What Sophia made, and putting it away, kept where the room lives (useStageMade). */
   made: StageMadeState
+}
+
+/**
+ * A passage asked about from the report: the chat's message takes it, before whatever was written there, and the
+ * caret goes to the end, where the question goes. Nothing is sent.
+ */
+function useAskedInto(panel: RoomPanel, draft: string, write: (text: string) => void) {
+  const { asked, answered } = panel
+  useEffect(() => {
+    if (!asked) return
+    write(askDraft(asked.text, asked.source, draft))
+    answered()
+    // After the panel's own focus on opening: the message is where the question is typed.
+    requestAnimationFrame(() => {
+      const field = document.getElementById('converse-draft')
+      if (!(field instanceof HTMLTextAreaElement)) return
+      field.focus({ preventScroll: true }) // its caret is at the end, after the value it was given
+    })
+  }, [asked, answered, draft, write])
+  return { draft, onDraft: write }
 }
 
 /** Who came as a guest this visit, so a guest's words stay marked after they leave. */
@@ -131,6 +164,7 @@ export function PanelCallSwitches({
 
 export function StudioShell({ projectId, identity, room, snapshot, panel, looking, captions: held, made }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
+  const chatDraft = useAskedInto(panel, state.drafts.converse ?? '', (text) => setDraft('converse', text))
   const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
   const names = useKnownNames(room)
   useShortcuts({
@@ -177,8 +211,7 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
             {...common}
             snapshot={snapshot}
             room={room}
-            draft={state.drafts.converse ?? ''}
-            onDraft={(text) => setDraft('converse', text)}
+            {...chatDraft}
             onShowRoom={() => panel.show(null)}
           />
         }
