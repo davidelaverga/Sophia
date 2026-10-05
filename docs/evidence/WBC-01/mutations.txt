@@ -322,3 +322,11 @@ AM1b F-043 each goal once on the board (board): FAILS as it should  [expect(loca
 
 # 2026-10-05, on the merge with #98 and #99 (f1a3ba2, main 458f5d7): U1 runs again with main's Personal changes in
 # place, and fails as it should  [Error: Correct, memory 1]. #98 and #99 changed none of the files any entry names.
+
+# F-045 (GitHub 4183052368 on 28ff0c9, reproduced by Codex on 37a8ae9), fixed in 3ec9a00
+AN1 F-045 outside work once per id (rule): FAILS as it should  [AssertionError]
+AN1b F-045 outside work once per id (board): FAILS as it should  [expect(locator).toHaveCount]
+AN2 F-045 no plan in force lists outside work by the same rule: FAILS as it should  [expect(locator).toHaveText]
+AN3 F-045 no plan in force says a task is observed twice: FAILS as it should  [expect(locator).toContainText]
+# On 3ec9a00, R5 (the outside-work entry) ran again and fails; all 187 entries' text is found in the code, none stale.
+# 186 of 187 fail; R1b is the redundant key recorded above.

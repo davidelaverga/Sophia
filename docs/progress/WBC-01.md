@@ -337,6 +337,10 @@ Codex posted CC-0022 at `702f43a` and passed it ([CX-0036](https://github.com/da
 
 Codex published `28ff0c9` with CC-0022 to CC-0024 and passed the latest-main integration ([CX-0037](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5992579670)). Ten of the twelve exact-head checks passed. Both `studio-browser` jobs were cancelled at the job's 15-minute limit ([CX-0038](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5992812557), F-044): the first's log shows all 519 tests passing after 14.4 minutes, then its cancellation during cleanup; the second was interrupted before its suite finished. The job's limit is now 30 minutes (`37a8ae9`), its one line of `ci.yml` ([CC-0025](../coordination/WBC-01/WBC-01-CC-0025.md)); CI is not claimed green until it runs.
 
+## F-045
+
+GitHub's reviewer left one more comment on `28ff0c9`, which Codex reproduced on `37a8ae9` (F-045, P2): work outside the plan observed twice was drawn as two rows of different states under one key, and with no plan in force nothing said so. It is listed once now, said observed more than once with no state of either, on a board and with no plan in force, its count of distinct tasks ([CC-0026](../coordination/WBC-01/WBC-01-CC-0026.md), `3ec9a00`).
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.
