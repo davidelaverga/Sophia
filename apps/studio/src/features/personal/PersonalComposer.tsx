@@ -249,10 +249,11 @@ function useDraft(account: string, epoch: number | undefined) {
     /** Not sent: the words come back to the field, under the key they went with when nothing was typed meanwhile. */
     back: (words: Draft, why: string) => {
       sending.current = null
-      const typed = latest.current?.text ?? ''
-      const draft = typed.trim() ? draftOf(restoredDraft(words.text, typed)) : words
-      show(draft, why)
-      keep((kept) => ({ ...afterSent(kept, words), draft }))
+      // Beside the draft as the device keeps it now, not as this tab last heard it: another tab may have kept words
+      // since (handed from Home while this one sent), and its word of that may not have reached this one yet.
+      const beside = (typed: string) => (typed.trim() ? draftOf(restoredDraft(words.text, typed)) : words)
+      const kept = keep((stored) => ({ ...afterSent(stored, words), draft: beside(stored.draft?.text ?? '') }))
+      show(kept ? kept.draft : beside(latest.current?.text ?? ''), why)
     },
   }
 }

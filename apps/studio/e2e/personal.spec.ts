@@ -1255,3 +1255,23 @@ test('@phone · touch · on a touch screen, “Sophia answered” is a full-size
   const box = await answeredLine(page).boundingBox()
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(40)
 })
+
+test('codex · a send that fails comes back beside words another tab kept meanwhile, never over them', async ({
+  page,
+  context,
+}) => {
+  // Tab A sends slowly, and fails; it hears no other tab (their storage events haven't reached it yet).
+  await page.goto(`${PAGE}?slow=1&sendFails=1`)
+  await page.evaluate(() => window.addEventListener('storage', (e) => e.stopImmediatePropagation(), true))
+  await field(page).fill('From A.')
+  await page.keyboard.press('Enter')
+  // Tab B, meanwhile: words from Home that can't go while A sends, kept in the field and on the device.
+  const other = await context.newPage()
+  await other.goto(`${PAGE}?handed=${encodeURIComponent('From B.')}`)
+  await expect(field(other)).toHaveValue('From B.')
+  // A's send fails: its words come back, and B's stay.
+  await expect(field(page)).toHaveValue(/From A\./, { timeout: 5000 })
+  const kept = await page.evaluate(() => localStorage.getItem('sophia.personal.draft.v2.fixture') ?? '')
+  expect(kept).toContain('From A.')
+  expect(kept).toContain('From B.')
+})

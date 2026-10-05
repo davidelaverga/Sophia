@@ -210,6 +210,12 @@ function useSimulated() {
       setBusy(true)
       setSending({ text, at: new Date(), epoch: 1 })
       await new Promise((r) => setTimeout(r, query.has('slow') ? 1500 : 300))
+      // `sendFails=1`: the message doesn't go (a lost connection); its words come back to the field.
+      if (query.has('sendFails')) {
+        setSending(null)
+        setBusy(false)
+        throw new Error('not sent (fixture)')
+      }
       add(turn('person', text, new Date().toISOString(), { reply: 'pending' }))
       setSending(null)
       setBusy(false)
