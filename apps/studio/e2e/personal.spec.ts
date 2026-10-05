@@ -1400,6 +1400,9 @@ test('follow · a conversation whose rows grow (a font loading, a row reflowed) 
 test('@phone · follow · a reply that came while Personal was out of sight waits below when you are back', async ({
   page,
 }) => {
+  // A slow phone (CPU six times slower): the list's resize comes after the return is placed, as on CI's runners.
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 })
   await page.goto(`${PAGE}?holdReply=1&longReply=1`)
   await field(page).fill('One more thing.')
   await page.keyboard.press('Enter')
@@ -1410,6 +1413,11 @@ test('@phone · follow · a reply that came while Personal was out of sight wait
   await page.evaluate(() => window.personalFixture?.answer?.())
   await expect(page.locator('.msg.sophia:not(.typing)')).toHaveCount(5)
   await page.getByRole('button', { name: 'Unlock (fixture)' }).click()
+  await expect(page.getByRole('button', { name: 'Sophia answered' })).toBeVisible()
+  // Nothing jumped: the reader is where they stood, their own words in sight and her reply below them. And the line
+  // stays: the list's resize, coming after, used to carry the reader to the end and take it away.
+  await expect(page.locator('.msg.me').last()).toBeInViewport()
+  await page.waitForTimeout(500)
   await expect(page.getByRole('button', { name: 'Sophia answered' })).toBeVisible()
 })
 

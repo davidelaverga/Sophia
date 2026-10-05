@@ -40,7 +40,12 @@ Ending commit/tree and changed files: the content commit before this handoff. Th
   - `lengthOf`, `capped` (paste and growth), the note's prefill, the note field, words handed before the epoch, the waiting line, the line where the conversation fits;
   - the two return-case mutants, 20 runs each.
   - Clearing "at the end" while away was found unnecessary by its mutant (20 of 20 without it), so it was taken out.
-- **CI flake, fixed:** one CI run failed the phone return case. On a slow runner her reply could land before the space was locked, so it was seen and rightly not marked. The fixture's `holdReply=1` now holds her answer until the test releases it with the space shut, in both return cases. Afterwards: 20 of 20; without the fix, the phone case fails 3 of 5.
+- **CI failure of the phone return case: a product race, fixed.**
+  - First, the test's own timing: `holdReply=1` now holds her answer until the test releases it with the space shut.
+  - It still failed on CI. Reproduced locally with the CPU six times slower: 10 of 10 failed. The line appeared, then the list's resize (after the return was placed) carried the reader to the end and cleared it.
+  - Fix: back with an unseen reply that overflows, the reader is no longer "at the end"; and a resize while that reply waits leaves the reader where they are (`useEndKept`), whichever of the two runs first.
+  - The phone test now runs with the CPU slowed six times and checks that nothing jumped. Afterwards: 10 of 10 slowed, and Personal 96 of 96.
+  - Mutants: without the "no longer at the end" line, 5 of 5 fail. The resize guard survives, because this test can't produce the opposite order. It is kept for that order. (Clearing "at the end" was taken out earlier because its mutant survived. That was this bug.)
 
 **From the repo root:** `pnpm format:check`, `lint`, `typecheck` and the Studio's build pass.
 
