@@ -445,10 +445,13 @@ when you change the room:
   at a time from a rail (search with `/`; another goal's request for the
   viewer is one link under it, never a switch); the goal in two lines with its
   NEXT; lenses, a decision pill and what changed since the last look
-  (decisions and results first, opened in full on press; a decision waits
+  (decisions and results first, opened in full on press; a look kept per
+  project, goal, plan and viewer, each whole, a decision by its id at its
+  revision; a decision waits
   only while it can be answered, and an answer at most a write's 90 s, then
   is not confirmed, `sendAnswer`; each choice its own key, accepted only
-  naming one, its task named from the plan it is bound to); four lanes, Active, Up next, Unassigned and
+  naming one and proposed naming none, one id at one revision on the board,
+  its task named from the plan it is bound to); four lanes, Active, Up next, Unassigned and
   Complete (`plan.ts`: a view over each item's observed state; Complete only
   by its own policy with evidence, and a passed check of the version it
   holds, never one no single current version matches), and Closed work with its reasons; a

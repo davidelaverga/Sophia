@@ -282,3 +282,19 @@ AC1 F-033 the focus goes to the sheet before its page turns, not a frame later: 
 # On 8852296, every entry above on AskSophia.tsx, ask.ts, ask-store.ts, board-view.ts and ResourceSheet.tsx ran again:
 # 25, of which 24 failed; E2 named AskSophia's first wait, moved to sendQuestion, and re-aimed there it fails. Z5 and
 # Z5b were re-aimed earlier in this round at decisionRules' `new Set(keys)`. 166 of 167 fail; R1b is the redundant key.
+
+# CX-0029 at 9d4ad10 (#74; GitHub 4180579675, 4180579679, 4180579681, and its audit) and CX-0030, F-034 to F-038,
+# fixed in 7946e15
+AD1 F-034 a look is kept under its whole scope (rule): FAILS as it should  [AssertionError]
+AD1b F-034 a look is kept under its whole scope, the old key left (board): FAILS as it should  [expect(locator).toHaveCount]
+AE1 F-035 one decision per id and revision (rule): FAILS as it should  [AssertionError]
+AE1b F-035 one decision per id and revision (board): FAILS as it should  [expect(locator).toContainText]
+AF1 F-036 a decision not yet decided names none (rule): FAILS as it should  [AssertionError]
+AF1b F-036 a decision not yet decided names none (board): FAILS as it should  [expect(locator).toContainText]
+AG1 F-037 an answer is kept under its whole key: FAILS as it should  [AssertionError]
+AG2 F-037 a challenge is kept under its whole key: FAILS as it should  [AssertionError]
+AH1 F-038 a look keeps each revision of a decision: FAILS as it should  [AssertionError]
+# Not checkable on the board: PlanBoard's own key as a tuple (the fixture's ids hold no separator).
+# On 7946e15, every entry above on seen.ts, PlanBoard.tsx, answers.ts, challenges.ts and board-view.ts ran again (41),
+# and those on seen.ts again after F-038 (7): all fail but M17 and S3, which named the board's old joined key;
+# re-aimed at the tuple, both fail. 175 of 176 fail; R1b is the redundant key recorded above.

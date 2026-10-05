@@ -292,6 +292,18 @@ Codex passed F-026 to F-030 at `b3bd683` ([CX-0027](https://github.com/davidelav
 | **F-032** (P2): an accepted decision naming no choice of its own was read, said "chose one" | An accepted decision names one of its own choices, or the view is refused |
 | **F-033** (P2): a page turned in the Resources sheet let the focus fall to the page until a later frame | The focus goes to the sheet before its page turns; J and K work at once |
 
+## CX-0029 and CX-0030
+
+Codex passed F-031 to F-033 at `9d4ad10` ([CX-0029](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987803529)). It found four more in the same family of local keys and reader rules, and one more in [CX-0030](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987870393). All five are handled in [CC-0020](../coordination/WBC-01/WBC-01-CC-0020.md) (`7946e15`):
+
+| Finding | Fix |
+|---|---|
+| **F-034** (P2): a look's storage key, and the board's reset, joined ids with dots | A JSON tuple under `sophia.plan.seen.v3:`; old `v2` looks left as they are, never read |
+| **F-035** (P2): two decisions with one id at one revision were read | One per id and revision on the board, or the view is refused |
+| **F-036** (P2): a proposed decision naming a choice was read | A decision not yet decided names none, or the view is refused |
+| **F-037** (P2): answer and challenge keys joined ids with `:` | JSON tuples; the same identity keeps its key, so retries are as before |
+| **F-038** (P2): a look kept decisions by id alone | By id at revision: an unchanged board with two revisions says nothing |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.
