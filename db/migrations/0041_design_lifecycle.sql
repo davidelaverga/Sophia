@@ -24,12 +24,6 @@
 --   the base candidate's render at each target (its size, and each block's place in it, size, font size and issues);
 --   a section that only moved down the page is reflow, allowed. Publication is the report's next version with the
 --   revised page. The research task's HTML state stays the first design's.
--- * Runtime unit cutover (CX-0005, CX-0006). Research and design leave their native session open when their work is
---   accepted (0012: publication settles no binding), so a unit can never reach zero non-final bindings by itself. The
---   operator's reconcile_terminal_bindings stops, through the native boundary, each binding on a unit whose attempt
---   and goal have ended: a native.stop cleanup the old runtime answers like any Stop's, its checked receipt settling
---   the binding. Nothing else changes: attempts, jobs, goals, results, journals and usage reservations (an uncertain
---   one included) are kept as they are. It is granted to no role.
 -- 0001–0040 are not edited; mission_erase_source, native_delivery_ineligible, research_queue_unstarted,
 -- design_scope_of, runtime_design_context, runtime_design_render_result, runtime_review_context, design_fail,
 -- design_publish, design_task_statement, review_task_statement, design_admit_review and design_candidate_failures are
@@ -334,47 +328,6 @@ BEGIN
  END LOOP;
  RETURN NULL;
 END $$;
-
--- --- runtime unit cutover -------------------------------------------------------------------------------------------------
-
--- Operator only (see the header): stop each binding on `p_runtime_unit` whose attempt is accepted, failed, stopped or
--- revoked and whose goal is completed or stopped, and whose native session was never closed. One native.stop cleanup
--- each, under a stop command of its goal; a binding that never launched is settled where it stands; one with a stop
--- already in flight is left to it. Returns what it did.
-CREATE FUNCTION sophia.reconcile_terminal_bindings(p_runtime_unit text) RETURNS jsonb LANGUAGE plpgsql
-SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE r record; cmd uuid; stopping jsonb:='[]'; settled jsonb:='[]'; in_flight integer:=0;
-BEGIN
- FOR r IN SELECT b.project_id, b.id, b.state, g.id AS goal_id, g.revision, g.authority_epoch, c.actor_id
-   FROM sophia.execution_bindings b JOIN sophia.work_attempts wa ON wa.project_id=b.project_id AND wa.id=b.attempt_id
-   JOIN sophia.goals g ON g.project_id=wa.project_id AND g.id=wa.goal_id
-   JOIN sophia.jobs j ON j.project_id=b.project_id AND j.attempt_id=b.attempt_id AND j.parent_job_id IS NULL
-   JOIN sophia.commands c ON c.project_id=j.project_id AND c.id=j.command_id
-   WHERE b.runtime_unit_id=p_runtime_unit AND b.state NOT IN ('settled','lost')
-    AND wa.state IN ('accepted','failed','stopped','revoked') AND g.status IN ('completed','stopped')
-   ORDER BY b.project_id, b.id FOR UPDATE OF b LOOP
-  IF EXISTS(SELECT 1 FROM sophia.outbox o WHERE o.project_id=r.project_id AND o.binding_id=r.id AND o.destination='native.stop'
-    AND o.state IN ('pending','dispatching','acknowledged')) THEN
-   in_flight:=in_flight+1;
-   CONTINUE;
-  END IF;
-  IF r.state='created' AND NOT EXISTS(SELECT 1 FROM sophia.runtime_commands rc WHERE rc.project_id=r.project_id AND rc.binding_id=r.id) THEN
-   UPDATE sophia.execution_bindings SET state='settled' WHERE project_id=r.project_id AND id=r.id;
-   settled:=settled||to_jsonb(r.id);
-   CONTINUE;
-  END IF;
-  cmd:=gen_random_uuid();
-  INSERT INTO sophia.commands(project_id,id,actor_id,goal_id,goal_revision,authority_epoch,kind,idempotency_key,semantic_request,state)
-  VALUES(r.project_id,cmd,r.actor_id,r.goal_id,r.revision,r.authority_epoch,'stop','reconcile:'||r.id||':'||left(cmd::text,8),
-   jsonb_build_object('kind','reconcile','bindingId',r.id),'admitted');
-  UPDATE sophia.execution_bindings SET state='stopping' WHERE project_id=r.project_id AND id=r.id;
-  INSERT INTO sophia.outbox(project_id,command_id,destination,destination_key,binding_id,goal_id,authority_epoch,cleanup)
-  VALUES(r.project_id,cmd,'native.stop','binding/'||r.id,r.id,r.goal_id,r.authority_epoch,true);
-  stopping:=stopping||to_jsonb(r.id);
- END LOOP;
- RETURN jsonb_build_object('stopping',stopping,'settled',settled,'inFlight',in_flight);
-END $$;
-REVOKE ALL ON FUNCTION sophia.reconcile_terminal_bindings(text) FROM PUBLIC;
 
 -- --- edit -------------------------------------------------------------------------------------------------------------------
 

@@ -119,7 +119,7 @@ async function captureRunnerSeen() {
   return res
 }
 
-async function world(roles = [MD_ROLE, DESIGNER, REVIEWER], runtimeUnitId?: string) {
+async function world(roles = [MD_ROLE, DESIGNER, REVIEWER]) {
   const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E], viewers: [] })
   const admin = new pg.Client({ connectionString: db.ownerUrl })
   await admin.connect()
@@ -127,7 +127,7 @@ async function world(roles = [MD_ROLE, DESIGNER, REVIEWER], runtimeUnitId?: stri
     projectId,
   ])
   await admin.end()
-  const rt = await registerRuntime(db.ownerUrl, { projectId, admin: A, ...(runtimeUnitId ? { runtimeUnitId } : {}) })
+  const rt = await registerRuntime(db.ownerUrl, { projectId, admin: A })
   const headers = {
     'x-sophia-runtime-unit': rt.runtimeUnitId,
     'x-sophia-bridge-instance': randomUUID(),
@@ -730,8 +730,8 @@ async function reviewRow(attemptId: string): Promise<Body> {
 }
 
 /** HTML research admitted, published, and its design dispatched to the designer (delivered unless told otherwise). */
-async function designing(roles?: (typeof MD_ROLE)[], opts: { deliver?: boolean; unit?: string } = {}) {
-  const w = await world(roles, opts.unit)
+async function designing(roles?: (typeof MD_ROLE)[], opts: { deliver?: boolean } = {}) {
+  const w = await world(roles)
   await captureRunnerSeen()
   const admitted = await startResearch(w, {
     question: 'How do hosts confine a browser?',
@@ -1002,7 +1002,7 @@ describe('a steer reaches the running designer (B-15)', () => {
     const delivered = await answer(w, 'steer', 'delivered', at.attemptId)
     assert.equal(delivered.length, 1, 'the steer reached the designer’s session')
     assert.equal(delivered[0]?.payload.text, brief)
-    // The designer acts on it: its operations stay authorized under the steer.
+    // A scripted patch after it: the design's operations stay authorized under the steer (no native designer runs).
     const patch = await w.runtime('/v1/runtime/design/patch', {
       ...at,
       callId: 'p1',
@@ -1251,67 +1251,5 @@ describe('a scoped edit of a published page (B-16..B-18, 0041)', () => {
       [progress.design?.mode, progress.design?.scope?.sections, progress.design?.state],
       ['edit', ['s2'], 'published'],
     )
-  })
-})
-
-describe('a runtime unit’s terminal bindings are closed through the native boundary before cutover (CX-0006, 0041)', () => {
-  it('stops each binding whose work and goal ended, settles it on the old runtime’s receipt, and changes nothing else', async () => {
-    // A unit of its own: the function closes every terminal binding of the unit it names, in every project.
-    const unit = `sophia-runtime-cutover-${randomUUID().slice(0, 8)}`
-    const { w, at } = await designing([MD_ROLE, DESIGNER], { unit })
-    const d = await drafted(w, at)
-    assert.equal((await submitCandidate(w, at, d)).json.outcome, 'published')
-    // A second project's design still at work on the same unit is left alone.
-    const busy = await designing([MD_ROLE, DESIGNER], { unit })
-    const ledger = () =>
-      owner((c) =>
-        c.query(
-          `SELECT b.state AS binding, a.state AS attempt, g.status AS goal, j.state AS job,
-                  (SELECT array_agg(r.state ORDER BY r.id) FROM sophia.research_reservations r WHERE r.project_id=b.project_id) AS reservations
-             FROM sophia.execution_bindings b JOIN sophia.work_attempts a ON a.id=b.attempt_id JOIN sophia.goals g ON g.id=a.goal_id
-             JOIN sophia.jobs j ON j.attempt_id=b.attempt_id AND j.parent_job_id IS NULL WHERE b.project_id=$1 ORDER BY j.kind`,
-          [w.projectId],
-        ),
-      )
-    type Row = { binding: string; attempt: string; goal: string; job: string; reservations: string[] | null }
-    const opened: Row[] = (await ledger()).rows
-    // Publication leaves both sessions open (0012), so the unit's guard could never be met on its own.
-    assert.deepEqual(
-      opened.map((r) => [['launching', 'running'].includes(r.binding), r.attempt, r.goal, r.job]),
-      [
-        [true, 'accepted', 'completed', 'succeeded'],
-        [true, 'accepted', 'completed', 'succeeded'],
-      ],
-    )
-    const done = (await owner((c) => c.query(`SELECT sophia.reconcile_terminal_bindings($1) AS r`, [unit]))).rows[0].r
-    assert.equal(done.stopping.length, 2, JSON.stringify(done))
-    // Run again before the runtime answers: the stops in flight are left to it.
-    const again = (await owner((c) => c.query(`SELECT sophia.reconcile_terminal_bindings($1) AS r`, [unit]))).rows[0].r
-    assert.deepEqual([again.stopping, again.inFlight], [[], 2])
-    const stops = await answer(w, 'stop', 'checked')
-    assert.equal(stops.length, 2)
-    const closed: Row[] = (await ledger()).rows
-    assert.deepEqual(
-      closed.map((r) => [r.binding, r.attempt, r.goal, r.job]),
-      [
-        ['settled', 'accepted', 'completed', 'succeeded'],
-        ['settled', 'accepted', 'completed', 'succeeded'],
-      ],
-    )
-    assert.deepEqual(closed[0]?.reservations, opened[0]?.reservations, 'every usage record kept as it was')
-    const untouched = await owner((c) =>
-      c.query(`SELECT b.state FROM sophia.execution_bindings b WHERE b.project_id=$1`, [busy.w.projectId]),
-    )
-    assert.ok(
-      untouched.rows.every((r: Body) => r.state !== 'stopping' && r.state !== 'settled'),
-      JSON.stringify(untouched.rows),
-    )
-    // No role may call it: an operator runs it as the owner.
-    const granted = await owner((c) =>
-      c.query(
-        `SELECT has_function_privilege('sophia_api', 'sophia.reconcile_terminal_bindings(text)', 'EXECUTE') AS api`,
-      ),
-    )
-    assert.equal(granted.rows[0].api, false)
   })
 })
