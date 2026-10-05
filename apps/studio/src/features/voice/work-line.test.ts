@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Goal, NativeTask, NativeTaskDetail } from '@sophia/contracts'
-import { soleTask, workWords } from './work-line.ts'
+import { readsCount, soleTask, workWords } from './work-line.ts'
 
 const task = (id: string, over: Partial<NativeTask> = {}): NativeTask => ({
   id,
@@ -62,6 +62,15 @@ describe('the task her line can speak of', () => {
   it('is none once the task is no longer running, or without a snapshot', () => {
     assert.equal(soleTask({ goals: [], work: [task('t', { phase: 'result_ready', state: 'succeeded' })] }), null)
     assert.equal(soleTask(undefined), null)
+  })
+})
+
+describe('whose record is read', () => {
+  it('a research task at it, and nothing else: a brief needs no record, nor a task not at it', () => {
+    assert.equal(readsCount(task('t')), true)
+    assert.equal(readsCount(task('t', { kind: 'draft_brief' })), false)
+    assert.equal(readsCount(task('t', { phase: 'holding' })), false)
+    assert.equal(readsCount(null), false)
   })
 })
 
