@@ -316,6 +316,15 @@ Codex passed F-034 to F-038 at `5dd6ec8` ([CX-0031](https://github.com/davidelav
 
 Main's new Ctrl F check pressed Control+F, which the Studio takes as its command key only off a Mac. Its one press is now `ControlOrMeta+f`, at Codex's request, with its assertions unchanged.
 
+## CX-0034 and CX-0035
+
+Codex passed the main integration and F-039 to F-041 at `ba826b9` ([CX-0034](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5988259162)). It then confirmed two more of GitHub's findings ([CX-0035](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5988284711)), both handled in [CC-0022](../coordination/WBC-01/WBC-01-CC-0022.md) (`4bbc2a8`):
+
+| Finding | Fix |
+|---|---|
+| **F-042** (P1): an item's two versions sharing an id were read, so a check could certify the wrong one Complete | Each version of an item its own id, or the view is refused; two distinct versions both current stay readable, certifying nothing |
+| **F-043** (P2): two goals sharing an id were read, and one was dropped | Each goal once on the board, or the view is refused |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.
