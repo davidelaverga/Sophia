@@ -427,6 +427,50 @@ const pipes: Change = (g, viewer) => {
   return added(g, [task('x|y', 'Check the x|y export', 'z'), task('x', 'Check the x export', 'y|z')])
 }
 
+/**
+ * Codex F-029: Davide's decisions bound to plans other than the one shown. plan-1-alt r4 keeps work-2's id for a new
+ * task, and one decision is bound to it; another is bound to plan-1 r9, a revision held nowhere. Each names its task
+ * from its own plan, or says which plan it is bound to; never from the plan shown. d1 is bound to the plan shown.
+ */
+const rebound: Change = (g) => {
+  const current = g.current_plan
+  const d1 = g.decisions.find((d) => d.decision_id === 'd1')
+  if (!current || !d1) return g
+  const items = current.items.map((i) =>
+    i.id === 'work-2' ? { ...i, purpose: 'Rebuild the report pane from its sources' } : i,
+  )
+  const bound = (id: string, planId: string, revision: number, workId: string): BoardDecision => ({
+    ...d1,
+    decision_id: id,
+    revision: 1,
+    work_id: workId,
+    plan_id: planId,
+    plan_revision: revision,
+    question: `Go ahead with ${workId}?`,
+  })
+  return {
+    ...g,
+    proposed_plans: [{ ...current, plan_id: 'plan-1-alt', revision: 4, state: 'proposed', decision_ref: null, items }],
+    decisions: [...g.decisions, bound('d-alt', 'plan-1-alt', 4, 'work-2'), bound('d-r9', 'plan-1', 9, 'work-1')],
+  }
+}
+
+/** Codex F-028: a decision two of whose choices share a key, with different words: the view is refused. */
+const sameKey: Change = (g) => ({
+  ...g,
+  decisions: g.decisions.map((d) =>
+    d.decision_id === 'd1'
+      ? {
+          ...d,
+          choices: [
+            { key: 'same', label: 'Ship it now' },
+            { key: 'same', label: 'Wait for the review' },
+          ],
+        }
+      : d,
+  ),
+})
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -448,6 +492,8 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   'replan-updating': replanUpdating,
   unpassed,
   pipes,
+  rebound,
+  'same-key': sameKey,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

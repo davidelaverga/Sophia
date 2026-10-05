@@ -424,7 +424,13 @@ function goalRules(goal: GoalView, at: string, project: string): string[] {
       ? [`${at}.items[${String(i)}]: complete only with its policy satisfied, with evidence`]
       : [],
   )
-  return [...plans, ...items]
+  // Each choice its own key: two with one key would send the same answer under different words (Codex F-028).
+  const choices = goal.decisions.flatMap((d, i) =>
+    new Set(d.choices.map((c) => c.key)).size === d.choices.length
+      ? []
+      : [`${at}.decisions[${String(i)}].choices: each choice its own key`],
+  )
+  return [...plans, ...items, ...choices]
 }
 
 export type Read<T> = { ok: true; value: T } | { ok: false; problems: string[] }

@@ -9,14 +9,15 @@ export interface PlanChange {
   changed: { item: PlanItem; what: string[] }[]
 }
 
-const ASPECTS: readonly [string, (i: PlanItem) => string][] = [
+/**
+ * Each aspect compared, as a value of its own: its fields whole and apart, never joined into text, so `a,b` isn't `a`
+ * and `b`, and none isn't empty (Codex F-030). What it waits on is the same whatever the order of its blockers.
+ */
+const ASPECTS: readonly [string, (i: PlanItem) => unknown][] = [
   ['what it does', (i) => i.purpose],
-  ['who does it', (i) => `${i.assignee_kind}:${i.assignee_id ?? ''}`],
-  [
-    'what it waits on',
-    (i) => `${i.blocked_by.toSorted().join()}|${i.activation.kind}:${i.activation.producer_work_id ?? ''}`,
-  ],
-  ['where it sits', (i) => i.parent_id ?? ''],
+  ['who does it', (i) => [i.assignee_kind, i.assignee_id]],
+  ['what it waits on', (i) => [i.blocked_by.toSorted(), i.activation.kind, i.activation.producer_work_id]],
+  ['where it sits', (i) => i.parent_id],
   ['its deliverable', (i) => i.deliverable_ref],
   ['its criteria', (i) => i.criteria_ref],
   ['its sources', (i) => i.source_scope_ref],
@@ -24,13 +25,17 @@ const ASPECTS: readonly [string, (i: PlanItem) => string][] = [
   ['its review', (i) => i.review_policy_ref],
 ]
 
+/** Whether an aspect differs between two items: compared as JSON, structure and all. */
+const differs = (of: (i: PlanItem) => unknown, a: PlanItem, b: PlanItem) =>
+  JSON.stringify(of(a)) !== JSON.stringify(of(b))
+
 /** How `proposed` differs from `current`, by item id. */
 export function compare(current: WorkPlan, proposed: WorkPlan): PlanChange {
   const before = new Map(current.items.map((i) => [i.id, i]))
   const after = new Set(proposed.items.map((i) => i.id))
   const changed = proposed.items.flatMap((item) => {
     const was = before.get(item.id)
-    const what = was ? ASPECTS.filter(([, of]) => of(was) !== of(item)).map(([name]) => name) : []
+    const what = was ? ASPECTS.filter(([, of]) => differs(of, was, item)).map(([name]) => name) : []
     return what.length > 0 ? [{ item, what }] : []
   })
   return {

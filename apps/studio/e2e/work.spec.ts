@@ -2726,3 +2726,38 @@ test('codex · F-027 · tasks whose ids hold the old separator keep their own dr
     target: { work_id: 'x|y', assignment_id: 'z' },
   })
 })
+
+// ---- CX-0026 (Codex on #74; GitHub 4180347593, 4180347601): one key per choice; a decision's task from its own plan. ----
+
+test('codex · F-028 · a decision two of whose choices share a key is refused with its view: nothing drawn, nothing sent', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=same-key`)
+  const why = '$.goals[0].decisions[0].choices: each choice its own key'
+  await expect(page.getByRole('alert')).toContainText(why, { timeout: 15_000 })
+  await expect(board(page)).toHaveCount(0)
+  expect(await answeredOf(page)).toEqual([])
+})
+
+test('codex · F-029 · a decision names its task from the plan it is bound to, or says which plan; never the one shown', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=rebound`)
+  const about = (id: string) => board(page).locator(`[data-decision="${id}"] .plan-ask-about`)
+  // Bound to the plan shown: its task as that plan names it.
+  await expect(about('d1')).toHaveText('About Implement the PDF retry', { timeout: 15_000 })
+  // Bound to plan-1-alt r4, which keeps work-2's id for a new task: that task, not the one shown under the id.
+  await expect(about('d-alt')).toHaveText('About Rebuild the report pane from its sources')
+  // Bound to a revision held nowhere here: which plan, and no task's words borrowed.
+  await expect(about('d-r9')).toHaveText('About work-1, in plan r9, not shown here')
+  // Its decider still answers it, bound as it is.
+  await board(page).locator('[data-decision="d-alt"]').getByRole('button', { name: 'Ship it now' }).click()
+  await expect.poll(async () => (await answeredOf(page)).length).toBe(1)
+  expect((await answeredOf(page))[0]).toMatchObject({
+    decision_id: 'd-alt',
+    work_id: 'work-2',
+    plan_id: 'plan-1-alt',
+    plan_revision: 4,
+    choice: 'ship',
+  })
+})

@@ -49,6 +49,8 @@ export const CASES = [
   'replan-updating',
   'unpassed',
   'pipes',
+  'rebound',
+  'same-key',
 ] as const
 export type Case = (typeof CASES)[number]
 

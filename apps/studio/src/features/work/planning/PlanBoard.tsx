@@ -252,15 +252,26 @@ function DecisionPill({ viewerId, count, expired, mine, shown, onToggle, people,
   )
 }
 
-/** What a decision is about, in words: its task, and the candidate it names. */
-const aboutOf = (d: BoardDecision, plan: WorkPlan) => {
-  const purpose = plan.items.find((i) => i.id === d.work_id)?.purpose
-  return purpose ? `About ${purpose}${d.candidate_version_ref ? ` · ${d.candidate_version_ref}` : ''}` : null
+/** The goal's plans held here: the one in force, then its proposals. */
+const plansOf = (goal: GoalView) => [goal.current_plan, ...goal.proposed_plans].filter((p) => p !== null)
+
+/**
+ * What a decision is about, in words: its task as the plan it is bound to names it (that plan's id and revision, among
+ * the goal's plan in force and its proposals), and the candidate it names. Bound to a plan held nowhere here (an older
+ * or unknown revision), it borrows no other plan's words for its task: it says which plan it is bound to (Codex F-029).
+ */
+const aboutOf = (d: BoardDecision, plans: readonly WorkPlan[]) => {
+  const bound = plans.find((p) => p.plan_id === d.plan_id && p.revision === d.plan_revision)
+  const purpose = bound?.items.find((i) => i.id === d.work_id)?.purpose
+  const what = purpose ?? `${d.work_id}, in plan r${String(d.plan_revision)}, not shown here`
+  return `About ${what}${d.candidate_version_ref ? ` · ${d.candidate_version_ref}` : ''}`
 }
 
 interface DecisionsProps {
   decisions: readonly BoardDecision[]
   plan: WorkPlan
+  /** The goal's plans held here, in force and proposed: a decision's task is named from the one it is bound to. */
+  plans: readonly WorkPlan[]
   people: Record<string, Person>
   now: Date
   viewerId: string | null
@@ -270,7 +281,14 @@ interface DecisionsProps {
   focus?: string | null
 }
 
-function Decisions({ decisions, plan, className = 'board-decisions', focus = null, ...rest }: DecisionsProps) {
+function Decisions({
+  decisions,
+  plan: _plan,
+  plans,
+  className = 'board-decisions',
+  focus = null,
+  ...rest
+}: DecisionsProps) {
   const list = useRef<HTMLDivElement>(null)
   // Opened on one (from a review that waits on it), the focus goes to its first choice. Found by comparing ids, never
   // by putting one in a selector: a decision's id is any string.
@@ -284,7 +302,7 @@ function Decisions({ decisions, plan, className = 'board-decisions', focus = nul
   return (
     <div ref={list} className={className}>
       {decisions.map((d) => (
-        <Decision key={`${d.decision_id}:${String(d.revision)}`} decision={d} about={aboutOf(d, plan)} {...rest} />
+        <Decision key={`${d.decision_id}:${String(d.revision)}`} decision={d} about={aboutOf(d, plans)} {...rest} />
       ))}
     </div>
   )
@@ -645,7 +663,7 @@ function BoardBody(props: BodyProps) {
   const opened = rows.find((r) => r.item.id === view.open)
   const shortOf = (row: PlanRow) => accountOf(row, props).tile
   const tile = { plan, viewerId, now, onLight: view.setLit, onOpen: view.setOpen, flags: view.flags, shortOf }
-  const decisionProps = { plan, people, now, viewerId, onDecide: ports.onDecide }
+  const decisionProps = { plan, plans: plansOf(goal), people, now, viewerId, onDecide: ports.onDecide }
   const away = whileAway(rows, goal.decisions, seen, { viewerId, people, now })
   return (
     <section className="board" aria-label={`Plan r${String(plan.revision)}`} data-lens={view.lens}>

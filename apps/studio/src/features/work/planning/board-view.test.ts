@@ -75,6 +75,31 @@ describe('readBoardView', () => {
     assert.equal(readBoardView([]).ok, false)
   })
 
+  it('refuses a decision two of whose choices share a key, whatever their words (Codex F-028)', () => {
+    const board = example('board-review-ready.json')
+    const choices = ['goals', 0, 'decisions', 0, 'choices']
+    for (const same of [
+      [
+        { key: 'same', label: 'Follow up now' },
+        { key: 'same', label: 'Note it only' },
+      ],
+      [
+        { key: 'same', label: 'Follow up now' },
+        { key: 'same', label: 'Follow up now' },
+      ],
+    ]) {
+      const read = readBoardView(edited(board, choices, same))
+      assert.equal(read.ok, false)
+      if (!read.ok) assert.deepEqual(read.problems, ['$.goals[0].decisions[0].choices: each choice its own key'])
+    }
+    // Distinct keys, as the packet has them, and the same words under distinct keys, are read as given.
+    const distinct = [
+      { key: 'one', label: 'Follow up' },
+      { key: 'two', label: 'Follow up' },
+    ]
+    assert.equal(readBoardView(edited(board, choices, distinct)).ok, true)
+  })
+
   it('refuses a date-time without its offset, or one the calendar doesn’t have (GitHub review on PR #76)', () => {
     const board = example('board-review-ready.json')
     for (const at of ['2026-10-03T15:00', '2026-10-03T15:00:00', '2026-02-30T15:00:00Z']) {
