@@ -94,7 +94,7 @@ Sophia's side (amendment `A12`, `packages/contracts/amendments/A12-workboard-sou
 
 | Command | Result |
 |---|---|
-| `pnpm check` | format, lint, build, typecheck and contracts pass; unit tests 1330 pass, 0 fail, 1 skipped; `pnpm artifacts` reproduces every identity of `sophia-runtime-wbc02-dev`; the integration gate's result is in the PR |
+| `pnpm check` | format, lint, build, typecheck and contracts pass; unit tests 1330 pass, 0 fail, 1 skipped; `pnpm artifacts` reproduces every identity of `sophia-runtime-wbc02-dev`; integration gate against the real pinned dsh 84 pass, 0 fail, 2 skipped (the two service crossings that need `SOPHIA_DISPOSABLE_DATABASE_URL`) |
 | `pnpm test:db` (local PostgreSQL 16) | 472 pass, 0 fail, including `apps/api/src/coordination.db.test.ts` (12) and `packages/paperclip-plugin/src/coordination.db.test.ts` (21) |
 | `node --test tests/integration/research-tools.test.mjs tests/integration/review-tools.test.mjs` | 8 pass: the reviewer through the real pinned dsh, the research roles unchanged |
 | `node scripts/paperclip-build.mjs --paperclip <pin>` | bindings typecheck against the pin; packages bundled; `MANIFEST.json` digests |

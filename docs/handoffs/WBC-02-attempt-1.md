@@ -8,13 +8,13 @@ Ending commit/tree and changed files: branch `scm-01/workboard-source-review`, t
 
 ## Outcome
 
-Works locally, end to end: propose a source review under a goal, decide it, one commission becomes one Paperclip issue through the `sophia.coordination` plugin, the `sophia_dsh` adapter is permitted and starts the one attempt through Sophia's native path, the reviewer (`sophia-source-review-v1`) reads only its manifest, is metered per call (eight at most) and publishes an immutable, structurally checked review; the board shows it Complete and opens it at its exact version. Hold, Resume, Stop, a Paperclip cancel (→ Hold), a lost commission reply, a lost result reply, a withdrawn input and a turn without a result each settle where Sophia's records say. INT statuses: [docs/progress/WBC-02.md](../progress/WBC-02.md): 15 pass, 3 partial (INT-01 live load, INT-12 outage, INT-13 membership, INT-14 replay), 2 not run (INT-19, INT-20).
+Works locally, end to end: propose a source review under a goal, decide it, one commission becomes one Paperclip issue through the `sophia.coordination` plugin, the `sophia_dsh` adapter is permitted and starts the one attempt through Sophia's native path, the reviewer (`sophia-source-review-v1`) reads only its manifest, is metered per call (eight at most) and publishes an immutable, structurally checked review; the board shows it Complete and opens it at its exact version. Hold, Resume, Stop, a Paperclip cancel (→ Hold), a lost commission reply, a lost result reply, a withdrawn input and a turn without a result each settle where Sophia's records say. INT statuses: [docs/progress/WBC-02.md](../progress/WBC-02.md): 14 pass, 4 partial (INT-01 live load, INT-12 outage, INT-13 membership revocation, INT-14 replay), 2 not run (INT-19, INT-20).
 
 Not verified: a real Paperclip instance, a real provider call, any hosted service.
 
 ## Evidence
 
-- `pnpm check` and `pnpm test:db` on the final tree (results in the PR).
+- `pnpm check` (integration gate 84 pass, 0 fail, 2 skipped for want of a disposable database URL) and `pnpm test:db` (472 pass) on the final tree.
 - `apps/api/src/coordination.db.test.ts` (12, real PostgreSQL through the API, the worker's coordinator, the plugin in process and the adapter's `execute`), `packages/paperclip-plugin/src/coordination.db.test.ts` (21), adapter and Studio unit tests.
 - `tests/integration/review-tools.test.mjs` (the reviewer through the real pinned dsh, Responses stub) and the research suite unchanged.
 - `scripts/paperclip-build.mjs` (bindings typecheck against the pin) and `scripts/paperclip-verify.mjs` (the built worker under the pin's own harness).
