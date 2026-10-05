@@ -26,25 +26,44 @@ export function useHeldCaptions(turns: readonly CaptionTurn[]): readonly Caption
   return newSince(turns, gone?.said ?? null)
 }
 
+/** Who is who in the room: this person, everyone's name the room has known, and who came as a guest. */
+export interface RoomNames {
+  me: string
+  names: ReadonlyMap<string, string>
+  guests: ReadonlySet<string>
+}
+
+/**
+ * A member as the stage names them: You, or a first name (the chat's way, shortened), and a guest stays marked as
+ * one (CONTRIBUTING: a guest is never mistaken for a member).
+ */
+export function memberLabel(actorId: string, who: RoomNames): string {
+  if (!actorId) return 'A member'
+  const name = actorId === who.me ? undefined : who.names.get(actorId)
+  const label = name ? shortName(name) : authorLabel(actorId, who.me, who.names)
+  return who.guests.has(actorId) ? `${label} · guest` : label
+}
+
+/** `who` with this person's identity: until the membership is read, the call's own participant is "You". */
+export const withMe = (who: RoomNames, participants: ProjectRoom['participants']): RoomNames => ({
+  ...who,
+  me: who.me || (participants.find((p) => p.local)?.identity ?? ''),
+})
+
 /**
  * The stage's captions, or null: none outside the call or while Chat is open (it holds them). `held` comes from
- * useHeldCaptions. `me` and `names` name a member the chat's way, shortened to a first name as the stage names people;
- * until the membership is read, the call's own participant stands for "You".
+ * useHeldCaptions.
  */
 export function useStageCaptions(
   held: readonly CaptionTurn[],
   room: Pick<ProjectRoom, 'status' | 'participants'>,
   chatOpen: boolean,
-  who: { me: string; names: ReadonlyMap<string, string> },
+  who: RoomNames,
 ): ReactNode {
   const inCall = room.status === 'live' || room.status === 'reconnecting'
   if (!inCall || chatOpen) return null
-  const me = who.me || (room.participants.find((p) => p.local)?.identity ?? '')
-  const label = (actorId: string) => {
-    if (!actorId) return 'A member'
-    const name = actorId === me ? undefined : who.names.get(actorId)
-    return name ? shortName(name) : authorLabel(actorId, me, who.names)
-  }
+  const named = withMe(who, room.participants)
+  const label = (actorId: string) => memberLabel(actorId, named)
   const shown = stageCaptions(held, label)
   return shown.length > 0 ? <StageCaptions shown={shown} /> : null
 }

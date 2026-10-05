@@ -63,6 +63,8 @@ interface Project {
   taskRevision?: 1 | 2
   /** Reads of the research task wait until the page lets them through (`hold=task`), as a slow API's do. */
   taskHeld?: boolean
+  /** Reads of the research task fail (`window.fixture.failTask`), as an API that lost its database answers. */
+  taskFails?: boolean
   /** A version's text arrives as bytes its record does not name (`tamper=text`). */
   textTampered: boolean
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
@@ -269,6 +271,15 @@ const heldTasks: (() => void)[] = []
 function taskRead(project: Project): Response | Promise<Response> {
   const read = () => json(researchTaskAt(project.taskRevision ?? 1))
   served.push(`task:${String(project.taskRevision ?? 1)}`)
+  if (project.taskFails) {
+    const body = {
+      code: 'unavailable',
+      message: 'Sophia is unavailable',
+      requestId: '00000000-0000-4000-8000-0000000000bc',
+      retry: 'safe_read',
+    }
+    return new Response(JSON.stringify(body), { status: 503 })
+  }
   if (!project.taskHeld) return read()
   return new Promise((resolve) => heldTasks.push(() => resolve(read())))
 }
