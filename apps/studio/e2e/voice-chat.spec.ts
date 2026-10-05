@@ -106,13 +106,15 @@ test('CX-0022 · until the task is read, the card’s Open and Download keep the
 test('HTML · a research card offers no HTML page when the task stored none: nothing is printed from its Markdown', async ({
   page,
 }) => {
+  const downloads: string[] = []
+  page.on('download', (d) => downloads.push(d.suggestedFilename()))
   await enterByVoice(page)
   await page.evaluate(() => window.fixture?.notice())
   await marked(page).click()
   // The task is read, so an HTML page, were it offered, would be there by now.
   await expect(cards(page).getByRole('button', { name: 'Download', exact: true })).not.toHaveAttribute('aria-disabled')
   await expect(cards(page).getByRole('button', { name: 'HTML page', exact: true })).toHaveCount(0)
-  expect((await fixture(page)).served.filter((s) => s.startsWith('versions:'))).toEqual([]) // nothing was printed
+  expect(downloads).toEqual([]) // nothing was printed or saved; no Studio module reaches the conversion (legacy-conversion.test.ts)
 })
 
 test('HTML · a research card with a designed page opens that stored page in the viewer (SDD-01)', async ({ page }) => {

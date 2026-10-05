@@ -13,6 +13,7 @@ import { reviewTag } from './HtmlView.tsx'
 import { designState, formatBytes } from './report-view.ts'
 import { useTransientStatus } from './useTransientStatus.ts'
 import './artifacts.css'
+import { WORKING_PHASES } from '../voice/room-view.ts'
 
 interface Props {
   task: NativeTask
@@ -22,7 +23,8 @@ interface Props {
 
 type Output = NonNullable<NonNullable<NativeTaskDetail['result']>['outputs']>[number]
 
-const ACTIVE: ReadonlySet<NativeTask['phase']> = new Set(['queued', 'dispatched', 'running', 'holding', 'stopping'])
+/** A task still at work: the room's set, as the work card uses it. */
+const ACTIVE = WORKING_PHASES
 
 /** The design's detail, read again while it runs; its words; and its published page, once there is one. */
 function useDesign({ task, projectId, identity }: Props) {
