@@ -28,12 +28,18 @@ export const identity: Identity = { name: 'fixture@sophia.test', role: 'admin', 
 export const membership: Membership = { actorId: ME, role: 'admin' }
 
 /** A message another member wrote in the room's discussion, the `n`th. */
-const said = (text: string, n: number): DiscussionEntry => ({
+/** A message in the discussion: another member's, or `me` for the viewer's own (room-discussion checks). */
+export interface Said {
+  text: string
+  me?: boolean
+}
+
+const said = (message: string | Said, n: number): DiscussionEntry => ({
   id: `00000000-0000-4000-8000-${String(n + 1).padStart(12, '0')}`,
-  actorId: OTHER,
+  actorId: typeof message === 'string' || !message.me ? OTHER : ME,
   intent: 'discuss',
   origin: 'composer',
-  text,
+  text: typeof message === 'string' ? message : message.text,
   sourceId: SOURCE,
   sha256: '0'.repeat(64),
   createdAt: AT,
@@ -107,7 +113,7 @@ function presenceOf(exchange: boolean, holder: string | null, room: RoomAsked): 
 export function snapshot(
   revision: number,
   exchange: boolean,
-  messages: readonly string[] = [],
+  messages: readonly (string | Said)[] = [],
   goals: Snapshot['goals'] = [],
   room: RoomAsked = {},
 ): Snapshot {
