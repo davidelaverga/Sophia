@@ -1776,6 +1776,7 @@
   .places .c3-talk-toggle,
   .places .hw-mic,
   .places .c3-daypill,
+  .places .c3-answered,
   .places .c3-edge .c2-lock {
     min-width: 40px;
     min-height: 40px;

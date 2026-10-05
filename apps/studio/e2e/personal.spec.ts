@@ -1249,3 +1249,9 @@ test('codex · handed words too long, arriving offline, say too long once back, 
     'From Home · longer than one message: shorten it to send',
   )
 })
+
+test('@phone · touch · on a touch screen, “Sophia answered” is a full-size target', async ({ page }) => {
+  await readUpWhileSheAnswers(page)
+  const box = await answeredLine(page).boundingBox()
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(40)
+})
