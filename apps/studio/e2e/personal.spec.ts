@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { lowContrast } from './contrast.ts'
+import { contrastOf, lowContrast } from './contrast.ts'
 import { typeSizes } from './type-sizes.ts'
 
 // Personal's fixture page (fixtures/personal.tsx): the Studio's own PersonalSpace over a labelled simulated
@@ -359,7 +359,7 @@ test('detail · every control is at least 24 px tall, the day dividers too', asy
   expect(short).toEqual([])
 })
 
-test('detail · one type scale: Personal’s text comes in four sizes, in every state it shows', async ({ page }) => {
+test('detail · one type scale: Personal’s text comes in five sizes, in every state it shows', async ({ page }) => {
   const sizes = new Set<string>()
   const read = async () => {
     for (const part of ['.c3-space.you .c3-head', '.c3-space.you .c3-body']) {
@@ -384,7 +384,7 @@ test('detail · one type scale: Personal’s text comes in four sizes, in every 
   await read()
   await page.locator('.c3-day').first().click()
   await read()
-  expect([...sizes].toSorted()).toEqual(['10.5px', '11px', '13px', '15px'])
+  expect([...sizes].toSorted()).toEqual(['10.5px', '11px', '13px', '15px', '17px'])
 })
 
 test('detail · with less motion asked for, nothing in Personal moves: no breathing wash, no flicker', async ({
@@ -470,4 +470,137 @@ test('$20 · while a message is on its way, “Talk about it” waits: the week 
   await page.getByRole('button', { name: 'Talk about it' }).click()
   await expect(page.getByRole('region', { name: 'Your week with Sophia' })).toBeVisible()
   expect(await sent(page)).toEqual(['One more thing about Thursday.'])
+})
+
+// Presence (docs/plans/personal-presence.md): the conversation rests on the field, her voice reads first, and an
+// exchange reads as one.
+
+/**
+ * The space between the last thing in a conversation that fits (nothing scrolled) and the field; null when either is
+ * missing or the list overflows, where scrolling to its end would hide where it rests.
+ */
+const restsAbove = (page: Page) =>
+  page.evaluate(() => {
+    const list = document.querySelector('.msgs')
+    const said = [...document.querySelectorAll('.msgs > *')].filter((e) => e.getBoundingClientRect().height > 0)
+    const bar = document.querySelector('.ps-composer .message-bar')
+    const last = said.at(-1)
+    if (!list || !bar || !last || list.scrollHeight > list.clientHeight) return null
+    return bar.getBoundingClientRect().top - last.getBoundingClientRect().bottom
+  })
+/** Measured at rest: what is still arriving (a turn's fade and rise) is waited for; what loops for ever is not. */
+const settled = (page: Page) =>
+  page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => null)),
+    ),
+  )
+const expectRests = async (page: Page) => {
+  await settled(page)
+  const gap = await restsAbove(page)
+  expect(gap).not.toBeNull()
+  expect(gap).toBeGreaterThanOrEqual(0)
+  expect(gap).toBeLessThanOrEqual(48)
+}
+
+test('presence · a short conversation rests on the field, not at the top of an empty room', async ({ page }) => {
+  await page.goto(PAGE)
+  await expectRests(page)
+})
+
+test('@phone · presence · her first greeting and the ways in sit just above where you write', async ({ page }) => {
+  await page.goto(`${PAGE}?talk=new`)
+  await expect(page.locator('.c3-starters')).toBeVisible()
+  await expectRests(page)
+})
+
+test('@phone · presence · a long conversation still scrolls back to its first day', async ({ page }) => {
+  await page.goto(PAGE)
+  await settled(page)
+  const list = page.locator('.msgs')
+  expect(await list.evaluate((l) => l.scrollHeight > l.clientHeight)).toBe(true)
+  // Where the first day stands in what scrolls: at or after its start, so scrolling up reaches it (an unsafe end
+  // would push it above, where no scroll goes).
+  const from = await list.evaluate((l) => {
+    l.style.scrollBehavior = 'auto'
+    l.scrollTop = 0
+    const day = l.querySelector(':scope > .c3-day')
+    return day ? day.getBoundingClientRect().top - l.getBoundingClientRect().top + l.scrollTop : null
+  })
+  expect(from).not.toBeNull()
+  expect(from).toBeGreaterThanOrEqual(0)
+})
+
+test('presence · her voice reads first: her turns at 17 px, yours at 15', async ({ page }) => {
+  await page.goto(PAGE)
+  expect(await css(page, '.msg.sophia:not(.typing) .body', 'font-size')).toBe('17px')
+  expect(await css(page, '.msg.me .body', 'font-size')).toBe('15px')
+  await page.goto(`${PAGE}?talk=new`)
+  expect(await css(page, '.msg.sophia .body', 'font-size')).toBe('17px')
+})
+
+test('presence · an exchange reads as one: her answer sits closer to you than your next turn to her', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await settled(page)
+  const gaps = await page.evaluate(() => {
+    const turns = [...document.querySelectorAll('.msgs > *')]
+    const out = { answer: [] as number[], next: [] as number[] }
+    for (let i = 1; i < turns.length; i++) {
+      const [a, b] = [turns[i - 1], turns[i]]
+      if (!a?.matches('.msg') || !b?.matches('.msg')) continue
+      const gap = b.getBoundingClientRect().top - a.getBoundingClientRect().bottom
+      if (a.matches('.me') && b.matches('.sophia')) out.answer.push(gap)
+      if (a.matches('.sophia') && b.matches('.me')) out.next.push(gap)
+    }
+    return out
+  })
+  expect(gaps.answer.length).toBeGreaterThan(1)
+  expect(gaps.next.length).toBeGreaterThan(1)
+  expect(Math.max(...gaps.answer) * 2).toBeLessThan(Math.min(...gaps.next))
+})
+
+test('presence · “Write to Sophia…” reads at 4.5:1, as every word in Personal', async ({ page }) => {
+  await page.goto(PAGE)
+  const seen = await field(page).evaluate((f) => {
+    const grounds: string[] = []
+    let opacity = 1
+    for (let up: Element | null = f; up; up = up.parentElement) {
+      grounds.push(getComputedStyle(up).backgroundColor)
+      opacity *= parseFloat(getComputedStyle(up).opacity)
+    }
+    const ph = getComputedStyle(f, '::placeholder')
+    return { words: 'placeholder', ink: ph.color, opacity: opacity * parseFloat(ph.opacity), grounds, size: 15 }
+  })
+  expect(contrastOf(seen)).toBeGreaterThanOrEqual(4.5)
+})
+
+test('presence · a reply that failed stands where her answer would, as close to you', async ({ page }) => {
+  await page.goto(`${PAGE}?failed=1`)
+  await settled(page)
+  const gap = await page
+    .locator('.c3-failed')
+    .evaluate((f) => f.getBoundingClientRect().top - (f.previousElementSibling?.getBoundingClientRect().bottom ?? 0))
+  expect(Math.round(gap)).toBe(12)
+})
+
+test('presence · her half stays centred on her first line, a size up', async ({ page }) => {
+  await page.goto(PAGE)
+  await settled(page)
+  const off = await page
+    .locator('.msg.sophia.first:not(.typing)')
+    .first()
+    .evaluate((turn) => {
+      const half = turn.querySelector('.c3-who')?.getBoundingClientRect()
+      const body = turn.querySelector('.body')
+      if (!half || !body) return null
+      const line = parseFloat(getComputedStyle(body).lineHeight)
+      return half.top + half.height / 2 - (body.getBoundingClientRect().top + line / 2)
+    })
+  expect(off).not.toBeNull()
+  expect(Math.abs(off ?? 99)).toBeLessThanOrEqual(1)
 })
