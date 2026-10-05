@@ -22,7 +22,7 @@ import type {
 import { Icon, Tip } from '@sophia/ui'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { Conversation, Who, type ConversationActions } from './Conversation.tsx'
-import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack } from './conversation-view.ts'
+import { conversationRows, heard, opensWithIntro, welcomeDue, withReadBack, type Row } from './conversation-view.ts'
 import { FIND_KEYS, useFind } from './Find.tsx'
 import { focusConversation, focusNotesToggle, focusSoon } from './focus.ts'
 import type { PersonalExtras } from './extras.ts'
@@ -517,6 +517,21 @@ function Notes({ props, actions, under }: { props: Props; actions: ReturnType<ty
   )
 }
 
+/**
+ * Find in the conversation: in reach while Personal is in sight and nothing runs over it (`over`: a talk, or the notes
+ * covering it); pressed while the notes cover it, they are put away first.
+ */
+function useConversationFind(
+  props: Props,
+  rows: readonly Row[],
+  over: boolean,
+  readEarlier: () => void,
+  covered: boolean,
+) {
+  const uncover = covered ? () => props.notes.set(false) : null
+  return useFind(rows, !props.hidden && !over, props.readBack.more, readEarlier, uncover)
+}
+
 export function PersonalSpace(props: Props) {
   const { space, writes, notes, earlier, toast } = props
   const body = useRef<HTMLDivElement>(null)
@@ -532,14 +547,7 @@ export function PersonalSpace(props: Props) {
   const waiting = rows.some((r) => r.kind === 'typing')
   const said = useHeard(space, turns, waiting)
   const latest = useLatestInSight(list, grows(turns, writes.sending, waiting, props.hidden))
-  const uncover = covered ? () => notes.set(false) : null
-  const find = useFind(
-    rows,
-    !props.hidden && !talk.talking && !covered,
-    props.readBack.more,
-    actions.readEarlier,
-    uncover,
-  )
+  const find = useConversationFind(props, rows, talk.talking || covered, actions.readEarlier, covered)
   const composer = props.locked ? null : (
     <Composer props={props} starter={actions.starter} onFailed={onFailed} onListening={setListening} />
   )
