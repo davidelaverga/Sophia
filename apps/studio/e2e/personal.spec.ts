@@ -1189,3 +1189,27 @@ test('codex · without Promise.withResolvers (Safari 16.4), a message still goes
   await page.getByRole('button', { name: 'Talk about it' }).click()
   await expect.poll(() => sent(page)).toHaveLength(2)
 })
+
+test('codex · handed words that take the field past its limit are kept whole, how much over said, Send waiting', async ({
+  page,
+  context,
+}) => {
+  await page.goto(PAGE)
+  await field(page).fill('a'.repeat(3990))
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText('Draft kept on this device')
+  const other = await context.newPage()
+  await other.goto(PAGE)
+  await other.evaluate(
+    () =>
+      new Promise<void>((held) => {
+        void navigator.locks.request('sophia.personal.send.fixture', () => {
+          held()
+          return new Promise(() => undefined)
+        })
+      }),
+  )
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('I want to talk about Thursday.')}`)
+  await expect(field(page)).toHaveValue(`${'a'.repeat(3990)} I want to talk about Thursday.`)
+  await expect(page.locator('#c-count')).toContainText('over')
+  await expect(page.locator('.ps-composer .send')).toBeDisabled()
+})
