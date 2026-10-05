@@ -54,6 +54,13 @@ Not fixed (P3): if a revision arrives for the report already on screen, the obje
 
 The fixture gains `session=soon`.
 
+**Codex on #102:**
+- **P1, fixed:** O's key belongs in the Studio's tip (`has-tip`), not inside the button.
+- **P2, fixed:** a drafted brief, which delivers no file, stays in the chat.
+- **P2, fixed:** a failed read of the record is said, with Try again.
+
+Their 3 mutants are killed. The fixture gains `failTask`.
+
 ## Evidence
 
 Runs were in the guards' gentle mode beside Luis's game: Idle priority, 4 logical CPUs, one browser (`.claude-guards/README.md`).
