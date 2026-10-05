@@ -44,19 +44,13 @@ interface BarProps {
   more: boolean
   onQuery: (query: string) => void
   onStep: (by: 1 | -1) => void
-  /** Reads the earlier days; resolves once they are in (or the read failed). */
-  onMore: () => Promise<void>
+  /** Earlier days are being read (from here or the days' menu): it says so and waits. */
+  reading: boolean
+  onMore: () => void
   onClose: () => void
 }
 
-function FindBar({ query, count, at, more, onQuery, onStep, onMore, onClose }: BarProps) {
-  // While the earlier days are read, it says so and waits: a second press reads nothing more.
-  const [reading, setReading] = useState(false)
-  const readMore = () => {
-    if (reading) return
-    setReading(true)
-    void onMore().finally(() => setReading(false))
-  }
+function FindBar({ query, count, at, more, reading, onQuery, onStep, onMore, onClose }: BarProps) {
   const said = !query.trim() ? '' : count ? `${String(at + 1)} of ${String(count)}` : 'No match'
   return (
     <div className="c3-find" role="search" aria-label="Find in your conversation">
@@ -87,7 +81,14 @@ function FindBar({ query, count, at, more, onQuery, onStep, onMore, onClose }: B
         ↓
       </button>
       {more && (
-        <button className="text-button" type="button" aria-disabled={reading || undefined} onClick={readMore}>
+        <button
+          className="text-button"
+          type="button"
+          aria-disabled={reading || undefined}
+          onClick={() => {
+            if (!reading) onMore()
+          }}
+        >
           {reading ? 'Reading…' : 'Look further back'}
         </button>
       )}
@@ -194,8 +195,7 @@ function useFindOpen(on: boolean, uncover: (() => void) | null, clear: () => voi
 export function useFind(
   rows: readonly Row[],
   on: boolean,
-  more: boolean,
-  readEarlier: () => Promise<void>,
+  back: { more: boolean; reading: boolean; read: () => Promise<void> },
   uncover: (() => void) | null,
 ) {
   const [query, setQuery] = useState('')
@@ -208,6 +208,11 @@ export function useFind(
   const found = useMemo(() => (open ? foundIn(rows, query) : []), [open, rows, query])
   const index = Math.max(0, found.findIndex(sameAs(held)))
   const current = found[index] ?? null
+  // The match you are on is held as itself once there is one: earlier days read in before it (from here or the days'
+  // menu) leave it current.
+  useEffect(() => {
+    if (current && !(held && sameAs(held)(current))) setHeld(current)
+  }, [held, current])
   // The current match comes into sight when it changes, or is stepped to again.
   const where = current ? `${current.key}:${String(current.n)}` : null
   useEffect(() => {
@@ -215,7 +220,9 @@ export function useFind(
   }, [where, steps])
   const bar = open ? (
     <FindBar
-      {...{ query, more }}
+      {...{ query }}
+      more={back.more}
+      reading={back.reading}
       count={found.length}
       at={index}
       onQuery={(q) => {
@@ -227,11 +234,9 @@ export function useFind(
         setSteps((s) => s + 1)
       }}
       onMore={() => {
-        // The match you are on stays current as earlier days come in before it; and the button goes once the last
-        // page is read, so the focus waits in the finder.
-        setHeld(current)
+        // The button goes once the last page is read: the focus waits in the finder.
         document.querySelector<HTMLInputElement>('#c-find')?.focus({ preventScroll: true })
-        return readEarlier()
+        void back.read()
       }}
       onClose={close}
     />

@@ -467,7 +467,7 @@ function useSend(
     const current = given ?? draft.current()
     const text = current?.text.trim() ?? ''
     // Past the most one message holds (words heard or handed), nothing goes: the count says how much over.
-    if (!current || !text || lengthOf(current.text) > MOST || !ready || busy) return Promise.resolve(false)
+    if (!current || !text || lengthOf(text) > MOST || !ready || busy) return Promise.resolve(false)
     const words = { text, key: current.key }
     const { promise: admitted, settle: admit } = settleable<boolean>()
     void oneAtATime(account, async (taken) => {
@@ -621,7 +621,8 @@ export function PersonalComposer(props: Props) {
   useHanded(props, ready, send, draft)
   // Offline, a way's words wait as a draft: the line says offline while it is, and the draft once back.
   useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, KEPT) : null)
-  const length = lengthOf(text)
+  // The length the server checks: of the words, not the spaces around them.
+  const length = lengthOf(text.trim())
   const counted = length >= NEAR && !dictation.listening
   return (
     <form

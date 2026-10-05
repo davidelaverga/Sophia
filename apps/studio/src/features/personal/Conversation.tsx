@@ -420,6 +420,22 @@ function useFocusAfterMore(panel: RefObject<HTMLDivElement | null>, open: boolea
   }, [open, more, panel])
 }
 
+/** The days' menu's first item: earlier days read back, or, while they are, "Reading…" and a press that waits. */
+function MoreDays({ reading, onMore }: { reading: boolean; onMore: () => void }) {
+  return (
+    <button
+      role="menuitem"
+      type="button"
+      aria-disabled={reading || undefined}
+      onClick={() => {
+        if (!reading) onMore()
+      }}
+    >
+      <span>{reading ? 'Reading…' : 'Show earlier days'}</span>
+    </button>
+  )
+}
+
 /** The day at the top of what you're reading, and the list of days it opens (so do the days' own dividers). */
 function Earlier(props: {
   rows: readonly Row[]
@@ -428,9 +444,11 @@ function Earlier(props: {
   setOpen: (open: boolean) => void
   /** Earlier days than those shown exist: the first item reads them back. */
   more: boolean
+  /** They are being read (from here or Find): the item says so and waits. */
+  reading: boolean
   onMore: () => void
 }) {
-  const { rows, open, day, setOpen, more, onMore } = props
+  const { rows, open, day, setOpen, more, reading, onMore } = props
   const menu = usePopover(open, () => setOpen(false))
   useFocusAfterMore(menu.panel, open, more)
   return (
@@ -456,11 +474,7 @@ function Earlier(props: {
           aria-label="Earlier days"
           onKeyDown={menu.onKeyDown}
         >
-          {more && (
-            <button role="menuitem" type="button" onClick={onMore}>
-              <span>Show earlier days</span>
-            </button>
-          )}
+          {more && <MoreDays reading={reading} onMore={onMore} />}
           {daysOf(rows).map((d) => (
             <button
               key={d.key}
@@ -490,6 +504,8 @@ interface ConversationProps {
   setEarlier: (open: boolean) => void
   /** Earlier days than those shown exist (a long conversation). */
   more: boolean
+  /** They are being read (useSharedRead). */
+  reading: boolean
   /** What a slow or failed read says, where the conversation would be (ReadNotes). */
   notice: React.ReactNode
   /** The notes cover it (a narrow screen): nothing in it can be reached or typed into until they close. */
@@ -505,7 +521,8 @@ interface ConversationProps {
 }
 
 export function Conversation(props: ConversationProps) {
-  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, week, answered } = props
+  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, reading, week, answered } =
+    props
   const lens = props.lens ?? null
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const day = useDayPill(list, rows)
@@ -519,7 +536,7 @@ export function Conversation(props: ConversationProps) {
           open={earlier}
           day={day}
           setOpen={setEarlier}
-          more={more}
+          {...{ more, reading }}
           onMore={() => void actions.readEarlier()}
         />
         <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>

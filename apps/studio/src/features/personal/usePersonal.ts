@@ -27,6 +27,7 @@ import { forgetDraft } from './draft.ts'
 import { epochNow, erasedElsewhere } from './epoch.ts'
 import { once } from './once.ts'
 import { pollEvery } from './polling.ts'
+import { useSharedRead } from './shared-read.ts'
 import { readsAgain, refusedAsErased } from './write-words.ts'
 
 /** How often a client waiting for Sophia asks. */
@@ -108,7 +109,7 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
   const current = back && space && back.epoch === space.epoch ? back : null
   const older = current?.turns ?? NO_TURNS
   const more = current ? current.more : (space?.earlier ?? false)
-  const readMore = async () => {
+  const read = async () => {
     const from = older[0]?.seq ?? space?.turns[0]?.seq
     if (!space || from === undefined || !more || reading.current) return
     const stop = new AbortController()
@@ -124,7 +125,8 @@ export function useReadBack(identity: Identity, space: PersonalSpace | undefined
       reading.current = null
     }
   }
-  return { older, more, readMore }
+  const shared = useSharedRead(read)
+  return { older, more, readMore: shared.run, reading: shared.reading }
 }
 
 export type ReadBack = ReturnType<typeof useReadBack>
