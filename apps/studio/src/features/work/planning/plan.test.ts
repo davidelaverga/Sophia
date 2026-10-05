@@ -11,6 +11,7 @@ import {
   forViewer,
   forYou,
   LANE,
+  outsideOf,
   relation,
   shownPlan,
   waitsOn,
@@ -373,6 +374,53 @@ describe('a row’s report, its actions and whom it is for', () => {
     )
     assert.equal(forYou(asking, [], 'davide', now), true)
     assert.equal(forYou(asking, [], 'luis', now), false)
+  })
+})
+
+describe('work outside the plan observed more than once (Codex F-045)', () => {
+  const twice = [
+    view('stray', { lifecycle: 'running', assignment: assignment('stray') }),
+    view('stray', { lifecycle: 'planned' }),
+    view('same', { lifecycle: 'running' }),
+    view('same', { lifecycle: 'running' }),
+    view('extra', { lifecycle: 'running' }),
+  ]
+  it('lists each once, those observed twice with no state of either; a single one as observed', () => {
+    const board = boardOf(goal(plan([item('a')]), [view('a'), ...twice]), readers())
+    assert.deepEqual(
+      board?.outside.map((o) => [o.work_id, o.view?.lifecycle ?? null]),
+      [
+        ['stray', null],
+        ['same', null],
+        ['extra', 'running'],
+      ],
+    )
+    assert.ok(board?.problems.includes('A task is observed twice'))
+    assert.ok(board?.problems.includes('3 observed tasks aren’t in the plan in force'))
+  })
+
+  it('does the same with no plan in force: each once, by the same rule', () => {
+    assert.deepEqual(
+      outsideOf(goal(null, twice), null).map((o) => [o.work_id, o.view?.lifecycle ?? null]),
+      [
+        ['stray', null],
+        ['same', null],
+        ['extra', 'running'],
+      ],
+    )
+  })
+
+  it('leaves a task in the plan observed twice as before: no state of it, nothing it allows', () => {
+    const board = boardOf(
+      goal(plan([item('a')]), [
+        view('a', { lifecycle: 'running', available_actions: [] }),
+        view('a', { lifecycle: 'planned' }),
+      ]),
+      readers(),
+    )
+    const [row] = board?.rows ?? []
+    assert.deepEqual([row?.view, row?.actions], [null, []])
+    assert.deepEqual(board?.outside, [])
   })
 })
 

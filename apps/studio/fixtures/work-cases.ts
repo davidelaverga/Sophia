@@ -546,6 +546,28 @@ const sameVersion: Change = (g, viewer) =>
     available_actions: [...commands(viewer, true), ask],
   }))
 
+/**
+ * Codex F-045: work outside the plan observed more than once. work-old twice, running under its assignment and planned
+ * with none; work-same twice, the same; work-extra once, beside them.
+ */
+const outsideObserved = () => {
+  const by = { ...claude('claude-reviewer', 'reviewer', 2), assignment_id: 'assignment-work-old' }
+  const same = projection('work-same', { lifecycle: 'running', assignment: by })
+  return [
+    projection('work-old', { lifecycle: 'running', assignment: by }),
+    projection('work-old', { lifecycle: 'planned' }),
+    same,
+    { ...same },
+    projection('work-extra', { lifecycle: 'running', assignment: by }),
+  ]
+}
+
+/** F-045 on a board: the plan in force, and that work outside it. */
+const outsideTwice: Change = (g) => ({ ...g, items: [...g.items, ...outsideObserved()] })
+
+/** F-045 with no plan in force or proposed: only that work, observed. */
+const noPlanTwice: Change = (g) => ({ ...g, current_plan: null, proposed_plans: [], items: outsideObserved() })
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -578,6 +600,8 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   'newer-expired': newerExpired,
   'two-accepted': twoAccepted,
   'same-version': sameVersion,
+  'outside-twice': outsideTwice,
+  'no-plan-twice': noPlanTwice,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

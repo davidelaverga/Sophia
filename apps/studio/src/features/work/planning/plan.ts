@@ -447,7 +447,7 @@ export interface Board {
   /** What doesn't hold together in it, in words; each item is still shown once. */
   problems: string[]
   /** Work observed now that the plan in force doesn't hold: said, never hidden. */
-  outside: ItemView[]
+  outside: Outside[]
 }
 
 interface Readers {
@@ -524,10 +524,21 @@ export function boardOf(goal: GoalView | null | undefined, readers: Readers): Bo
   return { plan, operable, rows, problems, outside }
 }
 
-/** Work observed for a goal that `plan` (the plan in force) doesn't hold: all of it while none is in force. */
-export const outsideOf = (goal: GoalView, plan: WorkPlan | null): ItemView[] => {
+/** Work observed outside the plan: its id, and what is observed of it. */
+export interface Outside {
+  work_id: string
+  /** What is observed of it now; null when the view says it more than once, so which is current isn't known. */
+  view: ItemView | null
+}
+
+/**
+ * Work observed for a goal that `plan` (the plan in force) doesn't hold: all of it while none is in force. Each work id
+ * once, in the view's order. One observed more than once is ambiguous, as it is in the plan (viewsOf): it is listed
+ * once, with neither observation's lifecycle or executor (Codex F-045).
+ */
+export const outsideOf = (goal: GoalView, plan: WorkPlan | null): Outside[] => {
   const ids = new Set(plan?.items.map((i) => i.id) ?? [])
-  return goal.items.filter((v) => !ids.has(v.work_id))
+  return [...viewsOf(goal)].filter(([id]) => !ids.has(id)).map(([work_id, view]) => ({ work_id, view }))
 }
 
 /** Whether following `next` from each item comes back to it: a loop of parents or of blockers. */

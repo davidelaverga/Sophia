@@ -38,6 +38,7 @@ import {
   boardOf,
   decidedFor,
   laneOf,
+  outsideOf,
   proposed,
   waitsOn,
   type Board,
@@ -45,6 +46,7 @@ import {
   type GoalView,
   type Lane,
   type Mark,
+  type Outside,
   type PlanRow,
   type WorkPlan,
 } from './plan.ts'
@@ -533,18 +535,20 @@ const lifeSaid = (v: ItemView) => v.lifecycle.replaceAll('_', ' ')
  * Work observed for the goal that the plan in force doesn't hold, said rather than hidden: who has it and where it
  * stands, by its work id (the view says no more of it). The goal's own Hold and Stop still reach all of its work.
  */
-function OutsideWork({ outside }: { outside: readonly ItemView[] }) {
+function OutsideWork({ outside }: { outside: readonly Outside[] }) {
   if (outside.length === 0) return null
   return (
     <section className="board-outside" aria-label="Observed outside the plan">
       <h4 className="field-label">Observed outside the plan</h4>
       <ul className="task-links">
-        {outside.map((v) => (
-          <li key={v.work_id} className="task-link" data-work={v.work_id}>
+        {outside.map(({ work_id, view }) => (
+          // Each work id once; observed more than once, it is said so, with neither observation (Codex F-045).
+          <li key={work_id} className="task-link" data-work={work_id} data-ambiguous={view ? undefined : true}>
             <span className="task-link-name">
-              {v.assignment?.executor.display_name ?? 'No one assigned'} · {v.work_id}
+              {view ? (view.assignment?.executor.display_name ?? 'No one assigned') : 'Observed more than once'} ·{' '}
+              {work_id}
             </span>
-            <span className="task-link-where">{lifeSaid(v)}</span>
+            <span className="task-link-where">{view ? lifeSaid(view) : 'which is current isn’t known'}</span>
           </li>
         ))}
       </ul>
@@ -558,14 +562,21 @@ export function PlanBoard(props: Props) {
   const board = boardOf(goal, { resources, people, viewerId, project: projectId })
   if (!goal) return null
   if (!board) {
-    // No plan in force or proposed, and yet work is observed: said, never a goal that looks empty.
-    if (goal.items.length === 0) return null
+    // No plan in force or proposed, and yet work is observed: said, never a goal that looks empty. Each work id once,
+    // one observed more than once said so, as on a board (Codex F-045).
+    const outside = outsideOf(goal, null)
+    if (outside.length === 0) return null
     return (
       <section className="board" aria-label="No plan in force">
         <p className="board-notice" role="note">
-          This goal has no plan in force, but {String(goal.items.length)} of its tasks are observed.
+          This goal has no plan in force, but {String(outside.length)} of its tasks are observed.
         </p>
-        <OutsideWork outside={goal.items} />
+        {outside.some((o) => !o.view) && (
+          <p className="board-notice" role="note">
+            A task is observed twice: which of its observations is current isn’t known.
+          </p>
+        )}
+        <OutsideWork outside={outside} />
       </section>
     )
   }

@@ -2904,3 +2904,46 @@ test('codex · F-043 · two goals with one id are refused with their view: neith
   await expect(page.getByRole('alert')).toContainText('$.goals[1]: another goal has this id', { timeout: 15_000 })
   await expect(board(page)).toHaveCount(0)
 })
+
+// ---- CX-0039 (Codex; GitHub 4183052368): work outside the plan observed twice, listed once. ----
+
+/** A work id listed once in `list`, said observed more than once, with no lifecycle of either observation. */
+const listedOnceUnknown = async (list: Locator, id: string) => {
+  const row = list.locator(`[data-work="${id}"]`)
+  await expect(row).toHaveCount(1)
+  await expect(row).toContainText(`Observed more than once · ${id}`)
+  await expect(row).toContainText('which is current isn’t known')
+  await expect(row).not.toContainText(/running|planned/)
+}
+
+test('codex · F-045 · work outside the plan observed twice is listed once, said ambiguous; with no plan in force too', async ({
+  page,
+}) => {
+  const keyWarnings: string[] = []
+  page.on('console', (m) => {
+    if (/same key|unique "key"/i.test(m.text())) keyWarnings.push(m.text())
+  })
+  await page.goto(`${PAGE}?viewer=davide&case=outside-twice`)
+  const outside = board(page).getByRole('region', { name: 'Observed outside the plan' })
+  await expect(outside.locator('[data-work]')).toHaveCount(3, { timeout: 15_000 })
+  await listedOnceUnknown(outside, 'work-old') // running and planned
+  await listedOnceUnknown(outside, 'work-same') // the same, twice
+  await expect(outside.locator('[data-work="work-extra"]')).toContainText('Davide’s Claude Code · work-extra')
+  await expect(outside.locator('[data-work="work-extra"]')).toContainText('running')
+  const notice = board(page).locator('.board-notice')
+  await expect(notice).toContainText('A task is observed twice')
+  await expect(notice).toContainText('3 observed tasks aren’t in the plan in force')
+  // No plan in force: the same rule, the count of distinct tasks, and why.
+  await page.goto(`${PAGE}?viewer=davide&case=no-plan-twice`)
+  const none = page.getByRole('region', { name: 'No plan in force' })
+  await expect(none.locator('.board-notice').first()).toHaveText(
+    'This goal has no plan in force, but 3 of its tasks are observed.',
+    { timeout: 15_000 },
+  )
+  await expect(none).toContainText('A task is observed twice: which of its observations is current isn’t known.')
+  await expect(none.locator('[data-work]')).toHaveCount(3)
+  await listedOnceUnknown(none, 'work-old')
+  await listedOnceUnknown(none, 'work-same')
+  await expect(none.locator('[data-work="work-extra"]')).toContainText('running')
+  expect(keyWarnings).toEqual([])
+})
