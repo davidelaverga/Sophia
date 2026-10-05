@@ -525,10 +525,12 @@ when you change the room:
   reach; Esc keeps to the shortcut scope; a notice marks Chat; the focus is
   handed back and never taken; a description never overwrites a newer one;
   a failed read is said, with a way to try again, and a refusal as one.
-  Every report downloads as an HTML page (html-report-v1) from its work card,
+  Every report downloads as an HTML page (html-report-v2) from its work card,
   the pane's Document tab and its Knowledge card: the saved file equals the
-  page `@sophia/report/page` prints from the version's checked Markdown, and
-  text that does not match its record (`tamper=text`) saves nothing.
+  page `@sophia/report/page` prints from the version's checked Markdown, with
+  what the version and its sources already hold (when it was published, its
+  limitations, what was read of each source and when), and text that does not
+  match its record (`tamper=text`) saves nothing.
   History says first what the service's facts show changed (`factsLine`:
   sections removed and added by name, each in quotes so a heading cannot
   read as the service's words, cited sources dropped and added, never
@@ -540,6 +542,112 @@ when you change the room:
   (`notesShown`); a Knowledge card shows no notes, since it carries no facts
   (CX-0026, `history=pilot`). Its comparison by section quotes every heading
   the same way, named whole (`quotedHeadings`).
+  Change the viewer and they must still pass.
+- **The downloaded page is a fixed template, not a design** (M75). The HTML
+  page is one template applied in the browser to a version's Markdown: no
+  designer, no render review, no stored HTML. It stays as the seed and
+  comparison control for SDD-01's native design and as legacy compatibility
+  for the "HTML page" offers Studio already has; a newly requested HTML
+  deliverable is SDD-01's to design. Nothing calls it designed or reviewed,
+  and no new offer of it appears: `report-page.test.ts` (Studio) pins every
+  module that imports, re-exports or loads it, so a new one fails until
+  `docs/coordination/M75/HANDOFF_TO_SDD01.md` maps it for SDD-01 to replace. Authored HTML never goes through its passes,
+  which assume the printer's own markup.
+- **The downloaded page has its own checks** (`e2e/report-page.spec.ts`,
+  SMC-M03): the bytes `renderReportPage` prints for labelled fixture reports
+  (`fixtures/report-pages.ts`: a research report with every element and every
+  kind of source, a stress report, and an Italian and a Spanish report with
+  weak, unread and project sources, M75), opened as they are on a phone and a
+  desktop, light and dark, and printed as A4. They come in two groups (M75):
+  - **any report page**, a designed one too: nothing past the screen or the
+    column's box, and no table's frame scrolling further than its table is
+    wide (C4); no word of 14 characters or fewer broken in a table cell (C5);
+    every text at 4.5:1 (3:1 when large), the page's ornaments (a section
+    break's dots) left out (C6); every citation pressed on a 24 px square
+    centred on its numeral, clear of the other citations' squares and of a
+    link beside it (C15: a group sets its numerals 24 px apart, a table or a
+    small heading that holds one sets its lines 25 px apart, such a table sets
+    citations in neighbouring cells 24 px apart and keeps room at its edges
+    and beside a frozen first column, and the printer keeps room beside a
+    citation close to another or to a link); every frame that scrolls sideways
+    focusable and named (C16, which also catches a contents rail that scrolls
+    instead of wrapping); every table whole in print, every cell in the PDF
+    (C9). Its probes find a page's parts through `Marks`
+    (`report-probes.ts`), so another page is measured by its own marks;
+  - **the html-report-v2 seed profile**, the template's own choices, which a
+    designed page is not asked to copy: 60 to 80 characters a line on a
+    desktop and in print, at least 35 on a phone (C1); body text at 17 px or
+    more (18 on a desktop), 1.5 to 1.7 lines apart (C2); headings 1.2 times a
+    step apart, at most five font sizes, none under 14 px (C3); the answer
+    before the contents and the body, in the first phone screen (C7); on a
+    desktop the contents beside the text as it scrolls, never over it (C14);
+    the body at 10.5 pt in print, and print light for a reader who prefers
+    dark (C9); print's running head in the report's own language (C17).
+
+  What its bytes guarantee is checked by
+  `packages/report/src/report-page.test.ts`, in the same two parts: the
+  general rules (nothing runs or loads, safe links, text escaped and no entity
+  split, ids used once and links that land) and the seed's own (one policy,
+  seven metas and one stylesheet, only the tags and attributes it prints).
+  Besides: every stored limitation (a line that holds more than white
+  space, control and format characters) prints, whatever the report says or
+  calls its sections, since no reading of headings or text proves one
+  stated (M75); beside a section of the report's own on its limitations the
+  record's is "Limitations on record"; the method never says "states no
+  limitations" while any is stored; a heading named like one of the
+  page's own parts is renamed in the page only, so pdf-report-v1 keeps its
+  ids and bytes; the same bytes in any
+  time zone; hostile text escaped; a draft of any length printed in linear
+  time. Its patterns hold only on the printer's own markup; authored HTML
+  needs a parser. Change the page and they must still pass.
+- **The Document tab reads as the HTML page does** (`e2e/report-reading.spec.ts`,
+  html-report-v2 §4b): on the same page, a long labelled report with every
+  kind of source (`fixtures/reading-data.ts`). One measure in both pane sizes
+  (`--measure`, 34rem: 60 to 80 characters a line, measured), for the
+  Document tab only: on the full page Sources and History keep 780 px. A
+  serif reading voice at 17/1.6, the Studio's sans for tables, code, numbers
+  and markers, with sizes of its own, outside the work views' scale. A table
+  never breaks a word (break-word, never anywhere). Five columns fit any
+  column but a phone's, where they scroll by a good part of the table with
+  the row label pinned (a container query, so no pane width makes them scroll
+  by a sliver); a frame with more to see is shaded at that edge. Each rule is
+  the top border of the cells under it (the last, their bottom border):
+  enlarged, the pinned label covered rules owned by the table or the cells
+  above, so the check reads them in a screenshot at every eighth of a pixel.
+  A bullet nested in a numbered list takes no number. The version's
+  limitations sit under an amber rule. A citation stays on the line of the
+  word before it, and adjacent ones are one group with commas, also across
+  the end of bold (`bindCites` in `cite-view.ts`, with tests): a citation is
+  a button, and a line may break before a button even with no space, so the
+  word and the group's first three numbers are set without a break, taking
+  at most 24 characters of the word so a long address still wraps, and one
+  letter of Chinese or Japanese, where a line may break between any two. A
+  link or inline code goes whole with the citation after it, never split
+  (M75). Inside the piece all but the word's last character wraps as text
+  does (`BoundWord`, `.cite-wrap`), so a long link, an address or emoji
+  never runs past the column (M75-RF-0005); a word joiner does not hold the
+  citation in Chromium, the last character in the nowrap piece does. Its
+  segmenter is made on first use (`lastGrapheme`, with a test that loads the
+  module without one): Firefox before 125 has no `Intl.Segmenter`, and one
+  made when the module loaded would stop the whole Studio from loading.
+  Past three numbers a group may wrap after a comma, never before one ("no
+  line starts with a citation or its comma", 52 widths). That no number
+  runs past the column is swept every second pixel down to what may never
+  part, the word's last character and the first three numbers, measured on
+  their own line, which also never part; the unit is measured again where
+  the word wraps above the numbers and must be the same (M75-RF-0006). A
+  number is 0.8 of the text, with a finger-sized target on a touch screen
+  (an empty `::after`, none in a table, whose frame it would make scroll),
+  and each target is its own (M75-RF-0001, `report-reading.spec.ts`): it
+  reaches 4 px into the words beside it, never across a group's comma, into
+  a link, or across fewer than three characters to another group
+  (`flushSides` marks those sides, reading past the end of bold or emphasis,
+  M75-RF-0004), and stays shorter than the
+  step between its lines, so no press belongs to two citations or takes a
+  link's. A
+  citation of a source read in part, as a snippet or not at all is dotted
+  (`data-weak`) and named so in the report's language (`reportLanguage`,
+  from `@sophia/report/language`, which loads without the page's template).
   Change the viewer and they must still pass.
 - **The voice chat has its own checks** (`e2e/voice-chat.spec.ts`, SMC-M03
   CX-0022 and CX-0023): on the room's fixture page, whose LiveKit fake

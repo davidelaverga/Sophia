@@ -830,7 +830,10 @@ test('CX-0019 · a citation written as a link to one of the version’s sources 
   await expect(pane(page).getByText('Not cited in the text')).toHaveCount(0)
 })
 
-/** The HTML page version `n` of the fixture report prints: from its checked Markdown, with the sources it cites. */
+/**
+ * The HTML page version `n` of the fixture report prints: from its checked Markdown, with the sources it cites and
+ * what the version and its sources hold (when it was published, its limitations, what was read of each and when).
+ */
 function fixturePage(n = 1): string {
   const version = versions(n).find((v) => v.versionNumber === n)
   const text = version ? content(version.sourceId) : null
@@ -838,10 +841,20 @@ function fixturePage(n = 1): string {
   return renderReportPage({
     markdown: text.text,
     title: version.title ?? 'Report',
-    sources: citedSources.sources.map((s) => ({ id: s.sourceId, title: s.title, url: s.url })),
+    sources: citedSources.sources.map((s) => ({
+      id: s.sourceId,
+      title: s.title,
+      url: s.url,
+      kind: s.kind,
+      coverage: s.coverage,
+      retrievedAt: s.retrievedAt,
+      limitations: s.limitations,
+    })),
     citable: citedSources.sources.map((s) => s.sourceId),
     sha256: version.sourceHash,
     versionNumber: n,
+    publishedAt: version.createdAt ?? null,
+    limitations: version.limitations ?? [],
   })
 }
 
@@ -873,7 +886,7 @@ test('HTML · the work card downloads each Markdown version as one self-containe
   expect(html).toBe(fixturePage())
   expect(html).toContain('<meta name="viewport" content="width=device-width, initial-scale=1">')
   expect(html).toContain(`<meta http-equiv="Content-Security-Policy" content="default-src 'none';`)
-  expect(html).toContain('<a href="#cite-1">[1]</a>')
+  expect(html).toContain('<a href="#cite-1" id="ref-1" aria-label="Source 1">1</a>')
   expect(html).not.toContain('<script')
   await expect(page.locator('.work-card .output-status').last()).toHaveText(/^Downloading fixture-report-v1\.html · /)
 })
@@ -902,7 +915,9 @@ test('HTML · the report pane’s Document tab downloads the version on screen a
   const html = await savedText(download)
   expect(html).toBe(fixturePage(3))
   // As the pane reads it (CX-0019): the link to one of the version's sources is citation 1, the stray id its label.
-  expect(html).toContain('It cites one page <sup class="cite"><a href="#cite-1">[1]</a></sup> and names an id')
+  expect(html).toContain(
+    'It cites one page<sup class="cite"><a href="#cite-1" id="ref-1" aria-label="Source 1">1</a></sup> and names an id',
+  )
   expect(html).toContain('none of its sources 2.')
   await expect(pane(page).locator('.page-download [role="status"]')).toHaveText(/^Downloading fixture-report-v3\.html/)
 })

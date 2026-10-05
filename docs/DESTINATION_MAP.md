@@ -63,7 +63,7 @@ a path updates its row in the same commit.
 | `packages/execution-adapters/` | unbuilt | S1-09, S1-10 | `omnigent/`, `native-team/`, `mailbox/` |
 | `packages/creative/` | unbuilt | S1-06, S1-07, S1-13 | Image adapters, assets, prototype bundle |
 | `packages/ui/` | partial | S1-02, S1-04, SMC-M03 | Built: `Tag`, line icons (`Icon`), labels that swap in place (`SwapLabel`), hover and focus tips that name a control and its key (`Tip`), in-place confirmation for actions that cut someone off (`ConfirmButton`) and the sliding thumb of segmented controls and navigation (`useSlidingThumb`). Later goals add common renderers. SMC-M03: `download`, `expand` and `collapse` icons |
-| `packages/report/` | built | S1-13, SMC-M03 | The document half of the renderer path. A report's Markdown as data (the viewer's parser, moved from Studio in S5b) and as a printable document: the pdf-report-v1 template (escaped HTML with the donor-derived stylesheet) and the `report_manifest_v1` checks made before a render |
+| `packages/report/` | built | S1-13, SMC-M03, M75 | The document half of the renderer path. A report's Markdown as data (the viewer's parser, moved from Studio in S5b) and as a printable document: the pdf-report-v1 template (escaped HTML with the donor-derived stylesheet) and the `report_manifest_v1` checks made before a render. M75 (PR #75): `./page`, html-report-v2, the browser-side HTML page, a fixed-template seed/control and legacy conversion, not a design (SDD-01 replaces its offers; `docs/coordination/M75/HANDOFF_TO_SDD01.md`) |
 | `packages/test-support/` | built | S1-02 | Disposable migrated databases, cluster-role lock, project seeding |
 
 ## apps/

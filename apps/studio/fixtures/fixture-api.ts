@@ -16,6 +16,7 @@ import {
   waitingAtTheDoor,
   type Description,
 } from './report-data.ts'
+import { readingRead } from './reading-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -154,7 +155,13 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
-  return method === 'POST' ? posted(project, path, init) : answerReport(project, method, url, init)
+  return method === 'POST' ? posted(project, path, init) : answerReports(project, method, url, init)
+}
+
+/** The reports' requests: the long report the reading checks read (reading-data.ts), else the fixture report's. */
+function answerReports(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  const reading = method === 'GET' ? readingRead(url.pathname) : null
+  return reading ? json(reading) : answerReport(project, method, url, init)
 }
 
 /**
