@@ -103,7 +103,10 @@ class QuietRecognition extends EventTarget {
   start() {
     return undefined
   }
+  // `heard=words`: what it heard, said as it stops.
   stop() {
+    const heard = query.get('heard')
+    if (heard) this.dispatchEvent(Object.assign(new Event('result'), { results: [[{ transcript: heard }]] }))
     this.dispatchEvent(new Event('end'))
   }
   abort() {

@@ -659,7 +659,8 @@ test('@phone · touch · a reply that lands while you read further up waits belo
 }) => {
   const list = await readUpWhileSheAnswers(page)
   await expect(answeredLine(page)).toBeVisible()
-  expect(await list.evaluate((l) => l.scrollTop)).toBeLessThan(10) // she didn't pull you down
+  // She didn't pull you down: you are still nearer where you read than her reply.
+  expect(await list.evaluate((l) => l.scrollTop < (l.scrollHeight - l.clientHeight) / 2)).toBe(true)
   // Pressed from the keyboard: the line goes, and the focus stays in the conversation, never the page.
   await answeredLine(page).focus()
   await page.keyboard.press('Enter')
@@ -773,4 +774,39 @@ test('touch · a long unbroken word (a pasted link) wraps inside the field; the 
   expect(bar?.width ?? Infinity).toBeLessThanOrEqual((column?.width ?? 0) + 1)
   expect(await field(page).evaluate((f) => f.scrollWidth <= f.clientWidth + 1)).toBe(true)
   await expect(page.locator('.c3-head h2')).toBeInViewport()
+})
+
+// Codex on #92: a late copy is taken back once Personal is out of sight; words past the limit are said, never hidden.
+
+test('touch · a copy that settles after the padlock shut is taken back off the clipboard', async ({ page }) => {
+  await page.goto(PAGE)
+  // A clipboard that answers late (a permission prompt), noting what it was given.
+  await page.evaluate(() => {
+    document.body.dataset['clip'] = ''
+    navigator.clipboard.writeText = (words: string) => {
+      document.body.dataset['clip'] += `[${words}]`
+      return words
+        ? new Promise<void>((done) => window.addEventListener('release', () => done(), { once: true }))
+        : Promise.resolve()
+    }
+  })
+  const hers = page.locator('.msg.sophia:not(.typing)').last()
+  await hers.hover()
+  await hers.getByRole('button', { name: 'Copy' }).click()
+  await page.getByRole('button', { name: 'Lock (fixture)' }).click()
+  await page.evaluate(() => window.dispatchEvent(new Event('release')))
+  await expect.poll(() => page.evaluate(() => document.body.dataset['clip'])).toMatch(/\]\[\]$/)
+})
+
+test('touch · dictation past the limit is counted as it is, how much over said, and Send waits', async ({ page }) => {
+  await page.goto(`${PAGE}?heard=${encodeURIComponent('and one more thing I wanted to say')}`)
+  await field(page).fill('a'.repeat(3990))
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await page.getByRole('button', { name: 'Stop listening' }).click()
+  const length = await field(page).evaluate((f: HTMLTextAreaElement) => f.value.length)
+  expect(length).toBeGreaterThan(4000)
+  await expect(page.locator('#c-count')).toHaveText(
+    `${length.toLocaleString('en-US')} / 4,000 · ${String(length - 4000)} over`,
+  )
+  await expect(page.locator('.ps-composer .send')).toBeDisabled()
 })
