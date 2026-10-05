@@ -41,8 +41,15 @@ const NOW = ((at) => {
 const ago = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000).toISOString()
 const ahead = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 const DAY = 24 * 60
+// `longReply=1`: her answer runs to several lines.
+const LONG_REPLY =
+  'I’m here. It sounds like the meeting stayed with you longer than the work did. Before we get to what you could ' +
+  'say to him, tell me what you noticed in yourself when he went quiet: was it worry about the date, or about how ' +
+  'he sees you now? We can take either one first, slowly.'
 // `away=N`: the earlier day's turns are N days back, not one (time away; where you began).
 const BEFORE = Math.max(1, Number(query.get('away')) || 1) * DAY
+/** Her answer to a message sent here. */
+const REPLY = query.has('longReply') ? LONG_REPLY : 'I’m here. Tell me more about that.'
 
 let seq = 0
 const turn = (
@@ -228,7 +235,7 @@ function useSimulated() {
             ...s,
             turns: s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' } : t)),
           }))
-          add(turn('sophia', 'I’m here. Tell me more about that.', new Date().toISOString()))
+          add(turn('sophia', REPLY, new Date().toISOString()))
         },
         query.has('slow') ? 2500 : 900,
       )
@@ -336,7 +343,8 @@ function Personal() {
         account="fixture"
         name="Luis"
         space={spaceRead ? space : undefined}
-        epoch={epochKnown ? space.epoch : undefined}
+        // As Places knows it: from the space once read, or earlier from the projects (epochAfter).
+        epoch={spaceRead || epochKnown ? space.epoch : undefined}
         readBack={readBack}
         read={idle}
         projects={projects}

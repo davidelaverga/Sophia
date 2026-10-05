@@ -11,6 +11,7 @@ import type { Way } from './arrive.ts'
 import { daysOf, notePrefill, suggestionFor, type Row } from './conversation-view.ts'
 import type { Week } from './extras.ts'
 import { FindLens, Marked, type Lens } from './Find.tsx'
+import { useCapped } from './useCapped.ts'
 import { focusConversation, focusIfDropped, focusSoon } from './focus.ts'
 import { noteFlight } from './note-flight.ts'
 import { WeekLook } from './WeekLook.tsx'
@@ -33,6 +34,9 @@ export interface ConversationActions {
 }
 
 const dayId = (key: string) => `c-${key}`
+
+/** The most characters a note holds. */
+const NOTE_MOST = 90
 
 /** Each half of Umbral (threshold.ts), boxed tight: hers small and light, yours larger and warm, at one scale. */
 const HALF = {
@@ -60,6 +64,7 @@ function NoteForm(props: {
 }) {
   const { turn, suggestion, words, onKeep, onClose } = props
   const [text, setText] = useState(() => words ?? notePrefill(turn.text, suggestion))
+  const capping = useCapped(NOTE_MOST, text, setText)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
     // Note this went as it opened, so the form takes the focus; reopened late, it takes it (and the view) from nobody.
@@ -82,9 +87,9 @@ function NoteForm(props: {
         <input
           ref={input}
           id="c-note-in"
-          maxLength={90}
+          // A note holds 90 characters, as the API counts (maxLength counts UTF-16 units: an emoji as two).
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          {...capping}
           onKeyDown={(e) => {
             if (e.key !== 'Escape') return
             e.preventDefault()

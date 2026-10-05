@@ -381,6 +381,8 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
   const atEnd = useRef(true)
   const sent = useRef<unknown>(null)
   const seen = useRef(newest)
+  // A reply of hers came while the space was out of sight (another place, the padlock).
+  const away = useRef(false)
   const [behind, setBehind] = useState(false)
   useEffect(() => {
     const box = list.current
@@ -422,11 +424,15 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
       atEnd.current = true // nothing read yet (a lock, an erasure): it opens at its end
       setBehind(false)
     }
-    if (hidden) return
-    if (box && (atEnd.current || theirs)) {
+    if (hidden) {
+      if (landed && hers) away.current = true // her reply, unseen until the reader is back
+      return
+    }
+    const next = afterGrowth(box, { atEnd, away }, theirs, landed && hers)
+    if (next === 'end' && box) {
       box.scrollTop = box.scrollHeight
       setBehind(false)
-    } else if (landed && hers) setBehind(true)
+    } else if (next === 'behind') setBehind(true)
   }, [list, newest, hers, sending, writing, hidden])
   // Pressed, the line goes: the focus stays in the conversation (the field, or the list on touch), never the page.
   const toEnd = useCallback(() => {
@@ -436,6 +442,28 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
     focusConversation()
   }, [list])
   return { behind: behind && !hidden, toEnd }
+}
+
+/**
+ * What the conversation does as it grows, in sight. Back from out of sight with a reply of hers that came meanwhile:
+ * where it overflows, the line says she answered and nothing jumps; where it fits, the reader is at its end again.
+ * Else, read at the end or one's own words just sent, it goes to the end; a reply of hers while reading further up
+ * waits below, said. Clears `away` either way.
+ */
+function afterGrowth(
+  box: HTMLDivElement | null,
+  where: { atEnd: { current: boolean }; away: { current: boolean } },
+  theirs: boolean,
+  hersLanded: boolean,
+): 'end' | 'behind' | 'stay' {
+  const unseen = where.away.current
+  where.away.current = false
+  if (unseen && box) {
+    if (box.scrollHeight > box.clientHeight) return 'behind'
+    where.atEnd.current = true
+  }
+  if (where.atEnd.current || theirs) return 'end'
+  return hersLanded ? 'behind' : 'stay'
 }
 
 /** What makes the conversation grow, from what it holds. */
