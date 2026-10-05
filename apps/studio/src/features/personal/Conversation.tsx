@@ -180,8 +180,8 @@ function Copy({ text }: { text: string }) {
       setSaid('Couldn’t copy')
       return
     }
-    // A copy that settles once Personal is out of sight (the padlock shut, another place, signed out) is taken back:
-    // her words never stay on the clipboard behind the privacy screen.
+    // A copy that settles once Personal is out of sight (the padlock shut, another place, signed out) is taken back, as
+    // far as the browser lets a page write then: her words don't stay on the clipboard behind the privacy screen.
     if (button.current && onScreen(button.current)) setSaid('Copied')
     else await navigator.clipboard.writeText('').catch(() => undefined)
   }

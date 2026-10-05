@@ -854,7 +854,10 @@ test('touch · dictation past the limit is counted as it is, how much over said,
   const length = await field(page).evaluate((f: HTMLTextAreaElement) => f.value.length)
   expect(length).toBeGreaterThan(4000)
   await expect(page.locator('#c-count')).toHaveText(
-    `${length.toLocaleString('en-US')} / 4,000 · ${String(length - 4000)} over`,
+    `${length.toLocaleString('en-US')} / 4,000 · ${(length - 4000).toLocaleString('en-US')} over`,
   )
   await expect(page.locator('.ps-composer .send')).toBeDisabled()
+  await field(page).press('Enter')
+  await page.waitForTimeout(400)
+  expect(await sent(page)).toEqual([])
 })
