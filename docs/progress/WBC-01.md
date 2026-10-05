@@ -350,6 +350,15 @@ Codex passed F-044 and F-045 at `be26ede` ([CX-0040](https://github.com/davidela
 | **F-046** (P2): an Ask completion with no words ended answered, the sheet saying "Thinking…" for good | No words, or only white space, is no answer: failed, said so, and Ask again follows |
 | **F-047** (P2): a plan in force only proposed, or a proposal accepted, was read, then dropped from the board | Refused, said by its path; superseded and withdrawn plans stay readable in either slot, as history |
 
+## CX-0042 and CX-0043
+
+Codex passed F-046 and F-047 at `44083c2` ([CX-0042](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5993429449)). GitHub's reviewer then left two more on that head ([CX-0043](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5993527005)), handled in [CC-0028](../coordination/WBC-01/WBC-01-CC-0028.md) (`b270812`):
+
+| Finding | Fix |
+|---|---|
+| **F-048** (P2): every revision of a decision still proposed was asked, and an older one came back when its latest was answered, declined, expired or superseded | Each decision at its latest revision, in any state or order, before what is open, answerable or the viewer's is chosen; the goal's "for you" and the while-away line follow it. An older revision is history |
+| **F-049** (P2): a task's two waits with one kind and reference were read, its status said by whichever came first, under one key | Refused, said by its path, the pair compared as a tuple; the same reference under another kind, or on another task, is another wait |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.

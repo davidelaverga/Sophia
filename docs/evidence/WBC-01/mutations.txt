@@ -339,3 +339,19 @@ AP1b F-047 each plan in its slot (board): FAILS as it should  [expect(locator).t
 # On c7cb5a7, every entry above on ask.ts and board-view.ts ran again: all fail. AI1 named the goal rules' last line,
 # which now lists the slots rule too, and re-aimed there it fails. All 191 entries' text is found, none stale. 190 of
 # 191 fail; R1b is the redundant key recorded above.
+
+# CX-0043 at 44083c2 (#74; GitHub 4183442383, 4183442398), F-048 and F-049, fixed in b270812
+AQ1 F-048 the decisions asked are each at its latest revision (board): FAILS as it should  [expect(locator).toHaveText]
+AQ2 F-048 for you only by a decision at its latest revision (rule): FAILS as it should  [AssertionError]
+AQ3 F-048 the latest is the highest revision, whatever the order (rule): FAILS as it should  [AssertionError]
+AQ3b F-048 the latest is the highest revision, whatever the order (board): FAILS as it should  [expect(locator).toContainText]
+AQ4 F-048 an older revision is history while away (rule): FAILS as it should  [AssertionError]
+AR1 F-049 each wait of a task once (rule): FAILS as it should  [AssertionError]
+AR1b F-049 each wait of a task once (board): FAILS as it should  [expect(locator).toContainText]
+AR2 F-049 a wait named by its kind and reference, not by who answers it (rule): FAILS as it should  [AssertionError]
+AR3 F-049 the same reference of another kind is another wait (rule): FAILS as it should  [AssertionError]
+AR4 F-049 a wait's key holds its kind and reference (sheet): FAILS as it should  [expect(received).toEqual: a duplicate-key warning]
+# On b270812, every entry above on plan.ts, PlanBoard.tsx, seen.ts, TaskSheet.tsx and board-view.ts ran again (86 with
+# the new ten): 85 fail, R1b passes as recorded. AI1 named the goal rules' last line, which now lists the waits rule
+# too, and re-aimed there it fails. All 201 entries' text is found, none stale. 200 of 201 fail; R1b is the redundant
+# key recorded above.
