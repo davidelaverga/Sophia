@@ -418,17 +418,7 @@ export function DocumentPane(props: Props) {
         }
         call={props.call}
         note={props.note}
-        tabs={
-          <PaneTabs
-            tab={tab}
-            onTab={choose}
-            sources={data.sources.data?.sources.length}
-            versions={data.versions.data?.length}
-            formats={viewerFormats(data.version)}
-            format={shownFormat(data)}
-            onFormat={onFormat}
-          />
-        }
+        tabs={<PaneTabs tab={tab} onTab={choose} {...tabFacts(data)} onFormat={onFormat} />}
       />
       <PaneBody
         tab={tab}
@@ -588,6 +578,14 @@ function metaLine(version: ArtifactVersion | undefined, text: LoadedText | undef
     .filter(Boolean)
     .join(' · ')
 }
+
+/** What the tab row counts and offers: the version's sources and the report's versions, its formats, the one shown. */
+const tabFacts = (data: PaneData) => ({
+  sources: data.sources.data?.sources.length,
+  versions: data.versions.data?.length,
+  formats: viewerFormats(data.version),
+  format: shownFormat(data),
+})
 
 /** The format on screen: the one the link asks for when the version has it, else its Markdown. */
 const shownFormat = (data: PaneData): ViewerFormat => {
