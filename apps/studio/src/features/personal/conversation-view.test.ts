@@ -200,6 +200,8 @@ describe('the words around the conversation', () => {
   it('prefills a note with Sophia’s suggestion when there is one, else the words, cut short', () => {
     assert.equal(notePrefill('I have a pitch', { id: 's', text: 'Pitch on Friday', state: 'open' }), 'Pitch on Friday')
     assert.equal(notePrefill('I have a pitch', { id: 's', text: 'Pitch on Friday', state: 'kept' }), 'I have a pitch')
+    // Long words cut in characters: an emoji at the cut is never split.
+    assert.equal(notePrefill('😊'.repeat(80), null), `${'😊'.repeat(70)}…`)
     assert.equal(notePrefill('x'.repeat(80), null), `${'x'.repeat(70)}…`)
   })
 })

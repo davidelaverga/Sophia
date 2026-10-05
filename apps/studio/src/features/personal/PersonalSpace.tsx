@@ -371,17 +371,15 @@ function useHeard(space: Space | undefined, turns: readonly PersonalTurn[], writ
 const AT_END_PX = 48
 
 /**
- * The latest turn comes into sight as the conversation grows (a turn, a message settling, Sophia writing) while the
- * person reads at its end, also once they are back from another place, and always as they send. Whoever reads further
- * up stays where they read; a reply of hers that lands meanwhile waits below (`behind`), until they reach the end or
- * press to go there (`toEnd`).
+ * The reader at the conversation's end stays there as it changes size; reading further up, or back with a reply of
+ * hers unseen, they are left where they are. Scrolling to the end clears the line that says she answered.
  */
-function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) {
-  const { newest, hers, sending, writing, hidden } = grows
-  const atEnd = useRef(true)
-  const sent = useRef<unknown>(null)
-  const seen = useRef(newest)
-  const [behind, setBehind] = useState(false)
+function useEndKept(
+  list: RefObject<HTMLDivElement | null>,
+  where: { atEnd: { current: boolean }; away: { current: boolean } },
+  setBehind: (behind: boolean) => void,
+) {
+  const { atEnd, away } = where
   useEffect(() => {
     const box = list.current
     if (!box) return undefined
@@ -394,6 +392,8 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
     // whoever read at its end stays there, also as it starts to overflow, where its end-alignment falls back to the
     // start. Its rows are watched as well as its box, and again as rows come and go.
     const sized = new ResizeObserver(() => {
+      // A reply of hers unseen: afterGrowth places the reader, whichever runs first; never past it to the end.
+      if (away.current) return
       // At once, not smoothly: a second resize mid-glide must still find the reader at the end.
       if (atEnd.current) box.scrollTo({ top: box.scrollHeight, behavior: 'instant' })
     })
@@ -410,7 +410,24 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
       sized.disconnect()
       rows.disconnect()
     }
-  }, [list])
+  }, [list, atEnd, away, setBehind])
+}
+
+/**
+ * The latest turn comes into sight as the conversation grows (a turn, a message settling, Sophia writing) while the
+ * person reads at its end, also once they are back from another place, and always as they send. Whoever reads further
+ * up stays where they read; a reply of hers that lands meanwhile waits below (`behind`), until they reach the end or
+ * press to go there (`toEnd`).
+ */
+function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) {
+  const { newest, hers, sending, writing, hidden } = grows
+  const atEnd = useRef(true)
+  const sent = useRef<unknown>(null)
+  const seen = useRef(newest)
+  // A reply of hers came while the space was out of sight (another place, the padlock).
+  const away = useRef(false)
+  const [behind, setBehind] = useState(false)
+  useEndKept(list, { atEnd, away }, setBehind)
   useEffect(() => {
     const box = list.current
     const theirs = sending !== null && sending !== sent.current
@@ -422,11 +439,15 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
       atEnd.current = true // nothing read yet (a lock, an erasure): it opens at its end
       setBehind(false)
     }
-    if (hidden) return
-    if (box && (atEnd.current || theirs)) {
+    if (hidden) {
+      if (landed && hers) away.current = true // her reply, unseen until the reader is back
+      return
+    }
+    const next = afterGrowth(box, { atEnd, away }, theirs, landed && hers)
+    if (next === 'end' && box) {
       box.scrollTop = box.scrollHeight
       setBehind(false)
-    } else if (landed && hers) setBehind(true)
+    } else if (next === 'behind') setBehind(true)
   }, [list, newest, hers, sending, writing, hidden])
   // Pressed, the line goes: the focus stays in the conversation (the field, or the list on touch), never the page.
   const toEnd = useCallback(() => {
@@ -436,6 +457,33 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
     focusConversation()
   }, [list])
   return { behind: behind && !hidden, toEnd }
+}
+
+/**
+ * What the conversation does as it grows, in sight. Back from out of sight with a reply of hers that came meanwhile:
+ * where it overflows, the reader stays where they stood and the line says she answered; where it fits, they are at
+ * its end again.
+ * Else, read at the end or one's own words just sent, it goes to the end; a reply of hers while reading further up
+ * waits below, said. Clears `away` either way.
+ */
+function afterGrowth(
+  box: HTMLDivElement | null,
+  where: { atEnd: { current: boolean }; away: { current: boolean } },
+  theirs: boolean,
+  hersLanded: boolean,
+): 'end' | 'behind' | 'stay' {
+  const unseen = where.away.current
+  where.away.current = false
+  if (unseen && box) {
+    if (box.scrollHeight > box.clientHeight) {
+      // Her reply is below the reader now: a resize that comes after this must not carry them past it.
+      where.atEnd.current = false
+      return 'behind'
+    }
+    where.atEnd.current = true
+  }
+  if (where.atEnd.current || theirs) return 'end'
+  return hersLanded ? 'behind' : 'stay'
 }
 
 /** What makes the conversation grow, from what it holds. */

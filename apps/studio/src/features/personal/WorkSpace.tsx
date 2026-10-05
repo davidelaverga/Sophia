@@ -13,6 +13,10 @@ import { AdmissionNote } from '../access/AdmissionNote.tsx'
 import { shortName } from '../voice/room-view.ts'
 import { CARD_ACTION, carriedFrom, EDGE_TIP, projectCard, workOrder, type LockedBy } from './places-view.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
+import { useCapped } from './useCapped.ts'
+
+/** The most characters a project's title holds. */
+const TITLE_MOST = 180
 
 interface Props {
   hidden: boolean
@@ -70,6 +74,7 @@ interface TitleProps {
 
 /** The title and its Start, in one field; Esc lets the form go. After no answer, the title waits as it was sent. */
 function TitleField({ title, status, onTitle, onClose }: TitleProps) {
+  const capping = useCapped(TITLE_MOST, title, onTitle)
   const field = useRef<HTMLInputElement>(null)
   useEffect(() => field.current?.focus(), [])
   const words = status === 'sending' || status === 'unknown' ? START_WORDS[status] : START_WORDS.idle
@@ -82,11 +87,11 @@ function TitleField({ title, status, onTitle, onClose }: TitleProps) {
         ref={field}
         id="c-newproj"
         required
-        maxLength={180}
+        // 180 characters, as the API counts (maxLength counts UTF-16 units: an emoji as two).
         placeholder="Name the project"
         value={title}
         readOnly={status === 'unknown'}
-        onChange={(e) => onTitle(e.target.value)}
+        {...capping}
         onKeyDown={(e) => {
           if (e.key !== 'Escape') return
           e.preventDefault()
