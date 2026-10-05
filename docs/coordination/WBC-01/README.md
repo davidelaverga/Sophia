@@ -18,7 +18,7 @@ Claude's messages are copied here. The posted copy of a message may name a SHA t
 | Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `5dec922899cb4e0e090ff39ff1d709133baf6e34` (#90) |
 | Implementation writer | Claude Code (Davide's session). It has no GitHub credential, so it posts and pushes nothing itself |
 | Pull request | [#76](https://github.com/davidelaverga/Sophia/pull/76), opened by Codex (Davide's decision of 2026-10-03) from the branch as Claude handed it over |
-| Review, app tests, release | Codex, in its own clean worktree (policy §1, §4, §5). Release is Studio-only, after one explicit approval from Davide for an exact batch |
+| Review, app tests, release | Codex, in its own clean worktree (policy §1, §4, §5). Release is Studio-only. On 2026-10-05 Davide delegated merge and deployment of main's existing Studio to Codex overnight (CX-0018); WBC-02 stays unauthorized |
 | Design reference | Luis. His feedback is welcome; it is no longer a required sign-off (policy §1) |
 
 A comment wakes nobody (policy §7). Davide resumes a session with one line: `Read #74 and handle message <id>.`
@@ -58,7 +58,12 @@ A comment wakes nobody (policy §7). Davide resumes a session with one line: `Re
 | [WBC-01-CX-0016](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5984741374) | `REVIEW_RESULT` | Changes required at `64dd4f7`. F-014 and F-015 are verified. **F-016** (P1): Resources and Tasks kept their commands apart. **F-017** (P2): a result read could stay Reading indefinitely. **F-018** (P2): another plan inherited the previous plan's view. **F-019** (P2): an expired proposal still called "1 decision for you". All four are also GitHub comments. One CI browser job failed on main's opening timing check |
 | [WBC-01-CC-0013](WBC-01-CC-0013.md) | `FIX_READY` | main merged in (`e4003cd`, #88–#90, with the opening's pacing fixes), and F-016–F-019 fixed in `8143be6`, each with regressions and mutations. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985167128) at `b603e1d`, and the branch pushed to PR #76 |
 | [WBC-01-CX-0017](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985257405) | `REVIEW_RESULT` | Changes required at `b603e1d`. The merge with #90 and F-016–F-019 are verified; the exact-head CI passed all six jobs, the opening check included. **F-020** (P1, also GitHub 4179628491): a pending, adverse or inconclusive check of the current version still certified Complete. **F-021** (P2, also GitHub 4179628493): losing the command port hid what was sent |
-| [WBC-01-CC-0014](WBC-01-CC-0014.md) | `FIX_READY` | F-020 and F-021 fixed in `93a7268`, each with regressions and mutations; a flake of main's own Personal check noted. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
+| [WBC-01-CC-0014](WBC-01-CC-0014.md) | `FIX_READY` | F-020 and F-021 fixed in `93a7268`, each with regressions and mutations; a flake of main's own Personal check noted. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985633086) at `8892325`, and the branch pushed to PR #76 |
+| [WBC-01-CX-0018](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985684913) | `HANDOFF` | Davide's overnight delegation to Codex: prompt this session, make PR #76 mergeable, merge main, deploy main's existing Studio on its existing hosting and test it. Not WBC-02, a backend, database or runtime release, new infrastructure or paid inference. Codex pushed `8892325`, posted CC-0014, and asked for the Personal Correct/Forget repair |
+| [WBC-01-CX-0019](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985787713) | `FINDING` | F-020 and F-021 verified at `8892325`; both exact-head CI workflows pass all six jobs. **F-022** (P1, also GitHub 4179798118): an unavailable read still sent Stop, and offered choices, Challenge and Ask. **F-023** (P2, also GitHub 4179798123): a choice with no reply stayed Sending for good |
+| [WBC-01-CX-0020](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985860768) | `REVIEW_RESULT` | Changes required at `8892325`: F-020 and F-021 verified, with CC-0014 posted and the branch pushed to PR #76. Its isolated full browser run passed 373 and failed 20, which all passed when rerun with one worker. F-022 and F-023 open |
+| [WBC-01-CX-0021](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986248624) | `FINDING` | On the local repair `3e138ef`, fetched by Codex and not yet published: **F-024** (P2), F-022's gate hid a challenge already sent, and its late receipt, until the read came back. Codex's ordinary checks, artifacts and unit suite pass on `3e138ef` |
+| [WBC-01-CC-0015](WBC-01-CC-0015.md) | `FIX_READY` | F-022 and F-023 fixed in `3e138ef`, F-024 in `cbd1731`, and Personal's Correct/Forget interception repaired, each with regressions and mutations. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
 
 **Scope extension (Davide, 2026-10-03, in this session):** F-003 can only be fixed in the shared shell. Davide chose to fix it for every sheet, which extends Claude's writable scope to these paths:
 
@@ -68,5 +73,11 @@ A comment wakes nobody (policy §7). Davide resumes a session with one line: `Re
 - `features/access/InviteSheet.tsx`.
 
 `ProjectShell.tsx` is also touched by #32 (M03); the change here is a wrapper and one small hook.
+
+**Scope extension (Codex, under Davide's overnight delegation, 2026-10-05):** the Personal Correct/Forget interception, first noted in CC-0014 as main's, is repaired here. This adds these paths:
+
+- `apps/studio/src/features/personal/personal.css`, one property;
+- `apps/studio/fixtures/personal-extras.ts` and `personal.tsx`, the labelled `memory=old`;
+- `apps/studio/e2e/personal.spec.ts`, two checks.
 
 The PR's description is [PR_DESCRIPTION.md](PR_DESCRIPTION.md).

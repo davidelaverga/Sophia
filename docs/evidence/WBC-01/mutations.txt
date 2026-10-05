@@ -201,3 +201,35 @@ T3 F-021 nothing tried again without a port: FAILS as it should
 # 2026-10-05, on 93a7268: all 128 entries above run again. 125 failed; R1b is the redundant key recorded above. M12
 # and D2 named SessionActs lines F-021 rewrote (the dispatch through `followed`, the retry rule with canSend); re-aimed,
 # both fail. 127 of 128 fail.
+
+# CX-0019 at 8892325 (#74; GitHub 4179798118, 4179798123), F-022 and F-023, and Personal's Correct and Forget (main's,
+# repaired at Codex's request), fixed in 3e138ef. Browser checks ran on Claude's own fixture server (port 5207, started
+# and stopped by each run, one worker). Each failure below is a check's own assertion, never only a timeout.
+U1 the faded day lets the press through to Correct and Forget: FAILS as it should  [Error: Correct, memory 1]
+V1 F-022 a stale read sends nothing (the gate): FAILS as it should  [expect(locator).toContainText]
+V1b F-022 no command from a stale read: FAILS as it should  [expect(locator).toHaveText]
+V1c F-022 no choice from a stale read: FAILS as it should  [expect(locator).toContainText]
+V1d F-022 no challenge from a stale read: FAILS as it should  [expect(locator).toHaveCount]
+V1e F-022 no question from a stale read: FAILS as it should  [expect(locator).toContainText]
+V1f F-022 a question kept says the read is stale: FAILS as it should  [expect(locator).toContainText]
+W1 F-023 a choice waits at most a write limit (board): FAILS as it should  [expect(locator).toHaveText]
+W1b F-023 a choice waits at most a write limit (rule): FAILS as it should  [AssertionError]
+W1c F-023 not before the write limit: FAILS as it should  [expect(locator).toHaveText]
+W2 F-023 an earlier send’s reply changes nothing (board): FAILS as it should  [expect(locator).toHaveText]
+W2b F-023 an earlier send’s reply changes nothing (rule): FAILS as it should  [AssertionError]
+W2c F-023 a reply after its limit changes nothing: FAILS as it should  [AssertionError]
+# Not checkable: the clearTimeout when an answer's reply comes is cleanup; the send fence already makes the limit say
+# nothing. W1 and W1b were re-aimed once the deadline became a const (prefer-const): the limit fires and says nothing.
+
+# 2026-10-05, on 3e138ef: all 141 entries above run again, on Claude's own fixture server (port 5207, one worker), the
+# five specs whose request guard names port 5199 set to 5207 for the run and restored from the commit after it. 137
+# failed, each on a check's own assertion; R1b is the redundant key recorded above. H2, H4 and I6 named lines F-022
+# rewrote (answerable and onChallenge now come from portsOf; askBlocked's closed reason): re-aimed at the new lines,
+# all three fail. 140 of 141 fail.
+
+# CX-0021 at 3e138ef (#74), F-024, fixed in cbd1731
+X1 F-024 a challenge sent stays said with nowhere to send it: FAILS as it should  [expect(locator).toHaveText]
+X2 F-024 nothing offered to send with nowhere to send it: FAILS as it should  [expect(locator).toHaveText]
+X3 F-024 one not confirmed says why it isn’t sent again: FAILS as it should  [expect(locator).toHaveText]
+# X1–X3 are the only entries on the files F-024 changed (ReviewResult.tsx, ReviewChallenge.tsx); H2, H4 and I6 ran
+# again on that code too. 143 of 144 fail.

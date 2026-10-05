@@ -45,14 +45,14 @@ Nine existing checks changed their expected words or lanes, by design. Two Resou
 ## Evidence (fixture, darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 - `pnpm toolchain:check`, `format:check`, `lint`, `build`, `typecheck`, `contracts:check`: exit 0.
-- `pnpm test`: 1,164 tests: 1,150 pass, 0 fail, 14 skipped (as on the merge with main, before CC-0007's fixes), after merging main (#90). `pnpm artifacts`: every identity reproduced, and `pnpm test:integration`: 82 pass, 2 skipped, both on the merge with #32 (its runtime paths changed; this PR's own changes are the Studio's).
+- `pnpm test`: 1,170 tests: 1,156 pass, 0 fail, 14 skipped (the same 14 as on the merge with main), after merging main (#90). `pnpm artifacts`: every identity reproduced, and `pnpm test:integration`: 82 pass, 2 skipped, both on the merge with #32 (its runtime paths changed; this PR's own changes are the Studio's).
 - `pnpm --filter @sophia/studio run build`: passes. No board or fixture code is in the bundle.
-- `pnpm --filter @sophia/studio test:browser`: 392 of 393 pass. The one failure is main's own flaky `personal.spec.ts:227`; it fails on clean main too (2 in 20), and isn't this PR's (CC-0014). That includes:
+- `pnpm --filter @sophia/studio test:browser`: 402 of 402 pass, desktop and phone, in one run on Claude's own fixture server (port 5207). The five specs whose request guard names port 5199 ran with it set to 5207 for that run ([CC-0015](docs/coordination/WBC-01/WBC-01-CC-0015.md)). Main's flaky `personal.spec.ts:227` is fixed: its memory checks passed 60 of 60 one-worker repeats. That includes:
   - 26 `wbc ·` checks for UI-01–UI-21;
-  - 7 `pre-push ·`, 29 `codex · F-` and 6 `pr76 ·` checks for the reviews' findings;
+  - 7 `pre-push ·`, 36 `codex · F-` and 6 `pr76 ·` checks for the reviews' findings;
   - Luis's 31 checks from #73 and #77–#80, with 3 more for the merges and F-006;
-  - main's own suites since then (brand, sign-in, opening, home, report, voice chat, Personal).
-- **Mutations:** 128 repairs reverted one at a time; each makes a check fail ([mutations.txt](docs/evidence/WBC-01/mutations.txt)). The one exception is a redundant key, recorded.
+  - main's own suites since then (brand, sign-in, opening, home, report, voice chat, Personal), with two Personal checks added for Correct and Forget.
+- **Mutations:** 144 repairs reverted one at a time; each makes a check fail ([mutations.txt](docs/evidence/WBC-01/mutations.txt)). The one exception is a redundant key, recorded.
 - **Independent review** of `f736ad7`: 3 P1, 3 P2 and 7 P3. All are fixed except one P3, kept by choice, with regressions ([table](docs/progress/WBC-01.md#independent-review-before-the-push)).
 - **Codex's review** of `8afd007` (#74): F-001, F-002 and F-003, fixed in `5a55cc8` with regressions ([table](docs/progress/WBC-01.md#codexs-review-on-74)). Its second round, at `e4d9734`, found F-002's retry path still open; that is fixed in `38bb9d6`. At `10b9d32` it found no more ([CX-0006](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5973969188), READY).
 - **The GitHub Codex review of this PR** (at `10b9d32`): three findings, fixed in `9f3d872` ([table](docs/progress/WBC-01.md#codexs-ready-the-pr-and-its-review)):
@@ -89,6 +89,11 @@ Nine existing checks changed their expected words or lanes, by design. Two Resou
 - **Codex's verification** at `b603e1d` ([CX-0017](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985257405)) confirmed two findings of GitHub's review there. Both are fixed in `93a7268` ([CC-0014](docs/coordination/WBC-01/WBC-01-CC-0014.md)):
   - **F-020 (P1):** only a passed check of the version a task holds now certifies it Complete;
   - **F-021:** with the command port gone, what was sent stays said and followed, and nothing new or again is sent.
+- **Codex's verification** at `8892325` ([CX-0019](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985787713)) confirmed two findings of GitHub's review there. Both are fixed in `3e138ef` ([CC-0015](docs/coordination/WBC-01/WBC-01-CC-0015.md)):
+  - **F-022 (P1):** from a read that may be stale (coverage unavailable), nothing is sent, answered, challenged or asked; what shows stays, and what was sent stays said, its receipts and replies landing;
+  - **F-023:** a choice waits at most the Studio's 90 s write limit, then is not confirmed, and only the same choice goes again, as its operation; a reply counts only for its own send.
+- **Codex's check** of that local repair `3e138ef` ([CX-0021](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986248624)) found F-024, fixed in `cbd1731` (CC-0015): a challenge already sent stays said while the read is stale, its late receipt landing, with nothing offered to send or send again until a port is back.
+- **Personal's Correct and Forget** (main's code, repaired here at Codex's request under Davide's delegation, [CX-0018](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985684913)): once a memory's fade ended, its invisible day took the press meant for Forget, and for Correct when the day is long. The day now lets the pointer through. This fixes the flaky `personal.spec.ts:227`; the overlap is measured in CC-0015.
 - **Main merged in:** Luis's #73 (`4e7a42b`), #77 (`a31cbe3`), #78 and #79 (`4b68306`), #80 and #81 (`655fb99`), #82–#87 with #32 (`27f51f2`), and #88–#90 (`e4003cd`). The progress review, its card and its Challenge read the review beside the board's view, not as a field of the v2 plan. The card and the goal's line compare the review with the same revision. Answering its decision and challenging it are offered only where the plan is in force. Luis's words, tests and checks are kept.
   - **F-003 changes production behavior.** During a live call, every project sheet (task, resource, invitation) shows the call's switches, Leave included, under its head: the sheet covers the mini dock.
   - The shared-shell paths (`app/Sheet.tsx`, `app/call-in-reach.tsx`, `ProjectShell.tsx`, `MiniDock.tsx`, `InviteSheet.tsx`) are under Davide's scope extension.
@@ -97,6 +102,7 @@ Nine existing checks changed their expected words or lanes, by design. Two Resou
 ## Overlap
 
 - **#73** and **#77–#80** (Luis, LFE-07.2), **#81–#90** and **#32** (M03) have merged. All are merged in here, as above. `features/artifacts/` (#32's) is untouched.
+- **Personal** (#88–#90's): one property in `personal.css`, a labelled fixture setting (`memory=old`) and two checks, at Codex's request. Nothing else in Personal changes.
 
 ## Backend handoff (WBC-02)
 
