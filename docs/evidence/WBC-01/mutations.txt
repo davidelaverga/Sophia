@@ -319,3 +319,6 @@ AM1b F-043 each goal once on the board (board): FAILS as it should  [expect(loca
 
 # 2026-10-05, on the merge with #97 (93c0267, main a41132e): U1 runs again with main's Personal changes in place, and
 # fails as it should  [Error: Correct, memory 1]. #97 changed none of the files any other entry names.
+
+# 2026-10-05, on the merge with #98 and #99 (f1a3ba2, main 458f5d7): U1 runs again with main's Personal changes in
+# place, and fails as it should  [Error: Correct, memory 1]. #98 and #99 changed none of the files any entry names.

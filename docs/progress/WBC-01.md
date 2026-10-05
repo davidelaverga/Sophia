@@ -329,6 +329,10 @@ Codex passed the main integration and F-039 to F-041 at `ba826b9` ([CX-0034](htt
 
 Codex verified CC-0022 on `4bbc2a8` (records corrected at `702f43a`), but main moved to `a41132e` (#97, Personal's small P2s) before it was published. The merge `93c0267` resolves the one header conflict in `personal.tsx`, keeping both sides' lines; the rest merged on its own. Full native Personal passes 89 of 89 ([CC-0023](../coordination/WBC-01/WBC-01-CC-0023.md)).
 
+## CX-0036, and the merge with #98 and #99
+
+Codex posted CC-0022 at `702f43a` and passed it ([CX-0036](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5992484403)). Main had moved again, to `458f5d7` (#98, #99, Personal's follow-ups), so CC-0023's merge wasn't posted. The merge `f1a3ba2` has no conflicts, its tree the one Codex computed (`53b718a`). Full native Personal passes 98 of 98 ([CC-0024](../coordination/WBC-01/WBC-01-CC-0024.md)).
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.
