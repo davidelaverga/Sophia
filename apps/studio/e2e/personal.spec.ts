@@ -1241,7 +1241,7 @@ test('codex · handed words too long, arriving offline, say too long once back, 
   context,
 }) => {
   const long = 'b'.repeat(4100)
-  await page.goto(`${PAGE}?handed=${long}&handedAfter=600`)
+  await page.goto(`${PAGE}?handed=${long}&handedAfter=1500`)
   await context.setOffline(true)
   await expect(field(page)).toHaveValue(long)
   await context.setOffline(false)
