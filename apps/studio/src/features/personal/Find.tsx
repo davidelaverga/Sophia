@@ -2,12 +2,12 @@
 // opens a line under the head. The turns mark what matches, the current match in sight; Enter goes on, Shift Enter
 // back, round at either end; Esc closes it and gives the focus back to where it was. It looks in what is read, and
 // "Look further back" reads earlier days.
-import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Icon, Tip } from '@sophia/ui'
 import { keyLabel, onMac, useShortcuts } from '../../app/shortcuts.ts'
 import type { Row } from './conversation-view.ts'
-import { focusConversation, focusSoon } from './focus.ts'
+import { focusConversation } from './focus.ts'
 import { useEscape } from './useEscape.ts'
 import { foundIn, pieces, type Found } from './find-view.ts'
 
@@ -106,11 +106,6 @@ function giveBack(to: HTMLElement | null): void {
 }
 
 /**
- * Find, for a conversation's rows while `on` (Personal in sight, no talk over it, the conversation not covered):
- * whether it is open, how to open it, its line, and the lens the turns mark by. The current match is held as itself,
- * so earlier days read in before it leave it current.
- */
-/**
  * Find pressed while the notes cover the conversation (`uncover` puts them away): it opens once the conversation is in
  * reach again, a render later. Never a press that does nothing.
  */
@@ -143,11 +138,20 @@ function useFindOpen(on: boolean, uncover: (() => void) | null, clear: () => voi
   useEffect(() => {
     clearing.current = clear
   })
+  const focusOnOpen = useRef(false)
   const askOpen = useOnceUncovered(on, uncover, () => {
     back.current = focused()
+    focusOnOpen.current = true
     setOpen(true)
-    focusSoon('#c-find')
   })
+  // Opened a render after the press (the notes put away first): the focus goes in once the line is drawn.
+  useLayoutEffect(() => {
+    if (!open || !focusOnOpen.current) return
+    focusOnOpen.current = false
+    const input = document.querySelector<HTMLInputElement>('#c-find')
+    input?.focus({ preventScroll: true })
+    input?.select()
+  }, [open])
   // The line is drawn and takes the focus within the key's own event: the letters typed next are the finder's.
   const openFind = () => {
     // Out of reach: under the notes, they are put away first; else (a talk, out of sight) it doesn't open.
@@ -174,6 +178,11 @@ function useFindOpen(on: boolean, uncover: (() => void) | null, clear: () => voi
   return { open, openFind, close }
 }
 
+/**
+ * Find, for a conversation's rows while `on` (Personal in sight, no talk over it, the conversation not covered):
+ * whether it is open, how to open it, its line, and the lens the turns mark by. The current match is held as itself,
+ * so earlier days read in before it leave it current.
+ */
 export function useFind(
   rows: readonly Row[],
   on: boolean,
