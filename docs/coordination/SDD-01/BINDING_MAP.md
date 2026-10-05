@@ -172,3 +172,10 @@ The B-cases of [pack 06](../../missions/2026-10-04-native-design/06_ACCEPTANCE_A
 
 | Date | Change | Reason |
 |---|---|---|
+| 2026-10-05 | The package functions (`design_package_input`, `design_freeze_package`, `design_package_failed`) are keyed by the design job id, not the project | `RuntimeCaller` carries no project; the job id names one project already. `design_package_input` returns NULL once frozen, so a replayed freeze changes nothing |
+| 2026-10-05 | `DesignRecordRequest.expectedEntries` is optional (A12, 0039) | The bridge records the designer's reference reads itself, with no count the model read; the designer's own `design_record_work` still sends it |
+| 2026-10-05 | A design role's model calls are metered through `design/reserve` and `design/settle`, with no finalize step | A design ends on the service's limits; research's partial-result step has no meaning for a page |
+| 2026-10-05 | The bridge advertises a design role only when its assets verify, dsh's attachment service is mounted and the role's route declares image input; a create or resume whose assets do not verify is refused | B-01 and B-07: a designer that cannot see its captures is not offered |
+| 2026-10-05 | Studio: a design task has its own card (`DesignCard`); the notice's HTML page opens the stored page in the viewer; the Knowledge card's HTML tag opens it; `PageDownload.tsx` and `report-page.ts` are removed from Studio | §8's cutover; `legacy-conversion.test.ts` keeps the conversion off Studio's product path |
+| 2026-10-05 | G6 harness: `scripts/g6-control.mjs` and `g6/` (inputs and the control arm); the native arm `not_run` | Pack 03 G6 without a paid run (O-5) |
+| 2026-10-05 | Known gaps recorded in the progress record §4 (live revocation, resume after Hold, edit admission, host probe, supervisor crossing, guide v1.3) | Kept visible rather than claimed |

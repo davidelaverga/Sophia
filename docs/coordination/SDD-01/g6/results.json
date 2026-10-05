@@ -1,0 +1,969 @@
+{
+  "schema": "sophia.g6-results.v1",
+  "host": "linux-x64",
+  "node": "v24.21.0",
+  "results": [
+    {
+      "id": "dense-en",
+      "control": {
+        "status": "measured",
+        "level": "L1 (source fixture, confined Chromium; no model)",
+        "error": null,
+        "rendererSha256": "a33ed800df5ef962685bb67ce64fbb001bedd0ca3b24afbabf415199b2bc7e81",
+        "browser": "141.0.7390.37",
+        "sandbox": {
+          "active": true
+        },
+        "elapsedMs": 3637,
+        "measuredCostUsd": 0,
+        "targets": [
+          {
+            "id": "w390-light",
+            "pageWidth": 390,
+            "pageHeight": 8220,
+            "overflowPx": 0,
+            "overflowing": 1,
+            "sections": 0,
+            "blocks": 0,
+            "truncated": false
+          },
+          {
+            "id": "w1280-light",
+            "pageWidth": 1280,
+            "pageHeight": 6855,
+            "overflowPx": 0,
+            "overflowing": 0,
+            "sections": 0,
+            "blocks": 0,
+            "truncated": false
+          }
+        ],
+        "captures": [
+          {
+            "name": "w390-light.overview.1.png",
+            "sha256": "1dce51bd696f56958215b5cdaa36f49393b9c6ee0526a83d0700439d09128351",
+            "width": 195,
+            "height": 2400
+          },
+          {
+            "name": "w390-light.overview.2.png",
+            "sha256": "52498d51661acf7e6978cd941dc6e9eb50b972b4098f60201aca48a8aa1d3e75",
+            "width": 195,
+            "height": 1710
+          },
+          {
+            "name": "w390-light.margin.m1.1.png",
+            "sha256": "7191672c2917e91d5ff95a1e2bb9508c30bf1de832fd84682afd4a4f35103554",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.2.png",
+            "sha256": "acb35a0939b166cba95dfdcf9eef9c72be57cb55aae3e48013f4ccf8f805b316",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.3.png",
+            "sha256": "0f7041cd6f2a2a7e9d1853bf79d80da263f8a9731dd443ed34890fc6172cabfe",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.4.png",
+            "sha256": "7d3b037ef05bfa6e4e337f64c2f56330b16b86b66c33f9842afa98295ea4ea78",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.5.png",
+            "sha256": "65fecb96f6f695b8a0b370142c886aab27e692f445e6a65dea829d8e7f722a54",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.6.png",
+            "sha256": "ecd0bb93a1a2427ef4ef6d15b9547f3281bb8f60f2cbb250798ac1336b3501ed",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.7.png",
+            "sha256": "975bc97331ee51771eb5f0f12b3f833e44a58f39a744b8fa40d5410acb6d5789",
+            "width": 390,
+            "height": 1020
+          },
+          {
+            "name": "w1280-light.overview.1.png",
+            "sha256": "cd6898460e8a1b9dea18de67d879fd73aa85f5fb26f171c4c532e68b21672900",
+            "width": 480,
+            "height": 2400
+          },
+          {
+            "name": "w1280-light.overview.2.png",
+            "sha256": "e97e7389431c70e4deabe32581ace742aa5df08e7853acd8831f2ee0ba3a92c4",
+            "width": 480,
+            "height": 171
+          },
+          {
+            "name": "w1280-light.margin.m1.1.png",
+            "sha256": "a73b20ad884f56fd71f97e12a9e0eff08dbf41d7d91bb9f8dee7806b5f8489bb",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.2.png",
+            "sha256": "732cd33fd6b24013b96660621a43eff79d2b562addaac81994f6763842259ed6",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.3.png",
+            "sha256": "2ecc06d1db2c31c125476caa086d83deb8092f6689924d1f111d18d887102398",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.4.png",
+            "sha256": "f013859cb1e6946a2d432baf901a6e883e8d0a69d102b4852244faefeed15735",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.5.png",
+            "sha256": "74c8b18a39b36ac64ff4e981facd25301bf8e9eb41421a86a8767fc50ef8faa0",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.6.png",
+            "sha256": "fbd63a4b2200786c9929f959ef2924cdd219b4dd1bd94c4c2e27054f29b6c722",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.7.png",
+            "sha256": "2bc5953152c5e298eda06e9a8784304fd0be48d81f7eb97b1ea5da5ece188797",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.8.png",
+            "sha256": "79e50f16d6ae91f252fa17836af0818a0ff91e4d04a27aa5ec67dad58af692e6",
+            "width": 1280,
+            "height": 555
+          }
+        ],
+        "checks": [
+          {
+            "name": "source_verified",
+            "outcome": "passed"
+          },
+          {
+            "name": "sandbox_active",
+            "outcome": "passed"
+          },
+          {
+            "name": "layout_overflow",
+            "outcome": "passed",
+            "detail": "0px past the 390px width"
+          },
+          {
+            "name": "blocks_visible",
+            "outcome": "passed"
+          },
+          {
+            "name": "contrast",
+            "outcome": "passed"
+          },
+          {
+            "name": "captures_complete",
+            "outcome": "passed"
+          },
+          {
+            "name": "layout_overflow",
+            "outcome": "passed",
+            "detail": "0px past the 1280px width"
+          },
+          {
+            "name": "blocks_visible",
+            "outcome": "passed"
+          },
+          {
+            "name": "contrast",
+            "outcome": "passed"
+          },
+          {
+            "name": "captures_complete",
+            "outcome": "passed"
+          },
+          {
+            "name": "requests_contained",
+            "outcome": "passed"
+          },
+          {
+            "name": "source_unchanged",
+            "outcome": "passed"
+          }
+        ],
+        "notMeasuredHere": [
+          "content_fidelity",
+          "readability",
+          "visual_hierarchy",
+          "consistency",
+          "accessibility_interaction",
+          "coverage",
+          "correction_effort"
+        ]
+      },
+      "native": {
+        "status": "not_run",
+        "reason": "The native arm runs the designer and the reviewer on the real research route (gpt-6.1-sol, a paid model). It needs Davide’s scoped approval and Codex’s operation (binding map §11, O-5); no source-only run stands in for it."
+      }
+    },
+    {
+      "id": "long-it",
+      "control": {
+        "status": "measured",
+        "level": "L1 (source fixture, confined Chromium; no model)",
+        "error": null,
+        "rendererSha256": "a33ed800df5ef962685bb67ce64fbb001bedd0ca3b24afbabf415199b2bc7e81",
+        "browser": "141.0.7390.37",
+        "sandbox": {
+          "active": true
+        },
+        "elapsedMs": 2148,
+        "measuredCostUsd": 0,
+        "targets": [
+          {
+            "id": "w390-light",
+            "pageWidth": 390,
+            "pageHeight": 5993,
+            "overflowPx": 0,
+            "overflowing": 1,
+            "sections": 0,
+            "blocks": 0,
+            "truncated": false
+          },
+          {
+            "id": "w1280-light",
+            "pageWidth": 1280,
+            "pageHeight": 4912,
+            "overflowPx": 0,
+            "overflowing": 0,
+            "sections": 0,
+            "blocks": 0,
+            "truncated": false
+          }
+        ],
+        "captures": [
+          {
+            "name": "w390-light.overview.1.png",
+            "sha256": "9eaaa782653e1bbfeb9a94f0b82a2b4c13001cd329be33fc8d5c87dac01b3192",
+            "width": 195,
+            "height": 2400
+          },
+          {
+            "name": "w390-light.overview.2.png",
+            "sha256": "27e93c7243441f114d0ef1bf4837d7b891ec98ba88592cfcbf23bfb9c178220c",
+            "width": 195,
+            "height": 597
+          },
+          {
+            "name": "w390-light.margin.m1.1.png",
+            "sha256": "bf4855d442b3ac4b4697745941d162e6ff27c232865972db6e35a62feeb7b731",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.2.png",
+            "sha256": "7644b897952203a696f559db3d5d60d2d194ce192b079c12fe1a0cbc3b053976",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.3.png",
+            "sha256": "dd767e38716c085af3621d091e80eeff3dce9bece9b2743d23b70fb00485c0aa",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.4.png",
+            "sha256": "c2c675d701daabeb77cf312e8a054669584572ec8ac992bddb0c37c835717715",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.5.png",
+            "sha256": "28f27774315983d8ae58bd0b07bc400b52f686c309c6a5b45479d7939b4cffc8",
+            "width": 390,
+            "height": 1193
+          },
+          {
+            "name": "w1280-light.overview.1.png",
+            "sha256": "9c3bb45d9583165b2ac8424c3288ab5d8487ec0a7f41b31f4edf079540bccb7d",
+            "width": 480,
+            "height": 1842
+          },
+          {
+            "name": "w1280-light.margin.m1.1.png",
+            "sha256": "5e37f7e88779ed717212c427108f1076dad3799b79e8735562cc95eee9a2b293",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.2.png",
+            "sha256": "7e4e8375983da54a247a5de7799fef1d8f696f847e0a7bb9c1633312154881a2",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.3.png",
+            "sha256": "15e12d9227c747997d2891b0dcc2060c083c798dec991fc4c7c4be2af8750525",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.4.png",
+            "sha256": "b5c529c703321d94fbe5d3bfe534cd70b2a0f29d0c2472a3518c4812dfc0d2d2",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.5.png",
+            "sha256": "c1a138a76a31b0b6b0580804808373acc12f04ecd02e62b3eb46381adb259167",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.6.png",
+            "sha256": "16ea2b8ef4ef0eb5c983a1f8ff4309aa3e5ded680b8b5cbdb4ee453c70e21060",
+            "width": 1280,
+            "height": 412
+          }
+        ],
+        "checks": [
+          {
+            "name": "source_verified",
+            "outcome": "passed"
+          },
+          {
+            "name": "sandbox_active",
+            "outcome": "passed"
+          },
+          {
+            "name": "layout_overflow",
+            "outcome": "passed",
+            "detail": "0px past the 390px width"
+          },
+          {
+            "name": "blocks_visible",
+            "outcome": "passed"
+          },
+          {
+            "name": "contrast",
+            "outcome": "passed"
+          },
+          {
+            "name": "captures_complete",
+            "outcome": "passed"
+          },
+          {
+            "name": "layout_overflow",
+            "outcome": "passed",
+            "detail": "0px past the 1280px width"
+          },
+          {
+            "name": "blocks_visible",
+            "outcome": "passed"
+          },
+          {
+            "name": "contrast",
+            "outcome": "passed"
+          },
+          {
+            "name": "captures_complete",
+            "outcome": "passed"
+          },
+          {
+            "name": "requests_contained",
+            "outcome": "passed"
+          },
+          {
+            "name": "source_unchanged",
+            "outcome": "passed"
+          }
+        ],
+        "notMeasuredHere": [
+          "content_fidelity",
+          "readability",
+          "visual_hierarchy",
+          "consistency",
+          "accessibility_interaction",
+          "coverage",
+          "correction_effort"
+        ]
+      },
+      "native": {
+        "status": "not_run",
+        "reason": "The native arm runs the designer and the reviewer on the real research route (gpt-6.1-sol, a paid model). It needs Davide’s scoped approval and Codex’s operation (binding map §11, O-5); no source-only run stands in for it."
+      }
+    },
+    {
+      "id": "narrative-es",
+      "control": {
+        "status": "measured",
+        "level": "L1 (source fixture, confined Chromium; no model)",
+        "error": null,
+        "rendererSha256": "a33ed800df5ef962685bb67ce64fbb001bedd0ca3b24afbabf415199b2bc7e81",
+        "browser": "141.0.7390.37",
+        "sandbox": {
+          "active": true
+        },
+        "elapsedMs": 2096,
+        "measuredCostUsd": 0,
+        "targets": [
+          {
+            "id": "w390-light",
+            "pageWidth": 390,
+            "pageHeight": 5292,
+            "overflowPx": 0,
+            "overflowing": 0,
+            "sections": 0,
+            "blocks": 0,
+            "truncated": false
+          },
+          {
+            "id": "w1280-light",
+            "pageWidth": 1280,
+            "pageHeight": 4307,
+            "overflowPx": 0,
+            "overflowing": 0,
+            "sections": 0,
+            "blocks": 0,
+            "truncated": false
+          }
+        ],
+        "captures": [
+          {
+            "name": "w390-light.overview.1.png",
+            "sha256": "bdd596e2b926ce142eca43a2d73166e4281548ffd0b6763ddc2ddd35342fac44",
+            "width": 195,
+            "height": 2400
+          },
+          {
+            "name": "w390-light.overview.2.png",
+            "sha256": "6c90ee03f5bd4548d7b2728b7eb61d745a534eecd09166c88896f3d6fa0d01bf",
+            "width": 195,
+            "height": 246
+          },
+          {
+            "name": "w390-light.margin.m1.1.png",
+            "sha256": "fc7d8f10658bc5ba1179f24db593f50c2b8c52238510ca6a0360d1c50105d45a",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.2.png",
+            "sha256": "00c544e2bc87ac1a77878cc673f3cb419da762bf2b1da63a4565505c94482abc",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.3.png",
+            "sha256": "09d37c472ef9e470c64904188f95e9ebfa8d9e5fdd660d6cde0dde8dc6abecbd",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.4.png",
+            "sha256": "eed34f8c2471ee765a3396b4243348f307b18b392634087184aa73428861e45f",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.5.png",
+            "sha256": "9852f083d2176710997da959ad08ceaf8ccc6c4a05c0c6531d82b986680cedc3",
+            "width": 390,
+            "height": 492
+          },
+          {
+            "name": "w1280-light.overview.1.png",
+            "sha256": "5ec5440943af49755bab7974fa0fef48da7bc2f27dd3928489e278a96ef36246",
+            "width": 480,
+            "height": 1615
+          },
+          {
+            "name": "w1280-light.margin.m1.1.png",
+            "sha256": "8dc997f91fc7d9a073a7abf2f9b3992813d2dd0b906869989868e0413af90a78",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.2.png",
+            "sha256": "5a2d6816d7f90e1c7ed94232ee52ffca71233ce9219c9d57bec0cb2d3c04752c",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.3.png",
+            "sha256": "b4a18e825546f6a907a11b9093532a1fd56afea9697b50573e97d4ab6fe18ac3",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.4.png",
+            "sha256": "b5e3bb8428d46bef1d0db5f2fac5c3c34e302bede9271dcc5f6d5b251212b386",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.5.png",
+            "sha256": "52e24ce2ae3029241011bd0e53406f7218a0ce2a720e5740a6c5da0150749a44",
+            "width": 1280,
+            "height": 707
+          }
+        ],
+        "checks": [
+          {
+            "name": "source_verified",
+            "outcome": "passed"
+          },
+          {
+            "name": "sandbox_active",
+            "outcome": "passed"
+          },
+          {
+            "name": "layout_overflow",
+            "outcome": "passed",
+            "detail": "0px past the 390px width"
+          },
+          {
+            "name": "blocks_visible",
+            "outcome": "passed"
+          },
+          {
+            "name": "contrast",
+            "outcome": "passed"
+          },
+          {
+            "name": "captures_complete",
+            "outcome": "passed"
+          },
+          {
+            "name": "layout_overflow",
+            "outcome": "passed",
+            "detail": "0px past the 1280px width"
+          },
+          {
+            "name": "blocks_visible",
+            "outcome": "passed"
+          },
+          {
+            "name": "contrast",
+            "outcome": "passed"
+          },
+          {
+            "name": "captures_complete",
+            "outcome": "passed"
+          },
+          {
+            "name": "requests_contained",
+            "outcome": "passed"
+          },
+          {
+            "name": "source_unchanged",
+            "outcome": "passed"
+          }
+        ],
+        "notMeasuredHere": [
+          "content_fidelity",
+          "readability",
+          "visual_hierarchy",
+          "consistency",
+          "accessibility_interaction",
+          "coverage",
+          "correction_effort"
+        ]
+      },
+      "native": {
+        "status": "not_run",
+        "reason": "The native arm runs the designer and the reviewer on the real research route (gpt-6.1-sol, a paid model). It needs Davide’s scoped approval and Codex’s operation (binding map §11, O-5); no source-only run stands in for it."
+      }
+    },
+    {
+      "id": "adversarial",
+      "control": {
+        "status": "measured",
+        "level": "L1 (source fixture, confined Chromium; no model)",
+        "error": null,
+        "rendererSha256": "a33ed800df5ef962685bb67ce64fbb001bedd0ca3b24afbabf415199b2bc7e81",
+        "browser": "141.0.7390.37",
+        "sandbox": {
+          "active": true
+        },
+        "elapsedMs": 10125,
+        "measuredCostUsd": 0,
+        "targets": [
+          {
+            "id": "w390-light",
+            "pageWidth": 390,
+            "pageHeight": 19947,
+            "overflowPx": 0,
+            "overflowing": 2,
+            "sections": 0,
+            "blocks": 0,
+            "truncated": false
+          },
+          {
+            "id": "w1280-light",
+            "pageWidth": 1280,
+            "pageHeight": 17844,
+            "overflowPx": 0,
+            "overflowing": 1,
+            "sections": 0,
+            "blocks": 0,
+            "truncated": false
+          }
+        ],
+        "captures": [
+          {
+            "name": "w390-light.overview.1.png",
+            "sha256": "8f7add840f5fae90be201d3ede0dda5ad116ec6bfa199659997ed70afc30bbdb",
+            "width": 195,
+            "height": 2400
+          },
+          {
+            "name": "w390-light.overview.2.png",
+            "sha256": "e1de5746b944cceede74a33cddfaf67a7c07d6ff051d63a532b25a6f4fe38259",
+            "width": 195,
+            "height": 2400
+          },
+          {
+            "name": "w390-light.overview.3.png",
+            "sha256": "a0fa4839ee579ce560d1ae0de5612d1f0bd77d4cb75f05bc5757a0904e0a2601",
+            "width": 195,
+            "height": 2400
+          },
+          {
+            "name": "w390-light.overview.4.png",
+            "sha256": "618235c1b1bd34444ad29623faca7a75314ba034c0a801f63abcb5820db0ec02",
+            "width": 195,
+            "height": 2400
+          },
+          {
+            "name": "w390-light.overview.5.png",
+            "sha256": "cd2551ce9633d8ef16f30cdaeec5b56515fc0c40b581f1c3ad604a40ea9455a5",
+            "width": 195,
+            "height": 374
+          },
+          {
+            "name": "w390-light.margin.m1.1.png",
+            "sha256": "ecf0876769f5f6036041b2dcd3672a9c30a59ee88d16b4514ef02e697b644d28",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.2.png",
+            "sha256": "f3e647ad4d1b6680512aa2db1e74866e367dc2b45a120b3a34e201beae43c257",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.3.png",
+            "sha256": "2a86e5bb31ba0e8c9a81a1ccbed22443d6ef4197affcfb6fcc0e84f843e7e300",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.4.png",
+            "sha256": "5763b26ea713492b3610edba319d8fc9ad3a794796a79625da98477bb7ed7944",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.5.png",
+            "sha256": "0fcbf9b3a1aa32da39457c155096b6d91bf0afb987a685c35b6c13a160f6a099",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.6.png",
+            "sha256": "04a38d41e42794f3450b8bdd22339f4a3efb7abd29794635218e7357e5385666",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.7.png",
+            "sha256": "58a050bd4bd8b17300146e05a01d78e97e7bcf74c939a6b132a17b08c870fe5d",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.8.png",
+            "sha256": "89dc1bc93209cc3d4f1f3c205e660bf1120c1497b3179a89b2ae6485de428fc0",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.9.png",
+            "sha256": "a6f55b70dc6c0dda8ef5777582fe04a4a7a98c8b043469b2a9f13d818f9c2ba7",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.10.png",
+            "sha256": "09f07451090479c4a29872a61847a55ec0e5be3d7a8e4cb3d1e10d9b5a290341",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.11.png",
+            "sha256": "3dc560d9995206e23ddae3c0f5185848932c4e8a6932d5e80b9bca80d9a60b5d",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.12.png",
+            "sha256": "25b1e1199a38dd64407a2a6bc289e093c2948f676dadee626bdd309aa2efa416",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.13.png",
+            "sha256": "a524da83568d8c5a16dadf950412273ead0bd57143b00a982e5c0edad5708b40",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.14.png",
+            "sha256": "bcccda559d2a57b9e666d957ed741669b30fd25c615bd1b011d7b7bc5fcc6d3d",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.15.png",
+            "sha256": "78312b6f8608d6925a60e201ea202fdae21ebab093acf94a181310cd64e4b3e2",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.16.png",
+            "sha256": "d41e8cfac0bc626669c2675b51c005cfa0088447c5dc1b2f0519e27505119bd2",
+            "width": 390,
+            "height": 1200
+          },
+          {
+            "name": "w390-light.margin.m1.17.png",
+            "sha256": "5a509924cd11f5bce416889e8758b8984b1c0fa6cdcc8dd05a3541537e79819f",
+            "width": 390,
+            "height": 747
+          },
+          {
+            "name": "w1280-light.overview.1.png",
+            "sha256": "8619038dfa9e730e960072be37efd88fdae31687cd34e042c2cc0bc142cd56c4",
+            "width": 480,
+            "height": 2400
+          },
+          {
+            "name": "w1280-light.overview.2.png",
+            "sha256": "fdc2b50f482a1b7b5aae02dd99b9edc5157038a04d40b820e62bf0394f2b6e5a",
+            "width": 480,
+            "height": 2400
+          },
+          {
+            "name": "w1280-light.overview.3.png",
+            "sha256": "a861cfecb983f4c6c450123c23ffd5eda5250b2131e6246542384c1c6032d727",
+            "width": 480,
+            "height": 1892
+          },
+          {
+            "name": "w1280-light.margin.m1.1.png",
+            "sha256": "f18a63823eb4f1550cc74389ee8c816155e9b70b00628fbda0525d980d6d5dc6",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.2.png",
+            "sha256": "12aa004d6a18862d1ba3c291f7e4c2ee46f24f345b0f8e3fe61da8e586f996c8",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.3.png",
+            "sha256": "9de711756191844abedfb07fad7638f8a3dd90a4d4418eb73821b8d2748e15d4",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.4.png",
+            "sha256": "bb6fa79875c2888a59543af1057148f7f3a419bbf6dd48c945c1b1b36e9d1417",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.5.png",
+            "sha256": "6cf75be14612d46354fd6a52002494d3e38d398d2d0d7d85b9d23e4b54e812a5",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.6.png",
+            "sha256": "26ccca643993f71865bfd7b042a604e7ece3968fde70168ed5923ff87d971207",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.7.png",
+            "sha256": "a336c6bc1e4c7acf423c8812701c950ff1ec29a32fdfcb64b958d0dbe07258d9",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.8.png",
+            "sha256": "861e2528c1fda285afadcac2d14694660f533613187210066a61192eff3f06d2",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.9.png",
+            "sha256": "d4405f79cc999dbf7168e6065cb5a978da9fb42b2303e8575aa243270facf026",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.10.png",
+            "sha256": "2d8f3576500fe25b2c0be08bfa9ca7c94df224685a0ac5970b9c4bd43ae57298",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.11.png",
+            "sha256": "12f2c48aa507fba92d77acd6d8ab483c781672d40d8f4ede17cf8e4baa65b4cc",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.12.png",
+            "sha256": "4bbd50db7e506f53f17d829ffe12719ae8dc0ef8bdaa2064864566e04030afb3",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.13.png",
+            "sha256": "2fa58f53fa493c7170fcb56aa9f1fc21199db83df719564511365c1b4e07019c",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.14.png",
+            "sha256": "9a91e18971068a9e80bd1b0113f638431bfd3bd2be81abf1ffc36ae97bf8a405",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.15.png",
+            "sha256": "276a85fc1960db7c54e3e989a235a7411615d158913afec825edd9e39cfa1f81",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.16.png",
+            "sha256": "65e3ab84ce66739e4bdc190006ba0d23e22d6ad6e4d14a3c5218268e112bdbe7",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.17.png",
+            "sha256": "11cd577a87f03b948d7b70c13bed288ed2d2dd2681bfa2a175201ddddd6adc14",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.18.png",
+            "sha256": "da0978f354c9d9828baadad3e2f1939699dc34ae32e6e4bca9a008cf2b77af5f",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.19.png",
+            "sha256": "9e29d39e9d3ead9c11e946eb98967b37dc08fd206e49c1d511251c9510544698",
+            "width": 1280,
+            "height": 900
+          },
+          {
+            "name": "w1280-light.margin.m1.20.png",
+            "sha256": "a9698b35cf8e56091b810383d8000ed5bac60225da5c36e483975083b62c7b8d",
+            "width": 1280,
+            "height": 744
+          }
+        ],
+        "checks": [
+          {
+            "name": "source_verified",
+            "outcome": "passed"
+          },
+          {
+            "name": "sandbox_active",
+            "outcome": "passed"
+          },
+          {
+            "name": "layout_overflow",
+            "outcome": "passed",
+            "detail": "0px past the 390px width"
+          },
+          {
+            "name": "blocks_visible",
+            "outcome": "passed"
+          },
+          {
+            "name": "contrast",
+            "outcome": "passed"
+          },
+          {
+            "name": "captures_complete",
+            "outcome": "passed"
+          },
+          {
+            "name": "layout_overflow",
+            "outcome": "passed",
+            "detail": "0px past the 1280px width"
+          },
+          {
+            "name": "blocks_visible",
+            "outcome": "passed"
+          },
+          {
+            "name": "contrast",
+            "outcome": "passed"
+          },
+          {
+            "name": "captures_complete",
+            "outcome": "passed"
+          },
+          {
+            "name": "requests_contained",
+            "outcome": "passed"
+          },
+          {
+            "name": "source_unchanged",
+            "outcome": "passed"
+          }
+        ],
+        "notMeasuredHere": [
+          "content_fidelity",
+          "readability",
+          "visual_hierarchy",
+          "consistency",
+          "accessibility_interaction",
+          "coverage",
+          "correction_effort"
+        ]
+      },
+      "native": {
+        "status": "not_run",
+        "reason": "The native arm runs the designer and the reviewer on the real research route (gpt-6.1-sol, a paid model). It needs Davide’s scoped approval and Codex’s operation (binding map §11, O-5); no source-only run stands in for it."
+      }
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "schema": "sophia.g6-inputs.v1",
+  "dimensions": [
+    "content_fidelity",
+    "readability",
+    "visual_hierarchy",
+    "consistency",
+    "accessibility_interaction",
+    "coverage",
+    "correction_effort",
+    "wall_time",
+    "measured_cost"
+  ],
+  "inputs": [
+    {
+      "id": "dense-en",
+      "role": "Dense English comparison: wide tables, every element, citations",
+      "fixture": "apps/studio/fixtures/report-pages.ts#REPORT_PAGES.kitchen",
+      "markdownSha256": "f7266b55104a838ac66cf4f7715eb5d8e24162fd988258b0f4720bc0f80f5781",
+      "sources": 6,
+      "limitations": [
+        "Restore times are vendor claims; none was measured."
+      ],
+      "control": {
+        "profile": "html-report-v2",
+        "pageSha256": "1801cb0aac8d25d375e431cc95151d24cd562a3973ebb4953ab9d2f7f949f7cd",
+        "bytes": 39570
+      }
+    },
+    {
+      "id": "long-it",
+      "role": "Italian: long headings and addresses, a partial source, limitations",
+      "fixture": "apps/studio/fixtures/report-pages.ts#REPORT_PAGES.italiano",
+      "markdownSha256": "84cf005f18933c232707403cf3431eaded88bed7fa130f3046ac047c2e6134e3",
+      "sources": 5,
+      "limitations": [
+        "I tempi di ripristino sono dichiarati dai fornitori; nessuno è stato misurato."
+      ],
+      "control": {
+        "profile": "html-report-v2",
+        "pageSha256": "f93f15e7013fa2f3c4b3cdf696df054a6108a94eb555cf13c64effd61b2ba921",
+        "bytes": 37966
+      }
+    },
+    {
+      "id": "narrative-es",
+      "role": "Spanish narrative: uneven sections, one without evidence, an unread source",
+      "fixture": "apps/studio/fixtures/report-pages.ts#REPORT_PAGES.espanol",
+      "markdownSha256": "f26956923ffb1c78621d9ad9825ada4125e882fe5afd49f8718d32c6d20c0ac0",
+      "sources": 4,
+      "limitations": [
+        "El documento de Calder no se pudo leer.",
+        "Lo que se dice de Northwind viene de un fragmento de búsqueda, no de su documentación."
+      ],
+      "control": {
+        "profile": "html-report-v2",
+        "pageSha256": "0f296997ecaabb026e3d96ebe9f4cc83283a0f496c0dc84a21ac0cfa2f08d880",
+        "bytes": 35154
+      }
+    },
+    {
+      "id": "adversarial",
+      "role": "Adversarial layout: very long title and words, a 12-column table, CJK and Arabic",
+      "fixture": "apps/studio/fixtures/report-pages.ts#REPORT_PAGES.stress",
+      "markdownSha256": "fefd068898d92d01b4bb37b5271f883cebd72ba16f351b8f5631e1d8c14f3e44",
+      "sources": 60,
+      "limitations": [],
+      "control": {
+        "profile": "html-report-v2",
+        "pageSha256": "919f8d6db497e59a4dcf858a5c91039c32412588b1da694a53d01530db5b6a57",
+        "bytes": 97260
+      }
+    }
+  ]
+}
