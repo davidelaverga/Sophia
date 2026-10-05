@@ -260,3 +260,13 @@ Z4 F-027 a space keeps project and viewer whole: FAILS as it should  [AssertionE
 # On cc4f61b, every entry above on the three files changed (receipts.ts, command-store.ts, plan.ts) ran again: 45, of
 # which 44 failed; M16 named the old scope line, and re-aimed at the new tuple it fails. No full pass was repeated
 # before this handoff (CX-0025). 153 of 154 fail; R1b is the redundant key recorded above.
+
+# CX-0026 at 31d0e28 (#74; GitHub 4180347593, 4180347601, 4180347608), F-028 to F-030, fixed in f0052a9
+Z5 F-028 one key per choice (rule): FAILS as it should  [AssertionError]
+Z5b F-028 one key per choice (board): FAILS as it should  [expect(locator).toContainText]
+Z6 F-029 a decision is named from the plan it is bound to: FAILS as it should  [expect(locator).toHaveText]
+Z6b F-029 another revision of the plan lends no words: FAILS as it should  [expect(locator).toHaveText]
+Z7 F-030 what a task waits on is compared as values: FAILS as it should  [AssertionError]
+Z7b F-030 its blockers in any order: FAILS as it should  [AssertionError]
+# On f0052a9, every entry above on board-view.ts, proposal.ts and PlanBoard.tsx ran again: 21 of 21 fail. 159 of 160
+# fail; R1b is the redundant key recorded above.

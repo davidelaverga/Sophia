@@ -447,12 +447,14 @@ when you change the room:
   NEXT; lenses, a decision pill and what changed since the last look
   (decisions and results first, opened in full on press; a decision waits
   only while it can be answered, and an answer at most a write's 90 s, then
-  is not confirmed, `sendAnswer`); four lanes, Active, Up next, Unassigned and
+  is not confirmed, `sendAnswer`; each choice its own key, its task named
+  from the plan it is bound to); four lanes, Active, Up next, Unassigned and
   Complete (`plan.ts`: a view over each item's observed state; Complete only
   by its own policy with evidence, and a passed check of the version it
   holds, never one no single current version matches), and Closed work with its reasons; a
   plan's Decided history its own (another plan's choices listed apart); every plan
-  proposed (up to three) beside the one shown, compared, never operated;
+  proposed (up to three) beside the one shown, compared field by field as
+  values, never operated;
   threads to what a
   task waits on; a task's sheet with its typed waits, its result (exact
   versions through a port), the commands the view allows this viewer
