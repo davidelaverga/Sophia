@@ -4,6 +4,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { dayLabel } from './conversation-view.ts'
 import type { Memory as Props, PersonalMemory } from './extras.ts'
+import { useCapped } from './useCapped.ts'
+
+/** The most characters a corrected memory holds. */
+const MEMORY_MOST = 140
 
 function Correcting({
   item,
@@ -15,6 +19,7 @@ function Correcting({
   onCancel: () => void
 }) {
   const [text, setText] = useState(item.text)
+  const capping = useCapped(MEMORY_MOST, text, setText)
   const field = useRef<HTMLInputElement>(null)
   useEffect(() => field.current?.select(), [])
   return (
@@ -31,9 +36,9 @@ function Correcting({
       <input
         ref={field}
         id={`c-mem-${item.id}`}
-        maxLength={140}
+        // 140 characters, the limit proposed for the memory API (maxLength would count UTF-16 units).
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        {...capping}
         onKeyDown={(e) => {
           if (e.key !== 'Escape') return
           e.preventDefault()

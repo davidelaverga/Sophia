@@ -11,6 +11,7 @@ import type { Way } from './arrive.ts'
 import { daysOf, notePrefill, suggestionFor, type Row } from './conversation-view.ts'
 import type { Week } from './extras.ts'
 import { FindLens, Marked, type Lens } from './Find.tsx'
+import { useCapped } from './useCapped.ts'
 import { focusConversation, focusIfDropped, focusSoon } from './focus.ts'
 import { noteFlight } from './note-flight.ts'
 import { WeekLook } from './WeekLook.tsx'
@@ -33,6 +34,9 @@ export interface ConversationActions {
 }
 
 const dayId = (key: string) => `c-${key}`
+
+/** The most characters a note holds. */
+const NOTE_MOST = 90
 
 /** Each half of Umbral (threshold.ts), boxed tight: hers small and light, yours larger and warm, at one scale. */
 const HALF = {
@@ -60,6 +64,7 @@ function NoteForm(props: {
 }) {
   const { turn, suggestion, words, onKeep, onClose } = props
   const [text, setText] = useState(() => words ?? notePrefill(turn.text, suggestion))
+  const capping = useCapped(NOTE_MOST, text, setText)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
     // Note this went as it opened, so the form takes the focus; reopened late, it takes it (and the view) from nobody.
@@ -82,9 +87,9 @@ function NoteForm(props: {
         <input
           ref={input}
           id="c-note-in"
-          maxLength={90}
+          // A note holds 90 characters, as the API counts (maxLength counts UTF-16 units: an emoji as two).
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          {...capping}
           onKeyDown={(e) => {
             if (e.key !== 'Escape') return
             e.preventDefault()
@@ -420,6 +425,22 @@ function useFocusAfterMore(panel: RefObject<HTMLDivElement | null>, open: boolea
   }, [open, more, panel])
 }
 
+/** The days' menu's first item: earlier days read back, or, while they are, "Reading…" and a press that waits. */
+function MoreDays({ reading, onMore }: { reading: boolean; onMore: () => void }) {
+  return (
+    <button
+      role="menuitem"
+      type="button"
+      aria-disabled={reading || undefined}
+      onClick={() => {
+        if (!reading) onMore()
+      }}
+    >
+      <span>{reading ? 'Reading…' : 'Show earlier days'}</span>
+    </button>
+  )
+}
+
 /** The day at the top of what you're reading, and the list of days it opens (so do the days' own dividers). */
 function Earlier(props: {
   rows: readonly Row[]
@@ -428,9 +449,11 @@ function Earlier(props: {
   setOpen: (open: boolean) => void
   /** Earlier days than those shown exist: the first item reads them back. */
   more: boolean
+  /** They are being read (from here or Find): the item says so and waits. */
+  reading: boolean
   onMore: () => void
 }) {
-  const { rows, open, day, setOpen, more, onMore } = props
+  const { rows, open, day, setOpen, more, reading, onMore } = props
   const menu = usePopover(open, () => setOpen(false))
   useFocusAfterMore(menu.panel, open, more)
   return (
@@ -456,11 +479,7 @@ function Earlier(props: {
           aria-label="Earlier days"
           onKeyDown={menu.onKeyDown}
         >
-          {more && (
-            <button role="menuitem" type="button" onClick={onMore}>
-              <span>Show earlier days</span>
-            </button>
-          )}
+          {more && <MoreDays reading={reading} onMore={onMore} />}
           {daysOf(rows).map((d) => (
             <button
               key={d.key}
@@ -490,6 +509,8 @@ interface ConversationProps {
   setEarlier: (open: boolean) => void
   /** Earlier days than those shown exist (a long conversation). */
   more: boolean
+  /** They are being read (useSharedRead). */
+  reading: boolean
   /** What a slow or failed read says, where the conversation would be (ReadNotes). */
   notice: React.ReactNode
   /** The notes cover it (a narrow screen): nothing in it can be reached or typed into until they close. */
@@ -505,7 +526,8 @@ interface ConversationProps {
 }
 
 export function Conversation(props: ConversationProps) {
-  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, week, answered } = props
+  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, reading, week, answered } =
+    props
   const lens = props.lens ?? null
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const day = useDayPill(list, rows)
@@ -519,7 +541,7 @@ export function Conversation(props: ConversationProps) {
           open={earlier}
           day={day}
           setOpen={setEarlier}
-          more={more}
+          {...{ more, reading }}
           onMore={() => void actions.readEarlier()}
         />
         <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>

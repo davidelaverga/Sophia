@@ -6,7 +6,7 @@
 // `arrive=1`: yesterday's talk and her line of today, nothing said yet. The parts the API doesn't give yet:
 // `memory=1` (`=old`: one learned last year), `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
 // `spaceAfter=ms`, `epochAfter=ms`: the space, or its epoch, read that much later; `readSlow=1`: earlier days take
-// 1.5 s. `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
+// 1.5 s. `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `holdReply=1`: her answer waits for `window.personalFixture.answer()`. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
@@ -14,6 +14,7 @@ import { StrictMode, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Sending } from '../src/features/personal/conversation-view.ts'
 import type { TalkLine } from '../src/features/personal/extras.ts'
+import { useSharedRead } from '../src/features/personal/shared-read.ts'
 import { PersonalSpace } from '../src/features/personal/PersonalSpace.tsx'
 import type { PersonalWrites } from '../src/features/personal/usePersonal.ts'
 import { projectsFor, useExtras } from './personal-extras.ts'
@@ -22,7 +23,7 @@ import '../src/features/personal/personal.css'
 
 declare global {
   interface Window {
-    personalFixture?: { sent: string[]; pressed: string[] }
+    personalFixture?: { sent: string[]; pressed: string[]; answer?: () => void }
   }
 }
 
@@ -40,8 +41,15 @@ const NOW = ((at) => {
 const ago = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000).toISOString()
 const ahead = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 const DAY = 24 * 60
+// `longReply=1`: her answer runs to several lines.
+const LONG_REPLY =
+  'I’m here. It sounds like the meeting stayed with you longer than the work did. Before we get to what you could ' +
+  'say to him, tell me what you noticed in yourself when he went quiet: was it worry about the date, or about how ' +
+  'he sees you now? We can take either one first, slowly.'
 // `away=N`: the earlier day's turns are N days back, not one (time away; where you began).
 const BEFORE = Math.max(1, Number(query.get('away')) || 1) * DAY
+/** Her answer to a message sent here. */
+const REPLY = query.has('longReply') ? LONG_REPLY : 'I’m here. Tell me more about that.'
 
 let seq = 0
 const turn = (
@@ -220,17 +228,16 @@ function useSimulated() {
       add(turn('person', text, new Date().toISOString(), { reply: 'pending' }))
       setSending(null)
       setBusy(false)
+      const reply = () => {
+        setSpace((s) => ({
+          ...s,
+          turns: s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' } : t)),
+        }))
+        add(turn('sophia', REPLY, new Date().toISOString()))
+      }
       window.clearTimeout(answer.current)
-      answer.current = window.setTimeout(
-        () => {
-          setSpace((s) => ({
-            ...s,
-            turns: s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' } : t)),
-          }))
-          add(turn('sophia', 'I’m here. Tell me more about that.', new Date().toISOString()))
-        },
-        query.has('slow') ? 2500 : 900,
-      )
+      if (query.has('holdReply') && window.personalFixture) window.personalFixture.answer = reply
+      else answer.current = window.setTimeout(reply, query.has('slow') ? 2500 : 900)
       return receipt('send_turn')
     },
     retry: () => Promise.resolve(receipt('retry_turn')),
@@ -265,14 +272,15 @@ function useReadBack() {
   const [older, setOlder] = useState<PersonalTurn[]>([])
   const more = query.has('earlier') && older.length === 0
   // `readSlow=1`: the earlier page takes 1.5 s to come.
-  const readMore = async () => {
+  const read = async () => {
     if (query.has('readSlow')) await new Promise((r) => setTimeout(r, 1500))
     setOlder([
       turn('person', 'I made a promise to myself to rest on Sundays.', ago(21 * DAY + 30), { seq: -2 }),
       turn('sophia', 'What would rest look like, this Sunday?', ago(21 * DAY + 29), { seq: -1 }),
     ])
   }
-  return { older, more, readMore }
+  const shared = useSharedRead(read)
+  return { older, more, readMore: shared.run, reading: shared.reading }
 }
 
 /** Whether something the page reads has come: at once, or `param=ms` later. */
@@ -334,7 +342,8 @@ function Personal() {
         account="fixture"
         name="Luis"
         space={spaceRead ? space : undefined}
-        epoch={epochKnown ? space.epoch : undefined}
+        // As Places knows it: from the space once read, or earlier from the projects (epochAfter).
+        epoch={spaceRead || epochKnown ? space.epoch : undefined}
         readBack={readBack}
         read={idle}
         projects={projects}

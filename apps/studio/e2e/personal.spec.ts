@@ -1405,3 +1405,123 @@ test('small · “Look further back” says it is reading, and waits, until the 
   await expect(findCount(page)).toHaveText('2 of 2', { timeout: 5000 })
   await expect(reading).toHaveCount(0)
 })
+
+// Follow-ups (docs/plans/personal-follow-ups-3.md).
+
+test('follow · spaces around a message don’t count: 4,000 letters and a space go', async ({ page }) => {
+  await page.goto(PAGE)
+  await field(page).fill(`${'a'.repeat(4000)}   `)
+  await expect(page.locator('#c-count')).toHaveText('4,000 / 4,000 · the most one message holds')
+  await expect(page.locator('.ps-composer .send')).toBeEnabled()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => sent(page)).toEqual(['a'.repeat(4000)])
+})
+
+test('follow · earlier days being read are said the same everywhere: the days’ menu and Find both say “Reading…”', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?earlier=1&readSlow=1`)
+  await page.locator('.msgs > .c3-day').first().click()
+  await page.getByRole('menuitem', { name: 'Show earlier days' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Reading…' })).toHaveAttribute('aria-disabled', 'true')
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await finder(page).fill('promise')
+  await expect(page.getByRole('button', { name: 'Reading…' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(findCount(page)).toHaveText('2 of 2', { timeout: 5000 })
+})
+
+test('follow · a conversation that fits, then doesn’t (a window made shorter), keeps its latest exchange in sight', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 1100 })
+  await page.goto(PAGE)
+  expect(await page.locator('.msgs').evaluate((l) => l.scrollHeight <= l.clientHeight)).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 520 })
+  await expect(page.locator('.msg.sophia').last()).toBeInViewport()
+})
+
+test('follow · a conversation whose rows grow (a font loading, a row reflowed) keeps its latest exchange in sight', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 1100 })
+  await page.goto(PAGE)
+  expect(await page.locator('.msgs').evaluate((l) => l.scrollHeight <= l.clientHeight)).toBe(true)
+  // The rows grow; the list's own box doesn't.
+  await page.addStyleTag({ content: '.places .msg .body { font-size: 30px !important; line-height: 1.8 !important; }' })
+  await expect(page.locator('.msg.sophia').last()).toBeInViewport()
+})
+
+// The last follow-ups (docs/plans/personal-follow-ups-4.md).
+
+test('@phone · follow · a reply that came while Personal was out of sight waits below when you are back', async ({
+  page,
+}) => {
+  // A slow phone (CPU six times slower): the list's resize comes after the return is placed, as on CI's runners.
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 })
+  await page.goto(`${PAGE}?holdReply=1&longReply=1`)
+  await field(page).fill('One more thing.')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.msg.me .body').last()).toHaveText('One more thing.', { timeout: 5000 })
+  await page.getByRole('button', { name: 'Lock (fixture)' }).click()
+  // Her reply lands only once the space is shut (hidden rows count too), however slow the machine.
+  await page.waitForFunction(() => window.personalFixture?.answer !== undefined)
+  await page.evaluate(() => window.personalFixture?.answer?.())
+  await expect(page.locator('.msg.sophia:not(.typing)')).toHaveCount(5)
+  await page.getByRole('button', { name: 'Unlock (fixture)' }).click()
+  await expect(page.getByRole('button', { name: 'Sophia answered' })).toBeVisible()
+  // Nothing jumped: the reader is where they stood, their own words in sight and her reply below them. And the line
+  // stays: the list's resize, coming after, used to carry the reader to the end and take it away.
+  await expect(page.locator('.msg.me').last()).toBeInViewport()
+  await page.waitForTimeout(500)
+  await expect(page.getByRole('button', { name: 'Sophia answered' })).toBeVisible()
+})
+
+test('follow · words handed from Home before the space and its epoch are read show as waiting, then go', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('Before it all loaded.')}&spaceAfter=1500&epochAfter=5000`)
+  // Not lost from sight meanwhile: Personal says they wait.
+  await expect(page.locator('.ps-composer .chat-line')).toContainText('Before it all loaded.')
+  await expect.poll(() => sent(page), { timeout: 6000 }).toEqual(['Before it all loaded.'])
+})
+
+test('follow · a note at its most refuses another letter in its middle, losing nothing', async ({ page }) => {
+  await page.goto(PAGE)
+  const mine = page.locator('.msg.me').last()
+  await mine.hover()
+  await mine.locator('.note-this').click()
+  const note = page.locator('#c-note-in')
+  const full = `${'a'.repeat(45)}${'b'.repeat(45)}`
+  await note.fill(full)
+  await note.evaluate((n: HTMLInputElement) => n.setSelectionRange(45, 45))
+  await page.keyboard.type('X')
+  await expect(note).toHaveValue(full)
+})
+
+test('follow · a note counts in characters: 90 emoji fit, the 91st doesn’t', async ({ page }) => {
+  await page.goto(PAGE)
+  const mine = page.locator('.msg.me').last()
+  await mine.hover()
+  await mine.locator('.note-this').click()
+  await page.locator('#c-note-in').fill('😊'.repeat(95))
+  await expect(page.locator('#c-note-in')).toHaveValue('😊'.repeat(90))
+})
+
+test('follow · in a conversation that fits, a reply that came while away is simply there: no line, nothing stuck', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 1300 })
+  await page.goto(`${PAGE}?holdReply=1`)
+  await field(page).fill('One more thing.')
+  await page.keyboard.press('Enter')
+  await page.getByRole('button', { name: 'Lock (fixture)' }).click()
+  await page.waitForFunction(() => window.personalFixture?.answer !== undefined)
+  await page.evaluate(() => window.personalFixture?.answer?.())
+  await expect(page.locator('.msg.sophia:not(.typing)')).toHaveCount(5)
+  await page.getByRole('button', { name: 'Unlock (fixture)' }).click()
+  expect(await page.locator('.msgs').evaluate((l) => l.scrollHeight <= l.clientHeight)).toBe(true)
+  await expect(page.locator('.msg.sophia').last()).toBeInViewport()
+  await expect(page.getByRole('button', { name: 'Sophia answered' })).toHaveCount(0)
+})

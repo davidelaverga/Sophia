@@ -3,6 +3,7 @@
 // and the wait for her reply at the end. Pure: the component renders these rows and owns nothing but the scroll.
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { ARRIVALS, arriving, type Way } from './arrive.ts'
+import { clip, lengthOf } from './characters.ts'
 
 /** Three quiet ways into a first conversation, gone after the first message. */
 export const STARTERS = ['Something’s on my mind', 'Help me get ready for something', 'Just talk'] as const
@@ -376,7 +377,7 @@ export function daysOf(rows: readonly Row[]): Array<{ key: string; label: string
 /** What "Note this" starts from: Sophia's suggestion for that turn when it isn't kept yet, else the words, cut short. */
 export function notePrefill(text: string, suggestion: PersonalSuggestion | null): string {
   if (suggestion && suggestion.state !== 'kept') return suggestion.text
-  return text.length > 72 ? `${text.slice(0, 70).trimEnd()}…` : text
+  return lengthOf(text) > 72 ? `${clip(text, 70).trimEnd()}…` : text
 }
 
 /** The suggestion Sophia made in her reply to `turnId`, if any. */

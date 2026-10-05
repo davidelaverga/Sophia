@@ -9,6 +9,7 @@ import { useMounted } from '../../app/useMounted.ts'
 import { useDictation } from './dictation.ts'
 import { focusLater } from './focus.ts'
 import { handing, type Handed } from './handed.ts'
+import { clip, lengthOf } from './characters.ts'
 import { NOTICE } from './notice-view.ts'
 import { useOnline } from './online.ts'
 import {
@@ -307,12 +308,6 @@ interface FieldProps {
 const MOST = 4000
 const NEAR = 3600
 
-/**
- * A message's length as the API and the database count it: in characters (code points), so an emoji is one, not the
- * two UTF-16 units `length` sees.
- */
-const lengthOf = (text: string) => text.length - (text.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g)?.length ?? 0)
-
 /** How full the field is, in characters, once it nears the most one message holds; past it, by how much. */
 function Count({ length }: { length: number }) {
   const over = length - MOST
@@ -397,9 +392,10 @@ interface Props {
 
 /**
  * Words handed from Home go as the field's would: one at a time, under their own key, kept on their way, and back in
- * the field if they don't go. While the space can't take them yet (still loading, Sophia unavailable, an erasure to
- * read first), or another tab's message is on its way, they wait in the field, said, for the person to send; while one
- * of this tab's is (busy), they wait to go after it (handed.ts).
+ * the field if they don't go. Before the space's epoch is known they aren't taken (handedWaiting says so). Once it is,
+ * while the space can't take them yet (still loading, Sophia unavailable, an erasure to read first), or another tab's
+ * message is on its way, they wait in the field, said, for the person to send; while one of this tab's is (busy),
+ * they wait to go after it (handed.ts).
  */
 function useHanded(
   p: Props,
@@ -411,6 +407,9 @@ function useHanded(
   const mounted = useMounted()
   const { handed, onHanded, busy } = p
   useEffect(() => {
+    // Not taken before the space's epoch is known: words put in the field then aren't kept, and the first read of the
+    // device's draft would replace them. Places holds them until then, and the field's line says so (handedWaiting).
+    if (p.epoch === undefined) return
     const what = handing(handed, taken.current, ready, busy)
     if (!handed || what === 'none' || what === 'wait') return
     taken.current = handed.id
@@ -432,6 +431,16 @@ function useHanded(
 
 const HANDED = 'From Home · send it when Sophia is ready'
 const HANDED_LONG = 'From Home · longer than one message: shorten it to send'
+
+/**
+ * Words handed from Home while the space's epoch isn't known yet: not taken until it is (useHanded), and said meanwhile
+ * over the field, so they are never out of sight.
+ */
+function handedWaiting(p: Props): string | null {
+  if (p.epoch !== undefined || !p.handed) return null
+  const words = p.handed.words
+  return `From Home, waiting for your space · “${lengthOf(words) > 60 ? `${clip(words, 60)}…` : words}”`
+}
 
 const nothing = () => undefined
 
@@ -467,7 +476,7 @@ function useSend(
     const current = given ?? draft.current()
     const text = current?.text.trim() ?? ''
     // Past the most one message holds (words heard or handed), nothing goes: the count says how much over.
-    if (!current || !text || lengthOf(current.text) > MOST || !ready || busy) return Promise.resolve(false)
+    if (!current || !text || lengthOf(text) > MOST || !ready || busy) return Promise.resolve(false)
     const words = { text, key: current.key }
     const { promise: admitted, settle: admit } = settleable<boolean>()
     void oneAtATime(account, async (taken) => {
@@ -621,7 +630,8 @@ export function PersonalComposer(props: Props) {
   useHanded(props, ready, send, draft)
   // Offline, a way's words wait as a draft: the line says offline while it is, and the draft once back.
   useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, KEPT) : null)
-  const length = lengthOf(text)
+  // The length the server checks: of the words, not the spaces around them.
+  const length = lengthOf(text.trim())
   const counted = length >= NEAR && !dictation.listening
   return (
     <form
@@ -631,7 +641,7 @@ export function PersonalComposer(props: Props) {
         void send()
       }}
     >
-      <Over note={offline ? OFFLINE : note} count={counted ? length : null} />
+      <Over note={offline ? OFFLINE : (handedWaiting(props) ?? note)} count={counted ? length : null} />
       <Bar
         {...{ field, text, state, counted, ready, busy, dictation }}
         over={length > MOST}
