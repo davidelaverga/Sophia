@@ -1,6 +1,7 @@
-// The Live tool surface (SMC-M01 binding §2, case T22; SMC-M03 S6): per guide version, the declarations are exactly
-// the operations its manifest names, in order: M01's six for v1.1, and v1.2 adds the two research operations and
-// steer. Together they are the contract's MediaToolCall names; nothing retired or future is declared.
+// The Live tool surface (SMC-M01 binding §2, case T22; SMC-M03 S6; SDD-01): per guide version, the declarations are
+// exactly the operations its manifest names, in order: M01's six for v1.1, v1.2 adds the two research operations and
+// steer, and v1.3 the page edit. Together they are the contract's MediaToolCall names; nothing retired or future is
+// declared.
 import { Behavior, FunctionResponseScheduling } from '@google/genai'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -45,11 +46,11 @@ describe('the Live tool surface', () => {
     for (const tool of TOOL_DECLARATIONS) assert.equal(tool.behavior, Behavior.NON_BLOCKING, tool.name)
   })
 
-  it('names what the contract lets a tool call name: v1.1’s six, and v1.2’s eight', () => {
+  it('names what the contract lets a tool call name: v1.1’s six, v1.2’s eight and v1.3’s nine', () => {
     const call = openapi.components.schemas.MediaToolCall as {
       properties: { name: { enum: string[] }; guide: { enum: string[] } }
     }
-    assert.deepEqual(call.properties.name.enum, TOOL_SETS['v1.2'].names)
+    assert.deepEqual(call.properties.name.enum, TOOL_SETS['v1.3'].names)
     assert.deepEqual(call.properties.guide.enum, Object.keys(TOOL_SETS))
   })
 
@@ -75,6 +76,7 @@ describe('the Live tool surface', () => {
       'propose_mission_change',
       'record_mission_note',
       'render_research',
+      'revise_html_page',
       'start_research',
     ])
   })
@@ -196,7 +198,7 @@ describe('the Live tool surface', () => {
   })
 
   it('names each version’s declarations by their SHA-256, which provider.setup logs (CX-0026)', () => {
-    for (const version of ['v1.1', 'v1.2'] as const) {
+    for (const version of ['v1.1', 'v1.2', 'v1.3'] as const) {
       const json = JSON.stringify(TOOL_SETS[version].declarations)
       assert.equal(TOOL_SETS[version].sha256, createHash('sha256').update(json, 'utf8').digest('hex'), version)
     }
@@ -204,6 +206,46 @@ describe('the Live tool surface', () => {
     // Deliberately: v1.2's control_work and amendsTaskId texts (CX-0026), then start_research's question and scope
     // (CX-0030).
     assert.equal(TOOL_SETS['v1.2'].sha256, '57cdfdadd238ceb5851045d1da1bd2c12a72547b406144a3f10f6f694598dcf6')
+    // SDD-01: v1.3 is v1.2 with the designed page's words and revise_html_page; v1.2 above is unchanged by it.
+    assert.equal(TOOL_SETS['v1.3'].sha256, 'ecbce82f02804c5539f27cb00e3116d97a905798ac85932ea20aee7d6ced8681')
+  })
+
+  it('v1.3 declares its manifest’s nine: v1.2’s eight with the designed page’s words, and revise_html_page', () => {
+    const v13 = TOOL_SETS['v1.3']
+    const manifest = JSON.parse(readFileSync(`${GUIDE_DIR}${GUIDE_MANIFESTS['v1.3']}`, 'utf8')) as {
+      model_facing_operation_names: string[]
+    }
+    assert.deepEqual(v13.names, [...TOOL_SETS['v1.2'].names, 'revise_html_page'])
+    assert.deepEqual(manifest.model_facing_operation_names, v13.names)
+    for (const tool of v13.declarations) assert.equal(tool.behavior, Behavior.NON_BLOCKING, tool.name)
+    assert.equal(isToolName('revise_html_page', TOOL_SETS['v1.2'].names), false, 'not v1.2’s')
+    const declared = (name: string) => v13.declarations.find((d) => d.name === name)
+    // M75's promise that every report downloads as an HTML page is gone: HTML is the designed page, asked for.
+    const text = JSON.stringify(v13.declarations)
+    assert.doesNotMatch(text, /every (published )?report (also|already) downloads as an HTML page|HTML needs no call/)
+    const research = declared('start_research')?.parametersJsonSchema as
+      { properties: { outputs: { description: string } } } | undefined
+    const outputs = String(research?.properties.outputs.description)
+    assert.match(outputs, /Sophia’s designer lays out a page from its exact content/)
+    assert.match(outputs, /a report without html has no web page/)
+    assert.match(String(declared('render_research')?.description), /makes no HTML/)
+    // The other declarations are v1.2's, byte for byte.
+    for (const name of SIX)
+      assert.equal(
+        JSON.stringify(declared(name)),
+        JSON.stringify(TOOL_SETS['v1.2'].declarations.find((d) => d.name === name)),
+        name,
+      )
+    const revise = declared('revise_html_page')?.parametersJsonSchema as {
+      properties: Record<string, { maxItems?: number }>
+      required: string[]
+      additionalProperties: boolean
+    }
+    assert.deepEqual(Object.keys(revise.properties), ['taskId', 'sections', 'instruction', 'shell', 'styles'])
+    assert.deepEqual(
+      [revise.required, revise.additionalProperties, revise.properties.sections?.maxItems],
+      [['taskId', 'sections', 'instruction'], false, 16],
+    )
   })
 
   it('an unattributed call is answered with a question', () => {

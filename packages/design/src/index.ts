@@ -4,7 +4,8 @@
 // - `checkSource`: the static profile (parser-checked HTML and CSS), the frozen content's coverage, the package's
 //   identity and sections. Unsafe source is never stored; incomplete source is stored with its findings and cannot be
 //   submitted as a candidate.
-// - `reviseSource`: exact, unique edits against a base, then the scope check.
+// - `reviseSource`: exact, unique edits against a base, then the scope check (`scopeFindings`, which a whole write
+//   in a scoped edit passes too).
 // - `compile`: the one self-contained deliverable.
 
 import { contentPackage, type ContentPackage } from './blocks.ts'
@@ -41,7 +42,7 @@ export {
   type SourceFile,
   type SourcePath,
 } from './package.ts'
-export { FULL_SCOPE, type Edit, type EditScope } from './patch.ts'
+export { FULL_SCOPE, scopeFindings, type Edit, type EditScope } from './patch.ts'
 export { HTML_BYTES, SECTION_ID } from './policy.ts'
 
 export interface SourceCheck {

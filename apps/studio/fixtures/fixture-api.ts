@@ -18,6 +18,8 @@ import {
   content,
   editDescription,
   citedSources,
+  DESIGN_TASK,
+  designingTask,
   REPORT,
   reportList,
   researchRunning,
@@ -74,6 +76,8 @@ interface Project {
   textTampered: boolean
   /** Version 1 carries a designed HTML page (SDD-01, `designed=on`), and the research task lists it. */
   designed?: boolean
+  /** The research's HTML page is still being designed (`design=designing`, B-19). */
+  designing?: boolean
   /** The designed page arrives as bytes its record does not name (`tamper=html`). */
   pageTampered?: boolean
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
@@ -143,7 +147,7 @@ function snapshotOf(project: Project) {
   const work = running
     ? { ...now, work: [running] }
     : project.work
-      ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed).task] }
+      ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
   return withFocus(project, project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work)
 }
@@ -260,7 +264,14 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   const text = source ? content(source, project.textTampered, project.pageTampered) : null
   if (text) return textRead(project, text)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
+  if (path === `/api/v1/projects/${PROJECT}/native-tasks/${DESIGN_TASK}`) return designRead(project)
   return null
+}
+
+/** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
+function designRead(project: Project): Response | null {
+  if (!project.designing && !project.designed) return null
+  return json(designingTask(project.designed ? 'published' : 'designing'))
 }
 
 /** An edit of the report's description on Knowledge, answered as the API answers it. */
@@ -378,7 +389,11 @@ const heldTasks: (() => void)[] = []
 function taskRead(project: Project): Response | Promise<Response> {
   const running = project.researching
   const read = () =>
-    json(running ? researchRunning(running.reads) : researchTaskAt(project.taskRevision ?? 1, project.designed))
+    json(
+      running
+        ? researchRunning(running.reads)
+        : researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing),
+    )
   served.push(`task:${String(project.taskRevision ?? 1)}`)
   if (project.taskFails) {
     const body = {

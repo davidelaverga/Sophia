@@ -1,8 +1,14 @@
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
-import type { Contribution, ResearchRender, ResearchRendition } from '@sophia/contracts'
+import type { Contribution, DesignEditRequest, ResearchRender, ResearchRendition } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { readNativeTask, requestResearchRendition, submitContribution, withActor } from '@sophia/persistence'
+import {
+  readNativeTask,
+  requestDesignEdit,
+  requestResearchRendition,
+  submitContribution,
+  withActor,
+} from '@sophia/persistence'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 const taskParams = {
@@ -66,6 +72,13 @@ export function conversationRoutes(app: FastifyInstance, { pool }: { pool: pg.Po
       withActor(pool, req.actorId, 'read', (c) => readNativeTask(c, req.params.projectId, req.params.taskId)),
   )
 
+  renditionRoutes(app, pool)
+}
+
+/**
+ * A published report's other formats: "Try PDF again" (A11) and a scoped edit of its designed page (A12, SDD-01).
+ */
+function renditionRoutes(app: FastifyInstance, pool: pg.Pool): void {
   // "Try PDF again" (S5b, 0032): the API prints the published version and queues it, in one transaction.
   app.post<{ Params: { projectId: string; taskId: string }; Headers: { 'idempotency-key': string } }>(
     '/api/v1/projects/:projectId/native-tasks/:taskId/rendition',
@@ -77,6 +90,26 @@ export function conversationRoutes(app: FastifyInstance, { pool }: { pool: pg.Po
         requestResearchRendition(c, req.params.projectId, req.params.taskId, req.headers['idempotency-key']),
       )
       return reply.status(202).send(renditionOf(rendition))
+    },
+  )
+
+  // Revise named sections of a report's designed page (SDD-01 G5, 0041): a design task in mode edit, admitted with the
+  // person's instruction as their own contribution, in one transaction.
+  app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: DesignEditRequest }>(
+    '/api/v1/projects/:projectId/html-edits',
+    {
+      schema: {
+        params: projectParams,
+        headers: idempotencyHeader,
+        body: { $ref: 'DesignEditRequest#' },
+        response: { 202: { $ref: 'DesignEditReceipt#' } },
+      },
+    },
+    async (req, reply) => {
+      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+        requestDesignEdit(c, req.params.projectId, req.headers['idempotency-key'], req.body),
+      )
+      return reply.status(202).send(receipt)
     },
   )
 }

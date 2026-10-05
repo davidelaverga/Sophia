@@ -17,7 +17,7 @@ Status words in this file: **built** (in this PR, with tests), **planned** (not 
 
 | Item | Reserved | Why |
 |---|---|---|
-| Migrations | **0038 to 0041** for SDD-01. 0038 design records and renditions, 0039 the runtime design and review operations, 0040 admission, handoff, the review loop, publication and controls, 0041 spare. WBC-02 takes the next free number after these when it starts, or asks to swap | `main` ends at `0037_amendment_preservation.sql`. No open branch carries a migration above 0037 (branches read 2026-10-05) |
+| Migrations | **0038 to 0041** for SDD-01. 0038 design records and renditions, 0039 the runtime design and review operations, 0040 admission, handoff, the review loop, publication and controls, 0041 the lifecycle after admission (withdrawal, Resume, scoped edit, terminal-binding reconciliation). WBC-02 takes the next free number after these when it starts, or asks to swap | `main` ends at `0037_amendment_preservation.sql`. No open branch carries a migration above 0037 (branches read 2026-10-05) |
 | Contract amendment | **A12** (`packages/contracts/amendments/A12-native-design.json`) | `main` ends at A11 |
 | Runtime unit | `sophia-runtime-sdd01-dev`, `previous_unit: sophia-runtime-m03-dev` | Two roles, their presets, prompt sections and skill bundle change the bundle |
 | Lock | `pnpm-lock.yaml`: this session is its only writer in this window; the HTML and CSS parsers come in one reviewed commit with the lock | Single writer |
@@ -90,6 +90,8 @@ Every runtime operation authenticates like research's (the runtime lease, then a
 | `review_submit_result` | `POST /v1/runtime/review/submit` | `runtime_review_submit` | the same | Writes this review, bound to candidate, source, render and criteria hashes. Then the service decides: publish, repair, or label (§6). It edits nothing |
 | (every model call of both roles) | `POST /v1/runtime/design/reserve`, `…/settle` | `runtime_design_reserve`, `runtime_design_settle` over 0024's `reserve_research` / `end_research_reservation` | the bridge's meter, chosen by the attempt's role family | Reserved from the lineage allowance before it leaves, settled from reported usage |
 
+Members and the guide (0041): `POST /api/v1/projects/{projectId}/html-edits` (`request_design_edit`, editors and admins) admits a scoped edit of a published page, the person's instruction kept as their contribution; guide v1.3's `revise_html_page` is the same request by voice or text, from the sections `project_status` lists for the report's page. Withdrawal: every fenced operation of either role is refused once its attempt is revoked or its manifest's closure is withdrawn (`design_scope_of`), and the render result is not read; settle is never fenced.
+
 Renderer side (§7): `POST /v1/renderer/claim` gains the formats a runner can render; `PUT /v1/renderer/jobs/{id}/captures/{name}` stores one PNG; settle takes the capture receipt.
 
 ## 5. Records
@@ -114,7 +116,10 @@ Renderer side (§7): `POST /v1/renderer/claim` gains the formats a runner can re
 4. **Hard gate (software).** The candidate's render is of exactly its source; every capture target exists; the HTML passes the static policy (no script, handler, form, frame, object, remote load, `@import`, `url()` beyond fragments); every block is present with its text and citations; and the render measured every block visible and readable (not hidden, zero-size, clipped, off-screen, or below the contrast floor). Failure is returned to the designer; nothing is recorded as a candidate.
 5. **Independent review (B-10).** If a runtime advertises the reviewer, the service admits a review attempt (its own session, job `design_review`) with an input manifest that excludes the author's rationale. Otherwise the candidate is `self_review_only`.
 6. **Bounded repair (B-12).** `needs_revision` returns the findings to the designer's session as an input; at most two repair revisions after the first complete candidate and three review rounds in the lineage, none of it reset by a restart.
-7. **Publication.** A `pass` publishes. A `self_review_only` or `review_unresolved` candidate (repairs spent) is published labelled as such, its unresolved findings as limitations, because Markdown alone would hide a usable HTML from the person. Only `pass` is shown as reviewed.
+7. **Publication.** A `pass` publishes. A `self_review_only` or `review_unresolved` candidate (repairs spent) is published labelled as such, its unresolved findings as limitations, because Markdown alone would hide a usable HTML from the person. Only `pass` is shown as reviewed. Publication rechecks the design, its attempt and the candidate's closure (0041), so a late or racing decision publishes nothing.
+8. **Withdrawal (B-21, 0041).** Erasing a source revokes, in the same transaction, every design and review under way whose manifest's closure holds it: attempts revoked, sessions stopped through `native.stop`, renders cancelled, candidates failed, the reason on the task. A design is not rebuilt (its report now draws on a withdrawn source; a new report is the way on).
+9. **Hold and Resume (B-20, 0041).** A render during a Hold waits; a late operation is refused by the fence; at Resume a design or review whose session never started is queued, and a goal only designs reopened that has nothing left to do completes.
+10. **Edit (B-16..B-18, 0041).** A design task in mode `edit` on the report's goal and allowance, bound to the published candidate: its first revision is that candidate's source, its scope the named sections (the shell and the stylesheet protected unless named). A write or patch outside the scope is refused; the gate adds an unchanged-source check and compares each protected section's shape with the base render (reflow allowed). Published as the next version, `Revises the designed HTML page (…)`.
 
 ## 7. Rendering and preview safety
 
@@ -137,7 +142,7 @@ Renderer side (§7): `POST /v1/renderer/claim` gains the formats a runner can re
 | C-3 `WorkCard` `PageRow` | Only an actual HTML output, with its design state (designing, reviewing, reviewed, provisional, failed); none for a Markdown-only task |
 | C-4 `NoticeCard` `PageButton` | `page` comes from the stored HTML output, never the Markdown |
 | receipt `HTML_NOTE` | Says the HTML is designed after the research, or that HTML is unavailable |
-| guide v1.2 descriptions ("every report also downloads as an HTML page") | **Planned: guide v1.3.** v1.2 already sends `html` in `start_research`, so format-driven admission works without a guide change; its wording becomes false at cutover and needs a new versioned declaration with its own review |
+| guide v1.2 descriptions ("every report also downloads as an HTML page") | **Built: guide v1.3** (`M01_ASSETS.v1.3.json`, its prompt and assembled instruction; `TOOL_SETS['v1.3']`; the API's `TOOL_SURFACES['v1.3']`; contract `MediaToolCall.guide` and `name`). It says what HTML is (a designed page, asked for with `html`) and adds `revise_html_page`; v1.1's and v1.2's declarations are unchanged. The bridge's default stays v1.2; the cutover is `SOPHIA_GUIDE_VERSION=v1.3` ([PRODUCTION_BATCH.md](PRODUCTION_BATCH.md) §3) |
 
 `renderReportPage` stays in `@sophia/report` for the G6 control harness; Studio no longer imports it.
 
@@ -151,7 +156,7 @@ Read: [WBC-02](../../missions/2026-10-03-workboard-connection/missions/WBC-02_PA
 | Bridge, hello, guards, runtime unit | Design tools registered in the agent's scope by role; the meter picks the reserve route by the attempt's family; the unit becomes `sophia-runtime-sdd01-dev` | WBC-02's `sophia-source-review-v1` follows the same registration pattern; the combined unit is rebuilt by whichever lands second |
 | Allowance and metering | `runtime_design_reserve` reuses 0024's core functions against the lineage allowance; no second ledger | WBC-02 binds its eight-request ceiling the same way |
 | Contracts | A12 is SDD-01's | WBC-02 takes A13 |
-| Migrations | 0038–0041 | WBC-02 from 0042 |
+| Migrations | 0038–0041. 0041 replaces `mission_erase_source`, `native_delivery_ineligible` and `research_queue_unstarted` (besides design functions); 0040 replaced `dispatch_runtime_outbox` and `capture_native_result` | WBC-02 from 0042; a replacement of any of these starts from SDD-01's body |
 | Studio | Report viewer, cards and Knowledge are SDD-01's; the work board is WBC-01/02's | The board opens results through the existing `OpenRequest` (artifact, version, format); `format='html'` is added |
 | Release | No hosted effect here | Codex alone; one operator per target |
 
@@ -166,7 +171,7 @@ The B-cases of [pack 06](../../missions/2026-10-04-native-design/06_ACCEPTANCE_A
 | O-1 | How much of the lineage's $5 cap design may draw on (today it shares what research left; a design that cannot reserve says so and leaves the Markdown) | Davide (spend) |
 | O-2 | Redistribution rights of each bundled reference image (Raven is Apache-2.0; some specimens show third-party work) before production bundling | Codex verifies, Davide decides |
 | O-3 | Studio CSP before enforcement: a separate preview origin, or a policy amendment for the frame | Davide / Codex |
-| O-4 | Guide v1.3 wording and its review | Davide |
+| O-4 | Guide v1.3 cutover (`SOPHIA_GUIDE_VERSION=v1.3`); the wording is built and tested | Davide, Codex |
 | O-5 | The L2 image-perception qualification of `gpt-6.1-sol` (a paid probe with a deliberate defect) | Codex under Davide's approval |
 | O-6 | Merge, release order (pack 08 R3) and the combined runtime unit with WBC-02 | Davide, Codex |
 
@@ -183,3 +188,8 @@ The B-cases of [pack 06](../../missions/2026-10-04-native-design/06_ACCEPTANCE_A
 | 2026-10-05 | Known gaps recorded in the progress record §4 (live revocation, resume after Hold, edit admission, host probe, supervisor crossing, guide v1.3) | Kept visible rather than claimed |
 | 2026-10-05 | SDD-01-RF-0001: the procedure texts name the work-record kind `risk`, the one `design_record_work`, 0038 and 0039 admit (was `risk_ledger`, refused) | Codex, CX-0002 at `b1e227e`; `tests/unit/design-roles.test.mjs` checks every kind any text names against the tool and both SQL lists |
 | 2026-10-05 | SDD-01-RF-0002: each design role has an explicit read-only reference scope in the registry; the reviewer reads the gallery and the precedents and loads its own view of the critique procedure (`sophia-visual-critique-review-v1`), not the maker's | Codex, CX-0002; per-role tool and reference closure in `tests/unit/design-roles.test.mjs`; the reviewer's precedent read reaches the provider in `tests/integration/design-tools.test.mjs` |
+| 2026-10-05 | 0041 takes the spare number: withdrawal revokes running designs and reviews and fences every operation; Resume queues an unstarted design or review; a scoped edit of a published page is admitted (`request_design_edit`, `POST /api/v1/projects/{id}/html-edits`, A12); the gate adds an edit's checks; the research task's HTML state stays the first design's | Codex, CX-0003 (SDD-01-RF-0003, P1) and the completion request; the progress record §4's gaps |
+| 2026-10-05 | Guide v1.3 is built (§8); its default stays v1.2 until the cutover | Pack 03 G4 ("The old guide/API compatibility path remains until safe cutover") |
+| 2026-10-05 | `reconcile_terminal_bindings` (0041, operator only): stops, through the native boundary, each binding on a unit whose work and goal ended, so a unit can reach zero non-final bindings before cutover without marking rows | Codex, CX-0005 and CX-0006: six terminal `running` bindings on `sophia-runtime-m03-dev` |
+| 2026-10-05 | The required renderer CI job runs `capture-html.test.ts` and `tests/integration/design-capture-supervisor.test.mjs` (the real supervisor, capture kernel, API and PostgreSQL); the host probe qualifies the capture kernel | Codex, CX-0004 (SDD-01-RF-0004) |
+| 2026-10-05 | A work card reads its research again once the design ends (it kept "Designing" until a reload) | Found by the B-19 test |

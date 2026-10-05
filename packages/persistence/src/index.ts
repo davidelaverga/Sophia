@@ -206,10 +206,12 @@ export {
   type CompanionContext,
 } from './personal.ts'
 export { listProjects, PROJECT_LIST_BOUNDS, type ProjectListing } from './project-list.ts'
+export { readHtmlPages, type HtmlPage } from './design-progress.ts'
 export {
   designCaptureRefs,
   freezeDesignPackage,
   htmlDesignReady,
+  requestDesignEdit,
   requestResearchDesign,
   runtimeDesignContext,
   runtimeDesignRecord,

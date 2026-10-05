@@ -189,8 +189,10 @@ const TASK_SUMMARIES = [
   // A source the research read was withdrawn (0028): the task revoked, and the one rebuilt without it.
   'revoked',
   'rebuilt',
-  // An HTML design (SDD-01, 0039–0040): admitted, its renders, its review, a revision asked for, and its end.
+  // An HTML design (SDD-01, 0039–0041): admitted, an edit admitted, its renders, its review, a revision asked for, and
+  // its end.
   'design',
+  'design_edit',
   'design_render_settled',
   'design_review_admitted',
   'design_revision_requested',

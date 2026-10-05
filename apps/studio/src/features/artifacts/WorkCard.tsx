@@ -122,7 +122,7 @@ export function WorkCard(props: Props) {
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
       {words.state === 'researching' && research && <Progress research={research} />}
       <Outputs outputs={outputs} versions={versions} token={identity.token} open={open} />
-      <DesignRow html={research?.html} projectId={projectId} identity={identity} />
+      <DesignRow html={research?.html} projectId={projectId} identity={identity} researchTaskId={task.id} />
       {words.note && <p className="goal-outcome">{words.note}</p>}
       {retry && <RetryPdf projectId={projectId} taskId={task.id} token={identity.token} />}
       {current && open && <CardFoot version={current} open={open} />}
@@ -162,8 +162,16 @@ type HtmlProgress = NonNullable<ResearchProgress['html']>
 /** How often an HTML design is read again while it runs: often enough to see it move from designing to reviewing. */
 const DESIGN_POLL = 15_000
 
-/** The design task's own state, while the research's says it is designing: designing, or with its reviewer. */
-function useDesignState(html: HtmlProgress, projectId: string, identity: Identity) {
+/** The design states after which the research's own record says what became of the page. */
+const DESIGN_ENDED: ReadonlySet<string> = new Set(['published', 'failed', 'cancelled', 'superseded'])
+
+/**
+ * The design task's own state, while the research's says it is designing: designing, or with its reviewer. Once the
+ * design has ended the research's record is read again, so the card shows the page (or why there is none) without a
+ * reload (B-19, B-24): the research task's own phase does not move when its page is published.
+ */
+function useDesignState(html: HtmlProgress, rest: { projectId: string; identity: Identity; researchTaskId: string }) {
+  const { projectId, identity, researchTaskId } = rest
   const live = html.state === 'designing' && html.designTaskId !== undefined
   const detail = useQuery({
     queryKey: ['native-task', projectId, html.designTaskId, identity.name],
@@ -171,7 +179,13 @@ function useDesignState(html: HtmlProgress, projectId: string, identity: Identit
     enabled: live,
     refetchInterval: live ? DESIGN_POLL : false,
   })
-  return live ? detail.data?.design?.state : undefined
+  const state = live ? detail.data?.design?.state : undefined
+  const client = useQueryClient()
+  useEffect(() => {
+    if (state && DESIGN_ENDED.has(state))
+      void client.invalidateQueries({ queryKey: ['native-task', projectId, researchTaskId] })
+  }, [client, state, projectId, researchTaskId])
+  return state
 }
 
 /** The HTML page's row before it is published: what the design is doing, or why there is no page. */
@@ -182,13 +196,20 @@ function designWords(html: HtmlProgress, design: string | undefined): { tag: str
   return { tag: 'Designing', meta: 'Designed after the research, from its published report' }
 }
 
+interface DesignRowProps {
+  projectId: string
+  identity: Identity
+  /** The research task whose page it is: read again when the design ends. */
+  researchTaskId: string
+}
+
 /** The HTML page asked for, until it is published (then it is an output row); nothing when none was asked for. */
-function DesignRow({ html, ...rest }: { html: HtmlProgress | undefined; projectId: string; identity: Identity }) {
+function DesignRow({ html, ...rest }: DesignRowProps & { html: HtmlProgress | undefined }) {
   return html && html.state !== 'published' ? <DesignState html={html} {...rest} /> : null
 }
 
-function DesignState({ html, projectId, identity }: { html: HtmlProgress; projectId: string; identity: Identity }) {
-  const words = designWords(html, useDesignState(html, projectId, identity))
+function DesignState({ html, ...rest }: DesignRowProps & { html: HtmlProgress }) {
+  const words = designWords(html, useDesignState(html, rest))
   return (
     <div className="output-row" data-design={html.state}>
       <div className="output-open" aria-live="polite">

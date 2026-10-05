@@ -172,7 +172,7 @@ const MAYBE_APPLIED: ReadonlySet<unknown> = new Set(['idempotency_conflict', 'ou
  * words M01 was qualified on, as the API keeps them for it.
  */
 function plainRefusal(version: GuideVersion, name: string, result: MediaToolResult): MediaToolResult {
-  if (version !== 'v1.2' || name !== 'control_work' || result.status !== 'refused' || !('code' in result.output))
+  if (version === 'v1.1' || name !== 'control_work' || result.status !== 'refused' || !('code' in result.output))
     return result
   if (result.output.code === 'invalid_state') return NOT_APPLIED
   return MAYBE_APPLIED.has(result.output.code) ? CONTROL_UNCONFIRMED : result

@@ -905,6 +905,26 @@ test('HTML · a version without a designed page shows its Markdown and says so',
   await expect(frame(page)).toHaveCount(0)
 })
 
+test('HTML · leaving while the page is designed and coming back shows the record as it is now, never replayed progress (B-19)', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?place=work&design=designing')
+  await expect(page.locator('.work-card .output-row[data-design="designing"]')).toContainText('HTML page · Designing')
+  await expect(page.getByRole('button', { name: /HTML page/ })).toHaveCount(0)
+  // The person leaves; the design goes on without them and is published meanwhile.
+  await page.evaluate(() => {
+    window.fixture?.away()
+    window.fixture?.designPublished()
+  })
+  await page.evaluate(() => window.fixture?.back())
+  // The card reads the design again on its own clock (every 15 s) and, the design ended, the research's record: the
+  // page as published, with its review; the design row is gone, and nothing it said before is played again.
+  const opened = page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' })
+  await expect(opened).toContainText('reviewed', { timeout: 25_000 })
+  await expect(page.locator('.work-card .output-row[data-design]')).toHaveCount(0)
+  await expect(page.locator('.work-card')).not.toContainText('Designing')
+})
+
 test('HTML · a Knowledge card opens its current version’s designed page; a card without one offers none', async ({
   page,
 }) => {

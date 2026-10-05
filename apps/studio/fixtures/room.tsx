@@ -78,6 +78,8 @@ interface Fixture {
    * notice (revision 2) reaches the chat (CX-0022).
    */
   noticeRevised: () => void
+  /** The page asked for is published while the person is away (`design=designing`, B-19). */
+  designPublished: () => void
   /** The same task's result told as a brief's (synthetic): a card of another kind over the same files. */
   noticeBrief: () => void
   /** The research task's record, held since the page opened (`hold=task`), comes now. */
@@ -208,6 +210,7 @@ const project = {
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
   textTampered: query.get('tamper') === 'text',
   designed: query.get('designed') === 'on',
+  designing: query.get('design') === 'designing',
   pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',
   // `notes=off`: the brief allows this person no note.
@@ -244,6 +247,11 @@ window.fixture = {
     deliverNotice(revisedNotice)
   },
   noticeBrief: () => deliverNotice(briefNotice),
+  designPublished: () => {
+    project.designing = false
+    project.designed = true
+    publish(project)
+  },
   releaseTask: () => releaseTask(project),
   researchProgress: (reads) => {
     project.researching = { reads }

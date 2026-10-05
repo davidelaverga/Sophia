@@ -3,6 +3,9 @@
 // host, as the supervisor runs (root, with SOPHIA_RENDER_UID/GID naming the render user), with the supervisor's own
 // environment. It holds no runner capability and calls no API.
 // 1. It renders a fixture in the confined browser: the sandbox self-test, every kernel check and the page checks pass.
+//    It captures a fixture page the same way a design's render is captured (SDD-01, capture-html.mjs), at both
+//    targets: the capture succeeds in an active sandbox, every check passes (an unmeasured contrast is not a failure,
+//    as the design gate reads it), and every PNG the receipt names is on disk with its hash.
 // 2. Through bin/confine-chromium itself, the wrapper the browser starts through (the render user, no new privileges,
 //    fresh user, network, PID and mount namespaces, an empty environment, its resource limits), it runs a small Node
 //    program instead of the browser. It checks that the job has a network namespace of its own with no interface up
@@ -28,6 +31,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { captureHtml } from './capture-html.mjs'
 import { renderHtmlToPdf, renderUserOf } from './index.mjs'
 import { sha256Hex } from './source-manifest.mjs'
 
@@ -41,6 +45,15 @@ const MAX_SECRET_FILES = 256
 
 const FIXTURE = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Probe</title></head><body>
 <h1>Verifica dell'host di stampa</h1><p>${'Città, señal, naïve façade: àèéìòù ÀÈÉÌÒÙ ñ ¿¡. '.repeat(24)}</p></body></html>`
+
+/** A small designed page as the design compiler writes one: its own CSP, inline styles, two sections. */
+const CAPTURE_FIXTURE = `<!doctype html><html lang="it"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>Probe</title>
+<style>body{margin:0;font:18px/1.5 Georgia,serif;color:#222;background:#fafafa} section{padding:1rem 2rem;max-width:60rem;margin:auto}</style>
+</head><body><main><h1>Verifica dell'host di cattura</h1>
+<section data-section="s1"><p data-block="b1">${'Città, señal, naïve façade: àèéìòù. '.repeat(8)}</p></section>
+<section data-section="s2"><ul><li data-block="b2">Uno.</li><li data-block="b3">Due.</li></ul></section></main></body></html>
+`
 
 /**
  * Run a small Node program inside the confinement the browser gets, through the browser's own wrapper with this Node
@@ -388,6 +401,72 @@ async function renderCheck(env) {
 }
 
 /**
+ * Whether every capture a receipt names is on disk in `dir` with its hash.
+ * @param {string} dir
+ * @param {Array<{ name: string, sha256: string }>} captures
+ */
+function capturesOnDisk(dir, captures) {
+  return captures.every((c) => {
+    try {
+      return sha256Hex(fs.readFileSync(path.join(dir, c.name))) === c.sha256
+    } catch {
+      return false
+    }
+  })
+}
+
+/**
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {Promise<ProbeResult[]>}
+ */
+async function captureCheck(env) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sophia-probe-capture-src-'))
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'sophia-probe-capture-out-'))
+  fs.chmodSync(root, 0o755)
+  fs.chmodSync(out, 0o777)
+  fs.writeFileSync(path.join(root, 'index.html'), CAPTURE_FIXTURE, { mode: 0o644 })
+  try {
+    const receipt = await captureHtml(
+      {
+        sourceRoot: root,
+        outputDir: out,
+        entry: { path: 'index.html', sha256: sha256Hex(Buffer.from(CAPTURE_FIXTURE)) },
+        language: 'it',
+        targets: ['w390-light', 'w1280-light'],
+      },
+      { env },
+    )
+    const captured = receipt.status === 'succeeded'
+    // As the design gate reads them: an unmeasured contrast is said on the page, not a failure.
+    const failed = receipt.checks
+      .filter((c) => c.outcome !== 'passed' && !(c.name === 'contrast' && c.outcome === 'unknown'))
+      .map((c) => `${c.name}${c.target ? `@${c.target}` : ''}=${c.outcome}`)
+    const judged = captured && receipt.checks.length > 0
+    return [
+      { check: 'capture', ok: captured, detail: receipt.error?.code ?? receipt.status },
+      {
+        check: 'capture_checks',
+        ok: judged && failed.length === 0,
+        detail: judged ? failed.join(', ') || 'all passed' : 'not run: nothing was captured',
+      },
+      {
+        check: 'capture_sandbox',
+        ok: receipt.sandbox?.active === true,
+        detail: receipt.sandbox ? `renderers=${receipt.sandbox.renderers} uid=${receipt.sandbox.browserUid}` : 'none',
+      },
+      {
+        check: 'capture_images',
+        ok: captured && receipt.captures.length > 0 && capturesOnDisk(out, receipt.captures),
+        detail: captured ? `${receipt.captures.length} captures` : 'not run: nothing was captured',
+      },
+    ]
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+    fs.rmSync(out, { recursive: true, force: true })
+  }
+}
+
+/**
  * @param {NodeJS.ProcessEnv} env
  * @param {string[]} secrets
  * @param {string} node
@@ -431,6 +510,7 @@ export async function probeHost({ secrets = [], env = process.env, node = proces
   /** @type {Array<[string, () => Promise<ProbeResult[]>]>} */
   const steps = [
     ['render', () => renderCheck(env)],
+    ['capture', () => captureCheck(env)],
     ['confinement', () => confinementChecks(env, secrets, node)],
   ]
   for (const [name, step] of steps) {

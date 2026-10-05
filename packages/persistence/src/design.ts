@@ -4,6 +4,7 @@
 // replays. A source is checked here, between the service's two steps, with @sophia/design: nothing the static
 // profile refuses is stored. A render is compiled here the same way. The model's request never carries the page that
 // is rendered or published: that is always the API's compile of a stored revision.
+import { createHash } from 'node:crypto'
 import type pg from 'pg'
 import {
   checkSource,
@@ -11,6 +12,7 @@ import {
   contentPackage,
   packageDiff,
   reviseSource,
+  scopeFindings,
   type ContentPackage,
   type Edit,
   type EditScope,
@@ -20,6 +22,8 @@ import {
 } from '@sophia/design'
 import type {
   DesignCaptureRequest,
+  DesignEditReceipt,
+  DesignEditRequest,
   DesignContextReply,
   DesignContextRequest,
   DesignFinding,
@@ -41,6 +45,7 @@ import type {
   ReviewSubmission,
   ReviewSubmitRequest,
 } from '@sophia/contracts'
+import { submitContribution, type ContributionOrigin } from './native-tasks.ts'
 import { onlyRow } from './rows.ts'
 import type { RuntimeCaller } from './runtime.ts'
 
@@ -83,6 +88,53 @@ export async function htmlDesignReady(c: pg.PoolClient, projectId: string, desig
     designer.route,
   ])
   return onlyRow(rows, 'html_design_ready').ready
+}
+
+// --- edit (0041) -------------------------------------------------------------------------------------------------------
+
+/**
+ * Revise named sections of the designed page of a report's current version (0041 request_design_edit): the person's
+ * instruction is kept as their own contribution, and the edit is a design task in mode edit bound to the page's
+ * candidate. Refused, with nothing admitted, for a stale version, a page under design, work under way, held or
+ * stopped, a withdrawn source or a section the page does not have. The same key returns the same edit. Inside
+ * withActor(..., 'write').
+ */
+export async function requestDesignEdit(
+  c: pg.PoolClient,
+  projectId: string,
+  key: string,
+  request: DesignEditRequest,
+  origin: ContributionOrigin = 'composer',
+): Promise<DesignEditReceipt> {
+  const said = await submitContribution(
+    c,
+    projectId,
+    // The instruction's own key, derived: the request's may already be as long as a key can be.
+    `html-edit:${createHash('sha256').update(key, 'utf8').digest('hex')}`,
+    {
+      source: null,
+      text: request.instruction,
+      threadId: null,
+      artifactVersionId: request.versionId,
+      intent: 'discuss',
+    },
+    origin,
+  )
+  const { rows } = await c.query<{ receipt: Omit<DesignEditReceipt, 'contributionId'> }>(
+    `SELECT sophia.request_design_edit($1, $2) AS receipt`,
+    [
+      projectId,
+      JSON.stringify({
+        versionId: request.versionId,
+        sections: request.sections,
+        ...(request.shell === undefined ? {} : { shell: request.shell }),
+        ...(request.styles === undefined ? {} : { styles: request.styles }),
+        instructionSourceId: said.sourceId,
+        requestKey: key,
+      }),
+    ],
+  )
+  return { ...onlyRow(rows, 'request_design_edit').receipt, contributionId: said.contributionId }
 }
 
 // --- the frozen content package ----------------------------------------------------------------------------------------
@@ -188,8 +240,13 @@ const refused = (findings: readonly Finding[], count = findings.length): DesignS
 type Checked =
   { ok: true; files: SourceFile[]; check: SourceCheck; diff: string } | { ok: false; reply: DesignSourceReply }
 
-/** A whole package written: refused when it breaks the static profile, else checked against the package. */
+/**
+ * A whole package written: refused when it leaves an edit's scope (0041: an edit's first revision is the published
+ * page, so a write is checked against it as a patch is) or breaks the static profile, else checked against the package.
+ */
 function checkWrite(input: SourceInput, files: readonly SourceFile[], pkg: ContentPackage): Checked {
+  const outOfScope = input.base ? scopeFindings(input.base.files, files, asScope(input.scope)) : []
+  if (outOfScope.length > 0) return { ok: false, reply: refused(outOfScope) }
   const check = checkSource(files, pkg)
   if (check.unsafe) return { ok: false, reply: refused(check.findings, check.findingCount) }
   return { ok: true, files: [...files], check, diff: packageDiff(input.base?.files ?? [], files) }

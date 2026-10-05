@@ -15,6 +15,8 @@ import { PROJECT } from './data.ts'
 
 export const REPORT = '00000000-0000-4000-8000-0000000000b1'
 export const TASK = '00000000-0000-4000-8000-0000000000b2'
+/** The design task of the research's HTML page (SDD-01). */
+export const DESIGN_TASK = '00000000-0000-4000-8000-0000000000e2'
 const EXCHANGE = '00000000-0000-4000-8000-0000000000ae'
 const AT = '2026-10-02T00:00:00.000Z'
 
@@ -413,7 +415,7 @@ export function researchRunning(reads: number): NativeTaskDetail {
  * The same task's record once its result is revised (`window.fixture.noticeRevised`, CX-0022): its result is version
  * `n`'s Markdown, the files a card opens and saves.
  */
-export function researchTaskAt(n: 1 | 2, designed = false): NativeTaskDetail {
+export function researchTaskAt(n: 1 | 2, designed = false, designing = false): NativeTaskDetail {
   const text = TEXTS[n - 1]
   if (!text || !researchTask.result) throw new Error(`no fixture version ${String(n)}`)
   const file = {
@@ -432,7 +434,7 @@ export function researchTaskAt(n: 1 | 2, designed = false): NativeTaskDetail {
     ...researchTask,
     task: { ...researchTask.task, resultSourceId: text.sourceId },
     result: { ...result, outputs: designed && n === 1 ? [file, html] : [file] },
-    ...(designed ? { research: designedResearch } : {}),
+    ...(designed ? { research: designedResearch } : designing ? { research: designingResearch } : {}),
   }
 }
 
@@ -457,8 +459,41 @@ const designedResearch: NonNullable<NativeTaskDetail['research']> = {
   spentUsd: 0.4,
   searches: { used: 1, max: 5 },
   reads: { used: 1, max: 8 },
-  html: { state: 'published', designTaskId: '00000000-0000-4000-8000-0000000000e2' },
+  html: { state: 'published', designTaskId: DESIGN_TASK },
 }
+
+/** The same research while its page is still being designed (`design=designing`, B-19). */
+const designingResearch: NonNullable<NativeTaskDetail['research']> = {
+  ...designedResearch,
+  html: { state: 'designing', designTaskId: DESIGN_TASK },
+}
+
+/** The design task of that page, as its own record reads while it is designed (`design=designing`, B-19). */
+export const designingTask = (state: 'designing' | 'published' = 'designing'): NativeTaskDetail => ({
+  task: {
+    ...researchTask.task,
+    id: DESIGN_TASK,
+    kind: 'design',
+    state: 'running',
+    phase: 'running',
+    resultSourceId: null,
+  },
+  instruction: 'Design the HTML page of the published report.',
+  result: null,
+  design: {
+    researchTaskId: TASK,
+    artifactId: REPORT,
+    baseVersionId: versionId(1),
+    baseVersionNumber: 1,
+    state,
+    targets: ['w1280-light', 'w390-light'],
+    revisions: 1,
+    renders: 1,
+    candidates: [],
+    maxRepairs: 2,
+    mode: 'create',
+  },
+})
 
 /** The bridge's notice for that task, as it reaches a member in the room's chat. */
 export const researchNotice = {

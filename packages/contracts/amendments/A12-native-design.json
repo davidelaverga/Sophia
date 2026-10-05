@@ -7,7 +7,8 @@
     "A design is a task kind of its own (design), with its progress (DesignProgress); a review is internal and never listed. A research task that was asked for HTML says what became of it (ResearchProgress.html, ResearchSubmission.html).",
     "The runtime operations of both roles (/v1/runtime/design/*, /v1/runtime/review/*) authenticate and fence like research's. A source is checked by the API with a parser before it is stored, and refused with its findings when it breaks the static profile. Model calls reserve against the research lineage's allowance through the research reservation shapes.",
     "The render runner names the formats it renders (RenderClaimRequest); a capture job (format png) uploads each PNG its receipt names and settles with the capture receipt. An older runner names none, is a PDF runner, and is never handed a capture.",
-    "Every property this amendment adds is omitted when it has no value, so an older reader reads every earlier record unchanged."
+    "Every property this amendment adds is omitted when it has no value, so an older reader reads every earlier record unchanged.",
+    "SDD-01 G5 (0041): a member can ask to revise named sections of the designed page of a report's current version (POST /api/v1/projects/{projectId}/html-edits). The edit is a design task in mode edit, bound to the page's candidate and the person's instruction; the designer and the reviewer read the instruction and the scope (DesignTaskContext.request, ReviewTaskContext.request), and a design's progress says its mode, its scope and the sections of its page (DesignProgress). Guide v1.3 adds the same request by voice and text (revise_html_page) and names the page's sections in project_status; v1.1 and v1.2 are unchanged."
   ],
   "patch": [
     {
@@ -4400,6 +4401,350 @@
           "x-sophia-release-goal": "SDD-01"
         }
       }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignTaskContext/properties/request/properties/instruction",
+      "value": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000,
+        "description": "An edit: what the person asked to change."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignTaskContext/properties/request/properties/baseCandidateId",
+      "value": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        "description": "An edit: the published candidate it revises."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewTaskContext/properties/request/properties/mode",
+      "value": {
+        "type": "string",
+        "enum": ["create", "edit", "audit"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewTaskContext/properties/request/properties/instruction",
+      "value": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000,
+        "description": "An edit: what the person asked to change (never the author's account)."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewTaskContext/properties/request/properties/scope",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sections": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          },
+          "shell": {
+            "type": "boolean"
+          },
+          "styles": {
+            "type": "boolean"
+          }
+        },
+        "required": ["sections"],
+        "description": "What an edit may change: the sections named, and the page around them (shell) or the shared stylesheet (styles) only when named."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignProgress/properties/mode",
+      "value": {
+        "type": "string",
+        "enum": ["create", "edit", "audit"],
+        "description": "create designs a version's page; edit revises sections of a published one. Omitted by older readers means create."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignProgress/properties/scope",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sections": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          },
+          "shell": {
+            "type": "boolean"
+          },
+          "styles": {
+            "type": "boolean"
+          }
+        },
+        "required": ["sections"],
+        "description": "What an edit may change: the sections named, and the page around them (shell) or the shared stylesheet (styles) only when named."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignProgress/properties/sections",
+      "value": {
+        "type": "array",
+        "maxItems": 256,
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "description": "The section ids of the design's latest page, in page order: what an edit can name."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignEditRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "versionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "description": "The report's current version, whose HTML page is revised."
+          },
+          "sections": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          },
+          "shell": {
+            "type": "boolean",
+            "description": "Also allow the page around the sections to change (head, header, footer, section list)."
+          },
+          "styles": {
+            "type": "boolean",
+            "description": "Also allow the shared stylesheet to change."
+          },
+          "instruction": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "What to change, in the person's words; kept as their own contribution."
+          }
+        },
+        "required": ["versionId", "sections", "instruction"],
+        "description": "Revise named sections of a published HTML page (SDD-01 G5, B-16). Everything outside the scope is protected."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignEditReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["designing", "reviewing", "published", "failed", "cancelled", "superseded"]
+          },
+          "versionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "baseCandidateId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sections": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          },
+          "shell": {
+            "type": "boolean"
+          },
+          "styles": {
+            "type": "boolean"
+          },
+          "contributionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": ["taskId", "state", "versionId", "baseCandidateId", "sections", "shell", "styles"],
+        "description": "The edit admitted (or what the earlier call with this key admitted): a design task in mode edit. Its progress is the task's."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1html-edits",
+      "value": {
+        "post": {
+          "operationId": "requestDesignEdit",
+          "summary": "Revise named sections of the designed HTML page of a report's current version: a design task in mode edit, reviewed and published as the report's next version. Editors and admins only. The same Idempotency-Key returns the same edit.",
+          "tags": ["artifacts"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignEditRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "202": {
+              "description": "Admitted (or what the earlier call with this key admitted); the page is designed later",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/DesignEditReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (editors and admins only), or the report or the instruction draws on a withdrawn source",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "A newer version exists, a design of this page is under way, or work on the report is under way, held or stopped",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or the version has no designed page or no such section",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "429": {
+              "description": "This report's page has been designed as often as allowed (research_limit_reached)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "HTML design is unavailable: no designer or no capture renderer is ready (html_unavailable)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "SDD-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaToolCall/properties/name/enum/-",
+      "value": "revise_html_page"
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/MediaToolCall/properties/guide",
+      "value": {
+        "type": "string",
+        "enum": ["v1.1", "v1.2", "v1.3"],
+        "description": "The guide version the bridge runs (SMC-M03 S6; SDD-01 v1.3). Omitted by older bridges means v1.1. project_status lists the operations of this version only."
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/paths/~1v1~1media~1tool-surface/get/parameters",
+      "value": [
+        {
+          "name": "guide",
+          "in": "query",
+          "required": false,
+          "description": "The guide version the bridge runs. v1.1 (the default, so an older bridge asks without it) is the six M01 operations; v1.2 adds start_research and render_research, and steer on control_work; v1.3 (SDD-01) adds revise_html_page. The bridge rolls back before the API.",
+          "schema": {
+            "type": "string",
+            "enum": ["v1.1", "v1.2", "v1.3"]
+          }
+        }
+      ]
     }
   ]
 }
