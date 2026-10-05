@@ -130,6 +130,8 @@ test('made · on the stage’s axis, under Sophia’s line, above the captions a
   const words = await box(page, '.stage-captions')
   expect(Math.abs(object.x + object.width / 2 - (stage.x + stage.width / 2))).toBeLessThanOrEqual(1)
   expect(object.y).toBeGreaterThanOrEqual(lineBox.y + lineBox.height)
+  // Right under her line, where it was born, not down by the dock.
+  expect(object.y - (lineBox.y + lineBox.height)).toBeLessThanOrEqual(48)
   expect(object.y + object.height).toBeLessThanOrEqual(words.y)
 })
 
