@@ -7,7 +7,7 @@ import { flushSync } from 'react-dom'
 import { Icon, Tip } from '@sophia/ui'
 import { keyLabel, onMac, useShortcuts } from '../../app/shortcuts.ts'
 import type { Row } from './conversation-view.ts'
-import { focusConversation } from './focus.ts'
+import { focusConversation, focusSoon } from './focus.ts'
 import { useEscape } from './useEscape.ts'
 import { foundIn, pieces, type Found } from './find-view.ts'
 
@@ -110,40 +110,87 @@ function giveBack(to: HTMLElement | null): void {
  * whether it is open, how to open it, its line, and the lens the turns mark by. The current match is held as itself,
  * so earlier days read in before it leave it current.
  */
-export function useFind(rows: readonly Row[], on: boolean, more: boolean, readEarlier: () => void) {
+/**
+ * Find pressed while the notes cover the conversation (`uncover` puts them away): it opens once the conversation is in
+ * reach again, a render later. Never a press that does nothing.
+ */
+function useOnceUncovered(on: boolean, uncover: (() => void) | null, show: () => void): () => void {
+  const [asked, setAsked] = useState(false)
+  const latest = useRef(show)
+  useEffect(() => {
+    latest.current = show
+  })
+  useEffect(() => {
+    if (!asked || !on) return
+    setAsked(false)
+    latest.current()
+  }, [asked, on])
+  return () => {
+    if (!uncover) return
+    uncover()
+    setAsked(true)
+  }
+}
+
+/**
+ * Whether find is open, and how it opens and closes: Ctrl or ⌘ F and the toggle while `on`, Esc wherever its focus is,
+ * the focus given back on closing; out of reach it closes and `clear`s what it held.
+ */
+function useFindOpen(on: boolean, uncover: (() => void) | null, clear: () => void) {
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const [held, setHeld] = useState<Found | null>(null)
-  const [steps, setSteps] = useState(0)
   const back = useRef<HTMLElement | null>(null)
-  const found = useMemo(() => (open ? foundIn(rows, query) : []), [open, rows, query])
-  const index = Math.max(0, found.findIndex(sameAs(held)))
-  const current = found[index] ?? null
+  const clearing = useRef(clear)
+  useEffect(() => {
+    clearing.current = clear
+  })
+  const askOpen = useOnceUncovered(on, uncover, () => {
+    back.current = focused()
+    setOpen(true)
+    focusSoon('#c-find')
+  })
   // The line is drawn and takes the focus within the key's own event: the letters typed next are the finder's.
   const openFind = () => {
-    // Out of reach (the notes over the conversation, a talk, out of sight), it doesn't open.
-    if (!on) return
+    // Out of reach: under the notes, they are put away first; else (a talk, out of sight) it doesn't open.
+    if (!on) return askOpen()
     if (!open) back.current = focused()
     flushSync(() => setOpen(true))
     const input = document.querySelector<HTMLInputElement>('#c-find')
     input?.focus({ preventScroll: true })
     input?.select()
   }
-  const reset = () => {
-    setOpen(false)
-    setQuery('')
-    setHeld(null)
-  }
   const close = () => {
-    reset()
+    setOpen(false)
+    clear()
     giveBack(back.current)
   }
   useShortcuts({ 'mod+f': openFind }, on)
   useEscape(open && on, close)
   // Out of sight (another place, the padlock, a talk), it closes and keeps nothing: no query, nothing marked.
   useEffect(() => {
-    if (!on) reset()
+    if (on) return
+    setOpen(false)
+    clearing.current()
   }, [on])
+  return { open, openFind, close }
+}
+
+export function useFind(
+  rows: readonly Row[],
+  on: boolean,
+  more: boolean,
+  readEarlier: () => void,
+  uncover: (() => void) | null,
+) {
+  const [query, setQuery] = useState('')
+  const [held, setHeld] = useState<Found | null>(null)
+  const [steps, setSteps] = useState(0)
+  const { open, openFind, close } = useFindOpen(on, uncover, () => {
+    setQuery('')
+    setHeld(null)
+  })
+  const found = useMemo(() => (open ? foundIn(rows, query) : []), [open, rows, query])
+  const index = Math.max(0, found.findIndex(sameAs(held)))
+  const current = found[index] ?? null
   // The current match comes into sight when it changes, or is stepped to again.
   const where = current ? `${current.key}:${String(current.n)}` : null
   useEffect(() => {
@@ -173,5 +220,5 @@ export function useFind(rows: readonly Row[], on: boolean, more: boolean, readEa
     />
   ) : null
   const lens = open && query.trim() ? { query, current } : null
-  return { open, openFind, bar, lens, available: on }
+  return { open, openFind, bar, lens }
 }

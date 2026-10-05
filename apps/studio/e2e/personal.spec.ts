@@ -1127,16 +1127,15 @@ test('ease · offline, a way in adds its words after what you wrote, never over 
   await expect(page.locator('.ps-composer .chat-line', { hasText: 'offline' })).toHaveCount(0)
 })
 
-test('@phone · ease · while the notes cover the conversation, Find stays shut', async ({ page }) => {
+test('@phone · ease · while the notes cover the conversation, Find puts them away and opens', async ({ page }) => {
   await page.goto(PAGE)
   await page.locator('.c3-notes-toggle').click()
   await expect(page.locator('#c-notes')).toBeVisible()
-  // It says so, rather than looking pressable and doing nothing.
-  const toggle = page.locator('.c3-find-toggle')
-  await expect(toggle).toHaveAttribute('aria-disabled', 'true')
-  await expect(toggle.locator('.tip')).toContainText('Close the notes to find')
-  await toggle.click({ force: true }) // pressed anyway, it opens nothing
-  await expect(finder(page)).toHaveCount(0)
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await expect(page.locator('#c-notes')).toBeHidden()
+  await expect(finder(page)).toBeFocused()
+  await page.keyboard.type('keep')
+  await expect(page.locator('.msgs mark').first()).toBeVisible()
 })
 
 test('codex · without Promise.withResolvers (Safari 16.4), a message still goes, and “Talk about it” too', async ({
