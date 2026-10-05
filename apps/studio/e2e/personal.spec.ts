@@ -1357,3 +1357,51 @@ test('codex · words handed from Home before the space’s epoch is known wait f
   await page.goto(`${PAGE}?handed=${encodeURIComponent('Before it all loaded.')}&epochAfter=800`)
   await expect.poll(() => sent(page), { timeout: 5000 }).toEqual(['Before it all loaded.'])
 })
+
+// Four small follow-ups from Codex (docs/plans/personal-small-p2.md).
+
+test('small · a message is counted in characters, as the API counts: 2,001 emoji go; 3,700 count as 3,700', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await field(page).fill('😊'.repeat(3700))
+  await expect(page.locator('#c-count')).toHaveText('3,700 / 4,000')
+  await field(page).fill('😊'.repeat(2001))
+  await expect(page.locator('#c-count')).toHaveCount(0)
+  await page.keyboard.press('Enter')
+  await expect.poll(() => sent(page)).toEqual(['😊'.repeat(2001)])
+})
+
+test('small · until the conversation is read, there is no Find, and Ctrl F is the browser’s', async ({ page }) => {
+  await page.goto(`${PAGE}?spaceAfter=3000`)
+  await expect(page.getByRole('button', { name: 'Find', exact: true })).toHaveCount(0)
+  // Ctrl on Windows and Linux, ⌘ on a Mac: whichever this browser takes as the command key.
+  const pressFind = () =>
+    page.evaluate(() => {
+      const mac = /Mac|iPhone|iPad/.test(navigator.userAgent)
+      const key = new KeyboardEvent('keydown', {
+        key: 'f',
+        ctrlKey: !mac,
+        metaKey: mac,
+        bubbles: true,
+        cancelable: true,
+      })
+      document.body.dispatchEvent(key)
+      return key.defaultPrevented
+    })
+  expect(await pressFind()).toBe(false)
+  await expect(page.getByRole('button', { name: 'Find', exact: true })).toBeVisible({ timeout: 6000 })
+  // Once read, the key is Find's.
+  expect(await pressFind()).toBe(true)
+})
+
+test('small · “Look further back” says it is reading, and waits, until the earlier days are in', async ({ page }) => {
+  await page.goto(`${PAGE}?earlier=1&readSlow=1`)
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await finder(page).fill('promise')
+  await page.getByRole('button', { name: 'Look further back' }).click()
+  const reading = page.getByRole('button', { name: 'Reading…' })
+  await expect(reading).toHaveAttribute('aria-disabled', 'true')
+  await expect(findCount(page)).toHaveText('2 of 2', { timeout: 5000 })
+  await expect(reading).toHaveCount(0)
+})

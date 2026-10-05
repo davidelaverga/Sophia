@@ -29,7 +29,7 @@ export interface ConversationActions {
   /** Whether the press for a suggestion or a turn asked again is being answered: it waits (presses.ts). */
   waits: (key: string) => boolean
   /** The page of days before those shown (a long conversation). */
-  readEarlier: () => void
+  readEarlier: () => Promise<void>
 }
 
 const dayId = (key: string) => `c-${key}`
@@ -514,7 +514,14 @@ export function Conversation(props: ConversationProps) {
   return (
     <FindLens value={lens}>
       <div className={`c3-convo${day ? ' scrolled' : ''}`} data-typing-scope inert={covered}>
-        <Earlier rows={rows} open={earlier} day={day} setOpen={setEarlier} more={more} onMore={actions.readEarlier} />
+        <Earlier
+          rows={rows}
+          open={earlier}
+          day={day}
+          setOpen={setEarlier}
+          more={more}
+          onMore={() => void actions.readEarlier()}
+        />
         <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>
           {notice}
           {rows.map((row) => (
