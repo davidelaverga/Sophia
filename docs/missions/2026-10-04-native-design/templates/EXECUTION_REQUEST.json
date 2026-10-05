@@ -1,0 +1,40 @@
+{
+  "protocol": "sophia.dev-handoff.v1.1",
+  "mission_profile": "sophia.native-design.v0.1",
+  "kind": "execution_request",
+  "executable": false,
+  "mission_id": null,
+  "operation_id": null,
+  "request_revision": 1,
+  "candidate_commit": null,
+  "reviewed_commit": null,
+  "artifact_manifests": [],
+  "owner_approval_ref": null,
+  "approved_by_verified_human": false,
+  "target": {
+    "environment": null,
+    "app_url": null,
+    "services": [],
+    "database_id": null
+  },
+  "preconditions": {
+    "current_deployments": [],
+    "migration_ledger_hash": null,
+    "active_bindings": null,
+    "auto_deploy_state": null
+  },
+  "migrations": [],
+  "configuration_key_changes": [],
+  "limits": {
+    "maximum_provider_spend": null,
+    "currency": null,
+    "pilot_identity_and_data_scope": null,
+    "expires_or_completion_boundary": null
+  },
+  "ordered_steps": [],
+  "verification_cases": [],
+  "stop_conditions": [],
+  "rollback_compatible_tuple": null,
+  "operator_journal_ref": null,
+  "note": "All real targets, limits, current preconditions and approval must be populated and independently checked before effects."
+}
