@@ -21,7 +21,8 @@ function Choices({ label, decisions, people, elsewhere }: ChoicesProps) {
   return (
     <ul className="plan-decided" aria-label={label}>
       {decisions.map((d) => (
-        <li key={d.decision_id}>
+        // Each decision at its revision: two revisions of one are two rows (Codex F-041).
+        <li key={JSON.stringify([d.decision_id, d.revision])}>
           {d.question}{' '}
           <span className="muted">
             {people[d.decider_id]?.name ?? 'Someone'} chose{' '}

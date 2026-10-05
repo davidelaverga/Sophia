@@ -2832,3 +2832,52 @@ test('codex · F-036 · a decision not yet decided that names a choice is refuse
   )
   await expect(board(page)).toHaveCount(0)
 })
+
+// ---- CX-0033 (Codex on #74; GitHub 4180694992, 4180694995, 4180694998): a plan or a decision at its revision. ----
+
+test('codex · F-040 · the review waits on its decision as its latest revision stands, whatever the order', async ({
+  page,
+}) => {
+  const card = reviewCard(page)
+  const answer = card.getByRole('button', { name: 'Waits on your decision: answer it' })
+  const expired = card.getByText('Its decision expired before it was answered.')
+  // An older revision answered, the latest still open, in either order: Davide is asked to answer it.
+  for (const c of ['older-first', 'older-last']) {
+    await page.goto(`${PAGE}?viewer=davide&review=material&case=${c}`)
+    await reviewPill(page).click()
+    await expect(answer).toBeVisible({ timeout: 15_000 })
+    await expect(expired).toHaveCount(0)
+  }
+  // The latest answered, an older one still open: nothing to answer, no older revision standing in.
+  await page.goto(`${PAGE}?viewer=davide&review=material&case=newer-done`)
+  await reviewPill(page).click()
+  await expect(card).toBeVisible({ timeout: 15_000 })
+  await expect(answer).toHaveCount(0)
+  await expect(expired).toHaveCount(0)
+  // The latest past its expiry, an older one still open: said expired, not answerable.
+  await page.goto(`${PAGE}?viewer=davide&review=material&case=newer-expired`)
+  await reviewPill(page).click()
+  await expect(expired).toBeVisible({ timeout: 15_000 })
+  await expect(answer).toHaveCount(0)
+})
+
+test('codex · F-041 · two revisions of one decision decided are two rows, each its own, as they move and go', async ({
+  page,
+}) => {
+  const keyWarnings: string[] = []
+  page.on('console', (m) => {
+    if (/same key|unique "key"/i.test(m.text())) keyWarnings.push(m.text())
+  })
+  await page.goto(`${PAGE}?viewer=davide&case=two-accepted`)
+  await fold(page).click()
+  // d1's two rows (Luis's d2, decided too, is listed beside them).
+  const rows = own(page).getByRole('listitem').filter({ hasText: 'Davide chose' })
+  const first = /^Ship the retry now, as first asked\?\s+Davide chose Ship it now$/
+  const latest = /Davide chose Wait for the review$/
+  await expect(rows).toHaveText([first, latest], { timeout: 15_000 })
+  await page.evaluate(() => window.workFixture?.reverseDecisions?.())
+  await expect(rows).toHaveText([latest, first])
+  await page.evaluate(() => window.workFixture?.dropDecision?.('d1', 3))
+  await expect(rows).toHaveText([latest])
+  expect(keyWarnings).toEqual([])
+})

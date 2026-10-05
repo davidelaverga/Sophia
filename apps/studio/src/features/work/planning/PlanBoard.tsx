@@ -192,6 +192,15 @@ function useSeen(at: SeenAt, rows: readonly PlanRow[], decisions: readonly Board
   return { seen, markSeen: () => setKept({ id, seen: writeSeen(at, glance(rows, decisions)) }) }
 }
 
+/**
+ * A decision as it stands now: of all its revisions on the board, the latest, whatever their order. An older one never
+ * stands in for it, answered or still open (Codex F-040).
+ */
+const latestOf = (decisions: readonly BoardDecision[], decisionId: string) =>
+  decisions
+    .filter((d) => d.decision_id === decisionId)
+    .reduce<BoardDecision | undefined>((latest, d) => (latest && latest.revision >= d.revision ? latest : d), undefined)
+
 /** A decision at its revision: a revised one is new to its decider. */
 const askedKey = (d: BoardDecision) => JSON.stringify([d.decision_id, d.revision])
 
@@ -372,7 +381,7 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
      * nothing: it expired (by its date, or marked so). A decision already answered or replaced waits on no one.
      */
     waitsOn: (decisionId: string): Waiting | null => {
-      const d = decisions.find((o) => o.decision_id === decisionId)
+      const d = latestOf(decisions, decisionId)
       if (!d || (d.state !== 'proposed' && d.state !== 'expired')) return null
       if (!actionable(d, now)) return { on: 'expired' }
       return d.decider_id === viewerId && answerable ? { on: 'you' } : { on: 'them', name: decider(d.decider_id) }

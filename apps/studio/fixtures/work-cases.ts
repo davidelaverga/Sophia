@@ -491,6 +491,44 @@ const chosenEarly: Change = (g) => ({
   decisions: g.decisions.map((d) => (d.decision_id === 'd1' ? { ...d, selected_choice: 'ship' } : d)),
 })
 
+/** d1 replaced by the revisions `make` gives of it: its current one is revision 4. */
+const withRevisions = (g: GoalView, make: (d1: BoardDecision) => BoardDecision[]): GoalView => {
+  const d1 = g.decisions.find((d) => d.decision_id === 'd1')
+  return d1 ? { ...g, decisions: [...g.decisions.filter((d) => d !== d1), ...make(d1)] } : g
+}
+
+/** d1 at `revision`, answered with `choice` and taken into the plan. */
+const answeredAt = (d1: BoardDecision, revision: number, choice: string, question: string): BoardDecision => ({
+  ...d1,
+  revision,
+  question,
+  state: 'accepted',
+  selected_choice: choice,
+  choice_receipt_id: `fixture-choice-d1-${String(revision)}`,
+  plan_reaction: 'recorded',
+})
+
+const FIRST_ASKED = 'Ship the retry now, as first asked?'
+
+/** Codex F-040: d1 answered at revision 3, before (`older-first`) or after (`older-last`) its open revision 4. */
+const olderFirst: Change = (g) => withRevisions(g, (d1) => [answeredAt(d1, 3, 'ship', FIRST_ASKED), d1])
+const olderLast: Change = (g) => withRevisions(g, (d1) => [d1, answeredAt(d1, 3, 'ship', FIRST_ASKED)])
+
+/** Codex F-040: d1's latest revision (4) answered, an older one (3) still open beside it. */
+const newerDone: Change = (g) =>
+  withRevisions(g, (d1) => [{ ...d1, revision: 3, question: FIRST_ASKED }, answeredAt(d1, 4, 'wait', d1.question)])
+
+/** Codex F-040: d1's latest revision (4) past its expiry, an older one (3) still open beside it. */
+const newerExpired: Change = (g) =>
+  withRevisions(g, (d1) => [
+    { ...d1, revision: 3, question: FIRST_ASKED },
+    { ...d1, expires_at: new Date(Date.parse(d1.expires_at) - 3 * 3_600_000).toISOString() },
+  ])
+
+/** Codex F-041: d1 answered at revision 3 and again at 4, both in the plan's Decided history. */
+const twoAccepted: Change = (g) =>
+  withRevisions(g, (d1) => [answeredAt(d1, 3, 'ship', FIRST_ASKED), answeredAt(d1, 4, 'wait', d1.question)])
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -517,6 +555,11 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   unchosen,
   'twice-asked': twiceAsked,
   'chosen-early': chosenEarly,
+  'older-first': olderFirst,
+  'older-last': olderLast,
+  'newer-done': newerDone,
+  'newer-expired': newerExpired,
+  'two-accepted': twoAccepted,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

@@ -892,7 +892,7 @@ test('ease · Ctrl F finds in the conversation: each match marked, “1 of N”,
   await page.goto(PAGE)
   await field(page).focus()
   // Typed at once, as a person does: every letter lands in the finder, none in the message.
-  await page.keyboard.press('Control+f')
+  await page.keyboard.press('ControlOrMeta+f')
   await page.keyboard.type('keep')
   await expect(finder(page)).toHaveValue('keep')
   await expect(field(page)).toHaveValue('')

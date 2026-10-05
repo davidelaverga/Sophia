@@ -166,6 +166,43 @@ describe('readBoardView', () => {
     assert.equal(readBoardView(board).ok, true)
   })
 
+  it('refuses two plans of a goal with one id at one revision, in force or proposed; another revision is another (Codex F-039)', () => {
+    const board = example('board-review-ready.json')
+    const read = readBoardView(board)
+    if (!read.ok) throw new Error(read.problems.join('\n'))
+    const current = read.value.goals[0]?.current_plan
+    if (!current) throw new Error('no plan in force in the packet')
+    const [task, ...rest] = current.items
+    if (!task) throw new Error('no task in the plan')
+    const clone = {
+      ...current,
+      state: 'proposed' as const,
+      decision_ref: null,
+      items: [{ ...task, purpose: 'Something else under the same id' }, ...rest],
+    }
+    const proposed = ['goals', 0, 'proposed_plans']
+    // A proposal with the plan in force's id and revision.
+    const asCurrent = readBoardView(edited(board, proposed, [clone]))
+    assert.equal(asCurrent.ok, false)
+    if (!asCurrent.ok) {
+      assert.deepEqual(asCurrent.problems, [
+        '$.goals[0].proposed_plans[0]: another plan of this goal has this id at this revision',
+      ])
+    }
+    // Two proposals with one id and revision.
+    const next = { ...clone, revision: current.revision + 1 }
+    const twice = readBoardView(edited(board, proposed, [next, { ...next, items: current.items }]))
+    assert.equal(twice.ok, false)
+    if (!twice.ok) {
+      assert.deepEqual(twice.problems, [
+        '$.goals[0].proposed_plans[1]: another plan of this goal has this id at this revision',
+      ])
+    }
+    // The same id at another revision, and another id, are other plans: read as given.
+    assert.equal(readBoardView(edited(board, proposed, [next])).ok, true)
+    assert.equal(readBoardView(edited(board, proposed, [next, { ...clone, plan_id: 'another-plan' }])).ok, true)
+  })
+
   it('refuses a date-time without its offset, or one the calendar doesn’t have (GitHub review on PR #76)', () => {
     const board = example('board-review-ready.json')
     for (const at of ['2026-10-03T15:00', '2026-10-03T15:00:00', '2026-02-30T15:00:00Z']) {

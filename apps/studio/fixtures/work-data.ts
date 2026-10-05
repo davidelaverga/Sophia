@@ -54,6 +54,11 @@ export const CASES = [
   'unchosen',
   'twice-asked',
   'chosen-early',
+  'older-first',
+  'older-last',
+  'newer-done',
+  'newer-expired',
+  'two-accepted',
 ] as const
 export type Case = (typeof CASES)[number]
 

@@ -432,6 +432,25 @@ function decisionRules(d: BoardDecision, at: string): string[] {
   ]
 }
 
+/**
+ * Each plan once in its goal: an id at a revision names one plan among the one in force and its proposals (Codex
+ * F-039). Two with one pair could each mean it; the view is refused rather than either taken. Another revision of
+ * the same id is another plan.
+ */
+function plansOnce(goal: GoalView, at: string): string[] {
+  const named = new Set<string>()
+  return [goal.current_plan, ...goal.proposed_plans].flatMap((p, i) => {
+    if (!p) return []
+    const pair = JSON.stringify([p.plan_id, p.revision])
+    if (!named.has(pair)) {
+      named.add(pair)
+      return []
+    }
+    const where = i === 0 ? `${at}.current_plan` : `${at}.proposed_plans[${String(i - 1)}]`
+    return [`${where}: another plan of this goal has this id at this revision`]
+  })
+}
+
 function goalRules(goal: GoalView, at: string, project: string): string[] {
   const plans = [goal.current_plan, ...goal.proposed_plans].flatMap((p, i) => {
     const where = i === 0 ? `${at}.current_plan` : `${at}.proposed_plans[${String(i - 1)}]`
@@ -444,7 +463,7 @@ function goalRules(goal: GoalView, at: string, project: string): string[] {
       : [],
   )
   const choices = goal.decisions.flatMap((d, i) => decisionRules(d, `${at}.decisions[${String(i)}]`))
-  return [...plans, ...items, ...choices]
+  return [...plans, ...plansOnce(goal, at), ...items, ...choices]
 }
 
 /**
