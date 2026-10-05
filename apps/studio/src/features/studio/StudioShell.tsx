@@ -12,6 +12,7 @@ import { MissionPanel } from '../mission/MissionPanel.tsx'
 import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
+import { useStageCaptions } from '../voice/StageCaptions.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { chatSignature, mergeNames, panelNote, toggled, type Panel } from './side-panel.ts'
@@ -126,6 +127,7 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
     b: () => panel.toggle('brief'),
   })
   const common = { projectId, identity, me, names }
+  const captions = useStageCaptions(room, panel.panel === 'chat', me, names)
   return (
     <div className="studio">
       <RoomStage
@@ -139,6 +141,7 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
             {state.lens !== 'converse' && <ComingLens lens={state.lens} />}
           </div>
         }
+        captions={captions}
         corner={
           <PanelToggles
             open={panel.panel}
