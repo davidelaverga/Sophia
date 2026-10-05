@@ -451,7 +451,8 @@ when you change the room:
   only while it can be answered, and an answer at most a write's 90 s, then
   is not confirmed, `sendAnswer`; each choice its own key, accepted only
   naming one and proposed naming none, one id at one revision on the board,
-  its task named from the plan it is bound to); four lanes, Active, Up next, Unassigned and
+  its task named from the plan it is bound to, a review waiting on its latest
+  revision; a goal's plans each one id at one revision); four lanes, Active, Up next, Unassigned and
   Complete (`plan.ts`: a view over each item's observed state; Complete only
   by its own policy with evidence, and a passed check of the version it
   holds, never one no single current version matches), and Closed work with its reasons; a

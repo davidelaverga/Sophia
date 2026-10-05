@@ -298,3 +298,13 @@ AH1 F-038 a look keeps each revision of a decision: FAILS as it should  [Asserti
 # On 7946e15, every entry above on seen.ts, PlanBoard.tsx, answers.ts, challenges.ts and board-view.ts ran again (41),
 # and those on seen.ts again after F-038 (7): all fail but M17 and S3, which named the board's old joined key;
 # re-aimed at the tuple, both fail. 175 of 176 fail; R1b is the redundant key recorded above.
+
+# 2026-10-05, on the merge with #92–#96 (3b19267, main 5e402c7): U1 runs again with main's Personal changes in place,
+# and fails as it should  [Error: Correct, memory 1].
+
+# CX-0033 at 5dd6ec8 (#74; GitHub 4180694992, 4180694995, 4180694998), F-039 to F-041, fixed in 5ef5358
+AI1 F-039 one plan per id and revision in a goal: FAILS as it should  [AssertionError]
+AJ1 F-040 the review waits on its decision as its latest revision stands: FAILS as it should  [expect(locator).toBeVisible]
+AK1 F-041 a decided row per decision and revision: FAILS as it should  [expect(locator).toHaveText]
+# On 5ef5358, every entry above on board-view.ts, PlanBoard.tsx and PlanNotes.tsx ran again: 32 of 32 fail. 178 of
+# 179 fail; R1b is the redundant key recorded above.

@@ -15,7 +15,7 @@ Claude's messages are copied here. The posted copy of a message may name a SHA t
 |---|---|
 | Mission | WBC-01 |
 | Coordination issue | [#74](https://github.com/davidelaverga/Sophia/issues/74) |
-| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `599178d4c5a6f5ee5cfa85ba40ce6d8f9e6799b2` (#91) |
+| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `5e402c7ddbc70562c8ea94f9d0d514a3a690fb00` (#96) |
 | Implementation writer | Claude Code (Davide's session). It has no GitHub credential, so it posts and pushes nothing itself |
 | Pull request | [#76](https://github.com/davidelaverga/Sophia/pull/76), opened by Codex (Davide's decision of 2026-10-03) from the branch as Claude handed it over |
 | Review, app tests, release | Codex, in its own clean worktree (policy §1, §4, §5). Release is Studio-only. On 2026-10-05 Davide delegated merge and deployment of main's existing Studio to Codex overnight (CX-0018); WBC-02 stays unauthorized |
@@ -77,7 +77,11 @@ A comment wakes nobody (policy §7). Davide resumes a session with one line: `Re
 | [WBC-01-CC-0019](WBC-01-CC-0019.md) | `FIX_READY` | F-031, F-032 and F-033 fixed in `8852296`, each with regressions and mutations. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987687428) at `9d4ad10`, and the branch pushed to PR #76 |
 | [WBC-01-CX-0029](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987803529) | `FINDING` | F-031 to F-033 pass independently: 224 assertions, Resources and focused Work 138 of 138, and the original navigation 5 of 5. **F-034** (P2, GitHub 4180579675): seen-state keys joined with dots. **F-035** (P2, 4180579679): two decisions with one id at one revision were read. **F-036** (P2, 4180579681): a proposed decision naming a choice was read. **F-037** (P2, audit): answer and challenge keys joined with `:` |
 | [WBC-01-CX-0030](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987870393) | `FINDING` | **F-038** (P2): a look kept decisions by id alone, so two revisions overwrote each other, and an unchanged board said the first changed |
-| [WBC-01-CC-0020](WBC-01-CC-0020.md) | `FIX_READY` | F-034 to F-038 fixed in `7946e15`, each with regressions and mutations. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
+| [WBC-01-CC-0020](WBC-01-CC-0020.md) | `FIX_READY` | F-034 to F-038 fixed in `7946e15`, each with regressions and mutations. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987949567) at `5dd6ec8`, and the branch pushed to PR #76 |
+| [WBC-01-CX-0031](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987984584) | `REVIEW_RESULT` | PASS for the delta `9d4ad10..5dd6ec8` and F-034 to F-038; release pending exact-head CI |
+| [WBC-01-CX-0032](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5988011672) | `REVIEW_RESULT` | Integration required: main moved to `5e402c7` (#92–#96, Personal), and PR #76 was conflicting, with one conflict in `personal.tsx`'s header comments |
+| [WBC-01-CX-0033](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5988052246) | `FINDING` | **F-039** (P2, GitHub 4180694992): a goal's plans sharing an id and revision were read. **F-040** (P2, 4180694995): the review card found its decision by id alone. **F-041** (P2, 4180694998): the Decided history keyed rows by id alone. Its appended note asked for one portable line in main's Ctrl F check |
+| [WBC-01-CC-0021](WBC-01-CC-0021.md) | `FIX_READY` | main merged in (`3b19267`, #92–#96), F-039 to F-041 fixed in `5ef5358`, each with regressions and mutations; main's Ctrl F check made portable. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
 
 **Scope extension (Davide, 2026-10-03, in this session):** F-003 can only be fixed in the shared shell. Davide chose to fix it for every sheet, which extends Claude's writable scope to these paths:
 

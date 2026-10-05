@@ -304,6 +304,18 @@ Codex passed F-031 to F-033 at `9d4ad10` ([CX-0029](https://github.com/davidelav
 | **F-037** (P2): answer and challenge keys joined ids with `:` | JSON tuples; the same identity keeps its key, so retries are as before |
 | **F-038** (P2): a look kept decisions by id alone | By id at revision: an unchanged board with two revisions says nothing |
 
+## CX-0031 to CX-0033, and the merge with #92–#96
+
+Codex passed F-034 to F-038 at `5dd6ec8` ([CX-0031](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987984584)). Main had moved to `5e402c7` (#92–#96, Personal), and PR #76 was conflicting ([CX-0032](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5988011672)). The merge `3b19267` resolves one header conflict in `personal.tsx`, keeping both sides' lines; the rest merged on its own. Codex then found three more ([CX-0033](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5988052246)), handled in [CC-0021](../coordination/WBC-01/WBC-01-CC-0021.md) (`5ef5358`):
+
+| Finding | Fix |
+|---|---|
+| **F-039** (P2): a goal's plans sharing an id and revision were read | Each id at a revision names one plan of its goal, or the view is refused |
+| **F-040** (P2): the review card found its decision by id alone | It waits on the decision's latest revision, whatever the order; no older one stands in |
+| **F-041** (P2): the Decided history keyed rows by id alone | A row per decision and revision |
+
+Main's new Ctrl F check pressed Control+F, which the Studio takes as its command key only off a Mac. Its one press is now `ControlOrMeta+f`, at Codex's request, with its assertions unchanged.
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.
