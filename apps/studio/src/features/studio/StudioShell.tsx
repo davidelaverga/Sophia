@@ -18,6 +18,7 @@ import { LookingIndicator } from '../voice/SophiaControls.tsx'
 import { useStageCaptions, type RoomNames } from '../voice/StageCaptions.tsx'
 import { madeOnTheStage, type StageMadeState } from '../voice/StageMade.tsx'
 import { showRenderOf, useStagePresent } from '../voice/StagePresent.tsx'
+import { latestSpoken } from '../voice/voice-trail.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { chatSignature, mergeNames, panelNote, toggled, type Panel } from './side-panel.ts'
@@ -170,14 +171,15 @@ interface Extras {
   panel: RoomPanel
   common: { projectId: string; identity: Identity; me: string; names: ReadonlyMap<string, string> }
   who: RoomNames
+  spoken: string | null
 }
 
 /**
  * Under her line in Converse, what she made (with Show everyone, where it is offered); and what the room shows to
  * everyone: presented on the stage, or the card that says who shows what.
  */
-function useUnderTheLine({ snapshot, room, made, panel, common, who }: Extras, chatOpen: boolean) {
-  const present = useStagePresent(snapshot, room, common)
+function useUnderTheLine({ snapshot, room, made, panel, common, who, spoken }: Extras, chatOpen: boolean) {
+  const present = useStagePresent(snapshot, room, { ...common, spoken })
   const show = showRenderOf(snapshot, room, common)
   const object = madeOnTheStage(made, room, { chatOpen, anyOpen: panel.panel !== null }, { ...common, who, show })
   return { present, under: object }
@@ -204,7 +206,7 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
   const who = { me, names, guests: useKnownGuests(room) }
   const chatOpen = panel.panel === 'chat'
   const captions = useStageCaptions(held, room, chatOpen, who)
-  const stageExtras = { snapshot, room, made, panel, common, who }
+  const stageExtras = { snapshot, room, made, panel, common, who, spoken: latestSpoken(held) }
   const { present, under } = useUnderTheLine(stageExtras, chatOpen)
   return (
     <div className="studio">

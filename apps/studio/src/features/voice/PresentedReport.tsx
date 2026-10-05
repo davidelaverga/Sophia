@@ -3,7 +3,7 @@
 // sources are read as the viewer reads them: the same query keys, so a report open in the pane shares them. A citation
 // opens its source in the viewer's Sources tab.
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { reportLanguage } from '@sophia/report/language'
 import { listReportSources } from '../../api/artifacts.ts'
@@ -13,6 +13,8 @@ import { loadReportText } from '../artifacts/download.ts'
 import { parseMarkdown } from '../artifacts/markdown.ts'
 import { MarkdownView } from '../artifacts/MarkdownView.tsx'
 import { focusLost, takeShownHere } from './focus-arrival.ts'
+import { useVoiceTrail } from './useVoiceTrail.ts'
+import { sectionIndex, type IndexEntry } from './voice-trail.ts'
 
 interface Props {
   version: ArtifactVersion
@@ -21,6 +23,8 @@ interface Props {
   by: string
   /** Stop following, or Stop showing. */
   action: ReactNode
+  /** What Sophia is saying now, from the room's captions (latestSpoken): lit in the text, her section marked. */
+  spoken: string | null
 }
 
 /**
@@ -33,6 +37,48 @@ function useFocusOnArrival() {
     if (takeShownHere() || focusLost(document.activeElement)) self.current?.focus({ preventScroll: true })
   }, [])
   return self
+}
+
+/**
+ * The report's top headings in a row, with Sophia's mark on the section she is in. A section takes the reader there;
+ * nobody's scroll moves for them.
+ */
+function SectionIndex(props: {
+  entries: readonly IndexEntry[]
+  here: string | null
+  body: RefObject<HTMLDivElement | null>
+}) {
+  const { entries, here, body } = props
+  if (entries.length < 2) return null
+  // The reader goes there, focus and all, so a screen reader reads on from the section.
+  const go = (anchor: string) => {
+    const area = body.current
+    const heading = area?.querySelector<HTMLElement>(`#md-${CSS.escape(anchor)}`)
+    if (!area || !heading) return
+    area.scrollTop += heading.getBoundingClientRect().top - area.getBoundingClientRect().top - 8
+    heading.tabIndex = -1
+    heading.focus({ preventScroll: true })
+  }
+  return (
+    <nav className="report-sections" aria-label="Sections">
+      {entries.map((entry) => (
+        <a
+          key={entry.anchor}
+          href={`#md-${entry.anchor}`}
+          data-sophia={entry.anchor === here || undefined}
+          onClick={(e) => {
+            // A plain press goes there; a press meant for a new tab or window is the browser's.
+            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+            e.preventDefault()
+            go(entry.anchor)
+          }}
+        >
+          {entry.text}
+          {entry.anchor === here && <span className="sr-only"> (Sophia is here)</span>}
+        </a>
+      ))}
+    </nav>
+  )
 }
 
 function useShownText(version: ArtifactVersion, identity: Identity) {
@@ -54,12 +100,21 @@ function useShownText(version: ArtifactVersion, identity: Identity) {
   return { parsed, listed, language, failed: text.isError }
 }
 
-export function PresentedReport({ version, identity, by, action }: Props) {
+export function PresentedReport({ version, identity, by, action, spoken }: Props) {
   const { parsed, listed, language, failed } = useShownText(version, identity)
   const self = useFocusOnArrival()
+  const body = useRef<HTMLDivElement>(null)
+  const entries = useMemo(() => (parsed ? sectionIndex(parsed.blocks) : []), [parsed])
+  const anchors = useMemo(() => new Set(entries.map((e) => e.anchor)), [entries])
+  const here = useVoiceTrail(body, spoken, parsed, anchors)
   const viewer = useDocumentViewer()
   const title = version.title ?? 'Report'
-  const cite = () => viewer?.open({ artifactId: version.artifactId, versionId: version.id, tab: 'sources' })
+  // Stable, so a section marked anew doesn't rebuild every citation of the text.
+  const { artifactId, id: versionId } = version
+  const cite = useCallback(
+    () => viewer?.open({ artifactId, versionId, tab: 'sources' }),
+    [viewer, artifactId, versionId],
+  )
   return (
     <section ref={self} className="report-main" tabIndex={-1} aria-label={`${title}, shown by ${by}`}>
       <header className="report-main-head">
@@ -71,7 +126,8 @@ export function PresentedReport({ version, identity, by, action }: Props) {
         </span>
         <span className="report-main-acts">{action}</span>
       </header>
-      <div className="report-main-body">
+      <SectionIndex entries={entries} here={here} body={body} />
+      <div ref={body} className="report-main-body">
         {parsed && <MarkdownView report={parsed} sources={listed} language={language} onCite={cite} />}
         {!parsed && <p className="muted">{failed ? 'The report couldn’t be loaded.' : 'Loading the report…'}</p>}
       </div>
