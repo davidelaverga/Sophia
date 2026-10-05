@@ -1195,3 +1195,73 @@
 .passage-kept:empty {
   padding: 0;
 }
+
+/* The next version, shown from the offer (useLiveVersion): what changed, in words above the text, under a lavender
+   rule as the history's revised chip is; and a small mark beside each heading whose section changed. */
+.report-changes {
+  max-width: var(--measure);
+  margin-bottom: 16px;
+  padding-left: 10px;
+  border-left: 2px solid var(--halo);
+  color: var(--text-2);
+  font-size: 13px;
+}
+.md .md-mark {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid rgba(156, 130, 245, 0.35);
+  border-radius: var(--r-1);
+  color: var(--halo-text);
+  font: 500 var(--type-label) / 1.4 var(--sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 0.2em;
+}
+
+/* A citation's source, on hover (where there is one) and on focus: its title and its site, drawn from the button's
+   data-tip as the Studio's tips look. Drawn, not rendered: it adds no text to the line, and hidden it takes no room, so
+   the reading area never scrolls sideways for it. */
+.md .cite button[data-tip] {
+  position: relative;
+}
+.md .cite button[data-tip]::before {
+  content: attr(data-tip) / '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  display: none;
+  width: max-content;
+  max-width: min(280px, 60vw);
+  padding: 5px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--plane-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+  font: 500 12px/1.35 var(--sans);
+  text-align: left;
+  white-space: normal;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.md .cite button[data-tip]:focus-visible::before {
+  display: block;
+}
+@media (hover: hover) {
+  .md .cite button[data-tip]:hover::before {
+    display: block;
+  }
+}
+
+/* A passage's bar and the kept line's button, at a finger's size where the pointer is one (Codex on #108). */
+@media (pointer: coarse) {
+  .passage-bar button,
+  .passage-kept .text-button {
+    min-height: 44px;
+  }
+  .passage-bar button {
+    padding: 0 14px;
+  }
+}
