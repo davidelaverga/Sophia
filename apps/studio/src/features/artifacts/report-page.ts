@@ -1,8 +1,14 @@
-// A report's HTML page (html-report-v1, @sophia/report/page), downloaded from Studio. Nothing is stored and nothing is
+// A report's HTML page (html-report-v2, @sophia/report/page), downloaded from Studio. Nothing is stored and nothing is
 // shown here: the page is printed from the version's Markdown once its bytes match the version's record, with the
 // sources this person may read (so it numbers its citations as the viewer does), and saved as a file. A mismatch
 // saves nothing. The template loads with the first page printed, never with the Studio bundle, and only routes the
-// deployed API already serves are read: the version list, the text and the version's sources.
+// deployed API already serves are read: the version list, the text and the version's sources. The page also says
+// what those already hold: when the version was published, its stored limitations, and what was read of each
+// source and when.
+//
+// Legacy (M75): this is a browser-side conversion of a fixed template, not a designed or reviewed HTML deliverable,
+// and it stays only as compatibility until SDD-01's stored, designed HTML replaces it. Its callers are pinned by
+// report-page.test.ts and listed in docs/coordination/M75/HANDOFF_TO_SDD01.md; no new caller may fulfil an HTML request.
 import type { ArtifactVersion, ReportSourceList } from '@sophia/contracts'
 import type { renderReportPage } from '@sophia/report/page'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'
@@ -45,10 +51,20 @@ export async function downloadReportPage(
   const html = render({
     markdown: text.text,
     title: version.title ?? 'Report',
-    sources: sources.map((s) => ({ id: s.sourceId, title: sourceTitle(s), url: s.url })),
+    sources: sources.map((s) => ({
+      id: s.sourceId,
+      title: sourceTitle(s),
+      url: s.url,
+      kind: s.kind,
+      coverage: s.coverage,
+      retrievedAt: s.retrievedAt,
+      limitations: s.limitations,
+    })),
     citable: sources.map((s) => s.sourceId),
     sha256: version.sourceHash,
     versionNumber: version.versionNumber ?? null,
+    publishedAt: version.createdAt ?? null,
+    limitations: version.limitations ?? [],
   })
   const bytes = utf8(html)
   const filename = reportFilename(version.title ?? 'report', version.versionNumber ?? null, 'html')
