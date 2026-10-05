@@ -1061,3 +1061,51 @@ test('codex · every Personal state reads at 4.5:1: no notes yet, and a talk', a
   await expect.poll(() => talk.locator('.c3-talk-lines li').count()).toBeGreaterThan(2)
   expect(await lowContrast(page, '.c3-talk')).toEqual([])
 })
+
+test('codex · words handed from Home wait in the field when another tab is sending, never lost', async ({
+  page,
+  context,
+}) => {
+  const other = await context.newPage()
+  await other.goto(PAGE)
+  // The device's send, held by the other tab (draft.ts's sendLock for the fixture's account).
+  await other.evaluate(
+    () =>
+      new Promise<void>((held) => {
+        void navigator.locks.request('sophia.personal.send.fixture', () => {
+          held()
+          return new Promise(() => undefined)
+        })
+      }),
+  )
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('I want to talk about Thursday.')}`)
+  await expect(field(page)).toHaveValue('I want to talk about Thursday.')
+  await expect(page.locator('.ps-composer .chat-line')).toContainText('on its way')
+  expect(await sent(page)).toEqual([])
+})
+
+test('codex · handed words that wait come after what you had written', async ({ page, context }) => {
+  // Words written earlier, kept on this device as the draft.
+  await page.goto(PAGE)
+  await field(page).fill('Before that, one thing:')
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText('Draft kept on this device')
+  const other = await context.newPage()
+  await other.goto(PAGE)
+  await other.evaluate(
+    () =>
+      new Promise<void>((held) => {
+        void navigator.locks.request('sophia.personal.send.fixture', () => {
+          held()
+          return new Promise(() => undefined)
+        })
+      }),
+  )
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('I want to talk about Thursday.')}`)
+  await expect(field(page)).toHaveValue('Before that, one thing: I want to talk about Thursday.')
+})
+
+test('codex · words handed from Home go at once when nothing else is sending', async ({ page }) => {
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('I want to talk about Thursday.')}`)
+  await expect.poll(() => sent(page)).toEqual(['I want to talk about Thursday.'])
+  await expect(field(page)).toHaveValue('')
+})

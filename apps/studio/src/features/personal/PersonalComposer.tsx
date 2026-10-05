@@ -387,7 +387,8 @@ interface Props {
 /**
  * Words handed from Home go as the field's would: one at a time, under their own key, kept on their way, and back in
  * the field if they don't go. While the space can't take them yet (still loading, Sophia unavailable, an erasure to
- * read first), they wait in the field, said, for the person to send (handed.ts).
+ * read first), or another tab's message is on its way, they wait in the field, said, for the person to send; while one
+ * of this tab's is (busy), they wait to go after it (handed.ts).
  */
 function useHanded(
   p: Props,
@@ -396,14 +397,26 @@ function useHanded(
   draft: ReturnType<typeof useDraft>,
 ) {
   const taken = useRef(0)
+  const mounted = useMounted()
   const { handed, onHanded, busy } = p
   useEffect(() => {
     const what = handing(handed, taken.current, ready, busy)
     if (!handed || what === 'none' || what === 'wait') return
     taken.current = handed.id
     onHanded()
-    if (what === 'send') void send(draftOf(handed.words))
-    else draft.change(draft.text ? `${draft.text} ${handed.words}` : handed.words, HANDED)
+    const { words } = handed
+    // After the field's own words, which the person may have typed meanwhile.
+    const putInField = (why: string) => {
+      const typed = draft.current()?.text ?? ''
+      draft.change(typed ? `${typed} ${words}` : words, why)
+    }
+    if (what === 'keep') putInField(HANDED)
+    else
+      // Declined: another tab's message is on its way (a send failing before that is known says the same, the words
+      // safe in the field). A composer that went meanwhile (signing out, an erasure) takes nothing back.
+      void send(draftOf(words)).then((went) => {
+        if (!went && mounted.current) putInField(NOTICE.waits)
+      })
   })
 }
 

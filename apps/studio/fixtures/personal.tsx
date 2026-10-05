@@ -272,6 +272,11 @@ function Personal() {
   const [notes, setNotes] = useState(query.get('notes') === 'open')
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
+  // `handed=words`: words said to Sophia from Home, handed to the composer to send.
+  const [handed, setHanded] = useState(() => {
+    const words = query.get('handed')
+    return words ? { words, id: 1 } : null
+  })
   return (
     <div className="places" data-place="personal">
       {/* The places' bar, as Places draws it above every place: a talk must cover it too. */}
@@ -285,8 +290,8 @@ function Personal() {
       </button>
       <PersonalSpace
         hidden={locked}
-        handed={null}
-        onHanded={() => undefined}
+        handed={handed}
+        onHanded={() => setHanded(null)}
         locked={locked}
         now={NOW}
         account="fixture"
