@@ -203,6 +203,56 @@ describe('readBoardView', () => {
     assert.equal(readBoardView(edited(board, proposed, [next, { ...clone, plan_id: 'another-plan' }])).ok, true)
   })
 
+  it('refuses an item two of whose versions share an id; two distinct versions both current stay readable (Codex F-042)', () => {
+    const board = example('board-review-ready.json')
+    const read = readBoardView(board)
+    if (!read.ok) throw new Error(read.problems.join('\n'))
+    const [current] = read.value.goals[0]?.items[0]?.candidates ?? []
+    if (!current) throw new Error('no candidate in the packet')
+    const candidates = ['goals', 0, 'items', 0, 'candidates']
+    const other = { ...current, source_id: 'another-source', sha256: 'b'.repeat(64) }
+    for (const twice of [
+      [current, { ...other, state: 'previous' as const }],
+      [current, other],
+      [current, { ...current }],
+    ]) {
+      const same = readBoardView(edited(board, candidates, twice))
+      assert.equal(same.ok, false)
+      if (!same.ok) assert.deepEqual(same.problems, ['$.goals[0].items[0].candidates: each version its own id'])
+    }
+    // Distinct versions, an earlier one or two both current (F-009's ambiguity), are read as given.
+    const earlier = { ...other, version_id: 'fixture-review-source-v0', state: 'previous' as const }
+    assert.equal(readBoardView(edited(board, candidates, [current, earlier])).ok, true)
+    assert.equal(
+      readBoardView(edited(board, candidates, [current, { ...other, version_id: 'fixture-review-source-v2' }])).ok,
+      true,
+    )
+  })
+
+  it('refuses two goals with one id, each placed as its own; distinct goals are read as given (Codex F-043)', () => {
+    const board = example('board-review-ready.json')
+    const read = readBoardView(board)
+    if (!read.ok) throw new Error(read.problems.join('\n'))
+    const [first] = read.value.goals
+    if (!first?.current_plan) throw new Error('no plan in force in the packet')
+    const twin = {
+      ...first,
+      current_plan: { ...first.current_plan, plan_id: 'another-plan' },
+      proposed_plans: [],
+      items: [],
+      decisions: [],
+    }
+    const same = readBoardView(edited(board, ['goals', 1], twin))
+    assert.equal(same.ok, false)
+    if (!same.ok) assert.deepEqual(same.problems, ['$.goals[1]: another goal has this id'])
+    const placed = {
+      ...twin,
+      goal_id: 'fixture-goal-2',
+      current_plan: { ...twin.current_plan, goal_id: 'fixture-goal-2' },
+    }
+    assert.equal(readBoardView(edited(board, ['goals', 1], placed)).ok, true)
+  })
+
   it('refuses a date-time without its offset, or one the calendar doesn’t have (GitHub review on PR #76)', () => {
     const board = example('board-review-ready.json')
     for (const at of ['2026-10-03T15:00', '2026-10-03T15:00:00', '2026-02-30T15:00:00Z']) {

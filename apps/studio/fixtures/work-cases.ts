@@ -529,6 +529,23 @@ const newerExpired: Change = (g) =>
 const twoAccepted: Change = (g) =>
   withRevisions(g, (d1) => [answeredAt(d1, 3, 'ship', FIRST_ASKED), answeredAt(d1, 4, 'wait', d1.question)])
 
+/**
+ * Codex F-042: the retry complete, its check passed for retry-v2, but two versions both called retry-v2 (another source,
+ * another hash): the view is refused, never certified Complete.
+ */
+const sameVersion: Change = (g, viewer) =>
+  update(g, 'work-1', () => ({
+    lifecycle: 'complete',
+    waiting_on: [],
+    completion: { policy_ref: 'fixture-policy-work-1', status: 'satisfied', evidence_refs: ['fixture-check-v2'] },
+    candidates: [
+      version('retry', 'retry-v2', 'current', 60, 'd'),
+      version('old-retry', 'retry-v2', 'previous', 120, 'c'),
+    ],
+    review: { state: 'passed', candidate_version_ref: 'retry-v2', evidence_refs: ['fixture-check-v2'] },
+    available_actions: [...commands(viewer, true), ask],
+  }))
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -560,6 +577,7 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   'newer-done': newerDone,
   'newer-expired': newerExpired,
   'two-accepted': twoAccepted,
+  'same-version': sameVersion,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

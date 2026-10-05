@@ -7,7 +7,7 @@
 // `attempt=none` (no assignment names its attempt); `many=1`; `unplanned=1`; `since=1|2` (an earlier look; 2, before Davide's decision was asked); `expired=1|state|soon`
 // (the decision waiting on Davide past its expiry, marked expired, or expiring 30 s after the page opens); `odd-id=1`
 // (its id with quotes and brackets); `conflict=1` and `unknown=1` (how a decision's answer comes back); `later=1` (the
-// second goal's plan held back until `workFixture.arrive()`); `coverage=partial|unavailable` (as read first;
+// second goal's plan held back until `workFixture.arrive()`); `twin=1` (a second goal with the first's id); `coverage=partial|unavailable` (as read first;
 // `workFixture.coverage(c)` reads it so next); and how the simulated services answer (work-live.ts: `admission=`,
 // `settle=`, `ask=`, `result=`, `decide=silent|late`).
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
@@ -499,6 +499,16 @@ function availableAs(actions: readonly ItemAction[], kind: ActionKind, availabil
   return was ? actions.map((a) => (a === was ? now : a)) : [...actions, now]
 }
 
+/** `twin=1` (Codex F-043): a second goal with the first's id, its own plan placed in it: the view is refused. */
+const twin = query.get('twin') === '1'
+const twinOf = (first: GoalView): GoalView => ({
+  ...first,
+  current_plan: first.current_plan && { ...first.current_plan, plan_id: 'another-plan' },
+  proposed_plans: [],
+  items: [],
+  decisions: [],
+})
+
 /** How much of the board the page's first read covers (`coverage=`): all of it unless it says otherwise. */
 const coverageAt = (said: string | null): BoardView['coverage'] =>
   said === 'partial' || said === 'unavailable' ? said : 'complete'
@@ -511,7 +521,12 @@ function viewOf(first: GoalView, arrived: boolean, observedAt: Date, coverage: B
     snapshot_cursor: `fixture-${String(observedAt.getTime())}`,
     observed_at: observedAt.toISOString(),
     coverage,
-    goals: [first, ...(two && arrived ? [secondView] : []), ...(six ? moreViews : [])],
+    goals: [
+      first,
+      ...(two && arrived ? [secondView] : []),
+      ...(six ? moreViews : []),
+      ...(twin ? [twinOf(first)] : []),
+    ],
   }
 }
 

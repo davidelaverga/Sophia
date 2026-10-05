@@ -2881,3 +2881,26 @@ test('codex · F-041 · two revisions of one decision decided are two rows, each
   await expect(rows).toHaveText([latest])
   expect(keyWarnings).toEqual([])
 })
+
+// ---- CX-0035 (Codex on #74; GitHub 4180785541, 4180785544): one id per version of an item, and per goal. ----
+
+test('codex · F-042 · two versions of a task with one id are refused with their view: never certified Complete', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=same-version`)
+  await expect(page.getByRole('alert')).toContainText('.candidates: each version its own id', { timeout: 15_000 })
+  await expect(board(page)).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Complete', exact: true })).toHaveCount(0)
+  // Two distinct versions both current (F-009's case) stay on the board, not Complete.
+  await page.goto(`${PAGE}?viewer=davide&case=two-current`)
+  await expect(tile(page, 'work-1')).toBeVisible({ timeout: 15_000 })
+  expect(await titles(lane(page, 'Complete'))).not.toContain('Implement the PDF retry')
+})
+
+test('codex · F-043 · two goals with one id are refused with their view: neither drawn, none dropped', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&twin=1`)
+  await expect(page.getByRole('alert')).toContainText('$.goals[1]: another goal has this id', { timeout: 15_000 })
+  await expect(board(page)).toHaveCount(0)
+})

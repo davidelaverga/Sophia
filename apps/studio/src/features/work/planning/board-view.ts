@@ -462,8 +462,16 @@ function goalRules(goal: GoalView, at: string, project: string): string[] {
       ? [`${at}.items[${String(i)}]: complete only with its policy satisfied, with evidence`]
       : [],
   )
+  // Each version of an item its own id: two with one id (another source, another hash) can't be told apart, so a
+  // check naming it could certify the wrong one (Codex F-042). Two distinct versions both current stay readable,
+  // matched to no check (F-009).
+  const versions = goal.items.flatMap((item, i) =>
+    new Set(item.candidates.map((c) => c.version_id)).size === item.candidates.length
+      ? []
+      : [`${at}.items[${String(i)}].candidates: each version its own id`],
+  )
   const choices = goal.decisions.flatMap((d, i) => decisionRules(d, `${at}.decisions[${String(i)}]`))
-  return [...plans, ...plansOnce(goal, at), ...items, ...choices]
+  return [...plans, ...plansOnce(goal, at), ...items, ...versions, ...choices]
 }
 
 /**
@@ -485,6 +493,18 @@ function decisionsOnce(goals: readonly GoalView[]): string[] {
   )
 }
 
+/** Each goal once on the board: two with one id would each be its slot, one dropped (Codex F-043). */
+function goalsOnce(goals: readonly GoalView[]): string[] {
+  const named = new Set<string>()
+  return goals.flatMap((g, i) => {
+    if (!named.has(g.goal_id)) {
+      named.add(g.goal_id)
+      return []
+    }
+    return [`$.goals[${String(i)}]: another goal has this id`]
+  })
+}
+
 export type Read<T> = { ok: true; value: T } | { ok: false; problems: string[] }
 
 const isBoard = (value: unknown, problems: readonly string[]): value is BoardView => problems.length === 0
@@ -496,6 +516,7 @@ export function readBoardView(value: unknown): Read<BoardView> {
   const rules = [
     ...value.goals.flatMap((g, i) => goalRules(g, `$.goals[${String(i)}]`, value.project_id)),
     ...decisionsOnce(value.goals),
+    ...goalsOnce(value.goals),
   ]
   return rules.length > 0 ? { ok: false, problems: rules } : { ok: true, value }
 }

@@ -59,6 +59,7 @@ export const CASES = [
   'newer-done',
   'newer-expired',
   'two-accepted',
+  'same-version',
 ] as const
 export type Case = (typeof CASES)[number]
 
