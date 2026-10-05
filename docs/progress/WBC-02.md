@@ -107,8 +107,8 @@ Sophia's side (amendment `A13`, `packages/contracts/amendments/A13-workboard-sou
 
 | Command | Result |
 |---|---|
-| `pnpm check` (at `09d6c23`) | format, lint, build, typecheck and contracts pass; unit tests 1356 pass, 0 fail, 1 skipped; `pnpm artifacts` reproduces every identity of `sophia-runtime-wbc02-dev` (bundle `17a6a46e`); integration gate against the real pinned dsh 95 pass, 0 fail, 2 skipped (the two service crossings that need `SOPHIA_DISPOSABLE_DATABASE_URL`) |
-| `pnpm test:db` (local PostgreSQL 16, at `09d6c23`) | 485 pass, 0 fail, including `apps/api/src/coordination.db.test.ts` (12) and `packages/paperclip-plugin/src/coordination.db.test.ts` (34, with the fault-injection cases of WBC-02-CX-0002, CX-0004 and CX-0007) |
+| `pnpm check` (at `b50e8aa`) | format, lint, build, typecheck and contracts pass; unit tests 1356 pass, 0 fail, 1 skipped; `pnpm artifacts` reproduces every identity of `sophia-runtime-wbc02-dev` (bundle `17a6a46e`); integration gate against the real pinned dsh 95 pass, 0 fail, 2 skipped (the two service crossings that need `SOPHIA_DISPOSABLE_DATABASE_URL`) |
+| `pnpm test:db` (local PostgreSQL 16, at `b50e8aa`) | 487 pass, 0 fail, including `apps/api/src/coordination.db.test.ts` (12) and `packages/paperclip-plugin/src/coordination.db.test.ts` (36, with the fault-injection and ordering cases of WBC-02-CX-0002, CX-0004, CX-0007 and CX-0008) |
 | `node --test tests/integration/research-tools.test.mjs tests/integration/review-tools.test.mjs` | 8 pass: the reviewer through the real pinned dsh, the research roles unchanged |
 | `node scripts/paperclip-build.mjs --paperclip <pin>` | bindings typecheck against the pin; packages bundled; `MANIFEST.json` digests |
 | `node scripts/paperclip-verify.mjs --paperclip <pin>` | the built worker under the pin's harness: commission, resend, forged refusal, Hold/Resume/Stop; its 7 queries and 31 executes pass the pin's own `ctx.db` validators (the migration's install check is the host probe's); the adapter loads |
