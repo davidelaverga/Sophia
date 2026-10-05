@@ -107,11 +107,11 @@ Sophia's side (amendment `A13`, `packages/contracts/amendments/A13-workboard-sou
 
 | Command | Result |
 |---|---|
-| `pnpm check` | format, lint, build, typecheck and contracts pass; unit tests 1330 pass, 0 fail, 1 skipped; `pnpm artifacts` reproduces every identity of `sophia-runtime-wbc02-dev`; integration gate against the real pinned dsh 84 pass, 0 fail, 2 skipped (the two service crossings that need `SOPHIA_DISPOSABLE_DATABASE_URL`) |
-| `pnpm test:db` (local PostgreSQL 16) | 472 pass, 0 fail, including `apps/api/src/coordination.db.test.ts` (12) and `packages/paperclip-plugin/src/coordination.db.test.ts` (21) |
+| `pnpm check` (at `f64ff0a`) | format, lint, build, typecheck and contracts pass; unit tests 1352 pass, 0 fail, 1 skipped; `pnpm artifacts` reproduces every identity of `sophia-runtime-wbc02-dev` (bundle `17a6a46e`); integration gate against the real pinned dsh 95 pass, 0 fail, 2 skipped (the two service crossings that need `SOPHIA_DISPOSABLE_DATABASE_URL`) |
+| `pnpm test:db` (local PostgreSQL 16, at `f64ff0a`) | 484 pass, 0 fail, including `apps/api/src/coordination.db.test.ts` (12) and `packages/paperclip-plugin/src/coordination.db.test.ts` (33, with the fault-injection cases of WBC-02-CX-0002 and CX-0004) |
 | `node --test tests/integration/research-tools.test.mjs tests/integration/review-tools.test.mjs` | 8 pass: the reviewer through the real pinned dsh, the research roles unchanged |
 | `node scripts/paperclip-build.mjs --paperclip <pin>` | bindings typecheck against the pin; packages bundled; `MANIFEST.json` digests |
-| `node scripts/paperclip-verify.mjs --paperclip <pin>` | the built worker under the pin's harness: commission, resend, forged refusal, Hold/Resume/Stop; the adapter loads |
+| `node scripts/paperclip-verify.mjs --paperclip <pin>` | the built worker under the pin's harness: commission, resend, forged refusal, Hold/Resume/Stop; its 7 queries and 22 executes and its migration pass the pin's own `ctx.db` validators; the adapter loads |
 | Mutation checks | [23, each caught](../evidence/WBC-02/mutations.txt) |
 | Browser, synthetic local stack (API + Vite, Chromium) | [propose and decide, the board with the review waiting on Paperclip, phone](../evidence/WBC-02/README.md) |
 
