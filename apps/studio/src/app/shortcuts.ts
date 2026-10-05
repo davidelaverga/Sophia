@@ -8,9 +8,9 @@
 // control is text for it, as in any chat, and never a shortcut: someone who starts a message without clicking the
 // bar must not turn on a camera with its first letter. So is a key typed on a control of the part that holds the foot
 // (`data-typing-scope`: the side panel's tabs, Close, Send): opening the chat focuses its tab, and the message typed
-// next must not close the panel with its first C. Space stays the control's, to press it. Before the chat starts, the
-// foot is the "Chat with Sophia" button: it takes the key as nothing, and still no camera, microphone or shared screen
-// starts.
+// next must not close the panel with its first C. Space stays the control's, to press it. The foot is the message
+// bar at all times (it writes to the room before Sophia's conversation is open), so stray typing lands in it and never
+// starts a camera, a microphone or a shared screen.
 import { createContext, useContext, useEffect, useRef } from 'react'
 
 export interface KeyLike {

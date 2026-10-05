@@ -27,7 +27,7 @@ import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import type { Notes } from './brief-data.ts'
 import { noShowing } from './focus-data.ts'
-import { ABSENT, identity, membership, PROJECT, type RoomAsked } from './data.ts'
+import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, sophiaLeaves } from './fake-livekit.ts'
 import {
   count,
@@ -92,6 +92,8 @@ interface Fixture {
   buildOnNotes: () => void
   /** The `n`th other person (or `me`, from another device) shows the report's current version; null, nothing is. */
   show: (n: number | 'me' | null) => void
+  /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
+  loseNextContributionReply: () => void
   /** The next show lands, but its reply is lost: the page can't tell it was committed. */
   loseNextFocusReply: () => void
   /** The notes members wrote in the brief, by their text. */
@@ -195,7 +197,9 @@ const project = {
     }
     floorTo.push(nameOf(actorId))
   },
-  messages: [] as string[],
+  messages: [] as (string | Said)[],
+  contributions: new Map(),
+  loseContributionReply: false,
   reportVersions: Math.max(1, Number(query.get('versions')) || 1),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
   pilot: query.get('history') === 'pilot',
@@ -274,6 +278,9 @@ window.fixture = {
             guideId: n === 'me' ? membership.actorId : personId(n),
           }
     publish(project)
+  },
+  loseNextContributionReply: () => {
+    project.loseContributionReply = true
   },
   loseNextFocusReply: () => {
     project.showing.loseReply = true
