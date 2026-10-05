@@ -507,6 +507,12 @@ function useStarter(
   })
 }
 
+/** Words added to the field after what is written there, never over it. */
+function addWords(draft: ReturnType<typeof useDraft>, words: string, why: string): void {
+  const typed = draft.current()?.text ?? ''
+  draft.change(typed ? `${typed} ${words}` : words, why)
+}
+
 /** Offline, nothing goes: whether words can go, and whether they wait (they could go, but the browser is offline). */
 function useWaiting(state: ComposerState, behind: boolean) {
   const online = useOnline()
@@ -542,7 +548,8 @@ function Bar({ field, text, state, counted, placeholder, ready, busy, dictation,
       </span>
       <Field {...{ field, text, state, counted, placeholder, onChange, onSend }} />
       {dictation.listening && <Listening />}
-      {dictation.available && ready && (
+      {/* A microphone listening keeps its Stop whatever else changed (offline, a send on its way). */}
+      {dictation.available && (ready || dictation.listening) && (
         <MicButton
           listening={dictation.listening}
           onPress={() => (dictation.listening ? dictation.stop() : dictation.start())}
@@ -573,7 +580,7 @@ export function PersonalComposer(props: Props) {
   const { online, ready, waiting: offline } = useWaiting(state, behind)
   const send = useSend(account, draft, ready, busy, onSend)
   useHanded(props, ready, send, draft)
-  useStarter(starter, ready && !busy, send, offline ? change : null)
+  useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, OFFLINE) : null)
   const counted = text.length >= NEAR && !dictation.listening
   return (
     <form

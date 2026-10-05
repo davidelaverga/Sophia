@@ -1016,3 +1016,34 @@ test('touch · dictation past the limit is counted as it is, how much over said,
   )
   await expect(page.locator('.ps-composer .send')).toBeDisabled()
 })
+
+// Codex on #94: offline, a microphone listening keeps its Stop, and a way in adds to what you wrote; Find stays shut
+// while the notes cover the conversation.
+
+test('ease · going offline while she listens keeps the Stop: the microphone is never left on without it', async ({
+  page,
+  context,
+}) => {
+  await page.goto(PAGE)
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await expect(page.locator('.ps-composer .c3-wave')).toBeVisible()
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Stop listening' }).click()
+  await expect(page.locator('.ps-composer .c3-wave')).toHaveCount(0)
+})
+
+test('ease · offline, a way in adds its words after what you wrote, never over it', async ({ page, context }) => {
+  await page.goto(`${PAGE}?talk=new`)
+  await field(page).fill('First, one thing.')
+  await context.setOffline(true)
+  await page.getByRole('button', { name: /Just talk/ }).click()
+  await expect(field(page)).toHaveValue(/^First, one thing\. .+/)
+})
+
+test('@phone · ease · while the notes cover the conversation, Find stays shut', async ({ page }) => {
+  await page.goto(PAGE)
+  await page.locator('.c3-notes-toggle').click()
+  await expect(page.locator('#c-notes')).toBeVisible()
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await expect(finder(page)).toHaveCount(0)
+})
