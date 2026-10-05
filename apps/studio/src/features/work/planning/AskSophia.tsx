@@ -4,9 +4,10 @@
 // received, chunk by chunk, or whole at once, never at a made-up typing speed. Each task's latest question is kept
 // while the page lives (useAsks, ask-store.ts), so turning the sheet, closing it, choosing another goal or a reconnect
 // forgets nothing, and a late answer to an earlier question is let go. Where she can't be asked from here (the view
-// says so, or no conversation is connected), the question is kept with why, and the way to the conversation is
-// offered; no answer is made up. A question that failed is asked again only while the view allows asking about its
-// task and a conversation is connected (askBlocked), the same rule as a first question; until then it is kept, with why.
+// says so, no conversation is connected, or the board's live state can't be read), the question is kept with why, and
+// the way to the conversation is offered; no answer is made up. A question that failed is asked again only while the
+// view allows asking about its task and a conversation is connected (askBlocked), the same rule as a first question;
+// until then it is kept, with why.
 import { useState, useSyncExternalStore } from 'react'
 import {
   ASK_LIMIT_MS,
@@ -28,6 +29,8 @@ import { resultsOf } from './results.ts'
 export interface Asks {
   /** Whether a conversation is there to send a question to (its port). */
   connected: boolean
+  /** Why no question goes while it isn't: no conversation connected, or the board's live state unread. */
+  closed: string
   of: (workId: string) => Asked | null
   /** Asks; `unavailable` keeps the question with why instead of sending it. */
   ask: (question: Omit<Question, 'question_id'>, unavailable: string | null) => void
@@ -39,7 +42,12 @@ export interface Asks {
 }
 
 /** The questions of one space (a project as one viewer sees it), kept while the page lives (ask-store.ts). */
-export function useAsks(onAsk: Ask | undefined, space: string, newId: () => string = () => crypto.randomUUID()): Asks {
+export function useAsks(
+  onAsk: Ask | undefined,
+  space: string,
+  closed = NOT_CONNECTED,
+  newId: () => string = () => crypto.randomUUID(),
+): Asks {
   const asked = useSyncExternalStore(subscribe, () => asksOf(space))
   /**
    * Sends a question and watches its wait: each event starts it again; none within the limit fails it. The wait and
@@ -61,11 +69,12 @@ export function useAsks(onAsk: Ask | undefined, space: string, newId: () => stri
   }
   return {
     connected: onAsk !== undefined,
+    closed,
     of: (workId) => asked[workId] ?? null,
     ask: (q, unavailable) => {
       const question: Question = { ...q, question_id: newId() }
       if (!onAsk || unavailable !== null) {
-        askedOf(space, unanswerable(question, unavailable ?? NOT_CONNECTED))
+        askedOf(space, unanswerable(question, unavailable ?? closed))
         return
       }
       send(asking(question), onAsk)
@@ -218,7 +227,7 @@ export function AskSophia({ row, plan, asks, viewerId, onOpenConversation }: Pro
   // Not offered now: nothing to ask, but a question already asked stays, with why it can't be asked again.
   if (!asks || (!action && !asked)) return null
   // The view's word on asking, and a conversation to ask in: either missing, nothing goes, first or again.
-  const blocked = askBlocked(action, asks.connected)
+  const blocked = askBlocked(action, asks.connected, asks.closed)
   /** Asks, or keeps the question with why it can't go; true when it went. */
   const ask = (text: string) => {
     const about = resultsOf(row.view).current?.version_id ?? null

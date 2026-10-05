@@ -117,16 +117,19 @@ export function stalled(asked: Asked, wait: Sent & { seq: number }): Asked {
 
 const NOT_OFFERED = 'Asking about this task isn’t offered here now.'
 export const NOT_CONNECTED = 'The conversation isn’t connected here now.'
+/** Why nothing is asked from a board whose live state can't be read: its view may be stale (Codex F-022). */
+export const NOT_READ =
+  'This plan’s live state can’t be read now, so nothing is asked about it from here until it can be.'
 
 /**
  * Why a question about a task can't be sent from here now: as the view says it (its reason, or nothing offered), or
- * no conversation to send it to; null when it can. A first question and a question asked again go by the same rule
- * (Codex F-005, its port-loss residual).
+ * nowhere to send it (`closed`: no conversation, or a board read stale); null when it can. A first question and a
+ * question asked again go by the same rule (Codex F-005, its port-loss residual).
  */
-export function askBlocked(action: ItemAction | null, connected: boolean): string | null {
+export function askBlocked(action: ItemAction | null, connected: boolean, closed = NOT_CONNECTED): string | null {
   if (!action) return NOT_OFFERED
   if (action.availability !== 'allowed') return action.reason
-  return connected ? null : NOT_CONNECTED
+  return connected ? null : closed
 }
 
 /** What is shown of an answer: the completed one, or what has arrived of it. */

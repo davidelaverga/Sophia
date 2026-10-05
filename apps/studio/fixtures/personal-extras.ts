@@ -52,8 +52,13 @@ function fakeVoice(pressed: string[], onEnd: (lines: readonly TalkLine[]) => voi
   }
 }
 
-const REMEMBERED = (ago: (minutes: number) => string): PersonalMemory[] => [
-  { id: 'm1', text: 'You have a pitch on Friday; the numbers worry you most.', learnedAt: ago(24 * 60 + 40) },
+/** `memory=old`: the first was learned over a year ago, so its day is said in full ("Aug 31, 2025"), the widest. */
+const REMEMBERED = (ago: (minutes: number) => string, old: boolean): PersonalMemory[] => [
+  {
+    id: 'm1',
+    text: 'You have a pitch on Friday; the numbers worry you most.',
+    learnedAt: ago(old ? 400 * 24 * 60 : 24 * 60 + 40),
+  },
   { id: 'm2', text: 'You’d rather say a hard date early than miss it quietly.', learnedAt: ago(6) },
   { id: 'm3', text: 'Davide is the one you want to hear it from first.', learnedAt: ago(5) },
 ]
@@ -65,7 +70,7 @@ const LOOK: WeekLook = {
   themes: ['the launch', 'promises you can keep', 'Davide'],
 }
 
-/** The parts the query string asks for (`memory=1`, `week=1`, `voice=1`, or `all=1`), each acting on its own state. */
+/** The parts the query string asks for (`memory=1` or `=old`, `week=1`, `voice=1`, or `all=1`), each acting on its own state. */
 export function useExtras(
   query: URLSearchParams,
   pressed: string[],
@@ -73,7 +78,7 @@ export function useExtras(
   wrote: { talk: (lines: readonly TalkLine[]) => void; keep: (text: string) => void },
 ): PersonalExtras {
   const on = (part: string) => query.has('all') || query.has(part)
-  const [items, setItems] = useState(() => REMEMBERED(ago))
+  const [items, setItems] = useState(() => REMEMBERED(ago, query.get('memory') === 'old'))
   const [look, setLook] = useState<WeekLook | null>(LOOK)
   const write = useRef(wrote)
   write.current = wrote

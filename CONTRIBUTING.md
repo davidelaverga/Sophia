@@ -433,18 +433,21 @@ when you change the room:
   WBC-01): on `fixtures/work.html`, labelled "Simulated — no lead, tool, host
   or conversation read" (`viewer=davide|luis|mara`, `goals=6`, `many=1`,
   `since=1`, `proposed=1`, `superseded=1`, `conflict=1`, `case=…` for one
-  scenario each, `admission=`, `settle=`, `ask=`, `result=` for how the
-  simulated services answer), the Studio's own `ProjectShell` on Tasks, with
+  scenario each, `admission=`, `settle=`, `ask=`, `result=`, `decide=` for
+  how the simulated services answer, `coverage=`), the Studio's own `ProjectShell` on Tasks, with
   each goal's plan as a board (`PlanBoard`) in the `plans` slot (production
   shows the goals alone until a service serves a board; `fixture-boundary.test.ts`
   keeps fixtures out of the build). The page builds a proposed
   `sophia.work.board.v1` view and passes it through the Studio's own reader
-  (`readBoardView`, `board-view.ts`): a refused view is never drawn. One goal
+  (`readBoardView`, `board-view.ts`): a refused view is never drawn, and from
+  a read that may be stale (coverage unavailable) nothing is sent, answered,
+  challenged or asked (`portsOf`), while what was sent stays said. One goal
   at a time from a rail (search with `/`; another goal's request for the
   viewer is one link under it, never a switch); the goal in two lines with its
   NEXT; lenses, a decision pill and what changed since the last look
   (decisions and results first, opened in full on press; a decision waits
-  only while it can be answered); four lanes, Active, Up next, Unassigned and
+  only while it can be answered, and an answer at most a write's 90 s, then
+  is not confirmed, `sendAnswer`); four lanes, Active, Up next, Unassigned and
   Complete (`plan.ts`: a view over each item's observed state; Complete only
   by its own policy with evidence, and a passed check of the version it
   holds, never one no single current version matches), and Closed work with its reasons; a

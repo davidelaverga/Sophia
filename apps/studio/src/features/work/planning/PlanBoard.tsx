@@ -27,7 +27,7 @@ import { useActs, type SendCommand } from '../../resources/SessionActs.tsx'
 import { AwayLine } from '../../resources/AwayLine.tsx'
 import { accountOf } from './account.ts'
 import { useAsks } from './AskSophia.tsx'
-import type { Ask } from './ask.ts'
+import { NOT_CONNECTED, NOT_READ, type Ask } from './ask.ts'
 import { moveOnBoard } from './board-keys.ts'
 import type { BoardView, ItemView } from './board-view.ts'
 import { Decision, type Decide } from './Decision.tsx'
@@ -457,7 +457,8 @@ function Lanes({
 function Notices({ board, coverage, operable }: { board: Board; coverage: Props['coverage']; operable: boolean }) {
   const notes = [
     coverage === 'partial' && 'Not everything about this plan could be read: some of its state may be missing.',
-    coverage === 'unavailable' && 'Its live state can’t be read now. What shows is its last read, and may be stale.',
+    coverage === 'unavailable' &&
+      'Its live state can’t be read now. What shows is its last read, and may be stale, so nothing is sent from it until it can be read again.',
     board.problems.length > 0 &&
       `This plan doesn’t hold together: ${board.problems.join('; ')}. Each task shows once; the lead should correct it.`,
     !operable && 'Proposed, not accepted yet: nothing in it runs.',
@@ -604,9 +605,27 @@ const Updating = ({ decisions, ...props }: DecisionsProps) => (
   <Decisions decisions={decidedOf(decisions, props.plan)} className="board-decisions board-decided" {...props} />
 )
 
+/**
+ * Where this board sends, now: commands, choices, challenges and questions go only from a plan in force whose live
+ * state can be read. From a read that may be stale (coverage unavailable) nothing goes, as from a plan only proposed:
+ * what shows stays, results still open, and what was sent stays said, its receipts and replies still landing. A
+ * partial read still sends: what it holds was read now (Codex F-022).
+ */
+function portsOf(props: BodyProps, operable: boolean) {
+  const live = operable && props.coverage !== 'unavailable'
+  return {
+    onCommand: live ? props.onCommand : undefined,
+    onDecide: live ? props.onDecide : undefined,
+    onChallenge: live ? props.onChallenge : undefined,
+    onAsk: live ? props.onAsk : undefined,
+    closed: props.coverage === 'unavailable' ? NOT_READ : NOT_CONNECTED,
+  }
+}
+
 function BoardBody(props: BodyProps) {
-  const { goal, board, people, now, viewerId = null, onDecide } = props
+  const { goal, board, people, now, viewerId = null } = props
   const { plan, rows, operable } = board
+  const ports = portsOf(props, operable)
   const at = { project: props.projectId, goal: goal.goal_id, plan: plan.plan_id, viewer: viewerId }
   // Commands, drafts and questions outlive this board (another goal chosen, a search, Resources and back): kept per
   // project and viewer, in the space Resources shares (command-store.ts).
@@ -618,15 +637,15 @@ function BoardBody(props: BodyProps) {
     reviewed: props.review,
     viewerId,
     now,
-    answerable: operable && !!onDecide,
+    answerable: !!ports.onDecide,
     decider: (id) => people[id]?.name ?? 'someone',
   })
-  const acts = useActs(operable ? props.onCommand : undefined, props.projectId, space)
-  const questions = useAsks(props.onAsk, space)
+  const acts = useActs(ports.onCommand, props.projectId, space)
+  const questions = useAsks(ports.onAsk, space, ports.closed)
   const opened = rows.find((r) => r.item.id === view.open)
   const shortOf = (row: PlanRow) => accountOf(row, props).tile
   const tile = { plan, viewerId, now, onLight: view.setLit, onOpen: view.setOpen, flags: view.flags, shortOf }
-  const decisionProps = { plan, people, now, viewerId, onDecide: operable ? onDecide : undefined }
+  const decisionProps = { plan, people, now, viewerId, onDecide: ports.onDecide }
   const away = whileAway(rows, goal.decisions, seen, { viewerId, people, now })
   return (
     <section className="board" aria-label={`Plan r${String(plan.revision)}`} data-lens={view.lens}>
@@ -639,7 +658,7 @@ function BoardBody(props: BodyProps) {
         rows={rows}
         onOpenTask={view.setOpen}
         decisions={decisionProps}
-        onChallenge={operable ? props.onChallenge : undefined}
+        onChallenge={ports.onChallenge}
       />
       <Lanes rows={rows} board={view} tile={tile} />
       <ClosedWork rows={inLane(rows, 'closed')} onOpen={view.setOpen} />

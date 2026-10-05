@@ -605,11 +605,24 @@ async function openTask(page: Page, id: string, name: string) {
   return sheet
 }
 const commanded = (page: Page) => page.evaluate(() => window.workFixture?.commands ?? [])
+/**
+ * Pauses the page's clock a moment ahead of its own time. A busy page (its first render, on a server just started) can
+ * pass that moment before the pause lands, which refuses it; then it aims again, from the page's time then.
+ */
+async function pauseSoon(page: Page, tries = 5): Promise<void> {
+  const at = new Date((await page.evaluate(() => Date.now())) + 1000)
+  try {
+    await page.clock.pauseAt(at)
+  } catch (e) {
+    if (tries <= 1 || !String(e).includes('Cannot fast-forward to the past')) throw e
+    await pauseSoon(page, tries - 1)
+  }
+}
 /** Moves the page's clock on from a pause, so delays elapse only as a check says. */
 async function paused(page: Page, url: string) {
   await page.clock.install()
   await page.goto(url)
-  await page.clock.pauseAt(new Date((await page.evaluate(() => Date.now())) + 1000))
+  await pauseSoon(page)
 }
 
 test('wbc · UI-01 · loops of parents or blockers show each task once and say the plan doesn’t hold', async ({
@@ -2385,4 +2398,154 @@ test('receipts · a challenge’s steps, sending to recorded, are said by one st
   await expect(said).toHaveText('Sending your challenge…')
   await expect(said).toHaveText('Sent to the lead, for its next review.')
   await expect(said).toHaveAttribute('data-checked-node', 'same')
+})
+
+// ---- CX-0019 (Codex on #74; GitHub 4179798118, 4179798123): nothing sent from a stale read; no answer sent for good. ----
+
+const staleRead =
+  'Its live state can’t be read now. What shows is its last read, and may be stale, so nothing is sent from it until it can be read again.'
+const unsendable = 'Nothing can be sent from here now. What was sent is still followed as its receipts come.'
+const askedNot = 'This plan’s live state can’t be read now, so nothing is asked about it from here until it can be.'
+const checking = 'Checking whether your choice was recorded. Do not choose again yet.'
+const answeredOf = (page: Page) => page.evaluate(() => window.workFixture?.answered ?? [])
+const readAs = (page: Page, coverage: 'complete' | 'unavailable') =>
+  page.evaluate((c) => window.workFixture?.coverage?.(c), coverage)
+
+test('codex · F-022 · from a read that may be stale nothing goes: no command, choice, challenge or question', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&coverage=unavailable&review=material`)
+  await expect(board(page).locator('.board-notice').first()).toHaveText(staleRead, { timeout: 15_000 })
+  // Davide's decision is shown, its choices as words.
+  const ask = decides(page, 'Davide')
+  await expect(ask).toContainText('Ship it now or Wait for the review')
+  await expect(ask.getByRole('button')).toHaveCount(0)
+  // The lead's review reads as before, with no Challenge.
+  await reviewPill(page).click()
+  await expect(reviewCard(page)).toBeVisible()
+  await expect(reviewCard(page).getByRole('button', { name: 'Challenge' })).toHaveCount(0)
+  // A task's sheet: no Stop, Hold or guidance, and why.
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(sheet.locator('.session-acts .act-note')).toHaveText(unsendable)
+  await expect(sheet.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
+  await expect(sheet.getByRole('button', { name: /^Hold/ })).toHaveCount(0)
+  await expect(sheet.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  expect(await commanded(page)).toEqual([])
+  expect(await answeredOf(page)).toEqual([])
+  expect(await challengesOf(page)).toEqual([])
+})
+
+test('codex · F-022 · from a read that may be stale a question is kept with why, and goes nowhere; a result still reads', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=defects&coverage=unavailable`)
+  const retry = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await retry.getByRole('button', { name: /\?$/ }).first().click() // a question its state invites
+  await expect(retry.locator('.ask-none')).toContainText(askedNot)
+  expect(await questioned(page)).toEqual([])
+  await page.keyboard.press('Escape')
+  const review = await openTask(page, 'work-1-review', 'Review the retry’s candidate')
+  await review.getByRole('button', { name: 'Open result' }).click()
+  await expect(review.locator('.task-result-text')).toContainText('Changes needed before it ships.')
+})
+
+test('codex · F-022 · what was sent before the read went stale stays said, its replies landing; read again, it goes', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&admission=slow&unknown=1`) // a Stop's receipt after 7 s; a choice unknown
+  const ask = decides(page, 'Davide')
+  await ask.getByRole('button', { name: 'Ship it now' }).click()
+  await page.clock.runFor(300)
+  await expect(ask.getByRole('status')).toHaveText(checking)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await stopIn(sheet)
+  await expect(sheet.locator('.act-steps')).toContainText('Sending…')
+  await page.keyboard.press('Escape')
+  const retry = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await retry.getByRole('button', { name: 'Why is it waiting?' }).click()
+  // The read goes stale now; the answer comes from 900 ms, and lands.
+  await readAs(page, 'unavailable')
+  await expect(board(page).locator('.board-notice').first()).toHaveText(staleRead)
+  await page.clock.runFor(2_000)
+  await expect(retry.locator('.ask-a')).toContainText('It goes on as soon as Davide answers it in Claude Code.')
+  await page.keyboard.press('Escape')
+  // The Stop is still said, nothing offered, and its receipts land.
+  const stopped = await openTask(page, 'work-2', 'Review the report pane')
+  const steps = stopped.locator('.act-steps')
+  await expect(steps).toContainText('Sending…')
+  await expect(stopped.locator('.session-acts .act-note')).toHaveText(unsendable)
+  await expect(stopped.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
+  await page.clock.runFor(10_000)
+  await expect(steps).toContainText('Stop requested; waiting for the runtime to confirm.')
+  await page.keyboard.press('Escape')
+  // The choice is still said, and can't be sent again from here.
+  await expect(ask.getByRole('status')).toHaveText(checking)
+  await expect(ask.getByRole('button')).toHaveCount(0)
+  // Read again: the same choice goes again, as its own operation; Stop is offered, with one sent in all.
+  await readAs(page, 'complete')
+  await expect(board(page).locator('.board-notice')).not.toContainText([staleRead])
+  await ask.getByRole('button', { name: 'Ship it now' }).click()
+  await expect.poll(async () => (await answeredOf(page)).length).toBe(2)
+  const [first, again] = await answeredOf(page)
+  expect(again).toEqual(first)
+  const back = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(back.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+  expect(await commanded(page)).toHaveLength(1)
+})
+
+test('codex · F-023 · a choice with no reply is not confirmed at the write limit; only it goes again, as its operation', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&decide=silent`)
+  const ask = decides(page, 'Davide')
+  const status = ask.getByRole('status')
+  const ship = ask.getByRole('button', { name: 'Ship it now' })
+  const wait = ask.getByRole('button', { name: 'Wait for the review' })
+  await ship.click()
+  await expect(status).toHaveText('Sending your choice…')
+  await expect(ship).toBeDisabled()
+  await expect(wait).toBeDisabled()
+  await page.clock.runFor(89_000)
+  await expect(status).toHaveText('Sending your choice…')
+  await page.clock.runFor(1_000) // 90 s: the Studio's limit for a write
+  await expect(status).toHaveText(checking)
+  await expect(ship).toBeEnabled()
+  await expect(wait).toBeDisabled() // another choice waits until this one is known
+  // Sent again, the same; closed meanwhile, its wait goes on, and ends the same way.
+  await ship.click()
+  await expect(status).toHaveText('Sending your choice…')
+  await pill(page).click()
+  await expect(ask).toHaveCount(0)
+  await page.clock.runFor(90_000)
+  await pill(page).click()
+  await expect(status).toHaveText(checking)
+  const sent = await answeredOf(page)
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(sent[0]) // the same choice, as the same operation
+})
+
+test('codex · F-023 · the first send’s late reply changes nothing while the same choice goes again, the board left and back', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&decide=late`) // the first reply comes at 120 s, each next 40 s after it
+  const ask = decides(page, 'Davide')
+  const status = ask.getByRole('status')
+  await ask.getByRole('button', { name: 'Ship it now' }).click()
+  await page.clock.runFor(90_000)
+  await expect(status).toHaveText(checking)
+  await ask.getByRole('button', { name: 'Ship it now' }).click() // 90 s: sent again, recorded at 130 s
+  await expect(status).toHaveText('Sending your choice…')
+  // Away in Resources, the board gone: at 120 s the first send's reply comes, "not confirmed", late.
+  await views(page).getByRole('link', { name: 'Resources', exact: true }).click()
+  await expect(board(page)).toHaveCount(0)
+  await page.clock.runFor(35_000)
+  // Back at 125 s, the board anew: still the second send, waiting; then its own reply.
+  await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  await expect(status).toHaveText('Sending your choice…')
+  await page.clock.runFor(5_000)
+  await expect(status).toHaveText('Your choice is recorded. The plan is updating.')
+  await expect(ask.getByRole('button', { name: 'Wait for the review' })).toBeDisabled()
+  const sent = await answeredOf(page)
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(sent[0])
 })

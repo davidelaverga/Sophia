@@ -352,10 +352,17 @@ export const readResult: ReadResult = (ref) => {
 /** Each answer a decider gave, in order: for the checks to read. */
 export const answers: DecisionAnswer[] = []
 
-/** The decider's answer, as the service would take it: recorded, or as the page asks (`conflict=1`, `unknown=1`). */
+/**
+ * The decider's answer, as the service would take it: recorded, or as the page asks (`conflict=1`, `unknown=1`).
+ * `decide=silent`: no reply ever comes. `decide=late`: the first send's reply ("not confirmed") comes 120 s after it,
+ * past the Studio's 90 s write limit; each later send is recorded 40 s after it (Codex F-023).
+ */
 export const decide: Decide = (answer) => {
   answers.push(answer)
   const q = query()
+  if (q.get('decide') === 'silent') return new Promise(() => undefined)
+  if (q.get('decide') === 'late' && answers.length === 1)
+    return new Promise((done) => setTimeout(() => done('unknown'), 120_000))
   const said = q.get('conflict') === '1' ? 'conflict' : q.get('unknown') === '1' ? 'unknown' : 'recorded'
-  return new Promise((done) => setTimeout(() => done(said), 300))
+  return new Promise((done) => setTimeout(() => done(said), q.get('decide') === 'late' ? 40_000 : 300))
 }

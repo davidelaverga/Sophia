@@ -7,8 +7,9 @@
 // `attempt=none` (no assignment names its attempt); `many=1`; `unplanned=1`; `since=1|2` (an earlier look; 2, before Davide's decision was asked); `expired=1|state|soon`
 // (the decision waiting on Davide past its expiry, marked expired, or expiring 30 s after the page opens); `odd-id=1`
 // (its id with quotes and brackets); `conflict=1` and `unknown=1` (how a decision's answer comes back); `later=1` (the
-// second goal's plan held back until `workFixture.arrive()`); `coverage=partial|unavailable`; and how the simulated
-// services answer (work-live.ts: `admission=`, `settle=`, `ask=`, `result=`).
+// second goal's plan held back until `workFixture.arrive()`); `coverage=partial|unavailable` (as read first;
+// `workFixture.coverage(c)` reads it so next); and how the simulated services answer (work-live.ts: `admission=`,
+// `settle=`, `ask=`, `result=`, `decide=silent|late`).
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
 // into the plan's next revision; `decisionArrives(deciderId)` brings a new one; `begin(workId)`, `reassign(workId)`,
 // `replan()`, `arrive()`, `viewAs(viewer)`, `reconnect()`, `replay(operationId)`, `weaken(operationId)`,
@@ -113,6 +114,8 @@ declare global {
       conversation?: (connected: boolean) => void
       /** The command port connected, or not: with none, nothing is sent, and what was sent stays said (Codex F-021). */
       commandPort?: (connected: boolean) => void
+      /** How much of the board the next read covers: unavailable, it is its last read, and nothing goes (Codex F-022). */
+      coverage?: (coverage: BoardView['coverage']) => void
       viewAs?: (viewer: Viewer) => void
       reconnect?: () => void
       /** Each goal command sent (Request review, Hold, Stop), with its key (LFE-07.2). */
@@ -390,7 +393,12 @@ const replanned: Change = (g) =>
 function controls(
   update: (change: Change) => void,
   setViewer: (v: Viewer) => void,
-  page: { arrive: () => void; connect: (connected: boolean) => void; port: (connected: boolean) => void },
+  page: {
+    arrive: () => void
+    connect: (connected: boolean) => void
+    port: (connected: boolean) => void
+    read: (coverage: BoardView['coverage']) => void
+  },
   viewer: Viewer,
   lead: { commands: readonly { kind: string; key: string }[]; again: () => void },
 ) {
@@ -412,6 +420,7 @@ function controls(
     arrive: page.arrive,
     conversation: page.connect,
     commandPort: page.port,
+    coverage: page.read,
     viewAs: setViewer,
     reconnect,
     replay,
@@ -456,15 +465,18 @@ function availableAs(actions: readonly ItemAction[], kind: ActionKind, availabil
   return was ? actions.map((a) => (a === was ? now : a)) : [...actions, now]
 }
 
+/** How much of the board the page's first read covers (`coverage=`): all of it unless it says otherwise. */
+const coverageAt = (said: string | null): BoardView['coverage'] =>
+  said === 'partial' || said === 'unavailable' ? said : 'complete'
+
 /** The page's view of the project, as a service would serve it, read through the Studio's own reader. */
-function viewOf(first: GoalView, arrived: boolean, observedAt: Date): BoardView {
-  const coverage = query.get('coverage')
+function viewOf(first: GoalView, arrived: boolean, observedAt: Date, coverage: BoardView['coverage']): BoardView {
   return {
     schema_version: 'sophia.work.board.v1',
     project_id: PROJECT,
     snapshot_cursor: `fixture-${String(observedAt.getTime())}`,
     observed_at: observedAt.toISOString(),
-    coverage: coverage === 'partial' || coverage === 'unavailable' ? coverage : 'complete',
+    coverage,
     goals: [first, ...(two && arrived ? [secondView] : []), ...(six ? moreViews : [])],
   }
 }
@@ -573,6 +585,7 @@ function Tasks() {
   const [arrived, setArrived] = useState(query.get('later') !== '1')
   const [connected, setConnected] = useState(true)
   const [ported, setPorted] = useState(true)
+  const [coverage, setCoverage] = useState(() => coverageAt(query.get('coverage')))
   // Each change glides into place, as a live update would (motion.ts): a decided ask folds away, a task changes lanes.
   const [update] = useState(() => (change: Change) => moving(() => setFirst(change)))
   const now = useClock(update)
@@ -587,12 +600,12 @@ function Tasks() {
         setViewer(v)
         setFirst(opening(v))
       },
-      { arrive: () => setArrived(true), connect: setConnected, port: setPorted },
+      { arrive: () => setArrived(true), connect: setConnected, port: setPorted, read: setCoverage },
       viewer,
       { commands: lead.commands, again },
     )
   }, [update, viewer, lead, again])
-  const board = viewOf(first, arrived, now)
+  const board = viewOf(first, arrived, now, coverage)
   const read = readBoardView(board)
   if (!read.ok) {
     window.workFixture = { ...window.workFixture, unexpected, refused: read.problems }

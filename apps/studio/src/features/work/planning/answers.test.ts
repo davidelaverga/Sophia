@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answerKey, answerOf, operationFor, setAnswer } from './answers.ts'
+import { WRITE_TIMEOUT_MS } from '../../../api/client.ts'
+import { answerKey, answerOf, operationFor, sendAnswer, setAnswer, type Disposition } from './answers.ts'
 
 describe('answers', () => {
   it('keeps an answer by its decision and revision, beyond any one view of it', () => {
@@ -32,5 +33,98 @@ describe('the operation an answer goes as', () => {
     assert.equal(operationFor({ state: 'conflict', chosen: 'ship', operation_id: 'op-1' }, 'wait', ids), 'op-new')
     assert.equal(operationFor({ state: 'sending', chosen: 'ship', operation_id: 'op-1' }, 'ship', ids), null)
     assert.equal(operationFor({ state: 'recorded', chosen: 'ship', operation_id: 'op-1' }, 'wait', ids), null)
+  })
+})
+
+/** A reply that comes when the check says: as a disposition, or lost. */
+function reply() {
+  const said: { with: (d: Disposition) => void; lost: () => void } = { with: () => undefined, lost: () => undefined }
+  const promise = new Promise<Disposition>((resolve, reject) => {
+    said.with = resolve
+    said.lost = () => reject(new Error('lost'))
+  })
+  return { promise, ...said }
+}
+/** Lets a reply's handlers run. */
+const handled = () => new Promise((done) => setImmediate(done))
+const stateOf = (key: string) => answerOf(key)?.state
+const ship = { chosen: 'ship', operation_id: 'op-1' }
+
+describe('an answer on its way (Codex F-023)', () => {
+  it('is not confirmed once a write’s limit passes with no reply, not a moment before; then only the same goes again', (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const key = answerKey('d-silent', 1, 'davide')
+    sendAnswer(key, ship, () => new Promise(() => undefined))
+    assert.equal(stateOf(key), 'sending')
+    t.mock.timers.tick(WRITE_TIMEOUT_MS - 1)
+    assert.equal(stateOf(key), 'sending')
+    t.mock.timers.tick(1)
+    assert.equal(stateOf(key), 'unknown')
+    assert.equal(operationFor(answerOf(key), 'ship', ids), 'op-1')
+    assert.equal(operationFor(answerOf(key), 'wait', ids), null)
+  })
+
+  it('takes its own reply in time, and its limit ends with it', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const key = answerKey('d-in-time', 1, 'davide')
+    const r = reply()
+    sendAnswer(key, ship, () => r.promise)
+    r.with('recorded')
+    await handled()
+    assert.equal(stateOf(key), 'recorded')
+    t.mock.timers.tick(WRITE_TIMEOUT_MS)
+    assert.equal(stateOf(key), 'recorded')
+  })
+
+  it('takes a lost reply as not confirmed', async () => {
+    const key = answerKey('d-lost', 1, 'davide')
+    const r = reply()
+    sendAnswer(key, ship, () => r.promise)
+    r.lost()
+    await handled()
+    assert.equal(stateOf(key), 'unknown')
+  })
+
+  it('lets a reply after its limit change nothing', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const key = answerKey('d-late', 1, 'davide')
+    const r = reply()
+    sendAnswer(key, ship, () => r.promise)
+    t.mock.timers.tick(WRITE_TIMEOUT_MS)
+    r.with('recorded')
+    await handled()
+    assert.equal(stateOf(key), 'unknown')
+  })
+
+  it('lets an earlier send’s reply change nothing, while the answer goes again or after it came back', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const key = answerKey('d-again', 1, 'davide')
+    const first = reply()
+    const again = reply()
+    sendAnswer(key, ship, () => first.promise)
+    t.mock.timers.tick(WRITE_TIMEOUT_MS)
+    sendAnswer(key, ship, () => again.promise) // the same choice, the same operation
+    first.with('conflict') // the first send's reply, late, while the second is on its way
+    await handled()
+    assert.equal(stateOf(key), 'sending')
+    again.with('recorded')
+    await handled()
+    assert.deepEqual({ ...answerOf(key), send: undefined }, { state: 'recorded', ...ship, send: undefined })
+    t.mock.timers.tick(WRITE_TIMEOUT_MS) // neither send's limit says anything now
+    assert.equal(stateOf(key), 'recorded')
+  })
+
+  it('lets a reply from before the answer was sent again change nothing, after the newer one came back', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const key = answerKey('d-after', 1, 'davide')
+    const first = reply()
+    sendAnswer(key, ship, () => first.promise)
+    t.mock.timers.tick(WRITE_TIMEOUT_MS)
+    sendAnswer(key, ship, () => Promise.resolve('recorded'))
+    await handled()
+    assert.equal(stateOf(key), 'recorded')
+    first.with('unknown')
+    await handled()
+    assert.equal(stateOf(key), 'recorded')
   })
 })

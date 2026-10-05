@@ -1818,9 +1818,12 @@
   justify-self: end;
   transition: opacity var(--fast) var(--ease);
 }
+/* The day is only read, never pressed. Faded out, it is still drawn over the actions once their fade ends (its
+   opacity makes it a layer of its own), so it lets the pointer through to Correct and Forget beneath it. */
 .places .c3-mem-at {
   color: var(--text-sec);
   font: 11px/1 var(--mono);
+  pointer-events: none;
 }
 .places .c3-mem-acts {
   display: flex;

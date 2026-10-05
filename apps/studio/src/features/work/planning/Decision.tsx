@@ -1,14 +1,14 @@
 // A decision the plan leaves to someone, raised above its tasks (decision.v1, WBC-01 G4). It is bound to the work, plan
 // revision and candidate it is about, and says so. Its decider answers it here: each choice is a button, and both
 // resolve the same pending decision, once (05_CAPACITY_STEERING_HANDOVER: silence never chooses, so neither is
-// preselected, and an expiry chooses nothing). An answer is one operation: if its reply is lost, only the same choice
-// goes again, with the same operation, and no other choice can be sent until it is reconciled. The choice is the
-// person's, recorded when the service commits it; the plan taking it in is the lead's, a separate state, said apart
-// ("The plan is updating"). The answer outlives the component (answers.ts). Anyone else reads who decides and the
-// choices, as words, not buttons.
+// preselected, and an expiry chooses nothing). An answer is one operation: if its reply is lost, or doesn't come within
+// a write's limit (sendAnswer), only the same choice goes again, with the same operation, and no other choice can be
+// sent until it is reconciled. The choice is the person's, recorded when the service commits it; the plan taking it in
+// is the lead's, a separate state, said apart ("The plan is updating"). The answer outlives the component (answers.ts).
+// Anyone else reads who decides and the choices, as words, not buttons.
 import { Avatar } from '../../../app/Avatar.tsx'
 import { expiry, type Resource } from '../../resources/resource.ts'
-import { answerKey, operationFor, setAnswer, useAnswer, type Disposition } from './answers.ts'
+import { answerKey, operationFor, sendAnswer, useAnswer, type Disposition } from './answers.ts'
 import { actionable, type BoardDecision } from './plan.ts'
 
 type Person = Resource['owner']
@@ -71,7 +71,6 @@ function useChoose({ decision, onDecide, viewerId, newId = () => crypto.randomUU
   const choose = (choice: string) => {
     const operation = operationFor(answer, choice, newId)
     if (!onDecide || operation === null) return
-    setAnswer(key, { state: 'sending', chosen: choice, operation_id: operation })
     const { decision_id, revision, work_id, plan_id, plan_revision, candidate_version_ref } = decision
     const sent = {
       operation_id: operation,
@@ -83,10 +82,7 @@ function useChoose({ decision, onDecide, viewerId, newId = () => crypto.randomUU
       plan_revision,
       candidate_version_ref,
     }
-    onDecide(sent).then(
-      (said) => setAnswer(key, { state: said, chosen: choice, operation_id: operation }),
-      () => setAnswer(key, { state: 'unknown', chosen: choice, operation_id: operation }),
-    )
+    sendAnswer(key, { chosen: choice, operation_id: operation }, () => onDecide(sent))
   }
   return { answer: answer ?? UNANSWERED, pressable, choose }
 }
