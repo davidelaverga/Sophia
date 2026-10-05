@@ -341,6 +341,15 @@ Codex published `28ff0c9` with CC-0022 to CC-0024 and passed the latest-main int
 
 GitHub's reviewer left one more comment on `28ff0c9`, which Codex reproduced on `37a8ae9` (F-045, P2): work outside the plan observed twice was drawn as two rows of different states under one key, and with no plan in force nothing said so. It is listed once now, said observed more than once with no state of either, on a board and with no plan in force, its count of distinct tasks ([CC-0026](../coordination/WBC-01/WBC-01-CC-0026.md), `3ec9a00`).
 
+## CX-0040 and CX-0041
+
+Codex passed F-044 and F-045 at `be26ede` ([CX-0040](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5992999660)). GitHub's reviewer then left two more on that head ([CX-0041](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5993186996)), handled in [CC-0027](../coordination/WBC-01/WBC-01-CC-0027.md) (`c7cb5a7`):
+
+| Finding | Fix |
+|---|---|
+| **F-046** (P2): an Ask completion with no words ended answered, the sheet saying "Thinking…" for good | No words, or only white space, is no answer: failed, said so, and Ask again follows |
+| **F-047** (P2): a plan in force only proposed, or a proposal accepted, was read, then dropped from the board | Refused, said by its path; superseded and withdrawn plans stay readable in either slot, as history |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.

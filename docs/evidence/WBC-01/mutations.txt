@@ -330,3 +330,12 @@ AN2 F-045 no plan in force lists outside work by the same rule: FAILS as it shou
 AN3 F-045 no plan in force says a task is observed twice: FAILS as it should  [expect(locator).toContainText]
 # On 3ec9a00, R5 (the outside-work entry) ran again and fails; all 187 entries' text is found in the code, none stale.
 # 186 of 187 fail; R1b is the redundant key recorded above.
+
+# CX-0041 at be26ede (#74; GitHub 4183258509, 4183258514), F-046 and F-047, fixed in c7cb5a7
+AO1 F-046 a completion with no words is no answer (rule): FAILS as it should  [AssertionError]
+AO1b F-046 a completion with no words is no answer (board): FAILS as it should  [expect(locator).toContainText]
+AP1 F-047 each plan in its slot (rule): FAILS as it should  [AssertionError]
+AP1b F-047 each plan in its slot (board): FAILS as it should  [expect(locator).toContainText]
+# On c7cb5a7, every entry above on ask.ts and board-view.ts ran again: all fail. AI1 named the goal rules' last line,
+# which now lists the slots rule too, and re-aimed there it fails. All 191 entries' text is found, none stale. 190 of
+# 191 fail; R1b is the redundant key recorded above.

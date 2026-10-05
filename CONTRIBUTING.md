@@ -453,7 +453,8 @@ when you change the room:
   naming one and proposed naming none, one id at one revision on the board,
   its task named from the plan it is bound to, a review waiting on its latest
   revision; a goal's plans each one id at one revision, a goal once on the
-  board, and an item's versions each their own id); four lanes, Active, Up next, Unassigned and
+  board, an item's versions each their own id, and a plan in force never only
+  proposed nor a proposal accepted); four lanes, Active, Up next, Unassigned and
   Complete (`plan.ts`: a view over each item's observed state; Complete only
   by its own policy with evidence, and a passed check of the version it
   holds, never one no single current version matches), and Closed work with its reasons; a
@@ -466,7 +467,8 @@ when you change the room:
   (`actions.ts`; a kind it offers more than once is no grant, in any order;
   a command goes again with its operation only to the exact target it was
   sent to, its keys tuples of whole ids), and Ask (a port of real received chunks, no typing
-  animation; at most 30 s per event, one wait per send, then failed, with Ask again: the same
+  animation; at most 30 s per event, one wait per send, then failed, as is an
+  answer with no words, with Ask again: the same
   question on its own send, so nothing of an earlier send can fail or answer
   it, and a send that has ended, answered, failed or unavailable, takes nothing
   more, and only while the view allows asking about the task and a conversation
