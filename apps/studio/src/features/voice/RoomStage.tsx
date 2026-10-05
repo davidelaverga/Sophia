@@ -25,6 +25,7 @@ import {
 import { sophiaView, type SophiaView } from './sophia-view.ts'
 import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stage-geometry.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
+import { useWorkWords } from './useWorkWords.ts'
 import { VideoStage } from './VideoStage.tsx'
 
 interface Props {
@@ -179,13 +180,15 @@ function conversationLine(
   room: ProjectRoom,
   snapshot: Snapshot | undefined,
   floor: FloorView,
-  running: number,
+  work: { running: number; doing: string | null },
   sophia: SophiaView,
 ): RoomLine {
   // Until the project has loaded there is no room to describe: "The room is ready" would be a guess.
   if (!room.ready) return OPENING
   const typing = room.textMode && room.status === 'live' && floor.mine && reachesSophia(snapshot?.room.sophia)
-  return typing ? { text: 'Chatting with Sophia', note: null } : roomLine(room.status, floor, running, sophia)
+  return typing
+    ? { text: 'Chatting with Sophia', note: null }
+    : roomLine(room.status, floor, work.running, sophia, work.doing)
 }
 
 export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line, corner, captions }: Props) {
@@ -198,6 +201,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
   const mode = stageMode(room.feeds)
   const running = runningWork(snapshot)
   const sophia = observedSophia(room, snapshot, floor, running > 0)
+  const doing = useWorkWords(snapshot, projectId, identity)
   const live = room.status === 'live' || room.status === 'reconnecting'
   const layout = [...people.map((p) => p.identity), ...room.feeds.map((f) => f.key)].join(' ')
   const geometry = useStageGeometry(stage, floor.holder?.present ? floor.holder.identity : null, mode, layout)
@@ -225,7 +229,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
           <div className="stage-top">{lensBar}</div>
           <Presences people={people} floor={floor} revision={snapshot?.room.revision ?? 0} />
           <SophiaLine
-            line={line ?? conversationLine(room, snapshot, floor, running, sophia)}
+            line={line ?? conversationLine(room, snapshot, floor, { running, doing }, sophia)}
             session={sessionNote(snapshot, now)}
           />
           <div className="stage-body">{lensBody}</div>

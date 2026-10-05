@@ -20,6 +20,7 @@ import {
   citedSources,
   REPORT,
   reportList,
+  researchRunning,
   researchTaskAt,
   TASK,
   versions,
@@ -63,6 +64,10 @@ interface Project {
   taskRevision?: 1 | 2
   /** Reads of the research task wait until the page lets them through (`hold=task`), as a slow API's do. */
   taskHeld?: boolean
+  /** The research task runs (`research=running`): how many sources it has read. */
+  researching?: { reads: number } | null
+  /** Reads of the research task fail (`window.fixture.failTask`), as an API that lost its database answers. */
+  taskFails?: boolean
   /** A version's text arrives as bytes its record does not name (`tamper=text`). */
   textTampered: boolean
   /** Version 1 carries a designed HTML page (SDD-01, `designed=on`), and the research task lists it. */
@@ -128,7 +133,12 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
  */
 function snapshotOf(project: Project) {
   const now = snapshot(project.revision, project.exchange, project.messages, project.goals, project.room)
-  const work = project.work ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed).task] } : now
+  const running = project.researching ? researchRunning(project.researching.reads).task : null
+  const work = running
+    ? { ...now, work: [running] }
+    : project.work
+      ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed).task] }
+      : now
   return project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work
 }
 
@@ -271,8 +281,19 @@ const heldTasks: (() => void)[] = []
 
 /** The research task at its revision now; while the page holds it, a read that answers once let through. */
 function taskRead(project: Project): Response | Promise<Response> {
-  const read = () => json(researchTaskAt(project.taskRevision ?? 1, project.designed))
+  const running = project.researching
+  const read = () =>
+    json(running ? researchRunning(running.reads) : researchTaskAt(project.taskRevision ?? 1, project.designed))
   served.push(`task:${String(project.taskRevision ?? 1)}`)
+  if (project.taskFails) {
+    const body = {
+      code: 'unavailable',
+      message: 'Sophia is unavailable',
+      requestId: '00000000-0000-4000-8000-0000000000bc',
+      retry: 'safe_read',
+    }
+    return new Response(JSON.stringify(body), { status: 503 })
+  }
   if (!project.taskHeld) return read()
   return new Promise((resolve) => heldTasks.push(() => resolve(read())))
 }

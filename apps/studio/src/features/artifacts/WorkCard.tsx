@@ -28,6 +28,7 @@ import {
 } from './report-view.ts'
 import { useTransientStatus } from './useTransientStatus.ts'
 import './artifacts.css'
+import { WORKING_PHASES } from '../voice/room-view.ts'
 
 type Output = NonNullable<NonNullable<NativeTaskDetail['result']>['outputs']>[number]
 
@@ -39,7 +40,8 @@ interface Props {
   canAct?: boolean
 }
 
-const ACTIVE: ReadonlySet<NativeTask['phase']> = new Set(['queued', 'dispatched', 'running', 'holding', 'stopping'])
+/** A task still at work: the room's set, so the two never disagree. */
+const ACTIVE = WORKING_PHASES
 
 /** How often the detail is read again: while the task runs, and faster while its PDF renders again. */
 const pollEvery = (task: NativeTask, detail: NativeTaskDetail | undefined): number | false => {

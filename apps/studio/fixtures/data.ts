@@ -53,6 +53,8 @@ export interface RoomAsked {
   voice?: SophiaPresence['voice'] | undefined
   pauseReason?: SophiaPresence['pauseReason'] | undefined
   looking?: SophiaPresence['looking'] | undefined
+  /** Sessions on the room's calendar (`session=soon`). */
+  sessions?: Snapshot['sessions'] | undefined
 }
 
 /** Who holds the floor: asked for, else the viewer in Sophia's conversation (someone gone once she paused for it). */
@@ -123,7 +125,7 @@ export function snapshot(
     sharedFocus: null,
     room: { id: ROOM, revision, inputActorId: holder, mode: 'invoked', sophia: presenceOf(exchange, holder, room) },
     lobby: [],
-    sessions: [],
+    sessions: room.sessions ?? [],
     discussion: messages.map(said),
     work: [],
   }

@@ -27,6 +27,8 @@ export interface OpenRequest {
 
 interface ViewerApi {
   open: (request: OpenRequest) => void
+  /** The report on screen now, or null: what was opened elsewhere needn't be offered again. */
+  shown: string | null
 }
 
 const ViewerContext = createContext<ViewerApi | null>(null)
@@ -127,7 +129,8 @@ export function DocumentViewerProvider(props: Props) {
     },
     [closePanel, link, write],
   )
-  const api = useMemo(() => ({ open }), [open])
+  const shown = link?.artifactId ?? null
+  const api = useMemo(() => ({ open, shown }), [open, shown])
   const close = useCallback(() => back(link?.size === 'full' ? 2 : 1, null), [back, link?.size])
   // One pane at a time, by what changed: the side panel opened over the report, so the report gives way; a report came
   // (Back or Forward) while the panel was open, so the panel gives way.

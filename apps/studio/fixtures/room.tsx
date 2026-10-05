@@ -77,6 +77,12 @@ interface Fixture {
   noticeBrief: () => void
   /** The research task's record, held since the page opened (`hold=task`), comes now. */
   releaseTask: () => void
+  /** The running research task has read `reads` sources (`research=running`). */
+  researchProgress: (reads: number) => void
+  /** The running research task finished: it stays in the project's work, its result ready, as the API keeps it. */
+  researchDone: () => void
+  /** Reads of the research task fail from now on; given false, they succeed again. */
+  failTask: (fails?: boolean) => void
   /** A live caption packet reaches this member, as the bridge sends what is said aloud (CX-0023): synthetic text. */
   caption: (packet: ChatCaption) => void
   /** Sophia's participant leaves the room (her bridge lost its link, or restarted). */
@@ -129,6 +135,18 @@ const PAUSES = ['guest', 'holder_left'] as const
 const oneOf = <T extends string>(list: readonly T[], value: string | null): T | undefined =>
   list.find((item) => item === value)
 
+/** A synthetic session on the room's calendar, starting `minutes` from now, for half an hour. */
+function sessionIn(minutes: number) {
+  const start = Date.now() + minutes * 60_000
+  return {
+    id: '00000000-0000-4000-8000-0000000000e9',
+    title: 'Pilot review',
+    startsAt: new Date(start).toISOString(),
+    endsAt: new Date(start + 30 * 60_000).toISOString(),
+    timeZone: 'UTC',
+  }
+}
+
 const room: RoomAsked = {
   holder: holderAsked(query.get('floor')),
   voice: oneOf(VOICES, query.get('voice')),
@@ -138,6 +156,8 @@ const room: RoomAsked = {
     query.get('looking') === 'screen' && query.get('video') === 'screen' && count > 0
       ? { participantIdentity: personId(1), source: 'screen' }
       : null,
+  // `session=soon`: a session on the room's calendar starts in ten minutes (Sophia's line names it).
+  sessions: query.get('session') === 'soon' ? [sessionIn(10)] : [],
 }
 const floorTo: string[] = []
 
@@ -167,6 +187,8 @@ const project = {
   textHeld: query.get('hold') === 'text',
   taskRevision: 1 as 1 | 2,
   taskHeld: query.get('hold') === 'task',
+  taskFails: false,
+  researching: query.get('research') === 'running' ? { reads: 0 } : null,
   textTampered: query.get('tamper') === 'text',
   designed: query.get('designed') === 'on',
   pageTampered: query.get('tamper') === 'html',
@@ -192,6 +214,17 @@ window.fixture = {
   },
   noticeBrief: () => deliverNotice(briefNotice),
   releaseTask: () => releaseTask(project),
+  researchProgress: (reads) => {
+    project.researching = { reads }
+  },
+  researchDone: () => {
+    project.researching = null
+    project.work = true
+    publish(project)
+  },
+  failTask: (fails = true) => {
+    project.taskFails = fails
+  },
   caption: deliverCaption,
   sophiaLeaves,
   describeElsewhere: (text) => {
