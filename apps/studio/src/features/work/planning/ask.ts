@@ -60,9 +60,16 @@ export const unanswerable = (question: Question, reason: string): Asked => ({
   reason,
 })
 
+/**
+ * A send that has ended: answered, failed (said so, or past its wait) or unavailable. Nothing more of it is taken: a
+ * late chunk or answer can't take back what was said and the Ask again offered (Codex F-025). Only a new send, asked
+ * again, hears anything more.
+ */
+const ended = (asked: Asked) => asked.state === 'answered' || asked.state === 'failed' || asked.state === 'unavailable'
+
 /** An event folded into a question: another question's, a repeat, one out of order, or one after the end, ignored. */
 export function heard(asked: Asked, e: AskEvent): Asked {
-  if (e.question_id !== asked.question.question_id || asked.state === 'answered' || e.seq <= asked.seq) return asked
+  if (e.question_id !== asked.question.question_id || ended(asked) || e.seq <= asked.seq) return asked
   if (e.kind === 'complete') {
     // Without its own text, the chunks are the answer only when none is missing.
     const whole = e.text ?? (e.seq === asked.seq + 1 ? asked.chunks.join('') : null)

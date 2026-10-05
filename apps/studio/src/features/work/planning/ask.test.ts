@@ -90,6 +90,35 @@ describe('an answer from Sophia', () => {
     assert.equal(stalled(done, wait('q3', 1)), done)
   })
 
+  it('takes nothing more once a send has ended: failed past its wait, failed or unavailable as said (Codex F-025)', () => {
+    const late = [event('q1', 2, 'chunk', 'Late. '), event('q1', 2, 'complete', 'Late, whole.')]
+    // Past its wait: its words, its reason and what had come are kept as they were.
+    const partly = after('q1', event('q1', 1, 'chunk', 'It waits '))
+    const timedOut = stalled(partly, wait('q1', 1))
+    for (const e of late) assert.equal(heard(timedOut, e), timedOut)
+    assert.deepEqual(
+      [timedOut.state, timedOut.chunks, timedOut.reason],
+      ['failed', ['It waits '], 'No answer came in time. Nothing was changed.'],
+    )
+    // Failed or unavailable as the conversation said it.
+    const failed = after('q1', event('q1', 1, 'failed', 'I couldn’t reach the conversation just now.'))
+    const unavailable = after('q1', event('q1', 1, 'unavailable', 'Sophia isn’t reachable right now.'))
+    for (const ended of [failed, unavailable]) for (const e of late) assert.equal(heard(ended, e), ended)
+    // Kept unanswerable here, with why: nothing comes into it either.
+    const kept = unanswerable(question('q1'), 'The conversation isn’t connected here now.')
+    assert.equal(heard(kept, event('q1', 1, 'complete', 'Whole.')), kept)
+    // Through its send, too; and asked again, the next send hears its own answer, not the last one's.
+    const first = { question_id: 'q1', send: 1 }
+    assert.equal(heardOn(timedOut, first, event('q1', 2, 'complete', 'Late, whole.')), timedOut)
+    const again = askedAgain(timedOut)
+    assert.equal(heardOn(again, first, event('q1', 2, 'complete', 'Late, whole.')), again)
+    const next = { question_id: 'q1', send: 2 }
+    const live = heardOn(heardOn(again, next, event('q1', 1, 'chunk', 'On ')), next, event('q1', 2, 'chunk', 'time.'))
+    assert.deepEqual([live.state, shownOf(live)], ['answering', 'On time.'])
+    const whole = heardOn(live, next, event('q1', 3, 'complete'))
+    assert.deepEqual([whole.state, whole.answer], ['answered', 'On time.'])
+  })
+
   it('asked again, it is the same question on its next send, and nothing of the last send is kept (Codex F-004)', () => {
     const partly = heard(asking(question('q1')), event('q1', 1, 'chunk', 'It waits '))
     const failed = stalled(partly, { question_id: 'q1', send: 1, seq: 1 })

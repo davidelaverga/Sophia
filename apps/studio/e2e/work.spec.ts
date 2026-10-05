@@ -2615,3 +2615,38 @@ test('codex · F-024 · not confirmed while the read is stale, it is kept, never
   expect(sent).toHaveLength(2)
   expect(sent[1]).toEqual(sent[0])
 })
+
+// ---- CX-0023 (Codex on #74; GitHub 4180194401): a send that has ended hears nothing more. ----
+
+test('codex · F-025 · a send past its wait stays failed: its own late answer changes nothing; asked again, the next answers', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&ask=flaky`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  const answer = sheet.locator('.ask-a')
+  const none = sheet.locator('.ask-none')
+  const again = sheet.getByRole('button', { name: 'Ask again' })
+  await sheet.getByRole('button', { name: 'Why is it waiting?' }).click()
+  await page.clock.runFor(5_000) // the first send fails, said so
+  await again.click() // 5 s: the second send
+  await page.clock.runFor(25_000) // 30 s: a part of its answer, then nothing
+  await expect(answer).toHaveText(/^It waits\s*$/)
+  await page.clock.runFor(30_000) // 60 s: past its wait
+  const failed = 'No answer came in time. Nothing was changed.'
+  await expect(none).toContainText(failed)
+  await expect(again).toBeVisible()
+  // 75 s: its own whole answer comes, late. What was said stays, and so does Ask again.
+  await page.clock.runFor(16_000)
+  await expect(none).toContainText(failed)
+  await expect(sheet.getByText('Too late: the second send’s answer.')).toHaveCount(0)
+  await expect(answer).not.toContainText('Too late')
+  await expect(again).toBeVisible()
+  // Asked again: the next send, and its own answer.
+  await again.click()
+  await page.clock.runFor(20_000)
+  await expect(answer).toHaveText('It waits for Davide’s answer, said on the third send.')
+  await expect(none).toHaveCount(0)
+  const sent = await questioned(page)
+  expect(sent).toHaveLength(3)
+  expect(new Set(sent.map((q) => JSON.stringify(q))).size).toBe(1)
+})
