@@ -6,7 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const REPORT = '00000000-0000-4000-8000-0000000000b1'
 const V1 = '00000000-0000-4000-8000-0000000000d1'
-const LOCATOR = /^\d+\.\d+\.\d+\.[0-9a-f]{8}$/
+const LOCATOR = /^\d+\.\d+\.\d+$/
 
 const pane = (page: Page) => page.getByRole('complementary', { name: 'Fixture report' })
 const bar = (page: Page) => page.getByRole('toolbar', { name: 'The selected passage' })
@@ -74,6 +74,7 @@ test('link · Link copies where the passage is, with no word of it; opened, it i
   expect(link.searchParams.get('version')).toBe(V1)
   expect(link.searchParams.get('passage')).toMatch(LOCATOR)
   expect(link.href.toLowerCase()).not.toContain('read')
+  expect(link.href.toLowerCase()).not.toContain('once')
   await page.setViewportSize({ width: 1280, height: 420 })
   await page.goto(link.pathname + link.search)
   await expect(linked(page)).toHaveText('Read it once.')
@@ -101,7 +102,7 @@ test('link · a selection across paragraphs links its first paragraph’s part',
 })
 
 test('link · a passage not in the version says so', async ({ page }) => {
-  await page.goto(`/room.html?report=${REPORT}&version=${V1}&passage=0.0.3.00000000`)
+  await page.goto(`/room.html?report=${REPORT}&version=${V1}&passage=40.0.3`)
   await expect(pane(page).getByText('The fixture holds.')).toBeVisible()
   await expect(pane(page).locator('.report-passage-note')).toHaveText('This passage isn’t in this version.')
   expect(await lit(page)).toEqual([])
@@ -163,4 +164,18 @@ test('link · a passage with a citation is found though the sources come after t
   await page.evaluate(() => window.fixture?.releaseSources())
   await expect(linked(page)).toHaveCount(1)
   await expect.poll(async () => (await lit(page))[0] ?? '').toMatch(/^It cites one page/)
+})
+
+test('link · the Sources tab and back keep the passage lit', async ({ page }) => {
+  await open(page)
+  await paragraph(page, 'Read it once.').selectText()
+  const link = await copyLink(page)
+  await page.goto(link.pathname + link.search)
+  await expect(linked(page)).toHaveText('Read it once.')
+  await pane(page)
+    .getByRole('tab', { name: /^Sources/ })
+    .click()
+  await pane(page).getByRole('tab', { name: 'Document' }).click()
+  await expect(linked(page)).toHaveText('Read it once.')
+  await expect.poll(() => lit(page)).toEqual(['Read it once'])
 })

@@ -8,9 +8,9 @@ A report can be linked (`?report=…&version=…`), but only to its top. To poin
 
 ## What changes
 
-**«Link» in the passage bar** copies a link to that passage of that version: `?report=…&version=…&passage=<block>.<word>.<count>.<hash>`.
+**«Link» in the passage bar** copies a link to that passage of that version: `?report=…&version=…&passage=<block>.<word>.<count>`.
 
-**The link holds no words of the report.** It says where the passage is: its block, its first word there, how many words, and a short hash of those words (FNV-1a). Whoever holds the link reads nothing without access, and a server's request log, the history or a chat's preview hold nothing either. That is the house rule for URL parameters.
+**The link holds nothing of the report's text, not even a hash of it.** It says where the passage is: its block, its first word there, and how many words. A version's text never changes (it is content-addressed), so the place is enough. Whoever holds the link reads nothing without access, and nothing in a request log, the history or a chat's preview can be tested against a guess of the words. That is the house rule for URL parameters; a hash was dropped after review, since a short passage's hash can be found by trying words.
 
 **What is placed:**
 - in the block the selection begins in, every word it touches;
@@ -23,9 +23,9 @@ A report can be linked (`?report=…&version=…`), but only to its top. To poin
 - **No clipboard, or a refusal:** an insecure page or an old app view shows the link, focused and selected, to copy by hand.
 
 **Opening it:**
-- **Found:** the viewer opens that version and, once its sources are in (until then a citation is drawn as its label), checks the place against the hash. When the text moved, the same words are looked for elsewhere. Found, the passage is lit and brought into view, and its block takes the focus.
-- **Not found:** the pane says «This passage isn't in this version.» (a status, so it is announced).
-- **The parameter is read once:** once decided, it is taken out of the address, so another tab, a reload or another version never look for it again. The light stays while that version is on screen, again as the text re-renders, and goes with the version.
+- **Found:** the viewer opens that version and, once its sources are in (until then a citation is drawn as its label, which would shift the words), finds the place. The passage is lit and brought into view, and its block takes the focus. Where the browser has no Highlight API (Safari before 17.2), its words are selected instead.
+- **Not found** (the place isn't in this text): the pane says «This passage isn't in this version.» (a status, so it is announced).
+- **The parameter is read once:** once decided, it is taken out of the address, so a reload or another version never look for it again. The decision lives with the pane: the Sources tab and back keep the passage lit. The light stays while that version is on screen, again as the text re-renders, and goes with the version.
 
 **Only the version named:** a passage of v1 opened when v3 is current shows v1, as a version link does today.
 
