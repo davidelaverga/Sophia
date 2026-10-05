@@ -1270,8 +1270,33 @@ test('codex · a send that fails comes back beside words another tab kept meanwh
   await other.goto(`${PAGE}?handed=${encodeURIComponent('From B.')}`)
   await expect(field(other)).toHaveValue('From B.')
   // A's send fails: its words come back, and B's stay.
-  await expect(field(page)).toHaveValue(/From A\./, { timeout: 5000 })
+  await expect(field(page)).toHaveValue('From A.\nFrom B.', { timeout: 5000 })
   const kept = await page.evaluate(() => localStorage.getItem('sophia.personal.draft.v2.fixture') ?? '')
   expect(kept).toContain('From A.')
   expect(kept).toContain('From B.')
+})
+
+test('codex · with the device keeping nothing (site data blocked), words typed while a send fails stay', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(window, 'localStorage', {
+      get: () => {
+        throw new DOMException('blocked', 'SecurityError')
+      },
+    }),
+  )
+  await page.goto(`${PAGE}?slow=1&sendFails=1`)
+  await field(page).fill('Sent first.')
+  await page.keyboard.press('Enter')
+  await expect(field(page)).toHaveValue('')
+  await field(page).fill('Typed meanwhile.')
+  await expect(field(page)).toHaveValue(/Sent first\.[\s\S]*Typed meanwhile\.|Typed meanwhile\.[\s\S]*Sent first\./, {
+    timeout: 5000,
+  })
+})
+
+test('codex · words handed from Home before the space’s epoch is known wait for it, then go', async ({ page }) => {
+  await page.goto(`${PAGE}?handed=${encodeURIComponent('Before it all loaded.')}&epochAfter=800`)
+  await expect.poll(() => sent(page), { timeout: 5000 }).toEqual(['Before it all loaded.'])
 })

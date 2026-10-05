@@ -16,6 +16,7 @@ import {
   draftKey,
   draftOf,
   goingOut,
+  keptOnDevice,
   oneAtATime,
   onOpening,
   readKept,
@@ -210,11 +211,14 @@ function useDraft(account: string, epoch: number | undefined) {
   }
   useFollowsDevice(account, epoch, sending, show, setAt)
   // Kept with the epoch they are written in; none is known while the space loads, and nothing is typed then.
+  // What the device keeps now, or null where it keeps nothing (no epoch yet, site data blocked, storage full): then the
+  // page's own words are all there is, and the field goes by them.
   const keep = (change: (kept: ReturnType<typeof readKept>) => ReturnType<typeof readKept>) => {
     if (epoch === undefined) return null
     const now = change(readKept(account, epoch))
-    setAt(writeKept(account, now, epoch))
-    return now
+    const at = keptOnDevice(account, now, epoch)
+    setAt(at ?? epoch)
+    return at === null ? null : now
   }
   /** Words in the field: the device keeps them as its draft, with what is on its way (any tab's) as it is. */
   const set = (draft: Draft | null, why: string) => {

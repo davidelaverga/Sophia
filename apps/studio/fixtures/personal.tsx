@@ -281,6 +281,13 @@ function Personal() {
   const [notes, setNotes] = useState(query.get('notes') === 'open')
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
+  // `epochAfter=ms`: the space's epoch is known only that much later (both reads still on their way).
+  const [epochKnown, setEpochKnown] = useState(!query.has('epochAfter'))
+  useEffect(() => {
+    if (epochKnown) return undefined
+    const later = window.setTimeout(() => setEpochKnown(true), Number(query.get('epochAfter')))
+    return () => window.clearTimeout(later)
+  }, [epochKnown])
   // `handed=words`: words said to Sophia from Home, handed to the composer to send; `handedAfter=ms`: handed that
   // much later, not at once.
   const [handed, setHanded] = useState<{ words: string; id: number } | null>(() => {
@@ -313,7 +320,7 @@ function Personal() {
         account="fixture"
         name="Luis"
         space={space}
-        epoch={space.epoch}
+        epoch={epochKnown ? space.epoch : undefined}
         readBack={readBack}
         read={idle}
         projects={projects}

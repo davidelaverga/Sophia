@@ -40,6 +40,13 @@ Their useful P3s are fixed too:
 - docs on the right functions;
 - a check that can't pass vacuously.
 
+**Codex's second look (after the push), fixed:**
+- **#92 P1:** words from Home longer than one message wait in the field, said too long, and are never consumed and lost. A touch-size "Sophia answered".
+- **#96 P1:** a send that fails comes back beside the draft the device keeps now, so another tab's words kept meanwhile stay.
+  - Its check is a guard: in the fixture the other tab's words reach this one before the failure, so the race itself couldn't be staged. The mutant "back from this tab only" survives for that reason.
+- **Its review's P2:** where the device keeps nothing (site data blocked, storage full), `keep` now says so, so the field goes by the page's own words. Before, words typed during a failed send were lost there.
+- **Left for later:** two P2s (a month together on a visit with no turn today; "Look further back" showing progress), and one older P2 (words handed while the epoch is unknown, which doesn't reproduce in the fixture; a guard check is in).
+
 ## Evidence
 
 **Commands** (browser checks through `D:\Descargas\SophiaV4\.claude-guards\pw-safe.ps1`):
