@@ -292,13 +292,16 @@ interface FieldProps {
 const MOST = 4000
 const NEAR = 3600
 
-/** How full the field is, once it nears the most one message holds; at the most, why it takes no more. */
+/**
+ * How full the field is, once it nears the most one message holds: at the most, why it takes no more; past it (words
+ * heard or handed can go past), by how much.
+ */
 function Count({ length }: { length: number }) {
-  const full = length >= MOST
+  const over = length - MOST
   return (
-    <span id="c-count" className={`c3-count${full ? ' full' : ''}`}>
-      {Math.min(length, MOST).toLocaleString('en-US')} / {MOST.toLocaleString('en-US')}
-      {full && ' · the most one message holds'}
+    <span id="c-count" className={`c3-count${over >= 0 ? ' full' : ''}`}>
+      {length.toLocaleString('en-US')} / {MOST.toLocaleString('en-US')}
+      {over > 0 ? ` · ${String(over)} over` : over === 0 && ' · the most one message holds'}
     </span>
   )
 }
@@ -416,7 +419,8 @@ function useSend(
   return async (given?: Draft) => {
     const current = given ?? draft.current()
     const text = current?.text.trim() ?? ''
-    if (!current || !text || !ready || busy) return
+    // Past the most one message holds (words heard or handed), nothing goes: the count says how much over.
+    if (!current || !text || text.length > MOST || !ready || busy) return
     const words = { text, key: current.key }
     await oneAtATime(account, async (taken) => {
       if (draft.waits(words, taken)) return
@@ -529,7 +533,7 @@ export function PersonalComposer(props: Props) {
           type="submit"
           className="send has-tip"
           aria-label="Send"
-          disabled={!ready || !text.trim()}
+          disabled={!ready || !text.trim() || text.length > MOST}
           aria-disabled={busy || undefined}
         >
           <Icon name="send" />

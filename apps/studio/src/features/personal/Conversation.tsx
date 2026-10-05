@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon } from '@sophia/ui'
+import { onScreen } from '../../app/shortcuts.ts'
 import { usePopover } from '../../app/usePopover.ts'
 import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
@@ -165,6 +166,7 @@ interface TurnProps {
 
 /** Her words, copied: it says so (or that the browser refused) for a moment, then offers it again. */
 function Copy({ text }: { text: string }) {
+  const button = useRef<HTMLButtonElement>(null)
   const [said, setSaid] = useState<string | null>(null)
   useEffect(() => {
     if (!said) return undefined
@@ -174,13 +176,17 @@ function Copy({ text }: { text: string }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text)
-      setSaid('Copied')
     } catch {
       setSaid('Couldn’t copy')
+      return
     }
+    // A copy that settles once Personal is out of sight (the padlock shut, another place, signed out) is taken back:
+    // her words never stay on the clipboard behind the privacy screen.
+    if (button.current && onScreen(button.current)) setSaid('Copied')
+    else await navigator.clipboard.writeText('').catch(() => undefined)
   }
   return (
-    <button className="ghost c3-copy" type="button" onClick={() => void copy()}>
+    <button ref={button} className="ghost c3-copy" type="button" onClick={() => void copy()}>
       <span aria-live="polite">{said ?? 'Copy'}</span>
     </button>
   )
