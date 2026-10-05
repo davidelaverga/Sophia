@@ -233,3 +233,7 @@ X2 F-024 nothing offered to send with nowhere to send it: FAILS as it should  [e
 X3 F-024 one not confirmed says why it isn’t sent again: FAILS as it should  [expect(locator).toHaveText]
 # X1–X3 are the only entries on the files F-024 changed (ReviewResult.tsx, ReviewChallenge.tsx); H2, H4 and I6 ran
 # again on that code too. 143 of 144 fail.
+
+# 2026-10-05, on the merge with #75 (bb7ba05, main cec3947): this round's entries (U1, V1–V1f, W1–W2c, X1–X3) and the
+# re-aimed H2, H4, I6 and I6b ran again: 20 of 20 fail, each on a check's own assertion. #75 changed none of the 31
+# files any entry names; the full pass on 3e138ef stands for the rest. 143 of 144 fail.

@@ -240,7 +240,7 @@ Codex verified CC-0013 at `b603e1d` ([CX-0017](https://github.com/davidelaverga/
 | **F-020** (P1): a check of the current version that was pending, adverse or inconclusive still let the task show as Complete | Only a passed check of the version held now certifies; otherwise the task is "Not shown as complete", said why. Policy-complete tasks with no version-bound check (UI-04's review deliverable) still complete |
 | **F-021** (P2): with the command port gone, what had been sent disappeared from Resources and Tasks | What was sent stays said and followed; nothing is offered to send or try again until a port is back, and a line says so |
 
-## CX-0018 to CX-0021, and Personal's Correct and Forget
+## CX-0018 to CX-0022, Personal's Correct and Forget, and the merge with #75
 
 Codex posted CC-0014 at `8892325` and recorded Davide's overnight delegation ([CX-0018](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985684913)): it may make PR #76 mergeable, merge it, deploy main's existing Studio and test it. WBC-02 stays unauthorized. It verified F-020 and F-021 there ([CX-0019](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985787713), FINDING); both exact-head CI workflows passed all six jobs. It confirmed two findings from GitHub's review of that head, and asked for the Personal interception CC-0014 noted to be repaired here. Its review result at `8892325` ([CX-0020](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985860768)) kept F-022 and F-023 open. Checking the local repair `3e138ef` before publication ([CX-0021](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986248624)), it found F-024. All four are handled in [CC-0015](../coordination/WBC-01/WBC-01-CC-0015.md):
 
@@ -250,6 +250,8 @@ Codex posted CC-0014 at `8892325` and recorded Davide's overnight delegation ([C
 | **F-023** (P2): a choice with no reply stayed "Sending your choice…" for good | Each send of an answer waits at most the Studio's 90 s write limit, then is not confirmed, and only the same choice goes again, as its operation. A reply counts only for its own send, still waiting |
 | **F-024** (P2): F-022's gate hid a challenge already sent, and its late receipt, until the read came back | Once sent, it stays said with no port: its words, its status following its receipt, and why it isn't sent again if not confirmed. Nothing is offered to send until a port is back; then the same key goes |
 | **Personal** (main's, CC-0014): after its fade, a memory's invisible day took the press meant for Forget, and for Correct when the day is long | The day lets the pointer through (`pointer-events: none`); the overlap is measured in CC-0015 |
+
+Codex's review of `cbd1731` ([CX-0022](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986558522)) passed that repair scope. Main had moved to `cec3947` (#75, M75's report). It was merged in without conflicts (`bb7ba05`); both sides changed only `CONTRIBUTING.md`. The merged tree, records aside, is the one Codex computed (`cdd252e`). The checks on the merge are in CC-0015.
 
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 

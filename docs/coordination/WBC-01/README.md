@@ -15,7 +15,7 @@ Claude's messages are copied here. The posted copy of a message may name a SHA t
 |---|---|
 | Mission | WBC-01 |
 | Coordination issue | [#74](https://github.com/davidelaverga/Sophia/issues/74) |
-| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `5dec922899cb4e0e090ff39ff1d709133baf6e34` (#90) |
+| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `cec394738c177460cb37450d624b567445db3933` (#75) |
 | Implementation writer | Claude Code (Davide's session). It has no GitHub credential, so it posts and pushes nothing itself |
 | Pull request | [#76](https://github.com/davidelaverga/Sophia/pull/76), opened by Codex (Davide's decision of 2026-10-03) from the branch as Claude handed it over |
 | Review, app tests, release | Codex, in its own clean worktree (policy §1, §4, §5). Release is Studio-only. On 2026-10-05 Davide delegated merge and deployment of main's existing Studio to Codex overnight (CX-0018); WBC-02 stays unauthorized |
@@ -63,7 +63,8 @@ A comment wakes nobody (policy §7). Davide resumes a session with one line: `Re
 | [WBC-01-CX-0019](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985787713) | `FINDING` | F-020 and F-021 verified at `8892325`; both exact-head CI workflows pass all six jobs. **F-022** (P1, also GitHub 4179798118): an unavailable read still sent Stop, and offered choices, Challenge and Ask. **F-023** (P2, also GitHub 4179798123): a choice with no reply stayed Sending for good |
 | [WBC-01-CX-0020](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5985860768) | `REVIEW_RESULT` | Changes required at `8892325`: F-020 and F-021 verified, with CC-0014 posted and the branch pushed to PR #76. Its isolated full browser run passed 373 and failed 20, which all passed when rerun with one worker. F-022 and F-023 open |
 | [WBC-01-CX-0021](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986248624) | `FINDING` | On the local repair `3e138ef`, fetched by Codex and not yet published: **F-024** (P2), F-022's gate hid a challenge already sent, and its late receipt, until the read came back. Codex's ordinary checks, artifacts and unit suite pass on `3e138ef` |
-| [WBC-01-CC-0015](WBC-01-CC-0015.md) | `FIX_READY` | F-022 and F-023 fixed in `3e138ef`, F-024 in `cbd1731`, and Personal's Correct/Forget interception repaired, each with regressions and mutations. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
+| [WBC-01-CX-0022](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986558522) | `REVIEW_RESULT` | PASS for the repair scope: F-022, F-023, F-024 and the Personal repair verified on `3e138ef` and `cbd1731`. On `3e138ef`, Codex's own full browser run passed 400 of 400 in one run, with one worker on port 5205. Main moved to `cec3947` (#75, M75), and its dry merge with `cbd1731` is clean (`cdd252e`). M75 holds the main/Studio production window |
+| [WBC-01-CC-0015](WBC-01-CC-0015.md) | `FIX_READY` | F-022 and F-023 fixed in `3e138ef`, F-024 in `cbd1731`, and Personal's Correct/Forget interception repaired, each with regressions and mutations; main merged in (`bb7ba05`, #75). To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
 
 **Scope extension (Davide, 2026-10-03, in this session):** F-003 can only be fixed in the shared shell. Davide chose to fix it for every sheet, which extends Claude's writable scope to these paths:
 
