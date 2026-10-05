@@ -201,7 +201,7 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
   const mode = stageMode(room.feeds)
   const running = runningWork(snapshot)
   const sophia = observedSophia(room, snapshot, floor, running > 0)
-  const doing = useWorkWords(snapshot, projectId, identity)
+  const doing = useWorkWords(snapshot, projectId, identity, mode === 'light')
   const live = room.status === 'live' || room.status === 'reconnecting'
   const layout = [...people.map((p) => p.identity), ...room.feeds.map((f) => f.key)].join(' ')
   const geometry = useStageGeometry(stage, floor.holder?.present ? floor.holder.identity : null, mode, layout)

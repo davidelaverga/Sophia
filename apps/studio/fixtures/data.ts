@@ -6,6 +6,7 @@ import type {
   Event,
   Membership,
   MissionContext,
+  MissionEntry,
   MissionNotePolicy,
   RoomToken,
   Snapshot,
@@ -146,8 +147,11 @@ const policy: MissionNotePolicy = {
 
 const can = { available: true, reason: null }
 
-/** The brief at `revision`: what the panel reads; a newer one arrives with each background update. */
-export function mission(revision: number): MissionContext {
+/**
+ * The brief at `revision`: what the panel reads; a newer one arrives with each background update. `entries`: the
+ * notes members wrote (brief-data.ts); `noted`: whether the brief allows this person a note.
+ */
+export function mission(revision: number, entries: readonly MissionEntry[] = [], noted = true): MissionContext {
   return {
     projectId: PROJECT,
     title: 'Fixture project',
@@ -170,14 +174,14 @@ export function mission(revision: number): MissionContext {
     constraints: [],
     pending: [],
     decided: [],
-    entries: [],
+    entries,
     history: [],
     excluded: { olderEntries: 0, olderHistory: 0, legacyFrame: false },
     missing: [],
     work: [],
     notePolicy: policy,
     capabilities: {
-      recordNote: can,
+      recordNote: noted ? can : { available: false, reason: 'Notes are off for you here.' },
       propose: can,
       decide: can,
       correct: can,

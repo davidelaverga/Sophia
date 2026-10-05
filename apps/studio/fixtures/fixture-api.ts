@@ -28,6 +28,7 @@ import {
   type Description,
 } from './report-data.ts'
 import { readingRead } from './reading-data.ts'
+import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -82,6 +83,8 @@ interface Project {
   onFloor?: (actorId: string) => void
   /** The room moves (another member's change) just before the next pass reaches the API. */
   roomMoves?: boolean
+  /** The notes members wrote in the brief (brief-data.ts); absent, writing one is unexpected. */
+  notes?: Notes
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -173,10 +176,7 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
     served.push(`snapshot:${project.revision}`)
     return json(snapshotOf(project))
   }
-  if (method === 'GET' && path === `${base}/mission`) {
-    served.push(`mission:${project.revision}`)
-    return json(mission(project.revision))
-  }
+  if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path === `${base}/membership`) return json(membership)
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
@@ -218,6 +218,42 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
   const { next, reply } = editDescription(project.description, init?.body, membership.actorId)
   project.description = next
   return reply
+}
+
+/** The brief, and a note written in it, its withdrawal's preview and its withdrawal (brief-data.ts). */
+function missionAnswer(project: Project, method: string, path: string, init: RequestInit | undefined) {
+  const base = `/api/v1/projects/${PROJECT}/mission`
+  if (method === 'GET' && path === base) {
+    served.push(`mission:${project.revision}`)
+    return json(mission(project.revision, project.notes?.kept, !project.notes?.refused))
+  }
+  return project.notes ? notesAnswer(project.revision, project.notes, method, path, init) : null
+}
+
+/** A note written in the brief, or its withdrawal. */
+function notesAnswer(revision: number, notes: Notes, method: string, path: string, init: RequestInit | undefined) {
+  const base = `/api/v1/projects/${PROJECT}/mission/entries`
+  if (method === 'POST' && path === base) {
+    const kept = noteKept(notes, init?.body, revision, new Headers(init?.headers).get('idempotency-key') ?? '')
+    if (!kept) return null
+    served.push('note:kept')
+    if (!notes.loseReply) return json(kept)
+    notes.loseReply = false
+    return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
+  }
+  const entryId = new RegExp(`^${base}/([0-9a-f-]{36})/withdrawal$`).exec(path)?.[1]
+  return entryId ? withdrawal(revision, notes, method, entryId, init) : null
+}
+
+/** A note's withdrawal: what it would erase (GET), then the note withdrawn (POST). */
+function withdrawal(revision: number, notes: Notes, method: string, entryId: string, init: RequestInit | undefined) {
+  if (method === 'GET') {
+    const preview = withdrawalPreview(notes, entryId)
+    return preview && json(preview)
+  }
+  const withdrawn = method === 'POST' ? noteWithdrawn(notes, entryId, init?.body, revision) : null
+  if (withdrawn) served.push('note:withdrawn')
+  return withdrawn && json(withdrawn)
 }
 
 /** What the page posts: a room token, a goal's command, or the floor passed on. */

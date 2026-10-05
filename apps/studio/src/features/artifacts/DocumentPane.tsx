@@ -26,6 +26,7 @@ import {
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { MarkdownView } from './MarkdownView.tsx'
 import { PageDownload } from './PageDownload.tsx'
+import { PassageBar, type Passage } from './PassageBar.tsx'
 import type { ReportLink, ViewerFormat, ViewerTab } from './report-link.ts'
 import {
   currentOffer,
@@ -47,6 +48,7 @@ import { usePaneWidth } from './usePaneWidth.ts'
 import { useTransientStatus } from './useTransientStatus.ts'
 
 interface Props {
+  projectId: string
   identity: Identity
   link: ReportLink
   /** What opened the report, as the viewer read it at the click; null for a deep link. */
@@ -72,6 +74,8 @@ interface Props {
    */
   call?: ReactNode
   note: string | null
+  /** In the room: a selected passage goes to the chat's message (PassageBar). */
+  onAsk: ((passage: Passage) => void) | undefined
 }
 
 /** pdf.js loads with the first PDF opened, never with the Studio. */
@@ -320,8 +324,9 @@ export function DocumentPane(props: Props) {
   const status = useTransientStatus()
   const { focusSource, cite, choose } = useCitation(tab, onTab)
   const full = link.size === 'full'
+  const pane = useRef<HTMLElement>(null)
   return (
-    <aside className="report-pane" data-size={link.size} aria-labelledby="report-pane-title">
+    <aside ref={pane} className="report-pane" data-size={link.size} aria-labelledby="report-pane-title">
       {!full && <div className="report-pane-grip" aria-hidden onPointerDown={width.drag} />}
       <PaneTop
         topRef={top}
@@ -366,6 +371,7 @@ export function DocumentPane(props: Props) {
       <p className="report-status" role="status" data-error={status.error || undefined}>
         {status.text}
       </p>
+      <PassageBar pane={pane} version={data.version} viewer={props} />
     </aside>
   )
 }

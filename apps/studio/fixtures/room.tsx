@@ -25,6 +25,7 @@ import type { View } from '../src/app/route.ts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
+import type { Notes } from './brief-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked } from './data.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, sophiaLeaves } from './fake-livekit.ts'
 import {
@@ -81,6 +82,12 @@ interface Fixture {
   researchProgress: (reads: number) => void
   /** The running research task finished: it stays in the project's work, its result ready, as the API keeps it. */
   researchDone: () => void
+  /** Something is built on every note in the brief: withdrawing one would take it too (brief-data.ts). */
+  buildOnNotes: () => void
+  /** The notes members wrote in the brief, by their text. */
+  notes: () => readonly (string | null)[]
+  /** The next note written lands, but its reply is lost: the page can't tell it was kept. */
+  loseNextReply: () => void
   /** Reads of the research task fail from now on; given false, they succeed again. */
   failTask: (fails?: boolean) => void
   /** A live caption packet reaches this member, as the bridge sends what is said aloud (CX-0023): synthetic text. */
@@ -191,6 +198,15 @@ const project = {
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
   textTampered: query.get('tamper') === 'text',
   work: query.get('place') === 'work',
+  // `notes=off`: the brief allows this person no note.
+  notes: {
+    kept: [],
+    written: 0,
+    receipts: new Map(),
+    loseReply: false,
+    builtOn: false,
+    refused: query.get('notes') === 'off',
+  } as Notes,
 }
 installFixtureApi(project)
 
@@ -219,6 +235,13 @@ window.fixture = {
     project.researching = null
     project.work = true
     publish(project)
+  },
+  buildOnNotes: () => {
+    project.notes.builtOn = true
+  },
+  notes: () => project.notes.kept.map((entry) => entry.text),
+  loseNextReply: () => {
+    project.notes.loseReply = true
   },
   failTask: (fails = true) => {
     project.taskFails = fails
