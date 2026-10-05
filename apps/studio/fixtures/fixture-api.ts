@@ -7,6 +7,7 @@ import type {
   ExchangeReceipt,
   FloorRequest,
   GoalCommand,
+  Membership,
   Receipt,
   Snapshot,
 } from '@sophia/contracts'
@@ -38,6 +39,7 @@ import {
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
 import { focusRequest, focusSet, type Showing } from './focus-data.ts'
+import { closed, MEETING, meetingList, recapOf, type Meeting } from './meeting-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -63,6 +65,8 @@ interface Project {
   pilot?: boolean
   /** Someone is waiting at the door (report-data.ts). */
   waiting: boolean
+  /** This viewer's role in the project (`role=viewer`); the fixture's own, admin, otherwise. */
+  role?: Membership['role']
   /** The report's description on Knowledge (report-data.ts). */
   description: Description
   /**
@@ -100,6 +104,8 @@ interface Project {
   notes?: Notes
   /** What the room shows to everyone (focus-data.ts); absent, showing is unexpected. */
   showing?: Showing
+  /** The meeting the room is in (meeting-data.ts, A12); absent, its requests are unexpected. */
+  meeting?: Meeting
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -203,13 +209,81 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
     served.push(`snapshot:${project.revision}`)
     return json(snapshotOf(project))
   }
-  if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
-  if (method === 'GET' && path === `${base}/membership`) return json(membership)
+  const records = recordsAnswer(project, method, path, init)
+  if (records !== undefined) return records
+  if (method === 'GET' && path === `${base}/membership`) return json(membershipOf(project))
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
   if (method === 'POST' || method === 'PUT') return written(project, method, path, init)
   return answerReports(project, method, url, init)
+}
+
+/** The brief, the meeting's records and the invitations sent (none) (A08, A12); undefined for any other request. */
+function recordsAnswer(project: Project, method: string, path: string, init: RequestInit | undefined) {
+  const base = `/api/v1/projects/${PROJECT}`
+  if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
+  if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
+  if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
+  return undefined
+}
+
+/** This viewer's membership: the fixture's own, in the role the page asked for. */
+const membershipOf = (project: Project) => ({ ...membership, role: project.role ?? membership.role })
+
+/** The meeting's list and its recap (A12, meeting-data.ts). */
+function meetingAnswer(project: Project, path: string): Promise<Response> | Response | null {
+  const meeting = project.meeting
+  const base = `/api/v1/projects/${PROJECT}/meetings`
+  if (!meeting) return null
+  if (path === base) return json(meetingList(meeting))
+  if (path !== `${base}/${MEETING}/recap`) return null
+  const { held, fail } = meeting.recaps
+  if (fail) return unavailable()
+  served.push(`recap:${meeting.closedAt ? 'closed' : 'running'}`)
+  const recap = recapOf(meeting)
+  if (!held) return json(recap)
+  return new Promise((resolve) => held.push(() => resolve(json(recap))))
+}
+
+/** The API's answer while it can't read the records (packages/domain/src/errors.ts). */
+const unavailable = () =>
+  new Response(
+    JSON.stringify({
+      code: 'unavailable',
+      message: 'The records can’t be read right now',
+      requestId: '00000000-0000-4000-8000-0000000000bf',
+      retry: 'safe_read',
+    }),
+    { status: 503 },
+  )
+
+/** A close by a member who may only read: closing is an editor's or an admin's (A12). */
+const notAllowed = () =>
+  new Response(
+    JSON.stringify({
+      code: 'forbidden',
+      message: 'Only editors and admins close a meeting',
+      requestId: '00000000-0000-4000-8000-0000000000be',
+      retry: 'never',
+    }),
+    { status: 403 },
+  )
+
+/** The meeting closed for everyone (A12): once, whatever key a later close carries. */
+function meetingClosed(project: Project, init: RequestInit | undefined): Promise<Response> | Response | null {
+  const meeting = project.meeting
+  if (!meeting) return null
+  if (project.role === 'viewer') return notAllowed()
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const first = meeting.closes.size === 0
+  const receipt = closed(meeting, key, project.revision)
+  if (first) served.push('meeting:closed')
+  if (meeting.loseReply) {
+    meeting.loseReply = false
+    return Promise.reject(new TypeError('Failed to fetch')) // it closed; the page never hears so
+  }
+  return new Response(JSON.stringify(receipt), { status: 202, headers: { 'content-type': 'application/json' } })
 }
 
 /** What the page writes: the room's focus (PUT), else what it posts. */
@@ -362,6 +436,7 @@ const isContribution = (value: unknown): value is { text: string; intent: Contri
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/contributions`) return contributed(project, init)
+  if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
   if (path === `${base}/room-token`) return json(roomToken)
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)

@@ -146,6 +146,7 @@ const inCall = (call: ProjectCall, onReturn: () => void): InCall & { projectId: 
   note: call.note,
   onReturn,
   onVoice: () => void call.leaveTextMode(),
+  // Quiet: the call's project goes with the call from here, so no recap could show (MeetingRecap; A13's Updates will).
   onLeave: () => void call.leave(),
   onMicrophone: (on) => void call.setMicrophone(on),
   onCamera: (on) => void call.setCamera(on),

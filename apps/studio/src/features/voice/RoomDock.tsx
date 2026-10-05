@@ -214,7 +214,7 @@ function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPa
         type="button"
         className="round leave has-tip"
         aria-label="Leave the room"
-        onClick={() => void room.leave()}
+        onClick={() => void room.leave({ pressed: true })}
       >
         <Icon name="leave" />
         <Tip label="Leave the room" />

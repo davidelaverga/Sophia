@@ -52,7 +52,8 @@ import { PlanTab } from '../src/features/work/planning/PlanTab.tsx'
 import { seenKey } from '../src/features/work/planning/seen.ts'
 import { accepted, boardOf, forYou, shownPlan } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
-import { identity, PROJECT } from './data.ts'
+import { identity, membership, PROJECT } from './data.ts'
+import { newMeeting } from './meeting-data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { actions as requests, NOW, observations, resources as owned, tightClaude } from './resources-data.ts'
@@ -178,6 +179,16 @@ installFixtureApi({
   textHeld: false,
   textTampered: false,
   work: false,
+  // A12: a call left from here has a meeting that left nothing (MeetingRecap's empty recap).
+  meeting: newMeeting(() => ({
+    people: [{ actorId: membership.actorId }],
+    guests: 0,
+    decided: [],
+    made: [],
+    noted: [],
+    open: [],
+    work: [],
+  })),
 })
 window.workFixture = { unexpected, answered: answers, commands, receipts, questions }
 const nothing = () => undefined

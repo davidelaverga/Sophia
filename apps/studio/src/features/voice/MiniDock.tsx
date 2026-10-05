@@ -26,7 +26,7 @@ export function RoomSwitches({ room, side = 'top' }: { room: ProjectRoom; side?:
   const leave = () => {
     const sheet =
       document.activeElement instanceof HTMLElement ? document.activeElement.closest('[role="dialog"]') : null
-    void room.leave()
+    void room.leave({ pressed: true })
     if (sheet instanceof HTMLElement) sheet.focus()
   }
   return (

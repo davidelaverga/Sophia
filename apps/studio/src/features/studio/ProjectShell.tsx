@@ -10,6 +10,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { routePath, type View } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
+import { VISION } from '../../app/vision.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership } from '../access/useAccess.ts'
@@ -23,7 +24,8 @@ import { lookingText } from '../voice/sophia-view.ts'
 import { useHeldCaptions } from '../voice/StageCaptions.tsx'
 import { useStageMade } from '../voice/StageMade.tsx'
 import { showRenderOf } from '../voice/StagePresent.tsx'
-import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
+import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
+import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
@@ -110,7 +112,7 @@ export interface ProjectCall {
   looking: string | null
   /** What stopped a device in this call, in words, or null. */
   note: string | null
-  leave: () => Promise<void>
+  leave: (how?: LeaveHow) => Promise<void>
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
@@ -172,7 +174,7 @@ function useReportCall(
     latest.current = room
   })
   const [switches] = useState(() => ({
-    leave: () => latest.current.leave(),
+    leave: (how?: LeaveHow) => latest.current.leave(how),
     setMicrophone: (on: boolean) => latest.current.setMicrophone(on),
     setCamera: (on: boolean) => latest.current.setCamera(on),
     setScreenShare: (on: boolean) => latest.current.setScreenShare(on),
@@ -400,10 +402,13 @@ function ProjectBody(props: BodyProps) {
       canDecide={canInvite(membership)}
     />
   )
+  // What the meeting left, on leaving it from any view (A12, behind the vision flag).
+  const recap = VISION && <MeetingRecapOnLeave {...{ projectId, identity, room, snapshot, membership }} />
   if (view === 'studio') {
     return withViewer(
       <>
         {lobby}
+        {recap}
         <StudioShell
           projectId={projectId}
           identity={identity}
@@ -423,6 +428,7 @@ function ProjectBody(props: BodyProps) {
   return withViewer(
     <>
       {lobby}
+      {recap}
       <main className={pageClass(work, props.plans)}>
         {resources ?? <PageBody {...props} />}
         {work && pulse}

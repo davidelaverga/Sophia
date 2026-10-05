@@ -1,0 +1,81 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import type { MeetingRecap } from '../../api/vision.ts'
+import { recapHead, recapSections, recapText } from './recap-view.ts'
+
+const names = new Map([
+  ['me', 'you'],
+  ['marco', 'Marco'],
+])
+const nameOf = (id: string) => names.get(id) ?? 'a member'
+
+const recap = (over: Partial<MeetingRecap> = {}): MeetingRecap => ({
+  meetingId: 'm',
+  startedAt: '2026-10-05T10:00:00.000Z',
+  endedAt: null,
+  minutes: 42,
+  people: [{ actorId: 'me' }, { actorId: 'marco' }],
+  guests: 0,
+  decided: [],
+  made: [],
+  noted: [],
+  open: [],
+  work: [],
+  ...over,
+})
+
+describe('the recap’s head', () => {
+  it('says how long it lasted and who was there; guests only counted', () => {
+    assert.equal(recapHead(recap()), '42 minutes · 2 members')
+    assert.equal(
+      recapHead(recap({ minutes: 1, people: [{ actorId: 'me' }], guests: 2 })),
+      '1 minute · 1 member · 2 guests',
+    )
+    assert.equal(recapHead(recap({ minutes: 0 })), 'Under a minute · 2 members')
+  })
+})
+
+describe('the recap’s sections', () => {
+  const full = recap({
+    decided: [
+      {
+        decisionId: 'd',
+        statement: 'Pilot with 14 teams',
+        proposedBy: 'marco',
+        decidedBy: 'me',
+        at: 'x',
+        undoable: true,
+      },
+    ],
+    made: [{ artifactId: 'a', artifactVersionId: 'v', title: 'Fixture report', versionNumber: 2, askedBy: 'me' }],
+    noted: [
+      { entryId: 'n1', kind: 'observation', text: 'Two teams left', authoredBy: 'member', actorId: 'marco', at: 'x' },
+      { entryId: 'n2', kind: 'observation', text: 'The fixture holds', authoredBy: 'sophia', actorId: 'me', at: 'x' },
+    ],
+  })
+
+  it('names who did what, each from its record; a section with nothing is left out', () => {
+    const sections = recapSections(full, nameOf)
+    assert.deepEqual(
+      sections.map((s) => s.title),
+      ['Decided', 'Made', 'Kept'],
+    )
+    assert.equal(sections[0]?.lines[0]?.by, 'proposed by Marco, decided by you')
+    assert.equal(sections[1]?.lines[0]?.text, 'Fixture report · v2')
+    assert.deepEqual(
+      sections[2]?.lines.map((l) => l.by),
+      ['kept by Marco', 'Sophia’s paraphrase'],
+    )
+  })
+
+  it('copies as plain text: the head, then each section’s lines; nothing kept says so', () => {
+    const text = recapText('Fixture project', full, nameOf)
+    assert.ok(text.startsWith('Fixture project\n42 minutes · 2 members\n'))
+    assert.ok(text.includes('\nDecided\n- Pilot with 14 teams (proposed by Marco, decided by you)'))
+    assert.ok(text.includes('- Two teams left (kept by Marco)'))
+    assert.equal(
+      recapText('Fixture project', recap(), nameOf),
+      'Fixture project\n42 minutes · 2 members\nNothing was decided, made or kept in this meeting.',
+    )
+  })
+})

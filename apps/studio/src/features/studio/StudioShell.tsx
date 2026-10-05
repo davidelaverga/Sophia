@@ -121,7 +121,7 @@ function useKnownGuests(room: ProjectRoom): ReadonlySet<string> {
 }
 
 /** Names the room has known this visit, by identity, so a line keeps its author's name after they leave. */
-function useKnownNames(room: ProjectRoom): ReadonlyMap<string, string> {
+export function useKnownNames(room: ProjectRoom): ReadonlyMap<string, string> {
   const [known, setKnown] = useState<ReadonlyMap<string, string>>(() => new Map())
   const merged = mergeNames(known, room.participants)
   if (merged !== known) setKnown(merged)

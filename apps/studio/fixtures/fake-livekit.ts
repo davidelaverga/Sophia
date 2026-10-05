@@ -6,6 +6,7 @@
 // feeds come from fake-people.ts. Nothing else in the Studio is replaced.
 import { RoomEvent, type Room } from 'livekit-client'
 import { CHAT_REPLY_TOPIC, encodeChatPacket, type ChatPacket } from '@sophia/contracts/room-chat'
+import type { CallEnd } from '../src/features/voice/call-end.ts'
 import type { RoomCallbacks, RoomConnection } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
 import { listenToSophia } from '../src/features/voice/sophia-channel.ts'
@@ -41,9 +42,9 @@ function fromSophia(packet: ChatPacket): void {
   emit(RoomEvent.DataReceived, encodeChatPacket(packet), SOPHIA, undefined, CHAT_REPLY_TOPIC)
 }
 
-/** The call is lost, as LiveKit reports a connection gone. */
-export function dropCall(): void {
-  ended?.('dropped')
+/** The call ends without this person leaving: lost by default, as LiveKit reports a connection gone. */
+export function dropCall(why: CallEnd = 'dropped'): void {
+  ended?.(why)
 }
 
 /** The bridge tells this reader a result is ready, as its chat notice arrives (SMC-M03 S6). */

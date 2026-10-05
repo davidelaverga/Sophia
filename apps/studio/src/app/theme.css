@@ -3937,3 +3937,68 @@ div.empty {
     margin-bottom: 7px;
   }
 }
+/* What the meeting left (MeetingRecap): the head, then each section's lines, each with who and how under it. */
+.recap {
+  display: grid;
+  gap: 18px;
+}
+.recap-head {
+  color: var(--text-2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.recap-section {
+  display: grid;
+  gap: 8px;
+}
+.recap-section h3 {
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.recap-section ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recap-section li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 12px;
+  align-items: baseline;
+}
+.recap-line {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.recap-by {
+  grid-column: 1;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.recap-section li > .text-button {
+  grid-row: 1;
+  grid-column: 2;
+}
+.recap-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.recap-said {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.recap-text {
+  width: 100%;
+  font-size: 12.5px;
+  resize: vertical;
+}
