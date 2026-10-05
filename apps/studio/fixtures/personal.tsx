@@ -9,7 +9,7 @@
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
-import { StrictMode, useMemo, useRef, useState } from 'react'
+import { StrictMode, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Sending } from '../src/features/personal/conversation-view.ts'
 import type { TalkLine } from '../src/features/personal/extras.ts'
@@ -275,11 +275,18 @@ function Personal() {
   const [notes, setNotes] = useState(query.get('notes') === 'open')
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
-  // `handed=words`: words said to Sophia from Home, handed to the composer to send.
-  const [handed, setHanded] = useState(() => {
+  // `handed=words`: words said to Sophia from Home, handed to the composer to send; `handedAfter=ms`: handed that
+  // much later, not at once.
+  const [handed, setHanded] = useState<{ words: string; id: number } | null>(() => {
     const words = query.get('handed')
-    return words ? { words, id: 1 } : null
+    return words && !query.has('handedAfter') ? { words, id: 1 } : null
   })
+  useEffect(() => {
+    const words = query.get('handed')
+    if (!words || !query.has('handedAfter')) return undefined
+    const later = window.setTimeout(() => setHanded({ words, id: 1 }), Number(query.get('handedAfter')))
+    return () => window.clearTimeout(later)
+  }, [])
   return (
     <div className="places" data-place="personal">
       {/* The places' bar, as Places draws it above every place: a talk must cover it too. */}

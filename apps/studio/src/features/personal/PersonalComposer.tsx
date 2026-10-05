@@ -409,9 +409,10 @@ function useHanded(
     onHanded()
     const { words } = handed
     // Into the field, after what the person may have typed meanwhile (addWords).
-    if (what === 'keep') addWords(draft, words, HANDED)
-    // Longer than one message (Home's line has no limit): they wait in the field to be shortened, said so.
-    else if (words.length > MOST) addWords(draft, words, HANDED_LONG)
+    // Longer than one message (Home's line has no limit): they wait in the field to be shortened, said so, whether or
+    // not the space could take them now.
+    if (words.length > MOST) addWords(draft, words, HANDED_LONG)
+    else if (what === 'keep') addWords(draft, words, HANDED)
     else
       // Declined: another tab's message is on its way (a send failing before that is known says the same, the words
       // safe in the field). A composer that went meanwhile (signing out, an erasure) takes nothing back.

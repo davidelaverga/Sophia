@@ -1229,7 +1229,23 @@ test('codex · handed words longer than one message wait in the field, said too 
   const long = 'b'.repeat(4100)
   await page.goto(`${PAGE}?handed=${long}`)
   await expect(field(page)).toHaveValue(long)
-  await expect(page.locator('.ps-composer .chat-line', { hasText: 'on its way' })).toHaveCount(0)
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText(
+    'From Home · longer than one message: shorten it to send',
+  )
   await expect(page.locator('#c-count')).toContainText('100 over')
   expect(await sent(page)).toEqual([])
+})
+
+test('codex · handed words too long, arriving offline, say too long once back, not “send when ready”', async ({
+  page,
+  context,
+}) => {
+  const long = 'b'.repeat(4100)
+  await page.goto(`${PAGE}?handed=${long}&handedAfter=600`)
+  await context.setOffline(true)
+  await expect(field(page)).toHaveValue(long)
+  await context.setOffline(false)
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText(
+    'From Home · longer than one message: shorten it to send',
+  )
 })
