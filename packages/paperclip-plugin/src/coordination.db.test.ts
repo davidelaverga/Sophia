@@ -440,7 +440,7 @@ describe('control', () => {
   })
 
   async function failing() {
-    const fault: { update: boolean; wake: 'before' | 'after' | null } = { update: false, wake: null }
+    const fault: { update: boolean; wake: 'before' | 'after' | 'not_queued' | null } = { update: false, wake: null }
     const p = paperclip({ fails: { update: () => fault.update, wake: () => fault.wake } })
     const c = commissionOf()
     await p.request(commissionRequest(c))
@@ -497,6 +497,23 @@ describe('control', () => {
     assert.deepEqual(retry.body, { outcome: 'applied', issueId, status: 'todo', wakeQueued: false })
     assert.equal(await runsOf(issueId), runs + 1, 'no second run')
     assert.equal(await stateOf('resume-d'), 'applied')
+  })
+
+  it('a Resume whose wakeup the host did not queue is not delivered: it is asked again, never answered applied (WBC-02-CX-0007)', async () => {
+    const { p, c, issueId, fault } = await failing()
+    await p.request(controlRequest(c, issueId, 'hold', 'hold-n'))
+    const runs = await runsOf(issueId)
+    fault.wake = 'not_queued'
+    const refused = await p.request(controlRequest(c, issueId, 'resume', 'resume-n'))
+    assert.equal(refused.status, 503)
+    assert.equal((code(refused.body) as { code: string }).code, 'wake_not_queued')
+    assert.equal(await stateOf('resume-n'), 'pending', 'not delivered')
+    assert.equal(await runsOf(issueId), runs)
+    fault.wake = null
+    await ageAsk('resume-n')
+    const retry = await p.request(controlRequest(c, issueId, 'resume', 'resume-n'))
+    assert.deepEqual(retry.body, { outcome: 'applied', issueId, status: 'todo', wakeQueued: true })
+    assert.equal(await runsOf(issueId), runs + 1)
   })
 
   it('a crash after the effect but before it was recorded re-applies on the resend, idempotently', async () => {

@@ -54,7 +54,12 @@ runWorker(plugin, import.meta.url)
 `,
   )
   writeFileSync(join(entries, 'manifest.ts'), `import { manifest } from ${manifest}\nexport default manifest\n`)
-  writeFileSync(join(entries, 'adapter.ts'), `export { createServerAdapter } from ${adapter}\n`)
+  // Paperclip loads createServerAdapter; the factory and the unreachable error are exported for
+  // scripts/paperclip-host-probe.mjs, which runs this same bundle in the pin's heartbeat with a scripted Sophia.
+  writeFileSync(
+    join(entries, 'adapter.ts'),
+    `export { createServerAdapter, createSophiaDshAdapter, SophiaUnreachable } from ${adapter}\n`,
+  )
   writeFileSync(
     join(entries, 'bindings.check.ts'),
     `import type { PaperclipPluginManifestV1, PluginApiRequestInput, PluginContext } from '@paperclipai/plugin-sdk'

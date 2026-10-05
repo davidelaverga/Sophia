@@ -25,3 +25,5 @@ M19 concurrent resends of a stale ask: one claims it, the host is asked once (pl
 M20 an older pending control never undoes a later one that took effect (plugin): FAILS as it should
 M21 a delivery key resent with another operation is refused (plugin): FAILS as it should
 M22 the plugin's SQL keeps to the pin's ctx.db rules (a write through query is refused, as by the host) (plugin, WBC-02-CX-0004): FAILS as it should
+M23 a run that ended on Sophia's definite answer (held, a review blocked, a denied permit) completes, so the pinned host does not leave the reviewer in error (adapter, WBC-02-CX-0007; caught by execute.test.ts and by scripts/paperclip-host-probe.mjs on the pin's heartbeat): FAILS as it should
+M24 a wakeup the host did not queue ({queued: false}) is not delivered: 503 wake_not_queued (plugin, WBC-02-CX-0007): FAILS as it should

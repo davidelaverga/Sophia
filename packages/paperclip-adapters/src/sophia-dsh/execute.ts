@@ -16,6 +16,13 @@
  *    taken for an observation. A Hold Sophia never confirmed is said as unconfirmed, never as held or released.
  * 5. Report: the run's own usage (per_run; a cost Sophia could not settle is null, never zero), the native session, and
  *    a published review as success. A review with adverse findings is a successful review, not acceptance.
+ * 6. As the pinned host reads a result, an error message makes a failed run and a failed run leaves the managed
+ *    reviewer in error, so no later wakeup of it is queued (Codex WBC-02-CX-0007). A run that ended on Sophia's own
+ *    definite answer (held, stopped, withdrawn, a review that ended blocked or failed, a denied permit, an observer let
+ *    go) did its job: it completes, with Sophia's outcome as its summary and `resultJson.sophiaOutcome`; Sophia's
+ *    record of the work is unchanged. A run Paperclip cancelled keeps its error (the host records it cancelled, which
+ *    leaves the agent idle), and so does a run that could not work with Sophia at all (unreachable, a refused
+ *    credential, no issue): those need an operator.
  * @module @sophia/paperclip-adapters/sophia-dsh/execute
  */
 import type { CoordinationObservation, CoordinationRunRequest } from '@sophia/contracts'
@@ -251,7 +258,35 @@ async function permitted(
   return report(await ask(() => deps.client.observe({ ...run, final: true })), watched)
 }
 
+/** The codes of an ending that is Sophia's definite answer, not a failure of this run. */
+const SOPHIA_ANSWERED =
+  /^sophia_(held|stopped|withdrawn|review_blocked|review_failed|observer_released|hold_unsettled|stop_unsettled|permit_denied:.+)$/
+
+/**
+ * The result as the pinned host should read it (`heartbeat.ts` 25132–25139: exit code 0, no error message, no signal
+ * is a succeeded run; anything else failed, unless the host cancelled the run itself). Step 6 above.
+ */
+export function forHost(result: AdapterExecutionResult, cancelled: boolean): AdapterExecutionResult {
+  const code = result.errorCode ?? null
+  if (cancelled || code === null || !SOPHIA_ANSWERED.test(code)) return result
+  const { errorCode: _code, errorMessage, ...rest } = result
+  return {
+    ...rest,
+    exitCode: 0,
+    signal: null,
+    timedOut: false,
+    summary: errorMessage ?? code,
+    resultJson: { ...rest.resultJson, sophiaOutcome: code },
+  }
+}
+
 export async function execute(ctx: AdapterExecutionContext, deps: ExecuteDeps): Promise<AdapterExecutionResult> {
+  const result = await observe(ctx, deps)
+  return forHost(result, ctx.signal?.aborted === true)
+}
+
+/** The run itself: its issue, its permit, its observation, its report. */
+async function observe(ctx: AdapterExecutionContext, deps: ExecuteDeps): Promise<AdapterExecutionResult> {
   const issueId = text(ctx.context.issueId) ?? text(ctx.context.taskId)
   if (issueId === null)
     return failure(

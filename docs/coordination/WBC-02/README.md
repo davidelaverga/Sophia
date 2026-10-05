@@ -18,3 +18,5 @@ The mission's protocol is the packet's `operations/CLAUDE_CODEX_PROTOCOL.md` (v1
 | [WBC-02-CC-0001](WBC-02-CC-0001.md) | `REVIEW_REQUEST` + `OPS_REQUEST` (draft) | the PR head for Codex's review; decisions D1–D5 and operations 1–7 for Davide. Not posted: no thread |
 | WBC-02-CX-0001, WBC-02-CX-0002 (Codex, on PR #107) | `FINDING`, `REVIEW_FINDINGS` | the shared-boundary conflict with SDD-01; two control findings |
 | [WBC-02-CC-0002](WBC-02-CC-0002.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` | the boundary correction and both control fixes, posted on PR #107 with its exact SHA |
+| WBC-02-CX-0005 to CX-0007 (Codex, on PR #107) | `VERIFICATION_RESULT`, `REVIEW_FINDING` | membership revocation, a browser smoke, and a Sophia ending that left the reviewer in error |
+| [WBC-02-CC-0003](WBC-02-CC-0003.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` | the run result as the pinned host reads it, a wakeup it did not queue, and the host probe |

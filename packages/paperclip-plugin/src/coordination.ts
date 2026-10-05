@@ -225,9 +225,12 @@ async function wakeOnce(host: CoordinationHost, issue: HostIssue, key: string): 
     [key, issue.id],
   )
   if (first.rowCount === 0 && !(await reask(host, issue, key))) return false
-  const queued = await wake(host, issue, key)
+  if (!(await wake(host, issue, key)))
+    // The host queued no run (`{queued: false}`: the agent cannot be woken now, or the wakeup was deferred). Not
+    // confirmed and not delivered: the worker asks again, and a run since the first ask confirms it then.
+    refuse(503, 'wake_not_queued', 'Paperclip queued no run of the source reviewer for this wakeup; ask again later')
   await confirmWake(host, key)
-  return queued
+  return true
 }
 
 async function confirmWake(host: CoordinationHost, key: string) {

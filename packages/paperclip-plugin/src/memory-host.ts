@@ -53,9 +53,13 @@ export interface MemoryPaperclipOptions {
   readonly beforeCreate?: () => Promise<void>
   /**
    * Fault injection while its check says so: a status update fails, changing nothing; a wakeup fails `before` it is
-   * durable (no run), or `after` (its run is queued, then the call fails, as when the host's activity log fails).
+   * durable (no run), or `after` (its run is queued, then the call fails, as when the host's activity log fails), or
+   * is `not_queued` (the host answers `{queued: false, runId: null}`, as for an agent left in error).
    */
-  readonly fails?: { readonly update?: () => boolean; readonly wake?: () => 'before' | 'after' | null }
+  readonly fails?: {
+    readonly update?: () => boolean
+    readonly wake?: () => 'before' | 'after' | 'not_queued' | null
+  }
 }
 
 export interface MemoryPaperclip {
@@ -123,6 +127,7 @@ function issueService(
       const fault = options.fails?.wake?.() ?? null
       if (fault === 'before') throw new Error('injected: wakeup failed before it was durable')
       owned(issueId, companyId)
+      if (fault === 'not_queued') return { queued: false }
       await db.query(`INSERT INTO public.heartbeat_runs (company_id, context_snapshot) VALUES ($1, $2)`, [
         companyId,
         { issueId, wakeReason: wake.reason, source: wake.contextSource },

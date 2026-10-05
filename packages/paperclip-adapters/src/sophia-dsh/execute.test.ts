@@ -10,7 +10,7 @@ import type {
 } from '@sophia/contracts'
 import { SophiaRefusal, SophiaUnreachable, type SophiaClient } from './client.ts'
 import { execute, type ExecuteDeps } from './execute.ts'
-import type { AdapterExecutionContext } from './types.ts'
+import type { AdapterExecutionContext, AdapterExecutionResult } from './types.ts'
 
 const WORK = '00000000-0000-4000-8000-000000000001'
 const ATTEMPT = '00000000-0000-4000-8000-000000000002'
@@ -108,6 +108,16 @@ function harness(
 }
 
 const down = () => new SophiaUnreachable('Sophia is unreachable')
+/** Sophia's outcome as the run reports it: its own error code, or the outcome a completed run carries. */
+const outcome = (result: AdapterExecutionResult): unknown => result.errorCode ?? result.resultJson?.sophiaOutcome
+
+/**
+ * How the pinned host reads an adapter result that it did not cancel (`heartbeat.ts` 25132–25139): succeeded when the
+ * exit code is 0 or absent, with no error message and no signal; failed otherwise, which leaves the agent in error.
+ */
+const hostReads = (result: AdapterExecutionResult) =>
+  (result.exitCode ?? 0) === 0 && !result.errorMessage && !result.signal ? 'succeeded' : 'failed'
+
 const cancels = (h: ReturnType<typeof harness>) => h.log.filter((c) => c.op === 'cancel')
 
 const start = (): CoordinationPermit => ({ decision: 'start', workId: WORK, state: 'permitted' })
@@ -172,7 +182,8 @@ describe('sophia_dsh execute', () => {
   it('returns a denial before any effect', async () => {
     const h = harness({ permit: { decision: 'deny', code: 'held', reason: 'The work is held in Sophia.' } })
     const result = await h.run()
-    assert.equal(result.errorCode, 'sophia_permit_denied:held')
+    assert.equal(outcome(result), 'sophia_permit_denied:held')
+    assert.equal(hostReads(result), 'succeeded', "Sophia's answer, not a failed run: the reviewer stays runnable")
     assert.deepEqual(h.ops(), ['cancellation-ready', 'permit'])
   })
 
@@ -205,7 +216,7 @@ describe('sophia_dsh execute', () => {
       start: [{ workId: WORK, denied: true, code: 'allowance_spent', reason: 'The allowance is spent.' }],
     })
     const result = await h.run()
-    assert.equal(result.errorCode, 'sophia_permit_denied:allowance_spent')
+    assert.equal(outcome(result), 'sophia_permit_denied:allowance_spent')
     assert.ok(!h.ops().includes('observe'))
   })
 
@@ -318,8 +329,49 @@ describe('sophia_dsh execute', () => {
   it('lets go of a long attempt without claiming an outcome', async () => {
     const h = harness({ permit: start(), start: [started()], observe: [observation('running')] })
     const result = await h.run()
-    assert.equal(result.errorCode, 'sophia_observer_released')
+    assert.equal(outcome(result), 'sophia_observer_released')
+    assert.equal(hostReads(result), 'succeeded')
     assert.equal(result.costUsd, null)
+  })
+
+  it('a Hold made in Sophia ends the run as completed, so the reviewer can be woken for the Resume (WBC-02-CX-0007)', async () => {
+    const h = harness({ permit: start(), start: [started()], observe: [observation('running'), observation('held')] })
+    const result = await h.run()
+    assert.equal(hostReads(result), 'succeeded', 'a failed run would leave the managed reviewer in error')
+    assert.equal(result.errorMessage, undefined)
+    assert.equal(outcome(result), 'sophia_held')
+    assert.match(result.summary ?? '', /^Held in Sophia/)
+    assert.equal(result.resultJson?.phase, 'held', "Sophia's record of the work is unchanged")
+  })
+
+  it('a review that ended blocked, a Stop and a withdrawal complete the run, each saying so', async () => {
+    for (const [phase, code] of [
+      ['blocked', 'sophia_review_blocked'],
+      ['stopped', 'sophia_stopped'],
+      ['withdrawn', 'sophia_withdrawn'],
+    ] as const) {
+      const h = harness({ permit: start(), start: [started()], observe: [observation(phase, { reason: 'why' })] })
+      const result = await h.run()
+      assert.deepEqual([hostReads(result), outcome(result)], ['succeeded', code])
+      assert.match(result.summary ?? '', /why$/)
+    }
+  })
+
+  it('a run Paperclip cancelled keeps its error: the host records it cancelled, the reviewer stays idle', async () => {
+    const h = harness(
+      { permit: start(), start: [started()], observe: [observation('running')], cancel: [down()] },
+      { abortAfterObserves: 1 },
+    )
+    const result = await h.run()
+    assert.equal(result.errorCode, 'sophia_hold_unconfirmed', 'an unconfirmed Hold is never hidden')
+    assert.ok(result.errorMessage)
+  })
+
+  it('a run that could not work with Sophia at all fails, for an operator', async () => {
+    const unreachable = await harness({ permit: new SophiaUnreachable('down') }).run()
+    assert.deepEqual([hostReads(unreachable), unreachable.errorCode], ['failed', 'sophia_unreachable'])
+    const refused = await harness({ permit: new SophiaRefusal(401, 'unauthenticated', 'no') }).run()
+    assert.equal(hostReads(refused), 'failed')
   })
 
   it('runs only issue-driven runs', async () => {

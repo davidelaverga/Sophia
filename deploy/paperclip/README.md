@@ -27,6 +27,8 @@ git -C /path/outside/paperclip checkout 5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb
 node scripts/paperclip-build.mjs --paperclip /path/outside/paperclip --out /path/outside/sophia-paperclip-dist
 SOPHIA_DISPOSABLE_DATABASE_URL=postgres://… node scripts/paperclip-verify.mjs \
   --paperclip /path/outside/paperclip --dist /path/outside/sophia-paperclip-dist
+SOPHIA_DISPOSABLE_DATABASE_URL=postgres://… node scripts/paperclip-host-probe.mjs \
+  --paperclip /path/outside/paperclip --dist /path/outside/sophia-paperclip-dist
 ```
 
 `scripts/paperclip-build.mjs` refuses any checkout that is not exactly the pin, typechecks the bindings against the pin's own types
@@ -38,7 +40,11 @@ the namespace migration on a throwaway database, runs every statement the worker
 pin's own `ctx.db` validators (`server/src/services/plugin-database.ts`; hence the db package build), and loads the built
 adapter. The harness ignores a wakeup's idempotency key, so wake deduplication is not claimed: the plugin reconciles
 wakeups itself against `public.heartbeat_runs`, which its manifest reads (`coreReadTables: ['issues', 'heartbeat_runs']`;
-the installer approves both). The `OPS_REQUEST` names the manifest's digests; a different build is a different request.
+the installer approves both). `scripts/paperclip-host-probe.mjs` runs the built adapter in the pin's own heartbeat on a
+throwaway database with every pinned Paperclip migration and a scripted Sophia: a Hold made in Sophia, a review that
+ended blocked and a denied permit must leave the managed reviewer runnable (a failed run would leave it in error), and
+the Resume wakeup must queue a run. Its test file is written into the checkout's server tests for the run only. The
+`OPS_REQUEST` names the manifest's digests; a different build is a different request.
 
 ## Settings
 
