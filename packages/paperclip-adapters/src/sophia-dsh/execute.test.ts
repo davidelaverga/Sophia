@@ -107,6 +107,9 @@ function harness(
   return { log, ops: () => log.map((c) => c.op), run: () => execute(ctx, deps) }
 }
 
+const down = () => new SophiaUnreachable('Sophia is unreachable')
+const cancels = (h: ReturnType<typeof harness>) => h.log.filter((c) => c.op === 'cancel')
+
 const start = (): CoordinationPermit => ({ decision: 'start', workId: WORK, state: 'permitted' })
 const started = (): CoordinationStart => ({
   workId: WORK,
@@ -231,6 +234,67 @@ describe('sophia_dsh execute', () => {
     assert.equal(result.errorCode, 'sophia_hold_unsettled')
     assert.equal(h.ops().filter((op) => op === 'cancel').length, 1)
     assert.ok(h.ops().filter((op) => op === 'observe').length >= 4, 'it waited, observing, for the Hold to settle')
+  })
+
+  it('asks again, under the same run, a cancel that never reached Sophia, until it answers (WBC-02-CX-0002)', async () => {
+    const h = harness(
+      {
+        permit: start(),
+        start: [started()],
+        observe: [observation('running'), observation('held')],
+        cancel: [down(), down(), observation('holding')],
+      },
+      { abortAfterObserves: 1 },
+    )
+    const result = await h.run()
+    assert.equal(cancels(h).length, 3, 'asked until Sophia answered')
+    for (const c of cancels(h)) assert.deepEqual(c.body, { companyId: 'company-a', runId: 'run-1' })
+    assert.equal(result.errorCode, 'sophia_held')
+  })
+
+  it('a cancel whose reply was lost after the Hold arrived is answered by the next one, held', async () => {
+    const h = harness(
+      {
+        permit: start(),
+        start: [started()],
+        observe: [observation('running'), observation('held')],
+        // Sophia held the work on the first cancel; only its reply was lost. The next cancel answers what it holds.
+        cancel: [new SophiaUnreachable('reply lost'), observation('holding')],
+      },
+      { abortAfterObserves: 1 },
+    )
+    const result = await h.run()
+    assert.equal(cancels(h).length, 2)
+    assert.equal(result.errorCode, 'sophia_held')
+  })
+
+  it('says the Hold is unconfirmed when no cancel reached Sophia within the wait, never released', async () => {
+    const h = harness(
+      {
+        permit: start(),
+        start: [started()],
+        observe: [observation('running')],
+        cancel: [new SophiaUnreachable('Sophia is unreachable')],
+      },
+      { abortAfterObserves: 1 },
+    )
+    const result = await h.run()
+    assert.equal(result.errorCode, 'sophia_hold_unconfirmed')
+    assert.match(result.errorMessage ?? '', /may still be running/)
+    assert.ok(cancels(h).length >= 4, 'it kept asking through the settle wait')
+    assert.ok(
+      !h.ops().slice(h.ops().indexOf('cancel')).includes('observe'),
+      'no look took an observation for the cancel',
+    )
+  })
+
+  it('says the Hold is unconfirmed when Sophia answered nothing after the cancel', async () => {
+    const h = harness(
+      { permit: start(), start: [started()], observe: [observation('running'), new SophiaUnreachable('down')] },
+      { abortAfterObserves: 1 },
+    )
+    const result = await h.run()
+    assert.equal(result.errorCode, 'sophia_hold_unconfirmed')
   })
 
   it('reports per-run usage, and an unknown cost as null rather than zero', async () => {

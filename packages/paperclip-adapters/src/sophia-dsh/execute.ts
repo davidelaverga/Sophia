@@ -11,7 +11,9 @@
  * 3. To start: `onDispatch` immediately before asking Sophia to start, and only then. A start whose answer was lost is
  *    never repeated: the run observes what Sophia recorded.
  * 4. Observe until the work settles. On cancellation Sophia holds the work (fenced and settled through its native
- *    path) and the run waits, bounded, for that settlement; an unconfirmed Hold is said as unconfirmed, never as held.
+ *    path) and the run waits, bounded, for that settlement. Until Sophia answers the cancel, every look asks it again
+ *    under the same run (Sophia's cancel is idempotent per run): a cancel lost before or after it arrived is never
+ *    taken for an observation. A Hold Sophia never confirmed is said as unconfirmed, never as held or released.
  * 5. Report: the run's own usage (per_run; a cost Sophia could not settle is null, never zero), the native session, and
  *    a published review as success. A review with adverse findings is a successful review, not acceptance.
  * @module @sophia/paperclip-adapters/sophia-dsh/execute
@@ -75,19 +77,32 @@ async function ask<T>(call: () => Promise<T>): Promise<T | null> {
 interface Watch {
   last: CoordinationObservation | null
   cancelledAt: number | null
+  /** Whether Sophia answered this run's cancel; until it does, each look asks it again. */
+  cancelAnswered: boolean
+}
+
+/** One look: the cancel again while Sophia has not answered it, else an observation; what Sophia said is kept. */
+async function look(deps: ExecuteDeps, run: CoordinationRunRequest, state: Watch): Promise<void> {
+  const cancelling = state.cancelledAt !== null && !state.cancelAnswered
+  const seen = await ask(() => (cancelling ? deps.client.cancel(run) : deps.client.observe(run)))
+  if (cancelling && seen !== null) state.cancelAnswered = true
+  state.last = seen ?? state.last
+}
+
+/** Settled, or out of time: the settle wait once cancelled, else the run's observation limit. */
+function done(state: Watch, deps: ExecuteDeps, deadline: number): boolean {
+  if (state.last !== null && SETTLED.has(state.last.phase)) return true
+  return state.cancelledAt !== null ? deps.now() - state.cancelledAt >= deps.settleMs : deps.now() >= deadline
 }
 
 /** Observe until settled, cancelled and settled (or the settle wait ends), or the run's observation limit. */
 async function watch(ctx: AdapterExecutionContext, deps: ExecuteDeps, run: CoordinationRunRequest): Promise<Watch> {
-  const state: Watch = { last: null, cancelledAt: null }
+  const state: Watch = { last: null, cancelledAt: null, cancelAnswered: false }
   const deadline = deps.now() + deps.maxRunMs
   for (;;) {
-    const cancelling = ctx.signal?.aborted === true && state.cancelledAt === null
-    if (cancelling) state.cancelledAt = deps.now()
-    state.last = (await ask(() => (cancelling ? deps.client.cancel(run) : deps.client.observe(run)))) ?? state.last
-    if (state.last !== null && SETTLED.has(state.last.phase)) return state
-    if (state.cancelledAt !== null ? deps.now() - state.cancelledAt >= deps.settleMs : deps.now() >= deadline)
-      return state
+    if (ctx.signal?.aborted === true && state.cancelledAt === null) state.cancelledAt = deps.now()
+    await look(deps, run, state)
+    if (done(state, deps, deadline)) return state
     await deps.sleep(deps.pollMs, state.cancelledAt === null ? ctx.signal : undefined)
   }
 }
@@ -115,13 +130,23 @@ const ENDED: Readonly<Record<string, readonly [number | null, string, string]>> 
   failed: [1, 'sophia_review_failed', 'The review ended without a result.'],
 }
 
-/** The run's report from what Sophia last said. */
-function report(final: CoordinationObservation | null, watched: Watch): AdapterExecutionResult {
-  const seen = final ?? watched.last
-  if (seen === null)
-    return failure('sophia_unreachable', "Sophia did not answer; this run cannot say what the work's attempt did.")
+const HOLD_UNCONFIRMED =
+  'This run was cancelled, but Sophia never confirmed that it received the Hold: the review may still be running. ' +
+  'Hold it in Sophia.'
+
+/**
+ * A cancelled run whose cancel Sophia never answered, unless what Sophia last said already settles or names the Hold
+ * (a person's Hold, or a lost reply whose Hold arrived): the work's state is unconfirmed, and so is the Hold.
+ */
+function unconfirmedHold(seen: CoordinationObservation | null, watched: Watch): boolean {
+  if (watched.cancelledAt === null || watched.cancelAnswered) return false
+  return seen === null || !(SETTLED.has(seen.phase) || seen.phase in UNSETTLED)
+}
+
+/** What every report of an observed attempt carries: its session, its phase and result, and the run's usage. */
+function commonOf(seen: CoordinationObservation): Partial<AdapterExecutionResult> {
   const usage = seen.usage
-  const common: Partial<AdapterExecutionResult> = {
+  return {
     sessionParams: {
       sophiaWorkId: seen.workId,
       sophiaAttemptId: seen.attemptId,
@@ -145,15 +170,10 @@ function report(final: CoordinationObservation | null, watched: Watch): AdapterE
         }
       : { usageBasis: null, costUsd: null }),
   }
-  if (seen.phase === 'result_ready' && seen.result !== null) {
-    return {
-      exitCode: 0,
-      signal: null,
-      timedOut: false,
-      summary: `Source review published (${seen.result.verdict}); result ${seen.result.sourceId}.`,
-      ...common,
-    }
-  }
+}
+
+/** A run that ends without a published result: unsettled, ended in Sophia, or let go while the attempt continues. */
+function unfinished(seen: CoordinationObservation, common: Partial<AdapterExecutionResult>): AdapterExecutionResult {
   const unsettled = UNSETTLED[seen.phase]
   if (unsettled) return failure(unsettled[0], unsettled[1], common)
   const ended = ENDED[seen.phase]
@@ -164,6 +184,27 @@ function report(final: CoordinationObservation | null, watched: Watch): AdapterE
     'This run stopped observing; the attempt continues in Sophia under its own controls, and a later run attaches to it.',
     common,
   )
+}
+
+/** The run's report from what Sophia last said. */
+function report(final: CoordinationObservation | null, watched: Watch): AdapterExecutionResult {
+  const seen = final ?? watched.last
+  const unconfirmed = unconfirmedHold(seen, watched)
+  if (seen === null)
+    return unconfirmed
+      ? failure('sophia_hold_unconfirmed', HOLD_UNCONFIRMED)
+      : failure('sophia_unreachable', "Sophia did not answer; this run cannot say what the work's attempt did.")
+  const common = commonOf(seen)
+  if (seen.phase === 'result_ready' && seen.result !== null) {
+    return {
+      exitCode: 0,
+      signal: null,
+      timedOut: false,
+      summary: `Source review published (${seen.result.verdict}); result ${seen.result.sourceId}.`,
+      ...common,
+    }
+  }
+  return unconfirmed ? failure('sophia_hold_unconfirmed', HOLD_UNCONFIRMED, common) : unfinished(seen, common)
 }
 
 /** How many times a start whose answer was lost is asked again: Sophia starts once per run, so asking again reconciles. */

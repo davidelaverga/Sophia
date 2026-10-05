@@ -42,6 +42,8 @@ export interface MemoryPaperclipOptions {
   readonly now?: () => number
   /** Runs inside create before the issue exists, e.g. to hold a create in flight. */
   readonly beforeCreate?: () => Promise<void>
+  /** Fault injection: a status update or a wakeup fails, changing nothing, while its check says so. */
+  readonly fails?: { readonly update?: () => boolean; readonly wake?: () => boolean }
 }
 
 export interface MemoryPaperclip {
@@ -100,11 +102,13 @@ function issueService(
       return view(issue)
     },
     update: (issueId, patch: { status: IssueStatus }, companyId) => {
+      if (options.fails?.update?.() === true) return Promise.reject(new Error('injected: issue update failed'))
       const issue = owned(issueId, companyId)
       issue.status = patch.status
       return Promise.resolve(view(issue))
     },
     requestWakeup: (issueId, companyId, wake) => {
+      if (options.fails?.wake?.() === true) return Promise.reject(new Error('injected: wakeup failed'))
       owned(issueId, companyId)
       const fresh = !wakeups.some((w) => w.issueId === issueId && w.idempotencyKey === wake.idempotencyKey)
       if (fresh) wakeups.push({ issueId, idempotencyKey: wake.idempotencyKey })

@@ -28,6 +28,7 @@ import {
   isLookupRequest,
   type Commission,
   type CommissionReply,
+  type Control,
   type ControlReply,
   type LookupReply,
 } from '@sophia/coordination/plugin-wire'
@@ -209,6 +210,24 @@ async function wake(host: CoordinationHost, issue: HostIssue, key: string): Prom
   return woken.queued
 }
 
+/**
+ * The commission's wakeup, asked for until the host confirms it: a create whose wake failed, or a crash between the
+ * create and its wake, is woken by the resend. Only an issue still in the status the commission set is woken (a
+ * Hold since then is not undone). A crash after the host queued it but before it is recorded asks once more, under
+ * the same idempotency key; a second run attaches to the same Sophia attempt, never a second one.
+ */
+async function wakeCommission(host: CoordinationHost, c: Commission, issue: HostIssue): Promise<boolean> {
+  if (!c.wake || c.initialStatus !== 'todo' || issue.status !== 'todo') return false
+  const rows = await host.query<{ woken: boolean }>(
+    `SELECT woken_at IS NOT NULL AS woken FROM ${host.namespace}.commissions WHERE commission_key = $1`,
+    [c.key],
+  )
+  if (rows[0]?.woken === true) return false
+  const queued = await wake(host, issue, c.key)
+  await host.execute(`UPDATE ${host.namespace}.commissions SET woken_at = now() WHERE commission_key = $1`, [c.key])
+  return queued
+}
+
 export async function handleCommission(host: CoordinationHost, input: ApiRequest): Promise<CommissionReply> {
   const body = input.body
   if (!isCommissionRequest(body)) refuse(422, 'invalid_request', 'Not a commission request')
@@ -228,7 +247,8 @@ export async function handleCommission(host: CoordinationHost, input: ApiRequest
   const existing = await issueOf(host, input.companyId, c.key)
   if (existing !== null) {
     await bind(host, bound, existing.id)
-    return { outcome: 'existing', issueId: existing.id, status: existing.status, wakeQueued: false }
+    const queued = await wakeCommission(host, c, existing)
+    return { outcome: 'existing', issueId: existing.id, status: existing.status, wakeQueued: queued }
   }
   const agent = await host.reviewerAgent(input.companyId)
   if (agent === null) refuse(409, 'reviewer_missing', 'The source-reviewer agent is not provisioned in this company')
@@ -247,7 +267,7 @@ export async function handleCommission(host: CoordinationHost, input: ApiRequest
     billingCode: `sophia:${c.workId}`,
   })
   await bind(host, bound, issue.id)
-  const queued = c.wake && c.initialStatus === 'todo' ? await wake(host, issue, c.key) : false
+  const queued = await wakeCommission(host, c, issue)
   return { outcome: 'created', issueId: issue.id, status: issue.status, wakeQueued: queued }
 }
 
@@ -307,17 +327,54 @@ export async function handleControl(host: CoordinationHost, input: ApiRequest): 
       target.id,
     ],
   )
-  const fresh = await host.execute(
-    `INSERT INTO ${host.namespace}.controls (delivery_key, commission_key, issue_id, op) VALUES ($1, $2, $3, $4) ON CONFLICT (delivery_key) DO NOTHING`,
-    [control.key, control.commissionKey, target.id, control.op],
-  )
-  if (fresh.rowCount === 0) return { outcome: 'already', issueId: target.id, status: target.status, wakeQueued: false }
+  const recorded = await recordControl(host, control, target.id)
+  const already = { outcome: 'already', issueId: target.id, status: target.status, wakeQueued: false } as const
+  if (recorded.state === 'applied') return already
+  if (await superseded(host, control.commissionKey, recorded.seq)) {
+    await markApplied(host, control.key)
+    return already
+  }
   const updated =
     target.status === effect.status
       ? target
       : await host.issues.update(target.id, { status: effect.status }, input.companyId)
   const queued = effect.wake ? await wake(host, updated, control.key) : false
+  await markApplied(host, control.key)
   return { outcome: 'applied', issueId: updated.id, status: updated.status, wakeQueued: queued }
+}
+
+/**
+ * The control's row, recorded 'pending' on first delivery. A resend finds the row as it stands: 'applied' only once
+ * its effect was confirmed, so a failure or a crash between the record and the effect leaves it pending and the resend
+ * applies it again. A key resent with another operation is refused.
+ */
+async function recordControl(host: CoordinationHost, control: Control, issueId: string) {
+  const rows = await host.query<{ state: string; seq: string; op: string }>(
+    `INSERT INTO ${host.namespace}.controls (delivery_key, commission_key, issue_id, op) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (delivery_key) DO UPDATE SET delivery_key = EXCLUDED.delivery_key
+     RETURNING state, seq::text AS seq, op`,
+    [control.key, control.commissionKey, issueId, control.op],
+  )
+  const row = rows[0]
+  if (row?.op !== control.op) refuse(409, 'key_reused', 'This delivery key was recorded for another operation')
+  return row
+}
+
+/** Whether a later control of the same commission already took effect: an older pending one must not undo it. */
+async function superseded(host: CoordinationHost, commissionKey: string, seq: string): Promise<boolean> {
+  const rows = await host.query<{ later: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM ${host.namespace}.controls
+                     WHERE commission_key = $1 AND seq > $2::bigint AND state = 'applied') AS later`,
+    [commissionKey, seq],
+  )
+  return rows[0]?.later === true
+}
+
+async function markApplied(host: CoordinationHost, key: string) {
+  await host.execute(
+    `UPDATE ${host.namespace}.controls SET state = 'applied', applied_at = now() WHERE delivery_key = $1 AND state = 'pending'`,
+    [key],
+  )
 }
 
 const HANDLERS: Readonly<Record<string, (host: CoordinationHost, input: ApiRequest) => Promise<unknown>>> = {

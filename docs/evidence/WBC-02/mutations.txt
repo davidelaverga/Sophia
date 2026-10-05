@@ -15,3 +15,10 @@ M09 a withdrawn input withdraws the result (SQL, INT-13): FAILS as it should
 M10 a result is shown only if its bytes hash to its version (Studio, INT-16): FAILS as it should
 M11 a command naming no assignment never leaves (Studio): FAILS as it should
 M12 the served board is read only while Tasks is in view (Studio): FAILS as it should
+M13 a cancel Sophia did not answer is asked again under the same run (adapter, WBC-02-CX-0002): FAILS as it should
+M14 a cancel never answered is said an unconfirmed Hold, never released (adapter, WBC-02-CX-0002): FAILS as it should
+M15 a control recorded but not applied is applied by its resend, never answered already (plugin, WBC-02-CX-0002): FAILS as it should
+M16 a confirmed commission wake is not asked again (plugin): FAILS as it should
+M17 a resend wakes a commission whose wake was never confirmed (plugin, WBC-02-CX-0002): FAILS as it should
+M18 an older pending control never undoes a later one that took effect (plugin): FAILS as it should
+M19 a delivery key resent with another operation is refused (plugin): FAILS as it should
