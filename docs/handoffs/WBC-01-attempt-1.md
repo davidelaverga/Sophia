@@ -80,7 +80,7 @@ None operational: no effect, job or deployment was started.
 
 Pending:
 - Davide's `CONTRACT_ACCEPTED`, or his changes, on WBC-01-CC-0001.
-- The exact-head CI on WBC-01-CC-0025's head, all 12 checks: `studio-browser` now has 30 minutes (on `28ff0c9` its two runs were cancelled at 15, their 519 tests passing).
+- The exact-head CI on WBC-01-CC-0025's head, all 12 checks: `studio-browser` now has 30 minutes (on `28ff0c9` both its jobs were cancelled at 15: the first after its log shows 519 tests passing, the second interrupted before its suite finished).
 - This session still can't push: Codex updates PR #76 from Claude's clone.
 - Luis's optional feedback.
 

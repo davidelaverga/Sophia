@@ -335,7 +335,7 @@ Codex posted CC-0022 at `702f43a` and passed it ([CX-0036](https://github.com/da
 
 ## CX-0037, and CI's time for the browser checks
 
-Codex published `28ff0c9` with CC-0022 to CC-0024 and passed the latest-main integration ([CX-0037](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5992579670)). Ten of the twelve exact-head checks passed. Both `studio-browser` runs were cancelled at the job's 15-minute limit, their logs showing all 519 tests passing after 14.4 minutes. The job's limit is now 30 minutes (`37a8ae9`), its one line of `ci.yml` ([CC-0025](../coordination/WBC-01/WBC-01-CC-0025.md)); CI is not claimed green until it runs.
+Codex published `28ff0c9` with CC-0022 to CC-0024 and passed the latest-main integration ([CX-0037](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5992579670)). Ten of the twelve exact-head checks passed. Both `studio-browser` jobs were cancelled at the job's 15-minute limit ([CX-0038](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5992812557), F-044): the first's log shows all 519 tests passing after 14.4 minutes, then its cancellation during cleanup; the second was interrupted before its suite finished. The job's limit is now 30 minutes (`37a8ae9`), its one line of `ci.yml` ([CC-0025](../coordination/WBC-01/WBC-01-CC-0025.md)); CI is not claimed green until it runs.
 
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
