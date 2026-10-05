@@ -1558,6 +1558,10 @@ img.avatar {
     -webkit-line-clamp: 1;
   }
 }
+/* It sits right under her line, where it was born, not down by the dock. */
+.stage-body:has(.stage-made) {
+  justify-content: flex-start;
+}
 /* While it is on the stage, Sophia's line says only her state: the floor's note repeats the dock and the people. */
 .room-stage:has(.stage-made) :is(.line-note, .line-session) {
   display: none;
