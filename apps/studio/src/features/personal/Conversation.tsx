@@ -16,8 +16,11 @@ import { noteFlight } from './note-flight.ts'
 import { WeekLook } from './WeekLook.tsx'
 
 export interface ConversationActions {
-  /** Sends a way to start's words; whether they went (not while another message is on its way). */
-  start: (text: string) => boolean
+  /**
+   * Sends a way to start's words; resolves to whether they went on their way (not while another message is, here or in
+   * another tab; offline, they wait in the field).
+   */
+  start: (text: string) => Promise<boolean>
   decide: (suggestion: PersonalSuggestion, decision: 'keep' | 'dismiss') => void
   openNotes: () => void
   /** Resolves to whether it was kept. */
@@ -320,7 +323,7 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
   if (row.kind === 'starters' || row.kind === 'arrive') {
     // The ways go once one is sent: the focus goes to the conversation first.
     const start = (text: string) => {
-      actions.start(text)
+      void actions.start(text)
       focusConversation()
     }
     const label = row.kind === 'starters' ? 'Ways to start' : 'How you arrive today'

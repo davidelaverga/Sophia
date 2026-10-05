@@ -366,7 +366,8 @@ interface Props {
   night?: boolean
   /** The space's epoch as read (undefined until it has loaded): an erasure anywhere moves it. */
   epoch: number | undefined
-  /** The space is out of sight (a lock, another place): dictation stops, and a start still waiting is called off. */
+  /** The field is out of sight (a lock, another place, a talk over it): dictation stops, and a start still waiting is
+   * called off. */
   hidden: boolean
   state: ComposerState
   /** A message is on its way, from the field or a way to start: the next waits in the field. */
@@ -380,7 +381,7 @@ interface Props {
   /** The field holds words kept after an erasure this page hasn't read: the space is read again before they go. */
   onBehind: () => void
   /** A way to start pressed in the conversation goes through this composer's send (set here). */
-  starter: RefObject<((words: string) => boolean) | null>
+  starter: RefObject<((words: string) => Promise<boolean>) | null>
   /** Words said to Sophia from Home, handed here to go as this composer's own (Welcome.tsx); taken once. */
   handed: Handed | null
   onHanded: () => void
@@ -394,7 +395,7 @@ interface Props {
 function useHanded(
   p: Props,
   ready: boolean,
-  send: (given?: Draft) => Promise<void>,
+  send: (given?: Draft) => Promise<boolean>,
   draft: ReturnType<typeof useDraft>,
 ) {
   const taken = useRef(0)
@@ -414,6 +415,17 @@ function useHanded(
 const HANDED = 'From Home · send it when Sophia is ready'
 const HANDED_LONG = 'From Home · longer than one message: shorten it to send'
 
+const nothing = () => undefined
+
+/** A promise and the way to settle it, as Promise.withResolvers gives (which Safari 16.4 lacks). */
+function settleable<T>(): { promise: Promise<T>; settle: (value: T) => void } {
+  let settle: (value: T) => void = nothing
+  const promise = new Promise<T>((resolve) => {
+    settle = resolve
+  })
+  return { promise, settle: (value) => settle(value) }
+}
+
 /**
  * Sending the field's words. Closing the page while they are on their way loses nothing: they come back as the draft.
  * A composer that went meanwhile (signing out, an erasure) takes nothing back: those words went with the rest. One
@@ -428,22 +440,30 @@ function useSend(
   onSend: Props['onSend'],
 ) {
   const mounted = useMounted()
-  /** `given`: a way to start's words, which go as the field's do and leave the field as it is; else the field's. */
-  return async (given?: Draft) => {
+  /**
+   * `given`: a way to start's words, which go as the field's do and leave the field as it is; else the field's.
+   * Resolves once it is known whether they went on their way: not while another message is (here or in another tab),
+   * so what waits on them (her look back at the week) stays until they do.
+   */
+  return (given?: Draft): Promise<boolean> => {
     const current = given ?? draft.current()
     const text = current?.text.trim() ?? ''
     // Past the most one message holds (words heard or handed), nothing goes: the count says how much over.
-    if (!current || !text || current.text.length > MOST || !ready || busy) return
+    if (!current || !text || current.text.length > MOST || !ready || busy) return Promise.resolve(false)
     const words = { text, key: current.key }
-    await oneAtATime(account, async (taken) => {
-      if (draft.waits(words, taken)) return
+    const { promise: admitted, settle: admit } = settleable<boolean>()
+    void oneAtATime(account, async (taken) => {
+      const waits = draft.waits(words, taken)
+      admit(!waits)
+      if (waits) return
       draft.go(words, !given)
       // This tab holds the device's send until they settle: another tab takes them back only if this one went away.
       const outcome = await onSend(text, words.key)
       // Sent (or erased): the device lets them go, also when the field went meanwhile (the padlock shut).
       if (outcome === 'sent' || outcome === 'erased') draft.sent()
       else if (mounted.current) draft.back(words, BACK[outcome])
-    })
+    }).finally(() => admit(false)) // a send that failed before its admission was decided didn't go
+    return admitted
   }
 }
 
@@ -484,28 +504,24 @@ function useVoice(draft: ReturnType<typeof useDraft>, field: RefObject<HTMLTextA
 }
 
 /**
- * A way to start goes through this send: one at a time, its own key, kept on its way, the field left as it is. It says
- * whether it went: while another message is on its way (or Sophia can't take it yet), it doesn't.
- */
-/**
- * Where a way to start sends its words. Offline (`waits`), they go into the field to wait, as the field's own words do:
- * a press is never lost.
+ * Where a way to start sends its words: through the field's send, one at a time, its own key, kept on its way, the
+ * field left as it is. It resolves to whether they went on their way: while another message is (here or in another
+ * tab), or Sophia can't take them yet, they don't. Offline (`waits`), they go into the field to wait instead, as the
+ * field's own words do, and that counts as gone: a press is never lost.
  */
 function useStarter(
   starter: Props['starter'],
   free: boolean,
-  send: (given?: Draft) => Promise<void>,
+  send: (given?: Draft) => Promise<boolean>,
   waits: ((words: string) => void) | null,
 ) {
   useEffect(() => {
     starter.current = (words: string) => {
       if (waits) {
         waits(words)
-        return true
+        return Promise.resolve(true)
       }
-      if (!free) return false
-      void send(draftOf(words))
-      return true
+      return free ? send(draftOf(words)) : Promise.resolve(false)
     }
   })
 }

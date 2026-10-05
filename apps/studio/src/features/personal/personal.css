@@ -1145,6 +1145,11 @@
   font-size: 15px;
   overflow-wrap: anywhere;
 }
+/* The field's note (a draft kept, the voice, offline, a wait) and the places' quiet words read at 4.5:1. */
+.places .ps-composer .chat-line,
+.places .muted {
+  color: var(--text-sec);
+}
 .places .ps-composer textarea::placeholder {
   color: var(--text-sec);
   opacity: 1;
@@ -1350,7 +1355,7 @@
 }
 .places .ps-empty {
   padding: 4px 8px;
-  color: var(--text-3);
+  color: var(--text-sec);
   font-size: 13px;
 }
 
@@ -1567,7 +1572,7 @@
   font-variant-numeric: tabular-nums;
 }
 .places .fact span {
-  color: var(--text-3);
+  color: var(--text-sec);
   font-size: 11px;
 }
 .places .danger-zone {
@@ -1947,7 +1952,7 @@
 }
 .places .c3-talk-who {
   min-height: 12px;
-  color: var(--text-3);
+  color: var(--text-sec);
   font: 500 10.5px/1 var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1972,8 +1977,9 @@
 .places .c3-talk-lines li[data-who='you'] {
   color: color-mix(in srgb, var(--warm) 72%, var(--text-2));
 }
+/* What was said before steps back, and still reads at 4.5:1. */
 .places .c3-talk-lines li:not(:last-child) {
-  opacity: 0.5;
+  opacity: 0.72;
 }
 .places .c3-talk-lines .c3-who {
   right: auto;
