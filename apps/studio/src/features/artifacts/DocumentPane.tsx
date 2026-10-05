@@ -27,6 +27,7 @@ import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { MarkdownView } from './MarkdownView.tsx'
 import { PageDownload } from './PageDownload.tsx'
 import { PassageBar, type Passage } from './PassageBar.tsx'
+import { usePassageArrival } from './usePassageArrival.ts'
 import { offerWords } from './live-version.ts'
 import { useLiveVersion, type LiveChanges, type Shown } from './useLiveVersion.ts'
 import type { ShowRender } from '../voice/ShowEveryone.tsx'
@@ -806,6 +807,7 @@ interface DocumentTabProps {
 }
 
 function DocumentTab({ data, identity, onCite, changes }: DocumentTabProps) {
+  const arrival = usePassageArrival(data.version, data.parsed, data.shown.sourcesSettled)
   if (data.text.isError) {
     return (
       <p className="muted" role="alert">
@@ -825,6 +827,11 @@ function DocumentTab({ data, identity, onCite, changes }: DocumentTabProps) {
       )}
       <PageDownload token={identity.token} artifactId={data.version.artifactId} versionId={data.version.id} />
       <Limitations items={data.version.limitations ?? []} />
+      {arrival === 'missing' && (
+        <p className="report-passage-note" role="status">
+          This passage isn’t in this version.
+        </p>
+      )}
       {changes.facts && (
         <p className="report-changes" role="note">
           {changes.facts}
