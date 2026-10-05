@@ -250,8 +250,26 @@ function useSimulated() {
 
 const idle = { state: 'ready' as const, failed: '', retry: () => undefined }
 
+/**
+ * `earlier=1`: a day three weeks back waits to be read back (Look further back, the days' menu); else the whole
+ * conversation is read.
+ */
+function useReadBack() {
+  const [older, setOlder] = useState<PersonalTurn[]>([])
+  const more = query.has('earlier') && older.length === 0
+  const readMore = () => {
+    setOlder([
+      turn('person', 'I made a promise to myself to rest on Sundays.', ago(21 * DAY + 30), { seq: -2 }),
+      turn('sophia', 'What would rest look like, this Sunday?', ago(21 * DAY + 29), { seq: -1 }),
+    ])
+    return Promise.resolve()
+  }
+  return { older, more, readMore }
+}
+
 function Personal() {
   const { space, writes, wrote } = useSimulated()
+  const readBack = useReadBack()
   const extras = useExtras(query, pressed, ago, wrote)
   const projects = useMemo(() => projectsFor(query, ahead), [])
   const [notes, setNotes] = useState(query.get('notes') === 'open')
@@ -283,7 +301,7 @@ function Personal() {
         name="Luis"
         space={space}
         epoch={space.epoch}
-        readBack={{ older: [], more: false, readMore: () => Promise.resolve() }}
+        readBack={readBack}
         read={idle}
         projects={projects}
         projectsRead={idle}

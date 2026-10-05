@@ -10,6 +10,7 @@ import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
 import { daysOf, notePrefill, suggestionFor, type Row } from './conversation-view.ts'
 import type { Week } from './extras.ts'
+import { FindLens, Marked, type Lens } from './Find.tsx'
 import { focusConversation, focusIfDropped, focusSoon } from './focus.ts'
 import { noteFlight } from './note-flight.ts'
 import { WeekLook } from './WeekLook.tsx'
@@ -220,7 +221,9 @@ function Turn({ row, noting, onNote }: TurnProps) {
     >
       {row.first && <Who who={me ? 'you' : 'sophia'} />}
       <span className="sr-only">{me ? 'You' : 'Sophia'}: </span>
-      <div className="body">{row.text}</div>
+      <div className="body">
+        <Marked rowKey={row.key} text={row.text} />
+      </div>
       <span className="at">{row.at}</span>
       <TurnAct row={row} noting={noting} onNote={onNote} />
     </div>
@@ -494,34 +497,39 @@ interface ConversationProps {
   week?: Week | undefined
   /** Her reply that landed while you read further up, waiting at the end of what you see. */
   answered?: React.ReactNode
+  /** What finding marks in the turns (Find), or null when nothing is looked for. */
+  lens?: Lens | null
 }
 
 export function Conversation(props: ConversationProps) {
   const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, week, answered } = props
+  const lens = props.lens ?? null
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const day = useDayPill(list, rows)
   // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
   // itself, is text for the message bar, never a place's key.
   return (
-    <div className={`c3-convo${day ? ' scrolled' : ''}`} data-typing-scope inert={covered}>
-      <Earlier rows={rows} open={earlier} day={day} setOpen={setEarlier} more={more} onMore={actions.readEarlier} />
-      <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>
-        {notice}
-        {rows.map((row) => (
-          <RowView
-            key={row.key}
-            row={row}
-            turns={turns}
-            noteAt={noteAt}
-            setNoteAt={setNoteAt}
-            onDays={() => setEarlier(true)}
-            actions={actions}
-          />
-        ))}
-        {week && <WeekLook week={week} onTalk={actions.start} />}
+    <FindLens value={lens}>
+      <div className={`c3-convo${day ? ' scrolled' : ''}`} data-typing-scope inert={covered}>
+        <Earlier rows={rows} open={earlier} day={day} setOpen={setEarlier} more={more} onMore={actions.readEarlier} />
+        <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>
+          {notice}
+          {rows.map((row) => (
+            <RowView
+              key={row.key}
+              row={row}
+              turns={turns}
+              noteAt={noteAt}
+              setNoteAt={setNoteAt}
+              onDays={() => setEarlier(true)}
+              actions={actions}
+            />
+          ))}
+          {week && <WeekLook week={week} onTalk={actions.start} />}
+        </div>
+        <div className="c3-answerbar">{answered}</div>
+        {composer}
       </div>
-      <div className="c3-answerbar">{answered}</div>
-      {composer}
-    </div>
+    </FindLens>
   )
 }

@@ -824,6 +824,164 @@ test('moments · the days say where you began, and how long you were away', asyn
   expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
 })
 
+// Ease (docs/plans/personal-moments.md §3): find in your conversation; offline, said before you send.
+
+const finder = (page: Page) => page.getByRole('searchbox', { name: 'Find in your conversation' })
+const findCount = (page: Page) => page.locator('.c3-find-count')
+
+test('ease · Ctrl F finds in the conversation: each match marked, “1 of N”, Enter on, Shift Enter back, Esc gives the focus back', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await field(page).focus()
+  // Typed at once, as a person does: every letter lands in the finder, none in the message.
+  await page.keyboard.press('Control+f')
+  await page.keyboard.type('keep')
+  await expect(finder(page)).toHaveValue('keep')
+  await expect(field(page)).toHaveValue('')
+  const marks = page.locator('.msgs mark')
+  await expect(marks.first()).toBeVisible()
+  const n = await marks.count()
+  expect(n).toBeGreaterThan(2)
+  await expect(findCount(page)).toHaveText(`1 of ${String(n)}`)
+  await expect(page.locator('.msgs mark.current')).toHaveCount(1)
+  await expect(page.locator('.msgs mark.current')).toBeInViewport()
+  await page.keyboard.press('Enter')
+  await expect(findCount(page)).toHaveText(`2 of ${String(n)}`)
+  await page.keyboard.press('Shift+Enter')
+  await expect(findCount(page)).toHaveText(`1 of ${String(n)}`)
+  await page.keyboard.press('Shift+Enter') // from the first, round to the last
+  await expect(findCount(page)).toHaveText(`${String(n)} of ${String(n)}`)
+  await page.keyboard.press('Escape')
+  await expect(finder(page)).toHaveCount(0)
+  await expect(marks).toHaveCount(0)
+  await expect(field(page)).toBeFocused()
+})
+
+test('ease · Find from the head; a word not said says so', async ({ page }) => {
+  await page.goto(PAGE)
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await expect(finder(page)).toBeFocused()
+  await finder(page).fill('zebra')
+  await expect(findCount(page)).toHaveText('No match')
+  await expect(page.locator('.msgs mark')).toHaveCount(0)
+})
+
+test('ease · “Look further back” reads earlier days into what is found', async ({ page }) => {
+  await page.goto(`${PAGE}?earlier=1`)
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await finder(page).fill('promise')
+  await expect(findCount(page)).toHaveText('1 of 1')
+  const current = page.locator('.msg:has(mark.current) .body')
+  await expect(current).toContainText('I promised a date')
+  await page.getByRole('button', { name: 'Look further back' }).click()
+  // The match you were on stays current; the earlier one comes before it. The focus stays in the finder.
+  await expect(findCount(page)).toHaveText('2 of 2')
+  await expect(current).toContainText('I promised a date')
+  await expect(page.getByRole('button', { name: 'Look further back' })).toHaveCount(0)
+  await expect(finder(page)).toBeFocused()
+})
+
+test('ease · offline, the field says so before you send: your words wait, and go once you’re back', async ({
+  page,
+  context,
+}) => {
+  await page.goto(PAGE)
+  await context.setOffline(true)
+  await expect(page.locator('.ps-composer .chat-line')).toHaveText('You’re offline. Your words wait here.')
+  await expect(field(page)).toHaveAttribute('placeholder', 'You’re offline. Your words wait here.')
+  await field(page).fill('Still here.')
+  await expect(page.locator('.ps-composer .send')).toBeDisabled()
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(600) // a send let through would have gone by now
+  expect(await sent(page)).toEqual([])
+  await expect(field(page)).toHaveValue('Still here.')
+  await context.setOffline(false)
+  await expect(page.locator('.ps-composer .chat-line')).not.toHaveText('You’re offline. Your words wait here.')
+  await field(page).focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => sent(page)).toEqual(['Still here.'])
+})
+
+test('ease · Esc closes find wherever its focus is, after ↓ too, and leaves the notes open', async ({ page }) => {
+  await page.goto(`${PAGE}?notes=open`)
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await finder(page).fill('keep')
+  await page.getByRole('button', { name: 'Next match' }).click()
+  await page.keyboard.press('Escape')
+  await expect(finder(page)).toHaveCount(0)
+  await expect(page.locator('#c-notes')).toBeVisible()
+})
+
+test('ease · offline, a way in puts its words in the field to wait, rather than nothing', async ({ page, context }) => {
+  await page.goto(`${PAGE}?talk=new`)
+  await context.setOffline(true)
+  await page.getByRole('button', { name: /Just talk/ }).click()
+  await expect(field(page)).not.toHaveValue('')
+  expect(await sent(page)).toEqual([])
+})
+
+test('ease · in a talk, Ctrl F is the browser’s: Personal’s find doesn’t take it', async ({ page }) => {
+  await page.goto(`${PAGE}?voice=1`)
+  await page.getByRole('button', { name: 'Talk with her' }).click()
+  await expect(page.getByRole('dialog', { name: 'Talking with Sophia' })).toBeVisible()
+  const taken = await page.evaluate(() => {
+    const key = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true })
+    ;(document.activeElement ?? document.body).dispatchEvent(key)
+    return key.defaultPrevented
+  })
+  expect(taken).toBe(false)
+  await expect(finder(page)).toHaveCount(0)
+})
+
+test('@phone · ease · the find line fits a phone: the words have room, every control in the column', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?earlier=1`)
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await finder(page).fill('keep')
+  const right = await page.locator('.c3-head').evaluate((h) => h.getBoundingClientRect().right)
+  const outside = await page
+    .locator('.c3-head')
+    .evaluate(
+      (h, edge) =>
+        [...h.querySelectorAll('button, input')]
+          .filter((el) => el.getBoundingClientRect().right > edge + 1)
+          .map((el) => el.textContent || el.getAttribute('aria-label')),
+      right,
+    )
+  expect(outside).toEqual([])
+  expect((await finder(page).boundingBox())?.width ?? 0).toBeGreaterThan(200)
+  // Each button's words on one line.
+  const wrapped = await page.locator('.c3-find button').evaluateAll((bs) =>
+    bs
+      .filter((b) => {
+        const words = document.createRange()
+        words.selectNodeContents(b)
+        return new Set([...words.getClientRects()].map((r) => Math.round(r.top))).size > 1
+      })
+      .map((b) => b.textContent),
+  )
+  expect(wrapped).toEqual([])
+})
+
+test('ease · behind the padlock, Ctrl F is the browser’s, and find comes back empty', async ({ page }) => {
+  await page.goto(PAGE)
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await finder(page).fill('keep')
+  await page.getByRole('button', { name: 'Lock (fixture)' }).click()
+  const taken = await page.evaluate(() => {
+    const key = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true })
+    document.body.dispatchEvent(key)
+    return key.defaultPrevented
+  })
+  expect(taken).toBe(false)
+  await page.getByRole('button', { name: 'Unlock (fixture)' }).click()
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await expect(finder(page)).toHaveValue('')
+  await expect(page.locator('.msgs mark')).toHaveCount(0)
+})
+
 // Codex on #92: a late copy is taken back once Personal is out of sight; words past the limit are said, never hidden.
 
 test('touch · a copy that settles after the padlock shut is taken back off the clipboard', async ({ page }) => {
@@ -860,6 +1018,43 @@ test('touch · dictation past the limit is counted as it is, how much over said,
   await field(page).press('Enter')
   await page.waitForTimeout(400)
   expect(await sent(page)).toEqual([])
+})
+
+// Codex on #94: offline, a microphone listening keeps its Stop, and a way in adds to what you wrote; Find stays shut
+// while the notes cover the conversation.
+
+test('ease · going offline while she listens keeps the Stop: the microphone is never left on without it', async ({
+  page,
+  context,
+}) => {
+  await page.goto(PAGE)
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  await expect(page.locator('.ps-composer .c3-wave')).toBeVisible()
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Stop listening' }).click()
+  await expect(page.locator('.ps-composer .c3-wave')).toHaveCount(0)
+})
+
+test('ease · offline, a way in adds its words after what you wrote, never over it', async ({ page, context }) => {
+  await page.goto(`${PAGE}?talk=new`)
+  await field(page).fill('First, one thing.')
+  await context.setOffline(true)
+  await page.getByRole('button', { name: /Just talk/ }).click()
+  await expect(field(page)).toHaveValue(/^First, one thing\. .+/)
+  // Back online, the line no longer says offline: the words wait as a draft.
+  await context.setOffline(false)
+  await expect(page.locator('.ps-composer .chat-line', { hasText: 'offline' })).toHaveCount(0)
+})
+
+test('@phone · ease · while the notes cover the conversation, Find puts them away and opens', async ({ page }) => {
+  await page.goto(PAGE)
+  await page.locator('.c3-notes-toggle').click()
+  await expect(page.locator('#c-notes')).toBeVisible()
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await expect(page.locator('#c-notes')).toBeHidden()
+  await expect(finder(page)).toBeFocused()
+  await page.keyboard.type('keep')
+  await expect(page.locator('.msgs mark').first()).toBeVisible()
 })
 
 test('codex · handed words longer than one message wait in the field, said too long, never lost', async ({ page }) => {

@@ -638,6 +638,7 @@
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
 }
 .places .c3-talk-toggle,
+.places .c3-find-toggle,
 .places .c3-notes-toggle {
   display: inline-flex;
   align-items: center;
@@ -656,6 +657,7 @@
   position: static;
 }
 .places .c3-talk-toggle:hover,
+.places .c3-find-toggle:hover,
 .places .c3-notes-toggle:hover,
 .places .c3-notes-toggle[aria-pressed='true'] {
   color: var(--text);
@@ -2098,4 +2100,64 @@
 /* A day's moment (where you began, time together, time away) in her warm hand, after the day's name. */
 .places .c3-day-note {
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
+}
+
+/* ---------- Ease (docs/plans/personal-moments.md §3) ---------- */
+/* Find: a line under the head, the whole column wide; what matches is marked in the turns, the current match in her
+   light. */
+.places .c3-find {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+}
+.places .c3-find .field {
+  flex: 1;
+  min-width: 0;
+}
+.places .c3-find input {
+  width: 100%;
+  font-size: 13px;
+}
+.places .c3-find-count {
+  min-width: 64px;
+  color: var(--text-sec);
+  font: 11px var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.places .c3-find button {
+  min-width: 28px;
+  min-height: 28px;
+}
+.places .msgs mark {
+  border-radius: 2px;
+  background: rgba(185, 168, 255, 0.22);
+  color: inherit;
+}
+.places .msgs mark.current {
+  background: rgba(185, 168, 255, 0.55);
+  color: var(--text);
+  box-shadow: 0 0 0 2px rgba(185, 168, 255, 0.3);
+}
+/* Where colours are forced, the current match keeps a mark of its own. */
+@media (forced-colors: active) {
+  .places .msgs mark.current {
+    outline: 2px solid Highlight;
+  }
+}
+/* On a phone the words take the line's whole width; the count and the buttons follow under them. */
+@media (max-width: 480px) {
+  .places .c3-find {
+    flex-wrap: wrap;
+  }
+  .places .c3-find .field {
+    flex-basis: 100%;
+  }
+  .places .c3-find-count {
+    min-width: 0;
+    margin-right: auto;
+    text-align: left;
+  }
 }

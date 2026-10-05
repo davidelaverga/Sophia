@@ -10,6 +10,7 @@ import { useDictation } from './dictation.ts'
 import { focusLater } from './focus.ts'
 import { handing, type Handed } from './handed.ts'
 import { NOTICE } from './notice-view.ts'
+import { useOnline } from './online.ts'
 import {
   afterSent,
   draftKey,
@@ -49,6 +50,15 @@ const PLACEHOLDER: Record<ComposerState, string> = {
 }
 /** At night (lightOf), a field that can take words asks gently. */
 const NIGHT = 'Still up? Write to Sophia…'
+/** Offline, the words wait in the field: said over its line and in it, before anything is sent. */
+const OFFLINE = 'You’re offline. Your words wait here.'
+
+/** What the field says while empty: offline first, then the night, else its state's words. */
+function placeholderFor(state: ComposerState, online: boolean, night: boolean): string {
+  if (state !== 'ready') return PLACEHOLDER[state]
+  if (!online) return OFFLINE
+  return night ? NIGHT : PLACEHOLDER.ready
+}
 
 /**
  * The draft a field opens with in `epoch` (onOpening): words on their way a tab left behind come back ahead of it, and
@@ -281,7 +291,7 @@ interface FieldProps {
   field: RefObject<HTMLTextAreaElement | null>
   text: string
   state: ComposerState
-  night: boolean
+  placeholder: string
   /** The count shows beside the field (Count): the field names it in its description. */
   counted: boolean
   onChange: (text: string) => void
@@ -321,7 +331,7 @@ function Over({ note, count }: { note: React.ReactNode; count: number | null }) 
   )
 }
 
-function Field({ field, text, state, night, counted, onChange, onSend }: FieldProps) {
+function Field({ field, text, state, placeholder, counted, onChange, onSend }: FieldProps) {
   return (
     <textarea
       ref={field}
@@ -332,7 +342,7 @@ function Field({ field, text, state, night, counted, onChange, onSend }: FieldPr
       data-typing-sink={state === 'ready' ? '' : undefined}
       rows={1}
       maxLength={MOST}
-      placeholder={night && state === 'ready' ? NIGHT : PLACEHOLDER[state]}
+      placeholder={placeholder}
       value={text}
       disabled={state !== 'ready'}
       onChange={(e) => onChange(e.target.value)}
@@ -477,14 +487,89 @@ function useVoice(draft: ReturnType<typeof useDraft>, field: RefObject<HTMLTextA
  * A way to start goes through this send: one at a time, its own key, kept on its way, the field left as it is. It says
  * whether it went: while another message is on its way (or Sophia can't take it yet), it doesn't.
  */
-function useStarter(starter: Props['starter'], free: boolean, send: (given?: Draft) => Promise<void>) {
+/**
+ * Where a way to start sends its words. Offline (`waits`), they go into the field to wait, as the field's own words do:
+ * a press is never lost.
+ */
+function useStarter(
+  starter: Props['starter'],
+  free: boolean,
+  send: (given?: Draft) => Promise<void>,
+  waits: ((words: string) => void) | null,
+) {
   useEffect(() => {
     starter.current = (words: string) => {
+      if (waits) {
+        waits(words)
+        return true
+      }
       if (!free) return false
       void send(draftOf(words))
       return true
     }
   })
+}
+
+/** Words added to the field after what is written there, never over it. */
+function addWords(draft: ReturnType<typeof useDraft>, words: string, why: string): void {
+  const typed = draft.current()?.text ?? ''
+  draft.change(typed ? `${typed} ${words}` : words, why)
+}
+
+/** Offline, nothing goes: whether words can go, and whether they wait (they could go, but the browser is offline). */
+function useWaiting(state: ComposerState, behind: boolean) {
+  const online = useOnline()
+  const could = state === 'ready' && !behind
+  return { online, ready: could && online, waiting: could && !online }
+}
+
+interface BarProps {
+  field: RefObject<HTMLTextAreaElement | null>
+  text: string
+  state: ComposerState
+  counted: boolean
+  placeholder: string
+  ready: boolean
+  busy: boolean
+  dictation: ReturnType<typeof useVoice>
+  onChange: (text: string) => void
+  onSend: () => void
+}
+
+/** The message bar: her padlock, the field (or the voice listening), the microphone and Send. */
+function Bar({ field, text, state, counted, placeholder, ready, busy, dictation, onChange, onSend }: BarProps) {
+  return (
+    <div className={`message-bar${dictation.listening ? ' listening' : ''}`}>
+      <span className="c3-private" title="Only she hears this" aria-hidden>
+        <Icon name="lock" />
+      </span>
+      <label className="sr-only" htmlFor="c-input">
+        Message Sophia
+      </label>
+      <span id="c-private-note" className="sr-only">
+        Only she hears this
+      </span>
+      <Field {...{ field, text, state, counted, placeholder, onChange, onSend }} />
+      {dictation.listening && <Listening />}
+      {/* A microphone listening keeps its Stop whatever else changed (offline, a send on its way). */}
+      {dictation.available && (ready || dictation.listening) && (
+        <MicButton
+          listening={dictation.listening}
+          onPress={() => (dictation.listening ? dictation.stop() : dictation.start())}
+        />
+      )}
+      <button
+        type="submit"
+        className="send has-tip"
+        aria-label="Send"
+        disabled={!ready || !text.trim() || text.length > MOST}
+        aria-disabled={busy || undefined}
+      >
+        <Icon name="send" />
+        <Tip label="Send" keys="Enter" side="top" align="end" />
+      </button>
+    </div>
+  )
 }
 
 export function PersonalComposer(props: Props) {
@@ -495,10 +580,11 @@ export function PersonalComposer(props: Props) {
   const field = useRef<HTMLTextAreaElement>(null)
   const dictation = useVoice(draft, field, hidden)
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
-  const ready = state === 'ready' && !behind
+  const { online, ready, waiting: offline } = useWaiting(state, behind)
   const send = useSend(account, draft, ready, busy, onSend)
   useHanded(props, ready, send, draft)
-  useStarter(starter, ready && !busy, send)
+  // Offline, a way's words wait as a draft: the line says offline while it is, and the draft once back.
+  useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, KEPT) : null)
   const counted = text.length >= NEAR && !dictation.listening
   return (
     <form
@@ -508,41 +594,13 @@ export function PersonalComposer(props: Props) {
         void send()
       }}
     >
-      <Over note={note} count={counted ? text.length : null} />
-      <div className={`message-bar${dictation.listening ? ' listening' : ''}`}>
-        <span className="c3-private" title="Only she hears this" aria-hidden>
-          <Icon name="lock" />
-        </span>
-        <label className="sr-only" htmlFor="c-input">
-          Message Sophia
-        </label>
-        <span id="c-private-note" className="sr-only">
-          Only she hears this
-        </span>
-        <Field
-          {...{ field, text, state, counted }}
-          night={!!props.night}
-          onChange={change}
-          onSend={() => void send()}
-        />
-        {dictation.listening && <Listening />}
-        {dictation.available && ready && (
-          <MicButton
-            listening={dictation.listening}
-            onPress={() => (dictation.listening ? dictation.stop() : dictation.start())}
-          />
-        )}
-        <button
-          type="submit"
-          className="send has-tip"
-          aria-label="Send"
-          disabled={!ready || !text.trim() || text.length > MOST}
-          aria-disabled={busy || undefined}
-        >
-          <Icon name="send" />
-          <Tip label="Send" keys="Enter" side="top" align="end" />
-        </button>
-      </div>
+      <Over note={offline ? OFFLINE : note} count={counted ? text.length : null} />
+      <Bar
+        {...{ field, text, state, counted, ready, busy, dictation }}
+        placeholder={placeholderFor(state, online, !!props.night)}
+        onChange={change}
+        onSend={() => void send()}
+      />
     </form>
   )
 }
