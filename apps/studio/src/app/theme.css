@@ -1558,8 +1558,10 @@ img.avatar {
     -webkit-line-clamp: 1;
   }
 }
-/* It sits right under her line, where it was born, not down by the dock. */
+/* It sits right under her line, where it was born, not down by the dock: below the line however tall it is now (a
+   note, a session, words wrapping), as StageMade measures it (--line-h). */
 .stage-body:has(.stage-made) {
+  top: calc(var(--ly) + var(--lr) * 0.46 + max(56px, var(--line-h, 0px) + 12px));
   justify-content: flex-start;
 }
 .made-by {

@@ -129,6 +129,18 @@ const PAUSES = ['guest', 'holder_left'] as const
 const oneOf = <T extends string>(list: readonly T[], value: string | null): T | undefined =>
   list.find((item) => item === value)
 
+/** A synthetic session on the room's calendar, starting `minutes` from now, for half an hour. */
+function sessionIn(minutes: number) {
+  const start = Date.now() + minutes * 60_000
+  return {
+    id: '00000000-0000-4000-8000-0000000000e9',
+    title: 'Pilot review',
+    startsAt: new Date(start).toISOString(),
+    endsAt: new Date(start + 30 * 60_000).toISOString(),
+    timeZone: 'UTC',
+  }
+}
+
 const room: RoomAsked = {
   holder: holderAsked(query.get('floor')),
   voice: oneOf(VOICES, query.get('voice')),
@@ -138,6 +150,8 @@ const room: RoomAsked = {
     query.get('looking') === 'screen' && query.get('video') === 'screen' && count > 0
       ? { participantIdentity: personId(1), source: 'screen' }
       : null,
+  // `session=soon`: a session on the room's calendar starts in ten minutes (Sophia's line names it).
+  sessions: query.get('session') === 'soon' ? [sessionIn(10)] : [],
 }
 const floorTo: string[] = []
 

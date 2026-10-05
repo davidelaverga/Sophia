@@ -269,7 +269,7 @@ for (const [width, height] of [
       .toBeGreaterThanOrEqual(0)
     // Nor over Sophia's line: her state stays readable.
     const object = await box(page, '.stage-made')
-    const herLine = await box(page, '.sophia-line .line-text')
+    const herLine = await box(page, '.sophia-line')
     expect(object.y).toBeGreaterThanOrEqual(herLine.y + herLine.height)
   })
 }
@@ -282,5 +282,39 @@ test('made · after a revision whose versions can’t be read, it never shows th
   await expect(made(page).locator('.made-meta')).toHaveText('Report · v1')
   await page.evaluate(() => window.fixture?.failVersions())
   await page.evaluate(() => window.fixture?.noticeRevised())
-  await expect(made(page).locator('.made-meta')).not.toContainText('v1')
+  // The revision's record read (Open works): its version unknown here, it says only "Report", never v1.
+  await expect(made(page).getByRole('button', { name: 'Open', exact: true })).not.toHaveAttribute('aria-disabled')
+  await expect(made(page).locator('.made-meta')).toHaveText('Report')
+})
+
+for (const [width, height] of [
+  [1280, 800],
+  [390, 844],
+] as const) {
+  test(`made · under a tall line (a note and a session, ${String(width)}×${String(height)}) it covers none of it`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    await enter(page, 'people=2&floor=1&sophia=here&session=soon')
+    await expect(page.locator('.sophia-line .line-session')).toBeVisible()
+    await notice(page)
+    await made(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+    const object = await box(page, '.stage-made')
+    const herLine = await box(page, '.sophia-line')
+    expect(object.y).toBeGreaterThanOrEqual(herLine.y + herLine.height)
+  })
+}
+
+test('made · O’s hint shows only while O works', async ({ page }) => {
+  await enter(page)
+  await notice(page)
+  const open = made(page).getByRole('button', { name: 'Open', exact: true })
+  await expect(open.locator('kbd')).toBeVisible()
+  await expect(open).toHaveAttribute('aria-keyshortcuts', 'o')
+  await page
+    .getByRole('button', { name: /^Brief/ })
+    .first()
+    .click()
+  await expect(open.locator('kbd')).toHaveCount(0)
+  await expect(open).not.toHaveAttribute('aria-keyshortcuts')
 })

@@ -4,7 +4,16 @@
 // this person once opened (here or anywhere) or closed. Until the task's record is read it says what the chat's card
 // says, and Open waits.
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { Icon } from '@sophia/ui'
 import { listArtifactVersions, listReports } from '../../api/artifacts.ts'
 import { getNativeTask } from '../../api/conversation.ts'
@@ -19,14 +28,13 @@ import type { ProjectRoom } from './useProjectRoom.ts'
 /** A name inside a sentence: "Asked by you", "Asked by a member". */
 const inSentence = (name: string) => (name === 'You' || name === 'A member' ? name.toLowerCase() : name)
 
-/** Where the focus goes once the object is gone: the Chat toggle, which holds its card. */
-const focusChat = () => document.querySelector<HTMLElement>('.stage-corner .panel-toggles button')?.focus()
-
-/** One key per notice in a set, kept as it grows. */
+/** One key per notice in a set, kept as it grows; `add` stays the same function. */
 function useKeys() {
   const [keys, setKeys] = useState<ReadonlySet<string>>(() => new Set())
-  const add = (notice: ChatNoticeItem) =>
-    setKeys((was) => (was.has(madeKey(notice)) ? was : new Set([...was, madeKey(notice)])))
+  const add = useCallback(
+    (notice: ChatNoticeItem) => setKeys((was) => (was.has(madeKey(notice)) ? was : new Set([...was, madeKey(notice)]))),
+    [],
+  )
   return [keys, add] as const
 }
 
@@ -45,8 +53,8 @@ export type StageMadeState = ReturnType<typeof useStageMade>
 
 /**
  * The object on the stage, or null: in the call, with Chat closed (its own card is there then), while a notice this
- * person hasn't put away is the newest. Keyed by the notice, so a revision is born again. Its key (O) works only while
- * no panel covers anything.
+ * person hasn't put away is the newest. Keyed by the notice, so a revision is born again. Its key (O) is offered only
+ * while no side panel is open: with one open, the keys belong to it.
  */
 export function madeOnTheStage(
   made: StageMadeState,
@@ -67,8 +75,8 @@ export function madeOnTheStage(
       nameOf={(actorId) => inSentence(memberLabel(actorId, named))}
       fresh={made.fresh}
       keys={!panel.anyOpen}
-      onBorn={() => made.wasBorn(notice)}
-      onPutAway={() => made.putAway(notice)}
+      onBorn={made.wasBorn}
+      onPutAway={made.putAway}
     />
   )
 }
@@ -81,10 +89,10 @@ interface Props {
   nameOf: (actorId: string) => string
   /** First time in the room: it is born; back in sight, it is simply there. */
   fresh: boolean
-  /** Its key may act: nothing covers the room. */
+  /** Its key may be offered: no side panel is open. */
   keys: boolean
-  onBorn: () => void
-  onPutAway: () => void
+  onBorn: (notice: ChatNoticeItem) => void
+  onPutAway: (notice: ChatNoticeItem) => void
 }
 
 /** The task's record, its report's version (the one the record names) and its card on Knowledge. */
@@ -99,9 +107,10 @@ function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | '
     queryFn: () => listArtifactVersions(identity.token, artifactId ?? ''),
     enabled: !!artifactId,
   }).data
-  // Knowledge's first page holds a report just made (newest first); read again at most every half minute.
+  // Knowledge's first page holds a report just made (newest first). Under Knowledge's own key, so a description
+  // edited there is read again here; otherwise at most every half minute.
   const card = useQuery({
-    queryKey: ['report-card', projectId, artifactId, identity.name],
+    queryKey: ['reports', 'card', projectId, artifactId, identity.name],
     queryFn: async () =>
       (await listReports(identity.token, { project: projectId })).reports.find((r) => r.artifactId === artifactId) ??
       null,
@@ -114,34 +123,65 @@ function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | '
   return { detail, artifactId, version, card, outputs }
 }
 
-/** Open, Close and their keys: Open shows the report in the viewer; either puts the object away. */
-function useMadeActions(props: Props, artifactId: string | undefined, outputs: Parameters<typeof noticeActions>[0]) {
-  const { keys, onPutAway } = props
+/** The Chat toggle of this stage, which holds the object's card: where the focus goes once the object is gone. */
+const focusChatOf = (el: HTMLElement | null) =>
+  el?.closest('.room-stage')?.querySelector<HTMLElement>('.panel-toggles [data-panel="chat"]')?.focus()
+
+/** Open, Close and their key: Open shows the report in the viewer; either puts the object away. */
+function useMadeActions(
+  props: Props,
+  self: RefObject<HTMLDivElement | null>,
+  record: Pick<ReturnType<typeof useMadeRecord>, 'artifactId' | 'outputs'>,
+) {
+  const { notice, keys, onPutAway } = props
+  const { artifactId, outputs } = record
   const viewer = useDocumentViewer()
   const { primary } = noticeActions(outputs)
   const ready = Boolean(viewer && artifactId && primary)
-  const shownElsewhere = !!artifactId && viewer?.shown === artifactId
   // Opened elsewhere (the chat's card, Knowledge): it is read, so it goes from the stage too.
+  const shownElsewhere = !!artifactId && viewer?.shown === artifactId
   useEffect(() => {
-    if (shownElsewhere) onPutAway()
-  }, [shownElsewhere, onPutAway])
+    if (shownElsewhere) onPutAway(notice)
+  }, [shownElsewhere, onPutAway, notice])
   const close = () => {
-    focusChat()
-    onPutAway()
+    focusChatOf(self.current)
+    onPutAway(notice)
   }
   const open = () => {
     if (!viewer || !artifactId || !primary) return
-    focusChat() // what the viewer gives the focus back to when it closes
+    focusChatOf(self.current) // what the viewer gives the focus back to when it closes
     viewer.open(noticeOpenRequest(artifactId, primary))
-    onPutAway()
+    onPutAway(notice)
   }
-  useShortcuts({ o: open }, keys && ready && !viewer?.shown)
+  // O only while it does something: the report is ready, no report is on screen, no panel holds the keys.
+  const key = keys && ready && !viewer?.shown
+  useShortcuts({ o: open }, key)
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return
     e.stopPropagation()
     close()
   }
-  return { ready, open, close, onKeyDown }
+  return { ready, key, open, close, onKeyDown }
+}
+
+/**
+ * Its place under Sophia's line, however tall the line is now (a note, a session, words wrapping on a phone): the
+ * line's height is published as `--line-h`, measured before the first paint and again as it changes.
+ */
+function useUnderHerLine(self: RefObject<HTMLDivElement | null>) {
+  useLayoutEffect(() => {
+    const stage = self.current?.closest<HTMLElement>('.room-stage')
+    const line = stage?.querySelector<HTMLElement>('.sophia-line')
+    if (!stage || !line) return undefined
+    const publish = () => stage.style.setProperty('--line-h', `${String(Math.ceil(line.offsetHeight))}px`)
+    publish()
+    const sized = new ResizeObserver(publish)
+    sized.observe(line)
+    return () => {
+      sized.disconnect()
+      stage.style.removeProperty('--line-h')
+    }
+  }, [self])
 }
 
 /** The facts read from the record, then who asked; the limits marked. */
@@ -168,15 +208,40 @@ function MadeSummary({ summary, by }: { summary: string; by: string | null }) {
   )
 }
 
+/** Open, with its key's hint only while the key works: a hint for a key that does nothing would be a dead end. */
+function OpenButton({ ready, keyOn, onOpen }: { ready: boolean; keyOn: boolean; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      className="pill primary"
+      onClick={onOpen}
+      aria-disabled={!ready || undefined}
+      aria-keyshortcuts={keyOn ? 'o' : undefined}
+    >
+      Open
+      {keyOn && <kbd aria-hidden="true">O</kbd>}
+    </button>
+  )
+}
+
 export function StageMade(props: Props) {
   const { notice, nameOf, fresh, onBorn } = props
-  const { detail, artifactId, version, card, outputs } = useMadeRecord(props)
-  const { ready, open, close, onKeyDown } = useMadeActions(props, artifactId, outputs)
+  const self = useRef<HTMLDivElement>(null)
+  const record = useMadeRecord(props)
+  const { detail, version, card, outputs } = record
+  const { ready, key, open, close, onKeyDown } = useMadeActions(props, self, record)
+  useUnderHerLine(self)
   const [born] = useState(fresh)
-  useEffect(() => onBorn(), [onBorn])
+  useEffect(() => onBorn(notice), [onBorn, notice])
   const heading = madeHeading(version, card?.title, noticeTitle(notice.taskKind))
   return (
-    <div className={`stage-made${born ? ' born' : ''}`} role="group" aria-label="Made by Sophia" onKeyDown={onKeyDown}>
+    <div
+      ref={self}
+      className={`stage-made${born ? ' born' : ''}`}
+      role="group"
+      aria-label="Made by Sophia"
+      onKeyDown={onKeyDown}
+    >
       <span className="made-icon" aria-hidden="true">
         <Icon name="brief" />
       </span>
@@ -194,16 +259,7 @@ export function StageMade(props: Props) {
         />
       )}
       <span className="made-acts">
-        <button
-          type="button"
-          className="pill primary"
-          onClick={open}
-          aria-disabled={!ready || undefined}
-          aria-keyshortcuts="o"
-        >
-          Open
-          <kbd aria-hidden="true">O</kbd>
-        </button>
+        <OpenButton ready={ready} keyOn={key} onOpen={open} />
       </span>
       <button type="button" className="round made-close" aria-label="Close" onClick={close}>
         <Icon name="close" />
