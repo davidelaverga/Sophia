@@ -253,6 +253,30 @@ describe('readBoardView', () => {
     assert.equal(readBoardView(edited(board, ['goals', 1], placed)).ok, true)
   })
 
+  it('refuses a plan in force only proposed, or a proposal accepted; one superseded or withdrawn reads in either (Codex F-047)', () => {
+    const board = example('board-review-ready.json')
+    const read = readBoardView(board)
+    if (!read.ok) throw new Error(read.problems.join('\n'))
+    const current = read.value.goals[0]?.current_plan
+    if (!current) throw new Error('no plan in force in the packet')
+    const inForce = readBoardView(edited(board, ['goals', 0, 'current_plan', 'state'], 'proposed'))
+    assert.equal(inForce.ok, false)
+    if (!inForce.ok) {
+      assert.deepEqual(inForce.problems, ["$.goals[0].current_plan.state: the plan in force isn't one only proposed"])
+    }
+    const next = { ...current, revision: current.revision + 1 }
+    const proposal = readBoardView(edited(board, ['goals', 0, 'proposed_plans'], [next]))
+    assert.equal(proposal.ok, false)
+    if (!proposal.ok) {
+      assert.deepEqual(proposal.problems, ["$.goals[0].proposed_plans[0].state: a proposal isn't a plan accepted"])
+    }
+    // History, superseded or withdrawn, stays readable in either slot.
+    for (const state of ['superseded', 'withdrawn'] as const) {
+      assert.equal(readBoardView(edited(board, ['goals', 0, 'current_plan', 'state'], state)).ok, true)
+      assert.equal(readBoardView(edited(board, ['goals', 0, 'proposed_plans'], [{ ...next, state }])).ok, true)
+    }
+  })
+
   it('refuses a date-time without its offset, or one the calendar doesn’t have (GitHub review on PR #76)', () => {
     const board = example('board-review-ready.json')
     for (const at of ['2026-10-03T15:00', '2026-10-03T15:00:00', '2026-02-30T15:00:00Z']) {

@@ -9,7 +9,7 @@
 // (its id with quotes and brackets); `conflict=1` and `unknown=1` (how a decision's answer comes back); `later=1` (the
 // second goal's plan held back until `workFixture.arrive()`); `twin=1` (a second goal with the first's id); `coverage=partial|unavailable` (as read first;
 // `workFixture.coverage(c)` reads it so next); and how the simulated services answer (work-live.ts: `admission=`,
-// `settle=`, `ask=`, `result=`, `decide=silent|late`).
+// `settle=`, `ask=` (`empty`: a first answer with no words), `result=`, `decide=silent|late`).
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
 // into the plan's next revision; `decisionArrives(deciderId)` brings a new one; `begin(workId)`, `reassign(workId)`,
 // `replan()`, `arrive()`, `viewAs(viewer)`, `reconnect()`, `replay(operationId)`, `weaken(operationId)`,

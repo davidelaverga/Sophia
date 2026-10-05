@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it, type TestContext } from 'node:test'
-import { ASK_LIMIT_MS, askedAgain, asking, type Ask, type AskEvent, type Question } from './ask.ts'
+import { ASK_LIMIT_MS, askedAgain, asking, EMPTY_ANSWER, type Ask, type AskEvent, type Question } from './ask.ts'
 import { asksOf, sendQuestion, subscribe } from './ask-store.ts'
 
 const question = (id: string): Question => ({
@@ -129,5 +129,25 @@ describe('one wait per send of a question (Codex F-031)', () => {
     t.mock.timers.tick(1)
     assert.equal(asksOf(space).w?.state, 'failed')
     stop()
+  })
+})
+
+describe('an answer that comes back empty (Codex F-046)', () => {
+  it('ends its send failed, said so, with nothing left waiting; asked again, the next send waits and answers', (t) => {
+    const live = waits(t)
+    const space = fresh()
+    const talk = conversation()
+    sendQuestion(space, asking(question('q1')), talk.port)
+    talk.say(1, { question_id: 'q1', seq: 1, kind: 'complete', text: '' })
+    assert.deepEqual([asksOf(space).w?.state, asksOf(space).w?.reason, live.size], ['failed', EMPTY_ANSWER, 0])
+    const failed = asksOf(space).w
+    if (!failed) throw new Error('no question')
+    sendQuestion(space, askedAgain(failed), talk.port)
+    assert.equal(live.size, 1)
+    talk.say(2, { question_id: 'q1', seq: 1, kind: 'complete', text: 'It waits for Davide.' })
+    assert.deepEqual(
+      [asksOf(space).w?.state, asksOf(space).w?.answer, live.size],
+      ['answered', 'It waits for Davide.', 0],
+    )
   })
 })

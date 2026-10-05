@@ -6,12 +6,14 @@ import {
   askBlocked,
   askedAgain,
   asking,
+  EMPTY_ANSWER,
   heard,
   heardOn,
   shownOf,
   stalled,
   unanswerable,
   type AskEvent,
+  type Asked,
   type Question,
 } from './ask.ts'
 
@@ -42,6 +44,9 @@ const action = (availability: ItemAction['availability']): ItemAction => ({
   reason: availability === 'allowed' ? 'Asked in the project’s conversation.' : 'No longer allowed for you here.',
   boundary: null,
 })
+
+/** How a question ended: its state, its answer and why. */
+const outcome = (a: Asked) => [a.state, a.answer, a.reason]
 
 describe('an answer from Sophia', () => {
   it('shows the chunks as they are received, and a completed answer at once (UI-15)', () => {
@@ -117,6 +122,35 @@ describe('an answer from Sophia', () => {
     assert.deepEqual([live.state, shownOf(live)], ['answering', 'On time.'])
     const whole = heardOn(live, next, event('q1', 3, 'complete'))
     assert.deepEqual([whole.state, whole.answer], ['answered', 'On time.'])
+  })
+
+  it('takes a completion with no words, or blank ones, as no answer: failed, said so, asked again (Codex F-046)', () => {
+    const empty = ['failed', null, EMPTY_ANSWER]
+    assert.deepEqual(outcome(after('q1', event('q1', 1, 'complete', ''))), empty) // said empty
+    assert.deepEqual(outcome(after('q1', event('q1', 1, 'complete'))), empty) // no text, no chunks
+    assert.deepEqual(outcome(after('q1', event('q1', 1, 'chunk', ''), event('q1', 2, 'complete'))), empty) // blank chunks
+    assert.deepEqual(outcome(after('q1', event('q1', 1, 'complete', ' \n\t '))), empty) // only white space
+    // Words are an answer, as before: its own text, or its chunks; a gap is no answer, as before.
+    assert.equal(after('q1', event('q1', 1, 'complete', ' Yes. ')).answer, ' Yes. ')
+    const chunked = after(
+      'q1',
+      event('q1', 1, 'chunk', 'It '),
+      event('q1', 2, 'chunk', 'waits.'),
+      event('q1', 3, 'complete'),
+    )
+    assert.equal(chunked.answer, 'It waits.')
+    assert.deepEqual(outcome(after('q1', event('q1', 2, 'chunk', 'waits.'), event('q1', 3, 'complete'))), [
+      'failed',
+      null,
+      null,
+    ])
+    // Failed, it is asked again: the next send's answer is taken; the empty send's late repeat is let go.
+    const first = after('q1', event('q1', 1, 'complete', ''))
+    const again = againOf(first, null)
+    assert.ok(again)
+    const next = { question_id: 'q1', send: again.send }
+    assert.equal(heardOn(again, { question_id: 'q1', send: 1 }, event('q1', 1, 'complete', 'Late.')), again)
+    assert.equal(heardOn(again, next, event('q1', 1, 'complete', 'On time.')).answer, 'On time.')
   })
 
   it('asked again, it is the same question on its next send, and nothing of the last send is kept (Codex F-004)', () => {

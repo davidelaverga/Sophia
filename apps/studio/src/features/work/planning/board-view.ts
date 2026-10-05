@@ -451,6 +451,22 @@ function plansOnce(goal: GoalView, at: string): string[] {
   })
 }
 
+/**
+ * Each plan in its slot (Codex F-047): the plan in force is never one only proposed, and a proposal is never one
+ * accepted; either would be dropped from the board unsaid. A superseded or withdrawn plan stays readable in either
+ * slot, as history, and isn't shown as current.
+ */
+function slotRules(goal: GoalView, at: string): string[] {
+  const inForce =
+    goal.current_plan?.state === 'proposed'
+      ? [`${at}.current_plan.state: the plan in force isn't one only proposed`]
+      : []
+  const proposals = goal.proposed_plans.flatMap((p, i) =>
+    p.state === 'accepted' ? [`${at}.proposed_plans[${String(i)}].state: a proposal isn't a plan accepted`] : [],
+  )
+  return [...inForce, ...proposals]
+}
+
 function goalRules(goal: GoalView, at: string, project: string): string[] {
   const plans = [goal.current_plan, ...goal.proposed_plans].flatMap((p, i) => {
     const where = i === 0 ? `${at}.current_plan` : `${at}.proposed_plans[${String(i - 1)}]`
@@ -471,7 +487,7 @@ function goalRules(goal: GoalView, at: string, project: string): string[] {
       : [`${at}.items[${String(i)}].candidates: each version its own id`],
   )
   const choices = goal.decisions.flatMap((d, i) => decisionRules(d, `${at}.decisions[${String(i)}]`))
-  return [...plans, ...plansOnce(goal, at), ...items, ...versions, ...choices]
+  return [...plans, ...slotRules(goal, at), ...plansOnce(goal, at), ...items, ...versions, ...choices]
 }
 
 /**

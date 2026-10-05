@@ -297,6 +297,11 @@ export const ask: Ask = (question, on) => {
     flaky(question, on)
     return
   }
+  // `ask=empty` (Codex F-046): the first send of a question completes with no words; each later one answers.
+  if (query().get('ask') === 'empty' && questions.filter((q) => q.question_id === question.question_id).length === 1) {
+    setTimeout(() => on({ question_id: question.question_id, seq: 1, kind: 'complete', text: '' }), 900)
+    return
+  }
   const late = query().get('staggered') === '1' && question.text === 'Why is it waiting?'
   const start = late ? 1800 : 900
   const record = { on, events: [] as AskEvent[] }

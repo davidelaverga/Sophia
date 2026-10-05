@@ -2947,3 +2947,38 @@ test('codex · F-045 · work outside the plan observed twice is listed once, sai
   await expect(none.locator('[data-work="work-extra"]')).toContainText('running')
   expect(keyWarnings).toEqual([])
 })
+
+// ---- CX-0041 (Codex; GitHub 4183258509, 4183258514): an empty answer is no answer; a plan in its slot. ----
+
+test('codex · F-046 · an answer that comes back empty is said so, never left Thinking; asked again, it answers', async ({
+  page,
+}) => {
+  await paused(page, `${PAGE}?viewer=davide&ask=empty`)
+  const sheet = await openTask(page, 'work-1', 'Implement the PDF retry')
+  await sheet.getByRole('button', { name: 'Why is it waiting?' }).click()
+  await page.clock.runFor(1_000) // its first send completes with no words at 900 ms
+  await expect(sheet.locator('.ask-none')).toContainText('Her answer came back empty. Nothing was changed.')
+  await expect(sheet.getByText('Thinking…')).toHaveCount(0)
+  await sheet.getByRole('button', { name: 'Ask again' }).click()
+  await page.clock.runFor(2_000)
+  await expect(sheet.locator('.ask-a')).toContainText('It goes on as soon as Davide answers it in Claude Code.')
+  await expect(sheet.locator('.ask-none')).toHaveCount(0)
+  const sent = await questioned(page)
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(sent[0])
+})
+
+test('codex · F-047 · a plan in force only proposed, or a proposal accepted, is refused with its view', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=proposed-in-force`)
+  await expect(page.getByRole('alert')).toContainText("current_plan.state: the plan in force isn't one only proposed", {
+    timeout: 15_000,
+  })
+  await expect(board(page)).toHaveCount(0)
+  await page.goto(`${PAGE}?viewer=davide&case=accepted-proposal`)
+  await expect(page.getByRole('alert')).toContainText("proposed_plans[0].state: a proposal isn't a plan accepted", {
+    timeout: 15_000,
+  })
+  await expect(board(page)).toHaveCount(0)
+})

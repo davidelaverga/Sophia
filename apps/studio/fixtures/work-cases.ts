@@ -568,6 +568,14 @@ const outsideTwice: Change = (g) => ({ ...g, items: [...g.items, ...outsideObser
 /** F-045 with no plan in force or proposed: only that work, observed. */
 const noPlanTwice: Change = (g) => ({ ...g, current_plan: null, proposed_plans: [], items: outsideObserved() })
 
+/** Codex F-047: the plan in force said only proposed: the view is refused, never shown as no plan. */
+const proposedInForce: Change = (g) =>
+  g.current_plan ? { ...g, current_plan: { ...g.current_plan, state: 'proposed', decision_ref: null } } : g
+
+/** Codex F-047: the plan's next revision, accepted, among the proposals: the view is refused. */
+const acceptedProposal: Change = (g) =>
+  g.current_plan ? { ...g, proposed_plans: [{ ...g.current_plan, revision: g.current_plan.revision + 1 }] } : g
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -602,6 +610,8 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   'same-version': sameVersion,
   'outside-twice': outsideTwice,
   'no-plan-twice': noPlanTwice,
+  'proposed-in-force': proposedInForce,
+  'accepted-proposal': acceptedProposal,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

@@ -60,6 +60,9 @@ export const unanswerable = (question: Question, reason: string): Asked => ({
   reason,
 })
 
+/** Why an answer that came back with no words is no answer. */
+export const EMPTY_ANSWER = 'Her answer came back empty. Nothing was changed.'
+
 /**
  * A send that has ended: answered, failed (said so, or past its wait) or unavailable. Nothing more of it is taken: a
  * late chunk or answer can't take back what was said and the Ask again offered (Codex F-025). Only a new send, asked
@@ -67,16 +70,21 @@ export const unanswerable = (question: Question, reason: string): Asked => ({
  */
 const ended = (asked: Asked) => asked.state === 'answered' || asked.state === 'failed' || asked.state === 'unavailable'
 
+/**
+ * A send completed: its whole answer, its own text or, without it, the chunks when none is missing. Complete with no
+ * words, or only blank ones, is no answer: failed, said so, and can be asked again (Codex F-046).
+ */
+function completed(asked: Asked, e: AskEvent): Asked {
+  const whole = e.text ?? (e.seq === asked.seq + 1 ? asked.chunks.join('') : null)
+  if (whole === null) return { ...asked, state: 'failed', reason: null, seq: e.seq }
+  if (whole.trim() === '') return { ...asked, state: 'failed', reason: EMPTY_ANSWER, seq: e.seq }
+  return { ...asked, answer: whole, state: 'answered', seq: e.seq }
+}
+
 /** An event folded into a question: another question's, a repeat, one out of order, or one after the end, ignored. */
 export function heard(asked: Asked, e: AskEvent): Asked {
   if (e.question_id !== asked.question.question_id || ended(asked) || e.seq <= asked.seq) return asked
-  if (e.kind === 'complete') {
-    // Without its own text, the chunks are the answer only when none is missing.
-    const whole = e.text ?? (e.seq === asked.seq + 1 ? asked.chunks.join('') : null)
-    return whole === null
-      ? { ...asked, state: 'failed', reason: null, seq: e.seq }
-      : { ...asked, answer: whole, state: 'answered', seq: e.seq }
-  }
+  if (e.kind === 'complete') return completed(asked, e)
   if (e.kind === 'chunk') {
     if (e.seq !== asked.seq + 1) return asked
     return { ...asked, chunks: [...asked.chunks, e.text ?? ''], state: 'answering', seq: e.seq }
