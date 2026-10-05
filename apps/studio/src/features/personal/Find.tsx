@@ -99,6 +99,12 @@ const focused = () =>
 
 const sameAs = (a: Found | null) => (b: Found) => a?.key === b.key && a.n === b.n
 
+/** The focus back where it was, if that is still on the page; else the conversation. */
+function giveBack(to: HTMLElement | null): void {
+  if (to?.isConnected) to.focus({ preventScroll: true })
+  else focusConversation()
+}
+
 /**
  * Find, for a conversation's rows while `on` (Personal in sight, no talk over it, the conversation not covered):
  * whether it is open, how to open it, its line, and the lens the turns mark by. The current match is held as itself,
@@ -115,6 +121,8 @@ export function useFind(rows: readonly Row[], on: boolean, more: boolean, readEa
   const current = found[index] ?? null
   // The line is drawn and takes the focus within the key's own event: the letters typed next are the finder's.
   const openFind = () => {
+    // Out of reach (the notes over the conversation, a talk, out of sight), it doesn't open.
+    if (!on) return
     if (!open) back.current = focused()
     flushSync(() => setOpen(true))
     const input = document.querySelector<HTMLInputElement>('#c-find')
@@ -128,9 +136,7 @@ export function useFind(rows: readonly Row[], on: boolean, more: boolean, readEa
   }
   const close = () => {
     reset()
-    const to = back.current
-    if (to?.isConnected) to.focus({ preventScroll: true })
-    else focusConversation()
+    giveBack(back.current)
   }
   useShortcuts({ 'mod+f': openFind }, on)
   useEscape(open && on, close)

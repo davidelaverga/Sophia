@@ -1,10 +1,14 @@
+import { onScreen } from '../../app/shortcuts.ts'
+
 /**
  * A note kept lands somewhere: a small light leaves the turn it was kept from and flies to the notes' count, which
  * brightens as it arrives (Head). With less motion asked for, nothing flies.
  */
 export function noteFlight(from: Element | null): void {
   const to = document.querySelector('.c3-notes-toggle')
-  if (!from || !to || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  // Kept while Personal is out of sight (Home, Work), the toast says so; nothing flies over another place.
+  if (!from || !to || !onScreen(from) || !onScreen(to)) return
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
   // From the start of the turn's first line to the middle of the count.
   const a = from.getBoundingClientRect()
   const b = to.getBoundingClientRect()
