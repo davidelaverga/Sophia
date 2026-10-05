@@ -6,7 +6,10 @@
 //    PluginApiRequestInput must be assignable to bind.ts's SdkContext and SdkApiRequest, and createServerAdapter() must
 //    be a ServerAdapterModule of @paperclipai/adapter-utils;
 // 3. bundles, with the pin's esbuild, the plugin (manifest, worker, migrations) and the external adapter into
-//    self-contained packages, and writes MANIFEST.json with each file's sha256.
+//    self-contained packages;
+// 4. copies the image recipe beside them (deploy/paperclip/Dockerfile and start.sh, and
+//    scripts/paperclip-verify-manifest.mjs as verify-manifest.mjs), so the output
+//    directory is the whole docker build context, and writes MANIFEST.json with each file's sha256.
 // The checkout needs `pnpm install --frozen-lockfile` and `pnpm --filter @paperclipai/plugin-sdk build`. Nothing here
 // installs anything into a Paperclip instance: installing is the release operator's step (deploy/paperclip/README.md).
 import { createHash } from 'node:crypto'
@@ -146,6 +149,12 @@ async function bundle() {
   )
 }
 
+/** The image recipe beside the packages, so the output directory is the whole docker build context. */
+function context() {
+  for (const file of ['Dockerfile', 'start.sh']) cpSync(src(`deploy/paperclip/${file}`), join(out, file))
+  cpSync(src('scripts/paperclip-verify-manifest.mjs'), join(out, 'verify-manifest.mjs'))
+}
+
 /** Every built file with its sha256, the pin and the commit it was built from. */
 function record() {
   const files = (dir) =>
@@ -172,6 +181,7 @@ rmSync(out, { recursive: true, force: true })
 writeEntries()
 typecheck()
 await bundle()
+context()
 const manifest = record()
 rmSync(entries, { recursive: true, force: true })
 console.log(`built against paperclip@${PAPERCLIP_PIN} into ${out}`)

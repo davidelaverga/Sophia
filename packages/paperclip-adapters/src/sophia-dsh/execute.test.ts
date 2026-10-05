@@ -19,7 +19,8 @@ type Answer<T> = T | Error
 type Call = { readonly op: string; readonly body?: unknown }
 
 interface Script {
-  permit?: Answer<CoordinationPermit>
+  /** One answer, or the answers to successive asks (the last repeats). */
+  permit?: Answer<CoordinationPermit> | Answer<CoordinationPermit>[]
   start?: Answer<CoordinationStart>[]
   observe?: Answer<CoordinationObservation>[]
   cancel?: Answer<CoordinationObservation>[]
@@ -61,7 +62,11 @@ function fakeSophia(script: Script, log: Call[]): SophiaClient {
   }
   return {
     permit: (request: CoordinationPermitRequest) =>
-      next('permit', script.permit ? [script.permit] : undefined, request),
+      next(
+        'permit',
+        Array.isArray(script.permit) ? script.permit : script.permit ? [script.permit] : undefined,
+        request,
+      ),
     start: (request: CoordinationRunRequest) => next('start', script.start, request),
     observe: (request: CoordinationRunRequest) =>
       next(request.final === true ? 'observe-final' : 'observe', script.observe, request),
@@ -187,10 +192,35 @@ describe('sophia_dsh execute', () => {
     assert.deepEqual(h.ops(), ['cancellation-ready', 'permit'])
   })
 
-  it('treats an unanswered permit as no decision and starts nothing', async () => {
+  it('treats an unanswered permit as no decision: it asks again for two minutes, then starts nothing', async () => {
     const h = harness({ permit: new SophiaUnreachable('timeout') })
     const result = await h.run()
     assert.equal(result.errorCode, 'sophia_unreachable')
+    // asked at 0, 5, 15, 35, 75 and 115 s; a further wait would pass two minutes
+    assert.deepEqual(h.ops(), ['cancellation-ready', ...Array.from({ length: 6 }, () => 'permit')])
+  })
+
+  it('asks for its permit again while Sophia wakes, and starts on the answer', async () => {
+    const h = harness({
+      permit: [down(), down(), start()],
+      start: [started()],
+      observe: [published],
+    })
+    const result = await h.run()
+    assert.equal(hostReads(result), 'succeeded')
+    assert.deepEqual(h.ops().slice(0, 6), ['cancellation-ready', 'permit', 'permit', 'permit', 'dispatch', 'start'])
+  })
+
+  it('stops asking for its permit once the run is cancelled, and starts nothing', async () => {
+    const h = harness({ permit: down() }, { abortAfterObserves: 1 })
+    const result = await h.run()
+    assert.equal(result.errorCode, 'sophia_unreachable')
+    assert.deepEqual(h.ops(), ['cancellation-ready', 'permit'])
+  })
+
+  it('never asks again for a permit Sophia refused', async () => {
+    const h = harness({ permit: new SophiaRefusal(403, 'not_enrolled', 'no') })
+    await h.run()
     assert.deepEqual(h.ops(), ['cancellation-ready', 'permit'])
   })
 

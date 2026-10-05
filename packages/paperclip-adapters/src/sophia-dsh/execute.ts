@@ -25,7 +25,7 @@
  *    credential, no issue): those need an operator.
  * @module @sophia/paperclip-adapters/sophia-dsh/execute
  */
-import type { CoordinationObservation, CoordinationRunRequest } from '@sophia/contracts'
+import type { CoordinationObservation, CoordinationPermitRequest, CoordinationRunRequest } from '@sophia/contracts'
 import { SophiaRefusal, SophiaUnreachable, type SophiaClient } from './client.ts'
 import type { AdapterExecutionContext, AdapterExecutionResult } from './types.ts'
 
@@ -243,13 +243,38 @@ async function start(
 }
 
 /** Permit, start when permitted to, observe, report. */
+/**
+ * How long a run keeps asking for its permit while Sophia does not answer, and the waits between asks. Sophia's API may
+ * be waking from sleep (a free instance answers its first request after a sleep in more than one 15 s call), and a run
+ * that fails for it leaves its issue under the host's recovery hold. Asking again is safe: Sophia answers a run's
+ * second permit with the decision it recorded for the first (`coordination_permit`, keyed by the run).
+ */
+const PERMIT_PATIENCE_MS = 120_000
+const PERMIT_WAITS_MS: readonly number[] = [5000, 10_000, 20_000]
+const PERMIT_LAST_WAIT_MS = 40_000
+
+async function askPermit(ctx: AdapterExecutionContext, deps: ExecuteDeps, request: CoordinationPermitRequest) {
+  const deadline = deps.now() + PERMIT_PATIENCE_MS
+  const cancelled = () => ctx.signal?.aborted === true
+  for (let asked = 0; ; asked += 1) {
+    try {
+      return await deps.client.permit(request)
+    } catch (err: unknown) {
+      const wait = PERMIT_WAITS_MS[asked] ?? PERMIT_LAST_WAIT_MS
+      if (!(err instanceof SophiaUnreachable) || cancelled() || deps.now() + wait > deadline) throw err
+      await deps.sleep(wait, ctx.signal)
+      if (cancelled()) throw err
+    }
+  }
+}
+
 async function permitted(
   ctx: AdapterExecutionContext,
   deps: ExecuteDeps,
   run: CoordinationRunRequest,
   issueId: string,
 ): Promise<AdapterExecutionResult> {
-  const permit = await deps.client.permit({ ...run, issueId, agentId: ctx.agent.id })
+  const permit = await askPermit(ctx, deps, { ...run, issueId, agentId: ctx.agent.id })
   if (permit.decision === 'deny')
     return failure(`sophia_permit_denied:${permit.code ?? 'denied'}`, permit.reason ?? 'Sophia denied this run.')
   const refused = permit.decision === 'start' ? await start(ctx, deps, run) : null

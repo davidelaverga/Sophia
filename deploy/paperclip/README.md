@@ -56,14 +56,14 @@ Paperclip service (secret store references only):
 
 | Variable | Meaning |
 |---|---|
-| `SOPHIA_COORDINATION_URL` | Sophia API's private origin, reachable from Paperclip only |
+| `SOPHIA_COORDINATION_URL` | Sophia API's existing public origin (HTTPS; the adapter's capability authenticates it). The API's plan is unchanged |
 | `SOPHIA_COORDINATION_TOKEN` | the adapter's capability; Sophia stores only its SHA-256 (`sophia.register_coordination_integration`) |
 
 Sophia worker:
 
 | Variable | Meaning |
 |---|---|
-| `PAPERCLIP_ORIGIN` | Paperclip's private origin |
+| `PAPERCLIP_ORIGIN` | Paperclip's address on the private network (`http://<its internal host name>:3100`); never a public URL |
 | `PAPERCLIP_INTEGRATION_TOKEN` | the API key of a dedicated **integration board user**, member of the pilot company only |
 | `SOPHIA_COORDINATION_SIGNING_KEY` | Ed25519 private key (PKCS#8 PEM) that signs every commission and control |
 
@@ -79,6 +79,133 @@ SELECT sophia.set_coordination_grant(<project>, 'enabled', <review cap USD>, '<c
 SELECT sophia.register_coordination_integration('<company id>', '\x<sha256 of SOPHIA_COORDINATION_TOKEN>', 'paperclip pilot');
 ```
 
+## The service (WBC-02-CX-0015; for D4, nothing here is decided or created)
+
+**Image.** Two steps on a clean machine, so Paperclip is built by its own recipe and never forked:
+
+```sh
+git clone https://github.com/paperclipai/paperclip /build/paperclip
+git -C /build/paperclip checkout 5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb
+docker build --target build --build-arg PAPERCLIP_BUILD_COMMIT=5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb \
+  -t paperclip-build:5edf55d /build/paperclip                          # the pin's own build stage, unchanged
+(cd /build/paperclip && pnpm install --frozen-lockfile && pnpm --filter @paperclipai/plugin-sdk build && pnpm --filter @paperclipai/db build)
+node scripts/paperclip-build.mjs --paperclip /build/paperclip --out /build/sophia-paperclip   # from a clean Sophia commit
+docker build --build-arg PAPERCLIP_BUILD_IMAGE=paperclip-build:5edf55d -t sophia-paperclip:<sophia commit> /build/sophia-paperclip
+```
+
+The second build's context is the output of `scripts/paperclip-build.mjs`: the two packages, `MANIFEST.json`,
+[`Dockerfile`](Dockerfile), [`start.sh`](start.sh) and `verify-manifest.mjs` (from
+`scripts/paperclip-verify-manifest.mjs`), each recorded by sha256. The image build refuses a context whose files do not
+match `MANIFEST.json`, a build against another pin, or one made from a Sophia tree with uncommitted changes. What
+differs from the pin's own production stage: no agent CLI is installed (the pin installs five at `@latest`), because
+Paperclip runs no model here and `PAPERCLIP_ADAPTERS` allows only `sophia_dsh`. The plugin and the adapter sit at
+`/opt/sophia`, and `start.sh` writes the adapter's record (`$PAPERCLIP_HOME/adapter-plugins.json`) on every start, so
+the adapter that runs is always the image's. The operator records the image digest (`docker buildx imagetools
+inspect`), and the release deploys that digest from a private registry. A different digest is a different request.
+
+**Service shape (Render; the platform facts below are the ones Codex checked in WBC-02-CX-0020, since render.com was
+not reachable from the implementer's container).**
+
+- A **private service** (no public URL) in Oregon, the Sophia worker's region, running the image. A persistent disk
+  at `/paperclip` (`PAPERCLIP_HOME`) holds the instance's files: run logs, uploads and, if not given by the
+  environment, its secret files.
+- **Deploys must not overlap.** Render overlaps the old and new instances of an ordinary service during a deploy, but
+  a disk-backed service stops the old instance before it starts the new one. The disk is therefore part of the recipe:
+  two Paperclip processes must never run against one database, because the host's own scheduler assumes one host.
+- **Packages are baked in, not on the disk.** A disk's data exists only at run time, so the plugin and the adapter come
+  from the image at `/opt/sophia`.
+- **Its own PostgreSQL** (`DATABASE_URL`, the internal URL), never Sophia's, with the provider's backups. The image
+  turns Paperclip's own file backups off (`PAPERCLIP_DB_BACKUP_ENABLED=false`).
+- **Memory:** see "Qualification" below. The measured idle footprint rules out the 512 MB tier.
+
+**Reachability, exactly.**
+
+| From | To | How | Authenticated by |
+|---|---|---|---|
+| Sophia worker (Render background worker) | Paperclip's plugin routes | the private network, `PAPERCLIP_ORIGIN=http://<internal host name>:3100`; that host name is in `PAPERCLIP_ALLOWED_HOSTNAMES` | the integration board user's API key, plus Sophia's Ed25519 envelope on every body |
+| `sophia_dsh`, inside Paperclip's server process | Sophia's `/v1/coordination/*` | the API's existing public HTTPS origin (`SOPHIA_COORDINATION_URL`) | `SOPHIA_COORDINATION_TOKEN` (Sophia stores its SHA-256) |
+| Operators | Paperclip | a shell on the service (`render ssh <service>`), against `http://127.0.0.1:3100` (loopback is always admitted); the UI through `render ssh <service> -- -L 3100:127.0.0.1:3100` | an SSH key registered for the operator's Render account (a prerequisite: Codex's read-only attempt with an unregistered key was refused `publickey`), then their own board API key |
+| Anyone else | Paperclip | nothing: no public URL, and the host-name guard answers 403 to any other name | n/a |
+
+Paperclip sends nothing else out: telemetry and the announcements feed are off, and plugins and adapters install
+from local paths, never npm. The adapter asks for a run's permit again for up to two minutes while Sophia does not
+answer, because the free API can be waking from sleep; the runtime host's and bridge's long polls normally keep it
+awake.
+
+**Operator path, private.** The board UI is never published. An operator reaches it only through the documented SSH
+local forward above. Over loopback, in the service's shell:
+
+1. Sign up the first operator (`POST /api/auth/sign-up/email`, with an `Origin` of `http://127.0.0.1:3100`), claim the
+   instance (`POST /api/bootstrap/claim`, private mode only) and mint a board API key (`POST /api/board-api-keys`,
+   `expiresAt` per policy). Sign up the integration board user the same way.
+2. Close sign-up (`PAPERCLIP_AUTH_DISABLE_SIGN_UP=true`, redeploy).
+3. Create the pilot company and project, and make the integration user a member of that company only: the company
+   invite flow Codex's installed-HTTP probe used.
+4. Mint the integration user's board key into the Sophia worker's secret `PAPERCLIP_INTEGRATION_TOKEN`.
+5. Install the plugin: `POST /api/plugins/install` with `{"packageName": "/opt/sophia/sophia-coordination-plugin",
+   "isLocalPath": true}`.
+6. Configure it for the company (`POST /api/plugins/<id>/config`).
+
+The plugin reconciles the managed `source-reviewer` agent at the first commission.
+
+**Secrets (the service's secret store; names only).**
+
+| Name | What breaks without it, and how it rotates |
+|---|---|
+| `DATABASE_URL` | the server does not start |
+| `BETTER_AUTH_SECRET` | the server does not start; rotating it signs every session out |
+| `PAPERCLIP_SECRETS_MASTER_KEY` | encrypts Paperclip's stored secrets; set it here, not on the disk, and keep an offline copy: losing it loses them |
+| `PAPERCLIP_TOOL_ACTION_SIGNING_SECRET`, `PAPERCLIP_DECISION_SIGNING_SECRET` (32+ characters) | signed approvals; set here so they survive a lost disk |
+| `SOPHIA_COORDINATION_TOKEN` | the adapter cannot reach Sophia; rotate by registering the new hash in Sophia first |
+| `PAPERCLIP_ALLOWED_HOSTNAMES` | not secret: the internal host name the Sophia worker uses |
+
+Sophia's signing private key and the integration board key never enter Paperclip, and no provider key does either.
+
+**Persistence and upgrades.**
+
+- The plugin is referenced in place: the database records `/opt/sophia/sophia-coordination-plugin`, and every image
+  carries it at that path. A restart reloads it from there (`loadAll`).
+- An upgrade is a new image. The host then re-reads the manifest and re-applies the plugin's migrations by checksum,
+  so `001_sophia_coordination.sql` must never change once a service has installed it: a later schema change is a new
+  file.
+- The adapter's record is rewritten at every start.
+
+**Fencing a previous instance.** A status write that the host never answered stays open until it is fenced
+([WBC-02-CC-0009](../../docs/coordination/WBC-02/WBC-02-CC-0009.md)), and meanwhile no delivery of its commission is
+confirmed. Within one running instance, the plugin fences the write itself once it sees, in the same process
+namespace, that the host process which served it is gone. After a deploy or a restart the new instance runs in
+another container, where it cannot see that. There an operator fences, after verifying that the previous instance
+stopped. On a disk-backed service it stopped before the new one started: check the deploy's events. Let T be the new
+instance's start. Then, on Paperclip's database:
+
+```sql
+UPDATE plugin_sophia_coordination_00c896da3d.effects
+   SET fenced_at = now(), fence = 'operator <name>: previous instance stopped before <T>, <deploy id>'
+ WHERE settled_at IS NULL AND ended_at IS NULL AND fenced_at IS NULL AND started_at < '<T>';
+```
+
+The settle job settles those writes within a minute, restoring Sophia's latest control over any that landed. Never fence
+a write while the instance that served it may still run.
+
+**Rollback.** Redeploy the previous image digest. Plugin and adapter come from that image, and the database keeps the
+plugin's namespace, whose migration files the previous image also carries unchanged. To stop coordination without
+Paperclip, disable the plugin (`POST /api/plugins/<id>/disable`) or stop the service. Sophia keeps every record, and
+an unknown delivery is reconciled by its key. The database is separate: dropping it is D4's operator's choice.
+
+**Qualification, on a local stack (`scripts/paperclip-service-probe.mjs`).** The pin's server is built as its own build
+stage builds it and started by `start.sh` with the image's environment, on a throwaway database and home. The results
+are in [WBC-02-CC-0009](../../docs/coordination/WBC-02/WBC-02-CC-0009.md):
+
+- the pinned migrations applied at start;
+- `sophia_dsh` loaded (or the start refused);
+- the host-name guard;
+- the first admin and a board key over loopback;
+- the plugin installed from its path and configured;
+- a signed commission and a signed Stop;
+- a scheduled settle-job run;
+- a restart with sign-up closed: plugin ready, adapter loaded, the same issue found, sign-up refused;
+- resident memory by phase.
+
 ## Release order (readers first)
 
 The batch, its targets and costs are in [WBC-02-CC-0005](../../docs/coordination/WBC-02/WBC-02-CC-0005.md). Source order (CX-0012): #104 (SDD-01) first; this branch then rebases on it and regenerates from the combined tree, so `0038`–`0040` precede `0042` and the runtime unit is the combined one.
@@ -88,8 +215,10 @@ The batch, its targets and costs are in [WBC-02-CC-0005](../../docs/coordination
    branch. Today's API and worker run unchanged on it.
 2. **API and worker** of the reviewed commit. Without the three worker variables the coordinator stays off and says so;
    with no coordination grant every review route answers that source review is not enabled.
-3. **Runtime unit `sophia-runtime-wbc02-dev`** (previous `sophia-runtime-m03-dev`), cut over only with zero non-final
-   bindings on the old unit. Until then no runtime advertises the reviewer and permits deny `runtime_unavailable`.
+3. **Runtime unit** (the combined unit of the batch; previous `sophia-runtime-m03-dev`), cut over in place on the same
+   root once no live work is on the old unit ([WBC-02-CC-0007](../../docs/coordination/WBC-02/WBC-02-CC-0007.md) §3; the
+   old unit's completed work keeps `running` binding rows, which are left as they are). Until then no runtime
+   advertises the reviewer and permits deny `runtime_unavailable`.
 4. **Studio.** Tasks reads `/plans`; a project without plans shows its goals as before. The entry ("Review sources")
    appears only where Sophia says the viewer may propose.
 5. **Paperclip**: the private service and its database, the plugin and the adapter from the verified build, the
