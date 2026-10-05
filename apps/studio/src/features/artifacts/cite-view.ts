@@ -211,7 +211,7 @@ export function lastGrapheme(text: string, by: Intl.Segmenter | null = segmenter
  * Fewer visible characters than these between two targets (citation groups or links) may be narrower than their 4 px
  * reaches need, counted at the narrowest glyph the reading fonts have (an apostrophe, about 0.19em of 17 px): the
  * sides that face each other stop at their numerals (M75-RF-0004). The page keeps its own room by the same count
- * (`roomed` in report-page.ts).
+ * (`roomed` in @sophia/report/page).
  */
 const ROOM = 3
 

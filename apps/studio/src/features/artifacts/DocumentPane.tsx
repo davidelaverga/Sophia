@@ -1,9 +1,9 @@
 // The report viewer (plan §2.8.3–§2.8.6): a side pane that can be enlarged to a full page in the same frame. Its head
 // names the version on screen (format, version, words or pages, size, short hash) and downloads exactly those bytes;
 // its tabs are the Document, the Sources it cites and its History. A version with a PDF shows either its Markdown or
-// its PDF (S5b). Every file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary region: focus moves to its title on open
-// and back to the opener on close; Esc steps down, F toggles the full page.
-// The Document tab also saves its version as an HTML page, printed from the Markdown on screen (PageDownload).
+// its PDF (S5b); one with a designed HTML page (SDD-01) also shows that page, in an isolated frame (HtmlView). Every
+// file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary
+// region: focus moves to its title on open and back to the opener on close; Esc steps down, F toggles the full page.
 import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
@@ -24,8 +24,8 @@ import {
   type LoadedText,
 } from './download.ts'
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
+import { HtmlView, reviewTag } from './HtmlView.tsx'
 import { MarkdownView } from './MarkdownView.tsx'
-import { PageDownload } from './PageDownload.tsx'
 import type { ReportLink, ViewerFormat, ViewerTab } from './report-link.ts'
 import {
   currentOffer,
@@ -34,12 +34,15 @@ import {
   focusFree,
   focusReturn,
   formatBytes,
+  htmlMissing,
   pdfMissing,
   pinTo,
+  renditionOf,
   rereadFor,
   shortHash,
   versionMissing,
   versionReadFailure,
+  viewerFormats,
 } from './report-view.ts'
 import { ReportHistory } from './ReportHistory.tsx'
 import { SourcesList } from './SourcesList.tsx'
@@ -122,20 +125,46 @@ function usePaneData(identity: Identity, link: ReportLink) {
     () => (text.data ? parseMarkdown(text.data.text, { citable: (listed ?? []).map((s) => s.sourceId) }) : null),
     [text.data, listed],
   )
-  // The report's own language: the viewer names a citation in it, as its HTML page does.
+  // The report's own language: the viewer names a citation in it.
   const language = useMemo(() => (text.data ? reportLanguage(text.data.text) : 'und'), [text.data])
-  // The PDF is the one rendition format (A11).
-  const rendition = version?.renditions?.[0]
+  return {
+    versions,
+    version,
+    versionSettled,
+    text,
+    sources,
+    parsed,
+    language,
+    ...useRenditions(identity, link, version),
+  }
+}
+
+const retryRead = (n: number, error: Error) => !(error instanceof HashMismatch) && n < 2
+
+/** The version's PDF and designed page, each read (and checked) only while it is the format on screen. */
+function useRenditions(identity: Identity, link: ReportLink, version: ArtifactVersion | undefined) {
+  const rendition = renditionOf(version, 'pdf')
+  const page = renditionOf(version, 'html')
   const showPdf = link.format === 'pdf' && rendition !== undefined
-  const noPdf = pdfMissing(link.format, version)
+  const showHtml = link.format === 'html' && page !== undefined
   const pdf = useQuery({
     queryKey: ['report-pdf', rendition?.sourceId, identity.name],
     queryFn: () => loadReportBytes(identity.token, rendition?.sourceId ?? '', rendition?.sha256 ?? ''),
     enabled: showPdf,
     staleTime: Infinity,
-    retry: (n, error) => !(error instanceof HashMismatch) && n < 2,
+    retry: retryRead,
   })
-  return { versions, version, versionSettled, text, sources, parsed, language, rendition, showPdf, noPdf, pdf }
+  // The designed page's text, checked against the rendition's hash: the frame shows exactly what downloads.
+  const html = useQuery({
+    queryKey: ['report-html', page?.sourceId, identity.name],
+    queryFn: () => loadReportText(identity.token, page?.sourceId ?? '', page?.sha256 ?? ''),
+    enabled: showHtml,
+    staleTime: Infinity,
+    retry: retryRead,
+  })
+  const noPdf = pdfMissing(link.format, version)
+  const noHtml = htmlMissing(link.format, version)
+  return { rendition, page, showPdf, showHtml, noPdf, noHtml, pdf, html }
 }
 
 type PaneData = ReturnType<typeof usePaneData>
@@ -348,7 +377,8 @@ export function DocumentPane(props: Props) {
             onTab={choose}
             sources={data.sources.data?.sources.length}
             versions={data.versions.data?.length}
-            format={data.rendition ? (data.showPdf ? 'pdf' : 'markdown') : null}
+            formats={viewerFormats(data.version)}
+            format={shownFormat(data)}
             onFormat={onFormat}
           />
         }
@@ -442,20 +472,27 @@ function PaneBody(props: BodyProps) {
       role="tabpanel"
       aria-labelledby={`report-tab-${props.tab}`}
       data-pdf={(!blocked && props.data.showPdf) || undefined}
+      data-html={(!blocked && props.data.showHtml) || undefined}
     >
       {blocked ? <Unavailable {...blocked} recover={props.recover} /> : <TabContent {...props} />}
     </div>
   )
 }
 
+/**
+ * The Document tab shows one view per format: the PDF rendition, the designed HTML page (SDD-01) of its stored bytes in
+ * an isolated frame, never in MarkdownView or the Studio's own DOM, or the Markdown read in the reading voice.
+ */
+function DocumentView({ data, full, onCite }: Pick<BodyProps, 'data' | 'full' | 'onCite'>) {
+  if (data.showPdf) return <PdfTab data={data} full={full} />
+  if (data.showHtml) return <HtmlTab data={data} full={full} />
+  return <DocumentTab data={data} onCite={onCite} />
+}
+
 function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion }: BodyProps) {
-  // The Document tab shows one view per format: the PDF rendition, or the Markdown read in the reading voice. A designed
-  // HTML version (SDD-01) is a third view here, of its stored bytes in an isolated frame, beside these and never in
-  // MarkdownView or the Studio's own DOM (docs/coordination/M75/HANDOFF_TO_SDD01.md §4).
   return (
     <>
-      {tab === 'document' && data.showPdf && <PdfTab data={data} full={full} />}
-      {tab === 'document' && !data.showPdf && <DocumentTab data={data} identity={identity} onCite={onCite} />}
+      {tab === 'document' && <DocumentView data={data} full={full} onCite={onCite} />}
       {tab === 'sources' && (
         <SourcesList
           sources={data.sources.data?.sources}
@@ -493,11 +530,32 @@ function metaLine(version: ArtifactVersion | undefined, text: LoadedText | undef
     .join(' · ')
 }
 
+/** The format on screen: the one the link asks for when the version has it, else its Markdown. */
+const shownFormat = (data: PaneData): ViewerFormat => {
+  if (data.showPdf) return 'pdf'
+  return data.showHtml ? 'html' : 'markdown'
+}
+
 /** What the head says about the format on screen, and whether its bytes are there to download. */
-const headOf = (data: PaneData) =>
-  data.showPdf
-    ? { format: 'pdf' as const, meta: pdfMetaLine(data), canDownload: data.pdf.isSuccess }
-    : { format: 'markdown' as const, meta: metaLine(data.version, data.text.data), canDownload: data.text.isSuccess }
+function headOf(data: PaneData): { format: ViewerFormat; meta: string; canDownload: boolean } {
+  if (data.showPdf) return { format: 'pdf', meta: pdfMetaLine(data), canDownload: data.pdf.isSuccess }
+  if (data.showHtml) return { format: 'html', meta: htmlMetaLine(data), canDownload: data.html.isSuccess }
+  return { format: 'markdown', meta: metaLine(data.version, data.text.data), canDownload: data.text.isSuccess }
+}
+
+/** "HTML · v2 · 41.2 KB · 1a2b3c4d · reviewed": the designed page on screen, exactly, and how it was reviewed. */
+function htmlMetaLine({ version, page }: PaneData): string {
+  if (!version || !page) return ''
+  return [
+    'HTML',
+    version.versionNumber ? `v${version.versionNumber}` : null,
+    formatBytes(page.byteLength),
+    shortHash(page.sha256),
+    reviewTag(page.reviewState),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
 
 /** "PDF · v2 · 3 pages · 68.0 KB · 1a2b3c4d": the PDF on screen, exactly. */
 function pdfMetaLine({ version, rendition }: PaneData): string {
@@ -513,9 +571,10 @@ function pdfMetaLine({ version, rendition }: PaneData): string {
     .join(' · ')
 }
 
-/** The bytes on screen and the hash their record gives: the PDF's, or the Markdown's. */
-function onScreen({ version, text, rendition, showPdf, pdf }: PaneData) {
+/** The bytes on screen and the hash their record gives: the PDF's, the designed page's, or the Markdown's. */
+function onScreen({ version, text, rendition, showPdf, pdf, page, showHtml, html }: PaneData) {
   if (showPdf) return pdf.data && rendition ? { file: pdf.data, sha256: rendition.sha256 } : null
+  if (showHtml) return html.data && page ? { file: asBytes(html.data), sha256: page.sha256 } : null
   return text.data && version ? { file: asBytes(text.data), sha256: version.sourceHash } : null
 }
 
@@ -554,6 +613,8 @@ interface HeadProps {
   chatUnread: boolean
 }
 
+const TILE: Record<ViewerFormat, string> = { markdown: 'MD', pdf: 'PDF', html: 'HTML' }
+
 function PaneHead(props: HeadProps) {
   const {
     title,
@@ -573,7 +634,7 @@ function PaneHead(props: HeadProps) {
   return (
     <header className="report-pane-head">
       <span className="report-tile" data-format={format} aria-hidden>
-        {format === 'pdf' ? 'PDF' : 'MD'}
+        {TILE[format]}
       </span>
       <div className="report-pane-name">
         <h2 id="report-pane-title" ref={titleRef} tabIndex={-1}>
@@ -646,8 +707,9 @@ interface TabsProps {
   onTab: (tab: ViewerTab) => void
   sources: number | undefined
   versions: number | undefined
-  /** The format on screen when the version has a PDF; null when it has only its Markdown. */
-  format: ViewerFormat | null
+  /** The formats the version can be read in; the switch shows when there is more than its Markdown. */
+  formats: readonly ViewerFormat[]
+  format: ViewerFormat
   onFormat: (format: ViewerFormat) => void
 }
 
@@ -659,7 +721,7 @@ const TABS: readonly ViewerTab[] = ['document', 'sources', 'history']
  * The report's tabs, as every tab row in Studio: the one selected is the one Tab reaches, arrow keys, Home and End move
  * between them. The format switch sits beside the row, not in it (a tab list holds tabs only).
  */
-function PaneTabs({ tab, onTab, sources, versions, format, onFormat }: TabsProps) {
+function PaneTabs({ tab, onTab, sources, versions, formats, format, onFormat }: TabsProps) {
   const buttons = useRef(new Map<ViewerTab, HTMLButtonElement>())
   const label: Record<ViewerTab, string> = {
     document: 'Document',
@@ -694,24 +756,29 @@ function PaneTabs({ tab, onTab, sources, versions, format, onFormat }: TabsProps
           </button>
         ))}
       </div>
-      {format && <FormatSwitch format={format} onFormat={onFormat} />}
+      {formats.length > 1 && <FormatSwitch formats={formats} format={format} onFormat={onFormat} />}
     </div>
   )
 }
 
-/** Markdown or PDF, for a version that has both. */
-function FormatSwitch({ format, onFormat }: { format: ViewerFormat; onFormat: (format: ViewerFormat) => void }) {
-  const options: [ViewerFormat, string][] = [
-    ['markdown', 'Markdown'],
-    ['pdf', 'PDF'],
-  ]
+const FORMAT_NAME: Record<ViewerFormat, string> = { markdown: 'Markdown', pdf: 'PDF', html: 'HTML' }
+
+/** Markdown, PDF or the designed HTML page: the formats the version has. */
+function FormatSwitch(props: {
+  formats: readonly ViewerFormat[]
+  format: ViewerFormat
+  onFormat: (format: ViewerFormat) => void
+}) {
+  const { formats, format, onFormat } = props
   return (
     <span className="report-format" role="group" aria-label="Format">
-      {options.map(([id, label]) => (
-        <button key={id} type="button" aria-pressed={format === id} onClick={() => onFormat(id)}>
-          {label}
-        </button>
-      ))}
+      {formats
+        .map((id) => [id, FORMAT_NAME[id]] as const)
+        .map(([id, label]) => (
+          <button key={id} type="button" aria-pressed={format === id} onClick={() => onFormat(id)}>
+            {label}
+          </button>
+        ))}
     </span>
   )
 }
@@ -735,13 +802,35 @@ function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
   )
 }
 
+/** The version's designed page, once its bytes matched the rendition's hash. */
+function HtmlTab({ data, full }: { data: PaneData; full: boolean }) {
+  if (data.html.isError) {
+    return (
+      <p className="muted" role="alert">
+        {data.html.error instanceof HashMismatch
+          ? 'This page did not match its record, so it is not shown.'
+          : 'The page couldn’t be loaded. Try again in a moment.'}
+      </p>
+    )
+  }
+  if (!data.html.data || !data.page) return <p className="muted">Loading the page…</p>
+  return (
+    <HtmlView html={data.html.data.text} title={data.version?.title ?? 'Report'} rendition={data.page} full={full} />
+  )
+}
+
 interface DocumentTabProps {
   data: PaneData
-  identity: Identity
   onCite: (sourceId: string) => void
 }
 
-function DocumentTab({ data, identity, onCite }: DocumentTabProps) {
+/** Why the Markdown is on screen though another format was asked for, or null. */
+const formatNote = (data: PaneData): string | null => {
+  if (data.noPdf) return 'This version has no PDF, so its Markdown is shown.'
+  return data.noHtml ? 'This version has no designed HTML page, so its Markdown is shown.' : null
+}
+
+function DocumentTab({ data, onCite }: DocumentTabProps) {
   if (data.text.isError) {
     return (
       <p className="muted" role="alert">
@@ -754,12 +843,11 @@ function DocumentTab({ data, identity, onCite }: DocumentTabProps) {
   if (!data.parsed || !data.version) return <p className="muted">Loading the report…</p>
   return (
     <>
-      {data.noPdf && (
+      {formatNote(data) && (
         <p className="report-format-note" role="note">
-          This version has no PDF, so its Markdown is shown.
+          {formatNote(data)}
         </p>
       )}
-      <PageDownload token={identity.token} artifactId={data.version.artifactId} versionId={data.version.id} />
       <Limitations items={data.version.limitations ?? []} />
       <MarkdownView
         report={data.parsed}

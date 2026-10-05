@@ -220,6 +220,45 @@ const PILOT_NOTES: readonly VersionNotes[] = [
 /** The id of version `n` (1-based). */
 export const versionId = (n: number) => `00000000-0000-4000-8000-0000000000d${String(n)}`
 
+/**
+ * A designed HTML page of version 1 (SDD-01), with `designed=on`: a labelled static page standing in for one Sophia
+ * designed and a separate reviewer checked, stored as the version's `html` rendition. Its hash is the page's bytes'.
+ */
+export const DESIGNED = {
+  sourceId: '00000000-0000-4000-8000-0000000000e1',
+  sha256: '315a02d313f9fcdf875a09526b85b817ef79f2b1ead83cc68fa9ee0454d928fe',
+  text: `${[
+    '<!doctype html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="utf-8">',
+    "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'\">",
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    '<title>Fixture report</title>',
+    '<style>body{margin:0;font:18px/1.5 Georgia,serif;color:#1d1b16;background:#fbf7ef}main{max-width:40rem;margin:0 auto;padding:2rem 1.25rem}h1{font-size:2rem;line-height:1.15}</style>',
+    '</head>',
+    '<body>',
+    '<main data-section="s1">',
+    '<h1 data-block="b1">A labelled fixture designed page</h1>',
+    '<p data-block="b2">It stands in for a page Sophia designed from the report\'s first version. Nothing here is live.</p>',
+    '</main>',
+    '</body>',
+    '</html>',
+  ].join('\n')}\n`,
+}
+
+/** Version 1's designed page as the version lists it. */
+const designedRendition = () => ({
+  format: 'html' as const,
+  sourceId: DESIGNED.sourceId,
+  sha256: DESIGNED.sha256,
+  byteLength: new TextEncoder().encode(DESIGNED.text).byteLength,
+  mime: 'text/html',
+  pageCount: null,
+  reviewState: 'reviewed' as const,
+  limitations: [],
+})
+
 function version(n: number, title: string, pilot: boolean): ArtifactVersion {
   const text = (pilot ? PILOT_TEXTS[n - 1] : undefined) ?? TEXTS[n - 1]
   if (!text) throw new Error(`no fixture version ${String(n)}`)
@@ -243,9 +282,15 @@ function version(n: number, title: string, pilot: boolean): ArtifactVersion {
   }
 }
 
-/** The report's versions as the API lists them, newest first: `published` of them (with `pilot`, as in PILOT_TEXTS). */
-export const versions = (published: number, title = TITLE, pilot = false): ArtifactVersion[] =>
-  Array.from({ length: published }, (_, i) => version(published - i, title, pilot))
+/**
+ * The report's versions as the API lists them, newest first: `published` of them (with `pilot`, as in PILOT_TEXTS;
+ * with `designed`, version 1 carries its designed page).
+ */
+export const versions = (published: number, title = TITLE, pilot = false, designed = false): ArtifactVersion[] =>
+  Array.from({ length: published }, (_, i) => {
+    const v = version(published - i, title, pilot)
+    return designed && v.versionNumber === 1 ? { ...v, renditions: [designedRendition()] } : v
+  })
 
 /** What a version cites, as `GET …/versions/{id}/sources` answers it: the one page, read in full. */
 export const citedSources: ReportSourceList = {
@@ -269,7 +314,8 @@ export const citedSources: ReportSourceList = {
  * A version's Markdown, inline, as `GET /sources/{id}/content` answers it; null for a source it does not hold.
  * `tampered` (`tamper=text`): the text with one space more and the record's sha256 kept, bytes no record names.
  */
-export function content(sourceId: string, tampered = false): SourceContent | null {
+export function content(sourceId: string, tampered = false, pageTampered = false): SourceContent | null {
+  if (sourceId === DESIGNED.sourceId) return designedContent(pageTampered)
   const text = [...TEXTS, ...PILOT_TEXTS].find((t) => t.sourceId === sourceId)
   if (!text) return null
   const served = tampered ? `${text.text} ` : text.text
@@ -279,6 +325,22 @@ export function content(sourceId: string, tampered = false): SourceContent | nul
     mime: 'text/markdown',
     byteLength: byteLengthOf(served),
     filename: 'fixture-report.md',
+    disposition: 'inline',
+    text: served,
+    downloadUrl: null,
+    expiresAt: null,
+  }
+}
+
+/** The designed page as the content read answers it; `tamper=html`: one byte more, the record's hash kept. */
+function designedContent(tampered: boolean): SourceContent {
+  const served = tampered ? `${DESIGNED.text} ` : DESIGNED.text
+  return {
+    sourceId: DESIGNED.sourceId,
+    sha256: DESIGNED.sha256,
+    mime: 'text/html',
+    byteLength: byteLengthOf(served),
+    filename: 'fixture-report-v1.html',
     disposition: 'inline',
     text: served,
     downloadUrl: null,
@@ -331,7 +393,7 @@ export const researchTask: NativeTaskDetail = {
  * The same task's record once its result is revised (`window.fixture.noticeRevised`, CX-0022): its result is version
  * `n`'s Markdown, the files a card opens and saves.
  */
-export function researchTaskAt(n: 1 | 2): NativeTaskDetail {
+export function researchTaskAt(n: 1 | 2, designed = false): NativeTaskDetail {
   const text = TEXTS[n - 1]
   if (!text || !researchTask.result) throw new Error(`no fixture version ${String(n)}`)
   const file = {
@@ -343,11 +405,39 @@ export function researchTaskAt(n: 1 | 2): NativeTaskDetail {
     limitations: [],
   }
   const result = { ...researchTask.result, sourceId: text.sourceId, sha256: text.sha256, markdown: text.text }
+  // With `designed=on` the HTML page asked for is published on version 1, as the API lists it after the Markdown.
+  const page = { ...designedRendition(), artifactVersionId: versionId(1) }
+  const html = { format: 'html' as const, ...pick(page) }
   return {
     ...researchTask,
     task: { ...researchTask.task, resultSourceId: text.sourceId },
-    result: { ...result, outputs: [file] },
+    result: { ...result, outputs: designed && n === 1 ? [file, html] : [file] },
+    ...(designed ? { research: designedResearch } : {}),
   }
+}
+
+/** An output's fields of a rendition. */
+const pick = (r: ReturnType<typeof designedRendition> & { artifactVersionId: string }) => ({
+  artifactVersionId: r.artifactVersionId,
+  sourceId: r.sourceId,
+  sha256: r.sha256,
+  byteLength: r.byteLength,
+  limitations: r.limitations,
+  reviewState: r.reviewState,
+})
+
+/** The research's request and progress once its HTML page is published (`designed=on`). */
+const designedResearch: NonNullable<NativeTaskDetail['research']> = {
+  question: 'A labelled fixture question.',
+  specialist: 'sophia-research-md-v1',
+  outputs: ['markdown', 'html'],
+  rootTaskId: TASK,
+  capUsd: 5,
+  committedUsd: 0.4,
+  spentUsd: 0.4,
+  searches: { used: 1, max: 5 },
+  reads: { used: 1, max: 8 },
+  html: { state: 'published', designTaskId: '00000000-0000-4000-8000-0000000000e2' },
 }
 
 /** The bridge's notice for that task, as it reaches a member in the room's chat. */
@@ -444,7 +534,7 @@ function fixtureCard(published: readonly ArtifactVersion[], d: Description): Rep
     currentVersionNumber: latest.versionNumber ?? null,
     versionCount: published.length,
     updatedAt: AT,
-    formats: ['markdown'],
+    formats: ['markdown', ...(latest.renditions ?? []).map((r) => r.format)],
     latestChange: { note: latest.changeNote ?? null, retained: latest.retainedNote ?? null },
   }
 }

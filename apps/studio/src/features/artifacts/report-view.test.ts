@@ -12,7 +12,11 @@ import {
   focusFree,
   formatsOffered,
   focusReturn,
+  designState,
+  htmlMissing,
   pdfMissing,
+  renditionOf,
+  viewerFormats,
   factChips,
   factsLine,
   formatBytes,
@@ -582,12 +586,57 @@ describe('a version the link names', () => {
 
 describe('a PDF asked for', () => {
   it('is missing when the version on screen has no rendition, and only once the version is read', () => {
-    const pdf = { renditions: [{}] } as never
+    const pdf = { renditions: [{ format: 'pdf' }] } as never
+    const page = { renditions: [{ format: 'html' }] } as never
     assert.equal(pdfMissing('pdf', { renditions: [] }), true)
     assert.equal(pdfMissing('pdf', {}), true, 'a version published before renditions')
     assert.equal(pdfMissing('pdf', pdf), false)
+    assert.equal(pdfMissing('pdf', page), true, 'a designed page is not a PDF')
     assert.equal(pdfMissing('markdown', { renditions: [] }), false, 'the Markdown was asked for')
     assert.equal(pdfMissing('pdf', undefined), false, 'not read yet')
+  })
+})
+
+describe('a designed HTML page (SDD-01)', () => {
+  const both = { renditions: [{ format: 'html' }, { format: 'pdf' }] } as never
+  it('is a format of the version only when the version stores one, after its Markdown and PDF', () => {
+    assert.deepEqual(viewerFormats({ renditions: [] }), ['markdown'])
+    assert.deepEqual(viewerFormats(both), ['markdown', 'pdf', 'html'])
+    assert.deepEqual(viewerFormats(undefined), ['markdown'])
+    assert.equal(renditionOf(both, 'html')?.format, 'html')
+  })
+  it('asked for and absent, shows the Markdown and says so; never printed from it', () => {
+    assert.equal(htmlMissing('html', { renditions: [{ format: 'pdf' }] } as never), true)
+    assert.equal(htmlMissing('html', both), false)
+    assert.equal(htmlMissing('markdown', { renditions: [] }), false)
+    assert.equal(htmlMissing('html', undefined), false, 'not read yet')
+  })
+  it('leaves the report ready while it is designed, and partly delivered when it could not be', () => {
+    const task = { phase: 'result_ready', state: 'succeeded', reason: null } as const
+    const md = [{ format: 'markdown' as const }]
+    const designing = researchState(task, md, ['markdown', 'html'], { html: { state: 'designing' } })
+    assert.deepEqual([designing.state, designing.missing], ['ready', undefined])
+    assert.match(designing.note ?? '', /being designed after the research/)
+    const failed = researchState(task, md, ['markdown', 'html'], {
+      html: { state: 'failed', reason: 'The design hit its limit' },
+    })
+    assert.deepEqual([failed.state, failed.missing], ['partial', 'html'])
+    assert.match(failed.note ?? '', /not designed: The design hit its limit\./)
+    const published = researchState(task, [...md, { format: 'html' as const }], ['markdown', 'html'], {
+      html: { state: 'published' },
+    })
+    assert.deepEqual([published.state, published.note], ['ready', null])
+    // A missing PDF is still the one that "Try PDF again" answers.
+    assert.equal(researchState(task, md, ['markdown', 'pdf', 'html'], { html: { state: 'failed' } }).missing, 'pdf')
+  })
+  it('says what the design is doing, in its own words', () => {
+    assert.equal(designState({ state: 'reviewing' }).label, 'Reviewing')
+    assert.equal(designState({ state: 'published' }).label, 'HTML page ready')
+    assert.deepEqual(designState({ state: 'failed', reason: 'No capture renderer.' }), {
+      label: 'Not designed',
+      tone: 'rose',
+      note: 'No capture renderer.',
+    })
   })
 })
 

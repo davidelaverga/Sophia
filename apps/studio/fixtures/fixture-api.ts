@@ -65,6 +65,10 @@ interface Project {
   taskHeld?: boolean
   /** A version's text arrives as bytes its record does not name (`tamper=text`). */
   textTampered: boolean
+  /** Version 1 carries a designed HTML page (SDD-01, `designed=on`), and the research task lists it. */
+  designed?: boolean
+  /** The designed page arrives as bytes its record does not name (`tamper=html`). */
+  pageTampered?: boolean
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
   work: boolean
   /** The project's goals (the work fixture's one, LFE-07). */
@@ -124,7 +128,7 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
  */
 function snapshotOf(project: Project) {
   const now = snapshot(project.revision, project.exchange, project.messages, project.goals, project.room)
-  const work = project.work ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1).task] } : now
+  const work = project.work ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed).task] } : now
   return project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work
 }
 
@@ -190,13 +194,13 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   if (method !== 'GET') return null
   if (path === '/api/v1/knowledge/reports') {
     const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
-    const published = versions(project.reportVersions, project.reportTitle, project.pilot)
+    const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
     return json(reportList(published, project.description, url.searchParams.get('cursor'), filter))
   }
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
-  const text = source ? content(source, project.textTampered) : null
+  const text = source ? content(source, project.textTampered, project.pageTampered) : null
   if (text) return textRead(project, text)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
   return null
@@ -267,7 +271,7 @@ const heldTasks: (() => void)[] = []
 
 /** The research task at its revision now; while the page holds it, a read that answers once let through. */
 function taskRead(project: Project): Response | Promise<Response> {
-  const read = () => json(researchTaskAt(project.taskRevision ?? 1))
+  const read = () => json(researchTaskAt(project.taskRevision ?? 1, project.designed))
   served.push(`task:${String(project.taskRevision ?? 1)}`)
   if (!project.taskHeld) return read()
   return new Promise((resolve) => heldTasks.push(() => resolve(read())))
@@ -299,7 +303,7 @@ function versionsRead(project: Project): Response {
     return new Response(JSON.stringify(body), { status: failure.status })
   }
   served.push(`versions:${String(project.reportVersions)}`)
-  return json(versions(project.reportVersions, project.reportTitle, project.pilot))
+  return json(versions(project.reportVersions, project.reportTitle, project.pilot, project.designed))
 }
 
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */

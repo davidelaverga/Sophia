@@ -1,4 +1,4 @@
-// The open report in the address bar (plan §2.8.4): `?report=<artifact>&version=<version>&view=full&format=pdf`
+// The open report in the address bar (plan §2.8.4): `?report=<artifact>&version=<version>&view=full&format=pdf|html`
 // deep-links the viewer and lets a member open it in a new tab. Only these parameters are ours; the router keeps them across a
 // change of view in the same project (useProjectRoute) and drops them when the project changes.
 
@@ -6,8 +6,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export type ViewerTab = 'document' | 'sources' | 'history'
 export type ViewerSize = 'side' | 'full'
-/** What the Document tab shows: the report's Markdown, or the version's PDF. */
-export type ViewerFormat = 'markdown' | 'pdf'
+/** What the Document tab shows: the report's Markdown, the version's PDF, or its designed HTML page (SDD-01). */
+export type ViewerFormat = 'markdown' | 'pdf' | 'html'
 
 export interface ReportLink {
   artifactId: string
@@ -19,6 +19,8 @@ export interface ReportLink {
 
 export const REPORT_PARAMS = ['report', 'version', 'view', 'format'] as const
 
+const formatOf = (value: string | null): ViewerFormat => (value === 'pdf' || value === 'html' ? value : 'markdown')
+
 /** The report the address names, or null when it names none (or a malformed one). */
 export function readReportLink(search: string): ReportLink | null {
   const q = new URLSearchParams(search)
@@ -29,7 +31,7 @@ export function readReportLink(search: string): ReportLink | null {
     artifactId: artifactId.toLowerCase(),
     versionId: version && UUID.test(version) ? version.toLowerCase() : null,
     size: q.get('view') === 'full' ? 'full' : 'side',
-    format: q.get('format') === 'pdf' ? 'pdf' : 'markdown',
+    format: formatOf(q.get('format')),
   }
 }
 
@@ -41,7 +43,7 @@ export function withReportLink(search: string, link: ReportLink | null): string 
     q.set('report', link.artifactId)
     if (link.versionId) q.set('version', link.versionId)
     if (link.size === 'full') q.set('view', 'full')
-    if (link.format === 'pdf') q.set('format', 'pdf')
+    if (link.format !== 'markdown') q.set('format', link.format)
   }
   const out = q.toString()
   return out ? `?${out}` : ''

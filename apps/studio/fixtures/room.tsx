@@ -168,6 +168,8 @@ const project = {
   taskRevision: 1 as 1 | 2,
   taskHeld: query.get('hold') === 'task',
   textTampered: query.get('tamper') === 'text',
+  designed: query.get('designed') === 'on',
+  pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',
 }
 installFixtureApi(project)
