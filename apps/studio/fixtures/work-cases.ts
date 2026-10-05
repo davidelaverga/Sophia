@@ -403,6 +403,30 @@ const unobserved: Change = (g) =>
     () => ({ lifecycle: 'running', assignment: null, waiting_on: [] }),
   )
 
+/**
+ * Codex F-027: two tasks whose ids hold the separator the page's keys once joined with: `x|y`, done by assignment
+ * `z`, and `x`, by assignment `y|z`, at the same generation, attempt and session. Neither's draft nor command is the
+ * other's.
+ */
+const pipes: Change = (g, viewer) => {
+  const by = (assignment_id: string) => ({
+    ...claude('pipes', 'builder', 1),
+    assignment_id,
+    attempt_id: 'attempt-pipes',
+    native_session_id: 'session-pipes',
+  })
+  const task = (id: string, purpose: string, assignment_id: string): [PlanItem, ItemView] => [
+    planned(id, purpose, { assignee_id: assignment_id }),
+    projection(id, {
+      lifecycle: 'running',
+      assignment: by(assignment_id),
+      activity: observation('Working through the export.', 30, by(assignment_id)),
+      available_actions: commands(viewer, true),
+    }),
+  ]
+  return added(g, [task('x|y', 'Check the x|y export', 'z'), task('x', 'Check the x export', 'y|z')])
+}
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -423,6 +447,7 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   'replan-decided': replanDecided,
   'replan-updating': replanUpdating,
   unpassed,
+  pipes,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

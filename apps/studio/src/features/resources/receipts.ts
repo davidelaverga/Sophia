@@ -111,12 +111,27 @@ export interface Command {
   target: CommandTarget
 }
 
-/** The scope a command belongs to: its history, kept by work, assignment and generation. */
+/**
+ * The scope a command belongs to: its history, kept by work, assignment and generation. Its fields as one tuple, each
+ * whole, whatever its id holds: `x|y` and `x` can't meet, and none (null) isn't `-` (Codex F-027).
+ */
 export const scopeOf = (t: CommandTarget) =>
-  [t.project_id, t.work_id, t.assignment_id ?? '-', String(t.assignment_generation ?? '-')].join('|')
+  JSON.stringify(['scope', t.project_id, t.work_id, t.assignment_id, t.assignment_generation])
 
-/** The execution a command is for, its attempt and session included: what a draft belongs to (Codex F-007). */
-export const executionOf = (t: CommandTarget) => [scopeOf(t), t.attempt_id ?? '-', t.session_id ?? '-'].join('|')
+/**
+ * The execution a command is for, its attempt and session included: what a draft belongs to (Codex F-007). One tuple,
+ * as for its scope, never equal to a scope (Codex F-027).
+ */
+export const executionOf = (t: CommandTarget) =>
+  JSON.stringify([
+    'execution',
+    t.project_id,
+    t.work_id,
+    t.assignment_id,
+    t.assignment_generation,
+    t.attempt_id,
+    t.session_id,
+  ])
 
 const TARGET_FIELDS = [
   'project_id',

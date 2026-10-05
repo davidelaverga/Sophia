@@ -281,6 +281,19 @@ describe('what is known of a command', () => {
     assert.notEqual(scopeOf(target), scopeOf({ ...target, assignment_generation: 4 }))
     assert.notEqual(scopeOf(target), scopeOf({ ...target, work_id: 'other' }))
     assert.equal(scopeOf(target), scopeOf({ ...target, attempt_id: 'at-4', session_id: 'other' }))
+    // Each field whole: ids holding a separator, or "-", never meet another target's (Codex F-027).
+    const pipes = [
+      { ...target, work_id: 'x|y', assignment_id: 'z' },
+      { ...target, work_id: 'x', assignment_id: 'y|z' },
+    ] as const
+    assert.notEqual(scopeOf(pipes[0]), scopeOf(pipes[1]))
+    assert.notEqual(executionOf(pipes[0]), executionOf(pipes[1]))
+    for (const field of ['assignment_id', 'attempt_id', 'session_id'] as const)
+      assert.notEqual(executionOf({ ...target, [field]: null }), executionOf({ ...target, [field]: '-' }))
+    assert.notEqual(scopeOf({ ...target, assignment_generation: null }), scopeOf({ ...target, assignment_id: '-' }))
+    // A scope is never an execution's key, and the same target is always the same key.
+    assert.notEqual(scopeOf(target), executionOf(target))
+    assert.equal(executionOf({ ...target }), executionOf(target))
   })
 })
 

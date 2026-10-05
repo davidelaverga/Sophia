@@ -11,7 +11,7 @@ import {
   spaceOf,
   unanswered,
 } from './command-store.ts'
-import { executionOf, type Command, type Receipt } from './receipts.ts'
+import { executionOf, scopeOf, type Command, type Receipt } from './receipts.ts'
 
 const target = {
   project_id: 'p',
@@ -22,7 +22,7 @@ const target = {
   session_id: 's',
 }
 /** The execution its drafts belong to: the scope, then its attempt and session (Codex F-007). */
-const draft = 'p|w|a|3|at|s'
+const draft = executionOf(target)
 let n = 0
 /** A space of its own for each check: the store lives as long as the module. */
 const fresh = () => `test-space-${String(++n)}`
@@ -78,7 +78,28 @@ describe('the command store', () => {
   })
 
   it('keys a draft by its execution, so another attempt or session starts with none (Codex F-007)', () => {
-    assert.equal(executionOf(target), draft)
+    // One tuple of every field, each whole (Codex F-027).
+    assert.deepEqual(JSON.parse(draft), ['execution', 'p', 'w', 'a', 3, 'at', 's'])
+  })
+
+  it('keeps tasks apart whose ids hold the old separator, and none apart from "-" (Codex F-027)', () => {
+    const space = fresh()
+    const first = { ...target, work_id: 'x|y', assignment_id: 'z' }
+    const second = { ...target, work_id: 'x', assignment_id: 'y|z' }
+    drafted(space, executionOf(first), 'For the first task only.')
+    assert.equal(spaceOf(space).drafts[executionOf(second)], undefined)
+    assert.equal(spaceOf(space).drafts[executionOf(first)], 'For the first task only.')
+    // A Stop sent to the first is the first's history, never the second's; the same request to it is its own again.
+    added(space, { operation_id: 'op-x', kind: 'stop', target: first })
+    assert.equal(repeatOf(space, 'stop', second), null)
+    assert.equal(repeatOf(space, 'stop', first)?.command.operation_id, 'op-x')
+    // None and "-" are different ids.
+    drafted(space, executionOf({ ...target, attempt_id: null }), 'No attempt named.')
+    assert.equal(spaceOf(space).drafts[executionOf({ ...target, attempt_id: '-' })], undefined)
+    // Spaces too: a project or viewer holding the separator, and no viewer, are each their own.
+    assert.notEqual(commandSpace('a|b', 'c'), commandSpace('a', 'b|c'))
+    assert.notEqual(commandSpace('p', null), commandSpace('p', ''))
+    assert.notEqual(scopeOf(first), scopeOf(second))
   })
 
   it('clears the words sent, once recorded, even with the sheet closed or a Hold sent since; never words typed after', () => {

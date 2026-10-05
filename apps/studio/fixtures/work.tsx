@@ -13,8 +13,8 @@
 // `workFixture` moves the page on as a live service would: `settle(id)` records a choice and `react(id)` takes it
 // into the plan's next revision; `decisionArrives(deciderId)` brings a new one; `begin(workId)`, `reassign(workId)`,
 // `replan()`, `arrive()`, `viewAs(viewer)`, `reconnect()`, `replay(operationId)`, `weaken(operationId)`,
-// `stale(operationId)`, `misdeliver(from, to)`, `conversation(connected)` and `commandPort(connected)`. Whoever does
-// a task opens on the resources' fixture.
+// `stale(operationId)`, `misdeliver(from, to)`, `conversation(connected)`, `commandPort(connected)` and
+// `grantTwice(workId, kind, first, second)`. Whoever does a task opens on the resources' fixture.
 // `review=…` (LFE-07.2): how the lead answers the goal's Request review (work-review.ts), read beside the board's view;
 // `workFixture.goalCommands` lists each goal command sent, with its key; `reviewAgain()` brings in a later review.
 // `lag=1`: the review is read a moment behind the board, with the plan in force the board no longer shows as such.
@@ -132,6 +132,8 @@ declare global {
       nextAttempt?: (workId: string, part?: 'attempt' | 'session' | 'both') => void
       /** `missing`: the view offers the action no more; any other, it offers it so (added back when missing). */
       setAvailability?: (workId: string, kind: ActionKind, availability: Availability) => void
+      /** The view offers one kind twice, in this order: ambiguous, never a grant (Codex F-026). */
+      grantTwice?: (workId: string, kind: ActionKind, first: Granted, second: Granted) => void
       /** A later review in the last one's place (LFE-07.2): it arrives with its card closed. */
       reviewAgain?: () => void
       challenges?: { review: string; text: string; key: string }[]
@@ -432,10 +434,25 @@ function controls(
     nextAttempt: (workId: string, part: Execution = 'both') => update(observed(workId, (v) => nextOf(v, part))),
     setAvailability: (workId: string, kind: ActionKind, availability: Availability) =>
       update(observed(workId, (v) => ({ available_actions: availableAs(v.available_actions, kind, availability) }))),
+    grantTwice: (workId: string, kind: ActionKind, first: Granted, second: Granted) =>
+      update(observed(workId, (v) => ({ available_actions: twice(v.available_actions, kind, [first, second]) }))),
   }
 }
 
 type Availability = ItemAction['availability'] | 'missing'
+type Granted = ItemAction['availability']
+
+/** One kind offered twice, in the order given, in place of how it was offered: the view saying it inconsistently. */
+function twice(actions: readonly ItemAction[], kind: ActionKind, as: readonly Granted[]): ItemAction[] {
+  const was = actions.find((a) => a.kind === kind)
+  const entry = (availability: Granted) => ({
+    kind,
+    availability,
+    reason: availability === 'allowed' ? (was?.reason ?? 'Allowed.') : 'Not allowed for you here.',
+    boundary: was?.boundary ?? null,
+  })
+  return [...actions.filter((a) => a.kind !== kind), ...as.map(entry)]
+}
 
 /** What moves on in the same assignment and generation: its attempt, its native session, or both. */
 type Execution = 'attempt' | 'session' | 'both'

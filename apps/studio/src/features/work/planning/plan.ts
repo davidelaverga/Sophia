@@ -365,8 +365,19 @@ export interface PlanRow {
 }
 
 /** What the view says the viewer may do; missing means unavailable, never allowed. */
-export const actionOf = (row: PlanRow, kind: ActionKind): ItemAction | null =>
-  row.actions.find((a) => a.kind === kind) ?? null
+/** Why a kind the view offers more than once isn't allowed: it doesn't say which of its entries holds (Codex F-026). */
+export const AMBIGUOUS = 'Offered here more than once, so it isn’t allowed until the view says it once.'
+
+/**
+ * What the view offers the viewer of one kind on a task, or null when it offers none. Offered more than once, in any
+ * order, agreeing or not, it is ambiguous: no entry is taken as the grant. It is unavailable, with why, so nothing it
+ * would send goes and no control is offered for it; a result stays shown, said not openable (Codex F-026).
+ */
+export function actionOf(row: PlanRow, kind: ActionKind): ItemAction | null {
+  const offered = row.actions.filter((a) => a.kind === kind)
+  if (offered.length < 2) return offered[0] ?? null
+  return { kind, availability: 'unavailable', reason: AMBIGUOUS, boundary: null }
+}
 export const allowed = (row: PlanRow, kind: ActionKind) => actionOf(row, kind)?.availability === 'allowed'
 
 /** The lane a row sits in. */

@@ -35,7 +35,7 @@ const cleared = new Set<string>()
  * known to both, and the same request from the other is the same operation (Codex F-016). Another project or viewer is
  * another space.
  */
-export const commandSpace = (project: string, viewer: string | null) => [project, viewer ?? ''].join('|')
+export const commandSpace = (project: string, viewer: string | null) => JSON.stringify([project, viewer])
 
 export const spaceOf = (space: string): Space => spaces.get(space) ?? EMPTY
 

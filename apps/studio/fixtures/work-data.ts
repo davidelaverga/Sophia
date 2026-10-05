@@ -48,6 +48,7 @@ export const CASES = [
   'replan-decided',
   'replan-updating',
   'unpassed',
+  'pipes',
 ] as const
 export type Case = (typeof CASES)[number]
 

@@ -2650,3 +2650,79 @@ test('codex · F-025 · a send past its wait stays failed: its own late answer c
   expect(sent).toHaveLength(3)
   expect(new Set(sent.map((q) => JSON.stringify(q))).size).toBe(1)
 })
+
+// ---- CX-0025 (Codex on #74; GitHub 4180308536, 4180308543): no grant by order; ids kept whole. ----
+
+const ambiguous = 'Offered here more than once, so it isn’t allowed until the view says it once.'
+
+test('codex · F-026 · a command offered twice is no grant, in either order: nothing offered, said why; once again, it goes', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  const stop = sheet.getByRole('button', { name: 'Stop', exact: true })
+  await expect(stop).toBeVisible() // offered once: as the view says
+  for (const [first, second] of [
+    ['allowed', 'denied'],
+    ['denied', 'allowed'],
+    ['allowed', 'allowed'],
+  ] as const) {
+    await page.evaluate(([a, b]) => window.workFixture?.grantTwice?.('work-2', 'stop', a, b), [first, second] as const)
+    await expect(stop).toHaveCount(0)
+    await expect(sheet.getByText(`Stop: ${ambiguous}`)).toBeVisible()
+    await expect(sheet.getByRole('button', { name: /^Hold/ })).toBeVisible() // offered once, still offered
+  }
+  expect(await commanded(page)).toEqual([])
+  // Said once again: Stop is offered, and goes, once.
+  await page.evaluate(() => window.workFixture?.setAvailability?.('work-2', 'stop', 'missing'))
+  await page.evaluate(() => window.workFixture?.setAvailability?.('work-2', 'stop', 'allowed'))
+  await stopIn(sheet)
+  await expect.poll(async () => (await commanded(page)).length).toBe(1)
+  expect((await commanded(page))[0]).toMatchObject({ kind: 'stop', target: { work_id: 'work-2' } })
+})
+
+test('codex · F-026 · a question or a result offered twice is unavailable, said why; the task still reads', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=defects`)
+  await page.evaluate(() => window.workFixture?.grantTwice?.('work-1-review', 'open_result', 'allowed', 'denied'))
+  await page.evaluate(() => window.workFixture?.grantTwice?.('work-1-review', 'ask_sophia', 'denied', 'allowed'))
+  const sheet = await openTask(page, 'work-1-review', 'Review the retry’s candidate')
+  await expect(sheet.getByRole('button', { name: 'Open result' })).toHaveCount(0)
+  await expect(sheet.locator('.task-result')).toContainText(ambiguous)
+  await expect(sheet.locator('.task-result')).toContainText('findings-v1') // its version still shown
+  await sheet.getByRole('textbox', { name: 'Ask Sophia about this task' }).fill('Is it done?')
+  await sheet.getByRole('button', { name: 'Ask', exact: true }).click()
+  await expect(sheet.locator('.ask-none')).toContainText(ambiguous)
+  expect(await questioned(page)).toEqual([])
+})
+
+const guide = (sheet: Locator) => sheet.getByRole('textbox', { name: 'Guidance for its session' })
+
+test('codex · F-027 · tasks whose ids hold the old separator keep their own drafts and history', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&case=pipes&admission=slow`)
+  // A draft for x|y (assignment z) stays x|y's.
+  const first = await openTask(page, 'x|y', 'Check the x|y export')
+  await guide(first).fill('For the x|y export only.')
+  await page.keyboard.press('Escape')
+  // x (assignment y|z), at the same generation, attempt and session: nothing of it.
+  const second = await openTask(page, 'x', 'Check the x export')
+  await expect(guide(second)).toHaveValue('')
+  await stopIn(second)
+  await expect(second.locator('.act-steps')).toContainText('Sending…')
+  await page.keyboard.press('Escape')
+  // Back on x|y: its own words, none of x's Stop, and Stop still its own to send.
+  const again = await openTask(page, 'x|y', 'Check the x|y export')
+  await expect(guide(again)).toHaveValue('For the x|y export only.')
+  await expect(again.locator('.act-steps')).toHaveCount(0)
+  await expect(again.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+  await again.getByRole('button', { name: /^Send/ }).click()
+  await expect.poll(async () => (await commanded(page)).length).toBe(2)
+  const [stopped, guided] = await commanded(page)
+  expect(stopped?.target).toMatchObject({ work_id: 'x', assignment_id: 'y|z' })
+  expect(guided).toMatchObject({
+    kind: 'guidance',
+    text: 'For the x|y export only.',
+    target: { work_id: 'x|y', assignment_id: 'z' },
+  })
+})

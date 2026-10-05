@@ -3,7 +3,8 @@ import { describe, it } from 'node:test'
 import { boundaries, notOffered, offered, targetOf, writable } from './actions.ts'
 import { assignment, goal, item, plan, view } from './board-samples.ts'
 import type { ItemAction, ItemView } from './board-view.ts'
-import { boardOf } from './plan.ts'
+import { askBlocked } from './ask.ts'
+import { actionOf, AMBIGUOUS, boardOf } from './plan.ts'
 
 const allowed = (kind: ItemAction['kind'], boundary: string | null = null, reason = `${kind} allowed`): ItemAction => ({
   kind,
@@ -31,6 +32,46 @@ function rowOf(over: Partial<ItemView>) {
   if (!row) throw new Error('no row')
   return row
 }
+
+describe('a command the view offers more than once (Codex F-026)', () => {
+  const said = 'Stop: Offered here more than once, so it isn’t allowed until the view says it once.'
+  it('is never offered, whatever the order of its entries, and says why', () => {
+    for (const twice of [
+      [allowed('stop'), denied('stop', 'Not yours.')],
+      [denied('stop', 'Not yours.'), allowed('stop')],
+      [allowed('stop'), allowed('stop')],
+    ]) {
+      const row = rowOf({ available_actions: [allowed('guidance'), ...twice] })
+      assert.deepEqual(offered(row), [{ kind: 'guidance' }])
+      assert.deepEqual(notOffered(row), [said])
+    }
+  })
+
+  it('makes a result or a question offered more than once unavailable too, said why', () => {
+    const row = rowOf({
+      available_actions: [
+        allowed('open_result'),
+        denied('open_result', 'Not yours.'),
+        allowed('ask_sophia'),
+        allowed('ask_sophia'),
+      ],
+    })
+    assert.deepEqual(actionOf(row, 'open_result'), {
+      kind: 'open_result',
+      availability: 'unavailable',
+      reason: AMBIGUOUS,
+      boundary: null,
+    })
+    assert.equal(askBlocked(actionOf(row, 'ask_sophia'), true), AMBIGUOUS)
+    assert.equal(actionOf(row, 'stop'), null) // not offered at all is still none
+  })
+
+  it('leaves a command offered once as the view says it', () => {
+    const row = rowOf({ available_actions: [allowed('guidance'), allowed('stop')] })
+    assert.deepEqual(offered(row), [{ kind: 'guidance' }, { kind: 'stop' }])
+    assert.deepEqual(notOffered(row), [])
+  })
+})
 
 describe('what a task’s sheet offers to send (G3)', () => {
   it('offers only what the view allows; a command it doesn’t mention is unavailable, not allowed', () => {
