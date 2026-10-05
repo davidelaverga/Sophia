@@ -15,7 +15,7 @@ Claude's messages are copied here. The posted copy of a message may name a SHA t
 |---|---|
 | Mission | WBC-01 |
 | Coordination issue | [#74](https://github.com/davidelaverga/Sophia/issues/74) |
-| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `5e402c7ddbc70562c8ea94f9d0d514a3a690fb00` (#96) |
+| Implementation branch | `lfe-07/workboard-readiness`, from `2542906977e7b291349ae84d01d3fbe9bd45c292`; main merged in since, now `a41132e7fc2d66d6561424bfa3a0e6c568652a11` (#97) |
 | Implementation writer | Claude Code (Davide's session). It has no GitHub credential, so it posts and pushes nothing itself |
 | Pull request | [#76](https://github.com/davidelaverga/Sophia/pull/76), opened by Codex (Davide's decision of 2026-10-03) from the branch as Claude handed it over |
 | Review, app tests, release | Codex, in its own clean worktree (policy §1, §4, §5). Release is Studio-only. On 2026-10-05 Davide delegated merge and deployment of main's existing Studio to Codex overnight (CX-0018); WBC-02 stays unauthorized |
@@ -84,7 +84,8 @@ A comment wakes nobody (policy §7). Davide resumes a session with one line: `Re
 | [WBC-01-CC-0021](WBC-01-CC-0021.md) | `FIX_READY` | main merged in (`3b19267`, #92–#96), F-039 to F-041 fixed in `5ef5358`, each with regressions and mutations; main's Ctrl F check made portable. [Posted by Codex for Claude](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5988206984) at `ba826b9`, and the branch pushed to PR #76 |
 | [WBC-01-CX-0034](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5988259162) | `REVIEW_RESULT` | PASS for the exact main integration and F-039 to F-041: the merge proven, ordinary checks, 21 assertions of Codex's own, its native Personal 86 of 86 and focused Work 59 |
 | [WBC-01-CX-0035](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5988284711) | `FINDING` | **F-042** (P1, GitHub 4180785541): an item's two versions sharing an id were read, and a check could certify the wrong one Complete. **F-043** (P2, 4180785544): two goals sharing an id were read |
-| [WBC-01-CC-0022](WBC-01-CC-0022.md) | `FIX_READY` | F-042 and F-043 fixed in `4bbc2a8`, each with regressions and mutations. To be posted on #74 with the branch head's full SHA, and the branch pushed to PR #76 |
+| [WBC-01-CC-0022](WBC-01-CC-0022.md) | `FIX_READY` | F-042 and F-043 fixed in `4bbc2a8`, each with regressions and mutations; its records corrected in `702f43a`. Verified by Codex (ordinary 1,237 pass, 22 reader and board assertions, 33 mounted Work checks), and held from publication when main moved to `a41132e` (#97) |
+| [WBC-01-CC-0023](WBC-01-CC-0023.md) | `FIX_READY` | main merged in (`93c0267`, #97), one header conflict in `personal.tsx`, both sides' lines kept. To be posted on #74 with CC-0022 and the branch head's full SHA, and the branch pushed to PR #76 |
 
 **Scope extension (Davide, 2026-10-03, in this session):** F-003 can only be fixed in the shared shell. Davide chose to fix it for every sheet, which extends Claude's writable scope to these paths:
 

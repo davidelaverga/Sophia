@@ -316,3 +316,6 @@ AM1 F-043 each goal once on the board (rule): FAILS as it should  [AssertionErro
 AM1b F-043 each goal once on the board (board): FAILS as it should  [expect(locator).toContainText]
 # On 4bbc2a8, every entry above on board-view.ts ran again (10): nine failed; AI1 named the goal rules' last line,
 # which now lists the versions rule too, and re-aimed there it fails. 182 of 183 fail; R1b is the redundant key.
+
+# 2026-10-05, on the merge with #97 (93c0267, main a41132e): U1 runs again with main's Personal changes in place, and
+# fails as it should  [Error: Correct, memory 1]. #97 changed none of the files any other entry names.

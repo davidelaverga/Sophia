@@ -325,6 +325,10 @@ Codex passed the main integration and F-039 to F-041 at `ba826b9` ([CX-0034](htt
 | **F-042** (P1): an item's two versions sharing an id were read, so a check could certify the wrong one Complete | Each version of an item its own id, or the view is refused; two distinct versions both current stay readable, certifying nothing |
 | **F-043** (P2): two goals sharing an id were read, and one was dropped | Each goal once on the board, or the view is refused |
 
+## The merge with #97
+
+Codex verified CC-0022 on `4bbc2a8` (records corrected at `702f43a`), but main moved to `a41132e` (#97, Personal's small P2s) before it was published. The merge `93c0267` resolves the one header conflict in `personal.tsx`, keeping both sides' lines; the rest merged on its own. Full native Personal passes 89 of 89 ([CC-0023](../coordination/WBC-01/WBC-01-CC-0023.md)).
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.
