@@ -221,6 +221,16 @@ function introduce(layout: Layout, { turns, sending, now, name, answers = true, 
   }
 }
 
+/**
+ * Today's divider before anything is said, when today carries a moment (time together, time away). Not after a turn
+ * stamped today or later (a skewed clock): today's divider is there already, or would come twice.
+ */
+function addTodaysMoment(layout: Layout): void {
+  const today = startOfDay(layout.now)
+  if (layout.lastDay === null || layout.lastDay >= today) return
+  if (dayNote(today, layout.lastDay, layout)) addDay(layout, layout.now, layout.now)
+}
+
 /** A layout to fill, knowing the conversation's first day when it is read whole. */
 function layoutFor({ turns, whole, now }: ConversationInput): Layout {
   const opening = turns[0]
@@ -260,6 +270,7 @@ export function conversationRows(input: ConversationInput): Row[] {
     const movedOn = !!sending || i < lastAsked
     addSuggestion(layout, turn, movedOn)
   })
+  addTodaysMoment(layout)
   if ((input.answers ?? true) && arriving(turns, now, !!sending)) {
     const { ready } = input
     layout.rows.push({ kind: 'arrive', key: 'arrive', ways: ready ? [ready, ...ARRIVALS] : ARRIVALS })

@@ -5,7 +5,8 @@
 // it), `notes=none` (none kept yet); `unavailable=1` (Sophia can't answer now). A message sent here is answered 900 ms later.
 // `arrive=1`: yesterday's talk and her line of today, nothing said yet. The parts the API doesn't give yet:
 // `memory=1`, `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
-// `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
+// `spaceAfter=ms`, `epochAfter=ms`: the space, or its epoch, read that much later; `readSlow=1`: earlier days take
+// 1.5 s. `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
@@ -263,26 +264,26 @@ const idle = { state: 'ready' as const, failed: '', retry: () => undefined }
 function useReadBack() {
   const [older, setOlder] = useState<PersonalTurn[]>([])
   const more = query.has('earlier') && older.length === 0
-  const readMore = () => {
+  // `readSlow=1`: the earlier page takes 1.5 s to come.
+  const readMore = async () => {
+    if (query.has('readSlow')) await new Promise((r) => setTimeout(r, 1500))
     setOlder([
       turn('person', 'I made a promise to myself to rest on Sundays.', ago(21 * DAY + 30), { seq: -2 }),
       turn('sophia', 'What would rest look like, this Sunday?', ago(21 * DAY + 29), { seq: -1 }),
     ])
-    return Promise.resolve()
   }
   return { older, more, readMore }
 }
 
-/** The space's epoch as the page knows it, held back with `epochAfter=ms`. */
-function useEpochKnown(): boolean {
-  // `epochAfter=ms`: the space's epoch is known only that much later (both reads still on their way).
-  const [known, setKnown] = useState(!query.has('epochAfter'))
+/** Whether something the page reads has come: at once, or `param=ms` later. */
+function useLater(param: string): boolean {
+  const [come, setCome] = useState(!query.has(param))
   useEffect(() => {
-    if (known) return undefined
-    const later = window.setTimeout(() => setKnown(true), Number(query.get('epochAfter')))
+    if (come) return undefined
+    const later = window.setTimeout(() => setCome(true), Number(query.get(param)))
     return () => window.clearTimeout(later)
-  }, [known])
-  return known
+  }, [come, param])
+  return come
 }
 
 /** Words handed from Home, as `handed=` and `handedAfter=` say. */
@@ -310,7 +311,8 @@ function Personal() {
   const [notes, setNotes] = useState(query.get('notes') === 'open')
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
-  const epochKnown = useEpochKnown()
+  const epochKnown = useLater('epochAfter')
+  const spaceRead = useLater('spaceAfter')
   const [handed, setHanded] = useHanded()
   return (
     <div className="places" data-place="personal">
@@ -331,7 +333,7 @@ function Personal() {
         now={NOW}
         account="fixture"
         name="Luis"
-        space={space}
+        space={spaceRead ? space : undefined}
         epoch={epochKnown ? space.epoch : undefined}
         readBack={readBack}
         read={idle}

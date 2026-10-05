@@ -308,9 +308,12 @@ const MOST = 4000
 const NEAR = 3600
 
 /**
- * How full the field is, once it nears the most one message holds: at the most, why it takes no more; past it (words
- * heard or handed can go past), by how much.
+ * A message's length as the API and the database count it: in characters (code points), so an emoji is one, not the
+ * two UTF-16 units `length` sees.
  */
+const lengthOf = (text: string) => text.length - (text.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g)?.length ?? 0)
+
+/** How full the field is, in characters, once it nears the most one message holds; past it, by how much. */
 function Count({ length }: { length: number }) {
   const over = length - MOST
   return (
@@ -346,7 +349,7 @@ function Field({ field, text, state, placeholder, counted, onChange, onSend }: F
       // message, never a place's key (its first L would lock the space).
       data-typing-sink={state === 'ready' ? '' : undefined}
       rows={1}
-      maxLength={MOST}
+      // No maxLength: it counts UTF-16 units, not characters. Past the most, the count says how far over (Count).
       placeholder={placeholder}
       value={text}
       disabled={state !== 'ready'}
@@ -416,7 +419,7 @@ function useHanded(
     // Into the field, after what the person may have typed meanwhile (addWords).
     // Longer than one message (Home's line has no limit): they wait in the field to be shortened, said so, whether or
     // not the space could take them now.
-    if (words.length > MOST) addWords(draft, words, HANDED_LONG)
+    if (lengthOf(words) > MOST) addWords(draft, words, HANDED_LONG)
     else if (what === 'keep') addWords(draft, words, HANDED)
     else
       // Declined: another tab's message is on its way (a send failing before that is known says the same, the words
@@ -464,7 +467,7 @@ function useSend(
     const current = given ?? draft.current()
     const text = current?.text.trim() ?? ''
     // Past the most one message holds (words heard or handed), nothing goes: the count says how much over.
-    if (!current || !text || current.text.length > MOST || !ready || busy) return Promise.resolve(false)
+    if (!current || !text || lengthOf(current.text) > MOST || !ready || busy) return Promise.resolve(false)
     const words = { text, key: current.key }
     const { promise: admitted, settle: admit } = settleable<boolean>()
     void oneAtATime(account, async (taken) => {
@@ -557,6 +560,8 @@ function useWaiting(state: ComposerState, behind: boolean) {
 interface BarProps {
   field: RefObject<HTMLTextAreaElement | null>
   text: string
+  /** Past the most one message holds: Send waits. */
+  over: boolean
   state: ComposerState
   counted: boolean
   placeholder: string
@@ -568,7 +573,7 @@ interface BarProps {
 }
 
 /** The message bar: her padlock, the field (or the voice listening), the microphone and Send. */
-function Bar({ field, text, state, counted, placeholder, ready, busy, dictation, onChange, onSend }: BarProps) {
+function Bar({ field, text, over, state, counted, placeholder, ready, busy, dictation, onChange, onSend }: BarProps) {
   return (
     <div className={`message-bar${dictation.listening ? ' listening' : ''}`}>
       <span className="c3-private" title="Only she hears this" aria-hidden>
@@ -593,7 +598,7 @@ function Bar({ field, text, state, counted, placeholder, ready, busy, dictation,
         type="submit"
         className="send has-tip"
         aria-label="Send"
-        disabled={!ready || !text.trim() || text.length > MOST}
+        disabled={!ready || !text.trim() || over}
         aria-disabled={busy || undefined}
       >
         <Icon name="send" />
@@ -616,7 +621,8 @@ export function PersonalComposer(props: Props) {
   useHanded(props, ready, send, draft)
   // Offline, a way's words wait as a draft: the line says offline while it is, and the draft once back.
   useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, KEPT) : null)
-  const counted = text.length >= NEAR && !dictation.listening
+  const length = lengthOf(text)
+  const counted = length >= NEAR && !dictation.listening
   return (
     <form
       className="ps-composer"
@@ -625,9 +631,10 @@ export function PersonalComposer(props: Props) {
         void send()
       }}
     >
-      <Over note={offline ? OFFLINE : note} count={counted ? text.length : null} />
+      <Over note={offline ? OFFLINE : note} count={counted ? length : null} />
       <Bar
         {...{ field, text, state, counted, ready, busy, dictation }}
+        over={length > MOST}
         placeholder={placeholderFor(state, online, !!props.night)}
         onChange={change}
         onSend={() => void send()}

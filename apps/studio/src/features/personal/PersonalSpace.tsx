@@ -144,7 +144,7 @@ function useActions(
       presses.press(suggestion.id, () => writes.decide(suggestion.id, decision).catch(onFailed)),
     openNotes: () => props.notes.set(true),
     retry: (turnId) => presses.press(turnId, () => writes.retry(turnId).catch(onFailed)),
-    readEarlier: () => attempt(() => props.readBack.readMore()),
+    readEarlier: () => props.readBack.readMore().catch(onFailed),
     // Whether it was kept: a refused note's words go back into its form.
     keepNote: (text, turnId, suggestion) =>
       writes.keep(text, turnId, suggestion?.id ?? null).then(
@@ -312,7 +312,7 @@ function Head({
         You and Sophia
       </h2>
       <div className="c3-head-acts">
-        <FindToggle find={find} />
+        {count !== undefined && <FindToggle find={find} />}
         {onTalk && (
           <button className="c3-talk-toggle" type="button" onClick={onTalk}>
             <Who who="sophia" />
@@ -528,11 +528,12 @@ function useConversationFind(
   props: Props,
   rows: readonly Row[],
   over: boolean,
-  readEarlier: () => void,
+  readEarlier: () => Promise<void>,
   covered: boolean,
 ) {
   const uncover = covered ? () => props.notes.set(false) : null
-  return useFind(rows, !props.hidden && !over, props.readBack.more, readEarlier, uncover)
+  // Only once the conversation is read: before, a search would say "No match" over one still loading.
+  return useFind(rows, !!props.space && !props.hidden && !over, props.readBack.more, readEarlier, uncover)
 }
 
 export function PersonalSpace(props: Props) {
