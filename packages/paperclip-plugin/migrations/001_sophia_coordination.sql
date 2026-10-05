@@ -44,15 +44,18 @@ CREATE TABLE plugin_sophia_coordination_00c896da3d.controls (
 );
 
 -- One row per issue status write the plugin makes for a commission (a control effect or a settlement), recorded
--- before the write. A host call can fail after its write was durable, or land after its caller stopped waiting, so
--- every write is open until a settlement has read the issue after the write ended. ended_at is set when the host
--- answered the call, with the issue or an error (it answers once it finished with it); a call it never answered, or
--- whose worker died, counts as ended once it is stale. settled_at is set by the settlement that read the issue after
--- it ended; until then no delivery of the commission is confirmed against it.
+-- before the write with the host process that serves it. A host call can fail after its write was durable, or land
+-- after its caller stopped waiting, so every write is open until a settlement has read the issue after the write
+-- finished. ended_at is set when the host answered the call, with the issue or an error (it answers once it finished
+-- with it). A call it never answered, or whose worker died, finishes only once host_process is gone, since a process
+-- that is gone can no longer commit; time alone never finishes it. settled_at is set by the settlement that read the
+-- issue after it finished; until then no delivery of the commission is confirmed against it, and every settlement
+-- still restores the wanted status if the write lands.
 CREATE TABLE plugin_sophia_coordination_00c896da3d.effects (
   effect_id text PRIMARY KEY,
   commission_key text NOT NULL REFERENCES plugin_sophia_coordination_00c896da3d.commissions(commission_key),
   status text NOT NULL,
+  host_process text,
   started_at timestamptz NOT NULL DEFAULT now(),
   ended_at timestamptz,
   settled_at timestamptz

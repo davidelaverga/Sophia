@@ -515,21 +515,20 @@ async function releaseLease(host: CoordinationHost, commissionKey: string, token
 }
 
 /**
- * One status write, made only while this delivery holds the lease (renewed first, so the call ends before the lease
- * runs out) and recorded before it is asked. It ends when the host answers, with the issue or with an error: the host
- * answers only once it finished with the call, whatever it wrote. A call the host never answered (UnansweredHostCall)
- * may still land and stays unended. Until a settlement reads the issue after it ended, the write is open. A delivery
- * that lost the lease writes nothing (503).
+ * One status write, made only while this delivery holds the lease (renewed first) and recorded before it is asked,
+ * with the host process that serves it (`host.hostProcess`). It ends when the host answers, with the issue or with an
+ * error: the host answers only once it finished with the call, whatever it wrote. A call the host never answered
+ * (UnansweredHostCall) may still land, however late: it stays unended. Until a settlement reads the issue after it
+ * ended, the write is open. A delivery that lost the lease writes nothing (503).
  */
 async function writeStatus(host: CoordinationHost, s: Subject, token: string, status: IssueStatus): Promise<HostIssue> {
   if (!(await renewLease(host, s.commissionKey, token)))
     refuse(503, 'control_in_progress', 'Another delivery took over this issue; ask again later')
   const id = randomUUID()
-  await host.execute(`INSERT INTO ${host.namespace}.effects (effect_id, commission_key, status) VALUES ($1, $2, $3)`, [
-    id,
-    s.commissionKey,
-    status,
-  ])
+  await host.execute(
+    `INSERT INTO ${host.namespace}.effects (effect_id, commission_key, status, host_process) VALUES ($1, $2, $3, $4)`,
+    [id, s.commissionKey, status, host.hostProcess],
+  )
   let updated: HostIssue
   try {
     updated = await host.issues.update(s.issueId, { status }, s.companyId)
@@ -545,16 +544,11 @@ async function endWrite(host: CoordinationHost, id: string) {
   await host.execute(`UPDATE ${host.namespace}.effects SET ended_at = now() WHERE effect_id = $1`, [id])
 }
 
-/**
- * When a write that never ended (the host never answered it, or its worker died) counts as finished: four times the
- * pinned worker's 30 s host-call timeout, after which the host is no longer acting on it.
- */
-const EFFECT_STALE_SECONDS = 120
 /** The reads and writes one settlement makes at most; what is left stays open for the next one. */
 const SETTLE_ROUNDS = 3
 
 interface Settled {
-  /** Every open write finished and was read after, or cannot change the status the latest control wants. */
+  /** Every open write is finished and was read after, or cannot change the status the latest control wants. */
   readonly settled: boolean
   /** The issue's status as the settlement last read it (null when it read none). */
   readonly status: string | null
@@ -568,14 +562,20 @@ const UNSETTLED: Settled = { settled: false, status: null }
  * open writes may have made, and not the wanted one, a stale write landed after a later control: the wanted status is
  * written again (itself an open write, settled in the next round). Any other status, the host's own included, is left
  * alone. The writes that finished before the issue was read are then settled.
+ *
+ * A write is finished when the host answered it, or when the host process that served it is gone: a process that is
+ * gone can no longer commit, so whatever it wrote is in the issue before this settlement reads it. Time alone never
+ * finishes a write. An unfinished write stays open, so every later settlement (each delivery's, and the settle job's
+ * every minute) still restores the wanted status if it lands, however late.
  */
 async function settle(host: CoordinationHost, s: Subject, token: string): Promise<Settled> {
   let status: string | null = null
   for (let round = 0; round < SETTLE_ROUNDS; round += 1) {
     const open = await host.query<{ status: string; finished: boolean; at: string }>(
-      `SELECT status, ended_at IS NOT NULL OR started_at < now() - make_interval(secs => $2) AS finished, now()::text AS at
+      `SELECT status, now()::text AS at,
+              ended_at IS NOT NULL OR (host_process IS NOT NULL AND $2::text IS NOT NULL AND host_process <> $2::text) AS finished
          FROM ${host.namespace}.effects WHERE commission_key = $1 AND settled_at IS NULL`,
-      [s.commissionKey, EFFECT_STALE_SECONDS],
+      [s.commissionKey, host.hostProcess],
     )
     const at = open[0]?.at
     if (at === undefined) return { settled: true, status }
@@ -588,8 +588,8 @@ async function settle(host: CoordinationHost, s: Subject, token: string): Promis
     await host.execute(
       `UPDATE ${host.namespace}.effects SET settled_at = now()
         WHERE commission_key = $1 AND settled_at IS NULL
-          AND (ended_at <= $2::timestamptz OR started_at < $2::timestamptz - make_interval(secs => $3))`,
-      [s.commissionKey, at, EFFECT_STALE_SECONDS],
+          AND (ended_at <= $2::timestamptz OR (host_process IS NOT NULL AND $3::text IS NOT NULL AND host_process <> $3::text))`,
+      [s.commissionKey, at, host.hostProcess],
     )
     return { settled: open.every((e) => e.finished || e.status === want), status }
   }

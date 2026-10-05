@@ -45,12 +45,17 @@ function writeEntries() {
   const adapter = JSON.stringify(src('packages/paperclip-adapters/src/sophia-dsh/index.ts'))
   writeFileSync(
     join(entries, 'worker.ts'),
-    `import { definePlugin, runWorker } from '@paperclipai/plugin-sdk'
-import { pluginHandlers } from ${bind}
+    `import { realpathSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { definePlugin, startWorkerRpcHost } from '@paperclipai/plugin-sdk'
+import { HOST_CALL_TIMEOUT_MS, pluginHandlers } from ${bind}
 const handlers = pluginHandlers()
 const plugin = definePlugin({ setup: (ctx) => handlers.setup(ctx), onApiRequest: (input) => handlers.onApiRequest(input) })
 export default plugin
-runWorker(plugin, import.meta.url)
+// The SDK's runWorker, with the host-call timeout of bind.ts: only when the host forked this file, never on import.
+const real = (path: string): string => { try { return realpathSync(path) } catch { return path } }
+if (process.argv[1] !== undefined && real(process.argv[1]) === real(fileURLToPath(import.meta.url)))
+  startWorkerRpcHost({ plugin, rpcTimeoutMs: HOST_CALL_TIMEOUT_MS })
 `,
   )
   writeFileSync(join(entries, 'manifest.ts'), `import { manifest } from ${manifest}\nexport default manifest\n`)

@@ -6,6 +6,7 @@
  * two-line SDK entry (`definePlugin` + `runWorker`) that hands the context to `pluginHandlers`.
  * @module @sophia/paperclip-plugin/bind
  */
+import { readFileSync } from 'node:fs'
 import type { IssueStatus } from '@sophia/coordination/plugin-wire'
 import { handleApiRequest, settleOpenWrites } from './coordination.ts'
 import {
@@ -78,6 +79,34 @@ const issueOf = (issue: SdkIssue): HostIssue => ({
 /** The pinned SDK's JsonRpcCallError code for a worker-to-host call it stopped waiting for (PLUGIN_RPC_ERROR_CODES). */
 const RPC_TIMEOUT = -32003
 
+/**
+ * How long the worker waits for the host to answer one call, given to the SDK's `startWorkerRpcHost` by the worker
+ * entry (scripts/paperclip-build.mjs) instead of its 30 s default: a status write the host answers, however slowly, is
+ * finished at once, while one it never answers stays open until the host process that served it is gone.
+ */
+export const HOST_CALL_TIMEOUT_MS = 10 * 60 * 1000
+
+/**
+ * The host process serving this worker: the pinned host forks each plugin worker as its direct child
+ * (plugin-worker-manager.ts, `fork`), so the parent is the host. On Linux its start time (field 22 of
+ * `/proc/<pid>/stat`, read after the command name, which may hold spaces) tells a reused pid apart; elsewhere the pid
+ * alone, which can only fail to tell two processes apart, never claim one is gone while it runs.
+ */
+export function hostProcessOf(
+  ppid: number = process.ppid,
+  read: (path: string) => string = (path) => readFileSync(path, 'utf8'),
+): string | null {
+  if (!Number.isInteger(ppid) || ppid <= 0) return null
+  let stat: string
+  try {
+    stat = read(`/proc/${String(ppid)}/stat`)
+  } catch {
+    return String(ppid)
+  }
+  const start = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19]
+  return start !== undefined && /^\d+$/.test(start) ? `${String(ppid)}:${start}` : String(ppid)
+}
+
 /** A host call's result; a call the worker stopped waiting for is told apart from the host's own error. */
 async function answered<T>(call: Promise<T>): Promise<T> {
   try {
@@ -89,7 +118,11 @@ async function answered<T>(call: Promise<T>): Promise<T> {
   }
 }
 
-export function hostOf(ctx: SdkContext, clock: () => number = Date.now): CoordinationHost {
+export function hostOf(
+  ctx: SdkContext,
+  clock: () => number = Date.now,
+  hostProcess: string | null = hostProcessOf(),
+): CoordinationHost {
   return {
     issues: {
       list: async (input) => (await ctx.issues.list(input)).map(issueOf),
@@ -110,6 +143,7 @@ export function hostOf(ctx: SdkContext, clock: () => number = Date.now): Coordin
     execute: (sql, params) => ctx.db.execute(sql, [...params]),
     config: (companyId) => ctx.config.get(companyId),
     now: () => Math.floor(clock() / 1000),
+    hostProcess,
   }
 }
 

@@ -71,6 +71,11 @@ export interface CoordinationHost {
   config(companyId: string): Promise<Readonly<Record<string, unknown>>>
   /** Seconds since the epoch. */
   now(): number
+  /**
+   * The host process serving this worker, as `pid:start` (null when it cannot be read). A status write is recorded
+   * with it: once that process is gone it can no longer commit, so its unanswered writes are finished.
+   */
+  readonly hostProcess: string | null
 }
 
 /**

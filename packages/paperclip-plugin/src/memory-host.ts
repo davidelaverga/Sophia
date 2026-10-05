@@ -57,6 +57,8 @@ export interface MemoryPaperclipOptions {
   /** The managed source-reviewer agent; null when it is not provisioned. */
   readonly reviewerAgentId?: string | null
   readonly now?: () => number
+  /** The host process serving the plugin (`pid:start`); a test changes it to stand for a host restart. */
+  readonly hostProcess?: () => string | null
   /** Runs inside create before the issue exists, e.g. to hold a create in flight. */
   readonly beforeCreate?: () => Promise<void>
   /** Runs inside an issue read before it answers, e.g. to hold one in flight. */
@@ -178,6 +180,9 @@ export function memoryPaperclip(db: Queryable, options: MemoryPaperclipOptions):
     },
     config: () => Promise.resolve(options.config),
     now: options.now ?? (() => Math.floor(Date.now() / 1000)),
+    get hostProcess() {
+      return options.hostProcess ? options.hostProcess() : 'host-1:100'
+    },
   }
   const integration = { actorType: 'user' as const, actorId: INTEGRATION_USER, userId: INTEGRATION_USER }
   return {

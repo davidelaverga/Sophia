@@ -1,8 +1,13 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { hostOf, pluginHandlers, type SdkContext } from './bind.ts'
+import { hostOf, hostProcessOf, pluginHandlers, type SdkContext } from './bind.ts'
 import { UnansweredHostCall } from './host.ts'
 import { manifest, REVIEWER_AGENT_KEY, SETTLE_JOB_KEY } from './manifest.ts'
+
+/** A host with no /proc (macOS, say). */
+function unreadable(): string {
+  throw new Error('no /proc here')
+}
 
 /** Record a call and answer. */
 function noted<T>(calls: string[], call: string, answer: T): Promise<T> {
@@ -99,6 +104,20 @@ describe('SDK binding', () => {
       assert.equal(err, answered, 'the host answered: its own error, unchanged')
       return true
     })
+  })
+
+  it('names the host process by its pid and Linux start time, which a reused pid does not share', () => {
+    // pid (comm) state ppid ... field 22 is the start time; the command name may hold spaces and parentheses.
+    const stat = '4242 (node (paperclip) srv) S 1 4242 4242 0 -1 4194560 1 2 3 4 5 6 7 8 20 0 11 0 987654 100 200'
+    const reads: string[] = []
+    const read = (path: string) => {
+      reads.push(path)
+      return stat
+    }
+    assert.equal(hostProcessOf(4242, read), '4242:987654')
+    assert.deepEqual(reads, ['/proc/4242/stat'])
+    assert.equal(hostProcessOf(4242, unreadable), '4242', 'the pid alone where there is no /proc')
+    assert.equal(hostProcessOf(0, read), null)
   })
 
   it('registers the settle job the manifest schedules, which reads the open status writes', async () => {
