@@ -443,7 +443,7 @@ interface ViewerProps extends BodyProps {
  * the room the pane covers the panel's toggles, so its head offers the chat. Where it covers the dock or the mini dock
  * (a phone, the full page), its head carries the call's switches and note, as the side panel's does (LFE-02.1).
  */
-function WithViewer({ projectId, identity, view, room, panel, looking, children }: ViewerProps) {
+function WithViewer({ projectId, identity, view, room, panel, looking, snapshot, children }: ViewerProps) {
   const studio = view === 'studio'
   return (
     <DocumentViewerProvider
@@ -454,6 +454,7 @@ function WithViewer({ projectId, identity, view, room, panel, looking, children 
       closePanel={() => panel.show(null)}
       openChat={studio ? () => panel.toggle('chat') : undefined}
       askAbout={studio ? panel.ask : undefined}
+      cursor={snapshot?.cursor}
       chatUnread={panel.unread}
       call={<PanelCallSwitches room={room} looking={looking} keys={studio} />}
       note={room.mediaError ?? room.error}

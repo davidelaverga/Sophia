@@ -67,6 +67,8 @@ interface Fixture {
   drop: () => void
   /** The fixture report's next version is published (the viewer learns of it when it reads the list again). */
   publishReport: () => void
+  /** Sophia publishes the report's next version while it is open: the project's feed says so at once. */
+  reviseLive: () => void
   /** A finished research result is told in the chat, as the bridge tells a member. */
   notice: () => void
   /**
@@ -100,6 +102,8 @@ interface Fixture {
   failVersions: (how?: 'unavailable' | 'not_found' | false) => void
   /** The report's sources, held since the page opened (`hold=sources`), come now. */
   releaseSources: () => void
+  /** Reads of the report's sources wait again from now on, until released. */
+  holdSources: () => void
   /** The report's text, held since the page opened (`hold=text`), comes now. */
   releaseText: () => void
   /** The person goes home: the project is kept out of sight for its call, and the address is the places'. */
@@ -220,6 +224,10 @@ window.fixture = {
   publishReport: () => {
     project.reportVersions += 1
   },
+  reviseLive: () => {
+    project.reportVersions += 1
+    publish(project)
+  },
   notice: () => deliverNotice(researchNotice),
   noticeRevised: () => {
     project.reportVersions = 2
@@ -255,6 +263,9 @@ window.fixture = {
     project.versionsFail = how
   },
   releaseSources: () => releaseSources(project),
+  holdSources: () => {
+    project.sourcesHeld = true
+  },
   releaseText: () => releaseText(project),
   away: () => {
     window.history.pushState({ fixture: 'home' }, '', '/room.html?place=home') // the places' own entry

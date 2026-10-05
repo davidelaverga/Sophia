@@ -27,6 +27,8 @@ import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { MarkdownView } from './MarkdownView.tsx'
 import { PageDownload } from './PageDownload.tsx'
 import { PassageBar, type Passage } from './PassageBar.tsx'
+import { offerWords } from './live-version.ts'
+import { useLiveVersion, type LiveChanges, type Shown } from './useLiveVersion.ts'
 import type { ReportLink, ViewerFormat, ViewerTab } from './report-link.ts'
 import {
   currentOffer,
@@ -74,6 +76,8 @@ interface Props {
    */
   call?: ReactNode
   note: string | null
+  /** Where the project's feed is: when it moves, the report's versions are read again (a new one may be there). */
+  cursor: string | undefined
   /** In the room: a selected passage goes to the chat's message (PassageBar). */
   onAsk: ((passage: Passage) => void) | undefined
 }
@@ -86,7 +90,7 @@ const pick = (versions: readonly ArtifactVersion[] | undefined, id: string | nul
   versions?.find((v) => v.id === id) ?? (id === null ? versions?.[0] : undefined)
 
 /** The data on screen: the report's versions, the one shown, its checked text and its sources. */
-function usePaneData(identity: Identity, link: ReportLink) {
+function usePaneData(identity: Identity, link: ReportLink, cursor: string | undefined) {
   const versions = useQuery({
     queryKey: ['report-versions', link.artifactId, identity.name],
     queryFn: () => listArtifactVersions(identity.token, link.artifactId),
@@ -99,6 +103,7 @@ function usePaneData(identity: Identity, link: ReportLink) {
   const absent =
     versions.data !== undefined && versions.fetchStatus === 'idle' && link.versionId !== null && version === undefined
   const { refetch } = versions
+  useFeedRead(cursor, refetch)
   useEffect(() => {
     const target = rereadFor(absent, reread, link.versionId)
     if (target === null) return
@@ -139,10 +144,29 @@ function usePaneData(identity: Identity, link: ReportLink) {
     staleTime: Infinity,
     retry: (n, error) => !(error instanceof HashMismatch) && n < 2,
   })
-  return { versions, version, versionSettled, text, sources, parsed, language, rendition, showPdf, noPdf, pdf }
+  const shown = shownOf(version, text.data, parsed, sources.status)
+  return { versions, version, versionSettled, text, sources, parsed, language, rendition, showPdf, noPdf, pdf, shown }
 }
 
 type PaneData = ReturnType<typeof usePaneData>
+
+/** The version on screen as useLiveVersion reads it: its sources settled once their read is no longer pending. */
+const shownOf = (
+  version: ArtifactVersion | undefined,
+  loaded: { text: string } | undefined,
+  parsed: ParsedReport | null,
+  sources: 'pending' | 'error' | 'success',
+): Shown => ({ version, text: loaded?.text, parsed, sourcesSettled: sources !== 'pending' })
+
+/** The project's feed moved (a version may have been published there): the list is read again, as on focus. */
+function useFeedRead(cursor: string | undefined, refetch: () => unknown) {
+  const read = useRef(cursor)
+  useEffect(() => {
+    if (cursor === undefined || cursor === read.current) return
+    read.current = cursor
+    void refetch()
+  }, [cursor, refetch])
+}
 
 /**
  * A report opened without a version keeps the one first read (pinTo): from then on the link names it, in place, so a
@@ -286,7 +310,11 @@ function useCitation(tab: ViewerTab, onTab: (tab: ViewerTab) => void) {
 }
 
 /** What the pane does around what it shows: the version it pins, its keys, the focus and its top's height. */
-function usePaneBehaviour({ link, opener, onVersion, onStepDown, onEnlarge }: Props, data: PaneData) {
+function usePaneBehaviour(
+  { link, opener, onVersion, onStepDown, onEnlarge }: Props,
+  data: PaneData,
+  showing: (to: string) => void,
+) {
   usePinnedVersion(link, data.versions, onVersion)
   useEscape(onStepDown)
   useShortcuts({ f: link.size === 'full' ? onStepDown : onEnlarge })
@@ -312,19 +340,28 @@ function usePaneBehaviour({ link, opener, onVersion, onStepDown, onEnlarge }: Pr
     },
   }
   const current = currentOffer(data.versions.data, data.version)
-  const offer = current ? { number: current.versionNumber, onShow: () => recover.show(current.id) } : null
+  const offer = current
+    ? {
+        words: offerWords(current, data.version?.id ?? ''),
+        onShow: () => {
+          showing(current.id)
+          recover.show(current.id)
+        },
+      }
+    : null
   return { title, top: usePaneTop(), offer, recover }
 }
 
 export function DocumentPane(props: Props) {
   const { identity, link, tab, onTab, onVersion, onFormat, onEnlarge, onStepDown, onClose, onChat } = props
-  const data = usePaneData(identity, link)
-  const { title, top, offer, recover } = usePaneBehaviour(props, data)
+  const pane = useRef<HTMLElement>(null)
+  const data = usePaneData(identity, link, props.cursor)
+  const live = useLiveVersion(pane, data.shown, data.versions.data)
+  const { title, top, offer, recover } = usePaneBehaviour(props, data, live.showing)
   const width = usePaneWidth()
   const status = useTransientStatus()
   const { focusSource, cite, choose } = useCitation(tab, onTab)
   const full = link.size === 'full'
-  const pane = useRef<HTMLElement>(null)
   return (
     <aside ref={pane} className="report-pane" data-size={link.size} aria-labelledby="report-pane-title">
       {!full && <div className="report-pane-grip" aria-hidden onPointerDown={width.drag} />}
@@ -367,12 +404,20 @@ export function DocumentPane(props: Props) {
         onCite={cite}
         onVersion={onVersion}
         recover={recover}
+        changes={live.changes}
       />
-      <p className="report-status" role="status" data-error={status.error || undefined}>
-        {status.text}
-      </p>
+      <PaneStatus {...status} />
       <PassageBar pane={pane} version={data.version} viewer={props} />
     </aside>
+  )
+}
+
+/** The download's line of status, in the pane's foot. */
+function PaneStatus({ text, error }: { text: string; error: boolean }) {
+  return (
+    <p className="report-status" role="status" data-error={error || undefined}>
+      {text}
+    </p>
   )
 }
 
@@ -385,6 +430,8 @@ interface BodyProps {
   onCite: (sourceId: string) => void
   onVersion: (versionId: string) => void
   recover: Recover
+  /** The new version's changes, when it was shown from the offer (useLiveVersion). */
+  changes: LiveChanges
 }
 
 /**
@@ -454,14 +501,16 @@ function PaneBody(props: BodyProps) {
   )
 }
 
-function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion }: BodyProps) {
+function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion, changes }: BodyProps) {
   // The Document tab shows one view per format: the PDF rendition, or the Markdown read in the reading voice. A designed
   // HTML version (SDD-01) is a third view here, of its stored bytes in an isolated frame, beside these and never in
   // MarkdownView or the Studio's own DOM (docs/coordination/M75/HANDOFF_TO_SDD01.md §4).
   return (
     <>
       {tab === 'document' && data.showPdf && <PdfTab data={data} full={full} />}
-      {tab === 'document' && !data.showPdf && <DocumentTab data={data} identity={identity} onCite={onCite} />}
+      {tab === 'document' && !data.showPdf && (
+        <DocumentTab data={data} identity={identity} onCite={onCite} changes={changes} />
+      )}
       {tab === 'sources' && (
         <SourcesList
           sources={data.sources.data?.sources}
@@ -549,7 +598,7 @@ interface HeadProps {
   format: ViewerFormat
   meta: string
   /** The report's current version, when another is on screen (currentOffer). */
-  current: { number: number | undefined; onShow: () => void } | null
+  current: { words: string; onShow: () => void } | null
   full: boolean
   canDownload: boolean
   onDownload: () => void
@@ -588,7 +637,7 @@ function PaneHead(props: HeadProps) {
         <p className="report-meta">{meta}</p>
         {current && (
           <p className="report-current" role="status">
-            {current.number ? `v${current.number} is the current version.` : 'This is not the current version.'}{' '}
+            {current.words}{' '}
             <button type="button" className="text-button" onClick={current.onShow}>
               Show it
             </button>
@@ -745,9 +794,10 @@ interface DocumentTabProps {
   data: PaneData
   identity: Identity
   onCite: (sourceId: string) => void
+  changes: LiveChanges
 }
 
-function DocumentTab({ data, identity, onCite }: DocumentTabProps) {
+function DocumentTab({ data, identity, onCite, changes }: DocumentTabProps) {
   if (data.text.isError) {
     return (
       <p className="muted" role="alert">
@@ -767,7 +817,13 @@ function DocumentTab({ data, identity, onCite }: DocumentTabProps) {
       )}
       <PageDownload token={identity.token} artifactId={data.version.artifactId} versionId={data.version.id} />
       <Limitations items={data.version.limitations ?? []} />
+      {changes.facts && (
+        <p className="report-changes" role="note">
+          {changes.facts}
+        </p>
+      )}
       <MarkdownView
+        marks={changes.marks}
         report={data.parsed}
         sources={data.sources.data?.sources}
         language={data.language}

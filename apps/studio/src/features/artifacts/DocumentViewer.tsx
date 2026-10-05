@@ -111,6 +111,8 @@ interface Props {
   /** The call's switches and its note, for the pane's head where it covers the dock or the mini dock. */
   call?: ReactNode
   note?: string | null
+  /** Where the project's feed is: the open report's versions are read again when it moves. */
+  cursor?: string | undefined
   /** In the room: a passage of the report, asked about in the chat (PassageBar). */
   askAbout?: ((passage: Passage) => void) | undefined
   children: ReactNode
@@ -167,6 +169,7 @@ export function DocumentViewerProvider(props: Props) {
           call={call}
           note={note ?? null}
           onAsk={askAbout}
+          cursor={props.cursor}
         />
       )}
     </ViewerContext.Provider>
