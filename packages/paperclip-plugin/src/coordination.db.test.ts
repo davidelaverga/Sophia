@@ -17,6 +17,7 @@ import {
 } from '@sophia/coordination/plugin-wire'
 import { createEmptyDatabase, type EmptyDatabase } from '@sophia/test-support'
 import { settleOpenWrites } from './coordination.ts'
+import type { HostProcess } from './host.ts'
 import {
   installNamespace,
   memoryPaperclip,
@@ -707,11 +708,15 @@ describe('control', () => {
     },
   )
 
+  const NS = 'boot-1/pid:[4026531836]'
+  const OLD = { namespace: NS, process: '2201:90101' }
+
   /** A Hold whose original update the host never answered (nothing landed yet), its resend applied, then a Stop. */
-  async function unansweredHold(hostProcess: { now: string }) {
+  async function unansweredHold(host: { now: HostProcess | null; gone: Set<string> }) {
     let unanswered = true
     const p = paperclip({
-      hostProcess: () => hostProcess.now,
+      hostProcess: () => host.now,
+      processGone: (process) => host.gone.has(process),
       fails: { update: (status) => (status === 'blocked' && unanswered ? 'unanswered' : null) },
     })
     const c = commissionOf()
@@ -729,12 +734,18 @@ describe('control', () => {
     return { p, c, issueId, issue }
   }
 
+  const stopCode = async (p: MemoryPaperclip, c: Commission, issueId: string) =>
+    code((await p.request(controlRequest(c, issueId, 'stop', 'stop-u'))).body)
+
   it('a write the host never answered stays open however old: landing after any deadline it is undone, and the Stop is never confirmed while its host runs (WBC-02-CX-0017)', async () => {
-    const { p, c, issueId, issue } = await unansweredHold({ now: 'host-1:100' })
+    const { p, c, issueId, issue } = await unansweredHold({ now: OLD, gone: new Set() })
     await ageUnended(c.key)
     assert.equal(await settleOpenWrites(p.host), 0, 'a day later it is still open')
-    const later = await p.request(controlRequest(c, issueId, 'stop', 'stop-u'))
-    assert.equal((code(later.body) as { code: string }).code, 'effect_unsettled', 'elapsed time confirms nothing')
+    assert.equal(
+      ((await stopCode(p, c, issueId)) as { code: string }).code,
+      'effect_unsettled',
+      'elapsed time confirms nothing',
+    )
     issue.status = 'blocked' // the host acts on the unanswered call only now, after any deadline
     assert.equal(await settleOpenWrites(p.host), 0)
     assert.equal(issue.status, 'cancelled', 'the settle job undoes it: the write was still open')
@@ -744,48 +755,85 @@ describe('control', () => {
     assert.equal(await openWrites(c.key), 1, 'the unanswered write is the one still open')
   })
 
-  it('a write the host never answered finishes once the host process that served it is gone: then the Stop is confirmed (WBC-02-CX-0017)', async () => {
-    const hostProcess = { now: 'host-1:100' }
-    const { p, c, issueId, issue } = await unansweredHold(hostProcess)
-    issue.status = 'blocked' // it landed before its host went away
-    hostProcess.now = 'host-1:250' // the host restarted (the same pid, another start): the old process can no longer commit
+  it('another host serving now is no proof the old one is gone: while it runs, the write stays open and a late write is undone (WBC-02-CX-0020)', async () => {
+    const host = { now: OLD as HostProcess | null, gone: new Set<string>() }
+    const { p, c, issueId, issue } = await unansweredHold(host)
+    await ageUnended(c.key)
+    host.now = { namespace: NS, process: '3302:90202' } // a second host in the same namespace; the old one still runs
+    assert.equal(await settleOpenWrites(p.host), 0)
+    assert.equal(((await stopCode(p, c, issueId)) as { code: string }).code, 'effect_unsettled')
+    issue.status = 'blocked' // the old host's callback lands after the handover
+    assert.equal(await settleOpenWrites(p.host), 0)
+    assert.equal(issue.status, 'cancelled', 'undone: the write is still open')
+    host.gone.add(OLD.process) // now the old process is verifiably gone from this namespace
     assert.equal(await settleOpenWrites(p.host), 1)
-    assert.equal(issue.status, 'cancelled')
     assert.equal(await openWrites(c.key), 0)
     const confirmed = await p.request(controlRequest(c, issueId, 'stop', 'stop-u'))
     assert.deepEqual(confirmed.body, { outcome: 'already', issueId, status: 'cancelled', wakeQueued: false })
   })
 
-  it('a host process that cannot be read never finishes an unanswered write', async () => {
-    const hostProcess = { now: 'host-1:100' }
-    const { p, c } = await unansweredHold(hostProcess)
-    const unknown = memoryPaperclip(client, { config, now: () => NOW, hostProcess: () => null })
-    assert.equal(await settleOpenWrites(unknown.host), 0)
-    assert.equal(await openWrites(c.key), 1)
+  it('a write recorded in another namespace is never fenced by the plugin; only an operator who verified the old instance stopped fences it (WBC-02-CX-0020)', async () => {
+    const host = { now: OLD as HostProcess | null, gone: new Set<string>() }
+    const { p, c, issueId } = await unansweredHold(host)
+    host.now = { namespace: 'boot-2/pid:[4026532111]', process: '7:1200' } // a replacement container
+    host.gone.add(OLD.process) // whatever this namespace shows about that pid proves nothing about the old one
     assert.equal(await settleOpenWrites(p.host), 0)
+    assert.equal(((await stopCode(p, c, issueId)) as { code: string }).code, 'effect_unsettled')
+    // deploy/paperclip/README.md, "Fencing a previous instance": after verifying that it stopped before T
+    await client.query(
+      `UPDATE ${NAMESPACE}.effects SET fenced_at = now(), fence = 'operator: previous instance stopped before T'
+        WHERE settled_at IS NULL AND ended_at IS NULL AND fenced_at IS NULL AND started_at < now()`,
+    )
+    assert.equal(await settleOpenWrites(p.host), 1)
+    const confirmed = await p.request(controlRequest(c, issueId, 'stop', 'stop-u'))
+    assert.deepEqual(confirmed.body, { outcome: 'already', issueId, status: 'cancelled', wakeQueued: false })
   })
 
-  it("the settle job restores Sophia's latest control over a dead worker's write, settles it once its host is gone, and leaves the host's own status alone", async () => {
-    const { p, c, issueId } = await commissioned()
+  it('a host process that cannot be read never finishes an unanswered write', async () => {
+    const host = { now: OLD as HostProcess | null, gone: new Set<string>([OLD.process]) }
+    const { p, c } = await unansweredHold(host)
+    host.now = null
+    assert.equal(await settleOpenWrites(p.host), 0)
+    assert.equal(await openWrites(c.key), 1)
+  })
+
+  it("the settle job restores Sophia's latest control over a dead worker's write, fences it once its host is verifiably gone, and leaves the host's own status alone", async () => {
+    const gone = new Set<string>()
+    const p = paperclip({
+      hostProcess: () => ({ namespace: NS, process: '3302:90202' }),
+      processGone: (x) => gone.has(x),
+    })
+    const c = commissionOf()
+    await p.request(commissionRequest(c))
+    const issueId = [...p.issues.keys()][0] ?? ''
     await p.request(controlRequest(c, issueId, 'hold', 'hold-d'))
     await p.request(controlRequest(c, issueId, 'resume', 'resume-d'))
-    // A Hold write recorded by a worker that died mid-call (never ended), under a host process.
-    const died = async (hostProcess: string) =>
+    // A Hold write recorded by a worker that died mid-call (never ended), under another host process of this namespace.
+    const died = async (process: string) =>
       client.query(
-        `INSERT INTO ${NAMESPACE}.effects (effect_id, commission_key, status, host_process) VALUES ($1, $2, 'blocked', $3)`,
-        [randomUUID(), c.key, hostProcess],
+        `INSERT INTO ${NAMESPACE}.effects (effect_id, commission_key, status, host_namespace, host_process)
+         VALUES ($1, $2, 'blocked', $3, $4)`,
+        [randomUUID(), c.key, NS, process],
       )
     const issue = p.issues.get(issueId)
     assert.ok(issue)
-    await died('host-1:100') // the host still runs: the write may yet land
+    await died('2201:90101') // its host still runs: the write may yet land
     issue.status = 'blocked' // it landed after the Resume
     assert.equal(await settleOpenWrites(p.host), 0)
     assert.equal(issue.status, 'todo', 'the Resume stands; the write stays open')
-    await died('host-0:7') // a host process that is gone
+    await died('1999:80000')
+    gone.add('1999:80000') // that host is verifiably gone
     issue.status = 'in_progress' // the host started the run since
     assert.equal(await settleOpenWrites(p.host), 0)
     assert.equal(issue.status, 'in_progress', 'a status no open write made is the host’s own')
     assert.equal(await openWrites(c.key), 1, 'only the write whose host still runs stays open')
+    const fences = await client.query<{ fence: string }>(
+      `SELECT fence FROM ${NAMESPACE}.effects WHERE fenced_at IS NOT NULL`,
+    )
+    assert.deepEqual(
+      fences.rows.map((r) => r.fence),
+      ['host process 1999:80000 gone, seen by 3302:90202'],
+    )
   })
 
   it(

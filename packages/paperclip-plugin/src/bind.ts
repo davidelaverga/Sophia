@@ -6,7 +6,7 @@
  * two-line SDK entry (`definePlugin` + `runWorker`) that hands the context to `pluginHandlers`.
  * @module @sophia/paperclip-plugin/bind
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, readlinkSync } from 'node:fs'
 import type { IssueStatus } from '@sophia/coordination/plugin-wire'
 import { handleApiRequest, settleOpenWrites } from './coordination.ts'
 import {
@@ -15,6 +15,7 @@ import {
   type CoordinationHost,
   type HostIssue,
   type HostIssueCreate,
+  type HostProcess,
   type OriginKind,
   type Row,
 } from './host.ts'
@@ -86,25 +87,54 @@ const RPC_TIMEOUT = -32003
  */
 export const HOST_CALL_TIMEOUT_MS = 10 * 60 * 1000
 
-/**
- * The host process serving this worker: the pinned host forks each plugin worker as its direct child
- * (plugin-worker-manager.ts, `fork`), so the parent is the host. On Linux its start time (field 22 of
- * `/proc/<pid>/stat`, read after the command name, which may hold spaces) tells a reused pid apart; elsewhere the pid
- * alone, which can only fail to tell two processes apart, never claim one is gone while it runs.
- */
-export function hostProcessOf(
-  ppid: number = process.ppid,
-  read: (path: string) => string = (path) => readFileSync(path, 'utf8'),
-): string | null {
-  if (!Number.isInteger(ppid) || ppid <= 0) return null
-  let stat: string
-  try {
-    stat = read(`/proc/${String(ppid)}/stat`)
-  } catch {
-    return String(ppid)
-  }
+/** The /proc reads the host-process identity needs, injected for tests. */
+export interface ProcFs {
+  read(path: string): string
+  link(path: string): string
+}
+
+const procFs: ProcFs = { read: (path) => readFileSync(path, 'utf8'), link: (path) => readlinkSync(path) }
+
+/** A process's start time, field 22 of `/proc/<pid>/stat`, read after the command name (which may hold spaces). */
+function startOf(stat: string): string | null {
   const start = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19]
-  return start !== undefined && /^\d+$/.test(start) ? `${String(ppid)}:${start}` : String(ppid)
+  return start !== undefined && /^\d+$/.test(start) ? start : null
+}
+
+/**
+ * The host process serving this worker, and its process namespace. The pinned host forks each plugin worker as its
+ * direct child (plugin-worker-manager.ts, `fork`), so the parent is the host: `pid:start` (the start time tells a
+ * reused pid apart). The namespace is the machine boot (`/proc/sys/kernel/random/boot_id`) and the pid namespace
+ * (`/proc/self/ns/pid`): only in the same one can a later settlement see whether that process is gone. Null when any
+ * part cannot be read, so nothing is ever claimed gone on a guess.
+ */
+export function hostProcessOf(ppid: number = process.ppid, fs: ProcFs = procFs): HostProcess | null {
+  if (!Number.isInteger(ppid) || ppid <= 0) return null
+  try {
+    const start = startOf(fs.read(`/proc/${String(ppid)}/stat`))
+    const boot = fs.read('/proc/sys/kernel/random/boot_id').trim()
+    const pids = fs.link('/proc/self/ns/pid')
+    return start === null || boot === '' || pids === ''
+      ? null
+      : { namespace: `${boot}/${pids}`, process: `${String(ppid)}:${start}` }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Whether a process of this worker's namespace, recorded as `pid:start`, is verifiably gone: no process has that pid,
+ * or the one that has it started at another time. Anything else (unreadable, unparseable) is not proof.
+ */
+export function processGoneOf(recorded: string, fs: ProcFs = procFs): boolean {
+  const match = /^(\d+):(\d+)$/.exec(recorded)
+  if (match === null) return false
+  try {
+    const start = startOf(fs.read(`/proc/${match[1] ?? ''}/stat`))
+    return start !== null && start !== match[2]
+  } catch (err: unknown) {
+    return typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT'
+  }
 }
 
 /** A host call's result; a call the worker stopped waiting for is told apart from the host's own error. */
@@ -121,7 +151,7 @@ async function answered<T>(call: Promise<T>): Promise<T> {
 export function hostOf(
   ctx: SdkContext,
   clock: () => number = Date.now,
-  hostProcess: string | null = hostProcessOf(),
+  hostProcess: HostProcess | null = hostProcessOf(),
 ): CoordinationHost {
   return {
     issues: {
@@ -144,6 +174,7 @@ export function hostOf(
     config: (companyId) => ctx.config.get(companyId),
     now: () => Math.floor(clock() / 1000),
     hostProcess,
+    processGone: (recorded) => processGoneOf(recorded),
   }
 }
 

@@ -21,6 +21,7 @@ import {
   type CoordinationHost,
   type HostIssue,
   type HostIssueCreate,
+  type HostProcess,
   type Row,
 } from './host.ts'
 import { checkExecute, checkQuery } from './host-sql.ts'
@@ -57,8 +58,10 @@ export interface MemoryPaperclipOptions {
   /** The managed source-reviewer agent; null when it is not provisioned. */
   readonly reviewerAgentId?: string | null
   readonly now?: () => number
-  /** The host process serving the plugin (`pid:start`); a test changes it to stand for a host restart. */
-  readonly hostProcess?: () => string | null
+  /** The host process serving the plugin and its namespace; a test changes it to stand for another host. */
+  readonly hostProcess?: () => HostProcess | null
+  /** Which recorded processes are verifiably gone (none, unless a test says so). */
+  readonly processGone?: (process: string) => boolean
   /** Runs inside create before the issue exists, e.g. to hold a create in flight. */
   readonly beforeCreate?: () => Promise<void>
   /** Runs inside an issue read before it answers, e.g. to hold one in flight. */
@@ -181,8 +184,9 @@ export function memoryPaperclip(db: Queryable, options: MemoryPaperclipOptions):
     config: () => Promise.resolve(options.config),
     now: options.now ?? (() => Math.floor(Date.now() / 1000)),
     get hostProcess() {
-      return options.hostProcess ? options.hostProcess() : 'host-1:100'
+      return options.hostProcess ? options.hostProcess() : { namespace: 'boot-1/pid:[1]', process: 'host-1:100' }
     },
+    processGone: (process) => options.processGone?.(process) ?? false,
   }
   const integration = { actorType: 'user' as const, actorId: INTEGRATION_USER, userId: INTEGRATION_USER }
   return {

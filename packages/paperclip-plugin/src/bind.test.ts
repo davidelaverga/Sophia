@@ -1,12 +1,24 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { hostOf, hostProcessOf, pluginHandlers, type SdkContext } from './bind.ts'
+import { hostOf, hostProcessOf, pluginHandlers, processGoneOf, type ProcFs, type SdkContext } from './bind.ts'
 import { UnansweredHostCall } from './host.ts'
 import { manifest, REVIEWER_AGENT_KEY, SETTLE_JOB_KEY } from './manifest.ts'
 
-/** A host with no /proc (macOS, say). */
-function unreadable(): string {
-  throw new Error('no /proc here')
+/** A `/proc/<pid>/stat` line: the command name may hold spaces and parentheses; field 22 is the start time. */
+const stat = (pid: number, start: number) =>
+  `${String(pid)} (node (paperclip) srv) S 1 ${String(pid)} 1 0 -1 4194560 1 2 3 4 5 6 7 8 20 0 11 0 ${String(start)} 100 200`
+
+/** A fake /proc: the files given, a fixed boot and pid namespace, and every other path failing with `missing`. */
+function procOf(files: Readonly<Record<string, string>>, missing = 'ENOENT'): ProcFs {
+  const fail = (path: string): never => {
+    throw Object.assign(new Error(`${missing}: ${path}`), { code: missing })
+  }
+  const all: Readonly<Record<string, string>> =
+    Object.keys(files).length === 0 ? {} : { ...files, '/proc/sys/kernel/random/boot_id': 'boot-1\n' }
+  return {
+    read: (path) => all[path] ?? fail(path),
+    link: (path) => (path === '/proc/self/ns/pid' && Object.keys(all).length > 0 ? 'pid:[4026531836]' : fail(path)),
+  }
 }
 
 /** Record a call and answer. */
@@ -106,18 +118,23 @@ describe('SDK binding', () => {
     })
   })
 
-  it('names the host process by its pid and Linux start time, which a reused pid does not share', () => {
-    // pid (comm) state ppid ... field 22 is the start time; the command name may hold spaces and parentheses.
-    const stat = '4242 (node (paperclip) srv) S 1 4242 4242 0 -1 4194560 1 2 3 4 5 6 7 8 20 0 11 0 987654 100 200'
-    const reads: string[] = []
-    const read = (path: string) => {
-      reads.push(path)
-      return stat
-    }
-    assert.equal(hostProcessOf(4242, read), '4242:987654')
-    assert.deepEqual(reads, ['/proc/4242/stat'])
-    assert.equal(hostProcessOf(4242, unreadable), '4242', 'the pid alone where there is no /proc')
-    assert.equal(hostProcessOf(0, read), null)
+  it('names the host process by its pid and start time, in its namespace: the machine boot and the pid namespace', () => {
+    const fs = procOf({ '/proc/4242/stat': stat(4242, 987654) })
+    assert.deepEqual(hostProcessOf(4242, fs), {
+      namespace: 'boot-1/pid:[4026531836]',
+      process: '4242:987654',
+    })
+    assert.equal(hostProcessOf(4242, procOf({})), null, 'no /proc: nothing is claimed')
+    assert.equal(hostProcessOf(0, fs), null)
+  })
+
+  it('calls a recorded process gone only on proof: no process with its pid, or one that started at another time', () => {
+    assert.equal(processGoneOf('4242:987654', procOf({ '/proc/4242/stat': stat(4242, 987654) })), false, 'still runs')
+    assert.equal(processGoneOf('4242:987654', procOf({ '/proc/4242/stat': stat(4242, 999999) })), true, 'pid reused')
+    assert.equal(processGoneOf('4242:987654', procOf({})), true, 'no such process')
+    assert.equal(processGoneOf('4242:987654', procOf({}, 'EACCES')), false, 'unreadable is not proof')
+    assert.equal(processGoneOf('4242:987654', procOf({ '/proc/4242/stat': 'garbage' })), false)
+    assert.equal(processGoneOf('not-a-process', procOf({})), false)
   })
 
   it('registers the settle job the manifest schedules, which reads the open status writes', async () => {

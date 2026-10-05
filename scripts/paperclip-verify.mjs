@@ -5,7 +5,7 @@
 // kind rules, wakeup rules, managed agents and capability checks), with the plugin's namespace migration applied to a
 // throwaway database on the given server (the harness keeps no tables). A signed commission creates one issue; a
 // resend finds it; a forged envelope changes nothing; Hold, Resume and Stop reach it; the settle job the manifest
-// schedules runs through the harness and settles a write whose host process is gone. Every statement the worker sends
+// schedules runs through the harness and settles a write an operator fenced. Every statement the worker sends
 // to ctx.db passes the pin's own runtime validators first (server/src/services/plugin-database.ts:
 // validatePluginRuntimeQuery/Execute, with the built manifest's coreReadTables), as the real host would apply them. The
 // migration's install check runs in scripts/paperclip-host-probe.mjs, through the pin's own loader.
@@ -198,10 +198,11 @@ try {
     assert.equal(res.status, 200, JSON.stringify(res.body))
     assert.equal((await harness.ctx.issues.get(first.body.issueId, COMPANY)).status, status)
   }
-  // The settle job, registered by the worker and run by the pin's harness: a Hold write never answered, recorded under
-  // a host process that is gone (so it can no longer land), that landed after the Stop, is undone and settled.
+  // The settle job, registered by the worker and run by the pin's harness: a Hold write never answered, by a previous
+  // instance an operator fenced (deploy/paperclip/README.md), that landed after the Stop, is undone and settled.
   await db.query(
-    `INSERT INTO ${NAMESPACE}.effects (effect_id, commission_key, status, host_process) VALUES ($1, $2, 'blocked', 'gone:1')`,
+    `INSERT INTO ${NAMESPACE}.effects (effect_id, commission_key, status, host_namespace, host_process, fenced_at, fence)
+     VALUES ($1, $2, 'blocked', 'previous-boot/pid:[1]', '7:1', now(), 'operator: previous instance stopped')`,
     [randomUUID(), key],
   )
   await harness.ctx.issues.update(first.body.issueId, { status: 'blocked' }, COMPANY)

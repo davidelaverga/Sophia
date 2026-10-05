@@ -526,8 +526,9 @@ async function writeStatus(host: CoordinationHost, s: Subject, token: string, st
     refuse(503, 'control_in_progress', 'Another delivery took over this issue; ask again later')
   const id = randomUUID()
   await host.execute(
-    `INSERT INTO ${host.namespace}.effects (effect_id, commission_key, status, host_process) VALUES ($1, $2, $3, $4)`,
-    [id, s.commissionKey, status, host.hostProcess],
+    `INSERT INTO ${host.namespace}.effects (effect_id, commission_key, status, host_namespace, host_process)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [id, s.commissionKey, status, host.hostProcess?.namespace ?? null, host.hostProcess?.process ?? null],
   )
   let updated: HostIssue
   try {
@@ -563,19 +564,19 @@ const UNSETTLED: Settled = { settled: false, status: null }
  * written again (itself an open write, settled in the next round). Any other status, the host's own included, is left
  * alone. The writes that finished before the issue was read are then settled.
  *
- * A write is finished when the host answered it, or when the host process that served it is gone: a process that is
- * gone can no longer commit, so whatever it wrote is in the issue before this settlement reads it. Time alone never
- * finishes a write. An unfinished write stays open, so every later settlement (each delivery's, and the settle job's
- * every minute) still restores the wanted status if it lands, however late.
+ * A write is finished when the host answered it, or once it is fenced (`fenceGoneHosts`, or an operator's fence): a
+ * process that is gone can no longer commit, so whatever it wrote is in the issue before this settlement reads it.
+ * Time alone, or another process serving now, never finishes a write. An unfinished write stays open, so every later
+ * settlement (each delivery's, and the settle job's every minute) still restores the wanted status if it lands.
  */
 async function settle(host: CoordinationHost, s: Subject, token: string): Promise<Settled> {
   let status: string | null = null
+  await fenceGoneHosts(host, s.commissionKey)
   for (let round = 0; round < SETTLE_ROUNDS; round += 1) {
     const open = await host.query<{ status: string; finished: boolean; at: string }>(
-      `SELECT status, now()::text AS at,
-              ended_at IS NOT NULL OR (host_process IS NOT NULL AND $2::text IS NOT NULL AND host_process <> $2::text) AS finished
+      `SELECT status, now()::text AS at, ended_at IS NOT NULL OR fenced_at IS NOT NULL AS finished
          FROM ${host.namespace}.effects WHERE commission_key = $1 AND settled_at IS NULL`,
-      [s.commissionKey, host.hostProcess],
+      [s.commissionKey],
     )
     const at = open[0]?.at
     if (at === undefined) return { settled: true, status }
@@ -588,12 +589,36 @@ async function settle(host: CoordinationHost, s: Subject, token: string): Promis
     await host.execute(
       `UPDATE ${host.namespace}.effects SET settled_at = now()
         WHERE commission_key = $1 AND settled_at IS NULL
-          AND (ended_at <= $2::timestamptz OR (host_process IS NOT NULL AND $3::text IS NOT NULL AND host_process <> $3::text))`,
-      [s.commissionKey, at, host.hostProcess],
+          AND (ended_at <= $2::timestamptz OR fenced_at <= $2::timestamptz)`,
+      [s.commissionKey, at],
     )
     return { settled: open.every((e) => e.finished || e.status === want), status }
   }
   return { settled: false, status }
+}
+
+/**
+ * Fences the unanswered writes whose host process is verifiably gone: recorded in this worker's own process namespace,
+ * by a process other than the one serving now, and seen gone (`host.processGone`). A write recorded in another
+ * namespace (another machine or container), or where the namespace is unknown, is left open: there it cannot be seen
+ * whether its process still runs, and only an operator who verified that the previous instance stopped fences it.
+ */
+async function fenceGoneHosts(host: CoordinationHost, commissionKey: string) {
+  const here = host.hostProcess
+  if (here === null) return
+  const rows = await host.query<{ effect_id: string; host_process: string }>(
+    `SELECT effect_id, host_process FROM ${host.namespace}.effects
+      WHERE commission_key = $1 AND settled_at IS NULL AND ended_at IS NULL AND fenced_at IS NULL
+        AND host_namespace = $2 AND host_process IS NOT NULL AND host_process <> $3`,
+    [commissionKey, here.namespace, here.process],
+  )
+  for (const row of rows) {
+    if (!host.processGone(row.host_process)) continue
+    await host.execute(
+      `UPDATE ${host.namespace}.effects SET fenced_at = now(), fence = $2 WHERE effect_id = $1 AND fenced_at IS NULL`,
+      [row.effect_id, `host process ${row.host_process} gone, seen by ${here.process}`],
+    )
+  }
 }
 
 async function wantedStatus(host: CoordinationHost, commissionKey: string): Promise<IssueStatus | null> {
