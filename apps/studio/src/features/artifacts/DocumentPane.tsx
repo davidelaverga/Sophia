@@ -27,6 +27,7 @@ import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
 import { MarkdownView } from './MarkdownView.tsx'
 import { PageDownload } from './PageDownload.tsx'
 import { PassageBar, type Passage } from './PassageBar.tsx'
+import { usePassageArrival } from './usePassageArrival.ts'
 import { offerWords } from './live-version.ts'
 import { useLiveVersion, type LiveChanges, type Shown } from './useLiveVersion.ts'
 import type { ShowRender } from '../voice/ShowEveryone.tsx'
@@ -93,7 +94,7 @@ const pick = (versions: readonly ArtifactVersion[] | undefined, id: string | nul
   versions?.find((v) => v.id === id) ?? (id === null ? versions?.[0] : undefined)
 
 /** The data on screen: the report's versions, the one shown, its checked text and its sources. */
-function usePaneData(identity: Identity, link: ReportLink, cursor: string | undefined) {
+function usePaneData(identity: Identity, link: ReportLink, cursor: string | undefined, tab: ViewerTab) {
   const versions = useQuery({
     queryKey: ['report-versions', link.artifactId, identity.name],
     queryFn: () => listArtifactVersions(identity.token, link.artifactId),
@@ -136,7 +137,31 @@ function usePaneData(identity: Identity, link: ReportLink, cursor: string | unde
   )
   // The report's own language: the viewer names a citation in it, as its HTML page does.
   const language = useMemo(() => (text.data ? reportLanguage(text.data.text) : 'und'), [text.data])
-  // The PDF is the one rendition format (A11).
+  const { rendition, showPdf, noPdf, pdf } = usePdf(identity, link, version)
+  const shown = shownOf(version, text.data, parsed, sources.status)
+  // A linked passage is decided for the pane, so the Sources tab and back keep it (usePassageArrival).
+  const arrival = usePassageArrival(version, parsed, shown.sourcesSettled, tab === 'document')
+  return {
+    versions,
+    version,
+    versionSettled,
+    text,
+    sources,
+    parsed,
+    language,
+    rendition,
+    showPdf,
+    noPdf,
+    pdf,
+    shown,
+    arrival,
+  }
+}
+
+type PaneData = ReturnType<typeof usePaneData>
+
+/** The version's PDF, its one rendition format (A11): read only when the link asks for it and the version has one. */
+function usePdf(identity: Identity, link: ReportLink, version: ArtifactVersion | undefined) {
   const rendition = version?.renditions?.[0]
   const showPdf = link.format === 'pdf' && rendition !== undefined
   const noPdf = pdfMissing(link.format, version)
@@ -147,11 +172,8 @@ function usePaneData(identity: Identity, link: ReportLink, cursor: string | unde
     staleTime: Infinity,
     retry: (n, error) => !(error instanceof HashMismatch) && n < 2,
   })
-  const shown = shownOf(version, text.data, parsed, sources.status)
-  return { versions, version, versionSettled, text, sources, parsed, language, rendition, showPdf, noPdf, pdf, shown }
+  return { rendition, showPdf, noPdf, pdf }
 }
-
-type PaneData = ReturnType<typeof usePaneData>
 
 /** The version on screen as useLiveVersion reads it: its sources settled once their read is no longer pending. */
 const shownOf = (
@@ -358,7 +380,7 @@ function usePaneBehaviour(
 export function DocumentPane(props: Props) {
   const { identity, link, tab, onTab, onVersion, onFormat, onEnlarge, onStepDown, onClose, onChat } = props
   const pane = useRef<HTMLElement>(null)
-  const data = usePaneData(identity, link, props.cursor)
+  const data = usePaneData(identity, link, props.cursor, tab)
   const live = useLiveVersion(pane, data.shown, data.versions.data)
   const { title, top, offer, recover } = usePaneBehaviour(props, data, live.showing)
   const width = usePaneWidth()
@@ -806,6 +828,7 @@ interface DocumentTabProps {
 }
 
 function DocumentTab({ data, identity, onCite, changes }: DocumentTabProps) {
+  const { arrival } = data
   if (data.text.isError) {
     return (
       <p className="muted" role="alert">
@@ -825,6 +848,11 @@ function DocumentTab({ data, identity, onCite, changes }: DocumentTabProps) {
       )}
       <PageDownload token={identity.token} artifactId={data.version.artifactId} versionId={data.version.id} />
       <Limitations items={data.version.limitations ?? []} />
+      {arrival === 'missing' && (
+        <p className="report-passage-note" role="status">
+          This passage isn’t in this version.
+        </p>
+      )}
       {changes.facts && (
         <p className="report-changes" role="note">
           {changes.facts}
