@@ -102,6 +102,10 @@ export interface Sent {
 
 const isSend = (asked: Asked, sent: Sent) => asked.question.question_id === sent.question_id && asked.send === sent.send
 
+/** Whether a send is still going: the task's latest, on that send, and not ended (Codex F-031). */
+export const stillOn = (asked: Asked | undefined, sent: Sent) =>
+  asked !== undefined && isSend(asked, sent) && !ended(asked)
+
 /** An event of one send: taken only while that send is the question's latest (Codex F-004). */
 export const heardOn = (asked: Asked, sent: Sent, e: AskEvent): Asked => (isSend(asked, sent) ? heard(asked, e) : asked)
 

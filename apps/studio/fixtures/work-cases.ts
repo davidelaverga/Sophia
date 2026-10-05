@@ -471,6 +471,14 @@ const sameKey: Change = (g) => ({
   ),
 })
 
+/** Codex F-032: d1 said accepted, naming none of its choices: the view is refused, never said as a choice made. */
+const unchosen: Change = (g) => ({
+  ...g,
+  decisions: g.decisions.map((d) =>
+    d.decision_id === 'd1' ? { ...d, state: 'accepted', selected_choice: null, plan_reaction: 'pending' } : d,
+  ),
+})
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -494,6 +502,7 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   pipes,
   rebound,
   'same-key': sameKey,
+  unchosen,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

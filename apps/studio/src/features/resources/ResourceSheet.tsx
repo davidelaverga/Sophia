@@ -510,24 +510,24 @@ function RoomLine({ room, onShow }: { room: Room; onShow: ((id: string) => void)
 }
 
 /**
- * Turning the page (a step, or Show) may take the control pressed with it: the focus stays in the sheet, where J and K
- * work.
+ * Turning the page (a step, or Show) replaces all the sheet holds, its content keyed by the resource, the control
+ * pressed with it. So the focus goes to the sheet itself first, which stays: J and K work at once on the next page,
+ * never lost to the page behind until a later frame (Codex F-033).
  */
 function usePageTurns(panel: React.RefObject<HTMLDivElement | null>, onStep: Props['onStep'], onShow: Props['onShow']) {
-  const keepFocus = () =>
-    requestAnimationFrame(() => {
-      if (!panel.current?.contains(document.activeElement)) panel.current?.focus()
-    })
+  const keepFocus = () => {
+    if (document.activeElement !== panel.current) panel.current?.focus()
+  }
   const turn = onStep
     ? (by: 1 | -1) => {
-        onStep(by)
         keepFocus()
+        onStep(by)
       }
     : undefined
   const show = onShow
     ? (id: string) => {
-        onShow(id)
         keepFocus()
+        onShow(id)
       }
     : undefined
   return { turn, show }

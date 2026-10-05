@@ -100,6 +100,27 @@ describe('readBoardView', () => {
     assert.equal(readBoardView(edited(board, choices, distinct)).ok, true)
   })
 
+  it('refuses an accepted decision that names none of its choices; one not yet decided names none (Codex F-032)', () => {
+    const board = example('board-review-ready.json')
+    const decision = ['goals', 0, 'decisions', 0]
+    const accepted = (selected: string | null) =>
+      readBoardView(
+        edited(edited(board, [...decision, 'state'], 'accepted'), [...decision, 'selected_choice'], selected),
+      )
+    for (const selected of [null, 'missing-key']) {
+      const read = accepted(selected)
+      assert.equal(read.ok, false)
+      if (!read.ok) {
+        assert.deepEqual(read.problems, [
+          '$.goals[0].decisions[0].selected_choice: an accepted decision names one of its choices',
+        ])
+      }
+    }
+    // Accepted with one of its own choices, and proposed with none, as the packet has it, are read as given.
+    assert.equal(accepted('follow_up').ok, true)
+    assert.equal(readBoardView(board).ok, true)
+  })
+
   it('refuses a date-time without its offset, or one the calendar doesn’t have (GitHub review on PR #76)', () => {
     const board = example('board-review-ready.json')
     for (const at of ['2026-10-03T15:00', '2026-10-03T15:00:00', '2026-02-30T15:00:00Z']) {

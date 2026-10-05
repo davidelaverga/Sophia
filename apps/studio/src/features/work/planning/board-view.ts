@@ -413,6 +413,22 @@ const placed = (p: WorkPlan, project: string, goal: string, at: string): string[
   ...(p.goal_id === goal ? [] : [`${at}.goal_id: its goal, ${goal}`]),
 ]
 
+/**
+ * A decision's own rules. Each choice has its own key: two with one key would send the same answer under different
+ * words (Codex F-028). Accepted, it names one of its own choices: none, or a key it doesn't have, would be said as a
+ * choice no one made (Codex F-032). A decision not yet decided names none.
+ */
+function decisionRules(d: BoardDecision, at: string): string[] {
+  const keys = d.choices.map((c) => c.key)
+  const named = d.selected_choice !== null && keys.includes(d.selected_choice)
+  return [
+    ...(new Set(keys).size === keys.length ? [] : [`${at}.choices: each choice its own key`]),
+    ...(d.state !== 'accepted' || named
+      ? []
+      : [`${at}.selected_choice: an accepted decision names one of its choices`]),
+  ]
+}
+
 function goalRules(goal: GoalView, at: string, project: string): string[] {
   const plans = [goal.current_plan, ...goal.proposed_plans].flatMap((p, i) => {
     const where = i === 0 ? `${at}.current_plan` : `${at}.proposed_plans[${String(i - 1)}]`
@@ -424,12 +440,7 @@ function goalRules(goal: GoalView, at: string, project: string): string[] {
       ? [`${at}.items[${String(i)}]: complete only with its policy satisfied, with evidence`]
       : [],
   )
-  // Each choice its own key: two with one key would send the same answer under different words (Codex F-028).
-  const choices = goal.decisions.flatMap((d, i) =>
-    new Set(d.choices.map((c) => c.key)).size === d.choices.length
-      ? []
-      : [`${at}.decisions[${String(i)}].choices: each choice its own key`],
-  )
+  const choices = goal.decisions.flatMap((d, i) => decisionRules(d, `${at}.decisions[${String(i)}]`))
   return [...plans, ...items, ...choices]
 }
 

@@ -2761,3 +2761,20 @@ test('codex · F-029 · a decision names its task from the plan it is bound to, 
     choice: 'ship',
   })
 })
+
+// ---- CX-0027 (Codex on #74; GitHub 4180471004): an accepted decision names its choice. ----
+
+test('codex · F-032 · a decision said accepted with no choice of its own is refused with its view, never “chose one”', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=unchosen`)
+  await expect(page.getByRole('alert')).toContainText(
+    '$.goals[0].decisions[0].selected_choice: an accepted decision names one of its choices',
+    { timeout: 15_000 },
+  )
+  await expect(board(page)).toHaveCount(0)
+  await expect(page.getByText('chose one')).toHaveCount(0)
+  // Accepted with its own choice, the board reads it as made (UI-14's case).
+  await page.goto(`${PAGE}?case=reacting`)
+  await expect(board(page)).toBeVisible({ timeout: 15_000 })
+})

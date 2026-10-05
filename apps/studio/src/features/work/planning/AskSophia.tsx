@@ -10,7 +10,6 @@
 // until then it is kept, with why.
 import { useState, useSyncExternalStore } from 'react'
 import {
-  ASK_LIMIT_MS,
   againOf,
   askBlocked,
   asking,
@@ -21,7 +20,7 @@ import {
   type Asked,
   type Question,
 } from './ask.ts'
-import { askedOf, asksOf, heardOf, stalledOf, subscribe } from './ask-store.ts'
+import { askedOf, asksOf, sendQuestion, subscribe } from './ask-store.ts'
 import { actionOf, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
 import { resultsOf } from './results.ts'
 
@@ -50,23 +49,10 @@ export function useAsks(
 ): Asks {
   const asked = useSyncExternalStore(subscribe, () => asksOf(space))
   /**
-   * Sends a question and watches its wait: each event starts it again; none within the limit fails it. The wait and
-   * the events are this send's own, so an earlier send of the same question can't fail or answer this one.
+   * Sends a question with its one wait (ask-store.ts sendQuestion): the wait and the events are this send's own, so an
+   * earlier send of the same question can't fail or answer this one.
    */
-  const send = (fresh: Asked, port: Ask) => {
-    const { question } = fresh
-    const sent = { question_id: question.question_id, send: fresh.send }
-    const watch = (seq: number) => setTimeout(() => stalledOf(space, question.work_id, { ...sent, seq }), ASK_LIMIT_MS)
-    askedOf(space, fresh)
-    watch(0)
-    port(question, (event) => {
-      heardOf(space, question.work_id, sent, event)
-      const now = asksOf(space)[question.work_id]
-      if (now?.send === sent.send && now.question.question_id === sent.question_id && now.state === 'answering') {
-        watch(now.seq)
-      }
-    })
-  }
+  const send = (fresh: Asked, port: Ask) => sendQuestion(space, fresh, port)
   return {
     connected: onAsk !== undefined,
     closed,

@@ -1824,3 +1824,49 @@ test('type · the view and its sheet keep to the scale: at most five sizes each'
   expect(inSheet.length, inSheet.join(' ')).toBeLessThanOrEqual(5)
   expect(inSheet.filter((s) => !['10.5px', '12px', '13px', '14px', '15px'].includes(s))).toEqual([])
 })
+
+// ---- CX-0028 (Codex on #74): a page turned keeps the focus in the sheet at once. ----
+
+/**
+ * Presses a control in the sheet, then, before any frame can come (only microtasks run between), says where the focus
+ * is and what J does from there.
+ */
+const turnedAt = (page: Page, control: string) =>
+  page.evaluate(async (name) => {
+    const pressed = [...document.querySelectorAll<HTMLButtonElement>('.resource-sheet button')].find(
+      (b) => (b.getAttribute('aria-label') ?? b.textContent.trim()) === name,
+    )
+    if (!pressed) return null
+    pressed.focus()
+    pressed.click()
+    await Promise.resolve() // what the page does after the press, in this same task
+    const turned = document.querySelector('.resource-sheet')
+    const focused = document.activeElement === turned
+    const turnedTo = turned?.getAttribute('aria-label') ?? null
+    document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true }))
+    await Promise.resolve()
+    return { focused, turnedTo, afterJ: document.querySelector('.resource-sheet')?.getAttribute('aria-label') ?? null }
+  }, control)
+
+test('codex · F-033 · a page turned by its control keeps the focus in the sheet at once: J steps on, no frame between', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?more=1`)
+  await open(page, 'Davide · Grok')
+  expect(await turnedAt(page, 'Next resource')).toEqual({
+    focused: true,
+    turnedTo: 'Davide · Claude Code',
+    afterJ: 'Davide · Codex',
+  })
+  await expect(sheet(page, 'Davide · Codex')).toBeFocused()
+  // Escape still closes it, as before.
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  // Show, from the room line, turns the page the same way.
+  await page.goto(`${PAGE}?tight=1`)
+  await open(page, 'Davide · Claude Code')
+  const shown = await turnedAt(page, 'Show')
+  expect(shown?.focused).toBe(true)
+  expect(shown?.turnedTo).toBe('Davide · Codex')
+  expect(shown?.afterJ).not.toBe('Davide · Codex') // J stepped on from it
+})
