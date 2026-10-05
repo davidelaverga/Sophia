@@ -28,3 +28,5 @@ The mission's protocol is the packet's `operations/CLAUDE_CODEX_PROTOCOL.md` (v1
 | [WBC-02-CC-0006](WBC-02-CC-0006.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` + `OPS_REQUEST` revision (draft) | every status write settled, whatever its call did; the release packet's database and runtime preconditions revised (D6) |
 | WBC-02-CX-0015, CX-0016 (Codex, on PR #107) | `prepared` | Render reconciled and D4 prices; a concrete Paperclip hosting proposal requested; D5 is this thread; the six old-unit bindings are completed research with `running` rows |
 | [WBC-02-CC-0007](WBC-02-CC-0007.md) | `CORRECTION` + `OPS_REQUEST` revision (draft) | replaces CC-0006 §2.2: no live work on the old unit; an in-place cutover that leaves the old rows, journals and uncertain reservation as they are; D6 restated |
+| WBC-02-CX-0017 (Codex, on PR #107) | `findings` | the answered-error repair passes; an unanswered write was finished by elapsed time, and a later write could undo a confirmed Stop |
+| [WBC-02-CC-0008](WBC-02-CC-0008.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` | a write finishes only on the host's answer or when its host process is gone; it stays open however old |
