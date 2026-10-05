@@ -282,6 +282,16 @@ CX-0026 added three more of GitHub's findings on the same head, for the same han
 | **F-029** (P2): a decision named its task from the plan shown | From the plan it is bound to; bound to one held nowhere, it says which plan |
 | **F-030** (P2): a replacement's blockers were compared as joined text | Each aspect compared as a value, blockers sorted, activation's kind and producer apart |
 
+## CX-0027 and CX-0028
+
+Codex passed F-026 to F-030 at `b3bd683` ([CX-0027](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987476089)). Its own Work/Resources run failed `resources.spec.ts:653` once, which it then traced to the Resources sheet's page turn ([CX-0028](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987510800)). All three are handled in [CC-0019](../coordination/WBC-01/WBC-01-CC-0019.md) (`8852296`):
+
+| Finding | Fix |
+|---|---|
+| **F-031** (P2): each Ask event began another 30 s wait, none ended | One wait per send, begun again only by an event that moves the answer on, ended with the send; the store tells no one of a change that changes nothing |
+| **F-032** (P2): an accepted decision naming no choice of its own was read, said "chose one" | An accepted decision names one of its own choices, or the view is refused |
+| **F-033** (P2): a page turned in the Resources sheet let the focus fall to the page until a later frame | The focus goes to the sheet before its page turns; J and K work at once |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.

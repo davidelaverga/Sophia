@@ -447,8 +447,8 @@ when you change the room:
   NEXT; lenses, a decision pill and what changed since the last look
   (decisions and results first, opened in full on press; a decision waits
   only while it can be answered, and an answer at most a write's 90 s, then
-  is not confirmed, `sendAnswer`; each choice its own key, its task named
-  from the plan it is bound to); four lanes, Active, Up next, Unassigned and
+  is not confirmed, `sendAnswer`; each choice its own key, accepted only
+  naming one, its task named from the plan it is bound to); four lanes, Active, Up next, Unassigned and
   Complete (`plan.ts`: a view over each item's observed state; Complete only
   by its own policy with evidence, and a passed check of the version it
   holds, never one no single current version matches), and Closed work with its reasons; a
@@ -461,7 +461,7 @@ when you change the room:
   (`actions.ts`; a kind it offers more than once is no grant, in any order;
   a command goes again with its operation only to the exact target it was
   sent to, its keys tuples of whole ids), and Ask (a port of real received chunks, no typing
-  animation; at most 30 s per event, then failed, with Ask again: the same
+  animation; at most 30 s per event, one wait per send, then failed, with Ask again: the same
   question on its own send, so nothing of an earlier send can fail or answer
   it, and a send that has ended, answered, failed or unavailable, takes nothing
   more, and only while the view allows asking about the task and a conversation
@@ -513,7 +513,8 @@ when you change the room:
   Each session's effort is a small bar in its tool's own look (`effort.ts`):
   Claude's dots, alive and saying "Ultracode" in that mode; GPT's gradient,
   sparkling at Ultra; a plain, still bar for the others.
-  In a sheet, J and K step through the shown resources. Two Claude Code
+  In a sheet, J and K step through the shown resources, the focus kept in the
+  sheet as its page turns. Two Claude Code
   tiles side by side greet (`buddies.ts`), and typing "ultracode" on the
   view sends a wave across the tiles (`ultra.ts`); with reduced motion, both
   are still.

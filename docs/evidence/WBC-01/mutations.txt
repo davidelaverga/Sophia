@@ -270,3 +270,15 @@ Z7 F-030 what a task waits on is compared as values: FAILS as it should  [Assert
 Z7b F-030 its blockers in any order: FAILS as it should  [AssertionError]
 # On f0052a9, every entry above on board-view.ts, proposal.ts and PlanBoard.tsx ran again: 21 of 21 fail. 159 of 160
 # fail; R1b is the redundant key recorded above.
+
+# CX-0027 at b3bd683 (#74; GitHub 4180471001, 4180471004), F-031 and F-032, and CX-0028's F-033, fixed in 8852296
+AA1 F-031 a wait begun again ends the one before: FAILS as it should  [AssertionError]
+AA2 F-031 an ended send leaves nothing waiting: FAILS as it should  [AssertionError]
+AA3 F-031 an event that changes nothing puts no wait off: FAILS as it should  [AssertionError]
+AA4 F-031 a change that changes nothing tells no one: FAILS as it should  [AssertionError]
+AB1 F-032 an accepted decision names one of its choices (rule): FAILS as it should  [AssertionError]
+AB1b F-032 an accepted decision names one of its choices (board): FAILS as it should  [expect(locator).toContainText]
+AC1 F-033 the focus goes to the sheet before its page turns, not a frame later: FAILS as it should  [expect(received).toEqual]
+# On 8852296, every entry above on AskSophia.tsx, ask.ts, ask-store.ts, board-view.ts and ResourceSheet.tsx ran again:
+# 25, of which 24 failed; E2 named AskSophia's first wait, moved to sendQuestion, and re-aimed there it fails. Z5 and
+# Z5b were re-aimed earlier in this round at decisionRules' `new Set(keys)`. 166 of 167 fail; R1b is the redundant key.
