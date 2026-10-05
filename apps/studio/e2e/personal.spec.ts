@@ -1383,3 +1383,14 @@ test('follow · a conversation that fits, then doesn’t (a window made shorter)
   await page.setViewportSize({ width: 1280, height: 520 })
   await expect(page.locator('.msg.sophia').last()).toBeInViewport()
 })
+
+test('follow · a conversation whose rows grow (a font loading, a row reflowed) keeps its latest exchange in sight', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 1100 })
+  await page.goto(PAGE)
+  expect(await page.locator('.msgs').evaluate((l) => l.scrollHeight <= l.clientHeight)).toBe(true)
+  // The rows grow; the list's own box doesn't.
+  await page.addStyleTag({ content: '.places .msg .body { font-size: 30px !important; line-height: 1.8 !important; }' })
+  await expect(page.locator('.msg.sophia').last()).toBeInViewport()
+})

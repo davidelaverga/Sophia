@@ -390,16 +390,25 @@ function useLatestInSight(list: RefObject<HTMLDivElement | null>, grows: Grows) 
       if (atEnd.current) setBehind(false)
     }
     box.addEventListener('scroll', read, { passive: true })
-    // The list made shorter (a rotation, a window resized, a font reflowed): whoever read at its end stays there, also
-    // as it starts to overflow, where its end-alignment falls back to the start.
+    // The list made shorter (a rotation, a window resized) or its rows taller (a font loading, a row reflowed):
+    // whoever read at its end stays there, also as it starts to overflow, where its end-alignment falls back to the
+    // start. Its rows are watched as well as its box, and again as rows come and go.
     const sized = new ResizeObserver(() => {
       // At once, not smoothly: a second resize mid-glide must still find the reader at the end.
       if (atEnd.current) box.scrollTo({ top: box.scrollHeight, behavior: 'instant' })
     })
-    sized.observe(box)
+    const watch = () => {
+      sized.disconnect()
+      sized.observe(box)
+      for (const row of box.children) sized.observe(row)
+    }
+    watch()
+    const rows = new MutationObserver(watch)
+    rows.observe(box, { childList: true })
     return () => {
       box.removeEventListener('scroll', read)
       sized.disconnect()
+      rows.disconnect()
     }
   }, [list])
   useEffect(() => {
