@@ -29,10 +29,18 @@ const query = new URLSearchParams(window.location.search)
 const sent: string[] = []
 const pressed: string[] = []
 window.personalFixture = { sent, pressed }
-const NOW = new Date()
+// `at=HH:MM`: the fixture's clock stands at that time today (her light follows the hour).
+const NOW = ((at) => {
+  const [, h, m] = /^(\d{1,2}):(\d{2})$/.exec(at ?? '')?.map(Number) ?? []
+  const now = new Date()
+  if (h !== undefined && m !== undefined && h < 24 && m < 60) now.setHours(h, m, 0, 0)
+  return now
+})(query.get('at'))
 const ago = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000).toISOString()
 const ahead = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 const DAY = 24 * 60
+// `away=N`: the earlier day's turns are N days back, not one (time away; where you began).
+const BEFORE = Math.max(1, Number(query.get('away')) || 1) * DAY
 
 let seq = 0
 const turn = (
@@ -58,10 +66,10 @@ const turn = (
 function talk(): PersonalTurn[] {
   if (query.get('talk') === 'new') return []
   const turns = [
-    turn('person', 'I have a pitch on Friday and I keep putting off the deck.', ago(DAY + 42)),
-    turn('sophia', 'What part of it feels heaviest when you open the file?', ago(DAY + 41)),
-    turn('person', 'The numbers. I’m not sure they hold.', ago(DAY + 40)),
-    turn('sophia', 'Then start there, with one number you trust. The rest can lean on it.', ago(DAY + 39)),
+    turn('person', 'I have a pitch on Friday and I keep putting off the deck.', ago(BEFORE + 42)),
+    turn('sophia', 'What part of it feels heaviest when you open the file?', ago(BEFORE + 41)),
+    turn('person', 'The numbers. I’m not sure they hold.', ago(BEFORE + 40)),
+    turn('sophia', 'Then start there, with one number you trust. The rest can lean on it.', ago(BEFORE + 39)),
     turn('person', 'The launch felt rushed and I keep replaying the meeting with the team.', ago(14)),
     turn(
       'sophia',

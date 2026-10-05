@@ -2067,3 +2067,35 @@
   color: var(--text);
   text-shadow: 0 0 12px rgba(185, 168, 255, 0.8);
 }
+
+/* ---------- Moments (docs/plans/personal-moments.md §2) ---------- */
+/* Her light follows the hour: clearer in the morning, as it is by day, warmer in the evening, lower and deeper at
+   night. */
+.places .c3-space.you[data-hour='morning'] .c3-ambient {
+  background: radial-gradient(
+    ellipse 70% 90% at 50% 0%,
+    rgba(196, 188, 255, 0.24),
+    rgba(196, 188, 255, 0.08) 50%,
+    transparent 80%
+  );
+}
+.places .c3-space.you[data-hour='evening'] .c3-ambient {
+  background: radial-gradient(
+    ellipse 60% 80% at 50% 0%,
+    rgba(222, 150, 168, 0.2),
+    rgba(232, 178, 140, 0.07) 50%,
+    transparent 78%
+  );
+}
+.places .c3-space.you[data-hour='night'] .c3-ambient {
+  background: radial-gradient(
+    ellipse 42% 50% at 50% 0%,
+    rgba(96, 74, 210, 0.11),
+    rgba(96, 74, 210, 0.03) 50%,
+    transparent 72%
+  );
+}
+/* A day's moment (where you began, time together, time away) in her warm hand, after the day's name. */
+.places .c3-day-note {
+  color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
+}

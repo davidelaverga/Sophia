@@ -10,6 +10,7 @@ import {
   PRIVACY_RULES,
   firstName,
   greeting,
+  lightOf,
   HOME_ACTION,
   homeRows,
   otherWaysNote,
@@ -315,5 +316,27 @@ describe('the padlock’s words', () => {
       ...PRIVACY_RULES.map((rule) => rule.rest),
     ]
     for (const said of words) assert.doesNotMatch(said, /passkey/i, said)
+  })
+})
+
+/** Her light at an hour of a day. */
+const lightAt = (h: number, m = 0) => lightOf(new Date(2026, 9, 4, h, m))
+
+describe('her light by the hour (personal-moments.md §2)', () => {
+  it('morning from 5, the day from 11, evening from 18, night from 22', () => {
+    assert.deepEqual(
+      [
+        lightAt(4, 59),
+        lightAt(5),
+        lightAt(10, 59),
+        lightAt(11),
+        lightAt(17, 59),
+        lightAt(18),
+        lightAt(21, 59),
+        lightAt(22),
+        lightAt(0),
+      ],
+      ['night', 'morning', 'morning', 'day', 'day', 'evening', 'evening', 'night', 'night'],
+    )
   })
 })
