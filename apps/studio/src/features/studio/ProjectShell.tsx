@@ -20,6 +20,7 @@ import { MiniDock, RoomSwitches } from '../voice/MiniDock.tsx'
 import { CallInReach } from '../../app/call-in-reach.tsx'
 import { shortName } from '../voice/room-view.ts'
 import { lookingText } from '../voice/sophia-view.ts'
+import { useHeldCaptions } from '../voice/StageCaptions.tsx'
 import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
@@ -379,6 +380,8 @@ function ProjectBody(props: BodyProps) {
   // The side panel's state lives here, past a visit to another view (useRoomPanel). Out of sight for its call, its open
   // tab isn't in view: what arrives there meanwhile is new when the person comes back.
   const panel = useRoomPanel(snapshot, room, view === 'studio' && !background)
+  // So is the stage captions' hold: back from another view, what was said meanwhile has gone, as in the room.
+  const captions = useHeldCaptions(room.captions)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   const withViewer = (body: React.ReactNode) => (
     <WithViewer {...props} panel={panel} looking={looking}>
@@ -404,6 +407,7 @@ function ProjectBody(props: BodyProps) {
           snapshot={snapshot}
           panel={panel}
           looking={looking}
+          captions={captions}
         />
       </>,
     )

@@ -21,6 +21,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccountMenu } from '../src/app/AccountMenu.tsx'
+import type { View } from '../src/app/route.ts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
@@ -223,6 +224,9 @@ const nothing = () => undefined
 /** The page `place=` names: Knowledge, Work (with the research task's card), else the room. */
 const viewOf = (place: string | null) => (place === 'knowledge' || place === 'work' ? place : 'studio')
 
+/** The views this fixture's API serves: the room, Knowledge and Work. The others' reads aren't faked, so their links stay. */
+const SERVED: readonly View[] = ['studio', 'knowledge', 'work']
+
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }
 
@@ -239,6 +243,32 @@ function Kept({ children }: { children: ReactNode }) {
   )
 }
 
+/** The project as App.tsx shows it: its view moves as the person picks another (ViewNav, the mini dock). */
+function Project() {
+  const [view, setView] = useState<View>(viewOf(query.get('place')))
+  return (
+    <ProjectShell
+      projectId={PROJECT}
+      view={view}
+      identity={identity}
+      account={
+        <AccountMenu
+          identity={identity}
+          where="project"
+          actions={{ data: nothing, privacy: nothing, chooseDev: nothing, signOut: nothing }}
+        />
+      }
+      onShow={(next) => {
+        if (SERVED.includes(next)) setView(next)
+      }}
+      onLeave={nothing}
+      onWork={nothing}
+      onSignOut={nothing}
+      joinOnOpen={query.get('call') === 'on'}
+    />
+  )
+}
+
 const root = document.getElementById('root')
 if (!root) throw new Error('room.html must contain #root')
 
@@ -249,23 +279,7 @@ createRoot(root).render(
         Fixture — no API, no call
       </p>
       <Kept>
-        <ProjectShell
-          projectId={PROJECT}
-          view={viewOf(query.get('place'))}
-          identity={identity}
-          account={
-            <AccountMenu
-              identity={identity}
-              where="project"
-              actions={{ data: nothing, privacy: nothing, chooseDev: nothing, signOut: nothing }}
-            />
-          }
-          onShow={nothing}
-          onLeave={nothing}
-          onWork={nothing}
-          onSignOut={nothing}
-          joinOnOpen={query.get('call') === 'on'}
-        />
+        <Project />
       </Kept>
     </QueryClientProvider>
   </StrictMode>,

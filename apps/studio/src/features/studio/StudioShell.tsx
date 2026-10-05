@@ -7,6 +7,7 @@ import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { useMembership } from '../access/useAccess.ts'
+import type { CaptionTurn } from '../conversation/captions.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
 import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
@@ -69,6 +70,8 @@ interface Props {
   panel: RoomPanel
   /** What Sophia is looking at, in words, or null (lookingText). */
   looking: string | null
+  /** What is being said, held where the room lives (useHeldCaptions): the stage shows it while Chat is closed. */
+  captions: readonly CaptionTurn[]
 }
 
 /** Names the room has known this visit, by identity, so a line keeps its author's name after they leave. */
@@ -115,7 +118,7 @@ export function PanelCallSwitches({
   )
 }
 
-export function StudioShell({ projectId, identity, room, snapshot, panel, looking }: Props) {
+export function StudioShell({ projectId, identity, room, snapshot, panel, looking, captions: held }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
   const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
   const names = useKnownNames(room)
@@ -127,7 +130,7 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
     b: () => panel.toggle('brief'),
   })
   const common = { projectId, identity, me, names }
-  const captions = useStageCaptions(room, panel.panel === 'chat', me, names)
+  const captions = useStageCaptions(held, room, panel.panel === 'chat', { me, names })
   return (
     <div className="studio">
       <RoomStage
