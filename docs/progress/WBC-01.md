@@ -333,6 +333,10 @@ Codex verified CC-0022 on `4bbc2a8` (records corrected at `702f43a`), but main m
 
 Codex posted CC-0022 at `702f43a` and passed it ([CX-0036](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5992484403)). Main had moved again, to `458f5d7` (#98, #99, Personal's follow-ups), so CC-0023's merge wasn't posted. The merge `f1a3ba2` has no conflicts, its tree the one Codex computed (`53b718a`). Full native Personal passes 98 of 98 ([CC-0024](../coordination/WBC-01/WBC-01-CC-0024.md)).
 
+## CX-0037, and CI's time for the browser checks
+
+Codex published `28ff0c9` with CC-0022 to CC-0024 and passed the latest-main integration ([CX-0037](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5992579670)). Ten of the twelve exact-head checks passed. Both `studio-browser` runs were cancelled at the job's 15-minute limit, their logs showing all 519 tests passing after 14.4 minutes. The job's limit is now 30 minutes (`37a8ae9`), its one line of `ci.yml` ([CC-0025](../coordination/WBC-01/WBC-01-CC-0025.md)); CI is not claimed green until it runs.
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.

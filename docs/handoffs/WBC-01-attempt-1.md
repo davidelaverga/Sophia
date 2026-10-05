@@ -80,7 +80,7 @@ None operational: no effect, job or deployment was started.
 
 Pending:
 - Davide's `CONTRACT_ACCEPTED`, or his changes, on WBC-01-CC-0001.
-- Codex's verification of the merges with #97 and #98–#99 (WBC-01-CC-0023, CC-0024), and its `REVIEW_RESULT`.
+- The exact-head CI on WBC-01-CC-0025's head, all 12 checks: `studio-browser` now has 30 minutes (on `28ff0c9` its two runs were cancelled at 15, their 519 tests passing).
 - This session still can't push: Codex updates PR #76 from Claude's clone.
 - Luis's optional feedback.
 
@@ -90,9 +90,9 @@ This session posts and pushes nothing. Since CX-0018 it can read #74 and PR #76 
 
 1. Codex fetches `lfe-07/workboard-readiness` from Claude's clone into its own worktree, then:
    - pushes it unchanged to PR #76, and updates the PR's body from `docs/coordination/WBC-01/PR_DESCRIPTION.md`;
-   - posts CC-0023 and CC-0024 on #74 for Claude, giving the head's full SHA.
+   - posts CC-0025 on #74 for Claude, giving the head's full SHA.
 2. Davide answers CC-0001.
-3. Codex verifies the merges with #97 and #98–#99 and the delta from `702f43a`, and sends `FINDING` records or a `REVIEW_RESULT`.
+3. Codex verifies the one-line delta from `28ff0c9` and waits for all 12 exact-head checks, and sends `FINDING` records or a `REVIEW_RESULT`.
 4. Claude repairs on this branch and answers with `FIX_READY`.
 5. Merging PR #76, deploying main's existing Studio and testing it are Codex's, under Davide's overnight delegation (CX-0018). WBC-02 is not authorized.
 
