@@ -27,6 +27,7 @@ const RULES: readonly Rule[] = [
       m.startsWith('Receipt names') ||
       m.startsWith('Observation names') ||
       m.startsWith('Research operation names') ||
+      m.startsWith('Design operation names') ||
       m.startsWith('A media-bridge call') ||
       m.startsWith('The speaker is not bound') ||
       m.startsWith('Announcement names'),
@@ -36,6 +37,8 @@ const RULES: readonly Rule[] = [
   // Research (0024, 0025): the gate, a ready runtime that carries the specialist, and the allowance's limits. The
   // messages name only which limit stopped the call, so they are kept.
   { sqlstate: '55000', when: (m) => m.startsWith('No research runtime'), code: 'native_capability_unavailable' },
+  // SDD-01 (0040): HTML needs a ready designer and a capture renderer asking for work; nothing is admitted without them.
+  { sqlstate: '55000', when: (m) => m.startsWith('HTML design is unavailable'), code: 'html_unavailable' },
   // 0032: a rendition needs a render runner that is asking for work.
   { sqlstate: '55000', when: (m) => m.startsWith('No PDF renderer'), code: 'native_capability_unavailable' },
   { sqlstate: '55000', when: (m) => m === 'Research gate closed', code: 'research_gate_closed' },
@@ -51,7 +54,12 @@ const RULES: readonly Rule[] = [
       m.startsWith('Research is finalizing') ||
       m.startsWith('Research finalize step has used its calls') ||
       // 0030: at most three renders per research task.
-      m.startsWith('Research render limit reached'),
+      m.startsWith('Research render limit reached') ||
+      // SDD-01 (0039, 0040): a design's renders, revisions, repairs and work record are bounded.
+      m.startsWith('Design render limit reached') ||
+      m.startsWith('Design revision limit reached') ||
+      m.startsWith('Design repair limit reached') ||
+      m.startsWith('The work record is full'),
     code: 'research_limit_reached',
   },
   // The mission ledger (0018): the note policy's refusals say what would allow the write, so their words are kept.

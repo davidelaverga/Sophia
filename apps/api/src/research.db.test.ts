@@ -225,34 +225,30 @@ describe('start_research over /v1/media/tool-calls', () => {
   })
 })
 
-describe('start_research takes HTML as the Markdown report Studio prints its page from', () => {
-  /** The admitted task's specialist and the outputs its manifest (the runtime's input) names. */
-  const admittedAs = async (taskId: string) => {
+describe('start_research with HTML asks for a designed page (SDD-01), never one Studio prints', () => {
+  /** How many research tasks the project has. */
+  const researchCount = async (projectId: string) => {
     const owner = new pg.Client({ connectionString: db.ownerUrl })
     await owner.connect()
     try {
-      const { rows } = await owner.query<{ role: string; manifest: { outputs: string[] } }>(
-        `SELECT t.role, s.body::jsonb AS manifest FROM sophia.research_tasks t
-           JOIN sophia.jobs j ON j.project_id=t.project_id AND j.id=t.job_id
-           JOIN sophia.source_texts s ON s.project_id=j.project_id AND s.source_id=j.input_source_id
-          WHERE t.job_id=$1`,
-        [taskId],
+      const { rows } = await owner.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM sophia.research_tasks WHERE project_id=$1`,
+        [projectId],
       )
-      return rows.map((r) => [r.role, r.manifest.outputs])
+      return rows[0]?.n
     } finally {
       await owner.end()
     }
   }
 
-  it('admits html as the Markdown specialist, never in the manifest, and says the card downloads the page', async () => {
+  it('refuses html whole without a designer and a capture renderer: nothing admitted, Markdown offered', async () => {
     const w = await world()
     const html = await tool(w, { question: 'Which hosts sandbox their renderers?', outputs: ['html'] })
-    assert.equal(html.status, 'admitted', JSON.stringify(html))
-    assert.match(html.output.note, /its card also downloads it as an HTML page\.$/)
-    assert.deepEqual(await admittedAs(html.output.taskId), [['sophia-research-md-v1', ['markdown']]])
-    const repeat = await tool(w, { question: 'Which hosts sandbox their renderers?', outputs: ['markdown', 'html'] })
-    assert.deepEqual([repeat.status, repeat.output.existingTaskId], ['ok', html.output.taskId])
-    assert.match(repeat.output.note, /downloads it as an HTML page/)
+    assert.deepEqual([html.status, html.output.code], ['refused', 'not_started:html_unavailable'], JSON.stringify(html))
+    assert.match(html.output.reason, /A Markdown report can be asked for instead\.$/)
+    const both = await tool(w, { question: 'Which hosts sandbox their renderers?', outputs: ['markdown', 'html'] })
+    assert.equal(both.output.code, 'not_started:html_unavailable')
+    assert.equal(await researchCount(w.projectId), 0, 'no fixed template is admitted in its place')
     // A PDF with no renderer running is refused whole, HTML or not: nothing is started in its place.
     const pdf = await tool(w, { question: 'As HTML and a PDF.', outputs: ['html', 'pdf'], newRequest: true })
     assert.deepEqual([pdf.status, pdf.output.code], ['refused', 'not_started:pdf_unavailable'])

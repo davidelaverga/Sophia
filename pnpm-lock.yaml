@@ -42,6 +42,9 @@ importers:
       '@sophia/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@sophia/design':
+        specifier: workspace:*
+        version: link:../../packages/design
       '@sophia/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -261,6 +264,9 @@ importers:
       '@sophia/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@sophia/design':
+        specifier: workspace:*
+        version: link:../design
       '@sophia/domain':
         specifier: workspace:*
         version: link:../domain

@@ -16,6 +16,28 @@ export const SPECIALISTS = [
     route: 'research-sol-medium-v1',
     nativeTools: ['todo_write', 'research_read_context', 'research_search', 'research_read_source', 'research_write_draft', 'research_render_pdf', 'research_inspect_output', 'research_submit_result', 'research_report_blocker'],
   },
+  {
+    id: 'sophia-html-designer-v1',
+    family: 'design',
+    outputs: ['html'],
+    route: 'research-sol-medium-v1',
+    nativeTools: ['design_read_context', 'design_read_reference', 'design_record_work', 'design_write_source', 'design_patch_source', 'design_render', 'design_inspect_render', 'design_submit_candidate', 'design_report_blocker'],
+    taskKind: 'design',
+    promptSections: ['sophia-html-designer', 'sophia-html-procedure'],
+    skills: ['sophia-visual-foundation-v1', 'sophia-editorial-html-v1', 'sophia-web-finish-v1', 'sophia-visual-critique-v1'],
+    imageInput: true,
+  },
+  {
+    id: 'sophia-visual-review-v1',
+    family: 'design_review',
+    outputs: ['review'],
+    route: 'research-sol-medium-v1',
+    nativeTools: ['review_read_context', 'review_read_reference', 'review_inspect_render', 'review_submit_result'],
+    taskKind: 'design_review',
+    promptSections: ['sophia-visual-reviewer'],
+    skills: ['sophia-visual-critique-v1'],
+    imageInput: true,
+  },
 ] as const
 
 export type SpecialistId = (typeof SPECIALISTS)[number]['id']

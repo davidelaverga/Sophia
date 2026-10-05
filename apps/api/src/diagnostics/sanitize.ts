@@ -147,7 +147,16 @@ export const EVENT_TYPES = [
   ...suffixed('room.', ['exchange_opened', 'exchange_changed', 'sophia_presence']),
   'project.member_joined',
   'contribution.recorded',
-  ...suffixed('native_task.', ['admitted', 'waiting', 'running', 'result_ready', 'failed', 'denied', 'nudged']),
+  ...suffixed('native_task.', [
+    'admitted',
+    'waiting',
+    'running',
+    'result_ready',
+    'failed',
+    'denied',
+    'nudged',
+    'progress',
+  ]),
   ...suffixed('runtime.', ['hello', 'ready', 'not_ready']),
   ...suffixed('goal.', ['held', 'stopped']),
 ]
@@ -180,6 +189,12 @@ const TASK_SUMMARIES = [
   // A source the research read was withdrawn (0028): the task revoked, and the one rebuilt without it.
   'revoked',
   'rebuilt',
+  // An HTML design (SDD-01, 0039–0040): admitted, its renders, its review, a revision asked for, and its end.
+  'design',
+  'design_render_settled',
+  'design_review_admitted',
+  'design_revision_requested',
+  'design_ended',
 ]
 const TASK_ENDINGS = ['outcome_unknown', 'error', 'max-tokens', 'blocked']
 export const VOICE_STATES = ['connecting', 'ready', 'recovering', 'unavailable']

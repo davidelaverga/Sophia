@@ -5,13 +5,15 @@
 // database credential, ever reaches the renderer host.
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type pg from 'pg'
-import type { RenderLease, RenderSettleRequest } from '@sophia/contracts'
+import type { RenderClaimRequest, RenderLease, RenderSettleRequest } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
+  rendererCaptureSlot,
   rendererClaim,
   rendererFile,
   rendererHeartbeat,
   rendererOutputSlot,
+  rendererRecordCapture,
   rendererRecordOutput,
   rendererSettle,
   withService,
@@ -26,11 +28,16 @@ export const RENDERER_ROUTES: ReadonlySet<string> = new Set([
   '/v1/renderer/jobs/:jobId/file',
   '/v1/renderer/jobs/:jobId/output',
   '/v1/renderer/jobs/:jobId/settle',
+  '/v1/renderer/jobs/:jobId/captures/:name',
 ])
 
 /** The largest PDF a render may upload (the service's own bound, 0030). */
 export const RENDER_OUTPUT_LIMIT = 32 * 1024 * 1024
-const SETTLE_BODY_LIMIT = 128 * 1024
+/** The largest PNG a capture may upload (the service's own bound, 0039). */
+export const CAPTURE_OUTPUT_LIMIT = 8 * 1024 * 1024
+/** A capture's receipt names every block's measures (at most 1 MiB, 0039); a PDF's is far smaller. */
+const SETTLE_BODY_LIMIT = 1280 * 1024
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 const UUID = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 
 const jobParams = {
@@ -43,12 +50,31 @@ const leaseHeaders = {
   properties: { 'x-sophia-render-lease': { type: 'string', pattern: UUID } },
   required: ['x-sophia-render-lease'],
 } as const
+const captureParams = {
+  type: 'object',
+  properties: {
+    jobId: { type: 'string', pattern: UUID },
+    name: { type: 'string', pattern: '^[a-z0-9][a-z0-9.-]{0,150}\\.png$' },
+  },
+  required: ['jobId', 'name'],
+} as const
 const fileQuery = {
   type: 'object',
   additionalProperties: false,
   properties: { path: { type: 'string', minLength: 1, maxLength: 512 } },
   required: ['path'],
 } as const
+
+/** The formats a claim names; undefined (a PDF runner) when its body names none. */
+function formatsOf(body: unknown): string[] | undefined {
+  if (typeof body !== 'object' || body === null || !('formats' in body) || !Array.isArray(body.formats))
+    return undefined
+  const formats = body.formats.filter((f): f is string => f === 'pdf' || f === 'png')
+  if (formats.length !== body.formats.length || formats.length === 0) {
+    throw new DomainError('invalid_request', 'A runner renders pdf, png or both')
+  }
+  return formats
+}
 
 /** The capability's hash, set by the authentication hook on RENDERER_ROUTES only. */
 function tokenOf(req: FastifyRequest): Buffer {
@@ -109,6 +135,52 @@ async function storeOutput(deps: Deps, req: FastifyRequest<{ Params: { jobId: st
   return withService(deps.pool, (c) => rendererRecordOutput(c, token, req.params.jobId, lease, output))
 }
 
+/** Store one uploaded PNG of a capture job once under a new source of the job's project, then record it by name. */
+async function storeCapture(
+  deps: Deps,
+  req: FastifyRequest<{ Params: { jobId: string; name: string }; Body: unknown }>,
+) {
+  const bytes = req.body
+  if (!Buffer.isBuffer(bytes) || bytes.byteLength < 8 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    throw new DomainError('invalid_request', 'A capture is a PNG')
+  }
+  if (!deps.store) throw new DomainError('unavailable', 'The report store is not set up')
+  const token = tokenOf(req)
+  const lease = leaseOf(req)
+  const { jobId, name } = req.params
+  const slot = await withService(deps.pool, (c) => rendererCaptureSlot(c, token, jobId, lease, name))
+  try {
+    await deps.store.put(objectPath(slot.projectId, slot.sourceId), bytes, 'image/png')
+  } catch (err) {
+    throw new DomainError('unavailable', 'The report store did not answer', { cause: err })
+  }
+  const capture = { name, sourceId: slot.sourceId, sha256: sha256Hex(bytes), byteLength: bytes.byteLength }
+  return withService(deps.pool, (c) => rendererRecordCapture(c, token, jobId, lease, capture))
+}
+
+/** The claim and the capture uploads (A12): a runner names its formats, and a capture job uploads PNGs by name. */
+function captureRoutes(app: FastifyInstance, deps: Deps): void {
+  app.addContentTypeParser('image/png', { parseAs: 'buffer', bodyLimit: CAPTURE_OUTPUT_LIMIT }, (_req, body, done) => {
+    done(null, body)
+  })
+  // A runner names the formats it renders (A12); one that sends no body is a PDF runner and never gets a capture.
+  app.post<{ Body: RenderClaimRequest | undefined }>(
+    '/v1/renderer/claim',
+    { schema: { response: { 200: { $ref: 'RenderClaim#' } } } },
+    async (req) => ({
+      job: await withService(deps.pool, (c) => rendererClaim(c, tokenOf(req), formatsOf(req.body))),
+    }),
+  )
+  app.put<{ Params: { jobId: string; name: string }; Body: unknown }>(
+    '/v1/renderer/jobs/:jobId/captures/:name',
+    {
+      bodyLimit: CAPTURE_OUTPUT_LIMIT,
+      schema: { params: captureParams, headers: leaseHeaders, response: { 200: { $ref: 'RenderCaptureOutput#' } } },
+    },
+    async (req) => storeCapture(deps, req),
+  )
+}
+
 export function rendererRoutes(app: FastifyInstance, deps: Deps): void {
   app.addContentTypeParser(
     'application/pdf',
@@ -117,9 +189,7 @@ export function rendererRoutes(app: FastifyInstance, deps: Deps): void {
       done(null, body)
     },
   )
-  app.post('/v1/renderer/claim', { schema: { response: { 200: { $ref: 'RenderClaim#' } } } }, async (req) => ({
-    job: await withService(deps.pool, (c) => rendererClaim(c, tokenOf(req))),
-  }))
+  captureRoutes(app, deps)
   app.post<{ Params: { jobId: string }; Body: RenderLease }>(
     '/v1/renderer/jobs/:jobId/heartbeat',
     { schema: { params: jobParams, body: { $ref: 'RenderLease#' }, response: { 200: { $ref: 'RenderHeartbeat#' } } } },
