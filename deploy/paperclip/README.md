@@ -116,7 +116,15 @@ not reachable from the implementer's container).**
   from the image at `/opt/sophia`.
 - **Its own PostgreSQL** (`DATABASE_URL`, the internal URL), never Sophia's, with the provider's backups. The image
   turns Paperclip's own file backups off (`PAPERCLIP_DB_BACKUP_ENABLED=false`).
-- **Memory:** see "Qualification" below. The measured idle footprint rules out the 512 MB tier.
+- **Memory: a 2 GB instance.** Measured on the pin's built server with the plugin installed and in use, by
+  `scripts/paperclip-service-probe.mjs`:
+  - with the image's 1024 MB server heap, about 1.0 GiB resident at peak and at idle (the server about 0.76 GiB, the
+    plugin worker about 0.22 GiB);
+  - uncapped, about 1.06 GiB;
+  - with a 384 MB heap, the server fails at start (out of heap).
+
+  The 512 MB tier is ruled out; a 2 GB instance leaves about 1 GiB of headroom. These figures come from linux-x64 on
+  synthetic data; Codex measures on the platform.
 
 **Reachability, exactly.**
 

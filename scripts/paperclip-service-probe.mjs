@@ -13,7 +13,9 @@
 //   5. the settle job runs on the host's own scheduler;
 //   6. the server restarts on the same database and home, with sign-up closed: the plugin is ready again from its path,
 //      the adapter loads again, the lookup finds the same issue, and a new sign-up is refused;
-//   7. the resident memory of the server and of the plugin worker is sampled throughout; the peak is reported.
+//   7. the resident memory of the server and of the plugin worker is sampled throughout, by phase. The server runs with
+//      the image's heap bound; SOPHIA_PROBE_NODE_OPTIONS tries another (the plugin worker does not inherit it: the host
+//      scrubs its environment).
 // Synthetic data only: no provider, no Sophia service (the adapter is given an address nothing listens on), nothing
 // beyond loopback. The database and the home are removed at the end.
 import { execFileSync, spawn } from 'node:child_process'
@@ -137,6 +139,7 @@ const env = {
   PATH: process.env.PATH ?? '',
   // the image's environment (deploy/paperclip/Dockerfile), on loopback instead of 0.0.0.0
   NODE_ENV: 'production',
+  NODE_OPTIONS: process.env.SOPHIA_PROBE_NODE_OPTIONS ?? '--max-old-space-size=1024',
   HOME: home,
   HOST: '127.0.0.1',
   PORT: String(port),
@@ -163,8 +166,6 @@ const env = {
   PAPERCLIP_ALLOWED_HOSTNAMES: PRIVATE_NAME,
   SOPHIA_COORDINATION_URL: 'http://127.0.0.1:9',
   SOPHIA_COORDINATION_TOKEN: hex(32),
-  // a heap cap to try a smaller service tier (the plugin worker does not inherit it: the host scrubs its environment)
-  ...(process.env.SOPHIA_PROBE_NODE_OPTIONS ? { NODE_OPTIONS: process.env.SOPHIA_PROBE_NODE_OPTIONS } : {}),
 }
 const log = openSync(join(home, 'server.log'), 'a')
 /** Resident memory by phase: the peak (server and its children; the server alone) and the last sample. */

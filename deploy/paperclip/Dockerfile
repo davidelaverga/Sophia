@@ -39,11 +39,14 @@ RUN node /opt/sophia/verify-manifest.mjs /opt/sophia 5edf55d7350c7f08c9dd132c7e0
 
 # Authenticated, private (login always required; the host-name guard admits only the names below and loopback), the
 # pin's migrations applied at start, nothing reaching the internet unless a feature asks for it, and no file backups on
-# the service's disk (the managed database keeps its own). Secrets are not
+# the service's disk (the managed database keeps its own). The server's heap is bounded at 1024 MB, as qualified by
+# scripts/paperclip-service-probe.mjs for a 2 GB instance (the plugin worker does not inherit it: the host scrubs its
+# environment; a 384 MB heap fails at start). Secrets are not
 # here: DATABASE_URL, BETTER_AUTH_SECRET, PAPERCLIP_SECRETS_MASTER_KEY, PAPERCLIP_TOOL_ACTION_SIGNING_SECRET,
 # PAPERCLIP_ALLOWED_HOSTNAMES, SOPHIA_COORDINATION_URL and SOPHIA_COORDINATION_TOKEN come from the service's secret
 # store (deploy/paperclip/README.md).
 ENV NODE_ENV=production \
+  NODE_OPTIONS=--max-old-space-size=1024 \
   HOME=/paperclip \
   HOST=0.0.0.0 \
   PORT=3100 \
