@@ -10,7 +10,10 @@
 // report's versions are published already), `history=pilot` (its first two are shaped like the pilot's, CX-0026); the
 // report viewer's own parameters (`report=…`) open the fixture report (report-data.ts). `window.fixture` lets a check
 // move the project on, have a member write, drop the call, publish the report's next version, deliver a result notice
-// (its revision, or a brief's) or a live caption, have Sophia leave, or read what happened.
+// (its revision, or a brief's) or a live caption, have Sophia leave, or read what happened. Others in the room, the
+// floor, who speaks, Sophia's states and video come from fake-people.ts (`people`, `floor=1|me|absent`, `speaking`,
+// `sophia=here|listening|settling|answering|speaking|blocked`, `voice`, `paused`, `video=camera|screen`,
+// `looking=screen`; docs/plans/room-fixture-people.md).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
@@ -21,8 +24,18 @@ import { AccountMenu } from '../src/app/AccountMenu.tsx'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
-import { identity, PROJECT } from './data.ts'
+import { ABSENT, identity, membership, PROJECT, type RoomAsked } from './data.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, sophiaLeaves } from './fake-livekit.ts'
+import {
+  endPause,
+  nameOf,
+  oneOfUs,
+  personId,
+  setSophia,
+  setSpeaking,
+  sophiaAsked,
+  type SophiaState,
+} from './fake-people.ts'
 import {
   installFixtureApi,
   publish,
@@ -78,6 +91,14 @@ interface Fixture {
   away: () => void
   /** Back to the project, as the places' call control brings it back: its address names no report. */
   back: () => void
+  /** Sophia's participant says this now (fake-people.ts). */
+  sophia: (state: SophiaState) => void
+  /** Who speaks now: 0 the viewer, `n` the `n`th other person, null no one. */
+  speaking: (who: number | null) => void
+  /** Another member's change reaches the API just before the page's next pass: that pass is refused as stale. */
+  moveRoom: () => void
+  /** Whom the floor was passed to, by name, in order. */
+  floorTo: readonly string[]
   /** What the room's connection was asked (fake-livekit.ts). */
   asked: readonly string[]
   /** What the API answered, as `snapshot:2` (fixture-api.ts). */
@@ -92,9 +113,47 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+
+/** The floor's holder the page asked for: the viewer, the `n`th other person, or someone not in the room. */
+function holderAsked(floor: string | null): string | undefined {
+  if (floor === 'me') return membership.actorId
+  if (floor === 'absent') return ABSENT
+  const n = oneOfUs(floor, false)
+  return n === null ? undefined : personId(n)
+}
+
+const VOICES = ['recovering', 'unavailable'] as const
+const PAUSES = ['guest', 'holder_left'] as const
+const oneOf = <T extends string>(list: readonly T[], value: string | null): T | undefined =>
+  list.find((item) => item === value)
+
+const room: RoomAsked = {
+  holder: holderAsked(query.get('floor')),
+  voice: oneOf(VOICES, query.get('voice')),
+  pauseReason: oneOf(PAUSES, query.get('paused')),
+  // She sees a screen only while one is shared (`video=screen`): the first person's.
+  looking:
+    query.get('looking') === 'screen' && query.get('video') === 'screen'
+      ? { participantIdentity: personId(1), source: 'screen' }
+      : null,
+}
+const floorTo: string[] = []
+
 const project = {
   revision: 1,
-  exchange: query.get('exchange') === 'open',
+  exchange: query.get('exchange') === 'open' || sophiaAsked,
+  room,
+  roomMoves: false,
+  // As the API passes it: a new holder, one more pass, and a pause because the holder left is over.
+  onFloor: (actorId: string) => {
+    room.holder = actorId
+    room.inputEpoch = (room.inputEpoch ?? 1) + 1
+    if (room.pauseReason === 'holder_left') {
+      room.pauseReason = undefined
+      endPause()
+    }
+    floorTo.push(nameOf(actorId))
+  },
   messages: [] as string[],
   reportVersions: Math.max(1, Number(query.get('versions')) || 1),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
@@ -147,6 +206,12 @@ window.fixture = {
     window.history.pushState(null, '', '/room.html')
     sight.set?.(true)
   },
+  sophia: setSophia,
+  speaking: setSpeaking,
+  moveRoom: () => {
+    project.roomMoves = true
+  },
+  floorTo,
   asked,
   served,
   unexpected,

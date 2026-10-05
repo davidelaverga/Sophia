@@ -2,12 +2,23 @@
 // `import('./livekit-room.ts')` (useProjectRoom) to this module, so the real controller runs over a connection
 // that reaches no server. It records what it is asked, in order, and can refuse a device or drop the call, as
 // LiveKit would report them. What Sophia sends goes through the Studio's own listener (sophia-channel.ts), as bytes
-// from her participant on the reply topic. Nothing else in the Studio is replaced.
+// from her participant on the reply topic. Who else is in the room, what Sophia's participant says and the video
+// feeds come from fake-people.ts. Nothing else in the Studio is replaced.
 import { RoomEvent, type Room } from 'livekit-client'
 import { CHAT_REPLY_TOPIC, encodeChatPacket, type ChatPacket } from '@sophia/contracts/room-chat'
 import type { RoomCallbacks, RoomConnection } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
 import { listenToSophia } from '../src/features/voice/sophia-channel.ts'
+import {
+  allowSound,
+  feeds,
+  onPeopleChange,
+  others,
+  setSophia,
+  sophiaSignal,
+  soundBlocked,
+  viewerSpeaks,
+} from './fake-people.ts'
 
 /** What the room's connection was asked, in order: `connect`, `microphone:on`, `text:off`, `leave`… */
 export const asked: string[] = []
@@ -47,23 +58,27 @@ export function deliverCaption(packet: Parameters<NonNullable<RoomCallbacks['onC
 
 /** Sophia's participant leaves the room, as when her bridge lost its link or restarted. */
 export function sophiaLeaves(): void {
+  setSophia(null)
   emit(RoomEvent.ParticipantDisconnected, SOPHIA)
 }
 
 const blocked = () => new DOMException('Permission denied', 'NotAllowedError')
 
+/** The viewer as LiveKit lists the local participant, devices off until the call turns them on. */
+const viewer = (): RoomParticipant => ({
+  identity: '00000000-0000-4000-8000-0000000000a1',
+  name: 'Fixture viewer',
+  speaking: false,
+  micOn: false,
+  cameraOn: false,
+  screenOn: false,
+  local: true,
+  standing: 'admin',
+})
+
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   asked.push('connect')
-  const me: RoomParticipant = {
-    identity: '00000000-0000-4000-8000-0000000000a1',
-    name: 'Fixture viewer',
-    speaking: false,
-    micOn: false,
-    cameraOn: false,
-    screenOn: false,
-    local: true,
-    standing: 'admin',
-  }
+  const me = viewer()
   let textOnly = false
   let open = true
   listeners = new Map()
@@ -74,6 +89,10 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a fake of the one method the listener uses
   listenToSophia(room as unknown as Pick<Room, 'on'>, cb)
+  // Nothing more is heard from a room this connection left or lost, as LiveKit emits nothing after a disconnect.
+  onPeopleChange(() => {
+    if (open) cb.onChange()
+  })
   ended = (why) => {
     if (!open) return
     open = false
@@ -97,11 +116,14 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
       textOnly = on
     },
     textMode: () => textOnly,
-    participants: () => [{ ...me }],
-    sophia: () => null,
-    audioBlocked: () => false,
-    startAudio: () => Promise.resolve(),
-    feeds: () => [],
+    participants: () => [{ ...me, speaking: viewerSpeaks() }, ...others()],
+    sophia: sophiaSignal,
+    audioBlocked: soundBlocked,
+    startAudio: () => {
+      allowSound()
+      return Promise.resolve()
+    },
+    feeds,
     setMicrophone: device('microphone', 'micOn'),
     setCamera: device('camera', 'cameraOn'),
     setScreenShare: device('screen', 'screenOn'),
