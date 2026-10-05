@@ -1,0 +1,780 @@
+{
+  "schema": "sophia.raven-file-inventory.v0.1",
+  "repository": "EverMind-AI/Raven",
+  "commit": "3632e6040c7038a60ec418ce39ccae185c72c19f",
+  "roots": [
+    {
+      "id": "RV-01",
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design",
+      "entry_git_blob": "5f6962e4cf2ed0899dd78a1f89aa2e103c8e7d16",
+      "tracked_files": 11
+    },
+    {
+      "id": "RV-02",
+      "path": "plugins-dist/design-engine/raven_design/skills/design-editorial-and-presentations",
+      "entry_git_blob": "b6edaae4f6b49774d53f3e8c25d26d064152f76b",
+      "tracked_files": 3
+    },
+    {
+      "id": "RV-03",
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends",
+      "entry_git_blob": "14ff3aeb7b2d888b561e4cb2794c307ec58e7283",
+      "tracked_files": 36
+    },
+    {
+      "id": "RV-04",
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns",
+      "entry_git_blob": "cf27ed13b88c0082228fc5db11fcce9e5516d64a",
+      "tracked_files": 18
+    }
+  ],
+  "files": [
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/SKILL.md",
+      "git_blob": "14ff3aeb7b2d888b561e4cb2794c307ec58e7283",
+      "sha256": "c402d34c02d1c70816cf041dd72dc66df467424751a0f562468cf063ae8d7fa1",
+      "bytes": 48628,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/aesthetic-routing.md",
+      "git_blob": "b0e663bb55d3c273e33baed1073cdf801d46185d",
+      "sha256": "43b0329f0d5f43cf485fdf02087523504ac3f9b7402abab30e082e3f77b43530",
+      "bytes": 17362,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-1.jpg",
+      "git_blob": "70972152d4450aef11f2d2855348669600ecdbc2",
+      "sha256": "f660b74fb45e1ca88c75bdd28526e9036e2367867452ba7fde03c69eddcc9016",
+      "bytes": 265135,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-10.jpg",
+      "git_blob": "44eab9eac32e015dfd9258fd980a204fea3f40aa",
+      "sha256": "365d529cfb486f58003ce4954f5295e74f46ff7469206eb7b4cd92096983a2d5",
+      "bytes": 207445,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-11.jpg",
+      "git_blob": "9d7b88d7f6a4a4f8212b35a67c190f118d75b4d1",
+      "sha256": "5357ab127006e3d84744934c464f9fb066e184d11465939c2743b2c3e9f4fdec",
+      "bytes": 400944,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-2.jpg",
+      "git_blob": "c7d3a2629417783d19bca22f24b05779d735ab57",
+      "sha256": "e0798e6355b4fa843090ca64a52713b7b3d6793815b280917f6b5120321a5c77",
+      "bytes": 187334,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-3.jpg",
+      "git_blob": "fa506088cabcf87b4ba986de955c29ec775444d1",
+      "sha256": "1adc6f5b681ea5f2f50b797dd19badf48431f8f282eb357f91f3967e93eeb696",
+      "bytes": 271140,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-4.jpg",
+      "git_blob": "52e7a26d60fad3779aa6e6edd5c8dcc3a3ac9677",
+      "sha256": "34a3623da9a4c7b6f06489e2e96935f310596a3ef219ab40785a58b376b273f2",
+      "bytes": 158973,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-5.jpg",
+      "git_blob": "db45fb4c60cb0eb47bab8c46adbe0cda3c89e5ae",
+      "sha256": "c340c04dcea161dc325ce061bf0fac30410e2a0aa869b1eebc06d7414a36ec6b",
+      "bytes": 257840,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-6.jpg",
+      "git_blob": "15c3c875524b38411334d97055fef6e995396022",
+      "sha256": "d317123e4767fc840c4a5e592c12ce2b785af6c05882acaec15c780c09403d4b",
+      "bytes": 309014,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-7.jpg",
+      "git_blob": "288a83bc109852111958508a7559d708076a1e3d",
+      "sha256": "6c23de845ac496098bce2ab4a61f9e020680c78b5a20f7aa06c22fbb853af01e",
+      "bytes": 253778,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-8.jpg",
+      "git_blob": "06c16cbe9106967a6b76b6a2da6edc93b286393a",
+      "sha256": "1745de5ffadf5b0751e62f07bde07e934ef2c241a6273cb11da67e4dc9e1f24b",
+      "bytes": 192967,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/anti-slop-gallery/page-9.jpg",
+      "git_blob": "f32db5262d9eaa8aa91aa20b514caf99a954214f",
+      "sha256": "dfc084293a779d3b1b8458111d9ad4190e98818e917bf10d2240469d540cd6d0",
+      "bytes": 231916,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/assets-and-imagegen.md",
+      "git_blob": "ac0ed680896e69c40f5d9564304128d5f24cdd0e",
+      "sha256": "836aaf0421a3b1a90fe7f4fb594e26d9bb0789383b0864c8d99995a15e85f62f",
+      "bytes": 18763,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/decision-traces.md",
+      "git_blob": "a9c22e8db312ca4bd413116ccede704a1095a82a",
+      "sha256": "c410f3821b769cffc91e4aa8a0226e4094bdde392d5fca2e25de738225d94e62",
+      "bytes": 9970,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/design-precedents/page-1.jpg",
+      "git_blob": "c8c775638d869569caf218911734031193aa0f74",
+      "sha256": "ee368b18de05c4ee2e2c3dc3601475eb3ed312eec67bbeafc004bb729754dadf",
+      "bytes": 125963,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/design-precedents/page-2.jpg",
+      "git_blob": "eb190e4c8f035d8adcf00fb6b71dc354005a2541",
+      "sha256": "a027f801dc66937da5b18779546045b2f14c0365de6a7c7ef68195b2335f7c8f",
+      "bytes": 184936,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/design-precedents/page-3.jpg",
+      "git_blob": "46df5fab3039ec26ace80f18e2e72813a6c6154e",
+      "sha256": "dfc2e54aed29eb7fbc67a456c77129d7870760551619fb5132db9b9d749a727b",
+      "bytes": 231678,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/design-precedents/page-4.jpg",
+      "git_blob": "94d847e2309820ed070144c2ec7116a0016007f8",
+      "sha256": "a23fe3e5ec716dd73592c6674ea5110d6d453964f7900f0c10a06b3d3332f4d3",
+      "bytes": 186273,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/design-precedents/page-5.jpg",
+      "git_blob": "dcec77afd1b235c56b898d35de3fbfe90024d60d",
+      "sha256": "1def54e3e17268e248b32f41797f628ff4757db84a329e9ff72bae570a82b536",
+      "bytes": 347507,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/design-precedents/page-6.jpg",
+      "git_blob": "2706107ae98020071d0882f907fc16fe8c68c9db",
+      "sha256": "5e392145a9cd341fdc1087fac0b956eaa1921bc7aaf8495a2b16af3feea81f25",
+      "bytes": 255258,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/design-precedents/page-7.jpg",
+      "git_blob": "fe1f13db59fb2a545c4f3acfabe005573afcfcae",
+      "sha256": "8cc7a42efbd2e31851b95411efa19b7ecd22dae24e4ffd5a9e1199f2973512b6",
+      "bytes": 122044,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/design-system-routing.md",
+      "git_blob": "5693ff4eaa0b43f4a43a724f01596336341b7f53",
+      "sha256": "a17845537a8f98a725c718e2e302e990d6a1cff5942104c93336bc0fe2ed8746",
+      "bytes": 10831,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/stack-routing.md",
+      "git_blob": "be19ff7032544f57aa93717bc8215d82f25eeb04",
+      "sha256": "7b3518138a76f1c3127025c5453b5aee51e5864f74522f423308470397a209c2",
+      "bytes": 17509,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/POOL.md",
+      "git_blob": "56d7bf8b4250cd1677b18bd742f4e352aea41a74",
+      "sha256": "7dd329f3a317776ef224863ba773e717ae99b4546f35847fa868586a76647ec4",
+      "bytes": 8444,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/atelier-ko.jpg",
+      "git_blob": "a44fe861a979a46f226ba22a99c780146c65a238",
+      "sha256": "52ddb2e198c07da70c7d298eebd20d7d7e186ebebc4eeaaff2f0a65b28b3a423",
+      "bytes": 118806,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/bento.jpg",
+      "git_blob": "b1d7296da7ac49a18ff471aaff213671e9f0b269",
+      "sha256": "6d99c16f7e758c65e4b9d42ce78d114663442216a86995ff0ad074cd47387487",
+      "bytes": 139938,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/datanova.jpg",
+      "git_blob": "9caf16d9c87179ed710f68760093013652cc4b99",
+      "sha256": "1ffadb7be50270e7d0e74b9649877964b83f51ad068ac943844620a7d9724e6b",
+      "bytes": 143161,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/keel.jpg",
+      "git_blob": "420fd65f5fb34842e73763b893fee20b4e711a98",
+      "sha256": "cb66cd8ba1068655708b9e8690784e56c9b17273698fad0b0778e5e4574b5db9",
+      "bytes": 107565,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/ombra.jpg",
+      "git_blob": "40f8a2ac27312838d82b4bf53373edc2188afbcc",
+      "sha256": "de73c1af2134c736c905b5d63254a4fd33df6936cb6c6738876ffe54cc8006ae",
+      "bytes": 133597,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/quietpages.jpg",
+      "git_blob": "88ecfa6ae96bb85c299e89a5b7d9b0be12713292",
+      "sha256": "b4cdd03f5a02e989cbab7db2415d93abb83cbbd92ca862fb53d1d1d6afc5e521",
+      "bytes": 268744,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/scholars.jpg",
+      "git_blob": "3edec77ba4011a530d49751199a1009dc25a8f1c",
+      "sha256": "13e7b03191a349c04edfaddc3c4de49ce34f8582e464daff3fc1d1e1e62a5542",
+      "bytes": 139077,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/screwfast.jpg",
+      "git_blob": "b8100059bf615bccc625eb989b0c7cc12fba5d17",
+      "sha256": "8f0e66b0974a9c8b7324cd95873a85f29a9325c28d0c3253184cb22fb9efb6da",
+      "bytes": 147132,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/starlight.jpg",
+      "git_blob": "b0f3838fa4b2eb82035d639f1864444c74c1c58d",
+      "sha256": "1939762ed405eebad117695cdbb8d09c2af9c210ccc2d0dfe35fccf9a36fe4e2",
+      "bytes": 191316,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/template-pool/tailcast.jpg",
+      "git_blob": "1e9caf9097c2bb2e6aeb2e1b6f83ef70eb181ea3",
+      "sha256": "92d9caa454acd92026159690fc6f6c450dba588604d42699ae2d0c7cbe8cd7f6",
+      "bytes": 95251,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/references/tool-install.md",
+      "git_blob": "1efe5eb33d243b31a3e3a7b51611ddd07efac0f6",
+      "sha256": "e0c172e211f14b6fd403974ce64910941d48b48b508eeb6f27acd9ff7ad1a7db",
+      "bytes": 4180,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/design-editorial-and-presentations/SKILL.md",
+      "git_blob": "b6edaae4f6b49774d53f3e8c25d26d064152f76b",
+      "sha256": "4a4be10915be4c19942797e9ee798271a57f3cbe3d5e7260ca53768fae7f6f98",
+      "bytes": 9227,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/design-editorial-and-presentations/references/patterns.md",
+      "git_blob": "bb65eed93175fac22d8bf77b068e7fccec9255e5",
+      "sha256": "e9fe2ec4e290622b8a63c3166c0bb032015d534ea6828edbef6d2f0916d2bf0f",
+      "bytes": 11014,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/design-editorial-and-presentations/references/tool-profiles.md",
+      "git_blob": "9cd5a1bf2004549303bf5544e29bc1a93ecba48c",
+      "sha256": "7564993f3dea450e9729741c6d4d5be381aee28a32471d79775b095fe7f5a366",
+      "bytes": 17779,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/SKILL.md",
+      "git_blob": "cf27ed13b88c0082228fc5db11fcce9e5516d64a",
+      "sha256": "789fa7320722929788ebf1d65917c33141bef4f0df3811c25380c25cec368f5d",
+      "bytes": 3213,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/agents/openai.yaml",
+      "git_blob": "5ef6b19e3462f416b4cde25799c967533679280b",
+      "sha256": "e03646ae89c8ed6cf308b1f1ae7472e2b610d3a9380fbc78e959149cc8485f2f",
+      "bytes": 383,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-1.jpg",
+      "git_blob": "5369b41a9d3424e188d86aa2955c2b8eb2010bba",
+      "sha256": "b7773bdedb9ea83bca3d844888bac12a282711e528df729855130c55110eafd3",
+      "bytes": 218437,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-10.jpg",
+      "git_blob": "1478b83d1d0811a41e54e962922a9b2b4d03ca2a",
+      "sha256": "b61d90dee4490d91c440d5601b29a742692635e1f907a9e2c4a9e2c28ac17009",
+      "bytes": 189322,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-11.jpg",
+      "git_blob": "e179046ab21d32883a4a53484638cade3d9d787d",
+      "sha256": "aa7f7c7cbabb5815b1f569344d625a918985bb21e92c5c158f393d53358e62c7",
+      "bytes": 233171,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-12.jpg",
+      "git_blob": "a6e0fe124d8d40546764129b516309ad0f1d3339",
+      "sha256": "1dbe9f147c08e9c991c686193090352cf1d6e4b73662ff29a43e0d2c6cb17f75",
+      "bytes": 176686,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-13.jpg",
+      "git_blob": "3f5789c6991f554184d9697014c1f91a37cc9eab",
+      "sha256": "c5db820505d0877cd97b3e69ff848299e9dbefec1e714206fa8f39cb86299db2",
+      "bytes": 147468,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-14.jpg",
+      "git_blob": "def36a07b4cab62201615d3106a4375197402a20",
+      "sha256": "33f7e79f4e90cdbea69c6d8b039ea709874e1306619dbdeaf1f282b05142ec49",
+      "bytes": 205292,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-2.jpg",
+      "git_blob": "b4bf19602115d706a170170e3c6427b7a8385c95",
+      "sha256": "f5d8dcd6350891d49263a2a88e2a0e7b34b599cfe25183d1fcb3014e8a40ee07",
+      "bytes": 234326,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-3.jpg",
+      "git_blob": "a7b91da1e0721ba18c30cc8089a7b2da94c52097",
+      "sha256": "cd55bf5deda246028921b83036eca4c01c76ccfd01023c1d4301526bcf407870",
+      "bytes": 259130,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-4.jpg",
+      "git_blob": "48f658259cd38c8df172f1f33548929024df8b69",
+      "sha256": "534ca31292baf49b6073276d6bbc7edb75e08851101cefe525ce52d2b73a8f80",
+      "bytes": 172373,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-5.jpg",
+      "git_blob": "24cf73a1e13f82be50e6806900253573c5cabf8a",
+      "sha256": "05250d4ca258240dcbc647aa314f93070108c333530317d2eb57934a315b873d",
+      "bytes": 264021,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-6.jpg",
+      "git_blob": "ea028ffacf09fa5965519b9e01c15113a165bd68",
+      "sha256": "82e96ab2e29a7c011953c367e976c72f7f1cedafba56c0ff0a79557fbc53f0db",
+      "bytes": 235415,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-7.jpg",
+      "git_blob": "dadb967a15545a680a58fcb0946fa96906cb63e0",
+      "sha256": "e195d0c342ade0a5312a0115b3efc82c3e4f8118fbda35cd234919c2543e9711",
+      "bytes": 310059,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-8.jpg",
+      "git_blob": "d781a7c49126a354d10d08ef01d283820b035a07",
+      "sha256": "02b2fda5447057b6e84d220a7c7869ce1c62c6c4e794942c87317dc53d0b79be",
+      "bytes": 229547,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-gallery/page-9.jpg",
+      "git_blob": "38fb238464f0d1027e44a35b340459c70c3961b4",
+      "sha256": "0ca7688212bdd3230b7faed51682e0c3ca01d2354b7c2740d5f9c1ad50f21eb4",
+      "bytes": 221162,
+      "mode": "100644",
+      "kind": "reference_image",
+      "status": "rights_and_perception_review_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/anti-slop-review.md",
+      "git_blob": "536d96aedfd1994fe1cb34ee010985e96a25e59d",
+      "sha256": "04d7aec742fa6ffcbe7437458d02c3251ae7016093c12e25a839bf2fc6887799",
+      "bytes": 21446,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/references/ledger-format.md",
+      "git_blob": "0233bfc219c2eb61a00e44cb53a17e31ab1e5246",
+      "sha256": "02e733f5da1e26f8a807f6a7f8a28d6fdbbee3ca50f5e12de68ba062f2806394",
+      "bytes": 1321,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/SKILL.md",
+      "git_blob": "5f6962e4cf2ed0899dd78a1f89aa2e103c8e7d16",
+      "sha256": "d73c0981976135f923d098750b2d760ea78e7a9d416ff8fa5ef3dfc31d79850a",
+      "bytes": 17534,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/examples/chart-page.md",
+      "git_blob": "4896919eba6c000a236ae3c6296fc5e8344e5eaa",
+      "sha256": "f7f4e2bf4e20921ee52b8e24e99c8470e34c03a932a599d36ae99453fe03884b",
+      "bytes": 8766,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/examples/computed-geometry.md",
+      "git_blob": "f3e36f16f562a6d7cea6469b092e4f12154262a6",
+      "sha256": "cbf34d5d3d9a7c7b3bcf6297951c939e17b62283cae8ea975c736ddda7eb0ab2",
+      "bytes": 11645,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/examples/design-brief.md",
+      "git_blob": "aa4bbaf725ce9bcb9b0272d3e0f0f42ce39d60be",
+      "sha256": "84bb7792a381a714e3581fca461aa101c4adcc2ceedc10d6e206af68f89fbea8",
+      "bytes": 13879,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/examples/svg-scene.md",
+      "git_blob": "0ddecd75284ab5cff6a033713442fdae6073d68c",
+      "sha256": "58dd8ab779b1119f778a067a100d9063c668262eafef67b68c98fea416df70fa",
+      "bytes": 9509,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/references/assets-and-imagegen.md",
+      "git_blob": "9df680ada590ecc0a21ce6c54571cb23f25bc17f",
+      "sha256": "c225e2619b024ab124256907cedc7b25dea1946388e5ba1e40ee2d37ba3d883e",
+      "bytes": 18515,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/references/data-visualization.md",
+      "git_blob": "9e93f55ce8d44691c403e23eabc92b117ddcd127",
+      "sha256": "6d762587a15fd0de69b0630e1c9b5371d5cce869d8b72a24d1fc63c0cf205741",
+      "bytes": 2037,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/references/evidence-governance.md",
+      "git_blob": "2cda4ea741596292a4b47a9f99dcc8db63f69270",
+      "sha256": "c006272ac50d0d4b5b7a0026d43d9dbd134c5bfface41f9a4eedacb402e173a3",
+      "bytes": 7616,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/references/fixed-media.md",
+      "git_blob": "4eebc5054fa8fbfa054ddccad5b034edf12638ec",
+      "sha256": "33b7b822121cbcff81b52d738a99f9ecf2a57210224f8870557d65e7d9635082",
+      "bytes": 2456,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/references/html-and-canvas.md",
+      "git_blob": "6a0f09958b47496863738262f2a8bfcb73d0c5a7",
+      "sha256": "71b982b4c628a7ca562c8220ed7386447341ecba46e66616a843fdf1d28235c8",
+      "bytes": 2730,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    },
+    {
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/references/svg-and-vector.md",
+      "git_blob": "16ebaad9a50c6e6364f02095e5b98bb70bfb9e74",
+      "sha256": "7196c2dd13d26b2d025c0df80347d27ba60582ccb26dff368b7f97b25430f07b",
+      "bytes": 7569,
+      "mode": "100644",
+      "kind": "text_reference",
+      "status": "clause_disposition_required",
+      "active": false
+    }
+  ],
+  "notice_files": [
+    {
+      "path": "LICENSE",
+      "git_blob": "33068551c97e6ca2cce7c1e85ee63d97de1e9e1a",
+      "sha256": "548514ced381fbde2164196f44680dbd27593e23e0773fba12b42bddb1ce6437",
+      "mode": "100644"
+    },
+    {
+      "path": "LICENSES/Apache-2.0-agentscope.txt",
+      "git_blob": "f0e53bcce61ad0e1ec0a52bc96fdb0ab46145a98",
+      "sha256": "7b90ec5b11366b1bfda57b8a719c22f6339440a6127da55294e1d7ef7511a158",
+      "mode": "100644"
+    },
+    {
+      "path": "LICENSES/MIT-cherry-studio.txt",
+      "git_blob": "84cd1f574b0cbcaf67c3b9511ecf46a087c9fc36",
+      "sha256": "5dc59ec550176e9e3b52fac33c88480a937367b3cbe6b7258437b1a4a7f20a63",
+      "mode": "100644"
+    },
+    {
+      "path": "LICENSES/MIT-hermes-agent.txt",
+      "git_blob": "75410e73319c72cd3e991a501c5455eb78f38375",
+      "sha256": "821556e6336796450ab852d375117b48a4887e71d255794fd6318d99982a5ab6",
+      "mode": "100644"
+    },
+    {
+      "path": "LICENSES/MIT-ink.txt",
+      "git_blob": "fcb8fa9e131348df733a6ce59aa0d5a9c7b6f331",
+      "sha256": "de84e62e27d9a970b50446d0af1f713c1439a4180faa098adfa5da94f5158a55",
+      "mode": "100644"
+    },
+    {
+      "path": "LICENSES/MIT-lobe-icons.txt",
+      "git_blob": "1dd53d2a9d99e5f91113831a850276ef530cb9d2",
+      "sha256": "add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a",
+      "mode": "100644"
+    },
+    {
+      "path": "LICENSES/MIT-nanobot.txt",
+      "git_blob": "d353b0331facf293335136710c173dd8d6d586d6",
+      "sha256": "6c52a1c3da58d01630f8f7ac6bd608e5cfce3e87d090eb8e9dc16c87616af495",
+      "mode": "100644"
+    },
+    {
+      "path": "LICENSES/README.md",
+      "git_blob": "fa7a7994774ce6ca333e0ea671a800ee98336c84",
+      "sha256": "6f0cb4e379ddd706c83697f7ae8eb79b385850308faf28481284d50b46659e53",
+      "mode": "100644"
+    },
+    {
+      "path": "NOTICES.md",
+      "git_blob": "cd8657d569ef89a1988cef62046bef0ceb3f0524",
+      "sha256": "0f737a15c3bb752380fbea7ffe0f04aff167ce1c0e556a5e2ea14864f2708bd3",
+      "mode": "100644"
+    },
+    {
+      "path": "plugins-dist/design-engine/NOTICES.md",
+      "git_blob": "0c44a35535a9df44a45f286b7aa164115f14fb85",
+      "sha256": "bd0044f7752c777bb8a6b1c7f7b65a7854538b35b549632c44120921ba34accc",
+      "mode": "100644"
+    }
+  ],
+  "notes": [
+    "Inert Git-object inventory only; nothing was installed, executed or copied.",
+    "No proof of reference rights, model image perception, source adaptation or runtime parity.",
+    "No claim that the local checkout HEAD is the pin; all bytes were read directly from pinned Git objects."
+  ]
+}
