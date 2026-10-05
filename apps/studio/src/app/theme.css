@@ -1565,12 +1565,6 @@ img.avatar {
 .made-by {
   color: var(--text-3);
 }
-/* A very short stage (a small laptop window, a phone with captions): the object keeps its title, Open and Close. */
-@container (max-height: 640px) {
-  .stage-made :is(.made-summary, .made-facts) {
-    display: none;
-  }
-}
 @media (max-width: 560px) {
   .made-facts .made-fact {
     display: none;

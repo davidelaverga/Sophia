@@ -267,5 +267,20 @@ for (const [width, height] of [
         return words.y - (object.y + object.height)
       })
       .toBeGreaterThanOrEqual(0)
+    // Nor over Sophia's line: her state stays readable.
+    const object = await box(page, '.stage-made')
+    const herLine = await box(page, '.sophia-line .line-text')
+    expect(object.y).toBeGreaterThanOrEqual(herLine.y + herLine.height)
   })
 }
+
+test('made · after a revision whose versions can’t be read, it never shows the older version as current', async ({
+  page,
+}) => {
+  await enter(page)
+  await notice(page)
+  await expect(made(page).locator('.made-meta')).toHaveText('Report · v1')
+  await page.evaluate(() => window.fixture?.failVersions())
+  await page.evaluate(() => window.fixture?.noticeRevised())
+  await expect(made(page).locator('.made-meta')).not.toContainText('v1')
+})
