@@ -97,11 +97,20 @@ export function recordedRouteOverlay(bundlePatchText, baseURL) {
  * @param {string} baseURL - the stub's base URL.
  */
 export function researchRouteOverlay(bundlePatchText, baseURL) {
+  return providerOverlay(bundlePatchText, baseURL, 'openai-research')
+}
+
+/** The same overlay for the source-review route's provider alias (WBC-02). */
+export function reviewRouteOverlay(bundlePatchText, baseURL) {
+  return providerOverlay(bundlePatchText, baseURL, 'openai-review')
+}
+
+function providerOverlay(bundlePatchText, baseURL, provider) {
   const rows = parseCordisYaml(bundlePatchText)
   const route = rows.find((row) => row.id === 'llm-pi-ai')?.config
-  const research = route?.providers?.['openai-research']
-  if (!research) throw new Error('the bundle patch declares no openai-research route')
-  if (research.baseURL !== 'https://api.openai.com/v1') throw new Error('the production research route must send to https://api.openai.com/v1')
-  const config = { ...route, providers: { ...route.providers, 'openai-research': { ...research, baseURL } } }
-  return `# Test overlay: the recorded research route, pointed at a local stub. Never part of a profile.\n${stringify([{ id: 'llm-pi-ai', config }])}`
+  const declared = route?.providers?.[provider]
+  if (!declared) throw new Error(`the bundle patch declares no ${provider} route`)
+  if (declared.baseURL !== 'https://api.openai.com/v1') throw new Error(`the production ${provider} route must send to https://api.openai.com/v1`)
+  const config = { ...route, providers: { ...route.providers, [provider]: { ...declared, baseURL } } }
+  return `# Test overlay: the recorded ${provider} route, pointed at a local stub. Never part of a profile.\n${stringify([{ id: 'llm-pi-ai', config }])}`
 }

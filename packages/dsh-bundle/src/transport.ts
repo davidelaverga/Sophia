@@ -13,6 +13,7 @@
  *   POST {base}/v1/runtime/observations   <- RuntimeObservationBatch
  *   POST {base}/v1/runtime/ready          <- RuntimeReady
  *   POST {base}/v1/runtime/research/{context,reserve,settle,capture,draft,submit,render,render-result}  (SMC-M03, A11)
+ *   POST {base}/v1/runtime/review/{context,reserve,settle,submit}  (WBC-02, A12)
  *
  * Every reply is validated against the contract before the bridge reads it,
  * and every body is validated before it is sent: a reply that breaks the
@@ -45,6 +46,10 @@ import type {
   ResearchSettlement,
   ResearchSubmission,
   ResearchSubmitRequest,
+  ReviewContextReply,
+  ReviewContextRequest,
+  ReviewSubmission,
+  ReviewSubmitRequest,
   RuntimeCommandBatch,
   RuntimeHello,
   RuntimeHelloReply,
@@ -205,5 +210,31 @@ export class ServiceTransport {
   async researchRenderResult(body: ResearchRenderResultRequest, signal?: AbortSignal): Promise<ResearchRender> {
     checked('render result request', wire.ResearchRenderResultRequest, body)
     return checked('render', wire.ResearchRender, await this.request('POST', '/v1/runtime/research/render-result', body, signal))
+  }
+
+  // The source reviewer's operations (WBC-02, A12): the same checks; its model calls reserve and settle through the
+  // shared research accounting under the review's own allowance.
+
+  async reviewContext(body: ReviewContextRequest, signal?: AbortSignal): Promise<ReviewContextReply> {
+    checked('review context request', wire.ReviewContextRequest, body)
+    return checked('review context', wire.ReviewContextReply, await this.request('POST', '/v1/runtime/review/context', body, signal))
+  }
+
+  /** Never takes a signal, as researchReserve. */
+  async reviewReserve(body: ResearchReserveRequest): Promise<ResearchReservation> {
+    checked('review reservation request', wire.ResearchReserveRequest, body)
+    return checked('review reservation', wire.ResearchReservation, await this.request('POST', '/v1/runtime/review/reserve', body))
+  }
+
+  /** Never takes a signal, as researchSettle. */
+  async reviewSettle(body: ResearchSettleRequest): Promise<ResearchSettlement> {
+    checked('review settlement request', wire.ResearchSettleRequest, body)
+    return checked('review settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/review/settle', body))
+  }
+
+  /** Never takes a signal: publishing a review is one transaction that must come back with its outcome. */
+  async reviewSubmit(body: ReviewSubmitRequest): Promise<ReviewSubmission> {
+    checked('review submit request', wire.ReviewSubmitRequest, body)
+    return checked('review submission', wire.ReviewSubmission, await this.request('POST', '/v1/runtime/review/submit', body))
   }
 }

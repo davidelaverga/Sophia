@@ -1,9 +1,9 @@
 {
   "schema": "sophia.runtime-unit.v1",
-  "id": "sophia-runtime-m03-dev",
-  "previous_unit": "sophia-runtime-m02-dev",
+  "id": "sophia-runtime-wbc02-dev",
+  "previous_unit": "sophia-runtime-m03-dev",
   "status": "built_not_ready",
-  "status_note": "SMC-M03 candidate on dsh 0.2.0-rc.2 (unchanged): adds the research route (openai-research / gpt-6.1-sol, medium; decisions D1 and D2), the two research roles and presets, early compaction on that route, and the bridge's route allowlist and model-call route guard. The default route and the M02 roles are unchanged. Not live-verified and not deployed; the cutover is a Codex operation after review, with zero non-final bindings on sophia-runtime-m02-dev. Rollback unit: sophia-runtime-m02-dev, rebuilt from its own commit.",
+  "status_note": "WBC-02 candidate on dsh 0.2.0-rc.2 (unchanged): adds the source reviewer (role and preset sophia-source-review-v1, its three review tools and instruction v1 in the bridge) and its route source-review-luna-high-v1 (the approved development model, openai/gpt-6-luna at high, under the provider alias openai-review with a 16,000-token output cap and metered against each review's allowance). The default route, the M02 roles, the research roles, their route and compaction are unchanged. Not live-verified and not deployed; the cutover is a Codex operation after review, with zero non-final bindings on sophia-runtime-m03-dev. Rollback unit: sophia-runtime-m03-dev, rebuilt from its own commit.",
   "dsh": {
     "repository": "deepseek-ai/deepseek-harness",
     "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
@@ -69,7 +69,7 @@
     "live_verified": false,
     "compat_note": "SMC-M02 R1: pins the request shape of sophia-runtime-s1-03-dev. pi-ai 0.87.1 ships gpt-6-luna with supportsStrictMode true, which adds `strict: false` to every tool; the gate requires this compat value (checkModelRoute) and tests/integration/request-shape.test.mjs holds the whole shape"
   },
-  "workspace_lock_sha256": "ac06e7713d1ecae23a03ec85910d5aead5e6b9ad388d4b36587669cc6fcd6352",
+  "workspace_lock_sha256": "afaaec2df4cb0d1c51e7a245ffdc9df4f13502f5138d97a795898113b8e42d0f",
   "google_sdk": {
     "package": "@google/genai",
     "version": "2.24.0",
@@ -97,9 +97,9 @@
     "source_commit": null,
     "source_commit_note": "a commit cannot contain its own id; the release tag records it, and `pnpm artifacts` proves a checkout reproduces the recorded archive bytes",
     "archive": "sophia-dsh-bundle-0.1.0.tgz",
-    "archive_sha256": "6a01ce0ef18045abdc9ab7b5390736908c6dc8c0907d2d5cb6a0a7cc872747e1",
-    "archive_integrity": "sha512-BvT5PMucZ7hGHuRiudFNq4F7ETI/U7H/NSyQ5HnsOHvpJIgXJRBfE0tvMt0og7ojJw1JgJvQQRDz1BZnNTrmcg==",
-    "artifact_digest": "sha256:6a01ce0ef18045abdc9ab7b5390736908c6dc8c0907d2d5cb6a0a7cc872747e1",
+    "archive_sha256": "58f0bf82ebf5266c7927c265571ffbfd7e7c33e6cb36bed4573a84c223d5f076",
+    "archive_integrity": "sha512-wvJLj+oKqxoFFNFejEp3ZgmkVnIvJLIcxmrGrHTyAbMhtSc0nW/cojRFumCbiAMxhIe8VZgk6CjOuRruDwb7fg==",
+    "artifact_digest": "sha256:58f0bf82ebf5266c7927c265571ffbfd7e7c33e6cb36bed4573a84c223d5f076",
     "bridge_protocol_version": 1,
     "bridge_readiness": "ready only after hello, binding reconciliation and the service's ready acknowledgement; not_ready without a service binding (S1-03)"
   },
@@ -130,7 +130,8 @@
       "sophia-review-v1",
       "sophia-brief-v1",
       "sophia-research-md-v1",
-      "sophia-research-pdf-v1"
+      "sophia-research-pdf-v1",
+      "sophia-source-review-v1"
     ],
     "definition": "identity only: each preset composes no plugin (plugins: []). The bridge mounts the role's preset on create and resume, applies the role's tool policy, and records the preset with a digest of its definition and that policy in the attempt's execution identity (SMC-M02 G3). The gate requires exactly this roster, unbroadened. The SMC-M03 research presets compose their research tools from S4."
   },

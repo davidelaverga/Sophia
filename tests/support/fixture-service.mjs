@@ -20,7 +20,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   const waiters = new Set()
   let seq = 0
   let polls = 0
-  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false, refuseReceipts: false, research: {} }
+  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false, refuseReceipts: false, research: {}, review: {} }
   // The runtime research operations (SMC-M03 S4, A11): every call recorded; each answered by a test's handler, or by
   // a well-formed default (an empty task, a reservation, its settlement, a capture, a draft).
   const research = []
@@ -42,6 +42,23 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
     render: (body) => ({ renderJobId: uuid(5000 + ++researchSeq), state: 'queued', repair: 'none', layout: 'standard', draftSha256: body.draftSha256 }),
     'render-result': (body) => ({ renderJobId: body.renderJobId ?? uuid(5000), state: 'succeeded', repair: 'none', layout: 'standard', draftSha256: 'b'.repeat(64),
       pdf: { sourceId: uuid(5999), sha256: 'c'.repeat(64), bytes: 2048, pages: 2 } }),
+  }
+
+  // The source reviewer's operations (WBC-02, A12), recorded and answered the same way: a one-source task, a page of
+  // fixture text, a reservation and its settlement, and a published review.
+  const review = []
+  const reviewDefaults = {
+    context: (body) => body.sourceId === undefined
+      ? { workId: uuid(7000), goal: { id: uuid(7001), revision: 1, title: 'Fixture goal', outcome: 'A fixture outcome', criteriaRef: 'criteria:fixture', criteria: [{ id: 'c1', description: 'The dates agree', required: true }] },
+          purpose: null, sources: [{ ref: 'S1', sourceId: uuid(7002), sha256: 'a'.repeat(64), mime: 'text/markdown', byteLength: 26, readable: true }],
+          limits: { maxSources: 3, maxInputBytes: 32768, maxModelRequests: 8, maxReportBytes: 16384, web: false, shell: false, connectors: false },
+          allowance: { capUsd: 0.5, committedUsd: 0, modelCallsLeft: 8 } }
+      : { sourceId: body.sourceId, offset: 0, nextOffset: null, totalChars: 26, truncated: false, text: 'The launch is on 3 March.' },
+    reserve: (body) => ({ reservationId: uuid(8000 + ++researchSeq), state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null }),
+    settle: (body) => ({ reservationId: body.reservationId, state: body.outcome, settledUsd: body.costUsd ?? null }),
+    submit: (body) => body.result
+      ? { outcome: 'published', resultId: uuid(9000), sourceId: uuid(9001), sha256: 'd'.repeat(64), verdict: body.result.verdict, replayed: false }
+      : { outcome: 'blocked', sourceId: uuid(9002), reason: body.blocker.reason },
   }
 
   const notify = () => { for (const wake of waiters) wake(); waiters.clear() }
@@ -94,6 +111,13 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       const answer = (state.research[op] ?? researchDefaults[op])(json)
       return answer && answer.status ? reply(answer.status, answer.body) : reply(200, answer)
     }
+    const reviewOp = req.method === 'POST' && /^\/v1\/runtime\/review\/(context|reserve|settle|submit)$/.exec(url.pathname)?.[1]
+    if (reviewOp) {
+      review.push({ op: reviewOp, body: json })
+      notify()
+      const answer = (state.review[reviewOp] ?? reviewDefaults[reviewOp])(json)
+      return answer && answer.status ? reply(answer.status, answer.body) : reply(200, answer)
+    }
     if (req.method === 'POST' && url.pathname === '/v1/runtime/ready') {
       if (state.refuseReady) return reply(503, { error: 'fixture refuses the ready report' })
       readiness.push(json)
@@ -134,6 +158,10 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
      * `{ status: 409, body: { code: 'research_limit_reached' } }`. Null restores the default.
      */
     onResearch: (op, handler) => { state.research[op] = handler ?? undefined },
+    /** Every source-review operation the runtime called, in order: `{ op, body }`. */
+    review,
+    /** Answer one source-review operation with `handler(body)`, as onResearch. */
+    onReview: (op, handler) => { state.review[op] = handler ?? undefined },
     setBindings: (next) => { state.bindings = [...next] },
     /** Make `POST ready` fail (adverse tests). */
     refuseReady: (value = true) => { state.refuseReady = value },

@@ -31,8 +31,8 @@ test('a research attempt reads its task, writes a draft and pays for each model 
   const [hello] = w.service.hellos
   assert.deepEqual(
     hello.roles.map((r) => [r.id, r.route]),
-    [['sophia-research-md-v1', 'research-sol-medium-v1'], ['sophia-research-pdf-v1', 'research-sol-medium-v1']],
-    'the hello advertises the research roles and their route',
+    [['sophia-research-md-v1', 'research-sol-medium-v1'], ['sophia-research-pdf-v1', 'research-sol-medium-v1'], ['sophia-source-review-v1', 'source-review-luna-high-v1']],
+    'the hello advertises the research roles and their route, and the source reviewer on its own (WBC-02)',
   )
   for (const role of hello.roles) assert.match(role.presetDigest, /^sha256:[0-9a-f]{64}$/)
 

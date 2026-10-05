@@ -127,6 +127,35 @@
             compat:
               supportsStrictMode: true
               supportsLongCacheRetention: false
+      # Source-review route (WBC-02): the approved development model above,
+      # GPT-6 Luna at high reasoning, under a provider alias of its own so the
+      # bridge tells its calls apart from the default route's: every request's
+      # output is capped at 16000 tokens and every call is metered against the
+      # review's allowance. Not a new vendor, model or effort; the same key
+      # reference as the development route. Values from the pi-ai 0.87.1
+      # catalog entry openai/gpt-6-luna (window 272000), with the development
+      # route's compat (no `strict` field) and no long cache retention.
+      openai-review:
+        displayName: OpenAI (source review)
+        apiKeyEnv: OPENAI_API_KEY
+        api: openai-responses
+        baseURL: https://api.openai.com/v1
+        defaultMaxTokens: 16000
+        models:
+          - id: gpt-6-luna
+            name: GPT-6 Luna
+            contextWindow: 272000
+            maxTokens: 16000
+            input: [text, image]
+            reasoningEfforts:
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max
+            compat:
+              supportsStrictMode: false
+              supportsLongCacheRetention: false
 
 # Compaction (SMC-M03, decision D9): the research route compacts at 45% of its
 # window instead of 80%, so a long research session stays cheap per request and
@@ -205,6 +234,13 @@
       config:
         id: sophia-research-pdf-v1
         plugins: []
+    # WBC-02 source reviewer. Identity only: its three review tools are the
+    # bridge's, registered in its own scope.
+    - id: preset-sophia-source-review-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-source-review-v1
+        plugins: []
 
 # Sophia's control bridge (S1-03). The plugin itself declares its service
 # injections (agents, sessions, tools). The config names environment
@@ -239,9 +275,22 @@
               cacheRead: 0.1
               cacheWrite: 2.5
               output: 10
+          source-review-luna-high-v1:
+            provider: openai-review
+            model: gpt-6-luna
+            reasoningEffort: high
+            maxTokens: 16000
+            # Every call is reserved from the review's allowance (at most eight in all) and settled from its usage
+            # through the review operations (WBC-02).
+            prices:
+              input: 0.1
+              cacheRead: 0.01
+              cacheWrite: 0.125
+              output: 0.5
         roleRoutes:
           sophia-research-md-v1: research-sol-medium-v1
           sophia-research-pdf-v1: research-sol-medium-v1
+          sophia-source-review-v1: source-review-luna-high-v1
         # The research providers' keys, by reference (the unit's research_sources); never an endpoint override.
         sources:
           tavilyKeyEnv: TAVILY_API_KEY

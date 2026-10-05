@@ -34,13 +34,15 @@ import { createUserMessage, expandAssistantStream } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, ReasoningEffortId, StreamChunk, TokenUsage, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 // Type-only: brings the `ctx.tools` Context augmentation into scope.
-import type { ToolDefinition, ToolGuard } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolGuard, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { commandText, parseCommand, ProtocolError } from './protocol.js'
 import { RetainedQueue } from './retained-queue.js'
 import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
 import { PDF_PROMPT, RESEARCH_PROMPT } from './research-prompt.js'
-import { FINALIZE_NOTICE, FINALIZE_TOOL_NAMES, researchTools, type ResearchSources } from './research-tools.js'
+import { FINALIZE_NOTICE, FINALIZE_TOOL_NAMES, researchTools, type ResearchSession, type ResearchSources } from './research-tools.js'
+import { REVIEW_PROMPT } from './review-prompt.js'
+import { reviewTools } from './review-tools.js'
 import { roleOf } from './role-registry.js'
 import type { RolePreset } from './role-registry.js'
 import { foldLog, Journal, strongestFence } from './session-events.js'
@@ -153,6 +155,8 @@ export class ControlBridge {
   private cursor = 0
   /** The research tools, built once; registered in each research agent's own scope. */
   private readonly researchToolset: ToolDefinition[] | null
+  /** The source reviewer's tools (WBC-02), built once; registered in each review agent's own scope. */
+  private readonly reviewToolset: ToolDefinition[] | null
   readiness: BridgeReadiness = { state: 'not_ready', reason: 'starting' }
 
   constructor(private readonly ctx: Context, private readonly settings: BridgeSettings) {
@@ -171,17 +175,15 @@ export class ControlBridge {
       delayMs: 50,
       onAck: (batch) => this.acknowledged(batch),
     })
+    const sessionOf = (exec: ToolRunContext): ResearchSession | null => {
+      const attempt = this.attemptFor(exec.agent ?? this.ctx.agents.currentInitiator())
+      return attempt ? { attemptId: attempt.attemptId, nativeSessionId: attempt.sessionId } : null
+    }
     this.researchToolset = this.transport && settings.research
-      ? researchTools({
-          client: this.transport,
-          sources: settings.research,
-          sessionOf: (exec) => {
-            const attempt = this.attemptFor(exec.agent ?? this.ctx.agents.currentInitiator())
-            return attempt ? { attemptId: attempt.attemptId, nativeSessionId: attempt.sessionId } : null
-          },
-          log: settings.log,
-        })
+      ? researchTools({ client: this.transport, sources: settings.research, sessionOf, log: settings.log })
       : null
+    // A review needs no provider of its own: it reads and publishes through the service only.
+    this.reviewToolset = this.transport ? reviewTools({ client: this.transport, sessionOf, log: settings.log }) : null
   }
 
   /** Install fences and observers, then connect. Returns the disposer. */
@@ -394,27 +396,33 @@ export class ControlBridge {
     const overrun = (reservationId: string, reservedUsd: number, costUsd: number) =>
       this.journal.append(attempt.sessionId, 'sophia/spend-overrun', { ...who, reservationId, reservedUsd, costUsd })
     const finalize = () => this.enterFinalize(attempt, options.sessionId)
+    // A source review (WBC-02) meters through its own operations, under its work's allowance and its eight-request
+    // cap, and has no finalize step: a refused reservation refuses the call, and the model is told why.
+    const review = attempt.role?.taskKind === 'source_review'
+    const accounts = review
+      ? { reserve: transport.reviewReserve.bind(transport), settle: transport.reviewSettle.bind(transport), what: 'review' }
+      : { reserve: transport.researchReserve.bind(transport), settle: transport.researchSettle.bind(transport), what: 'research' }
     return (async function* () {
       let reservationId: string
       const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
       // No abort signal: a reservation the service made must come back to be settled, never be orphaned by a cancel.
       const reserve = (purpose: 'call' | 'partial_result') =>
-        transport.researchReserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose })
+        accounts.reserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose })
       try {
         if (attempt.finalizing) reservationId = (await reserve('partial_result')).reservationId
         else {
           try {
             reservationId = (await reserve('call')).reservationId
           } catch (error) {
-            // Only the service's refusal of an ordinary call enters the finalize step; it checks the step again.
-            if (!(error instanceof TransportError && error.code === 'research_limit_reached')) throw error
+            // Only the service's refusal of an ordinary research call enters the finalize step; it checks the step again.
+            if (review || !(error instanceof TransportError && error.code === 'research_limit_reached')) throw error
             finalize()
             reservationId = (await reserve('partial_result')).reservationId
           }
         }
       } catch (error) {
         const why = error instanceof TransportError && error.code ? error.code : (error as Error).message
-        yield* refused(`this research's allowance could not reserve the model call (${why})`)
+        yield* refused(`this ${accounts.what}'s allowance could not reserve the model call (${why})`)
         return
       }
       let usage: TokenUsage | null = null
@@ -427,7 +435,7 @@ export class ControlBridge {
         const costUsd = usage ? costOfUsage(usage, prices) : null
         if (costUsd !== null && costUsd > amountUsd) overrun(reservationId, amountUsd, costUsd)
         try {
-          await transport.researchSettle({
+          await accounts.settle({
             ...ids,
             reservationId,
             outcome: usage ? 'settled' : 'uncertain',
@@ -460,16 +468,22 @@ export class ControlBridge {
       const deny = visible.filter((name) => !role.nativeTools.has(name))
       if (deny.length > 0) agentCtx.tools.restrict({ deny })
       // The research tools exist only in a research agent's own scope (SMC-M03 S4), and only those its role names,
-      // with the research section of its system prompt.
-      const tools = (this.researchToolset ?? []).filter((tool) => role.nativeTools.has(tool.name))
-      for (const tool of tools) agentCtx.tools.register(tool)
-      if (tools.length > 0) {
-        const prompts = (agentCtx as unknown as { systemPrompt?: PromptSections }).systemPrompt
-        if (!prompts) throw new ProtocolError('this runtime unit has no system prompt service for the research section')
+      // with the research section of its system prompt; the review tools likewise only in a source reviewer's
+      // (WBC-02), with the reviewer's instruction.
+      const research = (this.researchToolset ?? []).filter((tool) => role.nativeTools.has(tool.name))
+      const review = (this.reviewToolset ?? []).filter((tool) => role.nativeTools.has(tool.name))
+      for (const tool of [...research, ...review]) agentCtx.tools.register(tool)
+      if (research.length === 0 && review.length === 0) return
+      const prompts = (agentCtx as unknown as { systemPrompt?: PromptSections }).systemPrompt
+      if (!prompts) throw new ProtocolError(`this runtime unit has no system prompt service for the ${research.length > 0 ? 'research' : 'review'} section`)
+      if (research.length > 0) {
         prompts.section({ name: 'sophia-research', order: RESEARCH_PROMPT.order, text: RESEARCH_PROMPT.text, interpolate: false })
         if (role.nativeTools.has('research_render_pdf')) {
           prompts.section({ name: 'sophia-research-pdf', order: PDF_PROMPT.order, text: PDF_PROMPT.text, interpolate: false })
         }
+      }
+      if (review.length > 0) {
+        prompts.section({ name: 'sophia-source-review', order: REVIEW_PROMPT.order, text: REVIEW_PROMPT.text, interpolate: false })
       }
     }
   }
