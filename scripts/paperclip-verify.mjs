@@ -6,7 +6,8 @@
 // throwaway database on the given server (the harness keeps no tables). A signed commission creates one issue; a
 // resend finds it; a forged envelope changes nothing; Hold, Resume and Stop reach it. Every statement the worker sends
 // to ctx.db passes the pin's own runtime validators first (server/src/services/plugin-database.ts:
-// validatePluginRuntimeQuery/Execute, with the built manifest's coreReadTables), as the real host would apply them.
+// validatePluginRuntimeQuery/Execute, with the built manifest's coreReadTables), as the real host would apply them. The
+// migration's install check runs in scripts/paperclip-host-probe.mjs, through the pin's own loader.
 // The harness's requestWakeup ignores its idempotency key (packages/plugins/sdk/src/testing.ts), so wake
 // deduplication is not claimed here; the plugin reconciles wakes itself (coordination.ts, wakeOnce). The built
 // adapter loads through createServerAdapter() and refuses to run without its endpoint. Synthetic data only; nothing
@@ -40,7 +41,7 @@ register(
   )}`,
 )
 const load = (path) => import(pathToFileURL(path).href)
-const { validatePluginMigrationStatement, validatePluginRuntimeQuery, validatePluginRuntimeExecute } = await load(
+const { validatePluginRuntimeQuery, validatePluginRuntimeExecute } = await load(
   join(checkout, 'server/src/services/plugin-database.ts'),
 )
 const { createTestHarness } = await load(join(checkout, 'packages/plugins/sdk/dist/testing.js'))
@@ -73,10 +74,9 @@ try {
     'CREATE TABLE public.heartbeat_runs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), company_id uuid NOT NULL, context_snapshot jsonb, created_at timestamptz NOT NULL DEFAULT now())',
   )
   await db.query(`CREATE SCHEMA ${NAMESPACE}`)
+  // Applied as written to stand up the namespace; the host's own install check of these raw bytes is in
+  // scripts/paperclip-host-probe.mjs (pluginLoader.installPlugin), not here (WBC-02-CX-0010).
   const migration = readFileSync(join(dist, 'sophia-coordination-plugin/migrations/001_sophia_coordination.sql'), 'utf8')
-  // The host checks each migration statement before it applies it (applyPluginMigrations).
-  const ddl = migration.replaceAll(/--[^\n]*/g, '').split(';').map((statement) => statement.trim()).filter(Boolean)
-  for (const statement of ddl) validatePluginMigrationStatement(statement, NAMESPACE, manifest.database.coreReadTables ?? [])
   await db.query(migration)
 
   const harness = createTestHarness({

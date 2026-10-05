@@ -165,6 +165,23 @@ const runsOf = async (issueId: string): Promise<number> =>
 const ageAsk = async (key: string) =>
   client.query(`UPDATE ${NAMESPACE}.wakes SET asked_at = asked_at - interval '2 minutes' WHERE wake_key = $1`, [key])
 
+/** The holder of a commission's effect lease, or null. */
+const leaseOf = async (key: string): Promise<string | null> =>
+  (
+    await client.query<{ holder: string | null }>(
+      `SELECT effect_holder AS holder FROM ${NAMESPACE}.commissions WHERE commission_key = $1`,
+      [key],
+    )
+  ).rows[0]?.holder ?? null
+
+async function waitUntil(check: () => Promise<boolean>) {
+  for (let i = 0; i < 100; i += 1) {
+    if (await check()) return
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  throw new Error('condition not reached')
+}
+
 const outcome = (body: unknown) => (body as { outcome?: string; wakeQueued?: boolean } | undefined) ?? {}
 
 describe('commission', () => {
@@ -559,6 +576,60 @@ describe('control', () => {
     assert.equal(p.issues.get(issueId)?.status, 'cancelled', 'the Stop stands')
     assert.equal(await stateOf('hold-old'), 'applied')
   })
+
+  it(
+    'a delayed original Hold that lands after its resend and a later Stop never undoes the Stop (WBC-02-CX-0008)',
+    { timeout: 20_000 },
+    async () => {
+      let gate: PromiseWithResolvers<void> | null = Promise.withResolvers<void>()
+      const p = paperclip({
+        beforeUpdate: (_id, status) => (status === 'blocked' && gate ? gate.promise : undefined),
+      })
+      const c = commissionOf()
+      await p.request(commissionRequest(c))
+      const issueId = [...p.issues.keys()][0] ?? ''
+      const held = gate
+      const original = p.request(controlRequest(c, issueId, 'hold', 'hold-late'))
+      await waitUntil(async () => (await leaseOf(c.key)) !== null)
+      gate = null // the resend's update lands at once
+      // The original outlived its lease (its host call is still in flight), so the resend may take it over.
+      await client.query(
+        `UPDATE ${NAMESPACE}.commissions SET effect_until = now() - interval '1 second' WHERE commission_key = $1`,
+        [c.key],
+      )
+      const resend = await p.request(controlRequest(c, issueId, 'hold', 'hold-late'))
+      assert.equal(outcome(resend.body).outcome, 'applied')
+      const stop = await p.request(controlRequest(c, issueId, 'stop', 'stop-after'))
+      assert.equal(outcome(stop.body).outcome, 'applied')
+      assert.equal(p.issues.get(issueId)?.status, 'cancelled')
+      held.resolve() // the original's write lands now, after the Stop
+      const late = await original
+      assert.equal(late.status, 200)
+      assert.equal(p.issues.get(issueId)?.status, 'cancelled', 'the later Stop stands')
+      assert.deepEqual([await stateOf('hold-late'), await stateOf('stop-after')], ['applied', 'applied'])
+    },
+  )
+
+  it(
+    'a resend while the original still holds the lease is told to ask again, and then finds it applied',
+    { timeout: 20_000 },
+    async () => {
+      const gate = Promise.withResolvers<void>()
+      const p = paperclip({ beforeUpdate: (_id, status) => (status === 'blocked' ? gate.promise : undefined) })
+      const c = commissionOf()
+      await p.request(commissionRequest(c))
+      const issueId = [...p.issues.keys()][0] ?? ''
+      const original = p.request(controlRequest(c, issueId, 'hold', 'hold-busy'))
+      await waitUntil(async () => (await leaseOf(c.key)) !== null)
+      const busy = await p.request(controlRequest(c, issueId, 'hold', 'hold-busy'))
+      assert.equal(busy.status, 503)
+      assert.equal((code(busy.body) as { code: string }).code, 'control_in_progress')
+      gate.resolve()
+      assert.equal(outcome((await original).body).outcome, 'applied')
+      assert.equal(outcome((await p.request(controlRequest(c, issueId, 'hold', 'hold-busy'))).body).outcome, 'already')
+      assert.equal(await leaseOf(c.key), null, 'the lease is released')
+    },
+  )
 
   it('refuses a delivery key resent with another operation', async () => {
     const { p, c, issueId } = await commissioned()

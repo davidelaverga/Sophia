@@ -56,6 +56,8 @@ export interface MemoryPaperclipOptions {
    * durable (no run), or `after` (its run is queued, then the call fails, as when the host's activity log fails), or
    * is `not_queued` (the host answers `{queued: false, runId: null}`, as for an agent left in error).
    */
+  /** Runs inside a status update before it lands, e.g. to hold one in flight (a delayed host call). */
+  readonly beforeUpdate?: (issueId: string, status: string) => Promise<void> | undefined
   readonly fails?: {
     readonly update?: () => boolean
     readonly wake?: () => 'before' | 'after' | 'not_queued' | null
@@ -117,11 +119,12 @@ function issueService(
       issues.set(issue.id, issue)
       return view(issue)
     },
-    update: (issueId, patch: { status: IssueStatus }, companyId) => {
-      if (options.fails?.update?.() === true) return Promise.reject(new Error('injected: issue update failed'))
+    update: async (issueId, patch: { status: IssueStatus }, companyId) => {
+      if (options.fails?.update?.() === true) throw new Error('injected: issue update failed')
+      await options.beforeUpdate?.(issueId, patch.status)
       const issue = owned(issueId, companyId)
       issue.status = patch.status
-      return Promise.resolve(view(issue))
+      return view(issue)
     },
     requestWakeup: async (issueId, companyId, wake) => {
       const fault = options.fails?.wake?.() ?? null

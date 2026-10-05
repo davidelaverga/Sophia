@@ -43,7 +43,9 @@ wakeups itself against `public.heartbeat_runs`, which its manifest reads (`coreR
 the installer approves both). `scripts/paperclip-host-probe.mjs` runs the built adapter in the pin's own heartbeat on a
 throwaway database with every pinned Paperclip migration and a scripted Sophia: a Hold made in Sophia, a review that
 ended blocked and a denied permit must leave the managed reviewer runnable (a failed run would leave it in error), and
-the Resume wakeup must queue a run. Its test file is written into the checkout's server tests for the run only. The
+the Resume wakeup must queue a run; and the built plugin must install through the pin's own loader, which checks each
+raw migration statement (no comment in it may hold a quote character). Its test file is written into the checkout's
+server tests for the run only. The
 `OPS_REQUEST` names the manifest's digests; a different build is a different request.
 
 ## Settings

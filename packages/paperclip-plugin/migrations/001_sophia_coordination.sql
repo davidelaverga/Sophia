@@ -1,5 +1,5 @@
 -- sophia.coordination plugin namespace (WBC-02). Operation bindings, replay protection and reconciliation state only:
--- the issue itself is a core record, changed only through the host's issue APIs.
+-- the issue itself is a core record, changed only through the issue APIs of the host.
 CREATE TABLE plugin_sophia_coordination_00c896da3d.envelope_nonces (
   nonce text PRIMARY KEY,
   company_id text NOT NULL,
@@ -16,15 +16,20 @@ CREATE TABLE plugin_sophia_coordination_00c896da3d.commissions (
   work_id text NOT NULL,
   state text NOT NULL CHECK (state IN ('creating', 'created')),
   issue_id uuid REFERENCES public.issues(id),
+  -- The effect lease: one delivery at a time changes the issue of this commission (effect_holder until effect_until).
+  effect_holder text,
+  effect_until timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK ((state = 'created') = (issue_id IS NOT NULL))
 );
 
--- One row per delivered control. A key is recorded 'pending' before its effect and becomes 'applied' only once the
--- issue's status and any wakeup are confirmed: a resend of a pending key applies the effect again (both are
--- idempotent), so a key's presence never proves its effect. seq orders a commission's controls: a pending key that a
--- later applied control superseded is closed without acting.
+-- One row per delivered control. A key is recorded pending before its effect and becomes applied only once the
+-- status of the issue and any wakeup are confirmed: a resend of a pending key applies the effect again (both are
+-- idempotent), so the presence of a key never proves its effect. seq orders the controls of a commission: a pending
+-- key that a later applied control superseded is closed without acting.
+-- No quote character may appear in these comments: the host strips quoted strings before comments when it checks
+-- each statement (plugin-database.ts, stripSqlForKeywordScan).
 CREATE TABLE plugin_sophia_coordination_00c896da3d.controls (
   delivery_key text PRIMARY KEY,
   seq bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
@@ -37,7 +42,7 @@ CREATE TABLE plugin_sophia_coordination_00c896da3d.controls (
   CHECK ((state = 'applied') = (applied_at IS NOT NULL))
 );
 
--- One row per wakeup the plugin asks the host for (a commission's, a Resume's), keyed by the delivery that asks it.
+-- One row per wakeup the plugin asks the host for (for a commission, for a Resume), keyed by the delivery that asks it.
 -- The pinned host does not deduplicate a wakeup by its idempotency key, and can fail after the wakeup is durable, so
 -- an ask is recorded before it is made and a resend never asks blindly: a run of the issue since the first ask
 -- confirms it (public.heartbeat_runs, read only); an ask that may still be in flight is waited for; only a stale,

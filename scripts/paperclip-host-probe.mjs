@@ -5,9 +5,10 @@
 // The pin's heartbeatService runs each wakeup and classifies each adapter result, and finalizes the managed agent's
 // status, exactly as a host would; Sophia is a scripted client inside the adapter (no Sophia service, no provider, no
 // plugin server). It checks what CX-0007 found: a Hold made in Sophia must leave the reviewer runnable so the Resume
-// wakeup queues a run; so must a review that ended blocked, a denied permit and Stop; new work on the same reviewer
-// runs; an adapter that cannot reach Sophia fails its run, and the host then queues no wakeup of that reviewer (the
-// plugin answers that as 503 wake_not_queued, never as delivered). The wakeup is made as plugin-host-services.ts
+// wakeup queues a run; so must a review that ended blocked and a denied permit; new work on the same reviewer runs; an
+// adapter that cannot reach Sophia fails its run, for an operator (what later wakeups do is recorded). And the built
+// plugin installs through the pin's own loader (WBC-02-CX-0010): manifest and capability validation, the registry
+// record and the raw packaged migration, each statement checked by the host as an install checks it. The wakeup is made as plugin-host-services.ts
 // makes a plugin's requestWakeup. The probe's test file is written into the checkout's server tests only for the run
 // (vitest resolves the pin's TypeScript there) and removed afterwards; nothing is installed anywhere.
 import { spawnSync } from 'node:child_process'
@@ -25,10 +26,11 @@ if (!admin) throw new Error('SOPHIA_DISPOSABLE_DATABASE_URL is required')
 
 const PROBE = String.raw`
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { agents, applyPendingMigrations, companies, companyMemberships, createDb, heartbeatRuns, issues } from "@paperclipai/db";
 import { heartbeatService } from "../services/heartbeat.ts";
+import { pluginLoader } from "../services/plugin-loader.ts";
 import { drainHeartbeatRunsToQuiescence } from "./helpers/drain-heartbeat-runs.js";
 
 // What Sophia answers, per issue: the permit, then each observation's phase (the last one repeats).
@@ -155,6 +157,23 @@ describe("sophia_dsh on the pinned heartbeat (WBC-02-CX-0007)", () => {
     const after = await issue({ permit: "attach", phases: ["result_ready"] });
     const later = await pluginWake(after, "commission-" + after);
     console.log("[probe] wake after error", JSON.stringify({ queued: Boolean(later), status: later ? (await settle(later.id)).status : null }));
+    // The same issue after its failed run (WBC-02-CX-0009: an issue-level recovery hold), recorded too.
+    sophia.byIssue.set(id, { permit: "attach", phases: ["result_ready"] });
+    await db.update(issues).set({ status: "todo" }).where(eq(issues.id, id));
+    const same = await pluginWake(id, "retry-" + id);
+    console.log("[probe] same issue after its failed run", JSON.stringify({ queued: Boolean(same) }));
+  }, 120_000);
+
+  it("the built plugin installs through the pin's own loader: manifest, capabilities and its raw migration (WBC-02-CX-0010)", async () => {
+    const loader = pluginLoader(db, { enableNpmDiscovery: false });
+    const installed = await loader.installPlugin({ localPath: process.env.SOPHIA_PLUGIN_DIR });
+    expect(installed.manifest?.id).toBe("sophia.coordination");
+    const tables = await db.execute(
+      sql.raw("SELECT table_name FROM information_schema.tables WHERE table_schema = 'plugin_sophia_coordination_00c896da3d' ORDER BY table_name"),
+    );
+    const names = Array.from(tables).map((row) => row.table_name);
+    console.log("[probe] installed namespace tables", JSON.stringify(names));
+    expect(names).toEqual(["commissions", "controls", "envelope_nonces", "wakes"]);
   }, 120_000);
 });
 `
@@ -175,6 +194,7 @@ try {
     env: {
       ...process.env,
       SOPHIA_ADAPTER_ENTRY: join(dist, 'sophia-dsh-adapter/dist/index.js'),
+      SOPHIA_PLUGIN_DIR: join(dist, 'sophia-coordination-plugin'),
       SOPHIA_PROBE_DATABASE_URL: url.toString(),
     },
   })

@@ -12,7 +12,7 @@
  * Sophia treats it as unknown and reconciles, never as a refusal.
  * @module @sophia/paperclip-plugin/coordination
  */
-import { createPublicKey, type KeyObject } from 'node:crypto'
+import { createPublicKey, randomUUID, type KeyObject } from 'node:crypto'
 import {
   EnvelopeError,
   verifyEnvelope,
@@ -29,6 +29,7 @@ import {
   type Commission,
   type CommissionReply,
   type Control,
+  type ControlOp,
   type ControlReply,
   type LookupReply,
 } from '@sophia/coordination/plugin-wire'
@@ -364,7 +365,6 @@ export async function handleControl(host: CoordinationHost, input: ApiRequest): 
       deliveryKey: control.key,
     },
   })
-  const effect = CONTROL_EFFECT[control.op]
   // The binding normally exists from the commission; a namespace that lost it is re-bound from the issue itself.
   await host.execute(
     `INSERT INTO ${host.namespace}.commissions (commission_key, company_id, sophia_project_id, paperclip_project_id, work_id, state, issue_id)
@@ -379,19 +379,107 @@ export async function handleControl(host: CoordinationHost, input: ApiRequest): 
     ],
   )
   const recorded = await recordControl(host, control, target.id)
-  const already = { outcome: 'already', issueId: target.id, status: target.status, wakeQueued: false } as const
-  if (recorded.state === 'applied') return already
-  if (await superseded(host, control.commissionKey, recorded.seq)) {
-    await markApplied(host, control.key)
-    return already
+  if (recorded.state === 'applied')
+    return { outcome: 'already', issueId: target.id, status: target.status, wakeQueued: false }
+  return applyControl(host, { companyId: input.companyId, issue: target, control, seq: recorded.seq })
+}
+
+interface Pending {
+  readonly companyId: string
+  readonly issue: HostIssue
+  readonly control: Control
+  readonly seq: string
+}
+
+/**
+ * A pending control's effect, under its commission's effect lease, so one delivery at a time changes the issue: a
+ * delivery whose host call is still in flight holds it, and a resend or a later control waits (503 while it is held).
+ * A holder whose call outlived its lease, which another delivery then took, may have written after a later control:
+ * it settles that (`settleStale`) before it answers.
+ */
+async function applyControl(host: CoordinationHost, p: Pending): Promise<ControlReply> {
+  const token = randomUUID()
+  if (!(await takeLease(host, p.control.commissionKey, token)))
+    refuse(503, 'control_in_progress', 'Another delivery is changing this issue; ask again later')
+  try {
+    if (await superseded(host, p.control.commissionKey, p.seq)) {
+      await markApplied(host, p.control.key)
+      return { outcome: 'already', issueId: p.issue.id, status: p.issue.status, wakeQueued: false }
+    }
+    const effect = CONTROL_EFFECT[p.control.op]
+    const current = (await host.issues.get(p.issue.id, p.companyId)) ?? p.issue
+    const updated =
+      current.status === effect.status
+        ? current
+        : await host.issues.update(p.issue.id, { status: effect.status }, p.companyId)
+    const queued = effect.wake ? await wakeOnce(host, updated, p.control.key) : false
+    await markApplied(host, p.control.key)
+    if (!(await keepsLease(host, p.control.commissionKey, token))) await settleStale(host, p)
+    return { outcome: 'applied', issueId: updated.id, status: updated.status, wakeQueued: queued }
+  } finally {
+    await releaseLease(host, p.control.commissionKey, token)
   }
-  const updated =
-    target.status === effect.status
-      ? target
-      : await host.issues.update(target.id, { status: effect.status }, input.companyId)
-  const queued = effect.wake ? await wakeOnce(host, updated, control.key) : false
-  await markApplied(host, control.key)
-  return { outcome: 'applied', issueId: updated.id, status: updated.status, wakeQueued: queued }
+}
+
+/** How long one delivery holds its commission's effect lease before another may take it over. */
+const EFFECT_LEASE_SECONDS = 30
+/** How long a delivery waits for the lease before it answers 503 (the worker asks again). */
+const LEASE_WAIT_MS = 2000
+const LEASE_POLL_MS = 100
+
+async function takeLease(host: CoordinationHost, commissionKey: string, token: string): Promise<boolean> {
+  const deadline = Date.now() + LEASE_WAIT_MS
+  for (;;) {
+    const taken = await host.execute(
+      `UPDATE ${host.namespace}.commissions SET effect_holder = $2, effect_until = now() + make_interval(secs => $3)
+        WHERE commission_key = $1 AND (effect_holder IS NULL OR effect_until < now())`,
+      [commissionKey, token, EFFECT_LEASE_SECONDS],
+    )
+    if (taken.rowCount === 1) return true
+    if (Date.now() >= deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, LEASE_POLL_MS))
+  }
+}
+
+async function keepsLease(host: CoordinationHost, commissionKey: string, token: string): Promise<boolean> {
+  const kept = await host.execute(
+    `UPDATE ${host.namespace}.commissions SET effect_until = effect_until WHERE commission_key = $1 AND effect_holder = $2`,
+    [commissionKey, token],
+  )
+  return kept.rowCount === 1
+}
+
+async function releaseLease(host: CoordinationHost, commissionKey: string, token: string) {
+  await host.execute(
+    `UPDATE ${host.namespace}.commissions SET effect_holder = NULL, effect_until = NULL
+      WHERE commission_key = $1 AND effect_holder = $2`,
+    [commissionKey, token],
+  )
+}
+
+/**
+ * This delivery lost its lease while its host call was in flight: if a later control took effect meanwhile and the
+ * issue still shows this control's status (its write landed after the later one's), the later status is restored,
+ * under the lease. Any other status (the host's own, or the later control's) is left alone.
+ */
+async function settleStale(host: CoordinationHost, p: Pending) {
+  const token = randomUUID()
+  if (!(await takeLease(host, p.control.commissionKey, token))) return
+  try {
+    const rows = await host.query<{ op: ControlOp; later: boolean }>(
+      `SELECT op, seq > $2::bigint AS later FROM ${host.namespace}.controls
+        WHERE commission_key = $1 AND state = 'applied' ORDER BY seq DESC LIMIT 1`,
+      [p.control.commissionKey, p.seq],
+    )
+    const latest = rows[0]
+    if (latest?.later !== true) return
+    const mine = CONTROL_EFFECT[p.control.op].status
+    const wanted = CONTROL_EFFECT[latest.op].status
+    const issue = await host.issues.get(p.issue.id, p.companyId)
+    if (issue?.status === mine && mine !== wanted) await host.issues.update(p.issue.id, { status: wanted }, p.companyId)
+  } finally {
+    await releaseLease(host, p.control.commissionKey, token)
+  }
 }
 
 /**

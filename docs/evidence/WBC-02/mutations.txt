@@ -27,3 +27,6 @@ M21 a delivery key resent with another operation is refused (plugin): FAILS as i
 M22 the plugin's SQL keeps to the pin's ctx.db rules (a write through query is refused, as by the host) (plugin, WBC-02-CX-0004): FAILS as it should
 M23 a run that ended on Sophia's definite answer (held, a review blocked, a denied permit) completes, so the pinned host does not leave the reviewer in error (adapter, WBC-02-CX-0007; caught by execute.test.ts and by scripts/paperclip-host-probe.mjs on the pin's heartbeat): FAILS as it should
 M24 a wakeup the host did not queue ({queued: false}) is not delivered: 503 wake_not_queued (plugin, WBC-02-CX-0007): FAILS as it should
+M25 a delivery whose lease ran out while its host call was in flight settles after a later control: its late write never undoes the later status (plugin, WBC-02-CX-0008): FAILS as it should
+M26 one delivery at a time changes an issue: a resend while the original holds the effect lease is told to ask again (plugin, WBC-02-CX-0008): FAILS as it should
+M27 the built plugin installs through the pin's own loader (scripts/paperclip-host-probe.mjs, pluginLoader.installPlugin); with the previous migration, whose comments held quote characters, it fails with the host's own error (WBC-02-CX-0010): FAILS as it should

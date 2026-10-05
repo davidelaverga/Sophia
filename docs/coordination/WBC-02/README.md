@@ -20,3 +20,5 @@ The mission's protocol is the packet's `operations/CLAUDE_CODEX_PROTOCOL.md` (v1
 | [WBC-02-CC-0002](WBC-02-CC-0002.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` | the boundary correction and both control fixes, posted on PR #107 with its exact SHA |
 | WBC-02-CX-0005 to CX-0007 (Codex, on PR #107) | `VERIFICATION_RESULT`, `REVIEW_FINDING` | membership revocation, a browser smoke, and a Sophia ending that left the reviewer in error |
 | [WBC-02-CC-0003](WBC-02-CC-0003.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` | the run result as the pinned host reads it, a wakeup it did not queue, and the host probe |
+| WBC-02-CX-0008 to CX-0010 (Codex, on PR #107) | `RE_REVIEW`, `FINDING_CAUSAL_CORRECTION`, `P1_REVIEW_FINDING` | a delayed control overwriting a later one; the recovery-hold boundary; the package not installable on the pin |
+| [WBC-02-CC-0004](WBC-02-CC-0004.md) | `FINDINGS_RESPONSE` + `REVIEW_REQUEST` | the install on the unchanged pin, the order of control effects, the recovery-hold boundary |
