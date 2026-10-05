@@ -14,3 +14,4 @@ M08 a finding cites only a source the review read (SQL): FAILS as it should
 M09 a withdrawn input withdraws the result (SQL, INT-13): FAILS as it should
 M10 a result is shown only if its bytes hash to its version (Studio, INT-16): FAILS as it should
 M11 a command naming no assignment never leaves (Studio): FAILS as it should
+M12 the served board is read only while Tasks is in view (Studio): FAILS as it should

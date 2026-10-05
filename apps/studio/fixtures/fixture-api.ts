@@ -2,7 +2,15 @@
 // viewer's membership, the brief and a room token. Any other request is recorded and refused, so a check that
 // reached for something else fails instead of passing on a real service. A background update is an event on the
 // open stream: the Studio's own feed applies it and refetches the snapshot, as it does with the API.
-import type { ExchangeReceipt, FloorRequest, GoalCommand, Receipt, Snapshot } from '@sophia/contracts'
+import type {
+  ExchangeReceipt,
+  FloorRequest,
+  GoalCommand,
+  Receipt,
+  Snapshot,
+  SourceReviewAvailability,
+  WorkBoardView,
+} from '@sophia/contracts'
 import {
   EXCHANGE,
   projectEvent,
@@ -201,7 +209,54 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   const text = source ? content(source, project.textTampered) : null
   if (text) return textRead(project, text)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
+  return workRead(project, path)
+}
+
+/**
+ * Tasks' reads from the board Sophia serves (WBC-02), answered as the API answers a project with no plan yet and the
+ * source-review pilot not enabled: the goals show alone and no goal offers Review sources.
+ */
+function workRead(project: Project, path: string) {
+  if (path === `/api/v1/projects/${PROJECT}/plans`) {
+    const board: WorkBoardView = {
+      schema_version: 'sophia.work.board.v1',
+      project_id: PROJECT,
+      snapshot_cursor: String(project.revision),
+      observed_at: new Date().toISOString(),
+      coverage: 'complete',
+      goals: [],
+    }
+    return json(board)
+  }
+  if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) return json(REVIEW_NOT_ENABLED)
   return null
+}
+
+const REVIEW_NOT_ENABLED: SourceReviewAvailability = {
+  enabled: false,
+  reason: 'Source review is not enabled for this project.',
+  runtimeReady: false,
+  maxAllowanceUsd: null,
+  limits: {
+    maxSources: 3,
+    maxInputBytes: 32768,
+    maxModelRequests: 8,
+    maxReportBytes: 16384,
+    web: false,
+    shell: false,
+    connectors: false,
+  },
+  route: {
+    role: 'sophia-source-review-v1',
+    id: 'source-review-luna-high-v1',
+    provider: 'openai-review',
+    model: 'gpt-6-luna',
+    reasoningEffort: 'high',
+    maxTokens: 16000,
+    prices: { input: 0.1, cacheRead: 0.01, cacheWrite: 0.125, output: 0.5 },
+    priceUnit: 'usd_per_million_tokens',
+  },
+  sources: [],
 }
 
 /** An edit of the report's description on Knowledge, answered as the API answers it. */

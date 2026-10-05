@@ -99,12 +99,12 @@ Sophia's side (amendment `A12`, `packages/contracts/amendments/A12-workboard-sou
 | `node --test tests/integration/research-tools.test.mjs tests/integration/review-tools.test.mjs` | 8 pass: the reviewer through the real pinned dsh, the research roles unchanged |
 | `node scripts/paperclip-build.mjs --paperclip <pin>` | bindings typecheck against the pin; packages bundled; `MANIFEST.json` digests |
 | `node scripts/paperclip-verify.mjs --paperclip <pin>` | the built worker under the pin's harness: commission, resend, forged refusal, Hold/Resume/Stop; the adapter loads |
-| Mutation checks | [12, each caught](../evidence/WBC-02/mutations.txt) |
+| Mutation checks | [13, each caught](../evidence/WBC-02/mutations.txt) |
 | Browser, synthetic local stack (API + Vite, Chromium) | [propose and decide, the board with the review waiting on Paperclip, phone](../evidence/WBC-02/README.md) |
 
 ## Studio
 
-`ProjectShell` reads its plans from `useServedWork` (the served board through the board's own reader) unless a page brings its own; `GoalList` renders the pilot's entry under each goal. Everything else is in `features/work/planning/` (`ServedWork.tsx`, `ReviewSources.tsx`, `served.ts`) and `api/work.ts`. `fixture-boundary.test.ts` now asserts that production plans come only from the served board. Names: the board knows the viewer's own name; others read as "someone" (no member directory is read).
+`ProjectShell` reads its plans from `useServedWork` (the served board through the board's own reader) only while Tasks is in view (`readsServedBoard`), unless a page brings its own; `GoalList` renders the pilot's entry under each goal. Everything else is in `features/work/planning/` (`ServedWork.tsx`, `ReviewSources.tsx`, `served.ts`) and `api/work.ts`. `fixture-boundary.test.ts` now asserts that production plans come only from the served board. The room fixture's API answers Tasks' two reads as the API answers a project with no plan and the pilot not enabled (`fixtures/fixture-api.ts`); `pnpm --filter @sophia/studio test:browser` runs every fixture page with its unexpected-request check. Names: the board knows the viewer's own name; others read as "someone" (no member directory is read).
 
 ## Not done, or known limits
 

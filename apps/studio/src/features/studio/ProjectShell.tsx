@@ -26,7 +26,7 @@ import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
-import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
+import { blockedBy, isStale, readsServedBoard, shownConnection, type Blocked } from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
@@ -247,7 +247,7 @@ function useTasksWork(
     identity,
     feed,
     canAct: canInvite(membership),
-    enabled: !blocked && !props.plans,
+    enabled: readsServedBoard(props.view, blocked, !!props.plans),
   })
   return { plans: props.plans ?? served.plans, entry: served.entry }
 }
