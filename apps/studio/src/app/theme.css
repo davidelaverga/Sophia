@@ -3725,7 +3725,8 @@ div.empty {
    its own: its head with who shows it and the way back, then the text at the reading measure, scrolled on its own. */
 .report-main {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  /* Its head, the section index when it has one, and the text, which takes the rest and scrolls. */
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 0;
   margin: 0;
   overflow: hidden;
@@ -3766,6 +3767,7 @@ div.empty {
   gap: 8px;
 }
 .report-main-body {
+  grid-row: 3;
   overflow: auto;
   padding: 20px 24px 40px;
 }
@@ -3833,5 +3835,66 @@ div.empty {
   .report-main,
   .stage-showing {
     animation: none;
+  }
+}
+
+/* Sophia's voice through the report on the stage (useVoiceTrail, docs/plans/room-voice-trail.md): her words lit in her
+   colour, the block they are in marked at its edge, and the section index with her mark where she is. */
+::highlight(sophia-spoken) {
+  background-color: rgba(156, 130, 245, 0.3);
+  color: var(--text);
+}
+.report-main-body .md [data-spoken] {
+  box-shadow: -10px 0 0 -8px var(--halo);
+  transition: box-shadow var(--base) var(--ease);
+}
+.report-sections {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: none;
+}
+.report-sections a {
+  position: relative;
+  flex: none;
+  padding: 4px 8px 4px 18px;
+  border-radius: var(--r-2);
+  color: var(--text-3);
+  font-size: var(--type-small);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.report-sections a::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--line-3);
+  transform: translateY(-50%);
+}
+.report-sections a:hover {
+  color: var(--text);
+  background: rgba(236, 235, 241, 0.05);
+}
+.report-sections a[data-sophia] {
+  color: var(--text);
+}
+/* Her mark: the dot takes her colour and glows, where she is speaking. */
+.report-sections a[data-sophia]::before {
+  background: var(--halo-text);
+  box-shadow: 0 0 8px var(--halo);
+}
+.report-sections a:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-main-body .md [data-spoken] {
+    transition: none;
   }
 }
