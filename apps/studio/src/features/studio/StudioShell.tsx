@@ -153,7 +153,10 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
         identity={identity}
         lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
         lensBody={
-          <LensBody lens={state.lens} made={madeOnTheStage(made, room, chatOpen, { projectId, identity, who })} />
+          <LensBody
+            lens={state.lens}
+            made={madeOnTheStage(made, room, { chatOpen, anyOpen: panel.panel !== null }, { projectId, identity, who })}
+          />
         }
         captions={captions}
         corner={

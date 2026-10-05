@@ -8,8 +8,17 @@ const words = (n: number) => Array.from({ length: n }, () => 'word').join(' ')
 describe('a report’s facts', () => {
   it('reads minutes, sections and sources from its record', () => {
     const markdown = `# Title\n\n${words(460)}\n\n## One\n\ntext\n\n## Two\n\ntext\n\n### Not a section\n`
-    const facts = madeFacts(markdown, [], { limitations: [], changeFacts: { cited: 6, added: [], dropped: [] } })
+    const facts = madeFacts(markdown, [], {
+      versionNumber: 1,
+      limitations: [],
+      changeFacts: { cited: 6, added: [], dropped: [] },
+    })
     assert.deepEqual(facts, { minutes: 2, sections: 2, sources: 6, limits: 0 })
+  })
+
+  it('says no sources for a later version: its count also holds the earlier versions it cites (Knowledge’s way)', () => {
+    const later = madeFacts('x', [], { versionNumber: 2, changeFacts: { cited: 7, added: [], dropped: [] } })
+    assert.equal(later.sources, null)
   })
 
   it('takes at least a minute, and no sources when the version doesn’t say', () => {
@@ -56,6 +65,12 @@ describe('the notice on the stage', () => {
     const first = notice('a', 1, 5)
     assert.equal(madeOnStage([first], new Set([madeKey(first)])), null)
     assert.equal(madeOnStage([notice('a', 2, 7)], new Set([madeKey(first)]))?.resultRevision, 2)
+  })
+
+  it('putting the newest away never brings back an older one', () => {
+    const older = notice('a', 1, 5)
+    const newest = notice('b', 1, 9)
+    assert.equal(madeOnStage([older, newest], new Set([madeKey(newest)])), null)
   })
 
   it('is none without notices', () => {

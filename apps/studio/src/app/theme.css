@@ -1426,8 +1426,8 @@ img.avatar {
 }
 /*
  * What Sophia made, born in the room (docs/plans/room-made-object.md): under her line, at the foot of the Converse lens
- * body, on the stage's axis. The report as Knowledge shows it, a few facts, Open and Close. It rises once from where
- * the light is, from soft to sharp; under reduced motion it just appears.
+ * body, on the stage's axis. The report as Knowledge shows it, a few facts, Open and Close. The first time, it comes
+ * down from where the light is, from soft to sharp; back in sight, or under reduced motion, it is simply there.
  */
 .stage-made {
   position: relative;
@@ -1520,7 +1520,7 @@ img.avatar {
   align-items: center;
   gap: 6px;
 }
-.fact {
+.made-fact {
   display: inline-flex;
   align-items: center;
   height: 22px;
@@ -1534,7 +1534,7 @@ img.avatar {
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
 }
-.fact[data-limit] {
+.made-fact[data-limit] {
   border-color: rgba(239, 191, 134, 0.28);
   color: var(--amber);
 }
@@ -1562,12 +1562,17 @@ img.avatar {
 .stage-body:has(.stage-made) {
   justify-content: flex-start;
 }
-/* While it is on the stage, Sophia's line says only her state: the floor's note repeats the dock and the people. */
-.room-stage:has(.stage-made) :is(.line-note, .line-session) {
-  display: none;
+.made-by {
+  color: var(--text-3);
+}
+/* A very short stage (a small laptop window, a phone with captions): the object keeps its title, Open and Close. */
+@container (max-height: 640px) {
+  .stage-made :is(.made-summary, .made-facts) {
+    display: none;
+  }
 }
 @media (max-width: 560px) {
-  .made-facts .fact {
+  .made-facts .made-fact {
     display: none;
   }
 }

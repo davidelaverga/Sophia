@@ -46,8 +46,8 @@ test('made · a notice brings the report into the room: its title, version, Soph
   await expect(made(page).locator('.made-meta')).toContainText('v1')
   await expect(made(page).locator('.made-summary')).toHaveText(DESCRIBED)
   await expect(made(page).locator('.made-asked')).toHaveText('Asked by you')
-  await expect(made(page).locator('.fact').filter({ hasText: 'min read' })).toBeVisible()
-  await expect(made(page).locator('.fact').filter({ hasText: 'sections' })).toBeVisible()
+  // The fixture report: a few words, two `##` sections, one source cited by its first version.
+  await expect(made(page).locator('.made-fact')).toHaveText(['1 min read', '2 sections', '1 source'])
 })
 
 test('made · Open shows the report in the viewer and the object goes', async ({ page }) => {
@@ -152,7 +152,7 @@ test('captions · a guest’s words stay marked as a guest’s', async ({ page }
   await expect(page.locator('.stage-caption .caption-who')).toHaveText('Lucía · guest')
 })
 
-test('@phone · the object rests on the dock and fits a phone', async ({ page }) => {
+test('@phone · the object sits above the dock and fits a phone', async ({ page }) => {
   await enter(page)
   await notice(page)
   await expect(made(page)).toBeVisible()
@@ -165,3 +165,107 @@ test('@phone · the object rests on the dock and fits a phone', async ({ page })
   )
   expect(sideways).toBe(0)
 })
+
+const say = (page: Page, n: number, text: string) =>
+  page.evaluate(
+    ([id, words]) =>
+      window.fixture?.caption({
+        kind: 'caption',
+        id,
+        exchangeId: '00000000-0000-4000-8000-0000000000ae',
+        speaker: 'sophia',
+        actorId: null,
+        sequence: 1,
+        state: 'partial',
+        text: words,
+      }),
+    [`00000000-0000-4000-8000-0000000000c${String(n)}`, text] as const,
+  )
+
+test('made · O opens it; Close and Esc put it away and leave the focus on Chat', async ({ page }) => {
+  await enter(page)
+  await notice(page)
+  await expect(made(page).getByRole('button', { name: 'Open', exact: true })).not.toHaveAttribute('aria-disabled')
+  await page.keyboard.press('o')
+  await expect(pane(page)).toBeVisible()
+  await expect(made(page)).toHaveCount(0)
+
+  await page.goto('/room.html?call=on&people=2&floor=1&sophia=listening')
+  await expect(leave(page)).toBeVisible()
+  await notice(page)
+  await made(page).getByRole('button', { name: 'Close', exact: true }).focus()
+  await page.keyboard.press('Escape')
+  await expect(made(page)).toHaveCount(0)
+  await expect(chatToggle(page)).toBeFocused()
+})
+
+test('made · O does nothing while a panel is open, or while there is nothing to open yet', async ({ page }) => {
+  await enter(page, 'people=2&floor=1&sophia=listening&hold=task')
+  await notice(page)
+  await page.keyboard.press('o')
+  await expect(pane(page)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.releaseTask())
+  await expect(made(page).getByRole('button', { name: 'Open', exact: true })).not.toHaveAttribute('aria-disabled')
+  await page
+    .getByRole('button', { name: /^Brief/ })
+    .first()
+    .click()
+  await page.keyboard.press('o')
+  await expect(pane(page)).toHaveCount(0)
+  await expect(made(page)).toBeVisible()
+})
+
+test('made · opened from the chat’s card, it goes from the stage too', async ({ page }) => {
+  await enter(page)
+  await notice(page)
+  await chatToggle(page).click()
+  await page
+    .getByRole('group', { name: 'Research report ready' })
+    .getByRole('button', { name: 'Open', exact: true })
+    .click()
+  await expect(pane(page)).toBeVisible()
+  await pane(page).getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(page.locator('.room-stage')).toBeVisible()
+  await expect(made(page)).toHaveCount(0)
+})
+
+test('made · a description a member edited says so, first', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.describeElsewhere('A member’s own words about it.'))
+  await notice(page)
+  await expect(made(page).locator('.made-summary')).toHaveText('Edited by a member · A member’s own words about it.')
+})
+
+test('made · born once: back in sight after Chat, it is simply there', async ({ page }) => {
+  await enter(page)
+  await notice(page)
+  await expect(made(page)).toHaveClass(/born/)
+  await chatToggle(page).click()
+  await chatToggle(page).click()
+  await expect(made(page)).toBeVisible()
+  await expect(made(page)).not.toHaveClass(/born/)
+})
+
+for (const [width, height] of [
+  [1366, 657],
+  [375, 667],
+] as const) {
+  test(`made · a short stage (${String(width)}×${String(height)}) with two captions: it stays above them`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    await enter(page)
+    await notice(page)
+    await say(page, 1, 'Here is the report on the pilot you asked for this morning')
+    await say(page, 2, 'It covers fourteen teams over six weeks, with two limits')
+    await expect(page.locator('.stage-caption')).toHaveCount(2)
+    await made(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+    await expect
+      .poll(async () => {
+        const object = await box(page, '.stage-made')
+        const words = await box(page, '.stage-captions')
+        return words.y - (object.y + object.height)
+      })
+      .toBeGreaterThanOrEqual(0)
+  })
+}

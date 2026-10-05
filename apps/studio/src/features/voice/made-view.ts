@@ -10,7 +10,7 @@ const WORDS_A_MINUTE = 230
 export interface MadeFacts {
   minutes: number
   sections: number
-  /** Sources the version cites, when its record says. */
+  /** Sources a first version cites, as Knowledge says it; a later one's count also holds earlier versions. */
   sources: number | null
   /** Limits noted for its files or its version, each once. */
   limits: number
@@ -20,7 +20,7 @@ export interface MadeFacts {
 export function madeFacts(
   markdown: string,
   outputs: readonly { limitations: readonly string[] }[],
-  version: Pick<ArtifactVersion, 'limitations' | 'changeFacts'> | undefined,
+  version: Pick<ArtifactVersion, 'limitations' | 'changeFacts' | 'versionNumber'> | undefined,
 ): MadeFacts {
   const words = markdown.match(/\S+/g)?.length ?? 0
   const sections = markdown.split('\n').filter((l) => /^##\s+\S/.test(l)).length
@@ -28,7 +28,7 @@ export function madeFacts(
   return {
     minutes: Math.max(1, Math.round(words / WORDS_A_MINUTE)),
     sections,
-    sources: version?.changeFacts?.cited ?? null,
+    sources: version?.versionNumber === 1 ? (version.changeFacts?.cited ?? null) : null,
     limits: limits.size,
   }
 }
