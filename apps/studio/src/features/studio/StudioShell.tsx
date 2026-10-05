@@ -2,7 +2,7 @@
 // viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); the room, goals and events
 // are shared. The chat and the brief sit in a side panel beside the stage, as meeting apps have them, so the
 // stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
@@ -14,6 +14,7 @@ import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
 import { useStageCaptions } from '../voice/StageCaptions.tsx'
+import { madeOnTheStage, type StageMadeState } from '../voice/StageMade.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { chatSignature, mergeNames, panelNote, toggled, type Panel } from './side-panel.ts'
@@ -72,6 +73,16 @@ interface Props {
   looking: string | null
   /** What is being said, held where the room lives (useHeldCaptions): the stage shows it while Chat is closed. */
   captions: readonly CaptionTurn[]
+  /** What Sophia made, and putting it away, kept where the room lives (useStageMade). */
+  made: StageMadeState
+}
+
+/** Who came as a guest this visit, so a guest's words stay marked after they leave. */
+function useKnownGuests(room: ProjectRoom): ReadonlySet<string> {
+  const [known, setKnown] = useState<ReadonlySet<string>>(() => new Set())
+  const fresh = room.participants.filter((p) => p.standing === 'guest' && !known.has(p.identity))
+  if (fresh.length > 0) setKnown(new Set([...known, ...fresh.map((p) => p.identity)]))
+  return known
 }
 
 /** Names the room has known this visit, by identity, so a line keeps its author's name after they leave. */
@@ -118,7 +129,7 @@ export function PanelCallSwitches({
   )
 }
 
-export function StudioShell({ projectId, identity, room, snapshot, panel, looking, captions: held }: Props) {
+export function StudioShell({ projectId, identity, room, snapshot, panel, looking, captions: held, made }: Props) {
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
   const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
   const names = useKnownNames(room)
@@ -130,7 +141,9 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
     b: () => panel.toggle('brief'),
   })
   const common = { projectId, identity, me, names }
-  const captions = useStageCaptions(held, room, panel.panel === 'chat', { me, names })
+  const who = { me, names, guests: useKnownGuests(room) }
+  const chatOpen = panel.panel === 'chat'
+  const captions = useStageCaptions(held, room, chatOpen, who)
   return (
     <div className="studio">
       <RoomStage
@@ -140,9 +153,7 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
         identity={identity}
         lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
         lensBody={
-          <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${state.lens}`}>
-            {state.lens !== 'converse' && <ComingLens lens={state.lens} />}
-          </div>
+          <LensBody lens={state.lens} made={madeOnTheStage(made, room, chatOpen, { projectId, identity, who })} />
         }
         captions={captions}
         corner={
@@ -172,6 +183,15 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
         call={<PanelCallSwitches room={room} looking={looking} />}
         note={panelNote(panel.panel, room.mediaError, room.error)}
       />
+    </div>
+  )
+}
+
+/** The lens's own body under Sophia's line: what she made, in Converse; what is coming, in the others. */
+function LensBody({ lens, made }: { lens: Lens; made: ReactNode }) {
+  return (
+    <div id="lens-stage" className="lens-body" role="tabpanel" aria-labelledby={`lens-${lens}`}>
+      {lens === 'converse' ? made : <ComingLens lens={lens} />}
     </div>
   )
 }

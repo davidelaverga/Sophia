@@ -21,6 +21,7 @@ import { CallInReach } from '../../app/call-in-reach.tsx'
 import { shortName } from '../voice/room-view.ts'
 import { lookingText } from '../voice/sophia-view.ts'
 import { useHeldCaptions } from '../voice/StageCaptions.tsx'
+import { useStageMade } from '../voice/StageMade.tsx'
 import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
@@ -382,6 +383,8 @@ function ProjectBody(props: BodyProps) {
   const panel = useRoomPanel(snapshot, room, view === 'studio' && !background)
   // So is the stage captions' hold: back from another view, what was said meanwhile has gone, as in the room.
   const captions = useHeldCaptions(room.captions)
+  // And what Sophia made, once put away: it stays away past a visit to another view.
+  const made = useStageMade(room.notices)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   const withViewer = (body: React.ReactNode) => (
     <WithViewer {...props} panel={panel} looking={looking}>
@@ -408,6 +411,7 @@ function ProjectBody(props: BodyProps) {
           panel={panel}
           looking={looking}
           captions={captions}
+          made={made}
         />
       </>,
     )

@@ -70,7 +70,8 @@ export function others(): RoomParticipant[] {
     cameraOn: video === 'camera',
     screenOn: video === 'screen' && i === 0,
     local: false,
-    standing: 'editor',
+    // `guest=1`: the last of the others came in as a guest.
+    standing: query.has('guest') && i === count - 1 ? 'guest' : 'editor',
   }))
 }
 
