@@ -237,3 +237,11 @@ X3 F-024 one not confirmed says why it isn’t sent again: FAILS as it should  [
 # 2026-10-05, on the merge with #75 (bb7ba05, main cec3947): this round's entries (U1, V1–V1f, W1–W2c, X1–X3) and the
 # re-aimed H2, H4, I6 and I6b ran again: 20 of 20 fail, each on a check's own assertion. #75 changed none of the 31
 # files any entry names; the full pass on 3e138ef stands for the rest. 143 of 144 fail.
+
+# CX-0023 at 226889e (#74; GitHub 4180194401), F-025, fixed in f3bd434
+Y1 F-025 a send that has ended hears nothing more (rule): FAILS as it should  [AssertionError]
+Y1b F-025 a send past its wait keeps failed against its late answer (board): FAILS as it should  [expect(locator).toContainText]
+Y2 F-025 an unavailable send hears nothing more: FAILS as it should  [AssertionError]
+# On f3bd434, the Ask and command series closest to this change ran again: F1–F2f and I1–I7c, 24 of 24 fail. No full
+# pass was repeated before this handoff (CX-0023); the full pass on 3e138ef and the merge's on bb7ba05 stand for the
+# rest. 146 of 147 fail; R1b is the redundant key recorded above.

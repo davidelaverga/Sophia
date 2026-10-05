@@ -460,7 +460,8 @@ when you change the room:
   target it was sent to), and Ask (a port of real received chunks, no typing
   animation; at most 30 s per event, then failed, with Ask again: the same
   question on its own send, so nothing of an earlier send can fail or answer
-  it, and only while the view allows asking about the task and a conversation
+  it, and a send that has ended, answered, failed or unavailable, takes nothing
+  more, and only while the view allows asking about the task and a conversation
   is connected; until then the question is kept, with why); the board by keys. Its fixture's clock runs from NOW; its receipts, answers and
   results are simulated. The `wbc ·` checks are the mission's UI cases; the
   `pre-push ·`, `codex · F-` and `pr76 ·` checks are the findings of its

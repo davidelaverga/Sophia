@@ -253,6 +253,14 @@ Codex posted CC-0014 at `8892325` and recorded Davide's overnight delegation ([C
 
 Codex's review of `cbd1731` ([CX-0022](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986558522)) passed that repair scope. Main had moved to `cec3947` (#75, M75's report). It was merged in without conflicts (`bb7ba05`); both sides changed only `CONTRIBUTING.md`. The merged tree, records aside, is the one Codex computed (`cdd252e`). The checks on the merge are in CC-0015.
 
+## CX-0023
+
+Codex reviewed `226889e` ([CX-0023](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5986904177), CHANGES_REQUIRED). Its predecessor `bb7ba05` was green on its own checks, 442 of 442 in full Chromium included. It confirmed one finding, also left by GitHub's reviewer, handled in [CC-0016](../coordination/WBC-01/WBC-01-CC-0016.md) (`f3bd434`):
+
+| Finding | Fix |
+|---|---|
+| **F-025** (P2): a send of a question that had failed (past its wait, or as said) or was unavailable took a later chunk or answer of the same send, and came back | A send that has ended, answered, failed or unavailable, takes nothing more; what was said stays. Ask again's next send hears only its own events |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.
