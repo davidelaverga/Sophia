@@ -242,8 +242,8 @@ BEGIN
   'allowance',jsonb_build_object('capUsd',al.cap_usd,'committedUsd',al.reserved_usd+al.spent_usd+al.uncertain_usd)));
 END $$;
 
--- POST /v1/runtime/design/record: append entries to the work record at the count the designer read. A replay of the
--- same call returns the count it left.
+-- POST /v1/runtime/design/record: append entries to the work record at the count the designer read (the bridge's own
+-- record of a reference read names none). A replay of the same call returns the count it left.
 CREATE FUNCTION sophia.runtime_design_record(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE s sophia.design_scope:=sophia.design_scope_of(p_token_sha256,p_unit,p_bridge,p_request,'design',true);
@@ -259,7 +259,7 @@ BEGIN
   RAISE EXCEPTION 'A work record entry has a kind and a body of at most 16 KiB; one call appends 1 to 10' USING ERRCODE='22023'; END IF;
  SELECT coalesce(max(seq),0) INTO cur FROM sophia.design_work_entries WHERE project_id=s.project_id AND design_job_id=s.job_id;
  IF cur+jsonb_array_length(p_request->'entries')>400 THEN RAISE EXCEPTION 'The work record is full' USING ERRCODE='55000'; END IF;
- IF (p_request->>'expectedEntries')::integer IS DISTINCT FROM cur THEN
+ IF p_request ? 'expectedEntries' AND (p_request->>'expectedEntries')::integer IS DISTINCT FROM cur THEN
   RAISE EXCEPTION 'Stale work record: it has % entries', cur USING ERRCODE='40001'; END IF;
  INSERT INTO sophia.design_work_entries(project_id,design_job_id,seq,call_key,kind,body)
  SELECT s.project_id,s.job_id,cur+i::integer,key,e->>'kind',e->'body' FROM jsonb_array_elements(p_request->'entries') WITH ORDINALITY x(e,i);

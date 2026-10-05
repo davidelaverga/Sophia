@@ -848,7 +848,8 @@
           "expectedEntries": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 400
+            "maximum": 400,
+            "description": "The entry count the designer read; the bridge omits it for the reference reads it records itself."
           },
           "entries": {
             "type": "array",
@@ -880,7 +881,7 @@
             }
           }
         },
-        "required": ["attemptId", "nativeSessionId", "callId", "expectedEntries", "entries"]
+        "required": ["attemptId", "nativeSessionId", "callId", "entries"]
       }
     },
     {

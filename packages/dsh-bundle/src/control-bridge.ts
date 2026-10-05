@@ -41,8 +41,10 @@ import { wire } from './runtime-wire.generated.js'
 import type { RuntimeCommand, RuntimeReceipt, ReceiptStage } from './protocol.js'
 import { PDF_PROMPT, RESEARCH_PROMPT } from './research-prompt.js'
 import { FINALIZE_NOTICE, FINALIZE_TOOL_NAMES, researchTools, type ResearchSources } from './research-tools.js'
-import { roleOf } from './role-registry.js'
-import type { RolePreset } from './role-registry.js'
+import { loadDesignAssets, type AssetsOutcome, type LoadedAssets } from './design-assets.js'
+import { designTools, type ImageStore } from './design-tools.js'
+import { DESIGN_ROLES, roleOf } from './role-registry.js'
+import type { DesignRole, RolePreset } from './role-registry.js'
 import { foldLog, Journal, strongestFence } from './session-events.js'
 import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport, TransportError } from './transport.js'
@@ -153,6 +155,10 @@ export class ControlBridge {
   private cursor = 0
   /** The research tools, built once; registered in each research agent's own scope. */
   private readonly researchToolset: ToolDefinition[] | null
+  /** The design and review tools (SDD-01), built once; each design agent gets only those its role names. */
+  private readonly designToolset: ToolDefinition[] | null
+  /** Each design role's verified bundle assets, loaded once. */
+  private readonly designAssets = new Map<string, AssetsOutcome>()
   readiness: BridgeReadiness = { state: 'not_ready', reason: 'starting' }
 
   constructor(private readonly ctx: Context, private readonly settings: BridgeSettings) {
@@ -175,13 +181,71 @@ export class ControlBridge {
       ? researchTools({
           client: this.transport,
           sources: settings.research,
-          sessionOf: (exec) => {
-            const attempt = this.attemptFor(exec.agent ?? this.ctx.agents.currentInitiator())
-            return attempt ? { attemptId: attempt.attemptId, nativeSessionId: attempt.sessionId } : null
+          sessionOf: (exec) => this.toolSession(exec.agent),
+          log: settings.log,
+        })
+      : null
+    this.designToolset = this.transport
+      ? designTools({
+          client: this.transport,
+          sessionOf: (exec) => this.toolSession(exec.agent),
+          assetsOf: (exec) => this.assetsOfAgent(exec.agent),
+          images: () => this.attachments(),
+          imageRoute: async (exec) => {
+            const route = this.attemptFor(exec.agent ?? this.ctx.agents.currentInitiator())?.identity?.route
+            return route ? this.imageProblem(route, exec.signal) : 'This call has no recorded model route.'
           },
           log: settings.log,
         })
       : null
+  }
+
+  /** The attempt and native session a Sophia tool call works for, or null outside a bound attempt. */
+  private toolSession(agent: Agent | undefined): { attemptId: string; nativeSessionId: string } | null {
+    const attempt = this.attemptFor(agent ?? this.ctx.agents.currentInitiator())
+    return attempt ? { attemptId: attempt.attemptId, nativeSessionId: attempt.sessionId } : null
+  }
+
+  /** A design role's assets, verified once against the bundle's manifest. */
+  private assetsFor(role: DesignRole): AssetsOutcome {
+    let outcome = this.designAssets.get(role.id)
+    if (!outcome) {
+      outcome = loadDesignAssets(role)
+      this.designAssets.set(role.id, outcome)
+    }
+    return outcome
+  }
+
+  private assetsOfAgent(agent: Agent | undefined): LoadedAssets | null {
+    const roleId = this.attemptFor(agent ?? this.ctx.agents.currentInitiator())?.role?.id
+    const design = roleId ? DESIGN_ROLES.get(roleId) : undefined
+    const outcome = design ? this.assetsFor(design) : null
+    return outcome?.ok ? outcome.assets : null
+  }
+
+  /** dsh's attachment service, when the profile mounts it: the only way an image reaches the model. */
+  private attachments(): ImageStore | undefined {
+    return (this.ctx as unknown as { get(name: string): unknown }).get('attachments') as ImageStore | undefined
+  }
+
+  /** Why a route cannot take an image (as dsh's read_image checks it), or null when its model declares image input. */
+  private async imageProblem(route: RouteSpec, signal?: AbortSignal): Promise<string | null> {
+    const llm = (this.ctx as unknown as { get(name: string): unknown }).get('llm') as ModelInfoService | undefined
+    if (!llm) return 'No model service is mounted: the route cannot be checked for image input.'
+    try {
+      const info = await llm.resolveModelInfo(route.provider, route.model, signal)
+      return info.inputModalities?.includes('image') ? null : `Model ${route.model} does not declare image input; images cannot reach it.`
+    } catch (error) {
+      return `The route ${route.provider}/${route.model} could not be resolved: ${(error as Error).message}`
+    }
+  }
+
+  /** Why a design role cannot run here (assets, attachments, an image route), or null when it can. */
+  private async designProblem(role: DesignRole, route: RouteSpec): Promise<string | null> {
+    const assets = this.assetsFor(role)
+    if (!assets.ok) return `its bundle assets do not verify: ${assets.reason}`
+    if (!this.attachments()) return 'no attachment service is mounted, so no capture can reach the model'
+    return role.imageInput ? this.imageProblem(route) : null
   }
 
   /** Install fences and observers, then connect. Returns the disposer. */
@@ -227,7 +291,10 @@ export class ControlBridge {
       if (attempt === undefined || route === undefined) return next()
       if (problem !== null) return this.refuseCall(attempt, options, problem)
       const named = this.namedRoute(route)
-      return named?.prices && this.transport ? this.metered(attempt, options, named, named.prices, next) : next()
+      if (!named?.prices || !this.transport) return next()
+      return attempt.role && DESIGN_ROLES.has(attempt.role.id)
+        ? this.meteredDesign(attempt, options, named, named.prices, next)
+        : this.metered(attempt, options, named, named.prices, next)
     }, { global: true, prepend: true })
     const offEvent = ctx.on('session/event', (session: Session, event: SessionEvent) => this.observe(session, event))
     void this.connect()
@@ -347,6 +414,13 @@ export class ControlBridge {
     for (const [roleId, routeId] of Object.entries(this.settings.roleRoutes).sort(([a], [b]) => a.localeCompare(b))) {
       const role = roleOf(roleId)
       if (!role) continue
+      const design = DESIGN_ROLES.get(role.id)
+      const route = this.settings.routes[routeId]
+      const problem = design && route ? await this.designProblem(design, route) : null
+      if (design && (!route || problem)) {
+        this.settings.log(`role ${roleId} is not advertised: ${problem ?? `route ${routeId} is not one of this unit's routes`}`)
+        continue
+      }
       for (let attempt = 1; ; attempt += 1) {
         try {
           roles.push({ id: role.id, route: routeId, presetDigest: (await this.presetIdentity(role)).digest })
@@ -440,6 +514,52 @@ export class ControlBridge {
     })()
   }
 
+  /**
+   * One model call of a designer or a reviewer (SDD-01), metered against the research lineage's allowance through the
+   * design operations: reserved before it leaves, settled from its usage. A design has no finalize step: a spent
+   * allowance refuses the call, and the design ends on the service's limits.
+   */
+  private meteredDesign(attempt: AttemptState, options: GenerateOptions, route: RouteConfig, prices: RoutePrices, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk> {
+    const transport = this.transport!
+    const ids = { attemptId: attempt.attemptId, nativeSessionId: attempt.sessionId }
+    const log = this.settings.log
+    const refused = (reason: string) => {
+      this.journal.append(attempt.sessionId, 'sophia/spend-refused', { attemptId: attempt.attemptId, sessionId: String(options.sessionId), reason })
+      return refuse(reason)
+    }
+    return (async function* () {
+      const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
+      let reservationId: string
+      try {
+        // No abort signal, as for research: a reservation the service made must come back to be settled.
+        reservationId = (await transport.designReserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose: 'call' })).reservationId
+      } catch (error) {
+        const why = error instanceof TransportError && error.code ? error.code : (error as Error).message
+        yield* refused(`this design's allowance could not reserve the model call (${why})`)
+        return
+      }
+      let usage: TokenUsage | null = null
+      try {
+        for await (const chunk of next()) {
+          if (chunk.type === 'usage') usage = chunk.usage
+          yield chunk
+        }
+      } finally {
+        const costUsd = usage ? costOfUsage(usage, prices) : null
+        try {
+          await transport.designSettle({
+            ...ids,
+            reservationId,
+            outcome: usage ? 'settled' : 'uncertain',
+            ...(usage && costUsd !== null ? { costUsd, usage: { ...usageOf(usage), provider: route.provider, model: route.model } } : {}),
+          })
+        } catch (error) {
+          log(`settling design model call ${reservationId} failed: ${(error as Error).message}; the service reconciles it`)
+        }
+      }
+    })()
+  }
+
   /** The bound attempt a model call's session belongs to, directly or through the Agent that owns it. */
   private attemptForSession(sessionId: GenerateOptions['sessionId']): AttemptState | undefined {
     if (sessionId === undefined) return undefined
@@ -471,6 +591,24 @@ export class ControlBridge {
           prompts.section({ name: 'sophia-research-pdf', order: PDF_PROMPT.order, text: PDF_PROMPT.text, interpolate: false })
         }
       }
+      const design = DESIGN_ROLES.get(role.id)
+      if (design) this.installDesign(agentCtx, role, design)
+    }
+  }
+
+  /**
+   * A design agent's own scope (SDD-01): only the design or review tools its role names, and its prompt sections and
+   * native skills in the registry's order, from the bundle's verified assets. Assets that do not verify refuse the
+   * create (the role is not advertised then either): a design agent never runs with other text than the manifest's.
+   */
+  private installDesign(agentCtx: Parameters<AgentSetup>[0], role: RolePreset, design: DesignRole): void {
+    const assets = this.assetsFor(design)
+    if (!assets.ok) throw new ProtocolError(`role ${role.id} cannot load its design assets: ${assets.reason}`)
+    for (const tool of (this.designToolset ?? []).filter((t) => role.nativeTools.has(t.name))) agentCtx.tools.register(tool)
+    const prompts = (agentCtx as unknown as { systemPrompt?: PromptSections }).systemPrompt
+    if (!prompts) throw new ProtocolError('this runtime unit has no system prompt service for the design sections')
+    for (const prompt of assets.assets.prompts) {
+      prompts.section({ name: prompt.name, order: prompt.order, text: prompt.text, interpolate: false })
     }
   }
 
@@ -1197,6 +1335,11 @@ export function offRoute(options: GenerateOptions, route: RouteSpec, ceiling: nu
 
 /** A model call refused before it reaches the provider. */
 export class RouteRefused extends Error {}
+
+/** The part of dsh's model service the bridge uses: whether a route's model declares image input. */
+interface ModelInfoService {
+  resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<{ readonly inputModalities?: readonly string[] }>
+}
 
 /** The part of dsh's system prompt service the bridge uses: a named section in the agent's own scope. */
 interface PromptSections {

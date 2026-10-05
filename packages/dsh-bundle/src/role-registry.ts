@@ -24,6 +24,11 @@
  *   never the workspace, the host or the global web; a tool the composition
  *   does not register yet is simply absent. Its route is the bridge row's
  *   `roleRoutes`, which the runtime unit keeps equal to the registry.
+ * - The native design roles (SDD-01), `sophia-html-designer-v1` and the
+ *   separate `sophia-visual-review-v1`, come from the same registry. Each
+ *   also names the prompt sections and native skills its preset loads
+ *   explicitly (DESIGN_ROLES below); the reviewer's tools never include a
+ *   design_* tool, so it cannot write, render, submit or publish.
  *
  * A role id is versioned. A session created under one role resumes under the
  * same id, and a bundle that no longer defines it refuses to resume
@@ -79,3 +84,22 @@ export const ROLE_PRESETS: Readonly<Record<RoleId, RolePreset>> = {
 export function roleOf(id: unknown): RolePreset | undefined {
   return typeof id === 'string' && Object.hasOwn(ROLE_PRESETS, id) ? ROLE_PRESETS[id as RoleId] : undefined
 }
+
+/** A native design role (SDD-01): the designer or the separate visual reviewer, with what its preset composes. */
+export interface DesignRole {
+  readonly id: SpecialistId
+  readonly family: 'design' | 'design_review'
+  /** Prompt sections, then skills, installed in this order; nothing is discovered. */
+  readonly promptSections: readonly string[]
+  readonly skills: readonly string[]
+  /** The role inspects real captures, so it runs only on a route that declares image input. */
+  readonly imageInput: boolean
+}
+
+export const DESIGN_ROLES: ReadonlyMap<string, DesignRole> = new Map(
+  SPECIALISTS.flatMap((s): Array<[string, DesignRole]> =>
+    'promptSections' in s
+      ? [[s.id, { id: s.id, family: s.family, promptSections: s.promptSections, skills: s.skills, imageInput: s.imageInput }]]
+      : [],
+  ),
+)
