@@ -822,6 +822,7 @@ test('moments · the days say where you began, and how long you were away', asyn
   await expect(days.first()).toContainText('Where you began')
   await expect(days.last()).toHaveText('Today · 12 days later')
   expect(await lowContrast(page, '.c3-space', '.c3-edge')).toEqual([])
+})
 
 // Codex on #92: a late copy is taken back once Personal is out of sight; words past the limit are said, never hidden.
 
