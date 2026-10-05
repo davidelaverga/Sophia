@@ -21,6 +21,19 @@ describe('answers', () => {
 
 const ids = () => 'op-new'
 
+describe('an answer’s key (Codex F-037)', () => {
+  it('keeps each apart, whatever its ids hold, and no viewer apart from one called “anyone”', () => {
+    assert.notEqual(answerKey('a:1', 2, 'x'), answerKey('a', 1, '2:x'))
+    setAnswer(answerKey('a:1', 2, 'x'), { state: 'unknown', chosen: 'ship', operation_id: 'op-a' })
+    assert.equal(answerOf(answerKey('a', 1, '2:x')), null)
+    setAnswer(answerKey('n', 1, null), { state: 'unknown', chosen: 'wait', operation_id: 'op-n' })
+    assert.equal(answerOf(answerKey('n', 1, 'anyone')), null)
+    // The same decision, revision and viewer is the same key: tried again, its operation is the one it went as.
+    assert.equal(operationFor(answerOf(answerKey('a:1', 2, 'x')), 'ship', ids), 'op-a')
+    assert.equal(operationFor(answerOf(answerKey('n', 1, null)), 'wait', ids), 'op-n')
+  })
+})
+
 describe('the operation an answer goes as', () => {
   it('is the same one when the same choice is tried after it wasn’t confirmed, never another choice (UI-13)', () => {
     const unknown = { state: 'unknown' as const, chosen: 'ship', operation_id: 'op-1' }

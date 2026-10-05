@@ -21,7 +21,14 @@ export interface Seen {
   decisions: Record<string, string>
 }
 
-const key = (at: SeenAt) => `sophia.plan.seen.v2.${at.project}.${at.goal}.${at.plan}.${at.viewer ?? 'anyone'}`
+/**
+ * Where a look is kept: its project, goal, plan and viewer, each whole (JSON), so ids holding a dot never meet another
+ * scope's, and no viewer isn't one called "anyone" (Codex F-034). The plan's id, not its revision: a revised plan keeps
+ * its look. Looks kept under the old joined key (`v2`) are left as they are: never read as this scope's, moved or
+ * deleted, so a first visit here starts afresh.
+ */
+export const seenKey = (at: SeenAt) =>
+  `sophia.plan.seen.v3:${JSON.stringify([at.project, at.goal, at.plan, at.viewer])}`
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
@@ -32,19 +39,26 @@ const isSeen = (value: unknown): value is Seen =>
   Object.values(value.items).every((v) => isRecord(v) && typeof v.mark === 'string') &&
   Object.values(value.decisions).every((v) => typeof v === 'string')
 
-const decisionState = (d: BoardDecision) => `${String(d.revision)}:${d.state}:${d.plan_reaction}`
+/**
+ * Where a look keeps a decision: its id at its revision, whole (Codex F-038). Two revisions of one decision, both on the
+ * board, are two entries, so a look keeps both and an unchanged board says nothing; a revision not seen before is new.
+ */
+export const decisionKey = (d: BoardDecision) => JSON.stringify([d.decision_id, d.revision])
+
+/** What a look keeps of a decision: its state, and the plan's reaction to it. */
+const decisionState = (d: BoardDecision) => `${d.state}:${d.plan_reaction}`
 
 /** The plan as it stands now, as a look keeps it. */
 export const glance = (rows: readonly PlanRow[], decisions: readonly BoardDecision[]): Seen => ({
   items: Object.fromEntries(
     rows.map((r) => [r.item.id, { mark: r.status.mark, result: resultsOf(r.view).current?.version_id ?? null }]),
   ),
-  decisions: Object.fromEntries(decisions.map((d) => [d.decision_id, decisionState(d)])),
+  decisions: Object.fromEntries(decisions.map((d) => [decisionKey(d), decisionState(d)])),
 })
 
 export function readSeen(at: SeenAt): Seen | null {
   try {
-    const raw = localStorage.getItem(key(at))
+    const raw = localStorage.getItem(seenKey(at))
     const parsed: unknown = raw ? JSON.parse(raw) : null
     return isSeen(parsed) ? parsed : null
   } catch {
@@ -54,7 +68,7 @@ export function readSeen(at: SeenAt): Seen | null {
 
 export function writeSeen(at: SeenAt, seen: Seen): Seen {
   try {
-    localStorage.setItem(key(at), JSON.stringify(seen))
+    localStorage.setItem(seenKey(at), JSON.stringify(seen))
   } catch {
     // Not kept: the next visit starts from here again.
   }
@@ -132,7 +146,7 @@ function choiceSaid(d: BoardDecision, by: string): string | null {
 
 const decisionsSaid = (decisions: readonly BoardDecision[], seen: Seen, looking: Looking) =>
   decisions
-    .filter((d) => seen.decisions[d.decision_id] !== decisionState(d))
+    .filter((d) => seen.decisions[decisionKey(d)] !== decisionState(d))
     .flatMap((d) => decisionSaid(d, looking) ?? [])
 
 /** A task's current result now: its version, or none (none current, or two claiming to be). */

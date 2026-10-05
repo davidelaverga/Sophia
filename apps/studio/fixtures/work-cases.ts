@@ -479,6 +479,18 @@ const unchosen: Change = (g) => ({
   ),
 })
 
+/** Codex F-035: d1 twice, at the same revision, the second about another task: the view is refused. */
+const twiceAsked: Change = (g) => {
+  const d1 = g.decisions.find((d) => d.decision_id === 'd1')
+  return d1 ? { ...g, decisions: [...g.decisions, { ...d1, work_id: 'work-2', question: 'Hold the report pane?' }] } : g
+}
+
+/** Codex F-036: d1 still proposed, yet naming a choice: the view is refused. */
+const chosenEarly: Change = (g) => ({
+  ...g,
+  decisions: g.decisions.map((d) => (d.decision_id === 'd1' ? { ...d, selected_choice: 'ship' } : d)),
+})
+
 const CHANGES: Readonly<Record<Case, Change>> = {
   defects,
   'stale-pass': stalePass,
@@ -503,6 +515,8 @@ const CHANGES: Readonly<Record<Case, Change>> = {
   rebound,
   'same-key': sameKey,
   unchosen,
+  'twice-asked': twiceAsked,
+  'chosen-early': chosenEarly,
 }
 
 /** The first goal's view in a scenario; as it is without one. */

@@ -35,3 +35,16 @@ describe('challenges', () => {
     assert.equal(editable(said({ state: 'unknown', key: 'k1' })), false)
   })
 })
+
+describe('a challenge’s key (Codex F-037)', () => {
+  it('keeps each apart, whatever its ids hold, and no viewer apart from one called “anyone”', () => {
+    assert.notEqual(challengeKey('a:b', 'c'), challengeKey('a', 'b:c'))
+    setChallenge(challengeKey('a:b', 'c'), said({ text: 'For a:b only.' }))
+    assert.equal(challengeOf(challengeKey('a', 'b:c')), null)
+    setChallenge(challengeKey('r', null), said({ text: 'No one named.', key: 'k-r', state: 'unknown' }))
+    assert.equal(challengeOf(challengeKey('r', 'anyone')), null)
+    // The same review and viewer is the same key: sent again, with its own idempotency key.
+    const kept = challengeOf(challengeKey('r', null))
+    assert.equal(kept && keyFor(kept, draw), 'k-r')
+  })
+})

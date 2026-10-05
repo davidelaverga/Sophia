@@ -4,7 +4,7 @@ import { assignment, goal, item, plan, view } from './board-samples.ts'
 import type { BoardDecision, ItemView } from './board-view.ts'
 import { shows } from './lenses.ts'
 import { boardOf, type PlanRow } from './plan.ts'
-import { changedSince, glance, whileAway } from './seen.ts'
+import { changedSince, glance, readSeen, seenKey, whileAway, writeSeen, type Seen } from './seen.ts'
 
 const people = { davide: { id: 'davide', name: 'Davide' }, luis: { id: 'luis', name: 'Luis' } }
 
@@ -193,5 +193,80 @@ describe('a lens', () => {
     assert.deepEqual(ids('mine', 'davide'), ['a']) // asked; owning b's account is not enough
     assert.deepEqual(ids('waiting', 'luis'), ['a'])
     assert.deepEqual(ids('unassigned', 'luis'), ['c'])
+  })
+})
+
+describe('two revisions of one decision in a look (Codex F-038)', () => {
+  it('keeps both: an unchanged board says nothing, and a change to one is said once, for it', () => {
+    const rows = rowsOf([['a', {}]])
+    const first = decision('proposed') // revision 4, past its expiry by LATER
+    const next = { ...decision('accepted'), revision: 5, question: 'Ship it, as revised?' }
+    const seen = glance(rows, [first, next])
+    assert.equal(Object.keys(seen.decisions).length, 2)
+    assert.deepEqual(whileAway(rows, [first, next], seen, { viewerId: 'davide', people, now: LATER }), {
+      phrases: [],
+      more: 0,
+      rest: [],
+    })
+    // Only the revised one's reaction moves: said once, for it.
+    const reacted = { ...next, plan_reaction: 'recorded' as const }
+    const away = whileAway(rows, [first, reacted], seen, { viewerId: 'davide', people, now: LATER })
+    assert.deepEqual([away.phrases, away.rest], [['You chose Ship it now: Ship it, as revised?'], []])
+  })
+})
+
+/** Runs `check` with a storage of its own, put back as it was after. */
+function withStorage(check: (store: Map<string, string>) => void) {
+  const store = new Map<string, string>()
+  const was = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => store.set(k, v),
+      removeItem: (k: string) => store.delete(k),
+    },
+  })
+  try {
+    check(store)
+  } finally {
+    if (was) Object.defineProperty(globalThis, 'localStorage', was)
+    else Reflect.deleteProperty(globalThis, 'localStorage')
+  }
+}
+
+const look = (mark: Seen['items'][string]['mark']): Seen => ({ items: { w: { mark, result: null } }, decisions: {} })
+
+describe('where a look is kept (Codex F-034)', () => {
+  it('keeps each scope apart, whatever its ids hold, and no viewer apart from one called “anyone” or “”', () => {
+    withStorage(() => {
+      const scope = { project: 'p', goal: 'a.b', plan: 'c', viewer: 'davide' }
+      writeSeen(scope, look('working'))
+      assert.equal(readSeen({ ...scope, goal: 'a', plan: 'b.c' }), null)
+      assert.equal(readSeen({ ...scope, project: 'p.a', goal: 'b' }), null)
+      assert.deepEqual(readSeen(scope), look('working'))
+      writeSeen({ ...scope, viewer: null }, look('held'))
+      assert.equal(readSeen({ ...scope, viewer: 'anyone' }), null)
+      assert.equal(readSeen({ ...scope, viewer: '' }), null)
+      assert.deepEqual(readSeen({ ...scope, viewer: null }), look('held'))
+    })
+  })
+
+  it('keeps one look per plan, whatever its revision: the key names no revision', () => {
+    const at = { project: 'p', goal: 'g', plan: 'plan-1', viewer: 'davide' }
+    assert.equal(seenKey(at), seenKey({ ...at }))
+    assert.deepEqual(JSON.parse(seenKey(at).replace('sophia.plan.seen.v3:', '')), ['p', 'g', 'plan-1', 'davide'])
+  })
+
+  it('leaves a look kept under the old joined key as it is: not read as this scope’s, not moved, not deleted', () => {
+    withStorage((store) => {
+      const at = { project: 'p', goal: 'g', plan: 'plan-1', viewer: 'davide' }
+      const old = 'sophia.plan.seen.v2.p.g.plan-1.davide'
+      store.set(old, JSON.stringify(look('later')))
+      assert.equal(readSeen(at), null)
+      writeSeen(at, look('working'))
+      assert.equal(store.get(old), JSON.stringify(look('later')))
+      assert.deepEqual(readSeen(at), look('working'))
+    })
   })
 })

@@ -21,9 +21,12 @@ export interface Answer {
 
 const answers = pageMemory<Answer>()
 
-/** One decision at one revision, as one viewer answered it: its answer's key. */
+/**
+ * One decision at one revision, as one viewer answered it: its answer's key. Each field whole, so ids holding the
+ * separator never meet, and no viewer isn't one called "anyone" (Codex F-037).
+ */
 export const answerKey = (decisionId: string, revision: number, viewerId: string | null) =>
-  `${decisionId}:${String(revision)}:${viewerId ?? 'anyone'}`
+  JSON.stringify([decisionId, revision, viewerId])
 
 export const answerOf = (key: string): Answer | null => answers.get(key)
 

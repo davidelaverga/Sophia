@@ -47,6 +47,7 @@ import type { Challenge } from '../src/features/work/planning/challenges.ts'
 import { PlanBoard } from '../src/features/work/planning/PlanBoard.tsx'
 import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
 import { PlanTab } from '../src/features/work/planning/PlanTab.tsx'
+import { seenKey } from '../src/features/work/planning/seen.ts'
 import { accepted, boardOf, forYou, shownPlan } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, PROJECT } from './data.ts'
@@ -198,12 +199,19 @@ if (since === '1' || since === '2') {
   }
   const seen = {
     items: Object.fromEntries(Object.entries(stood).map(([id, mark]) => [id, { mark, result: null }])),
-    decisions:
-      since === '2' ? { d2: '1:accepted:recorded' } : { d1: '4:proposed:not_needed', d2: '1:accepted:recorded' },
+    decisions: Object.fromEntries(
+      (since === '2'
+        ? [[['d2', 1], 'accepted:recorded']]
+        : [
+            [['d1', 4], 'proposed:not_needed'],
+            [['d2', 1], 'accepted:recorded'],
+          ]
+      ).map(([at, state]) => [JSON.stringify(at), state]),
+    ),
   }
   try {
     localStorage.setItem(
-      `sophia.plan.seen.v2.${PROJECT}.${goal.id}.plan-1.${asViewer(query.get('viewer'))}`,
+      seenKey({ project: PROJECT, goal: goal.id, plan: 'plan-1', viewer: asViewer(query.get('viewer')) }),
       JSON.stringify(seen),
     )
   } catch {

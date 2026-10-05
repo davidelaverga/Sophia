@@ -52,6 +52,8 @@ export const CASES = [
   'rebound',
   'same-key',
   'unchosen',
+  'twice-asked',
+  'chosen-early',
 ] as const
 export type Case = (typeof CASES)[number]
 

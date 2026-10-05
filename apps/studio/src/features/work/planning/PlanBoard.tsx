@@ -54,7 +54,7 @@ import { ProposalBand } from './Proposal.tsx'
 import type { ReadResult } from './results.ts'
 import { material, type Reviewed } from './review.ts'
 import { ReviewResult, type Waiting } from './ReviewResult.tsx'
-import { glance, readSeen, whileAway, writeSeen, changedSince, type Seen, type SeenAt } from './seen.ts'
+import { glance, readSeen, seenKey, whileAway, writeSeen, changedSince, type Seen, type SeenAt } from './seen.ts'
 import { TaskSheet } from './TaskSheet.tsx'
 import { TaskTile, type TileFlags, type TileProps } from './TaskTile.tsx'
 import { Threads } from './Threads.tsx'
@@ -181,7 +181,7 @@ function ClosedWork({ rows, onOpen }: { rows: readonly PlanRow[]; onOpen: (id: s
 
 /** What changed since the viewer last looked: remembered per project, goal, plan and viewer; a first visit, nothing. */
 function useSeen(at: SeenAt, rows: readonly PlanRow[], decisions: readonly BoardDecision[]) {
-  const id = `${at.project}.${at.goal}.${at.plan}.${at.viewer ?? ''}`
+  const id = seenKey(at)
   const first = (): Seen => readSeen(at) ?? writeSeen(at, glance(rows, decisions))
   const [kept, setKept] = useState(() => ({ id, seen: first() }))
   // Another plan for the same goal (a new plan id), or another viewer: its own seen state, never the last one's.
@@ -193,7 +193,7 @@ function useSeen(at: SeenAt, rows: readonly PlanRow[], decisions: readonly Board
 }
 
 /** A decision at its revision: a revised one is new to its decider. */
-const askedKey = (d: BoardDecision) => `${d.decision_id}:${String(d.revision)}`
+const askedKey = (d: BoardDecision) => JSON.stringify([d.decision_id, d.revision])
 
 /**
  * What waits on someone's decision: a pill in the board's bar, amber and pinging when it is the viewer's, that opens
@@ -302,7 +302,7 @@ function Decisions({
   return (
     <div ref={list} className={className}>
       {decisions.map((d) => (
-        <Decision key={`${d.decision_id}:${String(d.revision)}`} decision={d} about={aboutOf(d, plans)} {...rest} />
+        <Decision key={askedKey(d)} decision={d} about={aboutOf(d, plans)} {...rest} />
       ))}
     </div>
   )
@@ -563,7 +563,8 @@ export function PlanBoard(props: Props) {
   // Another viewer, or another project, starts afresh: nothing typed, sent or asked here carries over. Another goal, or
   // another plan shown for it (a distinct plan id), starts its view afresh too: lens, folds and slot (Codex F-018). A
   // new revision of the same plan is a live update, and keeps them. Commands and questions live outside, kept.
-  const at = `${projectId}|${viewerId ?? ''}|${goal.goal_id}|${board.plan.plan_id}`
+  // Each field whole, so ids holding the separator can't meet (Codex F-034).
+  const at = JSON.stringify([projectId, viewerId, goal.goal_id, board.plan.plan_id])
   return <BoardBody key={at} {...props} goal={goal} board={board} />
 }
 

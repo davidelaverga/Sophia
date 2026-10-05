@@ -121,6 +121,51 @@ describe('readBoardView', () => {
     assert.equal(readBoardView(board).ok, true)
   })
 
+  it('refuses two decisions with one id at one revision, in a goal or across goals; another revision is another (Codex F-035)', () => {
+    const board = example('board-review-ready.json')
+    const read = readBoardView(board)
+    if (!read.ok) throw new Error(read.problems.join('\n'))
+    const [first] = read.value.goals
+    const decision = first?.decisions[0]
+    if (!first || !decision) throw new Error('no decision in the packet')
+    const other = { ...decision, question: 'Another question?', work_id: first.items[1]?.work_id ?? decision.work_id }
+    const twice = readBoardView(edited(board, ['goals', 0, 'decisions'], [decision, other]))
+    assert.equal(twice.ok, false)
+    if (!twice.ok)
+      assert.deepEqual(twice.problems, ['$.goals[0].decisions[1]: another decision has this id at this revision'])
+    // Across goals too: a second goal with the same decision.
+    const second = {
+      ...first,
+      goal_id: 'fixture-goal-2',
+      current_plan: first.current_plan && { ...first.current_plan, goal_id: 'fixture-goal-2' },
+      proposed_plans: first.proposed_plans.map((p) => ({ ...p, goal_id: 'fixture-goal-2' })),
+    }
+    const across = readBoardView(edited(board, ['goals', 1], second))
+    assert.equal(across.ok, false)
+    if (!across.ok)
+      assert.deepEqual(across.problems, ['$.goals[1].decisions[0]: another decision has this id at this revision'])
+    // The same id at another revision, or another id, is another decision: read as given.
+    const revised = { ...other, revision: decision.revision + 1 }
+    assert.equal(readBoardView(edited(board, ['goals', 0, 'decisions'], [decision, revised])).ok, true)
+    assert.equal(
+      readBoardView(edited(board, ['goals', 0, 'decisions'], [decision, { ...other, decision_id: 'another' }])).ok,
+      true,
+    )
+  })
+
+  it('refuses a decision not yet decided that names a choice; one naming none is read as given (Codex F-036)', () => {
+    const board = example('board-review-ready.json')
+    const decision = ['goals', 0, 'decisions', 0]
+    const early = readBoardView(edited(board, [...decision, 'selected_choice'], 'follow_up'))
+    assert.equal(early.ok, false)
+    if (!early.ok) {
+      assert.deepEqual(early.problems, [
+        '$.goals[0].decisions[0].selected_choice: a decision not yet decided names none',
+      ])
+    }
+    assert.equal(readBoardView(board).ok, true)
+  })
+
   it('refuses a date-time without its offset, or one the calendar doesn’t have (GitHub review on PR #76)', () => {
     const board = example('board-review-ready.json')
     for (const at of ['2026-10-03T15:00', '2026-10-03T15:00:00', '2026-02-30T15:00:00Z']) {

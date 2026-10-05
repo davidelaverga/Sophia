@@ -1736,7 +1736,7 @@ test('codex · F-012 · a result lost since the last look is said lost, not as t
   await expect(tile(page, 'work-1')).toBeVisible({ timeout: 15_000 })
   // The last look, as kept: the same board, but when retry-v2 was the task's one current result.
   await page.evaluate(() => {
-    const key = Object.keys(localStorage).find((k) => k.startsWith('sophia.plan.seen.v2.'))
+    const key = Object.keys(localStorage).find((k) => k.startsWith('sophia.plan.seen.v3:'))
     if (!key) throw new Error('no look kept')
     const kept: unknown = JSON.parse(localStorage.getItem(key) ?? '{}', (field: string, value: unknown) =>
       field === 'work-1' && typeof value === 'object' && value !== null ? { ...value, result: 'retry-v2' } : value,
@@ -2777,4 +2777,58 @@ test('codex · F-032 · a decision said accepted with no choice of its own is re
   // Accepted with its own choice, the board reads it as made (UI-14's case).
   await page.goto(`${PAGE}?case=reacting`)
   await expect(board(page)).toBeVisible({ timeout: 15_000 })
+})
+
+// ---- CX-0029 (Codex on #74; GitHub 4180579675, 4180579679, 4180579681): looks and decisions, each its own. ----
+
+test('codex · F-034 · a look kept under the old joined key is left as it is: never read here, never moved or deleted', async ({
+  page,
+}) => {
+  const fresh =
+    'sophia.plan.seen.v3:["00000000-0000-4000-8000-0000000000aa","00000000-0000-4000-8000-0000000000b1","plan-1","davide"]'
+  const old =
+    'sophia.plan.seen.v2.00000000-0000-4000-8000-0000000000aa.00000000-0000-4000-8000-0000000000b1.plan-1.davide'
+  // An old look for this very plan, taken before anything was: read as this one's, it would say everything arrived.
+  await page.addInitScript(
+    ({ key }) => {
+      if (!sessionStorage.getItem('seeded')) {
+        localStorage.setItem(key, JSON.stringify({ items: {}, decisions: {} }))
+        sessionStorage.setItem('seeded', '1')
+      }
+    },
+    { key: old },
+  )
+  await page.goto(`${PAGE}?viewer=davide`)
+  await expect(board(page)).toBeVisible({ timeout: 15_000 })
+  // A first visit here: nothing said changed, and its look kept under the whole-field key.
+  await expect(board(page).locator('.board-return')).toHaveCount(0)
+  const kept = await page.evaluate(({ whole, joined }) => [localStorage.getItem(whole), localStorage.getItem(joined)], {
+    whole: fresh,
+    joined: old,
+  })
+  expect(kept[0]).not.toBeNull()
+  expect(kept[1]).toBe(JSON.stringify({ items: {}, decisions: {} })) // the old one as it was
+  // Another viewer's look is another: Luis starts afresh too, Davide's kept.
+  await page.evaluate(() => window.workFixture?.viewAs?.('luis'))
+  await expect(board(page).locator('.board-return')).toHaveCount(0)
+})
+
+test('codex · F-035 · two decisions with one id at one revision are refused with their view: nothing drawn', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&case=twice-asked`)
+  await expect(page.getByRole('alert')).toContainText('another decision has this id at this revision', {
+    timeout: 15_000,
+  })
+  await expect(board(page)).toHaveCount(0)
+  expect(await answeredOf(page)).toEqual([])
+})
+
+test('codex · F-036 · a decision not yet decided that names a choice is refused with its view', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide&case=chosen-early`)
+  await expect(page.getByRole('alert')).toContainText(
+    '$.goals[0].decisions[0].selected_choice: a decision not yet decided names none',
+    { timeout: 15_000 },
+  )
+  await expect(board(page)).toHaveCount(0)
 })

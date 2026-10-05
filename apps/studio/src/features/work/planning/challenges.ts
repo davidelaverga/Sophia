@@ -20,8 +20,8 @@ export interface Challenged {
 
 const challenges = pageMemory<Challenged>()
 
-/** One review, as one viewer challenged it. */
-export const challengeKey = (reviewId: string, viewerId: string | null) => `${reviewId}:${viewerId ?? 'anyone'}`
+/** One review, as one viewer challenged it: each field whole, no viewer apart from "anyone" (Codex F-037). */
+export const challengeKey = (reviewId: string, viewerId: string | null) => JSON.stringify([reviewId, viewerId])
 
 export const challengeOf = (key: string): Challenged | null => challenges.get(key)
 

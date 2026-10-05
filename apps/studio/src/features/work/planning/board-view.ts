@@ -416,7 +416,7 @@ const placed = (p: WorkPlan, project: string, goal: string, at: string): string[
 /**
  * A decision's own rules. Each choice has its own key: two with one key would send the same answer under different
  * words (Codex F-028). Accepted, it names one of its own choices: none, or a key it doesn't have, would be said as a
- * choice no one made (Codex F-032). A decision not yet decided names none.
+ * choice no one made (Codex F-032). Proposed, not yet decided, it names none (Codex F-036).
  */
 function decisionRules(d: BoardDecision, at: string): string[] {
   const keys = d.choices.map((c) => c.key)
@@ -426,6 +426,9 @@ function decisionRules(d: BoardDecision, at: string): string[] {
     ...(d.state !== 'accepted' || named
       ? []
       : [`${at}.selected_choice: an accepted decision names one of its choices`]),
+    ...(d.state === 'proposed' && d.selected_choice !== null
+      ? [`${at}.selected_choice: a decision not yet decided names none`]
+      : []),
   ]
 }
 
@@ -444,6 +447,25 @@ function goalRules(goal: GoalView, at: string, project: string): string[] {
   return [...plans, ...items, ...choices]
 }
 
+/**
+ * Each decision once on the board: its id at its revision names one decision, in any goal (Codex F-035). Another with
+ * the same pair would share its answer and its place; the view is refused rather than either dropped. The same id at
+ * another revision is another decision.
+ */
+function decisionsOnce(goals: readonly GoalView[]): string[] {
+  const named = new Set<string>()
+  return goals.flatMap((g, i) =>
+    g.decisions.flatMap((d, j) => {
+      const pair = JSON.stringify([d.decision_id, d.revision])
+      if (!named.has(pair)) {
+        named.add(pair)
+        return []
+      }
+      return [`$.goals[${String(i)}].decisions[${String(j)}]: another decision has this id at this revision`]
+    }),
+  )
+}
+
 export type Read<T> = { ok: true; value: T } | { ok: false; problems: string[] }
 
 const isBoard = (value: unknown, problems: readonly string[]): value is BoardView => problems.length === 0
@@ -452,6 +474,9 @@ const isBoard = (value: unknown, problems: readonly string[]): value is BoardVie
 export function readBoardView(value: unknown): Read<BoardView> {
   const problems = problemsOf(board, value)
   if (!isBoard(value, problems)) return { ok: false, problems }
-  const rules = value.goals.flatMap((g, i) => goalRules(g, `$.goals[${String(i)}]`, value.project_id))
+  const rules = [
+    ...value.goals.flatMap((g, i) => goalRules(g, `$.goals[${String(i)}]`, value.project_id)),
+    ...decisionsOnce(value.goals),
+  ]
   return rules.length > 0 ? { ok: false, problems: rules } : { ok: true, value }
 }
