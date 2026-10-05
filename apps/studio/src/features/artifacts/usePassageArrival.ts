@@ -85,7 +85,7 @@ function placeIn(root: Element, at: Locator): { block: HTMLElement; shape: Block
 export function usePassageArrival(
   version: ArtifactVersion | undefined,
   text: unknown,
-  /** The version's sources were read (or failed): its citations are drawn as they will stay. */
+  /** The version's sources were read: its citations are drawn as they will stay. A failed read decides nothing yet. */
   settled: boolean,
   /** The Document tab shows the text: the light goes on again as it comes back from another tab. */
   shown: boolean,
@@ -95,6 +95,7 @@ export function usePassageArrival(
   const decided = found?.versionId === version?.id ? found : null
   const here = decided?.at ?? null
   useLayoutEffect(() => {
+    if (!shown) selected.current = false // away from the text: back, its words are selected again
     const root = textRoot()
     const place = here && root ? placeIn(root, here) : null
     if (!place) return undefined

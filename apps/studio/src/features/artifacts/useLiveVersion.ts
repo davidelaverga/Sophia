@@ -29,8 +29,12 @@ export interface Shown {
   version: ArtifactVersion | undefined
   text: string | undefined
   parsed: ParsedReport | null
-  /** Its sources were read (or failed): the text will not re-flow when its citations come. */
+  /** Its sources were read: its citations are drawn as they will stay. (A failed read can be tried again.) */
   sourcesSettled: boolean
+  /** Its sources' read is over, read or failed: the text will not re-flow on its own any more. */
+  sourcesDone: boolean
+  /** The Document tab shows its text: what is placed in it can only be placed then. */
+  inSight: boolean
 }
 
 const bodyOf = (pane: HTMLElement | null) => pane?.querySelector<HTMLElement>('.report-pane-body') ?? null
@@ -50,14 +54,15 @@ function headingsIn(body: HTMLElement): Placed[] {
  */
 function useKeptPlace(pane: RefObject<HTMLElement | null>, place: Placed | null | undefined, shown: Shown) {
   const done = useRef<Placed | null>(null)
-  const { parsed, sourcesSettled } = shown
+  const { parsed, sourcesDone, inSight } = shown
   useLayoutEffect(() => {
     const body = bodyOf(pane.current)
-    if (!place || !parsed || !body || done.current === place) return
+    // Another tab has the body: the place waits for the text to be in sight again.
+    if (!place || !parsed || !body || !inSight || done.current === place) return
     const now = headingsIn(body).find((h) => h.anchor === place.anchor)
     if (now) body.scrollTop += now.top - place.top
-    if (sourcesSettled) done.current = place
-  }, [pane, place, parsed, sourcesSettled])
+    if (sourcesDone) done.current = place
+  }, [pane, place, parsed, sourcesDone, inSight])
 }
 
 /** The arrival of the version the offer led to: marked once on screen; leaving it, or another one shown first, ends it. */

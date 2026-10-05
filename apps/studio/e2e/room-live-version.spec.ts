@@ -120,6 +120,18 @@ test('live · the marks go when another version is chosen', async ({ page }) => 
   await expect(marks(page)).toHaveCount(0)
 })
 
+test('live · the offer waits for the text on screen, so what changed is compared with it', async ({ page }) => {
+  await page.goto(`/room.html?call=on&exchange=open&report=${REPORT}&hold=text`)
+  await expect(pane(page).getByText('Loading the report…')).toBeVisible()
+  await page.evaluate(() => window.fixture?.reviseLive())
+  await expect
+    .poll(async () => (await page.evaluate(() => [...(window.fixture?.served ?? [])])).includes('versions:2'))
+    .toBe(true)
+  await expect(offer(page)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.releaseText())
+  await expect(offer(page)).toContainText('v2 is here · 2 sections changed.')
+})
+
 test('cite · a citation names its source on hover: its title and its site', async ({ page }) => {
   await open(page)
   const cite = pane(page).getByRole('button', { name: 'Source 1' })

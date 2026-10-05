@@ -165,6 +165,14 @@ test('passage · Keep is absent when the brief allows no note', async ({ page })
   await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Link'])
 })
 
+test('passage · when the brief can’t be read, Keep is still offered: the write says why if it is refused', async ({
+  page,
+}) => {
+  await open(page, 'call=on&exchange=open&notes=unread')
+  await paragraph(page, 'The fixture holds.').selectText()
+  await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Keep', 'Link'])
+})
+
 test('passage · outside the room, the chat isn’t there: Keep only', async ({ page }) => {
   await open(page, 'place=knowledge')
   await paragraph(page, 'The fixture holds.').selectText()
