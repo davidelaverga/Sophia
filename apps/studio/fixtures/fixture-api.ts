@@ -2,7 +2,14 @@
 // viewer's membership, the brief and a room token. Any other request is recorded and refused, so a check that
 // reached for something else fails instead of passing on a real service. A background update is an event on the
 // open stream: the Studio's own feed applies it and refetches the snapshot, as it does with the API.
-import type { ExchangeReceipt, FloorRequest, GoalCommand, Receipt, Snapshot } from '@sophia/contracts'
+import type {
+  ContributionReceipt,
+  ExchangeReceipt,
+  FloorRequest,
+  GoalCommand,
+  Receipt,
+  Snapshot,
+} from '@sophia/contracts'
 import {
   EXCHANGE,
   projectEvent,
@@ -13,6 +20,7 @@ import {
   roomToken,
   snapshot,
   type RoomAsked,
+  type Said,
 } from './data.ts'
 import {
   content,
@@ -42,7 +50,11 @@ export const served: string[] = []
 interface Project {
   revision: number
   exchange: boolean
-  messages: string[]
+  messages: (string | Said)[]
+  /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
+  contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
+  /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
+  loseContributionReply?: boolean
   /** How many versions of the fixture report are published (report-data.ts). */
   reportVersions: number
   /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
@@ -303,9 +315,52 @@ function withdrawal(revision: number, notes: Notes, method: string, entryId: str
   return withdrawn && json(withdrawn)
 }
 
-/** What the page posts: a room token, a goal's command, or the floor passed on. */
+/** A message to the room (A05), recorded once per key as the viewer's discussion; the feed carries it to the chat. */
+function contributed(project: Project, init: RequestInit | undefined): Response | Promise<Response> | null {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const map = project.contributions
+  if (!map || !isContribution(body)) return null
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const replayed = map.get(key)
+  // The same key replays its receipt; with other words it is refused, as the API refuses it.
+  if (replayed) {
+    served.push('replayed:contribution')
+    return replayed.text === body.text ? recorded(replayed.receipt) : keyConflict()
+  }
+  project.messages.push({ text: body.text, me: true })
+  publish(project)
+  served.push(`contribution:${body.intent}`)
+  const receipt: ContributionReceipt = {
+    contributionId: `00000000-0000-4000-8000-${String(map.size + 1).padStart(12, 'f')}`,
+    projectId: PROJECT,
+    sourceId: '00000000-0000-4000-8000-0000000000ae',
+    sha256: '0'.repeat(64),
+    intent: body.intent,
+    cursor: String(project.revision),
+    stage: 'recorded',
+  }
+  map.set(key, { text: body.text, receipt })
+  if (!project.loseContributionReply) return recorded(receipt)
+  project.loseContributionReply = false
+  return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
+}
+
+/** A contribution recorded, as the API answers it: 202. */
+const recorded = (receipt: ContributionReceipt) =>
+  new Response(JSON.stringify(receipt), { status: 202, headers: { 'content-type': 'application/json' } })
+
+const isContribution = (value: unknown): value is { text: string; intent: ContributionReceipt['intent'] } =>
+  typeof value === 'object' &&
+  value !== null &&
+  'text' in value &&
+  typeof value.text === 'string' &&
+  'intent' in value &&
+  typeof value.intent === 'string'
+
+/** What the page posts: a room token, a goal's command, the floor passed on, or a message to the room. */
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
+  if (path === `${base}/contributions`) return contributed(project, init)
   if (path === `${base}/room-token`) return json(roomToken)
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
