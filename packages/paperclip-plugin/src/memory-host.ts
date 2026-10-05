@@ -1,8 +1,11 @@
 /**
- * A synthetic Paperclip for tests, never live evidence: core issues and wakeups held in memory, the plugin's namespace
- * in a real PostgreSQL database (its migration applied as written, with a stub `public.issues` for the foreign keys).
- * It stands in for the pinned host's issue APIs exactly as far as CoordinationHost declares them: exact origin
- * lookup within a company, creates and status updates, idempotent wakeups, the managed reviewer agent and config.
+ * A synthetic Paperclip for tests, never live evidence: core issues held in memory, the plugin's namespace in a real
+ * PostgreSQL database (its migration applied as written, with stub `public.issues` and `public.heartbeat_runs`). It
+ * stands in for the pinned host's issue APIs as far as CoordinationHost declares them: exact origin lookup within a
+ * company, creates and status updates, the managed reviewer agent and config. Wakeups follow the pin, not a wish: one
+ * is never deduplicated by its idempotency key (every arrival queues a run of the issue in `heartbeat_runs`), and a
+ * fault can fail one before it is durable or after (`plugin-host-services.ts` logs activity after
+ * `heartbeat.wakeup`). Runtime SQL obeys the pin's ctx.db rules (`host-sql.ts`).
  * @module @sophia/paperclip-plugin/memory-host
  */
 import { randomUUID } from 'node:crypto'
@@ -12,6 +15,8 @@ import type pg from 'pg'
 import type { IssueStatus } from '@sophia/coordination/plugin-wire'
 import { handleApiRequest } from './coordination.ts'
 import type { ApiRequest, ApiResponse, CoordinationHost, HostIssue, HostIssueCreate, Row } from './host.ts'
+import { checkExecute, checkQuery } from './host-sql.ts'
+import { manifest } from './manifest.ts'
 
 /** The namespace the pinned host derives for this plugin key (plugin_<key>_<hash>). */
 export const NAMESPACE = 'plugin_sophia_coordination_00c896da3d'
@@ -26,6 +31,10 @@ export async function installNamespace(db: Queryable): Promise<void> {
     'utf8',
   )
   await db.query('CREATE TABLE IF NOT EXISTS public.issues (id uuid PRIMARY KEY)')
+  await db.query(
+    `CREATE TABLE IF NOT EXISTS public.heartbeat_runs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), company_id text NOT NULL,
+       status text NOT NULL DEFAULT 'queued', context_snapshot jsonb, created_at timestamptz NOT NULL DEFAULT now())`,
+  )
   await db.query(`CREATE SCHEMA ${NAMESPACE}`)
   await db.query(migration)
 }
@@ -42,8 +51,11 @@ export interface MemoryPaperclipOptions {
   readonly now?: () => number
   /** Runs inside create before the issue exists, e.g. to hold a create in flight. */
   readonly beforeCreate?: () => Promise<void>
-  /** Fault injection: a status update or a wakeup fails, changing nothing, while its check says so. */
-  readonly fails?: { readonly update?: () => boolean; readonly wake?: () => boolean }
+  /**
+   * Fault injection while its check says so: a status update fails, changing nothing; a wakeup fails `before` it is
+   * durable (no run), or `after` (its run is queued, then the call fails, as when the host's activity log fails).
+   */
+  readonly fails?: { readonly update?: () => boolean; readonly wake?: () => 'before' | 'after' | null }
 }
 
 export interface MemoryPaperclip {
@@ -107,12 +119,17 @@ function issueService(
       issue.status = patch.status
       return Promise.resolve(view(issue))
     },
-    requestWakeup: (issueId, companyId, wake) => {
-      if (options.fails?.wake?.() === true) return Promise.reject(new Error('injected: wakeup failed'))
+    requestWakeup: async (issueId, companyId, wake) => {
+      const fault = options.fails?.wake?.() ?? null
+      if (fault === 'before') throw new Error('injected: wakeup failed before it was durable')
       owned(issueId, companyId)
-      const fresh = !wakeups.some((w) => w.issueId === issueId && w.idempotencyKey === wake.idempotencyKey)
-      if (fresh) wakeups.push({ issueId, idempotencyKey: wake.idempotencyKey })
-      return Promise.resolve({ queued: fresh })
+      await db.query(`INSERT INTO public.heartbeat_runs (company_id, context_snapshot) VALUES ($1, $2)`, [
+        companyId,
+        { issueId, wakeReason: wake.reason, source: wake.contextSource },
+      ])
+      wakeups.push({ issueId, idempotencyKey: wake.idempotencyKey })
+      if (fault === 'after') throw new Error('injected: wakeup durable, then the call failed')
+      return { queued: true }
     },
   }
   return service
@@ -126,8 +143,14 @@ export function memoryPaperclip(db: Queryable, options: MemoryPaperclipOptions):
     reviewerAgent: () =>
       Promise.resolve(options.reviewerAgentId === undefined ? 'agent-source-reviewer' : options.reviewerAgentId),
     namespace: NAMESPACE,
-    query: async <T extends Row>(sql: string, params: readonly unknown[]) => (await db.query<T>(sql, [...params])).rows,
-    execute: async (sql, params) => ({ rowCount: (await db.query(sql, [...params])).rowCount ?? 0 }),
+    query: async <T extends Row>(sql: string, params: readonly unknown[]) => {
+      checkQuery(sql, NAMESPACE, manifest.database.coreReadTables)
+      return (await db.query<T>(sql, [...params])).rows
+    },
+    execute: async (sql, params) => {
+      checkExecute(sql, NAMESPACE)
+      return { rowCount: (await db.query(sql, [...params])).rowCount ?? 0 }
+    },
     config: () => Promise.resolve(options.config),
     now: options.now ?? (() => Math.floor(Date.now() / 1000)),
   }

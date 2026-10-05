@@ -31,7 +31,7 @@ export const manifest = {
     'agents.managed',
   ],
   entrypoints: { worker: './dist/worker.js' },
-  database: { migrationsDir: 'migrations', coreReadTables: ['issues'] },
+  database: { migrationsDir: 'migrations', coreReadTables: ['issues', 'heartbeat_runs'] },
   agents: [
     {
       agentKey: REVIEWER_AGENT_KEY,

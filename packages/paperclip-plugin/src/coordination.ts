@@ -210,22 +210,70 @@ async function wake(host: CoordinationHost, issue: HostIssue, key: string): Prom
   return woken.queued
 }
 
+/** How long an unconfirmed wakeup ask may still be in flight before a resend may ask again. */
+const WAKE_STALE_SECONDS = 60
+
 /**
- * The commission's wakeup, asked for until the host confirms it: a create whose wake failed, or a crash between the
- * create and its wake, is woken by the resend. Only an issue still in the status the commission set is woken (a
- * Hold since then is not undone). A crash after the host queued it but before it is recorded asks once more, under
- * the same idempotency key; a second run attaches to the same Sophia attempt, never a second one.
+ * One wakeup of the issue for this delivery key, made at most once as far as the plugin can know. The pinned host
+ * does not deduplicate a wakeup by its idempotency key and can fail after the wakeup is durable, so the ask is
+ * recorded first and a resend reconciles before it asks: see `reask`. A second run would still only attach to Sophia's
+ * one attempt; this keeps the host from being asked for one.
  */
+async function wakeOnce(host: CoordinationHost, issue: HostIssue, key: string): Promise<boolean> {
+  const first = await host.execute(
+    `INSERT INTO ${host.namespace}.wakes (wake_key, issue_id) VALUES ($1, $2) ON CONFLICT (wake_key) DO NOTHING`,
+    [key, issue.id],
+  )
+  if (first.rowCount === 0 && !(await reask(host, issue, key))) return false
+  const queued = await wake(host, issue, key)
+  await confirmWake(host, key)
+  return queued
+}
+
+async function confirmWake(host: CoordinationHost, key: string) {
+  await host.execute(
+    `UPDATE ${host.namespace}.wakes SET confirmed_at = now() WHERE wake_key = $1 AND confirmed_at IS NULL`,
+    [key],
+  )
+}
+
+/**
+ * Whether a resend asks again for a wakeup asked before and not confirmed. A run of the issue since the first ask
+ * means the host took it (its reply was lost, or its activity log failed after it): confirmed, not asked again. An
+ * ask that may still be in flight is waited for (503). A stale ask with no run since is claimed by one resend.
+ */
+async function reask(host: CoordinationHost, issue: HostIssue, key: string): Promise<boolean> {
+  const rows = await host.query<{ confirmed: boolean; ran: boolean; stale: boolean; asked: string }>(
+    `SELECT w.confirmed_at IS NOT NULL AS confirmed, w.asked_at::text AS asked,
+            w.asked_at < now() - make_interval(secs => $3) AS stale,
+            EXISTS (SELECT 1 FROM public.heartbeat_runs r
+                     WHERE r.company_id::text = $2 AND r.context_snapshot->>'issueId' = w.issue_id::text
+                       AND r.created_at >= w.first_asked_at) AS ran
+       FROM ${host.namespace}.wakes w WHERE w.wake_key = $1`,
+    [key, issue.companyId, WAKE_STALE_SECONDS],
+  )
+  const asked = rows[0]
+  if (asked === undefined || asked.confirmed) return false
+  if (asked.ran) {
+    await confirmWake(host, key)
+    return false
+  }
+  const claimed = asked.stale
+    ? await host.execute(
+        `UPDATE ${host.namespace}.wakes SET asked_at = now()
+          WHERE wake_key = $1 AND confirmed_at IS NULL AND asked_at::text = $2`,
+        [key, asked.asked],
+      )
+    : { rowCount: 0 }
+  if (claimed.rowCount === 0)
+    refuse(503, 'wake_in_progress', 'A wakeup of this issue was asked and may still be in flight; ask again later')
+  return true
+}
+
+/** The commission's wakeup, while the issue is still in the status the commission set (a Hold since is not undone). */
 async function wakeCommission(host: CoordinationHost, c: Commission, issue: HostIssue): Promise<boolean> {
   if (!c.wake || c.initialStatus !== 'todo' || issue.status !== 'todo') return false
-  const rows = await host.query<{ woken: boolean }>(
-    `SELECT woken_at IS NOT NULL AS woken FROM ${host.namespace}.commissions WHERE commission_key = $1`,
-    [c.key],
-  )
-  if (rows[0]?.woken === true) return false
-  const queued = await wake(host, issue, c.key)
-  await host.execute(`UPDATE ${host.namespace}.commissions SET woken_at = now() WHERE commission_key = $1`, [c.key])
-  return queued
+  return wakeOnce(host, issue, c.key)
 }
 
 export async function handleCommission(host: CoordinationHost, input: ApiRequest): Promise<CommissionReply> {
@@ -338,7 +386,7 @@ export async function handleControl(host: CoordinationHost, input: ApiRequest): 
     target.status === effect.status
       ? target
       : await host.issues.update(target.id, { status: effect.status }, input.companyId)
-  const queued = effect.wake ? await wake(host, updated, control.key) : false
+  const queued = effect.wake ? await wakeOnce(host, updated, control.key) : false
   await markApplied(host, control.key)
   return { outcome: 'applied', issueId: updated.id, status: updated.status, wakeQueued: queued }
 }
@@ -346,14 +394,18 @@ export async function handleControl(host: CoordinationHost, input: ApiRequest): 
 /**
  * The control's row, recorded 'pending' on first delivery. A resend finds the row as it stands: 'applied' only once
  * its effect was confirmed, so a failure or a crash between the record and the effect leaves it pending and the resend
- * applies it again. A key resent with another operation is refused.
+ * applies it again. A key resent with another operation is refused. (The host's ctx.db.query is SELECT-only and its
+ * ctx.db.execute returns a row count only, so the record and its read are two statements.)
  */
 async function recordControl(host: CoordinationHost, control: Control, issueId: string) {
-  const rows = await host.query<{ state: string; seq: string; op: string }>(
+  await host.execute(
     `INSERT INTO ${host.namespace}.controls (delivery_key, commission_key, issue_id, op) VALUES ($1, $2, $3, $4)
-     ON CONFLICT (delivery_key) DO UPDATE SET delivery_key = EXCLUDED.delivery_key
-     RETURNING state, seq::text AS seq, op`,
+     ON CONFLICT (delivery_key) DO NOTHING`,
     [control.key, control.commissionKey, issueId, control.op],
+  )
+  const rows = await host.query<{ state: string; seq: string; op: string }>(
+    `SELECT state, seq::text AS seq, op FROM ${host.namespace}.controls WHERE delivery_key = $1`,
+    [control.key],
   )
   const row = rows[0]
   if (row?.op !== control.op) refuse(409, 'key_reused', 'This delivery key was recorded for another operation')

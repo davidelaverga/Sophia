@@ -16,9 +16,6 @@ CREATE TABLE plugin_sophia_coordination_00c896da3d.commissions (
   work_id text NOT NULL,
   state text NOT NULL CHECK (state IN ('creating', 'created')),
   issue_id uuid REFERENCES public.issues(id),
-  -- When the host confirmed the commission's wakeup. Null while a wake the commission asked for is unconfirmed: a
-  -- resend asks again (the issue's existence never proves its wake happened).
-  woken_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK ((state = 'created') = (issue_id IS NOT NULL))
@@ -38,4 +35,17 @@ CREATE TABLE plugin_sophia_coordination_00c896da3d.controls (
   received_at timestamptz NOT NULL DEFAULT now(),
   applied_at timestamptz,
   CHECK ((state = 'applied') = (applied_at IS NOT NULL))
+);
+
+-- One row per wakeup the plugin asks the host for (a commission's, a Resume's), keyed by the delivery that asks it.
+-- The pinned host does not deduplicate a wakeup by its idempotency key, and can fail after the wakeup is durable, so
+-- an ask is recorded before it is made and a resend never asks blindly: a run of the issue since the first ask
+-- confirms it (public.heartbeat_runs, read only); an ask that may still be in flight is waited for; only a stale,
+-- unconfirmed ask with no run since is asked again, by the one resend that claims it.
+CREATE TABLE plugin_sophia_coordination_00c896da3d.wakes (
+  wake_key text PRIMARY KEY,
+  issue_id uuid NOT NULL REFERENCES public.issues(id),
+  first_asked_at timestamptz NOT NULL DEFAULT now(),
+  asked_at timestamptz NOT NULL DEFAULT now(),
+  confirmed_at timestamptz
 );

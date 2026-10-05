@@ -23,7 +23,7 @@ to Sophia only.
 ```sh
 git clone https://github.com/paperclipai/paperclip /path/outside/paperclip
 git -C /path/outside/paperclip checkout 5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb
-(cd /path/outside/paperclip && pnpm install --frozen-lockfile && pnpm --filter @paperclipai/plugin-sdk build)
+(cd /path/outside/paperclip && pnpm install --frozen-lockfile && pnpm --filter @paperclipai/plugin-sdk build && pnpm --filter @paperclipai/db build)
 node scripts/paperclip-build.mjs --paperclip /path/outside/paperclip --out /path/outside/sophia-paperclip-dist
 SOPHIA_DISPOSABLE_DATABASE_URL=postgres://… node scripts/paperclip-verify.mjs \
   --paperclip /path/outside/paperclip --dist /path/outside/sophia-paperclip-dist
@@ -34,8 +34,11 @@ SOPHIA_DISPOSABLE_DATABASE_URL=postgres://… node scripts/paperclip-verify.mjs 
 `createServerAdapter()` → `ServerAdapterModule`), bundles with the pin's esbuild, and writes `MANIFEST.json` with every
 file's sha256 and the Sophia commit it was built from. `scripts/paperclip-verify.mjs` runs the built worker under the pin's own plugin
 test harness (`createTestHarness`: issue service, origin-kind and wakeup rules, managed agents, capability checks) with
-the namespace migration on a throwaway database, and loads the built adapter. The `OPS_REQUEST` names the manifest's
-digests; a different build is a different request.
+the namespace migration on a throwaway database, runs every statement the worker sends and the migration through the
+pin's own `ctx.db` validators (`server/src/services/plugin-database.ts`; hence the db package build), and loads the built
+adapter. The harness ignores a wakeup's idempotency key, so wake deduplication is not claimed: the plugin reconciles
+wakeups itself against `public.heartbeat_runs`, which its manifest reads (`coreReadTables: ['issues', 'heartbeat_runs']`;
+the installer approves both). The `OPS_REQUEST` names the manifest's digests; a different build is a different request.
 
 ## Settings
 

@@ -4,8 +4,14 @@
 // The built plugin worker runs under the pin's own plugin test harness (createTestHarness: its issue service, origin
 // kind rules, wakeup rules, managed agents and capability checks), with the plugin's namespace migration applied to a
 // throwaway database on the given server (the harness keeps no tables). A signed commission creates one issue; a
-// resend finds it; a forged envelope changes nothing; Hold, Resume and Stop reach it. The built adapter loads through
-// createServerAdapter() and refuses to run without its endpoint. Synthetic data only; nothing is installed anywhere.
+// resend finds it; a forged envelope changes nothing; Hold, Resume and Stop reach it. Every statement the worker sends
+// to ctx.db passes the pin's own runtime validators first (server/src/services/plugin-database.ts:
+// validatePluginRuntimeQuery/Execute, with the built manifest's coreReadTables), as the real host would apply them.
+// The harness's requestWakeup ignores its idempotency key (packages/plugins/sdk/src/testing.ts), so wake
+// deduplication is not claimed here; the plugin reconciles wakes itself (coordination.ts, wakeOnce). The built
+// adapter loads through createServerAdapter() and refuses to run without its endpoint. Synthetic data only; nothing
+// is installed anywhere. Needs the pin's SDK built (pnpm --filter @paperclipai/plugin-sdk build) and its db package
+// (pnpm --filter @paperclipai/db build), whose sources the validators import.
 import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { register } from 'node:module'
@@ -24,13 +30,19 @@ if (!admin) throw new Error('SOPHIA_DISPOSABLE_DATABASE_URL is required')
 
 // The pin's workspace packages point their `exports` at TypeScript sources for its own dev loop; the harness runs on
 // their built output (pnpm --filter @paperclipai/plugin-sdk build builds @paperclipai/shared too).
-const shared = pathToFileURL(join(checkout, 'packages/shared/dist/index.js')).href
+const built = {
+  '@paperclipai/shared': pathToFileURL(join(checkout, 'packages/shared/dist/index.js')).href,
+  '@paperclipai/db': pathToFileURL(join(checkout, 'packages/db/dist/index.js')).href,
+}
 register(
   `data:text/javascript,${encodeURIComponent(
-    `export async function resolve(spec, context, next) { return next(spec === '@paperclipai/shared' ? ${JSON.stringify(shared)} : spec, context) }`,
+    `export async function resolve(spec, context, next) { return next(${JSON.stringify(built)}[spec] ?? spec, context) }`,
   )}`,
 )
 const load = (path) => import(pathToFileURL(path).href)
+const { validatePluginMigrationStatement, validatePluginRuntimeQuery, validatePluginRuntimeExecute } = await load(
+  join(checkout, 'server/src/services/plugin-database.ts'),
+)
 const { createTestHarness } = await load(join(checkout, 'packages/plugins/sdk/dist/testing.js'))
 const manifest = (await load(join(dist, 'sophia-coordination-plugin/dist/manifest.js'))).default
 const plugin = (await load(join(dist, 'sophia-coordination-plugin/dist/worker.js'))).default
@@ -46,6 +58,7 @@ const db = new pg.Client({ connectionString: url.toString() })
 await db.connect()
 
 const NAMESPACE = 'plugin_sophia_coordination_00c896da3d'
+const statements = { query: 0, execute: 0 }
 const COMPANY = randomUUID()
 const PROJECT = randomUUID()
 const SOPHIA_PROJECT = randomUUID()
@@ -55,8 +68,16 @@ const forger = generateKeyPairSync('ed25519')
 
 try {
   await db.query('CREATE TABLE public.issues (id uuid PRIMARY KEY)')
+  // The columns of the pin's heartbeat_runs the plugin reads (packages/db/src/schema/heartbeat_runs.ts).
+  await db.query(
+    'CREATE TABLE public.heartbeat_runs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), company_id uuid NOT NULL, context_snapshot jsonb, created_at timestamptz NOT NULL DEFAULT now())',
+  )
   await db.query(`CREATE SCHEMA ${NAMESPACE}`)
-  await db.query(readFileSync(join(dist, 'sophia-coordination-plugin/migrations/001_sophia_coordination.sql'), 'utf8'))
+  const migration = readFileSync(join(dist, 'sophia-coordination-plugin/migrations/001_sophia_coordination.sql'), 'utf8')
+  // The host checks each migration statement before it applies it (applyPluginMigrations).
+  const ddl = migration.replaceAll(/--[^\n]*/g, '').split(';').map((statement) => statement.trim()).filter(Boolean)
+  for (const statement of ddl) validatePluginMigrationStatement(statement, NAMESPACE, manifest.database.coreReadTables ?? [])
+  await db.query(migration)
 
   const harness = createTestHarness({
     manifest,
@@ -85,8 +106,16 @@ try {
     issues,
     db: {
       namespace: NAMESPACE,
-      query: async (sql, params) => (await db.query(sql, params)).rows,
-      execute: async (sql, params) => ({ rowCount: (await db.query(sql, params)).rowCount ?? 0 }),
+      query: async (sql, params) => {
+        validatePluginRuntimeQuery(sql, NAMESPACE, manifest.database.coreReadTables ?? [])
+        statements.query += 1
+        return (await db.query(sql, params)).rows
+      },
+      execute: async (sql, params) => {
+        validatePluginRuntimeExecute(sql, NAMESPACE)
+        statements.execute += 1
+        return { rowCount: (await db.query(sql, params)).rowCount ?? 0 }
+      },
     },
   }
   await plugin.definition.setup(ctx)
@@ -174,7 +203,7 @@ try {
   const env = await adapter.testEnvironment({ companyId: COMPANY, adapterType: 'sophia_dsh', config: {} })
   if (!process.env.SOPHIA_COORDINATION_URL) assert.equal(env.status, 'fail', 'no endpoint, no pass')
   console.log(
-    'verified against the pinned plugin harness: commission, resend, forged refusal, hold/resume/stop; adapter loads',
+    `verified against the pinned plugin harness: commission, resend, forged refusal, hold/resume/stop; ${statements.query} queries and ${statements.execute} executes passed the pin's ctx.db validators; adapter loads`,
   )
 } finally {
   await db.end()

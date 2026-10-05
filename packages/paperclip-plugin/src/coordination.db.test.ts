@@ -46,7 +46,9 @@ after(async () => {
   await db.drop()
 })
 beforeEach(async () => {
-  await client.query(`TRUNCATE ${NAMESPACE}.controls, ${NAMESPACE}.commissions, ${NAMESPACE}.envelope_nonces`)
+  await client.query(
+    `TRUNCATE ${NAMESPACE}.controls, ${NAMESPACE}.wakes, ${NAMESPACE}.commissions, ${NAMESPACE}.envelope_nonces, public.heartbeat_runs`,
+  )
 })
 
 const config = {
@@ -148,6 +150,23 @@ const controlRequest = (c: Commission, issueId: string, op: Control['op'], key: 
 const code = (body: unknown): unknown =>
   typeof body === 'object' && body !== null && 'error' in body ? body.error : body
 
+/** The runs the synthetic host queued for an issue: one per wakeup that arrived (the pin does not dedupe by key). */
+const runsOf = async (issueId: string): Promise<number> =>
+  Number(
+    (
+      await client.query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM public.heartbeat_runs WHERE context_snapshot->>'issueId' = $1`,
+        [issueId],
+      )
+    ).rows[0]?.n,
+  )
+
+/** Ages a wakeup ask past the window in which it may still be in flight (its first ask, which runs count from, stays). */
+const ageAsk = async (key: string) =>
+  client.query(`UPDATE ${NAMESPACE}.wakes SET asked_at = asked_at - interval '2 minutes' WHERE wake_key = $1`, [key])
+
+const outcome = (body: unknown) => (body as { outcome?: string; wakeQueued?: boolean } | undefined) ?? {}
+
 describe('commission', () => {
   it('creates one core issue assigned to the source reviewer, with the commission origin, and wakes it', async () => {
     const p = paperclip()
@@ -188,46 +207,82 @@ describe('commission', () => {
     assert.equal(p.wakeups.length, 0)
   })
 
-  it('wakes on the resend a commission whose wake failed after its issue was created (WBC-02-CX-0002)', async () => {
-    let failing = true
-    const p = paperclip({ fails: { wake: () => failing } })
+  it('a commission wake that never arrived is asked again once its ask is stale, never while in flight (CX-0002/0004)', async () => {
+    let fault: 'before' | null = 'before'
+    const p = paperclip({ fails: { wake: () => fault } })
     const c = commissionOf()
-    await assert.rejects(p.request(commissionRequest(c)), /injected: wakeup failed/)
-    assert.equal(p.issues.size, 1, 'the issue exists')
-    assert.equal(p.wakeups.length, 0, 'but nobody was woken')
-    failing = false
+    await assert.rejects(p.request(commissionRequest(c)), /before it was durable/)
+    const issueId = [...p.issues.keys()][0] ?? ''
+    assert.equal(await runsOf(issueId), 0, 'the issue exists, nobody was woken')
+    fault = null
+    const early = await p.request(commissionRequest(c))
+    assert.equal(early.status, 503, 'an ask that may still be in flight is waited for, not repeated')
+    assert.equal((code(early.body) as { code: string }).code, 'wake_in_progress')
+    await ageAsk(c.key)
     const again = await p.request(commissionRequest(c))
-    const issueId = [...p.issues.keys()][0]
     assert.deepEqual(again.body, { outcome: 'existing', issueId, status: 'todo', wakeQueued: true })
-    assert.deepEqual(p.wakeups, [{ issueId, idempotencyKey: c.key }])
+    assert.equal(await runsOf(issueId), 1)
     const third = await p.request(commissionRequest(c))
-    assert.equal((third.body as { wakeQueued: boolean }).wakeQueued, false, 'a confirmed wake is not asked again')
-    assert.equal(p.wakeups.length, 1)
+    assert.equal(outcome(third.body).wakeQueued, false, 'a confirmed wake is not asked again')
+    assert.equal(await runsOf(issueId), 1)
   })
 
-  it('wakes on the resend a commission that crashed between its create and its wake', async () => {
-    const p = paperclip()
+  it('a commission wake that was durable but whose reply was lost is reconciled by its run, never asked again (CX-0004)', async () => {
+    let fault: 'after' | null = 'after'
+    const p = paperclip({ fails: { wake: () => fault } })
     const c = commissionOf()
-    await p.request(commissionRequest(c))
-    // The crash window: the issue and its binding exist, the wake was never confirmed.
-    await client.query(`UPDATE ${NAMESPACE}.commissions SET woken_at = NULL WHERE commission_key = $1`, [c.key])
-    p.wakeups.length = 0
+    await assert.rejects(p.request(commissionRequest(c)), /durable, then the call failed/)
+    const issueId = [...p.issues.keys()][0] ?? ''
+    assert.equal(await runsOf(issueId), 1)
+    fault = null
+    await ageAsk(c.key)
     const again = await p.request(commissionRequest(c))
-    assert.equal((again.body as { wakeQueued: boolean }).wakeQueued, true)
-    assert.equal(p.wakeups.length, 1)
+    assert.deepEqual(again.body, { outcome: 'existing', issueId, status: 'todo', wakeQueued: false })
+    assert.equal(await runsOf(issueId), 1, 'the run since the ask confirms it: no second run')
   })
 
-  it('does not wake on the resend a commission held since its create', async () => {
-    let failing = true
-    const p = paperclip({ fails: { wake: () => failing } })
+  it('concurrent resends of a stale commission wake ask the host once', async () => {
+    let fault: 'before' | null = 'before'
+    const p = paperclip({ fails: { wake: () => fault } })
     const c = commissionOf()
     await assert.rejects(p.request(commissionRequest(c)))
     const issueId = [...p.issues.keys()][0] ?? ''
-    failing = false
+    fault = null
+    await ageAsk(c.key)
+    const replies = await Promise.all([p.request(commissionRequest(c)), p.request(commissionRequest(c))])
+    for (const r of replies) assert.ok([200, 503].includes(r.status), `answered ${r.status}`)
+    assert.equal(
+      await runsOf(issueId),
+      1,
+      'one resend claimed the ask; the other was told to wait or found it confirmed',
+    )
+  })
+
+  it('wakes on the resend a commission that crashed between its create and its first ask', async () => {
+    const p = paperclip()
+    const c = commissionOf()
+    await p.request(commissionRequest(c))
+    const issueId = [...p.issues.keys()][0] ?? ''
+    // The crash window: the issue and its binding exist, the wake was never asked.
+    await client.query(`DELETE FROM ${NAMESPACE}.wakes WHERE wake_key = $1`, [c.key])
+    await client.query(`DELETE FROM public.heartbeat_runs WHERE context_snapshot->>'issueId' = $1`, [issueId])
+    const again = await p.request(commissionRequest(c))
+    assert.equal(outcome(again.body).wakeQueued, true)
+    assert.equal(await runsOf(issueId), 1)
+  })
+
+  it('does not wake on the resend a commission held since its create', async () => {
+    let fault: 'before' | null = 'before'
+    const p = paperclip({ fails: { wake: () => fault } })
+    const c = commissionOf()
+    await assert.rejects(p.request(commissionRequest(c)))
+    const issueId = [...p.issues.keys()][0] ?? ''
+    fault = null
     await p.request(controlRequest(c, issueId, 'hold', 'hold-before-resend'))
+    await ageAsk(c.key)
     const again = await p.request(commissionRequest(c))
     assert.deepEqual(again.body, { outcome: 'existing', issueId, status: 'blocked', wakeQueued: false })
-    assert.equal(p.wakeups.length, 0)
+    assert.equal(await runsOf(issueId), 0)
   })
 
   it('serializes concurrent creates of one key: one creates, the other is told to reconcile (503)', async () => {
@@ -384,9 +439,9 @@ describe('control', () => {
     assert.deepEqual(rows.rows.map((r: { op: string }) => r.op).toSorted(), ['hold', 'resume', 'stop'])
   })
 
-  async function failing(what: 'update' | 'wake') {
-    const fault = { on: false }
-    const p = paperclip({ fails: { [what]: () => fault.on } })
+  async function failing() {
+    const fault: { update: boolean; wake: 'before' | 'after' | null } = { update: false, wake: null }
+    const p = paperclip({ fails: { update: () => fault.update, wake: () => fault.wake } })
     const c = commissionOf()
     await p.request(commissionRequest(c))
     const issueId = [...p.issues.keys()][0] ?? ''
@@ -398,54 +453,74 @@ describe('control', () => {
       .rows[0]?.state
 
   it('a Hold whose issue update failed is applied by its resend, never answered already (WBC-02-CX-0002)', async () => {
-    const { p, c, issueId, fault } = await failing('update')
-    fault.on = true
+    const { p, c, issueId, fault } = await failing()
+    fault.update = true
     await assert.rejects(p.request(controlRequest(c, issueId, 'hold', 'hold-f')), /injected: issue update failed/)
     assert.equal(p.issues.get(issueId)?.status, 'todo')
     assert.equal(await stateOf('hold-f'), 'pending', 'the key is recorded, its effect is not')
-    fault.on = false
+    fault.update = false
     const retry = await p.request(controlRequest(c, issueId, 'hold', 'hold-f'))
     assert.deepEqual(retry.body, { outcome: 'applied', issueId, status: 'blocked', wakeQueued: false })
     assert.equal(await stateOf('hold-f'), 'applied')
     const again = await p.request(controlRequest(c, issueId, 'hold', 'hold-f'))
-    assert.equal((again.body as { outcome: string }).outcome, 'already')
+    assert.equal(outcome(again.body).outcome, 'already')
   })
 
-  it('a Resume whose wakeup failed wakes on its resend (WBC-02-CX-0002)', async () => {
-    const { p, c, issueId, fault } = await failing('wake')
+  it('a Resume whose wakeup never arrived wakes on a resend once its ask is stale (WBC-02-CX-0002/0004)', async () => {
+    const { p, c, issueId, fault } = await failing()
     await p.request(controlRequest(c, issueId, 'hold', 'hold-w'))
-    const wakesBefore = p.wakeups.length
-    fault.on = true
-    await assert.rejects(p.request(controlRequest(c, issueId, 'resume', 'resume-w')), /injected: wakeup failed/)
+    const runs = await runsOf(issueId)
+    fault.wake = 'before'
+    await assert.rejects(p.request(controlRequest(c, issueId, 'resume', 'resume-w')), /before it was durable/)
     assert.equal(p.issues.get(issueId)?.status, 'todo', 'the status moved')
-    assert.equal(p.wakeups.length, wakesBefore, 'nobody was woken')
+    assert.equal(await runsOf(issueId), runs, 'nobody was woken')
     assert.equal(await stateOf('resume-w'), 'pending')
-    fault.on = false
+    fault.wake = null
+    const early = await p.request(controlRequest(c, issueId, 'resume', 'resume-w'))
+    assert.equal(early.status, 503, 'an ask that may still be in flight is waited for')
+    assert.equal(await stateOf('resume-w'), 'pending')
+    await ageAsk('resume-w')
     const retry = await p.request(controlRequest(c, issueId, 'resume', 'resume-w'))
     assert.deepEqual(retry.body, { outcome: 'applied', issueId, status: 'todo', wakeQueued: true })
-    assert.deepEqual(p.wakeups.at(-1), { issueId, idempotencyKey: 'resume-w' })
+    assert.equal(await runsOf(issueId), runs + 1)
+  })
+
+  it('a Resume whose wakeup was durable but whose reply was lost is reconciled by its run, never asked again (CX-0004)', async () => {
+    const { p, c, issueId, fault } = await failing()
+    await p.request(controlRequest(c, issueId, 'hold', 'hold-d'))
+    const runs = await runsOf(issueId)
+    fault.wake = 'after'
+    await assert.rejects(p.request(controlRequest(c, issueId, 'resume', 'resume-d')), /durable, then the call failed/)
+    assert.equal(await runsOf(issueId), runs + 1)
+    fault.wake = null
+    const retry = await p.request(controlRequest(c, issueId, 'resume', 'resume-d'))
+    assert.deepEqual(retry.body, { outcome: 'applied', issueId, status: 'todo', wakeQueued: false })
+    assert.equal(await runsOf(issueId), runs + 1, 'no second run')
+    assert.equal(await stateOf('resume-d'), 'applied')
   })
 
   it('a crash after the effect but before it was recorded re-applies on the resend, idempotently', async () => {
     const { p, c, issueId } = await commissioned()
     await p.request(controlRequest(c, issueId, 'hold', 'hold-c'))
     await p.request(controlRequest(c, issueId, 'resume', 'resume-c'))
+    // The crash window: the wakeup is durable, neither it nor the control was recorded as done.
     await client.query(
       `UPDATE ${NAMESPACE}.controls SET state = 'pending', applied_at = NULL WHERE delivery_key = 'resume-c'`,
     )
-    const wakes = p.wakeups.length
+    await client.query(`UPDATE ${NAMESPACE}.wakes SET confirmed_at = NULL WHERE wake_key = 'resume-c'`)
+    const runs = await runsOf(issueId)
     const retry = await p.request(controlRequest(c, issueId, 'resume', 'resume-c'))
-    assert.equal((retry.body as { outcome: string }).outcome, 'applied')
+    assert.equal(outcome(retry.body).outcome, 'applied')
     assert.equal(p.issues.get(issueId)?.status, 'todo')
-    assert.equal(p.wakeups.length, wakes, 'the same idempotency key: one wakeup')
+    assert.equal(await runsOf(issueId), runs, 'its run since the ask confirms the wakeup: no second run')
     assert.equal(await stateOf('resume-c'), 'applied')
   })
 
   it('concurrent resends of a pending key leave one effect', async () => {
-    const { p, c, issueId, fault } = await failing('update')
-    fault.on = true
+    const { p, c, issueId, fault } = await failing()
+    fault.update = true
     await assert.rejects(p.request(controlRequest(c, issueId, 'stop', 'stop-cc')))
-    fault.on = false
+    fault.update = false
     const replies = await Promise.all([
       p.request(controlRequest(c, issueId, 'stop', 'stop-cc')),
       p.request(controlRequest(c, issueId, 'stop', 'stop-cc')),
@@ -456,14 +531,14 @@ describe('control', () => {
   })
 
   it('an older pending control never undoes a later one that took effect', async () => {
-    const { p, c, issueId, fault } = await failing('update')
-    fault.on = true
+    const { p, c, issueId, fault } = await failing()
+    fault.update = true
     await assert.rejects(p.request(controlRequest(c, issueId, 'hold', 'hold-old')))
-    fault.on = false
+    fault.update = false
     // Out of the worker's order (it never sends the next control before this one is answered), for the guard only.
     await p.request(controlRequest(c, issueId, 'stop', 'stop-new'))
     const stale = await p.request(controlRequest(c, issueId, 'hold', 'hold-old'))
-    assert.equal((stale.body as { outcome: string }).outcome, 'already')
+    assert.equal(outcome(stale.body).outcome, 'already')
     assert.equal(p.issues.get(issueId)?.status, 'cancelled', 'the Stop stands')
     assert.equal(await stateOf('hold-old'), 'applied')
   })

@@ -18,7 +18,10 @@ M12 the served board is read only while Tasks is in view (Studio): FAILS as it s
 M13 a cancel Sophia did not answer is asked again under the same run (adapter, WBC-02-CX-0002): FAILS as it should
 M14 a cancel never answered is said an unconfirmed Hold, never released (adapter, WBC-02-CX-0002): FAILS as it should
 M15 a control recorded but not applied is applied by its resend, never answered already (plugin, WBC-02-CX-0002): FAILS as it should
-M16 a confirmed commission wake is not asked again (plugin): FAILS as it should
-M17 a resend wakes a commission whose wake was never confirmed (plugin, WBC-02-CX-0002): FAILS as it should
-M18 an older pending control never undoes a later one that took effect (plugin): FAILS as it should
-M19 a delivery key resent with another operation is refused (plugin): FAILS as it should
+M16 a resend reconciles an earlier wakeup ask before asking again, never blindly (plugin, WBC-02-CX-0004): FAILS as it should
+M17 a run of the issue since the first ask confirms the wakeup: no second ask (plugin, WBC-02-CX-0004): FAILS as it should
+M18 an ask that may still be in flight is waited for (503), not repeated (plugin, WBC-02-CX-0004): FAILS as it should
+M19 concurrent resends of a stale ask: one claims it, the host is asked once (plugin, WBC-02-CX-0004): FAILS as it should
+M20 an older pending control never undoes a later one that took effect (plugin): FAILS as it should
+M21 a delivery key resent with another operation is refused (plugin): FAILS as it should
+M22 the plugin's SQL keeps to the pin's ctx.db rules (a write through query is refused, as by the host) (plugin, WBC-02-CX-0004): FAILS as it should
