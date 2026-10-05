@@ -1,6 +1,7 @@
 // Video in the room: a shared screen takes the stage with the tiles beside it; cameras alone make a
-// gallery. Sophia keeps a tile of her own: it is transparent, and her light shines in it from behind.
-import { useEffect, useRef } from 'react'
+// gallery. Sophia keeps a tile of her own: it is transparent, and her light shines in it from behind. A report shown
+// to everyone takes the shared screen's place (PresentedReport, docs/plans/room-present.md).
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { VideoFeed } from './livekit-room.ts'
 import { screenCaption, shortName, type FloorView, type RoomParticipant, type StageMode } from './room-view.ts'
 
@@ -51,9 +52,11 @@ interface Props {
   people: RoomParticipant[]
   feeds: VideoFeed[]
   floor: FloorView
+  /** A report shown to everyone, where a shared screen goes when none is shared. */
+  shown?: ReactNode
 }
 
-export function VideoStage({ mode, people, feeds, floor }: Props) {
+export function VideoStage({ mode, people, feeds, floor, shown }: Props) {
   const screen = feeds.find((f) => f.source === 'screen')
   const cameraOf = (identity: string) => feeds.find((f) => f.identity === identity && f.source === 'camera')
   const tiles = (
@@ -71,14 +74,18 @@ export function VideoStage({ mode, people, feeds, floor }: Props) {
       ))}
     </>
   )
-  if (mode === 'present' && screen) {
-    const presenter = people.find((p) => p.identity === screen.identity)
+  if (mode === 'present' && (screen || shown)) {
+    const presenter = screen ? people.find((p) => p.identity === screen.identity) : undefined
     return (
       <div className="present">
-        <figure className="screen-main">
-          <VideoView feed={screen} fit="contain" />
-          <figcaption>{screenCaption(presenter)}</figcaption>
-        </figure>
+        {screen ? (
+          <figure className="screen-main">
+            <VideoView feed={screen} fit="contain" />
+            <figcaption>{screenCaption(presenter)}</figcaption>
+          </figure>
+        ) : (
+          shown
+        )}
         <ul className="tile-strip" aria-label="In the room">
           {tiles}
         </ul>

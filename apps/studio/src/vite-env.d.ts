@@ -11,6 +11,8 @@ interface ImportMetaEnv {
   readonly VITE_PASSKEY_RP_ID?: string
   /** API origin for a deployed Studio (e.g. https://sophia-next-api.onrender.com); empty in development. */
   readonly VITE_API_URL?: string
+  /** "1" where the APIs proposed in issue #105 are answered (the fixture pages): their controls show (app/vision.ts). */
+  readonly VITE_SOPHIA_VISION?: string
 }
 
 interface ImportMeta {

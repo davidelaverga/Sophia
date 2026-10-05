@@ -26,6 +26,7 @@ import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import type { Notes } from './brief-data.ts'
+import { noShowing } from './focus-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked } from './data.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, sophiaLeaves } from './fake-livekit.ts'
 import {
@@ -56,6 +57,7 @@ import {
   SOPHIAS_DESCRIPTION,
   TEAMMATE,
   TITLE,
+  versionId,
 } from './report-data.ts'
 
 interface Fixture {
@@ -86,6 +88,10 @@ interface Fixture {
   researchDone: () => void
   /** Something is built on every note in the brief: withdrawing one would take it too (brief-data.ts). */
   buildOnNotes: () => void
+  /** The `n`th other person (or `me`, from another device) shows the report's current version; null, nothing is. */
+  show: (n: number | 'me' | null) => void
+  /** The next show lands, but its reply is lost: the page can't tell it was committed. */
+  loseNextFocusReply: () => void
   /** The notes members wrote in the brief, by their text. */
   notes: () => readonly (string | null)[]
   /** The next note written lands, but its reply is lost: the page can't tell it was kept. */
@@ -205,6 +211,7 @@ const project = {
   pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',
   // `notes=off`: the brief allows this person no note.
+  showing: noShowing(),
   notes: {
     kept: [],
     written: 0,
@@ -248,6 +255,20 @@ window.fixture = {
   },
   buildOnNotes: () => {
     project.notes.builtOn = true
+  },
+  show: (n) => {
+    project.showing.revision += 1
+    project.showing.focus =
+      n === null
+        ? null
+        : {
+            artifactVersionId: versionId(project.reportVersions),
+            guideId: n === 'me' ? membership.actorId : personId(n),
+          }
+    publish(project)
+  },
+  loseNextFocusReply: () => {
+    project.showing.loseReply = true
   },
   notes: () => project.notes.kept.map((entry) => entry.text),
   loseNextReply: () => {

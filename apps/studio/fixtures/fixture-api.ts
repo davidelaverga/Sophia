@@ -29,6 +29,7 @@ import {
 } from './report-data.ts'
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
+import { focusRequest, focusSet, type Showing } from './focus-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -89,6 +90,8 @@ interface Project {
   roomMoves?: boolean
   /** The notes members wrote in the brief (brief-data.ts); absent, writing one is unexpected. */
   notes?: Notes
+  /** What the room shows to everyone (focus-data.ts); absent, showing is unexpected. */
+  showing?: Showing
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -142,7 +145,19 @@ function snapshotOf(project: Project) {
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed).task] }
       : now
-  return project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work
+  return withFocus(project, project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work)
+}
+
+/** What the room shows, as the snapshot carries it, with the report's current version among its artifacts. */
+function withFocus(project: Project, now: Snapshot): Snapshot {
+  const focus = project.showing?.focus
+  if (!focus || !project.showing) return now
+  const current = versions(project.reportVersions, project.reportTitle, project.pilot)[0]
+  return {
+    ...now,
+    sharedFocus: { ...focus, revision: project.showing.revision },
+    artifacts: current ? [current] : [],
+  }
 }
 
 /** The project moves one revision, and the event saying so goes to every open stream. */
@@ -185,7 +200,39 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
-  return method === 'POST' ? posted(project, path, init) : answerReports(project, method, url, init)
+  if (method === 'POST' || method === 'PUT') return written(project, method, path, init)
+  return answerReports(project, method, url, init)
+}
+
+/** What the page writes: the room's focus (PUT), else what it posts. */
+function written(project: Project, method: string, path: string, init: RequestInit | undefined) {
+  if (method === 'PUT') return path === `/api/v1/rooms/${ROOM}/focus` ? focusPut(project, init) : null
+  return posted(project, path, init)
+}
+
+/**
+ * Showing a report, or stopping (the proposed A14 writer): refused when the room moved since the page read it; else
+ * the focus is this member's, the room's next revision publishes it, and the same key replays the receipt.
+ */
+function focusPut(project: Project, init: RequestInit | undefined): Response | Promise<Response> | null {
+  const showing = project.showing
+  const request = focusRequest(init?.body)
+  if (!showing || !request) return null
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const replayed = showing.receipts.get(key)
+  // The house rule (packages/persistence/src/commands.ts): a key used for another request is refused, never replayed.
+  if (replayed) return replayed.request === JSON.stringify(request) ? json(replayed.receipt) : keyConflict()
+  if (project.roomMoves) {
+    project.roomMoves = false
+    publish(project)
+  }
+  if (request.expectedRoomRevision !== project.revision) return staleRoom()
+  publish(project)
+  const receipt = focusSet(showing, request, membership.actorId, key, project.revision)
+  served.push(`focus:${request.artifactVersionId ?? 'none'}`)
+  if (!showing.loseReply) return json(receipt)
+  showing.loseReply = false
+  return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
 }
 
 /** The reports' requests: the long report the reading checks read (reading-data.ts), else the fixture report's. */
@@ -276,6 +323,18 @@ const isFloorRequest = (value: unknown): value is FloorRequest =>
   typeof value.nextActorId === 'string' &&
   'expectedRoomRevision' in value &&
   typeof value.expectedRoomRevision === 'number'
+
+/** The API's answer to a key used before for another request (packages/domain/src/errors.ts). */
+const keyConflict = () =>
+  new Response(
+    JSON.stringify({
+      code: 'idempotency_conflict',
+      message: 'This key was used for another request',
+      requestId: '00000000-0000-4000-8000-0000000000bc',
+      retry: 'never',
+    }),
+    { status: 409 },
+  )
 
 /** The API's answer to a pass made against a room that moved meanwhile (packages/domain/src/errors.ts). */
 const staleRoom = () =>
