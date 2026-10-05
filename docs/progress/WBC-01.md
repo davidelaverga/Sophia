@@ -265,6 +265,15 @@ Codex reviewed `226889e` ([CX-0023](https://github.com/davidelaverga/Sophia/issu
 
 Codex passed F-025 at `5568176` ([CX-0024](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987041022)). Main had moved to `599178d` (#91, Luis's Personal presence), and the PR's merge CI failed. Both sides had added a module-level `settled` helper to `personal.spec.ts`. The merge `95996e0` keeps main's helper as it is and renames this branch's `hoveredAtRest`, with no assertion changed. `personal.css` merged on its own, keeping main's presence rules and this branch's pointer repair. See [CC-0017](../coordination/WBC-01/WBC-01-CC-0017.md).
 
+## CX-0025
+
+Codex verified the merge with #91 at `31d0e28` ([CX-0025](https://github.com/davidelaverga/Sophia/issues/74#issuecomment-5987121352), CHANGES_REQUIRED). It confirmed two findings, also left by GitHub's reviewer, in paths the merge didn't change. Both are handled in [CC-0018](../coordination/WBC-01/WBC-01-CC-0018.md) (`cc4f61b`):
+
+| Finding | Fix |
+|---|---|
+| **F-026** (P1): a kind the view offered twice was granted or not by the entries' order | Offered more than once, a kind is no grant: unavailable, said why, wherever it is read (commands, Ask, results) |
+| **F-027** (P2): command scope and execution keys joined raw ids, so `x|y`/`z` and `x`/`y|z` met, and none met `-` | Each key is a tuple of whole ids, scope and execution apart, null kept as null; the same target keeps the same key |
+
 ## Commands run on the final code (darwin-arm64, Node 24.21.0, pnpm 11.7.0)
 
 Recorded in the [handoff](../handoffs/WBC-01-attempt-1.md) with their counts.

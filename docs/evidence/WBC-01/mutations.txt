@@ -248,3 +248,15 @@ Y2 F-025 an unavailable send hears nothing more: FAILS as it should  [AssertionE
 
 # 2026-10-05, on the merge with #91 (95996e0, main 599178d): U1 ran again with main's presence CSS in place. It fails
 # as it should  [Error: Correct, memory 1]. #91 changed none of the other 30 files any entry names.
+
+# CX-0025 at 31d0e28 (#74; GitHub 4180308536, 4180308543), F-026 and F-027, fixed in cc4f61b
+Z1 F-026 a kind offered twice is no grant (rule): FAILS as it should  [AssertionError]
+Z1b F-026 a command offered twice is never offered (board): FAILS as it should  [expect(locator).toHaveCount]
+Z1c F-026 a result or question offered twice is unavailable (board): FAILS as it should  [expect(locator).toHaveCount]
+Z2 F-027 a scope keeps each id whole: FAILS as it should  [AssertionError]
+Z3 F-027 an execution keeps each id whole (rule): FAILS as it should  [AssertionError]
+Z3b F-027 an execution keeps each id whole (board): FAILS as it should  [expect(locator).toHaveValue]
+Z4 F-027 a space keeps project and viewer whole: FAILS as it should  [AssertionError]
+# On cc4f61b, every entry above on the three files changed (receipts.ts, command-store.ts, plan.ts) ran again: 45, of
+# which 44 failed; M16 named the old scope line, and re-aimed at the new tuple it fails. No full pass was repeated
+# before this handoff (CX-0025). 153 of 154 fail; R1b is the redundant key recorded above.

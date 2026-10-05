@@ -456,8 +456,9 @@ when you change the room:
   threads to what a
   task waits on; a task's sheet with its typed waits, its result (exact
   versions through a port), the commands the view allows this viewer
-  (`actions.ts`; a command goes again with its operation only to the exact
-  target it was sent to), and Ask (a port of real received chunks, no typing
+  (`actions.ts`; a kind it offers more than once is no grant, in any order;
+  a command goes again with its operation only to the exact target it was
+  sent to, its keys tuples of whole ids), and Ask (a port of real received chunks, no typing
   animation; at most 30 s per event, then failed, with Ask again: the same
   question on its own send, so nothing of an earlier send can fail or answer
   it, and a send that has ended, answered, failed or unavailable, takes nothing
