@@ -1139,3 +1139,59 @@
   overflow: hidden;
   clip-path: inset(50%);
 }
+
+/* A selected passage (PassageBar, docs/plans/room-passage.md): a small bar just above it, inside the pane; the script
+   places it. Its buttons are text, squared, the pane's own; Ask Sophia carries her colour. */
+.passage-bar {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    var(--lift),
+    0 12px 32px rgba(0, 0, 0, 0.45);
+  animation: rise var(--fast) var(--ease) both;
+}
+.passage-bar button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text);
+  font: 500 var(--type-small) / 1 var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.passage-bar .passage-ask {
+  color: var(--halo-text);
+}
+.passage-bar button:hover {
+  background: rgba(236, 235, 241, 0.06);
+}
+.passage-bar button:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: -2px;
+}
+/* What Keep did, in the pane's foot, with Undo while it can. */
+.passage-kept {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 16px 10px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.passage-kept[data-error] {
+  color: var(--rose);
+}
+.passage-kept:empty {
+  padding: 0;
+}
