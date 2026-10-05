@@ -1,20 +1,26 @@
 // The conversation's rows (conversation-view.ts), rendered: day dividers that list the days, turns grouped by side, each
 // side's first turn marked by its half of Umbral, times on hover (a tap on touch), "Note this" on the person's own turns with its short form in their own
-// words, Sophia's suggested note (keep it or let it go), and the wait for her reply.
+// words, "Copy" on hers, Sophia's suggested note (keep it or let it go), and the wait for her reply.
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon } from '@sophia/ui'
+import { onScreen } from '../../app/shortcuts.ts'
 import { usePopover } from '../../app/usePopover.ts'
 import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
 import { daysOf, notePrefill, suggestionFor, type Row } from './conversation-view.ts'
 import type { Week } from './extras.ts'
+import { FindLens, Marked, type Lens } from './Find.tsx'
 import { focusConversation, focusIfDropped, focusSoon } from './focus.ts'
+import { noteFlight } from './note-flight.ts'
 import { WeekLook } from './WeekLook.tsx'
 
 export interface ConversationActions {
-  /** Sends a way to start's words; whether they went (not while another message is on its way). */
-  start: (text: string) => boolean
+  /**
+   * Sends a way to start's words; resolves to whether they went on their way (not while another message is, here or in
+   * another tab; offline, they wait in the field).
+   */
+  start: (text: string) => Promise<boolean>
   decide: (suggestion: PersonalSuggestion, decision: 'keep' | 'dismiss') => void
   openNotes: () => void
   /** Resolves to whether it was kept. */
@@ -162,8 +168,48 @@ interface TurnProps {
   onNote: () => void
 }
 
+/** Her words, copied: it says so (or that the browser refused) for a moment, then offers it again. */
+function Copy({ text }: { text: string }) {
+  const button = useRef<HTMLButtonElement>(null)
+  const [said, setSaid] = useState<string | null>(null)
+  useEffect(() => {
+    if (!said) return undefined
+    const done = window.setTimeout(() => setSaid(null), 1600)
+    return () => window.clearTimeout(done)
+  }, [said])
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      setSaid('Couldn’t copy')
+      return
+    }
+    // A copy that settles once Personal is out of sight (the padlock shut, another place, signed out) is taken back, as
+    // far as the browser lets a page write then: her words don't stay on the clipboard behind the privacy screen.
+    if (button.current && onScreen(button.current)) setSaid('Copied')
+    else await navigator.clipboard.writeText('').catch(() => undefined)
+  }
+  return (
+    <button ref={button} className="ghost c3-copy" type="button" onClick={() => void copy()}>
+      <span aria-live="polite">{said ?? 'Copy'}</span>
+    </button>
+  )
+}
+
 /** Touch and narrow screens have no hover: a tap on a message shows its time. */
 const tapShowsTime = () => matchMedia('(hover: none), (max-width: 860px)').matches
+
+/** What a turn offers beside its time: Note this on yours (not while its form is open), Copy on hers. */
+function TurnAct({ row, noting, onNote }: TurnProps) {
+  if (!row.turn) return null
+  if (row.author !== 'person') return <Copy text={row.text} />
+  if (noting) return null
+  return (
+    <button className="ghost note-this" type="button" data-note-turn={row.turn.id} onClick={onNote}>
+      Note this
+    </button>
+  )
+}
 
 function Turn({ row, noting, onNote }: TurnProps) {
   const [showAt, setShowAt] = useState(false)
@@ -171,19 +217,18 @@ function Turn({ row, noting, onNote }: TurnProps) {
   return (
     <div
       className={`msg ${me ? 'me' : 'sophia'} ${row.first ? 'first' : 'cont'}${showAt ? ' show-at' : ''}`}
+      data-turn={row.turn?.id}
       onClick={(e) => {
         if (tapShowsTime() && !(e.target instanceof Element && e.target.closest('button'))) setShowAt(!showAt)
       }}
     >
       {row.first && <Who who={me ? 'you' : 'sophia'} />}
       <span className="sr-only">{me ? 'You' : 'Sophia'}: </span>
-      <div className="body">{row.text}</div>
+      <div className="body">
+        <Marked rowKey={row.key} text={row.text} />
+      </div>
       <span className="at">{row.at}</span>
-      {me && row.turn && !noting && (
-        <button className="ghost note-this" type="button" data-note-turn={row.turn.id} onClick={onNote}>
-          Note this
-        </button>
-      )}
+      <TurnAct row={row} noting={noting} onNote={onNote} />
     </div>
   )
 }
@@ -254,8 +299,23 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
   }
   if (row.kind === 'day') {
     return (
-      <button className="c3-day" type="button" id={dayId(row.key)} aria-haspopup="menu" onClick={onDays}>
-        {row.label}
+      <button
+        className="c3-day"
+        type="button"
+        id={dayId(row.key)}
+        data-day={row.label}
+        aria-haspopup="menu"
+        onClick={onDays}
+      >
+        <span>
+          {row.label}
+          {row.note && (
+            <span className="c3-day-note">
+              <span aria-hidden> · </span>
+              {row.note}
+            </span>
+          )}
+        </span>
       </button>
     )
   }
@@ -263,7 +323,7 @@ function RowView({ row, turns, noteAt, setNoteAt, onDays, actions }: RowProps) {
   if (row.kind === 'starters' || row.kind === 'arrive') {
     // The ways go once one is sent: the focus goes to the conversation first.
     const start = (text: string) => {
-      actions.start(text)
+      void actions.start(text)
       focusConversation()
     }
     const label = row.kind === 'starters' ? 'Ways to start' : 'How you arrive today'
@@ -298,7 +358,10 @@ function TurnWithForm(props: Omit<RowProps, 'row' | 'onDays'> & { row: Extract<R
   const keep = (text: string) => {
     close()
     void actions.keepNote(text, turn.id, suggestionFor(turns, turn.id)).then((kept) => {
-      if (kept) return
+      if (kept) {
+        noteFlight(document.querySelector(`.msg[data-turn="${turn.id}"]`))
+        return
+      }
       setRefused(text)
       setNoteAt((open) => open ?? turn.id)
     })
@@ -329,7 +392,8 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
       const top = box.getBoundingClientRect().top
       const days = [...box.querySelectorAll<HTMLElement>('.c3-day')]
       const above = days.filter((d) => d.getBoundingClientRect().top < top).at(-1)
-      setDay(days.length >= 2 && above ? above.textContent : null)
+      // The day alone, as the days' menu names it: not the moment it carries.
+      setDay(days.length >= 2 && above ? (above.dataset['day'] ?? null) : null)
     }
     update()
     box.addEventListener('scroll', update, { passive: true })
@@ -434,33 +498,41 @@ interface ConversationProps {
   actions: ConversationActions
   /** Her look back at your week, the newest thing in the conversation while it waits (extras.ts). */
   week?: Week | undefined
+  /** Her reply that landed while you read further up, waiting at the end of what you see. */
+  answered?: React.ReactNode
+  /** What finding marks in the turns (Find), or null when nothing is looked for. */
+  lens?: Lens | null
 }
 
 export function Conversation(props: ConversationProps) {
-  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, week } = props
+  const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, week, answered } = props
+  const lens = props.lens ?? null
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const day = useDayPill(list, rows)
   // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
   // itself, is text for the message bar, never a place's key.
   return (
-    <div className={`c3-convo${day ? ' scrolled' : ''}`} data-typing-scope inert={covered}>
-      <Earlier rows={rows} open={earlier} day={day} setOpen={setEarlier} more={more} onMore={actions.readEarlier} />
-      <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>
-        {notice}
-        {rows.map((row) => (
-          <RowView
-            key={row.key}
-            row={row}
-            turns={turns}
-            noteAt={noteAt}
-            setNoteAt={setNoteAt}
-            onDays={() => setEarlier(true)}
-            actions={actions}
-          />
-        ))}
-        {week && <WeekLook week={week} onTalk={actions.start} />}
+    <FindLens value={lens}>
+      <div className={`c3-convo${day ? ' scrolled' : ''}`} data-typing-scope inert={covered}>
+        <Earlier rows={rows} open={earlier} day={day} setOpen={setEarlier} more={more} onMore={actions.readEarlier} />
+        <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>
+          {notice}
+          {rows.map((row) => (
+            <RowView
+              key={row.key}
+              row={row}
+              turns={turns}
+              noteAt={noteAt}
+              setNoteAt={setNoteAt}
+              onDays={() => setEarlier(true)}
+              actions={actions}
+            />
+          ))}
+          {week && <WeekLook week={week} onTalk={actions.start} />}
+        </div>
+        <div className="c3-answerbar">{answered}</div>
+        {composer}
       </div>
-      {composer}
-    </div>
+    </FindLens>
   )
 }

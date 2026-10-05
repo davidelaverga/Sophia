@@ -148,6 +148,18 @@ export function greeting(hour: number, name: string | null, fresh: boolean): str
   return name ? `${hello}, ${name}` : hello
 }
 
+/** The hour's light in Personal (personal-moments.md §2). */
+export type HourLight = 'morning' | 'day' | 'evening' | 'night'
+
+/** Her light by the hour: morning from 5, the day from 11, evening from 18, night from 22. */
+export function lightOf(now: Date): HourLight {
+  const hour = now.getHours()
+  if (hour >= 5 && hour < 11) return 'morning'
+  if (hour >= 11 && hour < 18) return 'day'
+  if (hour >= 18 && hour < 22) return 'evening'
+  return 'night'
+}
+
 export const dateLine = (now: Date) =>
   now.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })
 

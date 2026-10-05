@@ -5,11 +5,11 @@
 // it), `notes=none` (none kept yet); `unavailable=1` (Sophia can't answer now). A message sent here is answered 900 ms later.
 // `arrive=1`: yesterday's talk and her line of today, nothing said yet. The parts the API doesn't give yet:
 // `memory=1` (`=old`: one learned last year), `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
-// `slow=1`: a message takes 1.5 s on its way, not 0.3. `kept=sophia`: the note was Sophia's. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
+// `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
-import { StrictMode, useMemo, useRef, useState } from 'react'
+import { StrictMode, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Sending } from '../src/features/personal/conversation-view.ts'
 import type { TalkLine } from '../src/features/personal/extras.ts'
@@ -29,10 +29,18 @@ const query = new URLSearchParams(window.location.search)
 const sent: string[] = []
 const pressed: string[] = []
 window.personalFixture = { sent, pressed }
-const NOW = new Date()
+// `at=HH:MM`: the fixture's clock stands at that time today (her light follows the hour).
+const NOW = ((at) => {
+  const [, h, m] = /^(\d{1,2}):(\d{2})$/.exec(at ?? '')?.map(Number) ?? []
+  const now = new Date()
+  if (h !== undefined && m !== undefined && h < 24 && m < 60) now.setHours(h, m, 0, 0)
+  return now
+})(query.get('at'))
 const ago = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000).toISOString()
 const ahead = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
 const DAY = 24 * 60
+// `away=N`: the earlier day's turns are N days back, not one (time away; where you began).
+const BEFORE = Math.max(1, Number(query.get('away')) || 1) * DAY
 
 let seq = 0
 const turn = (
@@ -58,10 +66,10 @@ const turn = (
 function talk(): PersonalTurn[] {
   if (query.get('talk') === 'new') return []
   const turns = [
-    turn('person', 'I have a pitch on Friday and I keep putting off the deck.', ago(DAY + 42)),
-    turn('sophia', 'What part of it feels heaviest when you open the file?', ago(DAY + 41)),
-    turn('person', 'The numbers. I’m not sure they hold.', ago(DAY + 40)),
-    turn('sophia', 'Then start there, with one number you trust. The rest can lean on it.', ago(DAY + 39)),
+    turn('person', 'I have a pitch on Friday and I keep putting off the deck.', ago(BEFORE + 42)),
+    turn('sophia', 'What part of it feels heaviest when you open the file?', ago(BEFORE + 41)),
+    turn('person', 'The numbers. I’m not sure they hold.', ago(BEFORE + 40)),
+    turn('sophia', 'Then start there, with one number you trust. The rest can lean on it.', ago(BEFORE + 39)),
     turn('person', 'The launch felt rushed and I keep replaying the meeting with the team.', ago(14)),
     turn(
       'sophia',
@@ -103,7 +111,10 @@ class QuietRecognition extends EventTarget {
   start() {
     return undefined
   }
+  // `heard=words`: what it heard, said as it stops.
   stop() {
+    const heard = query.get('heard')
+    if (heard) this.dispatchEvent(Object.assign(new Event('result'), { results: [[{ transcript: heard }]] }))
     this.dispatchEvent(new Event('end'))
   }
   abort() {
@@ -199,23 +210,43 @@ function useSimulated() {
       setBusy(true)
       setSending({ text, at: new Date(), epoch: 1 })
       await new Promise((r) => setTimeout(r, query.has('slow') ? 1500 : 300))
+      // `sendFails=1`: the message doesn't go (a lost connection); its words come back to the field.
+      if (query.has('sendFails')) {
+        setSending(null)
+        setBusy(false)
+        throw new Error('not sent (fixture)')
+      }
       add(turn('person', text, new Date().toISOString(), { reply: 'pending' }))
       setSending(null)
       setBusy(false)
       window.clearTimeout(answer.current)
-      answer.current = window.setTimeout(() => {
-        setSpace((s) => ({
-          ...s,
-          turns: s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' } : t)),
-        }))
-        add(turn('sophia', 'I’m here. Tell me more about that.', new Date().toISOString()))
-      }, 900)
+      answer.current = window.setTimeout(
+        () => {
+          setSpace((s) => ({
+            ...s,
+            turns: s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' } : t)),
+          }))
+          add(turn('sophia', 'I’m here. Tell me more about that.', new Date().toISOString()))
+        },
+        query.has('slow') ? 2500 : 900,
+      )
       return receipt('send_turn')
     },
     retry: () => Promise.resolve(receipt('retry_turn')),
     decide: () => Promise.resolve(receipt('decide_suggestion')),
-    keep: () => Promise.resolve(receipt('keep_note')),
-    forget: () => Promise.resolve(receipt('forget_note')),
+    // A note kept is in the notes as the API reads it back.
+    keep: (text, turnId) => {
+      const id = `note-${String(Date.now())}`
+      setSpace((s) => ({
+        ...s,
+        notes: [...s.notes, { id, text, keptBy: 'person', fromTurnId: turnId, createdAt: new Date().toISOString() }],
+      }))
+      return Promise.resolve({ ...receipt('keep_note'), noteId: id })
+    },
+    forget: (id) => {
+      setSpace((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }))
+      return Promise.resolve(receipt('forget_note'))
+    },
     carry: () => Promise.resolve(receipt('carry_note')),
     takeBack: () => Promise.resolve(receipt('take_back')),
     erase: () => Promise.resolve(receipt('erase')),
@@ -225,13 +256,62 @@ function useSimulated() {
 
 const idle = { state: 'ready' as const, failed: '', retry: () => undefined }
 
+/**
+ * `earlier=1`: a day three weeks back waits to be read back (Look further back, the days' menu); else the whole
+ * conversation is read.
+ */
+function useReadBack() {
+  const [older, setOlder] = useState<PersonalTurn[]>([])
+  const more = query.has('earlier') && older.length === 0
+  const readMore = () => {
+    setOlder([
+      turn('person', 'I made a promise to myself to rest on Sundays.', ago(21 * DAY + 30), { seq: -2 }),
+      turn('sophia', 'What would rest look like, this Sunday?', ago(21 * DAY + 29), { seq: -1 }),
+    ])
+    return Promise.resolve()
+  }
+  return { older, more, readMore }
+}
+
+/** The space's epoch as the page knows it, held back with `epochAfter=ms`. */
+function useEpochKnown(): boolean {
+  // `epochAfter=ms`: the space's epoch is known only that much later (both reads still on their way).
+  const [known, setKnown] = useState(!query.has('epochAfter'))
+  useEffect(() => {
+    if (known) return undefined
+    const later = window.setTimeout(() => setKnown(true), Number(query.get('epochAfter')))
+    return () => window.clearTimeout(later)
+  }, [known])
+  return known
+}
+
+/** Words handed from Home, as `handed=` and `handedAfter=` say. */
+function useHanded() {
+  // `handed=words`: words said to Sophia from Home, handed to the composer to send; `handedAfter=ms`: handed that
+  // much later, not at once.
+  const [handed, setHanded] = useState<{ words: string; id: number } | null>(() => {
+    const words = query.get('handed')
+    return words && !query.has('handedAfter') ? { words, id: 1 } : null
+  })
+  useEffect(() => {
+    const words = query.get('handed')
+    if (!words || !query.has('handedAfter')) return undefined
+    const later = window.setTimeout(() => setHanded({ words, id: 1 }), Number(query.get('handedAfter')))
+    return () => window.clearTimeout(later)
+  }, [])
+  return [handed, setHanded] as const
+}
+
 function Personal() {
   const { space, writes, wrote } = useSimulated()
+  const readBack = useReadBack()
   const extras = useExtras(query, pressed, ago, wrote)
   const projects = useMemo(() => projectsFor(query, ahead), [])
   const [notes, setNotes] = useState(query.get('notes') === 'open')
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
+  const epochKnown = useEpochKnown()
+  const [handed, setHanded] = useHanded()
   return (
     <div className="places" data-place="personal">
       {/* The places' bar, as Places draws it above every place: a talk must cover it too. */}
@@ -245,15 +325,15 @@ function Personal() {
       </button>
       <PersonalSpace
         hidden={locked}
-        handed={null}
-        onHanded={() => undefined}
+        handed={handed}
+        onHanded={() => setHanded(null)}
         locked={locked}
         now={NOW}
         account="fixture"
         name="Luis"
         space={space}
-        epoch={space.epoch}
-        readBack={{ older: [], more: false, readMore: () => Promise.resolve() }}
+        epoch={epochKnown ? space.epoch : undefined}
+        readBack={readBack}
         read={idle}
         projects={projects}
         projectsRead={idle}

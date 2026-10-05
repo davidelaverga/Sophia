@@ -10,11 +10,13 @@ import { useDictation } from './dictation.ts'
 import { focusLater } from './focus.ts'
 import { handing, type Handed } from './handed.ts'
 import { NOTICE } from './notice-view.ts'
+import { useOnline } from './online.ts'
 import {
   afterSent,
   draftKey,
   draftOf,
   goingOut,
+  keptOnDevice,
   oneAtATime,
   onOpening,
   readKept,
@@ -46,6 +48,17 @@ const PLACEHOLDER: Record<ComposerState, string> = {
   loading: 'Write to Sophia…',
   ready: 'Write to Sophia…',
   unavailable: 'Sophia can’t answer here yet',
+}
+/** At night (lightOf), a field that can take words asks gently. */
+const NIGHT = 'Still up? Write to Sophia…'
+/** Offline, the words wait in the field: said over its line and in it, before anything is sent. */
+const OFFLINE = 'You’re offline. Your words wait here.'
+
+/** What the field says while empty: offline first, then the night, else its state's words. */
+function placeholderFor(state: ComposerState, online: boolean, night: boolean): string {
+  if (state !== 'ready') return PLACEHOLDER[state]
+  if (!online) return OFFLINE
+  return night ? NIGHT : PLACEHOLDER.ready
 }
 
 /**
@@ -198,11 +211,14 @@ function useDraft(account: string, epoch: number | undefined) {
   }
   useFollowsDevice(account, epoch, sending, show, setAt)
   // Kept with the epoch they are written in; none is known while the space loads, and nothing is typed then.
+  // What the device keeps now, or null where it keeps nothing (no epoch yet, site data blocked, storage full): then the
+  // page's own words are all there is, and the field goes by them.
   const keep = (change: (kept: ReturnType<typeof readKept>) => ReturnType<typeof readKept>) => {
     if (epoch === undefined) return null
     const now = change(readKept(account, epoch))
-    setAt(writeKept(account, now, epoch))
-    return now
+    const keptIn = keptOnDevice(account, now, epoch)
+    setAt(keptIn ?? epoch)
+    return keptIn === null ? null : now
   }
   /** Words in the field: the device keeps them as its draft, with what is on its way (any tab's) as it is. */
   const set = (draft: Draft | null, why: string) => {
@@ -237,10 +253,11 @@ function useDraft(account: string, epoch: number | undefined) {
     /** Not sent: the words come back to the field, under the key they went with when nothing was typed meanwhile. */
     back: (words: Draft, why: string) => {
       sending.current = null
-      const typed = latest.current?.text ?? ''
-      const draft = typed.trim() ? draftOf(restoredDraft(words.text, typed)) : words
-      show(draft, why)
-      keep((kept) => ({ ...afterSent(kept, words), draft }))
+      // Beside the draft as the device keeps it now, not as this tab last heard it: another tab may have kept words
+      // since (handed from Home while this one sent), and its word of that may not have reached this one yet.
+      const beside = (typed: string) => (typed.trim() ? draftOf(restoredDraft(words.text, typed)) : words)
+      const kept = keep((stored) => ({ ...afterSent(stored, words), draft: beside(stored.draft?.text ?? '') }))
+      show(kept ? kept.draft : beside(latest.current?.text ?? ''), why)
     },
   }
 }
@@ -279,22 +296,58 @@ interface FieldProps {
   field: RefObject<HTMLTextAreaElement | null>
   text: string
   state: ComposerState
+  placeholder: string
+  /** The count shows beside the field (Count): the field names it in its description. */
+  counted: boolean
   onChange: (text: string) => void
   onSend: () => void
 }
 
-function Field({ field, text, state, onChange, onSend }: FieldProps) {
+/** The most one message holds; its count shows from NEAR on, so the limit is said before it bites. */
+const MOST = 4000
+const NEAR = 3600
+
+/**
+ * How full the field is, once it nears the most one message holds: at the most, why it takes no more; past it (words
+ * heard or handed can go past), by how much.
+ */
+function Count({ length }: { length: number }) {
+  const over = length - MOST
+  return (
+    <span id="c-count" className={`c3-count${over >= 0 ? ' full' : ''}`}>
+      {length.toLocaleString('en-US')} / {MOST.toLocaleString('en-US')}
+      {over > 0 ? ` · ${over.toLocaleString('en-US')} over` : over === 0 && ' · the most one message holds'}
+    </span>
+  )
+}
+
+/** Over the field's line: its note (a draft kept, the voice) and, near the most it holds, its count. */
+function Over({ note, count }: { note: React.ReactNode; count: number | null }) {
+  if (!note && count === null) return null
+  return (
+    <div className="c3-over">
+      {note && (
+        <p className="chat-line" role="status">
+          {note}
+        </p>
+      )}
+      {count !== null && <Count length={count} />}
+    </div>
+  )
+}
+
+function Field({ field, text, state, placeholder, counted, onChange, onSend }: FieldProps) {
   return (
     <textarea
       ref={field}
       id="c-input"
-      aria-describedby="c-private-note"
+      aria-describedby={counted ? 'c-private-note c-count' : 'c-private-note'}
       // Stray typing lands here while it can take it (shortcuts.ts): a message begun with the focus nowhere is a
       // message, never a place's key (its first L would lock the space).
       data-typing-sink={state === 'ready' ? '' : undefined}
       rows={1}
-      maxLength={4000}
-      placeholder={PLACEHOLDER[state]}
+      maxLength={MOST}
+      placeholder={placeholder}
       value={text}
       disabled={state !== 'ready'}
       onChange={(e) => onChange(e.target.value)}
@@ -314,9 +367,12 @@ function Field({ field, text, state, onChange, onSend }: FieldProps) {
 interface Props {
   /** Whose draft this is (accountOf). */
   account: string
+  /** It is night where the person is (lightOf): the field asks gently. */
+  night?: boolean
   /** The space's epoch as read (undefined until it has loaded): an erasure anywhere moves it. */
   epoch: number | undefined
-  /** The space is out of sight (a lock, another place): dictation stops, and a start still waiting is called off. */
+  /** The field is out of sight (a lock, another place, a talk over it): dictation stops, and a start still waiting is
+   * called off. */
   hidden: boolean
   state: ComposerState
   /** A message is on its way, from the field or a way to start: the next waits in the field. */
@@ -330,7 +386,7 @@ interface Props {
   /** The field holds words kept after an erasure this page hasn't read: the space is read again before they go. */
   onBehind: () => void
   /** A way to start pressed in the conversation goes through this composer's send (set here). */
-  starter: RefObject<((words: string) => boolean) | null>
+  starter: RefObject<((words: string) => Promise<boolean>) | null>
   /** Words said to Sophia from Home, handed here to go as this composer's own (Welcome.tsx); taken once. */
   handed: Handed | null
   onHanded: () => void
@@ -339,27 +395,51 @@ interface Props {
 /**
  * Words handed from Home go as the field's would: one at a time, under their own key, kept on their way, and back in
  * the field if they don't go. While the space can't take them yet (still loading, Sophia unavailable, an erasure to
- * read first), they wait in the field, said, for the person to send (handed.ts).
+ * read first), or another tab's message is on its way, they wait in the field, said, for the person to send; while one
+ * of this tab's is (busy), they wait to go after it (handed.ts).
  */
 function useHanded(
   p: Props,
   ready: boolean,
-  send: (given?: Draft) => Promise<void>,
+  send: (given?: Draft) => Promise<boolean>,
   draft: ReturnType<typeof useDraft>,
 ) {
   const taken = useRef(0)
+  const mounted = useMounted()
   const { handed, onHanded, busy } = p
   useEffect(() => {
     const what = handing(handed, taken.current, ready, busy)
     if (!handed || what === 'none' || what === 'wait') return
     taken.current = handed.id
     onHanded()
-    if (what === 'send') void send(draftOf(handed.words))
-    else draft.change(draft.text ? `${draft.text} ${handed.words}` : handed.words, HANDED)
+    const { words } = handed
+    // Into the field, after what the person may have typed meanwhile (addWords).
+    // Longer than one message (Home's line has no limit): they wait in the field to be shortened, said so, whether or
+    // not the space could take them now.
+    if (words.length > MOST) addWords(draft, words, HANDED_LONG)
+    else if (what === 'keep') addWords(draft, words, HANDED)
+    else
+      // Declined: another tab's message is on its way (a send failing before that is known says the same, the words
+      // safe in the field). A composer that went meanwhile (signing out, an erasure) takes nothing back.
+      void send(draftOf(words)).then((went) => {
+        if (!went && mounted.current) addWords(draft, words, NOTICE.waits)
+      })
   })
 }
 
 const HANDED = 'From Home · send it when Sophia is ready'
+const HANDED_LONG = 'From Home · longer than one message: shorten it to send'
+
+const nothing = () => undefined
+
+/** A promise and the way to settle it, as Promise.withResolvers gives (which Safari 16.4 lacks). */
+function settleable<T>(): { promise: Promise<T>; settle: (value: T) => void } {
+  let settle: (value: T) => void = nothing
+  const promise = new Promise<T>((resolve) => {
+    settle = resolve
+  })
+  return { promise, settle: (value) => settle(value) }
+}
 
 /**
  * Sending the field's words. Closing the page while they are on their way loses nothing: they come back as the draft.
@@ -375,21 +455,30 @@ function useSend(
   onSend: Props['onSend'],
 ) {
   const mounted = useMounted()
-  /** `given`: a way to start's words, which go as the field's do and leave the field as it is; else the field's. */
-  return async (given?: Draft) => {
+  /**
+   * `given`: a way to start's words, which go as the field's do and leave the field as it is; else the field's.
+   * Resolves once it is known whether they went on their way: not while another message is (here or in another tab),
+   * so what waits on them (her look back at the week) stays until they do.
+   */
+  return (given?: Draft): Promise<boolean> => {
     const current = given ?? draft.current()
     const text = current?.text.trim() ?? ''
-    if (!current || !text || !ready || busy) return
+    // Past the most one message holds (words heard or handed), nothing goes: the count says how much over.
+    if (!current || !text || current.text.length > MOST || !ready || busy) return Promise.resolve(false)
     const words = { text, key: current.key }
-    await oneAtATime(account, async (taken) => {
-      if (draft.waits(words, taken)) return
+    const { promise: admitted, settle: admit } = settleable<boolean>()
+    void oneAtATime(account, async (taken) => {
+      const waits = draft.waits(words, taken)
+      admit(!waits)
+      if (waits) return
       draft.go(words, !given)
       // This tab holds the device's send until they settle: another tab takes them back only if this one went away.
       const outcome = await onSend(text, words.key)
       // Sent (or erased): the device lets them go, also when the field went meanwhile (the padlock shut).
       if (outcome === 'sent' || outcome === 'erased') draft.sent()
       else if (mounted.current) draft.back(words, BACK[outcome])
-    })
+    }).finally(() => admit(false)) // a send that failed before its admission was decided didn't go
+    return admitted
   }
 }
 
@@ -430,17 +519,88 @@ function useVoice(draft: ReturnType<typeof useDraft>, field: RefObject<HTMLTextA
 }
 
 /**
- * A way to start goes through this send: one at a time, its own key, kept on its way, the field left as it is. It says
- * whether it went: while another message is on its way (or Sophia can't take it yet), it doesn't.
+ * Where a way to start sends its words: through the field's send, one at a time, its own key, kept on its way, the
+ * field left as it is. It resolves to whether they went on their way: while another message is (here or in another
+ * tab), or Sophia can't take them yet, they don't. Offline (`waits`), they go into the field to wait instead, as the
+ * field's own words do, and that counts as gone: a press is never lost.
  */
-function useStarter(starter: Props['starter'], free: boolean, send: (given?: Draft) => Promise<void>) {
+function useStarter(
+  starter: Props['starter'],
+  free: boolean,
+  send: (given?: Draft) => Promise<boolean>,
+  waits: ((words: string) => void) | null,
+) {
   useEffect(() => {
     starter.current = (words: string) => {
-      if (!free) return false
-      void send(draftOf(words))
-      return true
+      if (waits) {
+        waits(words)
+        return Promise.resolve(true)
+      }
+      return free ? send(draftOf(words)) : Promise.resolve(false)
     }
   })
+}
+
+/** Words added to the field after what is written there, never over it. */
+function addWords(draft: ReturnType<typeof useDraft>, words: string, why: string): void {
+  const typed = draft.current()?.text ?? ''
+  draft.change(typed ? `${typed} ${words}` : words, why)
+}
+
+/** Offline, nothing goes: whether words can go, and whether they wait (they could go, but the browser is offline). */
+function useWaiting(state: ComposerState, behind: boolean) {
+  const online = useOnline()
+  const could = state === 'ready' && !behind
+  return { online, ready: could && online, waiting: could && !online }
+}
+
+interface BarProps {
+  field: RefObject<HTMLTextAreaElement | null>
+  text: string
+  state: ComposerState
+  counted: boolean
+  placeholder: string
+  ready: boolean
+  busy: boolean
+  dictation: ReturnType<typeof useVoice>
+  onChange: (text: string) => void
+  onSend: () => void
+}
+
+/** The message bar: her padlock, the field (or the voice listening), the microphone and Send. */
+function Bar({ field, text, state, counted, placeholder, ready, busy, dictation, onChange, onSend }: BarProps) {
+  return (
+    <div className={`message-bar${dictation.listening ? ' listening' : ''}`}>
+      <span className="c3-private" title="Only she hears this" aria-hidden>
+        <Icon name="lock" />
+      </span>
+      <label className="sr-only" htmlFor="c-input">
+        Message Sophia
+      </label>
+      <span id="c-private-note" className="sr-only">
+        Only she hears this
+      </span>
+      <Field {...{ field, text, state, counted, placeholder, onChange, onSend }} />
+      {dictation.listening && <Listening />}
+      {/* A microphone listening keeps its Stop whatever else changed (offline, a send on its way). */}
+      {dictation.available && (ready || dictation.listening) && (
+        <MicButton
+          listening={dictation.listening}
+          onPress={() => (dictation.listening ? dictation.stop() : dictation.start())}
+        />
+      )}
+      <button
+        type="submit"
+        className="send has-tip"
+        aria-label="Send"
+        disabled={!ready || !text.trim() || text.length > MOST}
+        aria-disabled={busy || undefined}
+      >
+        <Icon name="send" />
+        <Tip label="Send" keys="Enter" side="top" align="end" />
+      </button>
+    </div>
+  )
 }
 
 export function PersonalComposer(props: Props) {
@@ -451,10 +611,12 @@ export function PersonalComposer(props: Props) {
   const field = useRef<HTMLTextAreaElement>(null)
   const dictation = useVoice(draft, field, hidden)
   useEffect(() => onListening(dictation.listening), [dictation.listening, onListening])
-  const ready = state === 'ready' && !behind
+  const { online, ready, waiting: offline } = useWaiting(state, behind)
   const send = useSend(account, draft, ready, busy, onSend)
   useHanded(props, ready, send, draft)
-  useStarter(starter, ready && !busy, send)
+  // Offline, a way's words wait as a draft: the line says offline while it is, and the draft once back.
+  useStarter(starter, ready && !busy, send, offline ? (words) => addWords(draft, words, KEPT) : null)
+  const counted = text.length >= NEAR && !dictation.listening
   return (
     <form
       className="ps-composer"
@@ -463,40 +625,13 @@ export function PersonalComposer(props: Props) {
         void send()
       }}
     >
-      {note && (
-        <p className="chat-line" role="status">
-          {note}
-        </p>
-      )}
-      <div className={`message-bar${dictation.listening ? ' listening' : ''}`}>
-        <span className="c3-private" title="Only she hears this" aria-hidden>
-          <Icon name="lock" />
-        </span>
-        <label className="sr-only" htmlFor="c-input">
-          Message Sophia
-        </label>
-        <span id="c-private-note" className="sr-only">
-          Only she hears this
-        </span>
-        <Field field={field} text={text} state={state} onChange={change} onSend={() => void send()} />
-        {dictation.listening && <Listening />}
-        {dictation.available && ready && (
-          <MicButton
-            listening={dictation.listening}
-            onPress={() => (dictation.listening ? dictation.stop() : dictation.start())}
-          />
-        )}
-        <button
-          type="submit"
-          className="send has-tip"
-          aria-label="Send"
-          disabled={!ready || !text.trim()}
-          aria-disabled={busy || undefined}
-        >
-          <Icon name="send" />
-          <Tip label="Send" keys="Enter" side="top" align="end" />
-        </button>
-      </div>
+      <Over note={offline ? OFFLINE : note} count={counted ? text.length : null} />
+      <Bar
+        {...{ field, text, state, counted, ready, busy, dictation }}
+        placeholder={placeholderFor(state, online, !!props.night)}
+        onChange={change}
+        onSend={() => void send()}
+      />
     </form>
   )
 }
