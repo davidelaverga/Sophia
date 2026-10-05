@@ -22,6 +22,7 @@ import { shortName } from '../voice/room-view.ts'
 import { lookingText } from '../voice/sophia-view.ts'
 import { useHeldCaptions } from '../voice/StageCaptions.tsx'
 import { useStageMade } from '../voice/StageMade.tsx'
+import { showRenderOf } from '../voice/StagePresent.tsx'
 import { useProjectRoom, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
@@ -455,6 +456,7 @@ function WithViewer({ projectId, identity, view, room, panel, looking, snapshot,
       openChat={studio ? () => panel.toggle('chat') : undefined}
       askAbout={studio ? panel.ask : undefined}
       cursor={snapshot?.cursor}
+      show={studio ? showRenderOf(snapshot, room, { projectId, identity }) : undefined}
       chatUnread={panel.unread}
       call={<PanelCallSwitches room={room} looking={looking} keys={studio} />}
       note={room.mediaError ?? room.error}

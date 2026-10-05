@@ -29,6 +29,7 @@ import { PageDownload } from './PageDownload.tsx'
 import { PassageBar, type Passage } from './PassageBar.tsx'
 import { offerWords } from './live-version.ts'
 import { useLiveVersion, type LiveChanges, type Shown } from './useLiveVersion.ts'
+import type { ShowRender } from '../voice/ShowEveryone.tsx'
 import type { ReportLink, ViewerFormat, ViewerTab } from './report-link.ts'
 import {
   currentOffer,
@@ -78,6 +79,8 @@ interface Props {
   note: string | null
   /** Where the project's feed is: when it moves, the report's versions are read again (a new one may be there). */
   cursor: string | undefined
+  /** «Show everyone», in the room where it is offered: shown, the report goes to the stage and the pane closes. */
+  show?: ShowRender | undefined
   /** In the room: a selected passage goes to the chat's message (PassageBar). */
   onAsk: ((passage: Passage) => void) | undefined
 }
@@ -373,6 +376,8 @@ export function DocumentPane(props: Props) {
             titleRef={title}
             {...headOf(data)}
             current={offer}
+            // Only the current version is shown to everyone: the room shows what is current (present-view.ts).
+            show={data.version && !offer && props.show?.(data.version.id, onClose)}
             full={full}
             onDownload={() => void viewerDownload(data, status.show)}
             onEnlarge={onEnlarge}
@@ -599,6 +604,8 @@ interface HeadProps {
   meta: string
   /** The report's current version, when another is on screen (currentOffer). */
   current: { words: string; onShow: () => void } | null
+  /** «Show everyone», where it is offered. */
+  show: ReactNode
   full: boolean
   canDownload: boolean
   onDownload: () => void
@@ -644,6 +651,7 @@ function PaneHead(props: HeadProps) {
           </p>
         )}
       </div>
+      {props.show}
       <DownloadButton ready={canDownload} onDownload={onDownload} />
       <button type="button" className="round has-tip" aria-label={size} onClick={full ? onStepDown : onEnlarge}>
         <Icon name={full ? 'collapse' : 'expand'} />
