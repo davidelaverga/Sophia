@@ -27,7 +27,7 @@ test('work · while she researches, her line says so, then how many sources she 
   await expect(note(page)).toHaveText('Researching · 3 sources read')
 })
 
-test('work · once it no longer runs, the note is the floor’s again', async ({ page }) => {
+test('work · once it has finished (its result ready), the note goes', async ({ page }) => {
   await page.goto('/room.html?call=on&people=1&floor=1&research=running')
   await expect(note(page)).toHaveText('Researching')
   await page.evaluate(() => window.fixture?.researchDone())

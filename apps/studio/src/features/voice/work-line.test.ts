@@ -73,6 +73,13 @@ describe('what her line says of it', () => {
     assert.equal(workWords(task('t'), detail(3)), 'Researching · 3 sources read')
   })
 
+  it('says nothing of it while it is queued, held or stopping: the count says it then', () => {
+    for (const phase of ['queued', 'holding', 'stopping'] as const) {
+      assert.equal(workWords(task('t', { phase }), detail(3)), null)
+    }
+    assert.equal(workWords(task('t', { phase: 'dispatched' }), undefined), 'Researching')
+  })
+
   it('says she drafts the brief for a brief', () => {
     assert.equal(workWords(task('t', { kind: 'draft_brief' }), undefined), 'Drafting the brief')
   })

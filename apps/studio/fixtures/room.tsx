@@ -79,7 +79,7 @@ interface Fixture {
   releaseTask: () => void
   /** The running research task has read `reads` sources (`research=running`). */
   researchProgress: (reads: number) => void
-  /** The running research task is no longer running. */
+  /** The running research task finished: it stays in the project's work, its result ready, as the API keeps it. */
   researchDone: () => void
   /** Reads of the research task fail from now on; given false, they succeed again. */
   failTask: (fails?: boolean) => void
@@ -217,6 +217,7 @@ window.fixture = {
   },
   researchDone: () => {
     project.researching = null
+    project.work = true
     publish(project)
   },
   failTask: (fails = true) => {

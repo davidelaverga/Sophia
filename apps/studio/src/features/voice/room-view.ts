@@ -174,7 +174,7 @@ function floorLine(floor: FloorView): string {
   return floor.holder.present ? `${name} has the floor` : `${name} has the floor but isn’t here`
 }
 
-/** The phases of a native task that is still work in progress. */
+/** The phases of a native task that is still work in progress (Work's card polls in these too). */
 export const WORKING_PHASES: ReadonlySet<NativeTask['phase']> = new Set([
   'queued',
   'dispatched',

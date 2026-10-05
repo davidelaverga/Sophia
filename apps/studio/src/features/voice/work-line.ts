@@ -11,8 +11,19 @@ export function soleTask(snapshot: Pick<Snapshot, 'goals' | 'work'> | undefined)
   return running.length === 1 ? (running[0] ?? null) : null
 }
 
-/** What she is doing, in her line's note. */
-export function workWords(task: Pick<NativeTask, 'kind'>, detail: NativeTaskDetail | undefined): string {
+/** The phases in which she is actually at it: queued, held or stopping, the count says it, as before. */
+const DOING: ReadonlySet<NativeTask['phase']> = new Set(['dispatched', 'running'])
+
+/** Whether the task's record says more than its kind: a research task at it, whose reads count. */
+export const readsCount = (task: Pick<NativeTask, 'kind' | 'phase'> | null) =>
+  task?.kind === 'research' && DOING.has(task.phase)
+
+/** What she is doing, in her line's note; null when she isn't at it (queued, held, stopping). */
+export function workWords(
+  task: Pick<NativeTask, 'kind' | 'phase'>,
+  detail: NativeTaskDetail | undefined,
+): string | null {
+  if (!DOING.has(task.phase)) return null
   if (task.kind === 'draft_brief') return 'Drafting the brief'
   const read = detail?.research?.reads.used ?? 0
   if (read === 0) return 'Researching'
