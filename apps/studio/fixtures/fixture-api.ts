@@ -75,6 +75,8 @@ interface Project {
   room?: RoomAsked
   /** The floor passed on to this actor; absent, passing it is unexpected. */
   onFloor?: (actorId: string) => void
+  /** The room moves (another member's change) just before the next pass reaches the API. */
+  roomMoves?: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -244,6 +246,10 @@ const staleRoom = () =>
 function floorPassed(project: Project, init: RequestInit | undefined): Response | null {
   const request: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
   if (!project.onFloor || !isFloorRequest(request)) return null
+  if (project.roomMoves) {
+    project.roomMoves = false
+    publish(project)
+  }
   if (request.expectedRoomRevision !== project.revision) return staleRoom()
   project.onFloor(request.nextActorId)
   publish(project)

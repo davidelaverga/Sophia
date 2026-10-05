@@ -95,7 +95,7 @@ interface Fixture {
   sophia: (state: SophiaState) => void
   /** Who speaks now: 0 the viewer, `n` the `n`th other person, null no one. */
   speaking: (who: number | null) => void
-  /** The room moves on without the page hearing of it yet (another member's change): its next pass is refused. */
+  /** Another member's change reaches the API just before the page's next pass: that pass is refused as stale. */
   moveRoom: () => void
   /** Whom the floor was passed to, by name, in order. */
   floorTo: readonly string[]
@@ -143,6 +143,7 @@ const project = {
   revision: 1,
   exchange: query.get('exchange') === 'open' || sophiaAsked,
   room,
+  roomMoves: false,
   // As the API passes it: a new holder, one more pass, and a pause because the holder left is over.
   onFloor: (actorId: string) => {
     room.holder = actorId
@@ -208,7 +209,7 @@ window.fixture = {
   sophia: setSophia,
   speaking: setSpeaking,
   moveRoom: () => {
-    project.revision += 1
+    project.roomMoves = true
   },
   floorTo,
   asked,

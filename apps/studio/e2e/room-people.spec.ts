@@ -72,10 +72,12 @@ test('sophia · speaking: Stop speaking is offered, and the light speaks', async
   await expect(light(page)).toHaveAttribute('data-mode', 'speak')
 })
 
-test('sophia · her sound blocked by the browser: Allow audio is offered', async ({ page }) => {
+test('sophia · her sound blocked by the browser: Allow audio, pressed, lets it through', async ({ page }) => {
   await enter(page, 'sophia=blocked')
   await expect(line(page)).toHaveText('Sophia is speaking, but this browser blocked the sound')
-  await expect(page.getByRole('button', { name: 'Allow audio' })).toBeVisible()
+  await page.getByRole('button', { name: 'Allow audio' }).click()
+  await expect(line(page)).toHaveText('Sophia is speaking')
+  await expect(page.getByRole('button', { name: 'Allow audio' })).toHaveCount(0)
 })
 
 test('sophia · her voice unavailable: said', async ({ page }) => {

@@ -9,7 +9,16 @@ import { CHAT_REPLY_TOPIC, encodeChatPacket, type ChatPacket } from '@sophia/con
 import type { RoomCallbacks, RoomConnection } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
 import { listenToSophia } from '../src/features/voice/sophia-channel.ts'
-import { feeds, onPeopleChange, others, setSophia, sophiaSignal, soundBlocked, viewerSpeaks } from './fake-people.ts'
+import {
+  allowSound,
+  feeds,
+  onPeopleChange,
+  others,
+  setSophia,
+  sophiaSignal,
+  soundBlocked,
+  viewerSpeaks,
+} from './fake-people.ts'
 
 /** What the room's connection was asked, in order: `connect`, `microphone:on`, `text:off`, `leave`… */
 export const asked: string[] = []
@@ -110,7 +119,10 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     participants: () => [{ ...me, speaking: viewerSpeaks() }, ...others()],
     sophia: sophiaSignal,
     audioBlocked: soundBlocked,
-    startAudio: () => Promise.resolve(),
+    startAudio: () => {
+      allowSound()
+      return Promise.resolve()
+    },
     feeds,
     setMicrophone: device('microphone', 'micOn'),
     setCamera: device('camera', 'cameraOn'),

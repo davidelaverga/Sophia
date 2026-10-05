@@ -84,6 +84,11 @@ export function sophiaSignal(): SophiaSignal | null {
 }
 export const soundBlocked = () => now.sophia === 'blocked'
 
+/** The person allowed sound (Allow audio): as LiveKit's playback starts, her voice reaches this browser. */
+export function allowSound(): void {
+  if (now.sophia === 'blocked') setSophia('speaking')
+}
+
 /**
  * The pause is over (the floor reclaimed after its holder left): her bridge admits the new holder, who is here, and
  * listens to them.

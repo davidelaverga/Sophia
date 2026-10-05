@@ -38,6 +38,8 @@ A pause and a voice exist only inside an open conversation, as `readSophia` read
 
 **Round 2:** one P2, fixed: after a reclaimed pause, the bridge admits the new holder, so the check now expects "Sophia is listening to you". One P3, fixed: only `guest` and `holder_left` pause. No P1 or P2 remains.
 
+**Codex on `3beeb8a`:** one P2 and no P1. Allow audio did nothing in `sophia=blocked`; pressed, it now lets her sound through, as LiveKit's playback does. Fixing it also exposed a flaky check: the stale pass failed 1 run in 34, because a snapshot read after `moveRoom()` taught the page the new revision. `moveRoom()` now moves the room just as the next pass reaches the API, the race it stands for. The room specs then passed 99 of 99 over 3 runs, and both new mutants are killed.
+
 ## Evidence
 
 **Commands** (browser checks through `pw-safe.ps1`):
