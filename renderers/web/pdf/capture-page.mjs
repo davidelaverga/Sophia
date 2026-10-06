@@ -908,57 +908,128 @@ function listItems(value) {
 }
 
 /**
- * A colour as sRGB bytes and an alpha, painted on its own: whatever syntax the page used, the canvas resolves it.
- * @param {OffscreenCanvasRenderingContext2D} c
- * @param {string} colour
- * @returns {[number, number, number, number]}
+ * The colour space, and for a polar one the hue path, a gradient mixes its stops in, as `color-mix()` names it: the one
+ * its computed value names after its direction (`90deg in hsl longer hue`), or else sRGB when every stop is a legacy
+ * colour (the computed value writes those `rgb()`) and Oklab otherwise, as CSS Images 4 has it (#117).
+ * @param {string} image a gradient, as the computed style writes it
+ * @param {string[]} stops its stops' colours (gradientStops)
  */
-function rgbaOf(c, colour) {
-  c.clearRect(0, 0, 1, 1)
-  c.fillStyle = '#000000'
-  c.fillStyle = colour
-  c.fillRect(0, 0, 1, 1)
-  const [r = 0, g = 0, b = 0, a = 0] = c.getImageData(0, 0, 1, 1).data
-  return [r, g, b, a / 255]
+function interpolationOf(image, stops) {
+  const head = listItems(image.slice(image.indexOf('(') + 1, image.lastIndexOf(')')))[0] ?? ''
+  const named = /(?:^|\s)in\s+([a-z][a-z0-9-]*(?:\s+(?:shorter|longer|increasing|decreasing)\s+hue)?)/i.exec(head)
+  if (named?.[1]) return named[1].toLowerCase()
+  return stops.every((stop) => /^(?:rgba?\(|#)/i.test(stop)) ? 'srgb' : 'oklab'
 }
 
 /**
- * A gradient's colours: each stop, and four colours evenly between each two, mixed as the browser mixes them (with
- * their alpha). Between two stops a gradient passes every shade between theirs: grey text between a black and a white
- * stop is read against both, and passes, though the gradient crosses its own shade; a colour within a fifth of the way
- * from that crossing is read against it instead, below 1.5:1 (#117).
+ * A gradient's colours: each stop, and the colours between each two (pathOf), mixed as the browser mixes them, in the
+ * space and along the hue path the gradient names (interpolationOf), with their alpha (#117). A polar space's hue can
+ * sweep the whole circle: `in hsl longer hue` from red to blue passes yellow, green and cyan, which sRGB mixing never
+ * reaches. Between two stops a gradient passes every shade between theirs: grey text between a black and a white stop
+ * is read against both, and passes, though the gradient crosses its own shade; a colour within a fifth of the way from
+ * that crossing (a sixteenth in a polar space) is read against it instead, below 1.5:1. Null when the canvas cannot mix
+ * in that space: the background is then not read.
  * @param {string[]} stops
- * @returns {string[]}
+ * @param {string} method
+ * @returns {string[] | null}
  */
-function gradientColours(stops) {
+function gradientColours(stops, method) {
   const c = stops.length > 1 ? new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true }) : null
   if (!c) return stops
-  const rgba = stops.map((stop) => rgbaOf(c, stop))
   /** @type {Set<string>} */
   const out = new Set()
   for (const [i, stop] of stops.entries()) {
-    const before = rgba[i - 1]
-    const here = rgba[i]
-    if (before && here) for (const colour of mixesOf(before, here)) out.add(colour)
+    const before = stops[i - 1]
+    const between = before === undefined ? [] : pathOf(c, method, before, stop)
+    if (!between) return null
+    for (const colour of between) out.add(colour)
     out.add(stop)
   }
   return [...out]
 }
 
 /**
- * Four colours evenly between two, each with its alpha, mixed with their alpha as a gradient mixes them.
- * @param {[number, number, number, number]} from
- * @param {[number, number, number, number]} to
- * @returns {string[]}
+ * The colours a gradient paints between two stops: evenly spaced (four in a space of three axes, fifteen in a polar
+ * one), and the lightest or darkest colour near each that is lighter or darker than both its neighbours, found within
+ * them (extremeNear): a polar path peaks between samples (yellow on an HSL path, a clipped channel on an OKLCH one),
+ * and so does a path in sRGB (red to lime darkens midway). Null when the canvas cannot mix in `method`.
+ * @param {OffscreenCanvasRenderingContext2D} c
+ * @param {string} method
+ * @param {string} from
+ * @param {string} to
+ * @returns {string[] | null}
  */
-function mixesOf(from, to) {
-  return [0.2, 0.4, 0.6, 0.8].map((t) => {
-    const a = from[3] * (1 - t) + to[3] * t
-    const [r, g, b] = [0, 1, 2].map((k) =>
-      a > 0 ? Math.round(((from[k] ?? 0) * from[3] * (1 - t) + (to[k] ?? 0) * to[3] * t) / a) : 0,
-    )
-    return `rgba(${r ?? 0}, ${g ?? 0}, ${b ?? 0}, ${a.toFixed(3)})`
-  })
+function pathOf(c, method, from, to) {
+  const steps = /^(?:hsl|hwb|lch|oklch)\b/.test(method) ? 16 : 5
+  const ts = Array.from({ length: steps + 1 }, (_, k) => k / steps)
+  const colours = ts.map((t) => (t === 0 ? from : t === 1 ? to : mixOf(c, method, from, to, t)))
+  if (colours.includes(null)) return null
+  const ys = colours.map((colour) => yOf(c, colour ?? 'transparent'))
+  /** @type {string[]} */
+  const out = []
+  for (let k = 1; k < steps; k += 1) {
+    out.push(colours[k] ?? 'transparent')
+    const [y0, y, y1] = [ys[k - 1] ?? 0, ys[k] ?? 0, ys[k + 1] ?? 0]
+    if ((y > y0 && y >= y1) || (y < y0 && y <= y1)) {
+      const extreme = extremeNear(c, method, from, to, [ts[k - 1] ?? 0, ts[k + 1] ?? 1], y > y0)
+      if (extreme === null) return null
+      out.push(extreme)
+    }
+  }
+  return out
+}
+
+/**
+ * The lightest (or, not `peak`, the darkest) colour a gradient paints between two stops within `[lo, hi]`, found by
+ * narrowing the span by a third twelve times, to within a five-hundredth of it. Null when the canvas cannot mix.
+ * @param {OffscreenCanvasRenderingContext2D} c
+ * @param {string} method
+ * @param {string} from
+ * @param {string} to
+ * @param {[number, number]} span
+ * @param {boolean} peak
+ * @returns {string | null}
+ */
+function extremeNear(c, method, from, to, span, peak) {
+  let [lo, hi] = span
+  for (let i = 0; i < 12; i += 1) {
+    const [a, b] = [mixOf(c, method, from, to, lo + (hi - lo) / 3), mixOf(c, method, from, to, hi - (hi - lo) / 3)]
+    if (a === null || b === null) return null
+    if (yOf(c, a) < yOf(c, b) === peak) lo += (hi - lo) / 3
+    else hi -= (hi - lo) / 3
+  }
+  return mixOf(c, method, from, to, (lo + hi) / 2)
+}
+
+/**
+ * The luminance of a colour painted alone, its alpha set aside: what orders the colours of one gradient.
+ * @param {OffscreenCanvasRenderingContext2D} c
+ * @param {string} colour
+ */
+function yOf(c, colour) {
+  c.clearRect(0, 0, 1, 1)
+  c.fillStyle = colour
+  c.fillRect(0, 0, 1, 1)
+  const [r = 0, g = 0, b = 0] = c.getImageData(0, 0, 1, 1).data
+  return luminance([r, g, b])
+}
+
+/**
+ * The colour a gradient paints `t` of the way from one stop to the next, mixed by the canvas as `color-mix()` mixes:
+ * in `method`, with premultiplied alpha, as a gradient interpolates. Null when the canvas does not take the mix.
+ * @param {OffscreenCanvasRenderingContext2D} c
+ * @param {string} method
+ * @param {string} from
+ * @param {string} to
+ * @param {number} t
+ * @returns {string | null}
+ */
+function mixOf(c, method, from, to, t) {
+  const unset = '#010203'
+  c.fillStyle = unset
+  c.fillStyle = `color-mix(in ${method}, ${from} ${((1 - t) * 100).toFixed(3)}%, ${to})`
+  const mixed = String(c.fillStyle)
+  return mixed === unset ? null : mixed
 }
 
 /**
@@ -978,11 +1049,11 @@ function backgroundOf(s) {
   const layers = []
   for (const [i, image] of images.entries()) {
     const stops = image.includes('gradient(') ? gradientStops(image) : []
-    if (stops.length === 0) return null
+    const colours = stops.length > 0 ? gradientColours(stops, interpolationOf(image, stops)) : null
+    if (!colours) return null
     const covers =
       (sizes[i % sizes.length] ?? 'auto') === 'auto' &&
       ['repeat', 'repeat repeat'].includes(repeats[i % repeats.length] ?? '')
-    const colours = gradientColours(stops)
     layers.unshift(covers ? colours : [...colours, 'transparent'])
   }
   return [[s.backgroundColor], ...layers]
@@ -2306,9 +2377,12 @@ const IN_PAGE = [
   reachOf,
   generatedHere,
   listItems,
-  rgbaOf,
+  interpolationOf,
   gradientColours,
-  mixesOf,
+  pathOf,
+  extremeNear,
+  yOf,
+  mixOf,
   backgroundOf,
   borderColours,
   shadowColours,

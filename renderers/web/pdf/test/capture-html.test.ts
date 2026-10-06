@@ -1862,6 +1862,125 @@ describe('the confined capture kernel', () => {
   )
 
   it(
+    'reads a gradient in the colour space and along the hue path it is mixed in, not as sRGB between its stops (#117)',
+    { skip },
+    async () => {
+      // The owner's gradient (4198805119): white 24px research on red to blue `in hsl longer hue`, which Chromium paints
+      // through yellow and green (white on them 1.08 in its pixels), read as an sRGB mix of red and blue (4 to 1). The same
+      // path written radially, as a cone and in HWB. The positives, each at or above 3 in Chromium's pixels: white on an
+      // sRGB red to blue (4.03), black on an HSL red to lime by the shorter hue (5.25), black on a pale OKLCH pair mixed
+      // by default in Oklab (17.8), white on a dark HSL path the longer way (4.21, at an olive between its samples), white
+      // on red to blue `in oklch longer hue` (3.85, at a green the sRGB mix never reaches, below either stop), and black
+      // 16px text on two OKLCH colours of one lightness, mixed by default in Oklab (5.22; an sRGB mix of them reads 3.9).
+      // And black on an HSL path the longer way whose darkest blue lies between the samples five steps would take (2.34
+      // in Chromium's pixels; five steps read 3.9).
+      const receipt = await captureHtml(
+        job(
+          page(
+            `body{font:24px/32px Arial;margin:0;padding:16px;background:white;color:black}
+            [data-block]{margin:0 0 40px;width:120px;color:#fff}
+            .h1{background:linear-gradient(90deg in hsl longer hue,red,blue)}
+            .h2{background:radial-gradient(circle in hsl longer hue,red,blue)}
+            .h3{background:conic-gradient(from 0deg in hsl longer hue,red,blue)}
+            .h4{background:linear-gradient(90deg in hwb longer hue,red,blue)}
+            .p5{background:linear-gradient(90deg in oklch longer hue,red,blue)}
+            .p6{font-size:16px;color:#000;background:linear-gradient(90deg,oklch(.62 .2 30),oklch(.62 .2 150))}
+            .h5{color:#000;background:linear-gradient(90deg in hsl longer hue,hsl(218 76% 49%),hsl(180 78% 66%))}
+            .p1{background:linear-gradient(90deg,red,blue)}
+            .p2{color:#000;background:linear-gradient(90deg in hsl shorter hue,red,lime)}
+            .p3{color:#000;background:linear-gradient(90deg,oklch(.95 .05 90),oklch(.95 .05 270))}
+            .p4{background:linear-gradient(90deg in hsl longer hue,hsl(240 100% 25%),hsl(300 100% 25%))}`,
+            `<main>
+          <p data-block="h1" class="h1">Not free.</p>
+          <p data-block="h2" class="h2">Not free.</p>
+          <p data-block="h3" class="h3">Not free.</p>
+          <p data-block="h4" class="h4">Not free.</p>
+          <p data-block="h5" class="h5">Not free.</p>
+          <p data-block="p1" class="p1">Readable.</p>
+          <p data-block="p2" class="p2">Readable.</p>
+          <p data-block="p3" class="p3">Readable.</p>
+          <p data-block="p4" class="p4">Readable.</p>
+          <p data-block="p5" class="p5">Readable.</p>
+          <p data-block="p6" class="p6">Readable.</p>
+          </main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const measured = receipt.targets.find((t) => t.id === target)!.page
+        const ratio = (id: string) => measured.blocks.find((b) => b.id === id)?.contrast.ratio ?? 0
+        assert.deepEqual(
+          measured.blocks.map(contrastSeen),
+          [
+            ['h1', 'low'],
+            ['h2', 'low'],
+            ['h3', 'low'],
+            ['h4', 'low'],
+            ['h5', 'low'],
+            ['p1', 'read'],
+            ['p2', 'read'],
+            ['p3', 'read'],
+            ['p4', 'read'],
+            ['p5', 'read'],
+            ['p6', 'read'],
+          ],
+          target,
+        )
+        for (const id of ['h1', 'h2', 'h3', 'h4']) assert.ok(ratio(id) < 1.2, `${target}: ${id} ${ratio(id)}`)
+        assert.ok(ratio('h5') < 2.6, `${target}: h5 is read at its darkest blue: ${ratio('h5')}`)
+        for (const id of ['p1', 'p2', 'p3', 'p4', 'p5']) assert.ok(ratio(id) >= 3, `${target}: ${id} ${ratio(id)}`)
+        assert.ok(ratio('p4') < 4.3, `${target}: p4 is read at its olive, between samples: ${ratio('p4')}`)
+        assert.ok(ratio('p5') < 3.95, `${target}: p5 is read at its green, below its red stop: ${ratio('p5')}`)
+        assert.ok(ratio('p6') >= 4.5 && ratio('p6') < 5.4, `${target}: p6 is read along Oklab: ${ratio('p6')}`)
+        assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
+      }
+    },
+  )
+
+  it(
+    'leaves a gradient unread where the canvas does not mix its colours: unknown, never read as another colour (#117)',
+    { skip },
+    async () => {
+      const workDir = fs.mkdtempSync(path.join(SCRATCH, 'sophia-unmixed-'))
+      const browser = await launchConfined({ workDir, env })
+      try {
+        const tab = await browser.context.newPage()
+        await tab.setContent(
+          page(
+            `${BASE} p{font-size:24px;width:120px} .h{color:#fff;background:linear-gradient(90deg in hsl longer hue,red,blue)}
+            .k{color:#fff;background:linear-gradient(90deg in hsl longer hue,#000,#00f)}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1" class="h">Not free.</p>
+          <p data-block="b2">Plain.</p><p data-block="b3" class="k">From black.</p></section></main>`,
+          ),
+        )
+        type Seen = { blocks: Parameters<typeof contrastSeen>[0][] }
+        const script = pageScript({ maxListed: 20 })
+        const mixing = 'color-mix(in ${method},'
+        assert.ok(script.includes(mixing), 'the kernel mixes through the canvas')
+        const seen = async (source: string) => (await tab.evaluate<Seen>(source)).blocks.map(contrastSeen)
+        // Black to blue the longer way passes cyan in Chromium's pixels (white on it 2.18): black's hue is 0 there.
+        assert.deepEqual(await seen(script), [
+          ['b1', 'low'],
+          ['b2', 'read'],
+          ['b3', 'low'],
+        ])
+        // A space the canvas does not take: the mix is refused, so the gradient is not read, and the text is unknown,
+        // from black too, where no step between the stops would look darker or lighter than its neighbours.
+        assert.deepEqual(await seen(script.replace(mixing, 'color-mix(in nowhere-${method},')), [
+          ['b1', 'background_image'],
+          ['b2', 'read'],
+          ['b3', 'background_image'],
+        ])
+      } finally {
+        await browser.close()
+        fs.rmSync(workDir, { recursive: true, force: true })
+      }
+    },
+  )
+
+  it(
     'leaves unread the paint beneath a text whose generated boxes the protocol does not place: unknown, never passed (#117)',
     { skip },
     async () => {
