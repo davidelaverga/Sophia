@@ -215,7 +215,11 @@ function useRun(identity: Identity) {
 async function readAfterRefusal(client: QueryClient, name: string, err: unknown, projects: boolean) {
   if (refusedAsErased(err)) await readAfresh(client, name)
   else await client.invalidateQueries({ queryKey: ['personal', name], exact: true })
-  if (projects) await client.invalidateQueries({ queryKey: ['projects', name] })
+  // A carry or a take-back changes what a project shows as carried in (CarriedIn) as well as Work's list.
+  if (projects) {
+    await client.invalidateQueries({ queryKey: ['projects', name] })
+    await client.invalidateQueries({ queryKey: ['vision', 'carried-in', name] })
+  }
 }
 
 /**

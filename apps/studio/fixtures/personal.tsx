@@ -25,7 +25,18 @@ import '../src/features/personal/personal.css'
 
 declare global {
   interface Window {
-    personalFixture?: { sent: string[]; pressed: string[]; answer?: () => void; carried: string[]; takenBack: string[] }
+    personalFixture?: {
+      sent: string[]
+      pressed: string[]
+      answer?: () => void
+      carried: string[]
+      takenBack: string[]
+      /** The account leaves (signing out): Personal goes from the page, as App's leaveSession takes it. */
+      signOut?: () => void
+      /** Personal left for another place, and come back to: the notes' Escape layer goes and opens again, as Places'. */
+      away?: () => void
+      back?: () => void
+    }
   }
 }
 
@@ -384,9 +395,17 @@ function Personal() {
   const projects = useMemo(() => projectsFor(query, ahead), [])
   const [notes, setNotes] = useState(query.get('notes') === 'open')
   // As Places has it: Escape closes the notes, unless a layer opened after them (the package mid-step) holds it.
-  useEscape(notes, () => setNotes(false))
+  const [here, setHere] = useState(true)
+  useEscape(notes && here, () => setNotes(false))
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
+  const [signedIn, setSignedIn] = useState(true)
+  useEffect(() => {
+    if (!window.personalFixture) return
+    window.personalFixture.signOut = () => setSignedIn(false)
+    window.personalFixture.away = () => setHere(false)
+    window.personalFixture.back = () => setHere(true)
+  }, [])
   const epochKnown = useLater('epochAfter')
   const spaceRead = useLater('spaceAfter')
   const [handed, setHanded] = useHanded()
@@ -401,31 +420,33 @@ function Personal() {
       <button className="fixture-lock" type="button" onClick={() => setLocked((was) => !was)}>
         {locked ? 'Unlock (fixture)' : 'Lock (fixture)'}
       </button>
-      <PersonalSpace
-        hidden={locked}
-        handed={handed}
-        onHanded={() => setHanded(null)}
-        locked={locked}
-        now={NOW}
-        account="fixture"
-        name="Luis"
-        space={spaceRead ? space : undefined}
-        // As Places knows it: from the space once read, or earlier from the projects (epochAfter).
-        epoch={spaceRead || epochKnown ? space.epoch : undefined}
-        readBack={readBack}
-        read={idle}
-        projects={projects}
-        projectsRead={idle}
-        writes={writes}
-        notes={{ open: notes, set: setNotes }}
-        earlier={{ open: earlier, set: setEarlier }}
-        edge={{ badge: 0, pulse: 0 }}
-        toast={() => undefined}
-        onCarried={() => undefined}
-        onCross={() => undefined}
-        onStartProject={() => undefined}
-        extras={extras}
-      />
+      {signedIn && (
+        <PersonalSpace
+          hidden={locked}
+          handed={handed}
+          onHanded={() => setHanded(null)}
+          locked={locked}
+          now={NOW}
+          account="fixture"
+          name="Luis"
+          space={spaceRead ? space : undefined}
+          // As Places knows it: from the space once read, or earlier from the projects (epochAfter).
+          epoch={spaceRead || epochKnown ? space.epoch : undefined}
+          readBack={readBack}
+          read={idle}
+          projects={projects}
+          projectsRead={idle}
+          writes={writes}
+          notes={{ open: notes, set: setNotes }}
+          earlier={{ open: earlier, set: setEarlier }}
+          edge={{ badge: 0, pulse: 0 }}
+          toast={() => undefined}
+          onCarried={() => undefined}
+          onCross={() => undefined}
+          onStartProject={() => undefined}
+          extras={extras}
+        />
+      )}
     </div>
   )
 }

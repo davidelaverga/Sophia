@@ -123,6 +123,10 @@ interface Fixture {
   holdSearch: (on: boolean) => void
   /** The project list's reads fail, or read again (chapter 1). */
   failProjects: (on: boolean) => void
+  /** While on, the project list's reads wait; off, the waiting ones are answered (chapter 1). */
+  holdProjects: (on: boolean) => void
+  /** Marco carries a note to this project, and the feed moves (chapter 1). */
+  carryIn: () => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
   holdTasks: (on: boolean) => void
   releaseTasks: () => void
@@ -310,6 +314,8 @@ const project = {
       ]
     : [],
   projectsFail: query.get('projects') === 'fail',
+  carriedElsewhere: query.get('carried') === 'elsewhere',
+  projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
   reviews: {
@@ -431,6 +437,24 @@ window.fixture = {
   },
   failProjects: (on) => {
     project.projectsFail = on
+  },
+  holdProjects: (on) => {
+    const held = project.projectsHeld ?? []
+    project.projectsHeld = on ? held : null
+    if (!on) for (const answer of held) answer()
+  },
+  carryIn: () => {
+    project.carriedIn = [
+      ...project.carriedIn,
+      {
+        id: '00000000-0000-4000-8000-0000000007f9',
+        text: 'Ask the team for one number we trust',
+        ownerName: 'Marco',
+        mine: false,
+        createdAt: '2026-10-06T12:00:00.000Z',
+      },
+    ]
+    publish(project)
   },
   holdSearch: (on) => {
     if (!on) for (const answer of project.searchHeld ?? []) answer()

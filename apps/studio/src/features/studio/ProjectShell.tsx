@@ -551,7 +551,7 @@ function PageBody(props: BodyProps) {
         projectId={projectId}
         identity={identity}
         canEdit={canInvite(membership)}
-        carriedIn={VISION ? <CarriedIn projectId={projectId} identity={identity} /> : null}
+        carriedIn={VISION ? <CarriedIn projectId={projectId} identity={identity} cursor={snapshot?.cursor} /> : null}
       />
     )
   }

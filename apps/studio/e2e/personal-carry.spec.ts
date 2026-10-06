@@ -190,3 +190,29 @@ test('carry · while notes are on their way, the notes stay open: Close and Esc 
   await page.keyboard.press('Escape')
   await expect(panel(page)).toHaveCount(0)
 })
+
+// Codex on #135 (follow-ups 2).
+
+test('carry · when the account goes mid-carry, nothing more goes under it', async ({ page }) => {
+  await openPackage(page, '&carrySlow=1')
+  for (const box of await pkg(page).getByRole('checkbox').all()) await box.check()
+  await pkg(page).getByRole('button', { name: 'Carry 3 notes to Product launch' }).click()
+  await expect.poll(() => carried(page)).toHaveLength(1)
+  await page.evaluate(() => window.personalFixture?.signOut?.())
+  // The note on its way lands; none after it is asked for under the account that left.
+  await page.waitForTimeout(4000)
+  expect(await carried(page)).toHaveLength(1)
+})
+
+test('carry · after leaving Personal and coming back mid-step, Esc still waits', async ({ page }) => {
+  await openPackage(page, '&carrySlow=1')
+  await pkg(page).getByRole('checkbox', { name: 'Ask finance for the March close' }).check()
+  await pkg(page).getByRole('button', { name: 'Carry 1 note to Product launch' }).click()
+  await page.evaluate(() => {
+    window.personalFixture?.away?.()
+    window.personalFixture?.back?.()
+  })
+  await page.keyboard.press('Escape')
+  await expect(panel(page)).toBeVisible()
+  await expect(pkg(page).getByRole('status')).toContainText('Carried 1 note')
+})
