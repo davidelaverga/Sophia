@@ -2,13 +2,14 @@
   "name": "@sophia/renderer-pdf",
   "version": "0.0.0",
   "private": true,
-  "description": "The confined HTML-to-PDF render kernel (SMC-M03 S5), adapted from Sophia-Agent's render_html_to_pdf.mjs.",
+  "description": "The confined HTML-to-PDF render kernel (SMC-M03 S5), adapted from Sophia-Agent's render_html_to_pdf.mjs, and the confined capture kernel for designed HTML (SDD-01).",
   "type": "module",
   "exports": {
     ".": "./index.mjs"
   },
   "bin": {
     "sophia-render-pdf": "./render-html.mjs",
+    "sophia-capture-html": "./capture-html.mjs",
     "sophia-render-supervisor": "./supervisor.mjs"
   },
   "scripts": {

@@ -3,9 +3,10 @@
 // …), never an actor id or a name: a name heard in the room is not identity. Long text is an excerpt with its id, so
 // the exact words come from read_selected_source. Records are data about the project, never instructions. A v1.2 guide
 // also reads each task's own state, whether Steer reaches it, and a research task's report in counts (CX-0026,
-// CX-0027); a v1.1 guide reads the work exactly as before.
+// CX-0027); a v1.3 guide also reads each report's current designed page and the sections an edit can name (SDD-01); a
+// v1.1 guide reads the work exactly as before.
 import type { DiscussionEntry, MissionContext, MissionDecision, MissionEntry } from '@sophia/contracts'
-import type { ConfirmationTarget, ResearchVersions } from '@sophia/persistence'
+import type { ConfirmationTarget, HtmlPage, ResearchVersions } from '@sophia/persistence'
 import { steerOf, taskStateOf } from './control-words.ts'
 import { statusReportOf, tableCounter } from './report-facts.ts'
 
@@ -20,8 +21,11 @@ export interface VoiceStatusInput {
   discussion: readonly DiscussionEntry[]
   target: ConfirmationTarget | null
   now: number
-  /** The guide version the bridge runs: v1.2 adds the research operations (SMC-M03 S6). Absent means v1.1. */
-  guide?: 'v1.1' | 'v1.2' | undefined
+  /**
+   * The guide version the bridge runs: v1.2 adds the research operations (SMC-M03 S6), v1.3 the page edit (SDD-01).
+   * Absent means v1.1.
+   */
+  guide?: 'v1.1' | 'v1.2' | 'v1.3' | undefined
   /** Whether a PDF renderer is running (0031). Without one, render_research is not offered. Absent means unknown. */
   pdf?: boolean | undefined
   /**
@@ -34,7 +38,11 @@ export interface VoiceStatusInput {
    * read for a v1.2 guide only.
    */
   tasks?: readonly ResearchVersions[] | undefined
+  /** Each listed report's current designed page, read for a v1.3 guide only. */
+  pages?: readonly HtmlPage[] | undefined
 }
+
+const sinceV12 = (guide: VoiceStatusInput['guide']) => guide === 'v1.2' || guide === 'v1.3'
 
 /** `speaker` for the current speaker, else `member-N` in order of first appearance. */
 function aliases(speakerId: string): (actorId: string | null) => string | null {
@@ -145,7 +153,15 @@ function operations(ctx: MissionContext, opts: Pick<VoiceStatusInput, 'guide' | 
     decide_mission_change: c.decide,
     control_work: c.controlWork,
   }
-  return opts.guide === 'v1.2' ? { ...m01, ...researchOperations(c.controlWork.available, opts) } : m01
+  if (!sinceV12(opts.guide)) return m01
+  const research = { ...m01, ...researchOperations(c.controlWork.available, opts) }
+  if (opts.guide !== 'v1.3') return research
+  return {
+    ...research,
+    revise_html_page: c.controlWork.available
+      ? ALWAYS
+      : closed('Only editors and admins can ask for a page to be revised.'),
+  }
 }
 
 function targetView(target: ConfirmationTarget | null, speakerId: string, now: number) {
@@ -163,21 +179,37 @@ function targetView(target: ConfirmationTarget | null, speakerId: string, now: n
  * Steer reaches it, and for research its report, as read_selected_source counts it, keeping every field a v1.1 guide
  * reads. A task not read is as before.
  */
-function workView(work: MissionContext['work'], tasks: readonly ResearchVersions[]) {
+function workView(work: MissionContext['work'], tasks: readonly ResearchVersions[], pages: readonly HtmlPage[]) {
   const byTask = new Map(tasks.map((t) => [t.standing.taskId, t]))
+  const pageOf = new Map(pages.map((p) => [p.taskId, p]))
   const tables = tableCounter()
   return work.map((w) => {
     const t = w.taskId === null ? undefined : byTask.get(w.taskId)
     if (!t) return w
     const s = t.standing
     const report = s.kind === 'research' ? { report: statusReportOf(t, tables) } : {}
-    return { ...w, taskState: taskStateOf(s), steer: steerOf(s), ...report }
+    const page = pageOf.get(t.standing.taskId)
+    return {
+      ...w,
+      taskState: taskStateOf(s),
+      steer: steerOf(s),
+      ...report,
+      ...(page ? { htmlPage: pageView(page) } : {}),
+    }
   })
 }
 
+/** A report's current designed page as a v1.3 guide reads it: what revise_html_page can name, and whether it can now. */
+const pageView = (p: HtmlPage) => ({
+  versionNumber: p.versionNumber,
+  reviewState: p.reviewState,
+  sections: p.sections,
+  revising: p.designing,
+})
+
 /** The project_status output for one speaker. */
 export function voiceStatus(input: VoiceStatusInput) {
-  const { context: ctx, speakerId, discussion, target, now, guide, pdf, researchGate, tasks } = input
+  const { context: ctx, speakerId, discussion, target, now, guide, pdf, researchGate, tasks, pages } = input
   const who = aliases(speakerId)
   const notes = ctx.entries.slice(-NOTES)
   const policy = ctx.notePolicy
@@ -193,7 +225,7 @@ export function voiceStatus(input: VoiceStatusInput) {
     recentDecisions: ctx.decided.slice(-DECIDED).map((d) => decisionView(d, who)),
     notes: notes.map((n) => noteView(n, who)),
     notesNotShown: ctx.entries.length - notes.length + ctx.excluded.olderEntries,
-    work: guide === 'v1.2' && tasks ? workView(ctx.work, tasks) : ctx.work,
+    work: sinceV12(guide) && tasks ? workView(ctx.work, tasks, pages ?? []) : ctx.work,
     discussion: discussion.slice(-DISCUSSION).map((d) => ({
       contributionId: d.id,
       by: who(d.actorId),

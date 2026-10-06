@@ -14,6 +14,7 @@ import type {
   ResearchProgress,
 } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
+import { readDesignProgress, readResearchHtml } from './design-progress.ts'
 import { onlyRow } from './rows.ts'
 
 const iso = (value: Date | string) => new Date(value).toISOString()
@@ -161,6 +162,7 @@ interface OutputRow {
   sha256: string
   byte_length: string
   limitations: string[]
+  review_state: NonNullable<Output['reviewState']> | null
 }
 
 /**
@@ -175,10 +177,11 @@ async function readOutputs(c: pg.PoolClient, projectId: string, taskId: string):
         WHERE v.project_id = $1 AND v.state IN ('stable', 'superseded') AND v.job_id IN (
           SELECT j.id FROM sophia.jobs j WHERE j.project_id = $1 AND (j.id = $2 OR j.parent_job_id = $2))
         ORDER BY v.version_number DESC NULLS LAST, v.created_at DESC, v.id DESC LIMIT 1)
-     SELECT l.id AS artifact_version_id, 'markdown' AS format, s.id AS source_id, s.sha256, s.byte_length, l.limitations, '' AS k
+     SELECT l.id AS artifact_version_id, 'markdown' AS format, s.id AS source_id, s.sha256, s.byte_length, l.limitations,
+            NULL AS review_state, '' AS k
        FROM latest l JOIN sophia.source_objects s ON s.project_id = $1 AND s.id = l.source_id
      UNION ALL
-     SELECT l.id, r.format, s.id, s.sha256, s.byte_length, r.limitations, r.format
+     SELECT l.id, r.format, s.id, s.sha256, s.byte_length, r.limitations, r.review_state, r.format
        FROM latest l JOIN sophia.artifact_renditions r ON r.project_id = $1 AND r.artifact_version_id = l.id
        JOIN sophia.source_objects s ON s.project_id = r.project_id AND s.id = r.source_id
      ORDER BY k`,
@@ -191,6 +194,7 @@ async function readOutputs(c: pg.PoolClient, projectId: string, taskId: string):
     sha256: r.sha256,
     byteLength: Number(r.byte_length),
     limitations: r.limitations,
+    ...(r.review_state === null ? {} : { reviewState: r.review_state }),
   }))
 }
 
@@ -275,10 +279,13 @@ async function readResearchProgress(
   )
   const r = rows[0]
   if (!r) return null
+  // SDD-01: HTML asked for is designed after research, so it is not in the research manifest's outputs.
+  const html = await readResearchHtml(c, projectId, taskId)
+  const outputs = r.outputs ?? ['markdown']
   return {
     question: r.question,
     specialist: r.role,
-    outputs: r.outputs ?? ['markdown'],
+    outputs: html === null ? outputs : [...outputs, 'html'],
     rootTaskId: r.root_job_id,
     ...(r.amends_job_id === null ? {} : { amendsTaskId: r.amends_job_id }),
     capUsd: Number(r.cap_usd),
@@ -288,6 +295,7 @@ async function readResearchProgress(
     reads: { used: Number(r.reads), max: r.max_reads },
     ...(r.pdf_reason === null ? {} : { pdfReason: r.pdf_reason }),
     ...(r.pdf_rendering ? { pdfRendering: true } : {}),
+    ...(html === null ? {} : { html }),
   }
 }
 
@@ -304,11 +312,13 @@ export async function readNativeTask(c: pg.PoolClient, projectId: string, taskId
     [projectId, task.instruction_source_id],
   )
   const research = task.kind === 'research' ? await readResearchProgress(c, projectId, task.id) : null
+  const design = task.kind === 'design' ? await readDesignProgress(c, projectId, task.id) : null
   return {
     task: toTask(task),
     instruction: instruction.rows[0]?.body ?? '',
     result: await readResult(c, projectId, task),
     ...(research === null ? {} : { research }),
+    ...(design === null ? {} : { design }),
   }
 }
 

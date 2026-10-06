@@ -131,16 +131,9 @@
 .report-problem {
   color: var(--rose);
 }
-/* "Download HTML page" and its status line: in the Document tab above the report, on a Knowledge card in its row. */
-.page-download {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  margin-bottom: 12px;
-}
-.control-row .page-download {
-  margin-bottom: 0;
+/* A Knowledge card's HTML tag opens the designed page: a tag that is a button, nothing more. */
+.report-card-html {
+  padding: 0;
 }
 .work-card-foot {
   display: flex;
@@ -301,7 +294,7 @@
   margin-inline: auto;
 }
 /* The Document tab keeps the one reading measure on the full page: its text, and the lines above it on its edge. */
-.report-pane[data-size='full'] .report-pane-body > :is(.md, .page-download, .report-limits, .report-format-note) {
+.report-pane[data-size='full'] .report-pane-body > :is(.md, .report-limits, .report-format-note) {
   max-width: var(--measure);
 }
 .report-pane .report-status {
@@ -941,6 +934,31 @@
 .report-format button[aria-pressed='true'] {
   background: rgba(236, 235, 241, 0.08);
   color: var(--text);
+}
+
+/* A designed HTML page (HtmlView): its review line and limitations, then the page in its isolated frame, which takes
+   the rest of the pane. The frame's own page sets its own colours; Studio's are never inherited. */
+.report-pane-body[data-html] {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 20px;
+}
+.report-pane[data-size='full'] .report-pane-body[data-html] > * {
+  max-width: none;
+}
+.report-html {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.report-html-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 70vh;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: #fff;
 }
 
 /* The PDF (PdfView): the toolbar above the pages, the pages on the void, the rail beside them in the full page. */

@@ -22,6 +22,7 @@ import type {
   ResearchSubmission,
   ResearchSubmitRequest,
 } from '@sophia/contracts'
+import { freezeDesignPackage } from './design.ts'
 import { onlyRow } from './rows.ts'
 import type { RuntimeCaller } from './runtime.ts'
 
@@ -212,10 +213,16 @@ async function citedByDraft(
 export async function runtimeResearchSubmit(c: pg.PoolClient, who: RuntimeCaller, request: ResearchSubmitRequest) {
   const { draftCitations: _carried, ...asked } = request as ResearchSubmitRequest & { draftCitations?: unknown }
   const cited = asked.result ? await citedByDraft(c, who, asked, asked.result) : undefined
-  return operation<ResearchSubmission>(
+  const submission = await operation<ResearchSubmission>(
     c,
     'runtime_research_submit',
     who,
     cited ? { ...asked, draftCitations: cited } : asked,
   )
+  // SDD-01: a task asked for HTML admits its design with the publication (0040); its content package is frozen here,
+  // in the same transaction, from the version just published.
+  if (submission.outcome === 'published' && submission.html?.state === 'designing' && submission.html.taskId) {
+    await freezeDesignPackage(c, submission.html.taskId)
+  }
+  return submission
 }

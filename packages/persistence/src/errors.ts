@@ -9,6 +9,30 @@ interface Rule {
   publicMessage?: string
 }
 
+/**
+ * The limits research and design run into (55000): the messages name only which limit stopped the call, so they are
+ * kept.
+ */
+const LIMITS: readonly string[] = [
+  'Research allowance exhausted',
+  'Research grant exhausted',
+  'Research source policy limit reached',
+  'A partial-result call is already in flight',
+  // 0029: an unreconciled overrun stops the allowance; a finalizing task takes no ordinary call, and only so many.
+  'Research allowance overrun',
+  'Research is finalizing',
+  'Research finalize step has used its calls',
+  // 0030: at most three renders per research task.
+  'Research render limit reached',
+  // SDD-01 (0039, 0040): a design's renders, revisions, repairs and work record are bounded.
+  'Design render limit reached',
+  'Design revision limit reached',
+  'Design repair limit reached',
+  'The work record is full',
+  // 0041: a report's page is designed (and edited) at most sixteen times.
+  'Design edit limit reached',
+]
+
 /** SQLSTATEs raised by the sophia.* functions (db/migrations), most specific rule first. */
 const RULES: readonly Rule[] = [
   // Runtime capability checks (0012): the capability is unknown, or it is used against another unit or project.
@@ -27,6 +51,7 @@ const RULES: readonly Rule[] = [
       m.startsWith('Receipt names') ||
       m.startsWith('Observation names') ||
       m.startsWith('Research operation names') ||
+      m.startsWith('Design operation names') ||
       m.startsWith('A media-bridge call') ||
       m.startsWith('The speaker is not bound') ||
       m.startsWith('Announcement names'),
@@ -36,24 +61,12 @@ const RULES: readonly Rule[] = [
   // Research (0024, 0025): the gate, a ready runtime that carries the specialist, and the allowance's limits. The
   // messages name only which limit stopped the call, so they are kept.
   { sqlstate: '55000', when: (m) => m.startsWith('No research runtime'), code: 'native_capability_unavailable' },
+  // SDD-01 (0040): HTML needs a ready designer and a capture renderer asking for work; nothing is admitted without them.
+  { sqlstate: '55000', when: (m) => m.startsWith('HTML design is unavailable'), code: 'html_unavailable' },
   // 0032: a rendition needs a render runner that is asking for work.
   { sqlstate: '55000', when: (m) => m.startsWith('No PDF renderer'), code: 'native_capability_unavailable' },
   { sqlstate: '55000', when: (m) => m === 'Research gate closed', code: 'research_gate_closed' },
-  {
-    sqlstate: '55000',
-    when: (m) =>
-      m.startsWith('Research allowance exhausted') ||
-      m.startsWith('Research grant exhausted') ||
-      m.startsWith('Research source policy limit reached') ||
-      m.startsWith('A partial-result call is already in flight') ||
-      // 0029: an unreconciled overrun stops the allowance; a finalizing task takes no ordinary call, and only so many.
-      m.startsWith('Research allowance overrun') ||
-      m.startsWith('Research is finalizing') ||
-      m.startsWith('Research finalize step has used its calls') ||
-      // 0030: at most three renders per research task.
-      m.startsWith('Research render limit reached'),
-    code: 'research_limit_reached',
-  },
+  { sqlstate: '55000', when: (m) => LIMITS.some((p) => m.startsWith(p)), code: 'research_limit_reached' },
   // The mission ledger (0018): the note policy's refusals say what would allow the write, so their words are kept.
   {
     sqlstate: '42501',

@@ -173,7 +173,70 @@ describe('the v1.2 guide assets (SMC-M03 S6)', () => {
       [guideVersionOf(undefined), guideVersionOf(''), guideVersionOf('v1.1'), guideVersionOf('v1.2')],
       ['v1.2', 'v1.2', 'v1.1', 'v1.2'],
     )
-    for (const unknown of ['1.2', 'v1.3', 'V1.2']) assert.throws(() => guideVersionOf(unknown), GuideAssetError)
+    for (const unknown of ['1.2', 'v1.4', 'V1.2']) assert.throws(() => guideVersionOf(unknown), GuideAssetError)
+  })
+})
+
+describe('the v1.3 guide assets (SDD-01)', () => {
+  const V13 = TOOL_SETS['v1.3'].names
+  const guide = loadMissionGuide(V13, GUIDE_DIR, 'v1.3')
+  const PROMPT_V13 = 'M01_SYSTEM_PROMPT.v1.3.md'
+
+  it('loads its identities: its own prompt and M01’s skill, unchanged, naming nine operations; v1.2 stays the default', () => {
+    assert.deepEqual(guideIdentity(guide), {
+      version: 'v1.3',
+      prompt: {
+        id: 'sophia.mission-guide.system.v1.3',
+        sha256: '83fa8bf7d9ba97b5cc2aa8e622416c0a81169d4d75bef7b1ca94b3b91ead82bc',
+        bytes: 12709,
+      },
+      skill: loadMissionGuide(DECLARED_NAMES).skill,
+      combined: { sha256: 'c7865f4514a76b8d1367658abb93750167df0aaabccedbcb3efae7d6a16b75a9', bytes: 27310 },
+    })
+    assert.deepEqual(guide.operationNames, [...TOOL_SETS['v1.2'].names, 'revise_html_page'])
+    assert.equal(guideVersionOf('v1.3'), 'v1.3')
+    assert.equal(guideVersionOf(undefined), 'v1.2', 'the cutover is SOPHIA_GUIDE_VERSION=v1.3, deliberately')
+  })
+
+  it('is its prompt + LF + the pack’s skill, and changes only the HTML and commissioning paragraphs of v1.2', () => {
+    const prompt = readFileSync(join(GUIDE_DIR, PROMPT_V13), 'utf8')
+    assert.equal(guide.instruction, `${prompt}\n${readFileSync(join(PACK, 'skills', SKILL), 'utf8')}`)
+    const newer = new Set(paragraphs(prompt))
+    const changed = paragraphs(readFileSync(join(GUIDE_DIR, 'M01_SYSTEM_PROMPT.v1.2.md'), 'utf8')).filter(
+      (p) => !newer.has(p),
+    )
+    assert.deepEqual(
+      changed.map((p) => p.slice(0, 40)),
+      [
+        '- project_status reads the current missi',
+        'A research receipt that says admitted or',
+        'If a needed operation is absent, denied,',
+      ],
+    )
+  })
+
+  it('says what HTML now is and what a page edit may change, and keeps v1.2’s rules', () => {
+    for (const rule of [
+      'It makes no HTML.',
+      "start_research's html output asks for a designed HTML page",
+      'a separate reviewer checks the rendered page when one is available',
+      'There is no other HTML: a report without html has no web page.',
+      'revise_html_page asks for a change to named sections',
+      'Only those sections change',
+      'never what the report says: a change of content is a follow-up report',
+      'admitted or queued means accepted, not started and not finished',
+      'or that a page was designed or revised, without a tool receipt',
+      'Steer passes the speaker',
+      'pass newRequest only after they confirm',
+    ]) {
+      assert.ok(guide.instruction.includes(rule), rule)
+    }
+    assert.equal(/downloads as an HTML page/.test(guide.instruction), false)
+  })
+
+  it('refuses another version’s declarations', () => {
+    assert.throws(() => loadMissionGuide(TOOL_SETS['v1.2'].names, GUIDE_DIR, 'v1.3'), GuideAssetError)
+    assert.throws(() => loadMissionGuide(V13, GUIDE_DIR, 'v1.2'), GuideAssetError)
   })
 })
 

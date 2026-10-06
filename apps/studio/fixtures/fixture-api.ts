@@ -26,6 +26,8 @@ import {
   content,
   editDescription,
   citedSources,
+  DESIGN_TASK,
+  designingTask,
   REPORT,
   reportList,
   researchRunning,
@@ -84,6 +86,12 @@ interface Project {
   taskFails?: boolean
   /** A version's text arrives as bytes its record does not name (`tamper=text`). */
   textTampered: boolean
+  /** Version 1 carries a designed HTML page (SDD-01, `designed=on`), and the research task lists it. */
+  designed?: boolean
+  /** The research's HTML page is still being designed (`design=designing`, B-19). */
+  designing?: boolean
+  /** The designed page arrives as bytes its record does not name (`tamper=html`). */
+  pageTampered?: boolean
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
   work: boolean
   /** The project's goals (the work fixture's one, LFE-07). */
@@ -151,7 +159,7 @@ function snapshotOf(project: Project) {
   const work = running
     ? { ...now, work: [running] }
     : project.work
-      ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1).task] }
+      ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
   return withFocus(project, project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work)
 }
@@ -259,16 +267,23 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   if (method !== 'GET') return null
   if (path === '/api/v1/knowledge/reports') {
     const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
-    const published = versions(project.reportVersions, project.reportTitle, project.pilot)
+    const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
     return json(reportList(published, project.description, url.searchParams.get('cursor'), filter))
   }
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
-  const text = source ? content(source, project.textTampered) : null
+  const text = source ? content(source, project.textTampered, project.pageTampered) : null
   if (text) return textRead(project, text)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
+  if (path === `/api/v1/projects/${PROJECT}/native-tasks/${DESIGN_TASK}`) return designRead(project)
   return null
+}
+
+/** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
+function designRead(project: Project): Response | null {
+  if (!project.designing && !project.designed) return null
+  return json(designingTask(project.designed ? 'published' : 'designing'))
 }
 
 /** An edit of the report's description on Knowledge, answered as the API answers it. */
@@ -437,7 +452,12 @@ const heldTasks: (() => void)[] = []
 /** The research task at its revision now; while the page holds it, a read that answers once let through. */
 function taskRead(project: Project): Response | Promise<Response> {
   const running = project.researching
-  const read = () => json(running ? researchRunning(running.reads) : researchTaskAt(project.taskRevision ?? 1))
+  const read = () =>
+    json(
+      running
+        ? researchRunning(running.reads)
+        : researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing),
+    )
   served.push(`task:${String(project.taskRevision ?? 1)}`)
   if (project.taskFails) {
     const body = {
@@ -478,7 +498,7 @@ function versionsRead(project: Project): Response {
     return new Response(JSON.stringify(body), { status: failure.status })
   }
   served.push(`versions:${String(project.reportVersions)}`)
-  return json(versions(project.reportVersions, project.reportTitle, project.pilot))
+  return json(versions(project.reportVersions, project.reportTitle, project.pilot, project.designed))
 }
 
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */

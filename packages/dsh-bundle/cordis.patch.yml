@@ -205,6 +205,20 @@
       config:
         id: sophia-research-pdf-v1
         plugins: []
+    # SDD-01 native design roles: the HTML designer and the separate visual
+    # reviewer. Identity only, like the rest: the bridge registers each role's
+    # design or review tools in the agent's own scope and installs its prompt
+    # sections and native skills from the bundle's verified skills/ files.
+    - id: preset-sophia-html-designer-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-html-designer-v1
+        plugins: []
+    - id: preset-sophia-visual-review-v1
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: sophia-visual-review-v1
+        plugins: []
 
 # Sophia's control bridge (S1-03). The plugin itself declares its service
 # injections (agents, sessions, tools). The config names environment
@@ -239,9 +253,13 @@
               cacheRead: 0.1
               cacheWrite: 2.5
               output: 10
+        # The design roles (SDD-01) run on the research route, which declares image input; their calls are metered
+        # against the research lineage's allowance through the design operations.
         roleRoutes:
           sophia-research-md-v1: research-sol-medium-v1
           sophia-research-pdf-v1: research-sol-medium-v1
+          sophia-html-designer-v1: research-sol-medium-v1
+          sophia-visual-review-v1: research-sol-medium-v1
         # The research providers' keys, by reference (the unit's research_sources); never an endpoint override.
         sources:
           tavilyKeyEnv: TAVILY_API_KEY

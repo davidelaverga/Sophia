@@ -6449,12 +6449,13 @@
             "name": "guide",
             "in": "query",
             "required": false,
-            "description": "The guide version the bridge runs. v1.1 (the default, so an older bridge asks without it) is the six M01 operations; v1.2 adds start_research and render_research, and steer on control_work. The bridge rolls back before the API.",
+            "description": "The guide version the bridge runs. v1.1 (the default, so an older bridge asks without it) is the six M01 operations; v1.2 adds start_research and render_research, and steer on control_work; v1.3 (SDD-01) adds revise_html_page. The bridge rolls back before the API.",
             "schema": {
               "type": "string",
               "enum": [
                 "v1.1",
-                "v1.2"
+                "v1.2",
+                "v1.3"
               ]
             }
           }
@@ -9090,7 +9091,17 @@
           }
         },
         "x-sophia-implementation": "contract_only",
-        "x-sophia-release-goal": "SMC-M03"
+        "x-sophia-release-goal": "SMC-M03",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenderClaimRequest"
+              }
+            }
+          }
+        }
       }
     },
     "/v1/renderer/jobs/{jobId}/heartbeat": {
@@ -9439,6 +9450,1736 @@
         },
         "x-sophia-implementation": "contract_only",
         "x-sophia-release-goal": "SMC-M03"
+      }
+    },
+    "/v1/runtime/design/context": {
+      "post": {
+        "operationId": "runtimeDesignContext",
+        "summary": "The design task, its frozen content package, revisions, candidates and reviews; or a page of a text it may read. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignContextRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The task or a page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignContextReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease, or the work is not active (Hold or Stop)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/design/record": {
+      "post": {
+        "operationId": "runtimeDesignRecord",
+        "summary": "Append entries to the design's work record at the count the designer read. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignRecordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Appended (or the call's earlier append)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active, or the record changed since it was read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The work record is full (research_limit_reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/design/source": {
+      "post": {
+        "operationId": "runtimeDesignSource",
+        "summary": "Write a whole source package: checked by the API with @sophia/design (parser profile, coverage), stored as a new immutable revision, or refused. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignWriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored, or refused with its findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignSourceReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active, or the source changed since it was read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The design's revisions are used up (research_limit_reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/design/patch": {
+      "post": {
+        "operationId": "runtimeDesignPatch",
+        "summary": "Change the current source with exact, unique edits inside the admitted scope: checked, stored with its whole diff, or refused. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored, or refused with its findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignSourceReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active, or the source changed since it was read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The design's revisions are used up (research_limit_reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/design/render": {
+      "post": {
+        "operationId": "runtimeDesignRender",
+        "summary": "Capture one revision: compiled by the API into one self-contained page and queued for the confined capture renderer at the task's targets. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignRenderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The render (or the one this call already queued)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignRender"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active, or a render of the design is still running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The design's renders are used up (research_limit_reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/design/render-result": {
+      "post": {
+        "operationId": "runtimeDesignRenderResult",
+        "summary": "A render of this design (the latest when none is named): its state, captures, measures, checks and gate.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignRenderResultRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The render",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignRender"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another bridge holds the lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/design/capture": {
+      "post": {
+        "operationId": "runtimeDesignCapture",
+        "summary": "The actual pixels of up to four captures of one of the design's renders, checked against their hashes. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignCaptureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The captures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignCaptureReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/design/reserve": {
+      "post": {
+        "operationId": "runtimeDesignReserve",
+        "summary": "Reserve before one model call of the designer or the reviewer, against the research lineage's allowance. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchReserveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reserved (or the call's earlier reservation)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchReservation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The allowance or the grant is spent (research_limit_reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/design/settle": {
+      "post": {
+        "operationId": "runtimeDesignSettle",
+        "summary": "End one of this session's reservations from the call's reported usage. Never fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchSettleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchSettlement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The reservation already ended otherwise",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/design/submit": {
+      "post": {
+        "operationId": "runtimeDesignSubmit",
+        "summary": "Submit a candidate past the hard gate (then reviewed independently, or published as self_review_only), or report a blocker. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignSubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the submit did (refused with the gate's reasons records nothing)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignSubmission"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active, a candidate is under review, or a later revision exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The design's repairs are used up (research_limit_reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/review/context": {
+      "post": {
+        "operationId": "runtimeReviewContext",
+        "summary": "The review's request, frozen package, criteria and exact candidate with its render; or a page of a text it may read. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignContextRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The review task or a page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewContextReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/review/capture": {
+      "post": {
+        "operationId": "runtimeReviewCapture",
+        "summary": "The actual pixels of up to four captures of the candidate's render; each one handed over is recorded. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignCaptureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The captures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignCaptureReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/review/submit": {
+      "post": {
+        "operationId": "runtimeReviewSubmit",
+        "summary": "The review's verdict and findings, or a blocker. The service then publishes, asks the designer for a revision, or publishes with the findings open. Fenced.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewSubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded, or what a pass has not inspected yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSubmission"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a revision, render, capture or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/renderer/jobs/{jobId}/captures/{name}": {
+      "put": {
+        "operationId": "rendererCapture",
+        "summary": "Upload one PNG a capture job's receipt names: the API checks its signature and size, stores it and records it under its name.",
+        "tags": [
+          "renderer"
+        ],
+        "security": [
+          {
+            "renderRunnerCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9.-]{0,150}\\.png$",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-render-lease",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderCaptureOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown render runner capability"
+          },
+          "409": {
+            "description": "The lease is lost (another claim, a Hold or Stop)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, is not a PNG, or names a job this lease does not cover",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/api/v1/projects/{projectId}/html-edits": {
+      "post": {
+        "operationId": "requestDesignEdit",
+        "summary": "Revise named sections of the designed HTML page of a report's current version: a design task in mode edit, reviewed and published as the report's next version. Editors and admins only. The same Idempotency-Key returns the same edit.",
+        "tags": [
+          "artifacts"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignEditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Admitted (or what the earlier call with this key admitted); the page is designed later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignEditReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (editors and admins only), or the report or the instruction draws on a withdrawn source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A newer version exists, a design of this page is under way, or work on the report is under way, held or stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or the version has no designed page or no such section",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "This report's page has been designed as often as allowed (research_limit_reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "HTML design is unavailable: no designer or no capture renderer is ready (html_unavailable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
       }
     }
   },
@@ -12600,7 +14341,8 @@
             "type": "string",
             "enum": [
               "draft_brief",
-              "research"
+              "research",
+              "design"
             ]
           },
           "stage": {
@@ -12651,7 +14393,8 @@
             "type": "string",
             "enum": [
               "draft_brief",
-              "research"
+              "research",
+              "design"
             ]
           },
           "goalId": {
@@ -12859,7 +14602,8 @@
                           "type": "string",
                           "enum": [
                             "markdown",
-                            "pdf"
+                            "pdf",
+                            "html"
                           ]
                         },
                         "sourceId": {
@@ -12882,6 +14626,14 @@
                           "items": {
                             "type": "string"
                           }
+                        },
+                        "reviewState": {
+                          "type": "string",
+                          "enum": [
+                            "reviewed",
+                            "self_review_only",
+                            "review_unresolved"
+                          ]
                         }
                       },
                       "required": [
@@ -12913,6 +14665,9 @@
           },
           "research": {
             "$ref": "#/components/schemas/ResearchProgress"
+          },
+          "design": {
+            "$ref": "#/components/schemas/DesignProgress"
           }
         },
         "required": [
@@ -13558,7 +15313,8 @@
               "decide_mission_change",
               "control_work",
               "start_research",
-              "render_research"
+              "render_research",
+              "revise_html_page"
             ]
           },
           "args": {
@@ -13591,9 +15347,10 @@
             "type": "string",
             "enum": [
               "v1.1",
-              "v1.2"
+              "v1.2",
+              "v1.3"
             ],
-            "description": "The guide version the bridge runs (SMC-M03 S6). Omitted by older bridges means v1.1. project_status lists the operations of this version only."
+            "description": "The guide version the bridge runs (SMC-M03 S6; SDD-01 v1.3). Omitted by older bridges means v1.1. project_status lists the operations of this version only."
           }
         },
         "required": [
@@ -14387,9 +16144,10 @@
                   "type": "string",
                   "enum": [
                     "draft_brief",
-                    "research"
+                    "research",
+                    "design"
                   ],
-                  "description": "The task's kind (SMC-M03 S6), so the guide knows which work is research. Omitted when the goal has no task."
+                  "description": "The task's kind (SMC-M03 S6; SDD-01 adds the HTML design of a published report). Omitted when the goal has no task."
                 }
               },
               "required": [
@@ -15945,7 +17703,8 @@
           "format": {
             "type": "string",
             "enum": [
-              "pdf"
+              "pdf",
+              "html"
             ]
           },
           "sourceId": {
@@ -15975,6 +17734,23 @@
                 "type": "null"
               }
             ]
+          },
+          "reviewState": {
+            "type": "string",
+            "enum": [
+              "reviewed",
+              "self_review_only",
+              "review_unresolved"
+            ],
+            "description": "html only: how the designed page was reviewed. reviewed: a separate visual reviewer passed it. self_review_only: checked by software, no separate reviewer was available. review_unresolved: published with review findings still open, named in limitations. Omitted for a PDF."
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string"
+            },
+            "description": "What this format says it could not do. Omitted when nothing."
           }
         },
         "required": [
@@ -17264,6 +19040,32 @@
             "required": [
               "state"
             ]
+          },
+          "html": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "designing",
+                  "not_started"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "taskId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "description": "A task asked for HTML: the design attempt admitted with the publication (designing), or why there is none (not_started)."
           }
         },
         "required": [
@@ -17284,12 +19086,13 @@
           },
           "outputs": {
             "type": "array",
-            "maxItems": 2,
+            "maxItems": 3,
             "items": {
               "type": "string",
               "enum": [
                 "markdown",
-                "pdf"
+                "pdf",
+                "html"
               ]
             }
           },
@@ -17363,6 +19166,33 @@
           "pdfRendering": {
             "type": "boolean",
             "description": "True while a rendition (\"Try PDF again\") of the task's report is queued or rendering. Omitted otherwise."
+          },
+          "html": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "requested",
+                  "designing",
+                  "published",
+                  "failed",
+                  "not_started"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "designTaskId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "description": "The HTML this task was asked for: requested (until it publishes), then designing, published, failed or not_started with the reason. Omitted when no HTML was asked for."
           }
         },
         "required": [
@@ -18257,7 +20087,8 @@
           "format": {
             "type": "string",
             "enum": [
-              "pdf"
+              "pdf",
+              "png"
             ]
           },
           "language": {
@@ -18281,6 +20112,37 @@
             "items": {
               "$ref": "#/components/schemas/RenderJobFile"
             }
+          },
+          "targets": {
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "w390-light",
+                "w1280-light"
+              ]
+            },
+            "description": "png: the screen targets to capture."
+          },
+          "sections": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 64,
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -18848,7 +20710,14 @@
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "receipt": {
-            "$ref": "#/components/schemas/RenderReceipt"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RenderReceipt"
+              },
+              {
+                "$ref": "#/components/schemas/CaptureReceipt"
+              }
+            ]
           }
         },
         "required": [
@@ -18885,6 +20754,2972 @@
           "state",
           "reason"
         ]
+      },
+      "DesignCandidateState": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "submitted",
+              "reviewing",
+              "needs_revision",
+              "self_review_only",
+              "review_unresolved",
+              "reviewed",
+              "published",
+              "superseded",
+              "failed"
+            ]
+          },
+          "reviewState": {
+            "type": "string",
+            "enum": [
+              "reviewed",
+              "self_review_only",
+              "review_unresolved"
+            ]
+          }
+        },
+        "required": [
+          "candidateId",
+          "round",
+          "state"
+        ]
+      },
+      "DesignProgress": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "researchTaskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "artifactId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "baseVersionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "baseVersionNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "designing",
+              "reviewing",
+              "published",
+              "failed",
+              "cancelled",
+              "superseded"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "targets": {
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "w390-light",
+                "w1280-light"
+              ]
+            }
+          },
+          "revisions": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "renders": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "candidates": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "$ref": "#/components/schemas/DesignCandidateState"
+            }
+          },
+          "maxRepairs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "publishedVersionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "create",
+              "edit",
+              "audit"
+            ],
+            "description": "create designs a version's page; edit revises sections of a published one. Omitted by older readers means create."
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "sections": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                }
+              },
+              "shell": {
+                "type": "boolean"
+              },
+              "styles": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "sections"
+            ],
+            "description": "What an edit may change: the sections named, and the page around them (shell) or the shared stylesheet (styles) only when named."
+          },
+          "sections": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            },
+            "description": "The section ids of the design's latest page, in page order: what an edit can name."
+          }
+        },
+        "required": [
+          "researchTaskId",
+          "artifactId",
+          "baseVersionId",
+          "state",
+          "targets",
+          "revisions",
+          "renders",
+          "candidates",
+          "maxRepairs"
+        ],
+        "description": "An HTML design's progress (SDD-01): the version it designs, its state, and each candidate with how its review went. Omitted for other kinds."
+      },
+      "DesignFinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z_]{0,63}$"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000
+          },
+          "block": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "path",
+          "message"
+        ],
+        "description": "One deterministic finding about a source (@sophia/design): the static profile, coverage or scope."
+      },
+      "DesignSourceFile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "enum": [
+              "index.html",
+              "styles.css"
+            ]
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 524288
+          }
+        },
+        "required": [
+          "path",
+          "sourceId",
+          "sha256",
+          "bytes"
+        ]
+      },
+      "DesignSection": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "id",
+          "line",
+          "sha256"
+        ]
+      },
+      "DesignRevision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "stored"
+            ]
+          },
+          "revisionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "baseRevisionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "write",
+              "patch"
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "files": {
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/DesignSourceFile"
+            }
+          },
+          "sections": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "$ref": "#/components/schemas/DesignSection"
+            }
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "Every block, citation and cited source of the frozen package is in place, unchanged."
+          },
+          "findings": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/DesignFinding"
+            }
+          },
+          "findingCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "diffSourceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compiledSourceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "diff": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 70000,
+            "description": "The whole change against the base, unified, bounded."
+          }
+        },
+        "required": [
+          "revisionId",
+          "seq",
+          "baseRevisionId",
+          "kind",
+          "sha256",
+          "files",
+          "sections",
+          "complete",
+          "findings",
+          "findingCount",
+          "diffSourceId",
+          "compiledSourceId"
+        ],
+        "description": "One immutable source revision of a design."
+      },
+      "DesignSourceRefusal": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "refused"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/DesignFinding"
+            }
+          },
+          "findingCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          }
+        },
+        "required": [
+          "outcome",
+          "findings",
+          "findingCount"
+        ],
+        "description": "Nothing was stored: the source breaks the static profile, an edit did not apply exactly, or a change left the admitted scope."
+      },
+      "DesignSourceReply": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DesignRevision"
+          },
+          {
+            "$ref": "#/components/schemas/DesignSourceRefusal"
+          }
+        ]
+      },
+      "DesignContextRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6000
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId"
+        ]
+      },
+      "DesignTaskContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "create",
+              "edit",
+              "audit"
+            ]
+          },
+          "language": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 35
+          },
+          "targets": {
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "w390-light",
+                "w1280-light"
+              ]
+            }
+          },
+          "scope": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "designing",
+              "reviewing",
+              "published",
+              "failed",
+              "cancelled",
+              "superseded"
+            ]
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxRepairs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2
+              },
+              "maxRounds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3
+              },
+              "candidates": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "reviews": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "renders": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16
+              },
+              "maxRenders": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 16
+              }
+            },
+            "required": [
+              "maxRepairs",
+              "maxRounds",
+              "candidates",
+              "reviews",
+              "renders",
+              "maxRenders"
+            ]
+          },
+          "request": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "artifactId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "versionId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "versionNumber": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "markdownSourceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "markdownSha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "limitations": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "instruction": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "description": "An edit: what the person asked to change."
+              },
+              "baseCandidateId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "description": "An edit: the published candidate it revises."
+              }
+            },
+            "required": [
+              "title",
+              "artifactId",
+              "versionId",
+              "markdownSourceId",
+              "markdownSha256",
+              "limitations"
+            ]
+          },
+          "package": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "sourceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "totalChars": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "content": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "The frozen content package itself, when it is small enough; otherwise page it by sourceId."
+              }
+            },
+            "required": [
+              "sourceId",
+              "sha256",
+              "totalChars"
+            ]
+          },
+          "revision": {
+            "$ref": "#/components/schemas/DesignRevision"
+          },
+          "candidates": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "candidateId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "round": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 3
+                },
+                "state": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                },
+                "revisionId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "renderJobId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                }
+              },
+              "required": [
+                "candidateId",
+                "round",
+                "state",
+                "revisionId",
+                "renderJobId"
+              ]
+            }
+          },
+          "reviews": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "candidateId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "verdict": {
+                  "type": "string",
+                  "enum": [
+                    "pass",
+                    "needs_revision",
+                    "blocked"
+                  ]
+                },
+                "findings": {
+                  "type": "array",
+                  "maxItems": 40,
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewFinding"
+                  }
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "candidateId",
+                "verdict"
+              ]
+            }
+          },
+          "workRecord": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "entries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 400
+              },
+              "latest": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "seq": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 400
+                    },
+                    "kind": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 16
+                    },
+                    "body": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        {
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "seq",
+                    "kind",
+                    "body"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "entries",
+              "latest"
+            ]
+          },
+          "allowance": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "capUsd": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "committedUsd": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              }
+            },
+            "required": [
+              "capUsd",
+              "committedUsd"
+            ]
+          }
+        },
+        "required": [
+          "taskId",
+          "mode",
+          "language",
+          "targets",
+          "scope",
+          "state",
+          "limits",
+          "request",
+          "package",
+          "candidates",
+          "reviews",
+          "workRecord",
+          "allowance"
+        ]
+      },
+      "DesignContextReply": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DesignTaskContext"
+          },
+          {
+            "$ref": "#/components/schemas/ResearchSourcePage"
+          }
+        ]
+      },
+      "DesignRecordRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id; with the native session it is the operation's idempotency key."
+          },
+          "expectedEntries": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 400,
+            "description": "The entry count the designer read; the bridge omits it for the reference reads it records itself."
+          },
+          "entries": {
+            "type": "array",
+            "maxItems": 10,
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "contract",
+                    "stage",
+                    "reference",
+                    "risk",
+                    "surface",
+                    "note"
+                  ]
+                },
+                "body": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 16000
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "body"
+              ]
+            }
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId",
+          "entries"
+        ]
+      },
+      "DesignRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "entries": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 400
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entries",
+          "replayed"
+        ]
+      },
+      "DesignWriteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id; with the native session it is the operation's idempotency key."
+          },
+          "expectedSha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "The current revision's package hash; null only for the first write."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "files": {
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "enum": [
+                    "index.html",
+                    "styles.css"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 524288
+                }
+              },
+              "required": [
+                "path",
+                "text"
+              ]
+            }
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId",
+          "expectedSha256",
+          "files"
+        ]
+      },
+      "DesignPatchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id; with the native session it is the operation's idempotency key."
+          },
+          "expectedSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "edits": {
+            "type": "array",
+            "maxItems": 40,
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "enum": [
+                    "index.html",
+                    "styles.css"
+                  ]
+                },
+                "find": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 65536
+                },
+                "replace": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 262144
+                }
+              },
+              "required": [
+                "path",
+                "find",
+                "replace"
+              ]
+            }
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId",
+          "expectedSha256",
+          "edits"
+        ]
+      },
+      "DesignRenderRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id; with the native session it is the operation's idempotency key."
+          },
+          "revisionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "targets": {
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "w390-light",
+                "w1280-light"
+              ]
+            }
+          },
+          "sections": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 64,
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId",
+          "revisionId"
+        ]
+      },
+      "DesignRenderResultRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId"
+        ]
+      },
+      "DesignCheck": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "unknown"
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "target",
+          "outcome",
+          "detail"
+        ]
+      },
+      "DesignCaptureRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[a-z0-9][a-z0-9.-]{0,150}\\.png$"
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "overview",
+              "section",
+              "margin"
+            ]
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tile": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "tiles": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "name",
+          "target",
+          "kind",
+          "section",
+          "tile",
+          "tiles",
+          "width",
+          "height",
+          "sha256"
+        ]
+      },
+      "DesignBlockMeasure": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "box": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "x": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              },
+              "y": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              },
+              "width": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              },
+              "height": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ]
+          },
+          "fontPx": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "issues": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "enum": [
+                "not_rendered",
+                "hidden",
+                "transparent",
+                "no_visible_text",
+                "off_page",
+                "text_cut",
+                "clipped",
+                "scrolls",
+                "covered",
+                "low_contrast"
+              ]
+            }
+          },
+          "contrast": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ratio": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "floor": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "large": {
+                "type": "boolean"
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "ratio",
+              "floor",
+              "large",
+              "detail"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "section",
+          "box",
+          "fontPx",
+          "issues",
+          "contrast"
+        ]
+      },
+      "DesignCoverage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requested": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "captured": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "missing": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "margins": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "marginsCaptured": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requested",
+          "captured",
+          "missing",
+          "margins",
+          "marginsCaptured",
+          "truncated"
+        ]
+      },
+      "DesignTargetMeasures": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "overflowPx": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "overflowing": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "element": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 80
+                },
+                "rightPx": {
+                  "type": "integer",
+                  "minimum": -10000000,
+                  "maximum": 10000000
+                }
+              },
+              "required": [
+                "element",
+                "rightPx"
+              ]
+            }
+          },
+          "sections": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 64
+                },
+                "y": {
+                  "type": "integer",
+                  "minimum": -10000000,
+                  "maximum": 10000000
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": -10000000,
+                  "maximum": 10000000
+                }
+              },
+              "required": [
+                "id",
+                "y",
+                "height"
+              ]
+            }
+          },
+          "blocks": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "issues": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "$ref": "#/components/schemas/DesignBlockMeasure"
+            }
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/DesignCoverage"
+          }
+        },
+        "required": [
+          "target",
+          "width",
+          "height",
+          "overflowPx",
+          "overflowing",
+          "sections",
+          "blocks",
+          "issues",
+          "coverage"
+        ]
+      },
+      "DesignRender": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "rendering",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 2000
+          },
+          "revisionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "targets": {
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "w390-light",
+                "w1280-light"
+              ]
+            }
+          },
+          "sections": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "captures": {
+            "type": "array",
+            "maxItems": 72,
+            "items": {
+              "$ref": "#/components/schemas/DesignCaptureRef"
+            }
+          },
+          "measures": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "$ref": "#/components/schemas/DesignTargetMeasures"
+            }
+          },
+          "checks": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/DesignCheck"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 300
+            }
+          },
+          "fonts": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 200
+            }
+          },
+          "browser": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "errorCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "gate": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "passed": {
+                "type": "boolean"
+              },
+              "failures": {
+                "type": "array",
+                "maxItems": 40,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                }
+              }
+            },
+            "required": [
+              "passed",
+              "failures"
+            ]
+          }
+        },
+        "required": [
+          "renderJobId",
+          "state",
+          "revisionId",
+          "sha256",
+          "targets"
+        ],
+        "description": "A capture of one source revision (SDD-01): its state and, once settled, its captures, each target's measures (every block with an issue, forty at most), coverage, checks and the hard gate's reading of it."
+      },
+      "DesignCaptureRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "names": {
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[a-z0-9][a-z0-9.-]{0,150}\\.png$"
+            }
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "names"
+        ]
+      },
+      "DesignCaptureImage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[a-z0-9][a-z0-9.-]{0,150}\\.png$"
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "overview",
+              "section",
+              "margin"
+            ]
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tile": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "tiles": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "scale": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 4
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8388608
+          },
+          "mime": {
+            "type": "string",
+            "enum": [
+              "image/png"
+            ]
+          },
+          "data": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 11184812,
+            "description": "The PNG's bytes, base64, checked against sha256 by the API."
+          }
+        },
+        "required": [
+          "name",
+          "target",
+          "kind",
+          "section",
+          "tile",
+          "tiles",
+          "width",
+          "height",
+          "scale",
+          "sha256",
+          "bytes",
+          "mime",
+          "data"
+        ]
+      },
+      "DesignCaptureReply": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "captures": {
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/DesignCaptureImage"
+            }
+          }
+        },
+        "required": [
+          "renderJobId",
+          "captures"
+        ]
+      },
+      "DesignCandidate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "revisionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "revisionId",
+          "renderJobId"
+        ]
+      },
+      "DesignSubmitRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id; with the native session it is the operation's idempotency key."
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/DesignCandidate"
+          },
+          "blocker": {
+            "$ref": "#/components/schemas/ResearchBlocker"
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId"
+        ]
+      },
+      "DesignSubmission": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "refused",
+              "reviewing",
+              "published",
+              "self_review_only",
+              "review_unresolved",
+              "needs_revision",
+              "reviewed",
+              "superseded",
+              "failed",
+              "submitted",
+              "blocked"
+            ]
+          },
+          "failures": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "candidateId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "reviewTaskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "reviewState": {
+            "type": "string",
+            "enum": [
+              "reviewed",
+              "self_review_only",
+              "review_unresolved"
+            ]
+          },
+          "versionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "resultSourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "description": "refused: the hard gate's reasons, nothing recorded. reviewing: the candidate went to an independent reviewer. published: no reviewer was available; it is published as self_review_only. blocked: the design ended with its reason."
+      },
+      "ReviewFinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "blocking",
+              "major",
+              "minor"
+            ]
+          },
+          "issue": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "fix": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 500
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "w390-light",
+              "w1280-light"
+            ]
+          },
+          "section": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 64
+          },
+          "capture": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 160
+          }
+        },
+        "required": [
+          "severity",
+          "issue"
+        ]
+      },
+      "ReviewTaskContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reviewTaskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "candidateId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "criteria": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "text",
+              "sha256"
+            ]
+          },
+          "request": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 35
+              },
+              "targets": {
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "w390-light",
+                    "w1280-light"
+                  ]
+                }
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "edit",
+                  "audit"
+                ]
+              },
+              "instruction": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "description": "An edit: what the person asked to change (never the author's account)."
+              },
+              "scope": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "sections": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                    }
+                  },
+                  "shell": {
+                    "type": "boolean"
+                  },
+                  "styles": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "sections"
+                ],
+                "description": "What an edit may change: the sections named, and the page around them (shell) or the shared stylesheet (styles) only when named."
+              }
+            },
+            "required": [
+              "title",
+              "language",
+              "targets"
+            ]
+          },
+          "package": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "sourceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "totalChars": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000000
+              },
+              "content": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "required": [
+              "sourceId",
+              "sha256",
+              "totalChars"
+            ]
+          },
+          "candidate": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "revisionId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "files": {
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/components/schemas/DesignSourceFile"
+                }
+              },
+              "sections": {
+                "type": "array",
+                "maxItems": 256,
+                "items": {
+                  "$ref": "#/components/schemas/DesignSection"
+                }
+              },
+              "compiledSourceId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "revisionId",
+              "sha256",
+              "files",
+              "sections",
+              "compiledSourceId"
+            ]
+          },
+          "render": {
+            "$ref": "#/components/schemas/DesignRender"
+          },
+          "inspected": {
+            "type": "array",
+            "maxItems": 160,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        },
+        "required": [
+          "reviewTaskId",
+          "candidateId",
+          "round",
+          "criteria",
+          "request",
+          "package",
+          "candidate",
+          "render",
+          "inspected"
+        ],
+        "description": "What an independent review reads (SDD-01): never the author's summary or work record."
+      },
+      "ReviewContextReply": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ReviewTaskContext"
+          },
+          {
+            "$ref": "#/components/schemas/ResearchSourcePage"
+          }
+        ]
+      },
+      "ReviewResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "needs_revision"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "$ref": "#/components/schemas/ReviewFinding"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "verdict",
+          "findings"
+        ]
+      },
+      "ReviewBlocker": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ReviewSubmitRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "callId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+            "description": "The native tool-call id; with the native session it is the operation's idempotency key."
+          },
+          "result": {
+            "$ref": "#/components/schemas/ReviewResult"
+          },
+          "blocker": {
+            "$ref": "#/components/schemas/ReviewBlocker"
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "callId"
+        ]
+      },
+      "ReviewSubmission": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "recorded",
+              "coverage_incomplete"
+            ]
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "needs_revision",
+              "blocked"
+            ]
+          },
+          "candidateId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "missing": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "decision": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "What the service did with the verdict: published, revision_requested, or ignored."
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "description": "coverage_incomplete: a pass that has not inspected each target's overview and every section; nothing is recorded."
+      },
+      "RenderClaimRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "formats": {
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "pdf",
+                "png"
+              ]
+            }
+          }
+        },
+        "required": [],
+        "description": "The formats this runner renders. A claim without them (an older runner) is a PDF runner's and is never handed a capture."
+      },
+      "CaptureReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "sophia.html-capture-receipt.v1"
+            ]
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z][a-z_]{0,63}$"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "code",
+                  "message"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "renderer": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kernel": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 200
+              },
+              "rendererSha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "playwrightCore": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 40
+              },
+              "browser": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kernel",
+              "rendererSha256",
+              "playwrightCore",
+              "browser"
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "manifestSha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "entry": {
+                    "$ref": "#/components/schemas/RenderFileRef"
+                  }
+                },
+                "required": [
+                  "manifestSha256",
+                  "entry"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 35
+          },
+          "sandbox": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fonts": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 200
+            }
+          },
+          "targets": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000
+                },
+                "scheme": {
+                  "type": "string",
+                  "enum": [
+                    "light",
+                    "dark"
+                  ]
+                },
+                "page": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "width": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000000
+                    },
+                    "height": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000000
+                    },
+                    "viewportWidth": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "viewportHeight": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "overflowPx": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000000
+                    },
+                    "overflowing": {
+                      "type": "array",
+                      "maxItems": 20,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "element": {
+                            "type": "string",
+                            "minLength": 0,
+                            "maxLength": 80
+                          },
+                          "rightPx": {
+                            "type": "integer",
+                            "minimum": -10000000,
+                            "maximum": 10000000
+                          }
+                        },
+                        "required": [
+                          "element",
+                          "rightPx"
+                        ]
+                      }
+                    },
+                    "sections": {
+                      "type": "array",
+                      "maxItems": 256,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 0,
+                            "maxLength": 64
+                          },
+                          "x": {
+                            "type": "integer",
+                            "minimum": -10000000,
+                            "maximum": 10000000
+                          },
+                          "y": {
+                            "type": "integer",
+                            "minimum": -10000000,
+                            "maximum": 10000000
+                          },
+                          "width": {
+                            "type": "integer",
+                            "minimum": -10000000,
+                            "maximum": 10000000
+                          },
+                          "height": {
+                            "type": "integer",
+                            "minimum": -10000000,
+                            "maximum": 10000000
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "x",
+                          "y",
+                          "width",
+                          "height"
+                        ]
+                      }
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "maxItems": 4000,
+                      "items": {
+                        "$ref": "#/components/schemas/DesignBlockMeasure"
+                      }
+                    }
+                  },
+                  "required": [
+                    "width",
+                    "height",
+                    "viewportWidth",
+                    "viewportHeight",
+                    "overflowPx",
+                    "overflowing",
+                    "sections",
+                    "blocks"
+                  ]
+                },
+                "coverage": {
+                  "$ref": "#/components/schemas/DesignCoverage"
+                }
+              },
+              "required": [
+                "id",
+                "width",
+                "height",
+                "scheme",
+                "page",
+                "coverage"
+              ]
+            }
+          },
+          "captures": {
+            "type": "array",
+            "maxItems": 72,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160,
+                  "pattern": "^[a-z0-9][a-z0-9.-]{0,150}\\.png$"
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "overview",
+                    "section",
+                    "margin"
+                  ]
+                },
+                "section": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "tile": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                "tiles": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                "clip": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "x": {
+                      "type": "integer",
+                      "minimum": -10000000,
+                      "maximum": 10000000
+                    },
+                    "y": {
+                      "type": "integer",
+                      "minimum": -10000000,
+                      "maximum": 10000000
+                    },
+                    "width": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000000
+                    },
+                    "height": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000000
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "width",
+                    "height"
+                  ]
+                },
+                "scale": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 4
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 8388608
+                }
+              },
+              "required": [
+                "name",
+                "target",
+                "kind",
+                "section",
+                "tile",
+                "tiles",
+                "clip",
+                "scale",
+                "width",
+                "height",
+                "sha256",
+                "bytes"
+              ]
+            }
+          },
+          "blockedRequests": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 300
+            }
+          },
+          "checks": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/DesignCheck"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 300
+            }
+          },
+          "elapsedMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000
+          }
+        },
+        "required": [
+          "schema",
+          "jobId",
+          "status",
+          "error",
+          "renderer",
+          "source",
+          "language",
+          "sandbox",
+          "fonts",
+          "targets",
+          "captures",
+          "blockedRequests",
+          "checks",
+          "warnings",
+          "elapsedMs"
+        ],
+        "description": "The capture kernel's receipt (renderers/web/pdf/capture-html.mjs, SDD-01)."
+      },
+      "RenderCaptureOutput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[a-z0-9][a-z0-9.-]{0,150}\\.png$"
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8388608
+          }
+        },
+        "required": [
+          "name",
+          "sourceId",
+          "sha256",
+          "byteLength"
+        ]
+      },
+      "DesignEditRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "versionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "description": "The report's current version, whose HTML page is revised."
+          },
+          "sections": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          },
+          "shell": {
+            "type": "boolean",
+            "description": "Also allow the page around the sections to change (head, header, footer, section list)."
+          },
+          "styles": {
+            "type": "boolean",
+            "description": "Also allow the shared stylesheet to change."
+          },
+          "instruction": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "What to change, in the person's words; kept as their own contribution."
+          }
+        },
+        "required": [
+          "versionId",
+          "sections",
+          "instruction"
+        ],
+        "description": "Revise named sections of a published HTML page (SDD-01 G5, B-16). Everything outside the scope is protected."
+      },
+      "DesignEditReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "designing",
+              "reviewing",
+              "published",
+              "failed",
+              "cancelled",
+              "superseded"
+            ]
+          },
+          "versionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "baseCandidateId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "sections": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          },
+          "shell": {
+            "type": "boolean"
+          },
+          "styles": {
+            "type": "boolean"
+          },
+          "contributionId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "taskId",
+          "state",
+          "versionId",
+          "baseCandidateId",
+          "sections",
+          "shell",
+          "styles"
+        ],
+        "description": "The edit admitted (or what the earlier call with this key admitted): a design task in mode edit. Its progress is the task's."
       }
     }
   }

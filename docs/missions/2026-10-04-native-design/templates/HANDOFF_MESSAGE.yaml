@@ -1,0 +1,29 @@
+# Fill with actual values. This template is not an execution approval.
+protocol: sophia.dev-handoff.v1.1
+mission_profile: sophia.native-design.v0.1
+mission_id: null                  # M75 or SDD-01
+message_id: null                  # allocated from actual thread
+from_role: null                   # implementer | reviewer_operator
+kind: null                       # support_request | review_finding | prepared | execution_request | result | blocked ...
+reply_to: null
+operation_id: null
+request_revision: 1
+supersedes: null
+candidate_commit: null
+base_commit: null
+summary: null
+scope:
+  question_or_goal: null
+  source_paths: []
+  writable_paths: []
+  allowed_environment: null
+  allowed_effects: []
+  forbidden_effects: [unapproved_hosted_writes, unapproved_paid_calls, secret_disclosure]
+  acceptance_case_ids: []
+evidence:
+  already_executed: []
+  refs_and_hashes: []
+  limitations: []
+requested_handback: null
+approval_ref: null               # required for effects; never an agent-made approval
+next_action: null

@@ -18,6 +18,10 @@ interface Specialist {
   outputs: string[]
   route: string
   native_tools: string[]
+  prompt_sections?: string[]
+  skills?: string[]
+  references?: string[]
+  image_input?: boolean
 }
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
@@ -33,8 +37,9 @@ const readJson = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8'
 const quote = (value: string) => `'${value}'`
 
 /**
- * The registry's problems beyond its schema: duplicate ids, a PDF output without the tool that renders it, and the
- * render inspector without the renderer (it reads PDF renders only, S5b).
+ * The registry's problems beyond its schema: duplicate ids, a PDF output without the tool that renders it, the
+ * render inspector without the renderer (it reads PDF renders only, S5b), and (SDD-01) a role whose tools cross into
+ * another family's: a designer never holds research_* or review_* tools, a reviewer only review_* tools.
  */
 function problems(specialists: readonly Specialist[]): string[] {
   const found: string[] = []
@@ -49,6 +54,9 @@ function problems(specialists: readonly Specialist[]): string[] {
     if (s.native_tools.includes('research_inspect_output') !== renders) {
       found.push(`${s.id}: the research_inspect_output and research_render_pdf tools go together`)
     }
+    const own = s.task_kind === 'design' ? 'design_' : s.task_kind === 'design_review' ? 'review_' : null
+    const foreign = own === null ? [] : s.native_tools.filter((t) => !t.startsWith(own))
+    if (foreign.length > 0) found.push(`${s.id}: tools of another role (${foreign.join(', ')})`)
   }
   return found
 }
@@ -77,6 +85,12 @@ function generated(specialists: readonly Specialist[]): string {
       `    outputs: [${s.outputs.map(quote).join(', ')}],`,
       `    route: ${quote(s.route)},`,
       `    nativeTools: [${s.native_tools.map(quote).join(', ')}],`,
+      // SDD-01's fields, only where the registry sets them: a research row is generated exactly as before.
+      ...(s.task_kind === 'research' ? [] : [`    taskKind: ${quote(s.task_kind)},`]),
+      ...(s.prompt_sections ? [`    promptSections: [${s.prompt_sections.map(quote).join(', ')}],`] : []),
+      ...(s.skills ? [`    skills: [${s.skills.map(quote).join(', ')}],`] : []),
+      ...(s.references ? [`    references: [${s.references.map(quote).join(', ')}],`] : []),
+      ...(s.image_input === undefined ? [] : [`    imageInput: ${String(s.image_input)},`]),
       '  },',
     ].join('\n'),
   )

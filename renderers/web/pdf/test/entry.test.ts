@@ -11,7 +11,7 @@ import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const here = (file: string) => fileURLToPath(new URL(`../${file}`, import.meta.url))
-const ENTRIES = ['index.mjs', 'render-html.mjs', 'supervisor.mjs', 'host-probe.mjs']
+const ENTRIES = ['index.mjs', 'render-html.mjs', 'capture-html.mjs', 'supervisor.mjs', 'host-probe.mjs']
 /** No supervisor setting reaches the commands run here: each refuses to start, and says what it needs. */
 const env: NodeJS.ProcessEnv = { PATH: process.env.PATH ?? '' }
 

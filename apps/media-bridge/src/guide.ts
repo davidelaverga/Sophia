@@ -4,7 +4,9 @@
 // re-encoded or altered file, or a manifest whose operations differ from the declared tools, stops the bridge before it
 // serves an exchange: there is no fallback prompt. Project data never enters this text; it arrives through tools.
 // Each guide version has its own manifest: v1.1 is M01's, v1.2 (SMC-M03 S6) is v1.1's skill with a prompt that adds
-// the research operations. The bridge runs one version, chosen at start; rolling back is starting with v1.1.
+// the research operations, and v1.3 (SDD-01) adds the designed HTML page and its edit (revise_html_page). The bridge
+// runs one version, chosen at start (SOPHIA_GUIDE_VERSION); v1.2 stays the default until v1.3 is cut over, and rolling
+// back is starting with the earlier version.
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -12,10 +14,11 @@ import { fileURLToPath } from 'node:url'
 
 /** Where the deployed bridge finds its assets: inside the package, never the docs folder or the network. */
 export const GUIDE_DIR = fileURLToPath(new URL('./content/mission-guide/', import.meta.url))
-export type GuideVersion = 'v1.1' | 'v1.2'
+export type GuideVersion = 'v1.1' | 'v1.2' | 'v1.3'
 export const GUIDE_MANIFESTS: Readonly<Record<GuideVersion, string>> = {
   'v1.1': 'M01_ASSETS.v1.1.json',
   'v1.2': 'M01_ASSETS.v1.2.json',
+  'v1.3': 'M01_ASSETS.v1.3.json',
 }
 /** M01's manifest. */
 export const GUIDE_MANIFEST = GUIDE_MANIFESTS['v1.1']
@@ -50,7 +53,7 @@ export class GuideAssetError extends Error {
 /** SOPHIA_GUIDE_VERSION: unset is the default; anything but a known version stops the bridge. */
 export function guideVersionOf(raw: string | undefined): GuideVersion {
   if (raw === undefined || raw === '') return DEFAULT_GUIDE_VERSION
-  if (raw === 'v1.1' || raw === 'v1.2') return raw
+  if (raw === 'v1.1' || raw === 'v1.2' || raw === 'v1.3') return raw
   throw new GuideAssetError('SOPHIA_GUIDE_VERSION names no known guide version')
 }
 

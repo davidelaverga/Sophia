@@ -2,7 +2,8 @@
 // Decisions tabs come with their data). Cards from this project or every project the reader is in, filtered by
 // project, format and words, newest first, a page at a time. A card names the report, its description (Sophia's, or
 // a member's edit, attributed) and its current version; it opens in the viewer, where its history says what changed,
-// facts first, and compares versions, and it downloads its current version as an HTML page. A card carries no facts,
+// facts first, and compares versions. A current version with a designed HTML page (SDD-01) has an HTML tag that opens
+// that page, whose Download saves the same bytes; nothing is printed from the Markdown. A card carries no facts,
 // so it shows none of the notes on what changed: alone, a note that the rest was kept read as true when it was not
 // (CX-0026). Editors and admins edit a description against the revision they saw.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
@@ -12,7 +13,6 @@ import { Tag } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
-import { PageDownload } from './PageDownload.tsx'
 import { formatsOffered } from './report-view.ts'
 import { SummaryEditor } from './SummaryEditor.tsx'
 import './artifacts.css'
@@ -278,6 +278,18 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
           {card.title}
         </button>
         {card.formats.includes('pdf') && <Tag tone="rose">PDF</Tag>}
+        {card.formats.includes('html') && (
+          <button
+            type="button"
+            className="text-button report-card-html"
+            aria-label={`Open ${card.title}, HTML page`}
+            onClick={() =>
+              viewer?.open({ artifactId: card.artifactId, versionId: card.currentVersionId, format: 'html' })
+            }
+          >
+            <Tag tone="teal">HTML</Tag>
+          </button>
+        )}
       </div>
       <p className="report-meta">
         {showProject && <span>{card.projectTitle} · </span>}
@@ -297,7 +309,6 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
         >
           History and changes
         </button>
-        <PageDownload token={identity.token} artifactId={card.artifactId} versionId={card.currentVersionId} />
       </div>
     </li>
   )

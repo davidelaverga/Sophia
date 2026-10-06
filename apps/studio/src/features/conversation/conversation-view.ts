@@ -29,6 +29,7 @@ type PhaseWords = (typeof TASK_PHASE)[NativeTask['phase']]
 export const TASK_KIND: Record<NativeTask['kind'], string> = {
   draft_brief: 'Implementation brief',
   research: 'Research report',
+  design: 'HTML page design',
 }
 
 /** Where research reads differently from a brief; every other phase says the same for both. */
@@ -37,10 +38,17 @@ const RESEARCH_PHASE: Partial<Record<NativeTask['phase'], Pick<PhaseWords, 'labe
   result_ready: { label: 'Report ready', note: 'A report for the team to read.' },
 }
 
+/** Where an HTML design (SDD-01) reads differently: it designs, then its page is ready. */
+const DESIGN_PHASE: Partial<Record<NativeTask['phase'], Pick<PhaseWords, 'label' | 'note'>>> = {
+  running: { label: 'Designing', note: 'Sophia is designing the HTML page from the published report.' },
+  result_ready: { label: 'HTML page ready', note: 'The designed HTML page is published with the report.' },
+}
+
 /** A task's phase in the words of its kind. */
 export function taskPhase(task: Pick<NativeTask, 'kind' | 'phase'>): PhaseWords {
   const base = TASK_PHASE[task.phase]
-  return task.kind === 'research' ? { ...base, ...RESEARCH_PHASE[task.phase] } : base
+  if (task.kind === 'research') return { ...base, ...RESEARCH_PHASE[task.phase] }
+  return task.kind === 'design' ? { ...base, ...DESIGN_PHASE[task.phase] } : base
 }
 
 /** The heading over the runtime's tasks: briefs, research, or both. */

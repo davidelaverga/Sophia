@@ -1,0 +1,55 @@
+{
+  "schema": "sophia.m01-prompt-assets.v1",
+  "version": "1.3",
+  "date": "2026-10-05",
+  "status": "implementer_candidate_for_SDD-01_review_not_runtime_verified",
+  "mission_id": "SDD-01",
+  "components": [
+    {
+      "id": "sophia.mission-guide.system.v1.3",
+      "kind": "system_prompt",
+      "path": "prompts/M01_SYSTEM_PROMPT.v1.3.md",
+      "sha256": "83fa8bf7d9ba97b5cc2aa8e622416c0a81169d4d75bef7b1ca94b3b91ead82bc",
+      "bytes": 12709
+    },
+    {
+      "id": "sophia.team-mission-lifecycle.v1.1",
+      "kind": "skill",
+      "path": "skills/mission-lifecycle.v1.1.md",
+      "sha256": "2e746dfb9f7c7a3ad2b77ce2b95093d7a9421630e68b343edced582ea44090d5",
+      "bytes": 14600
+    }
+  ],
+  "assembly": {
+    "operation": "concatenate_verbatim",
+    "separator_hex": "0a",
+    "source_order": [
+      "system_prompt",
+      "skill"
+    ],
+    "frontmatter_stripping": false,
+    "interpolation": false,
+    "summarization": false,
+    "duplicate_skill_injection": false
+  },
+  "assembled": {
+    "path": "prompts/M01_SYSTEM_INSTRUCTION.v1.3.txt",
+    "sha256": "c7865f4514a76b8d1367658abb93750167df0aaabccedbcb3efae7d6a16b75a9",
+    "bytes": 27310
+  },
+  "base_version": "1.2",
+  "model_facing_operation_names": [
+    "project_status",
+    "read_selected_source",
+    "record_mission_note",
+    "propose_mission_change",
+    "decide_mission_change",
+    "control_work",
+    "start_research",
+    "render_research",
+    "revise_html_page"
+  ],
+  "dynamic_context_delivery": "existing_authenticated_project_status_and_source_tool_results_or_separately_qualified_data_delivery",
+  "runtime_data_embedded_in_static_prompt": false,
+  "provider_invocation_performed": false
+}

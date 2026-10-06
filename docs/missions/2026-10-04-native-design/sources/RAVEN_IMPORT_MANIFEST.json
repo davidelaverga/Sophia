@@ -1,0 +1,64 @@
+{
+  "schema": "sophia.raven-import-outline.v0.1",
+  "repository": "EverMind-AI/Raven",
+  "commit": "3632e6040c7038a60ec418ce39ccae185c72c19f",
+  "status": "pin_and_scope_verified; bytes_to_inventory_at_G1; no_upstream_corpus_bundled",
+  "selection": "Complete tracked files under exactly these four roots; inventory is inert, active copy requires disposition and rights review.",
+  "roots": [
+    {
+      "id": "RV-01",
+      "path": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design",
+      "entry_git_blob": "5f6962e4cf2ed0899dd78a1f89aa2e103c8e7d16",
+      "native_skill": "sophia-visual-foundation-v1"
+    },
+    {
+      "id": "RV-02",
+      "path": "plugins-dist/design-engine/raven_design/skills/design-editorial-and-presentations",
+      "entry_git_blob": "b6edaae4f6b49774d53f3e8c25d26d064152f76b",
+      "native_skill": "sophia-editorial-html-v1"
+    },
+    {
+      "id": "RV-03",
+      "path": "plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends",
+      "entry_git_blob": "14ff3aeb7b2d888b561e4cb2794c307ec58e7283",
+      "native_skill": "sophia-web-finish-v1"
+    },
+    {
+      "id": "RV-04",
+      "path": "plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns",
+      "entry_git_blob": "cf27ed13b88c0082228fc5db11fcce9e5516d64a",
+      "native_skill": "sophia-visual-critique-v1"
+    }
+  ],
+  "reference_only_code_roots": [
+    "plugins-dist/design-engine/raven_design/task_state",
+    "plugins-dist/design-engine/raven_design/tools",
+    "plugins-dist/design-engine/raven_design/plugin",
+    "plugins-dist/design-engine/raven_design/rendering"
+  ],
+  "reference_only_files": [
+    "plugins-dist/design-engine/raven_design/selector.py",
+    "agents/raven-design/config.json",
+    "agents/raven-design/run.py",
+    "plugins-dist/design-engine/pyproject.toml"
+  ],
+  "exclude_from_execution": [
+    "Raven runtime and ACP",
+    "Raven host/DAG",
+    "EverOS",
+    "Raven-Research port",
+    "PPT/office/motion engines",
+    "full-corpus auxiliary selector",
+    "arbitrary tool installation",
+    "unqualified active JS or external resources"
+  ],
+  "gates": [
+    "file SHA-256 inventory",
+    "license/NOTICE and individual reference rights",
+    "active clause/source mapping",
+    "link and skill dependency closure",
+    "actual image bytes available",
+    "scoped tool and route readiness"
+  ],
+  "fonts_bundled": false
+}

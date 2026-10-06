@@ -78,25 +78,28 @@ export function receiveNotice(notices: ChatNoticeItem[], packet: ChatNotice, at:
 export function noticeTitle(taskKind: string): string {
   if (taskKind === 'research') return 'Research report ready'
   if (taskKind === 'draft_brief') return 'Brief ready'
+  if (taskKind === 'design') return 'HTML page ready'
   return 'Result ready'
 }
 
 interface DeliveredFile {
-  format: 'markdown' | 'pdf'
+  format: 'markdown' | 'pdf' | 'html'
   artifactVersionId: string
 }
 
 /**
  * What a result notice's buttons open and save (M03-RF-0020): Open and Download both take the primary file, the PDF
- * when there is one; Markdown is offered beside a PDF only. The HTML page (html-report-v2) is printed from the
- * Markdown, so it is offered whenever there is one, beside a PDF too. Each names its version, so all show the same one.
+ * when there is one; Markdown is offered beside a PDF only. The HTML page is the task's stored, designed page (SDD-01),
+ * offered only when the task has one: never anything printed from the Markdown. Each names its version, so all show the
+ * same one.
  */
 export function noticeActions<T extends DeliveredFile>(
   outputs: readonly T[],
 ): { primary: T | null; markdown: T | null; page: T | null } {
   const pdf = outputs.find((o) => o.format === 'pdf') ?? null
   const markdown = outputs.find((o) => o.format === 'markdown') ?? null
-  return { primary: pdf ?? markdown, markdown: pdf ? markdown : null, page: markdown }
+  const page = outputs.find((o) => o.format === 'html') ?? null
+  return { primary: pdf ?? markdown, markdown: pdf ? markdown : null, page }
 }
 
 /**

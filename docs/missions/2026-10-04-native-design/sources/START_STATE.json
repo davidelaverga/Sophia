@@ -1,0 +1,27 @@
+{
+  "schema": "sophia.native-design.start-state.v0.1",
+  "prepared_at_date": "2026-10-04",
+  "timezone": "Europe/Rome",
+  "observed_sophia_base": "2712f2c2cb06f2ce7fbd4fb9cc437671c41577e7",
+  "observed_pr75_head": "86f70aa3a7e205f305e8a126995fc6ec0ee472dc",
+  "observed_pr75_status": "open_draft",
+  "observed_pr75_branch": "claude/smc-m03-report-v2",
+  "observed_pr32_status": "merged",
+  "dsh_commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+  "raven_commit": "3632e6040c7038a60ec418ce39ccae185c72c19f",
+  "coordination": {
+    "M75_issue": 31,
+    "SDD01_issue": null,
+    "SDD01_pr": null
+  },
+  "proposed_mission_implementation": {
+    "M75": "not_executed_by_pack",
+    "SDD-01": "not_started"
+  },
+  "live_deployment_tuple": null,
+  "paid_test_approval": null,
+  "merge_release_approval": null,
+  "code_tests_executed_by_pack": false,
+  "native_or_Raven_generation_executed": false,
+  "note": "Read live refs and real authority at launch. Pack file/link/inventory-helper self-tests are not Sophia implementation tests."
+}

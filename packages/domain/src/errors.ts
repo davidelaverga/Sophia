@@ -25,6 +25,7 @@ export type ErrorCode =
   | 'native_task_retired'
   | 'research_gate_closed'
   | 'research_limit_reached'
+  | 'html_unavailable'
 
 export type Retry = ApiError['retry']
 
@@ -63,6 +64,8 @@ const DISPOSITION: Record<ErrorCode, { status: number; retry: Retry }> = {
   research_gate_closed: { status: 403, retry: 'never' },
   // A research call would pass its allowance, the grant's total or the source policy's limit (SMC-M03).
   research_limit_reached: { status: 409, retry: 'never' },
+  // HTML was asked for while no designer or capture renderer is ready: nothing is admitted; Markdown is offered (SDD-01).
+  html_unavailable: { status: 503, retry: 'never' },
 }
 
 export class DomainError extends Error {

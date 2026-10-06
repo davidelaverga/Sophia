@@ -109,13 +109,16 @@ interface RenditionRow {
   byte_length: string
   mime: string
   page_count: number | null
+  review_state: NonNullable<ArtifactRendition['reviewState']> | null
+  limitations: string[]
 }
 
 async function readRenditions(c: pg.PoolClient, versionIds: string[]): Promise<Map<string, ArtifactRendition[]>> {
   const byVersion = new Map<string, ArtifactRendition[]>()
   if (versionIds.length === 0) return byVersion
   const { rows } = await c.query<RenditionRow>(
-    `SELECT r.artifact_version_id, r.format, s.id AS source_id, s.sha256, s.byte_length, s.mime, r.page_count
+    `SELECT r.artifact_version_id, r.format, s.id AS source_id, s.sha256, s.byte_length, s.mime, r.page_count,
+            r.review_state, r.limitations
        FROM sophia.artifact_renditions r
        JOIN sophia.source_objects s ON s.project_id = r.project_id AND s.id = r.source_id
       WHERE r.artifact_version_id = ANY($1::uuid[])
@@ -131,6 +134,8 @@ async function readRenditions(c: pg.PoolClient, versionIds: string[]): Promise<M
       byteLength: Number(r.byte_length),
       mime: r.mime,
       pageCount: r.page_count,
+      ...(r.review_state === null ? {} : { reviewState: r.review_state }),
+      ...(r.limitations.length === 0 ? {} : { limitations: r.limitations }),
     })
     byVersion.set(r.artifact_version_id, list)
   }

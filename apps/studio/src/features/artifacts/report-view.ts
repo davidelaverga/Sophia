@@ -24,6 +24,8 @@ export interface StateWords {
   tone: Tone
   /** One line under the title, or null. */
   note: string | null
+  /** A partly delivered report: the format asked for that it lacks (only a missing PDF can be asked for again). */
+  missing?: 'pdf' | 'html'
 }
 
 type Output = NonNullable<NonNullable<NativeTaskDetail['result']>['outputs']>[number]
@@ -43,8 +45,19 @@ function notProducedNote(reason: string | null): string {
 
 const ENDED_BADLY: ReadonlySet<string> = new Set(['failed', 'outcome_unknown', 'denied'])
 
-/** What the PDF of a partly delivered report is doing: rendering again, or why it is missing. */
-type PdfNews = Pick<ResearchProgress, 'pdfReason' | 'pdfRendering'>
+/** What the PDF of a partly delivered report is doing (rendering again, or why it is missing), and its HTML page. */
+type PdfNews = Pick<ResearchProgress, 'pdfReason' | 'pdfRendering' | 'html'>
+
+/** The HTML page asked for (SDD-01): designed after the research, so it says what it is doing or why it is missing. */
+export function htmlNote(html: ResearchProgress['html']): string | null {
+  if (!html || html.state === 'published') return null
+  if (html.state === 'failed' || html.state === 'not_started') {
+    return `The HTML page was not designed${html.reason ? `: ${html.reason.replace(/\.?$/, '.')}` : '.'}`
+  }
+  return 'The HTML page is being designed after the research; it appears here when it is ready.'
+}
+
+const htmlFailed = (html: ResearchProgress['html']) => html?.state === 'failed' || html?.state === 'not_started'
 
 function partialNote({ pdfReason, pdfRendering }: PdfNews): string {
   if (pdfRendering) return 'The Markdown report is ready. The PDF is being rendered again.'
@@ -57,11 +70,18 @@ function partialNote({ pdfReason, pdfRendering }: PdfNews): string {
  * A delivered report: ready, or partly delivered when the PDF asked for is not among its outputs, with the reason the
  * service recorded when there is one, or that it is being rendered again.
  */
-function delivered(formats: ReadonlySet<string>, asked: readonly ('markdown' | 'pdf')[], pdf: PdfNews): StateWords {
-  return asked.includes('pdf') && !formats.has('pdf')
-    ? { state: 'partial', label: 'Partly delivered', tone: 'amber', note: partialNote(pdf) }
-    : { state: 'ready', label: 'Report ready', tone: 'teal', note: null }
+function delivered(formats: ReadonlySet<string>, asked: readonly Asked[], pdf: PdfNews): StateWords {
+  if (asked.includes('pdf') && !formats.has('pdf')) {
+    return { state: 'partial', label: 'Partly delivered', tone: 'amber', note: partialNote(pdf), missing: 'pdf' }
+  }
+  if (htmlFailed(pdf.html)) {
+    const note = `The report is ready. ${htmlNote(pdf.html) ?? ''}`.trim()
+    return { state: 'partial', label: 'Partly delivered', tone: 'amber', note, missing: 'html' }
+  }
+  return { state: 'ready', label: 'Report ready', tone: 'teal', note: htmlNote(pdf.html) }
 }
+
+type Asked = ResearchProgress['outputs'][number]
 
 /** A task with no report yet: replaced, held, stopped, ended without one, starting or at work. */
 function undelivered(task: Pick<NativeTask, 'phase' | 'state' | 'reason'>): StateWords {
@@ -92,16 +112,36 @@ function undelivered(task: Pick<NativeTask, 'phase' | 'state' | 'reason'>): Stat
 
 /**
  * A research card's state: what the task's phase and its delivered outputs say. A Markdown report with the PDF asked
- * for and not delivered is "partly delivered", with that reason (or that it is rendering again), never a fallback.
+ * for and not delivered is "partly delivered", with that reason (or that it is rendering again), never a fallback; so is
+ * one whose HTML page could not be designed. An HTML page still being designed leaves the report ready, and says so.
  */
 export function researchState(
   task: Pick<NativeTask, 'phase' | 'state' | 'reason'>,
   outputs: readonly Pick<Output, 'format'>[],
-  asked: readonly ('markdown' | 'pdf')[],
+  asked: readonly Asked[],
   pdf: PdfNews = {},
 ): StateWords {
   const formats = new Set<string>(outputs.map((o) => o.format))
   return formats.has('markdown') ? delivered(formats, asked, pdf) : undelivered(task)
+}
+
+type Design = NonNullable<NativeTaskDetail['design']>
+
+/** An HTML design's state in words (SDD-01): designing, with its reviewer, published, or why it ended without a page. */
+export function designState(design: Pick<Design, 'state' | 'reason'>): Omit<StateWords, 'state'> {
+  const words: Record<Design['state'], Omit<StateWords, 'state'>> = {
+    designing: {
+      label: 'Designing',
+      tone: 'lav',
+      note: 'Sophia is designing the HTML page from the published report.',
+    },
+    reviewing: { label: 'Reviewing', tone: 'lav', note: 'A separate visual reviewer is checking the page.' },
+    published: { label: 'HTML page ready', tone: 'teal', note: null },
+    superseded: { label: 'Replaced', tone: 'muted', note: 'A newer version of the report is being designed instead.' },
+    cancelled: { label: 'Stopped', tone: 'muted', note: null },
+    failed: { label: 'Not designed', tone: 'rose', note: design.reason ?? 'The HTML page could not be designed.' },
+  }
+  return words[design.state]
 }
 
 /** What "Try PDF again" answered: queued, or the report checks the printed version failed, in their own words. */
@@ -259,8 +299,26 @@ export function currentOffer<T extends { id: string }>(versions: readonly T[] | 
  * The PDF was asked for (a link with `format=pdf`, a notice's Open) but the version on screen has none: the pane shows
  * its Markdown and says so; its limitations say why the PDF is missing. Unknown until the version is read.
  */
-export const pdfMissing = (format: 'markdown' | 'pdf', version: Pick<ArtifactVersion, 'renditions'> | undefined) =>
-  format === 'pdf' && version !== undefined && (version.renditions?.length ?? 0) === 0
+export const pdfMissing = (
+  format: 'markdown' | 'pdf' | 'html',
+  version: Pick<ArtifactVersion, 'renditions'> | undefined,
+) => format === 'pdf' && version !== undefined && renditionOf(version, 'pdf') === undefined
+
+/** The version's rendition in `format` (a PDF, or a designed HTML page: SDD-01), if it has one. */
+export const renditionOf = (
+  version: Pick<ArtifactVersion, 'renditions'> | undefined,
+  format: NonNullable<ArtifactVersion['renditions']>[number]['format'],
+) => version?.renditions?.find((r) => r.format === format)
+
+/** The formats a version can be read in: its Markdown, then its PDF and its designed page when it has them. */
+export const viewerFormats = (version: Pick<ArtifactVersion, 'renditions'> | undefined) =>
+  (['markdown', 'pdf', 'html'] as const).filter((f) => f === 'markdown' || renditionOf(version, f) !== undefined)
+
+/** The designed page was asked for, the version is known, and it has none (its Markdown is shown instead). */
+export const htmlMissing = (
+  format: 'markdown' | 'pdf' | 'html',
+  version: Pick<ArtifactVersion, 'renditions'> | undefined,
+) => format === 'html' && version !== undefined && renditionOf(version, 'html') === undefined
 
 /**
  * Where the focus goes when the pane closes: back to what opened it while that is on screen, else to `fallback` (the

@@ -14,11 +14,14 @@ import { DomainError } from '@sophia/domain'
 import {
   admitResearchTask,
   canCommand,
+  htmlDesignReady,
   pdfRendererReady,
   readTaskStandings,
   requestResearchRendition,
+  requestResearchDesign,
   researchGateOpen,
   withActor,
+  type DesignRoles,
   type ResearchAdmissionRequest,
 } from '@sophia/persistence'
 import type { ToolContext } from './mission-tools.ts'
@@ -39,18 +42,38 @@ const RECEIPT_STAYS =
  */
 const NOT_PASSED_ON =
   'What this call adds to it (a length, sections, limits, what to change or keep) was not passed on: to add it, steer that research with control_work.'
-/** Said when the speaker asked for HTML: every report downloads as an HTML page Studio prints from its Markdown. */
-const HTML_NOTE = ' When it is ready, its card also downloads it as an HTML page.'
+/**
+ * Said when the speaker asked for HTML (SDD-01): the page is designed by Sophia's designer once the report is published,
+ * reviewed separately when a reviewer is available, and arrives as the report's next version.
+ */
+const HTML_NOTE =
+  ' The HTML page is designed after the report is published and arrives as its next version; the work card shows its progress.'
+/** No designer or capture renderer is ready (0040): nothing was started, and Markdown is what can be asked for instead. */
+const HTML_UNAVAILABLE =
+  'Designed HTML pages are not available right now, so nothing was started. A Markdown report can be asked for instead.'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v)
 const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= max
 
-/** The registry's specialist for these formats: the one whose outputs are exactly them. */
+/** The registry's research specialist for these formats: the one whose outputs are exactly them. */
 export function specialistFor(outputs: readonly string[]): { role: string; route: string } | null {
   const wanted = [...new Set(outputs)].toSorted().join(',')
-  const match = SPECIALISTS.find((s) => [...s.outputs].toSorted().join(',') === wanted)
+  const match = SPECIALISTS.find((s) => s.family === 'research' && [...s.outputs].toSorted().join(',') === wanted)
   return match ? { role: match.id, route: match.route } : null
+}
+
+/** The registry's role of a family, with its route; null when there is none. */
+function familyRole(family: string): { role: string; route: string } | null {
+  const s = SPECIALISTS.find((x) => x.family === family)
+  return s ? { role: s.id, route: s.route } : null
+}
+
+/** The registry's designer and reviewer (SDD-01); null when the registry has no designer. */
+export function designRoles(): DesignRoles | null {
+  const role = familyRole
+  const designer = role('design')
+  return designer ? { designer, reviewer: role('design_review') } : null
 }
 
 const clarify = (question: string): MediaToolResult => ({ status: 'clarify', output: { ask: question } })
@@ -60,6 +83,7 @@ const REFUSALS: Partial<Record<string, string>> = {
   research_gate_closed: 'Research is not switched on for this project.',
   native_capability_unavailable: 'No research runtime is ready right now, so nothing was started.',
   research_limit_reached: 'This research has used its allowance, so nothing more was started.',
+  html_unavailable: HTML_UNAVAILABLE,
   source_ineligible:
     'A source it would build on is not released for project work (it may have been forgotten), so nothing was started.',
   invalid_state: 'That research is still under way; it can be steered, not amended.',
@@ -95,8 +119,9 @@ const isWebAddress = (u: unknown) => typeof u === 'string' && u.length <= 2048 &
 const ASKABLE: ReadonlySet<unknown> = new Set(['markdown', 'html', 'pdf'])
 
 /**
- * The formats asked for: Markdown always (it is the authored format), and a PDF when asked. HTML is accepted and adds
- * nothing: it never reaches the registry (specialistFor), 0025's outputs check or the manifest the runtime validates.
+ * The formats research writes: Markdown always (it is the authored format), and a PDF when asked. HTML is designed
+ * after research (SDD-01), so it never reaches the research specialist (specialistFor), 0025's outputs check or the
+ * research manifest: asksHtml says whether it was asked for.
  */
 function formatsOf(outputs: unknown): Array<'markdown' | 'pdf'> | null {
   const asked = outputs === undefined ? ['markdown'] : outputs
@@ -104,7 +129,7 @@ function formatsOf(outputs: unknown): Array<'markdown' | 'pdf'> | null {
   return asked.includes('pdf') ? ['markdown', 'pdf'] : ['markdown']
 }
 
-const htmlNote = (outputs: unknown) => (Array.isArray(outputs) && outputs.includes('html') ? HTML_NOTE : '')
+const asksHtml = (outputs: unknown) => Array.isArray(outputs) && outputs.includes('html')
 
 function preferencesOf(value: unknown): NonNullable<ResearchAdmissionRequest['preferences']> {
   const prefs = isRecord(value) ? value : {}
@@ -153,24 +178,56 @@ async function amendsTooLong(c: pg.PoolClient, projectId: string, request: Resea
   return tooLongToRevise(amended?.current ?? null)
 }
 
+type Admitted = Awaited<ReturnType<typeof admitResearchTask>> | null
+
+/** Admit the research and, when HTML was asked for, record its design in the same transaction (0040). */
+async function admit(
+  ctx: ToolContext,
+  request: ResearchAdmissionRequest,
+  design: DesignRoles | null,
+): Promise<Admitted> {
+  const specialist = specialistFor(request.outputs)
+  if (!specialist) throw new DomainError('invalid_request', 'No research specialist writes these formats')
+  return withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
+    if (await amendsTooLong(c, ctx.projectId, request)) return null
+    const result = await admitResearchTask(c, ctx.projectId, {
+      key: ctx.key,
+      exchangeId: ctx.call.exchangeId,
+      request,
+      specialist,
+    })
+    if (design && 'admitted' in result) await requestResearchDesign(c, ctx.projectId, result.admitted.taskId, design)
+    return result
+  })
+}
+
+/** Why a format asked for cannot be had now, before anything is admitted; null when every one can. */
+async function unavailable(ctx: ToolContext, request: ResearchAdmissionRequest, design: DesignRoles | null) {
+  if (request.outputs.includes('pdf') && !(await withActor(ctx.pool, ctx.actorId, 'read', pdfRendererReady))) {
+    return { code: 'not_started:pdf_unavailable', reason: PDF_UNAVAILABLE }
+  }
+  if (asksHtml(ctx.args.outputs)) {
+    const ready = design
+      ? await withActor(ctx.pool, ctx.actorId, 'read', (c) => htmlDesignReady(c, ctx.projectId, design.designer))
+      : false
+    if (!ready) return { code: 'not_started:html_unavailable', reason: HTML_UNAVAILABLE }
+  }
+  return null
+}
+
 export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> {
   const request = requestOf(ctx.args)
   if ('status' in request) return request
-  // A PDF needs a renderer that is running now (S5b, 0031). The refusal offers nothing: whether a Markdown report would
-  // be admitted (role, gate, runtime, allowance) is that request's own answer.
-  if (request.outputs.includes('pdf') && !(await withActor(ctx.pool, ctx.actorId, 'read', pdfRendererReady))) {
-    return { status: 'refused', output: { code: 'not_started:pdf_unavailable', reason: PDF_UNAVAILABLE } }
-  }
-  const specialist = specialistFor(request.outputs)
-  if (!specialist)
+  // A PDF needs a renderer that is running now (S5b, 0031), and HTML a designer and a capture renderer (SDD-01). The
+  // refusal offers nothing in place of what was asked: whether a Markdown report would be admitted is its own answer.
+  const design = asksHtml(ctx.args.outputs) ? designRoles() : null
+  const missing = await unavailable(ctx, request, design)
+  if (missing) return { status: 'refused', output: missing }
+  if (!specialistFor(request.outputs))
     return { status: 'refused', output: { code: 'not_started:no_specialist', reason: 'The research was not started.' } }
-  const more = htmlNote(ctx.args.outputs)
+  const more = design ? HTML_NOTE : ''
   try {
-    const result = await withActor(ctx.pool, ctx.actorId, 'write', async (c) =>
-      (await amendsTooLong(c, ctx.projectId, request))
-        ? null
-        : admitResearchTask(c, ctx.projectId, { key: ctx.key, exchangeId: ctx.call.exchangeId, request, specialist }),
-    )
+    const result = await admit(ctx, request, design)
     if (result === null) {
       const reason = `${TOO_LONG_TO_REVISE} Nothing was started.`
       return { status: 'refused', output: { code: 'not_started:too_long_to_revise', reason } }
@@ -180,7 +237,7 @@ export async function startResearch(ctx: ToolContext): Promise<MediaToolResult> 
         status: 'ok',
         output: {
           existingTaskId: result.existingTaskId,
-          note: `Research you asked for in this conversation is already under way. Say if this is a separate question. ${NOT_PASSED_ON}${more}`,
+          note: `Research you asked for in this conversation is already under way. Say if this is a separate question. ${NOT_PASSED_ON}`,
         },
       }
     }

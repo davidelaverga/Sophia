@@ -18,7 +18,8 @@
   "files": [
     "dist/*.js",
     "dist/*.d.ts",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "skills/**"
   ],
   "dsh": {
     "manifestVersion": 1,

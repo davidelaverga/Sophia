@@ -37,6 +37,7 @@ import {
   type RuntimeCaller,
 } from '@sophia/persistence'
 import type { NotificationHub } from '../notification-hub.ts'
+import { DESIGN_ROUTES } from './design.ts'
 
 /** The routes a runtime capability may call, and nothing else may: checked by exact route in app.ts. */
 export const RUNTIME_ROUTES: ReadonlySet<string> = new Set([
@@ -53,6 +54,7 @@ export const RUNTIME_ROUTES: ReadonlySet<string> = new Set([
   '/v1/runtime/research/submit',
   '/v1/runtime/research/render',
   '/v1/runtime/research/render-result',
+  ...DESIGN_ROUTES,
 ])
 
 /** The transport headers every runtime call carries (A04). */

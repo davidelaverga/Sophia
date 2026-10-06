@@ -104,10 +104,12 @@ export {
 } from './artifacts.ts'
 export {
   enqueueRenderJob,
+  rendererCaptureSlot,
   rendererClaim,
   rendererFile,
   rendererHeartbeat,
   rendererOutputSlot,
+  rendererRecordCapture,
   rendererRecordOutput,
   rendererSettle,
   type RecordedOutput,
@@ -204,3 +206,24 @@ export {
   type CompanionContext,
 } from './personal.ts'
 export { listProjects, PROJECT_LIST_BOUNDS, type ProjectListing } from './project-list.ts'
+export { readHtmlPages, type HtmlPage } from './design-progress.ts'
+export {
+  designCaptureRefs,
+  freezeDesignPackage,
+  htmlDesignReady,
+  requestDesignEdit,
+  requestResearchDesign,
+  runtimeDesignContext,
+  runtimeDesignRecord,
+  runtimeDesignRender,
+  runtimeDesignRenderResult,
+  runtimeDesignReserve,
+  runtimeDesignSettle,
+  runtimeDesignSource,
+  runtimeDesignSubmit,
+  runtimeReviewContext,
+  runtimeReviewSubmit,
+  type DesignCaptureLocation,
+  type DesignCaptureRefs,
+  type DesignRoles,
+} from './design.ts'
