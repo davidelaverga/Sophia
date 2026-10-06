@@ -14,7 +14,7 @@
 // any kind; each probe phase's required steps all present and passed, and what each observed (statuses, outcomes, the same plugin, issue and configuration
 // across both phases) recorded and as required; the home's persistence recomputed from the two snapshots, every size
 // and digest it compares one that was read, and every file under the home covered (CX-0039).
-// A check is passed, failed, unavailable (recorded but incomplete) or not reached. The verdict is `qualified` only when
+// A check is passed, failed, unavailable (recorded but incomplete, or not in the shape it is read in) or not reached. The verdict is `qualified` only when
 // every check passed, `failed` when any failed, and `incomplete` otherwise. What it qualifies: the image built from the
 // pin and a clean Sophia commit, on a GitHub-hosted linux/amd64 runner, under a 2 GiB memory cgroup without swap, with
 // the installed plugin's flow. Not Render's platform, not a registry digest (the image ID is the local config digest),
@@ -306,6 +306,24 @@ function homeCheck(before, after) {
   return { result: comparison.persisted ? 'passed' : 'failed', detail }
 }
 
+/**
+ * One check, and what it gives when its evidence is not in the shape it is read in (valid JSON, but a step, file or
+ * record that is null, a number where a list is, and so on): unavailable, with the error, and named in the receipt's
+ * `unreadable`, never thrown (Codex review of 705c2b8): the receipt and its summary are always written.
+ */
+function guarded(name, check, unreadable) {
+  try {
+    return { name, ...check() }
+  } catch (error) {
+    unreadable.push(name)
+    return {
+      name,
+      result: 'unavailable',
+      detail: { reason: 'its evidence is not in the shape it is read in', error: String(error?.message ?? error).slice(0, 200) },
+    }
+  }
+}
+
 /** The receipt of one run's recorded inputs. */
 export function assess({
   context = null,
@@ -318,13 +336,14 @@ export function assess({
   probes = {},
   home = {},
 }) {
+  const unreadable = []
   const checks = [
-    { name: 'image built from the pin and a clean Sophia commit, linux/amd64, packaged files as recorded', ...identityCheck(identity, context, packaged) },
-    ...STARTS.map((label) => ({ name: `${label}: healthy within ${HEALTH_LIMIT_S} s`, ...startCheck(timings, label) })),
-    { name: 'runtime: not privileged, Docker’s default capabilities (none added or dropped), not the host network, loopback only', ...runtimeCheck(runtime) },
-    ...PHASES.map((phase) => ({ name: `memory, ${phase}`, ...memoryCheck(samples, phase) })),
-    ...['first', 'restart', 'restarted'].map((phase) => ({ name: `installed plugin flow, ${phase}`, ...probeCheck(probes[phase], phase, probes.first) })),
-    { name: 'home persisted across recreation', ...homeCheck(home.before, home.after) },
+    guarded('image built from the pin and a clean Sophia commit, linux/amd64, packaged files as recorded', () => identityCheck(identity, context, packaged), unreadable),
+    ...STARTS.map((label) => guarded(`${label}: healthy within ${HEALTH_LIMIT_S} s`, () => startCheck(timings, label), unreadable)),
+    guarded('runtime: not privileged, Docker’s default capabilities (none added or dropped), not the host network, loopback only', () => runtimeCheck(runtime), unreadable),
+    ...PHASES.map((phase) => guarded(`memory, ${phase}`, () => memoryCheck(samples, phase), unreadable)),
+    ...['first', 'restart', 'restarted'].map((phase) => guarded(`installed plugin flow, ${phase}`, () => probeCheck(probes[phase], phase, probes.first), unreadable)),
+    guarded('home persisted across recreation', () => homeCheck(home.before, home.after), unreadable),
   ]
   const results = checks.map((c) => c.result)
   const verdict = results.includes('failed') ? 'failed' : results.every((r) => r === 'passed') ? 'qualified' : 'incomplete'
@@ -337,12 +356,13 @@ export function assess({
     disk,
     images: identity && { build: identity.buildImage, image: identity.image },
     checks,
+    ...(unreadable.length > 0 ? { unreadable } : {}),
   }
 }
 
 function homeLine(check) {
   const d = check?.detail
-  if (!d) return `Home: ${check?.result ?? 'not reached'}.`
+  if (!d?.coverage) return `Home: ${check?.result ?? 'not reached'}.`
   const cover = (c) =>
     `${c.listed ?? '?'} of ${c.total ?? '?'} files listed` +
     `${c.oversize?.length ? `, ${c.oversize.length} too large to hash` : ''}` +
@@ -367,6 +387,7 @@ function summaryOf(receipt, samples) {
     `## Paperclip image qualification: ${receipt.verdict}`,
     '',
     ...(receipt.malformed ? [`Inputs that could not be read: ${receipt.malformed.join(', ')}.`, ''] : []),
+    ...(receipt.unreadable ? [`Checks whose evidence is not in the shape it is read in: ${receipt.unreadable.join('; ')}.`, ''] : []),
     receipt.scope,
     '',
     '| Check | Result |',
@@ -391,19 +412,24 @@ function summaryOf(receipt, samples) {
   ].join('\n')
 }
 
-const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
-if (isMain) {
-  const [dir, out, summary] = process.argv.slice(2)
-  // A file or line a step left empty or cut short (a scan killed by its bound, say) is an input not recorded, named in
-  // `malformed`: the receipt is still written, and never qualified (review of af5ab20).
+const isRecord = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
+
+/**
+ * The inputs one evidence directory holds, by the names the workflow writes. A file or line a step left empty or cut
+ * short (a scan killed by its bound, say; review of af5ab20), or one that parses to something other than a record (a
+ * bare null, number, string or list; review of 705c2b8), is an input not recorded, named in `malformed`.
+ */
+export function readEvidence(dir) {
   const malformed = []
   const parse = (name, text) => {
     try {
-      return JSON.parse(text)
+      const value = JSON.parse(text)
+      if (isRecord(value)) return value
     } catch {
-      malformed.push(name)
-      return null
+      // named below
     }
+    malformed.push(name)
+    return null
   }
   const json = (name) => (existsSync(join(dir, name)) ? parse(name, readFileSync(join(dir, name), 'utf8')) : null)
   const bytes = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name)) : null)
@@ -414,23 +440,36 @@ if (isMain) {
           .map((l, i) => (l === '' ? null : parse(`${name}:${i + 1}`, l)))
           .filter((v) => v !== null)
       : []
-  const samples = lines('cgroup.jsonl')
-  const receipt = assess({
+  const inputs = {
     context: json('context.json'),
     disk: lines('disk.jsonl'),
     identity: json('identity.json'),
     packaged: { manifest: bytes('manifest.json'), imageManifest: bytes('image-manifest.json'), imageFiles: json('image-files.json') },
     timings: lines('timings.jsonl'),
     runtime: lines('runtime.jsonl'),
-    samples,
+    samples: lines('cgroup.jsonl'),
     probes: { first: json('probe-first.json'), restart: json('probe-restart.json'), restarted: json('probe-restarted.json') },
     home: { before: json('home-before.json'), after: json('home-after.json') },
-  })
+  }
+  return { inputs, malformed }
+}
+
+/** The receipt and its summary: both, whatever the inputs hold; with any input malformed, never qualified. */
+export function receiptOf(inputs, malformed = []) {
+  const receipt = assess(inputs)
   if (malformed.length > 0) {
     receipt.malformed = malformed
     if (receipt.verdict === 'qualified') receipt.verdict = 'incomplete'
   }
+  return { receipt, summary: summaryOf(receipt, inputs.samples ?? []) }
+}
+
+const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+if (isMain) {
+  const [dir, out, summary] = process.argv.slice(2)
+  const { inputs, malformed } = readEvidence(dir)
+  const { receipt, summary: text } = receiptOf(inputs, malformed)
   writeFileSync(out, `${JSON.stringify(receipt, null, 2)}\n`)
-  writeFileSync(summary, summaryOf(receipt, samples))
+  writeFileSync(summary, text)
   console.log(`[receipt] ${receipt.verdict}: ${receipt.checks.filter((c) => c.result === 'passed').length}/${receipt.checks.length} checks passed`)
 }

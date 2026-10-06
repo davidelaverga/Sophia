@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { parse } from 'yaml'
 import { compareSnapshots, coverageOf, EMPTY_SHA256, scan } from '../../scripts/paperclip-image-home.mjs'
-import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS, STARTS } from '../../scripts/paperclip-image-receipt.mjs'
+import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS, receiptOf, STARTS } from '../../scripts/paperclip-image-receipt.mjs'
 import { redact, scrubDir, secretValues } from '../../scripts/paperclip-image-redact.mjs'
 import { minimumDeadlineMs } from '../../scripts/paperclip-probe-url.mjs'
 
@@ -966,6 +966,47 @@ describe('the receipt command reads every input the workflow writes, by its own 
     assert.deepEqual(JSON.parse(readFileSync(join(dir, 'receipt.json'), 'utf8')).malformed, [`cgroup.jsonl:${run.samples.length + 1}`])
   })
 
+  it('review of 705c2b8: valid JSON of the wrong shape still gets a receipt and summary, never qualified', () => {
+    // The two of the review, and a home snapshot's, which the home check already reads as a file unread.
+    for (const [name, content, check, guarded] of [
+      ['probe-first.json', '{"phase":"first","steps":[null]}', 'installed plugin flow, first', true],
+      ['image-files.json', '{"files":[null]}', 'image built from the pin', true],
+      ['home-after.json', '{"files":[null]}', 'home persisted across recreation', false],
+    ]) {
+      const { dir } = evidenceOf(complete())
+      writeFileSync(join(dir, name), content)
+      assert.notEqual(verdictIn(dir), 'qualified', name)
+      const receipt = JSON.parse(readFileSync(join(dir, 'receipt.json'), 'utf8'))
+      const unavailable = receipt.checks.find((c) => c.name.startsWith(check))
+      assert.equal(unavailable.result, 'unavailable', name)
+      const summary = readFileSync(join(dir, 'summary.md'), 'utf8')
+      if (guarded) {
+        assert.equal(unavailable.detail.reason, 'its evidence is not in the shape it is read in')
+        assert.ok(receipt.unreadable.includes(unavailable.name), name)
+        assert.match(summary, /Checks whose evidence is not in the shape it is read in: /)
+      }
+    }
+  })
+
+  it('review of 705c2b8: a file or line that is valid JSON but not a record is named as malformed', () => {
+    for (const [name, content, named] of [
+      ['probe-first.json', '[]', 'probe-first.json'],
+      ['identity.json', 'null', 'identity.json'],
+      ['context.json', '"context"', 'context.json'],
+      ['cgroup.jsonl', null, 'cgroup.jsonl:1'],
+      ['timings.jsonl', 5, 'timings.jsonl:1'],
+    ]) {
+      const run = complete()
+      const { dir } = evidenceOf(run)
+      if (name.endsWith('.jsonl')) {
+        const list = name === 'cgroup.jsonl' ? run.samples : run.timings
+        writeFileSync(join(dir, name), [JSON.stringify(content), ...list.map((r) => JSON.stringify(r))].join('\n') + '\n')
+      } else writeFileSync(join(dir, name), content)
+      assert.notEqual(verdictIn(dir), 'qualified', name)
+      assert.deepEqual(JSON.parse(readFileSync(join(dir, 'receipt.json'), 'utf8')).malformed, [named])
+    }
+  })
+
   it('without any one of them, the run is not qualified', () => {
     const { names } = evidenceOf(complete())
     for (const name of names) {
@@ -1102,5 +1143,84 @@ describe('review of 63a929a: each probe phase’s deadline covers every limit th
     assert.equal(minimumDeadlineMs('first', 300_000), 860_000)
     assert.equal(minimumDeadlineMs('restart', 300_000), 490_000)
     assert.equal(minimumDeadlineMs('restarted', 300_000), 510_000)
+  })
+})
+
+describe('review of 705c2b8: whatever shape a record has, at any depth, the receipt and its summary are written', () => {
+  const SHAPES = [null, 'x', -1, 0.5, true, [], [null], {}, { files: [null] }]
+  /** Every path inside a value, a Buffer's bytes aside. */
+  function* pathsIn(value, path = []) {
+    if (path.length > 0) yield path
+    if (value === null || typeof value !== 'object' || Buffer.isBuffer(value)) return
+    for (const key of Object.keys(value)) yield* pathsIn(value[key], [...path, key])
+  }
+  const setAt = (root, path, value) => {
+    let at = root
+    for (const key of path.slice(0, -1)) at = at[key]
+    at[path.at(-1)] = value
+  }
+  /** Each record as the receipt command reads one: a JSON file, or a line of a JSONL file (always a record, or null). */
+  const RECORDS = (run) => [
+    ['context'],
+    ['identity'],
+    ['packaged', 'imageFiles'],
+    ...['first', 'restart', 'restarted'].map((p) => ['probes', p]),
+    ['home', 'before'],
+    ['home', 'after'],
+    ...['timings', 'runtime', 'samples'].flatMap((list) => run[list].map((_, i) => [list, i])),
+  ]
+
+  it('every path inside every record, given each wrong shape: never thrown, a check unavailable or failed when one is read', () => {
+    let cases = 0
+    for (const record of RECORDS(complete())) {
+      const base = complete()
+      const inside = [...pathsIn(record.reduce((at, key) => at[key], base))]
+      for (const path of inside)
+        for (const shape of SHAPES) {
+          const run = complete()
+          setAt(run, [...record, ...path], structuredClone(shape))
+          const { receipt, summary } = receiptOf(run)
+          assert.ok(['qualified', 'failed', 'incomplete'].includes(receipt.verdict))
+          assert.equal(typeof summary, 'string')
+          for (const name of receipt.unreadable ?? [])
+            assert.equal(receipt.checks.find((c) => c.name === name).result, 'unavailable', `${record.join('.')}.${path.join('.')}`)
+          cases += 1
+        }
+    }
+    assert.ok(cases > 1000, `${cases} cases`)
+  })
+
+  it('a check whose evidence throws however it is read is unavailable, and the summary is still written', () => {
+    // No JSON makes these throw (the walk above finds none for the home); a record that throws on any read stands in
+    // for a shape no check foresaw.
+    const throwing = new Proxy({}, { get: () => { throw new Error('a shape no check foresaw') } })
+    for (const [record, check] of [
+      [['home', 'after'], 'home persisted across recreation'],
+      [['home', 'before'], 'home persisted across recreation'],
+      [['probes', 'first'], 'installed plugin flow, first'],
+      [['probes', 'restarted'], 'installed plugin flow, restarted'],
+      [['packaged', 'imageFiles'], 'image built from the pin'],
+      [['timings', 0], 'first: healthy'],
+      [['runtime', 0], 'runtime:'],
+    ]) {
+      const run = complete()
+      setAt(run, record, throwing)
+      const { receipt, summary } = receiptOf(run)
+      const unavailable = receipt.checks.find((c) => c.name.startsWith(check))
+      assert.equal(unavailable.result, 'unavailable', record.join('.'))
+      assert.equal(unavailable.detail.error, 'a shape no check foresaw')
+      assert.notEqual(receipt.verdict, 'qualified')
+      assert.match(summary, new RegExp(`\\| ${check.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^|]* \\| unavailable \\|`), record.join('.'))
+    }
+  })
+
+  it('a record missing altogether is not reached, never thrown', () => {
+    for (const record of RECORDS(complete())) {
+      const run = complete()
+      if (typeof record.at(-1) === 'number') run[record[0]].splice(record[1], 1)
+      else setAt(run, record, null)
+      const { receipt } = receiptOf(run)
+      assert.notEqual(receipt.verdict, 'qualified', record.join('.'))
+    }
   })
 })
