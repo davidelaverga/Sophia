@@ -130,6 +130,8 @@ interface Project {
   conversations?: Conversations
   /** What the brief adds for the conversations' context: a purpose, accepted decisions, one still open. */
   missionPlus?: ReturnType<typeof conversationMission>
+  /** The brief's reads fail (`window.fixture.failMission`). */
+  missionFails?: boolean
 }
 
 /** The conversations as the A18 reads give them, and the reads that fail. */
@@ -363,7 +365,10 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   if (talk.failMessagesOf === conversationId) return unavailable()
   const all = talk.messages[conversationId]
   if (!all) return null
-  const end = Number(url.searchParams.get('before') ?? all.length)
+  const before = url.searchParams.get('before')
+  // A cursor this list never gave is the client's mistake: unexpected, not an empty page.
+  if (before !== null && !/^[1-9][0-9]*$/u.test(before)) return null
+  const end = Math.min(all.length, Number(before ?? all.length))
   const start = Math.max(0, end - MESSAGE_PAGE)
   served.push(`messages:${conversationId.slice(-2)}:${String(start)}`)
   return json({ messages: all.slice(start, end), before: start > 0 ? String(start) : null })
@@ -601,7 +606,7 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
 function missionAnswer(project: Project, method: string, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}/mission`
   if (method === 'GET' && path === base) {
-    if (project.notes?.unread) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+    if (project.notes?.unread || project.missionFails) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
     served.push(`mission:${project.revision}`)
     return json(
       withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus),

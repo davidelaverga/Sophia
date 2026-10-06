@@ -37,6 +37,8 @@ test('conversations · the tab lists them newest first, with who wrote there and
     'Test data for the first release',
   ])
   // Mine is «You»; Sophia only where she answered.
+  // Named by its title; the rest describes it.
+  await expect(rows(page).nth(0)).toHaveAccessibleName('What makes a report worth reading?')
   await expect(rows(page).nth(0)).toContainText('Lucía, You · Sophia')
   await expect(rows(page).nth(0)).toContainText('1 open question')
   await expect(rows(page).nth(1)).toContainText('Marco, Lucía')
@@ -55,7 +57,7 @@ test('conversations · the first is open; pressing another opens it, its summary
   await expect(open(page).getByRole('region', { name: 'Summary' })).toContainText('Compared a short brief')
   // A page: the newest six, oldest first.
   await expect(messages(page)).toHaveCount(6)
-  await expect(messages(page).first()).toContainText('Then the first screen should say the answer.')
+  await expect(messages(page).first()).toContainText('And every claim keeps its source, one click away.')
   await expect(messages(page).last()).toContainText('Let’s look at it together tomorrow.')
   await expect(messages(page).last()).toContainText('You')
 
@@ -80,6 +82,19 @@ test('conversations · Earlier messages reads the page before, kept above', asyn
   await expect(messages(page).first()).toContainText('Who reads the report first, and what do they need from it?')
   await expect(messages(page).last()).toContainText('Let’s look at it together tomorrow.')
   await expect(open(page).getByRole('button', { name: 'Earlier messages' })).toHaveCount(0)
+  // The button went with the last page: the focus is on the first message, never the page.
+  await expect(messages(page).first()).toBeFocused()
+})
+
+test('conversations · the one open stays open as another moves to the top', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await page.evaluate(() => window.fixture?.conversationMoves())
+  // Coming back to the tab reads the list again.
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect(titles(page).first()).toHaveText('Short or long briefs?')
+  await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('What makes a report worth reading?')
+  await expect(rows(page).nth(1)).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('conversations · what a conversation made opens its report', async ({ page }) => {
@@ -94,6 +109,9 @@ test('conversations · the filter narrows by title, and says when nothing matche
   await page.goto(PAGE)
   const filter = list(page).getByRole('searchbox', { name: 'Filter conversations' })
   await filter.fill('brief')
+  await expect(titles(page)).toHaveText(['Short or long briefs?'])
+  // Every word, in any order.
+  await filter.fill('briefs short')
   await expect(titles(page)).toHaveText(['Short or long briefs?'])
   await filter.fill('nothing like this')
   await expect(rows(page)).toHaveCount(0)
@@ -118,6 +136,16 @@ test('conversations · Project context: the mission, three accepted decisions, t
   const still = context(page).getByRole('region', { name: 'Still open' })
   await expect(still).toContainText('Map first, list second')
   await expect(accepted).not.toContainText('Map first, list second')
+  // A later read that fails keeps what was read, and says it may be out of date.
+  await page.evaluate(() => {
+    window.fixture?.failMission(true)
+    window.fixture?.update()
+  })
+  await expect(context(page)).toContainText('This may be out of date.')
+  await expect(accepted.getByRole('listitem')).toHaveCount(3)
+  await page.evaluate(() => window.fixture?.failMission(false))
+  await context(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(context(page)).not.toContainText('This may be out of date.')
   // The same for every conversation.
   await rows(page).nth(2).click()
   await expect(accepted.getByRole('listitem')).toHaveCount(3)

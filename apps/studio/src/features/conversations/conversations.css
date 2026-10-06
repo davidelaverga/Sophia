@@ -114,6 +114,19 @@
   margin: 0;
   font-size: var(--type-small);
 }
+.conv-earlier .text-button,
+.conv-note .text-button {
+  min-height: 24px;
+}
+.conv-about {
+  display: grid;
+  gap: 3px;
+}
+.conv-msg:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 4px;
+  border-radius: var(--r-1);
+}
 .conv-messages {
   display: grid;
   gap: 14px;

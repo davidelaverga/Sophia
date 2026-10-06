@@ -20,10 +20,10 @@ export const byActivity = (all: readonly ConversationSummary[]): ConversationSum
 /** Lower case, without accents: «Lucía» is found by «lucia». */
 const folded = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase()
 
-/** The conversations whose title has the words typed; all of them for none. */
+/** The conversations whose title has every word typed, in any order; all of them for none. */
 export function matching(all: readonly ConversationSummary[], typed: string): readonly ConversationSummary[] {
-  const words = folded(typed.trim())
-  return words ? all.filter((c) => folded(c.title).includes(words)) : all
+  const words = folded(typed).split(/\s+/u).filter(Boolean)
+  return words.length > 0 ? all.filter((c) => words.every((w) => folded(c.title).includes(w))) : all
 }
 
 /** How many accepted decisions show before «and N more». */
@@ -35,7 +35,16 @@ const decidedWhen = (d: MissionDecision) => Date.parse(d.decidedAt ?? d.createdA
 /** The brief's accepted decisions, newest first: the first three, and how many more. */
 export function acceptedOf(constraints: readonly MissionDecision[]): { shown: MissionDecision[]; more: number } {
   const accepted = constraints.filter((d) => d.state === 'accepted').toSorted((a, b) => decidedWhen(b) - decidedWhen(a))
-  return { shown: accepted.slice(0, SHOWN_DECISIONS), more: Math.max(0, accepted.length - SHOWN_DECISIONS) }
+  return firstOf(accepted)
+}
+
+/** What is proposed and not decided, newest first: the first three, and how many more. */
+export const pendingOf = (pending: readonly MissionDecision[]): { shown: MissionDecision[]; more: number } =>
+  firstOf(pending.toSorted((a, b) => decidedWhen(b) - decidedWhen(a)))
+
+/** The first three, and how many more. */
+function firstOf(all: MissionDecision[]) {
+  return { shown: all.slice(0, SHOWN_DECISIONS), more: Math.max(0, all.length - SHOWN_DECISIONS) }
 }
 
 const AT = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } as const

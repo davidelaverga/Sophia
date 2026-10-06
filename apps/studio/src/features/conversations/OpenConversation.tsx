@@ -2,7 +2,7 @@
 // messages oldest first (a page at a time: Earlier messages reads the one before), and the report it made, which opens
 // in the document viewer. How its context works is one disclosure away.
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { useId } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { getConversationMessages, type ConversationSummary } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
@@ -67,6 +67,14 @@ function Messages({ conversationId, identity, me }: { conversationId: string; id
   })
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
   const messages = read.data?.pages.toReversed().flatMap((p) => p.messages) ?? []
+  const first = useRef<HTMLLIElement>(null)
+  const asked = useRef(false)
+  // Earlier messages goes with the last page: the focus goes to the first message, never to the page.
+  useEffect(() => {
+    if (!asked.current || read.isFetchingNextPage) return
+    asked.current = false
+    if (!read.hasNextPage) first.current?.focus()
+  }, [read.isFetchingNextPage, read.hasNextPage])
   return (
     <>
       <Waiting words="Reading the conversation…" waiting={read.isPending} />
@@ -79,22 +87,24 @@ function Messages({ conversationId, identity, me }: { conversationId: string; id
         </p>
       )}
       {read.hasNextPage && (
-        <p className="conv-earlier">
-          <button
-            type="button"
-            className="text-button"
-            aria-disabled={read.isFetchingNextPage || undefined}
-            onClick={() => !read.isFetchingNextPage && void read.fetchNextPage()}
-          >
-            {read.isFetchingNextPage ? 'Reading earlier messages…' : 'Earlier messages'}
-          </button>
-          {read.isFetchNextPageError && <span role="alert"> They can’t be read now.</span>}
-        </p>
+        <Earlier
+          reading={read.isFetchingNextPage}
+          failed={read.isFetchNextPageError}
+          onRead={() => {
+            asked.current = true
+            void read.fetchNextPage()
+          }}
+        />
       )}
       {messages.length > 0 && (
         <ol className="conv-messages">
-          {messages.map((m) => (
-            <li key={m.id} className={m.author === 'sophia' ? 'conv-msg sophia' : 'conv-msg'}>
+          {messages.map((m, i) => (
+            <li
+              key={m.id}
+              ref={i === 0 ? first : undefined}
+              tabIndex={i === 0 ? -1 : undefined}
+              className={m.author === 'sophia' ? 'conv-msg sophia' : 'conv-msg'}
+            >
               <span className="conv-msg-by">
                 {messageBy(m, me)} · <time dateTime={m.at}>{messageWhen(m.at)}</time>
               </span>
@@ -104,5 +114,22 @@ function Messages({ conversationId, identity, me }: { conversationId: string; id
         </ol>
       )}
     </>
+  )
+}
+
+/** Earlier messages: reads the page before, once at a time; says so when it can't. */
+function Earlier({ reading, failed, onRead }: { reading: boolean; failed: boolean; onRead: () => void }) {
+  return (
+    <p className="conv-earlier">
+      <button
+        type="button"
+        className="text-button"
+        aria-disabled={reading || undefined}
+        onClick={() => !reading && onRead()}
+      >
+        {reading ? 'Reading earlier messages…' : 'Earlier messages'}
+      </button>
+      {failed && <span role="alert"> They can’t be read now.</span>}
+    </p>
   )
 }

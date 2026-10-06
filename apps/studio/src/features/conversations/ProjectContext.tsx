@@ -7,7 +7,7 @@ import { getMission } from '../../api/mission.ts'
 import type { MissionContext } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { missionKey } from '../mission/mission-view.ts'
-import { acceptedOf } from './conversation-list.ts'
+import { acceptedOf, pendingOf } from './conversation-list.ts'
 
 interface Props {
   projectId: string
@@ -20,6 +20,7 @@ export function ProjectContext({ projectId, identity, cursor }: Props) {
     queryKey: [...missionKey(projectId), identity.name, cursor],
     queryFn: () => getMission(identity.token, projectId),
     placeholderData: keepPreviousData,
+    retry: 1,
   })
   const ctx = read.data
   if (!ctx) {
@@ -40,6 +41,14 @@ export function ProjectContext({ projectId, identity, cursor }: Props) {
   return (
     <aside className="conv-context" aria-label="Project context">
       <h3 className="eyebrow">Project context</h3>
+      {read.isError && (
+        <p className="conv-note" role="alert">
+          This may be out of date.{' '}
+          <button type="button" className="text-button" onClick={() => void read.refetch()}>
+            Try again
+          </button>
+        </p>
+      )}
       {ctx.mission ? (
         <div className="conv-mission">
           <p className="conv-mission-statement">{ctx.mission.statement}</p>
@@ -59,6 +68,7 @@ function Decisions({ ctx }: { ctx: MissionContext }) {
   const acceptedId = useId()
   const openId = useId()
   const { shown, more } = acceptedOf(ctx.constraints)
+  const open = pendingOf(ctx.pending)
   return (
     <>
       <section aria-labelledby={acceptedId}>
@@ -80,15 +90,16 @@ function Decisions({ ctx }: { ctx: MissionContext }) {
         <h4 id={openId} className="eyebrow">
           Still open
         </h4>
-        {ctx.pending.length === 0 ? (
+        {open.shown.length === 0 ? (
           <p className="conv-note">Nothing waits for a decision.</p>
         ) : (
           <>
             <ul className="conv-decisions open">
-              {ctx.pending.map((d) => (
+              {open.shown.map((d) => (
                 <li key={d.id}>{d.statement}</li>
               ))}
             </ul>
+            {open.more > 0 && <p className="conv-note">{`and ${String(open.more)} more`}</p>}
             <p className="conv-note">Proposed, not decided.</p>
           </>
         )}

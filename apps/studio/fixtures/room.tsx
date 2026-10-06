@@ -124,6 +124,10 @@ interface Fixture {
   holdSearch: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
+  /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
+  conversationMoves: () => void
+  /** The brief's reads fail, or read again. */
+  failMission: (on: boolean) => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
   holdTasks: (on: boolean) => void
   releaseTasks: () => void
@@ -282,12 +286,13 @@ const project = {
   work: query.get('place') === 'work',
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
-  // A16: the versions' reviews (review-data.ts).
   // A18: the project's conversations (`conversations=1`; `=none`, none; `=fail`, the list fails; `messages=fail`, the
   // second one's messages fail), and the brief's context beside them.
   ...conversationsAsked(query.get('conversations'), query.get('messages') === 'fail'),
+  // A16: the versions' reviews (review-data.ts).
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
+  missionFails: false,
   reviews: {
     ...noReviews(query.get('reviews') === 'fail'),
     heldReads: query.get('reviews') === 'hold' ? waiting() : null,
@@ -407,6 +412,13 @@ window.fixture = {
   },
   failConversations: (on) => {
     if (project.conversations) project.conversations.failList = on
+  },
+  conversationMoves: () => {
+    const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
+    if (moved) moved.lastAt = new Date().toISOString()
+  },
+  failMission: (on) => {
+    project.missionFails = on
   },
   holdSearch: (on) => {
     if (!on) for (const answer of project.searchHeld ?? []) answer()
@@ -615,8 +627,10 @@ const nothing = () => undefined
 const viewOf = (place: string | null) =>
   place === 'knowledge' || place === 'work' || place === 'updates' || place === 'conversations' ? place : 'studio'
 
-/** The views this fixture's API serves: the room, Conversations, Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
-const SERVED: readonly View[] = ['studio', 'conversations', 'knowledge', 'work', 'updates']
+/** The views this fixture's API serves: the room, Conversations (when the page asks for them), Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
+const SERVED: readonly View[] = query.has('conversations')
+  ? ['studio', 'conversations', 'knowledge', 'work', 'updates']
+  : ['studio', 'knowledge', 'work', 'updates']
 
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }

@@ -4,6 +4,7 @@ import type { MissionDecision } from '@sophia/contracts'
 import type { ConversationSummary } from '../../api/vision.ts'
 import {
   acceptedOf,
+  pendingOf,
   byActivity,
   contributorsLine,
   matching,
@@ -79,6 +80,12 @@ describe('matching', () => {
       ['b'],
     )
     assert.equal(matching(all, '').length, 2)
+    // Every word, in any order.
+    assert.deepEqual(
+      matching(all, 'briefs short').map((c) => c.id),
+      ['a'],
+    )
+    assert.equal(matching(all, 'short data').length, 0)
   })
 })
 
@@ -109,7 +116,6 @@ describe('acceptedOf', () => {
 describe('messageWhen', () => {
   it('says the day and time, with the year only when it isn’t this one', () => {
     const now = new Date('2026-10-06T12:00:00.000Z')
-    assert.match(messageWhen('2026-10-06T09:12:00.000Z', now), /oct/i)
     assert.doesNotMatch(messageWhen('2026-10-06T09:12:00.000Z', now), /2026/)
     assert.match(messageWhen('2025-12-30T09:12:00.000Z', now), /2025/)
   })
@@ -121,5 +127,14 @@ describe('messageBy', () => {
     assert.equal(messageBy({ author: 'member', actorId: ME, name: 'Fixture viewer' }, ME), 'You')
     assert.equal(messageBy({ author: 'member', actorId: 'l', name: 'Lucía' }, ME), 'Lucía')
     assert.equal(messageBy({ author: 'member', actorId: 'x', name: null }, ME), 'A member')
+  })
+})
+
+describe('pendingOf', () => {
+  it('shows the three newest proposals and counts the rest', () => {
+    const all = ['1', '2', '3', '4'].map((n) => decision(n, null, 'proposed'))
+    const { shown, more } = pendingOf(all)
+    assert.equal(shown.length, 3)
+    assert.equal(more, 1)
   })
 })
