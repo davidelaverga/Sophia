@@ -925,6 +925,37 @@ describe('a tooltip or an accessible name carries no text the page does not show
     }
     assert.ok(errorCodes(good, unshaped).includes('block_altered'))
   })
+  // #117: <s>, <del> and <ins> tell a reader a text is withdrawn, deleted or inserted, whatever CSS draws.
+  it('refuses a text struck out, deleted or inserted, in research, around it, in a source entry or elsewhere', () => {
+    const page = html(good)
+    const marked = (from: string, to: string) => {
+      const next = page.replace(from, to)
+      assert.notEqual(next, page, from)
+      return codes(withHtml(good, next))
+    }
+    for (const [from, to] of [
+      ['needs a dedicated VM', 'needs a <s>dedicated VM</s>'],
+      ['needs a dedicated VM', 'needs a <del>dedicated VM</del>'],
+      ['needs a dedicated VM', 'needs a <ins>dedicated VM</ins>'],
+      ['<p data-block="b1">', '<del><p data-block="b1">'],
+      ['<main>', '<main><s>'],
+      [`data-source="${A}">Source ${A}`, `data-source="${A}"><del>Source ${A}</del>`],
+      ['<h1>Report</h1>', '<h1><s>Report</s></h1>'],
+      ['<h1>Report</h1>', '<h1><DEL datetime="2026-01-01">Report</DEL></h1>'],
+    ] as const)
+      assert.ok(marked(from, to).includes('unsafe_element'), to)
+    const reset = withCss(
+      withHtml(good, page.replace('needs a dedicated VM', 'needs a <del>dedicated VM</del>')),
+      'del{text-decoration:none}\n',
+    )
+    assert.ok(codes(reset).includes('unsafe_element'), 'a CSS reset keeps the deletion a screen reader announces')
+    for (const [from, to] of [
+      ['needs a dedicated VM', 'needs a <em>dedicated</em> <code>VM</code>'],
+      ['needs a dedicated VM', 'needs a <mark>dedicated VM</mark>'],
+      ['<h1>Report</h1>', '<h1><u>Report</u></h1>'],
+    ] as const)
+      assert.deepEqual(marked(from, to), [], to)
+  })
   // #117: a bidi override draws a text's characters in another order than the one every check reads.
   it('refuses a bidi override in markup, in CSS and as a character, and keeps directions and isolation', () => {
     const page = html(good)

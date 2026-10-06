@@ -71,7 +71,6 @@ const ELEMENTS = new Set([
   'b',
   'i',
   'u',
-  's',
   'small',
   'sub',
   'sup',
@@ -79,8 +78,6 @@ const ELEMENTS = new Set([
   'abbr',
   'time',
   'data',
-  'del',
-  'ins',
   'bdi',
   'details',
   'summary',
@@ -105,11 +102,23 @@ const GLOBAL_ATTRIBUTES = new Set([
  * among the items the page writes, a number no block holds: empty or hidden items before one move it, and a list the
  * research left unordered would read as a ranking (#117). A list is `<ul>` or `<menu>`, with bullets (css.ts).
  */
+/**
+ * Why a page marks no text struck out, deleted or inserted: `<s>` says a text is no longer accurate, `<del>` and `<ins>`
+ * that it was taken out of or put into the document, and a screen reader announces them so, whatever CSS draws.
+ * Frozen research has no such history for a page to invent: `<del>Not free.</del>` reads as a withdrawn claim (#117).
+ */
+const STRUCK =
+  ': it marks a text as no longer accurate, deleted or inserted, which a screen reader announces whatever CSS draws; ' +
+  'the research has no such history'
+
 const REFUSED: Readonly<Record<string, string>> = {
   ol: ': an ordered list numbers its items by their place on the page, a number no block holds; a list is <ul>',
   bdo:
     ': it overrides the order a text is drawn in, so "12.50" is drawn "05.21" while the text read stays "12.50"; ' +
     'set a direction with dir, or isolate a text with <bdi>',
+  s: STRUCK,
+  del: STRUCK,
+  ins: STRUCK,
 }
 
 /** Attributes only some elements may carry. */
@@ -121,8 +130,6 @@ const ELEMENT_ATTRIBUTES: Readonly<Record<string, ReadonlySet<string>>> = {
   td: new Set(['colspan', 'rowspan', 'headers']),
   time: new Set(['datetime']),
   data: new Set(['value']),
-  del: new Set(['datetime']),
-  ins: new Set(['datetime']),
   details: new Set(['open']),
   col: new Set(['span']),
   colgroup: new Set(['span']),
