@@ -41,7 +41,7 @@ import {
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
 import { focusRequest, focusSet, type Showing } from './focus-data.ts'
-import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, type Meeting } from './meeting-data.ts'
+import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -247,6 +247,10 @@ function meetingAnswer(project: Project, path: string): Promise<Response> | Resp
   const base = `/api/v1/projects/${PROJECT}/meetings`
   if (!meeting) return null
   if (path === base) return json(meetingList(meeting))
+  if (path === `${base}/${MEETING}/so-far`) {
+    served.push('so-far')
+    return json(soFarOf(meeting, project.revision))
+  }
   const recap = recapOf(meeting, /\/meetings\/([^/]+)\/recap$/.exec(path)?.[1] ?? '')
   if (!recap) return null
   const { held, fail } = meeting.recaps

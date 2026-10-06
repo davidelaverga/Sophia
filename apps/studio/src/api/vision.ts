@@ -195,3 +195,11 @@ export const getSince = (token: string, projectId: string, signal?: AbortSignal)
 /** A13: this viewer has seen up to `sequence`; the API never lowers it, so a second write is harmless. */
 export const markSeen = (token: string, projectId: string, sequence: string): Promise<undefined> =>
   callApi(`/api/v1/projects/${projectId}/seen`, { token, method: 'PUT', body: { sequence } }, nothing)
+
+/** A13: the running meeting until now, built as its recap is, for whoever joins late. */
+export const getSoFar = (token: string, projectId: string, meetingId: string, signal?: AbortSignal): Promise<Digest> =>
+  callApi(
+    `/api/v1/projects/${projectId}/meetings/${meetingId}/so-far`,
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseDigest,
+  )

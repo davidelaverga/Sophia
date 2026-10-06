@@ -241,9 +241,11 @@ const project = {
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
   // A12: the meeting this visit is, its recap built from what happens on the page (meeting-data.ts).
+  // `meeting=earlier`: the running meeting began 12 minutes before the page, so joining is joining late.
   meeting: newMeeting(
     () => meetingRecords(),
     () => asked.includes('connect'),
+    query.get('meeting') === 'earlier' ? Date.now() - 12 * 60_000 - 5_000 : Date.now(),
   ),
   notes: {
     kept: [],

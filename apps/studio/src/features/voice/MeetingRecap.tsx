@@ -14,7 +14,7 @@ import { Waiting } from '../../app/Waiting.tsx'
 import { canInvite } from '../access/useAccess.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { useCopy } from '../resources/copy.ts'
-import { useKnownNames } from '../studio/StudioShell.tsx'
+import { useKnownNames } from '../studio/useKnownNames.ts'
 import { namers, recapHead, recapSections, recapText, type RecapSection, type Records } from './recap-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
@@ -141,8 +141,8 @@ export function RecapSheet(props: SheetProps) {
   )
 }
 
-/** Out of the call, the focus goes back to Join (the call's anchor on screen), since Leave is gone. */
-const callAnchor = () =>
+/** Where the focus goes when what opened a sheet is gone: the call's anchor on screen (Join out of the call). */
+export const callAnchor = () =>
   [...document.querySelectorAll<HTMLElement>('[data-call-anchor]')].find((el) => el.offsetParent !== null) ?? null
 
 type CloseTarget = { projectId: string; identity: Identity; roomId: string }

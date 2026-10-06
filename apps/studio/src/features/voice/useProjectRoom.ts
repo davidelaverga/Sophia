@@ -56,6 +56,8 @@ export interface ProjectRoom {
   leave: (how?: LeaveHow) => Promise<void>
   /** How many calls this person was in and left by their own press: what the meeting left opens on each. */
   leftByPress: number
+  /** When this person's latest call went live (ms): what a late join is measured from; null before any. */
+  liveSince: number | null
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
@@ -243,16 +245,20 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
  */
 function useJoin(ports: Omit<JoinPorts, 'onLive'>, joining: { current: Promise<boolean> | null }) {
   const [call, setCall] = useState(0)
+  const [liveSince, setLiveSince] = useState<number | null>(null)
   const join = (options?: { textOnly?: boolean }) => {
     if (joining.current) return joining.current
-    const onLive = () => setCall((n) => n + 1)
+    const onLive = () => {
+      setCall((n) => n + 1)
+      setLiveSince(Date.now())
+    }
     const attempt: Promise<boolean> = joinConnection({ ...ports, onLive }, options).finally(() => {
       if (joining.current === attempt) joining.current = null
     })
     joining.current = attempt
     return attempt
   }
-  return { call, join }
+  return { call, liveSince, join }
 }
 
 /**
@@ -335,7 +341,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     setError(why ? CALL_END[why].note : null)
   }
 
-  const { call, join } = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining)
+  const joined = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining)
 
   const { leave, leftByPress } = useLeave(calls, outOfCall)
 
@@ -352,7 +358,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   return {
     status,
     error,
-    call,
+    ...joined,
     ...people,
     ...devices,
     setMicrophone,
@@ -365,7 +371,6 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     sendChat: typedChat.sendChat,
     startAudio,
     ready: issue !== null,
-    join,
     leave,
     leftByPress,
   }
