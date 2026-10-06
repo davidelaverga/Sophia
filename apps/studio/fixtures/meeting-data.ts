@@ -34,6 +34,8 @@ export interface Meeting {
   after: AfterUpdate[]
   /** Someone joined the call on this page: until then there is no running meeting. */
   begun: () => boolean
+  /** `meetings=none`: no meeting before this one (none closed yet). */
+  noPast?: boolean
 }
 
 export const newMeeting = (records: Meeting['records'], begun: Meeting['begun'], startedAt = Date.now()): Meeting => ({
@@ -97,13 +99,13 @@ const PAST: readonly MeetingRecap[] = [
 export const meetingList = (m: Meeting) => ({
   meetings: [
     ...(m.begun() ? [{ id: MEETING, startedAt: new Date(m.startedAt).toISOString(), endedAt: m.closedAt }] : []),
-    ...PAST.map((p) => ({ id: p.meetingId, startedAt: p.startedAt, endedAt: p.endedAt })),
+    ...(m.noPast ? [] : PAST).map((p) => ({ id: p.meetingId, startedAt: p.startedAt, endedAt: p.endedAt })),
   ],
 })
 
 /** A meeting's recap: this one's from the page's records; an earlier one's as it was kept. Undefined: no such one. */
 export const recapOf = (m: Meeting, id: string): MeetingRecap | undefined =>
-  id === MEETING ? current(m) : PAST.find((p) => p.meetingId === id)
+  id === MEETING ? current(m) : m.noPast ? undefined : PAST.find((p) => p.meetingId === id)
 
 function current(m: Meeting): MeetingRecap {
   const ended = m.closedAt ? Date.parse(m.closedAt) : Date.now()
