@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { after, describe, it } from 'node:test'
 import { exchange, MAX_BODY_BYTES, until } from '../../scripts/paperclip-probe-http.mjs'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -405,16 +405,81 @@ describe('review of 9bc711a: a response is read up to a byte cap, never buffered
     assert.ok(Date.now() - started < 2000)
   })
 
-  it('the default cap is 1 MiB: a body of exactly that many bytes resolves, one byte more is refused', async () => {
+  it('the default cap is 1 MiB: a body just under or of exactly that many bytes resolves, one byte more is refused', async () => {
     assert.equal(MAX_BODY_BYTES, 1024 * 1024)
-    const exact = await serve((_req, res) => res.end('x'.repeat(MAX_BODY_BYTES)))
-    const full = await settledWithin(exchange({ port: exact, timeoutMs: 10_000 }), 5000)
-    assert.notEqual(full, PENDING)
-    assert.equal(full.value?.text.length, MAX_BODY_BYTES, full.error?.message)
+    for (const size of [MAX_BODY_BYTES - 1, MAX_BODY_BYTES]) {
+      const port = await serve((_req, res) => res.end('x'.repeat(size)))
+      const outcome = await settledWithin(exchange({ port, timeoutMs: 10_000 }), 5000)
+      assert.notEqual(outcome, PENDING)
+      assert.equal(outcome.value?.text.length, size, outcome.error?.message)
+    }
     const over = await serve((_req, res) => res.end('x'.repeat(MAX_BODY_BYTES + 1)))
     const refused = await settledWithin(exchange({ port: over, timeoutMs: 10_000 }), 5000)
     assert.notEqual(refused, PENDING)
     assert.match(refused.error?.message ?? '', /the response passed 1048576 bytes/)
+  })
+
+  it('bytes are counted as received, not characters: a hundred three-byte characters fit a 300-byte cap, one more does not', async () => {
+    const fits = await serve((_req, res) => res.end('\u20ac'.repeat(100)))
+    const kept = await settledWithin(exchange({ port: fits, timeoutMs: 5000, maxBodyBytes: 300 }), 3000)
+    assert.notEqual(kept, PENDING)
+    assert.equal(kept.value?.text, '\u20ac'.repeat(100), kept.error?.message)
+    const over = await serve((_req, res) => res.end('\u20ac'.repeat(101)))
+    const refused = await settledWithin(exchange({ port: over, timeoutMs: 5000, maxBodyBytes: 300 }), 3000)
+    assert.notEqual(refused, PENDING)
+    assert.match(refused.error?.message ?? '', /passed 300 bytes/)
+  })
+
+  it('positive controls under the cap: JSON, a health answer and cookies come back whole, a multi-byte body decoded once', async () => {
+    const port = await serve((req, res) => {
+      if (req.url === '/api/health') return res.end(JSON.stringify({ status: 'ok' }))
+      res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': ['a=1; Path=/', 'b=2; Path=/'] })
+      res.write(Buffer.from('{"name":"synthetic \u20ac', 'utf8').subarray(0, 21)) // the € cut after its first byte
+      res.end(Buffer.from('{"name":"synthetic \u20ac"}', 'utf8').subarray(21))
+    })
+    const health = await settledWithin(exchange({ port, path: '/api/health', timeoutMs: 2000 }), 3000)
+    assert.deepEqual(health.value?.json, { status: 'ok' })
+    const cookies = await settledWithin(exchange({ port, path: '/api/auth/sign-up/email', timeoutMs: 2000 }), 3000)
+    assert.deepEqual(cookies.value?.cookies, ['a=1; Path=/', 'b=2; Path=/'])
+    assert.deepEqual(cookies.value?.json, { name: 'synthetic \u20ac' }, 'a character split across chunks is decoded whole')
+  })
+
+  it('in a process of its own, a finite one-chunk answer over a small cap is refused and the process exits cleanly, as a flooding one is', async () => {
+    // The refusal destroys the request without an error: the promise already carries it, and a socket a complete answer
+    // released to the agent's pool would otherwise emit an unhandled error and end the process (Codex, on 75e6156).
+    const HTTP = fileURLToPath(new URL('../../scripts/paperclip-probe-http.mjs', import.meta.url))
+    const dir = mkdtempSync(join(tmpdir(), 'pc-cap-child-'))
+    try {
+      const script = join(dir, 'child.mjs')
+      writeFileSync(
+        script,
+        [
+          `import { createServer } from 'node:http'`,
+          `import { exchange } from ${JSON.stringify(HTTP)}`,
+          `const [kind, cap] = process.argv.slice(2)`,
+          `const body = kind === 'ascii' ? 'x'.repeat(2049) : kind === 'utf8' ? '\\u20ac'.repeat(683) + 'x' : kind === 'exact' ? 'x'.repeat(2048) : null`,
+          `const server = createServer((req, res) => { if (body !== null) return res.end(body); const pump = setInterval(() => res.write('y'.repeat(65536)), 1); req.on('close', () => clearInterval(pump)) })`,
+          `await new Promise((r) => server.listen(0, '127.0.0.1', r))`,
+          `try { const v = await exchange({ port: server.address().port, timeoutMs: 3000, maxBodyBytes: Number(cap) }); console.log('resolved ' + v.text.length) } catch (e) { console.log('refused: ' + e.message) }`,
+          `server.closeAllConnections()`,
+          `server.close()`,
+          '',
+        ].join('\n'),
+      )
+      for (const [kind, cap, expected] of [
+        ['ascii', '2048', 'refused: GET /: the response passed 2048 bytes'],
+        ['utf8', '2048', 'refused: GET /: the response passed 2048 bytes'],
+        ['exact', '2048', 'resolved 2048'],
+        ['flood', '200000', 'refused: GET /: the response passed 200000 bytes'],
+      ]) {
+        const child = spawnSync(process.execPath, [script, kind, cap], { encoding: 'utf8', timeout: 20_000 })
+        assert.equal(child.status, 0, `${kind}: exit ${child.status}; ${child.stderr}`)
+        assert.equal(child.stdout.trim(), expected, kind)
+        assert.equal(child.stderr, '', `${kind}: nothing on stderr`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('the flow’s health read and the container helper’s share the cap: a flooding health answer is no answer', async () => {

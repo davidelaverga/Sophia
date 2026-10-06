@@ -1542,18 +1542,33 @@ describe('review of 9bc711a: diagnostics are redacted whole before they are cut 
     return found
   }
 
-  it('the case of the review: a value straddling the cut leaves no fragment, and the output is still bounded', () => {
-    // The value begins five characters before the cut: cut first, five characters would go and the rest be kept, unrecognised.
-    const before = 'a'.repeat(50_000)
-    const after = 'c'.repeat(LIMIT - (SECRET.length - 5))
-    const text = `${before}${SECRET}${after}`
-    assert.equal(text.length - LIMIT, before.length + 5, 'the cut lands inside the value')
+  it('the case of the review: a value straddling the cut, from either side, leaves no fragment, and the output is still bounded', () => {
+    // The cut lands inside the value: five characters in (cut first, the rest would be kept, unrecognised), and five
+    // from its end (cut first, a short unrecognised tail would be kept).
+    for (const into of [1, 5, SECRET.length - 5, SECRET.length - 1]) {
+      const before = 'a'.repeat(50_000)
+      const after = 'c'.repeat(LIMIT - (SECRET.length - into))
+      const text = `${before}${SECRET}${after}`
+      assert.equal(text.length - LIMIT, before.length + into, 'the cut lands inside the value')
+      const run = redactCli(text)
+      assert.equal(run.status, 0, run.stderr)
+      assert.deepEqual(fragments(run.stdout), [], `${into} characters in`)
+      // Redacted whole, the value becomes a 10-character marker and the cut moves: with the cut early in the value the
+      // marker is kept, and late in it the cut lands in the marker itself, which is harmless.
+      if (into <= 5) assert.ok(run.stdout.includes('[redacted]'), 'the value was recognised whole')
+      assert.match(run.stdout, /earlier characters omitted/)
+      assert.ok(run.stdout.length <= LIMIT + 80, `${run.stdout.length} characters`)
+    }
+  })
+
+  it('ordinary large diagnostics, with nothing to redact, are cut to exactly their last 256 KiB and otherwise untouched', () => {
+    const lines = Array.from({ length: 12_000 }, (_, i) => `2026-10-06T12:00:${String(i % 60).padStart(2, '0')}Z line ${i} of the server log, nothing secret here`)
+    const text = lines.join('\n')
+    assert.ok(text.length > LIMIT)
     const run = redactCli(text)
     assert.equal(run.status, 0, run.stderr)
-    assert.deepEqual(fragments(run.stdout), [])
-    assert.ok(run.stdout.includes('[redacted]'), 'the value was recognised whole')
-    assert.match(run.stdout, /earlier characters omitted/)
-    assert.ok(run.stdout.length <= LIMIT + 80, `${run.stdout.length} characters`)
+    const header = `[... ${text.length - LIMIT} earlier characters omitted ...]\n`
+    assert.equal(run.stdout, `${header}${text.slice(-LIMIT)}`)
   })
 
   it('positive control: a short input is redacted and not cut; a value wholly in the kept tail is redacted', () => {

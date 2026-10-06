@@ -28,23 +28,25 @@ export function exchange({ host = '127.0.0.1', port, method = 'GET', path = '/',
     const req = httpRequest(
       { host, port, method, path, headers: { ...(payload === undefined ? {} : { 'content-type': 'application/json' }), ...headers } },
       (res) => {
-        let text = ''
+        // Raw bytes, counted as received (a multi-byte character is its bytes, not one), decoded once at the end.
+        const chunks = []
         let bytes = 0
-        res.setEncoding('utf8')
         res.on('data', (chunk) => {
-          bytes += Buffer.byteLength(chunk)
+          bytes += chunk.length
           if (bytes > maxBodyBytes) {
-            // Ended here, whatever remains: destroying the request ends the response being read.
-            const error = new Error(`${method} ${path}: the response passed ${maxBodyBytes} bytes`)
-            settle(fail, error)
-            req.destroy(error)
+            // Ended here, whatever remains: destroying the request ends the response being read. Without the error:
+            // the promise already carries it, and a socket a complete response has released to the agent's pool has no
+            // listener for one.
+            settle(fail, new Error(`${method} ${path}: the response passed ${maxBodyBytes} bytes`))
+            req.destroy()
             return
           }
-          text += chunk
+          chunks.push(chunk)
         })
-        res.on('end', () =>
-          settle(done, { status: res.statusCode ?? 0, json: parse(text), text, cookies: res.headers['set-cookie'] ?? [] }),
-        )
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8')
+          settle(done, { status: res.statusCode ?? 0, json: parse(text), text, cookies: res.headers['set-cookie'] ?? [] })
+        })
         res.on('error', (error) => settle(fail, error))
         res.on('aborted', () => settle(fail, new Error(`${method} ${path}: the response was cut short`)))
         res.on('close', () => {
