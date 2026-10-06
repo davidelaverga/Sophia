@@ -1032,13 +1032,14 @@ describe('a tooltip or an accessible name carries no text the page does not show
   // is listed apart from the blocks.
   it('holds a note reference to its citation marker and a bibliography entry to a source entry apart from the blocks', () => {
     const page = html(good)
-    const at = (from: string, to: string, text = page) => {
-      const next = text.replace(from, to)
-      assert.notEqual(next, text, from)
+    const at = (from: string, to: string, text?: string) => {
+      const base = text ?? page
+      const next = base.replace(from, to)
+      assert.notEqual(next, base, from)
       return next
     }
     const cite = `<a data-cite="${A}" href="#src-${A}">[1]</a>`
-    const entry = `<li id="src-${A}" data-source="${A}">Source ${A}</li>`
+    const listed = `<li id="src-${A}" data-source="${A}">Source ${A}</li>`
     for (const [from, to] of [
       ['<p data-block="b1">', '<p data-block="b1" role="doc-noteref">'],
       ['<table data-block="b5">', '<table data-block="b5" role="doc-biblioentry">'],
@@ -1047,37 +1048,37 @@ describe('a tooltip or an accessible name carries no text the page does not show
       ['needs a dedicated VM', 'needs a <span role="doc-noteref">dedicated</span> VM'],
       ['<main>', '<main role="doc-noteref">'],
       ['<section id="s1" data-section="s1">', '<section id="s1" data-section="s1" role="doc-biblioentry">'],
-      [entry, entry.replace('<li ', '<li role="doc-noteref" ')],
+      [listed, listed.replace('<li ', '<li role="doc-noteref" ')],
       [cite, cite.replace('<a ', '<a role="doc-biblioentry" ')],
       ['<table data-block="b5">', '<table data-block="b5" role="DOC-BIBLIOENTRY">'],
       ['<table data-block="b5">', '<table data-block="b5" role="table doc-biblioentry">'],
-      [entry, entry.replace('<li ', '<li role="doc-endnote" ')],
-      [entry, entry.replace('<li ', '<li role="doc-footnote" ')],
+      [listed, listed.replace('<li ', '<li role="doc-endnote" ')],
+      [listed, listed.replace('<li ', '<li role="doc-footnote" ')],
       [cite, cite.replace('<a ', '<a role="doc-backlink" ')],
     ] as const)
       assert.ok(codes(withHtml(good, at(from, to))).includes('unsafe_attribute'), to)
     // Codex's spoof: the research table made the source entry, its frozen cells kept, the real entry removed.
     const spoofed = (role: string) =>
-      at('<table data-block="b5">', `<table data-block="b5" id="src-${A}" data-source="${A}"${role}>`, at(entry, ''))
+      at('<table data-block="b5">', `<table data-block="b5" id="src-${A}" data-source="${A}"${role}>`, at(listed, ''))
     assert.ok(codes(withHtml(good, spoofed(' role="doc-biblioentry"'))).includes('unsafe_attribute'), 'the role on it')
     assert.ok(codes(withHtml(good, spoofed(''))).includes('source_misplaced'), 'a source attribute alone is not enough')
     const holder = at(
       '<ul><li data-block="b3">',
       `<ul id="src-${A}" data-source="${A}"><li data-block="b3">`,
-      at(entry, ''),
+      at(listed, ''),
     )
     assert.ok(codes(withHtml(good, holder)).includes('source_misplaced'), 'a source entry holding a block')
     const inner = at(
       'needs a dedicated VM',
       `needs a <span id="src-${A}" data-source="${A}">dedicated</span> VM`,
-      at(entry, ''),
+      at(listed, ''),
     )
     assert.ok(codes(withHtml(good, inner)).includes('source_misplaced'), 'a source entry inside a block')
     for (const [from, to] of [
       [cite, cite.replace('<a ', '<a role="doc-noteref" ')],
       [cite, cite.replace('<a ', '<a role="DOC-NOTEREF" ')],
       [cite, `<span data-cite="${A}"><a role="doc-noteref" href="#src-${A}">[1]</a></span>`],
-      [entry, entry.replace('<li ', '<li role="doc-biblioentry" ')],
+      [listed, listed.replace('<li ', '<li role="doc-biblioentry" ')],
       ['<h2>Sources</h2><ul>', '<h2>Sources</h2><ul role="doc-bibliography">'],
       ['<main>', '<main role="main">'],
       ['<section id="s1" data-section="s1">', '<section id="s1" data-section="s1" role="region">'],
