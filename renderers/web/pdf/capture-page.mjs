@@ -75,10 +75,7 @@ function hiddenIssues(el) {
   if (el.getClientRects().length === 0) return ['not_rendered']
   const style = getComputedStyle(el)
   if (style.visibility === 'hidden' || style.visibility === 'collapse') return ['hidden']
-  let opacity = 1
-  for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement)
-    opacity *= Number.parseFloat(getComputedStyle(a).opacity || '1')
-  if (opacity < 0.1) return ['transparent']
+  if (opacityOf(el) < 0.1) return ['transparent']
   const text = document.createRange()
   text.selectNodeContents(el)
   const t = text.getBoundingClientRect()
@@ -186,19 +183,48 @@ function isCovered(el) {
  * A colour as sRGB bytes, by painting it: whatever syntax the page used, the canvas resolves it.
  * @param {OffscreenCanvasRenderingContext2D} ctx
  * @param {string[]} layers bottom first, each painted over the last
+ * @param {number} [topAlpha] the opacity the last layer is painted at (the text's effective opacity)
  * @returns {[number, number, number]}
  */
-function paint(ctx, layers) {
+function paint(ctx, layers, topAlpha = 1) {
   ctx.globalCompositeOperation = 'source-over'
+  ctx.globalAlpha = 1
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, 1, 1)
-  for (const colour of layers) {
+  for (const [i, colour] of layers.entries()) {
+    ctx.globalAlpha = i === layers.length - 1 ? topAlpha : 1
     ctx.fillStyle = '#ffffff'
     ctx.fillStyle = colour
     ctx.fillRect(0, 0, 1, 1)
   }
+  ctx.globalAlpha = 1
   const [r = 0, g = 0, b = 0] = ctx.getImageData(0, 0, 1, 1).data
   return [r, g, b]
+}
+
+/**
+ * An element's effective opacity: its own and every ancestor's, multiplied.
+ * @param {Element} el
+ */
+function opacityOf(el) {
+  let opacity = 1
+  for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement)
+    opacity *= Number.parseFloat(getComputedStyle(a).opacity || '1')
+  return opacity
+}
+
+/**
+ * Whether a filter or a blend mode, on the element or an ancestor, changes the colours it is drawn in: the contrast
+ * read from its styles would not be the contrast a reader sees (#117).
+ * @param {Element} el
+ */
+function isFiltered(el) {
+  for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement) {
+    const style = getComputedStyle(a)
+    if (style.filter !== 'none' || style.mixBlendMode !== 'normal' || (style.backdropFilter || 'none') !== 'none')
+      return true
+  }
+  return false
 }
 
 /**
@@ -261,7 +287,9 @@ function combinations(layers, max) {
 
 /**
  * The block's text contrast against what is behind it (WCAG 2): the worst case over the stops of any gradient behind
- * it, against the floor for its size (3 for large text, 4.5 otherwise). Unknown when the background cannot be read.
+ * it, against the floor for its size (3 for large text, 4.5 otherwise). The text is painted in the colour it is filled
+ * with, at its effective opacity (#117). Unknown when the background cannot be read, or a filter or blend mode changes
+ * the colours.
  * @param {Element} el
  * @param {OffscreenCanvasRenderingContext2D} ctx
  * @returns {Contrast}
@@ -271,12 +299,15 @@ function contrastOf(el, ctx) {
   const px = Number.parseFloat(style.fontSize)
   const large = px >= 24 || (px >= 18.66 && Number.parseInt(style.fontWeight, 10) >= 700)
   const floor = large ? 3 : 4.5
+  if (isFiltered(el)) return { ratio: null, floor, large, detail: 'filtered' }
   const layers = backgroundLayers(el)
   const behind = layers ? combinations(layers, 64) : null
   if (!behind) return { ratio: null, floor, large, detail: layers ? 'background_too_complex' : 'background_image' }
+  const fill = style.getPropertyValue('-webkit-text-fill-color') || style.color
+  const opacity = opacityOf(el)
   let worst = Number.POSITIVE_INFINITY
   for (const under of behind) {
-    const [hi = 0, lo = 0] = [luminance(paint(ctx, [...under, style.color])), luminance(paint(ctx, under))].toSorted(
+    const [hi = 0, lo = 0] = [luminance(paint(ctx, [...under, fill], opacity)), luminance(paint(ctx, under))].toSorted(
       (a, b) => b - a,
     )
     worst = Math.min(worst, (hi + 0.05) / (lo + 0.05))
@@ -403,6 +434,8 @@ const IN_PAGE = [
   placementIssues,
   isCovered,
   paint,
+  opacityOf,
+  isFiltered,
   luminance,
   gradientStops,
   backgroundLayers,

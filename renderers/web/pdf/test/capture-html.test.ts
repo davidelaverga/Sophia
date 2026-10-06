@@ -421,15 +421,17 @@ describe('the confined capture kernel', () => {
   )
 
   it(
-    'fails text outside the blocks that a target shows too faintly to read; a pale separator says nothing (#117)',
+    'fails text outside the blocks a target shows too faintly to read, by colour, opacity or fill; a pale separator says nothing (#117)',
     { skip },
     async () => {
       const receipt = await captureHtml(
         job(
           page(
-            `${BASE} .muted{color:#aaa} .sep{color:#ddd}`,
+            `${BASE} .muted{color:#aaa} .sep{color:#ddd} .faint{opacity:.12} .fill{-webkit-text-fill-color:transparent}
+           .filtered{filter:opacity(.1)}`,
             `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
-          <h2 class="muted">Muted heading</h2><p class="sep">·</p></section></main>`,
+          <h2 class="muted">Muted heading</h2><p class="sep">·</p><h2 class="faint">Faint heading</h2>
+          <h2 class="fill">Unfilled heading</h2><h2 class="filtered">Filtered heading</h2></section></main>`,
           ),
         ),
         { env },
@@ -438,13 +440,14 @@ describe('the confined capture kernel', () => {
       const framing = receipt.targets[0]!.page.framing
       assert.deepEqual(
         framing.map((m) => m.id),
-        ['text 1 h2', 'text 2 h2'],
+        ['text 1 h2', 'text 2 h2', 'text 3 h2', 'text 4 h2', 'text 5 h2'],
         'the separator is not measured',
       )
+      assert.deepEqual(framing[4]?.contrast.detail, 'filtered', 'a filter changes the colours: unknown, never passed')
       for (const target of ['w390-light', 'w1280-light']) {
         assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
         const detail = receipt.checks.find((c) => c.name === 'contrast' && c.target === target)?.detail ?? ''
-        assert.equal(detail, 'text 2 h2', target)
+        assert.equal(detail, 'text 2 h2, text 3 h2, text 4 h2', target)
         assert.equal(outcome(receipt, 'blocks_visible', target), 'passed', target)
       }
     },

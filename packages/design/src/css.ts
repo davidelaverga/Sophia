@@ -6,8 +6,11 @@
 import { parse, walk, type CssNode, type FunctionNode } from 'css-tree'
 import { error, type Finding } from './findings.ts'
 
-/** At-rules a static research page may use. `@import`, `@font-face`, `@namespace`, `@charset` and the rest are refused. */
-const AT_RULES = new Set(['media', 'supports', 'container', 'layer', 'page', 'keyframes'])
+/**
+ * At-rules a static research page may use. `@import`, `@font-face`, `@namespace`, `@charset` and the rest are refused,
+ * and so is `@keyframes`: the page is static (#117).
+ */
+const AT_RULES = new Set(['media', 'supports', 'container', 'layer', 'page'])
 
 /** Value functions that compute or select; none can load a resource. */
 const FUNCTIONS = new Set([
@@ -63,6 +66,11 @@ const FUNCTIONS = new Set([
 
 /** Properties that bind behaviour in old engines. */
 const BINDINGS = new Set(['behavior', '-moz-binding', '-ms-behavior'])
+/**
+ * Properties that change the page over time: what the captures show at load would not be what a reader sees a moment
+ * later, so a static page has none (#117).
+ */
+const MOTION = /^(?:-webkit-)?(?:animation|transition)(?:-|$)/
 /** Properties that draw text as other marks: what a capture shows would not be the text a reader is given. */
 const MASKS = new Set(['-webkit-text-security', 'text-security'])
 
@@ -201,7 +209,10 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
     if (node.type !== 'Declaration') return null
     const problem = nameIssue('property', node.property) ?? generatedTextIssue(node)
     if (problem) return problem
-    return BINDINGS.has(node.property.toLowerCase()) ? `${node.property} binds behaviour and is not allowed` : null
+    const property = node.property.toLowerCase()
+    if (MOTION.test(property))
+      return `${node.property} changes the page after it is captured; a static page has no motion`
+    return BINDINGS.has(property) ? `${node.property} binds behaviour and is not allowed` : null
   },
 }
 

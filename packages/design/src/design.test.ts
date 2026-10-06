@@ -181,6 +181,20 @@ describe('the static profile refuses what can run, load or submit', () => {
     })
   }
 
+  it('refuses motion: what the captures show at load is what a reader keeps seeing (#117)', () => {
+    for (const sheet of [
+      '@keyframes reveal{from{opacity:.1}to{opacity:1}}',
+      'h2{animation:reveal 0s 60s forwards}',
+      'h2{animation-delay:60s}',
+      'h2{-webkit-animation:reveal 1s}',
+      'h2{transition:opacity 60s}',
+      'h2:hover{transition-property:opacity}',
+    ])
+      assert.ok(codes(withCss(good, sheet)).includes('css_unsafe'), sheet)
+    const inline = html(good).replace('<h1>', '<h1 style="transition:opacity 9s">')
+    assert.ok(codes(withHtml(good, inline)).includes('css_unsafe'))
+    assert.deepEqual(codes(withCss(good, 'h2{opacity:.9} @media (prefers-reduced-motion: reduce){h2{opacity:1}}')), [])
+  })
   it('allows the CSS a static article needs: media queries, gradients, custom properties, calc', () => {
     const sheet =
       ':root{--ink:#1a1a1a} body{color:var(--ink);background:linear-gradient(#fff,#fafafa);width:calc(100% - 2rem)} @media (max-width: 600px){body{font-size:17px}} h1::before{content:"\\201C"}'
