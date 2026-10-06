@@ -34,6 +34,7 @@ import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
 import { useKnownNames } from './useKnownNames.ts'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
+import { Connections } from '../connections/Connections.tsx'
 import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
@@ -545,7 +546,12 @@ function pageClass(work: boolean, plans: BodyProps['plans']): string {
 function PageBody(props: BodyProps) {
   const { view, projectId, identity, membership, snapshot, onShow, onInvite, plans } = props
   if (view === 'knowledge') {
-    return <KnowledgeReports projectId={projectId} identity={identity} canEdit={canInvite(membership)} />
+    return (
+      <>
+        <KnowledgeReports projectId={projectId} identity={identity} canEdit={canInvite(membership)} />
+        {VISION && <Connections projectId={projectId} identity={identity} title={snapshot?.title ?? 'This project'} />}
+      </>
+    )
   }
   if (view === 'goals' || view === 'work') {
     return (

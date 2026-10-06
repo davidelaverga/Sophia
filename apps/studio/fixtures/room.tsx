@@ -293,11 +293,15 @@ const project = {
   },
   // A12: the meeting this visit is, its recap built from what happens on the page (meeting-data.ts).
   // `meeting=earlier`: the running meeting began 12 minutes before the page, so joining is joining late.
-  meeting: newMeeting(
-    () => meetingRecords(),
-    () => asked.includes('connect'),
-    query.get('meeting') === 'earlier' ? Date.now() - 12 * 60_000 - 5_000 : Date.now(),
-  ),
+  // `meetings=none`: none before this one, so none closed yet (chapter 7's update has nothing to build from).
+  meeting: {
+    ...newMeeting(
+      () => meetingRecords(),
+      () => asked.includes('connect'),
+      query.get('meeting') === 'earlier' ? Date.now() - 12 * 60_000 - 5_000 : Date.now(),
+    ),
+    noPast: query.get('meetings') === 'none',
+  },
   notes: {
     kept: [],
     written: 0,

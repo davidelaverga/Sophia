@@ -1,0 +1,118 @@
+/* Connections, shown before anything connects (Connections, Davide's chapter 7): two parts under the reports, and
+   their sheets: the read-only access, and the update as a channel would receive it. */
+.connections {
+  display: grid;
+  gap: 10px;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.connections > h3 {
+  margin: 0;
+  font-size: var(--type-title);
+  font-weight: 600;
+}
+.connections-lead,
+.connection-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.connections-parts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.connection {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+}
+.connection-ask {
+  margin: 0;
+  font-size: var(--type-body);
+}
+.connection > button {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+/* The access sheet's rows: what a grant would allow, and what it never would. */
+.grant {
+  display: grid;
+  gap: 0;
+  margin: 12px 0;
+}
+.grant-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 120px) 1fr;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--type-body);
+}
+.grant-row dt {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.grant-row dd {
+  margin: 0;
+}
+
+/* The update: its lines with their boxes, then the exact text. */
+.update-lines {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+  padding: 0;
+  border: 0;
+}
+.update-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-size: var(--type-body);
+}
+.update-line input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--halo);
+}
+.update-preview {
+  display: grid;
+  gap: 6px;
+}
+.update-preview > h3 {
+  margin: 0;
+}
+.update-text {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+  font-family: var(--sans);
+  font-size: var(--type-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.update-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 10px 0 12px;
+}
+@media (max-width: 520px) {
+  .grant-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
