@@ -1,8 +1,9 @@
 // The project's context beside its conversations (docs/plans/project-conversations.md): the accepted mission, the
 // newest accepted decisions, and what is proposed and not decided, kept apart. It is the brief Sophia reads
-// (MissionContext, the same read and cache as the room's mission panel), the same for every conversation.
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useId } from 'react'
+// (MissionContext, the same read as the room's mission panel), the same for every conversation. One query, read again
+// as the feed moves: a later read that fails keeps what was read, and says it may be out of date.
+import { useQuery } from '@tanstack/react-query'
+import { useEffect, useId, useRef } from 'react'
 import { getMission } from '../../api/mission.ts'
 import type { MissionContext } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -15,13 +16,24 @@ interface Props {
   cursor: string | undefined
 }
 
+/** Reads again each time the feed moves on from a position already seen (not on the first, which the read is). */
+function useReadAgain(cursor: string | undefined, refetch: () => Promise<unknown>) {
+  const seen = useRef(cursor)
+  useEffect(() => {
+    if (seen.current === cursor) return
+    const moved = seen.current !== undefined
+    seen.current = cursor
+    if (moved) void refetch()
+  }, [cursor, refetch])
+}
+
 export function ProjectContext({ projectId, identity, cursor }: Props) {
   const read = useQuery({
-    queryKey: [...missionKey(projectId), identity.name, cursor],
+    queryKey: [...missionKey(projectId), identity.name, 'conversations'],
     queryFn: () => getMission(identity.token, projectId),
-    placeholderData: keepPreviousData,
     retry: 1,
   })
+  useReadAgain(cursor, read.refetch)
   const ctx = read.data
   if (!ctx) {
     return (

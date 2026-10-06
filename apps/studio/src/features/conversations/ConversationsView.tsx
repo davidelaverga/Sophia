@@ -34,8 +34,9 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   })
   const [chosen, setChosen] = useState<string | null>(null)
   const all = list.data ?? []
-  // The newest at first, then kept: a conversation that moves to the top meanwhile never takes its place.
-  if (chosen === null && all[0]) setChosen(all[0].id)
+  // The newest at first, then kept: a conversation that moves to the top meanwhile never takes its place. One that
+  // leaves the list gives its place to the newest, which is kept in turn.
+  if (all[0] && !all.some((c) => c.id === chosen)) setChosen(all[0].id)
   // The one chosen while it is listed; else the newest.
   const open = all.find((c) => c.id === chosen) ?? all[0]
   return (

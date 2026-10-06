@@ -415,7 +415,7 @@ window.fixture = {
   },
   conversationMoves: () => {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
-    if (moved) moved.lastAt = new Date().toISOString()
+    if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
   },
   failMission: (on) => {
     project.missionFails = on

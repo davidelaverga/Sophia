@@ -760,7 +760,8 @@ function Shell({ plans, viewer, now, onCommand }: ShellProps) {
       view={view}
       identity={identity}
       account={null}
-      onShow={setView}
+      // Conversations' reads aren't faked on this page (room.html's are): its tab stays where it is.
+      onShow={(next) => next !== 'conversations' && setView(next)}
       onLeave={nothing}
       onWork={nothing}
       onSignOut={nothing}

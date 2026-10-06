@@ -132,9 +132,12 @@ describe('messageBy', () => {
 
 describe('pendingOf', () => {
   it('shows the three newest proposals and counts the rest', () => {
-    const all = ['1', '2', '3', '4'].map((n) => decision(n, null, 'proposed'))
+    const all = ['1', '2', '3', '4'].map((n) => decision(n, `2026-10-0${n}T09:00:00.000Z`, 'proposed'))
     const { shown, more } = pendingOf(all)
-    assert.equal(shown.length, 3)
+    assert.deepEqual(
+      shown.map((d) => d.id),
+      ['4', '3', '2'],
+    )
     assert.equal(more, 1)
   })
 })
