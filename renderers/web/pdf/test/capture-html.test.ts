@@ -1340,6 +1340,105 @@ describe('the confined capture kernel', () => {
     },
   )
 
+  // #117, SDD-CX45: boxes that each move one way can meet between a band's ends, where the sweep measures nothing.
+  it(
+    'fails a placed box and a text that may meet between the ends of a band, however the box is placed (#117)',
+    { skip },
+    async () => {
+      const cover = 'width:60px;height:30px;background:#111'
+      const receipt = await captureHtml(
+        job(
+          page(
+            `body{margin:0;font:16px/30px Georgia,serif;color:#222;background:#fafafa}
+             .stage{position:relative;height:120px;overflow:hidden} .stage p{margin:30px 0 0 100px}
+             .vw{position:absolute;left:50vw;top:30px;width:90px;margin:0!important;font:12px monospace}
+             .vwc{position:absolute;left:calc(100vw - 720px);top:30px;${cover}}
+             .col{width:300px;margin:30px auto 0!important} .fixed{position:absolute;left:400px;top:20px;${cover}}
+             .gen::after{content:"";position:absolute;left:calc(100vw - 900px);top:30px;${cover}}
+             .off{position:relative;left:calc(100vw - 900px);top:-30px;${cover}}
+             .turn{transform:translate(calc(100vw - 900px),-30px);${cover}}
+             .neg{margin:-30px 0 0 calc(100vw - 900px);${cover}}
+             .at{position:absolute!important;left:200px;top:40px;margin:0!important;line-height:27px}
+             .diag{position:absolute;left:calc(50vw - 100px);top:calc(10vw + 10px);${cover}}`,
+            `<main><section data-section="s1">
+            <div class="stage"><p data-block="b1" class="vw">Not free.</p><div class="vwc"></div></div>
+            <div class="stage"><p data-block="b2" class="col">Not free.</p><div class="fixed"></div></div>
+            <div class="stage gen"><p data-block="b3">Not free.</p></div>
+            <div class="stage"><p data-block="b4">Not free.</p><div class="off"></div></div>
+            <div class="stage"><p data-block="b5">Not free.</p><div class="turn"></div></div>
+            <div class="stage"><p data-block="b6">Not free.</p><div class="neg"></div></div>
+            <div class="stage"><p data-block="b7" class="at">Not free.</p><div class="diag"></div></div>
+            </section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const t of ['w390-light', 'w1280-light'])
+        for (const c of ['blocks_visible', 'layout_overflow', 'contrast'])
+          assert.equal(outcome(receipt, c, t), 'passed', `${c} at ${t}`)
+      assert.equal(outcome(receipt, 'widths_visible'), 'failed')
+      const detail = String(receipt.checks.find((c) => c.name === 'widths_visible')?.detail)
+      assert.doesNotMatch(detail, /at \d+px:/u, 'no band end shows anything wrong')
+      assert.match(detail, /^between 320 and 2560px: 7 placed boxes and texts may meet: /u)
+      for (const pair of [
+        'div.vwc and b1',
+        'div.fixed and b2',
+        'div.stage::after and b3',
+        'div.off and b4',
+        'div.turn and b5',
+        'div.neg and b6',
+        'div.diag and b7',
+      ])
+        assert.ok(detail.includes(pair), `${pair} in ${detail}`)
+    },
+  )
+
+  it(
+    'passes placed decoration that keeps to one side of every text at both ends of a band, or lies beneath one (#117)',
+    { skip },
+    async () => {
+      const long = 'A paragraph that wraps over several lines at a narrow width and fewer at a wide one, '.repeat(3)
+      const receipt = await captureHtml(
+        job(
+          page(
+            `body{margin:0;font:16px/1.5 Georgia,serif;color:#222;background:#fafafa}
+             main{max-width:40rem;margin:auto;padding:0 1rem}
+             h2{position:relative} h2::after{content:"";position:absolute;left:0;bottom:-8px;width:48px;height:3px;background:#c33}
+             h3{position:relative;z-index:0;display:inline-block}
+             h3::before{content:"";position:absolute;inset:40% -4px 0;background:#fde68a;z-index:-1}
+             .card{position:relative;padding:16px 120px 16px 16px;border:1px solid #ccc}
+             .badge{position:absolute;top:12px;right:12px;margin:0;font-size:14px;background:#eee;padding:2px 6px}
+             .raise{position:relative;top:-0.3em} .tag{display:inline-block;transform:translateY(-1px);background:#eee}
+             .hero{position:relative;overflow:hidden;height:140px;background:#eef}
+             .hero h1{margin:0;padding:16px;font-size:24px}
+             .circle{position:absolute;left:-40px;bottom:-150px;width:200px;height:200px;border-radius:50%;background:#ccd}
+             .bleed{margin:0 calc(50% - 50vw);padding:16px calc(50vw - 50%);background:#eee}
+             h4{position:relative;text-align:center} h4::after{content:"";position:absolute;left:50%;bottom:-6px;width:40px;
+               height:2px;transform:translateX(-50%);background:#333}
+             .band{position:relative;padding-top:20px}
+             .band::before{content:"";position:absolute;left:calc(50vw - 30px);top:0;width:60px;height:8px;background:#999}
+             .label{position:absolute;left:0;top:-4px;margin:0;font-size:12px}
+             .sides{position:relative;padding:0 80px} .flip{position:absolute;left:0;top:0;margin:0;font-size:12px}
+             @media (min-width: 1000px){.flip{left:auto;right:0}}`,
+            `<div class="hero"><h1>Overview</h1><div class="circle"></div></div><main>
+            <section data-section="s1"><h2>Findings</h2><p data-block="b1">${long}<span class="raise">*</span> ${long}</p>
+            <h3>Marked</h3><div class="card"><p class="badge">New</p><p data-block="b2">${long}</p></div>
+            <div class="bleed"><p data-block="b3">Across the window.</p></div>
+            <h4>Centred</h4><p data-block="b4">Text with a <span class="tag">tag</span> in it. ${long}</p>
+            <div class="band"><p class="label">Label</p><p data-block="b5">${long}</p></div>
+            <div class="sides"><p class="flip">Aside</p><p data-block="b6">${long}</p></div></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      const sweep = receipt.checks.find((c) => c.name === 'widths_visible')
+      // The label that changes sides at 1000px does so between two bands, whose ends are not compared with each other.
+      assert.deepEqual([sweep?.outcome, sweep?.detail], ['passed', 'measured at 320, 999, 1000, 2560px'])
+    },
+  )
+
   it(
     'refuses a page whose widths the sweep cannot bound, and a sweep past its time, never leaving a band out (#117, CX-0039)',
     { skip },

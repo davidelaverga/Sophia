@@ -19,6 +19,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { conditionsScript, MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, MAX_POINTS, pageScript } from './capture-page.mjs'
 import { launchConfined, playwrightVersion } from './confine.mjs'
+import { layoutAt, placementIssue } from './placement.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
 
 export const CAPTURE_RECEIPT_SCHEMA = 'sophia.html-capture-receipt.v1'
@@ -28,6 +29,7 @@ export const CAPTURE_KERNEL_FILES = [
   'capture-html.mjs',
   'capture-page.mjs',
   'confine.mjs',
+  'placement.mjs',
   'source-manifest.mjs',
   'bin/confine-chromium',
 ]
@@ -755,6 +757,29 @@ function bandIssue(page, missed, requested) {
   return parts.length > 0 ? parts.join(', ') : null
 }
 
+/** @typedef {{ width: number, state: string, layout: import('./placement.mjs').Layout }} BandEnd */
+
+/**
+ * Read the placements at a band end, and where placed boxes and texts may meet between it and the last one measured,
+ * when both are ends of one band: the page's conditions hold alike at both (placement.mjs). What is wrong goes to
+ * `wrong`.
+ * @param {Shot} shot
+ * @param {{ width: number, state: string }} here the width, and which of the page's conditions hold at it
+ * @param {BandEnd | null} before the last band end read
+ * @param {string[]} wrong
+ * @returns {Promise<BandEnd | null>} this band end, for the next; null when its placements could not be read
+ */
+async function placementsAt(shot, here, before, wrong) {
+  const layout = await layoutAt(shot.cdp)
+  if ('issue' in layout) {
+    wrong.push(`at ${here.width}px: ${layout.issue}`)
+    return null
+  }
+  const met = before?.state === here.state ? placementIssue(before.layout, layout) : null
+  if (met) wrong.push(`between ${String(before?.width)} and ${here.width}px: ${met}`)
+  return { ...here, layout }
+}
+
 /**
  * The width sweep (SWEEP): the page measured, without capturing, at both ends of every band its media conditions
  * make, as at a target. Its check fails on what any band end shows wrong, and on any band end it could not measure.
@@ -776,6 +801,8 @@ async function sweepWidths(page, shot, sweepMs) {
   })
   /** @type {string[]} */
   const wrong = []
+  /** @type {BandEnd | null} */
+  let before = null
   for (const [i, width] of ends.entries()) {
     const left = until - Date.now()
     if (left <= 0) {
@@ -787,6 +814,7 @@ async function sweepWidths(page, shot, sweepMs) {
     const { measured, unsampled } = await generatedCover(shot, page, answer, until)
     const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null)
     if (issue) wrong.push(`at ${width}px: ${issue}`)
+    before = await placementsAt(shot, { width, state: String(await page.evaluate(holding)) }, before, wrong)
   }
   return wrong.length > 0
     ? check('widths_visible', 'failed', wrong.join('; ').slice(0, 2000))
