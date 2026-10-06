@@ -126,6 +126,10 @@ interface Project {
   reviews?: Reviews
   /** What members carried in from Personal (the project list's releases, chapter 1); absent, none. */
   carriedIn?: ProjectRelease[]
+  /** The project list holds other projects only (`carried=elsewhere`): this one is past its first ones. */
+  carriedElsewhere?: boolean
+  /** While set, the project list's reads wait for these (`window.fixture.holdProjects`). */
+  projectsHeld?: (() => void)[] | null
   /** The project list's reads fail (`projects=fail`). */
   projectsFail?: boolean
   /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
@@ -398,24 +402,23 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
 }
 
 /** The person's projects (`GET /api/v1/projects`): this one, with what members carried in from Personal. */
-function projectListAnswer(project: Project) {
+function projectListAnswer(project: Project): Response | Promise<Response> {
+  const held = project.projectsHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(projectListAnswer(project))))
   if (project.projectsFail) return unavailable()
   served.push('projects:read')
   const room = null
-  return json({
-    projects: [
-      {
-        projectId: PROJECT,
-        title: 'Fixture project',
-        role: project.role ?? membership.role,
-        members: 3,
-        room,
-        nextSession: null,
-        releases: project.carriedIn ?? [],
-      },
-    ],
-    personalEpoch: 1,
-  })
+  const listed = {
+    projectId: PROJECT,
+    title: 'Fixture project',
+    role: project.role ?? membership.role,
+    members: 3,
+    room,
+    nextSession: null,
+    releases: project.carriedIn ?? [],
+  }
+  const other = { ...listed, projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', releases: [] }
+  return json({ projects: project.carriedElsewhere ? [other] : [listed], personalEpoch: 1 })
 }
 
 /** A version's reviews as read (A16): none where the page keeps none, and then the read isn't counted. */

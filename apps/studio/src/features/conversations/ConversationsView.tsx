@@ -178,6 +178,11 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
   const clearArrived = useCallback(() => setArrived(null), [])
   const { button, back } = useFocusBack(starting)
   const { kept, change } = talk
+  // The form's state, noted at once as it opens or goes: a start that lands in between never reads it stale.
+  const setForm = (shown: boolean) => {
+    onForm.current = shown
+    setStarting(shown)
+  }
   const started = ({ conversation, message }: ConversationStarted, ask: ConversationAsk) => {
     const key = listKey(projectId, identity.name)
     queryClient.setQueryData<{ conversations: readonly ConversationSummary[] }>(key, (was) => ({
@@ -196,11 +201,11 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
     if (!onForm.current) return
     open(conversation.id)
     setArrived(conversation.id)
-    setStarting(false)
+    setForm(false)
   }
   const cancel = () => {
     back.current = true
-    setStarting(false)
+    setForm(false)
   }
   const form = {
     fields: kept.start.fields,
@@ -217,8 +222,8 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
     arrived,
     clearArrived,
     button,
-    toggle: () => (starting ? cancel() : setStarting(true)),
-    close: () => setStarting(false),
+    toggle: () => (starting ? cancel() : setForm(true)),
+    close: () => setForm(false),
     form,
   }
 }

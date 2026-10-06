@@ -584,7 +584,7 @@ function Knowledge(props: Pick<BodyProps, 'projectId' | 'identity' | 'membership
         projectId={projectId}
         identity={identity}
         canEdit={canInvite(membership)}
-        carriedIn={VISION ? <CarriedIn projectId={projectId} identity={identity} /> : null}
+        carriedIn={VISION ? <CarriedIn projectId={projectId} identity={identity} cursor={snapshot?.cursor} /> : null}
       />
       {VISION && (
         <Connections

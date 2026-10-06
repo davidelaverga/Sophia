@@ -1,11 +1,11 @@
 // Search the project (docs/plans/room-search.md): A13's `search`, in a sheet from the project's head (or `/`). Every
 // hit shows its title, the record's own words and where it is from, and opens it: a report at its version (a section
 // at its heading), a meeting's recap, or the brief for a decision or a note. Only under the vision flag.
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
-import { searchProject, type SearchHit } from '../../api/vision.ts'
+import { listMeetings, searchProject, type SearchHit } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { Waiting } from '../../app/Waiting.tsx'
@@ -15,7 +15,7 @@ import { useKnownNames } from '../studio/useKnownNames.ts'
 import { DATE_WORDS } from '../updates/UpdatesView.tsx'
 import { RecapSheet } from '../voice/MeetingRecap.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
-import { hitSource } from './search-view.ts'
+import { hitRunning, hitSource } from './search-view.ts'
 
 /** The head's Search: where the focus goes back to from the search and from what it opened. */
 const searchAnchor = () => document.querySelector<HTMLElement>('[data-search-anchor]')
@@ -72,6 +72,7 @@ interface Props {
 export function ProjectSearch(props: Props) {
   const { projectId, identity, snapshot, membership, room, open, onClose, onBrief } = props
   const [meeting, setMeeting] = useState<string | null>(null)
+  const running = useRunning(projectId, identity.token, meeting)
   const names = useKnownNames(room)
   const viewer = useDocumentViewer()
   const go = (hit: SearchHit) => {
@@ -92,6 +93,7 @@ export function ProjectSearch(props: Props) {
           projectId={projectId}
           identity={identity}
           meetingId={meeting}
+          running={running}
           roomId={snapshot.room.id}
           title={snapshot.title}
           me={membership?.actorId ?? ''}
@@ -102,6 +104,21 @@ export function ProjectSearch(props: Props) {
       )}
     </>
   )
+}
+
+/**
+ * Whether the meeting a recap hit opens runs, read with the project's latest meeting as it opens: leaving from the
+ * running one's sheet opens no second, and from a past one's, the recap of the call left.
+ */
+function useRunning(projectId: string, token: string, meeting: string | null): boolean | undefined {
+  const latest = useQuery({
+    queryKey: ['vision', 'meetings', projectId, 'running', meeting],
+    queryFn: ({ signal }) => listMeetings(token, projectId, 1, signal),
+    enabled: meeting !== null,
+    gcTime: 0,
+    retry: false,
+  })
+  return meeting === null ? undefined : hitRunning(meeting, latest.data?.meetings)
 }
 
 interface SheetProps {

@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { MeetingRecap } from '../../api/vision.ts'
-import { afterLine, recapHead, recapSections, recapText } from './recap-view.ts'
+import {
+  AFTER_POLL_MS,
+  afterLine,
+  leaveRecap,
+  pollAfter,
+  recapHead,
+  recapping,
+  recapSections,
+  recapText,
+} from './recap-view.ts'
 
 const names = new Map([
   ['me', 'you'],
@@ -131,5 +140,78 @@ describe('the record at close, and what came after', () => {
       }),
       'Work finished',
     )
+  })
+})
+
+const finished = (taskId: string, at = '2026-10-06T17:05:00Z') => ({ at, kind: 'work_finished', taskId }) as const
+
+describe('reading again what came after the meeting', () => {
+  const endedAt = '2026-10-06T17:00:00Z'
+
+  it('goes on while any task running at close has not finished since', () => {
+    assert.equal(pollAfter(['t1', 't2'], [], endedAt, 0), true)
+    assert.equal(pollAfter(['t1', 't2'], [finished('t1')], endedAt, 0), true) // the first of two (Codex on #130)
+    assert.equal(pollAfter(['t1', 't2'], [finished('t2'), finished('t1')], endedAt, 0), false)
+  })
+
+  it('counts only a task’s own finish, after the close', () => {
+    assert.equal(pollAfter(['t1'], [finished('t1', '2026-10-06T16:59:59Z')], endedAt, 0), true)
+    assert.equal(
+      pollAfter(['t1'], [{ at: '2026-10-06T17:05:00Z', kind: 'version_made', taskId: 't1' }], endedAt, 0),
+      true,
+    )
+    assert.equal(pollAfter(['t1'], [finished('t9'), { ...finished('t1'), taskId: null }], endedAt, 0), true)
+  })
+
+  it('never without work running at close, and never past ten minutes', () => {
+    assert.equal(pollAfter([], [], endedAt, 0), false)
+    assert.equal(pollAfter(['t1'], [], endedAt, AFTER_POLL_MS - 1), true)
+    assert.equal(pollAfter(['t1'], [], endedAt, AFTER_POLL_MS), false)
+  })
+})
+
+describe('whether a recap’s sheet recaps the running meeting, and what a leave does then', () => {
+  const sheet = { latest: false, read: undefined, running: undefined }
+  const ended = { endedAt: '2026-10-06T17:00:00Z' }
+
+  it('goes by its recap once read, else by its opener, and the latest on leaving runs', () => {
+    assert.equal(recapping({ ...sheet, latest: true }), 'running')
+    assert.equal(recapping({ ...sheet, read: { endedAt: null }, running: false }), 'running')
+    assert.equal(recapping({ ...sheet, read: ended, running: true }), 'past')
+    assert.equal(recapping({ ...sheet, read: null }), 'past') // no meeting to recap
+    assert.equal(recapping({ ...sheet, running: true }), 'running')
+    assert.equal(recapping({ ...sheet, running: false }), 'past')
+  })
+
+  it('can’t tell while neither has said, a failed read included: a failure says nothing (Codex on #138)', () => {
+    assert.equal(recapping(sheet), 'unknown')
+  })
+
+  const none = { running: 0, unknown: 0 }
+  const unsure = { running: 0, unknown: 1 }
+  const reading = { running: 1, unknown: 0 }
+  const shut = { left: null, waiting: null }
+
+  it('opens the leave’s recap with no sheet open, and none while one recaps the running meeting', () => {
+    assert.deepEqual(leaveRecap(shut, none, 1), { left: 1, waiting: null })
+    assert.deepEqual(leaveRecap(shut, reading, 1), shut)
+    assert.deepEqual(leaveRecap(shut, { running: 1, unknown: 1 }, 1), shut)
+    assert.deepEqual(leaveRecap({ left: 1, waiting: null }, none), { left: 1, waiting: null }) // no leave: as it was
+  })
+
+  it('waits while a sheet can’t tell, then opens, or not, as it tells, or once it closes (Codex on #138)', () => {
+    const waits = leaveRecap(shut, unsure, 1)
+    assert.deepEqual(waits, { left: null, waiting: 1 })
+    assert.deepEqual(leaveRecap(waits, unsure), waits)
+    assert.deepEqual(leaveRecap(waits, none), { left: 1, waiting: null }) // past, or closed
+    assert.deepEqual(leaveRecap(waits, reading), shut) // the running meeting's
+  })
+
+  it('a second leave while the first waits takes the wait over: one recap, for the latest leave', () => {
+    const waits = leaveRecap(shut, unsure, 1)
+    const again = leaveRecap(waits, unsure, 2)
+    assert.deepEqual(again, { left: null, waiting: 2 })
+    assert.deepEqual(leaveRecap(again, none), { left: 2, waiting: null })
+    assert.deepEqual(leaveRecap(again, reading), shut)
   })
 })

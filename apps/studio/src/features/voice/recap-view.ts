@@ -98,3 +98,67 @@ export function afterLine(update: AfterUpdate): string {
   if (update.title === null) return update.kind === 'work_finished' ? 'Work finished' : `A new version${version}`
   return update.kind === 'work_finished' ? `${update.title} ready${version}` : `${update.title}${version}`
 }
+
+/** How long «After the meeting» reads again, at most, from when it opened. */
+export const AFTER_POLL_MS = 10 * 60_000
+
+/**
+ * Whether «After the meeting» reads again: while any task running at close has not finished since (its own
+ * `work_finished`, after the close), for ten minutes at most. Another task's outcome, or a version made, ends nothing.
+ */
+export function pollAfter(
+  running: readonly string[],
+  updates: readonly Pick<AfterUpdate, 'at' | 'kind' | 'taskId'>[],
+  endedAt: string,
+  openFor: number,
+): boolean {
+  if (openFor >= AFTER_POLL_MS) return false
+  const finished = new Set(
+    updates.filter((u) => u.kind === 'work_finished' && Date.parse(u.at) >= Date.parse(endedAt)).map((u) => u.taskId),
+  )
+  return running.some((taskId) => !finished.has(taskId))
+}
+
+/** Whether a recap's sheet recaps the running meeting: yes, no, or it can't tell yet. */
+export type Recapping = 'running' | 'past' | 'unknown'
+
+/**
+ * What a recap's sheet recaps: the latest meeting, on leaving, runs; else as its recap says once read; until then, as
+ * its opener knew it. While neither has said, it can't tell, even when a read failed (Codex on #138): a failure says
+ * nothing about the meeting, so it waits for a read that does (Try again), or for the sheet to close.
+ */
+export function recapping(sheet: {
+  latest: boolean
+  read: Pick<MeetingRecap, 'endedAt'> | null | undefined
+  running: boolean | undefined
+}): Recapping {
+  if (sheet.latest) return 'running'
+  if (sheet.read !== undefined) return sheet.read?.endedAt === null ? 'running' : 'past'
+  if (sheet.running !== undefined) return sheet.running ? 'running' : 'past'
+  return 'unknown'
+}
+
+/** The sheets recapping a meeting now: how many recap the running one, and how many can't tell yet. */
+export interface Sheets {
+  running: number
+  unknown: number
+}
+
+/** The recap a leave opens: the leave it is for, and a leave whose recap waits for the sheets to tell. */
+export interface LeaveRecap {
+  left: number | null
+  waiting: number | null
+}
+
+/**
+ * The leave's recap as a leave comes (`leave`, the count of calls left by the person's own press) or the sheets change.
+ * Nothing opens while a sheet recaps the running meeting (the person reads it already). While a sheet can't tell, the
+ * recap waits, and a later leave takes the wait over. Once none can't tell, it opens for the latest leave waiting.
+ */
+export function leaveRecap(was: LeaveRecap, sheets: Sheets, leave?: number): LeaveRecap {
+  const waiting = leave ?? was.waiting
+  if (waiting === null) return was
+  if (sheets.running > 0) return { left: was.left, waiting: null }
+  if (sheets.unknown > 0) return { left: was.left, waiting }
+  return { left: waiting, waiting: null }
+}
