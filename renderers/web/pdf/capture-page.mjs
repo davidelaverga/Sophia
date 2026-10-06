@@ -107,6 +107,12 @@ export const MAX_TEXT_RECTS = 100_000
 export const MAX_GROUNDS = 16
 
 /**
+ * The most rows of boxes the measure indexes to find where a box overlaps a line of text (overlapIndex), an element's or
+ * a placed generated box's entry counted once for each 512px row it spans. Past it every text is unmeasured.
+ */
+export const MAX_OVERLAPS = 50_000
+
+/**
  * The marks that say nothing, as a character class: the design profile's list (@sophia/design css.ts, MARK_TEXT; a test
  * holds the two equal). Text of only these is a separator or a bullet, which is neither measured nor held to contrast.
  */
@@ -317,6 +323,45 @@ function coverOf(holder, suspect, hit) {
   if (!hit) return 'clear'
   if (hit === holder) return suspect ? 'generated' : 'clear'
   return 'covered'
+}
+
+/**
+ * What a point on a text where another box overlaps its line (pointsOver) hits, as a cover: the elements above the
+ * text's own in the hit-test stack, each a cover where it may draw there (drawsHere), and one around the text above it
+ * always, as along the middle (coverOf). A box above the text that draws nothing of its own hides nothing beneath it,
+ * so transparent decoration reaching a text's top or bottom is clear; an opaque box beneath a transparent one is not.
+ * Along a line's middle every box on top counts, as before (#117).
+ * @param {Element} holder
+ * @param {boolean} suspect whether the holder draws generated content that could reach the text
+ * @param {{ x: number, y: number }} p in the viewport
+ * @param {OffscreenCanvasRenderingContext2D} ctx
+ * @returns {'clear' | 'covered' | 'generated'}
+ */
+function coverOver(holder, suspect, p, ctx) {
+  const stack = document.elementsFromPoint(p.x, p.y)
+  const at = stack.indexOf(holder)
+  if (at < 0) return coverOf(holder, suspect, stack[0] ?? null)
+  const above = stack.slice(0, at)
+  if (above.some((e) => e.contains(holder) || drawsHere(e, ctx))) return 'covered'
+  return suspect ? 'generated' : 'clear'
+}
+
+/**
+ * Whether an element may draw anything where it is hit: paint of its own (paintsAny), text of its own, a list marker,
+ * a scrollbar, columns' rules, a replaced element's content, or generated content (any `::before` or `::after` with
+ * content). Taken as drawing when unsure.
+ * @param {Element} el
+ * @param {OffscreenCanvasRenderingContext2D} ctx
+ */
+function drawsHere(el, ctx) {
+  const s = getComputedStyle(el)
+  const scrolls = [s.overflowX, s.overflowY].some((o) => !['visible', 'clip', 'hidden'].includes(o))
+  const columns = s.columnCount !== 'auto' || s.columnWidth !== 'auto'
+  if (paintsAny(s, ctx) || s.display === 'list-item' || scrolls || columns) return true
+  const replaced = ['IMG', 'VIDEO', 'CANVAS', 'IFRAME', 'OBJECT', 'EMBED', 'INPUT', 'TEXTAREA', 'SELECT']
+  if (!(el instanceof HTMLElement) || replaced.includes(el.tagName)) return true
+  if ([...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== '')) return true
+  return ['::before', '::after'].some((pseudo) => !['none', 'normal'].includes(getComputedStyle(el, pseudo).content))
 }
 
 /**
@@ -700,11 +745,12 @@ function pointIn(b, p, d = 0) {
 /**
  * Every element's box, and every generated box the protocol placed (generatedIndex), by rows of 512 CSS pixels in page
  * coordinates, read once as the page opens: where the cover check looks besides a line's middle (pointsOver). Boxes
- * under a pixel each way are left out. `over` past 50 000 rows of entries: every text is then unmeasured.
+ * under a pixel each way are left out. `over` past `max` rows of entries (MAX_OVERLAPS): every text is then unmeasured.
  * @param {Map<Element, PlacedBox[]> | null} generated
+ * @param {number} max
  * @returns {Overlaps}
  */
-function overlapIndex(generated) {
+function overlapIndex(generated, max) {
   /** @type {Overlaps} */
   const index = { rows: new Map(), over: false }
   let entries = 0
@@ -720,7 +766,7 @@ function overlapIndex(generated) {
       const first = Math.floor(entry.box.y / 512)
       const last = Math.floor((entry.box.y + entry.box.height) / 512)
       entries += last - first + 1
-      if (entries > 50_000) return { rows: new Map(), over: true }
+      if (entries > max) return { rows: new Map(), over: true }
       for (let row = first; row <= last; row += 1) {
         const list = index.rows.get(row) ?? []
         list.push(entry)
@@ -1708,16 +1754,16 @@ function coverAlong(holder, node, budget, probes, look) {
   const suspect = drawsOverText(holder)
   const em = Number.parseFloat(getComputedStyle(holder).fontSize)
   for (const line of lines) {
-    const along = pointsAlong(lineInView(line), em, budget)
-    const over = pointsOver(line, holder, budget.overlaps)
-    if (!along || !over) return 'unmeasured'
-    const points = [...along, ...over.map((q) => ({ x: q.x - window.scrollX, y: q.y - window.scrollY }))]
+    const points = pointsOn(line, holder, em, budget)
+    if (!points) return 'unmeasured'
     for (const p of points) {
       if (!inView(holder, p.x, p.y)) continue
       if (!inWindow(p)) return 'unmeasured'
       budget.left -= 1
       if (budget.left < 0) return 'unmeasured'
-      const verdict = coverOf(holder, suspect, document.elementFromPoint(p.x, p.y))
+      const verdict = p.middle
+        ? coverOf(holder, suspect, document.elementFromPoint(p.x, p.y))
+        : coverOver(holder, suspect, p, look.ctx)
       if (verdict === 'covered') return 'covered'
       noteGround(holder, p, look)
       if (verdict === 'generated')
@@ -1725,6 +1771,25 @@ function coverAlong(holder, node, budget, probes, look) {
     }
   }
   return 'clear'
+}
+
+/**
+ * Where the cover check looks on one line of a text, in the viewport, the window scrolled to it: along its middle
+ * (pointsAlong) and where another box overlaps it (pointsOver), each marked with which. Null past the page's bounds.
+ * @param {Box} line in page coordinates
+ * @param {Element} holder
+ * @param {number} em
+ * @param {Budget} budget
+ * @returns {{ x: number, y: number, middle: boolean }[] | null}
+ */
+function pointsOn(line, holder, em, budget) {
+  const along = pointsAlong(lineInView(line), em, budget)
+  const over = pointsOver(line, holder, budget.overlaps)
+  if (!along || !over) return null
+  return [
+    ...along.map((p) => ({ ...p, middle: true })),
+    ...over.map((q) => ({ x: q.x - window.scrollX, y: q.y - window.scrollY, middle: false })),
+  ]
 }
 
 /**
@@ -2293,7 +2358,7 @@ function measureBlock(el, page, ctx, budget) {
 /**
  * What the measure of one page may spend and what it reads once, as the page opens: its points and time, where its
  * generated boxes lie, where paint reaches past the boxes, and where each box lies (overlapIndex).
- * @param {{ maxPoints: number, maxLookMs: number, maxLines: number, maxGrounds: number,
+ * @param {{ maxPoints: number, maxLookMs: number, maxLines: number, maxGrounds: number, maxOverlaps: number,
  *   generated?: Parameters<typeof generatedIndex>[0] }} opts
  * @returns {Budget}
  */
@@ -2310,7 +2375,7 @@ function budgetOf(opts) {
     grounds: new Map(),
     maxGrounds: opts.maxGrounds,
     ids: new Map(),
-    overlaps: overlapIndex(generated),
+    overlaps: overlapIndex(generated, opts.maxOverlaps),
   }
 }
 
@@ -2526,6 +2591,8 @@ const IN_PAGE = [
   besideText,
   drawsOverText,
   coverOf,
+  coverOver,
+  drawsHere,
   bordersPaint,
   paintsAny,
   pixelsIn,
@@ -2547,6 +2614,7 @@ const IN_PAGE = [
   generatedIndex,
   overlapIndex,
   pointsOver,
+  pointsOn,
   pointIn,
   reachOf,
   generatedHere,
@@ -2644,6 +2712,7 @@ export function pageScript(opts) {
     maxTextRects: MAX_TEXT_RECTS,
     besideEm: BESIDE_EM,
     maxGrounds: MAX_GROUNDS,
+    maxOverlaps: MAX_OVERLAPS,
   }
   return `(() => {\n${IN_PAGE.map((f) => f.toString()).join('\n')}\nreturn measurePage(${JSON.stringify(all)})\n})()`
 }
