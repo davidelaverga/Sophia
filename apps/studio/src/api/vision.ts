@@ -283,3 +283,39 @@ const parseRoomFocus = checked<RoomFocus>(
 /** A14: where the room's focus is now (proposed read; see RoomFocus). */
 export const getRoomFocus = (token: string, roomId: string, signal?: AbortSignal): Promise<RoomFocus> =>
   callApi(`/api/v1/rooms/${roomId}/focus`, { token, method: 'GET', ...(signal ? { signal } : {}) }, parseRoomFocus)
+
+/** A16 (proposed): a version's review, approved or with the changes asked for. */
+export interface VersionReview {
+  reviewId: string
+  verdict: 'approved' | 'changes_requested'
+  note: string | null
+  by: string
+  at: string
+}
+
+export interface ReviewAsk {
+  verdict: VersionReview['verdict']
+  note?: string
+}
+
+const REVIEW = {
+  reviewId: isStr,
+  verdict: (v: unknown) => v === 'approved' || v === 'changes_requested',
+  note: isStrOrNull,
+  by: isStr,
+  at: isStr,
+}
+const parseReview = checked<VersionReview>(REVIEW, 'review')
+const parseReviews = checked<{ reviews: readonly VersionReview[] }>({ reviews: listOf(REVIEW) }, 'review list')
+
+/** A16: a version's reviews, newest first. */
+export const listReviews = (token: string, artifactId: string, versionId: string, signal?: AbortSignal) =>
+  callApi(
+    `/api/v1/artifacts/${artifactId}/versions/${versionId}/reviews`,
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseReviews,
+  )
+
+/** A16: review a version (editors and admins), once per key; asking for changes admits Sophia's revision. */
+export const reviewVersion = (token: string, artifactId: string, versionId: string, key: string, body: ReviewAsk) =>
+  callApi(`/api/v1/artifacts/${artifactId}/versions/${versionId}/reviews`, { token, key, body }, parseReview)

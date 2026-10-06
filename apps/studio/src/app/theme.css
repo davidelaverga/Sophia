@@ -4098,3 +4098,39 @@ div.empty {
   padding: 0;
   overflow: hidden;
 }
+/* The version's review (ReviewRow, A16): one line under the pane's head, its acts beside it, the ask below. */
+.review-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.review-said {
+  flex: 1 1 14rem;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.review-acts {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.review-ask {
+  display: grid;
+  flex-basis: 100%;
+  gap: 8px;
+}
+.review-note {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+}
+.review-empty {
+  color: var(--warn, var(--text-2));
+  font-size: 12.5px;
+}

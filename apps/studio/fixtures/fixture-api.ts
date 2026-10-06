@@ -41,6 +41,7 @@ import {
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
 import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
+import { reviewed, type Reviews } from './review-data.ts'
 import { searchHits, searchPage } from './search-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
@@ -113,6 +114,8 @@ interface Project {
   notes?: Notes
   /** What the room shows to everyone (focus-data.ts); absent, showing is unexpected. */
   showing?: Showing
+  /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
+  reviews?: Reviews
   /** The meeting the room is in (meeting-data.ts, A12); absent, its requests are unexpected. */
   meeting?: Meeting
 }
@@ -231,6 +234,11 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
+  const reviewOf = REVIEWS.exec(url.pathname)?.[1]
+  if (reviewOf && project.reviews) {
+    served.push('reviews:read')
+    return json({ reviews: project.reviews.byVersion.get(reviewOf) ?? [] })
+  }
   if (url.pathname !== `/api/v1/rooms/${ROOM}/focus` || !project.showing) return undefined
   served.push('room-focus:read')
   return json(roomFocus(project.showing, project.revision))
@@ -294,6 +302,34 @@ const unavailable = () =>
     }),
     { status: 503 },
   )
+
+/** A version's reviews (A16): `/api/v1/artifacts/{report}/versions/{version}/reviews`, the version captured. */
+const REVIEWS = new RegExp(`^/api/v1/artifacts/${REPORT}/versions/([0-9a-f-]{36})/reviews$`)
+
+/** A review written (A16): 201, once per key; a viewer is refused; a reply lost when the page asks for that. */
+function reviewPosted(project: Project, versionId: string, init: RequestInit | undefined) {
+  const reviews = project.reviews
+  if (!reviews) return null
+  if (project.role === 'viewer') return notAllowed()
+  if (reviews.drop) {
+    reviews.drop = false
+    return Promise.reject(new TypeError('Failed to fetch')) // it never reached the API: nothing recorded
+  }
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const done = reviewed(reviews, versionId, membership.actorId, key, init?.body)
+  if (!done) return null
+  if (reviews.loseReply) {
+    reviews.loseReply = false
+    if (done.first) served.push(`review:${done.review.verdict}`)
+    // It landed, but neither its reply nor its event has reached the page yet: only Try again can tell it.
+    return Promise.reject(new TypeError('Failed to fetch'))
+  }
+  if (done.first) {
+    served.push(`review:${done.review.verdict}`)
+    publish(project) // a record: the feed moves
+  }
+  return new Response(JSON.stringify(done.review), { status: 201, headers: { 'content-type': 'application/json' } })
+}
 
 /** A close by a member who may only read: closing is an editor's or an admin's (A12). */
 const notAllowed = () =>
@@ -495,6 +531,8 @@ const isContribution = (value: unknown): value is { text: string; intent: Contri
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/contributions`) return contributed(project, init)
+  const reviewOf = REVIEWS.exec(path)?.[1]
+  if (reviewOf) return reviewPosted(project, reviewOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
   if (path === `${base}/room-token`) return json(roomToken)
   if (path === `${base}/commands`) return admitted(project, init)
