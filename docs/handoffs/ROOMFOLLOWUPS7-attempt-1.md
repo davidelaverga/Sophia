@@ -16,6 +16,10 @@ Codex's four P2s on #130, each reproduced by Codex on merged main:
 
 Preserved: the call key's restoration (back to a call, and back from another view); the explicit current-meeting and Leave duplicate suppression, from Updates' list and now from Search's read.
 
+Codex's automatic review of the first head (`02b7b3c`) found two P2s, both fixed in the next content commit:
+- **A Leave before Search can tell opened a second recap of the running meeting** (r4200242782). A sheet now says what it recaps (`recapping`): running, past, or can't tell yet. It goes by its recap once read, else by its opener, and a recap that can't be read is past. A leave's recap waits while any sheet can't tell (`onLeave`, `useLeftCall`), so an unknown sheet neither takes nor doubles it.
+- **A remounted room reused a call's number** (review 5434386199). `room.call` restarted at 0 with each mount of the room, so a later call could find the following kept under an earlier one's key. Call numbers now come from one page-wide counter (`newCall`), so they are never reused.
+
 ## Evidence
 
 Node 24.21.0, pnpm 11.7.0, Chromium (the container's pre-installed build, through a local-only Playwright wrapper config, since the pinned Playwright expects a newer build). The results below come from the working tree on `1b4e08d`, before the move to `acd394a`. The exact commit's results are in the PR, not here. Mutants were run by swapping a file in place and putting it back (each restored file compared byte for byte). A full-suite run that overlapped them was stopped and discarded.
@@ -35,6 +39,11 @@ Node 24.21.0, pnpm 11.7.0, Chromium (the container's pre-installed build, throug
   - main's `SearchSheet.tsx`: the running-meeting Search control fails (no latest read);
   - main's polling in `AfterMeeting.tsx` and `MeetingRecap.tsx`: the two-task control fails («Work finished» never comes).
 - **Gates:** `pnpm check` and the full Studio browser suite, on the exact commit, as recorded in the PR.
+
+The second content commit (Codex's two P2s on #138) was written in an isolated worktree, so the suite still running on `02b7b3c` was not disturbed. What has run on it, before publication:
+- **Units:** 14 in `recap-view.test.ts` and `new-call.test.ts`. They cover `recapping` (true, false or unknown, and failed is past) and `leaveRecap` (wait; open or not as the sheet tells; open once it closes; a second leave takes the wait over). They also check that `newCall` never repeats.
+- **Gates:** `tsc` and `oxlint --type-aware .`.
+- **Pending at publication:** the new browser checks and their mutants, `pnpm check`, and the full browser suite on that commit. They run once the port is free, and their outcomes are reported on the PR.
 
 **Source-register IDs consulted:** none.
 
