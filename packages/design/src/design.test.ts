@@ -878,6 +878,23 @@ describe('a page any walk can finish (#117)', () => {
     // Every reference to every target above the text, and the text itself where it sits.
     assert.equal(failed.findingCount, 40 * depth + 1, 'loose text at the bottom fails every target above it')
   })
+  it('reads the labels of a page within a bound, however deep they nest', () => {
+    const depth = 250
+    const open = '<div data-source="nested">'.repeat(depth)
+    const text = 'Host three is free. '.repeat(24_000)
+    const chain = `${open}${text}${'</div>'.repeat(depth)}`
+    const page = html(good)
+      .replace('<main>', '<main><h2>Hosts compared</h2><i title="Hosts compared"></i>')
+      .replace('</main>', `${chain}</main>`)
+    const files = withHtml(good, page)
+    assert.ok(Buffer.byteLength(html(files)) <= HTML_BYTES, 'the page fits the profile')
+    const { found, ms } = timed(files)
+    assert.ok(
+      ms < 1000,
+      `${String(depth)} nested labels around ${String(text.length)} characters are read in ${ms.toFixed(0)} ms`,
+    )
+    assert.deepEqual([...new Set(found)], ['source_unknown'], 'a name repeating a label read before them is shown')
+  })
   it('takes a label text repeated by many names once', () => {
     const labels = '<h2>Cost</h2>'.repeat(15_000)
     const names = '<i title=Cost></i>'.repeat(15_000)

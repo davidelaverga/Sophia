@@ -23,6 +23,7 @@ import {
   isText,
   lineAt,
   textOf,
+  textWithin,
   type ChildNode,
   type Document,
   type Element,
@@ -275,12 +276,23 @@ export function isLabel(el: Element): boolean {
   return el.tagName === 'a' && (attr(el, 'href') ?? '').startsWith('#') && inNav(el)
 }
 
-/** The labels a tooltip or a name may repeat, by their text: those their markup does not hide. */
+/**
+ * What reading every label's text may cost a page, in nodes read and characters taken: four times the largest page.
+ * A label nested in another is read again with it, so 250 source entries nested around one long text would read it 250
+ * times (#117). Labels past the budget are not indexed: a tooltip or a name that repeats one is refused as text the page
+ * does not show. A page whose labels do not nest reads each node once.
+ */
+const LABEL_BUDGET = 2_097_152
+
+/** The labels a tooltip or a name may repeat, by their text: those their markup does not hide, within LABEL_BUDGET. */
 function labelsByText(all: readonly Element[]): Map<string, Element[]> {
   const out = new Map<string, Element[]>()
+  const budget = { left: LABEL_BUDGET }
   for (const el of all) {
     if (!isLabel(el) || hiddenByMarkup(el)) continue
-    const text = plain(textOf(el))
+    const read = textWithin(el, budget)
+    if (read === null) break
+    const text = plain(read)
     const same = out.get(text)
     if (same) same.push(el)
     else out.set(text, [el])

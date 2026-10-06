@@ -73,6 +73,27 @@ export function textOf(root: Element, skip: (el: Element) => boolean = () => fal
   return out
 }
 
+/**
+ * The text of an element as textOf reads it, within a budget shared across calls: each node read and each character
+ * taken spends one. Null, the budget spent, when the text is not read whole.
+ */
+export function textWithin(root: Element, budget: { left: number }): string | null {
+  let out = ''
+  const stack: ChildNode[] = root.childNodes.toReversed()
+  for (let node = stack.pop(); node; node = stack.pop()) {
+    budget.left -= 1
+    if (isText(node)) {
+      out += node.value
+      budget.left -= node.value.length
+    } else if (isElement(node)) {
+      if (node.tagName === 'br') out += ' '
+      stack.push(...node.childNodes.toReversed())
+    }
+    if (budget.left < 0) return null
+  }
+  return out
+}
+
 /** Whether `el` has an ancestor (not itself) that `test` matches. */
 export function hasAncestor(el: Element, test: (a: Element) => boolean): boolean {
   for (let p = el.parentNode; p && isElement(p); p = p.parentNode) if (test(p)) return true
