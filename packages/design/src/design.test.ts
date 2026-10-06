@@ -332,11 +332,29 @@ describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-00
     ])
       assert.ok(swap(bad).includes('citation_marker'), bad)
   })
+  // #117: a screen reader announces the attribute; a bare number, or a mark the page does not show, is a value no
+  // screenshot shows, and markers side by side would read as one number.
+  it("refuses a bare number, or a mark other than the marker's own, in a text-bearing attribute", () => {
+    for (const bad of [
+      `<a data-cite="${A}" href="#src-${A}" aria-label="0">†</a>`,
+      `<sup data-cite="${A}" title="7">[1]</sup>`,
+      `<sup data-cite="${A}"><a href="#src-${A}" aria-label="12">[1]</a></sup>`,
+      `<a data-cite="${A}" href="#src-${A}" aria-label="[7]">[1]</a>`,
+      `<a data-cite="${A}" href="#src-${A}" aria-description="(1)">[1]</a>`,
+      `<span data-cite="${A}" aria-label="[3]"></span>`,
+      `<a data-cite="${A}" href="#src-${A}" aria-braillelabel="Price 3">[1]</a>`,
+      `<a data-cite="${A}" href="#src-${A}" title="Source">[1]</a>`,
+    ])
+      assert.deepEqual(swap(bad), ['citation_marker'], bad)
+  })
   it('accepts a citation mark or name in any text-bearing attribute of the marker or its link', () => {
     for (const ok of [
       `<a data-cite="${A}" href="#src-${A}" aria-description="Source 4" aria-braillelabel="[1]">[1]</a>`,
       `<sup data-cite="${A}" aria-roledescription="" aria-label="Fuente 2"><a href="#src-${A}" title="Source [2]">[2]</a></sup>`,
       `<sup data-cite="${A}"><a href="#src-${A}" aria-description="Fonte 4" aria-braillelabel="(4)">(4)</a></sup>`,
+      `<sup data-cite="${A}" title=" [ 1 ] " aria-label="">[1]</sup>`,
+      `<a data-cite="${A}" href="#src-${A}" aria-label="†">†</a>`,
+      `<sup data-cite="${A}" aria-label="[2]">[<a href="#src-${A}" title="[2]">2</a>]</sup>`,
     ])
       assert.deepEqual(swap(ok), [], ok)
   })

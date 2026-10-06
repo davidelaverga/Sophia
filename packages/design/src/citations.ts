@@ -5,9 +5,10 @@
 // number, which would read as part of the number beside it (#117); and when it links, only to the page's own entry for
 // that source (the element marked `data-source` with the same id). Every attribute that carries text a reader meets
 // without seeing it (a tooltip, an accessible name or description, a braille label: framing.ts's list), on the marker
-// and on its link, is held to the same mark, or a word and a number ("Source 3"); an ID reference on either
-// (framing.ts's list) names only that source's entry, which its markup does not hide (the render measures it:
-// framing.ts's shownLabels).
+// and on its link, is empty, the marker's own mark as the page shows it, or a word for a source and a number
+// ("Source 3"): never a bare number, which a reader would hear as a value no screenshot shows (#117). An ID reference
+// on either (framing.ts's list) names only that source's entry, which its markup does not hide (the render measures
+// it: framing.ts's shownLabels).
 
 import { attr, elements, isElement, lineAt, textOf, type Element } from './dom.ts'
 import { error, type Finding } from './findings.ts'
@@ -17,12 +18,9 @@ import { hiddenByMarkup, isStructureWord, REFERENCE_ATTRIBUTES, referencedIds, T
 const MARKER_TAGS = new Set(['a', 'sup', 'span'])
 /** A marker's text, its white space removed: brackets around up to three digits or a symbol, a symbol, or none. */
 const MARK = /^(?:[[(](?:\d{1,3}|[*†‡§¶#])[\])]|[*†‡§¶#])?$/u
-/** A marker's accessible name: its mark, or a word for a source (framing.ts's list, #117) and a number. */
-const NAME = /^(?:(\p{L}{1,16}) )?[[(]?\d{1,3}[\])]?$/u
-const isName = (text: string): boolean => {
-  const match = NAME.exec(text)
-  return match !== null && (match[1] === undefined || isStructureWord(match[1]))
-}
+/** A marker's accessible name besides its own mark: a word for a source (framing.ts's list) and a number (#117). */
+const NAME = /^(\p{L}{1,16}) [[(]?\d{1,3}[\])]?$/u
+const isName = (text: string): boolean => isStructureWord(NAME.exec(text)?.[1] ?? '')
 
 const isCite = (el: Element): boolean => attr(el, 'data-cite') !== null
 const childElements = (el: Element): Element[] => el.childNodes.filter(isElement)
@@ -51,12 +49,14 @@ function linkOf(marker: Element): Element | null | string {
   return only
 }
 
-/** The first text-bearing attribute on a marker or its link that is not a citation mark or name. */
-function nameIssue(el: Element): string | null {
+/** The first text-bearing attribute on a marker or its link that is neither empty, the marker's mark, nor a name. */
+function nameIssue(el: Element, mark: string): string | null {
   for (const name of TEXT_ATTRIBUTES) {
     const value = attr(el, name)
-    if (value !== null && !MARK.test(value.replace(/\s+/gu, '')) && !isName(value.trim().replace(/\s+/gu, ' ')))
-      return `its ${name} ${JSON.stringify(value.slice(0, 40))} is not a citation mark`
+    if (value === null) continue
+    const bare = value.replace(/\s+/gu, '')
+    if (bare !== '' && bare !== mark && !isName(value.trim().replace(/\s+/gu, ' ')))
+      return `its ${name} ${JSON.stringify(value.slice(0, 40))} is neither its mark nor a citation name ("Source 3")`
   }
   return null
 }
@@ -88,7 +88,7 @@ function markerIssue(marker: Element, entries: ReadonlyMap<string, string>): str
   const mark = markOf(marker)
   if (!MARK.test(mark)) return `its text ${JSON.stringify(mark.slice(0, 40))} is not a citation mark`
   const both = link && link !== marker ? [marker, link] : [marker]
-  const named = both.map(nameIssue).find((issue) => issue !== null) ?? null
+  const named = both.map((el) => nameIssue(el, mark)).find((issue) => issue !== null) ?? null
   const referenced = referenceIssue(both, (attr(marker, 'data-cite') ?? '').toLowerCase(), entries)
   return named ?? referenced ?? (link === null ? null : destinationIssue(marker, link, entries))
 }
