@@ -856,13 +856,23 @@ describe('the confined capture kernel', () => {
             .slab{position:absolute;inset:0;background:#111} .over{position:relative;color:#222}
             .spill{width:20px;background:#000;color:#fff;white-space:nowrap}
             .hl{position:relative} .hl::before{content:"";position:absolute;inset:0;background:#111;z-index:-1}
-            .accent{position:relative} .accent::after{content:"";position:absolute;left:0;bottom:-6px;width:2rem;height:2px;background:#c33}`,
+            .accent{position:relative} .accent::after{content:"";position:absolute;left:0;bottom:-6px;width:2rem;height:2px;background:#c33}
+            .frame{position:relative;background:#000;border:24px solid #fff;width:200px;height:3em}
+            .onborder{position:absolute;top:-22px;left:0;margin:0;font-size:16px;color:#fff;white-space:nowrap}
+            .inset{background:#000;color:#fff;box-shadow:inset 0 0 0 100px #fff}
+            .glow{height:10px;box-shadow:0 0 0 40px #111} .ring{height:10px;outline:40px solid #111}
+            .boxed{border:2px solid #222;background:#fff;padding:.5em} .card{box-shadow:0 1px 3px #888;background:#fff;padding:.5em}
+            .gap{height:80px}`,
             `<main><section data-section="s1"><h2 class="accent">Findings</h2><p data-block="b1">Text.</p>
           <div class="dark"><h2 class="out">Host three is free</h2></div>
           <div style="position:relative"><div class="slab"></div><p data-block="b2" class="over">Dark on a dark slab.</p></div>
           <p data-block="b3" class="spill">Past its own black box.</p><p data-block="b4" class="hl">Over a dark highlight.</p>
           <p data-block="b5" style="background:#000;color:#fff">On its own black.</p>
-          <div style="background:#123"><h2 style="color:#fff">On its parent</h2></div></section></main>`,
+          <div style="background:#123"><h2 style="color:#fff">On its parent</h2></div>
+          <div class="frame"><h2 class="onborder">On a white border</h2></div><p data-block="b6" class="inset">On an inset shadow.</p>
+          <div class="gap"></div><div class="glow"></div><p data-block="b7">Near a dark glow.</p><div class="gap"></div>
+          <p data-block="b8" class="boxed">In a bordered box.</p><p data-block="b9" class="card">In a card.</p>
+          <div class="gap"></div><div class="ring"></div><p data-block="b10">Near a dark ring.</p></section></main>`,
           ),
         ),
         { env },
@@ -878,9 +888,15 @@ describe('the confined capture kernel', () => {
             ['b3', 'background_elsewhere'],
             ['b4', 'background_elsewhere'],
             ['b5', 'read'],
+            ['b6', 'background_elsewhere'],
+            ['b7', 'background_elsewhere'],
+            ['b8', 'read'],
+            ['b9', 'read'],
+            ['b10', 'background_elsewhere'],
             ['text 1 h2', 'read'],
             ['text 2 h2', 'background_elsewhere'],
             ['text 3 h2', 'read'],
+            ['text 4 h2', 'background_elsewhere'],
           ],
           target,
         )

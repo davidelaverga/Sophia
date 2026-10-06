@@ -16,12 +16,16 @@
  * @typedef {{ width: number, height: number, viewportWidth: number, viewportHeight: number,
  *   overflowPx: number, overflowing: { element: string, rightPx: number }[], sections: ({ id: string } & Box)[],
  *   blocks: BlockMeasure[], shown: BlockMeasure[], framing: BlockMeasure[] }} PageMeasure
- * @typedef {{ left: number, until: number, maxLines: number,
- *   paints: Map<Element, { own: boolean, generated: boolean, under: boolean }> }} Budget the points the cover check may
- *   still look at, the time (performance.now) it must stop by, the fewest lines a text may have to be refused unread,
- *   and what each element looked at paints (paintsOf)
- * @typedef {{ ctx: OffscreenCanvasRenderingContext2D, paints: Budget['paints'], elsewhere: boolean }} Look what the
- *   cover check reads backgrounds with, and whether a text it looked at lies over a background its styles do not give
+ * @typedef {{ own: boolean, clip: string, edge: boolean, inset: boolean, widths: number[], generated: boolean,
+ *   under: boolean }} Paints what an element paints that a text above it is read against (paintsOf)
+ * @typedef {{ rows: Map<number, { box: Box, reach: number }[]>, over: boolean }} Reach where paint reaches past the
+ *   boxes on the page (reachIndex)
+ * @typedef {{ left: number, until: number, maxLines: number, paints: Map<Element, Paints>, reach: Reach }} Budget the
+ *   points the cover check may still look at, the time (performance.now) it must stop by, the fewest lines a text may
+ *   have to be refused unread, what each element looked at paints, and where paint reaches past the boxes
+ * @typedef {{ ctx: OffscreenCanvasRenderingContext2D, paints: Budget['paints'], reach: Reach, elsewhere: boolean }} Look
+ *   what the cover check reads backgrounds with, and whether a text it looked at lies over a background its styles do
+ *   not give
  * @typedef {BlockMeasure & { probes: { x: number, y: number }[], unsampled: boolean }} ProbedMeasure a measure, the
  *   points the DevTools protocol is to hit-test where only it can tell what is drawn over the text (coverOf), and
  *   whether the page's budget of points ran out before its text was looked at; capture-html strips both
@@ -313,9 +317,87 @@ function pointsAlong(rect, em) {
 }
 
 /**
- * What an element paints that a text above it is read against, kept per element for the page: its own background, a
- * background its ::before or ::after paints, and whether that generated box is set beneath text (a negative z-index or
- * margin), where it hit-tests as the element itself.
+ * Whether a style paints a border on any side: a width, a style that draws, and a colour that is not clear.
+ * @param {CSSStyleDeclaration} s
+ * @param {OffscreenCanvasRenderingContext2D} ctx
+ */
+function bordersPaint(s, ctx) {
+  return ['top', 'right', 'bottom', 'left'].some(
+    (side) =>
+      Number.parseFloat(s.getPropertyValue(`border-${side}-width`)) > 0 &&
+      !['none', 'hidden'].includes(s.getPropertyValue(`border-${side}-style`)) &&
+      !isClear(ctx, s.getPropertyValue(`border-${side}-color`)),
+  )
+}
+
+/**
+ * Whether a style paints anything of its own: a background, a border, a shadow or an outline.
+ * @param {CSSStyleDeclaration} s
+ * @param {OffscreenCanvasRenderingContext2D} ctx
+ */
+function paintsAny(s, ctx) {
+  return (
+    s.backgroundImage !== 'none' ||
+    !isClear(ctx, s.backgroundColor) ||
+    bordersPaint(s, ctx) ||
+    s.boxShadow !== 'none' ||
+    s.outlineStyle !== 'none'
+  )
+}
+
+/**
+ * The sum of the pixel lengths a computed value names, each taken as positive.
+ * @param {string} value
+ */
+function pixelsIn(value) {
+  return (value.match(/-?[\d.]+px/gu) ?? []).reduce((sum, n) => sum + Math.abs(Number.parseFloat(n)), 0)
+}
+
+/**
+ * How far an element's paint may reach past its border box, in CSS pixels: an outer box shadow (its offsets, blur and
+ * spread), an outline (its width and offset) or a filter (three times the lengths it names, for a blur or a drop
+ * shadow). 0 when it paints nothing outside its box.
+ * @param {CSSStyleDeclaration} s
+ */
+function outerReach(s) {
+  const shadows = s.boxShadow === 'none' ? [] : s.boxShadow.split(/,(?![^(]*\))/u).filter((x) => !x.includes('inset'))
+  const outline =
+    s.outlineStyle === 'none' ? 0 : Number.parseFloat(s.outlineWidth) + Math.abs(Number.parseFloat(s.outlineOffset))
+  return shadows.reduce((sum, x) => sum + pixelsIn(x), 0) + outline + (s.filter === 'none' ? 0 : 3 * pixelsIn(s.filter))
+}
+
+/**
+ * Where paint reaches past the boxes on the page (outerReach), by rows of 512 CSS pixels in page coordinates, read once
+ * as the page opens. A generated box's reach is taken from its element's box, widened by 32 pixels, since where it is
+ * placed is not read. `over` when the page has more such paint than the index holds: every text is then off its ground.
+ * @returns {Reach}
+ */
+function reachIndex() {
+  /** @type {Reach} */
+  const index = { rows: new Map(), over: false }
+  let entries = 0
+  for (const el of document.querySelectorAll('*')) {
+    const generated = ['::before', '::after']
+      .map((p) => getComputedStyle(el, p))
+      .filter((p) => !['none', 'normal'].includes(p.content))
+      .map((p) => outerReach(p))
+    const reach = Math.max(outerReach(getComputedStyle(el)), ...generated.map((r) => (r > 0 ? r + 32 : 0)))
+    if (reach <= 0) continue
+    const r = el.getBoundingClientRect()
+    const box = { x: r.left + window.scrollX, y: r.top + window.scrollY, width: r.width, height: r.height }
+    for (let row = Math.floor((box.y - reach) / 512); row <= Math.floor((box.y + box.height + reach) / 512); row += 1) {
+      entries += 1
+      if (entries > 50_000) return { rows: new Map(), over: true }
+      index.rows.set(row, [...(index.rows.get(row) ?? []), { box, reach }])
+    }
+  }
+  return index
+}
+
+/**
+ * What an element paints that a text above it is read against, kept per element for the page: its own background
+ * (and the box it is clipped to), a border, an inset shadow, any paint of its ::before or ::after, and whether that
+ * generated box is set beneath text (a negative z-index or margin), where it hit-tests as the element itself.
  * @param {Element} el
  * @param {Look} look
  */
@@ -323,42 +405,99 @@ function paintsOf(el, look) {
   const known = look.paints.get(el)
   if (known) return known
   const style = getComputedStyle(el)
-  const own = style.backgroundImage !== 'none' || !isClear(look.ctx, style.backgroundColor)
   const drawn = ['::before', '::after']
     .map((p) => getComputedStyle(el, p))
-    .filter((p) => !['none', 'normal'].includes(p.content))
-    .filter((p) => p.backgroundImage !== 'none' || !isClear(look.ctx, p.backgroundColor))
-  const under = drawn.some((p) =>
-    [p.zIndex, p.marginTop, p.marginRight, p.marginBottom, p.marginLeft].some((v) => Number.parseFloat(v) < 0),
-  )
-  const paints = { own, generated: drawn.length > 0, under }
+    .filter((p) => !['none', 'normal'].includes(p.content) && paintsAny(p, look.ctx))
+  const paints = {
+    own: style.backgroundImage !== 'none' || !isClear(look.ctx, style.backgroundColor),
+    clip: style.backgroundClip,
+    edge: bordersPaint(style, look.ctx),
+    inset: style.boxShadow.includes('inset'),
+    widths: ['top', 'right', 'bottom', 'left'].map((side) =>
+      Number.parseFloat(style.getPropertyValue(`border-${side}-width`)),
+    ),
+    generated: drawn.length > 0,
+    under: drawn.some((p) =>
+      [p.zIndex, p.marginTop, p.marginRight, p.marginBottom, p.marginLeft].some((v) => Number.parseFloat(v) < 0),
+    ),
+  }
   look.paints.set(el, paints)
   return paints
 }
 
 /**
+ * Where a point (in the viewport) lies against an element's boxes: outside them, on its border, or inside its padding
+ * box (inside the border).
+ * @param {Element} el
+ * @param {number[]} widths its border widths, top, right, bottom, left
+ * @param {{ x: number, y: number }} p
+ * @returns {'outside' | 'border' | 'padding'}
+ */
+function placeOf(el, widths, p) {
+  const r = [...el.getClientRects()].find((b) => p.x >= b.left && p.x <= b.right && p.y >= b.top && p.y <= b.bottom)
+  if (!r) return 'outside'
+  const [top = 0, right = 0, bottom = 0, left = 0] = widths
+  const inner = p.x >= r.left + left && p.x <= r.right - right && p.y >= r.top + top && p.y <= r.bottom - bottom
+  return inner ? 'padding' : 'border'
+}
+
+/**
+ * Whether what one element around a text paints beneath a point of it is the background the text's contrast is read
+ * against: its background lies under the point, in the box it is clipped to (the root's and the body's fill the
+ * canvas), and no border, inset shadow or generated box beneath text of it paints there.
+ * @param {Element} a
+ * @param {{ x: number, y: number }} p
+ * @param {Look} look
+ */
+function groundAround(a, p, look) {
+  const paints = paintsOf(a, look)
+  if (paints.under) return false
+  if (!paints.own && !paints.edge && !paints.inset) return true
+  const at = placeOf(a, paints.widths, p)
+  if ((paints.edge && at === 'border') || (paints.inset && at !== 'outside')) return false
+  return !paints.own || backgroundUnder(a, paints.clip, at)
+}
+
+/**
+ * Whether an element's background lies under a point, by where the point is against its boxes (placeOf) and the box
+ * its background is clipped to: the root's and the body's fill the canvas, and one clipped to its content or its text
+ * is not read.
+ * @param {Element} a
+ * @param {string} clip its background-clip
+ * @param {'outside' | 'border' | 'padding'} at
+ */
+function backgroundUnder(a, clip, at) {
+  if (a === document.body || a === document.documentElement) return true
+  if (clip === 'border-box') return at !== 'outside'
+  return clip === 'padding-box' && at === 'padding'
+}
+
+/**
  * Whether the background beneath a text at a point is the one its contrast is read against (backgroundLayers): every
- * element around the text that paints a background, its own element included, lies under the point (the root's and
- * the body's fill the canvas), none of them sets generated content beneath text, and nothing else painted lies beneath
- * it. Text placed outside its painted parent, past its own painted box, or over a box beside it, is over a background
- * its styles do not give (#117).
+ * element around the text paints there only the background it is read with (groundAround), nothing else painted lies
+ * beneath it (a box, a border, a shadow, generated content), and no paint reaches there from past another box (an
+ * outer shadow, an outline, a filter: reachIndex). Text placed outside its painted parent, past its own painted box,
+ * over a box beside it or over a border, is over a background its styles do not give (#117).
  * @param {Element} holder
  * @param {Element[]} stack the elements at the point, topmost first (document.elementsFromPoint); the text is on top
  * @param {{ x: number, y: number }} p in the viewport
  * @param {Look} look
  */
 function onOwnGround(holder, stack, p, look) {
+  if (look.reach.over) return false
+  for (let a = /** @type {Element | null} */ (holder); a; a = a.parentElement)
+    if (!groundAround(a, p, look)) return false
   // A glyph past its element's box hit-tests as the element, which the list of boxes at the point then leaves out.
   const beneath = stack.slice(stack.indexOf(holder) + 1)
-  const under = (/** @type {Element} */ a) =>
-    a === document.body ||
-    a === document.documentElement ||
-    [...a.getClientRects()].some((r) => p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom)
-  for (let a = /** @type {Element | null} */ (holder); a; a = a.parentElement) {
-    const paints = paintsOf(a, look)
-    if (paints.under || (paints.own && !under(a))) return false
+  const painted = (/** @type {Element} */ e) => {
+    const paints = paintsOf(e, look)
+    return paints.own || paints.edge || paints.inset || paints.generated
   }
-  return beneath.every((e) => e.contains(holder) || !(paintsOf(e, look).own || paintsOf(e, look).generated))
+  if (!beneath.every((e) => e.contains(holder) || !painted(e))) return false
+  const q = { x: p.x + window.scrollX, y: p.y + window.scrollY }
+  const within = (/** @type {Box} */ b, /** @type {number} */ d) =>
+    q.x >= b.x - d && q.x <= b.x + b.width + d && q.y >= b.y - d && q.y <= b.y + b.height + d
+  return (look.reach.rows.get(Math.floor(q.y / 512)) ?? []).every((e) => within(e.box, 0) || !within(e.box, e.reach))
 }
 
 /**
@@ -769,7 +908,7 @@ function measureBlock(el, page, ctx, budget) {
   const issues = hidden.length > 0 ? hidden : placementIssues(el, box, page)
   const looked = hidden.length === 0 && !issues.includes('off_page')
   const { cover, probes, elsewhere } = looked
-    ? isCovered(el, budget, { ctx, paints: budget.paints })
+    ? isCovered(el, budget, { ctx, paints: budget.paints, reach: budget.reach })
     : { cover: 'clear', probes: [], elsewhere: false }
   // Over a background its styles do not give, a text's contrast is not known (#117).
   const read = contrastOf(el, ctx)
@@ -805,6 +944,7 @@ function measurePage(opts) {
     until: performance.now() + opts.maxLookMs,
     maxLines: opts.maxLines,
     paints: new Map(),
+    reach: reachIndex(),
   }
   const words = new RegExp(`[^\\s${opts.marks}]`, 'u')
   const strictly = (/** @type {{ el: Element, id: string }} */ { el, id }) => {
@@ -897,7 +1037,15 @@ const IN_PAGE = [
   besideText,
   drawsOverText,
   coverOf,
+  bordersPaint,
+  paintsAny,
+  pixelsIn,
+  outerReach,
+  reachIndex,
   paintsOf,
+  placeOf,
+  groundAround,
+  backgroundUnder,
   onOwnGround,
   inView,
   lineInView,
