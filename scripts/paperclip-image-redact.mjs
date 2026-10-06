@@ -4,9 +4,11 @@
 //   REDACT_VARS=NAME1,NAME2 node scripts/paperclip-image-redact.mjs --scrub-dir <dir>
 // The value of every environment variable REDACT_VARS names (the job's generated credentials) is replaced, as are
 // connection URLs, bearer tokens and PEM blocks, whatever produced them. --scrub-dir rewrites, before the evidence is
-// uploaded, every file under <dir> that still holds one, and lists those files in <dir>/scrubbed.txt. GitHub's log
-// masking is a second line, not this one: the files this leaves are uploaded as they are.
-import { readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+// uploaded, every file under <dir> that still holds one, lists those files in <dir>/scrubbed.txt, then reads every file
+// again and fails if any still holds one. It fails, too, on any entry it cannot read or rewrite, or that is neither a
+// regular file nor a directory: the workflow uploads the evidence only when this exits 0 (review of 34bdf76). GitHub's
+// log masking is a second line, not this one: the files this leaves are uploaded as they are.
+import { lstatSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -31,11 +33,37 @@ export function secretValues(env = process.env) {
     .filter((value) => value.length >= 8)
 }
 
+/** Every regular file under dir; anything else (a link, a device, a socket) is refused, never followed. */
 function filesUnder(dir) {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name)
-    return statSync(path).isDirectory() ? filesUnder(path) : [path]
+    const entry = lstatSync(path)
+    if (entry.isDirectory()) return filesUnder(path)
+    if (entry.isFile()) return [path]
+    throw new Error(`[redact] ${path}: neither a regular file nor a directory; the evidence is not uploaded`)
   })
+}
+
+/**
+ * Rewrites every file under dir that holds a value to redact, then reads them all again: returns the files rewritten,
+ * and throws if any file still holds one (a write that did not take) or any entry could not be read or written.
+ */
+export function scrubDir(dir, values) {
+  const scrubbed = []
+  for (const path of filesUnder(dir)) {
+    const text = readFileSync(path, 'utf8')
+    const clean = redact(text, values)
+    if (clean !== text) {
+      writeFileSync(path, clean)
+      scrubbed.push(relative(dir, path))
+    }
+  }
+  const left = filesUnder(dir).filter((path) => {
+    const text = readFileSync(path, 'utf8')
+    return redact(text, values) !== text
+  })
+  if (left.length > 0) throw new Error(`[redact] still holding values after scrubbing: ${left.map((p) => relative(dir, p)).join(', ')}`)
+  return scrubbed
 }
 
 const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
@@ -44,15 +72,7 @@ if (isMain) {
   const at = process.argv.indexOf('--scrub-dir')
   if (at !== -1) {
     const dir = process.argv[at + 1]
-    const scrubbed = []
-    for (const path of filesUnder(dir)) {
-      const text = readFileSync(path, 'utf8')
-      const clean = redact(text, values)
-      if (clean !== text) {
-        writeFileSync(path, clean)
-        scrubbed.push(relative(dir, path))
-      }
-    }
+    const scrubbed = scrubDir(dir, values)
     writeFileSync(join(dir, 'scrubbed.txt'), scrubbed.length > 0 ? `${scrubbed.join('\n')}\n` : 'none\n')
     console.log(`[redact] ${scrubbed.length} evidence file(s) needed scrubbing${scrubbed.length > 0 ? `: ${scrubbed.join(', ')}` : ''}`)
   } else {

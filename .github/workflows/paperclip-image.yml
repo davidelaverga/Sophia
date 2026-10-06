@@ -219,18 +219,26 @@ jobs:
       # The evidence directory holds only what the steps above wrote there: the probe's state file and the image's
       # manifest copy live outside it, and nothing from `docker inspect` but the container's state. Every file is
       # scrubbed of the job's generated values and of credential-shaped strings before it is uploaded.
+      # The evidence is uploaded only once this step has scrubbed and verified all of it: the redactor exits non-zero on
+      # any entry it cannot read or rewrite, or any value it finds left after rewriting, and `scrubbed` is set only after
+      # it succeeds (WBC-02, review of 34bdf76). Earlier failures still reach both steps (always()).
       - name: Scrub the evidence
+        id: scrub
         if: always()
         timeout-minutes: 2
         env:
           REDACT_VARS: PCDB_PASSWORD,DATABASE_URL,BETTER_AUTH_SECRET,PAPERCLIP_SECRETS_MASTER_KEY,PAPERCLIP_TOOL_ACTION_SIGNING_SECRET,PAPERCLIP_DECISION_SIGNING_SECRET,SOPHIA_COORDINATION_TOKEN
         run: |
-          [ -f sophia/scripts/paperclip-image-redact.mjs ] && [ -d "${EVIDENCE:-/nonexistent}" ] || exit 0
+          if [ ! -f sophia/scripts/paperclip-image-redact.mjs ] || [ ! -d "${EVIDENCE:-/nonexistent}" ]; then
+            echo "nothing scrubbed: the redactor or the evidence directory is missing, so nothing is uploaded"
+            exit 0
+          fi
           node sophia/scripts/paperclip-image-redact.mjs --scrub-dir "$EVIDENCE"
+          echo "scrubbed=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload the evidence
         id: evidence
-        if: always() && env.EVIDENCE != ''
+        if: always() && steps.scrub.outputs.scrubbed == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: paperclip-image-evidence-${{ github.run_id }}-${{ github.run_attempt }}

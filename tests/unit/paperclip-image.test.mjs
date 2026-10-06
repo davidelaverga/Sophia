@@ -4,10 +4,16 @@
 // registry, a growing record truncated, a missing group-OOM counter, a step whose recorded facts do not hold, home
 // digests never read) or one of the same kind, and none of them may read as qualified.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { after, describe, it } from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { parse } from 'yaml'
 import { compareSnapshots, coverageOf, EMPTY_SHA256 } from '../../scripts/paperclip-image-home.mjs'
 import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS } from '../../scripts/paperclip-image-receipt.mjs'
-import { redact } from '../../scripts/paperclip-image-redact.mjs'
+import { redact, scrubDir } from '../../scripts/paperclip-image-redact.mjs'
 
 const CANDIDATE = 'a'.repeat(40)
 const PIN = '5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb'
@@ -381,5 +387,61 @@ describe('evidence redaction (WBC-02-CX-0032 §3)', () => {
     const out = redact(text, [secret])
     assert.ok(!out.includes(secret) && !out.includes('pw123456') && !out.includes('pcp_abcdef') && !out.includes('MIIabc'))
     assert.match(out, /token \[redacted\] in a line/)
+  })
+})
+
+describe('the evidence is uploaded only once scrubbed (review of 34bdf76)', () => {
+  const REDACT = fileURLToPath(new URL('../../scripts/paperclip-image-redact.mjs', import.meta.url))
+  const WORKFLOW = fileURLToPath(new URL('../../.github/workflows/paperclip-image.yml', import.meta.url))
+  const SECRET = 'f00dfeed'.repeat(4)
+  const dirs = []
+  after(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
+  const evidence = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pc-evidence-'))
+    dirs.push(dir)
+    mkdirSync(join(dir, 'diagnostics'))
+    writeFileSync(join(dir, 'receipt.json'), '{"verdict":"qualified"}\n')
+    writeFileSync(join(dir, 'diagnostics', 'pc-logs.txt'), `boot\nDATABASE_URL=postgres://paperclip:${SECRET}@pcdb:5432/paperclip\ntoken ${SECRET}\n`)
+    return dir
+  }
+
+  it('positive control: every value scrubbed, every file read again, and a second pass finds nothing', () => {
+    const dir = evidence()
+    assert.deepEqual(scrubDir(dir, [SECRET]), [join('diagnostics', 'pc-logs.txt')])
+    assert.ok(!readFileSync(join(dir, 'diagnostics', 'pc-logs.txt'), 'utf8').includes(SECRET))
+    assert.deepEqual(scrubDir(dir, [SECRET]), [])
+    const run = spawnSync(process.execPath, [REDACT, '--scrub-dir', dir], { encoding: 'utf8', env: { ...process.env, REDACT_VARS: 'PC_SECRET', PC_SECRET: SECRET } })
+    assert.equal(run.status, 0, run.stderr)
+    assert.equal(readFileSync(join(dir, 'scrubbed.txt'), 'utf8'), 'none\n')
+  })
+
+  it('a value still there after rewriting fails the scrub, not the upload', () => {
+    // Rewriting the shorter value leaves the longer one, already passed over, in its place: the second reading finds it.
+    const dir = evidence()
+    writeFileSync(join(dir, 'odd.txt'), '[redacted]abcdefgh\n')
+    assert.throws(() => scrubDir(dir, ['abcdefgh', '[redacted][redacted]']), /still holding values after scrubbing: odd\.txt/)
+  })
+
+  it('an entry that is not a regular file or a directory fails the scrub, and the command exits non-zero', () => {
+    const dir = evidence()
+    symlinkSync('/etc/hostname', join(dir, 'link'))
+    assert.throws(() => scrubDir(dir, [SECRET]), /neither a regular file nor a directory/)
+    const run = spawnSync(process.execPath, [REDACT, '--scrub-dir', dir], { encoding: 'utf8', env: { ...process.env, REDACT_VARS: '' } })
+    assert.notEqual(run.status, 0)
+  })
+
+  it('the workflow uploads only when the scrub step said so, and says so only after the redactor exited 0', () => {
+    const steps = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image.steps
+    const scrub = steps.find((step) => step.name === 'Scrub the evidence')
+    const upload = steps.find((step) => step.name === 'Upload the evidence')
+    assert.equal(scrub.id, 'scrub')
+    assert.equal(scrub.if, 'always()')
+    assert.equal(scrub.shell, undefined, 'the default shell, bash -e: a failed redactor ends the step')
+    const lines = scrub.run.trim().split('\n').map((line) => line.trim())
+    assert.equal(lines.at(-1), 'echo "scrubbed=true" >> "$GITHUB_OUTPUT"')
+    assert.equal(lines.at(-2), 'node sophia/scripts/paperclip-image-redact.mjs --scrub-dir "$EVIDENCE"')
+    assert.equal(upload.if, "always() && steps.scrub.outputs.scrubbed == 'true'")
+    assert.match(upload.uses, /^actions\/upload-artifact@[0-9a-f]{40}$/)
+    assert.ok(steps.indexOf(scrub) < steps.indexOf(upload))
   })
 })
