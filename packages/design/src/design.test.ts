@@ -757,6 +757,13 @@ describe('a pseudo-element styles only generated content (#117)', () => {
     ])
       assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
   })
+  // #117: the render finds a cover by what a point on the text reaches; pointer-events: none would hide one from it.
+  it('refuses pointer-events, which only a page with a pointer behaviour needs, in a stylesheet or a style attribute', () => {
+    for (const bad of ['.cover{pointer-events:none}', 'h2::after{pointer-events:none}', '*{pointer-events:auto}'])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<main>', '<main><div style="pointer-events:none"></div>')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+  })
   it("accepts generated content, the reader's selection and the disclosure marker", () => {
     for (const ok of [
       'h2::before{content:"§ "}',
