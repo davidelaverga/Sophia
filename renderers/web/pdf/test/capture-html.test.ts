@@ -749,6 +749,44 @@ describe('the confined capture kernel', () => {
   )
 
   it(
+    'holds text to the contrast floor of the size it is drawn at: scaled, zoomed or adjusted down, large text is not (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .big{font-size:24px;color:#888} .half{transform:scale(.5);transform-origin:left top}
+            .zoomed{zoom:.5} .shrunk{scale:.5;transform-origin:left top} .adjusted{font-size-adjust:.4}
+            .grown{font-size:12px;transform:scale(2);transform-origin:left top;margin-bottom:2em}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1" class="big">Large and grey.</p>
+          <p data-block="b2" class="big half">Scaled down.</p><p data-block="b3" class="big zoomed">Zoomed down.</p>
+          <p data-block="b4" class="big shrunk">Shrunk.</p><p data-block="b5" class="big adjusted">Adjusted.</p>
+          <p data-block="b6" class="big grown">Grown.</p></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const blocks = receipt.targets.find((t) => t.id === target)!.page.blocks
+        assert.deepEqual(
+          blocks.map((b) => [b.id, b.contrast.large, b.issues.includes('low_contrast')]),
+          [
+            ['b1', true, false],
+            ['b2', false, true],
+            ['b3', false, true],
+            ['b4', false, true],
+            ['b5', false, true],
+            ['b6', true, false],
+          ],
+          `${target}: about 3.4 to 1 is enough for large text only`,
+        )
+        assert.equal(outcome(receipt, 'contrast', target), 'failed')
+      }
+    },
+  )
+
+  it(
     'fails text outside the blocks set too small to read, by size, scale or squeeze; small print and a small mark pass (#117)',
     { skip },
     async () => {

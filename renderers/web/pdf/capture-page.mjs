@@ -548,18 +548,62 @@ function combinations(layers, max) {
 }
 
 /**
+ * The least a 2D transform scales a length by (its smaller singular value): a rotation or a skew draws a glyph no
+ * larger than that.
+ * @param {DOMMatrixReadOnly} m
+ */
+function leastScale(m) {
+  const sum = m.a ** 2 + m.b ** 2 + m.c ** 2 + m.d ** 2
+  const det = m.a * m.d - m.b * m.c
+  return Math.sqrt(Math.max(0, (sum - Math.sqrt(Math.max(0, sum ** 2 - 4 * det ** 2))) / 2))
+}
+
+/**
+ * How large an element's text is drawn against its computed font size: its zoom, and the transforms and scales on it
+ * and every ancestor, each by the least it scales a glyph. Null when the styles do not tell one number: a 3D transform,
+ * rotation or translation, or font-size-adjust, which draws glyphs at a size of the font's own (#117).
+ * @param {Element} el
+ * @returns {number | null}
+ */
+function drawnScale(el) {
+  if (getComputedStyle(el).fontSizeAdjust !== 'none') return null
+  let scale = el.currentCSSZoom
+  for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement) {
+    const style = getComputedStyle(a)
+    const m = new DOMMatrixReadOnly(style.transform === 'none' ? undefined : style.transform)
+    const deep = !m.is2D || /\s/u.test(style.rotate) || style.translate.split(' ').length > 2
+    if (deep) return null
+    const [x = 1, y = x] = style.scale === 'none' ? [] : style.scale.split(' ').map(Number)
+    scale *= leastScale(m) * Math.min(Math.abs(x), Math.abs(y))
+  }
+  return scale
+}
+
+/**
+ * Whether an element's text is large (WCAG 2), by the size it is drawn at (drawnScale): 24px, or 18.66px and bold. Text
+ * whose drawn size the styles do not tell is not large.
+ * @param {Element} el
+ * @param {CSSStyleDeclaration} style its computed style
+ */
+function isLarge(el, style) {
+  const px = Number.parseFloat(style.fontSize) * (drawnScale(el) ?? 0)
+  return px >= 24 || (px >= 18.66 && Number.parseInt(style.fontWeight, 10) >= 700)
+}
+
+/**
  * The block's text contrast against what is behind it (WCAG 2): the worst case over the stops of any gradient behind
- * it, against the floor for its size (3 for large text, 4.5 otherwise). The text is painted in the colour it is filled
- * with, at the opacity it is drawn at (#117). Unknown when the background cannot be read, a filter or blend mode changes
- * the colours, or opacity fades a background together with the text (group_opacity).
+ * it, against the floor for the size its text is drawn at (3 for large text, 4.5 otherwise): a heading set large and
+ * scaled or zoomed down is held to the floor of the size a capture shows, and one whose drawn size the styles do not
+ * tell to the higher floor (#117). The text is painted in the colour it is filled with, at the opacity it is drawn at
+ * (#117). Unknown when the background cannot be read, a filter or blend mode changes the colours, or opacity fades a
+ * background together with the text (group_opacity).
  * @param {Element} el
  * @param {OffscreenCanvasRenderingContext2D} ctx
  * @returns {Contrast}
  */
 function contrastOf(el, ctx) {
   const style = getComputedStyle(el)
-  const px = Number.parseFloat(style.fontSize)
-  const large = px >= 24 || (px >= 18.66 && Number.parseInt(style.fontWeight, 10) >= 700)
+  const large = isLarge(el, style)
   const floor = large ? 3 : 4.5
   const opacity = drawnAlpha(el, ctx)
   if (typeof opacity === 'string') return { ratio: null, floor, large, detail: opacity }
@@ -722,6 +766,9 @@ const IN_PAGE = [
   gradientStops,
   backgroundLayers,
   combinations,
+  leastScale,
+  drawnScale,
+  isLarge,
   contrastOf,
   measureBlock,
   measurePage,
