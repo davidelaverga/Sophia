@@ -17,7 +17,7 @@ A review row under the report pane's head, for the version on screen (`ReviewRow
   - with no reply, only «Try again» is offered, and only its own record arriving settles it;
   - Cancel keeps the words.
 
-**API (proposed as A16, for #105; not yet posted there):** POST and GET `/artifacts/{id}/versions/{vid}/reviews`. A request for changes admits Sophia's revision.
+**API (proposed as A16, [posted to #105](https://github.com/davidelaverga/Sophia/issues/105#issuecomment-6010589410)):** POST and GET `/artifacts/{id}/versions/{vid}/reviews`. A request for changes admits Sophia's revision.
 
 **Independent review, four passes:**
 - **First pass:** two P1s and seven P2s.

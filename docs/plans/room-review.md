@@ -25,7 +25,7 @@ A report Sophia made is read, discussed and shown, but the team has no way to sa
 
 **What follows a request:** Sophia revises. Her next version arrives live, as any version does (#109), and that version has no review yet.
 
-**API (proposed as A16, for #105; not yet posted there):**
+**API (proposed as A16, [posted to #105](https://github.com/davidelaverga/Sophia/issues/105#issuecomment-6010589410)):**
 ```ts
 POST /api/v1/artifacts/{artifactId}/versions/{versionId}/reviews   Idempotency-Key
      { verdict: 'approved' | 'changes_requested'; note?: string }   → 201 VersionReview
