@@ -87,6 +87,11 @@ const MOTION = /^(?:-webkit-)?(?:animation|transition)(?:-|$)/
 /** Properties that draw text as other marks: what a capture shows would not be the text a reader is given. */
 const MASKS = new Set(['-webkit-text-security', 'text-security'])
 /**
+ * Masks, in every form: a mask draws an element partly or wholly transparent while its box, colour and opacity, which
+ * the render measures, stay whole, so a heading a mask hides would measure as shown (#117).
+ */
+const MASKING = /^(?:-webkit-)?mask(?:-|$)/
+/**
  * Properties that change what a pointer reaches, not what is drawn. A static page has no pointer behaviour, and the
  * render finds what is drawn over a text by what a point there reaches: `pointer-events: none` would hide a cover from
  * it (#117).
@@ -228,6 +233,8 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
     const problem = nameIssue('property', node.property) ?? generatedTextIssue(node)
     if (problem) return problem
     const property = node.property.toLowerCase()
+    if (MASKING.test(property))
+      return `${node.property} draws what it masks as transparent; the render would measure it as shown`
     if (MOTION.test(property))
       return `${node.property} changes the page after it is captured; a static page has no motion`
     if (COUNTERS.has(property)) return `${node.property} chooses the numbers a list draws; they follow its items`

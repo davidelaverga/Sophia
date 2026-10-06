@@ -757,6 +757,28 @@ describe('a pseudo-element styles only generated content (#117)', () => {
     ])
       assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
   })
+  // #117: a mask draws a text transparent while the box, colour and opacity the render measures stay whole.
+  it('refuses a mask in every form, in any medium and in a style attribute', () => {
+    for (const bad of [
+      'h2{mask-image:linear-gradient(transparent,transparent)}',
+      'h2{-webkit-mask-image:linear-gradient(transparent,transparent)}',
+      'h2{mask:linear-gradient(transparent,transparent)}',
+      'h2{-webkit-mask:linear-gradient(transparent,transparent)}',
+      'h2{mask-size:0}',
+      'h2{mask-mode:luminance}',
+      'h2{-webkit-mask-box-image:linear-gradient(transparent,transparent)}',
+      'h2{MASK-IMAGE:linear-gradient(transparent,transparent)}',
+      '@media print{h2{mask-image:linear-gradient(transparent,transparent)}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace(
+      '<main>',
+      '<main><div style="-webkit-mask-image:linear-gradient(transparent,transparent)"></div>',
+    )
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of ['h2{border-radius:4px}', '.marker{background:linear-gradient(#eef,#fff)}'])
+      assert.deepEqual(css(ok), [], ok)
+  })
   // #117: the render finds a cover by what a point on the text reaches; pointer-events: none would hide one from it.
   it('refuses pointer-events, which only a page with a pointer behaviour needs, in a stylesheet or a style attribute', () => {
     for (const bad of ['.cover{pointer-events:none}', 'h2::after{pointer-events:none}', '*{pointer-events:auto}'])
