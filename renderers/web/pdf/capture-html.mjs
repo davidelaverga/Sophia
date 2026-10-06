@@ -366,13 +366,20 @@ async function captureTarget(shot, target, page) {
  * @returns {Check[]}
  */
 export function targetChecks(target, page, coverage, unmeasured = 0, unsampled = 0) {
+  const escaped = outsideScope(page, coverage.requested)
   // A shown label (one a tooltip, an accessible name or an ID reference rests on), and every other text outside the
   // blocks, is held to what a block is, at every target (#117). Text a target hides is text its capture does not show:
   // kept for print, for another width, or for assistive technology, or shown at one width and hidden at another so
   // that pieces seen apart compose a claim nowhere reviewed; and, held tighter than a block, text a scrolling container
   // does not show where the page starts (textHiddenHere). Text outside the blocks that a target hides is not read for
   // contrast there.
-  const unseen = [...page.blocks.filter(hiddenHere), ...[...page.shown, ...page.framing].filter(textHiddenHere)]
+  const unseen = [
+    ...new Set([
+      ...page.blocks.filter(hiddenHere),
+      ...[...page.shown, ...page.framing].filter(textHiddenHere),
+      ...escaped,
+    ]),
+  ]
   const read = [...page.blocks, ...page.shown, ...page.framing.filter((m) => !textHiddenHere(m))]
   const low = read.filter((b) => b.issues.includes('low_contrast'))
   const unknown = read.filter((b) => b.contrast.ratio === null)
@@ -723,16 +730,22 @@ export function sweepPlan(media) {
 
 /**
  * What a measure at a band end shows wrong, or null: a block or a text outside the blocks hidden, cut, covered, set
- * beside other text or off the page, a block in low contrast, horizontal overflow, or text the measure did not reach.
+ * beside other text or off the page, or in low contrast, horizontal overflow, text the measure did not reach, or (when
+ * the job names its sections) text of one drawn outside it (outsideScope).
  * A contrast it cannot read is a limitation, as at a target.
  * @param {import('./capture-page.mjs').PageMeasure} page
  * @param {number} missed labels, texts and runs left out, and texts the cover check did not reach
+ * @param {string[] | null} requested the sections the job names, or null for every one (outsideScope)
  * @returns {string | null}
  */
-function bandIssue(page, missed) {
+function bandIssue(page, missed, requested) {
   const unseen = [
-    ...page.blocks.filter((m) => hiddenHere(m) || m.issues.includes('low_contrast')),
-    ...[...page.shown, ...page.framing].filter(textHiddenHere),
+    ...new Set([
+      ...page.blocks.filter((m) => hiddenHere(m) || m.issues.includes('low_contrast')),
+      // A text outside the blocks is held to what a block is at a band end as at a target, its contrast included (#117).
+      ...[...page.shown, ...page.framing].filter((m) => textHiddenHere(m) || m.issues.includes('low_contrast')),
+      ...outsideScope(page, requested),
+    ]),
   ]
   const parts = [
     unseen.length > 0 ? listed(unseen.map((m) => m.id)) : '',
@@ -772,7 +785,7 @@ async function sweepWidths(page, shot, sweepMs) {
     await page.setViewportSize({ width, height: SWEEP.height })
     const { unmeasured, ...answer } = await measure(page, left)
     const { measured, unsampled } = await generatedCover(shot, page, answer, until)
-    const issue = bandIssue(measured, unmeasured + unsampled)
+    const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null)
     if (issue) wrong.push(`at ${width}px: ${issue}`)
   }
   return wrong.length > 0
@@ -807,6 +820,36 @@ async function captureAll(page, shot, entry) {
     shot.receipt.checks.push(...targetChecks(target, measured, coverage, fit.unmeasured, unsampled))
   }
   shot.receipt.checks.push(await sweepWidths(page, shot, entry.sweepMs))
+}
+
+/**
+ * What a capture that names its sections would not show at full size: in an edit that may change those sections only,
+ * a block, label or text of one of them drawn outside that section's box, where no tile of it reaches. Without this, a
+ * heading placed with `position: absolute` past its section was seen only in the scaled-down overview (#117).
+ * @param {import('./capture-page.mjs').PageMeasure} page
+ * @param {string[] | null} requested the sections the job names, or null for every one
+ */
+function outsideScope(page, requested) {
+  if (!requested) return []
+  const boxes = new Map(page.sections.map((s) => [s.id, s]))
+  return [...page.blocks, ...page.shown, ...page.framing].filter((m) => {
+    const section = m.section !== null && requested.includes(m.section) ? boxes.get(m.section) : undefined
+    return section !== undefined && (m.box.width > 0 || m.box.height > 0) && !within(m.box, section)
+  })
+}
+
+/**
+ * Whether one box lies inside another, give or take a pixel.
+ * @param {{ x: number, y: number, width: number, height: number }} inner
+ * @param {{ x: number, y: number, width: number, height: number }} outer
+ */
+function within(inner, outer) {
+  return (
+    inner.x >= outer.x - 1 &&
+    inner.y >= outer.y - 1 &&
+    inner.x + inner.width <= outer.x + outer.width + 1 &&
+    inner.y + inner.height <= outer.y + outer.height + 1
+  )
 }
 
 /**

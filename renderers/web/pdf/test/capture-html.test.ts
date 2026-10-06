@@ -1242,12 +1242,12 @@ describe('the confined capture kernel', () => {
           page(
             `${BASE} .box{position:relative} .over{display:none}
              @media (min-width: 700px) and (max-width: 900px){
-               [data-block="b2"]{display:none} h2.k{visibility:hidden}
+               [data-block="b2"]{display:none} h2.k{visibility:hidden} h2.dim{color:#ddd}
                .over{display:block;position:absolute;inset:0;background:#fafafa}}
              @media (min-width: 1300px){.cut{width:calc(100vw - 1260px);overflow:hidden;white-space:nowrap}}
              @media (max-width: 579px){.cut2{width:calc(600px - 100vw);overflow:hidden;white-space:nowrap}}`,
             `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Shown everywhere.</p>
-            <p data-block="b2">Hidden between the targets.</p><h2 class="k">Kept heading</h2>
+            <p data-block="b2">Hidden between the targets.</p><h2 class="k">Kept heading</h2><h2 class="dim">Faint there</h2>
             <div class="box"><p data-block="b3">Covered between the targets.</p><div class="over"></div></div>
             <p data-block="b4" class="cut">A line cut at the wide band's narrow end.</p>
             <p data-block="b5" class="cut2">10%</p></section></main>`,
@@ -1259,11 +1259,43 @@ describe('the confined capture kernel', () => {
       for (const t of ['w390-light', 'w1280-light']) assert.equal(outcome(receipt, 'blocks_visible', t), 'passed', t)
       assert.equal(outcome(receipt, 'widths_visible'), 'failed')
       const detail = String(receipt.checks.find((c) => c.name === 'widths_visible')?.detail)
-      assert.match(detail, /at 700px: b2, b3, text 2 h2(;|$)/u)
-      assert.match(detail, /at 900px: b2, b3, text 2 h2(;|$)/u)
+      // #117: a text outside the blocks in low contrast there fails as a block would.
+      assert.match(detail, /at 700px: b2, b3, text 2 h2, text 3 h2(;|$)/u)
+      assert.match(detail, /at 900px: b2, b3, text 2 h2, text 3 h2(;|$)/u)
       assert.match(detail, /at 1300px: b4(;|$)/u, "the wide band's narrow end")
       assert.match(detail, /at 579px: b5(;|$)/u, "the narrow band's wide end")
       assert.doesNotMatch(detail, /at (320|390|699|901|1299|1280|2560)px/u, 'the ends that show nothing wrong')
+    },
+  )
+
+  it(
+    'fails a text that an edit naming its sections draws outside one of them, where no tile of it reaches (#117)',
+    { skip },
+    async () => {
+      const html = page(
+        `${BASE} section{padding-bottom:6rem} .s2{position:relative}
+         .esc{position:absolute;top:-4rem;left:2rem;margin:0;font-size:14px}`,
+        `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p></section>
+        <section data-section="s2" class="s2"><h2>More</h2><p data-block="b2">More text.</p>
+        <h2 class="esc">Placed above its section</h2></section></main>`,
+      )
+      const scoped = async (sections?: string[]) => {
+        const receipt = await captureHtml(job(html, sections ? { sections } : {}), { env })
+        assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+        return receipt
+      }
+      const own = await scoped(['s2'])
+      for (const t of ['w390-light', 'w1280-light']) {
+        assert.equal(outcome(own, 'blocks_visible', t), 'failed', t)
+        const detail = own.checks.find((c) => c.name === 'blocks_visible' && c.target === t)?.detail ?? ''
+        assert.ok(lists(detail, 'text 3 h2') && !lists(detail, 'text 2 h2'), detail)
+      }
+      assert.equal(outcome(own, 'widths_visible'), 'failed', 'and at the band ends')
+      // Another section's edit, and a capture of every section (whose margins and sections are all seen), pass.
+      for (const receipt of [await scoped(['s1']), await scoped()]) {
+        for (const t of ['w390-light', 'w1280-light']) assert.equal(outcome(receipt, 'blocks_visible', t), 'passed', t)
+        assert.equal(outcome(receipt, 'widths_visible'), 'passed')
+      }
     },
   )
 
