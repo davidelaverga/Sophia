@@ -20,7 +20,7 @@ export function hitSource(hit: Pick<SearchHit, 'kind' | 'at'>, words: DateWords)
 
 /**
  * Whether a recap hit's meeting runs, as the project's latest meetings say (the running one is the newest): undefined
- * until they are read, when its recap's own read says.
+ * until they are read, or if they can't be, when its recap's own read says.
  */
 export function hitRunning(
   meetingId: string,
