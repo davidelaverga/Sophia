@@ -8,10 +8,23 @@ import type { SophiaSignal } from '../src/features/voice/sophia-view.ts'
 
 const query = new URLSearchParams(window.location.search)
 
-const NAMES = ['Marco', 'Lucía', 'Noor', 'Tomás', 'Inés'] as const
+const NAMES = [
+  'Marco',
+  'Lucía',
+  'Noor',
+  'Tomás',
+  'Inés',
+  'Ana',
+  'Diego',
+  'Sara',
+  'Iván',
+  'Julia',
+  'Pablo',
+  'Elena',
+] as const
 
 /** The `n`th other person's actor id (1-based), as the API signs one into a token. */
-export const personId = (n: number) => `00000000-0000-4000-8000-0000000000b${String(n)}`
+export const personId = (n: number) => `00000000-0000-4000-8000-0000000000${(0xb0 + n).toString(16)}`
 
 /**
  * Sophia as the page can ask for her: the attributes her bridge sets (`sophia.input`: closed, admitted, settling or
@@ -32,7 +45,9 @@ const isState = (value: string | null): value is SophiaState => value !== null &
 
 const asked = query.get('sophia')
 const video = query.get('video')
-/** How many others are in the room (`people`, at most five). */
+/** Who shows their screen (`video=screen`): the `screenBy`th other person, the first unless the page says. */
+const screenBy = Math.max(1, Number(query.get('screenBy')) || 1)
+/** How many others are in the room (`people`, at most twelve). */
 export const count = Math.min(NAMES.length, Math.max(0, Number(query.get('people')) || 0))
 
 /** The `n` the page named, if it is one of the others (1…count), or the viewer too (0) when `viewer` allows it. */
@@ -78,7 +93,7 @@ export function others(): RoomParticipant[] {
     speaking: now.speaking === i + 1,
     micOn: true,
     cameraOn: video === 'camera',
-    screenOn: video === 'screen' && i === 0,
+    screenOn: video === 'screen' && i === screenBy - 1,
     local: false,
     // `guest=1`: the last of the others came in as a guest.
     standing: query.has('guest') && i === count - 1 ? 'guest' : 'editor',
@@ -139,7 +154,7 @@ function stream(label: string, wide: boolean): MediaStream {
     g.fillText(wide ? `${label}’s screen (synthetic)` : label.charAt(0), canvas.width / 2, canvas.height / 2)
   }
   draw()
-  // Kept for the page's life: one per person and source (at most six), as `kept` holds them.
+  // Kept for the page's life: one per person and source (at most thirteen), as `kept` holds them.
   window.setInterval(draw, 500)
   return canvas.captureStream(2)
 }
@@ -168,9 +183,9 @@ function feed(n: number, source: 'camera' | 'screen'): VideoFeed {
   return made
 }
 
-/** The cameras on (`video=camera`), or the first person's shared screen (`video=screen`). */
+/** The cameras on (`video=camera`), or one person's shared screen (`video=screen`, `screenBy`). */
 export function feeds(): VideoFeed[] {
   if (video === 'camera') return others().map((_, i) => feed(i + 1, 'camera'))
-  if (video === 'screen' && count > 0) return [feed(1, 'screen')]
+  if (video === 'screen' && count > 0) return [feed(screenBy, 'screen')]
   return []
 }
