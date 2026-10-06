@@ -77,10 +77,10 @@ const nameIssue = (kind: string, name: string): string | null =>
 /**
  * Properties that can draw text of their own (SDD-01-CX-0019 F2): only the research's text is shown, so these may draw
  * decoration only: keywords, counters, and strings of the marks that say nothing (a bullet, a quote mark, an arrow:
- * MARK_CHARACTERS), a few of them across all of a property's strings (#117). No value may come from elsewhere: `attr()`, `var()` or `env()`. A counter or a
- * list marker draws numbers or bullets only (#117, CX-0038): a letter, numeral or custom counter style spells words
- * from the values counter-reset, counter-set or a list's start choose. The same in every media (print included), in
- * a stylesheet and in a style attribute.
+ * MARK_TEXT), a few of them across all of a property's strings (#117). No value may come from elsewhere: `attr()`,
+ * `var()` or `env()`. A counter or a list marker draws numbers or bullets only (#117, CX-0038): a letter, numeral or
+ * custom counter style spells words from the values counter-reset, counter-set or a list's start choose. The same in
+ * every media (print included), in a stylesheet and in a style attribute.
  */
 const TEXT_PROPERTIES = new Set([
   'content',
