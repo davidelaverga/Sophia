@@ -137,7 +137,8 @@ function cutsOwnText(el) {
 
 /**
  * Where a block sits against the page and its containers: off the page, cut by an ancestor that hides overflow, its
- * own text cut, or inside a scrolling container that does not show it whole (reachable, but not in a capture).
+ * own text cut, or inside a scrolling container that does not show it whole where the page starts (reachable, but in no
+ * capture).
  * @param {Element} el
  * @param {Box} box
  * @param {Box} page
@@ -160,23 +161,47 @@ function placementIssues(el, box, page) {
 }
 
 /**
+ * Where every box around an element is scrolled, the page included, and a way to put each back, at once whatever the
+ * page's scroll-behavior. A measurement that scrolls must leave the page as it starts: each element after it is placed,
+ * and every capture taken, where the reader first sees the page, not where the last measurement left a nested box
+ * (#117).
+ * @param {Element} el
+ * @returns {() => void}
+ */
+function keepScroll(el) {
+  /** @type {[Element, number, number][]} */
+  const kept = []
+  for (let a = el.parentElement; a; a = a.parentElement) kept.push([a, a.scrollLeft, a.scrollTop])
+  return () => {
+    for (const [a, left, top] of kept)
+      if (a.scrollLeft !== left || a.scrollTop !== top) a.scrollTo({ left, top, behavior: 'instant' })
+  }
+}
+
+/**
  * Whether something else is drawn over the block's first line of text, seen from the middle of it with the block
- * scrolled into view. Fixed and sticky elements (a header that follows the reader) do not count.
+ * scrolled into view, every scroll then put back. Fixed and sticky elements (a header that follows the reader) do not
+ * count.
  * @param {Element} el
  */
 function isCovered(el) {
   const range = document.createRange()
   range.selectNodeContents(el)
-  el.scrollIntoView({ block: 'center', inline: 'nearest' })
-  const line = range.getClientRects()[0]
-  if (!line || line.width < 2 || line.height < 2) return false
-  const hit = document.elementFromPoint(line.left + Math.min(line.width / 2, 40), line.top + line.height / 2)
-  if (!hit || el.contains(hit) || hit.contains(el)) return false
-  for (let a = /** @type {Element | null} */ (hit); a; a = a.parentElement) {
-    const position = getComputedStyle(a).position
-    if (position === 'fixed' || position === 'sticky') return false
+  const restore = keepScroll(el)
+  try {
+    el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
+    const line = range.getClientRects()[0]
+    if (!line || line.width < 2 || line.height < 2) return false
+    const hit = document.elementFromPoint(line.left + Math.min(line.width / 2, 40), line.top + line.height / 2)
+    if (!hit || el.contains(hit) || hit.contains(el)) return false
+    for (let a = /** @type {Element | null} */ (hit); a; a = a.parentElement) {
+      const position = getComputedStyle(a).position
+      if (position === 'fixed' || position === 'sticky') return false
+    }
+    return true
+  } finally {
+    restore()
   }
-  return true
 }
 
 /**
@@ -383,8 +408,8 @@ function measureBlock(el, page, ctx) {
 }
 
 /**
- * Everything the kernel measures at the current viewport. Scrolling to check cover moves the view, so it ends back at
- * the top, where every capture is taken from.
+ * Everything the kernel measures at the current viewport. Checking cover scrolls, and puts every scroll back (keepScroll),
+ * so each element is placed, and the page captured, as it starts; the view ends at the top, where the captures begin.
  * @param {{ maxListed: number, maxMeasured: number, marks: string }} opts
  * @returns {PageAnswer}
  */
@@ -403,7 +428,7 @@ function measurePage(opts) {
   const texts = framingElements(opts.marks)
   const shown = labels.slice(0, opts.maxMeasured).map(strictly)
   const framing = texts.slice(0, opts.maxMeasured).map(strictly)
-  window.scrollTo(0, 0)
+  window.scrollTo({ left: 0, top: 0, behavior: 'instant' })
   return {
     width: page.width,
     height: page.height,
@@ -475,6 +500,7 @@ const IN_PAGE = [
   hides,
   cutsOwnText,
   placementIssues,
+  keepScroll,
   isCovered,
   paint,
   opacityOf,

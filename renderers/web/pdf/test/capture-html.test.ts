@@ -211,10 +211,21 @@ describe('the capture plan (pure)', () => {
     assert.deepEqual(muted.contrast, ['failed', 'text 2 p'])
     assert.deepEqual(muted.blocks_visible, ['passed', null], 'shown here, only hard to read')
     const elsewhere = at([framed('text 1 h2', ['not_rendered', 'low_contrast'], 2.4), framed('text 2 a', ['scrolls'])])
-    assert.deepEqual(elsewhere.blocks_visible, ['failed', 'text 1 h2'], 'hidden at this target: its capture lacks it')
+    assert.deepEqual(
+      elsewhere.blocks_visible,
+      ['failed', 'text 1 h2, text 2 a'],
+      'hidden at this target, or scrolled out of view where the page starts: its capture lacks it',
+    )
     assert.deepEqual(elsewhere.contrast, ['passed', null], 'a hidden text is not read for contrast')
     for (const issue of ['clipped', 'off_page', 'text_cut', 'covered', 'no_visible_text', 'transparent', 'hidden'])
       assert.equal(at([framed('text 1 h2', [issue])]).blocks_visible?.[0], 'failed', issue)
+    const scrolling = { overflowPx: 0, blocks: [framed('b1', ['scrolls'])], shown: [], framing: [] }
+    const block = targetChecks(
+      CAPTURE_TARGETS['w390-light']!,
+      scrolling as unknown as Parameters<typeof targetChecks>[1],
+      coverage,
+    ).find((c) => c.name === 'blocks_visible')
+    assert.equal(block?.outcome, 'passed', 'a block the reader scrolls to is the research: shown')
     assert.deepEqual(at([framed('text 1 h2', [], null)]).contrast, ['unknown', 'unmeasured: text 1 h2'])
     const over = at([framed('text 1 h2')], 3)
     assert.equal(over.blocks_visible?.[0], 'failed')
@@ -461,6 +472,43 @@ describe('the confined capture kernel', () => {
         assert.equal(detail, 'text 2 h2, text 3 h2, text 4 h2', target)
         assert.equal(outcome(receipt, 'blocks_visible', target), 'passed', target)
       }
+    },
+  )
+
+  it(
+    'judges a scrolling box as the page starts: a text it holds out of view fails, and no measurement leaves it scrolled (#117)',
+    { skip },
+    async () => {
+      const long = 'A long paragraph of the research, read by scrolling the box. '.repeat(40)
+      const boxed = (inside: string) =>
+        page(
+          `${BASE} html,.box{scroll-behavior:smooth} .box{height:220px;overflow:auto;border:1px solid #ccc}`,
+          `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+          <div class="box">${inside}</div></section></main>`,
+        )
+      // The security review's page: a claim first, a plain heading last. Measuring the last one used to leave the box
+      // scrolled to it, so the captures showed the plain heading and never the claim, while the page opens on the claim.
+      const hidden = await captureHtml(
+        job(boxed(`<h3>Host three is free</h3><p data-block="b2">${long}</p><h3>Costs compared</h3>`)),
+        { env },
+      )
+      assert.equal(hidden.status, 'succeeded', JSON.stringify(hidden.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        assert.equal(outcome(hidden, 'blocks_visible', target), 'failed', target)
+        const detail = hidden.checks.find((c) => c.name === 'blocks_visible' && c.target === target)?.detail ?? ''
+        // Texts outside the blocks, in page order: "Findings", the claim, the plain heading.
+        const ids = hidden.targets.find((t) => t.id === target)?.page.framing.map((m) => m.id)
+        assert.deepEqual(ids, ['text 1 h2', 'text 2 h3', 'text 3 h3'], target)
+        assert.ok(lists(detail, 'text 3 h3'), `${target}: the heading out of view fails: ${detail}`)
+        assert.ok(!lists(detail, 'text 2 h3'), `${target}: the heading the box opens on is seen: ${detail}`)
+        assert.deepEqual(issuesOf(hidden, target).b2, ['scrolls'], 'the block is read by scrolling: shown')
+      }
+      // A heading the box opens on, above a block that runs past it: measuring the block scrolls the box, and every
+      // scroll is put back, so the heading is placed, and captured, where the reader first sees it.
+      const opens = await captureHtml(job(boxed(`<h3>Costs compared</h3><p data-block="b2">${long}</p>`)), { env })
+      assert.equal(opens.status, 'succeeded', JSON.stringify(opens.error))
+      for (const target of ['w390-light', 'w1280-light'])
+        assert.equal(outcome(opens, 'blocks_visible', target), 'passed', target)
     },
   )
 

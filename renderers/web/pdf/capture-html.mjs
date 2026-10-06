@@ -309,8 +309,7 @@ async function captureTarget(shot, target, page) {
     )
       captured.push(s.id)
   }
-  const texts = [...page.blocks, ...page.shown, ...page.framing].filter((m) => !hiddenHere(m)).map((m) => m.box)
-  const margins = shot.job.sections ? [] : marginsOf(page.sections, depth, texts)
+  const margins = shot.job.sections ? [] : marginsOf(page.sections, depth, shownBoxes(page))
   let marginsCaptured = 0
   for (const [i, m] of margins.entries()) {
     if (
@@ -351,10 +350,11 @@ export function targetChecks(target, page, coverage, unmeasured = 0) {
   // A shown label (one a tooltip, an accessible name or an ID reference rests on), and every other text outside the
   // blocks, is held to what a block is, at every target (#117). Text a target hides is text its capture does not show:
   // kept for print, for another width, or for assistive technology, or shown at one width and hidden at another so
-  // that pieces seen apart compose a claim nowhere reviewed. Text outside the blocks that a target hides is not read
-  // for contrast there.
-  const unseen = [...page.blocks, ...page.shown, ...page.framing].filter(hiddenHere)
-  const read = [...page.blocks, ...page.shown, ...page.framing.filter((m) => !hiddenHere(m))]
+  // that pieces seen apart compose a claim nowhere reviewed; and, held tighter than a block, text a scrolling container
+  // does not show where the page starts (textHiddenHere). Text outside the blocks that a target hides is not read for
+  // contrast there.
+  const unseen = [...page.blocks.filter(hiddenHere), ...[...page.shown, ...page.framing].filter(textHiddenHere)]
+  const read = [...page.blocks, ...page.shown, ...page.framing.filter((m) => !textHiddenHere(m))]
   const low = read.filter((b) => b.issues.includes('low_contrast'))
   const unknown = read.filter((b) => b.contrast.ratio === null)
   const ids = (/** @type {{ id: string }[]} */ list) =>
@@ -483,12 +483,33 @@ async function captureAll(page, shot, entry) {
 }
 
 /**
- * Whether a measured element is not shown at this target: hidden, cut, covered or off the page. Low contrast, or a
- * scrolling container, still shows it.
+ * Whether a measured block is not shown at this target: hidden, cut, covered or off the page. Low contrast still shows
+ * it, and so does a scrolling container: the reader scrolls to it, and its text is the research's.
  * @param {import('./capture-page.mjs').BlockMeasure} m
  */
 function hiddenHere(m) {
   return m.issues.some((i) => i !== 'low_contrast' && i !== 'scrolls')
+}
+
+/**
+ * Where the text a target shows sits: its blocks, and the texts outside them, that it does not hide (marginsOf).
+ * @param {import('./capture-page.mjs').PageMeasure} page
+ */
+function shownBoxes(page) {
+  return [
+    ...page.blocks.filter((m) => !hiddenHere(m)),
+    ...[...page.shown, ...page.framing].filter((m) => !textHiddenHere(m)),
+  ].map((m) => m.box)
+}
+
+/**
+ * Whether a measured text outside the blocks (a shown label, a heading, a caption…) is not shown at this target. Held
+ * tighter than a block: one a scrolling container does not show where the page starts is in no capture, so no one
+ * reviewed it (#117).
+ * @param {import('./capture-page.mjs').BlockMeasure} m
+ */
+function textHiddenHere(m) {
+  return m.issues.some((i) => i !== 'low_contrast')
 }
 
 /**
