@@ -86,6 +86,67 @@ test('recap · on top of another sheet, Escape puts away the recap only', async 
   await expect(invite).toBeVisible()
 })
 
+test('recap · Open over another sheet puts every sheet away, so the report is in view', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.notice())
+  await page.getByRole('button', { name: 'Invite' }).click()
+  const invite = page.getByRole('dialog').filter({ hasNot: page.getByRole('heading', { name: 'This meeting' }) })
+  await invite.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
+  await section(page, 'Made').getByRole('button', { name: 'Open' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  const report = page.getByRole('complementary', { name: 'Fixture report' })
+  await expect(report).toBeVisible()
+  // Nothing covers it: a press at its centre lands in it.
+  const onTop = await report.evaluate((el) => {
+    const box = el.getBoundingClientRect()
+    return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))
+  })
+  expect(onTop).toBe(true)
+})
+
+test('recap · a sheet put away while its read waits leaves nothing for the next leave: that one reads its own', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdRecaps())
+  await leave(page).click()
+  await expect(sheet(page)).toContainText('Putting the meeting together…')
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Join the room' }).first().click()
+  await expect(leave(page)).toBeVisible()
+  await page.evaluate(() => window.fixture?.keep('Kept between the two calls'))
+  await leave(page).click()
+  await page.evaluate(() => window.fixture?.releaseRecaps())
+  await expect(section(page, 'Kept')).toContainText('Kept between the two calls')
+})
+
+test('recap · a disconnect that fails still leaves: the room is out of the call, and the recap opens', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failLeave())
+  await leave(page).click()
+  await expect(page.getByRole('button', { name: 'Join the room' }).first()).toBeVisible()
+  await expect(section(page, 'Decided')).toBeVisible()
+})
+
+test('recap · Leave pressed twice while the call is still ending opens one recap, read once', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdLeave())
+  await leave(page).click()
+  await leave(page).click()
+  // The second press does nothing: the call is still ending, Join waits for it, and nothing is open yet.
+  await expect(leave(page)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Join the room' })).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.releaseLeave())
+  await expect(section(page, 'Decided')).toBeVisible()
+  // Settled: the ended call has had its say, and a second count would have read the recap again by now.
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+  expect((await served(page)).filter((s) => s.startsWith('recap:'))).toEqual(['recap:running'])
+})
+
 test('recap · a copy the browser refused leaves the text to copy by hand, and it stays', async ({ page }) => {
   await page.clock.install()
   await enter(page)

@@ -30,7 +30,7 @@ import { noShowing } from './focus-data.ts'
 import { newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
-import { asked, deliverCaption, deliverNotice, dropCall, sophiaLeaves } from './fake-livekit.ts'
+import { asked, deliverCaption, deliverNotice, dropCall, leaving, sophiaLeaves } from './fake-livekit.ts'
 import {
   count,
   endPause,
@@ -106,6 +106,11 @@ interface Fixture {
   keep: (text: string) => void
   /** The next «Mark as seen» lands, but its reply is lost. */
   loseNextSeenReply: () => void
+  /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
+  holdLeave: () => void
+  /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
+  failLeave: () => void
+  releaseLeave: () => void
   /** The recap's reads wait until `releaseRecaps`. */
   holdRecaps: () => void
   releaseRecaps: () => void
@@ -324,6 +329,16 @@ window.fixture = {
   },
   loseNextSeenReply: () => {
     project.meeting.seen.loseReply = true
+  },
+  holdLeave: () => {
+    leaving.held = true
+  },
+  failLeave: () => {
+    leaving.fails = true
+  },
+  releaseLeave: () => {
+    leaving.held = false
+    for (const done of leaving.waiting.splice(0)) done()
   },
   holdRecaps: () => {
     project.meeting.recaps.held = []

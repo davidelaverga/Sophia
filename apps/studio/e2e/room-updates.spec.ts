@@ -97,6 +97,23 @@ test('updates · in a call, the running meeting is first, and opens with Close f
   await expect(meetings(page).getByRole('button').first()).toHaveText(/^Oct \d+, \d\d:\d\d · under a minute$/)
 })
 
+test('updates · leaving from an older meeting’s sheet opens the recap of the meeting left, on top', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=updates&call=on')
+  await expect(meetings(page).getByRole('button').first()).toHaveText(/^Now/)
+  await meetings(page).getByRole('button', { name: 'Oct 4, 15:00 · 38 minutes' }).click()
+  await expect(recap(page)).toHaveCount(1)
+  await recap(page).getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
+  await expect(recap(page)).toHaveCount(2)
+  await expect(recap(page).last().getByRole('region', { name: 'Decided' })).toContainText(
+    'Pilot the fixture with fourteen teams',
+  )
+  await page.keyboard.press('Escape')
+  await expect(recap(page)).toHaveCount(1)
+  await expect(recap(page).getByRole('region', { name: 'Decided' })).toContainText('Keep the room checks on fixtures')
+})
+
 test('updates · leaving the call from a recap’s own sheet opens no second one', async ({ page }) => {
   await page.goto('/room.html?place=updates&call=on')
   await meetings(page).getByRole('button', { name: /^Now/ }).click()

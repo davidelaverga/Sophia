@@ -169,20 +169,28 @@ const nothing = (value: unknown): undefined => {
 const parseMeetingReceipt = checked<MeetingReceipt>({ meetingId: isStr, revision: isNum, cursor: isStr }, 'receipt')
 
 /** A12: the project's meetings, newest first. */
-export const listMeetings = (token: string, projectId: string, limit: number) =>
-  callApi(`/api/v1/projects/${projectId}/meetings?limit=${String(limit)}`, { token, method: 'GET' }, parseMeetings)
+export const listMeetings = (token: string, projectId: string, limit: number, signal?: AbortSignal) =>
+  callApi(
+    `/api/v1/projects/${projectId}/meetings?limit=${String(limit)}`,
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseMeetings,
+  )
 
 /** A12: a meeting's recap, built from the records of its range. */
-export const getRecap = (token: string, projectId: string, meetingId: string): Promise<MeetingRecap> =>
-  callApi(`/api/v1/projects/${projectId}/meetings/${meetingId}/recap`, { token, method: 'GET' }, parseRecap)
+export const getRecap = (token: string, projectId: string, meetingId: string, signal?: AbortSignal) =>
+  callApi(
+    `/api/v1/projects/${projectId}/meetings/${meetingId}/recap`,
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseRecap,
+  )
 
 /** A12: close the meeting for everyone (editors and admins), idempotent per key. */
 export const closeMeeting = (token: string, roomId: string, meetingId: string, key: string): Promise<MeetingReceipt> =>
   callApi(`/api/v1/rooms/${roomId}/meetings/${meetingId}/close`, { token, method: 'POST', key }, parseMeetingReceipt)
 
 /** A13: what changed since this viewer last looked (their own attention, kept by the API). */
-export const getSince = (token: string, projectId: string): Promise<Digest> =>
-  callApi(`/api/v1/projects/${projectId}/since`, { token, method: 'GET' }, parseDigest)
+export const getSince = (token: string, projectId: string, signal?: AbortSignal): Promise<Digest> =>
+  callApi(`/api/v1/projects/${projectId}/since`, { token, method: 'GET', ...(signal ? { signal } : {}) }, parseDigest)
 
 /** A13: this viewer has seen up to `sequence`; the API never lowers it, so a second write is harmless. */
 export const markSeen = (token: string, projectId: string, sequence: string): Promise<undefined> =>
