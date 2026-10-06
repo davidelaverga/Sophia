@@ -92,3 +92,34 @@ test('search · More results reads the next page', async ({ page }) => {
   await expect(sheet(page).getByRole('button', { name: 'More results' })).toHaveCount(0)
   expect((await served(page)).filter((s) => s.startsWith('search:'))).toEqual(['search:fixture:0', 'search:fixture:3'])
 })
+
+test('search · while the next query is read, the last one’s hits are not offered under it', async ({ page }) => {
+  await page.getByRole('button', { name: 'Search' }).click()
+  await field(page).fill('fixture')
+  await expect(hits(page).filter({ hasText: 'Conclusion' })).toBeVisible()
+  await page.evaluate(() => window.fixture?.holdSearch(true))
+  await field(page).fill('room checks')
+  await expect(sheet(page).getByText('Searching…')).toBeVisible()
+  await expect(hits(page)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.holdSearch(false))
+  await expect(sheet(page).getByText('Searching…')).toHaveCount(0)
+  await expect(hits(page).filter({ hasText: 'Keep the room checks on fixtures' }).first()).toBeVisible()
+})
+
+test('search · the running meeting’s recap, opened from a hit, is the running one until it is read: leaving opens no second', async ({
+  page,
+}) => {
+  await page.goto('/room.html?people=2&call=on')
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Search' }).click()
+  await field(page).fill('room checks')
+  const recapHit = hits(page).filter({ hasText: 'Meeting recap' })
+  await expect(recapHit).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.holdRecaps())
+  await recapHit.getByRole('button').click()
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(recap).toContainText('Putting the meeting together…')
+  await recap.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
+  await expect(recap.getByRole('group', { name: 'Your call' })).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+})

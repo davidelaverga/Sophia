@@ -22,7 +22,7 @@ Under the vision flag, **Updates** stops being a placeholder. It has two parts.
 - Each row gives when it was and how long it lasted: «Now · started 10:02» for the running one, «Oct 4, 15:00 · 38 minutes» for a closed one.
 - Pressing a row opens that meeting's recap in the same sheet as on leaving. A closed one says so and offers no Close.
 
-**API shape (proposed, written to #105):** `since` takes `after` as optional; without it, the server reads the viewer's own attention.
+**API shape (proposed; [refinements posted to #105](https://github.com/davidelaverga/Sophia/issues/105#issuecomment-6010589410)):** `since` takes `after` as optional; without it, the server reads the viewer's own attention.
 ```ts
 type Digest = {
   fromSequence: string | null   // the viewer's attention; null: never looked

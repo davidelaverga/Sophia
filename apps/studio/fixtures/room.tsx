@@ -118,6 +118,8 @@ interface Fixture {
   releaseReviewReads: () => void
   /** Tasks' reads held since the page opened (`tasks=hold`) are answered now (A17). */
   releaseTaskReads: () => void
+  /** While on, searches wait; off, the waiting ones are answered (A13). */
+  holdSearch: (on: boolean) => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
   holdTasks: (on: boolean) => void
   releaseTasks: () => void
@@ -276,6 +278,8 @@ const project = {
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
   // A16: the versions' reviews (review-data.ts).
+  // A13: searches held while the page asks (`holdSearch`).
+  searchHeld: null as (() => void)[] | null,
   reviews: {
     ...noReviews(query.get('reviews') === 'fail'),
     heldReads: query.get('reviews') === 'hold' ? waiting() : null,
@@ -384,6 +388,10 @@ window.fixture = {
     const held = project.reviews.heldReads ?? []
     project.reviews.heldReads = null
     for (const answer of held) answer()
+  },
+  holdSearch: (on) => {
+    if (!on) for (const answer of project.searchHeld ?? []) answer()
+    project.searchHeld = on ? waiting() : null
   },
   releaseTaskReads: () => {
     const held = project.tasks.heldReads ?? []

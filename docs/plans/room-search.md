@@ -24,7 +24,7 @@
 
 **Who:** members. A guest's room (GuestRoom) has no project head, so no Search, and the API refuses guests (A13).
 
-**API shape (proposed, written to #105):**
+**API shape (proposed; not yet posted to #105):**
 - `SearchPage { hits: SearchHit[], next: string | null }`.
 - A report hit's `id` is the artifact, and `cite.recordId` is the version.
 

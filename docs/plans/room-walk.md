@@ -29,7 +29,7 @@ When the focus moves on within what is followed (same member, same version), the
 
 Without the vision flag nothing is read, so any change asks again, as before.
 
-**API (proposed, written to #105):**
+**API (proposed; [refinements posted to #105](https://github.com/davidelaverga/Sophia/issues/105#issuecomment-6010589410)):**
 - The snapshot's `sharedFocus` will carry `anchor`, `by` and `shownAt` (amendment A14). `shownAt` is the revision the current showing began at; Sophia's moves don't change it.
 - Until the snapshot carries them, the Studio reads them from `GET /rooms/{roomId}/focus`. It returns the same shape as the PUT's receipt, plus `by` and `shownAt`. A repeated heading is named by its occurrence (`evidence#1`), as search names it (#121).
 

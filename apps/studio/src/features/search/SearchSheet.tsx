@@ -135,7 +135,10 @@ function SearchSheet({ projectId, identity, onClose, onHit }: SheetProps) {
       />
       {asked && <SearchOutcome search={search} q={q} hits={hits.length} />}
       <ul className="search-hits" aria-label="Results">
-        {asked && hits.map((hit, i) => <Hit key={`${String(i)} ${hit.kind} ${hit.id}`} hit={hit} onHit={onHit} />)}
+        {/* The last query's hits are no answer to the next: none is offered under it until its own come. */}
+        {asked &&
+          !search.isPlaceholderData &&
+          hits.map((hit, i) => <Hit key={`${String(i)} ${hit.kind} ${hit.id}`} hit={hit} onHit={onHit} />)}
       </ul>
       {asked && search.hasNextPage && !search.isPlaceholderData && <MoreResults search={search} />}
     </Sheet>
@@ -147,7 +150,8 @@ function SearchOutcome({ search, q, hits }: { search: ReturnType<typeof useSearc
   const settled = search.isSuccess && !search.isPlaceholderData
   return (
     <>
-      <Waiting words="Searching…" waiting={search.isFetching && !search.isFetchingNextPage} />
+      {/* Fetching, or waiting for the network to come back: either way the list waits for this query. */}
+      <Waiting words="Searching…" waiting={(search.isFetching || search.isPending) && !search.isFetchingNextPage} />
       {search.isError && (
         <p className="sheet-lead" role="alert">
           The search couldn’t be read.{' '}

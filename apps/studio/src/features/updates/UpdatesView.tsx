@@ -5,7 +5,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
-import { getSince, listMeetings, markSeen, type Digest } from '../../api/vision.ts'
+import { getSince, listMeetings, markSeen, type Digest, type MeetingSummary } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { canInvite } from '../access/useAccess.ts'
 import { Waiting } from '../../app/Waiting.tsx'
@@ -23,6 +23,12 @@ interface Props {
 }
 
 /** Updates: the digest first, then the meetings. Both are read again as the project's feed moves. */
+/** Whether the meeting runs, as the list says it; undefined when the list no longer holds it. */
+const runningOf = (meetings: readonly MeetingSummary[], id: string): boolean | undefined => {
+  const row = meetings.find((m) => m.id === id)
+  return row ? row.endedAt === null : undefined
+}
+
 export function UpdatesView({ projectId, identity, snapshot, membership, inCall }: Props) {
   const me = membership?.actorId ?? ''
   return (
@@ -178,6 +184,7 @@ function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
           projectId={projectId}
           identity={identity}
           meetingId={open}
+          running={runningOf(meetings, open)}
           {...sheet}
           names={NO_NAMES}
           onClose={() => setOpen(null)}
