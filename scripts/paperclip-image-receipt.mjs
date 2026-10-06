@@ -27,7 +27,16 @@ import { compareSnapshots, coverageOf } from './paperclip-image-home.mjs'
 
 export const LIMIT_BYTES = 2 * 1024 ** 3
 export const HEALTH_LIMIT_S = 300
-export const PHASES = ['first:healthy', 'first:after-flow', 'first:idle', 'restart:healthy', 'recreated:healthy', 'recreated:after-flow', 'recreated:idle']
+export const PHASES = [
+  'first:healthy',
+  'first:after-flow',
+  'first:idle',
+  'restart:healthy',
+  'restart:after-flow',
+  'recreated:healthy',
+  'recreated:after-flow',
+  'recreated:idle',
+]
 export const STARTS = ['first', 'restart', 'recreated']
 export const PROBE_STEPS = {
   first: [
@@ -127,11 +136,12 @@ function startCheck(timings, label) {
   const [t] = records
   if (!isNumber(t.seconds)) return { result: 'unavailable', detail: t }
   // Healthy is the answer the server gave, as recorded: 200 with the status `ok`, never the producer's own flag (review
-  // of 4c63217). A start said ok with no answer recorded is incomplete; one said not ok has failed whatever it holds.
+  // of 4c63217). A start said ok with no answer recorded is incomplete; one said not ok has failed whatever it holds,
+  // a 200 and ok beside it included: the record contradicts itself (review of a42fe05).
   const healthy = t.health?.status === 200 && t.health?.reported === 'ok'
   if (!healthy && t.health == null && t.ok === true) return { result: 'unavailable', detail: t }
   // Within the bound and not negative: a negative duration is an impossible record, never a fast start (review of 9130676).
-  return { result: healthy && t.seconds >= 0 && t.seconds <= HEALTH_LIMIT_S ? 'passed' : 'failed', detail: t }
+  return { result: t.ok === true && healthy && t.seconds >= 0 && t.seconds <= HEALTH_LIMIT_S ? 'passed' : 'failed', detail: t }
 }
 
 /**

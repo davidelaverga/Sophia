@@ -835,6 +835,11 @@ describe('review of 4c63217: a start is judged by the health answer recorded, an
 
   it('a start said not ok fails, with or without an answer recorded', () => {
     assert.equal(resultOf(withStart(({ health, ...t }) => ({ ...t, ok: false, reason: 'deadline' })), 'restart:'), 'failed')
+    // Review of a42fe05: a 200 and ok beside a recorded failure is a record contradicting itself, never a pass.
+    const contradicted = withStart((t) => ({ ...t, ok: false, reason: 'deadline' }))
+    assert.deepEqual(contradicted.timings[1].health, { status: 200, reported: 'ok' })
+    assert.equal(resultOf(contradicted, 'restart:'), 'failed')
+    assert.equal(verdictOf(contradicted), 'failed')
   })
 
   it('every runtime command runs under an explicit bound, and each step’s budget outlasts their sum by a minute', () => {
@@ -945,5 +950,24 @@ describe('the receipt command reads every input the workflow writes, by its own 
       rmSync(join(dir, name))
       assert.notEqual(verdictIn(dir), 'qualified', `${name} missing`)
     }
+  })
+})
+
+describe('CX-0045: memory is read after the restart probe as after the others, every phase sampled once', () => {
+  const WORKFLOW = fileURLToPath(new URL('../../.github/workflows/paperclip-image.yml', import.meta.url))
+
+  it('the workflow samples exactly the memory phases the receipt requires, each once, the restart’s after its probe', () => {
+    const steps = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image.steps
+    const sampled = steps.flatMap((s) => [...(s.run ?? '').matchAll(/paperclip-image-cgroup\.mjs pc (\S+) /g)].map((m) => m[1]))
+    assert.deepEqual(sampled, PHASES)
+    const restart = steps.find((s) => s.name === 'Restart').run
+    assert.ok(restart.indexOf('--phase restart ') < restart.indexOf('pc restart:after-flow'))
+  })
+
+  it('a run without the sample after the restart probe is not qualified', () => {
+    const run = complete()
+    run.samples = run.samples.filter((s) => s.label !== 'restart:after-flow')
+    assert.equal(resultOf(run, 'memory, restart:after-flow'), 'not reached')
+    assert.equal(verdictOf(run), 'incomplete')
   })
 })
