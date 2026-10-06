@@ -227,6 +227,37 @@ const submits = (service) => service.calls.filter(([op]) => op === 'designSubmit
 const look = async (byName, tool = 'design_inspect_render') => (await byName[tool].execute({ names: NAMES }, exec())).receipt
 const submit = (byName, seen, call = exec()) => byName.design_submit_candidate.execute({ revisionId: REVISION, renderJobId: RENDER, seen }, call)
 const answer = (_role, body) => ({ deliveryId: body.deliveryId, renderJobId: RENDER, state: 'delivered', captures: body.attachments.map((a) => a.name) })
+/** What the recording service answers for the candidate it recorded. */
+const RECORDED = { outcome: 'reviewing', candidateId: '88888888-8888-4888-8888-888888888888', round: 1 }
+
+/**
+ * A service that records submits by call key as the database does (0040, 0043): a key it recorded is answered with
+ * what it recorded, whatever the body; a candidate, a pass or a request for revision that names no look is refused by
+ * the gate and records nothing. The first `lose` answers after a record are lost.
+ */
+function recordingService({ lose = 0 } = {}) {
+  const recorded = new Map()
+  let left = lose
+  const keep = (key, value) => {
+    recorded.set(key, value)
+    if (left-- > 0) throw new TypeError('fetch failed')
+    return value
+  }
+  const service = fakeService({
+    designSubmit: (body) => {
+      if (recorded.has(body.callId)) return keep(body.callId, recorded.get(body.callId))
+      if (body.candidate.seen.length === 0) return { outcome: 'refused', failures: ['you have not looked at these captures'] }
+      return keep(body.callId, RECORDED)
+    },
+    reviewSubmit: (body) => {
+      if (recorded.has(body.callId)) return keep(body.callId, recorded.get(body.callId))
+      if (body.result.seen.length === 0) return { outcome: 'coverage_incomplete', missing: ['w390-light.overview.1.png'] }
+      return keep(body.callId, { outcome: 'recorded', verdict: body.result.verdict })
+    },
+  })
+  return { ...service, recorded }
+}
+
 /** A service whose first `n` acknowledgements are recorded and then fail with `error` (the commit-then-drop path). */
 const failingFirst = (n, error) => {
   let left = n
@@ -273,31 +304,62 @@ test('a submit in the same batch as its inspection cannot name its receipt, so i
   const two = tools(parallel).byName
   await Promise.all([look(two), submit(two, [])])
   assert.equal(parallel.ops().includes('designDelivered'), false)
-  // A guessed receipt, or another role's, is refused: nothing acknowledged and nothing submitted.
-  const guessing = fakeService()
+  // A guessed receipt, or another role's, is refused: nothing acknowledged, and the submit goes out naming no look, so
+  // the service's gate records nothing (it can only answer what an earlier call recorded under the same key).
+  const guessing = fakeService({ designSubmit: () => ({ outcome: 'refused', failures: ['you have not looked at these captures'] }), reviewSubmit: () => ({ outcome: 'coverage_incomplete', missing: ['w390-light.overview.1.png'] }) })
   const three = tools(guessing)
   const designerReceipt = await look(three.byName)
   for (const seen of [['seen-AAAAAAAAAAAAAAAAAAAAAA'], [designerReceipt, 'seen-0123456789abcdefghijkl']]) {
     const out = await submit(three.byName, seen)
-    assert.deepEqual([out.code, /Nothing was submitted/.test(out.message)], ['unknown_receipt', true])
+    assert.deepEqual([out.code, /Nothing was recorded/.test(out.message)], ['unknown_receipt', true])
   }
   // In the same bridge: the designer's receipt is not the reviewer's, nor another session's.
   assert.equal((await three.byName.review_submit_result.execute({ verdict: 'pass', seen: [designerReceipt] }, exec())).code, 'unknown_receipt')
   const elsewhere = { ...exec(), session: { attemptId: 'a2', nativeSessionId: 'sophia-a2' } }
   assert.equal((await submit(three.byName, [designerReceipt], elsewhere)).code, 'unknown_receipt')
-  assert.deepEqual(guessing.ops(), ['designCapture'])
+  assert.deepEqual(guessing.ops(), ['designCapture', 'designSubmit', 'designSubmit', 'reviewSubmit', 'designSubmit'])
+  assert.ok(guessing.calls.slice(1).every(([, body]) => (body.candidate ?? body.result).seen.length === 0), 'naming no look')
 })
 
 test('a restart forgets every receipt: an old one is refused, and a new inspection counts', async () => {
-  const service = fakeService()
+  const service = recordingService()
   const before = await look(tools(service).byName)
   const restarted = tools(service).byName
   const out = await submit(restarted, [before])
   assert.equal(out.code, 'unknown_receipt')
-  assert.deepEqual(service.ops(), ['designCapture'], 'nothing acknowledged, nothing submitted')
+  assert.deepEqual(service.ops(), ['designCapture', 'designSubmit'], 'nothing acknowledged')
+  assert.deepEqual([submits(service)[0].candidate.seen, service.recorded.size], [[], 0], 'naming no look, so nothing recorded')
   const after = await look(restarted)
-  await submit(restarted, [after])
-  assert.deepEqual(service.ops(), ['designCapture', 'designCapture', 'designDelivered', 'designSubmit'])
+  assert.equal((await submit(restarted, [after])).outcome, 'reviewing')
+  assert.deepEqual(service.ops().slice(2), ['designCapture', 'designDelivered', 'designSubmit'])
+})
+
+test('a submit recorded before the bridge restarted, its answer lost, is answered with what was recorded (#117)', async () => {
+  // The candidate is recorded, and every answer to it is lost; the bridge restarts before the model submits again.
+  const service = recordingService({ lose: 4 })
+  const first = tools(service).byName
+  const seen = await look(first)
+  assert.match((await submit(first, [seen], exec('call_1'))).message, /may have been recorded/)
+  assert.equal(service.recorded.size, 1)
+  // The same submit, after the restart, under another tool call: its receipt is forgotten, so it names no look, and
+  // its derived key is the recorded one, so the service answers the candidate it recorded instead of refusing it.
+  const restarted = tools(service).byName
+  assert.deepEqual(await submit(restarted, [seen], exec('call_77')), RECORDED)
+  // So does a submit of the same revision and render resting on a new look, and one naming no look at all.
+  assert.deepEqual(await submit(restarted, [await look(restarted)], exec('call_78')), RECORDED)
+  assert.deepEqual(await submit(restarted, [], exec('call_79')), RECORDED)
+  assert.equal(new Set(submits(service).map((b) => b.callId)).size, 1, 'one call key throughout')
+  assert.equal(service.recorded.size, 1, 'recorded once')
+  // The reviewer's verdict the same way: recorded and lost, then sent again after a restart, whichever verdict.
+  const reviewing = recordingService({ lose: 4 })
+  const review = tools(reviewing, { role: reviewer }).byName
+  const looked = await look(review, 'review_inspect_render')
+  assert.match((await review.review_submit_result.execute({ verdict: 'pass', seen: [looked] }, exec('call_2'))).message, /may have been recorded/)
+  const again = tools(reviewing, { role: reviewer }).byName
+  for (const verdict of ['pass', 'needs_revision']) {
+    assert.deepEqual(await again.review_submit_result.execute({ verdict, findings: [], seen: [looked] }, exec(`call_${verdict}`)), { outcome: 'recorded', verdict: 'pass' })
+  }
+  assert.equal(reviewing.recorded.size, 1)
 })
 
 test('a cancelled inspection hands nothing over: no receipt, nothing to count', async () => {
@@ -398,28 +460,49 @@ test('a cancelled confirmation submits nothing and keeps its look for the next s
   assert.deepEqual(acks(service).map(([, body]) => body), [ACK, ACK])
 })
 
-test('a submit whose answer is lost is sent again under the same call key, within the call and by the next one', async () => {
+test('a submit is sent under a key derived from what it ends the task with, the same on every call and every bridge', async () => {
   let lose = 1
   const service = fakeService({ designSubmit: () => { if (lose-- > 0) throw new TypeError('fetch failed'); return { outcome: 'reviewing' } } })
   const { byName } = tools(service)
   const out = await submit(byName, [await look(byName)], exec('call_9'))
   assert.equal(out.outcome, 'reviewing')
-  assert.deepEqual(submits(service).map((b) => b.callId), ['call_9', 'call_9'])
-  // An answer that stays lost: the next submit of the same candidate is the same call; another submit is a new one.
+  const [key] = submits(service).map((b) => b.callId)
+  assert.match(key, /^sub-[0-9a-f]{40}$/, 'not the tool call\'s id')
+  assert.deepEqual(submits(service).map((b) => b.callId), [key, key])
+  // An answer that stays lost: the next submit of the same candidate is the same call, whatever it names as seen and
+  // whichever bridge sends it; a blocker, another render, another session or attempt is another call.
   lose = 4
   const unknown = await submit(byName, [], exec('call_10'))
   assert.match(unknown.message, /may have been recorded/)
-  await submit(byName, [], exec('call_11'))
+  await submit(tools(service).byName, [], exec('call_11'))
   await byName.design_report_blocker.execute({ reason: 'Cannot finish.' }, exec('call_12'))
-  assert.deepEqual(submits(service).slice(2).map((b) => b.callId), [...Array(4).fill('call_10'), 'call_10', 'call_12'])
+  await byName.design_report_blocker.execute({ reason: 'Another reason.' }, exec('call_13'))
+  const keys = submits(service).slice(2).map((b) => b.callId)
+  assert.deepEqual(keys.slice(0, 5), Array(5).fill(key))
+  assert.equal(keys[5], keys[6], 'one blocker, whatever its words')
+  assert.notEqual(keys[5], key)
+  await byName.design_submit_candidate.execute({ revisionId: REVISION, renderJobId: '77777777-7777-4777-8777-777777777777', seen: [] }, exec('call_14'))
+  assert.notEqual(submits(service).at(-1).callId, key, 'another render')
+  await submit(byName, [], { ...exec('call_15'), session: { attemptId: 'a2', nativeSessionId: 'sophia-a1' } })
+  assert.notEqual(submits(service).at(-1).callId, key, 'another attempt')
+  await submit(byName, [], { ...exec('call_16'), session: { attemptId: 'a1', nativeSessionId: 'sophia-a2' } })
+  assert.notEqual(submits(service).at(-1).callId, key, 'another session')
+  const reviewing = fakeService()
+  const review = tools(reviewing, { role: reviewer }).byName
+  await review.review_submit_result.execute({ verdict: 'needs_revision', findings: [] }, exec('call_17'))
+  await review.review_submit_result.execute({ verdict: 'pass' }, exec('call_18'))
+  await review.review_submit_result.execute({ verdict: 'blocked', reason: 'No capture loads.' }, exec('call_19'))
+  const verdicts = reviewing.calls.map(([, body]) => body.callId)
+  assert.deepEqual([verdicts[0] === verdicts[1], verdicts[1] === verdicts[2], verdicts.includes(key)], [true, false, false], 'one result, one blocker')
+  const lostCount = submits(service).length
   // A refusal is the service's answer, not unknown: asked once.
   const refusing = fakeService({ designSubmit: () => { throw new TransportError('POST /v1/runtime/design/submit answered 409 invalid_state', 409, 'invalid_state') } })
   const refused = await submit(tools(refusing).byName, [])
   assert.deepEqual([refused.code, submits(refusing).length], ['invalid_state', 1])
-  // A submit off the contract is never sent, so its outcome is known: refused, and no call key is kept for it.
-  const offContract = await byName.design_submit_candidate.execute({ revisionId: 'r1', renderJobId: RENDER, seen: [] }, exec('call_13'))
+  // A submit off the contract is never sent, so its outcome is known: refused.
+  const offContract = await byName.design_submit_candidate.execute({ revisionId: 'r1', renderJobId: RENDER, seen: [] }, exec('call_20'))
   assert.equal(offContract.code, 'invalid_request')
-  assert.equal(submits(service).length, 8, 'nothing sent')
+  assert.equal(submits(service).length, lostCount, 'nothing sent')
 })
 
 test('no image is stored or sent on a route without image input, or without an attachment service', async () => {

@@ -19,13 +19,15 @@
  * (the bridge stopped in between) counts for nothing. A submit made before the images arrived (in the same batch of tool calls, or after an inspection that was
  * cancelled or lost before its result reached the model) cannot name their receipt, so they do not count. The roles are
  * offered no tool that calls another, so a receipt reaches the model only in its inspection's own result. The bridge
- * keeps receipts in memory: after a restart it refuses the old ones and the model inspects again. Each acknowledgement,
- * and each submit, is sent unchanged until its outcome is known, within a deadline; an acknowledgement still unknown
- * submits nothing, and a submit still unknown is sent again under the same call key by the next identical submit.
+ * keeps receipts in memory: after a restart it does not know the old ones, and the model inspects again. Each
+ * acknowledgement, and each submit, is sent unchanged until its outcome is known, within a deadline; an acknowledgement
+ * still unknown submits nothing. A submit's call key is derived from what it ends the task with, not remembered, so a
+ * submit whose answer was lost is the same call when it is sent again, after a restart too (#117): the service records
+ * it at most once and answers what it recorded.
  * @module @sophia/dsh-bundle/design-tools
  */
 
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
@@ -149,19 +151,41 @@ const UNCONFIRMED = {
 /** What a submit answers when its own outcome stays unknown. */
 const SUBMIT_UNKNOWN = {
   code: 'service_unavailable',
-  message: 'The Sophia service\'s answer to this submit was lost: it may have been recorded. Submit exactly the same again after a pause; it is sent as the same call and recorded at most once.',
+  message: 'The Sophia service\'s answer to this submit was lost: it may have been recorded. Submit again after a pause, even after the ' +
+    'runtime restarts: the same revision and render, or the same kind of submit (a verdict, a blocker), is the same call, recorded at most once and answered with what was recorded.',
 } as const
 
-/** What a submit answers when it names a receipt this task's model was not handed. */
+/** What a submit answers when it names a receipt this task's model was not handed, and nothing had been recorded. */
 function unknownReceipts(receipts: readonly string[]): Json {
   return {
     code: 'unknown_receipt',
     message: `Not the receipt of an inspection you were shown in this task: ${receipts.slice(0, 4).join(', ')}. Each inspection ` +
-      'returns its receipt with its images, and the runtime forgets receipts when it restarts: inspect again and name the receipts it returns. Nothing was submitted.',
+      'returns its receipt with its images, and the runtime forgets receipts when it restarts: inspect again and name the receipts it returns. Nothing was recorded.',
   }
 }
 
 type Role = 'design' | 'review'
+
+/**
+ * The call key of a submit: the role, the attempt and session, and what the submit ends the task with (a candidate's
+ * revision and render, a review's result, or a blocker), hashed. It is derived, not remembered, so a submit sent again,
+ * by the next call or after the bridge restarts, is the same call (#117): the service answers what it recorded under it
+ * (a candidate, whatever it is then said to rest on; a verdict, whichever it then carries). A refused submit records
+ * nothing, so its key stays free for the next.
+ */
+function submitKeyOf(role: Role, session: DesignSession, what: readonly string[]): string {
+  const hash = createHash('sha256').update(JSON.stringify([role, session.attemptId, session.nativeSessionId, ...what]))
+  return `sub-${hash.digest('hex').slice(0, 40)}`
+}
+
+/**
+ * Whether a submit naming no look was answered with what an earlier call recorded under its key: the service's gate
+ * refuses a candidate, a pass or a request for revision that rests on no inspected capture, so only a replay records.
+ */
+function replayed(role: Role, value: unknown): boolean {
+  const outcome = (value as { outcome?: unknown } | null)?.outcome
+  return role === 'design' ? outcome !== undefined && outcome !== 'refused' : outcome === 'recorded'
+}
 
 /** A look handed to the model: whose it is, and the one acknowledgement that counts it, sent unchanged. */
 interface Look {
@@ -282,8 +306,6 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
 
   /** The looks handed to the models, by receipt, oldest first. */
   const looks = new Map<string, Look>()
-  /** Per role and session, the submit whose answer was lost: its content and the call key it is sent again under. */
-  const unanswered = new Map<string, { content: string; callId: string }>()
 
   /** Remember a look the model is being handed, under a new receipt that only its result will carry. */
   function handOver(look: Look): string {
@@ -295,16 +317,17 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
 
   /**
    * Acknowledge the looks a submit names by their receipts, each until its outcome is known, and return the deliveries
-   * the submission names (`seen`). A problem, and nothing acknowledged, when a receipt is not one of this session's
-   * model's looks; a problem when an acknowledgement stays unknown (it is sent again by the next submit naming it). A
-   * refused look is left out: it does not count, and the service's gate names what is missing.
+   * the submission names (`seen`). The strangers, and nothing acknowledged, when a receipt is not one of this session's
+   * model's looks (another's, a guess, or one the bridge forgot when it restarted); a problem when an acknowledgement
+   * stays unknown (it is sent again by the next submit naming it). A refused look is left out: it does not count, and
+   * the service's gate names what is missing.
    */
-  async function confirmSeen(role: Role, session: DesignSession, seen: readonly string[], stop: AbortSignal): Promise<{ problem: Json } | { deliveries: string[] }> {
+  async function confirmSeen(role: Role, session: DesignSession, seen: readonly string[], stop: AbortSignal): Promise<{ problem: Json } | { strangers: string[] } | { deliveries: string[] }> {
     if (seen.length > MAX_SEEN) return { problem: { code: 'invalid_request', message: `A submit names at most ${MAX_SEEN} receipts.` } }
     const owner = ownerOf(role, session)
     const named = [...new Set(seen)].map((receipt) => [receipt, looks.get(receipt)] as const)
     const strangers = named.filter(([, look]) => look?.owner !== owner).map(([receipt]) => receipt)
-    if (strangers.length > 0) return { problem: unknownReceipts(strangers) }
+    if (strangers.length > 0) return { strangers }
     const deliveries: string[] = []
     for (const [, look] of named) {
       if (!look) continue
@@ -324,23 +347,19 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
   }
 
   /**
-   * Send a submit until its outcome is known, under one call key. When its answer stays unknown, the next submit of
-   * exactly the same content in this session is sent under the same key, so the service records it at most once. A
-   * request off the contract is refused here: it is never sent, so its outcome is known.
+   * Send a submit until its outcome is known, under the call key derived from what it ends the task with (`what`), so
+   * the service records it at most once however often it is sent. A request off the contract is refused here: it is
+   * never sent, so its outcome is known. A submit that named receipts this model was not handed (`strangers`) is sent
+   * naming no look: it can only be answered with what an earlier call recorded under its key (a submit whose answer was
+   * lost before the bridge restarted); anything else is the unknown receipts, and nothing recorded.
    */
-  async function submitOnce<B>(role: Role, session: DesignSession, exec: ToolRunContext, content: object, valid: WireValidator<B>, post: (body: B, signal: AbortSignal) => Promise<unknown>): Promise<Json> {
-    const owner = ownerOf(role, session)
-    const text = JSON.stringify(content)
-    const earlier = unanswered.get(owner)
-    const body = { ...ids(session), callId: earlier?.content === text ? earlier.callId : callKeyOf(exec.callId), ...content }
+  async function submitOnce<B>(role: Role, session: DesignSession, exec: ToolRunContext, what: readonly string[], content: object,
+    valid: WireValidator<B>, post: (body: B, signal: AbortSignal) => Promise<unknown>, strangers: readonly string[] | null = null): Promise<Json> {
+    const body = { ...ids(session), callId: submitKeyOf(role, session, what), ...content }
     if (!valid(body)) return { code: 'invalid_request', message: MESSAGES.invalid_request! }
-    const callId = body.callId
     const outcome = await untilKnown((signal) => post(body, signal), () => true, patience.submit, exec.signal, false)
-    if (outcome === null) {
-      unanswered.set(owner, { content: text, callId })
-      return { ...SUBMIT_UNKNOWN }
-    }
-    unanswered.delete(owner)
+    if (outcome === null) return { ...SUBMIT_UNKNOWN }
+    if (strangers && !('value' in outcome && replayed(role, outcome.value))) return unknownReceipts(strangers)
     return 'value' in outcome ? asJson(outcome.value) : serviceProblem(outcome.refusal)
   }
 
@@ -565,7 +584,8 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     description:
       'Submit a candidate: your latest revision and a whole-page render of exactly it that passed the hard gate. Refused ' +
       'with the gate\'s reasons (nothing recorded) otherwise. It then goes to a separate visual reviewer, or is published ' +
-      'labelled as checked by software only when no reviewer is available. You cannot publish or review it yourself.',
+      'labelled as checked by software only when no reviewer is available. You cannot publish or review it yourself. A ' +
+      'revision and render are one candidate: submitting them again is answered with what was recorded for them.',
     parameters: {
       revisionId: { type: 'string', required: true },
       renderJobId: { type: 'string', required: true },
@@ -577,8 +597,10 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
       const session = sessionOf(exec)
       const confirmed = await confirmSeen('design', session, args.seen ?? [], exec.signal)
       if ('problem' in confirmed) return confirmed.problem
-      const candidate = { revisionId: args.revisionId, renderJobId: args.renderJobId, ...(args.summary ? { summary: args.summary } : {}), seen: confirmed.deliveries }
-      return submitOnce('design', session, exec, { candidate }, wire.DesignSubmitRequest, (body, signal) => deps.client.designSubmit(body, signal))
+      const seen = 'deliveries' in confirmed ? confirmed.deliveries : []
+      const candidate = { revisionId: args.revisionId, renderJobId: args.renderJobId, ...(args.summary ? { summary: args.summary } : {}), seen }
+      return submitOnce('design', session, exec, ['candidate', String(args.revisionId), String(args.renderJobId)], { candidate }, wire.DesignSubmitRequest,
+        (body, signal) => deps.client.designSubmit(body, signal), 'strangers' in confirmed ? confirmed.strangers : null)
     },
   })
 
@@ -593,7 +615,7 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
       const blocker = { reason: args.reason, ...(args.remainingWork ? { remainingWork: args.remainingWork } : {}) }
-      return submitOnce('design', session, exec, { blocker }, wire.DesignSubmitRequest, (body, signal) => deps.client.designSubmit(body, signal))
+      return submitOnce('design', session, exec, ['blocker'], { blocker }, wire.DesignSubmitRequest, (body, signal) => deps.client.designSubmit(body, signal))
     },
   })
 
@@ -650,14 +672,16 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
       const session = sessionOf(exec)
       if (args.verdict === 'blocked') {
         const blocker = { reason: args.reason ?? args.summary ?? 'The candidate could not be judged.' }
-        return submitOnce('review', session, exec, { blocker }, wire.ReviewSubmitRequest, (body, signal) => deps.client.reviewSubmit(body, signal))
+        return submitOnce('review', session, exec, ['blocker'], { blocker }, wire.ReviewSubmitRequest, (body, signal) => deps.client.reviewSubmit(body, signal))
       }
       const confirmed = await confirmSeen('review', session, args.seen ?? [], exec.signal)
       if ('problem' in confirmed) return confirmed.problem
       type Finding = { severity: 'blocking' | 'major' | 'minor'; issue: string; fix?: string; target?: 'w390-light' | 'w1280-light'; section?: string; capture?: string }
       const findings = (args.findings ?? []).map((f: Finding) => ({ ...f }))
-      const result = { verdict: args.verdict, findings, ...(args.summary ? { summary: args.summary } : {}), seen: confirmed.deliveries }
-      return submitOnce('review', session, exec, { result }, wire.ReviewSubmitRequest, (body, signal) => deps.client.reviewSubmit(body, signal))
+      const seen = 'deliveries' in confirmed ? confirmed.deliveries : []
+      const result = { verdict: args.verdict, findings, ...(args.summary ? { summary: args.summary } : {}), seen }
+      return submitOnce('review', session, exec, ['result'], { result }, wire.ReviewSubmitRequest, (body, signal) => deps.client.reviewSubmit(body, signal),
+        'strangers' in confirmed ? confirmed.strangers : null)
     },
   })
 
