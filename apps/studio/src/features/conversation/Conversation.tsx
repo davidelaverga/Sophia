@@ -69,9 +69,10 @@ export function Conversation(props: Props) {
           entries={discussion}
           me={me}
           names={names}
-          replies={replies}
+          replies={replies.of}
           onReply={VISION ? setReplying : undefined}
         />
+        {VISION && discussion.length > 0 && <RepliesState failed={replies.failed} onRetry={replies.retry} />}
         {timeline.length > 0 && (
           <ol className="chat-messages" aria-label="Conversation with Sophia">
             {timeline.map((entry) => (
@@ -101,15 +102,63 @@ export function Conversation(props: Props) {
   )
 }
 
-/** Which entries of the discussion answer which (A20, proposed; the vision flag's), read again as the feed moves. */
+/**
+ * Which entries of the discussion answer which (A20, proposed; the vision flag's), read again as the feed moves. A read
+ * that fails says so: without it, every reply would pass for a message on its own.
+ */
 function useReplies(projectId: string, identity: Identity, cursor: string | undefined) {
   const read = useQuery({
     queryKey: ['vision', 'replies', projectId, identity.name, cursor],
     queryFn: ({ signal }) => listReplies(identity.token, projectId, signal),
     placeholderData: keepPreviousData,
     enabled: VISION,
+    retry: 1,
   })
-  return new Map((read.data?.replies ?? []).map((r) => [r.entryId, r.replyTo]))
+  // A failure stays said until a read succeeds: the read the next message starts is no news yet, and the line neither
+  // blinks nor is read out again with every message. The last links read stay meanwhile.
+  const [seen, setSeen] = useState<{ last: typeof read.data; failed: boolean }>({ last: undefined, failed: false })
+  const fresh = read.isSuccess && !read.isPlaceholderData ? read.data : undefined
+  if (fresh !== undefined && (fresh !== seen.last || seen.failed)) setSeen({ last: fresh, failed: false })
+  else if (read.isError && !seen.failed) setSeen({ last: seen.last, failed: true })
+  return {
+    of: new Map(((read.data ?? seen.last)?.replies ?? []).map((r) => [r.entryId, r.replyTo])),
+    failed: seen.failed,
+    // A press while a read goes joins it rather than starting over.
+    retry: () => void read.refetch({ cancelRefetch: false }),
+  }
+}
+
+/**
+ * Whether what answers what was read, said under the discussion: a failure, with a way to read it again. The line stays
+ * in the page, empty, for its words to be read when they come.
+ */
+function RepliesState({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
+  const pressed = useRef(false)
+  useEffect(() => {
+    if (failed || !pressed.current) return
+    pressed.current = false
+    // Try again went with the failure: the focus it held goes to the message field, the next thing to use.
+    if (document.activeElement === document.body) document.getElementById('converse-draft')?.focus()
+  }, [failed])
+  return (
+    <p className="chat-status replies-state" role="status">
+      {failed && (
+        <>
+          Replies didn’t load, so messages show without what they answer.{' '}
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => {
+              pressed.current = true
+              onRetry()
+            }}
+          >
+            Try again
+          </button>
+        </>
+      )}
+    </p>
+  )
 }
 
 function entryKey(entry: ChatEntryItem): string {

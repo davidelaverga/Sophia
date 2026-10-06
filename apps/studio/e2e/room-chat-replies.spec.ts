@@ -146,6 +146,120 @@ test('replies · a reply to a message no longer in the discussion is refused, an
   await expect(bar(page)).toHaveValue('Too late to answer')
 })
 
+test('replies · a reply chosen while the last one is sending stays, and the next goes as that reply', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.say('Two pages, then, with the sources at the end.'))
+  await expect(entries(page)).toHaveCount(2)
+  await page.evaluate(() => window.fixture?.holdMessages(true))
+  await entries(page)
+    .first()
+    .getByRole('button', { name: /^Reply to / })
+    .click()
+  await bar(page).fill('One page.')
+  await bar(page).press('Enter')
+  // While it goes, the second message is answered.
+  await entries(page)
+    .nth(1)
+    .getByRole('button', { name: /^Reply to / })
+    .click()
+  await expect(chip(page)).toContainText('Two pages, then')
+  await page.evaluate(() => window.fixture?.releaseMessages())
+  // Recorded: the bar lets go of what was sent, and the reply chosen meanwhile stays.
+  await expect(bar(page)).toHaveValue('')
+  await expect(chip(page)).toContainText('Two pages, then')
+  await bar(page).fill('Sources at the end, agreed.')
+  await bar(page).press('Enter')
+  await expect(entries(page)).toHaveCount(4)
+  await expect(entries(page).last().locator('.contribution-quote')).toContainText('Two pages, then')
+})
+
+test('replies · a failed read of the links says so, and Try again brings the quotes back', async ({ page }) => {
+  await enter(page)
+  await entries(page)
+    .first()
+    .getByRole('button', { name: /^Reply to / })
+    .click()
+  await page.evaluate(() => window.fixture?.failReplies(true))
+  await bar(page).fill('Agreed: one page.')
+  await bar(page).press('Enter')
+  await expect(entries(page)).toHaveCount(2)
+  const failed = page.getByText(/^Replies didn’t load/)
+  await expect(failed).toBeVisible()
+  await expect(entries(page).last()).toContainText('Agreed: one page.')
+  await page.evaluate(() => window.fixture?.failReplies(false))
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await expect(entries(page).last().locator('.contribution-quote')).toContainText('Let us keep the report')
+  await expect(failed).toHaveCount(0)
+  // Try again went with the line: the focus it held is at the message field, not lost to the page.
+  await expect(bar(page)).toBeFocused()
+})
+
+test('replies · the failure stays put as messages come: no blink, not read out again', async ({ page }) => {
+  await enter(page)
+  // The line is in the page before anything fails, empty, so its words are read out when they come.
+  await expect(page.locator('.replies-state[role="status"]')).toBeEmpty()
+  await entries(page)
+    .first()
+    .getByRole('button', { name: /^Reply to / })
+    .click()
+  await bar(page).fill('Agreed: one page.')
+  await bar(page).press('Enter')
+  const quote = entries(page).nth(1).locator('.contribution-quote')
+  await expect(quote).toContainText('Let us keep the report')
+  await page.evaluate(() => window.fixture?.failReplies(true))
+  await page.evaluate(() => window.fixture?.say('Two pages, then.'))
+  const failed = page.getByText(/^Replies didn’t load/)
+  await expect(failed).toBeVisible()
+  // The links read before stay: a reply read well a moment ago doesn't turn into a message on its own.
+  await expect(quote).toContainText('Let us keep the report')
+  // Every change to the line from here on, as a screen reader would hear it.
+  await page.evaluate(() => {
+    const history = document.querySelector('.conversation-history')
+    const said = () => document.querySelector('.replies-state')?.textContent ?? 'gone'
+    const heard: string[] = []
+    let last = said()
+    Object.assign(window, { heard })
+    const note = () => {
+      if (said() !== last) heard.push((last = said()))
+    }
+    if (history) new MutationObserver(note).observe(history, { subtree: true, childList: true, characterData: true })
+  })
+  const reads = async () => (await served(page)).filter((s) => s === 'replies:failed').length
+  const before = await reads()
+  await page.evaluate(() => window.fixture?.say('Sources at the end.'))
+  await expect(entries(page)).toHaveCount(4)
+  // The new message's read and its one retry both fail.
+  await expect.poll(reads).toBeGreaterThanOrEqual(before + 2)
+  await expect(failed).toBeVisible()
+  expect(await page.evaluate(() => (window as unknown as { heard: string[] }).heard)).toEqual([])
+})
+
+test('replies · with nothing in the discussion, no word about replies', async ({ page }) => {
+  await page.goto('/room.html?call=on&exchange=open')
+  await expect(leave(page)).toBeVisible()
+  await page.evaluate(() => window.fixture?.failReplies(true))
+  await page.evaluate(() => window.fixture?.update())
+  await expect.poll(async () => (await served(page)).includes('replies:failed')).toBe(true)
+  await chatToggle(page).click()
+  await expect(page.getByText('Messages stay in this conversation.', { exact: false })).toBeVisible()
+  // Not even the empty line that would say it: nothing here is a reply.
+  await expect(page.locator('.replies-state')).toHaveCount(0)
+})
+
+test('replies · ✕ gives the focus back to the message field', async ({ page }) => {
+  await enter(page)
+  await entries(page)
+    .first()
+    .getByRole('button', { name: /^Reply to / })
+    .click()
+  await chip(page).getByRole('button', { name: 'Stop replying' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(chip(page)).toHaveCount(0)
+  await expect(bar(page)).toBeFocused()
+})
+
 test('replies · controls are at least 24 px with a reply under way and a quote shown', async ({ page }) => {
   await enter(page)
   await entries(page)

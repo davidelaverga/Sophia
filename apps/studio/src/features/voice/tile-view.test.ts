@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { tilesFor } from './tile-view.ts'
+import { arrivalOrder, tilesFor } from './tile-view.ts'
 
 const person = (identity: string, over: { speaking?: boolean; local?: boolean } = {}) => ({
   identity,
@@ -40,5 +40,26 @@ describe('tilesFor', () => {
     ])
     const { shown } = tilesFor(nine, { floor: null, showing: null, spokeAt }, 4)
     assert.deepEqual(ids(shown), ['c', 'h', 'i'])
+  })
+
+  it('then the order they came in, whatever order the list is in', () => {
+    const arrived = ['i', 'g', 'e', 'c', 'a', 'b', 'd', 'f', 'h']
+    const { shown, more } = tilesFor(nine, { ...nobody, arrived }, 4)
+    // Shown in the list's order: the kept move only when who keeps a tile changes.
+    assert.deepEqual(ids(shown), ['e', 'g', 'i'])
+    assert.deepEqual(ids(more), ['a', 'b', 'c', 'd', 'f', 'h'])
+  })
+})
+
+describe('arrivalOrder', () => {
+  it('by when they joined, unknown last, ties by identity, whatever order LiveKit lists them in', () => {
+    const people = [
+      { identity: 'c', joinedAt: 30 },
+      { identity: 'a' },
+      { identity: 'd', joinedAt: 10 },
+      { identity: 'b', joinedAt: 10 },
+      { identity: '0' },
+    ]
+    assert.deepEqual(arrivalOrder(people), ['b', 'd', 'c', '0', 'a'])
   })
 })

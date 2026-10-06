@@ -44,7 +44,15 @@ function useReply(
   const replying = props.replying ?? null
   const stop = props.onStopReplying ?? NOTHING
   useReplyBar(replying, bar, field, stop)
-  return { replying, stop, underWay: { id: replying?.id ?? null, done: stop } }
+  return {
+    replying,
+    underWay: { id: replying?.id ?? null, done: stop },
+    /** ✕: the reply goes and its button with it, so the focus goes to the field, the words kept. */
+    stopHere: () => {
+      stop()
+      field.current?.focus({ preventScroll: true })
+    },
+  }
 }
 
 function useChatStart({ projectId, identity, room }: Pick<Props, 'projectId' | 'identity' | 'room'>) {
@@ -366,7 +374,7 @@ export function Composer(props: Props) {
       {!bar && (
         <ChatStart starting={starting} ready={room.ready && room.status !== 'joining'} onStart={() => void begin()} />
       )}
-      <ReplyingTo replying={reply.replying} onStop={reply.stop} />
+      <ReplyingTo replying={reply.replying} onStop={reply.stopHere} />
       <MessageBar
         field={field}
         draft={draft}

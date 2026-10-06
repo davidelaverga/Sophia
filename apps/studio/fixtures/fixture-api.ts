@@ -70,6 +70,10 @@ interface Project {
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
   loseContributionReply?: boolean
+  /** While set, messages land but their replies wait for `releaseMessages` (`window.fixture.holdMessages`). */
+  messagesHeld?: (() => void)[] | null
+  /** A20's replies read fails as the API's `unavailable` (`window.fixture.failReplies`). */
+  failReplies?: boolean
   /** How many versions of the fixture report are published (report-data.ts). */
   reportVersions: number
   /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
@@ -731,6 +735,13 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
     stage: 'recorded',
   }
   map.set(key, { text: body.text, receipt })
+  return contributionAnswer(project, receipt)
+}
+
+/** A message's reply: at once, held until `releaseMessages`, or lost on the way. */
+function contributionAnswer(project: Project, receipt: ContributionReceipt): Response | Promise<Response> {
+  const held = project.messagesHeld
+  if (held) return new Promise((resolve) => held.push(() => resolve(recorded(receipt))))
   if (!project.loseContributionReply) return recorded(receipt)
   project.loseContributionReply = false
   return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
@@ -810,6 +821,10 @@ const noLongerThere = () =>
 
 /** A20's proposed read: which entries answer which, with the original's first words (an excerpt, as recorded). */
 function repliesRead(project: Project) {
+  if (project.failReplies) {
+    served.push('replies:failed')
+    return unavailable()
+  }
   const replies = project.messages.flatMap((m, n) =>
     typeof m === 'string' || !m.replyTo ? [] : [{ entryId: idOf(m, n), replyTo: m.replyTo }],
   )

@@ -14,7 +14,7 @@ import {
   type RoomParticipant,
   type StageMode,
 } from './room-view.ts'
-import { GALLERY_TILES, STRIP_TILES, tilesFor } from './tile-view.ts'
+import { arrivalOrder, GALLERY_TILES, STRIP_TILES, tilesFor } from './tile-view.ts'
 
 function VideoView({ feed, fit }: { feed: VideoFeed; fit: 'cover' | 'contain' }) {
   const video = useRef<HTMLVideoElement>(null)
@@ -71,7 +71,8 @@ export function VideoStage({ mode, people, feeds, floor, shown }: Props) {
   const screen = feeds.find((f) => f.source === 'screen')
   const cameraOf = (identity: string) => feeds.find((f) => f.identity === identity && f.source === 'camera')
   const present = mode === 'present' && (screen !== undefined || shown !== undefined)
-  const { kept, more, count } = useKeptTiles(people, floor, screen?.identity ?? null, present)
+  const arrived = arrivalOrder(people)
+  const { kept, more, count } = useKeptTiles(people, { floor, showing: screen?.identity ?? null, arrived }, present)
   // Held here, not in «+N»: the tiles move between the strip and the gallery, and the sheet stays open across.
   const [everyone, setEveryone] = useState(false)
   const tiles = (
@@ -118,28 +119,33 @@ export function VideoStage({ mode, people, feeds, floor, shown }: Props) {
 }
 
 /** The people with a tile, the rest past them («+N»), and how many tiles the gallery lays out (Sophia's too). */
-function useKeptTiles(people: RoomParticipant[], floor: FloorView, showing: string | null, present: boolean) {
+function useKeptTiles(
+  people: RoomParticipant[],
+  stage: { floor: FloorView; showing: string | null; arrived: readonly string[] },
+  present: boolean,
+) {
   const spokeAt = useSpokeAt(people)
-  const order = { floor: floor.holder?.identity ?? null, showing, spokeAt }
+  const order = { floor: stage.floor.holder?.identity ?? null, showing: stage.showing, spokeAt, arrived: stage.arrived }
   const { shown: kept, more } = tilesFor(people, order, present ? STRIP_TILES : GALLERY_TILES)
   return { kept, more, count: kept.length + 1 + (more.length > 0 ? 1 : 0) }
 }
 
-/** When each person last spoke, on this page's clock: who spoke most recently keeps a tile next (tile-view.ts). */
+/** Who spoke when, in turns (each change in who speaks is one): who spoke last keeps a tile next (tile-view.ts). */
 function useSpokeAt(people: readonly RoomParticipant[]): ReadonlyMap<string, number> {
-  const spokeAt = useRef(new Map<string, number>())
-  const before = useRef<readonly string[]>([])
   const speaking = people
     .filter((p) => p.speaking)
     .map((p) => p.identity)
     .join(' ')
-  // Stamped as someone speaks and again as they stop: whoever talked last, not whoever began last, ranks first.
-  useEffect(() => {
-    const now = speaking.split(' ').filter(Boolean)
-    for (const identity of [...now, ...before.current]) spokeAt.current.set(identity, Date.now())
-    before.current = now
-  }, [speaking])
-  return spokeAt.current
+  const [seen, setSeen] = useState(() => ({ speaking: '', turn: 0, spokeAt: new Map<string, number>() }))
+  // Each change in who speaks stamps those still speaking: whoever talked last, not whoever began last, ranks first.
+  // Stamped in the render that sees the change, so the tiles follow at once.
+  if (seen.speaking !== speaking) {
+    const turn = seen.turn + 1
+    const spokeAt = new Map(seen.spokeAt)
+    for (const identity of speaking.split(' ').filter(Boolean)) spokeAt.set(identity, turn)
+    setSeen({ speaking, turn, spokeAt })
+  }
+  return seen.spokeAt
 }
 
 /** The people past the tiles: «+N», which opens everyone in the call; its name says what it shows. */
