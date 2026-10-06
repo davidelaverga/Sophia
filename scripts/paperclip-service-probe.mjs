@@ -216,7 +216,7 @@ async function runLocal() {
     const found = await flow.lookup(op, ids)
     assert.deepEqual([found.outcome, found.issueId, found.status], ['found', issueId, 'cancelled'])
     const refused = await flow.signUpRefused()
-    report.push(`restarted (health ${second.status}): the plugin ready again from its path with its configuration unchanged, sophia_dsh loaded again, the lookup found the same issue (cancelled), sign-up refused (${refused})`)
+    report.push(`restarted (health ${second.status}): the plugin ready again from its path with its configuration unchanged, sophia_dsh loaded again, the lookup found the same issue (cancelled), sign-up refused (${refused.status} ${refused.code})`)
     phase = 'idle'
     await sleep(30_000)
     await stop()

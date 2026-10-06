@@ -150,7 +150,8 @@ const FACTS = {
       f.outcome === 'found' && f.issueId === first['signed commission and its resend']?.issueId && f.status === 'cancelled',
     'commission resend answered by the same issue': (f, _all, first) =>
       f.outcome === 'existing' && f.issueId === first['signed commission and its resend']?.issueId,
-    'sign-up refused': (f) => isNumber(f.status) && f.status >= 400 && f.status < 500,
+    // As the pin's auth refuses it, not any client error (review of 08c2915).
+    'sign-up refused': (f) => f.status === 400 && f.code === 'EMAIL_PASSWORD_SIGN_UP_DISABLED',
     'host-name guard': (f) => f.privateName === 200 && f.otherName === 403,
   },
 }

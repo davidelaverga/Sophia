@@ -53,7 +53,7 @@ const FACTS = {
     'config unchanged': { before: CONFIG, after: CONFIG },
     'same issue found, still cancelled': { outcome: 'found', issueId: ISSUE, status: 'cancelled' },
     'commission resend answered by the same issue': { outcome: 'existing', issueId: ISSUE },
-    'sign-up refused': { status: 400 },
+    'sign-up refused': { status: 400, code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' },
     'host-name guard': { privateName: 200, otherName: 403 },
   },
 }
@@ -176,6 +176,15 @@ describe('the image qualification receipt (WBC-02-CX-0036)', () => {
     assert.equal(verdictOf(stepFailed), 'failed')
     assert.equal(verdictOf(withFacts('first', 'signed commission and its resend', (f) => ({ ...f, resend: 'created' }))), 'failed')
     assert.equal(verdictOf(withFacts('restarted', 'sign-up refused', () => ({ status: 200 }))), 'failed')
+    // Review of 08c2915: a client error that is not the auth's refusal is not sign-up closed.
+    for (const refusal of [
+      { status: 404, code: null },
+      { status: 429, code: null },
+      { status: 400, code: 'VALIDATION_ERROR' },
+      { status: 403, code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' },
+      { status: 400 },
+    ])
+      assert.equal(verdictOf(withFacts('restarted', 'sign-up refused', () => refusal)), 'failed', JSON.stringify(refusal))
   })
 
   it('review of the correction: the group-OOM counter must be recorded, and zero', () => {

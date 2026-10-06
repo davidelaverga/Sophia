@@ -98,7 +98,7 @@ In run 6, every phase again had `memory.max` 2,147,483,648, `memory.swap.max` 0,
   - the same plugin ready again, with an unchanged configuration digest;
   - the same issue found, still cancelled;
   - the commission's resend answered by that issue;
-  - a new sign-up refused (400);
+  - a new sign-up refused (400; from the review of `08c2915` the probe and the receipt also require the auth's own code, `EMAIL_PASSWORD_SIGN_UP_DISABLED`);
   - the host-name guard again.
 
 **The home** held 4 files in runs 1, 2, 4, 5 and 6. All 4 were still there after the recreation, with the same size and digest. None of them was a growing record. In run 5, the first with the single-read scan and the coverage fields, each snapshot listed and hashed 4 of 4 files, with none unread and no directory unread. Run 6 did the same through the final snapshot: the container paused, the volume scanned read-only by a disposable scanner container, then unpaused, in about 0.3 s each time. The snapshot has no fallback, so a failed pause, scan or unpause would have failed the step.
@@ -138,6 +138,7 @@ The review rounds and their tests:
 | review of `3db6ef9` | the root scan could be led out of the volume | a swapped directory, a swapped FIFO, the pause and scan calls; 36 mutations in force |
 | review of `34bdf76` | the evidence uploaded whatever the scrub did | the scrub through its command, a value left after rewriting, a link in the evidence, the workflow's gate; 4 mutations |
 | review of `215b276` | the probe's own credentials (its passwords, session cookie and board key) unknown to the scrub | the flow against a stand-in server, the probe command with `--secrets`, the sink, credential-named fields, the workflow's wiring; 12 mutations |
+| review of `08c2915` | any client error read as sign-up closed | the pin's own refusal required (better-auth 1.7.2: 400, `EMAIL_PASSWORD_SIGN_UP_DISABLED`), by the probe and the receipt; 404, 429, another 400 code and a 403 all refused; 3 mutations |
 
 Each mutation in force is caught. The scan tests read `/proc` and run on Linux only.
 

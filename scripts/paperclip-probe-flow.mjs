@@ -9,6 +9,8 @@ import { exchange, until } from './paperclip-probe-http.mjs'
 export { until }
 
 export const PRIVATE_NAME = 'paperclip-private'
+/** How the pin's auth (better-auth 1.7.2, sign-up.mjs) refuses an email sign-up while sign-up is disabled. */
+export const SIGN_UP_DISABLED = Object.freeze({ status: 400, code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' })
 export const REQUEST_TIMEOUT_MS = 20_000
 
 export const hex = (bytes) => randomBytes(bytes).toString('hex')
@@ -209,14 +211,18 @@ export function flowFor(
     return reply.json
   }
 
-  /** A new sign-up, once the server runs with sign-up closed: refused. */
+  /**
+   * A new sign-up, once the server runs with sign-up closed: refused as the pin's auth refuses it (better-auth: 400,
+   * code EMAIL_PASSWORD_SIGN_UP_DISABLED), not by any client error (a missing route, a throttle; review of 08c2915).
+   */
   const signUpRefused = async () => {
     const late = await call('POST', '/api/auth/sign-up/email', {
       body: { email: 'late@example.invalid', password: secret(hex(16)), name: 'Late' },
       headers: { origin },
     })
-    assert.ok(late.status >= 400, `sign-up after close: ${late.status}`)
-    return late.status
+    const refusal = { status: late.status, code: late.json?.code ?? null }
+    assert.deepEqual(refusal, SIGN_UP_DISABLED, `sign-up after close: ${late.status} ${late.text.slice(0, 200)}`)
+    return refusal
   }
 
   return { identity, call, health, hostGuard, bootstrap, pluginStatus, plugin, configDigest, commission, stop, scheduledJob, lookup, signUpRefused }

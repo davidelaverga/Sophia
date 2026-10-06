@@ -124,7 +124,8 @@ describe('every credential the probe makes or is given is handed over for the sc
         const json = body ? JSON.parse(body) : {}
         if (req.url === '/api/auth/sign-up/email') {
           received.push(json.password)
-          if (json.email.startsWith('late')) return res.writeHead(400).end('{}')
+          if (json.email.startsWith('late'))
+            return res.writeHead(400).end(JSON.stringify({ code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED', message: 'Email and password sign up is not enabled' }))
           res.writeHead(200, { 'set-cookie': ['better-auth.session_token=cookie-value-0123; Path=/; HttpOnly'] })
           return res.end(JSON.stringify({ user: { id: 'user-1' } }))
         }
@@ -139,8 +140,25 @@ describe('every credential the probe makes or is given is handed over for the sc
     assert.equal(op.token, 'pcp_board-key-0123456789')
     assert.deepEqual(reported, [received[0], 'cookie-value-0123', 'pcp_board-key-0123456789'])
     assert.match(received[0], /^[0-9a-f]{32}$/)
-    await flow.signUpRefused()
+    assert.deepEqual(await flow.signUpRefused(), { status: 400, code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' })
     assert.deepEqual(reported.slice(3), [received[1]])
+  })
+
+  it('review of 08c2915: sign-up counts as closed only on the pin’s own refusal, not on any client error', async () => {
+    const answers = [
+      [404, '{}'],
+      [429, '{"message":"Too many requests"}'],
+      [400, '{"code":"VALIDATION_ERROR","message":"Invalid email"}'],
+      [403, '{"code":"EMAIL_PASSWORD_SIGN_UP_DISABLED"}'],
+    ]
+    for (const [status, body] of answers) {
+      const port = await serve((req, res) => {
+        req.resume()
+        req.on('end', () => res.writeHead(status).end(body))
+      })
+      const flow = flowFor({ port, origin: `http://127.0.0.1:${port}`, pluginPath: '/nonexistent' })
+      await assert.rejects(flow.signUpRefused(), /sign-up after close/, `${status} ${body}`)
+    }
   })
 
   it('the probe command, with --secrets, lists what the server received and issued, even when a later step fails', async () => {

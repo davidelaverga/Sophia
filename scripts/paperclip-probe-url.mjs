@@ -166,6 +166,6 @@ async function restarted(target, statePath, waitMs, step) {
     },
     seen,
   )
-  await step('sign-up refused', () => flow.signUpRefused(), (status) => ({ status }))
+  await step('sign-up refused', () => flow.signUpRefused(), (refusal) => ({ status: refusal.status, code: refusal.code }))
   await step('host-name guard', () => flow.hostGuard(), seen)
 }
