@@ -36,7 +36,10 @@ const takenBack: string[] = []
 window.personalFixture = { sent, pressed, carried, takenBack }
 /** `carryFails=N`: the Nth carry fails, once (a package stops there); `carryLost=N`: it lands, its reply lost. */
 let carries = 0
+/** `takeBackFails=N`: the Nth take-back fails, once; `takeBackLost=N`: it lands, its reply lost. */
 let takes = 0
+/** Each release taken back, and the key it was taken back under: asked again, the API answers by that key. */
+const takeKeys = new Map<string, string | undefined>()
 // `at=HH:MM`: the fixture's clock stands at that time today (her light follows the hour).
 const NOW = ((at) => {
   const [, h, m] = /^(\d{1,2}):(\d{2})$/.exec(at ?? '')?.map(Number) ?? []
@@ -208,10 +211,19 @@ function carryWritesFor(setSpace: (next: (s: Space) => Space) => void): Pick<Per
       }
       return Promise.resolve({ ...receipt('carry_note'), releaseId: `release-${noteId}`, projectId })
     },
-    takeBack: (releaseId) => {
+    takeBack: (releaseId, key) => {
       takes += 1
       if (takes === Number(query.get('takeBackFails'))) return Promise.reject(new TypeError('Failed to fetch'))
+      if (takeKeys.has(releaseId)) {
+        // Asked again: under the same key, the answer it had; under another, the release is gone.
+        if (key !== undefined && takeKeys.get(releaseId) === key) return Promise.resolve(receipt('take_back'))
+        return Promise.reject(new ApiError(404, 'not_found', 'That isn’t there any more.', 'never'))
+      }
       takenBack.push(releaseId)
+      takeKeys.set(releaseId, key)
+      if (takes === Number(query.get('takeBackLost'))) {
+        return Promise.reject(new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key'))
+      }
       return Promise.resolve(receipt('take_back'))
     },
   }

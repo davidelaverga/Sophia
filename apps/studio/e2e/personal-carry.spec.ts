@@ -111,6 +111,20 @@ test('carry · a take-back that fails says what is still in the project, and Try
   expect(await takenBack(page)).toEqual(['release-note-2'])
 })
 
+test('carry · a take-back whose reply was lost is asked again under its own key, and says it came back', async ({
+  page,
+}) => {
+  await openPackage(page, '&takeBackLost=1')
+  await pkg(page).getByRole('checkbox', { name: 'Ask finance for the March close' }).check()
+  await pkg(page).getByRole('button', { name: 'Carry 1 note to Product launch' }).click()
+  await pkg(page).getByRole('button', { name: 'Take back' }).click()
+  await expect(pkg(page).getByRole('status')).toContainText('Not all taken back: 1 note still in Product launch.')
+  await pkg(page).getByRole('button', { name: 'Try again' }).click()
+  // It had come back: asked again under the same key, the API answers as it did (a new key would be «not found»).
+  await expect(pkg(page).getByRole('status')).toHaveText('Taken back from Product launch.')
+  expect(await takenBack(page)).toEqual(['release-note-2'])
+})
+
 test('carry · while notes are on their way, Cancel waits', async ({ page }) => {
   await openPackage(page)
   await pkg(page).getByRole('checkbox', { name: 'Ask finance for the March close' }).check()

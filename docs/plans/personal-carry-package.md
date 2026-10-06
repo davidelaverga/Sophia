@@ -9,6 +9,7 @@ A note can already be carried from Personal to a project, one at a time, exactly
 ## What changes
 
 **«Review what to carry»** at the top of the notes, when there is a note and a project to carry it to. It opens the package, in the panel:
+
 - **«Carry to»:** the person's projects (one is picked when there is only one).
 - **The notes,** each with a box. None is chosen at first: nothing goes unless chosen.
 - **«Stays here: this conversation, and every note you leave out.»**
@@ -20,11 +21,12 @@ A note can already be carried from Personal to a project, one at a time, exactly
 **Carried:** the package says «Carried 2 notes to Product launch. Your team sees them as yours, exactly as written.», with «Take back», which takes them all back, and Done.
 
 **A note that doesn't go** (a refusal, or no reply) stops the package there.
+
 - It says how many went and why («Carried 1 of 2 to Product launch. The rest wasn’t sent.», then the API's reason), with Try again for the rest and Take back for those that went.
 - A note with no reply, or one that left the list meanwhile, may have gone: the package says «1 note may already be there: see Work.», never «wasn’t sent», and never carries it again (Try again skips it).
 - Each note is the existing carry, one write per note, with its own key.
 
-**Take back is honest:** «Taken back from Product launch.» only when every release came back. Otherwise it says what is still in the project, with Try again. The focus goes to what the package says after each step.
+**Take back is honest:** «Taken back from Product launch.» only when every release came back. Otherwise it says what is still in the project, with Try again. A take-back with no answer may have come back: asked again, it goes under the same key, so the API answers as it did. The focus goes to what the package says after each step.
 
 **Only under the vision flag.** Without it, the notes keep their single Carry as today.
 
@@ -43,6 +45,7 @@ A note can already be carried from Personal to a project, one at a time, exactly
   - Cancel keeps nothing; with no project, the package isn't offered;
   - carrying every note keeps the package as the notes leave the list, and the focus goes to what it says;
   - a take-back that fails says what is still in the project, and Try again takes it back;
+  - a take-back whose reply was lost is asked again under its own key, and says it came back;
   - Personal's measured rules (control heights, the type scale) hold with the package open;
   - a note whose reply was lost may have gone: never carried again, and the rest goes on Try again;
   - Done after every note went puts the focus on the notes, never the page.

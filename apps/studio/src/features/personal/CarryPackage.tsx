@@ -12,7 +12,8 @@ import { personalFailure, unsent } from './write-words.ts'
 /** The writes a package uses: the existing carry and take-back, and what the space does with a release. */
 export interface PackWrites {
   carry: (noteId: string, projectId: string) => Promise<{ releaseId: string | null }>
-  takeBack: (releaseId: string) => Promise<unknown>
+  /** `key`: one per release taken back, the same when it is asked again after no answer came back. */
+  takeBack: (releaseId: string, key: string) => Promise<unknown>
   onCarried: (releaseId: string | null) => void
 }
 
@@ -50,15 +51,24 @@ function useLive(notes: readonly PersonalNote[]) {
   return { here, live }
 }
 
-/** Takes back each release, in order: those that didn't come back, and why the last one didn't. */
-async function takeBackAll(writes: PackWrites, releases: readonly string[]) {
+/**
+ * Takes back each release, in order: those that didn't come back, and why the last one didn't. A release asked with no
+ * answer may have come back: its key is kept, so asking again gets the answer it had, never «not found».
+ */
+async function takeBackAll(writes: PackWrites, releases: readonly string[], keys: Map<string, string>) {
   const still: string[] = []
   let reason = ''
   for (const releaseId of releases) {
-    await writes.takeBack(releaseId).catch((err: unknown) => {
-      still.push(releaseId)
-      reason = personalFailure(err)
-    })
+    const key = keys.get(releaseId) ?? crypto.randomUUID()
+    keys.set(releaseId, key)
+    await writes.takeBack(releaseId, key).then(
+      () => keys.delete(releaseId),
+      (err: unknown) => {
+        still.push(releaseId)
+        reason = personalFailure(err)
+        if (unsent(err) !== 'unconfirmed') keys.delete(releaseId)
+      },
+    )
   }
   return { still, reason }
 }
@@ -72,6 +82,7 @@ function usePackage({ notes, projects, writes }: Omit<Props, 'onClose'>) {
   const [gone, setGone] = useState<Gone>({ noteIds: [], releases: [], unsure: [] })
   const [why, setWhy] = useState<{ reason: string; sure: boolean } | null>(null)
   const { here, live } = useLive(notes)
+  const takeKeys = useRef(new Map<string, string>())
   const picked = batch ?? notes.filter((n) => chosen.has(n.id))
   const project = projects.find((p) => p.projectId === projectId)
   const toggle = (id: string) =>
@@ -117,7 +128,7 @@ function usePackage({ notes, projects, writes }: Omit<Props, 'onClose'>) {
   const takeBack = async () => {
     if (phase === 'taking' || phase === 'carrying') return
     setPhase('taking')
-    const { still, reason } = await takeBackAll(writes, gone.releases)
+    const { still, reason } = await takeBackAll(writes, gone.releases, takeKeys.current)
     setGone({ noteIds: [], releases: still, unsure: gone.unsure })
     setWhy(still.length > 0 ? { reason, sure: true } : null)
     setPhase(still.length > 0 ? 'took-part' : 'taken')
