@@ -113,6 +113,9 @@ test('conversations · the filter narrows by title, and says when nothing matche
   // Every word, in any order.
   await filter.fill('briefs short')
   await expect(titles(page)).toHaveText(['Short or long briefs?'])
+  // Every word, not any: two titles have one of these each, none has both.
+  await filter.fill('short release')
+  await expect(rows(page)).toHaveCount(0)
   await filter.fill('nothing like this')
   await expect(rows(page)).toHaveCount(0)
   await expect(list(page)).toContainText('No conversation’s title has «nothing like this».')

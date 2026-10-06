@@ -4,12 +4,13 @@ Goal and attempt: several conversations, one project (`docs/plans/project-conver
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `project/conversations` on `main` `5281915`, 2026-10-06
-Ending commit/tree: four commits on `project/conversations`, read one by one (a merge ref or a squash folds them into one):
+Ending commit/tree: five commits on `project/conversations`, read one by one (a merge ref or a squash folds them into one):
 
 - `2ab4ed7` «Project: several conversations, one project (Davide's chapter 2)», the content;
 - `ffa54b5` «Conversations: the review's findings»;
 - `a479ea3` «Conversations: the context keeps what it read when a later read fails»;
-- this handoff's own commit.
+- this handoff's own commit;
+- «Project conversations: mutants run», the filter's check and this evidence.
 
 ## Outcome
 
@@ -61,21 +62,21 @@ Ending commit/tree: four commits on `project/conversations`, read one by one (a 
 
 - **Gates:** `tsc`, `oxlint --type-aware` and Prettier pass.
 - **Unit:** `conversation-list.test.ts` and `route.test.ts`: 18 of 18.
-- **Browser:** `project-conversations.spec.ts` (11 tests) runs in CI. The guard wouldn't start here (6.5 GB free beside a game, under its 8 GB floor), and the floor isn't lowered.
-- **Mutations:** deferred to a day with no game open, as the guards ask.
-
-**Source-register IDs consulted:** none.
-
-## Remaining obligations
-
-- Mutants, with a control:
+- **Browser:** `project-conversations.spec.ts`, 11 of 11 under the guard, once the machine was free (at first the guard wouldn't start beside a game, and the floor wasn't lowered).
+- **Mutations:** 8 of 8 killed, and the controls survive. In the browser:
   - the list oldest first;
   - Sophia named where she didn't answer;
   - mine not said as «You»;
   - the open one following the top;
   - Earlier messages dropping the focus;
-  - a later context failure said nowhere;
-  - the tab shown without the flag.
+  - the context keyed by the cursor (the second pass's P1).
+  - The filter taking any word survived the browser checks at first: «briefs short» finds the same either way. The unit test killed it, and the spec now also tries «short release» (one word in each of two titles), which kills it.
+- **Unit:** the tab shown without the flag (`viewsShown`).
+
+**Source-register IDs consulted:** none.
+
+## Remaining obligations
+
 - Davide: A18 on issue #105 (asked first), and the retention contract.
 
 ## Next bounded action
