@@ -87,11 +87,14 @@ async function waitHealthy(label, started) {
     }
     await sleep(2000)
   }
+  // Taken as the wait ends, before the diagnostics below: reading a large log can take up to a minute, and that is not
+  // the start's time (Codex review of 37bae0e).
+  const seconds = Math.round((performance.now() - started) / 100) / 10
   const logs = logsOf()
   const record = {
     label,
     ok,
-    seconds: Math.round((performance.now() - started) / 100) / 10,
+    seconds,
     ...(ok ? {} : { reason }),
     dockerHealth: docker(['inspect', '--format', '{{if .State.Health}}{{.State.Health.Status}}{{end}}', NAME]),
     adapterLogLines: logs.split('\n').filter((l) => l.includes('sophia_dsh')).length,

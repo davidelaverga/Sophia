@@ -4,12 +4,14 @@
 // registry, a growing record truncated, a missing group-OOM counter, a step whose recorded facts do not hold, home
 // digests never read) or one of the same kind, and none of them may read as qualified.
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { execFile, spawnSync } from 'node:child_process'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 import { parse } from 'yaml'
 import { compareSnapshots, coverageOf, EMPTY_SHA256 } from '../../scripts/paperclip-image-home.mjs'
 import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS, STARTS } from '../../scripts/paperclip-image-receipt.mjs'
@@ -587,5 +589,53 @@ describe('review of 5446719: the job’s limit outlasts every step’s own budge
     // Room for what no step budget covers: the job's set-up (the database service) and the actions' post steps.
     assert.ok(job['timeout-minutes'] >= sum + 15, `the job's ${job['timeout-minutes']} minutes; the steps' budgets ${sum}`)
     assert.ok(job['timeout-minutes'] <= 360, 'a GitHub-hosted runner ends any job at 360 minutes')
+  })
+})
+
+describe('review of 37bae0e: a start’s time ends when health answers, not after its logs are read', () => {
+  const CONTAINER = fileURLToPath(new URL('../../scripts/paperclip-image-container.mjs', import.meta.url))
+  const dirs = []
+  after(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
+
+  it('a log that takes two seconds to read adds nothing to the recorded start', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pc-timing-'))
+    dirs.push(dir)
+    // A stand-in docker: the restart and the configuration answer at once, the log only after two seconds.
+    const host = { Privileged: false, CapAdd: null, CapDrop: null, NetworkMode: 'pcnet', SecurityOpt: null, PortBindings: { '3100/tcp': [{ HostIp: '127.0.0.1', HostPort: '3100' }] } }
+    writeFileSync(
+      join(dir, 'docker'),
+      [
+        '#!/bin/sh',
+        'case "$1" in',
+        '  restart) exit 0 ;;',
+        "  logs) sleep 2; echo 'sophia_dsh registered' ;;",
+        '  inspect) case "$3" in',
+        `    '{{json .HostConfig}}') echo '${JSON.stringify(host)}' ;;`,
+        "    '{{.State.Running}}') echo true ;;",
+        '    *) echo healthy ;;',
+        '  esac ;;',
+        '  *) exit 1 ;;',
+        'esac',
+        '',
+      ].join('\n'),
+    )
+    chmodSync(join(dir, 'docker'), 0o755)
+    // The health the helper reads, on the port the image publishes: healthy from the first read.
+    const server = createServer((_, res) => res.writeHead(200, { 'content-type': 'application/json' }).end('{"status":"ok"}'))
+    await new Promise((listening) => server.listen(3100, '127.0.0.1', listening))
+    try {
+      const began = performance.now()
+      await promisify(execFile)(process.execPath, [CONTAINER, 'restart', 'restart'], {
+        env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, EVIDENCE: dir },
+      })
+      const wall = (performance.now() - began) / 1000
+      const [timing] = readFileSync(join(dir, 'timings.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+      assert.ok(wall >= 2, `the log read took its two seconds (${wall} s in all)`)
+      assert.equal(timing.ok, true)
+      assert.equal(timing.adapterLogLines, 1)
+      assert.ok(timing.seconds < 1, `the start was healthy at once, yet recorded ${timing.seconds} s`)
+    } finally {
+      await new Promise((closed) => server.close(closed))
+    }
   })
 })
