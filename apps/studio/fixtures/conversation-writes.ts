@@ -9,8 +9,9 @@ import { PROJECT } from './data.ts'
 export interface TalkWrites {
   list: ConversationSummary[]
   messages: Record<string, ConversationMessage[]>
-  /** `send=lost`: the first message lands, its reply lost; `send=refused`: messages are refused. */
-  send: 'lost' | 'refused' | null
+  /** `send=lost`: the first message lands, its reply lost; `send=refused`: messages are refused; `send=slow`: each
+   * message's reply takes 1.5 s. */
+  send: 'lost' | 'refused' | 'slow' | null
   /** `start=lost`: the first conversation started lands, its reply lost. */
   start: 'lost' | null
   /** Each write's receipt by its key, with the words it was sent with: the same key replays it, only with them. */
@@ -135,6 +136,7 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
   if (body.askSophia) answerLater(talk, id, ctx)
   // It landed; the page never hears so, and only sending again under the same key can tell it.
   if (talk.send === 'lost' && sent === 1) return Promise.reject(new TypeError('Failed to fetch'))
+  if (talk.send === 'slow') return new Promise<Response>((r) => setTimeout(() => r(json(receipt, 201)), 1500))
   return json(receipt, 201)
 }
 

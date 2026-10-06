@@ -3,13 +3,15 @@
 Goal and attempt: start a conversation, continue one (`docs/plans/project-conversation-writes.md`), attempt 1. It is Davide's vision, chapter 2 «Converse», the writes after the reading (#133), behind the vision flag.
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
-Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `project/conversation-writes` on `project/conversations` (#133) `7a9d030`, 2026-10-06
-Ending commit/tree: four commits on `project/conversation-writes`, read one by one (a merge ref or a squash folds them into one):
+Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `project/conversation-writes` on `project/conversations` (#133), rebased onto its `1d92163`, 2026-10-06
+Ending commit/tree: six commits on `project/conversation-writes`, read one by one (a merge ref or a squash folds them into one):
 
-- `fc6cd42` «Project conversations: start one, continue one (Davide's chapter 2)», the content;
-- `c8cf524` «Conversation writes: the review's findings»;
-- `207262c` «Conversation writes: the view clears a draft, not the field»;
-- this handoff's own commit.
+- `3a85747` «Project conversations: start one, continue one (Davide's chapter 2)», the content;
+- `5327e22` «Conversation writes: the review's findings»;
+- `44ff04a` «Conversation writes: the view clears a draft, not the field»;
+- this handoff's own commit;
+- `c47e6d5` «Conversation writes: what the first local run found»;
+- «Conversation writes: mutants run», the slow-send check and this evidence.
 
 ## Outcome
 
@@ -59,20 +61,25 @@ Ending commit/tree: four commits on `project/conversation-writes`, read one by o
 
 - **Gates:** `tsc`, `oxlint --type-aware` and Prettier pass.
 - **Unit:** `conversation-list.test.ts` and `route.test.ts`: 20 of 20.
-- **Browser:** `project-conversation-writes.spec.ts` (13 tests) runs in CI. The guard wouldn't start here (6.5 GB free beside a game, under its 8 GB floor), and the floor isn't lowered.
-- **Mutations:** deferred to a day with no game open.
+- **Browser:** `project-conversation-writes.spec.ts` and `project-conversations.spec.ts`, 24 of 24 under the guard once the machine was free. The first local run found three things CI would have:
+  - the room fixture read its send option before defining it, so the page didn't load;
+  - its refusal's request id wasn't one the client accepts;
+  - the reading spec's 24 px rule counted the new checkbox.
+  - All three are fixed in «Conversation writes: what the first local run found».
+- **Mutations:** 7 of 7 killed, and the control survives:
+  - a second key after no reply;
+  - viewers given the field;
+  - «Sophia is answering…» never ending;
+  - a row pressed leaving the form;
+  - Start with a field empty;
+  - the held intent forgotten on a remount;
+  - the draft cleared with words written since.
+  - The last survived at first: no check wrote while a message was on its way. A slow send (`send=slow`) and that check were added.
 
 **Source-register IDs consulted:** none.
 
 ## Remaining obligations
 
-- Mutants, with a control:
-  - a second key after no reply;
-  - the draft cleared with words written since;
-  - viewers given the field;
-  - «Sophia is answering…» never ending;
-  - a row pressed leaving the form;
-  - Start available with a field empty.
 - Davide: A18's writes on issue #105 (asked first), and the retention contract.
 
 ## Next bounded action

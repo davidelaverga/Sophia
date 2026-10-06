@@ -125,6 +125,18 @@ test('writes · a message with no reply is still that message after another conv
   expect(await written(page, 'conversation-message')).toHaveLength(1)
 })
 
+test('writes · words written while a message is on its way stay when it lands', async ({ page }) => {
+  await openBriefs(page, '&send=slow')
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('First part')
+  await send(page).click()
+  await field(page).fill('First part, and more')
+  await expect(messages(page).last()).toContainText('First part')
+  await expect(messages(page)).toHaveCount(3)
+  // What was written meanwhile is the person's: only the words that went would be cleared.
+  await expect(field(page)).toHaveValue('First part, and more')
+})
+
 test('writes · a refusal says why and keeps the words', async ({ page }) => {
   await openBriefs(page, '&send=refused')
   await field(page).fill('Refused words')

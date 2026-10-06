@@ -52,6 +52,7 @@
   - not asked, no answer is waited for;
   - Send is unavailable with an empty field; Enter sends, Shift+Enter doesn't;
   - a lost reply says «Not confirmed», and Send sends it again under the same key: one message recorded, also after another conversation was opened meanwhile;
+  - words written while a message is on its way stay when it lands;
   - a refusal says why and keeps the words;
   - a draft is kept when another conversation is opened and this one again;
   - New conversation: Start unavailable until both fields are written; started, it opens at the top with its first message; Cancel returns the focus;
