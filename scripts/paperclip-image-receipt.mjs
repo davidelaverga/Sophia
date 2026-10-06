@@ -366,6 +366,7 @@ function summaryOf(receipt, samples) {
   return [
     `## Paperclip image qualification: ${receipt.verdict}`,
     '',
+    ...(receipt.malformed ? [`Inputs that could not be read: ${receipt.malformed.join(', ')}.`, ''] : []),
     receipt.scope,
     '',
     '| Check | Result |',
@@ -393,14 +394,25 @@ function summaryOf(receipt, samples) {
 const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
 if (isMain) {
   const [dir, out, summary] = process.argv.slice(2)
-  const json = (name) => (existsSync(join(dir, name)) ? JSON.parse(readFileSync(join(dir, name), 'utf8')) : null)
+  // A file or line a step left empty or cut short (a scan killed by its bound, say) is an input not recorded, named in
+  // `malformed`: the receipt is still written, and never qualified (review of af5ab20).
+  const malformed = []
+  const parse = (name, text) => {
+    try {
+      return JSON.parse(text)
+    } catch {
+      malformed.push(name)
+      return null
+    }
+  }
+  const json = (name) => (existsSync(join(dir, name)) ? parse(name, readFileSync(join(dir, name), 'utf8')) : null)
   const bytes = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name)) : null)
   const lines = (name) =>
     existsSync(join(dir, name))
       ? readFileSync(join(dir, name), 'utf8')
           .split('\n')
-          .filter(Boolean)
-          .map((l) => JSON.parse(l))
+          .map((l, i) => (l === '' ? null : parse(`${name}:${i + 1}`, l)))
+          .filter((v) => v !== null)
       : []
   const samples = lines('cgroup.jsonl')
   const receipt = assess({
@@ -414,6 +426,10 @@ if (isMain) {
     probes: { first: json('probe-first.json'), restart: json('probe-restart.json'), restarted: json('probe-restarted.json') },
     home: { before: json('home-before.json'), after: json('home-after.json') },
   })
+  if (malformed.length > 0) {
+    receipt.malformed = malformed
+    if (receipt.verdict === 'qualified') receipt.verdict = 'incomplete'
+  }
   writeFileSync(out, `${JSON.stringify(receipt, null, 2)}\n`)
   writeFileSync(summary, summaryOf(receipt, samples))
   console.log(`[receipt] ${receipt.verdict}: ${receipt.checks.filter((c) => c.result === 'passed').length}/${receipt.checks.length} checks passed`)

@@ -943,6 +943,28 @@ describe('the receipt command reads every input the workflow writes, by its own 
     assert.equal(verdictIn(evidenceOf(complete()).dir), 'qualified')
   })
 
+  it('review of af5ab20: an empty or cut-short file still gets a receipt, never qualified, the file named', () => {
+    for (const [name, content] of [
+      ['image-files.json', ''],
+      ['probe-first.json', '{"phase":"first","steps":['],
+      ['identity.json', '{'],
+    ]) {
+      const { dir } = evidenceOf(complete())
+      writeFileSync(join(dir, name), content)
+      assert.notEqual(verdictIn(dir), 'qualified', name)
+      assert.deepEqual(JSON.parse(readFileSync(join(dir, 'receipt.json'), 'utf8')).malformed, [name])
+      assert.match(readFileSync(join(dir, 'summary.md'), 'utf8'), new RegExp(`could not be read: ${name.replace('.', '\\.')}`))
+    }
+  })
+
+  it('review of af5ab20: a cut-short line beside every complete one is named, and the run is not qualified', () => {
+    const run = complete()
+    const { dir } = evidenceOf(run)
+    writeFileSync(join(dir, 'cgroup.jsonl'), `${run.samples.map((s) => JSON.stringify(s)).join('\n')}\n{"label":"first:idle","peak":`)
+    assert.equal(verdictIn(dir), 'incomplete')
+    assert.deepEqual(JSON.parse(readFileSync(join(dir, 'receipt.json'), 'utf8')).malformed, [`cgroup.jsonl:${run.samples.length + 1}`])
+  })
+
   it('without any one of them, the run is not qualified', () => {
     const { names } = evidenceOf(complete())
     for (const name of names) {
