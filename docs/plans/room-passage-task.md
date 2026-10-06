@@ -33,7 +33,7 @@ A member reads «The figure for March is unchecked» in Sophia's report and want
 
 **The tasks are read again as the feed moves,** as reviews are, so a teammate's task or Done shows without a reload.
 
-**API (proposed as A17, for #105; not yet posted there):**
+**API (proposed as A17, [posted to #105](https://github.com/davidelaverga/Sophia/issues/105#issuecomment-6010589410)):**
 ```ts
 POST /api/v1/projects/{projectId}/tasks                       Idempotency-Key
      { text: string; owner: string | null;                   // an actor id, or null for anyone

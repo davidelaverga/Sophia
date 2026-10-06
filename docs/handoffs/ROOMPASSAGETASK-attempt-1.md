@@ -20,7 +20,7 @@ Ending commit/tree: the content commit «Room: a passage becomes a task (A17 on 
 - Done is offered to whoever it is for (anyone's: any member), an editor or an admin, with Try again after no reply;
 - the list is read again as the feed moves; a Create writes into it at once.
 
-**API (proposed as A17, for #105; not yet posted there):** POST `/projects/{id}/tasks`, GET `/artifacts/{id}/tasks`, POST `/projects/{id}/tasks/{task}/done`.
+**API (proposed as A17, [posted to #105](https://github.com/davidelaverga/Sophia/issues/105#issuecomment-6010589410)):** POST `/projects/{id}/tasks`, GET `/artifacts/{id}/tasks`, POST `/projects/{id}/tasks/{task}/done`.
 
 **Also:** the fixture answers any report's task reads with none, as #124 does for reviews.
 
