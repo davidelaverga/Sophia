@@ -73,6 +73,10 @@ interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
   update: () => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
+  /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
+  forgetDiscussion: () => void
+  /** The oldest message leaves the recent discussion (past what the snapshot holds); a reply to it keeps its quote. */
+  dropOldest: () => void
   say: (text: string) => void
   /** The call's connection is lost. */
   drop: (why?: CallEnd) => void
@@ -367,6 +371,14 @@ window.fixture = {
   update: () => publish(project),
   say: (text) => {
     project.messages.push(text)
+    publish(project)
+  },
+  forgetDiscussion: () => {
+    project.messages.length = 0
+    publish(project)
+  },
+  dropOldest: () => {
+    project.messages.shift()
     publish(project)
   },
   drop: dropCall,

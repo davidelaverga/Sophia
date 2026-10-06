@@ -524,3 +524,27 @@ export const startConversation = (token: string, projectId: string, key: string,
 /** A18: a message in a conversation (members, not viewers), once per key. */
 export const sendConversationMessage = (token: string, conversationId: string, key: string, body: MessageAsk) =>
   callApi(`/api/v1/conversations/${conversationId}/messages`, { token, key, body }, parseSent)
+
+/** A20 (proposed): which entry of the room's discussion a reply answers, with that entry's first words as recorded. */
+export interface DiscussionReply {
+  entryId: string
+  replyTo: { id: string; actorId: string; excerpt: string }
+}
+
+const parseReplies = checked<{ replies: readonly DiscussionReply[] }>(
+  {
+    replies: listOf({
+      entryId: isStr,
+      replyTo: (v: unknown) => fields(v, { id: isStr, actorId: isStr, excerpt: isStr }),
+    }),
+  },
+  'reply list',
+)
+
+/** A20: the replies in the room's recent discussion (until `DiscussionEntry` carries `replyTo` itself). */
+export const listReplies = (token: string, projectId: string, signal?: AbortSignal) =>
+  callApi(
+    `/api/v1/projects/${projectId}/discussion/replies`,
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseReplies,
+  )
