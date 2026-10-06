@@ -116,6 +116,8 @@ interface Project {
   notes?: Notes
   /** What the room shows to everyone (focus-data.ts); absent, showing is unexpected. */
   showing?: Showing
+  /** While set, searches wait for `holdSearch(false)` (A13). */
+  searchHeld?: (() => void)[] | null
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
   reviews?: Reviews
   /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
@@ -262,14 +264,17 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
 }
 
 /** A project search (A13, search-data.ts): one page of the hits, three a page. */
-function searchAnswer(project: Project, url: URL): Response | null {
+function searchAnswer(project: Project, url: URL): Response | Promise<Response> | null {
   const q = url.searchParams.get('q') ?? ''
   const cursor = url.searchParams.get('cursor')
-  if (!project.meeting) return null
+  const meeting = project.meeting
+  if (!meeting) return null
   served.push(`search:${q}:${cursor ?? '0'}`)
+  const held = project.searchHeld
   const kept = project.notes?.kept ?? []
   const report = { versions: project.reportVersions, title: project.reportTitle, pilot: project.pilot }
-  return json(searchPage(searchHits({ meeting: project.meeting, kept, report }, q), cursor))
+  const page = () => json(searchPage(searchHits({ meeting, kept, report }, q), cursor))
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(page()))) : page()
 }
 
 /** This viewer's membership: the fixture's own, in the role the page asked for. */

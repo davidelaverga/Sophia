@@ -102,10 +102,13 @@ test('updates · leaving from an older meeting’s sheet opens the recap of the 
 }) => {
   await page.goto('/room.html?place=updates&call=on')
   await expect(meetings(page).getByRole('button').first()).toHaveText(/^Now/)
+  // Held, so Leave comes before its recap: the list said it ended, so leaving from it opens the one left, on top.
+  await page.evaluate(() => window.fixture?.holdRecaps())
   await meetings(page).getByRole('button', { name: 'Oct 4, 15:00 · 38 minutes' }).click()
   await expect(recap(page)).toHaveCount(1)
   await recap(page).getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
   await expect(recap(page)).toHaveCount(2)
+  await page.evaluate(() => window.fixture?.releaseRecaps())
   await expect(recap(page).last().getByRole('region', { name: 'Decided' })).toContainText(
     'Pilot the fixture with fourteen teams',
   )
@@ -123,4 +126,18 @@ test('updates · leaving the call from a recap’s own sheet opens no second one
   await expect(page.getByRole('dialog')).toHaveCount(1)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('updates · leaving from the running meeting’s sheet while its recap is read opens no second one', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=updates&call=on')
+  await page.evaluate(() => window.fixture?.holdRecaps())
+  await meetings(page).getByRole('button', { name: /^Now/ }).click()
+  await expect(recap(page)).toContainText('Putting the meeting together…')
+  await recap(page).getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
+  await expect(recap(page).getByRole('group', { name: 'Your call' })).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.releaseRecaps())
+  await expect(page.getByRole('dialog')).toHaveCount(1)
 })

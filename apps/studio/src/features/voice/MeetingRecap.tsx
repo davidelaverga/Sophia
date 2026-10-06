@@ -67,6 +67,8 @@ interface SheetProps {
   meetingId?: string
   /** On leaving, which leave this is: each reads its own recap, never one an earlier leave is still waiting for. */
   leave?: number
+  /** Whether the meeting runs, as the opener knows it (Updates' list); until its recap is read, this says it. */
+  running?: boolean | undefined
   identity: Identity
   roomId: string
   title: string
@@ -105,8 +107,10 @@ export function RecapSheet(props: SheetProps) {
   const recap = useRecap(projectId, identity.token, props)
   const close = { projectId, identity, roomId }
   const titleId = useId()
-  // It recaps the running meeting (the latest, on leaving; else as its recap says): leaving from it opens no second.
-  const running = props.meetingId === undefined || recap.data?.endedAt === null
+  // It recaps the running meeting (the latest, on leaving; else as its recap says, or, until it is read, as the opener
+  // knew it, and if unknown, as running): leaving from it opens no second.
+  const known = recap.data === undefined ? (props.running ?? true) : recap.data?.endedAt === null
+  const running = props.meetingId === undefined || known
   useEffect(() => {
     if (!running) return undefined
     runningShown.count += 1

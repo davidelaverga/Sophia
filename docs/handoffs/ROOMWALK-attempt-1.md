@@ -4,7 +4,7 @@ Goal and attempt: Sophia walks through the report she shows (`docs/plans/room-wa
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `room/walk` on `room/search` (#121), 2026-10-06
-Ending commit/tree: the content commit «Room: Sophia walks through the report she shows (A14 on the fixture, behind the vision flag)», the parent of this handoff's commit.
+Ending commit/tree: the content commit «Room: Sophia walks through the report she shows (A14 on the fixture, behind the vision flag)» (`636cbe0`), the parent of this handoff's commit (`32e30df`); merged to main as `62c6aa7` (#122, squashed).
 
 ## Outcome
 
