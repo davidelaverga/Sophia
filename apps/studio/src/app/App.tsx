@@ -9,6 +9,7 @@ import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
 import { accountOf } from './auth-callback.ts'
+import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
@@ -49,6 +50,8 @@ export function App() {
   // Cached server state belongs to one identity: whenever it changes or goes, also from another tab, none of it stays.
   const signedInAs = state.status === 'signed_in' ? state.identity.name : null
   useEffect(() => () => queryClient.clear(), [signedInAs])
+  // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
+  useEffect(() => setSignedIn(signedInAs), [signedInAs])
   useDraftsOnlyOfWhoIsIn(state)
   const joinPage = opensJoinPage(window.location.pathname, state.status)
   // The opening hands off once all is ready: the Studio's once it has prepared what the person opens first.
@@ -56,14 +59,17 @@ export function App() {
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
   const switchIdentity = (identity: Identity | null) => {
+    setSignedIn(null)
     queryClient.clear()
     chooseDev(identity)
   }
   // Signing out leaves nothing personal on this device: the cache, and every message being written to Sophia.
   const leaveSession = () => {
+    setSignedIn(null)
     queryClient.clear()
     forgetPendingUnlock()
-    void signOutForgetting(signOut, forgetDrafts).catch(() => undefined)
+    // A sign-out that fails leaves the person in: their writes are theirs again.
+    void signOutForgetting(signOut, forgetDrafts).catch(() => setSignedIn(signedInAs))
   }
 
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question

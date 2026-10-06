@@ -7,8 +7,8 @@
 **On #135 (the package):**
 
 1. **The account leaves mid-carry:** since #135 the batch went on after the package unmounted, so signing out mid-carry could publish more notes under the account that left.
-   - The package now asks the account, not its own mount: the personal writes live as long as the account's session (in Places) and say so (`writes.here()`). Before each note the batch checks it, and stops once the account is gone.
-   - Anything else that puts the package away lets its batch finish, as #135 meant: the notes' toggle, `t`, Find covering them, the lock. Work marks what arrived.
+   - The package now asks the account, not its own mount. App says who is signed in (`signed-in.ts`): it sets it as the identity changes, clears it at once on signing out or switching, and restores it if a sign-out fails. Before each note the batch asks whether its account still is (`writes.here()`), and stops once it isn't.
+   - Anything else that puts the package away lets its batch finish, as #135 meant: the notes' toggle, `t`, Find covering them, the lock, and opening a project (which takes Places away). Work marks what arrived.
 2. **Escape after leaving and coming back:** on returning to Personal mid-step, the notes' Escape layer opened again above the package's, and Escape closed the notes.
    - A layer can now hold Escape above the others (`priority`; `topOf` in `escape-layers.ts`). The package holds it while a step runs. A package out of sight (Personal left for Work or home) lets it go: Escape there is that place's.
 
@@ -37,3 +37,4 @@
     - a project past the list's first ones is never said to have nothing;
     - while read, its place is kept; with a list shown, Try again says it is reading.
 - **Unit:** `escape-layers.test.ts`: the top layer by priority, then by which opened last.
+- **Unit:** `signed-in.test.ts`: the account signed in now, not after leaving or another signing in.

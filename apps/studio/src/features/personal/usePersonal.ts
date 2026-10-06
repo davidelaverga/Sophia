@@ -1,6 +1,7 @@
 // The personal space and the Work list as server state (react-query), and the writes the three places make. Every
 // write has its own Idempotency-Key and is retried once with the SAME key when no reply came, while its first attempt
 // is recent (once.ts); any other refusal is the caller's to say. Nothing is fetched while the personal space is locked.
+import { stillSignedIn } from '../../app/signed-in.ts'
 import { useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { PersonalReceipt, PersonalSpace, PersonalTurn, ProjectList } from '@sophia/contracts'
@@ -234,14 +235,6 @@ async function readAfterRefusal(client: QueryClient, name: string, err: unknown,
 export function usePersonalWrites(identity: Identity, locked: boolean) {
   const client = useQueryClient()
   const run = useRun(identity)
-  // These writes live as long as the account's session does: gone, nothing more goes under it (a package mid-carry).
-  const present = useRef(true)
-  useEffect(() => {
-    present.current = true
-    return () => {
-      present.current = false
-    }
-  }, [])
   const [sending, setSending] = useState<Sending | null>(null)
   const [busy, setBusy] = useState(false)
   const onItsWay = useRef(false)
@@ -298,8 +291,8 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
     takeBack: (releaseId: string, key?: string) =>
       run((k, at) => takeBackPersonalRelease(token, k, at, releaseId), true, key),
     erase: () => eraseSpace(client, identity, () => setErasures((n) => n + 1)),
-    /** The account these writes are under is still signed in here. */
-    here: () => present.current,
+    /** The account these writes are under is still signed in here (signed-in.ts): not after leaving, or another. */
+    here: () => stillSignedIn(identity.name),
   }
 }
 
