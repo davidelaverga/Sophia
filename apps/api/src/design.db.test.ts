@@ -559,13 +559,22 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
     })
     assert.equal(handedOver.json.outcome, 'coverage_incomplete', JSON.stringify(handedOver.json))
     await inspectAll(w, review.at, shots.names)
+    const sectionCapture = shots.names.find((shot) => shot.includes('.section.')) ?? ''
     const revise = await w.runtime('/v1/runtime/review/submit', {
       ...review.at,
       callId: 'v1',
       result: {
         verdict: 'needs_revision',
+        // #117: a finding about a section cites a capture of that section, at the target it names.
         findings: [
-          { severity: 'major', issue: 'The summary is buried.', fix: 'Lead with it.', capture: shots.names[0] },
+          {
+            severity: 'major',
+            issue: 'The summary is buried.',
+            fix: 'Lead with it.',
+            capture: sectionCapture,
+            target: sectionCapture.split('.')[0],
+            section: sectionCapture.split('.section.')[1]?.split('.')[0],
+          },
         ],
         seen: seenBy(review.at, 'review'),
       },
@@ -1714,23 +1723,32 @@ describe('SDD-01-CX-0019: a capture counts as seen only once it reached the mode
     await inspectAll(w, review.at, names)
     const unnamed = await pass('v-unnamed', [])
     assert.equal(unnamed.json.outcome, 'coverage_incomplete', 'acknowledged but unnamed: nothing counts')
-    // A request for revision rests on inspected captures too: named, and cited by each serious finding.
-    const revise = (callId: string, seen: string[], capture?: string) =>
+    // A request for revision rests on inspected captures too: named, and cited by each serious finding, of the target
+    // and the section the finding names (#117).
+    const revise = (callId: string, seen: string[], capture?: string, scope: Record<string, string> = {}) =>
       w.runtime('/v1/runtime/review/submit', {
         ...review.at,
         callId,
         result: {
           verdict: 'needs_revision',
-          findings: [{ severity: 'major', issue: 'The summary is buried.', ...(capture ? { capture } : {}) }],
+          findings: [{ severity: 'major', issue: 'The summary is buried.', ...(capture ? { capture } : {}), ...scope }],
           seen,
         },
       })
-    for (const [callId, seen, capture] of [
-      ['r-unseen', [], names[0]],
-      ['r-uncited', seenBy(review.at, 'review'), undefined],
-      ['r-elsewhere', seenBy(review.at, 'review'), 'w390-light.overview.9.png'],
+    const overviewShot = names.find((shot) => shot.includes('.overview.')) ?? ''
+    const sectionShot = names.find((shot) => shot.includes('.section.')) ?? ''
+    const [shotTarget = ''] = overviewShot.split('.')
+    const shotSection = sectionShot.split('.section.')[1]?.split('.')[0] ?? ''
+    const otherTarget = names.map((shot) => shot.split('.')[0]).find((t) => t !== shotTarget) ?? 'w1280-light'
+    for (const [callId, seen, capture, scope] of [
+      ['r-unseen', [], names[0], {}],
+      ['r-uncited', seenBy(review.at, 'review'), undefined, {}],
+      ['r-elsewhere', seenBy(review.at, 'review'), 'w390-light.overview.9.png', {}],
+      ['r-other-target', seenBy(review.at, 'review'), overviewShot, { target: otherTarget }],
+      ['r-section-overview', seenBy(review.at, 'review'), overviewShot, { section: shotSection }],
+      ['r-other-section', seenBy(review.at, 'review'), sectionShot, { section: `${shotSection}-other` }],
     ] as const) {
-      const res = await revise(callId, [...seen], capture)
+      const res = await revise(callId, [...seen], capture, scope)
       assert.equal(res.json.outcome, 'coverage_incomplete', `${callId}: ${JSON.stringify(res.json)}`)
     }
     const passed = await pass('v-named', seenBy(review.at, 'review'))

@@ -22,7 +22,8 @@
 --   needs it (review_missing), and so does the designer's candidate, for exactly the render it submits, in its current
 --   attempt (design_unseen, in design_submit_candidate). The submit with no reviewer (self_review_only) runs after that
 --   gate. A request for revision rests on what was seen too (#117): it names inspected deliveries of the candidate's
---   render, and each blocking or major finding names a capture among them (review_unbacked).
+--   render, and each blocking or major finding names a capture among them, of the target and the section it names
+--   (review_unbacked).
 -- * Edit replay (F5). A request key replayed with another version, scope (sections, shell, styles) or instruction is a
 --   conflict, never the earlier request's receipt.
 -- 0001–0042 are not edited; runtime_review_capture, design_submit_candidate, runtime_review_submit and
@@ -195,17 +196,23 @@ LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
   (SELECT sophia.design_seen_sections(t) FROM sophia.design_tasks t WHERE t.project_id=rv.project_id AND t.job_id=rv.design_job_id)) $$;
 REVOKE ALL ON FUNCTION sophia.review_missing(sophia.design_reviews,sophia.render_jobs,uuid,uuid[]) FROM PUBLIC;
 
--- What a request for revision does not rest on, of the captures it names as seen (p_seen): none at all, or the capture
--- a blocking or major finding cites.
-CREATE FUNCTION sophia.review_unbacked(p_seen text[], p_findings jsonb) RETURNS text[] LANGUAGE sql IMMUTABLE
-SET search_path=pg_catalog AS $$
+-- What a request for revision does not rest on, of the captures it names as seen (p_seen) among the render's
+-- (p_captures, its receipt's): none at all, or, for a blocking or major finding, the capture it cites, inspected, and
+-- showing the target and the section the finding names, when it names one (#117: a finding about a section rests on a
+-- capture of that section, not on any capture the reviewer happened to look at).
+CREATE FUNCTION sophia.review_unbacked(p_seen text[], p_findings jsonb, p_captures jsonb) RETURNS text[] LANGUAGE sql
+IMMUTABLE SET search_path=pg_catalog AS $$
  SELECT CASE WHEN cardinality(coalesce(p_seen,'{}'))=0
   THEN ARRAY['an inspected capture of the candidate''s render (its inspection''s receipt in seen)']
-  ELSE coalesce((SELECT array_agg(left('finding '||i||': the capture it rests on, inspected and named in seen'
-     ||coalesce(' ('||(f->>'capture')||')',''),300) ORDER BY i)
+  ELSE coalesce((SELECT array_agg(left('finding '||i||': the capture it rests on, inspected, named in seen, and of the '
+     ||'target and section it names'||coalesce(' ('||(f->>'capture')||')',''),300) ORDER BY i)
    FROM jsonb_array_elements(coalesce(p_findings,'[]')) WITH ORDINALITY q(f,i)
-   WHERE f->>'severity' IN ('blocking','major') AND NOT coalesce(f->>'capture','')=ANY(p_seen)),'{}') END $$;
-REVOKE ALL ON FUNCTION sophia.review_unbacked(text[],jsonb) FROM PUBLIC;
+   WHERE f->>'severity' IN ('blocking','major') AND NOT EXISTS(
+    SELECT 1 FROM jsonb_array_elements(coalesce(p_captures,'[]')) c
+     WHERE c->>'name'=f->>'capture' AND (c->>'name')=ANY(p_seen)
+      AND (f->>'target' IS NULL OR c->>'target'=f->>'target')
+      AND (f->>'section' IS NULL OR c->>'section'=f->>'section'))),'{}') END $$;
+REVOKE ALL ON FUNCTION sophia.review_unbacked(text[],jsonb,jsonb) FROM PUBLIC;
 
 -- What the designer has not looked at of the render it submits, in the deliveries the candidate names, as a failure.
 CREATE FUNCTION sophia.design_unseen(t sophia.design_tasks, r sophia.render_jobs, p_seen uuid[]) RETURNS text[] LANGUAGE sql STABLE
@@ -284,7 +291,7 @@ BEGIN
    missing:=sophia.review_missing(rv,r,s.attempt_id,sophia.design_seen_ids(p_request->'result'->'seen'));
   ELSE
    missing:=sophia.review_unbacked(sophia.design_delivered(rv.project_id,rv.job_id,s.attempt_id,r.job_id,
-    sophia.design_seen_ids(p_request->'result'->'seen')),v_findings);
+    sophia.design_seen_ids(p_request->'result'->'seen')),v_findings,r.receipt->'captures');
   END IF;
   IF cardinality(missing)>0 THEN RETURN jsonb_build_object('outcome','coverage_incomplete','missing',to_jsonb(missing[1:40])); END IF;
   UPDATE sophia.design_reviews SET verdict=p_request->'result'->>'verdict', findings=v_findings, summary=v_summary,
