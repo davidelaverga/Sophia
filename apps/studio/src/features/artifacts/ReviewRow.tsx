@@ -3,12 +3,15 @@
 // open ask, its words) reaches another's. Editors and admins approve or ask for changes, and after one they may still
 // do the other; every member sees the latest review. One key per press (useAdmission); with no reply, only that same
 // press is offered again. A press being answered keeps its focus. Only under the vision flag.
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { listReviews, reviewVersion, type ReviewAsk, type VersionReview } from '../../api/vision.ts'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
+import { byTime, reviewSettled } from './review-view.ts'
+import { useFeedRefetch } from './useFeedRefetch.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 
@@ -20,6 +23,8 @@ interface Props {
   newest: boolean
   /** Where the project's feed is: a review is a record, so its reviews are read again as the feed moves. */
   cursor: string | undefined
+  /** The version is on screen, read and checked: nothing is reviewed before it is (Codex on #124). */
+  readable: boolean
 }
 
 /** The latest review of a version, in words: who, and what they said; «revising» only while that can be true. */
@@ -35,11 +40,11 @@ function useReviews(props: Props) {
   const { identity, version } = props
   const queryClient = useQueryClient()
   const read = useQuery({
-    queryKey: ['vision', 'reviews', version.id, identity.name, props.cursor],
+    queryKey: ['vision', 'reviews', version.id, identity.name],
     queryFn: ({ signal }) => listReviews(identity.token, version.artifactId, version.id, signal),
-    placeholderData: keepPreviousData,
     retry: 1,
   })
+  useFeedRefetch(props.cursor, read.refetch)
   const write = useAdmission<ReviewAsk, VersionReview>((key, ask) =>
     reviewVersion(identity.token, version.artifactId, version.id, key, ask),
   )
@@ -47,25 +52,13 @@ function useReviews(props: Props) {
   const recorded = (done: VersionReview) =>
     queryClient.setQueriesData<{ reviews: readonly VersionReview[] }>(
       { queryKey: ['vision', 'reviews', version.id, identity.name] },
-      (was) => ({ reviews: [done, ...(was?.reviews ?? []).filter((r) => r.reviewId !== done.reviewId)] }),
+      (was) => ({ reviews: byTime(was?.reviews ?? [], done, (r) => r.reviewId) }),
     )
   const all = read.data?.reviews ?? []
-  return { all, latest: all[0], ready: read.isSuccess, write, recorded }
+  return { all, latest: all[0], read, write, recorded }
 }
 
 type WriteState = ReturnType<typeof useReviews>['write']['state']
-
-/**
- * Whether the reviews that just arrived settle what the last press said. A refusal gives way to any. A press with no
- * reply only to the evidence that it landed: a new review of mine with its verdict. Another member's says nothing.
- */
-function settledBy(state: WriteState, arrived: readonly VersionReview[], me: string | undefined): boolean {
-  if (arrived.length === 0) return false
-  if (state.status === 'rejected') return true
-  if (state.status !== 'unknown') return false
-  const { verdict } = state.args
-  return arrived.some((r) => r.by === me && r.verdict === verdict)
-}
 
 /** The row's words: a press that didn't go through says so; else the latest review. */
 function rowWords(state: WriteState, fallback: string): string {
@@ -76,27 +69,23 @@ function rowWords(state: WriteState, fallback: string): string {
 
 export function ReviewRow(props: Props) {
   const me = useMembership(props.projectId, props.identity.name, props.identity.token).data
-  const { all, latest, ready, write, recorded } = useReviews(props)
+  const { all, latest, read, write, recorded } = useReviews(props)
   const [asking, setAsking] = useState(false)
   const [draft, setDraft] = useState('')
   const said = useRef<HTMLSpanElement>(null)
-  // Reviews arrived (here, or from the feed): a refusal gives way to them; a press with no reply only to its own record.
-  const ids = all.map((r) => r.reviewId).join(' ')
-  const [seen, setSeen] = useState(ids)
-  if (ids !== seen) {
-    setSeen(ids)
-    const known = new Set(seen.split(' '))
-    if (
-      settledBy(
-        write.state,
-        all.filter((r) => !known.has(r.reviewId)),
-        me?.actorId,
-      )
-    )
-      write.reset()
-  }
-  if (!ready || !me) return null
+  const slow = useSlow(write.state.status === 'sending')
+  const { settled, mark } = useSettling({ all, write, me: me?.actorId }, () => {
+    // Recorded, as its reply would have said: the ask closes and its words go, so no second Send can follow.
+    setAsking(false)
+    setDraft('')
+  })
+  useEffect(() => {
+    if (settled > 0) said.current?.focus()
+  }, [settled])
+  if (!me) return null
+  if (!read.data) return <ReviewsPending failed={read.isError} onRetry={() => void read.refetch()} />
   const send = async (ask: ReviewAsk) => {
+    mark()
     const done = await write.send(ask)
     if (!done) return
     recorded(done)
@@ -109,7 +98,12 @@ export function ReviewRow(props: Props) {
       <span ref={said} className="review-said" role="status" tabIndex={-1}>
         {rowWords(write.state, reviewWords(latest, me.actorId, props.newest))}
       </span>
-      {canInvite(me) && (
+      {slow && (
+        <p className="wait-note" role="status">
+          {SLOW_NOTE}
+        </p>
+      )}
+      {canInvite(me) && props.readable && (
         <ReviewActs
           {...{ latest, asking, draft, setDraft, send }}
           version={props.version.versionNumber}
@@ -119,6 +113,78 @@ export function ReviewRow(props: Props) {
       )}
     </div>
   )
+}
+
+/** Before the first read: being read (with the slow note after a while), or failed, with Try again. */
+function ReviewsPending({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
+  const slow = useSlow(!failed)
+  return (
+    <div className="review-row" role="group" aria-label="Review">
+      {failed ? (
+        <>
+          <span className="review-said" role="alert">
+            Reviews can’t be read now.
+          </span>
+          <button type="button" className="text-button" onClick={onRetry}>
+            Try again
+          </button>
+        </>
+      ) : (
+        <span className="review-said" role="status">
+          Reading reviews…
+        </span>
+      )}
+      {slow && (
+        <p className="wait-note" role="status">
+          {SLOW_NOTE}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A press settled by the feed, as its reply would have: with no reply, by its own record (any review of mine new since
+ * the press began with its verdict and words, whenever it came); refused, by any review new since the refusal was
+ * shown. Returns how many presses the feed has settled (to give the focus to the row's words) and `mark`, called as a
+ * new press begins.
+ */
+function useSettling(
+  {
+    all,
+    write,
+    me,
+  }: { all: readonly VersionReview[]; write: ReturnType<typeof useReviews>['write']; me: string | undefined },
+  onRecorded: () => void,
+) {
+  const ids = () => new Set(all.map((r) => r.reviewId))
+  const [before, setBefore] = useState<ReadonlySet<string>>(() => new Set())
+  const [atRefusal, setAtRefusal] = useState<ReadonlySet<string> | null>(null)
+  const [settled, setSettled] = useState(0)
+  const { status } = write.state
+  if (status === 'rejected' && !atRefusal) setAtRefusal(ids())
+  if (status !== 'rejected' && atRefusal) setAtRefusal(null)
+  const since = status === 'rejected' ? (atRefusal ?? ids()) : before
+  if (
+    (status === 'unknown' || status === 'rejected') &&
+    reviewSettled(
+      status,
+      write.state.args,
+      all.filter((r) => !since.has(r.reviewId)),
+      me,
+    )
+  ) {
+    write.reset()
+    if (status === 'unknown') {
+      onRecorded()
+      setSettled(settled + 1)
+    }
+  }
+  // A new intent snapshots what is there; Try again keeps its press's.
+  const mark = () => {
+    if (status !== 'unknown') setBefore(ids())
+  }
+  return { settled, mark }
 }
 
 interface ActsProps {
@@ -141,6 +207,8 @@ function useLostPress(state: WriteState): ReviewAsk | null {
   return state.status === 'unknown' || trying ? state.args : null
 }
 
+const approveLabel = (version: number | undefined) => (version ? `Approve v${String(version)}` : 'Approve')
+
 /**
  * What an editor may do: approve, unless it is approved; ask for changes, unless they are asked for. With no reply,
  * only that press again, as it was sent (its words held), so a different intent never resends the old one.
@@ -158,7 +226,7 @@ function ReviewActs(props: ActsProps) {
         aria-disabled={sending || undefined}
         onClick={() => !sending && void send(again)}
       >
-        Try again
+        {sending ? 'Sending…' : 'Try again'}
       </button>
     )
   }
@@ -181,7 +249,7 @@ function ReviewActs(props: ActsProps) {
     <span className="review-acts">
       {latest?.verdict !== 'approved' && (
         <button type="button" className="pill" aria-disabled={sending || undefined} onClick={approve}>
-          {version ? `Approve v${String(version)}` : 'Approve'}
+          {sending && state.args.verdict === 'approved' ? 'Approving…' : approveLabel(version)}
         </button>
       )}
       {latest?.verdict !== 'changes_requested' && (
@@ -235,7 +303,7 @@ function ChangesAsk({ draft, sending, onDraft, onSend, onCancel }: AskProps) {
       )}
       <span className="review-acts">
         <button type="button" className="pill" aria-disabled={sending || undefined} onClick={send}>
-          Send
+          {sending ? 'Sending…' : 'Send'}
         </button>
         <button type="button" className="text-button" onClick={onCancel}>
           Cancel

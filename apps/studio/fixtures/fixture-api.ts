@@ -43,7 +43,7 @@ import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-
 import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
 import { reviewed, type Reviews } from './review-data.ts'
 import { created, finished, type Tasks } from './task-data.ts'
-import type { ProjectTask } from '../src/api/vision.ts'
+import type { ProjectTask, VersionReview } from '../src/api/vision.ts'
 import { searchHits, searchPage } from './search-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
@@ -306,22 +306,30 @@ const unavailable = () =>
     { status: 503 },
   )
 
-/** A version's reviews (A16): `/api/v1/artifacts/{report}/versions/{version}/reviews`, the version captured. */
-const REVIEWS = new RegExp(`^/api/v1/artifacts/${REPORT}/versions/([0-9a-f-]{36})/reviews$`)
-/** Any report's reviews or tasks, as read (A16, A17): the report (and the version) captured. */
+/** Any report's reviews or tasks (A16, A17): the report (and the version) captured. */
 const REVIEWS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions\/([0-9a-f-]{36})\/reviews$/
 const TASKS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
 
 /** A version's reviews as read (A16): none where the page keeps none, and then the read isn't counted. */
 function reviewsRead(project: Project, versionId: string) {
-  if (project.reviews) served.push('reviews:read')
-  return json({ reviews: project.reviews?.byVersion.get(versionId) ?? [] })
+  if (project.reviews?.failReads) return unavailable()
+  const reply = () => {
+    if (project.reviews) served.push('reviews:read')
+    return json({ reviews: project.reviews?.byVersion.get(versionId) ?? [] })
+  }
+  const held = project.reviews?.heldReads
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(reply()))) : reply()
 }
 
 /** A report's tasks as read (A17): the fixture report's, where the page keeps them; any other report's, none. */
 function tasksRead(project: Project, artifactId: string) {
-  if (project.tasks) served.push('tasks:read')
-  return json({ tasks: artifactId === REPORT ? (project.tasks?.list ?? []) : [] })
+  if (project.tasks?.failReads) return unavailable()
+  const reply = () => {
+    if (project.tasks) served.push('tasks:read')
+    return json({ tasks: artifactId === REPORT ? (project.tasks?.list ?? []) : [] })
+  }
+  const held = project.tasks?.heldReads
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(reply()))) : reply()
 }
 
 /** A review written (A16): 201, once per key; a viewer is refused; a reply lost when the page asks for that. */
@@ -342,11 +350,24 @@ function reviewPosted(project: Project, versionId: string, init: RequestInit | u
     // It landed, but neither its reply nor its event has reached the page yet: only Try again can tell it.
     return Promise.reject(new TypeError('Failed to fetch'))
   }
-  if (done.first) {
-    served.push(`review:${done.review.verdict}`)
-    publish(project) // a record: the feed moves
+  if (done.first) served.push(`review:${done.review.verdict}`)
+  return reviewAnswer(project, reviews, done)
+}
+
+/** A review's reply: after the feed moved and then lost, held until released, or at once (the feed moving). */
+function reviewAnswer(project: Project, reviews: Reviews, done: { review: VersionReview; first: boolean }) {
+  const reply = () =>
+    new Response(JSON.stringify(done.review), { status: 201, headers: { 'content-type': 'application/json' } })
+  if (reviews.publishThenLose) {
+    reviews.publishThenLose = false
+    publish(project) // its record reaches the page while the press is still on its way
+    return new Promise<Response>((_, reject) => setTimeout(() => reject(new TypeError('Failed to fetch')), 1500))
   }
-  return new Response(JSON.stringify(done.review), { status: 201, headers: { 'content-type': 'application/json' } })
+  // Held, it is recorded at once and its reply waits; the feed moves with whatever comes next, not with the release.
+  const held = reviews.held
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(reply())))
+  if (done.first) publish(project) // a record: the feed moves
+  return reply()
 }
 
 /** A task done (A17): `/api/v1/projects/{project}/tasks/{task}/done`, the task captured. */
@@ -359,11 +380,16 @@ function taskAnswer(project: Project, tasks: Tasks, done: { task: ProjectTask; f
     tasks.loseReply = false
     return Promise.reject(new TypeError('Failed to fetch')) // it landed; only Try again can tell it
   }
+  const reply = () =>
+    new Response(JSON.stringify(done.task), {
+      status: what === 'create' ? 201 : 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  // Held, it is recorded at once and its reply waits; the feed moves with whatever comes next, not with the release.
+  const held = tasks.held
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(reply())))
   if (done.first) publish(project) // a record: the feed moves
-  return new Response(JSON.stringify(done.task), {
-    status: what === 'create' ? 201 : 200,
-    headers: { 'content-type': 'application/json' },
-  })
+  return reply()
 }
 
 /** A task made from a passage (A17): 201, once per key; a viewer is refused. */
@@ -595,7 +621,7 @@ const isContribution = (value: unknown): value is { text: string; intent: Contri
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/contributions`) return contributed(project, init)
-  const reviewOf = REVIEWS.exec(path)?.[1]
+  const reviewOf = REVIEWS_OF.exec(path)?.[2]
   if (reviewOf) return reviewPosted(project, reviewOf, init)
   if (path === `${base}/tasks`) return taskPosted(project, init)
   const doneOf = TASK_DONE.exec(path)?.[1]

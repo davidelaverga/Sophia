@@ -9,9 +9,26 @@ export interface Reviews {
   loseReply: boolean
   /** The next review never reaches the API: the connection fails before it (`window.fixture.dropNextReview`). */
   drop: boolean
+  /** The next write lands and the feed moves, and only then is its reply lost (`publishThenLoseReview`). */
+  publishThenLose: boolean
+  /** While set, writes land but their replies wait for `releaseReviews` (`holdReviews`). */
+  held: (() => void)[] | null
+  /** Reads fail as the API does when its records can't be read (`failReviewReads`, `reviews=fail`). */
+  failReads: boolean
+  /** While set, reads wait for `releaseReviewReads` (`reviews=hold`). */
+  heldReads: (() => void)[] | null
 }
 
-export const noReviews = (): Reviews => ({ byVersion: new Map(), byKey: new Map(), loseReply: false, drop: false })
+export const noReviews = (failReads = false): Reviews => ({
+  byVersion: new Map(),
+  byKey: new Map(),
+  loseReply: false,
+  drop: false,
+  publishThenLose: false,
+  held: null,
+  failReads,
+  heldReads: null,
+})
 
 const isAsk = (value: unknown): value is ReviewAsk =>
   typeof value === 'object' &&

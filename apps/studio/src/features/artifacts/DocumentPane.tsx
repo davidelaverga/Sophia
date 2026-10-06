@@ -504,6 +504,7 @@ function reviewOf(props: Props, data: PaneData): ReactNode {
       version={version}
       newest={newest}
       cursor={props.cursor}
+      readable={headOf(data).canDownload}
     />
   )
 }

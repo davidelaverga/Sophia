@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ProjectTask } from '../../api/vision.ts'
 import type { RoomParticipant } from '../voice/room-view.ts'
-import { doneWords, mayFinish, openCount, ordered, ownerWords, taskPeople } from './task-view.ts'
+import { doneWords, mayFinish, openCount, ordered, ownerWords, QUOTE_MAX, taskPeople, taskQuote } from './task-view.ts'
 
 const task = (over: Partial<ProjectTask> = {}): ProjectTask => ({
   taskId: 't1',
@@ -80,5 +80,17 @@ describe('whom a task may be for, in the call', () => {
       { actorId: 'ben', name: 'BEN' },
       { actorId: 'ada', name: 'ADA' },
     ])
+  })
+})
+
+describe('a task’s quote', () => {
+  it('is the passage as selected, within the API’s 800 characters, its cut marked', () => {
+    assert.equal(taskQuote('The fixture holds.'), 'The fixture holds.')
+    const long = `${'a'.repeat(799)}…`
+    assert.equal(taskQuote(long).length, QUOTE_MAX)
+    const longer = 'b'.repeat(900)
+    assert.equal(taskQuote(longer).length, QUOTE_MAX)
+    assert.ok(taskQuote(longer).endsWith('…'))
+    assert.equal(taskQuote('c'.repeat(800)), 'c'.repeat(800))
   })
 })

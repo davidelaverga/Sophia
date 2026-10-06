@@ -8,10 +8,11 @@ import { ApiError } from '../../api/client.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { createTask, type ProjectTask, type TaskAsk } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { VISION } from '../../app/vision.ts'
 import { canInvite, useMembership } from '../access/useAccess.ts'
 import { keptText, type PassageSource } from './passage.ts'
-import { ownerWords } from './task-view.ts'
+import { ownerWords, taskQuote } from './task-view.ts'
 import { taskRecorded } from './TaskList.tsx'
 
 /** The passage a task is made from: its words, where they came from, and their place in that version. */
@@ -170,11 +171,14 @@ function useCreate(
   if (write.state.status === 'unknown') lost.current = true
   else if (write.state.status !== 'sending') lost.current = false
   const sending = write.state.status === 'sending'
+  const slow = useSlow(sending)
   const answered = (done: ProjectTask | undefined, ask: TaskAsk) => done && onAdded(done, ask)
   return {
-    // A Try again on its way keeps the words it answers, and its button (aria-disabled), so the focus stays on it.
-    words: lost.current && sending ? 'Not sent. Try again.' : formWords(write.state),
+    // A Try again on its way keeps the words it answers, and its button (aria-disabled), so the focus stays on it; a
+    // first Create on its way says so too, so the foot is never silent while no other Task is offered.
+    words: sending ? (lost.current ? 'Not sent. Try again.' : 'Creating the task…') : formWords(write.state),
     sending,
+    slow,
     lost: lost.current,
     held: sending || lost.current,
     reset: write.reset,
@@ -199,7 +203,7 @@ function TaskForm({ passage, me, people, write, onClose }: FormProps) {
       void write.create({
         text: text.trim(),
         owner: ownerOf(owner, me),
-        from: { ...passage.place, quote: passage.text },
+        from: { ...passage.place, quote: taskQuote(passage.text) },
       })
   }
   return (
@@ -232,6 +236,11 @@ function TaskForm({ passage, me, people, write, onClose }: FormProps) {
         </button>
         <CreatePress write={write} />
       </TaskFoot>
+      {write.slow && (
+        <p className="wait-note" role="status">
+          {SLOW_NOTE}
+        </p>
+      )}
     </form>
   )
 }
@@ -241,11 +250,11 @@ function CreatePress({ write }: { write: ReturnType<typeof useCreate> }) {
   const busy = write.sending || undefined
   return write.lost ? (
     <button type="button" className="pill" aria-disabled={busy} onClick={() => void write.again()}>
-      Try again
+      {write.sending ? 'Sending…' : 'Try again'}
     </button>
   ) : (
     <button type="submit" className="pill" aria-disabled={busy}>
-      Create
+      {write.sending ? 'Creating…' : 'Create'}
     </button>
   )
 }
