@@ -61,6 +61,7 @@ test('return · what the research made later comes after the meeting, and the re
   const since = page.getByRole('region', { name: 'Since you last looked' })
   await expect(since).toBeVisible()
   await expect(since).not.toContainText('running')
+  await expect(since).toContainText('succeeded')
   await page.locator('.meeting-rows').getByRole('button').first().click()
   const after = part(page, 'After the meeting')
   await expect(after).toContainText('Fixture report ready · v1')

@@ -14,6 +14,7 @@ Codex's six P2s on #126–#129:
 - **Following after a reconnect** forgets what it heard only once the ask is published. A refused ask is asked again until the call ends or another drop starts its own resync. With only guests in the call, nobody is asked.
 - **Back from another view,** what a call followed is followed again: it is kept by project, person and call.
 - **A search's old hits** go as soon as the words change, and so do More results and the count.
+- **The fixture** keeps the finished research in its live records, so «since you last looked» lists it (Codex's second P2 on #129).
 - **«After the meeting»** is read again every 4 s while its work goes on and nothing came, for ten minutes at most.
 
 **Independent review:**

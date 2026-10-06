@@ -14,6 +14,8 @@
 
 **A search's old hits go as soon as the words change** (#128, `SearchSheet`). Before the words settle, none of the last query's hits is offered.
 
+**The fixture keeps the finished research in its live records** (#129): «since you last looked» lists it as succeeded, while the recap at close keeps it running.
+
 **«After the meeting» comes while the sheet is open** (#129, `AfterMeeting`). While its work goes on and nothing came, it is read again every four seconds, for ten minutes at most.
 
 ## Checks (written first)
