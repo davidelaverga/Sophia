@@ -22,6 +22,11 @@ const UNSWEPT_UNITS = /^(?:[sld]?v(?:h|b|min|max)|cq(?:w|h|i|b|min|max))$/u
 const MATH = new Set(['calc', 'min', 'max', 'clamp', 'abs', 'sign', 'mod', 'rem', 'round'])
 /** Those that take the least or greatest of their arguments: they move one way only when every argument does. */
 const EXTREMES = new Set(['min', 'max', 'clamp'])
+/**
+ * Those that pass a value through: a variable's or an environment value's fallback (an undefined name takes it, as
+ * `env(sophia-gap, calc(1440px - 100vw))` does), and an attribute's, which the profile cannot read (#117, SDD-CX44).
+ */
+const CARRIERS = new Set(['var', 'env', 'attr'])
 /** Those that fold a value back on itself: an absolute value or a remainder moves both ways when its value moves. */
 const FOLDS = new Set(['abs', 'mod', 'rem'])
 const FLIPPED: Readonly<Record<Way, Way>> = { flat: 'flat', up: 'down', down: 'up', both: 'both' }
@@ -124,8 +129,9 @@ function functionWay(fn: CssNode & { type: 'Function' }): Way {
   if (FOLDS.has(name)) return args.some((a) => sumWay(a) !== 'flat') ? 'both' : 'flat'
   if (name === 'round') return roundWay(args)
   if (name === 'attr') return 'both'
-  // A variable is a value a custom property holds, which moves with nothing (windowIssue); its fallback is read.
-  if (name === 'var') return args.slice(1).map(sumWay).reduce(join, 'flat')
+  // A variable is a value a custom property holds, which moves with nothing (windowIssue), and an environment value is
+  // the browser's; each one's fallback is read, as the value it gives when the name is undefined (#117, SDD-CX44).
+  if (name === 'var' || name === 'env') return args.slice(1).map(sumWay).reduce(join, 'flat')
   // Any other function gives a value of its own (a colour, a gradient, a transform): what matters is a part of it that
   // moves both ways.
   return args.some((a) => a.some((part) => wayOf(part) === 'both')) ? 'both' : 'flat'
@@ -139,10 +145,15 @@ function wayOf(n: CssNode): Way {
   return 'flat'
 }
 
-/** Whether a part of a custom property's value is a length that moves with the window, or arithmetic that does. */
+/**
+ * Whether a part of a custom property's value is a length that moves with the window, arithmetic that does, or a
+ * value passed through that does (CARRIERS); in any other function (a gradient), only a part that moves both ways.
+ */
 function movesWithWindow(n: CssNode): boolean {
   if (n.type === 'Dimension' || n.type === 'Percentage') return literalWay(n) !== 'flat'
-  return n.type === 'Function' && MATH.has(n.name.toLowerCase()) && wayOf(n) !== 'flat'
+  if (n.type !== 'Function') return false
+  const name = n.name.toLowerCase()
+  return MATH.has(name) || CARRIERS.has(name) ? wayOf(n) !== 'flat' : wayOf(n) === 'both'
 }
 
 /** The first unit in a value that measures what no capture or sweep varies, or null. */

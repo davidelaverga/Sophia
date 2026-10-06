@@ -1278,6 +1278,12 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       'p{font-size:2vmin}',
       'p{width:50cqw}',
       '@media (min-width: 720px){p{height:max(1px,calc(1440px - 100vw),calc(100vw - 1440px))}}',
+      // SDD-CX44: an undefined environment name takes its fallback, which moves.
+      '[data-block]{height:max(1px,env(sophia-gap,calc(1440px - 100vw)),calc(100vw - 1440px));overflow:hidden}',
+      ':root{--k:env(sophia-gap,calc(1440px - 100vw))}p{height:max(1px,var(--k),calc(100vw - 1440px))}',
+      ':root{--k:env(sophia-gap,50vw)}',
+      ':root{--k:attr(data-h px)}',
+      ':root{--k:linear-gradient(#fff max(0px,calc(1440px - 100vw),calc(100vw - 1440px)),#000 100%)}',
     ])
       assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
     const inline = html(good).replace('<h1>', '<h1 style="height:abs(100vw - 1440px);overflow:hidden">')
@@ -1295,6 +1301,9 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       ':root{--fade:linear-gradient(#fff 0%,#eee 100%)}',
       'p{transform:translate(-50%,-50%)}',
       'div{grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))}',
+      'body{padding-top:env(safe-area-inset-top,1rem)}',
+      ':root{--pad:env(safe-area-inset-left,1rem)}main{padding-left:var(--pad)}',
+      'p{width:max(10vw,env(sophia-gap,5vw))}',
     ])
       assert.deepEqual(css(ok), [], ok)
   })
