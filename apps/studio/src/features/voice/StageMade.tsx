@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -18,11 +19,13 @@ import { Icon, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReports } from '../../api/artifacts.ts'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { modalOnScreen, ShortcutScope, useShortcuts } from '../../app/shortcuts.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
+import { escapeStepsDown } from '../artifacts/report-view.ts'
 import { noticeActions, noticeOpenRequest, noticeTitle, type ChatNoticeItem } from '../conversation/chat-view.ts'
 import { factWords, madeFacts, madeHeading, madeKey, madeOnStage } from './made-view.ts'
 import { memberLabel, withMe, type RoomNames } from './StageCaptions.tsx'
+import type { ShowRender } from './ShowEveryone.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
 /** A name inside a sentence: "Asked by you", "Asked by a member". */
@@ -60,7 +63,7 @@ export function madeOnTheStage(
   made: StageMadeState,
   room: Pick<ProjectRoom, 'status' | 'participants'>,
   panel: { chatOpen: boolean; anyOpen: boolean },
-  context: { projectId: string; identity: Identity; who: RoomNames },
+  context: { projectId: string; identity: Identity; who: RoomNames; show?: ShowRender | undefined },
 ): ReactNode {
   const { notice } = made
   const inCall = room.status === 'live' || room.status === 'reconnecting'
@@ -77,6 +80,7 @@ export function madeOnTheStage(
       keys={!panel.anyOpen}
       onBorn={made.wasBorn}
       onPutAway={made.putAway}
+      show={context.show}
     />
   )
 }
@@ -93,6 +97,8 @@ interface Props {
   keys: boolean
   onBorn: (notice: ChatNoticeItem) => void
   onPutAway: (notice: ChatNoticeItem) => void
+  /** «Show everyone», where it is offered (showRenderOf): shown, the object goes, as it does once opened. */
+  show?: ShowRender | undefined
 }
 
 /** The task's record, its report's version (the one the record names) and its card on Knowledge. */
@@ -123,12 +129,43 @@ function useMadeRecord({ notice, projectId, identity }: Pick<Props, 'notice' | '
   const version = versions?.find((v) => v.id === outputs[0]?.artifactVersionId)
   // A read that failed is said, with a way to try again: never an Open that waits for ever.
   const failed = task.isError && !detail
-  return { detail, artifactId, version, card, outputs, failed, retry: () => void task.refetch() }
+  // The room shows what is current: a version since replaced isn't offered to everyone.
+  const current = !!version && versions?.[0]?.id === version.id
+  return { detail, artifactId, version, current, card, outputs, failed, retry: () => void task.refetch() }
 }
 
 /** The Chat toggle of this stage, which holds the object's card: where the focus goes once the object is gone. */
 const focusChatOf = (el: HTMLElement | null) =>
   el?.closest('.room-stage')?.querySelector<HTMLElement>('.panel-toggles [data-panel="chat"]')?.focus()
+
+/**
+ * Esc puts it away wherever the focus is, as long as nothing else owns the key: a field, a dialog, a panel (`enabled`
+ * is false while one holds the keys) or a report on screen, whose own Esc steps down.
+ */
+function useEscapeAway(enabled: boolean, away: () => void) {
+  const inSight = useContext(ShortcutScope)
+  const latest = useRef(away)
+  useEffect(() => {
+    latest.current = away
+  })
+  useEffect(() => {
+    if (!enabled) return undefined
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const t = e.target instanceof HTMLElement ? e.target : null
+      const owned = !!t && (t.isContentEditable || !!t.closest('[role="dialog"], input, textarea, select'))
+      if (
+        !escapeStepsDown({ defaultPrevented: e.defaultPrevented, repeat: e.repeat, owned }, inSight, modalOnScreen())
+      ) {
+        return
+      }
+      e.preventDefault()
+      latest.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [enabled, inSight])
+}
 
 /** Open, Close and their key: Open shows the report in the viewer; either puts the object away. */
 function useMadeActions(
@@ -159,6 +196,7 @@ function useMadeActions(
   // O only while it does something: the report is ready, no report is on screen, no panel holds the keys.
   const key = keys && ready && !viewer?.shown
   useShortcuts({ o: open }, key)
+  useEscapeAway(keys && !viewer?.shown, close)
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return
     e.stopPropagation()
@@ -276,6 +314,7 @@ export function StageMade(props: Props) {
       )}
       <span className="made-acts">
         {record.failed ? <RetryRead onRetry={record.retry} /> : <OpenButton ready={ready} keyOn={key} onOpen={open} />}
+        {props.show && version && record.current && props.show(version.id, () => props.onPutAway(notice))}
       </span>
       <button type="button" className="round made-close" aria-label="Close" onClick={close}>
         <Icon name="close" />

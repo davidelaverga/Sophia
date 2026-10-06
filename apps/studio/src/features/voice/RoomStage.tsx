@@ -1,7 +1,16 @@
 // renderRoom → RoomStage (frontend bindings): the Studio's stage. Sophia's light holds the room and the
 // people sit around her; when someone shares video it takes the stage and her light moves into a tile
 // of her own. The lens bar and lens body are this viewer's own (viewer-state.ts).
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
@@ -25,6 +34,7 @@ import {
 import { sophiaView, type SophiaView } from './sophia-view.ts'
 import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stage-geometry.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
+import { useWorkWords } from './useWorkWords.ts'
 import { VideoStage } from './VideoStage.tsx'
 
 interface Props {
@@ -40,6 +50,10 @@ interface Props {
   corner?: ReactNode
   /** What is being said, just above the dock (StageCaptions), when the page shows it there. */
   captions?: ReactNode
+  /** A report shown to everyone, presented on this stage (useStagePresent); null when it isn't. */
+  presented?: ReactNode
+  /** Who shows what to everyone, when this stage doesn't present it: under her line, or over the video. */
+  showing?: ReactNode
 }
 
 /** The time, again every half minute: enough for "starts in 12 min". */
@@ -179,25 +193,48 @@ function conversationLine(
   room: ProjectRoom,
   snapshot: Snapshot | undefined,
   floor: FloorView,
-  running: number,
+  work: { running: number; doing: string | null },
   sophia: SophiaView,
 ): RoomLine {
   // Until the project has loaded there is no room to describe: "The room is ready" would be a guess.
   if (!room.ready) return OPENING
   const typing = room.textMode && room.status === 'live' && floor.mine && reachesSophia(snapshot?.room.sophia)
-  return typing ? { text: 'Chatting with Sophia', note: null } : roomLine(room.status, floor, running, sophia)
+  return typing
+    ? { text: 'Chatting with Sophia', note: null }
+    : roomLine(room.status, floor, work.running, sophia, work.doing)
 }
 
-export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBody, line, corner, captions }: Props) {
-  const stage = useRef<HTMLElement>(null)
-  const now = useNow()
-  const light = useRef<SophiaLightHandle>(null)
+/** With video on the stage: the gallery, a shared screen or a report presented, and the card over it. */
+function OnVideo({ showing, ...stage }: ComponentProps<typeof VideoStage> & { showing: ReactNode }) {
+  return (
+    <>
+      <VideoStage {...stage} />
+      {showing && <div className="stage-over-video">{showing}</div>}
+    </>
+  )
+}
+
+/**
+ * What the stage shows, from the room and the project: who is where and who holds the floor, its mode (a report shown
+ * to everyone presents as a shared screen does), and what Sophia is doing.
+ */
+function useStageModel({ room, snapshot, projectId, identity, presented }: Props) {
   const people = orderParticipants(room.participants)
   const holder = snapshot?.room.inputActorId ?? null
   const floor = floorView(holder, room.participants)
-  const mode = stageMode(room.feeds)
+  const mode: StageMode = presented ? 'present' : stageMode(room.feeds)
   const running = runningWork(snapshot)
   const sophia = observedSophia(room, snapshot, floor, running > 0)
+  const doing = useWorkWords(snapshot, projectId, identity, mode === 'light')
+  return { people, holder, floor, mode, running, sophia, doing }
+}
+
+export function RoomStage(props: Props) {
+  const { room, snapshot, projectId, identity, lensBar, lensBody, line, corner, captions, presented, showing } = props
+  const stage = useRef<HTMLElement>(null)
+  const now = useNow()
+  const light = useRef<SophiaLightHandle>(null)
+  const { people, holder, floor, mode, running, sophia, doing } = useStageModel(props)
   const live = room.status === 'live' || room.status === 'reconnecting'
   const layout = [...people.map((p) => p.identity), ...room.feeds.map((f) => f.key)].join(' ')
   const geometry = useStageGeometry(stage, floor.holder?.present ? floor.holder.identity : null, mode, layout)
@@ -225,13 +262,16 @@ export function RoomStage({ room, snapshot, projectId, identity, lensBar, lensBo
           <div className="stage-top">{lensBar}</div>
           <Presences people={people} floor={floor} revision={snapshot?.room.revision ?? 0} />
           <SophiaLine
-            line={line ?? conversationLine(room, snapshot, floor, running, sophia)}
+            line={line ?? conversationLine(room, snapshot, floor, { running, doing }, sophia)}
             session={sessionNote(snapshot, now)}
           />
-          <div className="stage-body">{lensBody}</div>
+          <div className="stage-body">
+            {showing}
+            {lensBody}
+          </div>
         </>
       ) : (
-        <VideoStage mode={mode} people={people} feeds={room.feeds} floor={floor} />
+        <OnVideo mode={mode} people={people} feeds={room.feeds} floor={floor} shown={presented} showing={showing} />
       )}
       {captions}
       <RoomDock

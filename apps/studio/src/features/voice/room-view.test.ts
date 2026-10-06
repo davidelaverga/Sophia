@@ -176,6 +176,13 @@ describe('room stage', () => {
     assert.equal(roomLine('idle', free, 1).note, 'Working on 1 task in the background')
   })
 
+  it('says what she is doing in place of the count, and never over her own note', () => {
+    const free = floorView(null, [luis, davide])
+    assert.equal(roomLine('live', free, 1, null, 'Researching · 3 sources read').note, 'Researching · 3 sources read')
+    const listening = { inConversation: true, label: 'Sophia is listening to you', note: 'Your microphone is off' }
+    assert.equal(roomLine('live', free, 1, listening, 'Researching').note, 'Your microphone is off')
+  })
+
   it('while Sophia is in the conversation, her line is what the bridge observes', () => {
     const free = floorView(null, [luis, davide])
     const sophia = { inConversation: true, label: 'Sophia is listening to Luis', note: null }

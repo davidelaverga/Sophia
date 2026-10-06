@@ -20,7 +20,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   const waiters = new Set()
   let seq = 0
   let polls = 0
-  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false, refuseReceipts: false, research: {}, review: {} }
+  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false, refuseReceipts: false, research: {}, design: {}, review: {} }
   // The runtime research operations (SMC-M03 S4, A11): every call recorded; each answered by a test's handler, or by
   // a well-formed default (an empty task, a reservation, its settlement, a capture, a draft).
   const research = []
@@ -44,6 +44,22 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       pdf: { sourceId: uuid(5999), sha256: 'c'.repeat(64), bytes: 2048, pages: 2 } }),
   }
 
+  // The runtime design and review operations (SDD-01, A12), recorded and answered the same way. A capture is a real
+  // PNG (a 3x2 one, so its dimensions survive dsh's normalization recognisably).
+  const design = []
+  const CAPTURE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAFUlEQVR4nGP4z8DAAMH//4PohoYGAEfPB3vT+rJCAAAAAElFTkSuQmCC'
+  const designDefaults = {
+    'design/record': (body) => ({ entries: (body.expectedEntries ?? 0) + body.entries.length, replayed: false }),
+    'design/reserve': researchDefaults.reserve,
+    'design/settle': researchDefaults.settle,
+    'design/capture': (body) => ({
+      renderJobId: body.renderJobId ?? uuid(6100),
+      captures: body.names.map((name) => ({ name, target: 'w390-light', kind: 'overview', section: null, tile: 1, tiles: 1, width: 3, height: 2, scale: 0.5,
+        sha256: 'd'.repeat(64), bytes: 78, mime: 'image/png', data: CAPTURE_PNG })),
+    }),
+    'review/submit': (body) => ({ outcome: 'recorded', verdict: body.result?.verdict ?? 'blocked', candidateId: uuid(6000) }),
+  }
+  designDefaults['review/capture'] = designDefaults['design/capture']
   // The source reviewer's operations (WBC-02, A13), recorded and answered the same way: a one-source task, a page of
   // fixture text, a reservation and its settlement, and a published review.
   const review = []
@@ -111,6 +127,15 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       const answer = (state.research[op] ?? researchDefaults[op])(json)
       return answer && answer.status ? reply(answer.status, answer.body) : reply(200, answer)
     }
+    const designOp = req.method === 'POST' && /^\/v1\/runtime\/((?:design|review)\/[a-z-]+)$/.exec(url.pathname)?.[1]
+    if (designOp) {
+      design.push({ op: designOp, body: json })
+      notify()
+      const handler = state.design[designOp] ?? designDefaults[designOp]
+      if (!handler) return reply(404, { error: 'not found' })
+      const answer = handler(json)
+      return answer && answer.status ? reply(answer.status, answer.body) : reply(200, answer)
+    }
     const reviewOp = req.method === 'POST' && /^\/v1\/runtime\/source-review\/(context|reserve|settle|submit)$/.exec(url.pathname)?.[1]
     if (reviewOp) {
       review.push({ op: reviewOp, body: json })
@@ -158,6 +183,12 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
      * `{ status: 409, body: { code: 'research_limit_reached' } }`. Null restores the default.
      */
     onResearch: (op, handler) => { state.research[op] = handler ?? undefined },
+    /** Every design or review operation the runtime called, in order: `{ op, body }`, op like `design/capture`. */
+    design,
+    /** Answer one design or review operation (`design/render`, `review/submit`, ...) with `handler(body)`, as onResearch. */
+    onDesign: (op, handler) => { state.design[op] = handler ?? undefined },
+    /** The PNG every default capture carries, base64. */
+    capturePng: CAPTURE_PNG,
     /** Every source-review operation the runtime called, in order: `{ op, body }`. */
     review,
     /** Answer one source-review operation with `handler(body)`, as onResearch. */

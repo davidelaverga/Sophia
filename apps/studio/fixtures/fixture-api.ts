@@ -3,6 +3,7 @@
 // reached for something else fails instead of passing on a real service. A background update is an event on the
 // open stream: the Studio's own feed applies it and refetches the snapshot, as it does with the API.
 import type {
+  ContributionReceipt,
   ExchangeReceipt,
   FloorRequest,
   GoalCommand,
@@ -21,13 +22,17 @@ import {
   roomToken,
   snapshot,
   type RoomAsked,
+  type Said,
 } from './data.ts'
 import {
   content,
   editDescription,
   citedSources,
+  DESIGN_TASK,
+  designingTask,
   REPORT,
   reportList,
+  researchRunning,
   researchTaskAt,
   TASK,
   versions,
@@ -35,6 +40,8 @@ import {
   type Description,
 } from './report-data.ts'
 import { readingRead } from './reading-data.ts'
+import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
+import { focusRequest, focusSet, type Showing } from './focus-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -47,7 +54,11 @@ export const served: string[] = []
 interface Project {
   revision: number
   exchange: boolean
-  messages: string[]
+  messages: (string | Said)[]
+  /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
+  contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
+  /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
+  loseContributionReply?: boolean
   /** How many versions of the fixture report are published (report-data.ts). */
   reportVersions: number
   /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
@@ -71,10 +82,18 @@ interface Project {
   taskRevision?: 1 | 2
   /** Reads of the research task wait until the page lets them through (`hold=task`), as a slow API's do. */
   taskHeld?: boolean
+  /** The research task runs (`research=running`): how many sources it has read. */
+  researching?: { reads: number } | null
   /** Reads of the research task fail (`window.fixture.failTask`), as an API that lost its database answers. */
   taskFails?: boolean
   /** A version's text arrives as bytes its record does not name (`tamper=text`). */
   textTampered: boolean
+  /** Version 1 carries a designed HTML page (SDD-01, `designed=on`), and the research task lists it. */
+  designed?: boolean
+  /** The research's HTML page is still being designed (`design=designing`, B-19). */
+  designing?: boolean
+  /** The designed page arrives as bytes its record does not name (`tamper=html`). */
+  pageTampered?: boolean
   /** The research task is in the project's work (`place=work`): its card lists the report's outputs. */
   work: boolean
   /** The project's goals (the work fixture's one, LFE-07). */
@@ -87,6 +106,10 @@ interface Project {
   onFloor?: (actorId: string) => void
   /** The room moves (another member's change) just before the next pass reaches the API. */
   roomMoves?: boolean
+  /** The notes members wrote in the brief (brief-data.ts); absent, writing one is unexpected. */
+  notes?: Notes
+  /** What the room shows to everyone (focus-data.ts); absent, showing is unexpected. */
+  showing?: Showing
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -134,8 +157,25 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
  */
 function snapshotOf(project: Project) {
   const now = snapshot(project.revision, project.exchange, project.messages, project.goals, project.room)
-  const work = project.work ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1).task] } : now
-  return project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work
+  const running = project.researching ? researchRunning(project.researching.reads).task : null
+  const work = running
+    ? { ...now, work: [running] }
+    : project.work
+      ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
+      : now
+  return withFocus(project, project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work)
+}
+
+/** What the room shows, as the snapshot carries it, with the report's current version among its artifacts. */
+function withFocus(project: Project, now: Snapshot): Snapshot {
+  const focus = project.showing?.focus
+  if (!focus || !project.showing) return now
+  const current = versions(project.reportVersions, project.reportTitle, project.pilot)[0]
+  return {
+    ...now,
+    sharedFocus: { ...focus, revision: project.showing.revision },
+    artifacts: current ? [current] : [],
+  }
 }
 
 /** The project moves one revision, and the event saying so goes to every open stream. */
@@ -173,15 +213,44 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
     served.push(`snapshot:${project.revision}`)
     return json(snapshotOf(project))
   }
-  if (method === 'GET' && path === `${base}/mission`) {
-    served.push(`mission:${project.revision}`)
-    return json(mission(project.revision))
-  }
+  if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path === `${base}/membership`) return json(membership)
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
-  return method === 'POST' ? posted(project, path, init) : answerReports(project, method, url, init)
+  if (method === 'POST' || method === 'PUT') return written(project, method, path, init)
+  return answerReports(project, method, url, init)
+}
+
+/** What the page writes: the room's focus (PUT), else what it posts. */
+function written(project: Project, method: string, path: string, init: RequestInit | undefined) {
+  if (method === 'PUT') return path === `/api/v1/rooms/${ROOM}/focus` ? focusPut(project, init) : null
+  return posted(project, path, init)
+}
+
+/**
+ * Showing a report, or stopping (the proposed A14 writer): refused when the room moved since the page read it; else
+ * the focus is this member's, the room's next revision publishes it, and the same key replays the receipt.
+ */
+function focusPut(project: Project, init: RequestInit | undefined): Response | Promise<Response> | null {
+  const showing = project.showing
+  const request = focusRequest(init?.body)
+  if (!showing || !request) return null
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const replayed = showing.receipts.get(key)
+  // The house rule (packages/persistence/src/commands.ts): a key used for another request is refused, never replayed.
+  if (replayed) return replayed.request === JSON.stringify(request) ? json(replayed.receipt) : keyConflict()
+  if (project.roomMoves) {
+    project.roomMoves = false
+    publish(project)
+  }
+  if (request.expectedRoomRevision !== project.revision) return staleRoom()
+  publish(project)
+  const receipt = focusSet(showing, request, membership.actorId, key, project.revision)
+  served.push(`focus:${request.artifactVersionId ?? 'none'}`)
+  if (!showing.loseReply) return json(receipt)
+  showing.loseReply = false
+  return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
 }
 
 /** The reports' requests: the long report the reading checks read (reading-data.ts), else the fixture report's. */
@@ -200,16 +269,23 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   if (method !== 'GET') return null
   if (path === '/api/v1/knowledge/reports') {
     const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
-    const published = versions(project.reportVersions, project.reportTitle, project.pilot)
+    const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
     return json(reportList(published, project.description, url.searchParams.get('cursor'), filter))
   }
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
-  const text = source ? content(source, project.textTampered) : null
+  const text = source ? content(source, project.textTampered, project.pageTampered) : null
   if (text) return textRead(project, text)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
+  if (path === `/api/v1/projects/${PROJECT}/native-tasks/${DESIGN_TASK}`) return designRead(project)
   return workRead(project, path)
+}
+
+/** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
+function designRead(project: Project): Response | null {
+  if (!project.designing && !project.designed) return null
+  return json(designingTask(project.designed ? 'published' : 'designing'))
 }
 
 /**
@@ -267,9 +343,89 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
   return reply
 }
 
-/** What the page posts: a room token, a goal's command, or the floor passed on. */
+/** The brief, and a note written in it, its withdrawal's preview and its withdrawal (brief-data.ts). */
+function missionAnswer(project: Project, method: string, path: string, init: RequestInit | undefined) {
+  const base = `/api/v1/projects/${PROJECT}/mission`
+  if (method === 'GET' && path === base) {
+    if (project.notes?.unread) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+    served.push(`mission:${project.revision}`)
+    return json(mission(project.revision, project.notes?.kept, !project.notes?.refused))
+  }
+  return project.notes ? notesAnswer(project.revision, project.notes, method, path, init) : null
+}
+
+/** A note written in the brief, or its withdrawal. */
+function notesAnswer(revision: number, notes: Notes, method: string, path: string, init: RequestInit | undefined) {
+  const base = `/api/v1/projects/${PROJECT}/mission/entries`
+  if (method === 'POST' && path === base) {
+    const kept = noteKept(notes, init?.body, revision, new Headers(init?.headers).get('idempotency-key') ?? '')
+    if (!kept) return null
+    served.push('note:kept')
+    if (!notes.loseReply) return json(kept)
+    notes.loseReply = false
+    return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
+  }
+  const entryId = new RegExp(`^${base}/([0-9a-f-]{36})/withdrawal$`).exec(path)?.[1]
+  return entryId ? withdrawal(revision, notes, method, entryId, init) : null
+}
+
+/** A note's withdrawal: what it would erase (GET), then the note withdrawn (POST). */
+function withdrawal(revision: number, notes: Notes, method: string, entryId: string, init: RequestInit | undefined) {
+  if (method === 'GET') {
+    const preview = withdrawalPreview(notes, entryId)
+    return preview && json(preview)
+  }
+  const withdrawn = method === 'POST' ? noteWithdrawn(notes, entryId, init?.body, revision) : null
+  if (withdrawn) served.push('note:withdrawn')
+  return withdrawn && json(withdrawn)
+}
+
+/** A message to the room (A05), recorded once per key as the viewer's discussion; the feed carries it to the chat. */
+function contributed(project: Project, init: RequestInit | undefined): Response | Promise<Response> | null {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const map = project.contributions
+  if (!map || !isContribution(body)) return null
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const replayed = map.get(key)
+  // The same key replays its receipt; with other words it is refused, as the API refuses it.
+  if (replayed) {
+    served.push('replayed:contribution')
+    return replayed.text === body.text ? recorded(replayed.receipt) : keyConflict()
+  }
+  project.messages.push({ text: body.text, me: true })
+  publish(project)
+  served.push(`contribution:${body.intent}`)
+  const receipt: ContributionReceipt = {
+    contributionId: `00000000-0000-4000-8000-${String(map.size + 1).padStart(12, 'f')}`,
+    projectId: PROJECT,
+    sourceId: '00000000-0000-4000-8000-0000000000ae',
+    sha256: '0'.repeat(64),
+    intent: body.intent,
+    cursor: String(project.revision),
+    stage: 'recorded',
+  }
+  map.set(key, { text: body.text, receipt })
+  if (!project.loseContributionReply) return recorded(receipt)
+  project.loseContributionReply = false
+  return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
+}
+
+/** A contribution recorded, as the API answers it: 202. */
+const recorded = (receipt: ContributionReceipt) =>
+  new Response(JSON.stringify(receipt), { status: 202, headers: { 'content-type': 'application/json' } })
+
+const isContribution = (value: unknown): value is { text: string; intent: ContributionReceipt['intent'] } =>
+  typeof value === 'object' &&
+  value !== null &&
+  'text' in value &&
+  typeof value.text === 'string' &&
+  'intent' in value &&
+  typeof value.intent === 'string'
+
+/** What the page posts: a room token, a goal's command, the floor passed on, or a message to the room. */
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
+  if (path === `${base}/contributions`) return contributed(project, init)
   if (path === `${base}/room-token`) return json(roomToken)
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
@@ -283,6 +439,26 @@ const isFloorRequest = (value: unknown): value is FloorRequest =>
   typeof value.nextActorId === 'string' &&
   'expectedRoomRevision' in value &&
   typeof value.expectedRoomRevision === 'number'
+
+/** The API's answer when its database is out of reach (packages/domain/src/errors.ts). */
+const UNAVAILABLE = {
+  code: 'unavailable',
+  message: 'Sophia is unavailable',
+  requestId: '00000000-0000-4000-8000-0000000000bd',
+  retry: 'safe_read',
+}
+
+/** The API's answer to a key used before for another request (packages/domain/src/errors.ts). */
+const keyConflict = () =>
+  new Response(
+    JSON.stringify({
+      code: 'idempotency_conflict',
+      message: 'This key was used for another request',
+      requestId: '00000000-0000-4000-8000-0000000000bc',
+      retry: 'never',
+    }),
+    { status: 409 },
+  )
 
 /** The API's answer to a pass made against a room that moved meanwhile (packages/domain/src/errors.ts). */
 const staleRoom = () =>
@@ -324,7 +500,13 @@ const heldTasks: (() => void)[] = []
 
 /** The research task at its revision now; while the page holds it, a read that answers once let through. */
 function taskRead(project: Project): Response | Promise<Response> {
-  const read = () => json(researchTaskAt(project.taskRevision ?? 1))
+  const running = project.researching
+  const read = () =>
+    json(
+      running
+        ? researchRunning(running.reads)
+        : researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing),
+    )
   served.push(`task:${String(project.taskRevision ?? 1)}`)
   if (project.taskFails) {
     const body = {
@@ -365,7 +547,7 @@ function versionsRead(project: Project): Response {
     return new Response(JSON.stringify(body), { status: failure.status })
   }
   served.push(`versions:${String(project.reportVersions)}`)
-  return json(versions(project.reportVersions, project.reportTitle, project.pilot))
+  return json(versions(project.reportVersions, project.reportTitle, project.pilot, project.designed))
 }
 
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */

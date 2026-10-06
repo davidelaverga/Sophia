@@ -219,24 +219,31 @@ it('one timeline in arrival order: spoken exchanges, typed turns and cards, each
 it('words a notice by its kind only', () => {
   assert.equal(noticeTitle('research'), 'Research report ready')
   assert.equal(noticeTitle('draft_brief'), 'Brief ready')
+  assert.equal(noticeTitle('design'), 'HTML page ready')
   assert.equal(noticeTitle('something_later'), 'Result ready')
 })
 
 it('a notice opens and saves the same file, the PDF when there is one, with the Markdown beside it (RF-0020)', () => {
   const md = { format: 'markdown' as const, artifactVersionId: 'v2' }
   const pdf = { format: 'pdf' as const, artifactVersionId: 'v2' }
-  assert.deepEqual(noticeActions([md, pdf]), { primary: pdf, markdown: md, page: md })
-  assert.deepEqual(noticeActions([pdf, md]), { primary: pdf, markdown: md, page: md })
-  assert.deepEqual(noticeActions([md]), { primary: md, markdown: null, page: md }, 'no second button for the same file')
+  assert.deepEqual(noticeActions([md, pdf]), { primary: pdf, markdown: md, page: null })
+  assert.deepEqual(noticeActions([pdf, md]), { primary: pdf, markdown: md, page: null })
+  assert.deepEqual(
+    noticeActions([md]),
+    { primary: md, markdown: null, page: null },
+    'no second button for the same file',
+  )
   assert.deepEqual(noticeActions([]), { primary: null, markdown: null, page: null })
 })
 
-it('a notice offers the HTML page from the Markdown, beside a PDF too (html-report-v2)', () => {
+it('a notice offers the HTML page only when the task stored a designed one, never from the Markdown (SDD-01)', () => {
   const md = { format: 'markdown' as const, artifactVersionId: 'v4', sourceId: 'm' }
   const pdf = { format: 'pdf' as const, artifactVersionId: 'v4', sourceId: 'p' }
-  assert.equal(noticeActions([md, pdf]).page, md, 'beside a PDF')
-  assert.equal(noticeActions([md]).page, md, 'without one')
-  assert.equal(noticeActions([pdf]).page, null, 'a page is printed from the Markdown only')
+  const html = { format: 'html' as const, artifactVersionId: 'v4', sourceId: 'h' }
+  assert.equal(noticeActions([md, pdf, html]).page, html, 'the stored page, beside a PDF')
+  assert.equal(noticeActions([md, html]).primary, md, 'Open and Download keep the report')
+  assert.equal(noticeActions([md]).page, null, 'a Markdown report offers no page')
+  assert.deepEqual(noticeOpenRequest('a1', html), { artifactId: 'a1', versionId: 'v4', format: 'html' })
 })
 
 it('Open asks the viewer for the file Download saves: its version and its format, the PDF named (RF-0020)', () => {

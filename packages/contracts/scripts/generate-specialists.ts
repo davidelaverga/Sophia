@@ -20,6 +20,10 @@ interface Specialist {
   outputs: string[]
   route: string
   native_tools: string[]
+  prompt_sections?: string[]
+  skills?: string[]
+  references?: string[]
+  image_input?: boolean
 }
 
 interface RecordedRoute {
@@ -44,11 +48,13 @@ const readJson = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8'
 const quote = (value: string) => `'${value}'`
 
 /** The source reviewer's tools (WBC-02): a source review has exactly these, and no other specialist has any. */
-const REVIEW_TOOLS = ['read_review_source', 'submit_source_review', 'report_review_blocker']
+const SOURCE_REVIEW_TOOLS = ['read_review_source', 'submit_source_review', 'report_review_blocker']
 
 /**
  * The registry's problems beyond its schema: duplicate ids, a PDF output without the tool that renders it, the
- * render inspector without the renderer (it reads PDF renders only, S5b), and review tools outside a source review.
+ * render inspector without the renderer (it reads PDF renders only, S5b), source-review tools outside a source review
+ * (WBC-02), and (SDD-01) a role whose tools cross into another family's: a designer never holds research_* or
+ * review_* tools, a reviewer only review_* tools.
  */
 function problems(specialists: readonly Specialist[]): string[] {
   const found: string[] = []
@@ -63,17 +69,22 @@ function problems(specialists: readonly Specialist[]): string[] {
     if (s.native_tools.includes('research_inspect_output') !== renders) {
       found.push(`${s.id}: the research_inspect_output and research_render_pdf tools go together`)
     }
-    const review = s.native_tools.filter((t) => REVIEW_TOOLS.includes(t))
-    if (
-      s.task_kind === 'source_review' &&
-      (review.length !== REVIEW_TOOLS.length || review.length !== s.native_tools.length)
-    ) {
-      found.push(`${s.id}: a source review has exactly the review tools (${REVIEW_TOOLS.join(', ')})`)
-    }
-    if (s.task_kind !== 'source_review' && review.length > 0)
-      found.push(`${s.id}: only a source review has review tools`)
+    const own = s.task_kind === 'design' ? 'design_' : s.task_kind === 'design_review' ? 'review_' : null
+    const foreign = own === null ? [] : s.native_tools.filter((t) => !t.startsWith(own))
+    if (foreign.length > 0) found.push(`${s.id}: tools of another role (${foreign.join(', ')})`)
+    found.push(...sourceReviewProblems(s))
   }
   return found
+}
+
+/** A source review has exactly the source reviewer's tools, and no other specialist has any of them (WBC-02). */
+function sourceReviewProblems(s: Specialist): string[] {
+  const held = s.native_tools.filter((t) => SOURCE_REVIEW_TOOLS.includes(t))
+  if (s.task_kind !== 'source_review')
+    return held.length > 0 ? [`${s.id}: only a source review has source-review tools`] : []
+  return held.length === SOURCE_REVIEW_TOOLS.length && held.length === s.native_tools.length
+    ? []
+    : [`${s.id}: a source review has exactly the source-review tools (${SOURCE_REVIEW_TOOLS.join(', ')})`]
 }
 
 function load(): Specialist[] {
@@ -138,6 +149,11 @@ function generated(specialists: readonly Specialist[]): string {
       `    route: ${quote(s.route)},`,
       `    routeSpec: ${routeLiteral(routes.get(s.route) ?? missingRoute(s))},`,
       `    nativeTools: [${s.native_tools.map(quote).join(', ')}],`,
+      // SDD-01's fields, only where the registry sets them.
+      ...(s.prompt_sections ? [`    promptSections: [${s.prompt_sections.map(quote).join(', ')}],`] : []),
+      ...(s.skills ? [`    skills: [${s.skills.map(quote).join(', ')}],`] : []),
+      ...(s.references ? [`    references: [${s.references.map(quote).join(', ')}],`] : []),
+      ...(s.image_input === undefined ? [] : [`    imageInput: ${String(s.image_input)},`]),
       '  },',
     ].join('\n'),
   )

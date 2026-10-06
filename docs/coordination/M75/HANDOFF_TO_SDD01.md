@@ -54,6 +54,8 @@ These are what make today's product answer a request for HTML with a browser con
 | C-4 | `NoticeCard.tsx:47` (`PageButton`) → `downloadReportPage`; `chat-view.ts:99` `noticeActions().page` | Chat result card (text and voice members): "HTML page" | `page` is the Markdown output, so every research card offers it | `page` comes from the stored HTML output, never from the Markdown |
 | — | `PageDownload.tsx:14`, `report-page.ts:31` | The seam itself | Calls the printer | Remove from the product path; keep `renderReportPage` for the G6 control harness and the explicit legacy decision |
 
+**Status (SDD-01, PR #104):** C-1..C-4 are replaced by the stored, designed HTML rendition, and `PageDownload.tsx` and `report-page.ts` are removed from Studio. `apps/studio/src/features/artifacts/legacy-conversion.test.ts` now asserts that no Studio module reaches the conversion; `renderReportPage` remains for the G6 control harness (`scripts/g6-control.mjs`). See `docs/coordination/SDD-01/BINDING_MAP.md` §8 and §12.
+
 ### 3b. API receipt and guide declarations (frozen in M75; SDD-01's contract work)
 
 | Where | What it says or does | Why it matters |

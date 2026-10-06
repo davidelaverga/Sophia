@@ -125,6 +125,11 @@ describe('the renderer host probe (OP-C)', () => {
       detail: 'not run: no PDF was rendered',
     })
     assert.equal(byName.get('sandbox')?.ok, false)
+    // SDD-01: nor does a capture that did not happen.
+    assert.equal(byName.get('capture')?.ok, false)
+    for (const check of ['capture_checks', 'capture_images'])
+      assert.deepEqual(byName.get(check), { check, ok: false, detail: 'not run: nothing was captured' })
+    assert.equal(byName.get('capture_sandbox')?.ok, false)
   })
 
   it('a check that was not performed is a failure, never a pass, on any host', async () => {

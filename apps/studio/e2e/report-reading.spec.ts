@@ -138,10 +138,9 @@ test('reading · one measure in both pane sizes: 60 to 80 characters a line, the
   const full = await lineLengths(page)
   expect(full.median, 'the full page').toBeGreaterThanOrEqual(60)
   expect(full.median, 'the full page').toBeLessThanOrEqual(80)
-  // One column: the download line and the version's limitations stand on the text's own edge, as wide as it.
+  // One column: the version's limitations stand on the text's own edge, as wide as it.
   const text = await edge(page, '.md')
   expect(text.width).toBe(544)
-  expect(await edge(page, '.page-download')).toEqual(text)
   expect(await edge(page, '.report-limits')).toEqual(text)
 })
 

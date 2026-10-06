@@ -15,6 +15,7 @@ import {
   proposeMissionChange,
   readConfirmationTarget,
   readDiscussion,
+  readHtmlPages,
   readMissionContext,
   readMissionSource,
   readNativeTask,
@@ -120,7 +121,8 @@ export function writeFailure(err: unknown): MediaToolResult {
 /** project_status: the mission context for this speaker; `unavailable` is never reported as an empty project. */
 export async function projectStatus(ctx: ToolContext): Promise<MediaToolResult> {
   try {
-    const v12 = ctx.call.guide === 'v1.2'
+    const v12 = ctx.call.guide === 'v1.2' || ctx.call.guide === 'v1.3'
+    const v13 = ctx.call.guide === 'v1.3'
     const read = await withActor(ctx.pool, ctx.actorId, 'read', async (c) => {
       const context = await readMissionContext(c, ctx.projectId, { actorId: ctx.actorId, channel: 'voice' })
       const taskIds = (context?.work ?? []).flatMap((w) => (w.taskId === null ? [] : [w.taskId]))
@@ -135,6 +137,8 @@ export async function projectStatus(ctx: ToolContext): Promise<MediaToolResult> 
         // And Steer, and what a report's versions say: each task's own state and its report, from the texts
         // read_selected_source compares (CX-0026, CX-0027).
         tasks: v12 ? await readResearchVersions(c, ctx.projectId, taskIds) : undefined,
+        // And revise_html_page (SDD-01): each report's current designed page and the sections an edit can name.
+        pages: v13 ? await readHtmlPages(c, ctx.projectId, taskIds) : undefined,
       }
     })
     if (!read.context) return { status: 'refused', output: { readState: 'unavailable', reason: 'Not permitted' } }

@@ -1,9 +1,9 @@
 // The report viewer (plan §2.8.3–§2.8.6): a side pane that can be enlarged to a full page in the same frame. Its head
 // names the version on screen (format, version, words or pages, size, short hash) and downloads exactly those bytes;
 // its tabs are the Document, the Sources it cites and its History. A version with a PDF shows either its Markdown or
-// its PDF (S5b). Every file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary region: focus moves to its title on open
-// and back to the opener on close; Esc steps down, F toggles the full page.
-// The Document tab also saves its version as an HTML page, printed from the Markdown on screen (PageDownload).
+// its PDF (S5b); one with a designed HTML page (SDD-01) also shows that page, in an isolated frame (HtmlView). Every
+// file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary
+// region: focus moves to its title on open and back to the opener on close; Esc steps down, F toggles the full page.
 import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
@@ -24,8 +24,13 @@ import {
   type LoadedText,
 } from './download.ts'
 import { parseMarkdown, wordCount, type ParsedReport } from './markdown.ts'
+import { HtmlView, reviewTag } from './HtmlView.tsx'
 import { MarkdownView } from './MarkdownView.tsx'
-import { PageDownload } from './PageDownload.tsx'
+import { PassageBar, type Passage } from './PassageBar.tsx'
+import { usePassageArrival } from './usePassageArrival.ts'
+import { offerWords } from './live-version.ts'
+import { useLiveVersion, type LiveChanges, type Shown } from './useLiveVersion.ts'
+import type { ShowRender } from '../voice/ShowEveryone.tsx'
 import type { ReportLink, ViewerFormat, ViewerTab } from './report-link.ts'
 import {
   currentOffer,
@@ -34,12 +39,15 @@ import {
   focusFree,
   focusReturn,
   formatBytes,
+  htmlMissing,
   pdfMissing,
   pinTo,
+  renditionOf,
   rereadFor,
   shortHash,
   versionMissing,
   versionReadFailure,
+  viewerFormats,
 } from './report-view.ts'
 import { ReportHistory } from './ReportHistory.tsx'
 import { SourcesList } from './SourcesList.tsx'
@@ -47,6 +55,7 @@ import { usePaneWidth } from './usePaneWidth.ts'
 import { useTransientStatus } from './useTransientStatus.ts'
 
 interface Props {
+  projectId: string
   identity: Identity
   link: ReportLink
   /** What opened the report, as the viewer read it at the click; null for a deep link. */
@@ -72,6 +81,12 @@ interface Props {
    */
   call?: ReactNode
   note: string | null
+  /** Where the project's feed is: when it moves, the report's versions are read again (a new one may be there). */
+  cursor: string | undefined
+  /** «Show everyone», in the room where it is offered: shown, the report goes to the stage and the pane closes. */
+  show?: ShowRender | undefined
+  /** In the room: a selected passage goes to the chat's message (PassageBar). */
+  onAsk: ((passage: Passage) => void) | undefined
 }
 
 /** pdf.js loads with the first PDF opened, never with the Studio. */
@@ -82,7 +97,7 @@ const pick = (versions: readonly ArtifactVersion[] | undefined, id: string | nul
   versions?.find((v) => v.id === id) ?? (id === null ? versions?.[0] : undefined)
 
 /** The data on screen: the report's versions, the one shown, its checked text and its sources. */
-function usePaneData(identity: Identity, link: ReportLink) {
+function usePaneData(identity: Identity, link: ReportLink, cursor: string | undefined, tab: ViewerTab) {
   const versions = useQuery({
     queryKey: ['report-versions', link.artifactId, identity.name],
     queryFn: () => listArtifactVersions(identity.token, link.artifactId),
@@ -95,6 +110,7 @@ function usePaneData(identity: Identity, link: ReportLink) {
   const absent =
     versions.data !== undefined && versions.fetchStatus === 'idle' && link.versionId !== null && version === undefined
   const { refetch } = versions
+  useFeedRead(cursor, refetch)
   useEffect(() => {
     const target = rereadFor(absent, reread, link.versionId)
     if (target === null) return
@@ -122,23 +138,84 @@ function usePaneData(identity: Identity, link: ReportLink) {
     () => (text.data ? parseMarkdown(text.data.text, { citable: (listed ?? []).map((s) => s.sourceId) }) : null),
     [text.data, listed],
   )
-  // The report's own language: the viewer names a citation in it, as its HTML page does.
+  // The report's own language: the viewer names a citation in it.
   const language = useMemo(() => (text.data ? reportLanguage(text.data.text) : 'und'), [text.data])
-  // The PDF is the one rendition format (A11).
-  const rendition = version?.renditions?.[0]
+  const renditions = useRenditions(identity, link, version)
+  // The Markdown is in sight on the Document tab unless the PDF or the designed page is shown there instead.
+  const shown = shownOf(version, text.data, parsed, {
+    sources: sources.status,
+    inSight: tab === 'document' && !renditions.showPdf && !renditions.showHtml,
+  })
+  // A linked passage is decided for the pane, so the Sources tab and back keep it (usePassageArrival).
+  const arrival = usePassageArrival(version, parsed, shown.sourcesSettled, tab === 'document')
+  return {
+    versions,
+    version,
+    versionSettled,
+    text,
+    sources,
+    parsed,
+    language,
+    ...renditions,
+    shown,
+    arrival,
+  }
+}
+
+type PaneData = ReturnType<typeof usePaneData>
+
+const retryRead = (n: number, error: Error) => !(error instanceof HashMismatch) && n < 2
+
+/** The version's PDF and designed page, each read (and checked) only while it is the format on screen. */
+function useRenditions(identity: Identity, link: ReportLink, version: ArtifactVersion | undefined) {
+  const rendition = renditionOf(version, 'pdf')
+  const page = renditionOf(version, 'html')
   const showPdf = link.format === 'pdf' && rendition !== undefined
-  const noPdf = pdfMissing(link.format, version)
+  const showHtml = link.format === 'html' && page !== undefined
   const pdf = useQuery({
     queryKey: ['report-pdf', rendition?.sourceId, identity.name],
     queryFn: () => loadReportBytes(identity.token, rendition?.sourceId ?? '', rendition?.sha256 ?? ''),
     enabled: showPdf,
     staleTime: Infinity,
-    retry: (n, error) => !(error instanceof HashMismatch) && n < 2,
+    retry: retryRead,
   })
-  return { versions, version, versionSettled, text, sources, parsed, language, rendition, showPdf, noPdf, pdf }
+  // The designed page's text, checked against the rendition's hash: the frame shows exactly what downloads.
+  const html = useQuery({
+    queryKey: ['report-html', page?.sourceId, identity.name],
+    queryFn: () => loadReportText(identity.token, page?.sourceId ?? '', page?.sha256 ?? ''),
+    enabled: showHtml,
+    staleTime: Infinity,
+    retry: retryRead,
+  })
+  const noPdf = pdfMissing(link.format, version)
+  const noHtml = htmlMissing(link.format, version)
+  return { rendition, page, showPdf, showHtml, noPdf, noHtml, pdf, html }
 }
 
-type PaneData = ReturnType<typeof usePaneData>
+/** The version on screen as useLiveVersion reads it: its sources settled once their read is no longer pending. */
+const shownOf = (
+  version: ArtifactVersion | undefined,
+  loaded: { text: string } | undefined,
+  parsed: ParsedReport | null,
+  at: { sources: 'pending' | 'error' | 'success'; inSight: boolean },
+): Shown => ({
+  version,
+  text: loaded?.text,
+  parsed,
+  sourcesSettled: at.sources === 'success',
+  sourcesDone: at.sources !== 'pending',
+  inSight: at.inSight,
+})
+
+/** The project's feed moved (a version may have been published there): the list is read again, as on focus. */
+function useFeedRead(cursor: string | undefined, refetch: () => unknown) {
+  const read = useRef(cursor)
+  useEffect(() => {
+    if (cursor === undefined || cursor === read.current) return
+    read.current = cursor
+    void refetch()
+  }, [cursor, refetch])
+}
 
 /**
  * A report opened without a version keeps the one first read (pinTo): from then on the link names it, in place, so a
@@ -282,7 +359,11 @@ function useCitation(tab: ViewerTab, onTab: (tab: ViewerTab) => void) {
 }
 
 /** What the pane does around what it shows: the version it pins, its keys, the focus and its top's height. */
-function usePaneBehaviour({ link, opener, onVersion, onStepDown, onEnlarge }: Props, data: PaneData) {
+function usePaneBehaviour(
+  { link, opener, onVersion, onStepDown, onEnlarge }: Props,
+  data: PaneData,
+  showing: (to: string) => void,
+) {
   usePinnedVersion(link, data.versions, onVersion)
   useEscape(onStepDown)
   useShortcuts({ f: link.size === 'full' ? onStepDown : onEnlarge })
@@ -308,20 +389,33 @@ function usePaneBehaviour({ link, opener, onVersion, onStepDown, onEnlarge }: Pr
     },
   }
   const current = currentOffer(data.versions.data, data.version)
-  const offer = current ? { number: current.versionNumber, onShow: () => recover.show(current.id) } : null
-  return { title, top: usePaneTop(), offer, recover }
+  // Offered once the text on screen is read (or its read failed), so what changed is compared with it (useLiveVersion).
+  const offer =
+    current && (data.text.data || data.text.isError)
+      ? {
+          words: offerWords(current, data.version?.id ?? ''),
+          onShow: () => {
+            showing(current.id)
+            recover.show(current.id)
+          },
+        }
+      : null
+  // Whether the version on screen is the report's current one: only that one is shown to everyone.
+  return { title, top: usePaneTop(), offer, recover, onCurrent: current === null }
 }
 
 export function DocumentPane(props: Props) {
   const { identity, link, tab, onTab, onVersion, onFormat, onEnlarge, onStepDown, onClose, onChat } = props
-  const data = usePaneData(identity, link)
-  const { title, top, offer, recover } = usePaneBehaviour(props, data)
+  const pane = useRef<HTMLElement>(null)
+  const data = usePaneData(identity, link, props.cursor, tab)
+  const live = useLiveVersion(pane, data.shown, data.versions.data)
+  const { title, top, offer, recover, onCurrent } = usePaneBehaviour(props, data, live.showing)
   const width = usePaneWidth()
   const status = useTransientStatus()
   const { focusSource, cite, choose } = useCitation(tab, onTab)
   const full = link.size === 'full'
   return (
-    <aside className="report-pane" data-size={link.size} aria-labelledby="report-pane-title">
+    <aside ref={pane} className="report-pane" data-size={link.size} aria-labelledby="report-pane-title">
       {!full && <div className="report-pane-grip" aria-hidden onPointerDown={width.drag} />}
       <PaneTop
         topRef={top}
@@ -331,6 +425,8 @@ export function DocumentPane(props: Props) {
             titleRef={title}
             {...headOf(data)}
             current={offer}
+            // Only the current version is shown to everyone: the room shows what is current (present-view.ts).
+            show={data.version && onCurrent && props.show?.(data.version.id, onClose)}
             full={full}
             onDownload={() => void viewerDownload(data, status.show)}
             onEnlarge={onEnlarge}
@@ -342,16 +438,7 @@ export function DocumentPane(props: Props) {
         }
         call={props.call}
         note={props.note}
-        tabs={
-          <PaneTabs
-            tab={tab}
-            onTab={choose}
-            sources={data.sources.data?.sources.length}
-            versions={data.versions.data?.length}
-            format={data.rendition ? (data.showPdf ? 'pdf' : 'markdown') : null}
-            onFormat={onFormat}
-          />
-        }
+        tabs={<PaneTabs tab={tab} onTab={choose} {...tabFacts(data)} onFormat={onFormat} />}
       />
       <PaneBody
         tab={tab}
@@ -362,11 +449,20 @@ export function DocumentPane(props: Props) {
         onCite={cite}
         onVersion={onVersion}
         recover={recover}
+        changes={live.changes}
       />
-      <p className="report-status" role="status" data-error={status.error || undefined}>
-        {status.text}
-      </p>
+      <PaneStatus {...status} />
+      <PassageBar pane={pane} version={data.version} viewer={props} />
     </aside>
+  )
+}
+
+/** The download's line of status, in the pane's foot. */
+function PaneStatus({ text, error }: { text: string; error: boolean }) {
+  return (
+    <p className="report-status" role="status" data-error={error || undefined}>
+      {text}
+    </p>
   )
 }
 
@@ -379,6 +475,8 @@ interface BodyProps {
   onCite: (sourceId: string) => void
   onVersion: (versionId: string) => void
   recover: Recover
+  /** The new version's changes, when it was shown from the offer (useLiveVersion). */
+  changes: LiveChanges
 }
 
 /**
@@ -442,20 +540,28 @@ function PaneBody(props: BodyProps) {
       role="tabpanel"
       aria-labelledby={`report-tab-${props.tab}`}
       data-pdf={(!blocked && props.data.showPdf) || undefined}
+      data-html={(!blocked && props.data.showHtml) || undefined}
     >
       {blocked ? <Unavailable {...blocked} recover={props.recover} /> : <TabContent {...props} />}
     </div>
   )
 }
 
-function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion }: BodyProps) {
-  // The Document tab shows one view per format: the PDF rendition, or the Markdown read in the reading voice. A designed
-  // HTML version (SDD-01) is a third view here, of its stored bytes in an isolated frame, beside these and never in
-  // MarkdownView or the Studio's own DOM (docs/coordination/M75/HANDOFF_TO_SDD01.md §4).
+/**
+ * The Document tab shows one view per format: the PDF rendition, the designed HTML page (SDD-01) of its stored bytes in
+ * an isolated frame, never in MarkdownView or the Studio's own DOM, or the Markdown read in the reading voice (with
+ * what changed in a version that arrived live).
+ */
+function DocumentView({ data, full, onCite, changes }: Pick<BodyProps, 'data' | 'full' | 'onCite' | 'changes'>) {
+  if (data.showPdf) return <PdfTab data={data} full={full} />
+  if (data.showHtml) return <HtmlTab data={data} full={full} />
+  return <DocumentTab data={data} onCite={onCite} changes={changes} />
+}
+
+function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion, changes }: BodyProps) {
   return (
     <>
-      {tab === 'document' && data.showPdf && <PdfTab data={data} full={full} />}
-      {tab === 'document' && !data.showPdf && <DocumentTab data={data} identity={identity} onCite={onCite} />}
+      {tab === 'document' && <DocumentView data={data} full={full} onCite={onCite} changes={changes} />}
       {tab === 'sources' && (
         <SourcesList
           sources={data.sources.data?.sources}
@@ -493,11 +599,40 @@ function metaLine(version: ArtifactVersion | undefined, text: LoadedText | undef
     .join(' · ')
 }
 
+/** What the tab row counts and offers: the version's sources and the report's versions, its formats, the one shown. */
+const tabFacts = (data: PaneData) => ({
+  sources: data.sources.data?.sources.length,
+  versions: data.versions.data?.length,
+  formats: viewerFormats(data.version),
+  format: shownFormat(data),
+})
+
+/** The format on screen: the one the link asks for when the version has it, else its Markdown. */
+const shownFormat = (data: PaneData): ViewerFormat => {
+  if (data.showPdf) return 'pdf'
+  return data.showHtml ? 'html' : 'markdown'
+}
+
 /** What the head says about the format on screen, and whether its bytes are there to download. */
-const headOf = (data: PaneData) =>
-  data.showPdf
-    ? { format: 'pdf' as const, meta: pdfMetaLine(data), canDownload: data.pdf.isSuccess }
-    : { format: 'markdown' as const, meta: metaLine(data.version, data.text.data), canDownload: data.text.isSuccess }
+function headOf(data: PaneData): { format: ViewerFormat; meta: string; canDownload: boolean } {
+  if (data.showPdf) return { format: 'pdf', meta: pdfMetaLine(data), canDownload: data.pdf.isSuccess }
+  if (data.showHtml) return { format: 'html', meta: htmlMetaLine(data), canDownload: data.html.isSuccess }
+  return { format: 'markdown', meta: metaLine(data.version, data.text.data), canDownload: data.text.isSuccess }
+}
+
+/** "HTML · v2 · 41.2 KB · 1a2b3c4d · reviewed": the designed page on screen, exactly, and how it was reviewed. */
+function htmlMetaLine({ version, page }: PaneData): string {
+  if (!version || !page) return ''
+  return [
+    'HTML',
+    version.versionNumber ? `v${version.versionNumber}` : null,
+    formatBytes(page.byteLength),
+    shortHash(page.sha256),
+    reviewTag(page.reviewState),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
 
 /** "PDF · v2 · 3 pages · 68.0 KB · 1a2b3c4d": the PDF on screen, exactly. */
 function pdfMetaLine({ version, rendition }: PaneData): string {
@@ -513,9 +648,10 @@ function pdfMetaLine({ version, rendition }: PaneData): string {
     .join(' · ')
 }
 
-/** The bytes on screen and the hash their record gives: the PDF's, or the Markdown's. */
-function onScreen({ version, text, rendition, showPdf, pdf }: PaneData) {
+/** The bytes on screen and the hash their record gives: the PDF's, the designed page's, or the Markdown's. */
+function onScreen({ version, text, rendition, showPdf, pdf, page, showHtml, html }: PaneData) {
   if (showPdf) return pdf.data && rendition ? { file: pdf.data, sha256: rendition.sha256 } : null
+  if (showHtml) return html.data && page ? { file: asBytes(html.data), sha256: page.sha256 } : null
   return text.data && version ? { file: asBytes(text.data), sha256: version.sourceHash } : null
 }
 
@@ -543,7 +679,9 @@ interface HeadProps {
   format: ViewerFormat
   meta: string
   /** The report's current version, when another is on screen (currentOffer). */
-  current: { number: number | undefined; onShow: () => void } | null
+  current: { words: string; onShow: () => void } | null
+  /** «Show everyone», where it is offered. */
+  show: ReactNode
   full: boolean
   canDownload: boolean
   onDownload: () => void
@@ -553,6 +691,8 @@ interface HeadProps {
   onChat?: (() => void) | undefined
   chatUnread: boolean
 }
+
+const TILE: Record<ViewerFormat, string> = { markdown: 'MD', pdf: 'PDF', html: 'HTML' }
 
 function PaneHead(props: HeadProps) {
   const {
@@ -573,7 +713,7 @@ function PaneHead(props: HeadProps) {
   return (
     <header className="report-pane-head">
       <span className="report-tile" data-format={format} aria-hidden>
-        {format === 'pdf' ? 'PDF' : 'MD'}
+        {TILE[format]}
       </span>
       <div className="report-pane-name">
         <h2 id="report-pane-title" ref={titleRef} tabIndex={-1}>
@@ -582,13 +722,14 @@ function PaneHead(props: HeadProps) {
         <p className="report-meta">{meta}</p>
         {current && (
           <p className="report-current" role="status">
-            {current.number ? `v${current.number} is the current version.` : 'This is not the current version.'}{' '}
+            {current.words}{' '}
             <button type="button" className="text-button" onClick={current.onShow}>
               Show it
             </button>
           </p>
         )}
       </div>
+      {props.show}
       <DownloadButton ready={canDownload} onDownload={onDownload} />
       <button type="button" className="round has-tip" aria-label={size} onClick={full ? onStepDown : onEnlarge}>
         <Icon name={full ? 'collapse' : 'expand'} />
@@ -646,8 +787,9 @@ interface TabsProps {
   onTab: (tab: ViewerTab) => void
   sources: number | undefined
   versions: number | undefined
-  /** The format on screen when the version has a PDF; null when it has only its Markdown. */
-  format: ViewerFormat | null
+  /** The formats the version can be read in; the switch shows when there is more than its Markdown. */
+  formats: readonly ViewerFormat[]
+  format: ViewerFormat
   onFormat: (format: ViewerFormat) => void
 }
 
@@ -659,7 +801,7 @@ const TABS: readonly ViewerTab[] = ['document', 'sources', 'history']
  * The report's tabs, as every tab row in Studio: the one selected is the one Tab reaches, arrow keys, Home and End move
  * between them. The format switch sits beside the row, not in it (a tab list holds tabs only).
  */
-function PaneTabs({ tab, onTab, sources, versions, format, onFormat }: TabsProps) {
+function PaneTabs({ tab, onTab, sources, versions, formats, format, onFormat }: TabsProps) {
   const buttons = useRef(new Map<ViewerTab, HTMLButtonElement>())
   const label: Record<ViewerTab, string> = {
     document: 'Document',
@@ -694,24 +836,29 @@ function PaneTabs({ tab, onTab, sources, versions, format, onFormat }: TabsProps
           </button>
         ))}
       </div>
-      {format && <FormatSwitch format={format} onFormat={onFormat} />}
+      {formats.length > 1 && <FormatSwitch formats={formats} format={format} onFormat={onFormat} />}
     </div>
   )
 }
 
-/** Markdown or PDF, for a version that has both. */
-function FormatSwitch({ format, onFormat }: { format: ViewerFormat; onFormat: (format: ViewerFormat) => void }) {
-  const options: [ViewerFormat, string][] = [
-    ['markdown', 'Markdown'],
-    ['pdf', 'PDF'],
-  ]
+const FORMAT_NAME: Record<ViewerFormat, string> = { markdown: 'Markdown', pdf: 'PDF', html: 'HTML' }
+
+/** Markdown, PDF or the designed HTML page: the formats the version has. */
+function FormatSwitch(props: {
+  formats: readonly ViewerFormat[]
+  format: ViewerFormat
+  onFormat: (format: ViewerFormat) => void
+}) {
+  const { formats, format, onFormat } = props
   return (
     <span className="report-format" role="group" aria-label="Format">
-      {options.map(([id, label]) => (
-        <button key={id} type="button" aria-pressed={format === id} onClick={() => onFormat(id)}>
-          {label}
-        </button>
-      ))}
+      {formats
+        .map((id) => [id, FORMAT_NAME[id]] as const)
+        .map(([id, label]) => (
+          <button key={id} type="button" aria-pressed={format === id} onClick={() => onFormat(id)}>
+            {label}
+          </button>
+        ))}
     </span>
   )
 }
@@ -735,13 +882,37 @@ function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
   )
 }
 
-interface DocumentTabProps {
-  data: PaneData
-  identity: Identity
-  onCite: (sourceId: string) => void
+/** The version's designed page, once its bytes matched the rendition's hash. */
+function HtmlTab({ data, full }: { data: PaneData; full: boolean }) {
+  if (data.html.isError) {
+    return (
+      <p className="muted" role="alert">
+        {data.html.error instanceof HashMismatch
+          ? 'This page did not match its record, so it is not shown.'
+          : 'The page couldn’t be loaded. Try again in a moment.'}
+      </p>
+    )
+  }
+  if (!data.html.data || !data.page) return <p className="muted">Loading the page…</p>
+  return (
+    <HtmlView html={data.html.data.text} title={data.version?.title ?? 'Report'} rendition={data.page} full={full} />
+  )
 }
 
-function DocumentTab({ data, identity, onCite }: DocumentTabProps) {
+interface DocumentTabProps {
+  data: PaneData
+  onCite: (sourceId: string) => void
+  changes: LiveChanges
+}
+
+/** Why the Markdown is on screen though another format was asked for, or null. */
+const formatNote = (data: PaneData): string | null => {
+  if (data.noPdf) return 'This version has no PDF, so its Markdown is shown.'
+  return data.noHtml ? 'This version has no designed HTML page, so its Markdown is shown.' : null
+}
+
+function DocumentTab({ data, onCite, changes }: DocumentTabProps) {
+  const { arrival } = data
   if (data.text.isError) {
     return (
       <p className="muted" role="alert">
@@ -754,14 +925,24 @@ function DocumentTab({ data, identity, onCite }: DocumentTabProps) {
   if (!data.parsed || !data.version) return <p className="muted">Loading the report…</p>
   return (
     <>
-      {data.noPdf && (
+      {formatNote(data) && (
         <p className="report-format-note" role="note">
-          This version has no PDF, so its Markdown is shown.
+          {formatNote(data)}
         </p>
       )}
-      <PageDownload token={identity.token} artifactId={data.version.artifactId} versionId={data.version.id} />
       <Limitations items={data.version.limitations ?? []} />
+      {arrival === 'missing' && (
+        <p className="report-passage-note" role="status">
+          This passage isn’t in this version.
+        </p>
+      )}
+      {changes.facts && (
+        <p className="report-changes" role="note">
+          {changes.facts}
+        </p>
+      )}
       <MarkdownView
+        marks={changes.marks}
         report={data.parsed}
         sources={data.sources.data?.sources}
         language={data.language}

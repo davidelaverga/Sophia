@@ -361,3 +361,51 @@ describe('project_status’s work: each task’s own state, Steer and its report
     }
   })
 })
+
+describe('project_status for a v1.3 guide: the designed page and its edit (SDD-01)', () => {
+  it('names a report’s current page and its sections, offers revise_html_page to editors, and keeps v1.2’s answer otherwise', () => {
+    const shared = lineage('completed', { state: 'succeeded', phase: 'result_ready' })
+    const page = {
+      taskId: ROOT,
+      versionId: '00000000-0000-4000-8000-0000000000c1',
+      versionNumber: 2,
+      reviewState: 'reviewed' as const,
+      sections: ['summary', 'findings', 'sources'],
+      designing: false,
+    }
+    const v13 = voiceStatus({
+      context: { ...missionContext('editor'), work: shared.work },
+      speakerId: SPEAKER,
+      discussion: [],
+      target: null,
+      now: Date.parse(AT),
+      guide: 'v1.3',
+      tasks: shared.tasks,
+      pages: [page],
+    })
+    const root = v13.work.find((w) => w.taskId === ROOT) as Record<string, unknown>
+    assert.deepEqual(root.htmlPage, {
+      versionNumber: 2,
+      reviewState: 'reviewed',
+      sections: ['summary', 'findings', 'sources'],
+      revising: false,
+    })
+    assert.deepEqual((v13.operations as Record<string, unknown>).revise_html_page, can)
+    // Everything else a v1.3 guide reads is v1.2's: its work rows without the page, and its operations.
+    const v12 = statusOf('v1.2', shared)
+    assert.deepEqual(
+      v13.work.map((w) => {
+        const { htmlPage: _page, ...rest } = w as Record<string, unknown>
+        return rest
+      }),
+      v12.work,
+    )
+    const { revise_html_page: _revise, ...ops } = v13.operations as Record<string, unknown>
+    assert.deepEqual(ops, v12.operations)
+    assert.deepEqual(operations('viewer', { guide: 'v1.3', pdf: true, researchGate: true }).revise_html_page, {
+      available: false,
+      reason: 'Only editors and admins can ask for a page to be revised.',
+    })
+    assert.equal('revise_html_page' in operations('editor', { guide: 'v1.2', pdf: true, researchGate: true }), false)
+  })
+})

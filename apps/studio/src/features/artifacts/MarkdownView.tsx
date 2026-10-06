@@ -21,7 +21,9 @@ import {
   type Piece,
   type Weakness,
 } from './cite-view.ts'
+import type { Mark } from './live-version.ts'
 import type { Block, Inline, ParsedReport } from './markdown.ts'
+import { hostOf, sourceTitle } from './report-view.ts'
 
 interface Props {
   /** The parsed report (parseMarkdown): its citation numbers are the Sources tab's. */
@@ -32,20 +34,39 @@ interface Props {
   language: string
   /** Opens a cited source in the Sources tab. */
   onCite: (sourceId: string) => void
+  /** The headings marked as changed since the version that was on screen, by anchor (useLiveVersion); null for none. */
+  marks?: ReadonlyMap<string, Mark> | null
 }
 
 /** What every citation needs: where it goes, how much of its source was read, and the words to name it. */
 interface Citing {
   open: (sourceId: string) => void
   weakness: (sourceId: string) => Weakness | null
+  /** The source's name for its tip: its title and its site; null until the sources are read. */
+  named: (sourceId: string) => string | null
   language: string
+  marks: ReadonlyMap<string, Mark> | null
 }
 
-export function MarkdownView({ report, sources, language, onCite }: Props) {
+/** A source as a citation's tip names it: its title, and its site when that says more. */
+function nameOf(source: ReportSource | undefined): string | null {
+  if (!source) return null
+  const title = sourceTitle(source)
+  const host = source.url ? hostOf(source.url) : null
+  return host && host !== title ? `${title} · ${host}` : title
+}
+
+export function MarkdownView({ report, sources, language, onCite, marks = null }: Props) {
   const citing = useMemo<Citing>(() => {
     const listed = new Map((sources ?? []).map((s) => [s.sourceId, s]))
-    return { open: onCite, weakness: (id) => weaknessOf(listed.get(id)), language }
-  }, [sources, language, onCite])
+    return {
+      open: onCite,
+      weakness: (id) => weaknessOf(listed.get(id)),
+      named: (id) => nameOf(listed.get(id)),
+      language,
+      marks,
+    }
+  }, [sources, language, onCite, marks])
   return (
     <div className="md" lang={language === 'und' ? undefined : language}>
       <Blocks blocks={report.blocks} citing={citing} />
@@ -61,14 +82,8 @@ const HEADINGS = ['h2', 'h3', 'h4', 'h5', 'h6', 'h6'] as const
 
 function BlockView({ block, citing }: { block: Block; citing: Citing }) {
   switch (block.kind) {
-    case 'heading': {
-      const H = HEADINGS[block.level - 1] ?? 'h6'
-      return (
-        <H id={block.anchor ? `md-${block.anchor}` : undefined}>
-          <Inlines inline={block.children} citing={citing} />
-        </H>
-      )
-    }
+    case 'heading':
+      return <HeadingView block={block} citing={citing} />
     case 'paragraph':
       return (
         <p>
@@ -96,6 +111,18 @@ function BlockView({ block, citing }: { block: Block; citing: Citing }) {
     default:
       return null
   }
+}
+
+/** A heading, one level under the viewer's title, with its mark when its section changed since the last version read. */
+function HeadingView({ block, citing }: { block: Extract<Block, { kind: 'heading' }>; citing: Citing }) {
+  const H = HEADINGS[block.level - 1] ?? 'h6'
+  const mark = citing.marks?.get(block.anchor)
+  return (
+    <H id={block.anchor ? `md-${block.anchor}` : undefined}>
+      <Inlines inline={block.children} citing={citing} />
+      {mark && <span className="md-mark">{mark}</span>}
+    </H>
+  )
 }
 
 function ListView({ block, citing }: { block: Extract<Block, { kind: 'list' }>; citing: Citing }) {
@@ -279,9 +306,12 @@ function Sep() {
 
 function CiteButton({ cite, citing }: { cite: Cite; citing: Citing }) {
   const weak = citing.weakness(cite.sourceId)
+  const named = citing.named(cite.sourceId)
   return (
     <button
       type="button"
+      // Its source, on hover and focus (artifacts.css): drawn from the attribute, so it adds no text and takes no room.
+      data-tip={named ?? undefined}
       data-weak={weak ?? undefined}
       onClick={() => citing.open(cite.sourceId)}
       aria-label={citeLabel(cite.n, weak, citing.language)}

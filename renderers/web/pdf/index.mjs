@@ -1,5 +1,16 @@
 // The confined HTML-to-PDF render kernel (SMC-M03 S5a): verify the source package, launch Chromium confined with
-// its sandbox asserted, print, and return a structured receipt.
+// its sandbox asserted, print, and return a structured receipt. SDD-01: the capture kernel, screenshots and measures
+// of a designed page in the same confinement.
+export {
+  asCaptureJob,
+  CAPTURE_KERNEL_FILES,
+  CAPTURE_LIMITS,
+  CAPTURE_RECEIPT_SCHEMA,
+  CAPTURE_TARGETS,
+  CaptureFailure,
+  captureHtml,
+  captureSha256,
+} from './capture-html.mjs'
 export { ConfinementError, chromiumPath, judgeSandbox, launchConfined, processTree, renderUserOf } from './confine.mjs'
 export { pdfFacts } from './pdf-facts.mjs'
 export {
@@ -20,4 +31,4 @@ export {
   sourceUnchanged,
   verifySource,
 } from './source-manifest.mjs'
-export { ApiError, runOnce, supervise } from './supervisor.mjs'
+export { ApiError, FORMATS, runOnce, supervise } from './supervisor.mjs'

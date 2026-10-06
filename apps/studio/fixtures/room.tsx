@@ -25,7 +25,9 @@ import type { View } from '../src/app/route.ts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
-import { ABSENT, identity, membership, PROJECT, type RoomAsked } from './data.ts'
+import type { Notes } from './brief-data.ts'
+import { noShowing } from './focus-data.ts'
+import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, sophiaLeaves } from './fake-livekit.ts'
 import {
   count,
@@ -55,6 +57,7 @@ import {
   SOPHIAS_DESCRIPTION,
   TEAMMATE,
   TITLE,
+  versionId,
 } from './report-data.ts'
 
 interface Fixture {
@@ -66,6 +69,8 @@ interface Fixture {
   drop: () => void
   /** The fixture report's next version is published (the viewer learns of it when it reads the list again). */
   publishReport: () => void
+  /** Sophia publishes the report's next version while it is open: the project's feed says so at once. */
+  reviseLive: () => void
   /** A finished research result is told in the chat, as the bridge tells a member. */
   notice: () => void
   /**
@@ -73,10 +78,28 @@ interface Fixture {
    * notice (revision 2) reaches the chat (CX-0022).
    */
   noticeRevised: () => void
+  /** The page asked for is published while the person is away (`design=designing`, B-19). */
+  designPublished: () => void
   /** The same task's result told as a brief's (synthetic): a card of another kind over the same files. */
   noticeBrief: () => void
   /** The research task's record, held since the page opened (`hold=task`), comes now. */
   releaseTask: () => void
+  /** The running research task has read `reads` sources (`research=running`). */
+  researchProgress: (reads: number) => void
+  /** The running research task finished: it stays in the project's work, its result ready, as the API keeps it. */
+  researchDone: () => void
+  /** Something is built on every note in the brief: withdrawing one would take it too (brief-data.ts). */
+  buildOnNotes: () => void
+  /** The `n`th other person (or `me`, from another device) shows the report's current version; null, nothing is. */
+  show: (n: number | 'me' | null) => void
+  /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
+  loseNextContributionReply: () => void
+  /** The next show lands, but its reply is lost: the page can't tell it was committed. */
+  loseNextFocusReply: () => void
+  /** The notes members wrote in the brief, by their text. */
+  notes: () => readonly (string | null)[]
+  /** The next note written lands, but its reply is lost: the page can't tell it was kept. */
+  loseNextReply: () => void
   /** Reads of the research task fail from now on; given false, they succeed again. */
   failTask: (fails?: boolean) => void
   /** A live caption packet reaches this member, as the bridge sends what is said aloud (CX-0023): synthetic text. */
@@ -89,6 +112,8 @@ interface Fixture {
   failVersions: (how?: 'unavailable' | 'not_found' | false) => void
   /** The report's sources, held since the page opened (`hold=sources`), come now. */
   releaseSources: () => void
+  /** Reads of the report's sources wait again from now on, until released. */
+  holdSources: () => void
   /** The report's text, held since the page opened (`hold=text`), comes now. */
   releaseText: () => void
   /** The person goes home: the project is kept out of sight for its call, and the address is the places'. */
@@ -172,7 +197,9 @@ const project = {
     }
     floorTo.push(nameOf(actorId))
   },
-  messages: [] as string[],
+  messages: [] as (string | Said)[],
+  contributions: new Map(),
+  loseContributionReply: false,
   reportVersions: Math.max(1, Number(query.get('versions')) || 1),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
   pilot: query.get('history') === 'pilot',
@@ -184,8 +211,23 @@ const project = {
   taskRevision: 1 as 1 | 2,
   taskHeld: query.get('hold') === 'task',
   taskFails: false,
+  researching: query.get('research') === 'running' ? { reads: 0 } : null,
   textTampered: query.get('tamper') === 'text',
+  designed: query.get('designed') === 'on',
+  designing: query.get('design') === 'designing',
+  pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',
+  // `notes=off`: the brief allows this person no note.
+  showing: noShowing(),
+  notes: {
+    kept: [],
+    written: 0,
+    receipts: new Map(),
+    loseReply: false,
+    builtOn: false,
+    refused: query.get('notes') === 'off',
+    unread: query.get('notes') === 'unread',
+  } as Notes,
 }
 installFixtureApi(project)
 
@@ -199,6 +241,10 @@ window.fixture = {
   publishReport: () => {
     project.reportVersions += 1
   },
+  reviseLive: () => {
+    project.reportVersions += 1
+    publish(project)
+  },
   notice: () => deliverNotice(researchNotice),
   noticeRevised: () => {
     project.reportVersions = 2
@@ -206,7 +252,44 @@ window.fixture = {
     deliverNotice(revisedNotice)
   },
   noticeBrief: () => deliverNotice(briefNotice),
+  designPublished: () => {
+    project.designing = false
+    project.designed = true
+    publish(project)
+  },
   releaseTask: () => releaseTask(project),
+  researchProgress: (reads) => {
+    project.researching = { reads }
+  },
+  researchDone: () => {
+    project.researching = null
+    project.work = true
+    publish(project)
+  },
+  buildOnNotes: () => {
+    project.notes.builtOn = true
+  },
+  show: (n) => {
+    project.showing.revision += 1
+    project.showing.focus =
+      n === null
+        ? null
+        : {
+            artifactVersionId: versionId(project.reportVersions),
+            guideId: n === 'me' ? membership.actorId : personId(n),
+          }
+    publish(project)
+  },
+  loseNextContributionReply: () => {
+    project.loseContributionReply = true
+  },
+  loseNextFocusReply: () => {
+    project.showing.loseReply = true
+  },
+  notes: () => project.notes.kept.map((entry) => entry.text),
+  loseNextReply: () => {
+    project.notes.loseReply = true
+  },
   failTask: (fails = true) => {
     project.taskFails = fails
   },
@@ -219,6 +302,9 @@ window.fixture = {
     project.versionsFail = how
   },
   releaseSources: () => releaseSources(project),
+  holdSources: () => {
+    project.sourcesHeld = true
+  },
   releaseText: () => releaseText(project),
   away: () => {
     window.history.pushState({ fixture: 'home' }, '', '/room.html?place=home') // the places' own entry

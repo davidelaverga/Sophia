@@ -13,6 +13,8 @@
  *   POST {base}/v1/runtime/observations   <- RuntimeObservationBatch
  *   POST {base}/v1/runtime/ready          <- RuntimeReady
  *   POST {base}/v1/runtime/research/{context,reserve,settle,capture,draft,submit,render,render-result}  (SMC-M03, A11)
+ *   POST {base}/v1/runtime/design/{context,record,source,patch,render,render-result,capture,reserve,settle,submit}  (SDD-01, A12)
+ *   POST {base}/v1/runtime/review/{context,capture,submit}  (SDD-01, A12)
  *   POST {base}/v1/runtime/source-review/{context,reserve,settle,submit}  (WBC-02, A13)
  *
  * Every reply is validated against the contract before the bridge reads it,
@@ -31,6 +33,20 @@ import { describeFailure } from './protocol.js'
 import { wire } from './runtime-wire.generated.js'
 import type { WireValidator } from './runtime-wire.generated.js'
 import type {
+  DesignCaptureReply,
+  DesignCaptureRequest,
+  DesignContextReply,
+  DesignContextRequest,
+  DesignPatchRequest,
+  DesignRecord,
+  DesignRecordRequest,
+  DesignRender,
+  DesignRenderRequest,
+  DesignRenderResultRequest,
+  DesignSourceReply,
+  DesignSubmission,
+  DesignSubmitRequest,
+  DesignWriteRequest,
   ResearchCapture,
   ResearchCaptureRequest,
   ResearchContextReply,
@@ -46,6 +62,9 @@ import type {
   ResearchSettlement,
   ResearchSubmission,
   ResearchSubmitRequest,
+  ReviewContextReply,
+  ReviewSubmission,
+  ReviewSubmitRequest,
   SourceReviewContextReply,
   SourceReviewContextRequest,
   SourceReviewSubmission,
@@ -210,6 +229,70 @@ export class ServiceTransport {
   async researchRenderResult(body: ResearchRenderResultRequest, signal?: AbortSignal): Promise<ResearchRender> {
     checked('render result request', wire.ResearchRenderResultRequest, body)
     return checked('render', wire.ResearchRender, await this.request('POST', '/v1/runtime/research/render-result', body, signal))
+  }
+
+  // The design and review tools' operations (SDD-01, A12): each request and reply checked against the contract.
+
+  async designContext(body: DesignContextRequest, signal?: AbortSignal): Promise<DesignContextReply> {
+    checked('design context request', wire.DesignContextRequest, body)
+    return checked('design context', wire.DesignContextReply, await this.request('POST', '/v1/runtime/design/context', body, signal))
+  }
+
+  async designRecord(body: DesignRecordRequest, signal?: AbortSignal): Promise<DesignRecord> {
+    checked('work record request', wire.DesignRecordRequest, body)
+    return checked('work record', wire.DesignRecord, await this.request('POST', '/v1/runtime/design/record', body, signal))
+  }
+
+  async designSource(body: DesignWriteRequest, signal?: AbortSignal): Promise<DesignSourceReply> {
+    checked('source request', wire.DesignWriteRequest, body)
+    return checked('source', wire.DesignSourceReply, await this.request('POST', '/v1/runtime/design/source', body, signal))
+  }
+
+  async designPatch(body: DesignPatchRequest, signal?: AbortSignal): Promise<DesignSourceReply> {
+    checked('patch request', wire.DesignPatchRequest, body)
+    return checked('source', wire.DesignSourceReply, await this.request('POST', '/v1/runtime/design/patch', body, signal))
+  }
+
+  async designRender(body: DesignRenderRequest, signal?: AbortSignal): Promise<DesignRender> {
+    checked('design render request', wire.DesignRenderRequest, body)
+    return checked('design render', wire.DesignRender, await this.request('POST', '/v1/runtime/design/render', body, signal))
+  }
+
+  async designRenderResult(body: DesignRenderResultRequest, signal?: AbortSignal): Promise<DesignRender> {
+    checked('design render result request', wire.DesignRenderResultRequest, body)
+    return checked('design render', wire.DesignRender, await this.request('POST', '/v1/runtime/design/render-result', body, signal))
+  }
+
+  /** The captures the designer (or, by `role`, the reviewer) inspects: their pixels, checked by the service. */
+  async designCapture(role: 'design' | 'review', body: DesignCaptureRequest, signal?: AbortSignal): Promise<DesignCaptureReply> {
+    checked('capture request', wire.DesignCaptureRequest, body)
+    return checked('captures', wire.DesignCaptureReply, await this.request('POST', `/v1/runtime/${role}/capture`, body, signal))
+  }
+
+  /** A model call of the designer or the reviewer, reserved against the research lineage's allowance. */
+  async designReserve(body: ResearchReserveRequest): Promise<ResearchReservation> {
+    checked('reservation request', wire.ResearchReserveRequest, body)
+    return checked('reservation', wire.ResearchReservation, await this.request('POST', '/v1/runtime/design/reserve', body))
+  }
+
+  async designSettle(body: ResearchSettleRequest): Promise<ResearchSettlement> {
+    checked('settlement request', wire.ResearchSettleRequest, body)
+    return checked('settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/design/settle', body))
+  }
+
+  async designSubmit(body: DesignSubmitRequest): Promise<DesignSubmission> {
+    checked('design submit request', wire.DesignSubmitRequest, body)
+    return checked('design submission', wire.DesignSubmission, await this.request('POST', '/v1/runtime/design/submit', body))
+  }
+
+  async reviewContext(body: DesignContextRequest, signal?: AbortSignal): Promise<ReviewContextReply> {
+    checked('review context request', wire.DesignContextRequest, body)
+    return checked('review context', wire.ReviewContextReply, await this.request('POST', '/v1/runtime/review/context', body, signal))
+  }
+
+  async reviewSubmit(body: ReviewSubmitRequest): Promise<ReviewSubmission> {
+    checked('review submit request', wire.ReviewSubmitRequest, body)
+    return checked('review submission', wire.ReviewSubmission, await this.request('POST', '/v1/runtime/review/submit', body))
   }
 
   // The source reviewer's operations (WBC-02, A13): the same checks; its model calls reserve and settle through the

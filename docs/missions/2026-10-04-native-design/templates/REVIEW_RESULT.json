@@ -1,0 +1,26 @@
+{
+  "schema": "sophia.visual-review.proposed.v1",
+  "review_id": null,
+  "reviewer_attempt_id": null,
+  "candidate_id": null,
+  "source_package_hash": null,
+  "render_manifest_hash": null,
+  "criteria_hash": null,
+  "inspected_evidence": [],
+  "required_coverage": [],
+  "missing_coverage": [],
+  "verdict": "not_reviewed",
+  "findings": [],
+  "finding_shape": {
+    "id": null,
+    "severity": null,
+    "component_or_region": null,
+    "observation": null,
+    "evidence_ref": null,
+    "requirement_id": null,
+    "repair_layer": null
+  },
+  "limitations": [],
+  "human_acceptance": null,
+  "note": "Proposed record shape to bind at G0. Neither a reviewer verdict nor this template is publication/human approval."
+}

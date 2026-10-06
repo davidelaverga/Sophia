@@ -1,0 +1,24 @@
+{
+  "protocol": "sophia.dev-handoff.v1.1",
+  "mission_id": null,
+  "operation_id": null,
+  "request_revision": null,
+  "reply_to": null,
+  "status": "not_run",
+  "executed_candidate": null,
+  "actual_deployment_tuple": {},
+  "approval_ref": null,
+  "steps": [],
+  "schema_before_after": {},
+  "configuration_keys_changed": [],
+  "app_cases": [],
+  "usage": {
+    "measured": null,
+    "unknown": []
+  },
+  "evidence": [],
+  "cleanup": [],
+  "unresolved_effects": [],
+  "rollback_readiness": null,
+  "next_action": null
+}

@@ -19,6 +19,8 @@ test('the research section is the recorded version, byte for byte', () => {
 test('it names only tools that exist, and each one every research specialist is offered', () => {
   const named = new Set(RESEARCH_PROMPT.text.match(/\bresearch_[a-z_]+\b/g))
   for (const name of named) assert.ok(RESEARCH_TOOL_NAMES.includes(name), `${name} is a research tool`)
+  // The design roles (SDD-01) and the source reviewer (WBC-02) have their own prompt sections and tools; this section
+  // is the research family's.
   const research = SPECIALISTS.filter((s) => s.taskKind === 'research')
   assert.ok(research.length > 0)
   for (const s of research) for (const name of named) assert.ok(s.nativeTools.includes(name), `${s.id} offers ${name}`)

@@ -1682,11 +1682,12 @@ img.avatar {
   padding: 10px var(--panel-pad) var(--floor);
   border-top: 1px solid var(--line);
 }
-/* Before there is a conversation to type into, the foot holds one thing: the way in, in the message bar's place and
-   size, so the floor line holds. It is dressed like Speak with Sophia in the dock, its spoken twin. */
+/* Before Sophia's conversation is open, the way in sits above the message bar (which writes to the room meanwhile),
+   dressed like Speak with Sophia in the dock, its spoken twin. */
 .chat-start {
   width: 100%;
   height: 48px;
+  margin-bottom: 8px;
   border-radius: var(--r-4);
 }
 /* The message bar: the words and their Send in one field, as a chat has it. Built like the dock (5 px around 36 px
@@ -3718,5 +3719,221 @@ div.empty {
     right: var(--gutter);
     width: auto;
     z-index: 31;
+  }
+}
+
+/* A report shown to everyone (PresentedReport, docs/plans/room-present.md): where a shared screen goes, as a page of
+   its own: its head with who shows it and the way back, then the text at the reading measure, scrolled on its own. */
+.report-main {
+  display: grid;
+  /* Its head, the section index when it has one, and the text, which takes the rest and scrolls. */
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--plane);
+  animation: arrive 0.4s var(--ease) both;
+}
+.report-main-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.report-main-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin-right: auto;
+}
+.report-main-title {
+  overflow: hidden;
+  font-size: var(--type-title);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-main-meta {
+  color: var(--text-3);
+  font: 500 var(--type-label) / 1.3 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.report-main-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.report-main-body {
+  grid-row: 3;
+  overflow: auto;
+  padding: 20px 24px 40px;
+}
+.report-main-body > .md {
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+/* Who shows what to everyone, under Sophia's line, with Follow: the made object's glass, one line. */
+.stage-showing {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(420px, 100%);
+  margin-bottom: 10px;
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--r-4);
+  border: 1px solid var(--line-2);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: var(--lift);
+  animation: arrive 0.3s var(--ease) both;
+}
+.showing-words {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+/* What a show's press said when it didn't simply go through: one line beside its button. */
+.focus-said {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+/* With video on the stage, the card floats at its top, over the gallery or the shared screen. */
+.stage-over-video {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  z-index: 4;
+  width: min(420px, calc(100% - 2 * var(--gutter)));
+  transform: translateX(-50%);
+}
+.stage-over-video .stage-showing {
+  margin: 0;
+}
+/* A show's line under its button in the made object's card, so the card's own words keep their width. */
+.made-acts {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.made-acts .focus-said:empty {
+  display: none;
+}
+.made-acts .focus-said {
+  flex-basis: 100%;
+  justify-content: flex-end;
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-main,
+  .stage-showing {
+    animation: none;
+  }
+}
+
+/* Sophia's voice through the report on the stage (useVoiceTrail, docs/plans/room-voice-trail.md): her words lit in her
+   colour, the block they are in marked at its edge, and the section index with her mark where she is. */
+::highlight(sophia-spoken) {
+  background-color: rgba(156, 130, 245, 0.3);
+  color: var(--text);
+}
+.report-main-body .md [data-spoken] {
+  box-shadow: -10px 0 0 -8px var(--halo);
+  transition: box-shadow var(--base) var(--ease);
+}
+.report-sections {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: none;
+}
+.report-sections a {
+  position: relative;
+  flex: none;
+  padding: 4px 8px 4px 18px;
+  border-radius: var(--r-2);
+  color: var(--text-3);
+  font-size: var(--type-small);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.report-sections a::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--line-3);
+  transform: translateY(-50%);
+}
+.report-sections a:hover {
+  color: var(--text);
+  background: rgba(236, 235, 241, 0.05);
+}
+.report-sections a[data-sophia] {
+  color: var(--text);
+}
+/* Her mark: the dot takes her colour and glows, where she is speaking. */
+.report-sections a[data-sophia]::before {
+  background: var(--halo-text);
+  box-shadow: 0 0 8px var(--halo);
+}
+.report-sections a:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-main-body .md [data-spoken] {
+    transition: none;
+  }
+}
+
+/* Who the message bar writes to (Composer's TargetSwitch, docs/plans/room-discussion.md): a small chip at its start,
+   level with the first line; Sophia's in her colour. Pressed, it switches to the other. */
+.message-bar .bar-target {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  align-self: flex-end;
+  height: 26px;
+  margin: 0 0 5px -4px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text-2);
+  font: 500 var(--type-small) / 1 var(--sans);
+  white-space: nowrap;
+}
+.message-bar[data-target='sophia'] .bar-target {
+  border-color: rgba(185, 168, 255, 0.4);
+  color: var(--halo-text);
+}
+.message-bar button.bar-target {
+  cursor: pointer;
+}
+.message-bar button.bar-target:hover {
+  background: rgba(236, 235, 241, 0.06);
+}
+.message-bar button.bar-target:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 1px;
+}
+/* On a touch screen the bar's first line sits a little higher: the chip stays level with it. */
+@media (pointer: coarse) {
+  .message-bar .bar-target {
+    margin-bottom: 7px;
   }
 }

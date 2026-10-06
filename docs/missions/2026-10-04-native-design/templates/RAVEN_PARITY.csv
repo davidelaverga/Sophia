@@ -1,0 +1,5 @@
+source_id,source_path,source_git_blob,source_heading_or_range,disposition,native_asset_or_capability,adaptation_reason,acceptance_ids,evidence_ref,review_status
+RV-01,plugins-dist/design-engine/raven_design/skills/visual-artifact-design/SKILL.md,5f6962e4cf2ed0899dd78a1f89aa2e103c8e7d16,minimal contract,pending,,,,,not_reviewed
+RV-02,plugins-dist/design-engine/raven_design/skills/design-editorial-and-presentations/SKILL.md,b6edaae4f6b49774d53f3e8c25d26d064152f76b,reader task and representative page types,pending,,,,,not_reviewed
+RV-03,plugins-dist/design-engine/raven_design/skills/build-polished-visual-frontends/SKILL.md,14ff3aeb7b2d888b561e4cb2794c307ec58e7283,all source headings must be inventoried,pending,,,,,not_reviewed
+RV-04,plugins-dist/design-engine/raven_design/skills/review-against-ai-patterns/SKILL.md,cf27ed13b88c0082228fc5db11fcce9e5516d64a,gallery and independent review,pending,,,,,not_reviewed

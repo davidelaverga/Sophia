@@ -2,7 +2,15 @@
 // withService with no member actor: the sophia.renderer_* functions authenticate the runner's capability (by its
 // SHA-256) and the job's lease themselves. enqueueRenderJob is internal (owner only until S5b's tools call it).
 import type pg from 'pg'
-import type { RenderHeartbeat, RenderJob, RenderOutput, RenderReceipt, RenderSettlement } from '@sophia/contracts'
+import type {
+  CaptureReceipt,
+  RenderCaptureOutput,
+  RenderHeartbeat,
+  RenderJob,
+  RenderOutput,
+  RenderReceipt,
+  RenderSettlement,
+} from '@sophia/contracts'
 import { onlyRow } from './rows.ts'
 
 /** Where one file of a claimed package lives: inline text, or an object in the byte store. */
@@ -22,9 +30,14 @@ async function call<T>(c: pg.PoolClient, fn: string, params: unknown[]): Promise
   return onlyRow(rows, fn).reply
 }
 
-/** The oldest pending render whose goal is working, now leased to this runner; null when there is none. */
-export const rendererClaim = (c: pg.PoolClient, tokenSha256: Buffer) =>
-  call<RenderJob | null>(c, 'renderer_claim', [tokenSha256])
+/**
+ * The oldest pending render whose goal is working, now leased to this runner; null when there is none. A runner that
+ * names its formats (SDD-01: pdf, png) may be handed a capture; one that names none renders PDF only.
+ */
+export const rendererClaim = (c: pg.PoolClient, tokenSha256: Buffer, formats?: readonly string[]) =>
+  formats === undefined
+    ? call<RenderJob | null>(c, 'renderer_claim', [tokenSha256])
+    : call<RenderJob | null>(c, 'renderer_claim', [tokenSha256, formats])
 
 export const rendererHeartbeat = (c: pg.PoolClient, tokenSha256: Buffer, jobId: string, lease: string) =>
   call<RenderHeartbeat>(c, 'renderer_heartbeat', [tokenSha256, jobId, lease])
@@ -59,12 +72,39 @@ export const rendererRecordOutput = (
     output.byteLength,
   ])
 
+/** Where one capture of a capture job goes (SDD-01): its project and a new source id. */
+export const rendererCaptureSlot = (
+  c: pg.PoolClient,
+  tokenSha256: Buffer,
+  jobId: string,
+  lease: string,
+  name: string,
+) => call<{ projectId: string; sourceId: string }>(c, 'renderer_capture_slot', [tokenSha256, jobId, lease, name])
+
+/** Record bytes already stored at the slot's object as the capture of that name. */
+export const rendererRecordCapture = (
+  c: pg.PoolClient,
+  tokenSha256: Buffer,
+  jobId: string,
+  lease: string,
+  capture: RecordedOutput & { readonly name: string },
+) =>
+  call<RenderCaptureOutput>(c, 'renderer_record_capture', [
+    tokenSha256,
+    jobId,
+    lease,
+    capture.name,
+    capture.sourceId,
+    capture.sha256,
+    capture.byteLength,
+  ])
+
 export const rendererSettle = (
   c: pg.PoolClient,
   tokenSha256: Buffer,
   jobId: string,
   lease: string,
-  receipt: RenderReceipt,
+  receipt: RenderReceipt | CaptureReceipt,
 ) => call<RenderSettlement>(c, 'renderer_settle', [tokenSha256, jobId, lease, JSON.stringify(receipt)])
 
 export interface RenderPackageFile {

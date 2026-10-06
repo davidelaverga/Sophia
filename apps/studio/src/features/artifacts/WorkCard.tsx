@@ -1,11 +1,12 @@
 // A research task as the team sees it (plan §2.8.2): its state in words, how long and how much of its allowance it
 // has used, the question, and once delivered one row per output. The whole row opens the viewer; a separate
-// Download saves that version. Each Markdown row is followed by its HTML page's row, which only downloads. The footer
-// opens the viewer on its sources and limitations. A report delivered without the PDF it asked for offers editors
-// "Try PDF again" (RetryPdf). Hold and Stop live on its goal (WorkControls), as for every task, a PDF rendering again
-// included.
+// Download saves that version. An HTML page asked for is designed after the research (SDD-01): until it is published
+// its row says what the design is doing (designing, reviewing) or why there is none; once published it is an output
+// row like the others, with how it was reviewed. The footer opens the viewer on its sources and limitations. A report
+// delivered without the PDF it asked for offers editors "Try PDF again" (RetryPdf). Hold and Stop live on its goal
+// (WorkControls), as for every task, a PDF rendering again included.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion, NativeTask, NativeTaskDetail, ResearchProgress } from '@sophia/contracts'
 import { Icon, Tag } from '@sophia/ui'
 import { listArtifactVersions } from '../../api/artifacts.ts'
@@ -13,7 +14,7 @@ import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer, type OpenRequest } from './DocumentViewer.tsx'
 import { downloadSource } from './download.ts'
-import { usePageDownload } from './PageDownload.tsx'
+import { reviewTag } from './HtmlView.tsx'
 import { RetryPdf } from './RetryPdf.tsx'
 import {
   elapsedText,
@@ -27,6 +28,7 @@ import {
 } from './report-view.ts'
 import { useTransientStatus } from './useTransientStatus.ts'
 import './artifacts.css'
+import { WORKING_PHASES } from '../voice/room-view.ts'
 
 type Output = NonNullable<NonNullable<NativeTaskDetail['result']>['outputs']>[number]
 
@@ -38,7 +40,8 @@ interface Props {
   canAct?: boolean
 }
 
-const ACTIVE: ReadonlySet<NativeTask['phase']> = new Set(['queued', 'dispatched', 'running', 'holding', 'stopping'])
+/** A task still at work: the room's set, so the two never disagree. */
+const ACTIVE = WORKING_PHASES
 
 /** How often the detail is read again: while the task runs, and faster while its PDF renders again. */
 const pollEvery = (task: NativeTask, detail: NativeTaskDetail | undefined): number | false => {
@@ -102,9 +105,9 @@ function useMinute(running: boolean): number {
   return now
 }
 
-/** "Try PDF again" is offered to editors on a partly delivered report whose PDF is not already rendering again. */
+/** "Try PDF again" is offered to editors on a report missing its PDF, while that PDF is not already rendering again. */
 const offersRetry = (canAct: boolean, words: StateWords, research: ResearchProgress | undefined) =>
-  canAct && words.state === 'partial' && research !== undefined && !research.pdfRendering
+  canAct && words.missing === 'pdf' && research !== undefined && !research.pdfRendering
 
 export function WorkCard(props: Props) {
   const { task, identity, projectId, canAct = false } = props
@@ -118,7 +121,8 @@ export function WorkCard(props: Props) {
       <CardHead words={words} task={task} research={research} now={now} />
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
       {words.state === 'researching' && research && <Progress research={research} />}
-      <Outputs outputs={outputs} versions={versions} token={identity.token} artifactId={task.artifactId} open={open} />
+      <Outputs outputs={outputs} versions={versions} token={identity.token} open={open} />
+      <DesignRow html={research?.html} projectId={projectId} identity={identity} researchTaskId={task.id} />
       {words.note && <p className="goal-outcome">{words.note}</p>}
       {retry && <RetryPdf projectId={projectId} taskId={task.id} token={identity.token} />}
       {current && open && <CardFoot version={current} open={open} />}
@@ -132,32 +136,89 @@ interface OutputsProps {
   outputs: readonly Output[]
   versions: readonly ArtifactVersion[] | undefined
   token: string
-  /** The report the outputs are versions of: its HTML page is printed from a version's Markdown. */
-  artifactId: string | undefined
   open: Open | null
 }
 
-/** One row per delivered output, side by side (stacked in a narrow card); each Markdown row's HTML page after it. */
-function Outputs({ outputs, versions, token, artifactId, open }: OutputsProps) {
+/** One row per delivered output, side by side (stacked in a narrow card): only what the task actually stored. */
+function Outputs({ outputs, versions, token, open }: OutputsProps) {
   if (outputs.length === 0) return null
   return (
     <div className="work-card-outputs">
-      {outputs.map((o) => {
-        const version = versions?.find((v) => v.id === o.artifactVersionId)
-        return (
-          <Fragment key={`${o.artifactVersionId}:${o.format}`}>
-            <OutputRow
-              output={o}
-              version={version}
-              token={token}
-              onOpen={open ? () => open({ versionId: o.artifactVersionId, format: o.format }) : null}
-            />
-            {o.format === 'markdown' && artifactId && (
-              <PageRow output={o} version={version} token={token} artifactId={artifactId} />
-            )}
-          </Fragment>
-        )
-      })}
+      {outputs.map((o) => (
+        <OutputRow
+          key={`${o.artifactVersionId}:${o.format}`}
+          output={o}
+          version={versions?.find((v) => v.id === o.artifactVersionId)}
+          token={token}
+          onOpen={open ? () => open({ versionId: o.artifactVersionId, format: o.format }) : null}
+        />
+      ))}
+    </div>
+  )
+}
+
+type HtmlProgress = NonNullable<ResearchProgress['html']>
+
+/** How often an HTML design is read again while it runs: often enough to see it move from designing to reviewing. */
+const DESIGN_POLL = 15_000
+
+/** The design states after which the research's own record says what became of the page. */
+const DESIGN_ENDED: ReadonlySet<string> = new Set(['published', 'failed', 'cancelled', 'superseded'])
+
+/**
+ * The design task's own state, while the research's says it is designing: designing, or with its reviewer. Once the
+ * design has ended the research's record is read again, so the card shows the page (or why there is none) without a
+ * reload (B-19, B-24): the research task's own phase does not move when its page is published.
+ */
+function useDesignState(html: HtmlProgress, rest: { projectId: string; identity: Identity; researchTaskId: string }) {
+  const { projectId, identity, researchTaskId } = rest
+  const live = html.state === 'designing' && html.designTaskId !== undefined
+  const detail = useQuery({
+    queryKey: ['native-task', projectId, html.designTaskId, identity.name],
+    queryFn: () => getNativeTask(identity.token, projectId, html.designTaskId ?? ''),
+    enabled: live,
+    refetchInterval: live ? DESIGN_POLL : false,
+  })
+  const state = live ? detail.data?.design?.state : undefined
+  const client = useQueryClient()
+  useEffect(() => {
+    if (state && DESIGN_ENDED.has(state))
+      void client.invalidateQueries({ queryKey: ['native-task', projectId, researchTaskId] })
+  }, [client, state, projectId, researchTaskId])
+  return state
+}
+
+/** The HTML page's row before it is published: what the design is doing, or why there is no page. */
+function designWords(html: HtmlProgress, design: string | undefined): { tag: string; meta: string } {
+  if (html.state === 'failed' || html.state === 'not_started') return { tag: 'Not designed', meta: html.reason ?? '' }
+  if (html.state === 'requested') return { tag: 'Asked for', meta: 'Designed once the research is published' }
+  if (design === 'reviewing') return { tag: 'Reviewing', meta: 'A separate visual reviewer is checking the page' }
+  return { tag: 'Designing', meta: 'Designed after the research, from its published report' }
+}
+
+interface DesignRowProps {
+  projectId: string
+  identity: Identity
+  /** The research task whose page it is: read again when the design ends. */
+  researchTaskId: string
+}
+
+/** The HTML page asked for, until it is published (then it is an output row); nothing when none was asked for. */
+function DesignRow({ html, ...rest }: DesignRowProps & { html: HtmlProgress | undefined }) {
+  return html && html.state !== 'published' ? <DesignState html={html} {...rest} /> : null
+}
+
+function DesignState({ html, ...rest }: DesignRowProps & { html: HtmlProgress }) {
+  const words = designWords(html, useDesignState(html, rest))
+  return (
+    <div className="output-row" data-design={html.state}>
+      <div className="output-open" aria-live="polite">
+        <span className="report-tile" data-format="html" aria-hidden>
+          HTML
+        </span>
+        <span className="output-name">HTML page · {words.tag}</span>
+        <span className="output-meta">{words.meta}</span>
+      </div>
     </div>
   )
 }
@@ -216,18 +277,22 @@ interface RowProps {
 const nameOf = (output: Output, version: ArtifactVersion | undefined) =>
   version ? reportFilename(version.title ?? 'report', version.versionNumber ?? null, output.format) : 'Report'
 
-/** "Markdown · 8.1 KB · v2". */
+/** "Markdown · 8.1 KB · v2"; a designed page also says how it was reviewed. */
 const outputMeta = (output: Output, version: ArtifactVersion | undefined) =>
   [
-    output.format === 'pdf' ? 'PDF' : 'Markdown',
+    formatName(output.format),
     formatBytes(output.byteLength),
     version?.versionNumber ? `v${version.versionNumber}` : null,
+    output.format === 'html' ? reviewTag(output.reviewState) : null,
   ]
     .filter(Boolean)
     .join(' · ')
 
+const FORMAT_NAME: Record<Output['format'], string> = { markdown: 'Markdown', pdf: 'PDF', html: 'HTML page' }
+const TILE: Record<Output['format'], string> = { markdown: 'MD', pdf: 'PDF', html: 'HTML' }
+
 /** A row's format, said: two rows of one report differ by it (the name alone is "Report" until the versions load). */
-const formatName = (format: Output['format']) => (format === 'pdf' ? 'PDF' : 'Markdown')
+const formatName = (format: Output['format']) => FORMAT_NAME[format]
 
 function OutputRow({ output, version, token, onOpen }: RowProps) {
   const status = useTransientStatus()
@@ -250,7 +315,7 @@ function OutputRow({ output, version, token, onOpen }: RowProps) {
         aria-label={`Open ${name}, ${formatName(output.format)}`}
       >
         <span className="report-tile" data-format={output.format} aria-hidden>
-          {output.format === 'pdf' ? 'PDF' : 'MD'}
+          {TILE[output.format]}
         </span>
         <span className="output-name">{name}</span>
         <span className="output-meta">{outputMeta(output, version)}</span>
@@ -268,38 +333,6 @@ function OutputRow({ output, version, token, onOpen }: RowProps) {
         <span className="output-download-label">Download</span>
       </button>
       {/* There before it speaks: a live region added with its words is often not read. */}
-      <p className="output-status" role="status" data-error={status.error || undefined}>
-        {status.text}
-      </p>
-    </div>
-  )
-}
-
-/**
- * A Markdown output's HTML page: printed from that version's checked Markdown and saved (report-page.ts), so the one
- * button downloads; there is no viewer for it.
- */
-function PageRow({ output, version, token, artifactId }: Omit<RowProps, 'onOpen'> & { artifactId: string }) {
-  const { status, download } = usePageDownload(token, artifactId, output.artifactVersionId)
-  const name = version ? reportFilename(version.title ?? 'report', version.versionNumber ?? null, 'html') : 'Report'
-  const meta = ['HTML page', version?.versionNumber ? `v${version.versionNumber}` : null].filter(Boolean).join(' · ')
-  return (
-    <div className="output-row">
-      <button
-        type="button"
-        className="output-open"
-        onClick={() => void download()}
-        aria-label={`Download ${name}, HTML page`}
-      >
-        <span className="report-tile" data-format="html" aria-hidden>
-          HTML
-        </span>
-        <span className="output-name">{name}</span>
-        <span className="output-meta">{meta}</span>
-        <span className="output-hint" aria-hidden>
-          Download
-        </span>
-      </button>
       <p className="output-status" role="status" data-error={status.error || undefined}>
         {status.text}
       </p>

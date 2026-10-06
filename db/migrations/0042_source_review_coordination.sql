@@ -1483,8 +1483,8 @@ REVOKE ALL ON FUNCTION sophia.review_turn_end(uuid,sophia.execution_bindings,sop
 
 -- --- the native path, extended -----------------------------------------------------------------------------------------
 
--- capture_native_result (0026), replaced: a source review's turn end follows review_turn_end; research and a brief are
--- as before.
+-- capture_native_result (0040), replaced from 0040's body: a source review's turn end follows review_turn_end; research,
+-- a design or a design review (SDD-01) and a brief are as before.
 CREATE OR REPLACE FUNCTION sophia.capture_native_result(p_project uuid, p_binding uuid, p_turn_end_seq bigint, p_reason text) RETURNS void LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE b sophia.execution_bindings; g sophia.goals; j sophia.jobs; msg sophia.native_observations; c sophia.commands; src sophia.source_objects;
@@ -1493,10 +1493,12 @@ BEGIN
  SELECT * INTO b FROM sophia.execution_bindings WHERE project_id=p_project AND id=p_binding;
  SELECT g2.* INTO g FROM sophia.goals g2 JOIN sophia.work_attempts a ON a.project_id=g2.project_id AND a.goal_id=g2.id
   WHERE a.project_id=p_project AND a.id=b.attempt_id FOR UPDATE OF g2;
- SELECT * INTO j FROM sophia.jobs WHERE project_id=p_project AND attempt_id=b.attempt_id AND kind='source_review' FOR UPDATE;
- IF FOUND THEN PERFORM sophia.review_turn_end(p_project,b,g,j,p_turn_end_seq,p_reason); RETURN; END IF;
  SELECT * INTO j FROM sophia.jobs WHERE project_id=p_project AND attempt_id=b.attempt_id AND kind='research' FOR UPDATE;
  IF FOUND THEN PERFORM sophia.research_turn_end(p_project,b,g,j,p_turn_end_seq,p_reason); RETURN; END IF;
+ SELECT * INTO j FROM sophia.jobs WHERE project_id=p_project AND attempt_id=b.attempt_id AND kind IN ('design','design_review') FOR UPDATE;
+ IF FOUND THEN PERFORM sophia.design_turn_end(p_project,b,g,j,p_turn_end_seq,p_reason); RETURN; END IF;
+ SELECT * INTO j FROM sophia.jobs WHERE project_id=p_project AND attempt_id=b.attempt_id AND kind='source_review' FOR UPDATE;
+ IF FOUND THEN PERFORM sophia.review_turn_end(p_project,b,g,j,p_turn_end_seq,p_reason); RETURN; END IF;
  SELECT * INTO j FROM sophia.jobs WHERE project_id=p_project AND attempt_id=b.attempt_id AND kind='draft_brief' FOR UPDATE;
  IF j.id IS NULL OR j.state NOT IN ('pending','running','outcome_unknown') THEN RETURN; END IF;
  IF p_reason IS DISTINCT FROM 'completed' THEN
@@ -1510,10 +1512,6 @@ BEGIN
   AND native_seq<p_turn_end_seq AND coalesce((data->>'interrupted')::boolean,false)=false AND coalesce(data->>'text','')<>''
   ORDER BY native_seq DESC LIMIT 1;
  IF NOT FOUND THEN RETURN; END IF;
- -- The authority the turn ran under: the command (inspect aside, which reads only) last settled in the session before
- -- its message. Only a turn under the goal's current epoch, begun by a command that grants it, may publish; one from
- -- before a Hold or Stop, replayed or delayed past a Resume, stays withheld. No settled command yet (its receipt still
- -- on its way): nothing is decided, and the receipt tries again when it is recorded.
  SELECT rc.* INTO owner FROM sophia.runtime_commands rc
   JOIN sophia.runtime_receipts r ON r.project_id=rc.project_id AND r.runtime_command_id=rc.id
   WHERE rc.project_id=p_project AND rc.binding_id=p_binding AND rc.kind<>'inspect'
@@ -1541,13 +1539,39 @@ BEGIN
   jsonb_build_array(src.id,j.input_source_id));
 END $$;
 
--- dispatch_runtime_outbox (0037), replaced: the same, and a source review's create takes its role and route from its
--- manifest and its task statement from source_review_statement.
+-- Whether an attempt is a review's, which acts on what it is given and takes no steer: a visual review of a design
+-- candidate (SDD-01) or a source review (WBC-02).
+CREATE FUNCTION sophia.reviews_only(p_project uuid, p_attempt uuid) RETURNS boolean LANGUAGE sql STABLE
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT EXISTS(SELECT 1 FROM sophia.jobs j WHERE j.project_id=p_project AND j.attempt_id=p_attempt
+  AND j.kind IN ('design_review','source_review'));
+$$;
+REVOKE ALL ON FUNCTION sophia.reviews_only(uuid,uuid) FROM PUBLIC;
+
+-- A steer's delivery to a reviewer's session, passed by: settled undelivered, the reason recorded. The steer stays with
+-- the sessions that can act on it (a designer's, whose next revision takes it). When it reached none of them, nothing
+-- is left to deliver and its command is checked, as a Hold with no session to fence is (0012).
+CREATE FUNCTION sophia.pass_steer_by(o sophia.outbox, c sophia.commands) RETURNS jsonb LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ UPDATE sophia.outbox SET state='settled', lease_until=NULL, outcome_reason='a reviewer takes no steer'
+  WHERE project_id=o.project_id AND id=o.id;
+ UPDATE sophia.commands SET state='checked' WHERE project_id=o.project_id AND id=c.id AND state='admitted'
+  AND NOT EXISTS(SELECT 1 FROM sophia.outbox o2 WHERE o2.project_id=o.project_id AND o2.command_id=c.id AND o2.id<>o.id
+   AND o2.state IN ('pending','dispatching','outcome_unknown'));
+ RETURN jsonb_build_object('result','settled','reason','a reviewer takes no steer');
+END $$;
+REVOKE ALL ON FUNCTION sophia.pass_steer_by(sophia.outbox,sophia.commands) FROM PUBLIC;
+
+-- dispatch_runtime_outbox (0040), replaced from 0040's body: a source review's create takes its role and route from its
+-- manifest and its task statement from source_review_statement; a steer reaches no reviewer's session, a design
+-- review's (SDD-01, which leaves it to the combined branch: PRODUCTION_BATCH section 4) or a source review's. Research,
+-- a design, a design review's create and a brief are as before.
 CREATE OR REPLACE FUNCTION sophia.dispatch_runtime_outbox(p_project uuid, p_outbox uuid, p_lease_token uuid) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE o sophia.outbox; g sophia.goals; c sophia.commands; b sophia.execution_bindings; rt sophia.runtime_instances; why text;
  kind text; payload jsonb:='{}'; next_seq bigint; command_body jsonb; rc_id uuid:=gen_random_uuid(); manifest jsonb; txt text;
- job_kind text; job_id uuid; base uuid; seed sophia.source_objects;
+ job_kind text; job_id uuid; base uuid; seed sophia.source_objects; design_job uuid;
 BEGIN
  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
  SELECT * INTO o FROM sophia.outbox WHERE project_id=p_project AND id=p_outbox FOR UPDATE;
@@ -1570,7 +1594,6 @@ BEGIN
  IF o.cleanup THEN
   kind:=c.kind;  -- hold or stop (admit_goal_command writes native.stop rows for both)
   IF b.state IN ('settled','lost') OR (b.state='created' AND NOT EXISTS(SELECT 1 FROM sophia.runtime_commands WHERE project_id=p_project AND binding_id=b.id)) THEN
-   -- Nothing native was ever started (or it is already settled): the fence is the whole effect.
    UPDATE sophia.execution_bindings SET state='settled' WHERE project_id=p_project AND id=b.id AND state<>'lost';
    UPDATE sophia.outbox SET state='settled', lease_until=NULL WHERE project_id=p_project AND id=p_outbox;
    UPDATE sophia.commands SET state='checked' WHERE project_id=p_project AND id=c.id AND state IN ('admitted','dispatching');
@@ -1579,6 +1602,7 @@ BEGIN
   END IF;
   IF rt.id IS NULL THEN RETURN sophia.deny_native_delivery(o,c,'no active runtime for its executor resource and runtime unit'); END IF;
  ELSE
+  IF o.destination='native.steer' AND sophia.reviews_only(p_project,b.attempt_id) THEN RETURN sophia.pass_steer_by(o,c); END IF;
   why:=sophia.native_delivery_ineligible(o,g,c,b,rt);
   IF why IS NOT NULL THEN RETURN sophia.deny_native_delivery(o,c,why); END IF;
   why:=sophia.runtime_unavailable(rt);
@@ -1589,7 +1613,6 @@ BEGIN
     JOIN sophia.source_texts t ON t.project_id=j.project_id AND t.source_id=j.input_source_id
     WHERE j.project_id=p_project AND j.command_id=c.id;
    IF job_kind='research' THEN
-    -- One research worker: another research task already started and not yet ended keeps this one queued.
     IF EXISTS(SELECT 1 FROM sophia.jobs j2 JOIN sophia.execution_bindings b2 ON b2.project_id=j2.project_id AND b2.attempt_id=j2.attempt_id
       JOIN sophia.work_attempts w2 ON w2.project_id=j2.project_id AND w2.id=j2.attempt_id
       JOIN sophia.goals g2 ON g2.project_id=w2.project_id AND g2.id=w2.goal_id
@@ -1597,10 +1620,6 @@ BEGIN
        AND b2.state IN ('launching','running','idle') AND g2.status IN ('ready','running','checking')) THEN
      RETURN sophia.defer_native_delivery(o,c,'waiting for the research worker: another research task is under way');
     END IF;
-    -- An amendment edits its base: the attempt's first draft is a copy of the base's text. A copy, never the base's
-    -- own source: source_closure follows a draft to its task's manifest, so the base would draw on this task's inputs.
-    -- The copy draws on the base through that manifest; it has no dependency of its own, so a version published from
-    -- it unedited lists only what it cites.
     base:=(manifest->'base'->>'sourceId')::uuid;
     IF base IS NOT NULL THEN
      SELECT t.body INTO txt FROM sophia.source_texts t WHERE t.project_id=p_project AND t.source_id=base;
@@ -1609,6 +1628,14 @@ BEGIN
      VALUES(p_project,b.attempt_id,1,'base:'||(manifest->'base'->>'versionId'),seed.id,seed.sha256);
     END IF;
     payload:=jsonb_build_object('role',manifest->>'role','route',manifest->>'route','text',sophia.research_task_statement(p_project,manifest));
+   ELSIF job_kind='design' THEN
+    design_job:=job_id;
+    IF NOT EXISTS(SELECT 1 FROM sophia.design_tasks dt WHERE dt.project_id=p_project AND dt.job_id=design_job AND dt.package_source_id IS NOT NULL) THEN
+     RETURN sophia.deny_native_delivery(o,c,'the design has no frozen content package');
+    END IF;
+    payload:=jsonb_build_object('role',manifest->>'role','route',manifest->>'route','text',sophia.design_task_statement(manifest));
+   ELSIF job_kind='design_review' THEN
+    payload:=jsonb_build_object('role',manifest->>'role','route',manifest->>'route','text',sophia.review_task_statement(manifest));
    ELSIF job_kind='source_review' THEN
     payload:=jsonb_build_object('role',manifest->>'role','route',manifest->'route'->>'id','text',sophia.source_review_statement(manifest));
    ELSE

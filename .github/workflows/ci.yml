@@ -61,9 +61,11 @@ jobs:
           fi
       # The headless shell playwright-core 1.56.1 pins (its browsers.json), with its system libraries.
       - run: node renderers/web/pdf/node_modules/playwright-core/cli.js install --with-deps chromium-headless-shell
-      - run: node --test --test-timeout=120000 renderers/web/pdf/test/render-html.test.ts renderers/web/pdf/test/host-probe.test.ts
-      # The supervisor against the real API and PostgreSQL: claim, fetch through the API, render confined, upload, settle.
-      - run: node --test --test-concurrency=1 --test-timeout=180000 tests/integration/render-supervisor.test.mjs
+      # The PDF kernel, the capture kernel (SDD-01) and the host probe, which qualifies both.
+      - run: node --test --test-timeout=120000 renderers/web/pdf/test/render-html.test.ts renderers/web/pdf/test/capture-html.test.ts renderers/web/pdf/test/host-probe.test.ts
+      # The supervisor against the real API and PostgreSQL: claim, fetch through the API, render confined, upload, settle;
+      # and a design's capture the same way, gated, inspected and published (SDD-01-RF-0004).
+      - run: node --test --test-concurrency=1 --test-timeout=180000 tests/integration/render-supervisor.test.mjs tests/integration/design-capture-supervisor.test.mjs
 
   database:
     name: SQL, persistence and API on PostgreSQL 16

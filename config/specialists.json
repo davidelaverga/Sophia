@@ -1,6 +1,6 @@
 {
   "schema": "sophia.specialists.v1",
-  "description": "The one registry of Sophia's specialist roles (SMC-M03 plan §2.2). The dsh bundle's role presets for these roles are generated from it (packages/contracts/scripts/generate-specialists.ts), the runtime unit's role routes must equal it, and the API resolves research admission (S4) and source-review admission (WBC-02) against it. config/roles.json keeps the roles before M03.",
+  "description": "The one registry of Sophia's specialist roles (SMC-M03 plan §2.2). The dsh bundle's role presets for these roles are generated from it (packages/contracts/scripts/generate-specialists.ts), the runtime unit's role routes must equal it, and the API resolves research admission (S4) and source-review admission (WBC-02) against it. config/roles.json keeps the roles before M03. SDD-01 adds the native HTML designer and the separate visual reviewer: each loads its prompt sections and native skills explicitly (prompt_sections, skills), reads only the references its scope names (references, SDD-01-RF-0002) and is advertised only on an image-capable route (image_input).",
   "specialists": [
     {
       "id": "sophia-research-md-v1",
@@ -49,6 +49,65 @@
       "workflow": false,
       "peer": false,
       "raw_host_shell": false
+    },
+    {
+      "id": "sophia-html-designer-v1",
+      "family": "design",
+      "task_kind": "design",
+      "outputs": ["html"],
+      "route": "research-sol-medium-v1",
+      "native_tools": [
+        "design_read_context",
+        "design_read_reference",
+        "design_record_work",
+        "design_write_source",
+        "design_patch_source",
+        "design_render",
+        "design_inspect_render",
+        "design_submit_candidate",
+        "design_report_blocker"
+      ],
+      "output_profile": "html-design-v1",
+      "admission": { "required": ["research_version"], "optional_preferences": [] },
+      "source_policy": "frozen-package-v1",
+      "continuation_owner": "sophia_episode",
+      "workflow": false,
+      "peer": false,
+      "raw_host_shell": false,
+      "prompt_sections": ["sophia-html-designer", "sophia-html-procedure"],
+      "skills": [
+        "sophia-visual-foundation-v1",
+        "sophia-editorial-html-v1",
+        "sophia-web-finish-v1",
+        "sophia-visual-critique-v1"
+      ],
+      "references": ["critique/*", "editorial/*", "foundation/*", "web/*"],
+      "image_input": true
+    },
+    {
+      "id": "sophia-visual-review-v1",
+      "family": "design_review",
+      "task_kind": "design_review",
+      "outputs": ["review"],
+      "route": "research-sol-medium-v1",
+      "native_tools": ["review_read_context", "review_read_reference", "review_inspect_render", "review_submit_result"],
+      "output_profile": "visual-review-v1",
+      "admission": { "required": ["candidate"], "optional_preferences": [] },
+      "source_policy": "frozen-package-v1",
+      "continuation_owner": "sophia_episode",
+      "workflow": false,
+      "peer": false,
+      "raw_host_shell": false,
+      "prompt_sections": ["sophia-visual-reviewer"],
+      "skills": ["sophia-visual-critique-review-v1"],
+      "references": [
+        "critique/anti-slop-review",
+        "critique/gallery-index",
+        "critique/gallery/*",
+        "web/precedents-index",
+        "web/precedents/*"
+      ],
+      "image_input": true
     },
     {
       "id": "sophia-source-review-v1",

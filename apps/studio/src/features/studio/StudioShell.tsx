@@ -2,19 +2,23 @@
 // viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); the room, goals and events
 // are shared. The chat and the brief sit in a side panel beside the stage, as meeting apps have them, so the
 // stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { useMembership } from '../access/useAccess.ts'
+import { askDraft } from '../artifacts/passage.ts'
+import type { Passage } from '../artifacts/PassageBar.tsx'
 import type { CaptionTurn } from '../conversation/captions.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
 import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
-import { useStageCaptions } from '../voice/StageCaptions.tsx'
+import { useStageCaptions, type RoomNames } from '../voice/StageCaptions.tsx'
 import { madeOnTheStage, type StageMadeState } from '../voice/StageMade.tsx'
+import { showRenderOf, useStagePresent } from '../voice/StagePresent.tsx'
+import { latestSpoken } from '../voice/voice-trail.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { chatSignature, mergeNames, panelNote, toggled, type Panel } from './side-panel.ts'
@@ -46,11 +50,22 @@ export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, 
   const [opener, setOpener] = useState<Panel | null>(null)
   const unread = useUnread(chatSignature(snapshot, room.chat, room.notices), studio && panel === 'chat')
   const brief = useBriefUpdates(studio && panel === 'brief')
+  // A passage asked about from the report (PassageBar), until the chat's message takes it.
+  const [asked, setAsked] = useState<Passage | null>(null)
   return {
     panel,
     opener,
     unread,
     brief,
+    asked,
+    /** A passage asked about: Chat opens, and its message takes the passage (useAskedInto). */
+    ask: (passage: Passage) => {
+      setAsked(passage)
+      setPanel('chat')
+      setOpener('chat')
+    },
+    /** The chat's message took the passage. */
+    answered: () => setAsked(null),
     /** A corner toggle or its key opens, swaps or closes the panel, and is where the focus returns on closing. */
     toggle: (p: Panel) => {
       setPanel((open) => toggled(open, p))
@@ -75,6 +90,26 @@ interface Props {
   captions: readonly CaptionTurn[]
   /** What Sophia made, and putting it away, kept where the room lives (useStageMade). */
   made: StageMadeState
+}
+
+/**
+ * A passage asked about from the report: the chat's message takes it, before whatever was written there, and the
+ * caret goes to the end, where the question goes. Nothing is sent.
+ */
+function useAskedInto(panel: RoomPanel, draft: string, write: (text: string) => void) {
+  const { asked, answered } = panel
+  useEffect(() => {
+    if (!asked) return
+    write(askDraft(asked.text, asked.source, draft))
+    answered()
+    // After the panel's own focus on opening: the message is where the question is typed.
+    requestAnimationFrame(() => {
+      const field = document.getElementById('converse-draft')
+      if (!(field instanceof HTMLTextAreaElement)) return
+      field.focus({ preventScroll: true }) // its caret is at the end, after the value it was given
+    })
+  }, [asked, answered, draft, write])
+  return { draft, onDraft: write }
 }
 
 /** Who came as a guest this visit, so a guest's words stay marked after they leave. */
@@ -129,10 +164,29 @@ export function PanelCallSwitches({
   )
 }
 
-export function StudioShell({ projectId, identity, room, snapshot, panel, looking, captions: held, made }: Props) {
-  const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
-  const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
-  const names = useKnownNames(room)
+interface Extras {
+  snapshot: Snapshot | undefined
+  room: ProjectRoom
+  made: StageMadeState
+  panel: RoomPanel
+  common: { projectId: string; identity: Identity; me: string; names: ReadonlyMap<string, string> }
+  who: RoomNames
+  spoken: string | null
+}
+
+/**
+ * Under her line in Converse, what she made (with Show everyone, where it is offered); and what the room shows to
+ * everyone: presented on the stage, or the card that says who shows what.
+ */
+function useUnderTheLine({ snapshot, room, made, panel, common, who, spoken }: Extras, chatOpen: boolean) {
+  const present = useStagePresent(snapshot, room, { ...common, spoken })
+  const show = showRenderOf(snapshot, room, common)
+  const object = madeOnTheStage(made, room, { chatOpen, anyOpen: panel.panel !== null }, { ...common, who, show })
+  return { present, under: object }
+}
+
+/** The room's own keys: a lens by its number, Chat and the brief by their letters. */
+function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
   useShortcuts({
     '1': () => setLens('converse'),
     '2': () => setLens('explore'),
@@ -140,10 +194,20 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
     c: () => panel.toggle('chat'),
     b: () => panel.toggle('brief'),
   })
+}
+
+export function StudioShell({ projectId, identity, room, snapshot, panel, looking, captions: held, made }: Props) {
+  const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
+  const chatDraft = useAskedInto(panel, state.drafts.converse ?? '', (text) => setDraft('converse', text))
+  const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
+  const names = useKnownNames(room)
+  useShellKeys(setLens, panel)
   const common = { projectId, identity, me, names }
   const who = { me, names, guests: useKnownGuests(room) }
   const chatOpen = panel.panel === 'chat'
   const captions = useStageCaptions(held, room, chatOpen, who)
+  const stageExtras = { snapshot, room, made, panel, common, who, spoken: latestSpoken(held) }
+  const { present, under } = useUnderTheLine(stageExtras, chatOpen)
   return (
     <div className="studio">
       <RoomStage
@@ -152,13 +216,10 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
         projectId={projectId}
         identity={identity}
         lensBar={<LensSwitcher lens={state.lens} onChange={setLens} />}
-        lensBody={
-          <LensBody
-            lens={state.lens}
-            made={madeOnTheStage(made, room, { chatOpen, anyOpen: panel.panel !== null }, { projectId, identity, who })}
-          />
-        }
+        lensBody={<LensBody lens={state.lens} made={under} />}
         captions={captions}
+        presented={present.presented}
+        showing={present.card}
         corner={
           <PanelToggles
             open={panel.panel}
@@ -177,8 +238,7 @@ export function StudioShell({ projectId, identity, room, snapshot, panel, lookin
             {...common}
             snapshot={snapshot}
             room={room}
-            draft={state.drafts.converse ?? ''}
-            onDraft={(text) => setDraft('converse', text)}
+            {...chatDraft}
             onShowRoom={() => panel.show(null)}
           />
         }

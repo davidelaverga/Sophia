@@ -6,6 +6,7 @@ import type {
   Event,
   Membership,
   MissionContext,
+  MissionEntry,
   MissionNotePolicy,
   RoomToken,
   Snapshot,
@@ -27,12 +28,18 @@ export const identity: Identity = { name: 'fixture@sophia.test', role: 'admin', 
 export const membership: Membership = { actorId: ME, role: 'admin' }
 
 /** A message another member wrote in the room's discussion, the `n`th. */
-const said = (text: string, n: number): DiscussionEntry => ({
+/** A message in the discussion: another member's, or `me` for the viewer's own (room-discussion checks). */
+export interface Said {
+  text: string
+  me?: boolean
+}
+
+const said = (message: string | Said, n: number): DiscussionEntry => ({
   id: `00000000-0000-4000-8000-${String(n + 1).padStart(12, '0')}`,
-  actorId: OTHER,
+  actorId: typeof message === 'string' || !message.me ? OTHER : ME,
   intent: 'discuss',
   origin: 'composer',
-  text,
+  text: typeof message === 'string' ? message : message.text,
   sourceId: SOURCE,
   sha256: '0'.repeat(64),
   createdAt: AT,
@@ -106,7 +113,7 @@ function presenceOf(exchange: boolean, holder: string | null, room: RoomAsked): 
 export function snapshot(
   revision: number,
   exchange: boolean,
-  messages: readonly string[] = [],
+  messages: readonly (string | Said)[] = [],
   goals: Snapshot['goals'] = [],
   room: RoomAsked = {},
 ): Snapshot {
@@ -146,8 +153,11 @@ const policy: MissionNotePolicy = {
 
 const can = { available: true, reason: null }
 
-/** The brief at `revision`: what the panel reads; a newer one arrives with each background update. */
-export function mission(revision: number): MissionContext {
+/**
+ * The brief at `revision`: what the panel reads; a newer one arrives with each background update. `entries`: the
+ * notes members wrote (brief-data.ts); `noted`: whether the brief allows this person a note.
+ */
+export function mission(revision: number, entries: readonly MissionEntry[] = [], noted = true): MissionContext {
   return {
     projectId: PROJECT,
     title: 'Fixture project',
@@ -170,14 +180,14 @@ export function mission(revision: number): MissionContext {
     constraints: [],
     pending: [],
     decided: [],
-    entries: [],
+    entries,
     history: [],
     excluded: { olderEntries: 0, olderHistory: 0, legacyFrame: false },
     missing: [],
     work: [],
     notePolicy: policy,
     capabilities: {
-      recordNote: can,
+      recordNote: noted ? can : { available: false, reason: 'Notes are off for you here.' },
       propose: can,
       decide: can,
       correct: can,

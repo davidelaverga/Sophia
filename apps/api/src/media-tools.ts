@@ -5,7 +5,7 @@
 // writes twice. TOOL_HANDLERS is the one list of the guide's operations: the contract's name union keys it, so a
 // missing handler fails typecheck. /v1/media/tool-surface serves the names of the guide version the bridge runs
 // (TOOL_SURFACES): v1.1 is M01's six, v1.2 adds start_research and render_research, and steer on control_work
-// (SMC-M03 S6). No brief, lead or builder tool answers here. For a v1.2 guide, a control the work refused is
+// (SMC-M03 S6), and v1.3 adds revise_html_page (SDD-01). No brief, lead or builder tool answers here. For a v1.2 guide, a control the work refused is
 // explained from where the task stands now, and a steer on work that ended is refused before anything is admitted
 // (CX-0026); a write whose commit is lost is unknown for every guide, never a refusal, and a retried control is
 // answered as the one already admitted.
@@ -41,6 +41,7 @@ import {
   recordMissionNote,
   type ToolContext,
 } from './mission-tools.ts'
+import { reviseHtmlPage } from './design-tools.ts'
 import { renderResearch, startResearch } from './research-tools.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -209,12 +210,12 @@ async function controlWork(ctx: ToolContext): Promise<MediaToolResult> {
       },
     }
   } catch (err: unknown) {
-    const refusedAs = ctx.call.guide === 'v1.2' ? explained(err) : null
+    const refusedAs = sinceV12(ctx.call.guide) ? explained(err) : null
     return refusedAs ? explainRefusal(ctx, request, refusedAs) : refusal(err)
   }
 }
 
-/** The guide's model-facing operations: M01 v1.1's six in the asset manifest's order, then v1.2's research tools. */
+/** The guide's model-facing operations: M01 v1.1's six in the asset manifest's order, v1.2's research tools, v1.3's edit. */
 export const TOOL_HANDLERS = {
   project_status: projectStatus,
   read_selected_source: readSelectedSource,
@@ -224,6 +225,7 @@ export const TOOL_HANDLERS = {
   control_work: controlWork,
   start_research: startResearch,
   render_research: renderResearch,
+  revise_html_page: reviseHtmlPage,
 } satisfies Record<MediaToolCall['name'], (ctx: ToolContext) => Promise<MediaToolResult>>
 
 const M01_TOOLS = [
@@ -239,9 +241,13 @@ const M01_TOOLS = [
 export const TOOL_SURFACES = {
   'v1.1': M01_TOOLS,
   'v1.2': [...M01_TOOLS, 'start_research', 'render_research'],
+  'v1.3': [...M01_TOOLS, 'start_research', 'render_research', 'revise_html_page'],
 } as const satisfies Record<string, ReadonlyArray<keyof typeof TOOL_HANDLERS>>
 
 export type GuideVersion = keyof typeof TOOL_SURFACES
+
+/** Whether a guide version has v1.2's operations and words (v1.3 keeps them all). */
+export const sinceV12 = (guide: string | undefined): boolean => guide === 'v1.2' || guide === 'v1.3'
 
 /**
  * Whether the bridge's guide declares this call: its name is on the guide's surface, and a steer is v1.2's. A bridge
@@ -251,7 +257,7 @@ function declaredBy(call: MediaToolCall): boolean {
   const guide = call.guide ?? 'v1.1'
   const surface: readonly string[] = TOOL_SURFACES[guide]
   const args: Record<string, unknown> = call.args
-  return surface.includes(call.name) && (guide === 'v1.2' || call.name !== 'control_work' || args.action !== 'steer')
+  return surface.includes(call.name) && (sinceV12(guide) || call.name !== 'control_work' || args.action !== 'steer')
 }
 
 /** Execute one call for its bound speaker. Unbound attribution is a question back, never an action. */
