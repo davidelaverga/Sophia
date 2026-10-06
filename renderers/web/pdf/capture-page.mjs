@@ -22,11 +22,14 @@
  *   points the DevTools protocol is to hit-test where only it can tell what is drawn over the text (coverOf), and
  *   whether the page's budget of points ran out before its text was looked at; capture-html strips both
  * @typedef {Omit<PageMeasure, 'blocks' | 'shown' | 'framing'> & { blocks: ProbedMeasure[], shown: ProbedMeasure[],
- *   framing: ProbedMeasure[], unmeasured: number }} PageAnswer the measure, and how many labels and texts outside the
- *   blocks it left out past the receipt's bound (the kernel fails the target on any)
+ *   framing: ProbedMeasure[], unmeasured: number }} PageAnswer the measure, and how many labels, texts outside the
+ *   blocks and runs inside them it left out past the receipt's bound for each (the kernel fails the target on any)
  */
 
-/** The most labels, and the most texts outside the blocks, a page's measure holds: the receipt's bound for each. */
+/**
+ * The most labels, texts outside the blocks, and runs of a block's text in elements inside it, a page's measure holds:
+ * the receipt's bound for each.
+ */
 export const MAX_MEASURED = 4000
 
 /**
@@ -130,8 +133,8 @@ function concealedIssues(el) {
   const text = document.createRange()
   text.selectNodeContents(el)
   const t = text.getBoundingClientRect()
-  if (el.textContent.trim() !== '' && (t.right + window.scrollX <= 0 || t.bottom + window.scrollY <= 0))
-    return ['off_page']
+  const drawn = el.textContent.trim() !== '' && text.getClientRects().length > 0
+  if (drawn && (t.right + window.scrollX <= 0 || t.bottom + window.scrollY <= 0)) return ['off_page']
   return []
 }
 
@@ -622,6 +625,84 @@ function contrastOf(el, ctx) {
 }
 
 /**
+ * The elements inside a block that hold text of their own: an emphasis, a link, a citation mark, a span. Each is a
+ * run of the block's text, and is held to what the block is (#117).
+ * @param {Element} el the block
+ * @returns {Element[]}
+ */
+function blockRuns(el) {
+  return [...el.querySelectorAll('*')].filter((inner) =>
+    [...inner.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== ''),
+  )
+}
+
+/**
+ * Why one run of a block's text cannot be seen, by its text as rendered: not rendered, hidden, transparent, too small
+ * to draw, clipped, pushed off the page, cut by its own overflow or by a box around it (#117). What the block shows of
+ * its own text does not show a run's: `<p>Visible <span hidden>critical text</span></p>` measures whole as one block.
+ * @param {Element} run
+ * @param {Box} page
+ * @returns {string[]}
+ */
+function runIssues(run, page) {
+  const text = document.createRange()
+  text.selectNodeContents(run)
+  if (text.getClientRects().length === 0) return ['not_rendered']
+  const style = getComputedStyle(run)
+  if (style.visibility === 'hidden' || style.visibility === 'collapse') return ['hidden']
+  if (opacityOf(run) < 0.1) return ['transparent']
+  const t = text.getBoundingClientRect()
+  if (t.width < 2 || t.height < 2 || Number.parseFloat(style.fontSize) < 1) return ['no_visible_text']
+  const box = { x: t.x + window.scrollX, y: t.y + window.scrollY, width: t.width, height: t.height }
+  return [...concealedIssues(run), ...placementIssues(run, box, page)]
+}
+
+/**
+ * How far a contrast is above its floor, as a ratio of the two; an unknown one is last.
+ * @param {Contrast} c
+ */
+function contrastMargin(c) {
+  return c.ratio === null ? Number.POSITIVE_INFINITY : c.ratio / c.floor
+}
+
+/**
+ * The contrast a block is held to, its own text's or a run's: the one lowest against its floor when any is low, else
+ * an unknown one (an unknown contrast is never passed), else the lowest.
+ * @param {Contrast} own
+ * @param {Contrast[]} runs
+ * @returns {Contrast}
+ */
+function worstContrast(own, runs) {
+  const all = [own, ...runs].toSorted((a, b) => contrastMargin(a) - contrastMargin(b))
+  const low = all.find((c) => c.ratio !== null && c.ratio < c.floor)
+  return low ?? all.find((c) => c.ratio === null) ?? all[0] ?? own
+}
+
+/**
+ * A block's measure with its runs' (blockRuns): each run's issues, and the worst contrast of the runs it shows. At most
+ * `runs.left` runs across the page are measured; the rest are counted in `runs.over`, and fail the target unmeasured.
+ * @param {ProbedMeasure} measure the block's own
+ * @param {Element} el
+ * @param {{ page: Box, ctx: OffscreenCanvasRenderingContext2D, runs: { left: number, over: number } }} at
+ * @returns {ProbedMeasure}
+ */
+function withRuns(measure, el, at) {
+  const all = blockRuns(el)
+  const looked = all.slice(0, Math.max(0, at.runs.left))
+  at.runs.left -= looked.length
+  at.runs.over += all.length - looked.length
+  const judged = looked.map((run) => ({ run, issues: runIssues(run, at.page) }))
+  const shown = judged.filter((j) => j.issues.every((i) => i === 'scrolls'))
+  const contrast = worstContrast(
+    measure.contrast,
+    shown.map((j) => contrastOf(j.run, at.ctx)),
+  )
+  const low = contrast.ratio !== null && contrast.ratio < contrast.floor ? ['low_contrast'] : []
+  const issues = [...new Set([...measure.issues, ...judged.flatMap((j) => j.issues), ...low])].slice(0, 10)
+  return { ...measure, issues, contrast, probes: issues.every((i) => i === 'low_contrast') ? measure.probes : [] }
+}
+
+/**
  * One block's measures. A contrast below its floor is an issue; an unknown contrast is not, and says so.
  * @param {Element} el
  * @param {Box} page
@@ -664,12 +745,16 @@ function measurePage(opts) {
   if (!ctx) throw new Error('no 2D canvas to resolve colours')
   const budget = { left: opts.maxPoints, until: performance.now() + opts.maxLookMs, maxLines: opts.maxLines }
   const words = new RegExp(`[^\\s${opts.marks}]`, 'u')
-  const blocks = [...document.querySelectorAll('[data-block]')].map((el) => measureBlock(el, page, ctx, budget))
   const strictly = (/** @type {{ el: Element, id: string }} */ { el, id }) => {
     const measure = measureBlock(el, page, ctx, budget)
     const concealed = [...concealedIssues(el), ...(tooSmall(el, opts.readable, words) ? ['no_visible_text'] : [])]
     return { ...measure, id: id.slice(0, 200), issues: [...new Set([...concealed, ...measure.issues])].slice(0, 10) }
   }
+  // A block is held to what a label is, and so is each run of its text in an element inside it (#117).
+  const runs = { left: opts.maxMeasured, over: 0 }
+  const blocks = [...document.querySelectorAll('[data-block]')].map((el) =>
+    withRuns(strictly({ el, id: el.getAttribute('data-block') ?? '' }), el, { page, ctx, runs }),
+  )
   const labels = shownElements()
   const texts = framingElements(opts.marks)
   const shown = labels.slice(0, opts.maxMeasured).map(strictly)
@@ -689,7 +774,7 @@ function measurePage(opts) {
     blocks,
     shown,
     framing,
-    unmeasured: labels.length - shown.length + texts.length - framing.length,
+    unmeasured: labels.length - shown.length + texts.length - framing.length + runs.over,
   }
 }
 
@@ -770,6 +855,11 @@ const IN_PAGE = [
   drawnScale,
   isLarge,
   contrastOf,
+  blockRuns,
+  runIssues,
+  contrastMargin,
+  worstContrast,
+  withRuns,
   measureBlock,
   measurePage,
   shownElements,

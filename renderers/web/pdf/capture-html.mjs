@@ -394,14 +394,16 @@ export function targetChecks(target, page, coverage, unmeasured = 0, unsampled =
 }
 
 /**
- * What a target's measure left out, as blocks_visible names it: labels and texts past the receipt's bound, and texts
+ * What a target's measure left out, as blocks_visible names it: labels, texts and runs past the receipt's bound, and texts
  * whose lines the cover check's bounds (of points, of lines a text, and of time) did not reach.
  * @param {number} unmeasured
  * @param {number} unsampled
  */
 function unreached(unmeasured, unsampled) {
   return [
-    unmeasured > 0 ? `${unmeasured} more labels or texts outside the blocks than the ${MAX_MEASURED} measured` : '',
+    unmeasured > 0
+      ? `${unmeasured} more labels, texts outside the blocks or runs inside them than the ${MAX_MEASURED} of each measured`
+      : '',
     unsampled > 0
       ? `${unsampled} texts the cover check did not reach within its bounds (${MAX_POINTS} points, under ${MAX_LINES} lines a text, ${MAX_LOOK_MS / 1000} s)`
       : '',

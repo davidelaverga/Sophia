@@ -126,6 +126,10 @@ const CLEAN = page(
   <ul><li data-block="b2">An item.</li></ul></section><section data-section="sources"><ol><li data-source="s1" class="note">Source.</li></ol></section></main>`,
 )
 
+/** A block whose text runs on in a span styled `style`. */
+const runOn = (id: string, style: string, text: string) =>
+  `<p data-block="${id}">Shown text, then <span style="${style}">${text}</span>.</p>`
+
 /** One element's measures outside the blocks, and a target's page holding them. */
 const framed = (id: string, issues: string[] = [], ratio: number | null = 12) => ({
   id,
@@ -229,7 +233,10 @@ describe('the capture plan (pure)', () => {
     assert.deepEqual(at([framed('text 1 h2', [], null)]).contrast, ['unknown', 'unmeasured: text 1 h2'])
     const over = at([framed('text 1 h2')], 3)
     assert.equal(over.blocks_visible?.[0], 'failed')
-    assert.match(String(over.blocks_visible?.[1]), new RegExp(`3 more .* than the ${String(MAX_MEASURED)} measured`))
+    assert.match(
+      String(over.blocks_visible?.[1]),
+      new RegExp(`3 more .* than the ${String(MAX_MEASURED)} of each measured`),
+    )
     const unreached = Object.fromEntries(
       targetChecks(CAPTURE_TARGETS['w390-light']!, measures([framed('text 1 h2')]), coverage, 0, 2).map((c) => [
         c.name,
@@ -745,6 +752,65 @@ describe('the confined capture kernel', () => {
         await browser.close()
         fs.rmSync(workDir, { recursive: true, force: true })
       }
+    },
+  )
+
+  it(
+    "holds every run of a block's text in an element inside it to what the block is: shown, readable and measured (#117)",
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            BASE,
+            `<main><section data-section="s1"><h2>Findings</h2>
+          ${runOn('b1', 'display:none', 'critical text')}${runOn('b2', 'visibility:hidden', 'a hidden run')}
+          ${runOn('b3', 'color:transparent', 'a transparent run')}${runOn('b4', 'opacity:0', 'a faded run')}
+          ${runOn('b5', 'font-size:3px', 'a tiny run')}
+          ${runOn('b6', 'display:inline-block;width:0;overflow:hidden;vertical-align:bottom', 'a cut run')}
+          ${runOn('b7', 'color:#999', 'a grey run')}
+          <p data-block="b8">Shown text, <em>an emphasis</em>, <a>a link</a> and <span class="note">a note</span>.</p>
+          </section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      const expected: [string, string][] = [
+        ['b1', 'not_rendered'],
+        ['b2', 'hidden'],
+        ['b3', 'low_contrast'],
+        ['b4', 'transparent'],
+        ['b5', 'no_visible_text'],
+        ['b6', 'text_cut'],
+        ['b7', 'low_contrast'],
+      ]
+      for (const target of ['w390-light', 'w1280-light']) {
+        const issues = issuesOf(receipt, target)
+        for (const [id, issue] of expected) assert.ok(issues[id]?.includes(issue), `${target} ${id}: ${issue}`)
+        assert.deepEqual(issues.b8, [], `${target}: runs shown as the block is pass`)
+        const detail = (name: string) => receipt.checks.find((c) => c.name === name && c.target === target)?.detail
+        assert.equal(detail('blocks_visible'), 'b1, b2, b4, b5, b6', target)
+        assert.equal(detail('contrast'), 'b3, b7', target)
+      }
+      const many = await captureHtml(
+        job(
+          page(
+            BASE,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">${'<span>a run</span> '.repeat(
+              MAX_MEASURED + 1,
+            )}</p></section></main>`,
+          ),
+          { targets: ['w1280-light'] },
+        ),
+        { env },
+      )
+      assert.equal(many.status, 'succeeded', JSON.stringify(many.error))
+      assert.equal(outcome(many, 'blocks_visible', 'w1280-light'), 'failed', 'a run past the bound is not seen')
+      assert.match(
+        String(many.checks.find((c) => c.name === 'blocks_visible')?.detail),
+        new RegExp(`^1 more labels, texts outside the blocks or runs inside them than the ${String(MAX_MEASURED)} `),
+      )
     },
   )
 
