@@ -73,14 +73,10 @@ export interface CoordinationHost {
   now(): number
   /**
    * The host process serving this worker, `pid:start`, and its process namespace (the machine boot and the pid
-   * namespace); null when either cannot be read. A status write is recorded with both.
+   * namespace); null when either cannot be read. A status write is recorded with both, so an operator can tell which
+   * instance served it. It never finishes a write: a dead process's database session can still commit.
    */
   readonly hostProcess: HostProcess | null
-  /**
-   * Whether a process of this worker's own namespace, recorded as `pid:start`, is verifiably gone: its pid shows no
-   * process, or another one (another start). False whenever that cannot be seen, so uncertainty is kept.
-   */
-  processGone(process: string): boolean
 }
 
 export interface HostProcess {

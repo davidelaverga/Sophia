@@ -112,6 +112,7 @@ not reachable from the implementer's container).**
 - **Deploys must not overlap.** Render overlaps the old and new instances of an ordinary service during a deploy, but
   a disk-backed service stops the old instance before it starts the new one. The disk is therefore part of the recipe:
   two Paperclip processes must never run against one database, because the host's own scheduler assumes one host.
+  Instance exclusivity does not quiesce the old instance's database sessions; the fence below ends those.
 - **Packages are baked in, not on the disk.** A disk's data exists only at run time, so the plugin and the adapter come
   from the image at `/opt/sophia`.
 - **Its own PostgreSQL** (`DATABASE_URL`, the internal URL), never Sophia's, with the provider's backups. The image
@@ -178,22 +179,28 @@ Sophia's signing private key and the integration board key never enter Paperclip
   file.
 - The adapter's record is rewritten at every start.
 
-**Fencing a previous instance.** A status write that the host never answered stays open until it is fenced
-([WBC-02-CC-0009](../../docs/coordination/WBC-02/WBC-02-CC-0009.md)), and meanwhile no delivery of its commission is
-confirmed. Within one running instance, the plugin fences the write itself once it sees, in the same process
-namespace, that the host process which served it is gone. After a deploy or a restart the new instance runs in
-another container, where it cannot see that. There an operator fences, after verifying that the previous instance
-stopped. On a disk-backed service it stopped before the new one started: check the deploy's events. Let T be the new
-instance's start. Then, on Paperclip's database:
+**Fencing a previous instance.** A status write that the host never answered stays open until an operator fences
+it ([WBC-02-CC-0009](../../docs/coordination/WBC-02/WBC-02-CC-0009.md)). Meanwhile no delivery of its commission is
+confirmed, and every settlement still restores Sophia's latest control if the write lands. The plugin never fences one
+itself. A statement the instance had sent can wait in its database session and commit after the instance died
+(Codex's WBC-02-CX-0024; `packages/paperclip-plugin/src/operator-fence.db.test.ts` reproduces it with a killed
+client). So the fence is [`fence-previous-instance.sql`](fence-previous-instance.sql), run by an operator:
 
-```sql
-UPDATE plugin_sophia_coordination_00c896da3d.effects
-   SET fenced_at = now(), fence = 'operator <name>: previous instance stopped before <T>, <deploy id>'
- WHERE settled_at IS NULL AND ended_at IS NULL AND fenced_at IS NULL AND started_at < '<T>';
-```
+1. Verify, in the deploy's events, that the instance which served the writes stopped. A disk-backed service stops it
+   before starting the new one. For a write the running instance never answered, restart the service first.
+2. Choose T: any time after that instance stopped and no later than the start of the instance running now.
+3. Connect to Paperclip's database as the role its server uses (its `DATABASE_URL`) and run:
 
-The settle job settles those writes within a minute, restoring Sophia's latest control over any that landed. Never fence
-a write while the instance that served it may still run.
+   ```sh
+   psql "$PAPERCLIP_DATABASE_URL" -v before='<T>' -v operator='<who, which deploy>' -f fence-previous-instance.sql
+   ```
+
+   The script lists the open writes begun before T, then ends every session of that role begun before T. Ending a
+   session rolls back what it had not committed. It fences the writes only while none of those sessions remains:
+   if it reports `UPDATE 0` with writes still listed, run it again.
+
+The settle job then settles the fenced writes within a minute. Never fence while the instance that served them may
+still run.
 
 **Rollback.** Redeploy the previous image digest. Plugin and adapter come from that image, and the database keeps the
 plugin's namespace, whose migration files the previous image also carries unchanged. To stop coordination without

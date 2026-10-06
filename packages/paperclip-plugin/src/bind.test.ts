@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { hostOf, hostProcessOf, pluginHandlers, processGoneOf, type ProcFs, type SdkContext } from './bind.ts'
+import { hostOf, hostProcessOf, pluginHandlers, type ProcFs, type SdkContext } from './bind.ts'
 import { UnansweredHostCall } from './host.ts'
 import { manifest, REVIEWER_AGENT_KEY, SETTLE_JOB_KEY } from './manifest.ts'
 
@@ -126,15 +126,6 @@ describe('SDK binding', () => {
     })
     assert.equal(hostProcessOf(4242, procOf({})), null, 'no /proc: nothing is claimed')
     assert.equal(hostProcessOf(0, fs), null)
-  })
-
-  it('calls a recorded process gone only on proof: no process with its pid, or one that started at another time', () => {
-    assert.equal(processGoneOf('4242:987654', procOf({ '/proc/4242/stat': stat(4242, 987654) })), false, 'still runs')
-    assert.equal(processGoneOf('4242:987654', procOf({ '/proc/4242/stat': stat(4242, 999999) })), true, 'pid reused')
-    assert.equal(processGoneOf('4242:987654', procOf({})), true, 'no such process')
-    assert.equal(processGoneOf('4242:987654', procOf({}, 'EACCES')), false, 'unreadable is not proof')
-    assert.equal(processGoneOf('4242:987654', procOf({ '/proc/4242/stat': 'garbage' })), false)
-    assert.equal(processGoneOf('not-a-process', procOf({})), false)
   })
 
   it('registers the settle job the manifest schedules, which reads the open status writes', async () => {

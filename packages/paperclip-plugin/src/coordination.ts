@@ -516,7 +516,7 @@ async function releaseLease(host: CoordinationHost, commissionKey: string, token
 
 /**
  * One status write, made only while this delivery holds the lease (renewed first) and recorded before it is asked,
- * with the host process that serves it (`host.hostProcess`). It ends when the host answers, with the issue or with an
+ * with the host process that serves it and its namespace (`host.hostProcess`, for the operator who may fence it). It ends when the host answers, with the issue or with an
  * error: the host answers only once it finished with the call, whatever it wrote. A call the host never answered
  * (UnansweredHostCall) may still land, however late: it stays unended. Until a settlement reads the issue after it
  * ended, the write is open. A delivery that lost the lease writes nothing (503).
@@ -564,14 +564,15 @@ const UNSETTLED: Settled = { settled: false, status: null }
  * written again (itself an open write, settled in the next round). Any other status, the host's own included, is left
  * alone. The writes that finished before the issue was read are then settled.
  *
- * A write is finished when the host answered it, or once it is fenced (`fenceGoneHosts`, or an operator's fence): a
- * process that is gone can no longer commit, so whatever it wrote is in the issue before this settlement reads it.
- * Time alone, or another process serving now, never finishes a write. An unfinished write stays open, so every later
- * settlement (each delivery's, and the settle job's every minute) still restores the wanted status if it lands.
+ * A write is finished when the host answered it, or once an operator fenced it (deploy/paperclip/
+ * fence-previous-instance.sql): only after the instance that served it stopped and its database sessions ended, since
+ * a statement it had sent can still commit from its session after the instance died (WBC-02-CX-0024). The plugin never
+ * fences a write itself: time, another process serving now, or a host process seen gone prove nothing about the
+ * database. An unfinished write stays open, so every later settlement (each delivery's, and the settle job's every
+ * minute) still restores the wanted status if it lands.
  */
 async function settle(host: CoordinationHost, s: Subject, token: string): Promise<Settled> {
   let status: string | null = null
-  await fenceGoneHosts(host, s.commissionKey)
   for (let round = 0; round < SETTLE_ROUNDS; round += 1) {
     const open = await host.query<{ status: string; finished: boolean; at: string }>(
       `SELECT status, now()::text AS at, ended_at IS NOT NULL OR fenced_at IS NOT NULL AS finished
@@ -595,30 +596,6 @@ async function settle(host: CoordinationHost, s: Subject, token: string): Promis
     return { settled: open.every((e) => e.finished || e.status === want), status }
   }
   return { settled: false, status }
-}
-
-/**
- * Fences the unanswered writes whose host process is verifiably gone: recorded in this worker's own process namespace,
- * by a process other than the one serving now, and seen gone (`host.processGone`). A write recorded in another
- * namespace (another machine or container), or where the namespace is unknown, is left open: there it cannot be seen
- * whether its process still runs, and only an operator who verified that the previous instance stopped fences it.
- */
-async function fenceGoneHosts(host: CoordinationHost, commissionKey: string) {
-  const here = host.hostProcess
-  if (here === null) return
-  const rows = await host.query<{ effect_id: string; host_process: string }>(
-    `SELECT effect_id, host_process FROM ${host.namespace}.effects
-      WHERE commission_key = $1 AND settled_at IS NULL AND ended_at IS NULL AND fenced_at IS NULL
-        AND host_namespace = $2 AND host_process IS NOT NULL AND host_process <> $3`,
-    [commissionKey, here.namespace, here.process],
-  )
-  for (const row of rows) {
-    if (!host.processGone(row.host_process)) continue
-    await host.execute(
-      `UPDATE ${host.namespace}.effects SET fenced_at = now(), fence = $2 WHERE effect_id = $1 AND fenced_at IS NULL`,
-      [row.effect_id, `host process ${row.host_process} gone, seen by ${here.process}`],
-    )
-  }
 }
 
 async function wantedStatus(host: CoordinationHost, commissionKey: string): Promise<IssueStatus | null> {

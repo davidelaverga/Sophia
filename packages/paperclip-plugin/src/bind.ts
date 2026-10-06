@@ -105,8 +105,8 @@ function startOf(stat: string): string | null {
  * The host process serving this worker, and its process namespace. The pinned host forks each plugin worker as its
  * direct child (plugin-worker-manager.ts, `fork`), so the parent is the host: `pid:start` (the start time tells a
  * reused pid apart). The namespace is the machine boot (`/proc/sys/kernel/random/boot_id`) and the pid namespace
- * (`/proc/self/ns/pid`): only in the same one can a later settlement see whether that process is gone. Null when any
- * part cannot be read, so nothing is ever claimed gone on a guess.
+ * (`/proc/self/ns/pid`). Recorded with each status write so that an operator can tell which instance served it. Null
+ * when any part cannot be read.
  */
 export function hostProcessOf(ppid: number = process.ppid, fs: ProcFs = procFs): HostProcess | null {
   if (!Number.isInteger(ppid) || ppid <= 0) return null
@@ -119,21 +119,6 @@ export function hostProcessOf(ppid: number = process.ppid, fs: ProcFs = procFs):
       : { namespace: `${boot}/${pids}`, process: `${String(ppid)}:${start}` }
   } catch {
     return null
-  }
-}
-
-/**
- * Whether a process of this worker's namespace, recorded as `pid:start`, is verifiably gone: no process has that pid,
- * or the one that has it started at another time. Anything else (unreadable, unparseable) is not proof.
- */
-export function processGoneOf(recorded: string, fs: ProcFs = procFs): boolean {
-  const match = /^(\d+):(\d+)$/.exec(recorded)
-  if (match === null) return false
-  try {
-    const start = startOf(fs.read(`/proc/${match[1] ?? ''}/stat`))
-    return start !== null && start !== match[2]
-  } catch (err: unknown) {
-    return typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT'
   }
 }
 
@@ -174,7 +159,6 @@ export function hostOf(
     config: (companyId) => ctx.config.get(companyId),
     now: () => Math.floor(clock() / 1000),
     hostProcess,
-    processGone: (recorded) => processGoneOf(recorded),
   }
 }
 
