@@ -27,6 +27,7 @@ import {
 import type { CallEnd } from './call-end.ts'
 import { deviceChange } from './device-change.ts'
 import { followingSignal } from './following-signal.ts'
+import { VISION } from '../../app/vision.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import { isSophia, listenToSophia } from './sophia-channel.ts'
 import type { SophiaSignal } from './sophia-view.ts'
@@ -228,7 +229,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   })
   listenToSophia(room, cb)
   const signalMode = modeSignal(room, () => textOnly)
-  const following = followingSignal(room, cb.onChange)
+  const following = followingSignal(room, cb.onChange, { resync: VISION })
   await room.connect(serverUrl, token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {

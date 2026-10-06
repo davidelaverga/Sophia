@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { RoomEvent, type Participant, type Room } from 'livekit-client'
-import { decodeFollowing, encodeFollowing, FOLLOWING_TOPIC, followingSignal } from './following-signal.ts'
+import {
+  decodeFollowing,
+  decodePacket,
+  encodeAsk,
+  encodeFollowing,
+  FOLLOWING_TOPIC,
+  followingSignal,
+} from './following-signal.ts'
 
 const bytes = (text: string) => new TextEncoder().encode(text)
 
@@ -31,7 +38,7 @@ const NOBODY = person('nob', '{}')
 /** A room that keeps its listeners and what was sent, to play it as LiveKit would. */
 function fakeRoom(present: Participant[]) {
   const listeners = new Map<string, ((...args: unknown[]) => void)[]>()
-  const sent: { to: string[]; following: string | null | undefined }[] = []
+  const sent: { to: string[]; following?: string | null | undefined; ask?: true }[] = []
   const remote = new Map(present.map((p) => [p.identity, p]))
   const room = {
     on: (event: string, fn: (...args: unknown[]) => void) => {
@@ -41,7 +48,12 @@ function fakeRoom(present: Participant[]) {
     localParticipant: {
       publishData: (data: Uint8Array, opts: { destinationIdentities: string[]; topic: string }) => {
         assert.equal(opts.topic, FOLLOWING_TOPIC)
-        sent.push({ to: opts.destinationIdentities, following: decodeFollowing(data) })
+        const packet = decodePacket(data)
+        sent.push(
+          packet && 'ask' in packet
+            ? { to: opts.destinationIdentities, ask: true }
+            : { to: opts.destinationIdentities, following: decodeFollowing(data) },
+        )
         return Promise.resolve()
       },
     },
@@ -90,5 +102,49 @@ describe('hearing it from the room', () => {
     assert.equal(changes, 1)
     emit(RoomEvent.ParticipantDisconnected, ANA)
     assert.equal(signal.of('ana'), null)
+  })
+})
+
+describe('after a drop', () => {
+  it('asks the members what they follow, forgets what it heard until they answer, and says its own, nothing too', () => {
+    const { room, emit, sent } = fakeRoom([ANA, BEN, GUEST])
+    const signal = followingSignal(room, () => undefined, { resync: true })
+    signal.set('v1')
+    signal.set(null)
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    sent.length = 0
+    emit(RoomEvent.Reconnected)
+    assert.equal(signal.of('ana'), null)
+    assert.deepEqual(sent, [
+      { to: ['ana', 'ben'], following: null },
+      { to: ['ana', 'ben'], ask: true },
+    ])
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    assert.equal(signal.of('ana'), 'v2')
+  })
+
+  it('answers a member’s ask to that member only, nothing included; a guest’s ask, never', () => {
+    const { room, emit, sent } = fakeRoom([ANA, BEN, GUEST])
+    followingSignal(room, () => undefined, { resync: true })
+    emit(RoomEvent.DataReceived, encodeAsk(), ANA, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeAsk(), GUEST, undefined, FOLLOWING_TOPIC)
+    assert.deepEqual(sent, [{ to: ['ana'], following: null }])
+  })
+
+  it('reads an ask as no following, and a following as no ask', () => {
+    assert.equal(decodeFollowing(encodeAsk()), undefined)
+    assert.deepEqual(decodePacket(encodeAsk()), { ask: true })
+    assert.deepEqual(decodePacket(encodeFollowing('v1')), { following: 'v1' })
+    assert.equal(decodePacket(bytes('{}')), undefined)
+  })
+})
+
+describe('without the vision flag', () => {
+  it('a drop says nothing and asks nothing, and an ask goes unanswered', () => {
+    const { room, emit, sent } = fakeRoom([ANA, BEN])
+    followingSignal(room, () => undefined)
+    emit(RoomEvent.Reconnected)
+    emit(RoomEvent.DataReceived, encodeAsk(), ANA, undefined, FOLLOWING_TOPIC)
+    assert.deepEqual(sent, [])
   })
 })

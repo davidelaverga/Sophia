@@ -10,11 +10,11 @@ import { listReportSources } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { loadReportText } from '../artifacts/download.ts'
-import { parseMarkdown } from '../artifacts/markdown.ts'
+import { parseMarkdown, type Block } from '../artifacts/markdown.ts'
 import { MarkdownView } from '../artifacts/MarkdownView.tsx'
 import { focusLost, takeShownHere } from './focus-arrival.ts'
 import { useVoiceTrail } from './useVoiceTrail.ts'
-import { sectionIndex, type IndexEntry } from './voice-trail.ts'
+import { sectionIndex, walkTarget, type IndexEntry } from './voice-trail.ts'
 
 interface Props {
   version: ArtifactVersion
@@ -35,20 +35,28 @@ interface Props {
  * Where Sophia put the report (A14, docs/plans/room-walk.md): its entry in the index, and, as she moves, its heading
  * brought to the top of the report. Nobody's focus moves: the person stays where they are.
  */
-function useWalk(body: RefObject<HTMLDivElement | null>, walk: Props['walk'], entries: readonly IndexEntry[]) {
+function useWalk(
+  body: RefObject<HTMLDivElement | null>,
+  walk: Props['walk'],
+  report: { parsed: { blocks: readonly Block[] } | null; entries: readonly IndexEntry[] },
+) {
+  const blocks = report.parsed?.blocks ?? []
   const key = walk ? (walk.anchor.includes('#') ? walk.anchor : `${walk.anchor}#0`) : null
-  const entry = key ? entries.find((e) => e.key === key) : undefined
+  // Any heading she names, a subsection's too; the index marks the section it is in.
+  const target = key ? walkTarget(blocks, report.entries, key) : null
   // Once per move (its revision), even to the same section again; never again for a re-render or sources arriving.
-  const placed = entry ? `${entry.key} ${String(walk?.revision)}` : null
+  const placed = target && walk ? `${key ?? ''} ${String(walk.revision)}` : null
   useEffect(() => {
     const area = body.current
-    if (!placed || !entry || !area) return
-    const heading = area.querySelectorAll<HTMLElement>(`.md > [id="md-${CSS.escape(entry.anchor)}"]`)[entry.occurrence]
+    if (!placed || !target || !area) return
+    const heading = area.querySelectorAll<HTMLElement>(`.md > [id="md-${CSS.escape(target.anchor)}"]`)[
+      target.occurrence
+    ]
     if (heading) area.scrollTop += heading.getBoundingClientRect().top - area.getBoundingClientRect().top - 8
-    // `placed` names the entry and the move: a new entry object for the same place is no move.
+    // `placed` names the heading and the move: a new target object for the same place is no move.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [placed, body])
-  return entry
+  return target && walk ? { ...target, revision: walk.revision } : null
 }
 
 /**
@@ -133,8 +141,9 @@ export function PresentedReport({ version, identity, by, action, spoken, walk, f
   const anchors = useMemo(() => new Set(entries.map((e) => e.key)), [entries])
   const voiced = useVoiceTrail(body, spoken, parsed, anchors)
   // Where she put the report wins over where her words were last matched: she moved there to speak about it.
-  const placed = useWalk(body, walk, entries)
-  const here = placed?.key ?? voiced
+  const placed = useWalk(body, walk, { parsed, entries })
+  // Where she put it wins, even a heading no section comes before: then the index marks nothing.
+  const here = placed ? placed.section : voiced
   const viewer = useDocumentViewer()
   const title = version.title ?? 'Report'
   // Stable, so a section marked anew doesn't rebuild every citation of the text.
@@ -158,7 +167,8 @@ export function PresentedReport({ version, identity, by, action, spoken, walk, f
       </header>
       <SectionIndex entries={entries} here={here} body={body} />
       <p className="report-walk" role="status">
-        {placed ? `Sophia is in ${placed.text}.` : ''}
+        {/* Drawn anew for each move, so a second move to the same place is announced too. */}
+        {placed ? <span key={placed.revision}>{`Sophia is in ${placed.text}.`}</span> : null}
       </p>
       <div ref={body} className="report-main-body">
         {parsed && <MarkdownView report={parsed} sources={listed} language={language} onCite={cite} />}

@@ -96,3 +96,17 @@ test('walk · not following, nothing moves, and where she is is not read', async
   await expect(presented(page)).toHaveCount(0)
   expect(await reads(page)).toEqual([])
 })
+
+test('walk · two moves to one section are both said: the status’s words are drawn anew', async ({ page }) => {
+  await page.evaluate(() => window.fixture?.show('me'))
+  await expect(presented(page)).toBeVisible()
+  const status = presented(page).locator('.report-walk')
+  await page.evaluate(() => window.fixture?.sophiaWalks('charging-speed-in-practice'))
+  await expect(status).toHaveText('Sophia is in Charging speed in practice.')
+  // Marked: the words drawn for the first move.
+  await status.evaluate((el) => el.firstElementChild?.setAttribute('data-first', ''))
+  await expect(status.locator('[data-first]')).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.sophiaWalks('charging-speed-in-practice'))
+  await expect(status.locator('[data-first]')).toHaveCount(0)
+  await expect(status).toHaveText('Sophia is in Charging speed in practice.')
+})

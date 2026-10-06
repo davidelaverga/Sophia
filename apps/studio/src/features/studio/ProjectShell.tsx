@@ -452,6 +452,7 @@ function ProjectBody(props: BodyProps) {
           captions={captions}
           made={made}
           catchUp={catchUp.card}
+          background={background}
         />
       </>,
     )
