@@ -203,3 +203,54 @@ export const getSoFar = (token: string, projectId: string, meetingId: string, si
     { token, method: 'GET', ...(signal ? { signal } : {}) },
     parseDigest,
   )
+
+/** A13: one hit of a project search; its snippet is from the record itself, and `cite` names the record. */
+export interface SearchHit {
+  kind: 'decision' | 'note' | 'report' | 'report_section' | 'recap'
+  /** The record; a report's (and a report section's) is the artifact, its version in `cite.recordId`. */
+  id: string
+  title: string
+  snippet: string
+  meetingId: string | null
+  at: string
+  cite: { recordId: string; sha256?: string; anchor?: string }
+}
+
+export interface SearchPage {
+  hits: readonly SearchHit[]
+  /** The next page's cursor, or null when this is the last. */
+  next: string | null
+}
+
+const HIT_KINDS = new Set(['decision', 'note', 'report', 'report_section', 'recap'])
+const isCite = (v: unknown) =>
+  fields(v, { recordId: isStr }) && ['sha256', 'anchor'].every((k) => !(k in v) || isStr(v[k]))
+const parseSearchPage = checked<SearchPage>(
+  {
+    hits: listOf({
+      kind: (v) => isStr(v) && HIT_KINDS.has(v),
+      id: isStr,
+      title: isStr,
+      snippet: isStr,
+      meetingId: isStrOrNull,
+      at: isStr,
+      cite: isCite,
+    }),
+    next: isStrOrNull,
+  },
+  'search page',
+)
+
+/** A13: the project's decisions, notes, reports and recaps that match `q`, a page from `cursor`. */
+export const searchProject = (
+  token: string,
+  projectId: string,
+  q: string,
+  cursor: string | null,
+  signal?: AbortSignal,
+) =>
+  callApi(
+    `/api/v1/projects/${projectId}/search?${new URLSearchParams({ q, ...(cursor ? { cursor } : {}) }).toString()}`,
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseSearchPage,
+  )

@@ -120,6 +120,9 @@ export function closed(m: Meeting, key: string, cursor: number): MeetingReceipt 
   return receipt
 }
 
+/** The meetings' recaps, newest first: the running one once someone joined, then the earlier ones. */
+export const allRecaps = (m: Meeting): MeetingRecap[] => [...(m.begun() ? [current(m)] : []), ...PAST]
+
 /**
  * Every record so far, the earlier meetings' first: what «since» picks the new ones from. The notes kept and the report
  * made are the project's whether or not a meeting runs; the fixture's decision is the running meeting's.

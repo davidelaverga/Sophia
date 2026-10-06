@@ -41,6 +41,7 @@ import {
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
 import { focusRequest, focusSet, type Showing } from './focus-data.ts'
+import { searchHits, searchPage } from './search-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
@@ -217,7 +218,7 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
     served.push(`snapshot:${project.revision}`)
     return json(snapshotOf(project))
   }
-  const records = recordsAnswer(project, method, path, init)
+  const records = recordsAnswer(project, method, url, init)
   if (records !== undefined) return records
   if (method === 'GET' && path === `${base}/membership`) return json(membershipOf(project))
   if (method === 'GET' && path === `${base}/events`) {
@@ -228,14 +229,27 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
 }
 
 /** The brief, the meeting's records and the invitations sent (none) (A08, A12); undefined for any other request. */
-function recordsAnswer(project: Project, method: string, path: string, init: RequestInit | undefined) {
+function recordsAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
+  const path = url.pathname
+  if (method === 'GET' && path === `${base}/search`) return searchAnswer(project, url)
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   if (method === 'GET' && path === `${base}/since` && project.meeting)
     return json(digestOf(project.meeting, project.revision))
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
+}
+
+/** A project search (A13, search-data.ts): one page of the hits, three a page. */
+function searchAnswer(project: Project, url: URL): Response | null {
+  const q = url.searchParams.get('q') ?? ''
+  const cursor = url.searchParams.get('cursor')
+  if (!project.meeting) return null
+  served.push(`search:${q}:${cursor ?? '0'}`)
+  const kept = project.notes?.kept ?? []
+  const report = { versions: project.reportVersions, title: project.reportTitle, pilot: project.pilot }
+  return json(searchPage(searchHits({ meeting: project.meeting, kept, report }, q), cursor))
 }
 
 /** This viewer's membership: the fixture's own, in the role the page asked for. */

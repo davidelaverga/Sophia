@@ -67,8 +67,6 @@ interface SheetProps {
   meetingId?: string
   /** On leaving, which leave this is: each reads its own recap, never one an earlier leave is still waiting for. */
   leave?: number
-  /** It recaps the running meeting: on leaving, no second sheet opens over it. The latest one is, on leaving. */
-  running?: boolean
   identity: Identity
   roomId: string
   title: string
@@ -103,10 +101,12 @@ function useRecap(projectId: string, token: string, which: { meetingId?: string;
 
 /** «This meeting»: a meeting's recap in a sheet, on leaving or from Updates. */
 export function RecapSheet(props: SheetProps) {
-  const { projectId, running = true, identity, roomId, title, me, editor, names, onClose } = props
+  const { projectId, identity, roomId, title, me, editor, names, onClose } = props
   const recap = useRecap(projectId, identity.token, props)
   const close = { projectId, identity, roomId }
   const titleId = useId()
+  // It recaps the running meeting (the latest, on leaving; else as its recap says): leaving from it opens no second.
+  const running = props.meetingId === undefined || recap.data?.endedAt === null
   useEffect(() => {
     if (!running) return undefined
     runningShown.count += 1

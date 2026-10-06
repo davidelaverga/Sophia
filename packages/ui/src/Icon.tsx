@@ -28,6 +28,7 @@ export type IconName =
   | 'forward'
   | 'back'
   | 'stop'
+  | 'search'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -113,6 +114,12 @@ const PATHS: Record<IconName, ReactNode> = {
   forward: <path d="M9.5 6.5 15 12l-5.5 5.5" />,
   back: <path d="M14.5 6.5 9 12l5.5 5.5" />,
   stop: <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" />,
+  search: (
+    <>
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="m15 15 5 5" />
+    </>
+  ),
 }
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
