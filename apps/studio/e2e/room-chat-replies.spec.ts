@@ -214,15 +214,15 @@ test('replies · the failure stays put as messages come: no blink, not read out 
   await expect(failed).toBeVisible()
   // The links read before stay: a reply read well a moment ago doesn't turn into a message on its own.
   await expect(quote).toContainText('Let us keep the report')
-  // Every change to the line from here on, as a screen reader would hear it.
+  // Every change to the line from here on, as a screen reader would hear it, kept on the page as `data-heard`.
   await page.evaluate(() => {
     const history = document.querySelector('.conversation-history')
-    const said = () => document.querySelector('.replies-state')?.textContent ?? 'gone'
-    const heard: string[] = []
-    let last = said()
-    Object.assign(window, { heard })
+    let last = document.querySelector('.replies-state')?.textContent ?? 'gone'
     const note = () => {
-      if (said() !== last) heard.push((last = said()))
+      const now = document.querySelector('.replies-state')?.textContent ?? 'gone'
+      if (now === last) return
+      last = now
+      document.body.dataset['heard'] = `${document.body.dataset['heard'] ?? ''}|${now}`
     }
     if (history) new MutationObserver(note).observe(history, { subtree: true, childList: true, characterData: true })
   })
@@ -233,7 +233,7 @@ test('replies · the failure stays put as messages come: no blink, not read out 
   // The new message's read and its one retry both fail.
   await expect.poll(reads).toBeGreaterThanOrEqual(before + 2)
   await expect(failed).toBeVisible()
-  expect(await page.evaluate(() => (window as unknown as { heard: string[] }).heard)).toEqual([])
+  await expect(page.locator('body')).not.toHaveAttribute('data-heard')
 })
 
 test('replies · with nothing in the discussion, no word about replies', async ({ page }) => {
