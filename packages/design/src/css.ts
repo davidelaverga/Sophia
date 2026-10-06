@@ -5,6 +5,7 @@
 
 import { parse, walk, type CssNode } from 'css-tree'
 import { error, type Finding } from './findings.ts'
+import { windowIssue } from './widths.ts'
 
 /**
  * At-rules a static research page may use. `@import`, `@font-face`, `@namespace`, `@charset` and the rest are refused,
@@ -640,7 +641,8 @@ export function checkCss(
   })
   const states = stateDeclarations(ast)
   walk(ast, (node) => {
-    const problem = CHECKS[node.type]?.(node) ?? decorationIssue(node, states.has(node)) ?? outlineIssue(node)
+    const problem =
+      CHECKS[node.type]?.(node) ?? decorationIssue(node, states.has(node)) ?? outlineIssue(node) ?? windowIssue(node)
     if (problem) findings.push(error('css_unsafe', path, problem, at(node.loc?.start.line)))
   })
   return findings

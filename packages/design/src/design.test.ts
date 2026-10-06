@@ -1251,6 +1251,53 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       assert.deepEqual(css(ok), [], ok)
   })
   // #117: a decoration is drawn over the text: through it, or as thick as a glyph, it can bury what the render passes.
+  // #117, SDD-CX43: the sweep measures each band of widths at its ends, which bound a value that moves one way only.
+  it('refuses a value that grows and shrinks as the window widens, and units no sweep varies', () => {
+    for (const bad of [
+      '[data-block]{height:max(1px,calc(1440px - 100vw),calc(100vw - 1440px));overflow:hidden}',
+      'p{height:min(calc(100vw - 600px),calc(1800px - 100vw))}',
+      'p{width:clamp(1px,calc(1440px - 100vw),100vw)}',
+      'p{height:max(1px,calc(1440px - 100%),calc(100% - 1440px))}',
+      'p{height:abs(100vw - 1440px)}',
+      'p{height:calc(1px * abs(100vw - 1440px))}',
+      'p{width:mod(100vw,400px)}',
+      'p{width:rem(100%,300px)}',
+      'p{width:round(up,100vw,1vw)}',
+      'p{width:calc(100vw - 50%)}',
+      'p{height:calc(sign(100vw - 1440px) * (1440px - 100vw))}',
+      'p{height:calc(1px / 100vw * 1px)}',
+      'p{height:calc(e * 100vw)}',
+      'p{width:calc(var(--k) * 100vw)}',
+      'p{height:attr(data-h px)}',
+      'p{transform:translateY(max(0px,calc(1440px - 100vw),calc(100vw - 1440px)))}',
+      ':root{--k:calc(1440px - 100vw)}p{height:max(1px,var(--k))}',
+      ':root{--w:50%}',
+      ':root{--g:2vw}',
+      'section{height:100vh;overflow:hidden}',
+      'p{min-height:100svh}',
+      'p{font-size:2vmin}',
+      'p{width:50cqw}',
+      '@media (min-width: 720px){p{height:max(1px,calc(1440px - 100vw),calc(100vw - 1440px))}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<h1>', '<h1 style="height:abs(100vw - 1440px);overflow:hidden">')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of [
+      'h1{font-size:clamp(1.5rem,1rem + 2vw,3rem)}',
+      'main{width:min(100%,60rem);margin:0 auto}',
+      'section{padding:0 calc(5vw + 1rem)}',
+      'p{width:calc(100% - 2rem)}',
+      'p{margin-left:max(1rem,5vw)}',
+      'p{width:90vw}',
+      'p{width:max(50vw,calc(-1 * (2rem - 100vw)))}',
+      'p{width:round(nearest,100vw,10px)}',
+      ':root{--gap:1.5rem}p{padding:calc(var(--gap) * 2);width:calc(100% - var(--gap))}',
+      ':root{--fade:linear-gradient(#fff 0%,#eee 100%)}',
+      'p{transform:translate(-50%,-50%)}',
+      'div{grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
   // SDD-CX42: a state takes its outline's width and offset from the cascade, so an outline is a mark in every rule.
   it('holds an outline to a mark in every rule, so no state draws one inward or wide through the cascade', () => {
     for (const bad of [
