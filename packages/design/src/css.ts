@@ -172,6 +172,109 @@ function keywordIssue(property: string, node: CssNode & { type: 'Declaration' })
   return null
 }
 
+/**
+ * The pseudo-classes a page may select by: an element's place in the document, which every reader and every capture
+ * see alike. Every other one selects a state the captures never take: a pointer over it, focus, a followed fragment
+ * (`:target`), a visited or unvisited link (`:link`, `:visited`; `:any-link` is either), an opened disclosure. So does
+ * an attribute a reader changes (`[open]`). A rule for such a state may only mark it (STATE_PROPERTIES): it never
+ * changes what a text says, where it is, or how it reads, as `[data-block]:target { display: none }` would (#117).
+ */
+const PLACE_PSEUDO_CLASSES = new Set([
+  'root',
+  'first-child',
+  'last-child',
+  'only-child',
+  'nth-child',
+  'nth-last-child',
+  'first-of-type',
+  'last-of-type',
+  'only-of-type',
+  'nth-of-type',
+  'nth-last-of-type',
+  'not',
+  'is',
+  'where',
+  'has',
+  'empty',
+  'any-link',
+  'lang',
+  'dir',
+  'scope',
+  'defined',
+  // The legacy one-colon pseudo-elements that draw generated content, which parse as pseudo-classes.
+  'before',
+  'after',
+])
+const STATE_ATTRIBUTES = new Set(['open'])
+/** What a rule for a state may set: an outline and a text decoration, the marks of focus and of a link. */
+const STATE_PROPERTIES = new Set([
+  'outline',
+  'outline-color',
+  'outline-style',
+  'outline-width',
+  'outline-offset',
+  'text-decoration',
+  'text-decoration-line',
+  'text-decoration-color',
+  'text-decoration-style',
+  'text-decoration-thickness',
+  'text-underline-offset',
+])
+/** The longest length a state's mark may take, in pixels: a mark, never a cover. */
+const STATE_PX = 6
+const COLOR_FUNCTIONS = new Set([
+  'rgb',
+  'rgba',
+  'hsl',
+  'hsla',
+  'hwb',
+  'lab',
+  'lch',
+  'oklab',
+  'oklch',
+  'color',
+  'color-mix',
+])
+
+/** Whether a selector, anywhere in it (`:not()`, `:is()`, `:has()` included), selects a state the captures never take. */
+function selectsState(prelude: CssNode): boolean {
+  const states: string[] = []
+  walk(prelude, (n) => {
+    if (n.type === 'PseudoClassSelector' && !PLACE_PSEUDO_CLASSES.has(n.name.toLowerCase())) states.push(n.name)
+    if (n.type === 'AttributeSelector' && STATE_ATTRIBUTES.has(n.name.name.toLowerCase())) states.push(n.name.name)
+  })
+  return states.length > 0
+}
+
+/** What a declaration in a rule for a state sets beyond a mark of a few pixels, or null. */
+function stateDeclarationIssue(node: CssNode): string | null {
+  if (node.type !== 'Declaration') return null
+  if (!STATE_PROPERTIES.has(node.property.toLowerCase())) return node.property
+  const found: string[] = []
+  walk(node.value, (part) => {
+    if (part.type === 'Dimension' && !(part.unit.toLowerCase() === 'px' && Math.abs(Number(part.value)) <= STATE_PX))
+      found.push(`${part.value}${part.unit}`)
+    if (part.type === 'Percentage') found.push(`${part.value}%`)
+    if (part.type === 'Function' && !COLOR_FUNCTIONS.has(part.name.toLowerCase())) found.push(`${part.name}()`)
+  })
+  return found[0] ?? null
+}
+
+/** Why a rule for a state the captures never take is refused, or null (selectsState). */
+function stateRuleIssue(node: CssNode): string | null {
+  if (node.type !== 'Rule' || !selectsState(node.prelude)) return null
+  const found: string[] = []
+  walk(node.block, (part) => {
+    const issue = stateDeclarationIssue(part)
+    if (issue) found.push(issue)
+  })
+  return found.length === 0
+    ? null
+    : `a rule for a state no capture takes (a pointer, focus, :target, a link visited or not, an open disclosure) ` +
+        `may only mark it with an outline or a text decoration of at most ${STATE_PX}px, not ${found[0] ?? ''}; ` +
+        'select by place (:first-child, :nth-of-type(), :is(), :has()...) or :any-link otherwise'
+}
+
 /** Why a media or container query reaches a state no capture shows, or null. */
 function queryIssue(node: CssNode): string | null {
   if (node.type !== 'Atrule' || !['media', 'container'].includes(node.name.toLowerCase()) || !node.prelude) return null
@@ -302,6 +405,7 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
       (AT_RULES.has(node.name.toLowerCase()) ? queryIssue(node) : `@${node.name} is not allowed`)
     )
   },
+  Rule: stateRuleIssue,
   PseudoElementSelector: (node) =>
     node.type === 'PseudoElementSelector' && !PSEUDO_ELEMENTS.has(node.name.toLowerCase())
       ? pseudoIssue(node.name)

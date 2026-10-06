@@ -9,7 +9,7 @@ import { safeHref } from '@sophia/report/markdown'
 import { comparable, type ContentBlock, type ContentPackage } from './blocks.ts'
 import { citationFindings } from './citations.ts'
 import { framingFindings } from './framing.ts'
-import { attr, elements, hasAncestor, lineAt, textOf, type Document, type Element } from './dom.ts'
+import { attr, elements, hasAncestor, isElement, lineAt, textOf, type Document, type Element } from './dom.ts'
 import { error, type Finding } from './findings.ts'
 
 const isCite = (el: Element): boolean => attr(el, 'data-cite') !== null
@@ -186,11 +186,42 @@ function sourceFindings(all: Element[], content: ContentPackage): Finding[] {
   return out
 }
 
+/** Research: a content block or a source entry. */
+const isResearch = (el: Element): boolean => isBlock(el) || attr(el, 'data-source') !== null
+
+/**
+ * Research a screen reader would not be given: a block or a source entry, or an element around or inside one, that
+ * `aria-hidden="true"` takes out of the accessibility tree. It changes no pixel, so no capture shows it (#117).
+ */
+function hiddenResearch(all: Element[], html: string): Finding[] {
+  const around = new Set<Element>()
+  for (const el of all.filter(isResearch))
+    for (
+      let a: Element | null = el;
+      a && !around.has(a);
+      a = a.parentNode && isElement(a.parentNode) ? a.parentNode : null
+    )
+      around.add(a)
+  return all
+    .filter((el) => attr(el, 'aria-hidden')?.trim().toLowerCase() === 'true')
+    .filter((el) => around.has(el) || hasAncestor(el, isResearch))
+    .map((el) =>
+      error(
+        'research_hidden',
+        'index.html',
+        `<${el.tagName} aria-hidden="true"> takes research out of what a screen reader is given, where no capture shows it; ` +
+          'a block, a source entry and what holds or is inside one are never aria-hidden',
+        { line: lineOf(html, el) },
+      ),
+    )
+}
+
 /** Every way the page departs from its frozen content. Empty when every block and source is in place. */
 export function checkCoverage(doc: Document, html: string, content: ContentPackage): Finding[] {
   const all = elements(doc)
   return [
     ...placeBlocks(all, content, html),
+    ...hiddenResearch(all, html),
     ...sourceFindings(all, content),
     ...citationFindings(all, html),
     ...framingFindings(doc, html),

@@ -551,6 +551,22 @@ describe('a tooltip or an accessible name carries no text the page does not show
     assert.deepEqual(codes(withHtml(good, page)), [], 'a title and description repeating the heading')
     assert.match(compile(withHtml(good, page), 'en'), /<h1 data-sophia-shown="h1:1">/)
   })
+  // #117: aria-hidden changes no pixel, so research it takes from a screen reader is in every capture and in no reading.
+  it('refuses aria-hidden on research, on what holds it and on what is inside it', () => {
+    for (const [from, to] of [
+      ['<p data-block="b1">', '<p data-block="b1" aria-hidden="true">'],
+      ['<section id="s1" data-section="s1">', '<section id="s1" data-section="s1" aria-hidden="true">'],
+      ['<main>', '<main aria-hidden="TRUE">'],
+      [`<a data-cite="${A}"`, `<a aria-hidden="true" data-cite="${A}"`],
+      [`<li id="src-${A}"`, `<li aria-hidden="true" id="src-${A}"`],
+    ] as const)
+      assert.ok(codes(withHtml(good, html(good).replace(from, to))).includes('research_hidden'), to)
+    for (const [from, to] of [
+      ['<main>', '<main aria-hidden="false">'],
+      ['<main>', '<main><nav aria-hidden="true"><a href="#s1">Findings</a></nav>'],
+    ] as const)
+      assert.deepEqual(codes(withHtml(good, html(good).replace(from, to))), [], to)
+  })
   it('refuses a name repeating a label its markup hides, or one under a hidden ancestor', () => {
     for (const hidden of [
       `<h2 hidden>${claim}</h2>`,
@@ -846,6 +862,36 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       '@container (inline-size > 30em){p{columns:2}}',
       ':root{color-scheme:light}',
       ':root{color-scheme:only light}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
+  // #117: the captures take no state a reader puts the page in: a pointer, focus, a followed fragment, a visited link.
+  it('holds a rule for a state no capture takes to an outline or a text decoration of a few pixels', () => {
+    for (const bad of [
+      '[data-block]:target{display:none}',
+      'p:hover{color:#fafafa}',
+      'a:visited{color:#fafafa}',
+      'a:link{color:#222}',
+      ':focus-within p{opacity:0}',
+      'main:has(:target) p{display:none}',
+      'p:not(:hover){visibility:hidden}',
+      'details[open] ~ p{display:none}',
+      'a:focus-visible{outline:2000px solid #fafafa}',
+      'a:hover{text-decoration-thickness:40px}',
+      'a:focus{outline-width:var(--w)}',
+      'a:focus{outline-offset:-2em}',
+      '@media (min-width: 720px){a:hover{color:#fafafa}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    assert.ok(css('a:hover{& span{display:none}}').includes('css_unsafe'), 'a rule nested in a state')
+    for (const ok of [
+      'a:focus-visible{outline:2px solid #1a4fd6;outline-offset:2px}',
+      'a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}',
+      'a:hover{text-decoration-color:rgb(26 79 214)}',
+      'a:any-link{color:#1a4fd6}',
+      'li:nth-of-type(2n){background:#f6f6f6}',
+      'section:has(h2) p:first-child{margin-top:0}',
+      'p:is(.lead, .note):not(:empty){font-size:1.1em}',
     ])
       assert.deepEqual(css(ok), [], ok)
   })
