@@ -183,9 +183,13 @@ SET search_path=pg_catalog,sophia AS $$
      GROUP BY c->>'target' HAVING bool_and((c->>'name')=ANY(coalesce(p_seen,'{}'))))) z $$;
 REVOKE ALL ON FUNCTION sophia.design_capture_missing(sophia.render_jobs,text[],text[]) FROM PUBLIC;
 
--- The sections a design's captures must show: an edit's own, or all.
+-- The sections a design's captures must show at full size: an edit's own, when it may change nothing else; all when it
+-- may change the page around the sections (it can add one) or the stylesheet (it reaches every one), or names them all
+-- (#117). A scope that does not say so is taken as granting it.
 CREATE FUNCTION sophia.design_seen_sections(t sophia.design_tasks) RETURNS text[] LANGUAGE sql IMMUTABLE SET search_path=pg_catalog AS $$
- SELECT CASE WHEN t.mode='edit' THEN ARRAY(SELECT jsonb_array_elements_text(t.scope->'sections')) END $$;
+ SELECT CASE WHEN t.mode='edit' AND NOT coalesce((t.scope->>'shell')::boolean,true)
+   AND NOT coalesce((t.scope->>'styles')::boolean,true) AND NOT (t.scope->'sections') ? '*'
+  THEN ARRAY(SELECT jsonb_array_elements_text(t.scope->'sections')) END $$;
 REVOKE ALL ON FUNCTION sophia.design_seen_sections(sophia.design_tasks) FROM PUBLIC;
 
 -- review_missing (0040), replaced: what a pass needs that the deliveries it names, acknowledged in the reviewer's current
