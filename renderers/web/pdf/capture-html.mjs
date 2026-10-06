@@ -17,7 +17,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { pageScript } from './capture-page.mjs'
+import { MAX_MEASURED, pageScript } from './capture-page.mjs'
 import { launchConfined, playwrightVersion } from './confine.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
 
@@ -330,23 +330,32 @@ async function captureTarget(shot, target, page) {
 }
 
 /**
- * The checks one target's measures and coverage carry. An unknown contrast is unknown, never passed.
+ * The checks one target's measures and coverage carry. An unknown contrast is unknown, never passed; labels or texts
+ * left unmeasured past the receipt's bound fail blocks_visible.
  * @param {Target} target
  * @param {import('./capture-page.mjs').PageMeasure} page
  * @param {Coverage} coverage
+ * @param {number} [unmeasured]
  * @returns {Check[]}
  */
-function targetChecks(target, page, coverage) {
-  // A shown label (one a tooltip, an accessible name or an ID reference rests on) is held to what a block is.
+export function targetChecks(target, page, coverage, unmeasured = 0) {
+  // A shown label (one a tooltip, an accessible name or an ID reference rests on) is held to what a block is. Other
+  // text outside the blocks is read for contrast wherever this target shows it (#117); where it is shown at no target
+  // at all, captureAll fails it.
   const measured = [...page.blocks, ...page.shown]
-  const unseen = measured.filter((b) => b.issues.some((i) => i !== 'low_contrast' && i !== 'scrolls'))
-  const low = measured.filter((b) => b.issues.includes('low_contrast'))
-  const unknown = measured.filter((b) => b.contrast.ratio === null)
+  const read = [...measured, ...page.framing.filter((m) => !hiddenHere(m))]
+  const unseen = measured.filter(hiddenHere)
+  const low = read.filter((b) => b.issues.includes('low_contrast'))
+  const unknown = read.filter((b) => b.contrast.ratio === null)
   const ids = (/** @type {{ id: string }[]} */ list) =>
     list
       .slice(0, MAX_LISTED)
       .map((b) => b.id)
       .join(', ')
+  const hidden = [
+    ids(unseen),
+    unmeasured > 0 ? `${unmeasured} more labels or texts outside the blocks than the ${MAX_MEASURED} measured` : '',
+  ].filter(Boolean)
   return [
     check(
       'layout_overflow',
@@ -356,8 +365,8 @@ function targetChecks(target, page, coverage) {
     ),
     check(
       'blocks_visible',
-      unseen.length === 0 ? 'passed' : 'failed',
-      unseen.length === 0 ? null : ids(unseen),
+      hidden.length === 0 ? 'passed' : 'failed',
+      hidden.length === 0 ? null : hidden.join('; '),
       target.id,
     ),
     check(
@@ -415,13 +424,13 @@ async function loadAt(page, target, url, timeoutMs) {
 /**
  * Whether the page script's answer has the shape the kernel relies on (the script is this package's own code).
  * @param {unknown} value
- * @returns {value is import('./capture-page.mjs').PageMeasure}
+ * @returns {value is import('./capture-page.mjs').PageAnswer}
  */
 function isMeasure(value) {
   return (
     typeof value === 'object' &&
     value !== null &&
-    ['width', 'height', 'overflowPx'].every((k) => typeof Reflect.get(value, k) === 'number') &&
+    ['width', 'height', 'overflowPx', 'unmeasured'].every((k) => typeof Reflect.get(value, k) === 'number') &&
     ['blocks', 'sections', 'overflowing'].every((k) => Array.isArray(Reflect.get(value, k)))
   )
 }
@@ -448,7 +457,7 @@ async function captureAll(page, shot, entry) {
     const target = CAPTURE_TARGETS[id]
     if (!target) throw new CaptureFailure('invalid_target', id)
     await loadAt(page, target, entry.url, entry.timeoutMs)
-    const measured = await measure(page)
+    const { unmeasured, ...measured } = await measure(page)
     if (shot.receipt.fonts.length === 0) shot.receipt.fonts = await fontsUsed(shot.cdp)
     const coverage = await captureTarget(shot, target, measured)
     shot.receipt.targets.push({
@@ -459,7 +468,7 @@ async function captureAll(page, shot, entry) {
       page: measured,
       coverage,
     })
-    shot.receipt.checks.push(...targetChecks(target, measured, coverage))
+    shot.receipt.checks.push(...targetChecks(target, measured, coverage, unmeasured))
   }
   // Text outside the blocks that no target shows (kept for print, for a width no capture takes, or for assistive
   // technology alone) is text no reviewer saw: each target's blocks_visible names it (#117).
@@ -475,15 +484,20 @@ async function captureAll(page, shot, entry) {
 }
 
 /**
- * Whether a measured element's text is not seen: hidden, cut, covered or off the page, or all but invisible against
- * what is behind it. Low contrast alone, or a scrolling container, still shows it.
+ * Whether a measured element is not shown at this target: hidden, cut, covered or off the page. Low contrast, or a
+ * scrolling container, still shows it.
+ * @param {import('./capture-page.mjs').BlockMeasure} m
+ */
+function hiddenHere(m) {
+  return m.issues.some((i) => i !== 'low_contrast' && i !== 'scrolls')
+}
+
+/**
+ * Whether a measured element's text is not seen: not shown here, or all but invisible against what is behind it.
  * @param {import('./capture-page.mjs').BlockMeasure} m
  */
 function isUnseen(m) {
-  return (
-    m.issues.some((i) => i !== 'low_contrast' && i !== 'scrolls') ||
-    (m.contrast.ratio !== null && m.contrast.ratio < 1.5)
-  )
+  return hiddenHere(m) || (m.contrast.ratio !== null && m.contrast.ratio < 1.5)
 }
 
 /**

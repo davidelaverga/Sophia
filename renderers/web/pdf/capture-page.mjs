@@ -16,7 +16,18 @@
  * @typedef {{ width: number, height: number, viewportWidth: number, viewportHeight: number,
  *   overflowPx: number, overflowing: { element: string, rightPx: number }[], sections: ({ id: string } & Box)[],
  *   blocks: BlockMeasure[], shown: BlockMeasure[], framing: BlockMeasure[] }} PageMeasure
+ * @typedef {PageMeasure & { unmeasured: number }} PageAnswer the measure, and how many labels and texts outside the
+ *   blocks it left out past the receipt's bound (the kernel fails the target on any)
  */
+
+/** The most labels, and the most texts outside the blocks, a page's measure holds: the receipt's bound for each. */
+export const MAX_MEASURED = 4000
+
+/**
+ * The marks that say nothing, as a character class: the design profile's list (@sophia/design css.ts, MARK_TEXT; a test
+ * holds the two equal). Text of only these is a separator or a bullet, which is neither measured nor held to contrast.
+ */
+export const MARK_CLASS = String.raw`.,;:/|()[\]'"*\-_‐‑‒–—―…·•◦‣⁃∙▪▫■□●○◆◇▴▵▾▿→←↑↓↗↘↩⇒⇐›‹»«▸▹►▶▷◂◀◁“”‘’„‚†‡§¶`
 
 /**
  * An element's box in document coordinates, rounded outwards to whole CSS pixels.
@@ -300,8 +311,8 @@ function measureBlock(el, page, ctx) {
 /**
  * Everything the kernel measures at the current viewport. Scrolling to check cover moves the view, so it ends back at
  * the top, where every capture is taken from.
- * @param {{ maxListed: number }} opts
- * @returns {PageMeasure}
+ * @param {{ maxListed: number, maxMeasured: number, marks: string }} opts
+ * @returns {PageAnswer}
  */
 function measurePage(opts) {
   const root = document.documentElement
@@ -314,8 +325,10 @@ function measurePage(opts) {
     const concealed = concealedIssues(el)
     return { ...measure, id: id.slice(0, 200), issues: [...new Set([...concealed, ...measure.issues])].slice(0, 10) }
   }
-  const shown = shownElements().map(strictly)
-  const framing = framingElements().map(strictly)
+  const labels = shownElements()
+  const texts = framingElements(opts.marks)
+  const shown = labels.slice(0, opts.maxMeasured).map(strictly)
+  const framing = texts.slice(0, opts.maxMeasured).map(strictly)
   window.scrollTo(0, 0)
   return {
     width: page.width,
@@ -331,6 +344,7 @@ function measurePage(opts) {
     blocks,
     shown,
     framing,
+    unmeasured: labels.length - shown.length + texts.length - framing.length,
   }
 }
 
@@ -356,11 +370,13 @@ function shownElements() {
 }
 
 /**
- * Every element outside the blocks that holds text of its own: a heading, a caption, a source entry, a navigation
- * link, a separator. Numbered in document order, the same at every target.
+ * Every element outside the blocks that holds text of its own beyond the marks that say nothing (`marks`, a character
+ * class): a heading, a caption, a source entry, a navigation link. Numbered in document order, the same at every target.
+ * @param {string} marks
  * @returns {{ el: Element, id: string }[]}
  */
-function framingElements() {
+function framingElements(marks) {
+  const words = new RegExp(`[^\\s${marks}]`, 'u')
   /** @type {{ el: Element, id: string }[]} */
   const out = []
   for (const el of document.body.querySelectorAll('*')) {
@@ -369,7 +385,7 @@ function framingElements() {
       .filter((n) => n.nodeType === Node.TEXT_NODE)
       .map((n) => n.textContent ?? '')
       .join('')
-    if (/\S/u.test(own)) out.push({ el, id: `text ${out.length + 1} ${nameOf(el)}` })
+    if (words.test(own)) out.push({ el, id: `text ${out.length + 1} ${nameOf(el)}` })
   }
   return out
 }
@@ -399,9 +415,10 @@ const IN_PAGE = [
 ]
 
 /**
- * An expression that measures the page with these options and returns the measure.
+ * An expression that measures the page with these options, the receipt's bound and the marks, and returns the measure.
  * @param {{ maxListed: number }} opts
  */
 export function pageScript(opts) {
-  return `(() => {\n${IN_PAGE.map((f) => f.toString()).join('\n')}\nreturn measurePage(${JSON.stringify(opts)})\n})()`
+  const all = { ...opts, maxMeasured: MAX_MEASURED, marks: MARK_CLASS }
+  return `(() => {\n${IN_PAGE.map((f) => f.toString()).join('\n')}\nreturn measurePage(${JSON.stringify(all)})\n})()`
 }

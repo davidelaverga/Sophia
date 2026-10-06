@@ -18,8 +18,10 @@ import {
   captureSha256,
   hiddenEverywhere,
   marginsOf,
+  targetChecks,
   tilesOf,
 } from '../capture-html.mjs'
+import { MARK_CLASS, MAX_MEASURED } from '../capture-page.mjs'
 import { chromiumPath } from '../confine.mjs'
 
 const sha = (data: string | Uint8Array): string => createHash('sha256').update(data).digest('hex')
@@ -207,6 +209,42 @@ describe('the capture plan (pure)', () => {
     assert.deepEqual(hiddenEverywhere([]), [])
   })
 
+  it('reads text outside the blocks for contrast where a target shows it, and fails what it could not measure (#117)', () => {
+    const coverage = { requested: null, captured: [], missing: [], margins: 0, marginsCaptured: 0, truncated: false }
+    const measures = (framing: ReturnType<typeof framed>[]) =>
+      ({ overflowPx: 0, blocks: [framed('b1')], shown: [], framing }) as unknown as Parameters<typeof targetChecks>[1]
+    const at = (framing: ReturnType<typeof framed>[], unmeasured = 0) =>
+      Object.fromEntries(
+        targetChecks(CAPTURE_TARGETS['w390-light']!, measures(framing), coverage, unmeasured).map((c) => [
+          c.name,
+          [c.outcome, c.detail],
+        ]),
+      )
+    const muted = at([framed('text 1 h2'), framed('text 2 p', ['low_contrast'], 2.4)])
+    assert.deepEqual(muted.contrast, ['failed', 'text 2 p'])
+    assert.deepEqual(muted.blocks_visible, ['passed', null], 'shown here, only hard to read')
+    const elsewhere = at([framed('text 1 h2', ['not_rendered', 'low_contrast'], 2.4)])
+    assert.deepEqual(elsewhere.contrast, ['passed', null], 'not shown at this target: read where it is')
+    assert.deepEqual(at([framed('text 1 h2', [], null)]).contrast, ['unknown', 'unmeasured: text 1 h2'])
+    const over = at([framed('text 1 h2')], 3)
+    assert.equal(over.blocks_visible?.[0], 'failed')
+    assert.match(String(over.blocks_visible?.[1]), new RegExp(`3 more .* than the ${String(MAX_MEASURED)} measured`))
+  })
+
+  it('takes the marks that say nothing from the design profile, so both judge the same text (#117)', () => {
+    const css = fs.readFileSync(
+      fileURLToPath(new URL('../../../../packages/design/src/css.ts', import.meta.url)),
+      'utf8',
+    )
+    const profile = /const MARK_TEXT = \/\^\[(.*)\]\*\$\/u/.exec(css)?.[1]
+    assert.equal(MARK_CLASS, profile)
+    const words = new RegExp(`[^\\s${MARK_CLASS}]`, 'u')
+    assert.deepEqual(
+      ['·', ' | ', '• — →', '[1]', 'Ⓗ', 'Sources', '§ 3'].map((t) => words.test(t)),
+      [false, false, false, true, true, true, true],
+    )
+  })
+
   it('keeps nothing when cancelled', async () => {
     const controller = new AbortController()
     controller.abort()
@@ -390,6 +428,36 @@ describe('the confined capture kernel', () => {
           assert.ok(hidden && detail.includes(hidden), `${target}: ${hidden} in ${detail}`)
         for (const seen of ['Seen everywhere', 'On wide screens'].map((t) => framingId(receipt, t)))
           assert.ok(seen && !detail.includes(`${seen},`) && !detail.endsWith(seen), `${target}: ${seen} in ${detail}`)
+      }
+    },
+  )
+
+  it(
+    'fails text outside the blocks that a target shows too faintly to read; a pale separator says nothing (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .muted{color:#aaa} .sep{color:#ddd}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+          <h2 class="muted">Muted heading</h2><p class="sep">·</p></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      const framing = receipt.targets[0]!.page.framing
+      assert.deepEqual(
+        framing.map((m) => m.id),
+        ['text 1 h2', 'text 2 h2'],
+        'the separator is not measured',
+      )
+      for (const target of ['w390-light', 'w1280-light']) {
+        assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
+        const detail = receipt.checks.find((c) => c.name === 'contrast' && c.target === target)?.detail ?? ''
+        assert.equal(detail, 'text 2 h2', target)
+        assert.equal(outcome(receipt, 'blocks_visible', target), 'passed', target)
       }
     },
   )
