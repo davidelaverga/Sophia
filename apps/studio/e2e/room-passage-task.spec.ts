@@ -263,3 +263,13 @@ test('task · a refresh that fails as the feed moves keeps the tasks read', asyn
   await expect(pane(page).getByText('Tasks can’t be read now.')).toHaveCount(0)
   await expect(rows(page)).toHaveCount(1)
 })
+
+test('task · while a form is open, no other Task is offered, so its words stay', async ({ page }) => {
+  await open(page)
+  await startTask(page)
+  await what(page).fill('Half typed')
+  await pane(page).locator('.md p', { hasText: 'Read it once.' }).selectText()
+  await expect(bar(page)).toBeVisible()
+  await expect(bar(page).getByRole('button', { name: 'Task' })).toHaveCount(0)
+  await expect(what(page)).toHaveValue('Half typed')
+})

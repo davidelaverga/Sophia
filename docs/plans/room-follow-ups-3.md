@@ -26,6 +26,7 @@
 - **Its quote.** It stays within the API's 800 characters.
 - **The foot.** A Create closed while on its way still says «Creating the task…» there.
 - **A viewer with no tasks** is told so, not sent to a press they don't have.
+- **An open form keeps its words:** while it is open, no other passage offers Task (Codex on #125).
 
 **A refusal** gives way only to reviews that arrive after it was shown.
 
@@ -54,5 +55,6 @@
   - while the tasks are read, the tab says so, and a task made meanwhile is there;
   - a Create closed while on its way still says so, in the foot;
   - a viewer with no tasks is told so;
+  - while a form is open, no other Task is offered, and its words stay;
   - a refresh that fails as the feed moves keeps the tasks read.
 - **Units:** `reviewSettled` and `byTime` (`review-view.test.ts`); `taskQuote` (`task-view.test.ts`).

@@ -8,7 +8,7 @@ Ending commit/tree: the content commit «Room: follow-ups to #124 and #125, the 
 
 ## Outcome
 
-Codex's P2s on #124 (nine) and #125 (six), and the independent review's.
+Codex's P2s on #124 (nine) and #125 (seven), and the independent review's.
 
 **Reviews (`ReviewRow`, `review-view.ts`, `useFeedRefetch.ts`):**
 - **What settles a press with no reply:** only a review of mine with its verdict and its words. A record that came while the press was sending counts too; another device's different words don't.
@@ -29,6 +29,7 @@ Codex's P2s on #124 (nine) and #125 (six), and the independent review's.
 - **A task made while the first read is on its way:** it is in the list at once.
 - **A viewer with no tasks** is told so, not sent to a press they don't have.
 - **The quote:** within the API's 800 characters (`taskQuote`).
+- **An open form keeps its words:** no other passage offers Task while it is open.
 
 **Independent review:** one P2, and P3s, all fixed.
 - **The P2:** a key per cursor lost what was read when a refresh failed.
@@ -49,7 +50,7 @@ Runs used the guards' gentle mode, at Idle priority beside Luis's games, on his 
 
 - **Browser:** `room-review.spec.ts` with `room-passage-task.spec.ts`: 36 of 36.
 - **Units** (`review-view.test.ts`, `task-view.test.ts`): 12 of 12.
-- **Mutations:** 16 of 16 killed, and the control survives (36 of 36). Among them:
+- **Mutations:** 17 of 17 killed, and the control survives. Among them:
   - another device settling a press;
   - nothing from the feed settling one;
   - the ask staying open;
@@ -62,7 +63,8 @@ Runs used the guards' gentle mode, at Idle priority beside Luis's games, on his 
   - review before the text is on screen;
   - a task made while read lost;
   - a viewer sent to Task;
-  - a Create closed in silence.
+  - a Create closed in silence;
+  - Task offered over an open form.
   - The runner (`served_mutants.py`, scratchpad) waits until Vite serves each mutant. It keeps a journal, so a run the guard stops never leaves a file mutated: one did once, mid-mutant, and the file was put back by hand.
 - **Gates:** `tsc`, `oxlint --type-aware` and Prettier pass.
 

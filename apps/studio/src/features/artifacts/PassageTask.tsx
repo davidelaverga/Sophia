@@ -68,7 +68,7 @@ export function usePassageTask(props: {
     },
   )
   const start = (passage: TaskPassage) => {
-    if (!me || write.held) return
+    if (!me || write.held || asked) return
     write.reset()
     setAdded(null)
     const people = props.people.filter((p) => p.actorId !== me.actorId)
@@ -105,7 +105,8 @@ export function usePassageTask(props: {
       )}
     </>
   )
-  return { offered: VISION && canInvite(me) && !write.held, start, node }
+  // Not while a form is open, so its words are never lost to another passage's Task, nor while a Create is held.
+  return { offered: VISION && canInvite(me) && !write.held && !asked, start, node }
 }
 
 /** What the last Create did, in the pane's foot: added, with See tasks; or, the form closed, not sent, with Try again. */
