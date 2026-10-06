@@ -2,7 +2,7 @@
 // screen goes, when I follow it or show it myself, or a card that says who shows what, with Follow. Following is this
 // device's choice (01:41) and ends when nothing is shown. «Show everyone» is offered only under the vision flag.
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { getRoomFocus, type RoomFocus } from '../../api/vision.ts'
@@ -25,7 +25,7 @@ import { shortName } from './room-view.ts'
 import { FocusButton, type FocusTarget, type ShowRender } from './ShowEveryone.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
-type Room = Pick<ProjectRoom, 'status' | 'participants' | 'feeds'>
+type Room = Pick<ProjectRoom, 'status' | 'participants' | 'feeds' | 'setFollowing' | 'call'>
 
 interface Context {
   projectId: string
@@ -151,6 +151,23 @@ function walkOf(at: RoomFocus | undefined, focus: Snapshot['sharedFocus'] | unde
   return hers && at.anchor ? { anchor: at.anchor, revision: at.revision } : null
 }
 
+/**
+ * What this person follows, said to the members in the call (A14's «N following», following-signal.ts): the version
+ * while they follow it, nothing otherwise. Said again on each call joined. Only under the vision flag.
+ */
+function useSayFollowing(room: Room, shown: Shown | null, following: boolean) {
+  const followed = following && shown ? (shown.version?.id ?? null) : null
+  const { setFollowing, call } = room
+  const live = room.status === 'live'
+  useEffect(() => {
+    if (VISION && live) void setFollowing(followed)
+  }, [setFollowing, followed, live, call])
+}
+
+/** How many others in the call said they follow the version shown. */
+const followersOf = (room: Room, versionId: string) =>
+  room.participants.filter((p) => !p.local && p.following === versionId).length
+
 /** Where Sophia walked what is on this stage (A14), carrying following over her moves. */
 function useWalked(
   snapshot: Snapshot | undefined,
@@ -176,6 +193,7 @@ export function useStagePresent(snapshot: Snapshot | undefined, room: Room, cont
   const screen = room.feeds.some((f) => f.source === 'screen')
   const target = targetOf(snapshot, projectId, identity)
   const walk = useWalked(snapshot, { shown, screen, followed }, identity)
+  useSayFollowing(room, shown, following)
   if (!shown) return { presented: null, card: null }
   const guide = shown.mine ? 'you' : shortName(names.get(shown.guideId) ?? 'A member')
   // Mine, I can always stop it: on the stage, or on my card when the stage can't present it.
@@ -188,21 +206,15 @@ export function useStagePresent(snapshot: Snapshot | undefined, room: Room, cont
         Stop following
       </button>
     )
-    return {
-      presented: (
-        <PresentedReport
-          version={shown.version}
-          identity={identity}
-          by={guide}
-          action={stop ?? unfollowing}
-          spoken={spoken}
-          walk={walk}
-        />
-      ),
-      card: null,
-    }
+    const on = { version: shown.version, identity, by: guide, action: stop ?? unfollowing, spoken, walk }
+    return { presented: presentedOf(on, room, shown.mine), card: null }
   }
   return { presented: null, card: cardOf(shown, guide, { screen, stopped, focused, follow, stop }) }
+}
+
+/** The report on the stage; to whoever shows it, how many others follow it (A14, the vision flag's). */
+function presentedOf(on: Omit<ComponentProps<typeof PresentedReport>, 'followers'>, room: Room, mine: boolean) {
+  return <PresentedReport {...on} followers={VISION && mine ? followersOf(room, on.version.id) : 0} />
 }
 
 /** The card: mine with Stop showing; another's with Follow, when the stage can present it. */

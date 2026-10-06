@@ -38,6 +38,7 @@ import {
   oneOfUs,
   others,
   personId,
+  setFollowers,
   setSophia,
   setSpeaking,
   sophiaAsked,
@@ -96,6 +97,8 @@ interface Fixture {
   buildOnNotes: () => void
   /** The `n`th other person (or `me`, from another device) shows the report's current version; null, nothing is. */
   show: (n: number | 'me' | null) => void
+  /** These others follow the shown version (their `sophia.following`, A14); the rest follow nothing. */
+  followers: (people: number[]) => void
   /** Sophia moves the shown report's focus to a section, as her `present_section` would (A14). */
   sophiaWalks: (anchor: string) => void
   /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
@@ -314,6 +317,7 @@ window.fixture = {
     project.showing.at = { anchor: null, by: 'member', shownAt: project.showing.revision }
     publish(project)
   },
+  followers: (people) => setFollowers(people, project.showing.focus?.artifactVersionId ?? ''),
   sophiaWalks: (anchor) => {
     walked(project.showing, anchor)
     publish(project)

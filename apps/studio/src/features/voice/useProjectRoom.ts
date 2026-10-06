@@ -61,6 +61,8 @@ export interface ProjectRoom {
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
+  /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
+  setFollowing: (versionId: string | null) => Promise<void>
 }
 
 /** A failed join in words: the API's own refusal, or what to check when the room could not be reached. */
@@ -299,6 +301,10 @@ function useLeave(calls: CallFence<RoomConnection>, outOfCall: (why: CallEnd | n
   return { leave, leftByPress }
 }
 
+/** Saying what this person follows to the call they are in; out of a call, there is no one to tell. */
+const followingOf = (calls: CallFence<RoomConnection>) => (versionId: string | null) =>
+  calls.current?.setFollowing(versionId) ?? Promise.resolve()
+
 /** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   /**
@@ -354,6 +360,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     })
 
   const startAudio = () => calls.current?.startAudio() ?? Promise.resolve()
+  const [setFollowing] = useState(() => followingOf(calls))
 
   return {
     status,
@@ -370,6 +377,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     setTextMode: typedChat.setTextMode,
     sendChat: typedChat.sendChat,
     startAudio,
+    setFollowing,
     ready: issue !== null,
     leave,
     leftByPress,
