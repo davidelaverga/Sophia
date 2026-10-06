@@ -27,6 +27,8 @@ interface Props {
   memory?: Remembered | undefined
   /** Under a talk: out of reach until it ends. */
   under?: boolean
+  /** Personal is out of sight (another place): the package's hold on Escape is let go meanwhile. */
+  away?: boolean
   /** The writes a reviewed package uses (CarryPackage), under the vision flag; absent, only the single Carry. */
   pack?: PackWrites | undefined
 }
@@ -223,6 +225,7 @@ function Package(props: Props & PackageState) {
         projects={projects ?? []}
         writes={pack}
         onBusy={onBusy}
+        away={props.away === true}
         onClose={() => {
           setOpen(false)
           // Back to Review what to carry; with no note left to carry, to the notes themselves, never the page.

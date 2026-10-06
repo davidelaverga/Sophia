@@ -45,3 +45,57 @@ test('carried in · a read that fails says so, and Try again reads it', async ({
   await carriedIn(page).getByRole('button', { name: 'Try again' }).click()
   await expect(carriedIn(page).getByRole('listitem')).toHaveCount(3)
 })
+
+// Codex on #132 (follow-ups 2).
+
+test('carried in · a note carried while Knowledge is open shows, as the feed moves', async ({ page }) => {
+  await page.goto('/room.html?place=knowledge&carried=1')
+  await expect(carriedIn(page).getByRole('listitem')).toHaveCount(3)
+  await page.evaluate(() => window.fixture?.carryIn())
+  await expect(carriedIn(page).getByRole('listitem')).toHaveCount(4)
+  await expect(carriedIn(page).getByRole('listitem').first()).toContainText('Ask the team for one number we trust')
+})
+
+test('carried in · nothing carried, then a read that fails, says it may be out of date', async ({ page }) => {
+  await page.goto('/room.html?place=knowledge')
+  await expect(carriedIn(page)).toContainText('Nothing carried in yet.')
+  await page.evaluate(() => {
+    window.fixture?.failProjects(true)
+    window.fixture?.update()
+  })
+  await expect(carriedIn(page)).toContainText('This may be out of date.')
+  await expect(carriedIn(page).getByRole('button', { name: 'Try again' })).toBeVisible()
+})
+
+test('carried in · a project past the list’s first ones is never said to have nothing', async ({ page }) => {
+  await page.goto('/room.html?place=knowledge&carried=elsewhere')
+  await expect(carriedIn(page)).toContainText('What was carried in can’t be listed here')
+  await expect(carriedIn(page)).not.toContainText('Nothing carried in yet.')
+})
+
+test('carried in · while read, its place is kept; with a list shown, Try again says it is reading', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=knowledge&carried=1&projects=hold')
+  await expect(carriedIn(page)).toBeVisible()
+  await expect(carriedIn(page).getByRole('listitem')).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.holdProjects(false))
+  await expect(carriedIn(page).getByRole('listitem')).toHaveCount(3)
+  // A later read fails: the list stays, out of date; Try again says it is reading until the read settles.
+  await page.evaluate(() => {
+    window.fixture?.failProjects(true)
+    window.fixture?.update()
+  })
+  await expect(carriedIn(page)).toContainText('This may be out of date.')
+  await page.evaluate(() => {
+    window.fixture?.failProjects(false)
+    window.fixture?.holdProjects(true)
+  })
+  const again = carriedIn(page).getByRole('button', { name: /Try again|Reading again/ })
+  await again.click()
+  await expect(again).toHaveText('Reading again…')
+  await expect(again).toHaveAttribute('aria-disabled', 'true')
+  await page.evaluate(() => window.fixture?.holdProjects(false))
+  await expect(carriedIn(page)).not.toContainText('This may be out of date.')
+  await expect(carriedIn(page).getByRole('listitem')).toHaveCount(3)
+})
