@@ -28,6 +28,7 @@ import { HtmlView, reviewTag } from './HtmlView.tsx'
 import { MarkdownView } from './MarkdownView.tsx'
 import { PassageBar, type Passage } from './PassageBar.tsx'
 import { usePassageArrival } from './usePassageArrival.ts'
+import { useSectionArrival, type SectionAsk } from './useSectionArrival.ts'
 import { offerWords } from './live-version.ts'
 import { useLiveVersion, type LiveChanges, type Shown } from './useLiveVersion.ts'
 import type { ShowRender } from '../voice/ShowEveryone.tsx'
@@ -67,6 +68,8 @@ interface Props {
   onEnlarge: () => void
   /** Esc and "Back to side panel": full → side → closed. */
   onStepDown: () => void
+  /** A section asked for (a search hit's), placed once it is on screen (useSectionArrival). */
+  section?: SectionAsk | null
   onClose: () => void
   /** In the room: the chat in the report's place. */
   onChat?: (() => void) | undefined
@@ -408,6 +411,8 @@ export function DocumentPane(props: Props) {
   const { identity, link, tab, onTab, onVersion, onFormat, onEnlarge, onStepDown, onClose, onChat } = props
   const pane = useRef<HTMLElement>(null)
   const data = usePaneData(identity, link, props.cursor, tab)
+  // A section asked for (a search hit's): its heading, once its version's Markdown is on screen.
+  useSectionArrival(props.section, { text: data.parsed, inSight: data.shown.inSight, versionId: data.version?.id })
   const live = useLiveVersion(pane, data.shown, data.versions.data)
   const { title, top, offer, recover, onCurrent } = usePaneBehaviour(props, data, live.showing)
   const width = usePaneWidth()

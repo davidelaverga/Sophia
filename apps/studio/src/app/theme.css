@@ -4045,3 +4045,43 @@ div.empty {
 .meeting-row:hover {
   background: var(--line);
 }
+/* Search (SearchSheet): the field, then each hit's title, its record's words and where it is from. */
+.search-field {
+  width: 100%;
+}
+.search-hits {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.search-hit {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+.search-hit:hover {
+  background: var(--line);
+}
+.search-hit-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.search-hit-snippet {
+  overflow-wrap: anywhere;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.search-hit-source {
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}

@@ -124,7 +124,8 @@ function useMarkSeen(projectId: string, identity: Identity) {
 const DAY = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
 const DAY_YEAR = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 const TIME = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-const WORDS: DateWords = {
+/** How the Studio says a date: in the reader's locale, the year only when it isn't this one. */
+export const DATE_WORDS: DateWords = {
   day: (at) => (at.getFullYear() === new Date().getFullYear() ? DAY : DAY_YEAR).format(at),
   time: (at) => TIME.format(at),
   today: (at) => at.toDateString() === new Date().toDateString(),
@@ -139,7 +140,7 @@ interface MeetingsProps {
 
 /** The project's meetings, newest first; a row opens its recap. */
 function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
-  const [open, setOpen] = useState<{ id: string; running: boolean } | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
   const list = useQuery({
     queryKey: ['vision', 'meetings', projectId, cursor],
     queryFn: ({ signal }) => listMeetings(identity.token, projectId, 10, signal),
@@ -166,12 +167,8 @@ function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
       <ul className="meeting-rows">
         {meetings.map((m) => (
           <li key={m.id}>
-            <button
-              type="button"
-              className="meeting-row"
-              onClick={() => setOpen({ id: m.id, running: m.endedAt === null })}
-            >
-              {meetingRow(m, WORDS)}
+            <button type="button" className="meeting-row" onClick={() => setOpen(m.id)}>
+              {meetingRow(m, DATE_WORDS)}
             </button>
           </li>
         ))}
@@ -180,8 +177,7 @@ function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
         <RecapSheet
           projectId={projectId}
           identity={identity}
-          meetingId={open.id}
-          running={open.running}
+          meetingId={open}
           {...sheet}
           names={NO_NAMES}
           onClose={() => setOpen(null)}
