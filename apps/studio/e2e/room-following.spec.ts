@@ -56,7 +56,9 @@ test('following · going to another view while following says nothing is followe
   expect(await asked(page)).not.toContain('leave')
 })
 
-test('following · a rejoin says the version again, as the real connection does', async ({ page }) => {
+test('following · a rejoin is another call: nothing is followed in it until Follow, which the new connection hears', async ({
+  page,
+}) => {
   await page.evaluate(() => window.fixture?.show(1))
   await card(page).getByRole('button', { name: 'Follow' }).click()
   await expect.poll(() => asked(page)).toContain(`following:${V1}`)
@@ -64,12 +66,14 @@ test('following · a rejoin says the version again, as the real connection does'
   await page.keyboard.press('Escape') // the recap goes
   await page.getByRole('button', { name: 'Join the room' }).first().click()
   await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
-  // Still following the report shown, or following it again: either way the new connection hears it.
+  // What the last call followed stays with it (Codex on #130): the report is offered, not presented, and not said.
   const follow = card(page).getByRole('button', { name: 'Follow' })
-  if (await follow.isVisible()) await follow.click()
-  await expect
-    .poll(async () => (await asked(page)).filter((a) => a === `following:${V1}`).length)
-    .toBeGreaterThanOrEqual(2)
+  await expect(follow).toBeVisible()
+  await expect(presented(page)).toHaveCount(0)
+  expect((await asked(page)).filter((a) => a === `following:${V1}`)).toHaveLength(1)
+  await follow.click()
+  await expect(presented(page)).toBeVisible()
+  await expect.poll(async () => (await asked(page)).filter((a) => a === `following:${V1}`).length).toBe(2)
 })
 
 test('following · leaving the project for home, the call still on, says nothing is followed; back, it says it again', async ({

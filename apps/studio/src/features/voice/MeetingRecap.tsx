@@ -3,10 +3,23 @@
 // committed records only. Copy recap puts it on the clipboard; an editor or admin closes the meeting for everyone, once
 // per key (useAdmission). Shown only under the vision flag, where the fixture pages answer.
 import { AfterMeeting } from './AfterMeeting.tsx'
-import { namers, ongoing, recapHead, recapSections, recapText, type RecapSection, type Records } from './recap-view.ts'
+import {
+  leaveRecap,
+  namers,
+  ongoing,
+  recapHead,
+  recapping,
+  recapSections,
+  recapText,
+  type LeaveRecap,
+  type RecapSection,
+  type Recapping,
+  type Records,
+  type Sheets,
+} from './recap-view.ts'
 import { VISION } from '../../app/vision.ts'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { closeMeeting, getRecap, listMeetings, type MeetingRecap, type MeetingReceipt } from '../../api/vision.ts'
@@ -26,13 +39,15 @@ import type { ProjectRoom } from './useProjectRoom.ts'
  */
 export function useLeftCall(room: Pick<ProjectRoom, 'leftByPress'>) {
   const [seen, setSeen] = useState(room.leftByPress)
-  const [left, setLeft] = useState<number | null>(null)
-  if (seen !== room.leftByPress) {
-    setSeen(room.leftByPress)
-    // Left from the running meeting's own sheet (one opened in Updates): the person is reading its recap already.
-    if (runningShown.count === 0) setLeft(room.leftByPress)
-  }
-  return { left, dismiss: () => setLeft(null) }
+  const [recap, setRecap] = useState<LeaveRecap>({ left: null, waiting: null })
+  // Left from the running meeting's own sheet (from Updates or Search), nothing opens: the person reads it already. A
+  // sheet that can't tell yet makes the leave's recap wait until it can, or closes (Codex on #138).
+  const sheets = useSyncExternalStore(watchSheets, sheetsNow)
+  const leave = seen === room.leftByPress ? undefined : room.leftByPress
+  if (leave !== undefined) setSeen(leave)
+  const next = leaveRecap(recap, sheets, leave)
+  if (next.left !== recap.left || next.waiting !== recap.waiting) setRecap(next)
+  return { left: next.left, dismiss: () => setRecap((r) => ({ ...r, left: null })) }
 }
 
 interface Props {
@@ -69,7 +84,10 @@ interface SheetProps {
   meetingId?: string
   /** On leaving, which leave this is: each reads its own recap, never one an earlier leave is still waiting for. */
   leave?: number
-  /** Whether the meeting runs, as the opener knows it (Updates' list); until its recap is read, this says it. */
+  /**
+   * Whether the meeting runs, as the opener knows it (Updates' list, Search's read); until its recap is read, this says
+   * it. Undefined: the opener can't tell (yet).
+   */
   running?: boolean | undefined
   identity: Identity
   roomId: string
@@ -80,8 +98,30 @@ interface SheetProps {
   onClose: () => void
 }
 
-/** How many sheets recap the running meeting: leaving from inside one opens no second. */
-const runningShown = { count: 0 }
+/**
+ * The sheets recapping a meeting now (recap-view's Sheets), told once a commit's effects have all run, so a sheet that
+ * finds out is never seen as neither.
+ */
+let sheets: Sheets = { running: 0, unknown: 0 }
+const watchers = new Set<() => void>()
+let telling = false
+function countSheet(which: Recapping, by: 1 | -1) {
+  if (which === 'past') return
+  sheets = { ...sheets, [which]: sheets[which] + by }
+  if (telling) return
+  telling = true
+  queueMicrotask(() => {
+    telling = false
+    for (const watcher of watchers) watcher()
+  })
+}
+const watchSheets = (watcher: () => void) => {
+  watchers.add(watcher)
+  return () => {
+    watchers.delete(watcher)
+  }
+}
+const sheetsNow = () => sheets
 
 /** Every recap read of a project starts with this key: closing a meeting reads them all again. */
 const recapKey = (projectId: string) => ['vision', 'recap', projectId] as const
@@ -109,17 +149,13 @@ export function RecapSheet(props: SheetProps) {
   const recap = useRecap(projectId, identity.token, props)
   const close = { projectId, identity, roomId }
   const titleId = useId()
-  // It recaps the running meeting (the latest, on leaving; else as its recap says, or, until it is read, as the opener
-  // knew it, and if unknown, as running): leaving from it opens no second.
-  const known = recap.data === undefined ? (props.running ?? true) : recap.data?.endedAt === null
-  const running = props.meetingId === undefined || known
+  // Leaving from the running meeting's sheet opens no second; from a past one's, the recap of the call left; and while
+  // it can't tell yet, that recap waits until it can (Codex on #130 and #138).
+  const which = recapping({ latest: props.meetingId === undefined, read: recap.data, running: props.running })
   useEffect(() => {
-    if (!running) return undefined
-    runningShown.count += 1
-    return () => {
-      runningShown.count -= 1
-    }
-  }, [running])
+    countSheet(which, 1)
+    return () => countSheet(which, -1)
+  }, [which])
   return (
     <Sheet id={titleId} title="This meeting" onClose={onClose} returnTo={callAnchor}>
       <Waiting words="Putting the meeting together…" waiting={recap.isPending} />
@@ -182,7 +218,7 @@ function RecapBody({ recap, title, names, editor, close, onClose }: BodyProps) {
           identity={close.identity}
           meetingId={recap.meetingId}
           endedAt={recap.endedAt}
-          waiting={recap.work.some((w) => ongoing(w.state))}
+          running={recap.work.filter((w) => ongoing(w.state)).map((w) => w.taskId)}
           anchor={callAnchor}
           onOpen={onClose}
         />

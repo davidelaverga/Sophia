@@ -35,7 +35,10 @@ export interface ProjectRoom {
   sendChat: (packet: ChatInput) => Promise<void>
   status: DockStatus
   error: string | null
-  /** Which call this is: it moves when a new one begins, so what belonged to the last (a chat error) goes with it. */
+  /**
+   * Which call this is: it moves when a new one begins, so what belonged to the last (a chat error, what it followed)
+   * goes with it. Never another call's, even once the room is mounted again (newCall).
+   */
   call: number
   /** Why a microphone, camera or screen did not start, in words a person can act on. */
   mediaError: string | null
@@ -239,6 +242,12 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
   }
 }
 
+/** Calls numbered on this page, by any room: a room mounted again starts from where the last left off. */
+let callsNumbered = 0
+
+/** A call's number, never another's: what a call keeps (what it followed) is never a later call's (Codex on #138). */
+export const newCall = (): number => (callsNumbered += 1)
+
 /**
  * One join at a time: a second connection for the same person makes LiveKit drop the first, and the call would say
  * it moved elsewhere. A join asked for while one is under way waits on that one, until its call ends (`joining` is
@@ -246,12 +255,12 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
  * `call` moves with each call begun.
  */
 function useJoin(ports: Omit<JoinPorts, 'onLive'>, joining: { current: Promise<boolean> | null }) {
-  const [call, setCall] = useState(0)
+  const [call, setCall] = useState(newCall)
   const [liveSince, setLiveSince] = useState<number | null>(null)
   const join = (options?: { textOnly?: boolean }) => {
     if (joining.current) return joining.current
     const onLive = () => {
-      setCall((n) => n + 1)
+      setCall(newCall())
       setLiveSince(Date.now())
     }
     const attempt: Promise<boolean> = joinConnection({ ...ports, onLive }, options).finally(() => {

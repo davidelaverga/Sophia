@@ -28,8 +28,9 @@ const recordAtClose = (page: Page) =>
     .filter({ hasNot: page.getByRole('heading', { name: 'After the meeting' }) })
 
 /** In the call with Sophia's research running; leave, and close the meeting from its recap. */
-async function closeWithResearchRunning(page: Page) {
+async function closeWithResearchRunning(page: Page, opened?: (page: Page) => Promise<void>) {
   await page.goto('/room.html?call=on&people=2&research=running')
+  await opened?.(page)
   await expect(leave(page)).toBeVisible()
   await leave(page).click()
   await recap(page).getByRole('button', { name: 'Close the meeting' }).click()
@@ -84,4 +85,75 @@ test('return · with the sheet open, what the work made comes into «After the m
   await expect(part(page, 'After the meeting')).toContainText('Nothing yet.')
   await page.evaluate(() => window.fixture?.researchDone())
   await expect(part(page, 'After the meeting')).toContainText('Fixture report ready · v1', { timeout: 9000 })
+})
+
+const MEETING = '00000000-0000-4000-8000-0000000000e1'
+const SECOND = '00000000-0000-4000-8000-0000000000c9'
+
+declare global {
+  interface Window {
+    /** This check's second task finishes (room-return.spec.ts). */
+    secondTaskDone?: () => void
+  }
+}
+
+/**
+ * A second task running alongside the research, for this check only (the page's own fetch, wrapped): the meeting's
+ * recap lists it with the research, and «after» says it finished once `window.secondTaskDone()` is called.
+ */
+const withSecondTask = (page: Page) =>
+  page.evaluate(
+    ({ meeting, second }) => {
+      const own = window.fetch
+      let finishedAt: string | null = null
+      window.secondTaskDone = () => {
+        finishedAt = new Date().toISOString()
+      }
+      window.fetch = async (input, init) => {
+        const response = await own(input, init)
+        const path = new URL(input instanceof Request ? input.url : String(input), window.location.href).pathname
+        const added = path.endsWith(`/meetings/${meeting}/recap`)
+          ? { list: 'work', item: { taskId: second, kind: 'review', state: 'running' } }
+          : path.endsWith(`/meetings/${meeting}/after`) && finishedAt !== null
+            ? {
+                list: 'updates',
+                item: {
+                  at: finishedAt,
+                  kind: 'work_finished',
+                  taskId: second,
+                  artifactId: null,
+                  artifactVersionId: null,
+                  versionNumber: null,
+                  title: null,
+                },
+              }
+            : null
+        if (!response.ok || !added) return response
+        const body: unknown = await response.clone().json()
+        const items: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, added.list) : undefined
+        if (!Array.isArray(items)) return response
+        items.push(added.item)
+        return new Response(JSON.stringify(body), { status: response.status, headers: response.headers })
+      }
+    },
+    { meeting: MEETING, second: SECOND },
+  )
+const afterReads = async (page: Page) =>
+  (await page.evaluate(() => [...(window.fixture?.served ?? [])])).filter((s) => s === 'after').length
+
+test('return · with two tasks running at close, the first to finish leaves the other waited for, until it finishes', async ({
+  page,
+}) => {
+  await closeWithResearchRunning(page, withSecondTask)
+  await expect(part(page, 'Work')).toContainText('review')
+  await expect(part(page, 'After the meeting')).toContainText('Nothing yet.')
+  await page.evaluate(() => window.fixture?.researchDone())
+  await expect(part(page, 'After the meeting')).toContainText('Fixture report ready · v1', { timeout: 9000 })
+  // One of two (Codex on #130): still read again, so the second comes into the open sheet too.
+  await page.evaluate(() => window.secondTaskDone?.())
+  await expect(part(page, 'After the meeting')).toContainText('Work finished', { timeout: 9000 })
+  // Both finished: nothing is read again.
+  const reads = await afterReads(page)
+  await page.waitForTimeout(5000)
+  expect(await afterReads(page)).toBe(reads)
 })
