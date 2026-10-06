@@ -2170,3 +2170,87 @@
     text-align: left;
   }
 }
+/* Carry only what you choose (CarryPackage, Davide's chapter 1): a reviewed package of notes, in the notes panel. */
+.places .c3-pack-open {
+  justify-self: start;
+  margin: 6px 0 4px;
+}
+.places .c3-pack {
+  display: grid;
+  gap: 10px;
+  margin: 6px 0 10px;
+  padding: 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: rgba(236, 235, 241, 0.03);
+}
+.places .c3-pack h3 {
+  font-size: 13px;
+  font-weight: 600;
+}
+.places .c3-pack h3:focus {
+  outline: none;
+}
+.places .c3-pack-to {
+  display: grid;
+  gap: 4px;
+}
+.places .c3-pack-to select {
+  height: 30px;
+  border-radius: var(--r-2);
+  font: inherit;
+  font-size: 13px;
+}
+.places .c3-pack-notes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.places .c3-pack-note {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: start;
+  min-height: 24px;
+  font-size: 13px;
+}
+.places .c3-pack-note input {
+  width: 16px;
+  height: 24px;
+  margin: 0;
+}
+.places .c3-pack-stays,
+.places .c3-pack-copy,
+.places .c3-pack-none,
+.places .c3-pack-said {
+  color: var(--text-sec);
+  font-size: 11px;
+}
+.places .c3-pack-receive {
+  display: grid;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--halo);
+}
+.places .c3-pack-receive h4 {
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.places .c3-pack-receive ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.places .c3-pack-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}

@@ -46,6 +46,7 @@ import { reviewed, type Reviews } from './review-data.ts'
 import { created, finished, type Tasks } from './task-data.ts'
 import type { ConversationMessage, ConversationSummary, ProjectTask, VersionReview } from '../src/api/vision.ts'
 import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
+import type { ProjectRelease } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
@@ -122,6 +123,10 @@ interface Project {
   searchHeld?: (() => void)[] | null
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
   reviews?: Reviews
+  /** What members carried in from Personal (the project list's releases, chapter 1); absent, none. */
+  carriedIn?: ProjectRelease[]
+  /** The project list's reads fail (`projects=fail`). */
+  projectsFail?: boolean
   /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
   tasks?: Tasks
   /** The meeting the room is in (meeting-data.ts, A12); absent, its requests are unexpected. */
@@ -260,6 +265,7 @@ function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
   const talk = project.conversations && conversationRead(project.conversations, url)
   if (talk !== undefined) return talk
+  if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
   const reviews = REVIEWS_OF.exec(url.pathname)
   if (reviews?.[2]) return reviewsRead(project, reviews[2])
   const tasksOf = TASKS_OF.exec(url.pathname)?.[1]
@@ -372,6 +378,27 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   const start = Math.max(0, end - MESSAGE_PAGE)
   served.push(`messages:${conversationId.slice(-2)}:${String(start)}`)
   return json({ messages: all.slice(start, end), before: start > 0 ? String(start) : null })
+}
+
+/** The person's projects (`GET /api/v1/projects`): this one, with what members carried in from Personal. */
+function projectListAnswer(project: Project) {
+  if (project.projectsFail) return unavailable()
+  served.push('projects:read')
+  const room = null
+  return json({
+    projects: [
+      {
+        projectId: PROJECT,
+        title: 'Fixture project',
+        role: project.role ?? membership.role,
+        members: 3,
+        room,
+        nextSession: null,
+        releases: project.carriedIn ?? [],
+      },
+    ],
+    personalEpoch: 1,
+  })
 }
 
 /** A version's reviews as read (A16): none where the page keeps none, and then the read isn't counted. */

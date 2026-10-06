@@ -128,6 +128,8 @@ interface Fixture {
   conversationMoves: () => void
   /** The brief's reads fail, or read again. */
   failMission: (on: boolean) => void
+  /** The project list's reads fail, or read again (chapter 1). */
+  failProjects: (on: boolean) => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
   holdTasks: (on: boolean) => void
   releaseTasks: () => void
@@ -290,6 +292,34 @@ const project = {
   // second one's messages fail), and the brief's context beside them.
   ...conversationsAsked(query.get('conversations'), query.get('messages') === 'fail'),
   // A16: the versions' reviews (review-data.ts).
+  // Chapter 1: what members carried in from Personal (`carried=1`), and the project list failing (`projects=fail`).
+  carriedIn: query.has('carried')
+    ? [
+        // As the API orders them: oldest first (project-list.ts); the Studio shows them newest first.
+        {
+          id: '00000000-0000-4000-8000-0000000007f0',
+          text: 'Name the sources we trust',
+          ownerName: 'Lucía',
+          mine: false,
+          createdAt: '2026-10-05T10:00:00.000Z',
+        },
+        {
+          id: '00000000-0000-4000-8000-0000000007f1',
+          text: 'Start the deck from one number I trust',
+          ownerName: 'Fixture viewer',
+          mine: true,
+          createdAt: '2026-10-05T16:00:00.000Z',
+        },
+        {
+          id: '00000000-0000-4000-8000-0000000007f2',
+          text: 'Ask finance for the March close',
+          ownerName: 'Marco',
+          mine: false,
+          createdAt: '2026-10-06T09:00:00.000Z',
+        },
+      ]
+    : [],
+  projectsFail: query.get('projects') === 'fail',
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
   missionFails: false,
@@ -419,6 +449,9 @@ window.fixture = {
   },
   failMission: (on) => {
     project.missionFails = on
+  },
+  failProjects: (on) => {
+    project.projectsFail = on
   },
   holdSearch: (on) => {
     if (!on) for (const answer of project.searchHeld ?? []) answer()

@@ -17,6 +17,7 @@ import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership, type SheetContext } from '../access/useAccess.ts'
 import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
 import { KnowledgeReports } from '../artifacts/KnowledgeReports.tsx'
+import { CarriedIn } from '../artifacts/CarriedIn.tsx'
 import { sendingOf } from '../voice/CallSwitches.tsx'
 import { MiniDock, RoomSwitches } from '../voice/MiniDock.tsx'
 import { CallInReach } from '../../app/call-in-reach.tsx'
@@ -545,9 +546,7 @@ function pageClass(work: boolean, plans: BodyProps['plans']): string {
  */
 function PageBody(props: BodyProps) {
   const { view, projectId, identity, membership, snapshot, onShow, onInvite, plans } = props
-  if (view === 'knowledge') {
-    return <KnowledgeReports projectId={projectId} identity={identity} canEdit={canInvite(membership)} />
-  }
+  if (view === 'knowledge') return <Knowledge {...{ projectId, identity, membership }} />
   if (view === 'goals' || view === 'work') {
     return (
       <GoalList
@@ -570,6 +569,18 @@ function PageBody(props: BodyProps) {
     return <UpdatesView {...{ projectId, identity, snapshot, membership, inCall }} />
   }
   return view === 'studio' ? null : <PendingView view={view} onShow={onShow} />
+}
+
+/** Knowledge: the project's reports, and under the vision flag what members carried in from Personal. */
+function Knowledge({ projectId, identity, membership }: Pick<BodyProps, 'projectId' | 'identity' | 'membership'>) {
+  return (
+    <KnowledgeReports
+      projectId={projectId}
+      identity={identity}
+      canEdit={canInvite(membership)}
+      carriedIn={VISION ? <CarriedIn projectId={projectId} identity={identity} /> : null}
+    />
+  )
 }
 
 /** A person's short name in the room ('you' for yourself), for the observation indicator. */
