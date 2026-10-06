@@ -87,8 +87,9 @@ const FOREIGN = /^-(?:moz|ms|o|khtml)-/
  * Text decorations, drawn over the text they decorate: a line through it crosses every glyph, and a decoration of a
  * thickness or an offset of its own can be as thick as a glyph, or raised over it. In the background's colour, one
  * buries a heading whose fill, which the render reads, stays readable (#117). So no line through a text in any rule,
- * and, outside a rule for a state no capture takes (held to a mark of a few pixels, stateRuleIssue), a decoration at
- * the font's own thickness and place: keywords and colours only.
+ * no line over it in a rule for a state no capture takes (an underline marks a link), and in every rule a decoration
+ * at the font's own thickness and place: keywords and colours only. Three lines 6px thick in the background's colour,
+ * on `:target`, would strike a block out once a link to it is followed, where no capture shows it (#117).
  */
 const DECORATION_LINES = /^(?:-webkit-)?text-decoration(?:-line)?$/
 const DECORATION_LENGTHS = /^(?:-webkit-)?text-(?:decoration-thickness|underline-offset)$/
@@ -226,7 +227,10 @@ const PLACE_PSEUDO_CLASSES = new Set([
   'after',
 ])
 const STATE_ATTRIBUTES = new Set(['open'])
-/** What a rule for a state may set: an outline and a text decoration, the marks of focus and of a link. */
+/**
+ * What a rule for a state may set: an outline, drawn outward, and an underline at the font's own thickness and place
+ * (decorationIssue), the marks of focus and of a link.
+ */
 const STATE_PROPERTIES = new Set([
   'outline',
   'outline-color',
@@ -240,7 +244,7 @@ const STATE_PROPERTIES = new Set([
   'text-decoration-thickness',
   'text-underline-offset',
 ])
-/** The longest length a state's mark may take, in pixels: a mark, never a cover. */
+/** The longest length a state's mark may take, in pixels, and never inward: a mark, never a cover (#117). */
 const STATE_PX = 6
 const COLOR_FUNCTIONS = new Set([
   'rgb',
@@ -272,8 +276,8 @@ function stateDeclarationIssue(node: CssNode): string | null {
   if (!STATE_PROPERTIES.has(node.property.toLowerCase())) return node.property
   const found: string[] = []
   walk(node.value, (part) => {
-    if (part.type === 'Dimension' && !(part.unit.toLowerCase() === 'px' && Math.abs(Number(part.value)) <= STATE_PX))
-      found.push(`${part.value}${part.unit}`)
+    const px = part.type === 'Dimension' && part.unit.toLowerCase() === 'px' ? Number(part.value) : Number.NaN
+    if (part.type === 'Dimension' && !(px >= 0 && px <= STATE_PX)) found.push(`${part.value}${part.unit}`)
     if (part.type === 'Percentage') found.push(`${part.value}%`)
     if (part.type === 'Function' && !COLOR_FUNCTIONS.has(part.name.toLowerCase())) found.push(`${part.name}()`)
   })
@@ -291,7 +295,7 @@ function stateRuleIssue(node: CssNode): string | null {
   return found.length === 0
     ? null
     : `a rule for a state no capture takes (a pointer, focus, :target, a link visited or not, an open disclosure) ` +
-        `may only mark it with an outline or a text decoration of at most ${STATE_PX}px, not ${found[0] ?? ''}; ` +
+        `may only mark it with an outline of at most ${STATE_PX}px, drawn outward, or an underline, not ${found[0] ?? ''}; ` +
         'select by place (:first-child, :nth-of-type(), :is(), :has()...) or :any-link otherwise'
 }
 
@@ -314,6 +318,10 @@ function isKeywordOrColour(part: CssNode, keywords: ReadonlySet<string> | null):
   return part.type === 'Hash' || (part.type === 'Function' && COLOR_FUNCTIONS.has(part.name.toLowerCase()))
 }
 
+/** The keywords among a value's parts, in lower case. */
+const keywordsIn = (parts: readonly CssNode[]): string[] =>
+  parts.flatMap((p) => (p.type === 'Identifier' ? [p.name.toLowerCase()] : []))
+
 /** Why a text decoration may be drawn over the text, or null (DECORATION_LINES): in a rule for a state or not. */
 function decorationIssue(node: CssNode, inState: boolean): string | null {
   if (node.type !== 'Declaration') return null
@@ -321,9 +329,12 @@ function decorationIssue(node: CssNode, inState: boolean): string | null {
   const lines = DECORATION_LINES.test(property)
   if (!lines && !DECORATION_LENGTHS.test(property)) return null
   const parts = node.value.type === 'Value' ? node.value.children.toArray() : [node.value]
-  if (lines && parts.some((p) => p.type === 'Identifier' && p.name.toLowerCase() === 'line-through'))
+  const drawn = lines ? keywordsIn(parts) : []
+  if (drawn.includes('line-through'))
     return `${node.property} may not draw a line through the text: it crosses every glyph, and can bury them`
-  if (inState || parts.every((p) => isKeywordOrColour(p, lines ? null : DECORATION_KEYWORDS))) return null
+  if (inState && drawn.includes('overline'))
+    return `${node.property} in a rule for a state no capture takes may underline only, not draw a line over the text`
+  if (parts.every((p) => isKeywordOrColour(p, lines ? null : DECORATION_KEYWORDS))) return null
   return (
     `${node.property} may take keywords and colours only: a decoration of a thickness or an offset of its own can ` +
     "cover the text it decorates; the font's own is drawn beneath it"

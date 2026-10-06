@@ -1136,7 +1136,7 @@ describe('a pseudo-element styles only generated content (#117)', () => {
     assert.deepEqual(codes(withCss(good, `${mediaSheet(400, 8)}\n${mediaSheet(400, 8)}`)), [], 'the same eight twice')
   })
   // #117: the captures take no state a reader puts the page in: a pointer, focus, a followed fragment, a visited link.
-  it('holds a rule for a state no capture takes to an outline or a text decoration of a few pixels', () => {
+  it('holds a rule for a state no capture takes to an outline of a few pixels, drawn outward, or an underline', () => {
     for (const bad of [
       '[data-block]:target{display:none}',
       'p:hover{color:#fafafa}',
@@ -1150,13 +1150,24 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       'a:hover{text-decoration-thickness:40px}',
       'a:focus{outline-width:var(--w)}',
       'a:focus{outline-offset:-2em}',
+      // #117: a mark is drawn outward, and an underline at the font's own thickness and place.
+      'a:focus{outline-offset:-2px}',
+      'a:focus{outline:2px solid #fafafa;outline-offset:-1px}',
+      '[data-block]:target{text-decoration:underline overline line-through #fafafa;text-decoration-thickness:6px}',
+      '[data-block]:target{text-decoration:underline overline #fafafa}',
+      'a:hover{text-decoration-line:overline}',
+      'a:hover{text-decoration-thickness:2px}',
+      'a:hover{text-underline-offset:3px}',
       '@media (min-width: 720px){a:hover{color:#fafafa}}',
     ])
       assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
     assert.ok(css('a:hover{& span{display:none}}').includes('css_unsafe'), 'a rule nested in a state')
     for (const ok of [
       'a:focus-visible{outline:2px solid #1a4fd6;outline-offset:2px}',
-      'a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}',
+      'a:focus{outline-offset:0}',
+      'a:hover{text-decoration:underline wavy #1a4fd6}',
+      'a:hover{text-decoration-line:underline}',
+      'a:hover{text-decoration:underline;text-decoration-thickness:from-font;text-underline-offset:auto}',
       'a:hover{text-decoration-color:rgb(26 79 214)}',
       'a:any-link{color:#1a4fd6}',
       'li:nth-of-type(2n){background:#f6f6f6}',
@@ -1186,7 +1197,7 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       assert.deepEqual(css(ok), [], ok)
   })
   // #117: a decoration is drawn over the text: through it, or as thick as a glyph, it can bury what the render passes.
-  it("refuses a line through a text, and a decoration of a thickness or an offset of its own outside a state's mark", () => {
+  it('refuses a line through a text, and a decoration of a thickness or an offset of its own, in any rule', () => {
     for (const bad of [
       'h2{text-decoration:line-through}',
       'h2{text-decoration-line:underline line-through}',
@@ -1212,12 +1223,11 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       'a{text-decoration:underline dotted #1a4fd6}',
       'a{text-decoration:underline rgb(26 79 214) from-font}',
       'a{text-decoration:none}',
-      'a{text-decoration-line:underline overline}',
       'a{text-decoration-thickness:from-font}',
       'a{text-decoration-thickness:auto}',
       'a{text-underline-offset:auto}',
       'a{text-decoration-color:rgb(26 79 214)}',
-      'a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}',
+      'a{text-decoration-line:underline overline}',
     ])
       assert.deepEqual(css(ok), [], ok)
   })
