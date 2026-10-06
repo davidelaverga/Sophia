@@ -854,6 +854,22 @@ describe('a pseudo-element styles only generated content (#117)', () => {
     for (const ok of ['h2{border-radius:4px}', '.marker{background:linear-gradient(#eef,#fff)}'])
       assert.deepEqual(css(ok), [], ok)
   })
+  // #117: a stroke in the background's colour buries a text whose fill, which the render reads, stays readable.
+  it('refuses a text stroke in every form, in any medium and in a style attribute', () => {
+    for (const bad of [
+      'h2{-webkit-text-stroke:12px #fff}',
+      'h2{-webkit-text-stroke-width:12px}',
+      'h2{-webkit-text-stroke-color:#fff}',
+      'h2{text-stroke:12px #fff}',
+      'h2{-WEBKIT-TEXT-STROKE:12px #fff}',
+      '@media (min-width: 600px){h2{-webkit-text-stroke:12px #fff}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<h1>', '<h1 style="-webkit-text-stroke:12px #fff">')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of ['h2{text-shadow:0 1px 2px #ccc}', 'h2{-webkit-text-fill-color:#111}'])
+      assert.deepEqual(css(ok), [], ok)
+  })
   // #117: the render finds a cover by what a point on the text reaches; pointer-events: none would hide one from it.
   it('refuses pointer-events, which only a page with a pointer behaviour needs, in a stylesheet or a style attribute', () => {
     for (const bad of ['.cover{pointer-events:none}', 'h2::after{pointer-events:none}', '*{pointer-events:auto}'])

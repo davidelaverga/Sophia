@@ -512,11 +512,12 @@ describe('the confined capture kernel', () => {
         job(
           page(
             `${BASE} .muted{color:#aaa} .sep{color:#ddd} .faint{opacity:.12} .fill{-webkit-text-fill-color:transparent}
-           .filtered{filter:opacity(.1)} .group{background:#000;color:#fff;opacity:.5}`,
+           .filtered{filter:opacity(.1)} .group{background:#000;color:#fff;opacity:.5}
+           .stroked{color:#000;-webkit-text-stroke:6px #fff}`,
             `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
           <h2 class="muted">Muted heading</h2><p class="sep">·</p><h2 class="faint">Faint heading</h2>
           <h2 class="fill">Unfilled heading</h2><h2 class="filtered">Filtered heading</h2>
-          <h2 class="group">Grouped heading</h2></section></main>`,
+          <h2 class="group">Grouped heading</h2><h2 class="stroked">Stroked heading</h2></section></main>`,
           ),
         ),
         { env },
@@ -525,7 +526,7 @@ describe('the confined capture kernel', () => {
       const framing = receipt.targets[0]!.page.framing
       assert.deepEqual(
         framing.map((m) => m.id),
-        ['text 1 h2', 'text 2 h2', 'text 3 h2', 'text 4 h2', 'text 5 h2', 'text 6 h2'],
+        ['text 1 h2', 'text 2 h2', 'text 3 h2', 'text 4 h2', 'text 5 h2', 'text 6 h2', 'text 7 h2'],
         'the separator is not measured',
       )
       assert.deepEqual(framing[4]?.contrast.detail, 'filtered', 'a filter changes the colours: unknown, never passed')
@@ -533,6 +534,11 @@ describe('the confined capture kernel', () => {
         framing[5]?.contrast.detail,
         'group_opacity',
         'its background fades with it: unknown, never passed',
+      )
+      assert.deepEqual(
+        framing[6]?.contrast.detail,
+        'stroked',
+        'a white stroke buries a black fill on white: unknown, never passed (#117)',
       )
       for (const target of ['w390-light', 'w1280-light']) {
         assert.equal(outcome(receipt, 'contrast', target), 'failed', target)

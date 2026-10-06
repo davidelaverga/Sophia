@@ -91,6 +91,11 @@ const MASKS = new Set(['-webkit-text-security', 'text-security'])
  */
 const MASKING = /^(?:-webkit-)?mask(?:-|$)/
 /**
+ * A text stroke outlines each glyph in a colour of its own, over its fill: a thick one in the background's colour buries
+ * the text while its fill, which the render reads for contrast, stays readable (#117).
+ */
+const STROKES = /^(?:-webkit-)?text-stroke(?:-|$)/
+/**
  * Properties that change what a pointer reaches, not what is drawn. A static page has no pointer behaviour, and the
  * render finds what is drawn over a text by what a point there reaches: `pointer-events: none` would hide a cover from
  * it (#117).
@@ -430,6 +435,8 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
       return `${node.property} draws what it masks as transparent; the render would measure it as shown`
     if (MOTION.test(property))
       return `${node.property} changes the page after it is captured; a static page has no motion`
+    if (STROKES.test(property))
+      return `${node.property} outlines the text in a colour of its own; the render reads the contrast of its fill`
     if (COUNTERS.has(property)) return `${node.property} chooses the numbers a list draws; they follow its items`
     if (POINTER.has(property)) return `${node.property} changes what a pointer reaches; a static page has no pointer`
     return (

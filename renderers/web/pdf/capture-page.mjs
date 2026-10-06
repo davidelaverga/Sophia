@@ -661,13 +661,24 @@ function isClear(ctx, colour) {
 }
 
 /**
- * The opacity a text is drawn at, or why its contrast cannot be read from its styles: filtered, or group_opacity.
+ * The opacity a text is drawn at, or why its contrast cannot be read from its styles: filtered, stroked, or
+ * group_opacity.
  * @param {Element} el
  * @param {OffscreenCanvasRenderingContext2D} ctx
  * @returns {number | string}
  */
 function drawnAlpha(el, ctx) {
-  return isFiltered(el) ? 'filtered' : (textAlpha(el, ctx) ?? 'group_opacity')
+  if (isFiltered(el)) return 'filtered'
+  return isStroked(el) ? 'stroked' : (textAlpha(el, ctx) ?? 'group_opacity')
+}
+
+/**
+ * Whether a text is drawn with a stroke: an outline over each glyph, in a colour of its own, which can bury the fill
+ * whose contrast is read (#117). The profile refuses it; this holds a page that has one to an unknown contrast.
+ * @param {Element} el
+ */
+function isStroked(el) {
+  return Number.parseFloat(getComputedStyle(el).getPropertyValue('-webkit-text-stroke-width') || '0') > 0
 }
 
 /**
@@ -790,8 +801,8 @@ function isLarge(el, style) {
  * it, against the floor for the size its text is drawn at (3 for large text, 4.5 otherwise): a heading set large and
  * scaled or zoomed down is held to the floor of the size a capture shows, and one whose drawn size the styles do not
  * tell to the higher floor (#117). The text is painted in the colour it is filled with, at the opacity it is drawn at
- * (#117). Unknown when the background cannot be read, a filter or blend mode changes the colours, or opacity fades a
- * background together with the text (group_opacity).
+ * (#117). Unknown when the background cannot be read, a filter or blend mode changes the colours, a stroke outlines
+ * the glyphs (#117), or opacity fades a background together with the text (group_opacity).
  * @param {Element} el
  * @param {OffscreenCanvasRenderingContext2D} ctx
  * @returns {Contrast}
@@ -1059,6 +1070,7 @@ const IN_PAGE = [
   isClear,
   drawnAlpha,
   isFiltered,
+  isStroked,
   luminance,
   gradientStops,
   backgroundLayers,
