@@ -62,7 +62,8 @@ export function useRoomMessage(
   const send = async () => {
     const message = unknown ?? { text: draft.trim(), replyTo: reply.id }
     if (!message.text || !(await write.send(message))) return
-    if (message.replyTo) reply.done()
+    // The reply sent is let go; another begun meanwhile (a message re-sent after no reply) stays.
+    if (message.replyTo !== null && message.replyTo === reply.id) reply.done()
     if (latest.current.trim() === message.text) onDraft('')
   }
   const words = unknown

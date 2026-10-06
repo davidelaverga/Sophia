@@ -15,15 +15,22 @@ export interface Replying {
 /** While replying: the bar writes to the room, the field has the focus, and Escape in it stops replying. */
 export function useReplyBar(
   replying: Replying | null,
-  choose: (target: Target) => void,
+  bar: { target: Target; choose: (target: Target) => void },
   field: RefObject<HTMLTextAreaElement | null>,
   onStop: () => void,
 ) {
   const id = replying?.id ?? null
+  const { choose, target } = bar
   const latest = useRef({ choose, onStop })
   useEffect(() => {
     latest.current = { choose, onStop }
   })
+  // A reply is the room's: should the bar go to Sophia meanwhile (its switch, or Sophia ready again), it stops.
+  const was = useRef(target)
+  useEffect(() => {
+    if (id !== null && was.current === 'room' && target !== 'room') latest.current.onStop()
+    was.current = target
+  }, [id, target])
   useEffect(() => {
     if (id === null) return
     latest.current.choose('room')

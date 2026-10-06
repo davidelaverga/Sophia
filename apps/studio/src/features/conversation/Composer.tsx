@@ -36,10 +36,14 @@ interface Props {
 const NOTHING = () => undefined
 
 /** The room's message being answered, if any (A20): the bar moves to the room, and the reply goes with the message. */
-function useReply(props: Props, choose: (target: Target) => void, field: RefObject<HTMLTextAreaElement | null>) {
+function useReply(
+  props: Props,
+  bar: { target: Target; choose: (target: Target) => void },
+  field: RefObject<HTMLTextAreaElement | null>,
+) {
   const replying = props.replying ?? null
   const stop = props.onStopReplying ?? NOTHING
-  useReplyBar(replying, choose, field, stop)
+  useReplyBar(replying, bar, field, stop)
   return { replying, stop, underWay: { id: replying?.id ?? null, done: stop } }
 }
 
@@ -323,7 +327,7 @@ export function Composer(props: Props) {
   const asked = useTypeNext(entry, field)
   const bar = entry === 'bar'
   const target = useBarTarget(bar && chat.mine, draft, field)
-  const reply = useReply(props, target.choose, field)
+  const reply = useReply(props, target, field)
   const toRoom = useRoomMessage(projectId, identity, draft, onDraft, reply.underWay)
   const begin = async () => {
     asked.current = true

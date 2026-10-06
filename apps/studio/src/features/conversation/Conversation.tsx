@@ -174,7 +174,7 @@ function Discussion({ entries, me, names, replies, onReply }: DiscussionProps) {
         const author = authorLabel(entry.actorId, me, names)
         const answers = replies.get(entry.id)
         return (
-          <li key={entry.id} id={`entry-${entry.id}`} className="contribution" tabIndex={-1}>
+          <li key={entry.id} className="contribution" {...(onReply ? { id: `entry-${entry.id}`, tabIndex: -1 } : {})}>
             {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
             <span className="contribution-author">{author}</span>
             <span className="contribution-text">{entry.text}</span>
@@ -218,7 +218,7 @@ function Quote(props: {
     <button
       type="button"
       className="contribution-quote"
-      aria-label={`Replying to ${author}: ${answers.excerpt}`}
+      aria-label={`Go to ${author}’s message: ${answers.excerpt}`}
       onClick={go}
     >
       {words}

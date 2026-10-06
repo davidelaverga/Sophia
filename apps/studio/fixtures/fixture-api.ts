@@ -25,6 +25,7 @@ import {
   type Said,
   authorOf,
   entryIdOf,
+  idOf,
 } from './data.ts'
 import {
   content,
@@ -716,7 +717,8 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
   }
   const replyTo = replyOf(project, body)
   if (replyTo instanceof Response) return replyTo
-  project.messages.push({ text: body.text, me: true, ...(replyTo ? { replyTo } : {}) })
+  const id = entryIdOf(project.messages.length)
+  project.messages.push({ id, text: body.text, me: true, ...(replyTo ? { replyTo } : {}) })
   publish(project)
   served.push(`contribution:${body.intent}`)
   const receipt: ContributionReceipt = {
@@ -778,15 +780,21 @@ const UNAVAILABLE = {
   retry: 'safe_read',
 }
 
-/** The API's answer to a key used before for another request (packages/domain/src/errors.ts). */
-/** A20: the entry a message answers (`threadId`), refused when the discussion no longer holds it; none, undefined. */
-function replyOf(project: Project, body: object): string | Response | undefined {
-  const replyTo = 'threadId' in body && typeof body.threadId === 'string' ? body.threadId : undefined
-  if (replyTo === undefined) return undefined
-  if (!project.messages.some((_, n) => entryIdOf(n) === replyTo)) return noLongerThere()
-  served.push(`contribution-reply:${replyTo}`)
-  return replyTo
+/**
+ * A20: the entry a message answers (`threadId`), with who wrote it and its first words, recorded with the reply;
+ * refused when the discussion no longer holds it; none, undefined.
+ */
+function replyOf(project: Project, body: object): Said['replyTo'] | Response {
+  const id = 'threadId' in body && typeof body.threadId === 'string' ? body.threadId : undefined
+  if (id === undefined) return undefined
+  const original = project.messages.find((m, n) => idOf(m, n) === id)
+  if (original === undefined) return noLongerThere()
+  served.push(`contribution-reply:${id}`)
+  const text = typeof original === 'string' ? original : original.text
+  return { id, actorId: authorOf(original), excerpt: text.slice(0, 80) }
 }
+
+/** The API's answer to a key used before for another request (packages/domain/src/errors.ts). */
 
 /** A reply to an entry the discussion no longer holds (A20): refused, nothing recorded. */
 const noLongerThere = () =>
@@ -802,17 +810,9 @@ const noLongerThere = () =>
 
 /** A20's proposed read: which entries answer which, with the original's first words (an excerpt, as recorded). */
 function repliesRead(project: Project) {
-  const all = project.messages
-  const replies = all.flatMap((m, n) => {
-    if (typeof m === 'string' || !m.replyTo) return []
-    const at = all.findIndex((_, i) => entryIdOf(i) === m.replyTo)
-    const original = all[at]
-    if (original === undefined) return []
-    const text = typeof original === 'string' ? original : original.text
-    return [
-      { entryId: entryIdOf(n), replyTo: { id: m.replyTo, actorId: authorOf(original), excerpt: text.slice(0, 80) } },
-    ]
-  })
+  const replies = project.messages.flatMap((m, n) =>
+    typeof m === 'string' || !m.replyTo ? [] : [{ entryId: idOf(m, n), replyTo: m.replyTo }],
+  )
   served.push('replies:read')
   return json({ replies })
 }

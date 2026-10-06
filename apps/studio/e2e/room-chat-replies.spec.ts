@@ -61,7 +61,7 @@ test('replies · sent, the reply is recorded with what it answers, shows its quo
   await expect(entries(page)).toHaveCount(2)
   const reply = entries(page).last()
   await expect(reply).toContainText('Agreed: one page.')
-  await expect(reply.getByRole('button', { name: /^Replying to .*: Let us keep the report/ })).toBeVisible()
+  await expect(reply.getByRole('button', { name: /^Go to .*message: Let us keep the report/ })).toBeVisible()
   await expect(chip(page)).toHaveCount(0)
   expect((await served(page)).filter((s) => s.startsWith('contribution-reply:'))).toEqual([
     'contribution-reply:00000000-0000-4000-8000-000000000001',
@@ -78,7 +78,7 @@ test('replies · the quote takes you to the message it answers', async ({ page }
   await bar(page).press('Enter')
   await entries(page)
     .last()
-    .getByRole('button', { name: /^Replying to / })
+    .getByRole('button', { name: /^Go to / })
     .click()
   await expect(entries(page).first()).toBeFocused()
 })
@@ -97,6 +97,40 @@ test('replies · ✕ and Escape stop replying and keep the words', async ({ page
   await bar(page).press('Escape')
   await expect(chip(page)).toHaveCount(0)
   await expect(bar(page)).toHaveValue('Half a reply')
+  // Escape let the reply go, not the chat: the panel is open and the bar keeps the focus.
+  await expect(discussion(page)).toBeVisible()
+  await expect(bar(page)).toBeFocused()
+})
+
+test('replies · a quote whose message left the discussion stays, as plain words', async ({ page }) => {
+  await enter(page)
+  await entries(page)
+    .first()
+    .getByRole('button', { name: /^Reply to / })
+    .click()
+  await bar(page).fill('Agreed: one page.')
+  await bar(page).press('Enter')
+  await expect(entries(page)).toHaveCount(2)
+  await page.evaluate(() => window.fixture?.dropOldest())
+  await expect(entries(page)).toHaveCount(1)
+  await expect(entries(page).first().locator('.contribution-quote')).toContainText('Let us keep the report')
+  await expect(
+    entries(page)
+      .first()
+      .getByRole('button', { name: /^Go to / }),
+  ).toHaveCount(0)
+})
+
+test('replies · moving the bar to Sophia lets the reply go', async ({ page }) => {
+  await enter(page)
+  await entries(page)
+    .first()
+    .getByRole('button', { name: /^Reply to / })
+    .click()
+  await expect(target(page)).toHaveText(/^To the room/)
+  await target(page).click()
+  await expect(target(page)).toHaveText(/^To Sophia/)
+  await expect(chip(page)).toHaveCount(0)
 })
 
 test('replies · a reply to a message no longer in the discussion is refused, and says so', async ({ page }) => {
