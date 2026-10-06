@@ -327,8 +327,8 @@
       "kind": "text",
       "mediaType": "text/markdown",
       "path": "sophia-visual-foundation-v1/references/html-static.md",
-      "sha256": "0aba513e100ab4bc0d75fbfa0f4b777258d68459a2bf84e8b526805fcff42c00",
-      "bytes": 5730,
+      "sha256": "fb046744159fbdbb10540a46e1b03f7e933708ab009e18781eda306c576fdc22",
+      "bytes": 5756,
       "donor": "plugins-dist/design-engine/raven_design/skills/visual-artifact-design/references/html-and-canvas.md"
     },
     {
