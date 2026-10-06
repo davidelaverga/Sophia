@@ -4,23 +4,25 @@ Goal and attempt: follow-ups to #130 (`docs/plans/room-follow-ups-7.md`), WBC-02
 Human owner / executor resource: Davide (coordinated by Codex) / Claude Code on the web, the existing WBC-02 sole-writer session
 Native session: https://claude.ai/code/session_0155SjcXhv87RErnWEBWxfBM
 Starting worktree/commit: `/home/user/Sophia`, branch `room/followups-130-fixes`, 2026-10-06. It was written on freshly fetched `origin/main` `1b4e08d88d96e5f3ba5f3ac6a596795657cf18db` (#135), then moved, before committing, onto `acd394a3a08613237703a594d534fac5d6354682` (#133). #133 touches none of this PR's files. The five Room paths Codex assigned (`StagePresent.tsx`, `useProjectRoom.ts`, `MeetingRecap.tsx`, `AfterMeeting.tsx`, `following-signal.ts`) were rechecked byte-identical to `52819159` on both bases.
-Ending commit/tree: the content commit «Room: follow-ups to #130», the parent of this handoff's commit.
+Ending commit/tree: the content commits are `f76cbfdb` «Room: follow-ups to #130», `f9c2eae4` «Room: a leave's recap waits for a sheet that can't tell; page-wide call numbers» and `e895a4d6` «Room: a recap sheet whose reads failed still can't tell». The handoff commits follow each of them. This file's last state is in the commit that changes it last.
 
 ## Outcome
 
 Codex's four P2s on #130, each reproduced by Codex on merged main:
 - **Each call has its own following** (`useFollowing`). A changed call key reloads what that call followed, and resets the focus owed to Follow. The old call's choice is never written under the new key.
 - **The reconnect resync keeps answers heard since the drop** (`following-signal.ts`). Each word is numbered by a receive sequence that only grows (not `Date.now`). The resync forgets only entries numbered at or before the drop's end, so a same-value answer in the same clock tick is kept. Retries, fencing by a later drop or the call's end, and guest exclusion are unchanged.
-- **A recap not yet read is not the running meeting's** (`RecapSheet`): unknown is not running. Search reads the latest meeting as a recap hit opens and passes what it learns (`hitRunning`). Updates still passes its list's answer.
+- **A recap not yet read neither takes nor doubles the leave's recap** (`RecapSheet`, `useLeftCall`). Search reads the latest meeting as a recap hit opens and passes what it learns (`hitRunning`), and Updates still passes its list's answer. The final behavior is below, after Codex's reviews of #138. In `f76cbfdb` alone, unknown counted as not running.
 - **«After the meeting» waits for every task running at close** (`AfterMeeting`, `pollAfter`). The task ids are frozen when the sheet opens. It polls until each has its own `work_finished` after the close, or for ten minutes. No new words on screen.
 
 Preserved: the call key's restoration (back to a call, and back from another view); the explicit current-meeting and Leave duplicate suppression, from Updates' list and now from Search's read.
 
 Codex's automatic review of the first head (`02b7b3c`) found two P2s, both fixed in the next content commit:
-- **A Leave before Search can tell opened a second recap of the running meeting** (r4200242782). A sheet now says what it recaps (`recapping`): running, past, or can't tell yet. It goes by its recap once read, else by its opener, and a recap that can't be read is past. A leave's recap waits while any sheet can't tell (`onLeave`, `useLeftCall`), so an unknown sheet neither takes nor doubles it.
+- **A Leave before Search can tell opened a second recap of the running meeting** (r4200242782). A sheet now says what it recaps (`recapping`): running, past, or can't tell yet. It goes by its recap once read, else by its opener. A leave's recap waits while any sheet can't tell (`leaveRecap`, used by `useLeftCall`), so an unknown sheet neither takes nor doubles it. It opens or not once the sheet tells, or opens once the sheet closes, and a second leave while the first waits takes the wait over. (In `f9c2eae4`, a failed read still counted as past; the third commit removed that.)
 - **A remounted room reused a call's number** (review 5434386199). `room.call` restarted at 0 with each mount of the room, so a later call could find the following kept under an earlier one's key. Call numbers now come from one page-wide counter (`newCall`), so they are never reused.
 
-Codex's review of the second head (`a99112f8`) found one more P2, fixed in the third content commit. A sheet whose reads both failed was taken as past (r4200383277), so a Leave from the running meeting's sheet still opened a second, failed recap. A failed read says nothing about the meeting, so such a sheet now stays unknown. The leave's recap waits for a read that tells (the sheet's Try again) or for the sheet to close.
+Codex's review of the second head (`a99112f8`) found one more P2, fixed in the third content commit (`e895a4d6`). A sheet whose reads both failed was taken as past (r4200383277), so a Leave from the running meeting's sheet still opened a second, failed recap. A failed read says nothing about the meeting, so such a sheet now stays unknown. The leave's recap waits for a read that tells (the sheet's Try again) or for the sheet to close.
+
+**The final behavior:** a sheet is running or past only once its own recap read or its opener says so. Otherwise, a failed read included, it can't tell, and a leave's recap waits for it to tell or close.
 
 ## Evidence
 
