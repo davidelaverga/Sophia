@@ -226,7 +226,10 @@ export function assess({ context = null, disk = [], identity = null, timings = [
 function homeLine(check) {
   const d = check?.detail
   if (!d) return `Home: ${check?.result ?? 'not reached'}.`
-  const cover = (c) => `${c.listed ?? '?'} of ${c.total ?? '?'} files listed${c.oversize?.length ? `, ${c.oversize.length} too large to hash` : ''}${c.complete ? '' : ' (incomplete)'}`
+  const cover = (c) =>
+    `${c.listed ?? '?'} of ${c.total ?? '?'} files listed` +
+    `${c.oversize?.length ? `, ${c.oversize.length} too large to hash` : ''}` +
+    `${c.errors?.length ? `, ${c.errors.length} directories unread` : ''}${c.complete ? '' : ' (incomplete)'}`
   const list = (name, paths) => (paths.length ? `; ${name}: ${paths.join(', ')}` : '')
   return (
     `Home: ${check.result}. Before ${cover(d.coverage.before)}; after ${cover(d.coverage.after)}` +

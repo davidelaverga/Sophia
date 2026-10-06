@@ -5,7 +5,7 @@
 // digests never read) or one of the same kind, and none of them may read as qualified.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { compareSnapshots, coverageOf, parseListing } from '../../scripts/paperclip-image-home.mjs'
+import { compareSnapshots, coverageOf, EMPTY_SHA256 } from '../../scripts/paperclip-image-home.mjs'
 import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS } from '../../scripts/paperclip-image-receipt.mjs'
 import { redact } from '../../scripts/paperclip-image-redact.mjs'
 
@@ -23,7 +23,7 @@ const files = [
   { path: LOG, size: 4000, sha256: '3'.repeat(64) },
 ]
 /** Every regular file under the home listed and hashed: none too large, the file bound not reached. */
-const covered = (list) => ({ total: list.length, oversize: [], maxFiles: 500, maxFileBytes: 10 * 1024 * 1024 })
+const covered = (list) => ({ total: list.length, oversize: [], errors: [], maxFiles: 500, maxFileBytes: 10 * 1024 * 1024 })
 /** The log grew to 5000 bytes, its first 4000 the ones it had: the prefix the later snapshot read. */
 const grownFiles = files.map((f) => (f.path === LOG ? { ...f, size: 5000, sha256: '9'.repeat(64) } : f))
 const grown = { coverage: covered(grownFiles), files: grownFiles, prefixes: { [LOG]: { size: 4000, sha256: '3'.repeat(64) } } }
@@ -229,7 +229,7 @@ describe('the home across a recreation (WBC-02-CX-0036)', () => {
   })
 
   it('review of the correction: a growing record truncated, replaced or unverified is not persisted', () => {
-    const truncated = files.map((f) => (f.path === LOG ? { ...f, size: 0, sha256: 'e'.repeat(64) } : f))
+    const truncated = files.map((f) => (f.path === LOG ? { ...f, size: 0, sha256: EMPTY_SHA256 } : f))
     assert.deepEqual(compareSnapshots(files, truncated, {}).rewrittenGrowing, [LOG])
     const replaced = files.map((f) => (f.path === LOG ? { ...f, sha256: 'e'.repeat(64) } : f))
     assert.equal(compareSnapshots(files, replaced, { [LOG]: { size: 4000, sha256: 'e'.repeat(64) } }).persisted, false)
@@ -309,7 +309,7 @@ describe('the home snapshots’ own measurements and coverage (WBC-02-CX-0039)',
     capped.home.after.coverage.total = 900
     const cappedCheck = homeOf(capped)
     assert.equal(cappedCheck.result, 'unavailable')
-    assert.deepEqual(cappedCheck.detail.coverage.after, { total: 900, listed: 3, oversize: [], complete: false })
+    assert.deepEqual(cappedCheck.detail.coverage.after, { total: 900, listed: 3, oversize: [], errors: [], complete: false })
     const large = complete()
     large.home.before.coverage = { ...large.home.before.coverage, total: 4, oversize: [{ path: 'instances/default/data.bin', size: 20 * 1024 * 1024 }] }
     assert.equal(homeOf(large).result, 'unavailable')
@@ -318,30 +318,42 @@ describe('the home snapshots’ own measurements and coverage (WBC-02-CX-0039)',
     const inconsistent = complete()
     inconsistent.home.before.coverage.oversize = [{ path: 'instances/default/data.bin', size: 20 * 1024 * 1024 }]
     assert.equal(homeOf(inconsistent).result, 'unavailable')
+    const unreadDirectory = complete()
+    unreadDirectory.home.after.coverage.errors = [{ path: 'instances', error: 'EACCES' }]
+    assert.equal(homeOf(unreadDirectory).result, 'unavailable')
     const unrecorded = complete()
     delete unrecorded.home.before.coverage
     assert.equal(coverageOf(unrecorded.home.before).complete, false)
     assert.equal(homeOf(unrecorded).result, 'unavailable')
-    for (const run of [capped, large, inconsistent, unrecorded]) assert.equal(verdictOf(run), 'incomplete')
+    for (const run of [capped, large, inconsistent, unreadDirectory, unrecorded]) assert.equal(verdictOf(run), 'incomplete')
   })
 
-  it('the listing keeps a size or digest that was not read absent, never zero or empty', () => {
-    const listing = [
-      'total\t3',
-      'oversize\t20971520\t./instances/default/data.bin',
-      `file\t120\t${'1'.repeat(64)}\t./adapter-plugins.json`,
-      'file\t\t\t./instances/default/unreadable.json',
-    ].join('\n')
-    const { coverage, files: parsed } = parseListing(listing)
-    assert.deepEqual(coverage.oversize, [{ path: 'instances/default/data.bin', size: 20971520 }])
-    assert.equal(coverage.total, 3)
-    assert.deepEqual(parsed, [
-      { path: 'adapter-plugins.json', size: 120, sha256: '1'.repeat(64) },
-      { path: 'instances/default/unreadable.json', size: null, sha256: null },
-    ])
-    assert.deepEqual(compareSnapshots(parsed, parsed).unverified, ['instances/default/unreadable.json'])
-    assert.equal(parseListing('').coverage.total, null, 'no total line: coverage not recorded')
-    assert.equal(coverageOf(parseListing('')).complete, false)
+  it('CX-0040: a size and digest that disagree about being empty are unverified, never equal', () => {
+    // The CX-0040 record: the size read before a truncation, the digest of the empty read after it.
+    const before = files.map((f) => (f.path === LOG ? { ...f, size: 100, sha256: EMPTY_SHA256 } : f))
+    const after = files.map((f) => (f.path === LOG ? { ...f, size: 0, sha256: EMPTY_SHA256 } : f))
+    const result = compareSnapshots(before, after, {})
+    assert.equal(result.persisted, false)
+    assert.deepEqual(result.unverified, [LOG])
+    const run = complete()
+    run.home.before.files = before
+    run.home.after.files = after
+    assert.equal(homeOf(run).result, 'unavailable')
+    assert.equal(verdictOf(run), 'incomplete')
+    // And the other way: no bytes, with the digest of some.
+    assert.deepEqual(compareSnapshots(files, files.map((f) => (f.path === LOG ? { ...f, size: 0 } : f))).unverified, [LOG])
+  })
+
+  it('CX-0040: sizes are compared as well as digests, and a growing record may not shrink even with the same digest', () => {
+    const smallerRegistry = files.map((f) => (f.path === 'adapter-plugins.json' ? { ...f, size: 60 } : f))
+    assert.deepEqual(compareSnapshots(files, smallerRegistry).changedStable, ['adapter-plugins.json'])
+    const run = complete()
+    run.home.after.files = smallerRegistry
+    assert.equal(homeOf(run).result, 'failed')
+    const smallerLog = files.map((f) => (f.path === LOG ? { ...f, size: 10 } : f))
+    const shrunk = compareSnapshots(files, smallerLog, { [LOG]: { size: 4000, sha256: '3'.repeat(64) } })
+    assert.deepEqual(shrunk.rewrittenGrowing, [LOG])
+    assert.equal(shrunk.persisted, false)
   })
 
   it('incomplete coverage does not hide a definite difference between measured files', () => {
