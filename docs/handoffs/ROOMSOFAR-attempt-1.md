@@ -4,7 +4,7 @@ Goal and attempt: the meeting so far, for whoever joins late (`docs/plans/room-s
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `room/so-far` on `room/follow-ups-2` (#118), 2026-10-06
-Ending commit/tree: the content commit before this handoff's.
+Ending commit/tree: the content commit «Room: the meeting so far, for whoever joins late (A13 on the fixture, behind the vision flag)», the parent of this handoff's commit (its SHA moves as the stack is rebased onto main).
 
 ## Outcome
 
