@@ -920,6 +920,20 @@ describe('a tooltip or an accessible name carries no text the page does not show
       `<thead><tr>${th}</tr></thead><tbody><tr><td colspan="1">One</td>${cells('td', '12.50', 'seccomp')}</tr><tr>${two}</tr></tbody>`,
     ])
       assert.deepEqual(shaped(inner), [], inner)
+    // A block may carry its table in a wrapper, one table holding every row; a head in one table and the body in
+    // another keep each row's shape while no header sits over the body's values (#117, 4199654105).
+    const wrapped = page
+      .replace('<table data-block="b5">', '<div data-block="b5"><table>')
+      .replace('</table>', '</table></div>')
+    assert.ok(wrapped.includes('<div data-block="b5"><table><thead>') && wrapped.includes('</tbody></table></div>'))
+    assert.deepEqual(codes(withHtml(good, wrapped)), [], 'one table in a wrapper')
+    for (const split of [
+      wrapped.replace('</thead><tbody>', '</thead></table><table><tbody>'),
+      wrapped.replace('</table></div>', '</table><table></table></div>'),
+    ]) {
+      assert.notEqual(split, wrapped)
+      assert.ok(codes(withHtml(good, split)).includes('block_altered'), split)
+    }
     // A package frozen before tables kept their shape has none to keep: it fails rather than passing unchecked.
     const unshaped = {
       ...content,

@@ -2071,7 +2071,8 @@ describe('the confined capture kernel', () => {
       // under the next header or off its row, the head row drawn below the body, the header labels swapped, and a table
       // rearranged only between the targets. The positives: the native table, a styled one with a row header, and one
       // set right to left. And the security review's wrapper (4199654105): a block on a <div> around its table, which the
-      // profile admits, read through the table it holds, reordered (m9) or not (n4).
+      // profile admits, read through the table it holds, reordered by flex (m9) or grid (m10) or not (n4); and the owner's
+      // split (4199682426), a wrapper holding the head in one table and the body, reordered, in another (m11).
       const receipt = await captureHtml(
         job(
           page(
@@ -2086,7 +2087,9 @@ describe('the confined capture kernel', () => {
             .m6 thead{display:table-footer-group}
             .m8 th span{position:relative} .m8 th:first-child span{left:104px} .m8 th:last-child span{left:-104px}
             @media (min-width:600px) and (max-width:900px){.m7 tr{display:flex} .m7 tbody td:first-child{order:2}}
-            .m9 tr{display:flex} .m9 tbody td:first-child{order:2}`,
+            .m9 tr{display:flex} .m9 tbody td:first-child{order:2}
+            .m10 tr{display:grid;grid-template-columns:repeat(2,104px)} .m10 tbody td:first-child{grid-column:2;grid-row:1}
+            .m11 tbody tr{display:flex} .m11 tbody td:first-child{order:2}`,
             `<main>
           ${researchTable('n1')}
           <table data-block="n2" class="styled"><thead><tr><th>Plan</th><th>Price</th></tr></thead>
@@ -2102,6 +2105,8 @@ describe('the confined capture kernel', () => {
           ${researchTable('m8', 'm8')}
           ${researchTable('m9', 'm9').replace('<table data-block="m9" class="m9">', '<div data-block="m9" class="m9"><table>').replace('</table>', '</table></div>')}
           ${researchTable('n4').replace('<table data-block="n4" class="">', '<div data-block="n4"><table>').replace('</table>', '</table></div>')}
+          ${researchTable('m10', 'm10').replace('<table data-block="m10" class="m10">', '<div data-block="m10" class="m10"><table>').replace('</table>', '</table></div>')}
+          <div data-block="m11" class="m11"><table><thead><tr><th>Plan</th><th>Price</th></tr></thead></table><table><tbody><tr><td>Basic</td><td>$10</td></tr><tr><td>Pro</td><td>$20</td></tr></tbody></table></div>
           </main>`,
           ),
         ),
@@ -2110,7 +2115,7 @@ describe('the confined capture kernel', () => {
       assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
       // A cell's text moved onto its neighbour's (m4, m5) is also drawn over or beside other text; the rest only move.
       const moved =
-        'm4, m5; tables whose cells are drawn under other headers or off their rows: m1, m2, m3, m4, m5, m6, m8, m9'
+        'm4, m5; tables whose cells are drawn under other headers or off their rows: m1, m2, m3, m4, m5, m6, m8, m9, m10, m11'
       for (const target of ['w390-light', 'w1280-light']) {
         const check = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === target)
         assert.deepEqual([check?.outcome, check?.detail], ['failed', moved], target)
@@ -2126,9 +2131,9 @@ describe('the confined capture kernel', () => {
       assert.equal(widths?.outcome, 'failed')
       // m7 is rearranged only within 600 to 900px, between the targets: the band ends there show it, and only there.
       for (const width of [600, 900])
-        assert.ok(widths?.detail?.includes(movedAt(width, 'm1, m2, m3, m4, m5, m6, m7, m8, m9')), `${width}`)
+        assert.ok(widths?.detail?.includes(movedAt(width, 'm1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11')), `${width}`)
       for (const width of [599, 901])
-        assert.ok(widths?.detail?.includes(movedAt(width, 'm1, m2, m3, m4, m5, m6, m8, m9')), `${width}`)
+        assert.ok(widths?.detail?.includes(movedAt(width, 'm1, m2, m3, m4, m5, m6, m8, m9, m10, m11')), `${width}`)
     },
   )
 

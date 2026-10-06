@@ -113,7 +113,17 @@ function shapeIssue(table: Element, rows: readonly number[] | undefined): string
     : "its head row's cells are not header cells (th)"
 }
 
-/** What is wrong with a research table: its cells, its rows (shapeIssue), or its header cells (headerIssue). */
+/**
+ * The one table a research table's block is, or holds: its head and body rows in one `<table>`, the block itself or the
+ * one table inside it, which the render checks the placement of. Null when the block holds none or more than one: a
+ * head in one table and the body in another keep every row's shape while no header sits over the body's values (#117).
+ */
+function tableOf(el: Element): Element | null {
+  const tables = [el, ...elements(el)].filter((e) => e.tagName === 'table')
+  return tables.length === 1 ? (tables[0] ?? null) : null
+}
+
+/** What is wrong with a research table: its cells, its one table (tableOf), its rows (shapeIssue), or its header cells (headerIssue). */
 function tableFindings(block: ContentBlock, el: Element, at: { line: number; block: string }): Finding[] {
   const out: Finding[] = []
   const cells = cellsOf(el)
@@ -126,7 +136,8 @@ function tableFindings(block: ContentBlock, el: Element, at: { line: number; blo
         at,
       ),
     )
-  const shape = shapeIssue(el, block.rows)
+  const table = tableOf(el)
+  const shape = table ? shapeIssue(table, block.rows) : 'its rows are not in one table (<table>)'
   if (shape)
     out.push(
       error(
@@ -136,7 +147,7 @@ function tableFindings(block: ContentBlock, el: Element, at: { line: number; blo
         at,
       ),
     )
-  const headers = shape ? null : headerIssue(el)
+  const headers = shape || !table ? null : headerIssue(table)
   if (headers)
     out.push(
       error(
