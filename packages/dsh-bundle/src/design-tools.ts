@@ -621,7 +621,8 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
       'Submit your verdict: pass (nothing blocking or major remains), needs_revision (with the findings that must change: ' +
       'severity blocking or major, each with its fix and the capture it rests on), or blocked (you cannot judge; give the ' +
       'reason). Name in seen the receipts of the inspections a pass or needs_revision rests on: only those captures count ' +
-      'as inspected. A pass before you inspected each target\'s overview and every section is answered with what is missing.',
+      'as inspected. A pass before you inspected each target\'s overview and every section is answered with what is missing; ' +
+      'a needs_revision names at least one inspection, and each blocking or major finding names its capture among them.',
     parameters: {
       verdict: { type: 'string', enum: ['pass', 'needs_revision', 'blocked'], required: true },
       seen: { type: 'array', items: { type: 'string' }, description: 'pass, needs_revision: the receipts of the inspections it rests on, each as its result gave it.' },

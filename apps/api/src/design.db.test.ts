@@ -548,7 +548,10 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
       callId: 'v1',
       result: {
         verdict: 'needs_revision',
-        findings: [{ severity: 'major', issue: 'The summary is buried.', fix: 'Lead with it.' }],
+        findings: [
+          { severity: 'major', issue: 'The summary is buried.', fix: 'Lead with it.', capture: shots.names[0] },
+        ],
+        seen: seenBy(review.at, 'review'),
       },
     })
     assert.equal(revise.json.decision?.outcome, 'revision_requested', JSON.stringify(revise.json))
@@ -1613,6 +1616,25 @@ describe('SDD-01-CX-0019: a capture counts as seen only once it reached the mode
     await inspectAll(w, review.at, names)
     const unnamed = await pass('v-unnamed', [])
     assert.equal(unnamed.json.outcome, 'coverage_incomplete', 'acknowledged but unnamed: nothing counts')
+    // A request for revision rests on inspected captures too: named, and cited by each serious finding.
+    const revise = (callId: string, seen: string[], capture?: string) =>
+      w.runtime('/v1/runtime/review/submit', {
+        ...review.at,
+        callId,
+        result: {
+          verdict: 'needs_revision',
+          findings: [{ severity: 'major', issue: 'The summary is buried.', ...(capture ? { capture } : {}) }],
+          seen,
+        },
+      })
+    for (const [callId, seen, capture] of [
+      ['r-unseen', [], names[0]],
+      ['r-uncited', seenBy(review.at, 'review'), undefined],
+      ['r-elsewhere', seenBy(review.at, 'review'), 'w390-light.overview.9.png'],
+    ] as const) {
+      const res = await revise(callId, [...seen], capture)
+      assert.equal(res.json.outcome, 'coverage_incomplete', `${callId}: ${JSON.stringify(res.json)}`)
+    }
     const passed = await pass('v-named', seenBy(review.at, 'review'))
     assert.equal(passed.json.decision?.outcome, 'published', JSON.stringify(passed.json))
   })
