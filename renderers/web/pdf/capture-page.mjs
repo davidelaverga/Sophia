@@ -680,9 +680,13 @@ function paintsOf(el, look) {
     own: style.backgroundImage !== 'none' || !isClear(look.ctx, style.backgroundColor),
     clip: style.backgroundClip,
     edge: bordersPaint(style, look.ctx),
-    // A border image paints where its own widths say, into the padding box too (border-image-width), so like an inset
-    // shadow it is paint anywhere in the box that is not the background a text is read against (#117).
-    inset: style.boxShadow.includes('inset') || style.borderImageSource !== 'none',
+    // A border image paints where its own widths say, into the padding box too (border-image-width), and an outline
+    // drawn inward paints over the box's own content, so like an inset shadow each is paint anywhere in the box that is
+    // not the background a text is read against (#117, SDD-CX42).
+    inset:
+      style.boxShadow.includes('inset') ||
+      style.borderImageSource !== 'none' ||
+      (style.outlineStyle !== 'none' && Number.parseFloat(style.outlineOffset) < 0),
     widths: ['top', 'right', 'bottom', 'left'].map((side) =>
       Number.parseFloat(style.getPropertyValue(`border-${side}-width`)),
     ),

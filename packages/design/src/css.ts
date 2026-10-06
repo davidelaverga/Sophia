@@ -246,10 +246,11 @@ const STATE_PROPERTIES = new Set([
 ])
 /**
  * The longest length a state's mark may take, in pixels, and never inward: a mark, never a cover. An outline drawn
- * outward still crosses the text beside its box: 6px wide, 6px out, it buried half of the next line of a 12px block,
- * so it is held to a stroke's width and gap (#117, SDD-01-CX-0041).
+ * outward still crosses the text beside its box: 6px wide, 6px out, it buried half of the next line of a 12px block
+ * (#117, SDD-01-CX-0041). So it is held to a stroke: the width of an outline that names none (`medium`, 3px), and as
+ * far out.
  */
-const STATE_PX = 2
+const STATE_PX = 3
 const COLOR_FUNCTIONS = new Set([
   'rgb',
   'rgba',
@@ -320,6 +321,54 @@ function isKeywordOrColour(part: CssNode, keywords: ReadonlySet<string> | null):
   if (part.type === 'Identifier') return keywords === null || keywords.has(part.name.toLowerCase())
   if (keywords !== null) return false
   return part.type === 'Hash' || (part.type === 'Function' && COLOR_FUNCTIONS.has(part.name.toLowerCase()))
+}
+
+/**
+ * An outline is drawn over what its band crosses, its own text included when it is drawn inward, and no hit test meets
+ * it, so the render cannot tell it covers a text. In every rule, not only a state's, it is a mark (STATE_PX wide and
+ * out at most, never inward): a state takes its outline's width and offset from the cascade, so `outline-offset: -6px`
+ * with `outline-style: none` in a plain rule drew nothing in the captures, then `:target { outline: 6px solid }` drew
+ * a 6px outline inward over the whole block; `outline-offset: inherit` brought a parent's in (#117, SDD-CX42).
+ */
+const OUTLINE_KEYWORDS: Readonly<Record<string, ReadonlySet<string> | null>> = {
+  outline: null,
+  'outline-width': new Set(['thin', 'medium', 'initial', 'inherit', 'unset', 'revert', 'revert-layer']),
+  'outline-offset': new Set(['initial', 'inherit', 'unset', 'revert', 'revert-layer']),
+}
+
+/** What a length in an outline's value gives that is not a mark, or null: a length in pixels, 0 to STATE_PX. */
+function outlineLengthIssue(part: CssNode & { type: 'Dimension' }): string | null {
+  const px = part.unit.toLowerCase() === 'px' ? Number(part.value) : Number.NaN
+  return px >= 0 && px <= STATE_PX ? null : `${part.value}${part.unit}`
+}
+
+/** Whether a part of the `outline` shorthand is a colour: a hash or a colour function. */
+const isColour = (part: CssNode): boolean =>
+  part.type === 'Hash' || (part.type === 'Function' && COLOR_FUNCTIONS.has(part.name.toLowerCase()))
+
+/** What one part of an outline's value gives that is not a mark, or null. */
+function outlinePartIssue(part: CssNode, keywords: ReadonlySet<string> | null): string | null {
+  if (part.type === 'Dimension') return outlineLengthIssue(part)
+  if (part.type === 'Number') return Number(part.value) === 0 ? null : part.value
+  if (part.type === 'Identifier') {
+    const name = part.name.toLowerCase()
+    return (keywords === null ? name !== 'thick' : keywords.has(name)) ? null : part.name
+  }
+  if (keywords === null && isColour(part)) return null
+  return part.type === 'Function' ? `${part.name}()` : part.type
+}
+
+/** Why an outline in any rule is more than a mark, or null (OUTLINE_KEYWORDS). */
+function outlineIssue(node: CssNode): string | null {
+  if (node.type !== 'Declaration') return null
+  const keywords = OUTLINE_KEYWORDS[node.property.toLowerCase()]
+  if (keywords === undefined) return null
+  const parts = node.value.type === 'Value' ? node.value.children.toArray() : [node.value]
+  const found = parts.map((part) => outlinePartIssue(part, keywords)).find((issue) => issue !== null)
+  return found === undefined
+    ? null
+    : `${node.property} is a mark, at most ${String(STATE_PX)}px wide and ${String(STATE_PX)}px out, never inward, ` +
+        `not ${found}: an outline is drawn over the text it crosses, and no hit test meets it`
 }
 
 /** The keywords among a value's parts, in lower case. */
@@ -591,7 +640,7 @@ export function checkCss(
   })
   const states = stateDeclarations(ast)
   walk(ast, (node) => {
-    const problem = CHECKS[node.type]?.(node) ?? decorationIssue(node, states.has(node))
+    const problem = CHECKS[node.type]?.(node) ?? decorationIssue(node, states.has(node)) ?? outlineIssue(node)
     if (problem) findings.push(error('css_unsafe', path, problem, at(node.loc?.start.line)))
   })
   return findings

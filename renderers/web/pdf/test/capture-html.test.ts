@@ -1355,6 +1355,7 @@ describe('the confined capture kernel', () => {
             .blend{background-color:#fff;background-image:linear-gradient(#fff,#fff);background-blend-mode:difference;color:#000}
             .bout{height:10px;border:1px solid transparent;border-image:linear-gradient(#111,#111) 1;border-image-outset:40px}
             .bfill{background:#000;color:#fff;border:2px solid transparent;border-image:linear-gradient(#fff,#fff) fill 1}
+            .inward{background:#000;color:#fff;outline:6px solid #fff;outline-offset:-6px}
             .himg{position:relative} .himg::before{content:"";position:absolute;inset:0;z-index:-1;border:2em solid transparent;border-image:linear-gradient(#111,#111) 1}`,
             `<main><section data-section="s1"><h2 class="accent">Findings</h2><p data-block="b1">Text.</p>
           <div class="dark"><h2 class="out">Host three is free</h2></div>
@@ -1370,7 +1371,8 @@ describe('the confined capture kernel', () => {
           <p data-block="b11" class="blend">Over blended layers.</p>
           <div class="gap"></div><div class="bout"></div><p data-block="b12">Near a dark border image.</p>
           <div class="gap"></div><p data-block="b13" class="himg">Over a generated border image.</p>
-          <div class="gap"></div><p data-block="b14" class="bfill">On a filled border image.</p></section></main>`,
+          <div class="gap"></div><p data-block="b14" class="bfill">On a filled border image.</p>
+          <div class="gap"></div><p data-block="b15" class="inward">Under an outline drawn inward.</p></section></main>`,
           ),
         ),
         { env },
@@ -1395,6 +1397,7 @@ describe('the confined capture kernel', () => {
             ['b12', 'background_elsewhere'],
             ['b13', 'background_elsewhere'],
             ['b14', 'background_elsewhere'],
+            ['b15', 'background_elsewhere'],
             ['text 1 h2', 'read'],
             ['text 2 h2', 'background_elsewhere'],
             ['text 3 h2', 'read'],

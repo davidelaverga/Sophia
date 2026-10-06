@@ -1201,8 +1201,9 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       'p[data-block]:target{outline:6px solid #fff;outline-offset:-6px}',
       // An outward one 6px wide crosses half of the next line of text beside the box.
       'p[data-block]:target{outline:6px solid #fff}',
-      'a:focus{outline:3px solid #1a4fd6}',
-      'a:focus{outline-offset:3px}',
+      'a:focus{outline:4px solid #1a4fd6}',
+      'a:focus{outline-offset:4px}',
+      'a:focus{outline:thick solid #1a4fd6}',
       '[data-block]:target{text-decoration:underline overline line-through #fafafa;text-decoration-thickness:6px}',
       '[data-block]:target{text-decoration:underline overline #fafafa}',
       'a:hover{text-decoration-line:overline}',
@@ -1215,6 +1216,8 @@ describe('a pseudo-element styles only generated content (#117)', () => {
     for (const ok of [
       'a:focus-visible{outline:2px solid #1a4fd6;outline-offset:2px}',
       'p[data-block]:target{outline:2px solid #1a4fd6;outline-offset:2px}',
+      'a:focus{outline:solid #1a4fd6}',
+      'a:focus{outline:medium solid #1a4fd6;outline-offset:3px}',
       'a:focus{outline-offset:0}',
       'a:hover{text-decoration:underline wavy #1a4fd6}',
       'a:hover{text-decoration-line:underline}',
@@ -1248,6 +1251,36 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       assert.deepEqual(css(ok), [], ok)
   })
   // #117: a decoration is drawn over the text: through it, or as thick as a glyph, it can bury what the render passes.
+  // SDD-CX42: a state takes its outline's width and offset from the cascade, so an outline is a mark in every rule.
+  it('holds an outline to a mark in every rule, so no state draws one inward or wide through the cascade', () => {
+    for (const bad of [
+      'p[data-block]{font:12px/12px Arial;color:#000;background:#fff;outline-offset:-6px;outline-style:none}p[data-block]:target{outline:6px solid #fff}',
+      'section{outline-offset:-6px}p[data-block]:target{outline:6px solid #fff;outline-offset:inherit}',
+      'p{outline-offset:-1px}',
+      'p{outline-width:6px;outline-style:none}',
+      'p{outline:6px solid #fff}',
+      'p{outline:thick solid}',
+      'p{outline-offset:-.5em}',
+      'p{outline-offset:1em}',
+      'p{outline-width:calc(1px + 1px)}',
+      'p{outline-offset:var(--o)}',
+      'p{outline-width:10%}',
+      '@media (min-width: 720px){p{outline-offset:-2px}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<h1>', '<h1 style="outline-offset:-6px">')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of [
+      'p[data-block]{outline-offset:2px}p[data-block]:target{outline:2px solid #1a4fd6}',
+      'section{outline-offset:2px}p[data-block]:target{outline:2px solid #1a4fd6;outline-offset:inherit}',
+      'p{outline:none}',
+      'p{outline:0}',
+      'p{outline:1px dotted rgb(26 79 214)}',
+      'p{outline-width:thin;outline-offset:0}',
+      'a:focus-visible{outline:auto}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
   it('refuses a line through a text, and a decoration of a thickness or an offset of its own, in any rule', () => {
     for (const bad of [
       'h2{text-decoration:line-through}',
