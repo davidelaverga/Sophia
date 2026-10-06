@@ -23,9 +23,11 @@ on:
 permissions:
   contents: read
 
+# One image build at a time per pull request. A running qualification is never cancelled (WBC-02-CX-0038): a newer run
+# waits as the group's one pending run, and replaces an older pending one.
 concurrency:
   group: paperclip-image-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   PAPERCLIP_PIN: 5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb
