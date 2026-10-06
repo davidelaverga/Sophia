@@ -461,7 +461,8 @@ export function fitMeasure(measured, unmeasured) {
 
 /**
  * What a target's measure left out, as blocks_visible names it: labels, texts and runs past the receipt's bound, and texts
- * whose lines the cover check's bounds (of points, of lines a text, and of time) did not reach.
+ * whose lines the cover check's bounds (of points, of lines a text, and of time) did not reach, that lie past what a
+ * scroll of the window shows, or that are not set along the page's lines, which it cannot look along (#117).
  * @param {number} unmeasured
  * @param {number} unsampled
  */
@@ -471,7 +472,7 @@ function unreached(unmeasured, unsampled) {
       ? `${unmeasured} labels, texts, runs or blocks left out of the measure (at most ${MAX_MEASURED} of each kind, within ${MEASURE_BYTES / 1024} KiB a target)`
       : '',
     unsampled > 0
-      ? `${unsampled} texts the cover check did not reach within its bounds (${MAX_POINTS} points, under ${MAX_LINES} lines a text, ${MAX_LOOK_MS / 1000} s)`
+      ? `${unsampled} texts the cover check did not reach: past its bounds (${MAX_POINTS} points, under ${MAX_LINES} lines a text, ${MAX_LOOK_MS / 1000} s), off the window, or not set along the page's lines (vertical, turned or mirrored)`
       : '',
   ]
 }

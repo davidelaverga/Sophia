@@ -149,6 +149,8 @@ const runOn = (id: string, style: string, text: string) =>
   `<p data-block="${id}">Shown text, then <span style="${style}">${text}</span>.</p>`
 
 /** A measure's id and whether its contrast was read, or why not. */
+/** Whether a measure finds its text off the page. */
+const off = (m: { issues: string[] }) => m.issues.includes('off_page')
 const contrastRead = (m: { id: string; contrast: { ratio: number | null; detail: string | null } }) => [
   m.id,
   m.contrast.ratio === null ? m.contrast.detail : 'read',
@@ -272,7 +274,7 @@ describe('the capture plan (pure)', () => {
     assert.equal(unreached.blocks_visible?.[0], 'failed', 'a text the cover check did not reach is not seen')
     assert.match(
       String(unreached.blocks_visible?.[1]),
-      /^2 texts the cover check did not reach within its bounds \(\d+ points, under \d+ lines a text, \d+ s\)$/,
+      /^2 texts the cover check did not reach: past its bounds \(\d+ points, under \d+ lines a text, \d+ s\), off the window, or not set along the page's lines \(vertical, turned or mirrored\)$/,
     )
   })
 
@@ -517,6 +519,136 @@ describe('the confined capture kernel', () => {
   )
 
   it(
+    'fails a text that lies partly off the page, and never passes over what no scroll of the window shows (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .at{position:absolute;margin:0;white-space:nowrap} .left{left:-60px;top:400px}
+           .indent{left:0;top:480px;text-indent:-2em} .bled{left:-1em;top:560px} .whole{left:0;top:640px}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+          <h2 class="at left">Half off the page</h2><h2 class="at indent">Indented past the edge</h2>
+          <p data-block="b2" class="at bled">Bled past the edge.</p><h2 class="at whole">Wholly on the page</h2>
+          </section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const measured = receipt.targets.find((t) => t.id === target)!.page
+        assert.deepEqual(
+          [...measured.blocks, ...measured.framing].map((m) => [m.id, off(m)]),
+          [
+            ['b1', false],
+            ['b2', true],
+            ['text 1 h2', false],
+            ['text 2 h2', true],
+            ['text 3 h2', true],
+            ['text 4 h2', false],
+          ],
+          target,
+        )
+        assert.equal(outcome(receipt, 'blocks_visible', target), 'failed', target)
+        const detail = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === target)?.detail ?? ''
+        assert.ok(lists(detail, 'b2') && lists(detail, 'text 2 h2') && !lists(detail, 'text 4 h2'), detail)
+        assert.match(detail, /did not reach: .* off the window/u, 'its lines past the window are not passed over')
+      }
+    },
+  )
+
+  it(
+    "does not pass over a text set across the page's lines: vertical, turned, skewed or mirrored, by it or a box around it (#117)",
+    { skip },
+    async () => {
+      const workDir = fs.mkdtempSync(path.join(SCRATCH, 'sophia-turned-'))
+      const browser = await launchConfined({ workDir, env })
+      try {
+        const tab = await browser.context.newPage()
+        await tab.setContent(
+          page(
+            `${BASE} .vert{writing-mode:vertical-rl;height:12em} .quarter{transform:rotate(90deg)} .tilt{rotate:12deg}
+           .skew{transform:skewX(20deg)} .mirror{transform:scaleX(-1)} .flip{scale:1 -1}
+           .moved{transform:translateX(4px) scale(1.05)} .level{rotate:0deg} .path{width:10em;offset-path:path('M 400 400 L 500 500')}
+           .deep{width:8em;margin-left:4em;transform:perspective(400px) rotateY(40deg)}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Upright.</p>
+          <p data-block="b2" class="vert">Set vertically.</p><p data-block="b3" class="quarter">Turned a quarter.</p>
+          <p data-block="b4" class="tilt">Tilted.</p><div class="skew"><p data-block="b5">In a skewed box.</p></div>
+          <p data-block="b6" class="mirror">Mirrored.</p><p data-block="b7" class="flip">Flipped.</p>
+          <p data-block="b8" class="moved">Moved and scaled.</p><p data-block="b9" class="level">Turned by nothing.</p>
+          <p data-block="b10" class="path">Set on a motion path.</p><p data-block="b11" class="deep">In perspective.</p>
+          <h2 class="vert">A vertical heading</h2></section></main>`,
+          ),
+        )
+        type Looked = { id: string; unsampled: boolean }[]
+        const answer = await tab.evaluate<{ blocks: Looked; framing: Looked }>(pageScript({ maxListed: 20 }))
+        assert.deepEqual(
+          [...answer.blocks, ...answer.framing].map((m) => [m.id, m.unsampled]),
+          [
+            ['b1', false],
+            ['b2', true],
+            ['b3', true],
+            ['b4', true],
+            ['b5', true],
+            ['b6', true],
+            ['b7', true],
+            ['b8', false],
+            ['b9', false],
+            ['b10', true],
+            ['b11', true],
+            ['text 1 h2', false],
+            ['text 2 h2', true],
+          ],
+        )
+      } finally {
+        await browser.close()
+        fs.rmSync(workDir, { recursive: true, force: true })
+      }
+    },
+  )
+
+  it(
+    'reads each element of the labels a name rests on once, under the nearest label, and not past the bound (#117)',
+    { skip },
+    async () => {
+      const workDir = fs.mkdtempSync(path.join(SCRATCH, 'sophia-shown-'))
+      const browser = await launchConfined({ workDir, env })
+      try {
+        const tab = await browser.context.newPage()
+        await tab.setContent(
+          page(
+            BASE,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+          <div data-sophia-shown="div:1"><h2 data-sophia-shown="h2:2">Named <span>part</span></h2><p>Note</p></div>
+          </section></main>`,
+          ),
+        )
+        const script = pageScript({ maxListed: 20 })
+        const read = (source: string) =>
+          tab.evaluate<{ shown: { id: string }[]; unmeasured: number }>(source).then((a) => ({
+            shown: a.shown.map((m) => m.id),
+            unmeasured: a.unmeasured,
+          }))
+        assert.deepEqual(await read(script), {
+          shown: ['label div:1', 'label h2:2', 'label h2:2 span', 'label div:1 p'],
+          unmeasured: 0,
+        })
+        const bound = `"maxMeasured":${String(MAX_MEASURED)}`
+        assert.ok(script.includes(bound), "the page is read within the kernel's own bound")
+        // Two of each kind are kept: one label past them is read and counted, and none after it.
+        assert.deepEqual(await read(script.replace(bound, '"maxMeasured":2')), {
+          shown: ['label div:1', 'label h2:2'],
+          unmeasured: 1 + 2,
+        })
+      } finally {
+        await browser.close()
+        fs.rmSync(workDir, { recursive: true, force: true })
+      }
+    },
+  )
+
+  it(
     'fails text outside the blocks at each target that hides it: print only, another width, a screen reader, one width of two (#117)',
     { skip },
     async () => {
@@ -558,11 +690,16 @@ describe('the confined capture kernel', () => {
           page(
             `${BASE} .muted{color:#aaa} .sep{color:#ddd} .faint{opacity:.12} .fill{-webkit-text-fill-color:transparent}
            .filtered{filter:opacity(.1)} .group{background:#000;color:#fff;opacity:.5}
-           .stroked{color:#000;-webkit-text-stroke:6px #fff}`,
+           .stroked{color:#000;-webkit-text-stroke:6px #fff}
+           .struck{color:#000;text-decoration:line-through #fff} .thick{color:#000;text-decoration:underline #fff 1em}
+           .raised{color:#000;text-decoration:underline #fff;text-underline-offset:-.6em} .under{text-decoration:underline}`,
             `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
           <h2 class="muted">Muted heading</h2><p class="sep">·</p><h2 class="faint">Faint heading</h2>
           <h2 class="fill">Unfilled heading</h2><h2 class="filtered">Filtered heading</h2>
-          <h2 class="group">Grouped heading</h2><h2 class="stroked">Stroked heading</h2></section></main>`,
+          <h2 class="group">Grouped heading</h2><h2 class="stroked">Stroked heading</h2>
+          <h2 class="struck">Struck heading</h2><h2 class="thick">Thick underline</h2>
+          <h2 class="raised">Raised underline</h2><h2 class="under">Underlined</h2>
+          </section></main>`,
           ),
         ),
         { env },
@@ -571,7 +708,19 @@ describe('the confined capture kernel', () => {
       const framing = receipt.targets[0]!.page.framing
       assert.deepEqual(
         framing.map((m) => m.id),
-        ['text 1 h2', 'text 2 h2', 'text 3 h2', 'text 4 h2', 'text 5 h2', 'text 6 h2', 'text 7 h2'],
+        [
+          'text 1 h2',
+          'text 2 h2',
+          'text 3 h2',
+          'text 4 h2',
+          'text 5 h2',
+          'text 6 h2',
+          'text 7 h2',
+          'text 8 h2',
+          'text 9 h2',
+          'text 10 h2',
+          'text 11 h2',
+        ],
         'the separator is not measured',
       )
       assert.deepEqual(framing[4]?.contrast.detail, 'filtered', 'a filter changes the colours: unknown, never passed')
@@ -584,6 +733,17 @@ describe('the confined capture kernel', () => {
         framing[6]?.contrast.detail,
         'stroked',
         'a white stroke buries a black fill on white: unknown, never passed (#117)',
+      )
+      // #117: a decoration as thick as a glyph, through it or raised over it, buries it as a stroke does.
+      assert.deepEqual(
+        framing.slice(7).map(contrastRead),
+        [
+          ['text 8 h2', 'decorated'],
+          ['text 9 h2', 'decorated'],
+          ['text 10 h2', 'decorated'],
+          ['text 11 h2', 'read'],
+        ],
+        'a line through the text, or one of a thickness or offset of its own: unknown, never passed',
       )
       for (const target of ['w390-light', 'w1280-light']) {
         assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
@@ -785,7 +945,7 @@ describe('the confined capture kernel', () => {
         )
         const visible = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === target)
         assert.equal(visible?.outcome, 'failed', `${target}: a text the cover check did not read is not seen`)
-        assert.match(String(visible?.detail), /^1 texts the cover check did not reach within its bounds /u, target)
+        assert.match(String(visible?.detail), /^1 texts the cover check did not reach: past its bounds /u, target)
       }
     },
   )
@@ -818,7 +978,7 @@ describe('the confined capture kernel', () => {
         const visible = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === target)
         assert.match(
           String(visible?.detail),
-          /^b3; 1 texts the cover check did not reach within its bounds /u,
+          /^b3; 1 texts the cover check did not reach: past its bounds /u,
           `${target}: the long text's points are past the protocol's bound`,
         )
       }

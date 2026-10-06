@@ -20,9 +20,10 @@
  *   under: boolean }} Paints what an element paints that a text above it is read against (paintsOf)
  * @typedef {{ rows: Map<number, { box: Box, reach: number }[]>, over: boolean }} Reach where paint reaches past the
  *   boxes on the page (reachIndex)
- * @typedef {{ left: number, until: number, maxLines: number, paints: Map<Element, Paints>, reach: Reach }} Budget the
- *   points the cover check may still look at, the time (performance.now) it must stop by, the fewest lines a text may
- *   have to be refused unread, what each element looked at paints, and where paint reaches past the boxes
+ * @typedef {{ left: number, until: number, maxLines: number, paints: Map<Element, Paints>, reach: Reach,
+ *   upright: Map<Element, boolean> }} Budget the points the cover check may still look at, the time (performance.now)
+ *   it must stop by, the fewest lines a text may have to be refused unread, what each element looked at paints, where
+ *   paint reaches past the boxes, and which elements are drawn along the page's lines (isUpright)
  * @typedef {{ left: number, top: number, right: number, bottom: number }} Clip where overflow lets content be drawn
  * @typedef {Clip & { owner: Element | null }} TextBox a line box of
  *   text on the page, and the block it sits in (null outside every block)
@@ -140,7 +141,9 @@ function hiddenIssues(el) {
 
 /**
  * Why a shown label's text cannot be seen beyond what hides a block: cut out by a clip or a clip path, on it or an
- * ancestor, or pushed off the page (a negative text indent).
+ * ancestor, or its own text pushed off the page, in part or whole (a negative text indent, a transform): no scroll
+ * reaches what lies left of or above the page, so a sliver left on it is not the text (#117). Past its right edge is
+ * overflow (or a scrolling box's, judged by where it sits).
  * @param {Element} el
  * @returns {string[]}
  */
@@ -149,12 +152,24 @@ function concealedIssues(el) {
     const style = getComputedStyle(a)
     if ((style.clipPath && style.clipPath !== 'none') || (style.clip && style.clip !== 'auto')) return ['clipped']
   }
+  return ownTextOffPage(el) ? ['off_page'] : []
+}
+
+/**
+ * Whether an element's own text lies left of or above the page, in part or whole. An element inside it that holds text
+ * is judged as its own run, label or text.
+ * @param {Element} el
+ */
+function ownTextOffPage(el) {
   const text = document.createRange()
-  text.selectNodeContents(el)
-  const t = text.getBoundingClientRect()
-  const drawn = el.textContent.trim() !== '' && text.getClientRects().length > 0
-  if (drawn && (t.right + window.scrollX <= 0 || t.bottom + window.scrollY <= 0)) return ['off_page']
-  return []
+  for (const node of el.childNodes) {
+    if (node.nodeType !== Node.TEXT_NODE || !(node.textContent ?? '').trim()) continue
+    text.selectNodeContents(node)
+    if (text.getClientRects().length === 0) continue
+    const t = text.getBoundingClientRect()
+    if (t.left + window.scrollX < -1 || t.top + window.scrollY < -1) return true
+  }
+  return false
 }
 
 /**
@@ -284,7 +299,6 @@ function coverOf(holder, suspect, hit) {
  * @param {number} y
  */
 function inView(el, x, y) {
-  if (x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight) return false
   for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement) {
     const style = getComputedStyle(a)
     if (style.overflowX === 'visible' && style.overflowY === 'visible') continue
@@ -312,6 +326,50 @@ function lineInView(line) {
     behavior: 'instant',
   })
   return at()
+}
+
+/**
+ * Whether a point is in the window. A point on a text that no box around it clips, and that no scroll of the window
+ * brings into it, lies off the page: the cover check does not pass over it (#117).
+ * @param {{ x: number, y: number }} p in viewport coordinates
+ */
+function inWindow(p) {
+  return p.x >= 0 && p.y >= 0 && p.x < window.innerWidth && p.y < window.innerHeight
+}
+
+/**
+ * Whether a style turns what it draws off the page's lines: a rotation or a skew, a 3D transform, a motion path that
+ * can turn it, or a scale that mirrors it.
+ * @param {CSSStyleDeclaration} s
+ */
+function turns(s) {
+  const m = new DOMMatrixReadOnly(s.transform === 'none' ? undefined : s.transform)
+  const [x = 1, y = x] = s.scale === 'none' ? [] : s.scale.split(' ').map(Number)
+  const rotated = s.rotate !== 'none' && Number.parseFloat(s.rotate) % 360 !== 0
+  const skewed = Math.abs(m.b) > 1e-9 || Math.abs(m.c) > 1e-9
+  return !m.is2D || skewed || rotated || Math.min(m.a, m.d, x, y) < 0 || (s.offsetPath || 'none') !== 'none'
+}
+
+/**
+ * Whether an element's text is drawn along the page's lines: set horizontally, and neither it nor any box around it
+ * turned or mirrored (turns). The cover check looks along a line's width, at its middle, and the check for what sits
+ * beside a block looks past its lines' ends: a text set vertically or turned would be looked at across its lines, so
+ * one is not looked at, and fails unmeasured (#117). Kept per element, so each ancestor is read once a page.
+ * @param {Element} el
+ * @param {Map<Element, boolean>} memo
+ */
+function isUpright(el, memo) {
+  /** @type {Element[]} */
+  const chain = []
+  let a = /** @type {Element | null} */ (el)
+  for (; a && !memo.has(a); a = a.parentElement) chain.push(a)
+  let upright = a ? (memo.get(a) ?? false) : true
+  for (const e of chain.toReversed()) {
+    const style = getComputedStyle(e)
+    upright = upright && style.writingMode === 'horizontal-tb' && !turns(style)
+    memo.set(e, upright)
+  }
+  return upright
 }
 
 /**
@@ -708,9 +766,10 @@ function onOwnGround(holder, stack, p, look) {
 
 /**
  * The cover check along every line of one text (isCovered): 'covered' at the first point something else is on top,
- * 'unmeasured' when the page's budget runs out (of points, or of time), else 'clear' with the points only the protocol
- * can judge added to `probes` (in page coordinates). The text's lines are read once, and a text with MAX_LINES lines
- * or more, or more lines than the budget has points left, is not looked at, line by line or at all (#117).
+ * 'unmeasured' when the page's budget runs out (of points, or of time) or a point no scroll of the window shows is
+ * reached (inWindow), else 'clear' with the points only the protocol can judge added to `probes` (in page
+ * coordinates). The text's lines are read once, and a text with MAX_LINES lines or more, or more lines than the budget
+ * has points left, is not looked at, line by line or at all (#117).
  * Where a point's background is not the one the text's contrast is read against (onOwnGround), `look.elsewhere` is set.
  * @param {Element} holder the element that holds the text
  * @param {Node} node the text
@@ -736,6 +795,7 @@ function coverAlong(holder, node, budget, probes, look) {
     if (performance.now() > budget.until) return 'unmeasured'
     for (const p of pointsAlong(lineInView(line), em)) {
       if (!inView(holder, p.x, p.y)) continue
+      if (!inWindow(p)) return 'unmeasured'
       budget.left -= 1
       if (budget.left < 0) return 'unmeasured'
       const verdict = coverOf(holder, suspect, document.elementFromPoint(p.x, p.y))
@@ -752,7 +812,7 @@ function coverAlong(holder, node, budget, probes, look) {
  * Whether anything is drawn over an element's text, looked for along every line of every text in it (#117), every
  * scroll then put back, and whether, at any of those points, the text lies over a background other than the one its
  * contrast is read against (onOwnGround). The points where only the DevTools protocol can tell come back for
- * capture-html to ask.
+ * capture-html to ask. A text not set along the page's lines (isUpright) is not looked at, and is unmeasured (#117).
  * @param {Element} el
  * @param {Budget} budget the points the page may still look at, and until when
  * @param {Omit<Look, 'elsewhere'>} page what the page's elements paint
@@ -768,7 +828,7 @@ function isCovered(el, budget, page) {
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const holder = node.parentElement
       if (!holder || !node.textContent?.trim()) continue
-      const verdict = coverAlong(holder, node, budget, probes, look)
+      const verdict = isUpright(holder, budget.upright) ? coverAlong(holder, node, budget, probes, look) : 'unmeasured'
       if (verdict !== 'clear') return { cover: verdict, probes: [], elsewhere: look.elsewhere }
     }
     return { cover: 'clear', probes, elsewhere: look.elsewhere }
@@ -867,7 +927,7 @@ function isClear(ctx, colour) {
 }
 
 /**
- * The opacity a text is drawn at, or why its contrast cannot be read from its styles: filtered, stroked, or
+ * The opacity a text is drawn at, or why its contrast cannot be read from its styles: filtered, stroked, decorated, or
  * group_opacity.
  * @param {Element} el
  * @param {OffscreenCanvasRenderingContext2D} ctx
@@ -875,7 +935,8 @@ function isClear(ctx, colour) {
  */
 function drawnAlpha(el, ctx) {
   if (isFiltered(el)) return 'filtered'
-  return isStroked(el) ? 'stroked' : (textAlpha(el, ctx) ?? 'group_opacity')
+  if (isStroked(el)) return 'stroked'
+  return isDecorated(el) ? 'decorated' : (textAlpha(el, ctx) ?? 'group_opacity')
 }
 
 /**
@@ -885,6 +946,26 @@ function drawnAlpha(el, ctx) {
  */
 function isStroked(el) {
   return Number.parseFloat(getComputedStyle(el).getPropertyValue('-webkit-text-stroke-width') || '0') > 0
+}
+
+/**
+ * Whether a decoration may be drawn over a text: a line through it, or a decoration of a thickness or an offset of its
+ * own, on the element or on a box around it, whose decorations its text carries. In the background's colour, a line
+ * as thick as a glyph buries the text while its fill, which the render reads, stays readable (#117). The profile
+ * refuses them; this holds a page that has one to an unknown contrast.
+ * @param {Element} el
+ */
+function isDecorated(el) {
+  for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement) {
+    const style = getComputedStyle(a)
+    if (
+      style.textDecorationLine.includes('line-through') ||
+      !['auto', 'from-font'].includes(style.textDecorationThickness) ||
+      style.textUnderlineOffset !== 'auto'
+    )
+      return true
+  }
+  return false
 }
 
 /**
@@ -1167,6 +1248,7 @@ function measurePage(opts) {
     until: performance.now() + opts.maxLookMs,
     maxLines: opts.maxLines,
     paints: new Map(),
+    upright: new Map(),
     reach: reachIndex(),
   }
   const words = new RegExp(`[^\\s${opts.marks}]`, 'u')
@@ -1185,7 +1267,8 @@ function measurePage(opts) {
     if (beside === null) return { ...m, unsampled: true }
     return beside.has(el) ? { ...m, issues: [...new Set([...m.issues, 'adjoined'])].slice(0, 10) } : m
   })
-  const labels = shownElements()
+  // One past the bound, so that a page with more labels than the measure keeps counts one left out (shownElements).
+  const labels = shownElements(opts.maxMeasured + 1)
   const texts = framingElements(opts.marks)
   const shown = labels.slice(0, opts.maxMeasured).map(strictly)
   const framing = texts.slice(0, opts.maxMeasured).map(strictly)
@@ -1210,21 +1293,22 @@ function measurePage(opts) {
 
 /**
  * The labels marked data-sophia-shown, and each element inside one that holds text of its own, with the name a check
- * gives them.
+ * gives them: each element once, in document order, named by the nearest label around it, and at most `max`. A label
+ * inside another is not read again for each one around it, and the page is not read past `max`, so no page's shape
+ * (labels nested two hundred deep around a large page) makes the list larger than the measure keeps (#117).
+ * @param {number} max
  * @returns {{ el: Element, id: string }[]}
  */
-function shownElements() {
+function shownElements(max) {
   /** @type {{ el: Element, id: string }[]} */
   const out = []
-  for (const label of document.querySelectorAll('[data-sophia-shown]')) {
-    const name = `label ${label.getAttribute('data-sophia-shown') ?? ''}`
-    out.push({ el: label, id: name })
-    for (const inner of label.querySelectorAll('*')) {
-      const holds = [...inner.childNodes].some(
-        (n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== '',
-      )
-      if (holds) out.push({ el: inner, id: `${name} ${nameOf(inner)}` })
-    }
+  for (const el of document.querySelectorAll('[data-sophia-shown], [data-sophia-shown] *')) {
+    if (out.length >= max) break
+    const own = el.getAttribute('data-sophia-shown')
+    const holds = [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== '')
+    const label = el.parentElement?.closest('[data-sophia-shown]')?.getAttribute('data-sophia-shown') ?? ''
+    if (own !== null) out.push({ el, id: `label ${own}` })
+    else if (holds) out.push({ el, id: `label ${label} ${nameOf(el)}` })
   }
   return out
 }
@@ -1266,6 +1350,7 @@ const IN_PAGE = [
   overflowingElements,
   hiddenIssues,
   concealedIssues,
+  ownTextOffPage,
   inside,
   hides,
   cutsOwnText,
@@ -1287,6 +1372,9 @@ const IN_PAGE = [
   onOwnGround,
   inView,
   lineInView,
+  inWindow,
+  turns,
+  isUpright,
   pointsAlong,
   coverAlong,
   isCovered,
@@ -1298,6 +1386,7 @@ const IN_PAGE = [
   drawnAlpha,
   isFiltered,
   isStroked,
+  isDecorated,
   luminance,
   gradientStops,
   backgroundLayers,
