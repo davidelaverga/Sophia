@@ -237,7 +237,8 @@ button {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-button:disabled {
+button:disabled,
+.pill[aria-disabled='true'] {
   cursor: default;
   opacity: 0.45;
 }
@@ -262,11 +263,11 @@ button:disabled {
     border-color var(--fast) var(--ease),
     color var(--fast) var(--ease);
 }
-.pill:hover:not(:disabled) {
+.pill:hover:not(:disabled, [aria-disabled='true']) {
   background: rgba(236, 235, 241, 0.08);
   border-color: var(--line-3);
 }
-.pill:active:not(:disabled) {
+.pill:active:not(:disabled, [aria-disabled='true']) {
   transform: translateY(0.5px);
 }
 .pill.primary {

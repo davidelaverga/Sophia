@@ -31,11 +31,12 @@ interface Props {
  * Where the focus goes as the report takes the stage: to it, when it was shown from this device (focus-arrival.ts), or
  * when the press that brought it (Follow) went with the card; never away from somewhere the person still is.
  */
-function useFocusOnArrival() {
+function useFocusOnArrival(versionId: string) {
   const self = useRef<HTMLElement>(null)
   useEffect(() => {
-    if (takeShownHere() || focusLost(document.activeElement)) self.current?.focus({ preventScroll: true })
-  }, [])
+    if (takeShownHere(versionId) || focusLost(document.activeElement)) self.current?.focus({ preventScroll: true })
+    // As each version arrives: a newer one shown from here takes the focus as the first did.
+  }, [versionId])
   return self
 }
 
@@ -102,7 +103,7 @@ function useShownText(version: ArtifactVersion, identity: Identity) {
 
 export function PresentedReport({ version, identity, by, action, spoken }: Props) {
   const { parsed, listed, language, failed } = useShownText(version, identity)
-  const self = useFocusOnArrival()
+  const self = useFocusOnArrival(version.id)
   const body = useRef<HTMLDivElement>(null)
   const entries = useMemo(() => (parsed ? sectionIndex(parsed.blocks) : []), [parsed])
   const anchors = useMemo(() => new Set(entries.map((e) => e.key)), [entries])

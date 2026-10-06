@@ -8,6 +8,7 @@ import { ApiError } from '../../api/client.ts'
 import { getSince, listMeetings, markSeen, type Digest } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { canInvite } from '../access/useAccess.ts'
+import { Waiting } from '../../app/Waiting.tsx'
 import { RecapPart, RecapSheet } from '../voice/MeetingRecap.tsx'
 import { namers, recapSections } from '../voice/recap-view.ts'
 import { digestLead, meetingRow, type DateWords } from './updates-view.ts'
@@ -53,14 +54,14 @@ interface SinceProps {
 function SinceYouLooked({ projectId, identity, cursor, me }: SinceProps) {
   const since = useQuery({
     queryKey: ['vision', 'since', projectId, cursor],
-    queryFn: () => getSince(identity.token, projectId),
+    queryFn: ({ signal }) => getSince(identity.token, projectId, signal),
     placeholderData: keepPreviousData,
     retry: false,
   })
   return (
     <section className="updates-part" aria-labelledby="since-title">
       <h3 id="since-title">Since you last looked</h3>
-      {since.isPending && <p className="sheet-lead">Reading what changed…</p>}
+      <Waiting words="Reading what changed…" waiting={since.isPending} />
       {since.isError && since.data === undefined && (
         <p className="sheet-lead" role="alert">
           What changed couldn’t be read.{' '}
@@ -93,8 +94,8 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
           <button
             type="button"
             className="pill"
-            disabled={seen.isPending}
-            onClick={() => seen.mutate(digest.toSequence)}
+            aria-disabled={seen.isPending || undefined}
+            onClick={() => !seen.isPending && seen.mutate(digest.toSequence)}
           >
             Mark as seen
           </button>
@@ -138,10 +139,10 @@ interface MeetingsProps {
 
 /** The project's meetings, newest first; a row opens its recap. */
 function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
-  const [open, setOpen] = useState<string | null>(null)
+  const [open, setOpen] = useState<{ id: string; running: boolean } | null>(null)
   const list = useQuery({
     queryKey: ['vision', 'meetings', projectId, cursor],
-    queryFn: () => listMeetings(identity.token, projectId, 10),
+    queryFn: ({ signal }) => listMeetings(identity.token, projectId, 10, signal),
     placeholderData: keepPreviousData,
     retry: false,
   })
@@ -149,6 +150,7 @@ function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
   return (
     <section className="updates-part" aria-labelledby="meetings-title">
       <h3 id="meetings-title">Meetings</h3>
+      <Waiting words="Reading the meetings…" waiting={list.isPending} />
       {list.isError && list.data === undefined && (
         <p className="sheet-lead" role="alert">
           The meetings couldn’t be read.{' '}
@@ -164,7 +166,11 @@ function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
       <ul className="meeting-rows">
         {meetings.map((m) => (
           <li key={m.id}>
-            <button type="button" className="meeting-row" onClick={() => setOpen(m.id)}>
+            <button
+              type="button"
+              className="meeting-row"
+              onClick={() => setOpen({ id: m.id, running: m.endedAt === null })}
+            >
               {meetingRow(m, WORDS)}
             </button>
           </li>
@@ -174,7 +180,8 @@ function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
         <RecapSheet
           projectId={projectId}
           identity={identity}
-          meetingId={open}
+          meetingId={open.id}
+          running={open.running}
           {...sheet}
           names={NO_NAMES}
           onClose={() => setOpen(null)}

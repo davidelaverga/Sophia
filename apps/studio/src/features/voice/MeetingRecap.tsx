@@ -9,6 +9,8 @@ import { useAdmission } from '../../api/useAdmission.ts'
 import { closeMeeting, getRecap, listMeetings, type MeetingRecap, type MeetingReceipt } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
+import { closeEveryDialog } from '../../app/useDialog.ts'
+import { Waiting } from '../../app/Waiting.tsx'
 import { canInvite } from '../access/useAccess.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { useCopy } from '../resources/copy.ts'
@@ -25,8 +27,8 @@ export function useLeftCall(room: Pick<ProjectRoom, 'leftByPress'>) {
   const [left, setLeft] = useState<number | null>(null)
   if (seen !== room.leftByPress) {
     setSeen(room.leftByPress)
-    // Left from a recap's own sheet (one opened in Updates): the person is reading one already.
-    if (recapsShown.count === 0) setLeft(room.leftByPress)
+    // Left from the running meeting's own sheet (one opened in Updates): the person is reading its recap already.
+    if (runningShown.count === 0) setLeft(room.leftByPress)
   }
   return { left, dismiss: () => setLeft(null) }
 }
@@ -47,6 +49,7 @@ export function MeetingRecapOnLeave({ room, snapshot, membership, ...rest }: Pro
   return (
     <RecapSheet
       key={left}
+      leave={left}
       {...rest}
       roomId={snapshot.room.id}
       title={snapshot.title}
@@ -62,6 +65,10 @@ interface SheetProps {
   projectId: string
   /** The meeting to recap (a row in Updates); the latest one when absent (on leaving). */
   meetingId?: string
+  /** On leaving, which leave this is: each reads its own recap, never one an earlier leave is still waiting for. */
+  leave?: number
+  /** It recaps the running meeting: on leaving, no second sheet opens over it. The latest one is, on leaving. */
+  running?: boolean
   identity: Identity
   roomId: string
   title: string
@@ -71,19 +78,20 @@ interface SheetProps {
   onClose: () => void
 }
 
-/** How many recap sheets are open: leaving from inside one opens no second. */
-const recapsShown = { count: 0 }
+/** How many sheets recap the running meeting: leaving from inside one opens no second. */
+const runningShown = { count: 0 }
 
 /** Every recap read of a project starts with this key: closing a meeting reads them all again. */
 const recapKey = (projectId: string) => ['vision', 'recap', projectId] as const
 
 /**
- * A meeting's recap, or the latest one's (the list says which meeting). Kept only while shown, so the next leave reads
- * its own and never shows the last one meanwhile.
+ * A meeting's recap, or the latest one's (the list says which meeting). Kept only while shown, and keyed by the leave,
+ * so the next leave reads its own, even while an earlier leave's read still waits.
  */
-function useRecap(projectId: string, token: string, meetingId: string | undefined) {
+function useRecap(projectId: string, token: string, which: { meetingId?: string; leave?: number }) {
+  const { meetingId, leave } = which
   return useQuery({
-    queryKey: [...recapKey(projectId), meetingId ?? 'latest'],
+    queryKey: [...recapKey(projectId), meetingId ?? `latest:${String(leave ?? 0)}`],
     queryFn: async () => {
       const id = meetingId ?? (await listMeetings(token, projectId, 1)).meetings[0]?.id
       return id ? getRecap(token, projectId, id) : null
@@ -94,19 +102,21 @@ function useRecap(projectId: string, token: string, meetingId: string | undefine
 }
 
 /** «This meeting»: a meeting's recap in a sheet, on leaving or from Updates. */
-export function RecapSheet({ projectId, meetingId, identity, roomId, title, me, editor, names, onClose }: SheetProps) {
-  const recap = useRecap(projectId, identity.token, meetingId)
+export function RecapSheet(props: SheetProps) {
+  const { projectId, running = true, identity, roomId, title, me, editor, names, onClose } = props
+  const recap = useRecap(projectId, identity.token, props)
   const close = { projectId, identity, roomId }
   const titleId = useId()
   useEffect(() => {
-    recapsShown.count += 1
+    if (!running) return undefined
+    runningShown.count += 1
     return () => {
-      recapsShown.count -= 1
+      runningShown.count -= 1
     }
-  }, [])
+  }, [running])
   return (
     <Sheet id={titleId} title="This meeting" onClose={onClose} returnTo={callAnchor}>
-      {recap.isPending && <p className="sheet-lead">Putting the meeting together…</p>}
+      <Waiting words="Putting the meeting together…" waiting={recap.isPending} />
       {recap.isError && recap.data === undefined && (
         <p className="sheet-lead" role="alert">
           The recap couldn’t be read.{' '}
@@ -168,8 +178,8 @@ function RecapBody({ recap, title, names, editor, close, onClose }: BodyProps) {
           <button
             type="button"
             className="pill"
-            disabled={closing.state.status === 'sending'}
-            onClick={() => void closing.send(undefined)}
+            aria-disabled={closing.state.status === 'sending' || undefined}
+            onClick={() => closing.state.status !== 'sending' && void closing.send(undefined)}
           >
             {closing.state.status === 'unknown' ? 'Try closing again' : 'Close the meeting'}
           </button>
@@ -260,6 +270,8 @@ export function RecapPart({ section, records, onOpen, level = 3 }: PartProps) {
     if (onOpen) {
       callAnchor()?.focus()
       onOpen()
+      // Opened on leaving from another sheet's call row (Invite, a task): that one goes too, or the report sits under it.
+      closeEveryDialog()
     }
     viewer?.open({ artifactId: made.artifactId, versionId: made.artifactVersionId })
   }

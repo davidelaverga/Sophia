@@ -124,6 +124,7 @@ test('present · a show whose reply is lost is known from the room itself: shown
   // It landed: the room's feed says it is shown, so the stage presents it, as the API holds it.
   await expect(presented(page)).toBeVisible()
   await expect(presented(page)).toContainText('Shown by you')
+  await expect(presented(page)).toBeFocused()
   expect(await shows(page)).toEqual([`focus:${V1}`])
 })
 

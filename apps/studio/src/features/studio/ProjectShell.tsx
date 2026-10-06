@@ -390,9 +390,13 @@ function ProjectBody(props: BodyProps) {
   // And what Sophia made, once put away: it stays away past a visit to another view.
   const made = useStageMade(room.notices)
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
+  // What the meeting left, on leaving it from any view (A12, behind the vision flag): after the page, so it opens on top
+  // of any sheet the page has open, and in the same place in every view, so switching views keeps it.
+  const recap = VISION && <MeetingRecapOnLeave {...{ projectId, identity, room, snapshot, membership }} />
   const withViewer = (body: React.ReactNode) => (
     <WithViewer {...props} panel={panel} looking={looking}>
       {body}
+      {recap}
     </WithViewer>
   )
   const lobby = (
@@ -403,13 +407,10 @@ function ProjectBody(props: BodyProps) {
       canDecide={canInvite(membership)}
     />
   )
-  // What the meeting left, on leaving it from any view (A12, behind the vision flag).
-  const recap = VISION && <MeetingRecapOnLeave {...{ projectId, identity, room, snapshot, membership }} />
   if (view === 'studio') {
     return withViewer(
       <>
         {lobby}
-        {recap}
         <StudioShell
           projectId={projectId}
           identity={identity}
@@ -429,7 +430,6 @@ function ProjectBody(props: BodyProps) {
   return withViewer(
     <>
       {lobby}
-      {recap}
       <main className={pageClass(work, props.plans)}>
         {resources ?? <PageBody {...props} />}
         {work && pulse}

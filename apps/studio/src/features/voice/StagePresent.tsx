@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { VISION } from '../../app/vision.ts'
-import { focusChat, markShownHere, takeShownHere } from './focus-arrival.ts'
+import { focusChat, forgetShownHere, markShownHere } from './focus-arrival.ts'
 import { PresentedReport } from './PresentedReport.tsx'
 import { follows, presenting, showingWords, shownOf, showOffered, type Followed, type Shown } from './present-view.ts'
 import { shortName } from './room-view.ts'
@@ -43,9 +43,9 @@ export function showRenderOf(
       {...target}
       versionId={versionId}
       label="Show everyone"
-      onPress={markShownHere}
+      onPress={() => markShownHere(versionId)}
       onShown={onShown}
-      onFailed={takeShownHere}
+      onRefused={() => forgetShownHere(versionId)}
     />
   )
 }

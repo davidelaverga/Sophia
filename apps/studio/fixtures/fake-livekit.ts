@@ -24,6 +24,9 @@ import {
 /** What the room's connection was asked, in order: `connect`, `microphone:on`, `text:off`, `leave`… */
 export const asked: string[] = []
 
+/** Leaving waits while held, as a real disconnect can (room-recap checks). */
+export const leaving: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
+
 /** `refuse=camera`: the browser refuses the camera, as a blocked permission does. */
 const refused = new URLSearchParams(window.location.search).get('refuse')
 
@@ -131,7 +134,8 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     leave: () => {
       asked.push('leave')
       open = false
-      return Promise.resolve()
+      // A slow disconnect (`window.fixture.holdLeave`): it ends when released.
+      return leaving.held ? new Promise<void>((resolve) => leaving.waiting.push(resolve)) : Promise.resolve()
     },
   })
 }
