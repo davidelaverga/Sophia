@@ -2447,13 +2447,14 @@ function measurePage(opts) {
  * out of its row, while every text stays shown. So, where the page draws them: the head row's cells side by side, each
  * a column's own span, with its label centred within it; each cell's text inside its own row's band; and each body
  * cell's text below its column's header cell and centred within that header's span. A table set right to left mirrors
- * its headers with its cells, and passes.
+ * its headers with its cells, and passes. A block is read through every table it is or holds: the profile admits a
+ * research table's rows inside a wrapper that carries the block (#117).
  * @param {Element[]} blocks
  * @returns {string[]}
  */
 function misplacedTables(blocks) {
   return blocks
-    .filter((el) => el instanceof HTMLTableElement && cellsMoved(el))
+    .filter((el) => [el, ...el.querySelectorAll('table')].some((t) => t instanceof HTMLTableElement && cellsMoved(t)))
     .map((el) => el.getAttribute('data-block') ?? '')
 }
 
