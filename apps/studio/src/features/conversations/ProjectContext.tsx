@@ -7,6 +7,7 @@ import { useId } from 'react'
 import { getMission } from '../../api/mission.ts'
 import type { MissionContext } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { Waiting } from '../../app/Waiting.tsx'
 import { missionKey } from '../mission/mission-view.ts'
 import { acceptedOf, pendingOf } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
@@ -29,6 +30,7 @@ export function ProjectContext({ projectId, identity, cursor }: Props) {
     return (
       <aside className="conv-context" aria-label="Project context">
         <h3 className="eyebrow">Project context</h3>
+        <Waiting words="Reading the project’s context…" waiting={read.isPending} />
         {read.isError && (
           <p className="conv-note" role="alert">
             The project’s context can’t be read now.{' '}

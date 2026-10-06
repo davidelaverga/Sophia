@@ -16,6 +16,7 @@ import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { answeredAfter, contributorsLine, messageBy, messagesKey, messageWhen } from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
+import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 
 interface Props {
@@ -28,35 +29,47 @@ interface Props {
   writer: boolean | undefined
   draft: string
   onDraft: (text: string) => void
+  askSophia: boolean
+  onAskSophia: (on: boolean) => void
   onClearIf: (text: string) => void
   /** The message on its way here, or sent with no reply (held by the view). */
   held: Held<MessageAsk> | null
   onHeld: (next: Held<MessageAsk> | null) => void
-  /** Just started here: the focus goes to its title, once; and when its first message asked Sophia, since when. */
-  arrived: { askedAt: string | null } | null
+  /** The refusal that answered the last press here (kept by the view). */
+  refused: string | null
+  onRefused: (words: string | null) => void
+  /** When Sophia was asked here (kept by the view): a message that doesn't ask her leaves it. */
+  asked: Asked | null
+  onAsked: (at: string) => void
+  /** Just started here: the focus goes to its title, once. */
+  arrived: boolean
   onArrived: () => void
 }
 
 /** How long «Sophia is answering…» waits before it says her answer will come later. */
 export const ANSWER_WAIT_MS = 120_000
 
-/** Since when Sophia was asked here, until her answer is listed after it; late when it hasn't come in time. */
-function useAwaiting(askedAt: string | null) {
-  const [since, setSince] = useState(askedAt)
+/**
+ * When Sophia was asked here; late once she hasn't answered in time, counted on this page's clock from when it asked
+ * (not from coming back, and never against the server's clock).
+ */
+function useAwaiting(asked: Asked | null) {
   const [late, setLate] = useState(false)
+  const here = asked?.here ?? null
   useEffect(() => {
     setLate(false)
-    if (since === null) return undefined
-    const timer = setTimeout(() => setLate(true), ANSWER_WAIT_MS)
+    if (here === null) return undefined
+    const timer = setTimeout(() => setLate(true), Math.max(0, ANSWER_WAIT_MS - (Date.now() - here)))
     return () => clearTimeout(timer)
-  }, [since])
-  return { since, late, ask: setSince }
+  }, [here])
+  return { since: asked?.at ?? null, late }
 }
 
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const summaryId = useId()
-  const awaiting = useAwaiting(arrived?.askedAt ?? null)
+  const awaiting = useAwaiting(props.asked)
+  const read = useTranscript(c.id, identity, props.cursor)
   const head = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     if (!arrived) return
@@ -75,17 +88,22 @@ export function OpenConversation(props: Props) {
         </h4>
         <p>{c.summary ?? 'No summary yet.'}</p>
       </section>
-      <Messages conversationId={c.id} identity={identity} me={me} cursor={props.cursor} awaiting={awaiting} />
+      <Messages read={read} me={me} awaiting={awaiting} />
       {props.writer === true && (
         <ConversationComposer
           conversationId={c.id}
           identity={identity}
           draft={props.draft}
           onDraft={props.onDraft}
+          askSophia={props.askSophia}
+          onAskSophia={props.onAskSophia}
+          canSend={read.data !== undefined}
           onClearIf={props.onClearIf}
           held={props.held}
           onHeld={props.onHeld}
-          onSent={(sent) => awaiting.ask(sent.sophia === 'asked' ? sent.message.at : null)}
+          refused={props.refused}
+          onRefused={props.onRefused}
+          onSent={(sent) => sent.sophia === 'asked' && props.onAsked(sent.message.at)}
         />
       )}
       {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
@@ -117,15 +135,8 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
   )
 }
 
-/** The conversation's messages, oldest first, a page at a time: Earlier messages reads the one before. */
-function Messages(props: {
-  conversationId: string
-  identity: Identity
-  me: string
-  cursor: string | undefined
-  awaiting: { since: string | null; late: boolean }
-}) {
-  const { conversationId, identity, me } = props
+/** The conversation as read, a page at a time (the newest first), and read again as the feed moves. */
+function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined) {
   const read = useInfiniteQuery({
     queryKey: messagesKey(conversationId, identity.name),
     queryFn: ({ pageParam, signal }) => getConversationMessages(identity.token, conversationId, pageParam, signal),
@@ -133,7 +144,17 @@ function Messages(props: {
     getNextPageParam: (page) => page.before,
     retry: 1,
   })
-  useReadAgain(props.cursor, read.refetch)
+  useReadAgain(cursor, read.refetch)
+  return read
+}
+
+/** The conversation's messages, oldest first, a page at a time: Earlier messages reads the one before. */
+function Messages(props: {
+  read: ReturnType<typeof useTranscript>
+  me: string
+  awaiting: { since: string | null; late: boolean }
+}) {
+  const { read, me } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
   const messages = read.data?.pages.toReversed().flatMap((p) => p.messages) ?? []
   const first = useRef<HTMLLIElement>(null)
@@ -146,15 +167,7 @@ function Messages(props: {
   }, [read.isFetchingNextPage, read.hasNextPage])
   return (
     <>
-      <Waiting words="Reading the conversation…" waiting={read.isPending} />
-      {read.isError && messages.length === 0 && (
-        <p className="conv-note" role="alert">
-          This conversation can’t be read now.{' '}
-          <button type="button" className="text-button" onClick={() => void read.refetch()}>
-            Try again
-          </button>
-        </p>
-      )}
+      <ReadState read={read} count={messages.length} />
       {read.hasNextPage && (
         <Earlier
           reading={read.isFetchingNextPage}
@@ -217,5 +230,27 @@ function MessageList(props: {
         </li>
       ))}
     </ol>
+  )
+}
+
+/** What the transcript's read says: reading, nobody written yet, or failed (out of date when some were read). */
+function ReadState(props: {
+  read: { isPending: boolean; isSuccess: boolean; isError: boolean; refetch: () => Promise<unknown> }
+  count: number
+}) {
+  const { read, count } = props
+  return (
+    <>
+      <Waiting words="Reading the conversation…" waiting={read.isPending} />
+      {read.isSuccess && count === 0 && <p className="conv-note">Nobody has written here yet.</p>}
+      {read.isError && (
+        <p className="conv-note" role="alert">
+          {count > 0 ? 'This may be out of date.' : 'This conversation can’t be read now.'}{' '}
+          <button type="button" className="text-button" onClick={() => void read.refetch()}>
+            Try again
+          </button>
+        </p>
+      )}
+    </>
   )
 }

@@ -4,6 +4,7 @@ import type { MissionDecision } from '@sophia/contracts'
 import type { ConversationSummary } from '../../api/vision.ts'
 import {
   acceptedOf,
+  withMessage,
   answeredAfter,
   firstWords,
   pendingOf,
@@ -165,5 +166,26 @@ describe('firstWords', () => {
     assert.equal(firstWords('Did this one land?'), 'Did this one land?')
     assert.equal(firstWords('x'.repeat(60)).length, 48)
     assert.ok(firstWords('x'.repeat(60)).endsWith('…'))
+  })
+})
+
+const pageOf = (ids: string[], before: string | null) => ({ messages: ids.map((id) => ({ id })), before })
+
+describe('withMessage', () => {
+  it('puts the accepted message at the end of the newest page, once', () => {
+    const read = { pages: [pageOf(['c', 'd'], '2'), pageOf(['a', 'b'], null)], pageParams: [null, '2'] }
+    const once = withMessage(read, { id: 'e' })
+    assert.deepEqual(
+      once?.pages.map((p) => p.messages.map((msg) => msg.id)),
+      [
+        ['c', 'd', 'e'],
+        ['a', 'b'],
+      ],
+    )
+    assert.equal(withMessage(once, { id: 'e' }), once)
+  })
+
+  it('leaves a conversation not read yet as it is', () => {
+    assert.equal(withMessage(undefined, { id: 'e' }), undefined)
   })
 })
