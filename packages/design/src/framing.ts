@@ -281,7 +281,9 @@ function labelsByText(all: readonly Element[]): Map<string, Element[]> {
   for (const el of all) {
     if (!isLabel(el) || hiddenByMarkup(el)) continue
     const text = plain(textOf(el))
-    out.set(text, [...(out.get(text) ?? []), el])
+    const same = out.get(text)
+    if (same) same.push(el)
+    else out.set(text, [el])
   }
   return out
 }
@@ -296,44 +298,73 @@ function byId(all: readonly Element[]): Map<string, Element> {
   return out
 }
 
-/** The text nodes inside an element, in order (iterative, like dom.ts's walks: hostile nesting has no depth limit). */
-function textNodesIn(el: Element): TextNode[] {
-  const out: TextNode[] = []
-  const stack: ChildNode[] = el.childNodes.toReversed()
-  for (let node = stack.pop(); node; node = stack.pop()) {
-    if (isText(node)) out.push(node)
-    else if (isElement(node)) stack.push(...node.childNodes.toReversed())
+/**
+ * Each text node below `root` that is neither research (in a block) nor marks, with the nearest label that holds it and
+ * whether one of `targets` holds it. One walk, top down, so what a reference reads costs the page's size however many
+ * references name one target or how deeply targets nest (#117).
+ */
+function eachReadText(
+  root: Document,
+  targets: ReadonlySet<Element>,
+  visit: (node: TextNode, label: Element | null, inTarget: boolean) => void,
+): void {
+  const stack: { node: ChildNode; label: Element | null; block: boolean; target: boolean }[] = root.childNodes
+    .map((node) => ({ node, label: null, block: false, target: false }))
+    .toReversed()
+  for (let top = stack.pop(); top; top = stack.pop()) {
+    const { node, label, block, target } = top
+    if (isText(node) && !block && !isMarks(node.value)) visit(node, label, target)
+    if (!isElement(node)) continue
+    const inner = {
+      label: isLabel(node) ? node : label,
+      block: block || isBlock(node),
+      target: target || targets.has(node),
+    }
+    for (const child of node.childNodes.toReversed()) stack.push({ node: child, ...inner })
   }
-  return out
-}
-
-/** The nearest label that holds a node, or null. */
-function labelOf(node: ChildNode): Element | null {
-  for (let p = node.parentNode; p && isElement(p); p = p.parentNode) if (isLabel(p)) return p
-  return null
-}
-
-const inBlock = (node: ChildNode): boolean => {
-  for (let p = node.parentNode; p && isElement(p); p = p.parentNode) if (isBlock(p)) return true
-  return false
 }
 
 /**
- * Why an ID reference may not name `target`, or null, with the labels whose text it reads added to `shown`: the target
- * is on the page, not hidden by its markup, and holds only research (blocks), labels or marks.
+ * The elements that hold text a reference may not read: neither the research (a block), a label's, nor marks. An
+ * element holds what its descendants hold, so each is marked once, from the text up to the first already marked.
  */
-function referenceIssue(target: Element | undefined, shown: Set<Element>): string | null {
-  if (!target) return 'names no element of the page'
+function looseHolders(doc: Document): Set<Element> {
+  const loose = new Set<Element>()
+  eachReadText(doc, new Set(), (node, label) => {
+    if (label) return
+    for (let p = node.parentNode; p && isElement(p) && !loose.has(p); p = p.parentNode) loose.add(p)
+  })
+  return loose
+}
+
+/** Why an ID reference may not name `target`: it is not on the page, its markup hides it, or it holds loose text. */
+function targetIssue(target: Element, loose: ReadonlySet<Element>): string | null {
   if (hiddenByMarkup(target)) return 'names an element its markup hides (hidden, aria-hidden)'
-  const labels: Element[] = []
-  for (const node of textNodesIn(target)) {
-    if (isMarks(node.value) || inBlock(node)) continue
-    const label = labelOf(node)
-    if (!label) return 'names text that is neither the research (a block) nor a label'
-    labels.push(label)
+  return loose.has(target) ? 'names text that is neither the research (a block) nor a label' : null
+}
+
+/**
+ * Why an ID reference may not name `target`, or null: the target is on the page, not hidden by its markup, and holds
+ * only research (blocks), labels or marks. Each target is judged once; a valid one goes to `read`, whose labels the
+ * page then shows (readLabels).
+ */
+function referenceIssue(target: Element | undefined, cx: Context): string | null {
+  if (!target) return 'names no element of the page'
+  let issue = cx.issues.get(target)
+  if (issue === undefined) {
+    issue = targetIssue(target, cx.loose)
+    cx.issues.set(target, issue)
   }
-  for (const label of labels) shown.add(label)
-  return null
+  if (issue === null) cx.read.add(target)
+  return issue
+}
+
+/** The labels whose text a valid reference reads go to `shown`, for the render to measure (one walk). */
+function readLabels(doc: Document, cx: Context): void {
+  if (cx.read.size > 0)
+    eachReadText(doc, cx.read, (_node, label, inTarget) => {
+      if (inTarget && label) cx.shown.add(label)
+    })
 }
 
 interface Context {
@@ -341,6 +372,14 @@ interface Context {
   readonly ids: ReadonlyMap<string, Element>
   readonly shown: Set<Element>
   readonly html: string
+  /** The elements holding text a reference may not read (looseHolders). */
+  readonly loose: ReadonlySet<Element>
+  /** Each reference target judged so far, and why it may not be named (null: it may). */
+  readonly issues: Map<Element, string | null>
+  /** The targets valid references name, whose labels go to `shown` once every reference is judged. */
+  readonly read: Set<Element>
+  /** The label texts and marker targets already taken into `shown`: each is taken once, however often repeated. */
+  readonly taken: Set<string | Element>
 }
 
 /**
@@ -350,7 +389,10 @@ interface Context {
 function shownText(text: string, cx: Context, plainNames = true): boolean {
   if (text === '' || (plainNames && isPlainName(text))) return true
   const same = cx.labels.get(text)
-  for (const label of same ?? []) cx.shown.add(label)
+  if (same && !cx.taken.has(text)) {
+    cx.taken.add(text)
+    for (const label of same) cx.shown.add(label)
+  }
   return same !== undefined
 }
 
@@ -408,7 +450,7 @@ function referenceFindings(el: Element, cx: Context): Finding[] {
   const out: Finding[] = []
   for (const name of REFERENCE_ATTRIBUTES)
     for (const id of referencedIds(el, name)) {
-      const issue = referenceIssue(cx.ids.get(id), cx.shown)
+      const issue = referenceIssue(cx.ids.get(id), cx)
       if (issue)
         out.push(
           error('attribute_text', 'index.html', `<${el.tagName} ${name}="${id.slice(0, 64)}"> ${issue}`, {
@@ -424,27 +466,40 @@ function markerShown(el: Element, cx: Context): void {
   for (const name of REFERENCE_ATTRIBUTES)
     for (const id of referencedIds(el, name)) {
       const target = cx.ids.get(id)
-      if (target && isLabel(target)) cx.shown.add(target)
+      if (!target || cx.taken.has(target)) continue
+      cx.taken.add(target)
+      if (isLabel(target)) cx.shown.add(target)
     }
 }
 
 /** Every tooltip, name or reference that carries what the page does not show, and the labels the others rest on. */
-function attributeFraming(all: readonly Element[], html: string): { findings: Finding[]; shown: Set<Element> } {
-  const cx: Context = { labels: labelsByText(all), ids: byId(all), shown: new Set<Element>(), html }
+function attributeFraming(doc: Document, html: string): { findings: Finding[]; shown: Set<Element> } {
+  const all = elements(doc)
+  const cx: Context = {
+    labels: labelsByText(all),
+    ids: byId(all),
+    shown: new Set<Element>(),
+    html,
+    loose: looseHolders(doc),
+    issues: new Map(),
+    read: new Set(),
+    taken: new Set(),
+  }
   const findings: Finding[] = []
   for (const el of all) {
     if (isCite(el) || hasAncestor(el, isCite)) markerShown(el, cx)
     else findings.push(...textAttributeFindings(el, cx), ...referenceFindings(el, cx), ...headFindings(el, cx))
   }
+  readLabels(doc, cx)
   return { findings, shown: cx.shown }
 }
 
 /** The labels a tooltip, a name or a reference rests on: the render measures each as it measures a block (compile). */
 export function shownLabels(doc: Document): Element[] {
-  return [...attributeFraming(elements(doc), '').shown]
+  return [...attributeFraming(doc, '').shown]
 }
 
 /** The page's own words around the research: its text, and the text its attributes carry. */
 export function framingFindings(doc: Document, html: string): Finding[] {
-  return [...textFindings(doc, html), ...attributeFraming(elements(doc), html).findings]
+  return [...textFindings(doc, html), ...attributeFraming(doc, html).findings]
 }

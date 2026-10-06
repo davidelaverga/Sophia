@@ -6,6 +6,7 @@ import {
   contentPackage,
   DESIGN_CSP,
   FULL_SCOPE,
+  HTML_BYTES,
   packageSha256,
   reviseSource,
   type SourceFile,
@@ -720,6 +721,49 @@ describe('a page any walk can finish (#117)', () => {
     const files = nested(240)
     assert.deepEqual(codes(files), [])
     assert.match(compile(files, 'en'), /<h2 id="deep" data-sophia-shown="h2#deep">/)
+  })
+  const timed = (files: SourceFile[]): { found: string[]; ms: number } => {
+    const started = performance.now()
+    const found = codes(files)
+    return { found, ms: performance.now() - started }
+  }
+  it('judges a reference target once, however many references name it', () => {
+    const marks = '<span>•</span>'.repeat(8000)
+    const refs = '<i aria-describedby="big">•</i>'.repeat(8000)
+    const files = withHtml(good, html(good).replace('<main>', `<main><div id="big">${marks}</div>${refs}`))
+    assert.ok(Buffer.byteLength(html(files)) <= HTML_BYTES, 'the page fits the profile')
+    const { found, ms } = timed(files)
+    assert.deepEqual(found, [])
+    assert.ok(ms < 2000, `8000 references to one 8000-mark target are checked in ${ms.toFixed(0)} ms`)
+    const loose = html(files).replace('<span>•</span></div>', '<span>Host three is free</span></div>')
+    assert.ok(codes(withHtml(good, loose)).includes('attribute_text'), 'a loose text deep in the target still fails')
+  })
+  it('reads nested targets in one walk, and a label at the bottom of them is shown', () => {
+    const depth = 200
+    const ids = Array.from({ length: depth }, (_, i) => `d${String(i)}`)
+    const open = ids.map((id) => `<div id="${id}">`).join('')
+    const deep = `${open}<h2 id="h">Findings</h2>${'<span>•</span>'.repeat(6000)}${'</div>'.repeat(depth)}`
+    const refs = `<i aria-describedby="${ids.join(' ')}">•</i>`.repeat(40)
+    const files = withHtml(good, html(good).replace('<main>', `<main>${deep}${refs}`))
+    assert.ok(Buffer.byteLength(html(files)) <= HTML_BYTES, 'the page fits the profile')
+    const { found, ms } = timed(files)
+    assert.deepEqual(found, [])
+    assert.ok(ms < 2000, `${String(depth)} nested targets over 6000 marks are checked in ${ms.toFixed(0)} ms`)
+    assert.match(compile(files, 'en'), /<h2 id="h" data-sophia-shown="h2#h">Findings<\/h2>/)
+    const loose = html(files).replace('<span>•</span></div>', '<span>Host three is free</span></div>')
+    const failed = checkSource(withHtml(good, loose), content)
+    assert.deepEqual([...new Set(failed.findings.map((f) => f.code))], ['text_outside_blocks', 'attribute_text'])
+    // Every reference to every target above the text, and the text itself where it sits.
+    assert.equal(failed.findingCount, 40 * depth + 1, 'loose text at the bottom fails every target above it')
+  })
+  it('takes a label text repeated by many names once', () => {
+    const labels = '<h2>Cost</h2>'.repeat(15_000)
+    const names = '<i title=Cost></i>'.repeat(15_000)
+    const files = withHtml(good, html(good).replace('<main>', `<main>${labels}${names}`))
+    assert.ok(Buffer.byteLength(html(files)) <= HTML_BYTES, 'the page fits the profile')
+    const { found, ms } = timed(files)
+    assert.deepEqual(found, [])
+    assert.ok(ms < 2000, `15000 names over 15000 equal labels are checked in ${ms.toFixed(0)} ms`)
   })
   it('numbers lines as the text reads, whichever text was asked about last', () => {
     const text = 'a\nb\n\nc'
