@@ -4,6 +4,8 @@ import type { MissionDecision } from '@sophia/contracts'
 import type { ConversationSummary } from '../../api/vision.ts'
 import {
   acceptedOf,
+  answeredAfter,
+  firstWords,
   pendingOf,
   byActivity,
   contributorsLine,
@@ -139,5 +141,25 @@ describe('pendingOf', () => {
       ['4', '3', '2'],
     )
     assert.equal(more, 1)
+  })
+})
+
+const m = (id: string, author: 'member' | 'sophia') => ({ id, author })
+
+describe('answeredAfter', () => {
+  it('is true only when Sophia wrote after the message', () => {
+    assert.equal(answeredAfter([m('a', 'member'), m('b', 'sophia')], 'a'), true)
+    assert.equal(answeredAfter([m('b', 'sophia'), m('a', 'member')], 'a'), false)
+    assert.equal(answeredAfter([m('a', 'member'), m('c', 'member')], 'a'), false)
+    // Not listed yet: not answered.
+    assert.equal(answeredAfter([m('b', 'sophia')], 'a'), false)
+  })
+})
+
+describe('firstWords', () => {
+  it('keeps a short message whole and cuts a long one with an ellipsis', () => {
+    assert.equal(firstWords('Did this one land?'), 'Did this one land?')
+    assert.equal(firstWords('x'.repeat(60)).length, 48)
+    assert.ok(firstWords('x'.repeat(60)).endsWith('…'))
   })
 })

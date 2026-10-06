@@ -3,6 +3,13 @@
 import type { MissionDecision } from '@sophia/contracts'
 import type { ConversationSummary } from '../../api/vision.ts'
 
+/** The project's conversations, as read for this person. */
+export const listKey = (projectId: string, name: string) => ['vision', 'conversations', projectId, name] as const
+
+/** A conversation's messages, as read for this person. */
+export const messagesKey = (conversationId: string, name: string) =>
+  ['vision', 'conversation', conversationId, name] as const
+
 /** Who wrote there, mine as «You», then Sophia when she answered: «Lucía, You · Sophia». */
 export function contributorsLine(c: Pick<ConversationSummary, 'contributors' | 'sophia'>, me: string): string {
   const people = c.contributors.map((p) => (p.actorId === me ? 'You' : p.name)).join(', ')
@@ -62,3 +69,12 @@ export const messageBy = (
   m: { author: 'member' | 'sophia'; actorId: string | null; name: string | null },
   me: string,
 ) => (m.author === 'sophia' ? 'Sophia' : m.actorId === me ? 'You' : (m.name ?? 'A member'))
+
+/** Whether Sophia answered after this message: a message of hers listed after it. */
+export function answeredAfter(messages: readonly { id: string; author: 'member' | 'sophia' }[], id: string): boolean {
+  const at = messages.findIndex((m) => m.id === id)
+  return at >= 0 && messages.slice(at + 1).some((m) => m.author === 'sophia')
+}
+
+/** A message's first words, for the line that says which one wasn't confirmed. */
+export const firstWords = (text: string): string => (text.length > 48 ? `${text.slice(0, 47).trimEnd()}…` : text)

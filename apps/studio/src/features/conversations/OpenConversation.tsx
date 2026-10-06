@@ -1,25 +1,45 @@
 // The open conversation (docs/plans/project-conversations.md): its title, who wrote there, Sophia's summary of it, its
 // messages oldest first (a page at a time: Earlier messages reads the one before), and the report it made, which opens
-// in the document viewer. How its context works is one disclosure away.
+// in the document viewer. How its context works is one disclosure away. Members continue it below its messages
+// (docs/plans/project-conversation-writes.md); Sophia's answer is read as the feed moves.
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { useEffect, useId, useRef } from 'react'
-import { getConversationMessages, type ConversationSummary } from '../../api/vision.ts'
+import { useEffect, useId, useRef, useState, type RefObject } from 'react'
+import { getConversationMessages, type ConversationMessage, type ConversationSummary } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
-import { contributorsLine, messageBy, messageWhen } from './conversation-list.ts'
+import { answeredAfter, contributorsLine, messageBy, messagesKey, messageWhen } from './conversation-list.ts'
+import { ConversationComposer } from './ConversationComposer.tsx'
+import { useReadAgain } from './useReadAgain.ts'
 
 interface Props {
   conversation: ConversationSummary
   identity: Identity
   me: string
+  /** The project's feed position: the messages are read again as it moves (Sophia's answer, others' messages). */
+  cursor: string | undefined
+  /** Members write here; viewers read. */
+  canWrite: boolean
+  draft: string
+  onDraft: (text: string) => void
+  /** Just started here: the focus goes to its title. */
+  arrived: boolean
 }
 
-export function OpenConversation({ conversation: c, identity, me }: Props) {
+export function OpenConversation(props: Props) {
+  const { conversation: c, identity, me, arrived } = props
   const summaryId = useId()
+  // The message Sophia was asked to answer, until her answer is listed after it.
+  const [awaiting, setAwaiting] = useState<string | null>(null)
+  const head = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    if (arrived) head.current?.focus()
+  }, [arrived])
   return (
     <section className="conv-open" aria-label="Open conversation">
-      <h3>{c.title}</h3>
+      <h3 ref={head} tabIndex={-1}>
+        {c.title}
+      </h3>
       <p className="conv-who">{`Contributors: ${contributorsLine(c, me)}`}</p>
       <section className="conv-summary" aria-labelledby={summaryId}>
         <h4 id={summaryId} className="eyebrow">
@@ -27,7 +47,18 @@ export function OpenConversation({ conversation: c, identity, me }: Props) {
         </h4>
         <p>{c.summary ?? 'No summary yet.'}</p>
       </section>
-      <Messages conversationId={c.id} identity={identity} me={me} />
+      <Messages conversationId={c.id} identity={identity} me={me} cursor={props.cursor} awaiting={awaiting} />
+      {props.canWrite ? (
+        <ConversationComposer
+          conversationId={c.id}
+          identity={identity}
+          draft={props.draft}
+          onDraft={props.onDraft}
+          onSent={(sent) => setAwaiting(sent.sophia === 'asked' ? sent.message.id : null)}
+        />
+      ) : (
+        <p className="conv-note">Viewers read conversations; members write in them.</p>
+      )}
       <Output output={c.output} />
       <details className="conv-help">
         <summary>How conversation context works</summary>
@@ -57,14 +88,22 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
 }
 
 /** The conversation's messages, oldest first, a page at a time: Earlier messages reads the one before. */
-function Messages({ conversationId, identity, me }: { conversationId: string; identity: Identity; me: string }) {
+function Messages(props: {
+  conversationId: string
+  identity: Identity
+  me: string
+  cursor: string | undefined
+  awaiting: string | null
+}) {
+  const { conversationId, identity, me } = props
   const read = useInfiniteQuery({
-    queryKey: ['vision', 'conversation', conversationId, identity.name],
+    queryKey: messagesKey(conversationId, identity.name),
     queryFn: ({ pageParam, signal }) => getConversationMessages(identity.token, conversationId, pageParam, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.before,
     retry: 1,
   })
+  useReadAgain(props.cursor, read.refetch)
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
   const messages = read.data?.pages.toReversed().flatMap((p) => p.messages) ?? []
   const first = useRef<HTMLLIElement>(null)
@@ -96,22 +135,11 @@ function Messages({ conversationId, identity, me }: { conversationId: string; id
           }}
         />
       )}
-      {messages.length > 0 && (
-        <ol className="conv-messages">
-          {messages.map((m, i) => (
-            <li
-              key={m.id}
-              ref={i === 0 ? first : undefined}
-              tabIndex={i === 0 ? -1 : undefined}
-              className={m.author === 'sophia' ? 'conv-msg sophia' : 'conv-msg'}
-            >
-              <span className="conv-msg-by">
-                {messageBy(m, me)} · <time dateTime={m.at}>{messageWhen(m.at)}</time>
-              </span>
-              <p>{m.text}</p>
-            </li>
-          ))}
-        </ol>
+      {messages.length > 0 && <MessageList messages={messages} me={me} first={first} />}
+      {props.awaiting !== null && !answeredAfter(messages, props.awaiting) && (
+        <p className="conv-note" role="status">
+          Sophia is answering…
+        </p>
       )}
     </>
   )
@@ -131,5 +159,31 @@ function Earlier({ reading, failed, onRead }: { reading: boolean; failed: boolea
       </button>
       {failed && <span role="alert"> They can’t be read now.</span>}
     </p>
+  )
+}
+
+/** The messages, oldest first, each with who wrote it and when; the first takes the focus when it is given. */
+function MessageList(props: {
+  messages: readonly ConversationMessage[]
+  me: string
+  first: RefObject<HTMLLIElement | null>
+}) {
+  const { messages, me, first } = props
+  return (
+    <ol className="conv-messages">
+      {messages.map((m, i) => (
+        <li
+          key={m.id}
+          ref={i === 0 ? first : undefined}
+          tabIndex={i === 0 ? -1 : undefined}
+          className={m.author === 'sophia' ? 'conv-msg sophia' : 'conv-msg'}
+        >
+          <span className="conv-msg-by">
+            {messageBy(m, me)} · <time dateTime={m.at}>{messageWhen(m.at)}</time>
+          </span>
+          <p>{m.text}</p>
+        </li>
+      ))}
+    </ol>
   )
 }
