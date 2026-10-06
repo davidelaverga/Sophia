@@ -436,33 +436,30 @@ export interface MessagePage {
 
 const isOutput = (v: unknown) =>
   v === null || fields(v, { artifactId: isStr, versionId: isStr, versionNumber: isNum, title: isStr })
+const SUMMARY = {
+  id: isStr,
+  title: isStr,
+  summary: isStrOrNull,
+  lastAt: isStr,
+  contributors: listOf({ actorId: isStr, name: isStr }),
+  sophia: (v: unknown) => typeof v === 'boolean',
+  openQuestions: isNum,
+  output: isOutput,
+}
+const MESSAGE = {
+  id: isStr,
+  author: (v: unknown) => v === 'member' || v === 'sophia',
+  actorId: isStrOrNull,
+  name: isStrOrNull,
+  text: isStr,
+  at: isStr,
+}
 const parseConversations = checked<{ conversations: readonly ConversationSummary[] }>(
-  {
-    conversations: listOf({
-      id: isStr,
-      title: isStr,
-      summary: isStrOrNull,
-      lastAt: isStr,
-      contributors: listOf({ actorId: isStr, name: isStr }),
-      sophia: (v) => typeof v === 'boolean',
-      openQuestions: isNum,
-      output: isOutput,
-    }),
-  },
+  { conversations: (v) => Array.isArray(v) && v.every((c) => fields(c, SUMMARY)) },
   'conversation list',
 )
 const parseMessages = checked<MessagePage>(
-  {
-    messages: listOf({
-      id: isStr,
-      author: (v) => v === 'member' || v === 'sophia',
-      actorId: isStrOrNull,
-      name: isStrOrNull,
-      text: isStr,
-      at: isStr,
-    }),
-    before: isStrOrNull,
-  },
+  { messages: (v) => Array.isArray(v) && v.every((m) => fields(m, MESSAGE)), before: isStrOrNull },
   'message page',
 )
 
@@ -486,3 +483,44 @@ export const getConversationMessages = (
     { token, method: 'GET', ...(signal ? { signal } : {}) },
     parseMessages,
   )
+
+/** A18 (proposed): a conversation started with its first message; Sophia asked there too, or not. */
+export interface ConversationAsk {
+  title: string
+  text: string
+  askSophia: boolean
+}
+
+/** A18: a message in a conversation; Sophia asked to answer it, or not. */
+export interface MessageAsk {
+  text: string
+  askSophia: boolean
+}
+
+export interface ConversationStarted {
+  conversation: ConversationSummary
+  message: ConversationMessage
+}
+
+export interface MessageSent {
+  message: ConversationMessage
+  /** Whether Sophia was asked: her answer is a later message, as the feed moves. */
+  sophia: 'asked' | 'not_asked'
+}
+
+const parseStarted = checked<ConversationStarted>(
+  { conversation: (v) => fields(v, SUMMARY), message: (v) => fields(v, MESSAGE) },
+  'started conversation',
+)
+const parseSent = checked<MessageSent>(
+  { message: (v) => fields(v, MESSAGE), sophia: (v) => v === 'asked' || v === 'not_asked' },
+  'sent message',
+)
+
+/** A18: start a conversation (members, not viewers), once per key. */
+export const startConversation = (token: string, projectId: string, key: string, body: ConversationAsk) =>
+  callApi(`/api/v1/projects/${projectId}/conversations`, { token, key, body }, parseStarted)
+
+/** A18: a message in a conversation (members, not viewers), once per key. */
+export const sendConversationMessage = (token: string, conversationId: string, key: string, body: MessageAsk) =>
+  callApi(`/api/v1/conversations/${conversationId}/messages`, { token, key, body }, parseSent)

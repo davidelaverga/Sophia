@@ -692,6 +692,11 @@ function Kept({ children }: { children: (background: boolean) => ReactNode }) {
   )
 }
 
+/** `send=lost`: the first message lands, its reply lost; `send=refused`: refused; `send=slow`: replies take 1.5 s (A18). */
+function sendAsked(which: string | null): 'lost' | 'refused' | 'slow' | null {
+  return which === 'lost' || which === 'refused' || which === 'slow' ? which : null
+}
+
 /** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
 function conversationsAsked(which: string | null, failMessages: boolean) {
   if (which === null) return {}
@@ -701,6 +706,9 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       messages: messagesOf(),
       failList: which === 'fail',
       failMessagesOf: failMessages ? CONVERSATION.briefs : null,
+      send: sendAsked(query.get('send')),
+      start: query.get('start') === 'lost' ? ('lost' as const) : null,
+      receipts: new Map<string, { body: string; receipt: unknown }>(),
     },
     missionPlus: conversationMission(),
   }

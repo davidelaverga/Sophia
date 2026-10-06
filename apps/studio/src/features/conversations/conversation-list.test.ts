@@ -4,6 +4,8 @@ import type { MissionDecision } from '@sophia/contracts'
 import type { ConversationSummary } from '../../api/vision.ts'
 import {
   acceptedOf,
+  answeredAfter,
+  firstWords,
   pendingOf,
   byActivity,
   contributorsLine,
@@ -139,5 +141,29 @@ describe('pendingOf', () => {
       ['4', '3', '2'],
     )
     assert.equal(more, 1)
+  })
+})
+
+const m = (minute: number, author: 'member' | 'sophia') => ({
+  author,
+  at: `2026-10-06T10:${String(minute).padStart(2, '0')}:00.000Z`,
+})
+const ASKED = '2026-10-06T10:05:00.000Z'
+
+describe('answeredAfter', () => {
+  it('is true only when Sophia wrote after she was asked', () => {
+    assert.equal(answeredAfter([m(5, 'member'), m(6, 'sophia')], ASKED), true)
+    assert.equal(answeredAfter([m(4, 'sophia'), m(5, 'member')], ASKED), false)
+    assert.equal(answeredAfter([m(5, 'member'), m(7, 'member')], ASKED), false)
+    // Her answer counts wherever the page holds it, even with the message asked out of the page.
+    assert.equal(answeredAfter([m(8, 'member'), m(9, 'sophia')], ASKED), true)
+  })
+})
+
+describe('firstWords', () => {
+  it('keeps a short message whole and cuts a long one with an ellipsis', () => {
+    assert.equal(firstWords('Did this one land?'), 'Did this one land?')
+    assert.equal(firstWords('x'.repeat(60)).length, 48)
+    assert.ok(firstWords('x'.repeat(60)).endsWith('…'))
   })
 })
