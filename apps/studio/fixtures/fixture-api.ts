@@ -40,7 +40,7 @@ import {
 } from './report-data.ts'
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
-import { focusRequest, focusSet, type Showing } from './focus-data.ts'
+import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
 import { searchHits, searchPage } from './search-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
@@ -228,11 +228,20 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   return answerReports(project, method, url, init)
 }
 
+/** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
+function visionRead(project: Project, url: URL) {
+  if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
+  if (url.pathname !== `/api/v1/rooms/${ROOM}/focus` || !project.showing) return undefined
+  served.push('room-focus:read')
+  return json(roomFocus(project.showing, project.revision))
+}
+
 /** The brief, the meeting's records and the invitations sent (none) (A08, A12); undefined for any other request. */
 function recordsAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
-  if (method === 'GET' && path === `${base}/search`) return searchAnswer(project, url)
+  const read = method === 'GET' ? visionRead(project, url) : undefined
+  if (read !== undefined) return read
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   if (method === 'GET' && path === `${base}/since` && project.meeting)

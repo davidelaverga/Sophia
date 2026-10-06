@@ -1,13 +1,26 @@
 // What the room shows to everyone, on this stage (docs/plans/room-present.md): the report presented where a shared
 // screen goes, when I follow it or show it myself, or a card that says who shows what, with Follow. Following is this
 // device's choice (01:41) and ends when nothing is shown. «Show everyone» is offered only under the vision flag.
+import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { getRoomFocus, type RoomFocus } from '../../api/vision.ts'
 import { VISION } from '../../app/vision.ts'
 import { focusChat, forgetShownHere, markShownHere } from './focus-arrival.ts'
 import { PresentedReport } from './PresentedReport.tsx'
-import { follows, presenting, showingWords, shownOf, showOffered, type Followed, type Shown } from './present-view.ts'
+import {
+  carriesOver,
+  follows,
+  mayCarry,
+  presenting,
+  showingWords,
+  shownOf,
+  showOffered,
+  type FocusAt,
+  type Followed,
+  type Shown,
+} from './present-view.ts'
 import { shortName } from './room-view.ts'
 import { FocusButton, type FocusTarget, type ShowRender } from './ShowEveryone.tsx'
 import type { ProjectRoom } from './useProjectRoom.ts'
@@ -85,14 +98,27 @@ function useFollowing(shown: Shown | null) {
     setFollowed(null)
     setStopped(false)
   }
+  // Only under the vision flag, where the focus read can settle it; without it, any change asks again (#110).
+  const may = VISION && mayCarry(followed, shown)
+  // Something else shown (another report, another member): what I chose is over, and nothing re-arms it.
+  if (followed && shown && !follows(followed, shown) && !may) setFollowed(null)
   const focused = useCallback(() => setStopped(false), [])
   return {
-    following: follows(followed, shown),
+    // The focus moved on within what I follow: followed still until its read says otherwise, so the report doesn't
+    // leave the stage for a round trip, nor for a read that failed.
+    following: follows(followed, shown) || may,
+    /** The focus moved on within what I follow: the read says whether it was Sophia walking it. */
+    mayCarry: may,
+    /** The read for the focus as it is now: Sophia's walk carries following over; anything else ends it. */
+    carry: (at: FocusAt | undefined) => {
+      if (!followed || !shown || !may || at?.revision !== shown.revision) return
+      setFollowed(carriesOver(followed, shown, at) ? { ...followed, revision: shown.revision } : null)
+    },
     stopped,
     focused,
     follow: () => {
       setStopped(false)
-      if (shown?.version) setFollowed({ revision: shown.revision, versionId: shown.version.id })
+      if (shown?.version) setFollowed({ revision: shown.revision, versionId: shown.version.id, guideId: shown.guideId })
     },
     unfollow: () => {
       setFollowed(null)
@@ -101,13 +127,55 @@ function useFollowing(shown: Shown | null) {
   }
 }
 
+/**
+ * The room's focus as A14's proposed read has it (with its section, and who put it there), read again as it moves;
+ * only while the shown report is on this stage, or may still be (the focus moved within what I follow), so whoever
+ * doesn't follow it sees nothing move and reads nothing. Only under the vision flag.
+ */
+function useFocusAt(snapshot: Snapshot | undefined, wanted: boolean, identity: Identity) {
+  const focus = snapshot?.sharedFocus
+  const roomId = snapshot?.room.id
+  return useQuery({
+    queryKey: ['vision', 'room-focus', identity.name, roomId, focus?.revision],
+    queryFn: ({ signal }) => getRoomFocus(identity.token, roomId ?? '', signal),
+    enabled: VISION && wanted && roomId !== undefined && focus !== null && focus !== undefined,
+    staleTime: Infinity,
+    retry: 1,
+  }).data
+}
+
+/** Where Sophia walked the shown report (A14): the focus as it is now, hers, on the version shown. */
+function walkOf(at: RoomFocus | undefined, focus: Snapshot['sharedFocus'] | undefined) {
+  const hers =
+    at?.by === 'sophia' && at.revision === focus?.revision && at.artifactVersionId === focus.artifactVersionId
+  return hers && at.anchor ? { anchor: at.anchor, revision: at.revision } : null
+}
+
+/** Where Sophia walked what is on this stage (A14), carrying following over her moves. */
+function useWalked(
+  snapshot: Snapshot | undefined,
+  on: { shown: Shown | null; screen: boolean; followed: ReturnType<typeof useFollowing> },
+  identity: Identity,
+) {
+  const { shown, screen, followed } = on
+  const at = useFocusAt(snapshot, onStageOf(shown, followed.following, screen) || followed.mayCarry, identity)
+  followed.carry(at)
+  return walkOf(at, snapshot?.sharedFocus)
+}
+
+/** Whether the shown report is on this stage: shown from here, or followed, and no screen shared over it. */
+const onStageOf = (shown: Shown | null, following: boolean, screen: boolean) =>
+  shown !== null && shown.version !== null && presenting(shown, { following, screen })
+
 /** The presented report for the stage (or null), and the card for the stage (or null). */
 export function useStagePresent(snapshot: Snapshot | undefined, room: Room, context: Context) {
   const { projectId, identity, me, names, spoken } = context
   const shown = shownOf(snapshot?.sharedFocus, snapshot?.artifacts, me)
-  const { following, stopped, focused, follow, unfollow } = useFollowing(shown)
+  const followed = useFollowing(shown)
+  const { following, stopped, focused, follow, unfollow } = followed
   const screen = room.feeds.some((f) => f.source === 'screen')
   const target = targetOf(snapshot, projectId, identity)
+  const walk = useWalked(snapshot, { shown, screen, followed }, identity)
   if (!shown) return { presented: null, card: null }
   const guide = shown.mine ? 'you' : shortName(names.get(shown.guideId) ?? 'A member')
   // Mine, I can always stop it: on the stage, or on my card when the stage can't present it.
@@ -128,6 +196,7 @@ export function useStagePresent(snapshot: Snapshot | undefined, room: Room, cont
           by={guide}
           action={stop ?? unfollowing}
           spoken={spoken}
+          walk={walk}
         />
       ),
       card: null,

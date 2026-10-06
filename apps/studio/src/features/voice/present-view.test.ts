@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ArtifactVersion } from '@sophia/contracts'
-import { follows, presenting, showingWords, shownOf, showOffered } from './present-view.ts'
+import { carriesOver, follows, mayCarry, presenting, showingWords, shownOf, showOffered } from './present-view.ts'
 
 const version = (id: string, over: Partial<ArtifactVersion> = {}) =>
   ({ id, artifactId: 'report', title: 'Fixture report', versionNumber: 2, ...over }) as ArtifactVersion
@@ -38,12 +38,30 @@ describe('what the card says', () => {
 describe('what I follow', () => {
   const shown = { version: version('v2'), guideId: 'marco', revision: 3, mine: false }
 
+  const chose = { revision: 3, versionId: 'v2', guideId: 'marco' }
+
   it('is what I chose: the focus at that revision; any change of it asks again', () => {
-    assert.equal(follows({ revision: 3, versionId: 'v2' }, shown), true)
-    assert.equal(follows({ revision: 3, versionId: 'v2' }, { ...shown, revision: 4 }), false)
-    assert.equal(follows({ revision: 3, versionId: 'v2' }, { ...shown, version: null }), false)
+    assert.equal(follows(chose, shown), true)
+    assert.equal(follows(chose, { ...shown, revision: 4 }), false)
+    assert.equal(follows(chose, { ...shown, version: null }), false)
     assert.equal(follows(null, shown), false)
-    assert.equal(follows({ revision: 3, versionId: 'v2' }, null), false)
+    assert.equal(follows(chose, null), false)
+  })
+
+  it('carries over only Sophia walking the same showing, at the new revision itself', () => {
+    const later = { ...shown, revision: 5 }
+    const hers = { revision: 5, artifactVersionId: 'v2', by: 'sophia' as const, shownAt: 3 }
+    assert.equal(mayCarry(chose, later), true)
+    assert.equal(carriesOver(chose, later, hers), true)
+    // A member's change at that revision (a stop and a show again, read as one): asks again.
+    assert.equal(carriesOver(chose, later, { ...hers, by: 'member' }), false)
+    // An answer for an earlier revision says nothing of this one.
+    assert.equal(carriesOver(chose, later, { ...hers, revision: 4 }), false)
+    assert.equal(mayCarry(chose, { ...later, guideId: 'lucia' }), false)
+    assert.equal(mayCarry(chose, { ...later, version: version('v3') }), false)
+    assert.equal(carriesOver(chose, later, undefined), false)
+    // Shown again by its member after my follow, then walked, read as one: not the showing I chose.
+    assert.equal(carriesOver(chose, later, { ...hers, shownAt: 4 }), false)
   })
 })
 
