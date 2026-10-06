@@ -10,8 +10,9 @@
 // Every check validates the recorded values themselves, never a producer's own pass flag: the identity against the
 // run's context, and the packaged files recomputed from the manifests and the image's own files (review of 896a92d);
 // each start's recorded health answer 200 and ok within HEALTH_LIMIT_S (review of 4c63217); each memory phase read
-// exactly once, every figure a number, the limit 2 GiB without swap, peak and current within it, and no OOM event of
-// any kind; each probe phase's required steps all present and passed, and what each observed (statuses, outcomes, the same plugin, issue and configuration
+// exactly once, from the container's own cgroup (resolved from its process, the path naming it; the restart's the same
+// container, the recreation's a new one), every figure a whole number, the limit 2 GiB without swap, peak and current
+// within it, and no OOM event of any kind; each probe phase's required steps all present and passed, and what each observed (statuses, outcomes, the same plugin, issue and configuration
 // across both phases) recorded and as required; the home's persistence recomputed from the two snapshots, every size
 // and digest it compares one that was read, and every file under the home covered (CX-0039).
 // A check is passed, failed, unavailable (recorded but incomplete, or not in the shape it is read in) or not reached. The verdict is `qualified` only when
@@ -153,8 +154,10 @@ function startCheck(timings, label) {
 
 /**
  * What Docker configured for each start (scripts/paperclip-image-container.mjs, runtime.jsonl), against the stated
- * scope: not privileged, Docker's default capability set exactly (none added or dropped, review of 3c29dd1), not the
- * host's network, published on 127.0.0.1 only. One record per start (review of 9130676).
+ * scope: not privileged, Docker's default capability set exactly (none added or dropped, review of 3c29dd1) and its
+ * default security options (none given: its own seccomp and AppArmor profiles, neither loosened nor tightened; review
+ * of ebdbaa9), not the host's network, published on 127.0.0.1 only, each binding a port and protocol to a host port.
+ * One record per start (review of 9130676).
  */
 function runtimeCheck(records) {
   if (records.length === 0) return { result: 'not reached' }
@@ -168,15 +171,34 @@ function runtimeCheck(records) {
     // Docker's default set exactly: nothing dropped either, so a stricter runtime never qualifies (review of 3c29dd1).
     Array.isArray(r.capDrop) &&
     r.capDrop.length === 0 &&
+    Array.isArray(r.securityOpt) &&
+    r.securityOpt.length === 0 &&
     typeof r.networkMode === 'string' &&
     r.networkMode !== 'host' &&
     !r.networkMode.startsWith('container:') &&
     Array.isArray(r.ports) &&
     r.ports.length > 0 &&
-    r.ports.every((p) => p.hostIp === '127.0.0.1')
+    r.ports.every(
+      (p) => p.hostIp === '127.0.0.1' && typeof p.port === 'string' && /^\d+\/(tcp|udp)$/.test(p.port) && typeof p.hostPort === 'string' && /^\d+$/.test(p.hostPort),
+    )
   const failing = records.filter((r) => !holds(r)).map((r) => r.label)
   return { result: failing.length === 0 ? 'passed' : 'failed', detail: { failing, records } }
 }
+
+const CONTAINER_ID = /^[0-9a-f]{64}$/
+/**
+ * The container a sample's counters are known to be from: its id, when the sampler resolved the cgroup from that
+ * container's own process and the cgroup's path names it (a systemd scope `docker-<id>.scope`, or `<id>` itself);
+ * otherwise null, and the counters are not known to be the container's (review of ebdbaa9).
+ */
+function containerOf(s) {
+  const id = s.containerId
+  const path = s.cgroup?.path
+  const named = typeof id === 'string' && CONTAINER_ID.test(id) && typeof path === 'string' && (path.endsWith(`/docker-${id}.scope`) || path.endsWith(`/${id}`))
+  return s.cgroup?.source === 'process' && named ? id : null
+}
+/** The first start and its restart are one container; the recreation is another. */
+const containerGroup = (label) => (label.startsWith('recreated:') ? 'recreated' : 'original')
 
 function memoryCheck(samples, phase) {
   const records = samples.filter((s) => s.label === phase)
@@ -193,15 +215,27 @@ function memoryCheck(samples, phase) {
     oomKilled: s.oomKilled,
     running: s.running,
     cgroupSource: s.cgroup?.source,
+    cgroupPath: s.cgroup?.path,
+    container: containerOf(s),
     unavailable: s.unavailable,
   }
+  // Every figure a whole number: each counter memory.events lists, not only the OOM ones (review of ebdbaa9).
   const read =
     Array.isArray(s.unavailable) &&
     s.unavailable.length === 0 &&
+    detail.container !== null &&
     [s.max, s.swapMax, s.peak, s.current, ...OOM_EVENTS.map((name) => events[name])].every(isCounter) &&
+    events !== null &&
+    typeof events === 'object' &&
+    Object.values(events).every(isCounter) &&
     typeof s.oomKilled === 'boolean' &&
     typeof s.running === 'boolean'
   if (!read) return { result: 'unavailable', detail }
+  // The same container as the other samples of its start, and the recreation a new one.
+  const others = samples.filter((r) => r !== s && PHASES.includes(r.label)).map((r) => [containerGroup(r.label), containerOf(r)])
+  const consistent =
+    others.every(([group, id]) => id === null || (group === containerGroup(phase)) === (id === detail.container))
+  if (!consistent) return { result: 'failed', detail: { ...detail, reason: 'a sample from another container than its start’s' } }
   const within =
     s.running &&
     !s.oomKilled &&
@@ -340,7 +374,7 @@ export function assess({
   const checks = [
     guarded('image built from the pin and a clean Sophia commit, linux/amd64, packaged files as recorded', () => identityCheck(identity, context, packaged), unreadable),
     ...STARTS.map((label) => guarded(`${label}: healthy within ${HEALTH_LIMIT_S} s`, () => startCheck(timings, label), unreadable)),
-    guarded('runtime: not privileged, Docker’s default capabilities (none added or dropped), not the host network, loopback only', () => runtimeCheck(runtime), unreadable),
+    guarded('runtime: not privileged, Docker’s default capabilities (none added or dropped) and security options, not the host network, loopback only', () => runtimeCheck(runtime), unreadable),
     ...PHASES.map((phase) => guarded(`memory, ${phase}`, () => memoryCheck(samples, phase), unreadable)),
     ...['first', 'restart', 'restarted'].map((phase) => guarded(`installed plugin flow, ${phase}`, () => probeCheck(probes[phase], phase, probes.first), unreadable)),
     guarded('home persisted across recreation', () => homeCheck(home.before, home.after), unreadable),
@@ -351,7 +385,7 @@ export function assess({
     schema: 'sophia.paperclip-image-receipt.v2',
     verdict,
     scope:
-      'The two-step image from the Paperclip pin and a clean Sophia commit, built and run on a GitHub-hosted linux/amd64 runner under a 2 GiB memory cgroup without swap, with Docker’s default capability set (none added or dropped; not privileged, not the host network, published on loopback only), with a disposable database and home and synthetic credentials; the installed plugin flow through the service probe --url. Not Render platform fit, not a registry digest, not a real Sophia (its address is closed in the container).',
+      'The two-step image from the Paperclip pin and a clean Sophia commit, built and run on a GitHub-hosted linux/amd64 runner under a 2 GiB memory cgroup without swap, with Docker’s default capability set and security options (none added or dropped; not privileged, not the host network, published on loopback only), with a disposable database and home and synthetic credentials; the installed plugin flow through the service probe --url. Not Render platform fit, not a registry digest, not a real Sophia (its address is closed in the container).',
     context,
     disk,
     images: identity && { build: identity.buildImage, image: identity.image },

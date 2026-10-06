@@ -96,8 +96,11 @@ const probe = (phase) => ({
   outcome: 'passed',
   steps: PROBE_STEPS[phase].map((step) => ({ step, ok: true, ms: 10, detail: { ...FACTS[phase][step] } })),
 })
+/** The container each start's samples are read from: the first start and its restart one, the recreation another. */
+const containerFor = (label) => (label.startsWith('recreated:') ? 'b' : 'a').repeat(64)
 const sample = (label) => ({
   label,
+  containerId: containerFor(label),
   running: true,
   oomKilled: false,
   unavailable: [],
@@ -106,7 +109,7 @@ const sample = (label) => ({
   peak: 1_100_000_000,
   current: 1_000_000_000,
   events: { low: 0, high: 0, max: 0, oom: 0, oom_kill: 0, oom_group_kill: 0 },
-  cgroup: { path: '/system.slice/docker-x.scope', source: 'process' },
+  cgroup: { path: `/system.slice/docker-${containerFor(label)}.scope`, source: 'process' },
 })
 
 /** A complete, legitimate run's records: the positive control every fault below changes in one place. */
@@ -136,7 +139,8 @@ function complete() {
     })),
     samples: PHASES.map(sample),
     probes: { first: probe('first'), restart: probe('restart'), restarted: probe('restarted') },
-    home: { before: { coverage: covered(files), files }, after: structuredClone(grown) },
+    // Copies, never the shared lists: a test that changes one run must not change the next (review of ebdbaa9).
+    home: { before: { coverage: covered(files), files: structuredClone(files) }, after: structuredClone(grown) },
   }
 }
 
@@ -1202,11 +1206,20 @@ describe('review of 705c2b8: whatever shape a record has, at any depth, the rece
           assert.equal(typeof summary, 'string')
           for (const name of receipt.unreadable ?? []) assert.equal(receipt.checks.find((c) => c.name === name).result, 'unavailable', where)
           // No silent acceptance: a judged value replaced by a wrong shape is never qualified, unless the replacement is
-          // itself what was recorded (`true` for `true`, `[]` for `[]`) or a valid value of its own (a run named "x").
-          const stillValid = isDeepStrictEqual(shape, original) || (path.at(-1) === 'runId' && shape === 'x')
+          // itself what was recorded (`true` for `true`, `[]` for `[]`) or a valid value of its own (a run or a network
+          // named "x", a start of half a second).
+          const stillValid =
+            isDeepStrictEqual(shape, original) ||
+            (path.at(-1) === 'runId' && shape === 'x') ||
+            (path.at(-1) === 'networkMode' && shape === 'x') ||
+            (path.at(-1) === 'seconds' && shape === 0.5)
           if (receipt.verdict === 'qualified') assert.ok(UNJUDGED.test(where) || stillValid, `${where} <- ${JSON.stringify(shape)}`)
+          // And the list is exact: a field on it is one the receipt reads nothing from, so no shape of it changes the verdict.
+          if (UNJUDGED.test(where)) assert.equal(receipt.verdict, 'qualified', `${where} is listed as unjudged, yet <- ${JSON.stringify(shape)} gives ${receipt.verdict}`)
           cases += 1
         }
+      // Each case changed its own run only: a complete run is still qualified, so no later case passes vacuously.
+      assert.equal(receiptOf(complete()).receipt.verdict, 'qualified', `after ${record.join('.')}`)
     }
     assert.ok(cases > 1000, `${cases} cases`)
   })
@@ -1242,6 +1255,135 @@ describe('review of 705c2b8: whatever shape a record has, at any depth, the rece
       else setAt(run, record, null)
       const { receipt } = receiptOf(run)
       assert.notEqual(receipt.verdict, 'qualified', record.join('.'))
+    }
+  })
+})
+
+describe('review of ebdbaa9: the runtime’s security options and ports are judged, and memory is the container’s own', () => {
+  const RUNTIME = 'runtime:'
+  const memoryOf = (run, phase) => assess(run).checks.find((c) => c.name === `memory, ${phase}`)
+  const withSample = (phase, change) => {
+    const run = complete()
+    run.samples = run.samples.map((s) => (s.label === phase ? change(s) : s))
+    return run
+  }
+
+  it('positive control: Docker’s default security options, well-formed ports, every sample from its start’s container', () => {
+    const run = complete()
+    assert.equal(resultOf(run, RUNTIME), 'passed')
+    for (const phase of PHASES) assert.equal(memoryOf(run, phase).result, 'passed', phase)
+    assert.equal(memoryOf(run, 'restart:healthy').detail.container, 'a'.repeat(64))
+    assert.equal(memoryOf(run, 'recreated:idle').detail.container, 'b'.repeat(64))
+  })
+
+  it('a security option given, looser or stricter, or not a list, fails the runtime', () => {
+    for (const securityOpt of [['seccomp=unconfined'], ['apparmor=unconfined'], ['no-new-privileges'], null, 'x', {}]) {
+      const run = complete()
+      run.runtime[1].securityOpt = securityOpt
+      assert.equal(resultOf(run, RUNTIME), 'failed', JSON.stringify(securityOpt))
+    }
+  })
+
+  it('a published port not a port and protocol, or a host port not a number, fails the runtime', () => {
+    for (const change of [
+      (p) => ({ ...p, port: null }),
+      (p) => ({ ...p, port: ['3100/tcp'] }),
+      (p) => ({ ...p, port: '3100' }),
+      (p) => ({ ...p, hostPort: 3100 }),
+      (p) => ({ ...p, hostPort: 'x' }),
+    ]) {
+      const run = complete()
+      run.runtime[0].ports = run.runtime[0].ports.map(change)
+      assert.equal(resultOf(run, RUNTIME), 'failed')
+    }
+  })
+
+  it('every counter memory.events lists is a whole number, not only the OOM ones', () => {
+    for (const value of [0.5, -1, '0', null])
+      for (const name of ['low', 'high', 'max'])
+        assert.equal(memoryOf(withSample('first:after-flow', (s) => ({ ...s, events: { ...s.events, [name]: value } })), 'first:after-flow').result, 'unavailable', `${name} ${value}`)
+  })
+
+  it('a sample without its provenance, from a guessed path, or from a path not naming its container, is no reading', () => {
+    for (const change of [
+      ({ cgroup, ...s }) => s,
+      ({ containerId, ...s }) => s,
+      (s) => ({ ...s, cgroup: { ...s.cgroup, source: 'scope-guess' } }),
+      (s) => ({ ...s, cgroup: { ...s.cgroup, source: 'unrelated' } }),
+      (s) => ({ ...s, cgroup: { ...s.cgroup, path: '/unrelated' } }),
+      (s) => ({ ...s, cgroup: { source: 'unrelated', path: '/unrelated' } }),
+      (s) => ({ ...s, cgroup: { ...s.cgroup, path: '/system.slice/docker-x.scope' } }),
+      (s) => ({ ...s, cgroup: { ...s.cgroup, path: `/system.slice/docker-${'c'.repeat(64)}.scope` } }),
+      (s) => ({ ...s, cgroup: { ...s.cgroup, path: `/system.slice/docker-${s.containerId}.scope/child` } }),
+      (s) => ({ ...s, containerId: 'a'.repeat(63) }),
+      // A path naming what the record calls the container is not enough: the id must be one Docker gives (64 hex).
+      (s) => ({ ...s, containerId: 'abc', cgroup: { ...s.cgroup, path: '/system.slice/docker-abc.scope' } }),
+    ]) {
+      const run = withSample('restart:healthy', change)
+      assert.equal(memoryOf(run, 'restart:healthy').result, 'unavailable')
+      assert.notEqual(verdictOf(run), 'qualified')
+    }
+    // The cgroupfs form names the container too.
+    const cgroupfs = withSample('first:healthy', (s) => ({ ...s, cgroup: { ...s.cgroup, path: `/docker/${s.containerId}` } }))
+    assert.equal(memoryOf(cgroupfs, 'first:healthy').result, 'passed')
+  })
+
+  it('review of ebdbaa9 (the cases of the review): every sample without its cgroup, or with an unrelated source or path, and the run is not qualified', () => {
+    for (const change of [
+      ({ cgroup, ...s }) => s,
+      (s) => ({ ...s, cgroup: { ...s.cgroup, source: 'unrelated' } }),
+      (s) => ({ ...s, cgroup: { ...s.cgroup, path: '/unrelated' } }),
+      (s) => ({ ...s, cgroup: { source: 'unrelated', path: '/unrelated' } }),
+    ]) {
+      const run = complete()
+      run.samples = run.samples.map(change)
+      assert.equal(verdictOf(run), 'incomplete')
+      for (const phase of PHASES) assert.equal(memoryOf(run, phase).result, 'unavailable', phase)
+    }
+  })
+
+  it('a restart’s sample from another container, or a recreation’s from the first one, fails', () => {
+    const other = (s) => ({ ...s, containerId: 'c'.repeat(64), cgroup: { ...s.cgroup, path: `/system.slice/docker-${'c'.repeat(64)}.scope` } })
+    const first = (s) => ({ ...s, containerId: 'a'.repeat(64), cgroup: { ...s.cgroup, path: `/system.slice/docker-${'a'.repeat(64)}.scope` } })
+    assert.equal(memoryOf(withSample('restart:after-flow', other), 'restart:after-flow').result, 'failed')
+    assert.equal(memoryOf(withSample('first:idle', other), 'first:idle').result, 'failed')
+    assert.equal(memoryOf(withSample('recreated:healthy', first), 'recreated:healthy').result, 'failed')
+    assert.equal(verdictOf(withSample('recreated:healthy', first)), 'failed')
+    // A recreation that was no recreation: every sample after it still from the first container.
+    const notRecreated = complete()
+    notRecreated.samples = notRecreated.samples.map((s) => (s.label.startsWith('recreated:') ? first(s) : s))
+    for (const phase of PHASES.filter((p) => p.startsWith('recreated:'))) assert.equal(memoryOf(notRecreated, phase).result, 'failed', phase)
+    assert.equal(verdictOf(notRecreated), 'failed')
+  })
+
+  it('the sampler records the container it read beside the cgroup it resolved from that container’s process', { skip: process.platform !== 'linux' && 'the sampler reads /proc' }, async () => {
+    const SAMPLER = fileURLToPath(new URL('../../scripts/paperclip-image-cgroup.mjs', import.meta.url))
+    const dir = mkdtempSync(join(tmpdir(), 'pc-sampler-'))
+    try {
+      const id = 'e'.repeat(64)
+      // A stand-in docker naming this test's own process as the container's, so its cgroup is resolved from /proc.
+      writeFileSync(
+        join(dir, 'docker'),
+        [
+          '#!/bin/sh',
+          'case "$3" in',
+          `  '{{json .State}}') echo '{"Running":true,"OOMKilled":false,"Pid":${process.pid}}' ;;`,
+          `  '{{.Id}}') echo ${id} ;;`,
+          '  *) echo "{}" ;;',
+          'esac',
+          '',
+        ].join('\n'),
+      )
+      chmodSync(join(dir, 'docker'), 0o755)
+      await promisify(execFile)(process.execPath, [SAMPLER, 'pc', 'first:healthy', join(dir, 'cgroup.jsonl')], {
+        env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+      })
+      const [record] = readFileSync(join(dir, 'cgroup.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+      assert.equal(record.containerId, id)
+      assert.equal(record.cgroup.source, 'process')
+      assert.equal(record.cgroup.path, readFileSync(`/proc/${process.pid}/cgroup`, 'utf8').split('\n').find((l) => l.startsWith('0::')).slice(3))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })

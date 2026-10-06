@@ -2,7 +2,7 @@
 // WBC-02 (WBC-02-CX-0032 §2): one memory sample of a running container, from its own cgroup v2 on the host:
 //   node scripts/paperclip-image-cgroup.mjs <container> <label> <samples.jsonl>
 // The cgroup is resolved from the container's process (/proc/<pid>/cgroup); the systemd scope path docker usually
-// uses is only a fallback, and the record says which was read. Each record carries memory.max, memory.swap.max,
+// uses is only a fallback, and the record says which was read, with the container's id. Each record carries memory.max, memory.swap.max,
 // memory.peak (since the cgroup was created, so per start), memory.current, memory.events and docker's OOMKilled. A file
 // that cannot be read is listed under `unavailable` and never guessed: the receipt then cannot call memory qualified.
 // `docker stats` is recorded beside it as auxiliary evidence only.
@@ -40,6 +40,8 @@ try {
   record.running = state.Running === true
   record.oomKilled = state.OOMKilled === true
   const { dir, source } = cgroupDir(Number(state.Pid ?? 0), id)
+  // The container read, beside its cgroup's path, so the receipt can hold the path to it (review of ebdbaa9).
+  record.containerId = id
   record.cgroup = { path: dir.replace('/sys/fs/cgroup', ''), source }
   for (const [key, file] of [
     ['max', 'memory.max'],
@@ -73,5 +75,6 @@ appendFileSync(out, `${JSON.stringify(record)}\n`)
 const mib = (n) => (typeof n === 'number' ? `${Math.round(n / 1048576)} MiB` : String(n))
 console.log(
   `[cgroup] ${label}: max ${mib(record.max)}, swap.max ${record.swapMax}, peak ${mib(record.peak)}, current ${mib(record.current)}, ` +
-    `oom_kill ${record.events?.oom_kill ?? '?'}, OOMKilled ${record.oomKilled}, unavailable [${record.unavailable.join(', ')}]`,
+    `oom_kill ${record.events?.oom_kill ?? '?'}, OOMKilled ${record.oomKilled}, unavailable [${record.unavailable.join(', ')}], ` +
+    `cgroup ${record.cgroup?.source ?? '?'} ${record.cgroup?.path ?? '?'}`,
 )
