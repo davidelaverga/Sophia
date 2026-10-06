@@ -76,6 +76,7 @@ export function flowFor({ host = '127.0.0.1', port, origin, pluginPath, requestT
     const other = await call('GET', '/api/health', { hostHeader: `evil.example:${port}` })
     assert.equal(named.status, 200, 'the private name is admitted')
     assert.equal(other.status, 403, 'any other host name is refused')
+    return { privateName: named.status, otherName: other.status }
   }
 
   /** The first instance admin over loopback: sign-up, the private-mode claim, and a board API key that does not expire. */
@@ -90,7 +91,11 @@ export function flowFor({ host = '127.0.0.1', port, origin, pluginPath, requestT
     assert.ok(claim.status < 300, `claim: ${claim.status} ${claim.text}`)
     const minted = await call('POST', '/api/board-api-keys', { body: { name: 'operator', expiresAt: null }, headers: session })
     assert.ok(minted.status < 300, `board key: ${minted.status} ${minted.text}`)
-    return { userId: signUp.json.user.id, token: minted.json.token }
+    return {
+      userId: signUp.json.user.id,
+      token: minted.json.token,
+      statuses: { signUp: signUp.status, claim: claim.status, boardKey: minted.status },
+    }
   }
 
   const auth = (op) => ({ authorization: `Bearer ${op.token}` })
@@ -109,7 +114,11 @@ export function flowFor({ host = '127.0.0.1', port, origin, pluginPath, requestT
     })
     assert.equal(installed.status, 200, installed.text)
     const ids = { companyId, projectId: project.json.id, pluginId: installed.json.id }
-    await until('the plugin to be ready', async () => (await pluginStatus(op, ids.pluginId)) === 'ready', 60_000)
+    const ready = await until(
+      'the plugin to be ready',
+      async () => ((await pluginStatus(op, ids.pluginId)) === 'ready' ? 'ready' : null),
+      60_000,
+    )
     const configJson = {
       signingPublicKey: sophia.publicKey.export({ type: 'spki', format: 'pem' }).toString(),
       integrationUserId: op.userId,
@@ -117,7 +126,7 @@ export function flowFor({ host = '127.0.0.1', port, origin, pluginPath, requestT
     }
     const configured = await call('POST', `/api/plugins/${ids.pluginId}/config`, { body: { companyId, configJson }, headers: auth(op) })
     assert.ok(configured.status < 300, configured.text)
-    return ids
+    return { ...ids, observed: { install: installed.status, status: ready, config: configured.status } }
   }
 
   /** The digest of the plugin's stored configuration for the company: unchanged across a restart. */

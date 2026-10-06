@@ -1,7 +1,8 @@
-// WBC-02 (WBC-02-CX-0036): the image qualification's verdicts, on recorded inputs. A complete, legitimate run is the
-// positive control; each fault below is one Codex executed against the helpers (missing peak and current, an OOM
-// event without a kill, a start past its health deadline, a changed adapter registry) or one of the same kind, and
-// none of them may read as qualified.
+// WBC-02 (WBC-02-CX-0036 and the review of its correction): the image qualification's verdicts, on recorded inputs. A
+// complete, legitimate run is the positive control; each fault below is one Codex executed against the helpers
+// (missing peak and current, an OOM event without a kill, a start past its health deadline, a changed adapter
+// registry, a growing record truncated, a missing group-OOM counter, a step whose recorded facts do not hold) or one of
+// the same kind, and none of them may read as qualified.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { compareSnapshots } from '../../scripts/paperclip-image-home.mjs'
@@ -11,23 +12,46 @@ import { redact } from '../../scripts/paperclip-image-redact.mjs'
 const CANDIDATE = 'a'.repeat(40)
 const PIN = '5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb'
 const digest = (c) => `sha256:${c.repeat(64)}`
+const PLUGIN = '11111111-1111-4111-8111-111111111111'
+const ISSUE = '22222222-2222-4222-8222-222222222222'
+const CONFIG = 'c'.repeat(64)
 
+const LOG = 'instances/default/logs/server.log'
 const files = [
   { path: 'adapter-plugins.json', size: 120, sha256: '1'.repeat(64) },
   { path: 'instances/default/config.json', size: 900, sha256: '2'.repeat(64) },
-  { path: 'instances/default/logs/server.log', size: 4000, sha256: '3'.repeat(64) },
+  { path: LOG, size: 4000, sha256: '3'.repeat(64) },
 ]
+/** The log grew to 5000 bytes, its first 4000 the ones it had: the prefix the later snapshot read. */
+const grown = { files: files.map((f) => (f.path === LOG ? { ...f, size: 5000, sha256: '9'.repeat(64) } : f)), prefixes: { [LOG]: { size: 4000, sha256: '3'.repeat(64) } } }
 
-const STEP_DETAILS = {
-  'signed commission and its resend': { first: 'created', resend: 'existing' },
-  'signed Stop and its resend': { first: 'applied', resend: 'already', status: 'cancelled' },
-  'scheduled settle job': { status: 'succeeded' },
-  'sign-up refused': { status: 400 },
+/** What each step observed in a legitimate run, as the probe records it. */
+const FACTS = {
+  first: {
+    health: { status: 'ok' },
+    'host-name guard': { privateName: 200, otherName: 403 },
+    'first admin and board key': { signUp: 200, claim: 200, boardKey: 201, boardKeyMinted: true },
+    'plugin installed and configured': { pluginId: PLUGIN, install: 200, status: 'ready', config: 200 },
+    'signed commission and its resend': { issueId: ISSUE, first: 'created', resend: 'existing', resendIssueId: ISSUE },
+    'signed Stop and its resend': { issueId: ISSUE, first: 'applied', firstStatus: 'cancelled', resend: 'already', status: 'cancelled' },
+    'scheduled settle job': { runId: 'run-1', status: 'succeeded' },
+    lookup: { outcome: 'found', issueId: ISSUE, status: 'cancelled' },
+    'config digest': { sha256: CONFIG },
+  },
+  restarted: {
+    health: { status: 'ok' },
+    'plugin ready again': { pluginId: PLUGIN, status: 'ready' },
+    'config unchanged': { before: CONFIG, after: CONFIG },
+    'same issue found, still cancelled': { outcome: 'found', issueId: ISSUE, status: 'cancelled' },
+    'commission resend answered by the same issue': { outcome: 'existing', issueId: ISSUE },
+    'sign-up refused': { status: 400 },
+    'host-name guard': { privateName: 200, otherName: 403 },
+  },
 }
 const probe = (phase) => ({
   phase,
   outcome: 'passed',
-  steps: PROBE_STEPS[phase].map((step) => ({ step, ok: true, ms: 10, ...(STEP_DETAILS[step] ? { detail: STEP_DETAILS[step] } : {}) })),
+  steps: PROBE_STEPS[phase].map((step) => ({ step, ok: true, ms: 10, detail: { ...FACTS[phase][step] } })),
 })
 const sample = (label) => ({
   label,
@@ -59,12 +83,18 @@ function complete() {
     timings: ['first', 'restart', 'recreated'].map((label) => ({ label, ok: true, seconds: 45 })),
     samples: PHASES.map(sample),
     probes: { first: probe('first'), restarted: probe('restarted') },
-    home: { before: { files }, after: { files: files.map((f) => (f.path.endsWith('.log') ? { ...f, sha256: '9'.repeat(64) } : f)) } },
+    home: { before: { files }, after: grown },
   }
 }
 
 const verdictOf = (inputs) => assess(inputs).verdict
 const resultOf = (inputs, name) => assess(inputs).checks.find((c) => c.name.startsWith(name))?.result
+const withFacts = (phase, step, change) => {
+  const run = complete()
+  const target = run.probes[phase].steps.find((s) => s.step === step)
+  target.detail = change(target.detail)
+  return run
+}
 const withSample = (phase, change) => {
   const run = complete()
   run.samples = run.samples.map((s) => (s.label === phase ? change({ ...s, events: { ...s.events } }) : s))
@@ -135,12 +165,40 @@ describe('the image qualification receipt (WBC-02-CX-0036)', () => {
     const stepFailed = complete()
     stepFailed.probes.restarted.steps[3] = { ...stepFailed.probes.restarted.steps[3], ok: false }
     assert.equal(verdictOf(stepFailed), 'failed')
-    const recreatedTwice = complete()
-    recreatedTwice.probes.first.steps.find((s) => s.step === 'signed commission and its resend').detail = { first: 'created', resend: 'created' }
-    assert.equal(verdictOf(recreatedTwice), 'failed')
-    const signUpOpen = complete()
-    signUpOpen.probes.restarted.steps.find((s) => s.step === 'sign-up refused').detail = { status: 200 }
-    assert.equal(verdictOf(signUpOpen), 'failed')
+    assert.equal(verdictOf(withFacts('first', 'signed commission and its resend', (f) => ({ ...f, resend: 'created' }))), 'failed')
+    assert.equal(verdictOf(withFacts('restarted', 'sign-up refused', () => ({ status: 200 }))), 'failed')
+  })
+
+  it('review of the correction: the group-OOM counter must be recorded, and zero', () => {
+    const missing = withSample('first:after-flow', (s) => {
+      const { oom_group_kill: _gone, ...events } = s.events
+      return { ...s, events }
+    })
+    assert.equal(verdictOf(missing), 'incomplete')
+    assert.equal(resultOf(missing, 'memory, first:after-flow'), 'unavailable')
+  })
+
+  it('review of the correction: each step’s recorded facts are validated, not its ok flag', () => {
+    for (const [phase, step, change] of [
+      ['first', 'host-name guard', (f) => ({ ...f, otherName: 200 })],
+      ['first', 'first admin and board key', (f) => ({ ...f, boardKeyMinted: false })],
+      ['first', 'plugin installed and configured', (f) => ({ ...f, status: 'error' })],
+      ['first', 'signed Stop and its resend', (f) => ({ ...f, issueId: 'another' })],
+      ['first', 'lookup', () => ({})],
+      ['first', 'config digest', () => ({ sha256: 'short' })],
+      ['restarted', 'host-name guard', () => ({})],
+    ])
+      assert.equal(verdictOf(withFacts(phase, step, change)), 'failed', `${phase}: ${step}`)
+  })
+
+  it('review of the correction: the restarted phase must find the first phase’s plugin, issue and configuration', () => {
+    for (const [step, change] of [
+      ['plugin ready again', (f) => ({ ...f, pluginId: 'another' })],
+      ['same issue found, still cancelled', (f) => ({ ...f, issueId: 'another' })],
+      ['commission resend answered by the same issue', (f) => ({ ...f, issueId: 'another' })],
+      ['config unchanged', () => ({ before: 'd'.repeat(64), after: 'd'.repeat(64) })],
+    ])
+      assert.equal(verdictOf(withFacts('restarted', step, change)), 'failed', step)
   })
 
   it('the identity is checked against the run itself, not the producer’s flags', () => {
@@ -163,9 +221,19 @@ describe('the image qualification receipt (WBC-02-CX-0036)', () => {
 })
 
 describe('the home across a recreation (WBC-02-CX-0036)', () => {
-  it('positive control: the same files, a log grown, is persisted', () => {
+  it('positive control: the same files, a log grown with its earlier bytes kept, is persisted', () => {
+    assert.equal(compareSnapshots(files, grown.files, grown.prefixes).persisted, true)
+  })
+
+  it('review of the correction: a growing record truncated, replaced or unverified is not persisted', () => {
+    const truncated = files.map((f) => (f.path === LOG ? { ...f, size: 0, sha256: 'e'.repeat(64) } : f))
+    assert.deepEqual(compareSnapshots(files, truncated, {}).rewrittenGrowing, [LOG])
+    const replaced = files.map((f) => (f.path === LOG ? { ...f, sha256: 'e'.repeat(64) } : f))
+    assert.equal(compareSnapshots(files, replaced, { [LOG]: { size: 4000, sha256: 'e'.repeat(64) } }).persisted, false)
+    assert.equal(compareSnapshots(files, grown.files, {}).persisted, false, 'grown, but no prefix was read')
     const run = complete()
-    assert.equal(compareSnapshots(run.home.before.files, run.home.after.files).persisted, true)
+    run.home.after = { files: truncated, prefixes: {} }
+    assert.equal(verdictOf(run), 'failed')
   })
 
   it('CX-0036: a changed adapter registry is not persisted', () => {

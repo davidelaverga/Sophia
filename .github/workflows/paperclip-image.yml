@@ -192,7 +192,7 @@ jobs:
           timeout 660 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase restarted \
             --state "$RUNNER_TEMP/probe-state.json" --out "$EVIDENCE/probe-restarted.json" --wait-ms 300000 --deadline-ms 600000
           node sophia/scripts/paperclip-image-cgroup.mjs pc recreated:after-flow "$EVIDENCE/cgroup.jsonl"
-          node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-after.json"
+          node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-after.json" "$EVIDENCE/home-before.json"
           node sophia/scripts/paperclip-image-home.mjs compare "$EVIDENCE/home-before.json" "$EVIDENCE/home-after.json" "$EVIDENCE/home-compare.json"
           sleep 60
           node sophia/scripts/paperclip-image-cgroup.mjs pc recreated:idle "$EVIDENCE/cgroup.jsonl"

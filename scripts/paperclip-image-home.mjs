@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // WBC-02 (WBC-02-CX-0032 §5, CX-0036): what the container's home (/paperclip, a named volume) actually holds, so
 // persistence is checked on its contents and not on the volume's existence:
-//   node scripts/paperclip-image-home.mjs snapshot <container> <out.json>   every regular file under /paperclip (at most
-//                                                                         500, each under 10 MiB): path, size, sha256
+//   node scripts/paperclip-image-home.mjs snapshot <container> <out.json> [<before.json>]
+//       every regular file under /paperclip (at most 500, each under 10 MiB): path, size, sha256; given the earlier
+//       snapshot, also the sha256 of each growing file's first N bytes, N its earlier size (its retained prefix)
 //   node scripts/paperclip-image-home.mjs compare <before.json> <after.json> <out.json>
 // The comparison passes only when the first container wrote files there; every one of them is still there after the
 // container was recreated on the same volume; the adapter registry start.sh writes (adapter-plugins.json) exists both
-// times; and every file is byte-identical except the documented growing runtime records (GROWING: logs, JSONL
-// journals, and files under a logs/ or runs/ directory), which may grow but not disappear. Paths and digests only: no
-// file's contents leave the container.
+// times; every file is byte-identical except the documented growing runtime records (GROWING: logs, JSONL journals,
+// and files under a logs/ or runs/ directory); and each of those only grew: no smaller than before, its earlier bytes
+// retained as its prefix (WBC-02-CX-0036). Paths and digests only: no file's contents leave the container.
 import { execFileSync } from 'node:child_process'
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -18,8 +19,11 @@ export const GROWING = [/\.log$/, /\.jsonl$/, /(^|\/)logs?\//, /(^|\/)runs?\//]
 /** Files that must exist before and after, byte-identical: the adapter registry deploy/paperclip/start.sh writes. */
 export const REQUIRED_STABLE = ['adapter-plugins.json']
 
-/** The comparison of two snapshots' `files` ({ path, size, sha256 }[]); `persisted` is its verdict. */
-export function compareSnapshots(before, after) {
+/**
+ * The comparison of two snapshots' `files` ({ path, size, sha256 }[]) and the later one's `prefixes` ({ [path]: { size,
+ * sha256 } }: each growing file's first `size` bytes); `persisted` is its verdict.
+ */
+export function compareSnapshots(before, after, prefixes = {}) {
   const afterByPath = new Map(after.map((f) => [f.path, f]))
   const beforeByPath = new Map(before.map((f) => [f.path, f]))
   const growing = (path) => GROWING.some((rule) => rule.test(path))
@@ -27,19 +31,33 @@ export function compareSnapshots(before, after) {
   const changed = before.filter((f) => afterByPath.has(f.path) && afterByPath.get(f.path).sha256 !== f.sha256).map((f) => f.path)
   const requiredAbsent = REQUIRED_STABLE.filter((p) => !beforeByPath.has(p) || !afterByPath.has(p))
   const changedStable = changed.filter((p) => !growing(p))
+  // A growing record passes only if it kept every byte it had: not smaller, and its old content its prefix.
+  const rewrittenGrowing = changed
+    .filter(growing)
+    .filter((p) => {
+      const was = beforeByPath.get(p)
+      const prefix = prefixes[p]
+      return !(afterByPath.get(p).size >= was.size && prefix?.size === was.size && prefix.sha256 === was.sha256)
+    })
   return {
     filesBefore: before.length,
     filesAfter: after.length,
     missing,
     changedGrowing: changed.filter(growing),
+    rewrittenGrowing,
     changedStable,
     requiredAbsent,
     instanceConfigs: before.filter((f) => /^instances\/[^/]+\/config\.json$/.test(f.path)).map((f) => f.path),
-    persisted: before.length > 0 && missing.length === 0 && changedStable.length === 0 && requiredAbsent.length === 0,
+    persisted:
+      before.length > 0 &&
+      missing.length === 0 &&
+      changedStable.length === 0 &&
+      rewrittenGrowing.length === 0 &&
+      requiredAbsent.length === 0,
   }
 }
 
-function snapshot(container, out) {
+function snapshot(container, out, beforePath) {
   const listing = execFileSync(
     'docker',
     [
@@ -58,22 +76,53 @@ function snapshot(container, out) {
       const [size, sha256, path] = line.split('\t')
       return { path: path.replace(/^\.\//, ''), size: Number(size), sha256 }
     })
-  writeFileSync(out, `${JSON.stringify({ at: new Date().toISOString(), files }, null, 2)}\n`)
-  console.log(`[home] ${files.length} files under /paperclip`)
+  const prefixes = beforePath ? prefixesOf(container, JSON.parse(readFileSync(beforePath, 'utf8')).files) : {}
+  writeFileSync(out, `${JSON.stringify({ at: new Date().toISOString(), files, prefixes }, null, 2)}\n`)
+  console.log(`[home] ${files.length} files under /paperclip; ${Object.keys(prefixes).length} growing records' prefixes read`)
+}
+
+/** For each growing file of the earlier snapshot: the sha256 of its first N bytes now, N its earlier size. */
+function prefixesOf(container, before) {
+  const growing = before.filter((f) => GROWING.some((rule) => rule.test(f.path)))
+  if (growing.length === 0) return {}
+  const listing = execFileSync(
+    'docker',
+    [
+      'exec',
+      '-i',
+      container,
+      'sh',
+      '-c',
+      'cd /paperclip && while IFS= read -r line; do n="${line%% *}"; f="${line#* }"; [ -f "$f" ] && printf "%s\\t%s\\n" "$(head -c "$n" "$f" | sha256sum | cut -c1-64)" "$f"; done',
+    ],
+    { encoding: 'utf8', timeout: 60_000, maxBuffer: 4 * 1024 * 1024, input: growing.map((f) => `${f.size} ${f.path}\n`).join('') },
+  )
+  const sizes = new Map(growing.map((f) => [f.path, f.size]))
+  return Object.fromEntries(
+    listing
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [sha256, path] = line.split('\t')
+        return [path, { size: sizes.get(path), sha256 }]
+      }),
+  )
 }
 
 const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
 if (isMain) {
   const [mode, ...args] = process.argv.slice(2)
-  if (mode === 'snapshot') snapshot(args[0], args[1])
+  if (mode === 'snapshot') snapshot(args[0], args[1], args[2])
   else if (mode === 'compare') {
     const [beforePath, afterPath, out] = args
-    const files = (path) => JSON.parse(readFileSync(path, 'utf8')).files
-    const result = compareSnapshots(files(beforePath), files(afterPath))
+    const read = (path) => JSON.parse(readFileSync(path, 'utf8'))
+    const after = read(afterPath)
+    const result = compareSnapshots(read(beforePath).files, after.files, after.prefixes ?? {})
     writeFileSync(out, `${JSON.stringify(result, null, 2)}\n`)
     console.log(
       `[home] before ${result.filesBefore}, after ${result.filesAfter}, missing ${result.missing.length}, ` +
-        `changed stable [${result.changedStable.join(', ')}], changed growing ${result.changedGrowing.length}, ` +
+        `changed stable [${result.changedStable.join(', ')}], changed growing ${result.changedGrowing.length} ` +
+        `(rewritten [${result.rewrittenGrowing.join(', ')}]), ` +
         `required absent [${result.requiredAbsent.join(', ')}], persisted ${result.persisted}`,
     )
     if (!result.persisted) process.exitCode = 1

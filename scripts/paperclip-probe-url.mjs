@@ -59,29 +59,51 @@ export async function runUrl(values) {
   }
 }
 
+// Each step records what it observed (statuses, outcomes, identifiers, digests), never a constant: the receipt
+// (scripts/paperclip-image-receipt.mjs) validates these facts itself, and across the two phases (WBC-02-CX-0036).
+const seen = (facts) => facts
+
 async function first(target, statePath, waitMs, step) {
   const flow = flowFor(target, newIdentity())
   await step('health', () => until('the server to report ready', flow.health, waitMs), (h) => ({ status: h.status }))
-  await step('host-name guard', () => flow.hostGuard())
-  const op = await step('first admin and board key', () => flow.bootstrap(), () => ({ signedUp: true, claimed: true, boardKey: 'minted' }))
-  const ids = await step('plugin installed and configured', () => flow.plugin(op), (i) => ({ pluginId: i.pluginId }))
-  const issueId = await step('signed commission and its resend', async () => {
-    const sent = await flow.commission(op, ids)
-    assert.equal(sent.reply.outcome, 'created')
-    const again = (await sent.resend()).json
-    assert.deepEqual([again?.outcome, again?.issueId], ['existing', sent.reply.issueId], 'the resend answers with the same issue')
-    return sent.reply.issueId
-  }, (id) => ({ issueId: id, first: 'created', resend: 'existing' }))
-  await step('signed Stop and its resend', async () => {
-    const { first: applied, again } = await flow.stop(op, ids, issueId)
-    assert.deepEqual([applied.outcome, applied.status], ['applied', 'cancelled'])
-    assert.deepEqual([again.outcome, again.status], ['already', 'cancelled'])
-  }, () => ({ first: 'applied', resend: 'already', status: 'cancelled' }))
-  await step('scheduled settle job', () => flow.scheduledJob(op, ids.pluginId), (run) => ({ status: run.status }))
-  await step('lookup', async () => {
-    const found = await flow.lookup(op, ids)
-    assert.deepEqual([found.outcome, found.issueId, found.status], ['found', issueId, 'cancelled'])
-  })
+  await step('host-name guard', () => flow.hostGuard(), seen)
+  const op = await step('first admin and board key', () => flow.bootstrap(), (o) => ({
+    ...o.statuses,
+    boardKeyMinted: typeof o.token === 'string' && o.token.length > 0,
+  }))
+  const ids = await step('plugin installed and configured', () => flow.plugin(op), (i) => ({ pluginId: i.pluginId, ...i.observed }))
+  const { issueId } = await step(
+    'signed commission and its resend',
+    async () => {
+      const sent = await flow.commission(op, ids)
+      const again = (await sent.resend()).json
+      const facts = { issueId: sent.reply.issueId, first: sent.reply.outcome, resend: again?.outcome, resendIssueId: again?.issueId }
+      assert.equal(facts.first, 'created')
+      assert.deepEqual([facts.resend, facts.resendIssueId], ['existing', facts.issueId], 'the resend answers with the same issue')
+      return facts
+    },
+    seen,
+  )
+  await step(
+    'signed Stop and its resend',
+    async () => {
+      const { first: applied, again } = await flow.stop(op, ids, issueId)
+      const facts = { issueId: applied.issueId, first: applied.outcome, firstStatus: applied.status, resend: again.outcome, status: again.status }
+      assert.deepEqual([facts.first, facts.firstStatus, facts.resend, facts.status], ['applied', 'cancelled', 'already', 'cancelled'])
+      return facts
+    },
+    seen,
+  )
+  await step('scheduled settle job', () => flow.scheduledJob(op, ids.pluginId), (run) => ({ runId: run.id, status: run.status }))
+  await step(
+    'lookup',
+    async () => {
+      const found = await flow.lookup(op, ids)
+      assert.deepEqual([found.outcome, found.issueId, found.status], ['found', issueId, 'cancelled'])
+      return { outcome: found.outcome, issueId: found.issueId, status: found.status }
+    },
+    seen,
+  )
   const configDigest = await step('config digest', () => flow.configDigest(op, ids), (digest) => ({ sha256: digest }))
   const state = { schema: STATE_SCHEMA, origin: target.origin, identity: flow.identity, op: { userId: op.userId, token: op.token }, ids, issueId, configDigest }
   writeFileSync(statePath, JSON.stringify(state), { mode: 0o600 })
@@ -94,16 +116,38 @@ async function restarted(target, statePath, waitMs, step) {
   const flow = flowFor(target, state.identity)
   const { op, ids, issueId } = state
   await step('health', () => until('the server to report ready', flow.health, waitMs), (h) => ({ status: h.status }))
-  await step('plugin ready again', () => until('the plugin to be ready', async () => (await flow.pluginStatus(op, ids.pluginId)) === 'ready', 60_000))
-  await step('config unchanged', async () => assert.equal(await flow.configDigest(op, ids), state.configDigest))
-  await step('same issue found, still cancelled', async () => {
-    const found = await flow.lookup(op, ids)
-    assert.deepEqual([found.outcome, found.issueId, found.status], ['found', issueId, 'cancelled'])
-  })
-  await step('commission resend answered by the same issue', async () => {
-    const again = (await flow.commission(op, ids)).reply
-    assert.deepEqual([again.outcome, again.issueId], ['existing', issueId])
-  })
+  await step(
+    'plugin ready again',
+    () => until('the plugin to be ready', async () => ((await flow.pluginStatus(op, ids.pluginId)) === 'ready' ? 'ready' : null), 60_000),
+    (status) => ({ pluginId: ids.pluginId, status }),
+  )
+  await step(
+    'config unchanged',
+    async () => {
+      const after = await flow.configDigest(op, ids)
+      assert.equal(after, state.configDigest)
+      return { before: state.configDigest, after }
+    },
+    seen,
+  )
+  await step(
+    'same issue found, still cancelled',
+    async () => {
+      const found = await flow.lookup(op, ids)
+      assert.deepEqual([found.outcome, found.issueId, found.status], ['found', issueId, 'cancelled'])
+      return { outcome: found.outcome, issueId: found.issueId, status: found.status }
+    },
+    seen,
+  )
+  await step(
+    'commission resend answered by the same issue',
+    async () => {
+      const again = (await flow.commission(op, ids)).reply
+      assert.deepEqual([again.outcome, again.issueId], ['existing', issueId])
+      return { outcome: again.outcome, issueId: again.issueId }
+    },
+    seen,
+  )
   await step('sign-up refused', () => flow.signUpRefused(), (status) => ({ status }))
-  await step('host-name guard', () => flow.hostGuard())
+  await step('host-name guard', () => flow.hostGuard(), seen)
 }

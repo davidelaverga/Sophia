@@ -8,7 +8,8 @@
 // Every check validates the recorded values themselves, never a producer's own pass flag: the identity against the
 // run's context; each start healthy within HEALTH_LIMIT_S; each memory phase read exactly once, every figure a number,
 // the limit 2 GiB without swap, peak and current within it, and no OOM event of any kind; each probe phase's required
-// steps all present and passed, with their outcomes; the home's persistence recomputed from the two snapshots.
+// steps all present and passed, and what each observed (statuses, outcomes, the same plugin, issue and configuration
+// across both phases) recorded and as required; the home's persistence recomputed from the two snapshots.
 // A check is passed, failed, unavailable (recorded but incomplete) or not reached. The verdict is `qualified` only when
 // every check passed, `failed` when any failed, and `incomplete` otherwise. What it qualifies: the image built from the
 // pin and a clean Sophia commit, on a GitHub-hosted linux/amd64 runner, under a 2 GiB memory cgroup without swap, with
@@ -95,7 +96,7 @@ function memoryCheck(samples, phase) {
   const read =
     Array.isArray(s.unavailable) &&
     s.unavailable.length === 0 &&
-    [s.max, s.swapMax, s.peak, s.current, events.oom, events.oom_kill].every(isNumber) &&
+    [s.max, s.swapMax, s.peak, s.current, ...OOM_EVENTS.map((name) => events[name])].every(isNumber) &&
     typeof s.oomKilled === 'boolean' &&
     typeof s.running === 'boolean'
   if (!read) return { result: 'unavailable', detail }
@@ -108,37 +109,78 @@ function memoryCheck(samples, phase) {
     s.peak <= LIMIT_BYTES &&
     s.current > 0 &&
     s.current <= LIMIT_BYTES &&
-    OOM_EVENTS.every((name) => events[name] === undefined || events[name] === 0)
+    OOM_EVENTS.every((name) => events[name] === 0)
   return { result: within ? 'passed' : 'failed', detail }
 }
 
-function probeCheck(probe, phase) {
+const is2xx = (v) => isNumber(v) && v >= 200 && v < 300
+const SHA256 = /^[0-9a-f]{64}$/
+const id = (v) => typeof v === 'string' && v.length > 0
+
+/**
+ * What each required step must have observed (its recorded facts, never its ok flag); `first` is the first phase's
+ * facts by step, for the restarted phase's identity checks: the same plugin, issue and configuration.
+ */
+const FACTS = {
+  first: {
+    health: (f) => f.status === 'ok',
+    'host-name guard': (f) => f.privateName === 200 && f.otherName === 403,
+    'first admin and board key': (f) => f.signUp === 200 && is2xx(f.claim) && is2xx(f.boardKey) && f.boardKeyMinted === true,
+    'plugin installed and configured': (f) => id(f.pluginId) && f.install === 200 && f.status === 'ready' && is2xx(f.config),
+    'signed commission and its resend': (f) =>
+      id(f.issueId) && f.first === 'created' && f.resend === 'existing' && f.resendIssueId === f.issueId,
+    'signed Stop and its resend': (f, all) =>
+      f.issueId === all['signed commission and its resend']?.issueId &&
+      f.first === 'applied' &&
+      f.firstStatus === 'cancelled' &&
+      f.resend === 'already' &&
+      f.status === 'cancelled',
+    'scheduled settle job': (f) => f.status === 'succeeded',
+    lookup: (f, all) =>
+      f.outcome === 'found' && f.issueId === all['signed commission and its resend']?.issueId && f.status === 'cancelled',
+    'config digest': (f) => SHA256.test(f.sha256 ?? ''),
+  },
+  restarted: {
+    health: (f) => f.status === 'ok',
+    'plugin ready again': (f, _all, first) => f.status === 'ready' && f.pluginId === first['plugin installed and configured']?.pluginId,
+    'config unchanged': (f, _all, first) =>
+      SHA256.test(f.after ?? '') && f.before === f.after && f.after === first['config digest']?.sha256,
+    'same issue found, still cancelled': (f, _all, first) =>
+      f.outcome === 'found' && f.issueId === first['signed commission and its resend']?.issueId && f.status === 'cancelled',
+    'commission resend answered by the same issue': (f, _all, first) =>
+      f.outcome === 'existing' && f.issueId === first['signed commission and its resend']?.issueId,
+    'sign-up refused': (f) => isNumber(f.status) && f.status >= 400 && f.status < 500,
+    'host-name guard': (f) => f.privateName === 200 && f.otherName === 403,
+  },
+}
+
+const factsOf = (probe) => Object.fromEntries((probe?.steps ?? []).map((s) => [s.step, s.detail ?? {}]))
+
+function probeCheck(probe, phase, firstProbe) {
   if (!probe) return { result: 'not reached' }
   const steps = Array.isArray(probe.steps) ? probe.steps : []
-  const byName = (name) => steps.filter((s) => s.step === name)
-  const missing = PROBE_STEPS[phase].filter((name) => byName(name).length !== 1)
+  const missing = PROBE_STEPS[phase].filter((name) => steps.filter((s) => s.step === name).length !== 1)
   const failing = steps.filter((s) => s.ok !== true).map((s) => s.step)
-  const detail = (name) => byName(name)[0]?.detail ?? {}
-  const outcomes =
-    phase === 'first'
-      ? detail('signed commission and its resend').first === 'created' &&
-        detail('signed commission and its resend').resend === 'existing' &&
-        detail('signed Stop and its resend').first === 'applied' &&
-        detail('signed Stop and its resend').resend === 'already' &&
-        detail('signed Stop and its resend').status === 'cancelled' &&
-        detail('scheduled settle job').status === 'succeeded'
-      : isNumber(detail('sign-up refused').status) && detail('sign-up refused').status >= 400
-  const passed = probe.phase === phase && probe.outcome === 'passed' && missing.length === 0 && failing.length === 0 && outcomes
+  const all = factsOf(probe)
+  const first = factsOf(firstProbe)
+  const unsupported = PROBE_STEPS[phase].filter((name) => !missing.includes(name) && !FACTS[phase][name](all[name], all, first))
+  const passed = probe.phase === phase && probe.outcome === 'passed' && missing.length === 0 && failing.length === 0 && unsupported.length === 0
   return {
     result: passed ? 'passed' : 'failed',
-    detail: { outcome: probe.outcome, missing, failing, steps: steps.map((s) => ({ step: s.step, ok: s.ok, ...(s.detail ? { detail: s.detail } : {}), ...(s.error ? { error: s.error } : {}) })) },
+    detail: {
+      outcome: probe.outcome,
+      missing,
+      failing,
+      unsupported,
+      steps: steps.map((s) => ({ step: s.step, ok: s.ok, ...(s.detail ? { detail: s.detail } : {}), ...(s.error ? { error: s.error } : {}) })),
+    },
   }
 }
 
 function homeCheck(before, after) {
   if (!before || !after) return { result: 'not reached' }
   if (!Array.isArray(before.files) || !Array.isArray(after.files)) return { result: 'unavailable' }
-  const comparison = compareSnapshots(before.files, after.files)
+  const comparison = compareSnapshots(before.files, after.files, after.prefixes ?? {})
   return { result: comparison.persisted ? 'passed' : 'failed', detail: comparison }
 }
 
@@ -148,7 +190,7 @@ export function assess({ context = null, disk = [], identity = null, timings = [
     { name: 'image built from the pin and a clean Sophia commit, linux/amd64, packaged files as recorded', ...identityCheck(identity, context) },
     ...STARTS.map((label) => ({ name: `${label}: healthy within ${HEALTH_LIMIT_S} s`, ...startCheck(timings, label) })),
     ...PHASES.map((phase) => ({ name: `memory, ${phase}`, ...memoryCheck(samples, phase) })),
-    ...['first', 'restarted'].map((phase) => ({ name: `installed plugin flow, ${phase}`, ...probeCheck(probes[phase], phase) })),
+    ...['first', 'restarted'].map((phase) => ({ name: `installed plugin flow, ${phase}`, ...probeCheck(probes[phase], phase, probes.first) })),
     { name: 'home persisted across recreation', ...homeCheck(home.before, home.after) },
   ]
   const results = checks.map((c) => c.result)
