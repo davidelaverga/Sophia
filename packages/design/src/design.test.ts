@@ -410,7 +410,7 @@ describe('outside its blocks a page adds only the words that frame them (SDD-01-
   })
   it('accepts headings, captions, a summary, table headers, in-page navigation, separators and source entries', () => {
     const cases: [string, string][] = [
-      ['<main>', '<main><nav aria-label="Contents"><ol><li><a href="#s1"><span>1.</span> Findings</a></li></ol></nav>'],
+      ['<main>', '<main><nav aria-label="Contents"><ul><li><a href="#s1"><span>1.</span> Findings</a></li></ul></nav>'],
       ['<main>', '<main><nav><a href="#s1">Findings</a> · <a href="#sources">Sources</a></nav>'],
       ['</main>', '<figure><figcaption>Costs per month, <em>in USD</em></figcaption></figure></main>'],
       ['</main>', '<details><summary>How the hosts were read</summary></details></main>'],
@@ -657,7 +657,6 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
       'q{quotes:"“" "”"}',
       'a::after{content:" →"}',
       'p::after{content:none}',
-      'ol{list-style-type:decimal}',
       'blockquote::before{content:open-quote}',
       'q{quotes:"“" "”" "‘" "’"}',
       'nav a+a::before{content:" · "}',
@@ -683,14 +682,10 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
       'p{-webkit-text-security:disc}',
     ])
       assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
-    const inline = html(good).replace('<main>', '<main><ol style="list-style-type:lower-latin"><li></li></ol>')
+    const inline = html(good).replace('<main>', '<main><ul style="list-style-type:lower-latin"><li></li></ul>')
     assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
-    for (const type of ['a', 'A', 'i', 'I']) {
-      const page = html(good).replace('<main>', `<main><ol type="${type}"><li></li></ol>`)
-      assert.deepEqual(codes(withHtml(good, page)), ['unsafe_attribute'], type)
-    }
   })
-  // #117: a counter's number is content no block holds, in any style; a list's numbers follow its items.
+  // #117: a counter's number is content no block holds, in any style, and so is a list marker's.
   it('refuses a generated number, and anything that chooses a list number', () => {
     for (const bad of [
       '.price::after{content:" " counter(n)}',
@@ -702,15 +697,36 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
       'li{counter-increment:list-item 10}',
     ])
       assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
-    for (const list of ['<ol start="3"><li></li></ol>', '<ol><li value="5"></li></ol>']) {
-      const page = html(good).replace('<main>', `<main>${list}`)
-      assert.deepEqual(codes(withHtml(good, page)), ['unsafe_attribute'], list)
-    }
+    const valued = html(good).replace('<main>', '<main><ul><li value="5"></li></ul>')
+    assert.deepEqual(codes(withHtml(good, valued)), ['unsafe_attribute'])
   })
-  it('accepts numbers and bullets: list markers and marks that spell nothing', () => {
+  // #117: an item's number is its place among the items the page writes: 99 empty items, hidden, make the next 100.
+  it('refuses an ordered list in any form, and a list marker that draws a number', () => {
+    for (const list of [
+      `<ol>${'<li></li>'.repeat(99)}<li>•</li></ol>`,
+      '<ol><li></li></ol>',
+      '<ol type="1" reversed><li></li></ol>',
+      '<ol start="3"><li></li></ol>',
+      '<ol type="a"><li></li></ol>',
+    ]) {
+      const page = html(good).replace('<main>', `<main>${list}`)
+      assert.deepEqual(codes(withHtml(good, page)), ['unsafe_element'], list)
+    }
+    for (const bad of [
+      'ul{list-style-type:decimal}',
+      'ul{list-style:decimal inside}',
+      'li{list-style-type:decimal-leading-zero}',
+      '@media print{ul{list-style-type:decimal}}',
+      'details>summary{list-style:decimal}',
+      'p{display:list-item;list-style-type:decimal}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<main>', '<main><ul style="list-style-type:decimal"><li></li></ul>')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+  })
+  it('accepts bullets: list markers and marks that spell nothing', () => {
     for (const ok of [
-      'ol{list-style-type:decimal}',
-      '@media print{ol{list-style:square inside}}',
+      '@media print{ul{list-style:square inside}}',
       'ul{list-style-type:"→"}',
       'details>summary{list-style-type:disclosure-closed}',
       'ul{list-style:none}',
@@ -718,8 +734,8 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
       'p{hyphens:manual;hyphenate-character:"‐"}',
     ])
       assert.deepEqual(css(ok), [], ok)
-    const numbered = html(good).replace('<main>', '<main><ol type="1" reversed><li></li></ol>')
-    assert.deepEqual(codes(withHtml(good, numbered)), [])
+    const bulleted = html(good).replace('<main>', '<main><ul><li>•</li></ul><menu><li></li></menu>')
+    assert.deepEqual(codes(withHtml(good, bulleted)), [])
   })
 })
 

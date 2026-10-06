@@ -50,9 +50,9 @@ export function plainPage(content: ContentPackage, options: PageOptions = {}): S
 <main>
 <h1>${esc(options.title ?? 'Report')}</h1>
 ${sections.join('\n')}
-<section id="sources" data-section="sources"><h2>Sources</h2><ol>
+<section id="sources" data-section="sources"><h2>Sources</h2><ul>
 ${sources}
-</ol></section>
+</ul></section>
 </main>
 </body>
 </html>

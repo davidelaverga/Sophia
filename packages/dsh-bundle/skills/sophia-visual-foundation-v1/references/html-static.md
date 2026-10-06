@@ -9,10 +9,10 @@ status: Sophia adaptation for static, script-free HTML; JavaScript, canvas, anim
 ## Structure and layout [H1.1–H1.5]
 
 - Deliver real HTML and CSS, not a picture of a page.
-- Use semantic HTML (`main`, `header`, `section`, `h1`–`h4`, `p`, `ul`/`ol`, `table` with `thead`/`th`, `blockquote`, `figure`, `details`/`summary`, `nav`, `footer`) and a clear structure. CSS custom properties for the visual system; flex and grid for layout. Absolute positioning only for genuinely layered local overlays.
+- Use semantic HTML (`main`, `header`, `section`, `h1`–`h4`, `p`, `ul`, `table` with `thead`/`th`, `blockquote`, `figure`, `details`/`summary`, `nav`, `footer`) and a clear structure. CSS custom properties for the visual system; flex and grid for layout. Absolute positioning only for genuinely layered local overlays.
 - Prefer intrinsic sizing. Never lock text containers to fragile heights. Prevent unintended horizontal scroll, overlap, clipped focus rings and content hidden behind fixed elements.
 - Recompose deliberately at the narrowest (390 px) and widest (1280 px) target; do not scale one layout. The answer and the start of the evidence are apparent in the first screen.
-- **The static profile (enforced by Sophia's parser, not only advised):** no `script`, no event-handler attribute, no `javascript:` URL, no form or input, no `iframe`, `object`, `embed`, `canvas`, `svg`, `img`, `video`, `audio` or `link`; no remote font, stylesheet or image; no `@import`; `url()` only for in-page fragments. One `index.html` with an optional `styles.css`; Sophia inlines the CSS into the delivered file.
+- **The static profile (enforced by Sophia's parser, not only advised):** no `script`, no event-handler attribute, no `javascript:` URL, no form or input, no `iframe`, `object`, `embed`, `canvas`, `svg`, `img`, `video`, `audio` or `link`; no remote font, stylesheet or image; no `@import`; `url()` only for in-page fragments; no `ol` and no numbered list marker or counter (a list marker draws a bullet: a number the page generates is content no block holds). One `index.html` with an optional `styles.css`; Sophia inlines the CSS into the delivered file.
 
 ## Links and accessibility [H2.1–H2.4]
 

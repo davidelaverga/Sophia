@@ -40,7 +40,6 @@ const ELEMENTS = new Set([
   'div',
   'span',
   'ul',
-  'ol',
   'li',
   'dl',
   'dt',
@@ -102,6 +101,15 @@ const GLOBAL_ATTRIBUTES = new Set([
   'translate',
 ])
 
+/**
+ * Why an element left off the list is refused, where that is not plain. An ordered list numbers each item by its place
+ * among the items the page writes, a number no block holds: empty or hidden items before one move it, and a list the
+ * research left unordered would read as a ranking (#117). A list is `<ul>` or `<menu>`, with bullets (css.ts).
+ */
+const REFUSED: Readonly<Record<string, string>> = {
+  ol: ': an ordered list numbers its items by their place on the page, a number no block holds; a list is <ul>',
+}
+
 /** Attributes only some elements may carry. */
 const ELEMENT_ATTRIBUTES: Readonly<Record<string, ReadonlySet<string>>> = {
   html: new Set(['xmlns']),
@@ -109,8 +117,6 @@ const ELEMENT_ATTRIBUTES: Readonly<Record<string, ReadonlySet<string>>> = {
   a: new Set(['href', 'rel', 'hreflang']),
   th: new Set(['scope', 'colspan', 'rowspan', 'headers', 'abbr']),
   td: new Set(['colspan', 'rowspan', 'headers']),
-  ol: new Set(['start', 'reversed', 'type']),
-  li: new Set(['value']),
   time: new Set(['datetime']),
   data: new Set(['value']),
   del: new Set(['datetime']),
@@ -189,19 +195,6 @@ function attributeIssue(el: Element, name: string, value: string): string | null
 function valueIssue(tag: string, name: string, value: string): string | null {
   if (tag === 'meta' && name === 'name' && !META_NAMES.has(value)) return `<meta name="${value}"> is not allowed`
   if (tag === 'a' && name === 'href') return hrefIssue(value)
-  if (tag === 'ol' || tag === 'li') return listIssue(tag, name, value)
-  return null
-}
-
-/**
- * A list's markers draw numbers only: letters and numerals spell words from its start and values (#117, CX-0038); and
- * its numbers follow its items: start and value would number one with a value no block holds (#117).
- */
-function listIssue(tag: string, name: string, value: string): string | null {
-  if (tag === 'ol' && name === 'type' && value !== '1')
-    return `<ol type="${value.slice(0, 8)}"> may only be 1: its markers would spell words`
-  if ((tag === 'ol' && name === 'start') || (tag === 'li' && name === 'value'))
-    return `<${tag} ${name}> chooses the numbers a list draws; they follow its items`
   return null
 }
 
@@ -217,7 +210,9 @@ function elementFindings(html: string, el: Element): Finding[] {
   if (!inHtml(el))
     return [error('unsafe_element', 'index.html', `<${el.tagName}> (SVG or MathML) is not allowed`, { line })]
   if (!ELEMENTS.has(el.tagName))
-    return [error('unsafe_element', 'index.html', `<${el.tagName}> is not allowed`, { line })]
+    return [
+      error('unsafe_element', 'index.html', `<${el.tagName}> is not allowed${REFUSED[el.tagName] ?? ''}`, { line }),
+    ]
   const out: Finding[] = []
   for (const { name, value } of el.attrs) {
     const problem = attributeIssue(el, name, value)

@@ -87,8 +87,9 @@ const nameIssue = (kind: string, name: string): string | null =>
  * decoration only: keywords, and strings of the marks that say nothing (a bullet, a quote mark, an arrow: MARK_TEXT), a
  * few of them across all of a property's strings (#117). No value may come from elsewhere: `attr()`, `var()` or
  * `env()`, and no counter: a generated number is content no block holds, in any style (#117, CX-0038). A list marker
- * draws numbers or bullets only, and its numbers follow the list's items: nothing may set them. The same in every media
- * (print included), in a stylesheet and in a style attribute.
+ * draws a bullet only: its number would be its item's place on the page, which no block holds and which items the
+ * page adds (empty, or hidden) can move (#117); the profile has no `<ol>` for the same reason. The same in every
+ * media (print included), in a stylesheet and in a style attribute.
  */
 const TEXT_PROPERTIES = new Set([
   'content',
@@ -125,10 +126,8 @@ const DECORATION_MARKS = 6
  * an item, or append to a block, a value no block holds (#117).
  */
 const COUNTERS = new Set(['counter-reset', 'counter-set', 'counter-increment'])
-/** The counter styles a list marker may draw in: numbers and bullets, which spell nothing. */
+/** The counter styles a list marker may draw in: bullets, which spell and number nothing. */
 export const COUNTER_STYLES: ReadonlySet<string> = new Set([
-  'decimal',
-  'decimal-leading-zero',
   'disc',
   'circle',
   'square',
@@ -159,7 +158,7 @@ function partIssue(property: string, part: CssNode, list: boolean): string | nul
       ? `${property} may not draw ${part.name}(): a generated number, in any style, is content no block holds`
       : `${property} may not draw ${part.name}(): only the research's text is shown`
   if (list && part.type === 'Identifier' && !LIST_KEYWORDS.has(part.name.toLowerCase()))
-    return `${property} may draw numbers or bullets only, not ${part.name}: it can spell words`
+    return `${property} may draw bullets only, not ${part.name}: it can spell words or number an item`
   return null
 }
 
