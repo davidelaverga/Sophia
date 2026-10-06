@@ -2,7 +2,9 @@
 // reader's own parser (`@sophia/report`): every paragraph, list item, table, code block and quoted paragraph is a block
 // with its text, the sources it cites and the links it carries; each stored limitation is one more. Headings may be
 // reworded, so a heading is a block only when it cites a source. A block's id (`b1`…) is its place in reading order,
-// the same for the same Markdown and limitations.
+// the same for the same Markdown and limitations. An ordered list's top-level item begins its text with its number, as
+// the reader's report shows it (`orderedText`): ordinary text the design keeps, never a number the page generates
+// (#117, CX-0039).
 
 import { parseMarkdown, safeHref, type Block, type Inline } from '@sophia/report/markdown'
 import { normalizeText } from './dom.ts'
@@ -71,6 +73,23 @@ function readInline(inline: readonly Inline[], run: Run): void {
   }
 }
 
+/**
+ * An ordered list's items, their numbers frozen into their text as the reader's report numbers them: the list's start,
+ * then one more for each item at its top level ("3. Delta"); a nested item takes none, as the report draws it a bullet.
+ * The number is part of the item's text, so a design that drops, changes or renumbers it alters the block (#117,
+ * CX-0039); a list the report leaves unordered keeps its items' text as written.
+ */
+function orderedText(list: Extract<Block, { kind: 'list' }>): Run[] {
+  let place = 0
+  return list.items.map((item) => {
+    const run = runOf(item.children)
+    if (!list.ordered || item.depth > 0) return run
+    const number = list.start + place
+    place += 1
+    return { ...run, text: `${String(number)}. ${run.text}` }
+  })
+}
+
 function runOf(inline: readonly Inline[]): Run {
   const run: Run = { text: '', citations: new Set(), links: new Set() }
   readInline(inline, run)
@@ -105,7 +124,7 @@ class Builder {
       case 'paragraph':
         return this.add(inQuote ? 'quote' : 'paragraph', runOf(b.children))
       case 'list':
-        for (const item of b.items) this.add('item', runOf(item.children))
+        for (const run of orderedText(b)) this.add('item', run)
         return
       case 'quote':
         return this.read(b.blocks, true)

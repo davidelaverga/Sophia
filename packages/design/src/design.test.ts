@@ -9,6 +9,7 @@ import {
   HTML_BYTES,
   packageSha256,
   reviseSource,
+  type ContentPackage,
   type SourceFile,
 } from './index.ts'
 import { lineAt } from './dom.ts'
@@ -48,6 +49,11 @@ const withHtml = (files: SourceFile[], text: string): SourceFile[] =>
   files.map((f) => (f.path === 'index.html' ? { ...f, text } : f))
 const withCss = (files: SourceFile[], text: string): SourceFile[] =>
   files.map((f) => (f.path === 'styles.css' ? { ...f, text } : f))
+/** The codes of a source's errors against a content package. */
+const errorCodes = (files: SourceFile[], pkg: ContentPackage): string[] =>
+  checkSource(files, pkg)
+    .findings.filter((f) => f.severity === 'error')
+    .map((f) => f.code)
 const codes = (files: SourceFile[]): string[] =>
   checkSource(files, content)
     .findings.filter((f) => f.severity === 'error')
@@ -86,6 +92,82 @@ describe('the frozen content package', () => {
 
   it('is the same for the same Markdown and limitations', () => {
     assert.deepEqual(contentPackage(REPORT, LIMITS), content)
+  })
+})
+
+// #117, CX-0039: an ordered list's numbers are the research's (pack 05 §3), kept as its items' own text: the page shows
+// them as written there, and never generates one.
+describe("an ordered list's numbers, frozen as its items' text (#117, CX-0039)", () => {
+  const MD = `Intro.
+
+3. Alpha
+4. Beta
+   - a nested note
+5. Gamma
+
+- a bullet
+
+1. One
+3. Three
+`
+  const ordered = contentPackage(MD, [])
+  const page = plainPage(ordered)
+  const B2 = '<ul><li data-block="b2">3. Alpha</li></ul>'
+  const B3 = '<ul><li data-block="b3">4. Beta</li></ul>'
+  const errors = (files: SourceFile[]): string[] => errorCodes(files, ordered)
+  const swap = (files: SourceFile[], from: string, to: string): SourceFile[] => {
+    const text = html(files).replace(from, to)
+    assert.notEqual(text, html(files), `fixture contains ${from}`)
+    return withHtml(files, text)
+  }
+  it('freezes each top-level item with the number the report shows: its list start, then its place', () => {
+    assert.deepEqual(
+      ordered.blocks.map((b) => b.text),
+      ['Intro.', '3. Alpha', '4. Beta', 'a nested note', '5. Gamma', 'a bullet', '1. One', '2. Three'],
+    )
+    assert.deepEqual(contentPackage(MD, []), ordered, 'the same for the same Markdown')
+  })
+  it("accepts a page that shows each number as its item's text, in a list with no marker, in any order", () => {
+    assert.deepEqual(errors(page), [])
+    const designed = swap(
+      withCss(page, 'ul.steps{list-style:none;padding:0} .n{font-weight:700}'),
+      '<ul><li data-block="b2">3. Alpha</li></ul>',
+      '<ul class="steps"><li data-block="b2"><span class="n">3.</span> Alpha</li></ul>',
+    )
+    assert.deepEqual(errors(designed), [])
+    const reordered = swap(page, `${B2}\n${B3}`, `${B3}\n${B2}`)
+    assert.deepEqual(errors(reordered), [], 'moved, each item keeps its own number: "4. Beta" then "3. Alpha"')
+  })
+  it("refuses a page that drops, changes, generates or renumbers an item's number", () => {
+    const item = '<li data-block="b2">3. Alpha</li>'
+    assert.deepEqual(errors(swap(page, item, '<li data-block="b2">Alpha</li>')), ['block_altered'], 'dropped')
+    assert.deepEqual(errors(swap(page, item, '<li data-block="b2">4. Alpha</li>')), ['block_altered'], 'changed')
+    assert.deepEqual(errors(swap(page, item, '<li data-block="b2">3) Alpha</li>')), ['block_altered'], 'rewritten')
+    const generated = withCss(
+      swap(page, item, '<li data-block="b2">Alpha</li>'),
+      '[data-block="b2"]::before{content:"3. "}',
+    )
+    assert.deepEqual(errors(generated), ['css_unsafe'], 'generated: refused before its text is read')
+    const renumbered = swap(
+      page,
+      `${B2}\n${B3}`,
+      '<ul><li data-block="b3">3. Beta</li></ul>\n<ul><li data-block="b2">4. Alpha</li></ul>',
+    )
+    assert.deepEqual(errors(renumbered), ['block_altered', 'block_altered'], 'moved and renumbered to read 3, 4')
+    const listed = swap(page, `<ul>${item}</ul>`, '<ol start="3"><li data-block="b2">Alpha</li></ol>')
+    assert.deepEqual(errors(listed), ['unsafe_element'], 'an <ol> numbers it: refused before its text is read')
+  })
+  it('keeps a package stored without numbers as it was: no number a page can add, in a block or beside it', () => {
+    const stored = {
+      ...ordered,
+      blocks: ordered.blocks.map((b) => ({ ...b, text: b.text.replace(/^\d+\. /u, '') })),
+    }
+    const old = plainPage(stored)
+    assert.deepEqual(errorCodes(old, stored), [], 'its items show as bullets, as before')
+    const item = '<li data-block="b2">Alpha</li>'
+    assert.deepEqual(errorCodes(swap(old, item, '<li data-block="b2">3. Alpha</li>'), stored), ['block_altered'])
+    const beside = swap(old, item, '<li><b>3.</b> <span data-block="b2">Alpha</span></li>')
+    assert.deepEqual(errorCodes(beside, stored), ['text_outside_blocks'])
   })
 })
 
