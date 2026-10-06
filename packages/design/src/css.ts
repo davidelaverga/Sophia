@@ -244,8 +244,12 @@ const STATE_PROPERTIES = new Set([
   'text-decoration-thickness',
   'text-underline-offset',
 ])
-/** The longest length a state's mark may take, in pixels, and never inward: a mark, never a cover (#117). */
-const STATE_PX = 6
+/**
+ * The longest length a state's mark may take, in pixels, and never inward: a mark, never a cover. An outline drawn
+ * outward still crosses the text beside its box: 6px wide, 6px out, it buried half of the next line of a 12px block,
+ * so it is held to a stroke's width and gap (#117, SDD-01-CX-0041).
+ */
+const STATE_PX = 2
 const COLOR_FUNCTIONS = new Set([
   'rgb',
   'rgba',

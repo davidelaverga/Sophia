@@ -1153,6 +1153,12 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       // #117: a mark is drawn outward, and an underline at the font's own thickness and place.
       'a:focus{outline-offset:-2px}',
       'a:focus{outline:2px solid #fafafa;outline-offset:-1px}',
+      // SDD-01-CX-0041: an inset outline covered a whole 12px block once a link to it was followed.
+      'p[data-block]:target{outline:6px solid #fff;outline-offset:-6px}',
+      // An outward one 6px wide crosses half of the next line of text beside the box.
+      'p[data-block]:target{outline:6px solid #fff}',
+      'a:focus{outline:3px solid #1a4fd6}',
+      'a:focus{outline-offset:3px}',
       '[data-block]:target{text-decoration:underline overline line-through #fafafa;text-decoration-thickness:6px}',
       '[data-block]:target{text-decoration:underline overline #fafafa}',
       'a:hover{text-decoration-line:overline}',
@@ -1164,6 +1170,7 @@ describe('a pseudo-element styles only generated content (#117)', () => {
     assert.ok(css('a:hover{& span{display:none}}').includes('css_unsafe'), 'a rule nested in a state')
     for (const ok of [
       'a:focus-visible{outline:2px solid #1a4fd6;outline-offset:2px}',
+      'p[data-block]:target{outline:2px solid #1a4fd6;outline-offset:2px}',
       'a:focus{outline-offset:0}',
       'a:hover{text-decoration:underline wavy #1a4fd6}',
       'a:hover{text-decoration-line:underline}',
