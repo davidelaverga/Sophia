@@ -34,7 +34,15 @@ let sent = 0
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const refused = () =>
-  json({ code: 'forbidden', message: 'Viewers read conversations', requestId: 'fixture', retry: 'never' }, 403)
+  json(
+    {
+      code: 'forbidden',
+      message: 'Viewers read conversations',
+      requestId: '00000000-0000-4000-8000-0000000000bf',
+      retry: 'never',
+    },
+    403,
+  )
 
 /** One minute after the newest activity: the conversation written in becomes the newest. */
 const next = (list: readonly ConversationSummary[]) =>

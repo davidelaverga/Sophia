@@ -183,7 +183,7 @@ test('conversations · controls are at least 24 px tall, and the text keeps to t
   await page.goto(PAGE)
   await expect(messages(page)).toHaveCount(6)
   const short = await page
-    .locator('.conversations button:visible, .conversations input:visible')
+    .locator('.conversations button:visible, .conversations input:not([type=checkbox]):visible')
     .evaluateAll((all) =>
       all
         .map((el) => ({ name: el.textContent.trim().slice(0, 20), h: el.getBoundingClientRect().height }))

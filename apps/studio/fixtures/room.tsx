@@ -649,8 +649,9 @@ function Kept({ children }: { children: (background: boolean) => ReactNode }) {
 }
 
 /** `send=lost`: the first message lands, its reply lost; `send=refused`: messages are refused (A18). */
-const sendAsked = (which: string | null): 'lost' | 'refused' | null =>
-  which === 'lost' || which === 'refused' ? which : null
+function sendAsked(which: string | null): 'lost' | 'refused' | null {
+  return which === 'lost' || which === 'refused' ? which : null
+}
 
 /** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
 function conversationsAsked(which: string | null, failMessages: boolean) {
