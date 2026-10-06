@@ -37,9 +37,9 @@ const covered = (list) => ({ total: list.length, oversize: [], errors: [], maxFi
 /** The log grew to 5000 bytes, its first 4000 the ones it had: the prefix the later snapshot read. */
 const grownFiles = files.map((f) => (f.path === LOG ? { ...f, size: 5000, sha256: '9'.repeat(64) } : f))
 const grown = { coverage: covered(grownFiles), files: grownFiles, prefixes: { [LOG]: { size: 4000, sha256: '3'.repeat(64) } }, writer: 'paused' }
-/** The home after the first phase: the log at 3000 bytes, before the idle period, the restart and its probe grew it. */
+/** The home immediately before the restart, of the stopped container: the log at 3000 bytes, before the restart and its probe grew it. */
 const firstFiles = files.map((f) => (f.path === LOG ? { ...f, size: 3000, sha256: '5'.repeat(64) } : f))
-const first = { coverage: covered(firstFiles), files: firstFiles, writer: 'paused' }
+const first = { coverage: covered(firstFiles), files: firstFiles, writer: 'stopped' }
 /** The home at the recreation boundary, of the stopped container: the log at 4000, its first 3000 the ones it had. */
 const boundary = { coverage: covered(files), files, prefixes: { [LOG]: { size: 3000, sha256: '5'.repeat(64) } }, writer: 'stopped' }
 
@@ -1187,10 +1187,10 @@ describe('review of 705c2b8: whatever shape a record has, at any depth, the rece
   /**
    * What the receipt does not judge, by design: the producer's own flags (the identity is recomputed instead), the
    * build stage's platform (the image's is judged), the scans' informational settings, each step's duration, and whether
-   * the first and the after snapshots paused their writer (only the boundary's must have been stopped).
+   * the after snapshot paused its writer (the two a transition starts from must have been stopped).
    */
   const UNJUDGED =
-    /^(identity\.(pin|sophiaCommit|sophiaTreeDirty|manifestMatches|verifyManifestInImage)|identity\.buildImage\.(os|architecture)|(home\.\w+|packaged\.imageFiles)\.coverage\.(maxFiles|maxFileBytes)|home\.(first|after)\.writer|packaged\.imageFiles\.prefixes|probes\.\w+\.steps\.\d+\.ms)$/
+    /^(identity\.(pin|sophiaCommit|sophiaTreeDirty|manifestMatches|verifyManifestInImage)|identity\.buildImage\.(os|architecture)|(home\.\w+|packaged\.imageFiles)\.coverage\.(maxFiles|maxFileBytes)|home\.after\.writer|packaged\.imageFiles\.prefixes|probes\.\w+\.steps\.\d+\.ms)$/
 
   it('positive control: the complete run is qualified, nothing unreadable', () => {
     const { receipt } = receiptOf(complete())
@@ -1450,22 +1450,26 @@ describe('review of 2bad104: the home is snapshotted at the recreation boundary,
     assert.deepEqual(recreation.detail.unverified, ['instances/default/other.json'])
   })
 
-  it('the boundary snapshot must be of the stopped container: of a paused or unrecorded writer, the recreation is unavailable', () => {
+  it('each transition’s earlier snapshot must be of the stopped container: of a paused or unrecorded writer, that transition is unavailable', () => {
     for (const writer of ['paused', null, 'x', 7]) {
       const run = complete()
       run.home.before.writer = writer
       const recreation = recreationOf(run)
       assert.equal(recreation.result, 'unavailable', String(writer))
-      assert.equal(recreation.detail.reason, 'the boundary snapshot is not of a stopped writer')
-      assert.equal(restartOf(run).result, 'passed', 'the restart transition does not need a stopped writer')
+      assert.equal(recreation.detail.reason, 'the earlier snapshot is not of a stopped writer')
+      assert.equal(restartOf(run).result, 'passed', 'the restart transition ends at that snapshot and does not need it stopped')
       assert.equal(verdictOf(run), 'incomplete')
+      const beforeRestart = complete()
+      beforeRestart.home.first.writer = writer
+      assert.equal(restartOf(beforeRestart).result, 'unavailable', `before the restart: ${String(writer)}`)
+      assert.equal(recreationOf(beforeRestart).result, 'passed')
+      assert.equal(verdictOf(beforeRestart), 'incomplete')
     }
     const unrecorded = complete()
     delete unrecorded.home.before.writer
     assert.equal(recreationOf(unrecorded).result, 'unavailable')
-    // The first and the after snapshots pause a running container; their writer's state is recorded, not required.
+    // The after snapshot pauses a running container, which keeps running for the idle sample: recorded, not required.
     const paused = complete()
-    paused.home.first.writer = 'stopped'
     paused.home.after.writer = undefined
     assert.equal(verdictOf(paused), 'qualified')
   })
@@ -1485,7 +1489,9 @@ describe('review of 2bad104: the home is snapshotted at the recreation boundary,
     const restart = commandsOf(steps.find((s) => s.name === 'Restart'))
     const recreate = commandsOf(steps.find((s) => s.name?.startsWith('Recreate')))
     const snapshot = 'node sophia/scripts/paperclip-image-home.mjs snapshot pc'
-    assert.ok(firstStep.includes(`timeout 240 ${snapshot} "$EVIDENCE/home-first.json"`), 'the first phase’s snapshot, from nothing earlier')
+    assert.equal(firstStep.at(-1), `timeout 240 ${snapshot} "$EVIDENCE/home-first.json"`, 'the first phase’s snapshot, from nothing earlier, is its last command: after the idle period')
+    assert.equal(firstStep.at(-2), 'timeout 150 node sophia/scripts/paperclip-image-container.mjs stop', 'of the stopped container')
+    assert.match(restart[0], /paperclip-image-container\.mjs restart restart$/, 'the restart starts it again')
     assert.equal(restart.at(-1), `timeout 240 ${snapshot} "$EVIDENCE/home-before.json" "$EVIDENCE/home-first.json"`, 'the boundary snapshot is the last thing before the removal')
     assert.equal(restart.at(-2), 'timeout 150 node sophia/scripts/paperclip-image-container.mjs stop', 'the writer is stopped before that snapshot, and nothing starts it again')
     assert.ok(!restart.slice(0, -2).some((c) => c.includes('container.mjs stop')), 'stopped once, last')
@@ -1497,5 +1503,24 @@ describe('review of 2bad104: the home is snapshotted at the recreation boundary,
     // home-before.json is written once, at the boundary, and nowhere earlier.
     const writers = steps.flatMap((s) => commandsOf({ run: s.run ?? '' })).filter((c) => c.includes('snapshot pc "$EVIDENCE/home-before.json"'))
     assert.equal(writers.length, 1)
+  })
+})
+
+describe('review of cc0ffbb: the snapshot before the restart is taken after the idle period, of the stopped container', () => {
+  const restartOf = (run) => assess(run).checks.find((c) => c.name === 'home persisted across restart')
+  const WRITTEN = { path: 'instances/default/idle.json', size: 50, sha256: 'b'.repeat(64) }
+
+  it('the case of the review: a file written during the idle period and lost at the restart fails, where a snapshot before the idle period saw nothing', () => {
+    const run = complete()
+    run.home.first.files = [...run.home.first.files, WRITTEN]
+    run.home.first.coverage.total += 1
+    const restart = restartOf(run)
+    assert.equal(restart.result, 'failed')
+    assert.deepEqual(restart.detail.missing, [WRITTEN.path])
+    assert.equal(verdictOf(run), 'failed')
+    // Judged from a snapshot taken before the idle period, as before this review, the file was in neither snapshot.
+    const early = complete()
+    assert.deepEqual(compareSnapshots(early.home.first.files, early.home.before.files, early.home.before.prefixes).missing, [])
+    assert.equal(restartOf(early).result, 'passed')
   })
 })

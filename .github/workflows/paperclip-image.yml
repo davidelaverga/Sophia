@@ -47,10 +47,10 @@ jobs:
   image:
     name: Paperclip image under a 2 GiB cgroup
     runs-on: ubuntu-24.04
-    # Above the sum of every step's own budget (310 minutes), so a slow step that stays within its budget fails as
+    # Above the sum of every step's own budget (312 minutes), so a slow step that stays within its budget fails as
     # that step, and the receipt, scrub, upload and clean-up still run after it; the job's limit never ends the job
     # first (WBC-02, Codex review of 5446719). The unit tests hold this sum.
-    timeout-minutes: 325
+    timeout-minutes: 330
     services:
       # For scripts/paperclip-verify.mjs (the built worker under the pin's harness), as the database job has it.
       postgres:
@@ -201,23 +201,28 @@ jobs:
       #   service probe, later phases 660 s  (its own deadline 600, above the 490 and 510 they permit)
       #   home snapshot               240 s  (two inspects 40, pause 20, scan 120, unpause 20)
       #   home compare                 60 s  (two local files)
+      # Last, the container is stopped and its home snapshotted, immediately before the restart (review of cc0ffbb): what
+      # the flow and the idle period wrote is in home-first.json and held across the restart, and nothing writes between
+      # that scan and the restart.
       - name: First start, the installed plugin's flow, idle
-        timeout-minutes: 38
+        timeout-minutes: 40
         run: |
           timeout 450 node sophia/scripts/paperclip-image-container.mjs start first
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:healthy "$EVIDENCE/cgroup.jsonl"
           timeout 960 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase first \
             --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-first.json" --wait-ms 300000 --deadline-ms 900000
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:after-flow "$EVIDENCE/cgroup.jsonl"
-          timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-first.json"
           sleep 60
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:idle "$EVIDENCE/cgroup.jsonl"
+          timeout 150 node sophia/scripts/paperclip-image-container.mjs stop
+          timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-first.json"
 
       # After the restart, what persists is probed before the recreation, and memory read after it as after the other
-      # probes (review of 9ee7754, CX-0045): sign-up is still open, so the probe does not try it. Last, the container is
-      # stopped and its home snapshotted, at the recreation boundary: what the idle period, the restart and its probe
-      # wrote is in home-before.json, nothing writes between that scan and the removal, and it is held across the
-      # recreation; from the first phase's snapshot, so it is held across the restart too (review of 2bad104).
+      # probes (review of 9ee7754, CX-0045): sign-up is still open, so the probe does not try it. The restart starts the
+      # container stopped for the snapshot before it. Last, the container is stopped and its home snapshotted again, at
+      # the recreation boundary: what the restart and its probe wrote is in home-before.json, nothing writes between that
+      # scan and the removal, and it is held across the recreation; from the snapshot before the restart, so the restart
+      # is held to the same (reviews of 2bad104 and cc0ffbb).
       - name: Restart
         timeout-minutes: 31
         run: |
