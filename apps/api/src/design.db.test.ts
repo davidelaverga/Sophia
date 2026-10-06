@@ -377,6 +377,7 @@ async function settleCapture(job: Body, pkg: ContentPackage, sections: string[],
       check('sandbox_active', null),
       check('requests_contained', null),
       check('source_unchanged', null),
+      check('widths_visible', null),
       ...targets.flatMap((t) => [
         check('layout_overflow', t),
         check('blocks_visible', t, Object.keys(issues).length > 0 ? 'failed' : 'passed'),

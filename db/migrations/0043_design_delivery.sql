@@ -380,6 +380,31 @@ BEGIN
  RETURN sophia.design_edit_receipt(t);
 END $$;
 
+-- design_gate_failures (0039), replaced with the same signature: the render's width sweep must pass too (#117,
+-- CX-0039). The captures show a page at 390 and 1280px; between and beyond them its media queries can choose other
+-- rules, so the capture kernel measures both ends of every band of window widths its breakpoints make, and its global
+-- check widths_visible fails on what any band end hides, cuts, covers or overflows, or on a band it could not measure.
+CREATE OR REPLACE FUNCTION sophia.design_gate_failures(p_receipt jsonb, p_package jsonb, p_targets text[]) RETURNS text[]
+LANGUAGE sql IMMUTABLE SET search_path=pg_catalog AS $$
+ SELECT coalesce((array_agg(f ORDER BY n, f))[1:40],'{}') FROM (
+  SELECT 0 AS n, 'the render did not succeed' AS f WHERE p_receipt->>'status' IS DISTINCT FROM 'succeeded'
+  UNION ALL
+  SELECT 1, 'check '||g||' did not pass'
+   FROM unnest(ARRAY['source_verified','sandbox_active','requests_contained','source_unchanged','widths_visible']) g
+   WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(p_receipt->'checks','[]')) c
+    WHERE c->>'name'=g AND c->>'target' IS NULL AND c->>'outcome'='passed')
+  UNION ALL
+  SELECT 2, 'check '||c||' at '||t||CASE WHEN c='contrast' THEN ' failed' ELSE ' did not pass' END
+   FROM unnest(p_targets) t, unnest(ARRAY['layout_overflow','blocks_visible','contrast','captures_complete']) c
+   WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(p_receipt->'checks','[]')) k
+    WHERE k->>'name'=c AND k->>'target'=t AND (k->>'outcome'='passed' OR (c='contrast' AND k->>'outcome'='unknown')))
+  UNION ALL
+  SELECT 3, 'block '||(b->>'id')||' was not measured at '||t FROM unnest(p_targets) t, jsonb_array_elements(coalesce(p_package->'blocks','[]')) b
+   WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(p_receipt->'targets','[]')) x, jsonb_array_elements(coalesce(x->'page'->'blocks','[]')) m
+    WHERE x->>'id'=t AND m->>'id'=b->>'id')
+ ) q $$;
+REVOKE ALL ON FUNCTION sophia.design_gate_failures(jsonb,jsonb,text[]) FROM PUBLIC;
+
 GRANT EXECUTE ON FUNCTION sophia.runtime_capture_issue(bytea,text,text,jsonb,text),
  sophia.runtime_capture_delivered(bytea,text,text,jsonb,text) TO sophia_api;
 
