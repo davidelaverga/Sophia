@@ -1769,7 +1769,8 @@ describe('the confined capture kernel', () => {
       // a black box under a white card, a negative-z black box under its own white section, a white generated box
       // drawn over a black block, and a black shadow drawn under a half-white veil, each under a text of its shade; and a
       // gradient crossing the text's grey between its stops, a small black tile beneath white text, and black text
-      // inside a white box's padding where its thick black rounded border's inner curve reaches.
+      // inside a white box's padding where its thick black rounded border's inner curve reaches. And Codex's opaque case
+      // (4198225737): a block's own white background over a black box at z-index -1, beneath its white text.
       const receipt = await captureHtml(
         job(
           page(
@@ -1793,6 +1794,7 @@ describe('the confined capture kernel', () => {
             .g1{font-size:18px;color:#757575;background:linear-gradient(90deg,#000,#fff)}
             .g2{color:#fff;background:#fff linear-gradient(#000,#000) no-repeat;background-size:12px 12px}
             .g3{color:#222;background:linear-gradient(#fff,#eee)}
+            .f8,.q5,.q6{isolation:isolate} .f8,.q5{color:#fff} .f8 p,.q6 p{background:#fff} .q6 p{color:#000}
             .ring{position:relative;width:200px;height:160px;border:24px solid #000;border-radius:60px;background:#fff}
             .ring p{position:absolute;left:0;top:0;font-size:12px;line-height:1;color:#000}`,
             `<main>
@@ -1812,6 +1814,9 @@ describe('the confined capture kernel', () => {
           <div class="case"><p data-block="g2" class="g2">Not free, white beside a small black tile.</p></div>
           <div class="case"><p data-block="g3" class="g3">Readable on a subtle gradient.</p></div>
           <div class="case ring"><p data-block="c1">Not</p></div>
+          <div class="case f8"><div class="under"></div><p data-block="f8">Not free, on its own white over black.</p></div>
+          <div class="case q5"><div class="under"></div><p data-block="q5">Light over a black box beneath it.</p></div>
+          <div class="case q6"><div class="under"></div><p data-block="q6">Dark on its own white over black.</p></div>
           </main>`,
           ),
         ),
@@ -1839,13 +1844,18 @@ describe('the confined capture kernel', () => {
             ['g2', 'low'],
             ['g3', 'read'],
             ['c1', 'low'],
+            ['f8', 'low'],
+            ['q5', 'read'],
+            ['q6', 'read'],
           ],
           target,
         )
         const ratio = (id: string) => measured.blocks.find((b) => b.id === id)?.contrast.ratio ?? 0
         for (const id of ['f1', 'f2']) assert.ok(ratio(id) > 1.2 && ratio(id) < 1.35, `${target}: ${id} ${ratio(id)}`)
-        for (const id of ['f3', 'f4', 'f7', 'f5', 'f6']) assert.ok(ratio(id) < 1.5, `${target}: ${id} ${ratio(id)}`)
-        for (const id of ['q1', 'q2', 'q3', 'q4', 'g3']) assert.ok(ratio(id) >= 7, `${target}: ${id} ${ratio(id)}`)
+        for (const id of ['f3', 'f4', 'f7', 'f5', 'f6', 'f8'])
+          assert.ok(ratio(id) < 1.5, `${target}: ${id} ${ratio(id)}`)
+        for (const id of ['q1', 'q2', 'q3', 'q4', 'g3', 'q5', 'q6'])
+          assert.ok(ratio(id) >= 7, `${target}: ${id} ${ratio(id)}`)
         assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
       }
     },
