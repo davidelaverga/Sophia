@@ -17,7 +17,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, MAX_POINTS, pageScript } from './capture-page.mjs'
+import { conditionsScript, MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, MAX_POINTS, pageScript } from './capture-page.mjs'
 import { launchConfined, playwrightVersion } from './confine.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
 
@@ -68,6 +68,15 @@ export const CAPTURE_LIMITS = Object.freeze({
 export const MEASURE_BYTES = 360 * 1024
 /** The most a receipt may weigh, as PostgreSQL writes it: under the 1 MiB a capture receipt may hold (0038). */
 export const RECEIPT_BYTES = 1_000_000
+/**
+ * The window widths the width sweep measures between, its window height, the most width breakpoints a page's
+ * stylesheets may set, and how long the sweep may take (#117, CX-0039). Between two breakpoints the page's media
+ * conditions hold or fail alike, so the rules its captures show at 390 and 1280px are not the only ones a reader can
+ * meet: the sweep measures, without capturing, both ends of every band the breakpoints make, from a narrow phone to a
+ * wide screen. A breakpoint past these widths, more breakpoints, a condition it cannot read, or a band end it has no
+ * time left to measure fails the sweep, never a band left out.
+ */
+export const SWEEP = Object.freeze({ minWidth: 320, maxWidth: 2560, height: 800, maxBreakpoints: 8, maxMs: 60_000 })
 /** A stretch of the page outside every section shorter than this is not captured on its own. */
 const MARGIN_MIN_PX = 24
 const SECTION_ID = /^[a-z][a-z0-9-]{0,63}$/
@@ -519,12 +528,13 @@ function isMeasure(value) {
 }
 
 /**
- * The page's measure at the current target.
+ * The page's measure at the current target, or band end, within a look budget.
  * @param {import('playwright-core').Page} page
+ * @param {number} [maxLookMs]
  */
-async function measure(page) {
+async function measure(page, maxLookMs = MAX_LOOK_MS) {
   /** @type {unknown} */
-  const value = await page.evaluate(pageScript({ maxListed: MAX_LISTED }))
+  const value = await page.evaluate(pageScript({ maxListed: MAX_LISTED, maxLookMs }))
   if (!isMeasure(value)) throw new CaptureFailure('measure_failed', 'the page could not be measured')
   return value
 }
@@ -539,16 +549,17 @@ async function measure(page) {
  * @param {Shot} shot
  * @param {import('playwright-core').Page} page
  * @param {Omit<import('./capture-page.mjs').PageAnswer, 'unmeasured'>} answer
+ * @param {number} [deadline] Date.now() by which to stop, at most MAX_LOOK_MS from now (a sweep's own, when less)
  * @returns {Promise<{ measured: import('./capture-page.mjs').PageMeasure, unsampled: number }>}
  */
-async function generatedCover(shot, page, answer) {
+async function generatedCover(shot, page, answer, deadline = Date.now() + MAX_LOOK_MS) {
   const all = [...answer.blocks, ...answer.shown, ...answer.framing]
   const probed = all.filter((m) => m.probes.length > 0)
   if (probed.length > 0) {
     await shot.cdp.send('DOM.enable')
     /** @type {View} */
     const view = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY, w: innerWidth, h: innerHeight }))
-    const look = { plain: new Set(), until: Date.now() + MAX_LOOK_MS }
+    const look = { plain: new Set(), until: Math.min(Date.now() + MAX_LOOK_MS, deadline) }
     let left = MAX_PROBES
     for (const m of probed) {
       if (m.probes.length > left || Date.now() > look.until) {
@@ -640,10 +651,139 @@ function withoutProbe(list) {
 }
 
 /**
+ * The widths at which a media condition can change, in CSS pixels, or null when it tests anything but a screen's width
+ * in pixels: the profile holds a page to those (css.ts), and the sweep reads no other.
+ * @param {string} condition as the browser serializes it
+ * @returns {number[] | null}
+ */
+export function breakpointsOf(condition) {
+  const rest = condition
+    .toLowerCase()
+    .replaceAll(/-?\d+(?:\.\d+)?px/gu, ' ')
+    .replaceAll(/\b(?:only|screen|all|and|or|not|min-width|max-width|width)\b/gu, ' ')
+    .replaceAll(/[\s():<>=,]/gu, '')
+  if (rest !== '') return null
+  return [...condition.matchAll(/(-?\d+(?:\.\d+)?)px/giu)].map((m) => Number(m[1]))
+}
+
+/**
+ * The widths the sweep measures: both ends of every band of window widths in which the page's media conditions hold
+ * or fail alike. A breakpoint v is crossed between v−1 and v, or v and v+1 (min-, max-, < or >), so every band's ends
+ * are among those widths and the sweep's own ends; the conditions are read at each, and widths that agree in a row are
+ * one band.
+ * @param {number[]} breakpoints
+ * @param {(width: number) => Promise<string>} stateAt which conditions hold at a width
+ * @returns {Promise<number[]>}
+ */
+export async function bandEnds(breakpoints, stateAt) {
+  /** @type {Set<number>} */
+  const widths = new Set([SWEEP.minWidth, SWEEP.maxWidth])
+  for (const v of breakpoints)
+    for (const w of [Math.floor(v) - 1, Math.floor(v), Math.floor(v) + 1])
+      if (w >= SWEEP.minWidth && w <= SWEEP.maxWidth) widths.add(w)
+  const sorted = [...widths].toSorted((a, b) => a - b)
+  /** @type {number[]} */
+  const ends = []
+  let state = ''
+  for (const [i, width] of sorted.entries()) {
+    const now = await stateAt(width)
+    if (i > 0 && now === state) continue
+    const before = sorted[i - 1]
+    if (before !== undefined) ends.push(before)
+    ends.push(width)
+    state = now
+  }
+  ends.push(SWEEP.maxWidth)
+  return [...new Set(ends)].toSorted((a, b) => a - b)
+}
+
+/**
+ * Why a page's media conditions keep the sweep from measuring its bands, or null when it can: a condition it cannot
+ * read, a breakpoint past the widths it measures, or more breakpoints than it measures.
+ * @param {{ conditions: string[], unreadable: string[] }} media
+ * @returns {{ issue: string } | { breakpoints: number[] }}
+ */
+export function sweepPlan(media) {
+  const points = media.conditions.map((c) => ({ c, at: breakpointsOf(c) }))
+  const unread = [...media.unreadable, ...points.filter((p) => p.at === null).map((p) => p.c)]
+  if (unread.length > 0) return { issue: `width conditions the sweep cannot read: ${listed(unread)}` }
+  const breakpoints = [...new Set(points.flatMap((p) => p.at ?? []))]
+  const outside = breakpoints.filter((v) => v < SWEEP.minWidth || v > SWEEP.maxWidth)
+  if (outside.length > 0)
+    return {
+      issue: `breakpoints past the ${SWEEP.minWidth}–${SWEEP.maxWidth}px the sweep measures: ${outside.join(', ')}px`,
+    }
+  if (breakpoints.length > SWEEP.maxBreakpoints)
+    return {
+      issue: `${breakpoints.length} width breakpoints, more than the ${SWEEP.maxBreakpoints} the sweep measures`,
+    }
+  return { breakpoints }
+}
+
+/**
+ * What a measure at a band end shows wrong, or null: a block or a text outside the blocks hidden, cut, covered, set
+ * beside other text or off the page, a block in low contrast, horizontal overflow, or text the measure did not reach.
+ * A contrast it cannot read is a limitation, as at a target.
+ * @param {import('./capture-page.mjs').PageMeasure} page
+ * @param {number} missed labels, texts and runs left out, and texts the cover check did not reach
+ * @returns {string | null}
+ */
+function bandIssue(page, missed) {
+  const unseen = [
+    ...page.blocks.filter((m) => hiddenHere(m) || m.issues.includes('low_contrast')),
+    ...[...page.shown, ...page.framing].filter(textHiddenHere),
+  ]
+  const parts = [
+    unseen.length > 0 ? listed(unseen.map((m) => m.id)) : '',
+    page.overflowPx > 0 ? `${page.overflowPx}px past the width` : '',
+    missed > 0 ? `${missed} texts not measured` : '',
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(', ') : null
+}
+
+/**
+ * The width sweep (SWEEP): the page measured, without capturing, at both ends of every band its media conditions
+ * make, as at a target. Its check fails on what any band end shows wrong, and on any band end it could not measure.
+ * @param {import('playwright-core').Page} page
+ * @param {Shot} shot
+ * @param {number} sweepMs
+ * @returns {Promise<Check>}
+ */
+async function sweepWidths(page, shot, sweepMs) {
+  const until = Date.now() + sweepMs
+  /** @type {{ conditions: string[], unreadable: string[] }} */
+  const media = await page.evaluate(conditionsScript())
+  const plan = sweepPlan(media)
+  if ('issue' in plan) return check('widths_visible', 'failed', plan.issue)
+  const holding = `(${JSON.stringify(media.conditions)}).map((q) => matchMedia(q).matches).join()`
+  const ends = await bandEnds(plan.breakpoints, async (width) => {
+    await page.setViewportSize({ width, height: SWEEP.height })
+    return String(await page.evaluate(holding))
+  })
+  /** @type {string[]} */
+  const wrong = []
+  for (const [i, width] of ends.entries()) {
+    const left = until - Date.now()
+    if (left <= 0) {
+      wrong.push(`${ends.length - i} band ends not measured within ${sweepMs / 1000} s`)
+      break
+    }
+    await page.setViewportSize({ width, height: SWEEP.height })
+    const { unmeasured, ...answer } = await measure(page, left)
+    const { measured, unsampled } = await generatedCover(shot, page, answer, until)
+    const issue = bandIssue(measured, unmeasured + unsampled)
+    if (issue) wrong.push(`at ${width}px: ${issue}`)
+  }
+  return wrong.length > 0
+    ? check('widths_visible', 'failed', wrong.join('; ').slice(0, 2000))
+    : check('widths_visible', 'passed', `measured at ${ends.join(', ')}px`.slice(0, 2000))
+}
+
+/**
  * Measure and capture every target of the job.
  * @param {import('playwright-core').Page} page
  * @param {Shot} shot
- * @param {{ url: string, timeoutMs: number }} entry
+ * @param {{ url: string, timeoutMs: number, sweepMs: number }} entry
  */
 async function captureAll(page, shot, entry) {
   for (const id of shot.job.targets) {
@@ -665,6 +805,7 @@ async function captureAll(page, shot, entry) {
     })
     shot.receipt.checks.push(...targetChecks(target, measured, coverage, fit.unmeasured, unsampled))
   }
+  shot.receipt.checks.push(await sweepWidths(page, shot, entry.sweepMs))
 }
 
 /**
@@ -712,7 +853,10 @@ async function shutDown(browser) {
   }
 }
 
-/** @typedef {{ job: CaptureJob, signal: AbortSignal, receipt: CaptureReceipt, env: NodeJS.ProcessEnv | undefined }} Run */
+/**
+ * @typedef {{ job: CaptureJob, signal: AbortSignal, receipt: CaptureReceipt, env: NodeJS.ProcessEnv | undefined,
+ *   sweepMs: number }} Run
+ */
 
 /**
  * The browser's first page with the request policy, after the sandbox self-test.
@@ -759,7 +903,11 @@ async function inConfinedBrowser(run, source) {
       receipt: run.receipt,
       budget: { captures: CAPTURE_LIMITS.captures, bytes: CAPTURE_LIMITS.totalBytes },
     }
-    await captureAll(page, shot, { url: source.entry.url, timeoutMs: run.job.timeoutMs ?? DEFAULT_TIMEOUT_MS })
+    await captureAll(page, shot, {
+      url: source.entry.url,
+      timeoutMs: run.job.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      sweepMs: run.sweepMs,
+    })
     run.signal.throwIfAborted()
     finalChecks(run.receipt, source)
     if (jsonbBytes(run.receipt) > RECEIPT_BYTES)
@@ -843,7 +991,8 @@ function settleError(receipt, error, how) {
  * Capture one page. Never throws for a job's own failure: the receipt says what happened, and a failed or cancelled
  * capture keeps no image.
  * @param {CaptureJob} job
- * @param {{ signal?: AbortSignal, env?: NodeJS.ProcessEnv }} [opts]
+ * @param {{ signal?: AbortSignal, env?: NodeJS.ProcessEnv, sweepMs?: number }} [opts] `sweepMs`: the width sweep's
+ *   time, SWEEP.maxMs unless a test gives less
  * @returns {Promise<CaptureReceipt>}
  */
 export async function captureHtml(job, opts = {}) {
@@ -851,7 +1000,7 @@ export async function captureHtml(job, opts = {}) {
   const receipt = newReceipt(job)
   const timeout = AbortSignal.timeout(job.timeoutMs ?? DEFAULT_TIMEOUT_MS)
   const signal = opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout
-  const run = { job, signal, receipt, env: opts.env }
+  const run = { job, signal, receipt, env: opts.env, sweepMs: Math.min(opts.sweepMs ?? SWEEP.maxMs, SWEEP.maxMs) }
   try {
     const source = verified(run)
     signal.throwIfAborted()

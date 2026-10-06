@@ -13,6 +13,8 @@ import {
   asCaptureJob,
   CAPTURE_KERNEL_FILES,
   CAPTURE_LIMITS,
+  bandEnds,
+  breakpointsOf,
   CAPTURE_TARGETS,
   captureHtml,
   captureSha256,
@@ -21,6 +23,8 @@ import {
   marginsOf,
   MEASURE_BYTES,
   RECEIPT_BYTES,
+  SWEEP,
+  sweepPlan,
   targetChecks,
   tilesOf,
 } from '../capture-html.mjs'
@@ -129,6 +133,16 @@ const CLEAN = page(
   `<main><h1>A clean report</h1><section data-section="s1"><p data-block="b1">First paragraph.</p>
   <ul><li data-block="b2">An item.</li></ul></section><section data-section="sources"><ol><li data-source="s1" class="note">Source.</li></ol></section></main>`,
 )
+
+/** Which of these breakpoints a width is past, as the sweep reads which conditions hold. */
+const pastEach = (bps: number[]) => async (w: number) => Promise.resolve(bps.map((b) => w >= b).join())
+/** Whether a width lies in 700–900px, as one condition. */
+const inBand = async (w: number) => Promise.resolve(String(w >= 700 && w <= 900))
+/** Why the sweep's plan refuses these conditions, or nothing. */
+const refused = (conditions: string[], unreadable: string[] = []) => {
+  const plan = sweepPlan({ conditions, unreadable })
+  return 'issue' in plan ? plan.issue : ''
+}
 
 /** A block whose text runs on in a span styled `style`. */
 const runOn = (id: string, style: string, text: string) =>
@@ -262,6 +276,28 @@ describe('the capture plan (pure)', () => {
     )
   })
 
+  // #117, CX-0039: the rules a page's captures show at 390 and 1280px are not the only ones a reader can meet.
+  it('reads the widths where a media condition can change, and only a screen width in pixels', () => {
+    assert.deepEqual(breakpointsOf('(min-width: 600px)'), [600])
+    assert.deepEqual(breakpointsOf('screen and (max-width: 999.5px)'), [999.5])
+    assert.deepEqual(breakpointsOf('(700px <= width <= 900px)'), [700, 900])
+    assert.deepEqual(breakpointsOf('only screen and (width > 1200px), (max-width: 400px)'), [1200, 400])
+    assert.deepEqual(breakpointsOf('not all and (min-width: 600px)'), [600])
+    for (const unread of ['(min-width: 40em)', 'print', '(orientation: landscape)', '(min-width: calc(600px + 1em))'])
+      assert.equal(breakpointsOf(unread), null, unread)
+  })
+  it('measures both ends of every band the breakpoints make, from the narrowest width to the widest', async () => {
+    assert.deepEqual(await bandEnds([600, 1000], pastEach([600, 1000])), [320, 599, 600, 999, 1000, 2560])
+    assert.deepEqual(await bandEnds([700, 900], inBand), [320, 699, 700, 900, 901, 2560])
+    assert.deepEqual(await bandEnds([], pastEach([])), [320, 2560], 'no breakpoint: one band')
+    const plain = sweepPlan({ conditions: ['(min-width: 600px)', '(max-width: 999.5px)'], unreadable: [] })
+    assert.deepEqual(plain, { breakpoints: [600, 999.5] })
+    assert.match(refused(['(min-width: 40em)']), /cannot read: \(min-width: 40em\)/u)
+    assert.match(refused([], ['@container (min-width: 400px)']), /cannot read: @container/u)
+    assert.match(refused(['(min-width: 3000px)']), /past the 320–2560px the sweep measures: 3000px/u)
+    const nine = Array.from({ length: SWEEP.maxBreakpoints + 1 }, (_, i) => `(min-width: ${String(400 + i * 100)}px)`)
+    assert.match(refused(nine), /^9 width breakpoints, more than the 8 /u)
+  })
   it("keeps each target's measure within its share of the receipt, counting what it leaves out (#117)", () => {
     const many = Array.from({ length: 4000 }, (_, i) => framed(`text ${String(i + 1)} h6`))
     const sample = {
@@ -312,6 +348,15 @@ describe('the capture plan (pure)', () => {
       ['·', ' | ', '• — →', '[1]', 'Ⓗ', 'Sources', '§ 3'].map((t) => words.test(t)),
       [false, false, false, true, true, true, true],
     )
+  })
+
+  it('sweeps the widths the design profile bounds a page to, so a page it accepts is one the sweep can measure (#117)', () => {
+    const css = fs.readFileSync(
+      fileURLToPath(new URL('../../../../packages/design/src/css.ts', import.meta.url)),
+      'utf8',
+    )
+    const profile = /SWEEP_WIDTHS = Object\.freeze\(\{ min: (\d+), max: (\d+), breakpoints: (\d+) \}\)/u.exec(css)
+    assert.deepEqual(profile?.slice(1).map(Number), [SWEEP.minWidth, SWEEP.maxWidth, SWEEP.maxBreakpoints])
   })
 
   it('keeps nothing when cancelled', async () => {
@@ -935,6 +980,103 @@ describe('the confined capture kernel', () => {
           /^b1, b2, b3, b4, b5, b10$/u,
         )
       }
+    },
+  )
+
+  it(
+    'passes a responsive page at both ends of every band its breakpoints make, and names the widths (#117, CX-0039)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .grid{display:grid;grid-template-columns:1fr;gap:1rem}
+             @media (min-width: 600px){.grid{grid-template-columns:1fr 1fr}}
+             @media (min-width: 1000px){.grid{grid-template-columns:1fr 1fr 1fr}}`,
+            `<main><section data-section="s1"><h2>Findings</h2><div class="grid">
+            <p data-block="b1">One.</p><p data-block="b2">Two.</p><p data-block="b3">Three.</p></div></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      const sweep = receipt.checks.find((c) => c.name === 'widths_visible')
+      assert.deepEqual([sweep?.outcome, sweep?.target], ['passed', null])
+      assert.equal(sweep?.detail, 'measured at 320, 599, 600, 999, 1000, 2560px')
+    },
+  )
+
+  it(
+    'fails what a band between or beyond the targets hides, covers or cuts, at the band end that shows it (#117, CX-0039)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .box{position:relative} .over{display:none}
+             @media (min-width: 700px) and (max-width: 900px){
+               [data-block="b2"]{display:none} h2.k{visibility:hidden}
+               .over{display:block;position:absolute;inset:0;background:#fafafa}}
+             @media (min-width: 1300px){.cut{width:calc(100vw - 1260px);overflow:hidden;white-space:nowrap}}
+             @media (max-width: 579px){.cut2{width:calc(600px - 100vw);overflow:hidden;white-space:nowrap}}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Shown everywhere.</p>
+            <p data-block="b2">Hidden between the targets.</p><h2 class="k">Kept heading</h2>
+            <div class="box"><p data-block="b3">Covered between the targets.</p><div class="over"></div></div>
+            <p data-block="b4" class="cut">A line cut at the wide band's narrow end.</p>
+            <p data-block="b5" class="cut2">10%</p></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const t of ['w390-light', 'w1280-light']) assert.equal(outcome(receipt, 'blocks_visible', t), 'passed', t)
+      assert.equal(outcome(receipt, 'widths_visible'), 'failed')
+      const detail = String(receipt.checks.find((c) => c.name === 'widths_visible')?.detail)
+      assert.match(detail, /at 700px: b2, b3, text 2 h2(;|$)/u)
+      assert.match(detail, /at 900px: b2, b3, text 2 h2(;|$)/u)
+      assert.match(detail, /at 1300px: b4(;|$)/u, "the wide band's narrow end")
+      assert.match(detail, /at 579px: b5(;|$)/u, "the narrow band's wide end")
+      assert.doesNotMatch(detail, /at (320|390|699|901|1299|1280|2560)px/u, 'the ends that show nothing wrong')
+    },
+  )
+
+  it(
+    'refuses a page whose widths the sweep cannot bound, and a sweep past its time, never leaving a band out (#117, CX-0039)',
+    { skip },
+    async () => {
+      const sweep = async (css: string, opts: { sweepMs?: number } = {}) => {
+        const receipt = await captureHtml(
+          job(
+            page(
+              `${BASE} ${css}`,
+              '<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p></section></main>',
+            ),
+          ),
+          { env, ...opts },
+        )
+        assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+        const c = receipt.checks.find((k) => k.name === 'widths_visible')
+        return `${String(c?.outcome)}: ${String(c?.detail)}`
+      }
+      assert.match(
+        await sweep('@media (min-width: 40em){p{color:#111}}'),
+        /^failed: width conditions the sweep cannot read/u,
+      )
+      assert.match(
+        await sweep('section{container-type:inline-size} @container (min-width: 400px){p{color:#111}}'),
+        /^failed: width conditions the sweep cannot read: @container/u,
+      )
+      assert.match(await sweep('@media (min-width: 3000px){p{color:#111}}'), /^failed: breakpoints past the/u)
+      const nine = Array.from({ length: 9 }, (_, i) => `@media (min-width: ${String(400 + i * 100)}px){p{color:#111}}`)
+      assert.match(await sweep(nine.join(' ')), /^failed: 9 width breakpoints/u)
+      assert.match(
+        await sweep('@media (min-width: 600px){p{color:#111}}', { sweepMs: 1 }),
+        /^failed: \d+ band ends not measured within 0.001 s/u,
+      )
+      assert.match(
+        await sweep('@media (min-width: 600px){p{color:#111}}'),
+        /^passed: measured at 320, 599, 600, 2560px/u,
+      )
     },
   )
 

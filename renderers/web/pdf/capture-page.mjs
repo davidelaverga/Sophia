@@ -1285,7 +1285,8 @@ const IN_PAGE = [
 
 /**
  * An expression that measures the page with these options, the receipt's bound and the marks, and returns the measure.
- * @param {{ maxListed: number }} opts
+ * The look budget is the kernel's own, or less where a sweep has less time left (capture-html.mjs).
+ * @param {{ maxListed: number, maxLookMs?: number }} opts
  */
 export function pageScript(opts) {
   const all = {
@@ -1293,11 +1294,47 @@ export function pageScript(opts) {
     maxMeasured: MAX_MEASURED,
     marks: MARK_CLASS,
     maxPoints: MAX_POINTS,
-    maxLookMs: MAX_LOOK_MS,
+    maxLookMs: Math.min(opts.maxLookMs ?? MAX_LOOK_MS, MAX_LOOK_MS),
     maxLines: MAX_LINES,
     readable: READABLE,
     maxTextRects: MAX_TEXT_RECTS,
     besideEm: BESIDE_EM,
   }
   return `(() => {\n${IN_PAGE.map((f) => f.toString()).join('\n')}\nreturn measurePage(${JSON.stringify(all)})\n})()`
+}
+
+/**
+ * Every media condition the page's stylesheets hold, as the browser reads them: the widths where its rules can change
+ * (#117, CX-0039). A container's query is named apart, since a container's width is not the window's, and so is a
+ * stylesheet whose rules cannot be read.
+ * @returns {{ conditions: string[], unreadable: string[] }}
+ */
+function mediaConditions() {
+  /** @type {Set<string>} */
+  const conditions = new Set()
+  /** @type {string[]} */
+  const unreadable = []
+  /** @param {CSSRuleList} rules */
+  const visit = (rules) => {
+    for (const rule of rules) {
+      if (rule instanceof CSSMediaRule) conditions.add(rule.media.mediaText)
+      if (rule instanceof CSSContainerRule) unreadable.push(`@container ${rule.conditionText}`)
+      if (rule instanceof CSSImportRule && rule.media.mediaText) conditions.add(rule.media.mediaText)
+      if ('cssRules' in rule && rule.cssRules instanceof CSSRuleList) visit(rule.cssRules)
+    }
+  }
+  for (const sheet of document.styleSheets) {
+    if (sheet.media.mediaText) conditions.add(sheet.media.mediaText)
+    try {
+      visit(sheet.cssRules)
+    } catch {
+      unreadable.push('a stylesheet whose rules cannot be read')
+    }
+  }
+  return { conditions: [...conditions], unreadable }
+}
+
+/** An expression that returns the page's media conditions (mediaConditions). */
+export function conditionsScript() {
+  return `(() => {\n${mediaConditions.toString()}\nreturn mediaConditions()\n})()`
 }
