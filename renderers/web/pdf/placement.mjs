@@ -15,12 +15,17 @@
 // at the other (a diagonal path that may meet in between), or overlapping at one end only.
 // Positions inside a band move affinely with the window where they are fixed lengths, `vw` or percentages of boxes
 // that widen with it, and their sums: two such boxes on one side of each other at both ends stay on it throughout.
-// Where a band holds placed boxes, a grid's, a flex container's or columns' lines that change inside it (an `auto-fit`
-// grid's column count, a flex line that wraps) are found by bisection and measured as band ends (layoutChanges), so
-// each piece of the band is read at its own ends. It is not a proof where a box's place bends inside a band otherwise:
-// a `min()`, `max()` or `clamp()` that changes arguments, a text that rewraps and moves what follows by steps, a float
-// or an inline box that wraps, or a container whose lines change and change back between two widths the bisection
-// reads. Nor is any paint inside a box that overlaps a text at both ends, beneath it, which only the ends' checks read.
+// Inside a band, how a text is drawn can change and change back where no media condition does: a grid's column count,
+// a flex line, an inline box or a float that wraps, or a text that rewraps, moves a box onto a text, or out of a parent
+// of fixed height onto the text that follows it, in the flow, and off it again; or cuts a text, sets it off the page or
+// outside its section, widens the page, or moves a research table's cells (#117). So at every whole width of every
+// band the kernel reads, for each line of text, the drawn boxes and lines of other texts that lie on it, and whether
+// a clip cuts it, it leaves the page or its section; whether the page is wider than the window; and which research
+// tables' cells are drawn elsewhere (meetingsOf, and capture-page.mjs tablesScript). Each width where any of that
+// changes is measured as band ends (layoutChanges), every check included, so each piece of a band holds the same at
+// every whole width: a box that lies on a text anywhere in it lies on it at both its ends, where the cover, contrast
+// and placement checks read them. Not read between the ends: the paint inside a box that lies on a text throughout (a
+// gradient's colours beneath it), and an inline box drawn across lines, which is read by the box around its pieces.
 // Each band end's snapshot and comparison run within the sweep's time (placementStep).
 // An inline mark offset by the same lengths at both ends (a citation raised with `top: -0.4em`) moves with the lines
 // of its own paragraph and is compared with the texts of other blocks only. Every bound fails closed: a page with more
@@ -30,8 +35,8 @@ import { MARK_CLASS } from './capture-page.mjs'
 
 /**
  * The most boxes one band end's layout may hold to be compared, the most pairs of a placed box and a text compared
- * across one band, the most pairs a failure names, and, where a band holds placed boxes, the most changes of a
- * container's lines found inside the bands and the most widths probed to find them (layoutChanges). Also the most
+ * across one band, the most pairs a failure names, and the most changes of how the texts lie found inside the bands
+ * and the most widths read to find them (layoutChanges). Also the most
  * generated boxes whose place the page measure is given to read paint beneath text by (generatedOf).
  */
 export const PLACEMENT = Object.freeze({
@@ -39,12 +44,12 @@ export const PLACEMENT = Object.freeze({
   maxPairs: 2_000_000,
   maxListed: 12,
   maxChanges: 32,
-  maxProbes: 400,
+  maxProbes: 2_400,
   maxGenerated: 4_000,
 })
 
 /** The computed styles the comparison reads, in the order the protocol returns them for each box. */
-const STYLES = [
+export const STYLES = [
   'position',
   'display',
   'visibility',
@@ -78,6 +83,8 @@ const STYLES = [
   'opacity',
   'isolation',
   'mix-blend-mode',
+  'outline-width',
+  'outline-offset',
 ]
 const OFFSETS = ['left', 'top', 'right', 'bottom']
 const MARGINS = ['margin-top', 'margin-right', 'margin-bottom', 'margin-left']
@@ -89,17 +96,20 @@ const UNBOUNDED = /** @type {Edges} */ ([-Infinity, -Infinity, Infinity, Infinit
 /** @typedef {[number, number, number, number]} Edges a box's left, top, right and bottom, in page coordinates */
 /**
  * @typedef {{ parent: number, kind: 'element' | 'pseudo' | 'text' | 'other', name: string, block: string | null,
- *   text: string, box: Edges | null, paint: [number, number] | null, style: Record<string, string> | null }} Box
- *   a node of the page as one band end lays it out, by the protocol's backend id: its parent's id (0 at the root), what
- *   it is, a short name, the content block it is (data-block), its text (a text node's), its box (the union of its
- *   layout boxes), the range of its paint order, and its computed styles (STYLES)
+ *   section: string | null, text: string, box: Edges | null, paint: [number, number] | null,
+ *   style: Record<string, string> | null }} Box a node of the page as one band end lays it out, by the protocol's
+ *   backend id: its parent's id (0 at the root), what it is, a short name, the content block and the section it is
+ *   (data-block, data-section), its text (a text node's), its box (the union of its layout boxes), the range of its
+ *   paint order, and its computed styles (STYLES)
  * @typedef {{ nodes: Map<number, Box> }} Layout one band end's layout
  * @typedef {{ index: number[], value: number[] }} RareStrings
  * @typedef {{ parentIndex?: number[], nodeType?: number[], nodeName?: number[], nodeValue?: number[],
  *   backendNodeId?: number[], attributes?: number[][], pseudoType?: RareStrings }} SnapshotNodes
  * @typedef {{ nodeIndex: number[], styles: number[][], bounds: number[][], paintOrders?: number[] }} SnapshotLayout
- * @typedef {{ documents: { nodes: SnapshotNodes, layout: SnapshotLayout }[], strings: string[] }} Snapshot what
- *   DOMSnapshot.captureSnapshot returns, as far as it is read here (string fields are indices into `strings`) */
+ * @typedef {{ layoutIndex: number[], bounds: number[][] }} SnapshotTextBoxes each line of a text, by its layout box
+ * @typedef {{ documents: { nodes: SnapshotNodes, layout: SnapshotLayout, textBoxes?: SnapshotTextBoxes,
+ *   contentWidth?: number }[], strings: string[] }} Snapshot what DOMSnapshot.captureSnapshot returns, as far as it is
+ *   read here (string fields are indices into `strings`) */
 
 /**
  * Read one band end's layout through the protocol: every node's box, paint order and the styles the comparison reads.
@@ -197,6 +207,7 @@ function boxOf(c, ni) {
         ? `::${c.pseudo.get(ni) ?? ''}`
         : elementName(stringAt(c.strings, c.name[ni]).toLowerCase(), attrs),
     block: attrs.get('data-block') ?? null,
+    section: attrs.get('data-section') ?? null,
     text: kind === 'text' ? stringAt(c.strings, c.value[ni]) : '',
     box: null,
     paint: null,
@@ -775,37 +786,6 @@ function listed(names, max) {
 }
 
 /**
- * In the page: whether a box's styles place it out of flow (isPlaced's rule, read from a computed style).
- * @param {CSSStyleDeclaration} s
- */
-function isPlacedStyle(s) {
-  if (['absolute', 'fixed', 'sticky'].includes(s.position)) return true
-  const offset = ['left', 'top', 'right', 'bottom'].some((k) => Number.parseFloat(s.getPropertyValue(k)) !== 0)
-  if (s.position === 'relative' && offset) return true
-  const moved = ['transform', 'translate', 'rotate', 'scale', 'offset-path'].some(
-    (k) => !['none', ''].includes(s.getPropertyValue(k)),
-  )
-  return (
-    moved ||
-    ['margin-top', 'margin-right', 'margin-bottom', 'margin-left'].some(
-      (k) => Number.parseFloat(s.getPropertyValue(k)) < 0,
-    )
-  )
-}
-
-/**
- * In the page: whether an element, or a generated box of it, is placed out of flow.
- * @param {Element} el
- */
-function placedAt(el) {
-  if (isPlacedStyle(getComputedStyle(el))) return true
-  return ['::before', '::after'].some((p) => {
-    const g = getComputedStyle(el, p)
-    return !['none', 'normal'].includes(g.content) && isPlacedStyle(g)
-  })
-}
-
-/**
  * In the page: the items a container sets, its children in flow and a `display: contents` child's own.
  * @param {Element} el
  * @returns {Element[]}
@@ -844,51 +824,354 @@ function linesOf(rects) {
 /**
  * In the page: which of the page's media conditions hold, and where every grid, flex or multi-column container sets its
  * items (linesOf), so a change in a container's column count (`repeat(auto-fit, …)`), a flex line that wraps or a
- * column that fills changes the string; and, when `withPlaced`, whether any element or generated box is placed out of
- * flow. Page JavaScript is off: the kernel sends these functions' source (structureScript).
+ * column that fills changes the string. Two band ends are compared as one band's only when it is alike at both
+ * (placementStep). Page JavaScript is off: the kernel sends these functions' source (structureScript).
  * @param {string[]} conditions the page's media conditions
- * @param {boolean} withPlaced
- * @returns {{ state: string, placed: boolean }}
+ * @returns {{ state: string }}
  */
-function structureNow(conditions, withPlaced) {
+function structureNow(conditions) {
   /** @type {string[]} */
   const containers = []
-  let placed = false
   for (const el of document.querySelectorAll('*')) {
-    if (withPlaced && !placed) placed = placedAt(el)
     const s = getComputedStyle(el)
     if (!/grid|flex/u.test(s.display) && s.columnCount === 'auto' && s.columnWidth === 'auto') continue
     containers.push(linesOf(itemsOf(el).map((k) => k.getBoundingClientRect())))
   }
   const media = conditions.map((q) => matchMedia(q).matches).join()
-  return { state: `${media}|${containers.join(';')}`, placed }
+  return { state: `${media}|${containers.join(';')}` }
 }
 
 /** The functions above, as the source the kernel sends. */
-const IN_PAGE = [isPlacedStyle, placedAt, itemsOf, linesOf, structureNow]
+const IN_PAGE = [itemsOf, linesOf, structureNow]
 
 /**
  * An expression that returns the page's structure (structureNow) for its media conditions.
  * @param {string[]} conditions
- * @param {boolean} withPlaced
  */
-export function structureScript(conditions, withPlaced) {
+export function structureScript(conditions) {
   const source = IN_PAGE.map((f) => f.toString()).join('\n')
-  return `(() => {\n${source}\nreturn structureNow(${JSON.stringify(conditions)}, ${String(withPlaced)})\n})()`
+  return `(() => {\n${source}\nreturn structureNow(${JSON.stringify(conditions)})\n})()`
 }
 
-/** @typedef {(width: number, withPlaced: boolean) => Promise<{ state: string, placed: boolean }>} Probe the page's
- *   structure at a window width (structureNow) */
+/**
+ * How each line of text lies at one width: for each text with words that is visible, the drawn boxes and other texts
+ * whose ink lies on one of its lines, overlapping it along both axes (lies), inside what their ancestors' overflow
+ * clips; and whether a clip around it cuts a line (`cut`), a line leaves the page (`off`) or its section's box
+ * (`out`), each by more than a pixel; as one string (by backend ids). A box's ink is its box, with its outer shadows
+ * and its outline. Left out: the boxes the text is in, and an inline box or a text of the same block of lines (whose
+ * lines the line layout keeps apart, and an inline mark moves with). In the flow, nothing else lies on a text and no
+ * line leaves its boxes; a box placed out of it, or drawn past its parent's box, does (#117).
+ * @param {Layout} layout
+ * @param {Map<number, Edges[]>} lines each text's lines, by its backend id (linesIn)
+ * @returns {string}
+ */
+export function meetingsIn(layout, lines) {
+  const reader = readerOf(layout, lines)
+  const at = { near: rowsOf(marksOf(layout, reader)), page: pageOf(layout) }
+  /** @type {string[]} */
+  const met = []
+  for (const [id, node] of layout.nodes) {
+    if (node.kind !== 'text' || !WORDS.test(node.text) || !visible(node)) continue
+    const entry = textEntry(layout, reader, { ...at, id, node })
+    if (entry) met.push(entry)
+  }
+  return met.join(' ')
+}
 
 /**
- * The band ends the sweep measures, with the widths where a container's lines change inside a band that holds placed
- * boxes: each change is found by bisection between two widths whose structures differ, to the pixel, and both widths
- * either side of it become band ends, measured and compared as a breakpoint's are. A grid's column count
- * (`repeat(auto-fit, minmax(320px, 1fr))`) or a wrapping flex line changes where no media condition does, and moves
- * a placed box with it (#117). Bounded: more changes than PLACEMENT.maxChanges, more probes than PLACEMENT.maxProbes,
- * or the sweep's time running out fails the sweep, never a change left out. A band without placed boxes is not
- * probed: nothing placed can meet its texts. A container whose lines change and change back inside a band is not
- * seen; nor is text that rewraps, which no container's lines show.
+ * @typedef {{ id: number, container: number | null, ink: Edges[], bound: Edges }} Mark a drawn box or text that may
+ *   lie on a text: its ink inside what clips it, the box around that, and, when it is inline, its block of lines
+ * @typedef {{ inkIn: (id: number, node: Box) => { own: Edges[], seen: Edges[] }, containerOf: (id: number) => number }}
+ *   Reader a node's ink, unclipped and inside what its ancestors clip, and its block of lines
+ */
+
+/**
+ * The reader of a layout's ink and blocks of lines (meetingsIn).
+ * @param {Layout} layout
+ * @param {Map<number, Edges[]>} lines
+ * @returns {Reader}
+ */
+function readerOf(layout, lines) {
+  const { containerOf } = structureOf(layout, layout)
+  /** @type {Map<string, Edges>} */
+  const memo = new Map()
+  return {
+    containerOf,
+    inkIn: (id, node) => {
+      const clip = clipAbove(layout, id, node.kind !== 'text' && isAbsolute(node.style), memo)
+      const own = node.kind === 'text' ? (lines.get(id) ?? []) : node.box ? [inkOf(node.box, node.style)] : []
+      return { own, seen: own.map((e) => meet(e, clip)).filter((e) => e[2] > e[0] && e[3] > e[1]) }
+    },
+  }
+}
+
+/**
+ * Every drawn box and text whose ink shows, as what may lie on a text.
+ * @param {Layout} layout
+ * @param {Reader} reader
+ * @returns {Mark[]}
+ */
+function marksOf(layout, reader) {
+  /** @type {Mark[]} */
+  const marks = []
+  for (const [id, node] of layout.nodes) {
+    if (!drawn(node)) continue
+    const { seen } = reader.inkIn(id, node)
+    if (seen.length === 0) continue
+    const inline = node.kind === 'text' || (node.style?.display ?? '').startsWith('inline')
+    marks.push({ id, container: inline ? reader.containerOf(id) : null, ink: seen, bound: seen.reduce(unite) })
+  }
+  return marks
+}
+
+/**
+ * One text's entry in meetingsIn: the marks on its lines and its flags, or null when it has neither.
+ * @param {Layout} layout
+ * @param {Reader} reader
+ * @param {{ id: number, node: Box, near: (bound: Edges) => Mark[], page: Edges | null }} at
+ * @returns {string | null}
+ */
+function textEntry(layout, reader, at) {
+  const { own, seen } = reader.inkIn(at.id, at.node)
+  if (own.length === 0) return null
+  const around = lineage(layout, at.id)
+  const flags = flagsOf({ own, seen }, at.page, sectionOf(layout, around))
+  const text = { seen, around, container: reader.containerOf(at.id) }
+  const on = seen.length > 0 ? marksOn(text, at.near) : []
+  return on.length > 0 || flags ? `${String(at.id)}:${on.map((m) => String(m.id)).join('.')}${flags}` : null
+}
+
+/**
+ * A text's flags: a line a clip cuts, a line off the page, a line outside its section's box.
+ * @param {{ own: Edges[], seen: Edges[] }} lines its lines, unclipped and as they show
+ * @param {Edges | null} page
+ * @param {Edges | null} section
+ */
+function flagsOf(lines, page, section) {
+  const cut = lines.own.some((e) => !lines.seen.some((v) => within(e, v)))
+  const off = page !== null && lines.own.some((e) => !within(e, page))
+  const out = section !== null && lines.own.some((e) => !within(e, section))
+  return `${cut ? '!cut' : ''}${off ? '!off' : ''}${out ? '!out' : ''}`
+}
+
+/**
+ * The marks that lie on a text's lines as they show: not a box it is in, nor an inline box or a text of its own block
+ * of lines.
+ * @param {{ seen: Edges[], around: Set<number>, container: number }} text
+ * @param {(bound: Edges) => Mark[]} near
+ */
+function marksOn(text, near) {
+  const bound = text.seen.reduce(unite)
+  return near(bound).filter(
+    (m) =>
+      lies(m.bound, bound) &&
+      !text.around.has(m.id) &&
+      m.container !== text.container &&
+      m.ink.some((e) => text.seen.some((t) => lies(e, t))),
+  )
+}
+
+/** The height of a row of the page by which meetingsIn indexes the boxes, and the most rows one box is indexed in. */
+const ROW = Object.freeze({ px: 64, most: 64 })
+
+/**
+ * The boxes that may lie on a box, in their order: those on the rows of the page it spans, and every box spanning
+ * ROW.most rows or more (indexed in none); every box for a box that spans as many. So a text is compared with the boxes
+ * near it, not with every box of the page.
+ * @template {{ bound: Edges }} T
+ * @param {T[]} marks
+ * @returns {(bound: Edges) => T[]}
+ */
+function rowsOf(marks) {
+  /** @type {Map<number, number[]>} */
+  const rows = new Map()
+  /** @type {number[]} */
+  const tall = []
+  /**
+   * The first and last rows a box spans.
+   * @param {Edges} b
+   * @returns {[number, number]}
+   */
+  const span = (b) => [Math.floor(b[1] / ROW.px), Math.floor(b[3] / ROW.px)]
+  for (const [k, m] of marks.entries()) {
+    const [from, to] = span(m.bound)
+    if (to - from >= ROW.most) tall.push(k)
+    else for (let r = from; r <= to; r += 1) addTo(rows, r, k)
+  }
+  return (bound) => {
+    const [from, to] = span(bound)
+    if (to - from >= ROW.most) return marks
+    /** @type {Set<number>} */
+    const found = new Set(tall)
+    for (let r = from; r <= to; r += 1) for (const k of rows.get(r) ?? []) found.add(k)
+    return [...found].toSorted((x, y) => x - y).flatMap((k) => marks[k] ?? [])
+  }
+}
+
+/**
+ * Whether a box lies inside another, to a pixel on each side.
+ * @param {Edges} box
+ * @param {Edges} around
+ */
+function within(box, around) {
+  return box[0] >= around[0] - 1 && box[1] >= around[1] - 1 && box[2] <= around[2] + 1 && box[3] <= around[3] + 1
+}
+
+/**
+ * The page's own box: the root element's (the element whose parent is the document, or none), from its top left (0,
+ * 0) to its right edge and below without end; or null when the layout holds none.
+ * @param {Layout} layout
+ * @returns {Edges | null}
+ */
+function pageOf(layout) {
+  for (const node of layout.nodes.values())
+    if (node.kind === 'element' && layout.nodes.get(node.parent)?.kind !== 'element' && node.box)
+      return [0, 0, node.box[2], Infinity]
+  return null
+}
+
+/**
+ * The box of the nearest section a node is in (data-section), among its lineage.
+ * @param {Layout} layout
+ * @param {Set<number>} around a node's lineage (lineage)
+ * @returns {Edges | null}
+ */
+function sectionOf(layout, around) {
+  for (const at of around) {
+    const node = layout.nodes.get(at)
+    if (typeof node?.section === 'string' && node.box) return node.box
+  }
+  return null
+}
+
+/**
+ * Whether one box lies on another: they overlap along both axes, by any part of a pixel (the cover check counts a box
+ * over a line by a pixel; this finds where it starts to).
+ * @param {Edges} a
+ * @param {Edges} b
+ */
+function lies(a, b) {
+  return Math.min(a[2], b[2]) - Math.max(a[0], b[0]) > 0 && Math.min(a[3], b[3]) - Math.max(a[1], b[1]) > 0
+}
+
+/**
+ * Where a box draws: its box, with each outer shadow (offset, and widened by its blur and spread) and its outline.
+ * @param {Edges} box
+ * @param {Record<string, string> | null} s
+ * @returns {Edges}
+ */
+function inkOf(box, s) {
+  const shadows = s?.['box-shadow'] ?? 'none'
+  const reach = shadows === 'none' ? [] : shadows.split(/,(?![^(]*\))/u).flatMap((shadow) => shadowInk(box, shadow))
+  return [...reach, ...outlineInk(box, s)].reduce(unite, box)
+}
+
+/**
+ * Where one shadow of a box draws, unless it is inset: its box offset, and widened by its blur and spread.
+ * @param {Edges} box
+ * @param {string} shadow as the computed style lists it (its colour, then its lengths)
+ * @returns {Edges[]}
+ */
+function shadowInk(box, shadow) {
+  if (/\binset\b/u.test(shadow)) return []
+  const lengths = [...shadow.replaceAll(/\([^)]*\)/gu, '').matchAll(/-?[\d.]+px/gu)].map((m) => Number.parseFloat(m[0]))
+  const [x = 0, y = 0, blur = 0, spread = 0] = lengths
+  const r = blur + spread
+  return [[box[0] + x - r, box[1] + y - r, box[2] + x + r, box[3] + y + r]]
+}
+
+/**
+ * Where a box's outline draws, outside it.
+ * @param {Edges} box
+ * @param {Record<string, string> | null} s
+ * @returns {Edges[]}
+ */
+function outlineInk(box, s) {
+  if (!s || (s['outline-style'] ?? 'none') === 'none') return []
+  const o = Number.parseFloat(s['outline-width'] ?? '') + Number.parseFloat(s['outline-offset'] ?? '')
+  return o > 0 ? [[box[0] - o, box[1] - o, box[2] + o, box[3] + o]] : []
+}
+
+/**
+ * Each text's lines in a snapshot, by its backend id.
+ * @param {Snapshot} snapshot
+ * @returns {Map<number, Edges[]>}
+ */
+export function linesIn(snapshot) {
+  const doc = snapshot.documents[0]
+  /** @type {Map<number, Edges[]>} */
+  const out = new Map()
+  const boxes = doc?.textBoxes
+  if (!doc || !boxes) return out
+  const ids = doc.nodes.backendNodeId ?? []
+  for (const [k, li] of boxes.layoutIndex.entries()) {
+    const id = ids[doc.layout.nodeIndex[li] ?? -1]
+    const line = lineOf(boxes.bounds[k])
+    if (id !== undefined && line) addTo(out, id, line)
+  }
+  return out
+}
+
+/**
+ * Add a value to the list a map holds under a key, made where there is none.
+ * @template T
+ * @param {Map<number, T[]>} map
+ * @param {number} key
+ * @param {T} value
+ */
+function addTo(map, key, value) {
+  const list = map.get(key)
+  if (list) list.push(value)
+  else map.set(key, [value])
+}
+
+/**
+ * A line's box from its bounds, or null when it has no size.
+ * @param {number[] | undefined} bounds its left, top, width and height
+ * @returns {Edges | null}
+ */
+function lineOf(bounds) {
+  const [x = 0, y = 0, w = 0, h = 0] = bounds ?? []
+  return w > 0 && h > 0 ? [x, y, x + w, y + h] : null
+}
+
+/**
+ * How each line of text lies at one width (meetingsIn), from a snapshot (DOMSnapshot.captureSnapshot with STYLES), and
+ * whether the page is wider than its window (`wide`: its content wider than its root element's box, by any part of a
+ * pixel); or why not: no
+ * document, or more boxes than PLACEMENT.maxNodes.
+ * @param {Snapshot} snapshot
+ * @param {{ maxNodes: number }} [limits]
+ * @returns {{ state: string } | { issue: string }}
+ */
+export function meetingsOf(snapshot, limits = PLACEMENT) {
+  const layout = layoutOf(snapshot, limits)
+  if ('issue' in layout) return layout
+  const page = pageOf(layout)
+  // Wider by any part of a pixel, as the measure's overflow is (capture-page.mjs overflowPx).
+  const wide = page !== null && Math.ceil((snapshot.documents[0]?.contentWidth ?? 0) - page[2]) > 0
+  return { state: `${wide ? 'wide ' : ''}${meetingsIn(layout, linesIn(snapshot))}` }
+}
+
+/** @typedef {(widths: number[]) => Promise<({ state: string } | { issue: string })[]>} Probe how the texts lie at each
+ *   of some window widths (meetingsOf, and the research tables whose cells are drawn elsewhere), read together */
+
+/** The most widths one probe reads together. */
+const BATCH = 32
+
+/**
+ * The band ends the sweep measures, with the widths inside the bands where how the texts lie changes (Probe): every
+ * whole width of every band is read, in batches the browser works through without waiting on the kernel, and both
+ * widths either side of each change become band ends, measured and compared as a breakpoint's are. A grid's column
+ * count (`repeat(auto-fit, minmax(320px, 1fr))`), a flex line or an inline box that wraps, or a text that rewraps
+ * changes where no media condition does and moves what follows, and can change back before the band ends: flex items
+ * sized `min(510px, max(100px, calc(100vw - 506px)))` share a line at both ends of 320–2560 and wrap only between 1012
+ * and 1020px, where a raised one lands on a block; flex items or inline blocks sized `min(600px, max(100px, calc(75vw
+ * - 200px)))` in a parent 100px high wrap between about 800 and 1200px, all in the flow, onto the text that follows
+ * (#117). The window's width is a whole number of pixels, so this reads how the texts lie at every width the band
+ * holds. Bounded: more widths than PLACEMENT.maxProbes, more changes than PLACEMENT.maxChanges, a width that cannot be
+ * read, or the sweep's time running out fails the sweep, never a width left out; so does a pace that would run it out
+ * (the widths read so far, at their rate, leaving the rest past it), as soon as it shows.
  * @param {Probe} probe
  * @param {number[]} ends the band ends the media conditions make (bandEnds)
  * @param {number} until Date.now() by which to stop
@@ -897,71 +1180,102 @@ export function structureScript(conditions, withPlaced) {
  */
 export async function layoutChanges(probe, ends, until, limits = PLACEMENT) {
   const out = new Set(ends)
-  const at = { out, budget: { probes: 0, changes: 0 }, until, limits }
+  const done = (/** @type {string | null} */ issue) => ({ ends: [...out].toSorted((x, y) => x - y), issue })
+  /** @type {[number, number][]} */
+  const bands = []
   for (const [i, a] of ends.entries()) {
     const b = ends[i + 1]
-    if (b === undefined || b - a <= 1) continue
-    const atA = await probeWithin(probe, a, true, at)
-    const atB = atA && (await probeWithin(probe, b, true, at))
-    if (!atA || !atB) return { ends: [...out].toSorted((x, y) => x - y), issue: LATE }
-    const issue =
-      (atA.placed || atB.placed) && atA.state !== atB.state
-        ? await bisect(probe, [a, atA.state, b, atB.state], at)
-        : null
-    if (issue) return { ends: [...out].toSorted((x, y) => x - y), issue }
+    if (b !== undefined && b - a > 1) bands.push([a, b])
   }
-  return { ends: [...out].toSorted((x, y) => x - y), issue: null }
+  const widths = bands.reduce((n, [a, b]) => n + b - a + 1, 0)
+  if (widths > limits.maxProbes)
+    return done(
+      `how the texts lie inside the bands was not read: ${widths} widths, more than the ${limits.maxProbes} read`,
+    )
+  // The widths read so far, and when the first was asked for: once the rate they were read at shows the rest will not
+  // be read in time, the sweep fails then, not when its time runs out.
+  const at = { out, until, limits, widths, changes: 0, read: 0, started: Date.now() }
+  for (const band of bands) {
+    const issue = await readBand(probe, band, at)
+    if (issue) return done(issue)
+  }
+  return done(null)
 }
 
-const LATE = "the changes of a container's lines inside the bands were not found within the sweep's time"
-
 /**
- * One probe of the page's structure, raced against the sweep's time (withinTime): null when it answers late, or when
- * the time has run out by the time its answer is read.
- * @param {Probe} probe
- * @param {number} width
- * @param {boolean} withPlaced
- * @param {{ budget: { probes: number }, until: number }} at
- * @returns {Promise<{ state: string, placed: boolean } | null>}
+ * @typedef {{ out: Set<number>, until: number, limits: { maxChanges: number }, widths: number, changes: number,
+ *   read: number, started: number }} Reading the sweep's band ends so far, its time and bounds, how many widths it reads
+ *   and has read, the changes found, and when it started reading
  */
-async function probeWithin(probe, width, withPlaced, at) {
-  at.budget.probes += 1
-  const got = await withinTime(probe(width, withPlaced), at.until)
-  return 'late' in got || Date.now() > at.until ? null : got.value
-}
 
 /**
- * Find, between two widths whose structures differ, every width where the structure changes, adding the widths either
- * side of each to `out`; or why not, within the bounds. Each probe races the sweep's time, and a change is taken only
- * while time is left.
+ * Read every whole width of one band in batches, adding the widths either side of each change to the band ends; or why
+ * not.
  * @param {Probe} probe
- * @param {[number, string, number, string]} first the two widths and their structures
- * @param {{ out: Set<number>, budget: { probes: number, changes: number }, until: number,
- *   limits: { maxChanges: number, maxProbes: number } }} at
+ * @param {[number, number]} band
+ * @param {Reading} at
  * @returns {Promise<string | null>}
  */
-async function bisect(probe, first, at) {
-  const stack = [first]
-  for (let next = stack.pop(); next; next = stack.pop()) {
-    const [a, atA, b, atB] = next
-    if (Date.now() > at.until) return LATE
-    if (b - a <= 1) {
-      at.budget.changes += 1
-      if (at.budget.changes > at.limits.maxChanges)
-        return `more than ${at.limits.maxChanges} changes of a grid's, a flex container's or columns' lines inside the bands, more than the sweep measures`
-      at.out.add(a).add(b)
-      continue
-    }
-    if (at.budget.probes >= at.limits.maxProbes)
-      return `the changes of a container's lines inside the bands were not found within ${at.limits.maxProbes} widths`
-    const mid = Math.floor((a + b) / 2)
-    const answer = await probeWithin(probe, mid, false, at)
-    if (!answer) return LATE
-    if (answer.state !== atA) stack.push([a, atA, mid, answer.state])
-    if (answer.state !== atB) stack.push([mid, answer.state, b, atB])
+async function readBand(probe, band, at) {
+  const [a, b] = band
+  /** @type {{ before: string | null }} */
+  const last = { before: null }
+  for (let from = a; from <= b; from += BATCH) {
+    const batch = Array.from({ length: Math.min(BATCH, b - from + 1) }, (_, k) => from + k)
+    const got = await withinTime(probe(batch), at.until)
+    if ('late' in got || Date.now() > at.until || pastPace(at, batch.length)) return LATE
+    const issue = takeBatch(batch, got.value, at, last)
+    if (issue) return issue
   }
   return null
 }
+
+/**
+ * Take one batch's answers in order: each that differs from the one before it is a change (changeAt); or why not.
+ * @param {number[]} batch its widths
+ * @param {({ state: string } | { issue: string })[]} answers
+ * @param {Reading} at
+ * @param {{ before: string | null }} last how the texts lay at the width before, in this band
+ * @returns {string | null}
+ */
+function takeBatch(batch, answers, at, last) {
+  for (const [k, width] of batch.entries()) {
+    const answer = answers[k]
+    if (!answer || 'issue' in answer)
+      return `how the texts lie at ${width}px was not read: ${answer?.issue ?? 'no answer'}`
+    const issue = last.before !== null && answer.state !== last.before ? changeAt(width, at) : null
+    if (issue) return issue
+    last.before = answer.state
+  }
+  return null
+}
+
+/**
+ * Whether, with `read` more widths read, the rate they were read at leaves the rest past the sweep's time.
+ * @param {Reading} at
+ * @param {number} read
+ */
+function pastPace(at, read) {
+  at.read += read
+  const perWidth = (Date.now() - at.started) / at.read
+  return Date.now() + perWidth * (at.widths - at.read) > at.until
+}
+
+/**
+ * Take a change at a width: the width before it and it become band ends; or why not, past PLACEMENT.maxChanges.
+ * @param {number} width
+ * @param {Reading} at
+ * @returns {string | null}
+ */
+function changeAt(width, at) {
+  at.changes += 1
+  if (at.changes > at.limits.maxChanges)
+    return `more than ${at.limits.maxChanges} changes of how the texts lie inside the bands, more than the sweep measures`
+  at.out.add(width - 1).add(width)
+  return null
+}
+
+const LATE = "how the texts lie inside the bands was not read at every width within the sweep's time"
 
 /**
  * A promise's value, or `late` when Date.now() reaches `until` first. The work itself goes on; its answer is dropped.

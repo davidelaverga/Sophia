@@ -7,8 +7,11 @@ import {
   generatedOf,
   layoutChanges,
   layoutOf,
+  meetingsIn,
+  meetingsOf,
   PLACEMENT,
   placementIssue,
+  STYLES,
   placementStep,
   withinTime,
   type Layout,
@@ -21,6 +24,7 @@ interface Spec {
   readonly kind?: 'element' | 'pseudo' | 'text'
   readonly name?: string
   readonly block?: string
+  readonly section?: string
   readonly text?: string
   readonly box: Edges | null
   readonly paint?: number
@@ -61,6 +65,8 @@ const STATIC: Style = {
   opacity: '1',
   isolation: 'auto',
   'mix-blend-mode': 'normal',
+  'outline-width': '0px',
+  'outline-offset': '0px',
 }
 const COVER: Style = { ...STATIC, position: 'absolute', 'background-color': 'rgb(17, 17, 17)' }
 
@@ -75,6 +81,7 @@ function layout(specs: Record<number, Spec>): Layout {
           kind: n.kind ?? 'element',
           name: n.name ?? 'div',
           block: n.block ?? null,
+          section: n.section ?? null,
           text: n.text ?? '',
           box: n.box,
           paint: n.paint === undefined ? [1, 1] : [n.paint, n.paint],
@@ -106,7 +113,7 @@ function inStage(l: Layout): Layout {
   return l
 }
 /** A layout box's styles as the snapshot lists them: its position's string, and none for the rest. */
-const styleWith = (position: number): number[] => [position, ...Array.from({ length: 33 }, () => -1)]
+const styleWith = (position: number): number[] => [position, ...Array.from({ length: 35 }, () => -1)]
 
 describe('placed boxes and texts between the ends of a band (#117, placement.mjs)', () => {
   it('names a box that changes sides of a text, along either axis', () => {
@@ -297,84 +304,238 @@ describe('placed boxes and texts between the ends of a band (#117, placement.mjs
   })
 })
 
-/** A page whose one container's lines change at each of `at`, and that holds placed boxes or not; it counts probes. */
-function stepped(at: readonly number[], placed = true) {
+type Lie = { state: string } | { issue: string }
+/** A probe of a page that lies as `at` says at each width: it answers each batch at once, and counts what it reads. */
+function batched(at: (width: number) => string) {
   const widths: number[] = []
-  const probe = (width: number) => {
-    widths.push(width)
-    return Promise.resolve({ state: `lines ${String(at.filter((w) => width >= w).length)}`, placed })
+  const batches: number[] = []
+  const probe = (ws: number[]): Promise<Lie[]> => {
+    widths.push(...ws)
+    batches.push(ws.length)
+    return Promise.resolve(ws.map((w) => ({ state: at(w) })))
   }
-  return { probe, widths }
+  return { probe, widths, batches }
 }
+/** A page where how a text lies changes at each of `at`. */
+const stepped = (at: readonly number[]) => batched((w) => `lies ${String(at.filter((x) => w >= x).length)}`)
+/** A page where a box lies on a text only between `from` and `to`, as a wrap that comes and goes. */
+const between = (from: number, to: number) => batched((w) => (w >= from && w < to ? '5:3' : ''))
 const LATER = (): number => Date.now() + 60_000
-/** A page whose probe at 2560px never answers. */
-const silent = (width: number): Promise<{ state: string; placed: boolean }> =>
-  width === 2560 ? new Promise<never>(() => {}) : Promise.resolve({ state: 'a', placed: true })
-/** A page whose one container's lines change at 321px, answering at once. */
-const quick = (width: number): Promise<{ state: string; placed: boolean }> =>
-  Promise.resolve({ state: `lines ${String(width >= 321 ? 1 : 0)}`, placed: true })
+/** A page whose probe never answers a batch that holds 2560px. */
+const silent = (ws: number[]): Promise<Lie[]> =>
+  ws.includes(2560) ? new Promise<never>(() => {}) : Promise.resolve(ws.map(() => ({ state: 'a' })))
+/** A page whose width 700px the window did not take. */
+const unread = (ws: number[]): Promise<Lie[]> =>
+  Promise.resolve(ws.map((w) => (w === 700 ? { issue: 'the window was not 700px wide' } : { state: 'a' })))
+/** A probe that answers one width fewer than it is asked. */
+const short = (ws: number[]): Promise<Lie[]> => Promise.resolve(ws.slice(1).map(() => ({ state: 'a' })))
+/** A page where how a text lies changes at 321px, answering at once. */
+const quick = batched((w) => `lies ${String(w >= 321 ? 1 : 0)}`).probe
 /** A reader that answers with `answer` after `ms`. */
 const readAfter = (ms: number, answer: Layout) => (): Promise<Layout> =>
   new Promise<Layout>((resolve) => {
     setTimeout(() => resolve(answer), ms)
   })
 
-describe("a container's lines changing inside a band (#117, placement.mjs)", () => {
-  it('finds each change to the pixel and measures the widths either side of it as band ends', async () => {
+describe('how the texts lie inside a band (#117, placement.mjs)', () => {
+  it('reads every width once, in batches, and measures the widths either side of each change as band ends', async () => {
     const page = stepped([640, 960, 1280])
     const { ends, issue } = await layoutChanges(page.probe, [320, 2560], LATER())
     assert.equal(issue, null)
     assert.deepEqual(ends, [320, 639, 640, 959, 960, 1279, 1280, 2560])
-    assert.ok(page.widths.length <= 2 + 3 * 12, `${String(page.widths.length)} probes`)
+    // Every whole width of the band, once each, in batches of at most 32.
+    assert.equal(page.widths.length, 2560 - 320 + 1)
+    assert.equal(new Set(page.widths).size, page.widths.length)
+    assert.ok(page.batches.every((n) => n <= 32))
   })
 
-  it('leaves a band without placed boxes, and one whose lines do not change, as it is', async () => {
-    const plain = stepped([640, 960], false)
-    assert.deepEqual(await layoutChanges(plain.probe, [320, 2560], LATER()), { ends: [320, 2560], issue: null })
-    assert.deepEqual(plain.widths, [320, 2560])
+  it("reads a band whose texts lie alike throughout as it is, and no width of a breakpoint's pair", async () => {
     const still = stepped([])
     assert.deepEqual(await layoutChanges(still.probe, [320, 599, 600, 2560], LATER()), {
       ends: [320, 599, 600, 2560],
       issue: null,
     })
+    assert.equal(still.widths.length, 599 - 320 + 1 + (2560 - 600 + 1))
   })
 
-  it('fails past its changes, its probes or its time, never leaving a change out', async () => {
+  // The security review of ecf149b (4199947395): flex items or inline blocks sized min(600px, max(100px, calc(75vw -
+  // 200px))) in a parent 100px high share a line at both ends of 320–2560 and wrap onto the text that follows between
+  // about 801 and 1200px (4200072778, 4200177121); the owner's min(510px, max(100px, calc(100vw - 506px))) wrap only
+  // between 1012 and 1020px (4199983800's thread); and one wraps at a single width.
+  it('finds a box that comes to lie on a text and leaves it inside a band, whose ends match, at every width', async () => {
+    const changes = async (from: number, to: number) =>
+      (await layoutChanges(between(from, to).probe, [320, 2560], LATER())).ends
+    assert.deepEqual(await changes(801, 1200), [320, 800, 801, 1199, 1200, 2560])
+    assert.deepEqual(await changes(1012, 1020), [320, 1011, 1012, 1019, 1020, 2560])
+    assert.deepEqual(await changes(900, 901), [320, 899, 900, 901, 2560])
+  })
+
+  it('fails past its widths, its changes, a width it cannot read, or its time, never leaving a change out', async () => {
     const many = Array.from({ length: 40 }, (_, i) => 400 + i * 50)
     const changes = await layoutChanges(stepped(many).probe, [320, 2560], LATER())
-    assert.match(changes.issue ?? '', /^more than 32 changes of a grid's, a flex container's or columns' lines/u)
+    assert.match(changes.issue ?? '', /^more than 32 changes of how the texts lie inside the bands/u)
     const probes = await layoutChanges(stepped([640, 960]).probe, [320, 2560], LATER(), { ...PLACEMENT, maxProbes: 5 })
-    assert.match(probes.issue ?? '', /not found within 5 widths$/u)
+    assert.equal(probes.issue, 'how the texts lie inside the bands was not read: 2241 widths, more than the 5 read')
+    assert.equal(
+      (await layoutChanges(unread, [320, 2560], LATER())).issue,
+      'how the texts lie at 700px was not read: the window was not 700px wide',
+    )
+    assert.match(
+      (await layoutChanges(short, [320, 2560], LATER())).issue ?? '',
+      /^how the texts lie at \d+px was not read: no answer$/u,
+    )
     const time = await layoutChanges(stepped([640]).probe, [320, 2560], Date.now() - 1)
-    assert.match(time.issue ?? '', /not found within the sweep's time$/u)
+    assert.match(time.issue ?? '', /not read at every width within the sweep's time$/u)
   })
 
-  it("races every probe against the sweep's time: a late or silent probe fails, a timely one passes", async () => {
-    const LATE_ISSUE = "the changes of a container's lines inside the bands were not found within the sweep's time"
-    // The bisection's last probes answer 200ms late, past a 60ms budget.
+  it("races every batch against the sweep's time: a late or silent one fails, a timely one passes", async () => {
+    const LATE_ISSUE = "how the texts lie inside the bands was not read at every width within the sweep's time"
+    // The batches after the first answer 200ms late, past a 60ms budget.
     let calls = 0
-    const slow = (width: number) => {
+    const slow = (ws: number[]): Promise<Lie[]> => {
       calls += 1
-      const answer = { state: `lines ${String(width >= 640 ? 1 : 0)}`, placed: true }
-      return calls <= 4 ? Promise.resolve(answer) : new Promise<typeof answer>((r) => setTimeout(() => r(answer), 200))
+      const answer = ws.map((w) => ({ state: `lies ${String(w >= 640 ? 1 : 0)}` }))
+      return calls <= 1 ? Promise.resolve(answer) : new Promise<Lie[]>((r) => setTimeout(() => r(answer), 200))
     }
     const started = Date.now()
-    assert.deepEqual(await layoutChanges(slow, [320, 2560], Date.now() + 60), {
-      ends: [320, 2560],
-      issue: LATE_ISSUE,
-    })
+    assert.deepEqual(await layoutChanges(slow, [320, 2560], Date.now() + 60), { ends: [320, 2560], issue: LATE_ISSUE })
     assert.ok(Date.now() - started < 190, 'it returns when the time runs out, not when the probe answers')
-    // A band end's probe that never answers.
+    // Batches that each take 10ms, at a pace that would read the band's 2241 widths past a 200ms budget: it fails after
+    // the first, not when the time runs out.
+    const steady = (ws: number[]): Promise<Lie[]> =>
+      new Promise<Lie[]>((r) => setTimeout(() => r(ws.map(() => ({ state: 'a' }))), 10))
+    const paced = Date.now()
+    assert.equal((await layoutChanges(steady, [320, 2560], Date.now() + 200)).issue, LATE_ISSUE)
+    assert.ok(Date.now() - paced < 100, 'it fails once the pace shows the rest will not be read in time')
+    // The same pace over a band it can read in time passes.
+    assert.deepEqual(await layoutChanges(steady, [320, 380], Date.now() + 1000), { ends: [320, 380], issue: null })
+    // A batch that never answers.
     assert.equal((await layoutChanges(silent, [320, 2560], Date.now() + 30)).issue, LATE_ISSUE)
-    // A probe whose page work runs past the time before it answers: the last change is not taken.
+    // A batch whose page work runs past the time before it answers: its change is not taken.
     const until = Date.now() + 40
-    const spin = (width: number) => {
-      if (width === 321) while (Date.now() <= until) Math.sqrt(width)
-      return Promise.resolve({ state: `lines ${String(width >= 321 ? 1 : 0)}`, placed: true })
+    const spin = (ws: number[]): Promise<Lie[]> => {
+      while (Date.now() <= until) Math.sqrt(ws.length)
+      return Promise.resolve(ws.map((w) => ({ state: `lies ${String(w >= 321 ? 1 : 0)}` })))
     }
     assert.equal((await layoutChanges(spin, [320, 322], until)).issue, LATE_ISSUE)
-    // The same probes in time take the change.
+    // The same batch in time takes the change.
     assert.deepEqual(await layoutChanges(quick, [320, 322], Date.now() + 1000), { ends: [320, 321, 322], issue: null })
+  })
+})
+
+const BLACK: Style = { ...STATIC, 'background-color': 'rgb(0, 0, 0)' }
+/**
+ * The owner's page at one width (4200072778): a body (1) and its root (9), a layout 100px high (2) holding a black item
+ * (3) at `item`, and the frozen paragraph b1 (4) with its text (5) on one line below the layout.
+ */
+function owner(item: Edges, extra: Record<number, Spec> = {}, style: Style = BLACK): Layout {
+  return layout({
+    9: { parent: 0, name: 'html', box: [0, 0, 1000, 800] },
+    1: { parent: 9, name: 'body', box: [0, 0, 1000, 800] },
+    2: { parent: 1, name: 'div.layout', box: [0, 0, 1000, 100] },
+    3: { parent: 2, name: 'div.second', box: item, style },
+    4: { parent: 1, name: 'p', block: 'b1', box: [0, 100, 100, 132] },
+    5: { parent: 4, kind: 'text', text: 'Not free.', box: [0, 100, 90, 132] },
+    ...extra,
+  })
+}
+const LINE = new Map<number, Edges[]>([[5, [[0, 100, 90, 132]]]])
+
+describe('how the texts lie at one width (#117, placement.mjs meetingsIn)', () => {
+  it('names a drawn box that lies on a line of text, and nothing for one beside it or the boxes the text is in', () => {
+    assert.equal(meetingsIn(owner([500, 0, 1000, 100]), LINE), '')
+    assert.equal(meetingsIn(owner([0, 100, 600, 200]), LINE), '5:3')
+    // A box past the rows the boxes are indexed by, and one on the text's row far below the page's top.
+    assert.equal(meetingsIn(owner([0, -5000, 600, 9000]), LINE), '5:3')
+    const low = new Map<number, Edges[]>([[5, [[0, 8100, 90, 8132]]]])
+    assert.equal(meetingsIn(owner([0, 8110, 600, 8200]), low), '5:3')
+    // Touching is not lying on it; overlapping by a pixel is.
+    assert.equal(meetingsIn(owner([0, 132, 600, 200]), LINE), '')
+    assert.equal(meetingsIn(owner([0, 131, 600, 200]), LINE), '5:3')
+    // A box that draws nothing lies on nothing.
+    assert.equal(meetingsIn(owner([0, 100, 600, 200], {}, STATIC), LINE), '')
+    // The paragraph's own background is the box the text is in.
+    const own = owner([500, 0, 1000, 100], { 4: { parent: 1, block: 'b1', box: [0, 100, 100, 132], style: BLACK } })
+    assert.equal(meetingsIn(own, LINE), '')
+  })
+
+  it('reads a box by its ink, its outer shadows and outline included, and inside what its ancestors clip', () => {
+    const shadow = (s: string) => owner([0, 0, 600, 50], {}, { ...STATIC, 'box-shadow': s })
+    assert.equal(meetingsIn(shadow('rgb(0, 0, 0) 0px 60px 0px 20px'), LINE), '5:3')
+    assert.equal(meetingsIn(shadow('rgb(0, 0, 0) 0px 60px 0px 20px inset'), LINE), '')
+    assert.equal(meetingsIn(shadow('rgba(0, 0, 0, 0.2) 0px 1px 3px 0px'), LINE), '')
+    const outline = { ...STATIC, 'outline-style': 'solid', 'outline-width': '40px', 'outline-offset': '20px' }
+    assert.equal(meetingsIn(owner([0, 0, 600, 50], {}, outline), LINE), '5:3')
+    // The layout clips what it holds: the item's part below it is not drawn.
+    const clipped = owner([0, 100, 600, 200], {
+      2: { parent: 1, box: [0, 0, 1000, 100], style: { ...STATIC, 'overflow-y': 'hidden' } },
+    })
+    assert.equal(meetingsIn(clipped, LINE), '')
+  })
+
+  it('leaves out an inline box or a text of the same block of lines, and names one of another block', () => {
+    const mark = { ...BLACK, display: 'inline' }
+    const inOwn = owner([500, 0, 1000, 100], { 6: { parent: 4, box: [50, 95, 120, 135], style: mark } })
+    assert.equal(meetingsIn(inOwn, LINE), '')
+    const inOther = owner([500, 0, 1000, 100], { 6: { parent: 2, box: [50, 95, 120, 135], style: mark } })
+    assert.equal(meetingsIn(inOther, LINE), '5:6')
+    // Another block's text, on the paragraph's line.
+    const text = owner([500, 0, 1000, 100], { 7: { parent: 2, kind: 'text', text: 'Over.', box: [0, 90, 80, 120] } })
+    assert.equal(meetingsIn(text, new Map([...LINE, [7, [[0, 90, 80, 120]]]])), '5:7 7:5')
+  })
+
+  it('names a line a clip cuts, a line off the page, and a line outside its section', () => {
+    const cut = owner([500, 0, 1000, 100], {
+      4: { parent: 1, block: 'b1', box: [0, 100, 100, 120], style: { ...STATIC, 'overflow-y': 'clip' } },
+    })
+    assert.equal(meetingsIn(cut, LINE), '5:!cut')
+    assert.equal(meetingsIn(owner([500, 0, 1000, 100]), new Map([[5, [[960, 100, 1050, 132]]]])), '5:!off')
+    const sections = owner([500, 0, 1000, 100], {
+      1: { parent: 9, name: 'section', section: 's1', box: [0, 0, 1000, 110] },
+    })
+    assert.equal(meetingsIn(sections, LINE), '5:!out')
+  })
+
+  it('reads a snapshot: its lines, a page wider than its window, and a bound', () => {
+    const strings = ['HTML', 'P', '#text', 'Not free.', 'visible', 'block', '#document']
+    // Each layout box's styles: a block, visible, its overflow visible; the rest none.
+    const named: Record<string, number> = { display: 5, visibility: 4, 'overflow-x': 4, 'overflow-y': 4 }
+    const style = () => STYLES.map((name) => named[name] ?? -1)
+    const snapshot = (contentWidth: number, x = 0) => ({
+      documents: [
+        {
+          // The document (9), as the protocol lists it first, then the root element, a paragraph and its text.
+          nodes: {
+            parentIndex: [-1, 0, 1, 2],
+            nodeType: [9, 1, 1, 3],
+            nodeName: [6, 0, 1, 2],
+            nodeValue: [-1, -1, -1, 3],
+            backendNodeId: [9, 10, 11, 12],
+            attributes: [[], [], [], []],
+          },
+          layout: {
+            nodeIndex: [1, 2, 3],
+            styles: [style(), style(), style()],
+            bounds: [
+              [0, 0, 800, 600],
+              [0, 0, 800, 24],
+              [x, 3, 60, 17],
+            ],
+          },
+          textBoxes: { layoutIndex: [2], bounds: [[x, 3, 60, 17]] },
+          contentWidth,
+        },
+      ],
+      strings,
+    })
+    assert.deepEqual(meetingsOf(snapshot(800)), { state: '' })
+    assert.deepEqual(meetingsOf(snapshot(800.5)), { state: 'wide ' })
+    assert.deepEqual(meetingsOf(snapshot(1200)), { state: 'wide ' })
+    // A line past the root element's right edge is off the page.
+    assert.deepEqual(meetingsOf(snapshot(850, 790)), { state: 'wide 12:!off' })
+    assert.deepEqual(meetingsOf(snapshot(800), { maxNodes: 2 }), {
+      issue: '3 boxes, more than the 2 whose placements are compared',
+    })
   })
 })
 

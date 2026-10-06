@@ -134,6 +134,53 @@ const CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'no
 const page = (style: string, body: string) =>
   `<!doctype html><html lang="en"><head><meta charset="utf-8">${CSP}<title>Report</title><style>${style}</style></head><body>${body}</body></html>`
 
+/** The width sweep's check of a page in one section, whose targets show its block b1 (the wrap tests, #117). */
+async function sweepOf(css: string, body: string) {
+  const receipt = await captureHtml(
+    job(
+      page(
+        `body{margin:0;font:16px/1.5 Georgia,serif;color:#222;background:#fafafa} ${css}`,
+        `<main><section data-section="s1">${body}</section></main>`,
+      ),
+    ),
+    { env },
+  )
+  assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+  for (const t of ['w390-light', 'w1280-light']) assert.equal(outcome(receipt, 'blocks_visible', t), 'passed', t)
+  return receipt.checks.find((c) => c.name === 'widths_visible')
+}
+/** The wrap tests' items: 100px wide at 320 and 390px, 600px at 1280 and 2560px, too wide for one line between. */
+const RESPONSIVE = 'min(600px,max(100px,calc(75vw - 200px)))'
+/** A flex row of two items `size` wide, the second raised over the claim below it (#117, 4199947395). */
+const row = (h: string, size: string) =>
+  sweepOf(
+    `.row{display:flex;flex-wrap:wrap;${h}} .row>div{width:${size};height:40px}
+     .row .b{background:#fafafa;z-index:1} .claim{margin:0}`,
+    '<div class="row"><div></div><div class="b"></div></div><p data-block="b1" class="claim">Not free.</p>',
+  )
+/** The owner's layout (4199984025): the claim placed where the second item, black and raised, wraps to. */
+const ownerClaim = (size: string) =>
+  sweepOf(
+    `.layout{display:flex;flex-wrap:wrap;height:200px;position:relative}
+     .first,.second{flex:0 0 ${size};height:100px} .second{background:black;position:relative;z-index:2}
+     .claim{position:absolute;top:100px;left:0;width:100px;z-index:1;margin:0}`,
+    '<div class="layout"><div class="first"></div><div class="second"></div><p data-block="b1" class="claim">Not free.</p></div>',
+  )
+/** The owner's flow (4200072778, 4200177121): two items, the second black, and the paragraph that follows. */
+const flow = (layout: string, items: string) =>
+  sweepOf(
+    `.layout{${layout}} .first,.second{${items};height:100px} .second{background:black} p{margin:0;width:100px}`,
+    '<div class="layout"><div class="first"></div><div class="second"></div></div><p data-block="b1">Not free.</p>',
+  )
+const flexFlow = (height: string, size: string) => flow(`display:flex;flex-wrap:wrap;${height}`, `flex:0 0 ${size}`)
+const inlineFlow = (height: string, size: string) =>
+  flow(`font-size:0;${height}`, `display:inline-block;vertical-align:top;width:${size}`)
+/** A sweep's check failed, its detail matching each pattern. */
+function failsAt(read: { outcome: string; detail: string | null } | undefined, ...patterns: RegExp[]) {
+  assert.equal(read?.outcome, 'failed', String(read?.detail))
+  for (const p of patterns) assert.match(String(read?.detail), p)
+}
+
 const BASE =
   'body{margin:0;font:18px/1.5 Georgia,serif;color:#222;background:#fafafa} section{padding:1rem 2rem;max-width:60rem;margin:auto}'
 /** A page with one defect of each kind the measures name, and a 100vh hero on a gradient. */
@@ -1511,8 +1558,10 @@ describe('the confined capture kernel', () => {
           assert.equal(outcome(receipt, c, t), 'passed', `${c} at ${t}`)
       assert.equal(outcome(receipt, 'widths_visible'), 'failed')
       const detail = String(receipt.checks.find((c) => c.name === 'widths_visible')?.detail)
-      assert.doesNotMatch(detail, /at \d+px:/u, 'no band end shows anything wrong')
-      assert.match(detail, /^between 320 and 2560px: 7 placed boxes and texts may meet: /u)
+      // Each box comes onto its text inside the band, where the sweep reads it at every width and measures the widths
+      // either side as band ends (#117): there the ends' cover check names the block, or the box lies over the text at
+      // both ends of a piece and their comparison fails the pair.
+      assert.doesNotMatch(detail, /between 320 and 2560px/u, 'each pair is found where the box comes onto its text')
       for (const pair of [
         'div.vwc and b1',
         'div.fixed and b2',
@@ -1573,7 +1622,7 @@ describe('the confined capture kernel', () => {
 
   // #117: a grid's column count changes where no media condition does, and moves a placed box with it.
   it(
-    "finds where a container's lines change inside a band, and measures a placed box across each change (#117)",
+    "finds where a grid's columns move a placed box onto a text inside a band, and measures it there (#117)",
     { skip },
     async () => {
       const cells = Array.from({ length: 9 }, (_, i) =>
@@ -1597,10 +1646,11 @@ describe('the confined capture kernel', () => {
       assert.equal(outcome(adverse, 'widths_visible'), 'failed')
       const detail = String(adverse.checks.find((c) => c.name === 'widths_visible')?.detail)
       assert.match(detail, /at 960px: b1(;|$)/u, 'the cover over the claim where the grid takes a third column')
-      assert.match(detail, /between 960 and 1279px: 1 placed boxes and texts may meet: div\.cover and b1(;|$)/u)
-      assert.match(detail, /at 1920px: b1; between 1920 and 2239px: /u, 'and again where it takes a sixth')
-      // A grid of cards whose columns change, and an accent beneath a heading above it, pass at every change.
-      // The second card's corner badge changes sides of the first card's text where the columns change, never over it.
+      assert.match(detail, /between 960 and 1097px: 1 placed boxes and texts may meet: div\.cover and b1(;|$)/u)
+      assert.match(detail, /at 1920px: b1; between 1920 and 2195px: /u, 'and again where it takes a sixth')
+      // A grid of cards whose columns change, and an accent beneath a heading above it, pass: read at every width, nothing
+      // comes onto a text, so only the band's ends are measured. The second card's corner badge changes sides of the
+      // first card's text where the columns change, never over it.
       const cards = Array.from({ length: 4 }, (_, i) =>
         i === 1
           ? '<div class="card"><p data-block="c2">Card 2.</p><span class="badge">New</span></div>'
@@ -1620,10 +1670,96 @@ describe('the confined capture kernel', () => {
       )
       assert.equal(ordinary.status, 'succeeded', JSON.stringify(ordinary.error))
       const sweep = ordinary.checks.find((c) => c.name === 'widths_visible')
-      assert.deepEqual(
-        [sweep?.outcome, sweep?.detail],
-        ['passed', 'measured at 320, 479, 480, 719, 720, 959, 960, 2560px'],
+      assert.deepEqual([sweep?.outcome, sweep?.detail], ['passed', 'measured at 320, 2560px'])
+    },
+  )
+
+  // The security review of ecf149b (4199947395): two flex items sized min(600px, max(100px, calc(75vw - 200px))) share
+  // a line at 320, 390, 1280 and 2560px and wrap between about 800 and 1200px, where the second, raised by a z-index,
+  // lands on the claim below a container of fixed height (r1). The owner's pages (4199984025): the same sizes with the
+  // claim placed at the second line (r2), and min(510px, max(100px, calc(100vw - 506px))), which wraps only between
+  // 1012 and 1020px (r3); and, all in the flow, nothing placed or raised, the same items in a flex container 100px high
+  // (r4, 4200072778) and as inline blocks (r5, 4200177121), whose second, black, wraps beneath the paragraph that
+  // follows.
+  it(
+    'finds boxes that wrap onto a text and off it inside a band whose ends match, at every width, and measures each (#117)',
+    { skip },
+    async () => {
+      failsAt(await row('height:40px', RESPONSIVE), /at 80\dpx: b1(;|$)/u)
+      failsAt(await ownerClaim(RESPONSIVE), /at 8\d\dpx: b1(;|$)/u)
+      failsAt(await ownerClaim('min(510px,max(100px,calc(100vw - 506px)))'), /at 101\dpx: b1(;|$)/u)
+      // Beneath the black item where it wraps, and where it wraps last.
+      failsAt(await flexFlow('height:100px', RESPONSIVE), /at 801px: b1(;|$)/u, /at 1199px: b1(;|$)/u)
+      failsAt(await inlineFlow('height:100px', RESPONSIVE), /at 801px: b1(;|$)/u, /at 1199px: b1(;|$)/u)
+    },
+  )
+
+  // The same wrap cuts a claim inside the item a clip hides (r6); a box widened faster than the window overflows it only
+  // between 501 and 799px (r7); a research table's cells wrapped under one another leave their headers in the middle of
+  // the band only (r8); and a box 400px wide overflows below 400px, so the band's first end is measured at 320px itself,
+  // after every width of the band was read (r9).
+  it(
+    "measures where a wrap inside a band cuts a text, widens the page or moves a table's cells, at its own width (#117)",
+    { skip },
+    async () => {
+      const r6 = await sweepOf(
+        `.layout{display:flex;flex-wrap:wrap;height:100px;overflow:hidden} .first,.second{flex:0 0 ${RESPONSIVE};height:100px}
+         .claim{margin:0}`,
+        '<div class="layout"><div class="first"></div><div class="second"><p data-block="b1" class="claim">Not free.</p></div></div>',
       )
+      failsAt(r6, /at 801px: b1(;|$)/u)
+      const wide = (width: string) =>
+        sweepOf(
+          `.wide{width:${width};height:20px;background:#eee} p{margin:0}`,
+          '<div class="wide"></div><p data-block="b1">Free.</p>',
+        )
+      failsAt(
+        await wide('min(800px,calc(200vw - 500px))'),
+        /at 501px: 1px past the width/u,
+        /at 799px: 1px past the width/u,
+      )
+      failsAt(await wide('400px'), /^at 320px: 80px past the width; at 399px: 1px past the width$/u)
+      const r8 = await sweepOf(
+        `.t1 tr{display:flex;flex-wrap:wrap} .t1 th,.t1 td{flex:0 0 ${RESPONSIVE}}`,
+        researchTable('t1', 't1'),
+      )
+      failsAt(r8, /at \d+px: [^;]*tables whose cells are drawn under other headers or off their rows: t1/u)
+    },
+  )
+
+  // The positives: the row its lines' height (p1), the owner's constant 100px items (p2), the flow's container its lines'
+  // height or its items 100px wide (p3 to p6); and an ordinary page of some 300 elements, read at every width within the
+  // sweep's time (p7).
+  it(
+    'passes wraps that move what follows, items of constant width, and an ordinary page, read at every width in time (#117)',
+    { skip },
+    async () => {
+      const positives = [
+        ['p1', await row('', RESPONSIVE)],
+        ['p2', await ownerClaim('100px')],
+        ['p3', await flexFlow('', RESPONSIVE)],
+        ['p4', await flexFlow('height:100px', '100px')],
+        ['p5', await inlineFlow('', RESPONSIVE)],
+        ['p6', await inlineFlow('height:100px', '100px')],
+      ] as const
+      for (const [name, read] of positives)
+        assert.deepEqual([read?.outcome, read?.detail], ['passed', 'measured at 320, 2560px'], name)
+      const cards = Array.from(
+        { length: 30 },
+        (_, i) => `<div class="card"><h3>Card ${String(i)}</h3><p>A finding, a sentence or two long.</p></div>`,
+      ).join('')
+      const started = Date.now()
+      const p7 = await sweepOf(
+        `.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+         .card{background:#f4f4f4;box-shadow:0 1px 3px #0003;padding:8px} .tags{display:flex;flex-wrap:wrap;gap:6px}
+         .tags span{padding:2px 8px;background:#eee}
+         blockquote{margin:1rem 0;padding-left:1rem;border-left:4px solid #ccc}`,
+        `<h2>Findings</h2><div class="tags">${'<span>tag</span>'.repeat(20)}</div><div class="grid">${cards}</div>
+         <blockquote data-block="q1">A quoted line long enough to wrap, with <a href="#s">a link</a>.</blockquote>
+         ${'<p>A paragraph of the research that wraps, with <a href="#s">a link in it</a> and words after it.</p>'.repeat(40)}`,
+      )
+      assert.deepEqual([p7?.outcome, p7?.detail], ['passed', 'measured at 320, 2560px'])
+      assert.ok(Date.now() - started < 60_000, 'its capture, every width of its sweep read, within the sweep time')
     },
   )
 
@@ -1658,7 +1794,7 @@ describe('the confined capture kernel', () => {
       assert.match(await sweep(nine.join(' ')), /^failed: 9 width breakpoints/u)
       assert.match(
         await sweep('@media (min-width: 600px){p{color:#111}}', { sweepMs: 1 }),
-        /^failed: the changes of a container's lines inside the bands were not found within the sweep's time; \d+ band ends not measured within 0.001 s$/u,
+        /^failed: how the texts lie inside the bands was not read at every width within the sweep's time; \d+ band ends not measured within 0.001 s$/u,
       )
       assert.match(
         await sweep('@media (min-width: 600px){p{color:#111}}'),

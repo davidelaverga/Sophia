@@ -2908,3 +2908,12 @@ function mediaConditions() {
 export function conditionsScript() {
   return `(() => {\n${mediaConditions.toString()}\nreturn mediaConditions()\n})()`
 }
+
+/**
+ * An expression that returns the window's width and the research tables whose cells are drawn elsewhere
+ * (misplacedTables), which the width sweep reads at every width (capture-html.mjs, #117).
+ */
+export function tablesScript() {
+  const source = [misplacedTables, cellsMoved, onItsRow, within, textBoxOf].map((f) => f.toString()).join('\n')
+  return `(() => {\n${source}\nreturn [innerWidth, misplacedTables([...document.querySelectorAll('[data-block]')]).join()]\n})()`
+}

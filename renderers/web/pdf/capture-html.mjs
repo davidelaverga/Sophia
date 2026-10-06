@@ -17,9 +17,25 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { conditionsScript, MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, MAX_POINTS, pageScript } from './capture-page.mjs'
+import {
+  conditionsScript,
+  MAX_LINES,
+  MAX_LOOK_MS,
+  MAX_MEASURED,
+  MAX_POINTS,
+  pageScript,
+  tablesScript,
+} from './capture-page.mjs'
 import { launchConfined, playwrightVersion } from './confine.mjs'
-import { generatedAt, layoutAt, layoutChanges, placementStep, structureScript } from './placement.mjs'
+import {
+  generatedAt,
+  layoutAt,
+  layoutChanges,
+  meetingsOf,
+  placementStep,
+  STYLES,
+  structureScript,
+} from './placement.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
 
 export const CAPTURE_RECEIPT_SCHEMA = 'sophia.html-capture-receipt.v1'
@@ -793,7 +809,8 @@ function bandIssue(page, missed, requested, misplaced) {
  * goes to `wrong`.
  * @param {import('playwright-core').Page} page
  * @param {Shot} shot
- * @param {{ ends: number[], conditions: string[], until: number, sweepMs: number }} sweep
+ * @param {{ ends: number[], conditions: string[], until: number, sweepMs: number,
+ *   probe: import('./placement.mjs').Probe }} sweep
  * @param {string[]} wrong
  */
 async function measureEnds(page, shot, sweep, wrong) {
@@ -806,13 +823,18 @@ async function measureEnds(page, shot, sweep, wrong) {
       return
     }
     await page.setViewportSize({ width, height: SWEEP.height })
+    // The probe sets the band end's width through the protocol, as it set every width of the bands, before the page is
+    // measured there: Playwright keeps the width it last set as its own, and does not set it again (crPage.js).
+    const [lie] = await sweep.probe([width])
     const { unmeasured, misplaced, ...answer } = await measure(page, shot.cdp, left)
     const { measured, unsampled } = await generatedCover(shot, page, answer, sweep.until)
     const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null, misplaced)
     if (issue) wrong.push(`at ${width}px: ${issue}`)
     /** @type {{ state: string }} */
-    const { state } = await page.evaluate(structureScript(sweep.conditions, false))
-    const step = await placementStep(() => layoutAt(shot.cdp), { width, state }, before, sweep.until)
+    const { state } = await page.evaluate(structureScript(sweep.conditions))
+    // Two band ends are one band's when the page's conditions, its containers' lines and how its texts lie match.
+    const here = { width, state: `${state}|${!lie || 'issue' in lie ? String(lie?.issue) : lie.state}` }
+    const step = await placementStep(() => layoutAt(shot.cdp), here, before, sweep.until)
     if (step.issue) wrong.push(step.issue)
     before = step.end
   }
@@ -820,9 +842,9 @@ async function measureEnds(page, shot, sweep, wrong) {
 
 /**
  * The width sweep (SWEEP): the page measured, without capturing, at both ends of every band its media conditions
- * make, and of every band a container's lines changing inside one make where it holds placed boxes (layoutChanges),
- * as at a target. Its check fails on what any band end shows wrong, on placed boxes and texts that may meet between a
- * band's ends, and on any band end it could not measure.
+ * make, and of every band a change of what lies on a text inside one makes (layoutChanges), as at a target. Its check
+ * fails on what any band end shows wrong, on placed boxes and texts that may meet between a band's ends, and on any
+ * band end it could not measure.
  * @param {import('playwright-core').Page} page
  * @param {Shot} shot
  * @param {number} sweepMs
@@ -839,20 +861,66 @@ async function sweepWidths(page, shot, sweepMs) {
     await page.setViewportSize({ width, height: SWEEP.height })
     return String(await page.evaluate(holding))
   })
-  /** @type {import('./placement.mjs').Probe} */
-  const probe = async (width, withPlaced) => {
-    await page.setViewportSize({ width, height: SWEEP.height })
-    /** @type {{ state: string, placed: boolean }} */
-    const structure = await page.evaluate(structureScript(media.conditions, withPlaced))
-    return structure
-  }
+  const probe = probeOf(shot.cdp)
   const { ends, issue } = await layoutChanges(probe, bands, until)
   /** @type {string[]} */
   const wrong = issue ? [issue] : []
-  await measureEnds(page, shot, { ends, conditions: media.conditions, until, sweepMs }, wrong)
+  await measureEnds(page, shot, { ends, conditions: media.conditions, until, sweepMs, probe }, wrong)
   return wrong.length > 0
     ? check('widths_visible', 'failed', wrong.join('; ').slice(0, 2000))
     : check('widths_visible', 'passed', `measured at ${ends.join(', ')}px`.slice(0, 2000))
+}
+
+/**
+ * The device metrics Playwright's setViewportSize sets for a width at the sweep's height, in the kernel's context (no
+ * device emulation, scale 1; crPage.js _updateViewport): the sweep's probes set them through the protocol directly.
+ * @param {number} width
+ */
+function metricsAt(width) {
+  /** @type {{ angle: number, type: 'landscapePrimary' }} */
+  const screenOrientation = { angle: 0, type: 'landscapePrimary' }
+  const height = SWEEP.height
+  return {
+    mobile: false,
+    width,
+    height,
+    screenWidth: width,
+    screenHeight: height,
+    deviceScaleFactor: 1,
+    screenOrientation,
+  }
+}
+
+/**
+ * How the texts lie at each of some window widths (placement.mjs Probe): for each width, its device metrics, the
+ * window's width and the research tables whose cells are drawn elsewhere (capture-page.mjs tablesScript), and the
+ * layout (meetingsOf), sent together, so the browser works through a batch without waiting on the kernel; it reads the
+ * commands of one session in order. A width the window did not take is not read.
+ * @param {import('playwright-core').CDPSession} cdp
+ * @returns {import('./placement.mjs').Probe}
+ */
+function probeOf(cdp) {
+  const tables = tablesScript()
+  return async (widths) => {
+    const sent = widths.map((width) =>
+      Promise.all([
+        cdp.send('Emulation.setDeviceMetricsOverride', metricsAt(width)),
+        cdp.send('Runtime.evaluate', { expression: tables, returnByValue: true }),
+        cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLES }),
+      ]),
+    )
+    return (await Promise.all(sent)).map(([, read, snapshot], k) => {
+      /** @type {unknown} */
+      const value = read.result.value
+      /** @type {unknown[]} */
+      const answer = Array.isArray(value) ? value : []
+      const [inner, moved] = answer
+      if (read.exceptionDetails || inner !== widths[k])
+        return { issue: `the window was not ${String(widths[k])}px wide` }
+      const lie = meetingsOf(snapshot)
+      return 'issue' in lie ? lie : { state: `${lie.state}|${String(moved)}` }
+    })
+  }
 }
 
 /**
