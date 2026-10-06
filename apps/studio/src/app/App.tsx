@@ -9,6 +9,7 @@ import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
 import { accountOf } from './auth-callback.ts'
+import { forgetKept } from '../features/conversations/talk-store.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
@@ -57,11 +58,14 @@ export function App() {
   // Cached server state belongs to one identity; drop it whenever the identity changes.
   const switchIdentity = (identity: Identity | null) => {
     queryClient.clear()
+    forgetKept()
     chooseDev(identity)
   }
-  // Signing out leaves nothing personal on this device: the cache, and every message being written to Sophia.
+  // Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, and what
+  // was under way in a project's conversations (talk-store.ts).
   const leaveSession = () => {
     queryClient.clear()
+    forgetKept()
     forgetPendingUnlock()
     void signOutForgetting(signOut, forgetDrafts).catch(() => undefined)
   }

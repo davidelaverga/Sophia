@@ -19,6 +19,7 @@ import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
 import { OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
+import { NO_WORDS, START, useKept, withEntry } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import './conversations.css'
 
@@ -46,8 +47,8 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   useReadAgain(cursor, list.refetch)
   const all = list.data ?? []
   const { open, choose } = useChosen(all)
-  const start = useStart(projectId, identity, choose)
-  const drafts = useDrafts()
+  const talk = useTalk(projectId, identity.name)
+  const start = useStart(projectId, identity, talk, choose)
   return (
     <section className="conversations" aria-labelledby="conversations-title">
       <h2 id="conversations-title">Conversations</h2>
@@ -80,7 +81,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         {start.starting ? (
           <NewConversation projectId={projectId} identity={identity} {...start.form} />
         ) : (
-          open && <Open conversation={open} {...{ identity, me, cursor, writer, drafts, start }} />
+          open && <Open conversation={open} {...{ identity, me, cursor, writer, talk, start }} />
         )}
         <ProjectContext projectId={projectId} identity={identity} cursor={cursor} />
       </div>
@@ -88,17 +89,17 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   )
 }
 
-/** The open conversation, with its draft and its message on its way kept by the view. */
+/** The open conversation, with what is under way in it kept by the view (talk-store.ts). */
 function Open(props: {
   conversation: ConversationSummary
   identity: Identity
   me: string
   cursor: string | undefined
   writer: boolean | undefined
-  drafts: ReturnType<typeof useDrafts>
+  talk: ReturnType<typeof useTalk>
   start: ReturnType<typeof useStart>
 }) {
-  const { conversation: c, drafts, start } = props
+  const { conversation: c, talk, start } = props
   return (
     <OpenConversation
       key={c.id}
@@ -107,12 +108,8 @@ function Open(props: {
       me={props.me}
       cursor={props.cursor}
       writer={props.writer}
-      draft={drafts.of(c.id)}
-      onDraft={(text) => drafts.set(c.id, text)}
-      onClearIf={(text) => drafts.clearIf(c.id, text)}
-      held={drafts.heldOf(c.id)}
-      onHeld={(next) => drafts.hold(c.id, next)}
-      arrived={start.arrived?.id === c.id ? start.arrived : null}
+      {...talk.of(c.id)}
+      arrived={start.arrived === c.id}
       onArrived={start.clearArrived}
     />
   )
@@ -129,24 +126,26 @@ function useChosen(all: readonly ConversationSummary[]) {
 }
 
 /**
- * Each conversation's draft, and its message on its way or sent with no reply, kept while the view is open: opening
- * another and coming back finds both, so that message is sent again under its own key, never as a second one.
+ * What is under way in each conversation, kept per project and account (talk-store.ts): its draft, its message on its
+ * way or sent with no reply, the refusal that answered it, and since when Sophia was asked there.
  */
-function useDrafts() {
-  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({})
-  const [holds, setHolds] = useState<Readonly<Record<string, Held<MessageAsk> | null>>>({})
-  return {
-    of: (id: string) => drafts[id] ?? '',
-    set: (id: string, text: string) => setDrafts((was) => ({ ...was, [id]: text })),
+function useTalk(projectId: string, name: string) {
+  const { kept, change } = useKept(projectId, name)
+  const of = (id: string) => ({
+    draft: kept.drafts[id] ?? '',
+    onDraft: (text: string) => change((k) => ({ ...k, drafts: withEntry(k.drafts, id, text) })),
     /** Clears a draft only if it still holds what was sent: words written since stay. */
-    clearIf: (id: string, text: string) =>
-      setDrafts((was) => ((was[id] ?? '').trim() === text.trim() ? { ...was, [id]: '' } : was)),
-    heldOf: (id: string) => holds[id] ?? null,
-    hold: (id: string, next: Held<MessageAsk> | null) => setHolds((was) => ({ ...was, [id]: next })),
-  }
+    onClearIf: (text: string) =>
+      change((k) => ((k.drafts[id] ?? '').trim() === text.trim() ? { ...k, drafts: withEntry(k.drafts, id, '') } : k)),
+    held: kept.holds[id] ?? null,
+    onHeld: (next: Held<MessageAsk> | null) => change((k) => ({ ...k, holds: withEntry(k.holds, id, next) })),
+    refused: kept.refusals[id] ?? null,
+    onRefused: (words: string | null) => change((k) => ({ ...k, refusals: withEntry(k.refusals, id, words) })),
+    asked: kept.asked[id] ?? null,
+    onAsked: (since: string) => change((k) => ({ ...k, asked: withEntry(k.asked, id, since) })),
+  })
+  return { of, kept, change }
 }
-
-const NO_WORDS: ConversationAsk = { title: '', text: '', askSophia: true }
 
 /** Where the focus goes as the form goes: back to New conversation when put away, not when a row is pressed. */
 function useFocusBack(starting: boolean) {
@@ -161,17 +160,19 @@ function useFocusBack(starting: boolean) {
 }
 
 /**
- * New conversation: its form in place of the open one, its words and its intent kept while it is away. Started, the
- * conversation is put in the list and its messages at once (then read again), and it opens.
+ * New conversation: its form in place of the open one, its words, intent and refusal kept with the rest (they wait
+ * while it is away). Started, the conversation is put in the list and its messages at once (then read again); it opens
+ * only if the person is still on the form: one who moved on meanwhile is never pulled into it.
  */
-function useStart(projectId: string, identity: Identity, open: (id: string) => void) {
+function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof useTalk>, open: (id: string) => void) {
   const queryClient = useQueryClient()
   const [starting, setStarting] = useState(false)
-  const [arrived, setArrived] = useState<{ id: string; askedAt: string | null } | null>(null)
+  const onForm = useRef(false)
+  onForm.current = starting
+  const [arrived, setArrived] = useState<string | null>(null)
   const clearArrived = useCallback(() => setArrived(null), [])
-  const [fields, setFields] = useState(NO_WORDS)
-  const [held, setHeld] = useState<Held<ConversationAsk> | null>(null)
   const { button, back } = useFocusBack(starting)
+  const { kept, change } = talk
   const started = ({ conversation, message }: ConversationStarted, ask: ConversationAsk) => {
     const key = listKey(projectId, identity.name)
     queryClient.setQueryData<{ conversations: readonly ConversationSummary[] }>(key, (was) => ({
@@ -182,14 +183,29 @@ function useStart(projectId: string, identity: Identity, open: (id: string) => v
       pageParams: [null],
     })
     void queryClient.invalidateQueries({ queryKey: key })
+    change((k) => ({
+      ...k,
+      start: { ...k.start, fields: NO_WORDS },
+      asked: ask.askSophia ? withEntry(k.asked, conversation.id, message.at) : k.asked,
+    }))
+    if (!onForm.current) return
     open(conversation.id)
-    setArrived({ id: conversation.id, askedAt: ask.askSophia ? message.at : null })
-    setFields(NO_WORDS)
+    setArrived(conversation.id)
     setStarting(false)
   }
   const cancel = () => {
     back.current = true
     setStarting(false)
+  }
+  const form = {
+    fields: kept.start.fields,
+    onFields: (fields: ConversationAsk) => change((k) => ({ ...k, start: { ...k.start, fields } })),
+    held: kept.start.held,
+    onHeld: (held: Held<ConversationAsk> | null) => change((k) => ({ ...k, start: { ...k.start, held } })),
+    refused: kept.refusals[START] ?? null,
+    onRefused: (words: string | null) => change((k) => ({ ...k, refusals: withEntry(k.refusals, START, words) })),
+    onStarted: started,
+    onCancel: cancel,
   }
   return {
     starting,
@@ -198,7 +214,7 @@ function useStart(projectId: string, identity: Identity, open: (id: string) => v
     button,
     toggle: () => (starting ? cancel() : setStarting(true)),
     close: () => setStarting(false),
-    form: { fields, onFields: setFields, held, onHeld: setHeld, onStarted: started, onCancel: cancel },
+    form,
   }
 }
 

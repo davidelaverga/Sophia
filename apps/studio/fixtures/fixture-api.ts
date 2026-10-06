@@ -138,6 +138,8 @@ interface Project {
   missionPlus?: ReturnType<typeof conversationMission>
   /** The brief's reads fail (`window.fixture.failMission`). */
   missionFails?: boolean
+  /** While set, the brief's reads wait for these (`mission=hold`, `window.fixture.holdMission`). */
+  missionHeld?: (() => void)[] | null
 }
 
 /** The conversations as the A18 reads give them (and its writes keep them), and the reads that fail. */
@@ -146,8 +148,6 @@ export interface Conversations extends TalkWrites {
   messages: Record<string, ConversationMessage[]>
   /** The list's reads fail (`conversations=fail`, `window.fixture.failConversations`). */
   failList: boolean
-  /** This conversation's messages fail to read (`messages=fail`: the second one's). */
-  failMessagesOf: string | null
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -650,13 +650,18 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
 function missionAnswer(project: Project, method: string, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}/mission`
   if (method === 'GET' && path === base) {
-    if (project.notes?.unread || project.missionFails) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
-    served.push(`mission:${project.revision}`)
-    return json(
-      withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus),
-    )
+    const held = project.missionHeld
+    if (held) return new Promise<Response>((resolve) => held.push(() => resolve(missionRead(project))))
+    return missionRead(project)
   }
   return project.notes ? notesAnswer(project.revision, project.notes, method, path, init) : null
+}
+
+/** The brief as read: refused while notes are unread or reads fail (`failMission`), else with the conversations' part. */
+function missionRead(project: Project): Response {
+  if (project.notes?.unread || project.missionFails) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  served.push(`mission:${project.revision}`)
+  return json(withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus))
 }
 
 /** The brief with what the conversations' context adds (a purpose, accepted decisions, one still open), if any. */

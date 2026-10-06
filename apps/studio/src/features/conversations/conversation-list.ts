@@ -81,3 +81,22 @@ export function answeredAfter(
 
 /** A message's first words, for the line that says which one wasn't confirmed. */
 export const firstWords = (text: string): string => (text.length > 48 ? `${text.slice(0, 47).trimEnd()}…` : text)
+
+/** A conversation's pages as read: the first is the newest; each oldest first. */
+export interface ReadPages<M> {
+  pages: readonly { messages: readonly M[]; before: string | null }[]
+  pageParams: readonly (string | null)[]
+}
+
+/**
+ * The pages with a message the API accepted at the end of the newest one, once (its receipt's): it shows at once, and
+ * stays should reading the conversation again fail.
+ */
+export function withMessage<M extends { id: string }>(
+  read: ReadPages<M> | undefined,
+  message: M,
+): ReadPages<M> | undefined {
+  const [newest, ...rest] = read?.pages ?? []
+  if (!read || !newest || read.pages.some((p) => p.messages.some((m) => m.id === message.id))) return read
+  return { ...read, pages: [{ ...newest, messages: [...newest.messages, message] }, ...rest] }
+}

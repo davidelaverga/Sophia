@@ -2,13 +2,15 @@
 // answer, another member's message) moves the feed's cursor, and what the view shows is read again.
 import { useEffect, useRef } from 'react'
 
-/** Reads again each time the feed moves on from a position already seen (not on the first, which the read is). */
+/**
+ * Reads again each time the feed's position changes, the first one learned included: a read finished before the page
+ * knew where the feed stood may have missed what landed meanwhile. (Mounted with a position already known, nothing.)
+ */
 export function useReadAgain(cursor: string | undefined, refetch: () => Promise<unknown>) {
   const seen = useRef(cursor)
   useEffect(() => {
     if (seen.current === cursor) return
-    const moved = seen.current !== undefined
     seen.current = cursor
-    if (moved) void refetch()
+    void refetch()
   }, [cursor, refetch])
 }

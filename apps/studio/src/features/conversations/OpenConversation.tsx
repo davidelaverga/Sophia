@@ -32,31 +32,37 @@ interface Props {
   /** The message on its way here, or sent with no reply (held by the view). */
   held: Held<MessageAsk> | null
   onHeld: (next: Held<MessageAsk> | null) => void
-  /** Just started here: the focus goes to its title, once; and when its first message asked Sophia, since when. */
-  arrived: { askedAt: string | null } | null
+  /** The refusal that answered the last press here (kept by the view). */
+  refused: string | null
+  onRefused: (words: string | null) => void
+  /** Since when Sophia was asked here (kept by the view): a message that doesn't ask her leaves it. */
+  asked: string | null
+  onAsked: (since: string) => void
+  /** Just started here: the focus goes to its title, once. */
+  arrived: boolean
   onArrived: () => void
 }
 
 /** How long «Sophia is answering…» waits before it says her answer will come later. */
 export const ANSWER_WAIT_MS = 120_000
 
-/** Since when Sophia was asked here, until her answer is listed after it; late when it hasn't come in time. */
-function useAwaiting(askedAt: string | null) {
-  const [since, setSince] = useState(askedAt)
+/** Since when Sophia was asked here; late once she hasn't answered in time, counted from then (not from coming back). */
+function useAwaiting(since: string | null) {
   const [late, setLate] = useState(false)
   useEffect(() => {
     setLate(false)
     if (since === null) return undefined
-    const timer = setTimeout(() => setLate(true), ANSWER_WAIT_MS)
+    const left = Math.max(0, ANSWER_WAIT_MS - (Date.now() - Date.parse(since)))
+    const timer = setTimeout(() => setLate(true), left)
     return () => clearTimeout(timer)
   }, [since])
-  return { since, late, ask: setSince }
+  return { since, late }
 }
 
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const summaryId = useId()
-  const awaiting = useAwaiting(arrived?.askedAt ?? null)
+  const awaiting = useAwaiting(props.asked)
   const head = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     if (!arrived) return
@@ -85,7 +91,9 @@ export function OpenConversation(props: Props) {
           onClearIf={props.onClearIf}
           held={props.held}
           onHeld={props.onHeld}
-          onSent={(sent) => awaiting.ask(sent.sophia === 'asked' ? sent.message.at : null)}
+          refused={props.refused}
+          onRefused={props.onRefused}
+          onSent={(sent) => sent.sophia === 'asked' && props.onAsked(sent.message.at)}
         />
       )}
       {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
@@ -146,15 +154,7 @@ function Messages(props: {
   }, [read.isFetchingNextPage, read.hasNextPage])
   return (
     <>
-      <Waiting words="Reading the conversation…" waiting={read.isPending} />
-      {read.isError && messages.length === 0 && (
-        <p className="conv-note" role="alert">
-          This conversation can’t be read now.{' '}
-          <button type="button" className="text-button" onClick={() => void read.refetch()}>
-            Try again
-          </button>
-        </p>
-      )}
+      <ReadState read={read} count={messages.length} />
       {read.hasNextPage && (
         <Earlier
           reading={read.isFetchingNextPage}
@@ -217,5 +217,27 @@ function MessageList(props: {
         </li>
       ))}
     </ol>
+  )
+}
+
+/** What the transcript's read says: reading, nobody written yet, or failed (out of date when some were read). */
+function ReadState(props: {
+  read: { isPending: boolean; isSuccess: boolean; isError: boolean; refetch: () => Promise<unknown> }
+  count: number
+}) {
+  const { read, count } = props
+  return (
+    <>
+      <Waiting words="Reading the conversation…" waiting={read.isPending} />
+      {read.isSuccess && count === 0 && <p className="conv-note">Nobody has written here yet.</p>}
+      {read.isError && (
+        <p className="conv-note" role="alert">
+          {count > 0 ? 'This may be out of date.' : 'This conversation can’t be read now.'}{' '}
+          <button type="button" className="text-button" onClick={() => void read.refetch()}>
+            Try again
+          </button>
+        </p>
+      )}
+    </>
   )
 }

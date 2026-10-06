@@ -14,6 +14,7 @@ export const CONVERSATION = {
   reading: '00000000-0000-4000-8000-0000000000c1',
   briefs: '00000000-0000-4000-8000-0000000000c2',
   data: '00000000-0000-4000-8000-0000000000c3',
+  quiet: '00000000-0000-4000-8000-0000000000c4',
 } as const
 
 /** A page of messages: the newest six, and `before` for the page before them. */
@@ -58,6 +59,18 @@ export const conversations = (): ConversationSummary[] => [
     output: null,
   },
 ]
+
+/** A conversation nobody has written in yet (`conversations=quiet`): oldest, with no messages. */
+export const quietConversation = (): ConversationSummary => ({
+  id: CONVERSATION.quiet,
+  title: 'A quiet question',
+  summary: null,
+  lastAt: '2026-10-01T09:00:00.000Z',
+  contributors: [],
+  sophia: false,
+  openQuestions: 0,
+  output: null,
+})
 
 const member = (actorId: string, name: string) => ({ author: 'member' as const, actorId, name })
 const sophia = { author: 'sophia' as const, actorId: null, name: null }
