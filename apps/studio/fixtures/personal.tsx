@@ -19,6 +19,7 @@ import { useSharedRead } from '../src/features/personal/shared-read.ts'
 import { PersonalSpace } from '../src/features/personal/PersonalSpace.tsx'
 import type { PersonalWrites } from '../src/features/personal/usePersonal.ts'
 import { projectsFor, useExtras } from './personal-extras.ts'
+import { useEscape } from '../src/features/personal/useEscape.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 
@@ -382,6 +383,8 @@ function Personal() {
   const extras = useExtras(query, pressed, ago, wrote)
   const projects = useMemo(() => projectsFor(query, ahead), [])
   const [notes, setNotes] = useState(query.get('notes') === 'open')
+  // As Places has it: Escape closes the notes, unless a layer opened after them (the package mid-step) holds it.
+  useEscape(notes, () => setNotes(false))
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
   const epochKnown = useLater('epochAfter')
