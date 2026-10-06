@@ -343,9 +343,22 @@ function looseHolders(doc: Document): Set<Element> {
   return loose
 }
 
-/** Why an ID reference may not name `target`: it is not on the page, its markup hides it, or it holds loose text. */
+/**
+ * Whether an element lies inside a block, or inside a label without being a block: a reference to it reads part of
+ * their text apart from the rest. `Not <span id="free">free</span>` would give a name, "free", that the page never
+ * says (#117).
+ */
+const isFragment = (target: Element): boolean =>
+  hasAncestor(target, (a) => isBlock(a) || (isLabel(a) && !isBlock(target)))
+
+/**
+ * Why an ID reference may not name `target`: it is not on the page, its markup hides it, it holds loose text, or it is
+ * part of a block or a label: a reference names a whole one (#117).
+ */
 function targetIssue(target: Element, loose: ReadonlySet<Element>): string | null {
   if (hiddenByMarkup(target)) return 'names an element its markup hides (hidden, aria-hidden)'
+  if (isFragment(target))
+    return 'names part of a block or a label, read apart from the rest of it; name the whole block or label'
   return loose.has(target) ? 'names text that is neither the research (a block) nor a label' : null
 }
 

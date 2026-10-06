@@ -8,7 +8,7 @@ import { error, type Finding } from './findings.ts'
 
 /**
  * At-rules a static research page may use. `@import`, `@font-face`, `@namespace`, `@charset` and the rest are refused,
- * and so is `@keyframes`: the page is static (#117).
+ * and so is `@keyframes`: the page is static (#117). `@supports` parses, to be refused by name (queryIssue).
  */
 const AT_RULES = new Set(['media', 'supports', 'container', 'layer', 'page'])
 
@@ -78,6 +78,21 @@ const FUNCTIONS = new Set([
 
 /** Properties that bind behaviour in old engines. */
 const BINDINGS = new Set(['behavior', '-moz-binding', '-ms-behavior'])
+/**
+ * The prefixes of properties only other engines read: the captures are taken in Chromium, which drops them, so what one
+ * draws in Firefox, or an old Edge or Opera, no capture shows (#117).
+ */
+const FOREIGN = /^-(?:moz|ms|o|khtml)-/
+/**
+ * Text decorations, drawn over the text they decorate: a line through it crosses every glyph, and a decoration of a
+ * thickness or an offset of its own can be as thick as a glyph, or raised over it. In the background's colour, one
+ * buries a heading whose fill, which the render reads, stays readable (#117). So no line through a text in any rule,
+ * and, outside a rule for a state no capture takes (held to a mark of a few pixels, stateRuleIssue), a decoration at
+ * the font's own thickness and place: keywords and colours only.
+ */
+const DECORATION_LINES = /^(?:-webkit-)?text-decoration(?:-line)?$/
+const DECORATION_LENGTHS = /^(?:-webkit-)?text-(?:decoration-thickness|underline-offset)$/
+const DECORATION_KEYWORDS = new Set(['auto', 'from-font', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
 /**
  * Properties that change the page over time: what the captures show at load would not be what a reader sees a moment
  * later, so a static page has none (#117).
@@ -280,6 +295,41 @@ function stateRuleIssue(node: CssNode): string | null {
         'select by place (:first-child, :nth-of-type(), :is(), :has()...) or :any-link otherwise'
 }
 
+/** The declarations in rules for a state the captures never take (selectsState), nested rules included. */
+function stateDeclarations(ast: CssNode): Set<CssNode> {
+  const out = new Set<CssNode>()
+  walk(ast, (node) => {
+    if (node.type === 'Rule' && selectsState(node.prelude))
+      walk(node.block, (inner) => {
+        if (inner.type === 'Declaration') out.add(inner)
+      })
+  })
+  return out
+}
+
+/** Whether one part of a decoration's value is a keyword, a colour, or a colour function. */
+function isKeywordOrColour(part: CssNode, keywords: ReadonlySet<string> | null): boolean {
+  if (part.type === 'Identifier') return keywords === null || keywords.has(part.name.toLowerCase())
+  if (keywords !== null) return false
+  return part.type === 'Hash' || (part.type === 'Function' && COLOR_FUNCTIONS.has(part.name.toLowerCase()))
+}
+
+/** Why a text decoration may be drawn over the text, or null (DECORATION_LINES): in a rule for a state or not. */
+function decorationIssue(node: CssNode, inState: boolean): string | null {
+  if (node.type !== 'Declaration') return null
+  const property = node.property.toLowerCase()
+  const lines = DECORATION_LINES.test(property)
+  if (!lines && !DECORATION_LENGTHS.test(property)) return null
+  const parts = node.value.type === 'Value' ? node.value.children.toArray() : [node.value]
+  if (lines && parts.some((p) => p.type === 'Identifier' && p.name.toLowerCase() === 'line-through'))
+    return `${node.property} may not draw a line through the text: it crosses every glyph, and can bury them`
+  if (inState || parts.every((p) => isKeywordOrColour(p, lines ? null : DECORATION_KEYWORDS))) return null
+  return (
+    `${node.property} may take keywords and colours only: a decoration of a thickness or an offset of its own can ` +
+    "cover the text it decorates; the font's own is drawn beneath it"
+  )
+}
+
 /**
  * The window widths the render's width sweep measures between, and the most breakpoints it measures (#117, CX-0039):
  * the same as the capture kernel's (capture-html.mjs SWEEP), which a test holds equal. Between two breakpoints a page's
@@ -309,6 +359,10 @@ function queryIssue(node: CssNode): string | null {
   if (node.type !== 'Atrule') return null
   if (node.name.toLowerCase() === 'container')
     return "@container tests a container's width, which no window width the render measures settles; test the window's"
+  // The captures are taken in one engine, which takes one branch: another browser takes the other, which no capture
+  // shows, as `@supports (-webkit-touch-callout: none) { [data-block] { display: none } }` would on Safari (#117).
+  if (node.name.toLowerCase() === 'supports')
+    return "@supports chooses CSS by the browser: the captures show one engine's choice, and another takes the other"
   if (node.name.toLowerCase() !== 'media' || !node.prelude) return null
   const found: string[] = []
   const widths: string[] = []
@@ -479,6 +533,8 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
     const problem = nameIssue('property', node.property) ?? generatedTextIssue(node)
     if (problem) return problem
     const property = node.property.toLowerCase()
+    if (FOREIGN.test(property))
+      return `${node.property} is read only by other engines: the captures, taken in Chromium, show none of it`
     if (MASKING.test(property))
       return `${node.property} draws what it masks as transparent; the render would measure it as shown`
     if (MOTION.test(property))
@@ -518,8 +574,9 @@ export function checkCss(
     parseCustomProperty: true,
     onParseError: (e) => findings.push(error('css_invalid', path, `CSS does not parse: ${e.message}`, at(e.line))),
   })
+  const states = stateDeclarations(ast)
   walk(ast, (node) => {
-    const problem = CHECKS[node.type]?.(node)
+    const problem = CHECKS[node.type]?.(node) ?? decorationIssue(node, states.has(node))
     if (problem) findings.push(error('css_unsafe', path, problem, at(node.loc?.start.line)))
   })
   return findings

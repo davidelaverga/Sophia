@@ -190,8 +190,22 @@ function sourceFindings(all: Element[], content: ContentPackage): Finding[] {
 const isResearch = (el: Element): boolean => isBlock(el) || attr(el, 'data-source') !== null
 
 /**
+ * Why an element takes what it holds out of what a screen reader is given, or null: `aria-hidden="true"` takes it out
+ * of the accessibility tree, and `role="img"` gives it as one image, announced by its name alone, its text
+ * presentational (#117). Neither changes a pixel, so no capture shows it.
+ */
+function concealment(el: Element): string | null {
+  if (attr(el, 'aria-hidden')?.trim().toLowerCase() === 'true')
+    return `<${el.tagName} aria-hidden="true"> takes research out of what a screen reader is given`
+  const roles = (attr(el, 'role') ?? '').trim().toLowerCase().split(/\s+/u)
+  return roles.includes('img')
+    ? `<${el.tagName} role="img"> gives what it holds as one image, announced by its name alone, not by its text`
+    : null
+}
+
+/**
  * Research a screen reader would not be given: a block or a source entry, or an element around or inside one, that
- * `aria-hidden="true"` takes out of the accessibility tree. It changes no pixel, so no capture shows it (#117).
+ * concealment takes out of what it is given. It changes no pixel, so no capture shows it (#117).
  */
 function hiddenResearch(all: Element[], html: string): Finding[] {
   const around = new Set<Element>()
@@ -203,14 +217,14 @@ function hiddenResearch(all: Element[], html: string): Finding[] {
     )
       around.add(a)
   return all
-    .filter((el) => attr(el, 'aria-hidden')?.trim().toLowerCase() === 'true')
-    .filter((el) => around.has(el) || hasAncestor(el, isResearch))
-    .map((el) =>
+    .map((el) => ({ el, how: concealment(el) }))
+    .filter(({ el, how }) => how !== null && (around.has(el) || hasAncestor(el, isResearch)))
+    .map(({ el, how }) =>
       error(
         'research_hidden',
         'index.html',
-        `<${el.tagName} aria-hidden="true"> takes research out of what a screen reader is given, where no capture shows it; ` +
-          'a block, a source entry and what holds or is inside one are never aria-hidden',
+        `${how ?? ''}, where no capture shows it; ` +
+          'a block, a source entry and what holds or is inside one are never aria-hidden and never an image',
         { line: lineOf(html, el) },
       ),
     )

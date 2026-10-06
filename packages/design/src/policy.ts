@@ -231,8 +231,16 @@ function roleIssue(value: string): string | null {
     : `role ${other} is not allowed: a widget's role announces a state or a value that no capture shows`
 }
 
+/**
+ * The attributes the compile writes, which a page may not write itself: `data-sophia-shown` marks the labels the render
+ * measures, and a page that marks its own could have the render read every element inside them again for each one
+ * around it (#117).
+ */
+const RESERVED = /^data-sophia-/
+
 function attributeIssue(el: Element, name: string, value: string): string | null {
   if (/^on/i.test(name)) return `event handler ${name} is not allowed`
+  if (RESERVED.test(name)) return `${name} is written by Sophia's compile, not by the page`
   if (name.startsWith('aria-')) return ariaIssue(name, value)
   if (name === 'role') return roleIssue(value)
   if (isGlobal(name))

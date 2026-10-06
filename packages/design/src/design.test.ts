@@ -427,7 +427,7 @@ describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-00
       `<a data-cite="${A}" href="#src-${A}" aria-label="[7]">[1]</a>`,
       `<a data-cite="${A}" href="#src-${A}" aria-description="(1)">[1]</a>`,
       `<span data-cite="${A}" aria-label="[3]"></span>`,
-      `<span data-cite="${A}" role="img" aria-label="100" title="100"></span>`,
+      `<span data-cite="${A}" aria-label="100" title="100"></span>`,
       `<a data-cite="${A}" href="#src-${A}" aria-braillelabel="Price 3">[1]</a>`,
       `<a data-cite="${A}" href="#src-${A}" title="Source">[1]</a>`,
     ])
@@ -711,6 +711,27 @@ describe('a tooltip or an accessible name carries no text the page does not show
     ] as const)
       assert.deepEqual(codes(withHtml(good, html(good).replace(from, to))), [], to)
   })
+  // #117: the compile marks the labels the render measures; a page that marks its own could multiply what it reads.
+  it('refuses a data-sophia-* attribute the page writes itself', () => {
+    for (const to of ['<h1 data-sophia-shown="h1:1">', '<h1 data-sophia-other="x">', '<h1 DATA-SOPHIA-SHOWN="h1:1">'])
+      assert.deepEqual(codes(withHtml(good, html(good).replace('<h1>', to))), ['unsafe_attribute'], to)
+    assert.deepEqual(codes(withHtml(good, html(good).replace('<h1>', '<h1 data-sophiax="1">'))), [])
+  })
+  // #117: role="img" changes no pixel either, and gives what it holds as one image: its text is not read.
+  it('refuses role="img" on research, on what holds it and on what is inside it', () => {
+    for (const [from, to] of [
+      ['<p data-block="b1">', '<p data-block="b1" role="img">'],
+      ['<section id="s1" data-section="s1">', '<section id="s1" data-section="s1" role="img">'],
+      ['<main>', '<main role="IMG">'],
+      ['<main>', '<main role="none img">'],
+      [`<li id="src-${A}"`, `<li role="img" id="src-${A}"`],
+      ['needs a dedicated VM', 'needs a <span role="img">dedicated VM</span>'],
+      [`<a data-cite="${A}"`, `<a role="img" data-cite="${A}"`],
+    ] as const)
+      assert.ok(codes(withHtml(good, html(good).replace(from, to))).includes('research_hidden'), to)
+    const beside = html(good).replace('</main>', '<span role="img" aria-labelledby="sources-h"></span></main>')
+    assert.deepEqual(codes(withHtml(good, beside.replace('<h2>Sources</h2>', '<h2 id="sources-h">Sources</h2>'))), [])
+  })
   it('refuses a name repeating a label its markup hides, or one under a hidden ancestor', () => {
     for (const hidden of [
       `<h2 hidden>${claim}</h2>`,
@@ -733,6 +754,35 @@ describe('a tooltip or an accessible name carries no text the page does not show
     assert.deepEqual(swap('<main>\n<h1>', '<main aria-describedby="nowhere">\n<h1>'), ['attribute_text'])
     const free = swap('<main>\n<h1>', `<main aria-describedby="claim">\n<p id="claim">${claim}</p><h1>`)
     assert.deepEqual(free.toSorted(), ['attribute_text', 'text_outside_blocks'])
+  })
+  // #117: a reference to part of a block or a label reads it apart from the rest: "free" out of "Not free".
+  it('refuses an ID reference to part of a block or of a label, and accepts one to the whole', () => {
+    const named = (from: string, to: string, id: string) =>
+      codes(withHtml(good, html(good).replace(from, to).replace('<main>', `<main aria-labelledby="${id}">`)))
+    for (const [from, to, id] of [
+      ['needs a dedicated VM', 'needs a <span id="vm">dedicated VM</span>', 'vm'],
+      ['<h1>Report</h1>', '<h1>Re<span id="frag">port</span></h1>', 'frag'],
+      ['<h2>Sources</h2>', '<h2>Sour<b><i id="deep">ces</i></b></h2>', 'deep'],
+      [`data-source="${A}">Source ${A}`, `data-source="${A}">Source <span id="src-name">${A}</span>`, 'src-name'],
+    ] as const)
+      assert.deepEqual(named(from, to, id), ['attribute_text'], to)
+    assert.deepEqual(named('<h1>Report</h1>', '<h1 id="whole">Report</h1>', 'whole'), [])
+    assert.deepEqual(named('<h2>Sources</h2>', '<div id="around"><h2>Sources</h2></div>', 'around'), [])
+    // A whole block is named whole, even set inside a label.
+    const page = html(good)
+    const start = page.indexOf('<p data-block="b1">')
+    const end = page.indexOf('</p>', start) + '</p>'.length
+    const captioned = `${page.slice(0, start)}<figure><figcaption>${page.slice(start, end)}</figcaption></figure>${page.slice(end)}`
+    assert.deepEqual(named('<p data-block="b1">', '<p data-block="b1" id="b1">', 'b1'), [])
+    assert.deepEqual(
+      codes(
+        withHtml(
+          good,
+          captioned.replace('<p data-block="b1">', '<p data-block="b1" id="b1">').replace('<main>', '<main aria-labelledby="b1">'),
+        ),
+      ),
+      [],
+    )
   })
   it('refuses a citation marker reference to anything but its own source entry', () => {
     const marker = `<a data-cite="${A}" href="#src-${A}">[1]</a>`
@@ -1113,6 +1163,62 @@ describe('a pseudo-element styles only generated content (#117)', () => {
     ])
       assert.deepEqual(css(ok), [], ok)
   })
+  // #117: the captures are taken in Chromium; a branch for another engine, or a property only it reads, is in none.
+  it('refuses @supports and the properties only other engines read', () => {
+    for (const bad of [
+      '@supports (-webkit-touch-callout: none){[data-block]{display:none}}',
+      '@supports not (display:grid){p{color:#111}}',
+      '@supports selector(:has(a)){p{color:#111}}',
+      '@SUPPORTS (display:grid){p{color:#111}}',
+      '@media (min-width: 720px){@supports (display:grid){p{color:#111}}}',
+      'p{-moz-transform:scale(0)}',
+      'p{-ms-transform:none}',
+      'p{-o-transform:none}',
+      'p{-MOZ-opacity:0}',
+      '@media (min-width: 720px){p{-moz-opacity:0}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<h1>', '<h1 style="-moz-opacity:0">')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of ['p{-webkit-font-smoothing:antialiased}', 'p{--moz-like:1px}', '@layer base{p{color:#111}}'])
+      assert.deepEqual(css(ok), [], ok)
+  })
+  // #117: a decoration is drawn over the text: through it, or as thick as a glyph, it can bury what the render passes.
+  it("refuses a line through a text, and a decoration of a thickness or an offset of its own outside a state's mark", () => {
+    for (const bad of [
+      'h2{text-decoration:line-through}',
+      'h2{text-decoration-line:underline line-through}',
+      'h2{TEXT-DECORATION:LINE-THROUGH #fafafa}',
+      'h2{text-decoration-thickness:1em}',
+      'h2{text-decoration-thickness:2px}',
+      'h2{text-decoration-thickness:thick}',
+      'h2{text-decoration:underline 12px}',
+      'h2{text-decoration:underline 10%}',
+      'h2{text-decoration:underline var(--t)}',
+      'h2{text-decoration-line:var(--line)}',
+      'h2{text-underline-offset:-.5em}',
+      'h2{text-underline-offset:calc(1px - 1em)}',
+      'a:hover{text-decoration:line-through}',
+      'a:focus{text-decoration-line:line-through}',
+      '@media (min-width: 720px){h2{text-decoration-thickness:2px}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<h1>', '<h1 style="text-decoration:line-through">')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of [
+      'a{text-decoration:underline}',
+      'a{text-decoration:underline dotted #1a4fd6}',
+      'a{text-decoration:underline rgb(26 79 214) from-font}',
+      'a{text-decoration:none}',
+      'a{text-decoration-line:underline overline}',
+      'a{text-decoration-thickness:from-font}',
+      'a{text-decoration-thickness:auto}',
+      'a{text-underline-offset:auto}',
+      'a{text-decoration-color:rgb(26 79 214)}',
+      'a:hover{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
   it("accepts generated content, the reader's selection and the disclosure marker", () => {
     for (const ok of [
       'h2::before{content:""}',
@@ -1238,10 +1344,12 @@ describe('compile', () => {
 
   it('compiles to a page that is itself safe and complete', () => {
     const out = compile(good, 'en')
-    const check = checkSource(
-      [{ path: 'index.html', text: out.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, '') }],
-      content,
-    )
+    assert.match(out, / data-sophia-shown="h1:1"/)
+    // The compile's own marks, which a page may not write itself (#117), are left out of the check.
+    const page = out
+      .replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, '')
+      .replaceAll(/ data-sophia-[a-z-]+="[^"]*"/gu, '')
+    const check = checkSource([{ path: 'index.html', text: page }], content)
     assert.deepEqual(
       check.findings.filter((f) => f.severity === 'error'),
       [],
