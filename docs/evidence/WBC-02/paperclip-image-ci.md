@@ -163,6 +163,7 @@ The review rounds and their tests:
 | review of `9ee7754` | after `docker restart` only health and memory were checked, so a plugin that did not reload after a restart could still qualify | probe phase `restart` after the restart: the plugin ready again, the configuration unchanged, the same issue still cancelled, the resend answered by it, the host-name guard, held to the first phase's facts; sign-up left alone; the restart step 22 minutes; the receipt command run over a whole evidence directory, and without each of its files; 9 mutations |
 | CX-0045 | memory was not read after the restart's probe, as it is after the other two | a `restart:after-flow` sample after that probe, required by the receipt; the workflow samples exactly the receipt's memory phases, each once; the restart step 25 minutes; 4 mutations |
 | review of `a42fe05` | a start the helper recorded as failed passed when a 200 and `ok` stood beside it | a start passes only when its record says ok and the answer is 200 with `ok`; the contradicting record fails; 1 mutation |
+| review of `fe59572` | a packaged file's size passed as any finite number; a settle run passed on its status with no run named | each packaged file's size and digest held as the home snapshots are (a non-negative whole size, 0 only with the empty digest), the manifest's size its own bytes'; the settle run's id required; 3 mutations |
 
 Each mutation in force is caught. The scan tests read `/proc` and run on Linux only.
 

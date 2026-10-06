@@ -971,3 +971,36 @@ describe('CX-0045: memory is read after the restart probe as after the others, e
     assert.equal(verdictOf(run), 'incomplete')
   })
 })
+
+describe('review of fe59572: a packaged size a read cannot give, or a settle run not named, is refused', () => {
+  const IDENTITY = 'image built from'
+  const withScanned = (path, change) => {
+    const run = complete()
+    const entry = run.packaged.imageFiles.files.find((f) => f.path === path)
+    Object.assign(entry, change(entry))
+    return run
+  }
+
+  it('a negative, fractional or missing size, or a zero size beside a digest of bytes, fails the identity', () => {
+    for (const size of [-1, 1.5, null, 0])
+      assert.equal(resultOf(withScanned('start.sh', () => ({ size })), IDENTITY), 'failed', String(size))
+  })
+
+  it('the MANIFEST’s size is its own bytes’', () => {
+    assert.equal(resultOf(withScanned('MANIFEST.json', (f) => ({ size: f.size + 1 })), IDENTITY), 'failed')
+  })
+
+  it('positive control: a packaged file that is truly empty has size 0 and the empty digest', () => {
+    const run = complete()
+    const manifest = manifestOf({ files: { ...JSON.parse(run.packaged.manifest.toString('utf8')).files, 'empty.txt': EMPTY_SHA256 } })
+    run.packaged = packagedOf(manifest)
+    run.packaged.imageFiles.files.find((f) => f.path === 'empty.txt').size = 0
+    run.identity.manifestSha256 = sha256Of(manifest)
+    assert.equal(resultOf(run, IDENTITY), 'passed')
+  })
+
+  it('a settle job recorded succeeded without the run it names fails the first phase', () => {
+    for (const change of [({ runId, ...f }) => f, (f) => ({ ...f, runId: '' })])
+      assert.equal(verdictOf(withFacts('first', 'scheduled settle job', change)), 'failed')
+  })
+})

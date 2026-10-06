@@ -44,7 +44,7 @@ const SHA256 = /^[0-9a-f]{64}$/
 const growing = (path) => GROWING.some((rule) => rule.test(path))
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 /** A size and digest that were both read, and agree: no bytes hash to the empty digest, and only no bytes do. */
-const consistent = (size, digest) =>
+export const consistent = (size, digest) =>
   Number.isSafeInteger(size) && size >= 0 && SHA256.test(digest ?? '') && (size === 0) === (digest === EMPTY_SHA256)
 /** A recorded entry whose path, size and digest were all read. */
 const measured = (f) => typeof f?.path === 'string' && f.path !== '' && consistent(f.size, f.sha256)

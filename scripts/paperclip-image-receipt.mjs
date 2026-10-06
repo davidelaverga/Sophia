@@ -23,7 +23,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { compareSnapshots, coverageOf } from './paperclip-image-home.mjs'
+import { compareSnapshots, consistent, coverageOf } from './paperclip-image-home.mjs'
 
 export const LIMIT_BYTES = 2 * 1024 ** 3
 export const HEALTH_LIMIT_S = 300
@@ -94,7 +94,12 @@ function packagedFacts(identity, context, { manifest, imageManifest, imageFiles 
   const scanned = Array.isArray(imageFiles?.files) ? imageFiles.files : []
   const inImage = new Map(scanned.map((f) => [f.path, f]))
   const expected = new Map([...files.filter(([path]) => path !== 'Dockerfile'), ['MANIFEST.json', digest]])
-  const missing = [...expected].filter(([path, sha]) => inImage.get(path)?.sha256 !== sha || !isNumber(inImage.get(path)?.size)).map(([path]) => path)
+  // Each a size and digest a complete read can give (a non-negative whole size; 0 only with the empty digest), as the
+  // home snapshots are held; the MANIFEST's size its own bytes' (review of fe59572).
+  const read = (path, sha) => inImage.get(path)?.sha256 === sha && consistent(inImage.get(path)?.size, sha)
+  const missing = [...expected]
+    .filter(([path, sha]) => !read(path, sha) || (path === 'MANIFEST.json' && inImage.get(path).size !== manifest.length))
+    .map(([path]) => path)
   const unrecorded = scanned.filter((f) => !expected.has(f.path)).map((f) => f.path)
   return {
     facts: {
@@ -229,7 +234,8 @@ const FACTS = {
       f.firstStatus === 'cancelled' &&
       f.resend === 'already' &&
       f.status === 'cancelled',
-    'scheduled settle job': (f) => f.status === 'succeeded',
+    // The run the host's scheduler made, named, not a status alone (review of fe59572).
+    'scheduled settle job': (f) => id(f.runId) && f.status === 'succeeded',
     lookup: (f, all) =>
       f.outcome === 'found' && f.issueId === all['signed commission and its resend']?.issueId && f.status === 'cancelled',
     'config digest': (f) => SHA256.test(f.sha256 ?? ''),
