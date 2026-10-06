@@ -4,7 +4,6 @@
 // came back. A message the API accepted goes into the page at once. The field clears only if it still holds what was
 // sent. Enter sends; Shift+Enter starts a line. On its way, Send says so.
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
 import type { ApiError } from '../../api/client.ts'
 import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -17,6 +16,11 @@ interface Props {
   identity: Identity
   draft: string
   onDraft: (text: string) => void
+  /** Whether this message asks Sophia, kept with the draft (talk-store.ts). */
+  askSophia: boolean
+  onAskSophia: (on: boolean) => void
+  /** The conversation has been read: until then, nothing is sent into it (its receipt would have no page to join). */
+  canSend: boolean
   /** Clears the draft if it still holds these words, as the view holds it now (not as this field last saw it). */
   onClearIf: (text: string) => void
   held: Held<MessageAsk> | null
@@ -54,7 +58,7 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     },
     refusal,
   )
-  const ready = (write.unknown?.text ?? draft).trim() !== ''
+  const ready = props.canSend && (write.unknown?.text ?? draft).trim() !== ''
   const go = async () => {
     if (write.busy || !ready) return
     const sent = await write.run({ text: draft.trim(), askSophia })
@@ -66,13 +70,14 @@ function useMessageWrite(props: Props, askSophia: boolean) {
   const words = write.unknown
     ? `Not confirmed: “${firstWords(write.unknown.text)}”. Send sends it again; it won’t be written twice.`
     : write.refused
-  return { busy: write.busy, ready, go, words }
+  return { busy: write.busy, ready, go, words, held: write.unknown }
 }
 
 export function ConversationComposer(props: Props) {
   const { draft, onDraft } = props
-  const [askSophia, setAskSophia] = useState(true)
-  const { busy, ready, go, words } = useMessageWrite(props, askSophia)
+  const { busy, ready, go, words, held } = useMessageWrite(props, props.askSophia)
+  // With no reply, the box says what the held message asked, and stays so until it is answered.
+  const asks = held?.askSophia ?? props.askSophia
   const slow = useSlow(busy)
   return (
     <form
@@ -97,7 +102,12 @@ export function ConversationComposer(props: Props) {
       />
       <div className="conv-compose-acts">
         <label className="conv-ask">
-          <input type="checkbox" checked={askSophia} onChange={(e) => setAskSophia(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={asks}
+            disabled={held !== null}
+            onChange={(e) => props.onAskSophia(e.target.checked)}
+          />
           Ask Sophia
         </label>
         <button type="submit" className="pill" aria-disabled={!ready || busy || undefined}>

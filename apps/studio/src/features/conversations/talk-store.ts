@@ -9,6 +9,8 @@ import type { Held } from './held-write.ts'
 
 export interface Kept {
   drafts: Readonly<Record<string, string>>
+  /** Whether each draft asks Sophia (on unless the person turned it off), kept with its words. */
+  asks: Readonly<Record<string, boolean>>
   holds: Readonly<Record<string, Held<MessageAsk> | null>>
   /** The words of a refusal that answered a write, by conversation (or START for the form), until the next press. */
   refusals: Readonly<Record<string, string | null>>
@@ -31,10 +33,19 @@ export const START = '#start'
 
 export const NO_WORDS: ConversationAsk = { title: '', text: '', askSophia: true }
 
-const EMPTY: Kept = { drafts: {}, holds: {}, refusals: {}, asked: {}, start: { fields: NO_WORDS, held: null } }
+const EMPTY: Kept = {
+  drafts: {},
+  asks: {},
+  holds: {},
+  refusals: {},
+  asked: {},
+  start: { fields: NO_WORDS, held: null },
+}
 
 const kept = new Map<string, Kept>()
 const listeners = new Set<() => void>()
+/** Moves each time everything kept is forgotten: a write that began before never writes after. */
+let generation = 0
 
 const subscribe = (listener: () => void) => {
   listeners.add(listener)
@@ -49,8 +60,20 @@ export function changeKept(place: string, change: (was: Kept) => Kept): void {
   for (const listener of listeners) listener()
 }
 
+/** The forgetting this reader was born after: a change it makes counts only while no forgetting came since. */
+export const currentGeneration = (): number => generation
+
+/** A change made by a reader born at `born`: dropped if everything was forgotten since (a write that outlived it). */
+export function changeIfCurrent(place: string, born: number, change: (was: Kept) => Kept): void {
+  if (born === generation) changeKept(place, change)
+}
+
+/** What is kept for one project and account, read outside React (a check, a test). */
+export const keptAt = (place: string): Kept | undefined => kept.get(place)
+
 /** Everything kept goes (signing out, another identity). */
 export function forgetKept(): void {
+  generation += 1
   kept.clear()
   for (const listener of listeners) listener()
 }
@@ -59,7 +82,9 @@ export function forgetKept(): void {
 export function useKept(projectId: string, name: string) {
   const place = `${projectId} ${name}`
   const value = useSyncExternalStore(subscribe, () => kept.get(place) ?? EMPTY)
-  const change = useCallback((f: (was: Kept) => Kept) => changeKept(place, f), [place])
+  const born = useSyncExternalStore(subscribe, currentGeneration)
+  // A write still on its way when the account was forgotten answers into nothing: never back into the store.
+  const change = useCallback((f: (was: Kept) => Kept) => changeIfCurrent(place, born, f), [place, born])
   return { kept: value, change }
 }
 

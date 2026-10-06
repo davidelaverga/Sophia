@@ -133,6 +133,8 @@ function useTalk(projectId: string, name: string) {
   const { kept, change } = useKept(projectId, name)
   const of = (id: string) => ({
     draft: kept.drafts[id] ?? '',
+    askSophia: kept.asks[id] ?? true,
+    onAskSophia: (on: boolean) => change((k) => ({ ...k, asks: withEntry(k.asks, id, on) })),
     onDraft: (text: string) => change((k) => ({ ...k, drafts: withEntry(k.drafts, id, text) })),
     /** Clears a draft only if it still holds what was sent: words written since stay. */
     onClearIf: (text: string) =>

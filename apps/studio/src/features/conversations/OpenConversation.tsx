@@ -29,6 +29,8 @@ interface Props {
   writer: boolean | undefined
   draft: string
   onDraft: (text: string) => void
+  askSophia: boolean
+  onAskSophia: (on: boolean) => void
   onClearIf: (text: string) => void
   /** The message on its way here, or sent with no reply (held by the view). */
   held: Held<MessageAsk> | null
@@ -67,6 +69,7 @@ export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const summaryId = useId()
   const awaiting = useAwaiting(props.asked)
+  const read = useTranscript(c.id, identity, props.cursor)
   const head = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     if (!arrived) return
@@ -85,13 +88,16 @@ export function OpenConversation(props: Props) {
         </h4>
         <p>{c.summary ?? 'No summary yet.'}</p>
       </section>
-      <Messages conversationId={c.id} identity={identity} me={me} cursor={props.cursor} awaiting={awaiting} />
+      <Messages read={read} me={me} awaiting={awaiting} />
       {props.writer === true && (
         <ConversationComposer
           conversationId={c.id}
           identity={identity}
           draft={props.draft}
           onDraft={props.onDraft}
+          askSophia={props.askSophia}
+          onAskSophia={props.onAskSophia}
+          canSend={read.data !== undefined}
           onClearIf={props.onClearIf}
           held={props.held}
           onHeld={props.onHeld}
@@ -129,15 +135,8 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
   )
 }
 
-/** The conversation's messages, oldest first, a page at a time: Earlier messages reads the one before. */
-function Messages(props: {
-  conversationId: string
-  identity: Identity
-  me: string
-  cursor: string | undefined
-  awaiting: { since: string | null; late: boolean }
-}) {
-  const { conversationId, identity, me } = props
+/** The conversation as read, a page at a time (the newest first), and read again as the feed moves. */
+function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined) {
   const read = useInfiniteQuery({
     queryKey: messagesKey(conversationId, identity.name),
     queryFn: ({ pageParam, signal }) => getConversationMessages(identity.token, conversationId, pageParam, signal),
@@ -145,7 +144,17 @@ function Messages(props: {
     getNextPageParam: (page) => page.before,
     retry: 1,
   })
-  useReadAgain(props.cursor, read.refetch)
+  useReadAgain(cursor, read.refetch)
+  return read
+}
+
+/** The conversation's messages, oldest first, a page at a time: Earlier messages reads the one before. */
+function Messages(props: {
+  read: ReturnType<typeof useTranscript>
+  me: string
+  awaiting: { since: string | null; late: boolean }
+}) {
+  const { read, me } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
   const messages = read.data?.pages.toReversed().flatMap((p) => p.messages) ?? []
   const first = useRef<HTMLLIElement>(null)

@@ -130,6 +130,8 @@ interface Fixture {
   failMission: (on: boolean) => void
   /** While on, the brief's reads wait; off, the waiting ones are answered. */
   holdMission: (on: boolean) => void
+  /** The running meeting closes (another member closed it), and the feed moves (chapter 7's update). */
+  endMeeting: () => void
   /** The project list's reads fail, or read again (chapter 1). */
   failProjects: (on: boolean) => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
@@ -456,6 +458,11 @@ window.fixture = {
   },
   failMission: (on) => {
     project.missionFails = on
+  },
+  endMeeting: () => {
+    project.meeting.closedAt = new Date().toISOString()
+    project.meeting.atClose = project.meeting.records()
+    publish(project)
   },
   holdMission: (on) => {
     const held = project.missionHeld ?? []

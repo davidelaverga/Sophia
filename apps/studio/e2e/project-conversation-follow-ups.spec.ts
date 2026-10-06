@@ -59,6 +59,25 @@ test('follow · a message with no reply survives a trip to Tasks and back, and g
   expect(await written(page, 'conversation-message')).toHaveLength(1)
 })
 
+test('follow · «Ask Sophia» turned off stays off with its draft, after a trip to Tasks and back', async ({ page }) => {
+  await openBriefs(page)
+  await ask(page).uncheck()
+  await field(page).fill('Just for the team')
+  await nav(page, 'Tasks').click()
+  await nav(page, 'Conversations').click()
+  await row(page, BRIEFS).click()
+  await expect(field(page)).toHaveValue('Just for the team')
+  await expect(ask(page)).not.toBeChecked()
+})
+
+test('follow · a conversation that couldn’t be read takes nothing to send', async ({ page }) => {
+  await page.goto(`${PAGE}&messages=fail`)
+  await row(page, BRIEFS).click()
+  await expect(open(page)).toContainText('This conversation can’t be read now.')
+  await field(page).fill('Into a conversation not read')
+  await expect(open(page).getByRole('button', { name: 'Send' })).toHaveAttribute('aria-disabled', 'true')
+})
+
 test('follow · a refusal that comes while another conversation is open is said on coming back', async ({ page }) => {
   await openBriefs(page, '&send=refusedSlow')
   await field(page).fill('Refused later')
