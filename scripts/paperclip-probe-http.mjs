@@ -1,14 +1,20 @@
 // WBC-02 (WBC-02-CX-0037): one HTTP exchange and one bounded wait, for the Paperclip probes and the image
 // qualification's container helper. Both settle within their deadline whatever the server does: an absolute timer
 // (not an idle one, which a server dripping a byte at a time keeps alive) ends the exchange, and a response that ends,
-// errors, is aborted or whose connection closes before it is complete settles it too.
+// errors, is aborted or whose connection closes before it is complete settles it too. A response is read up to a byte
+// cap and ended there: the probe runs on the runner, outside the container's cgroup, and a response that never ends
+// must not take the runner's memory before the receipt and the scrub (review of 9bc711a).
 import { request as httpRequest } from 'node:http'
+
+/** The most of a response body that is read; every answer the probes expect is a few KiB. */
+export const MAX_BODY_BYTES = 1024 * 1024
 
 /**
  * One exchange: resolves { status, json, text, cookies } on a complete response, rejects on an error, a response cut
- * short, or when timeoutMs has passed since it began, whichever comes first. Never pending past timeoutMs.
+ * short, one past maxBodyBytes, or when timeoutMs has passed since it began, whichever comes first. Never pending past
+ * timeoutMs, never holding more than maxBodyBytes of a response.
  */
-export function exchange({ host = '127.0.0.1', port, method = 'GET', path = '/', headers = {}, body, timeoutMs }) {
+export function exchange({ host = '127.0.0.1', port, method = 'GET', path = '/', headers = {}, body, timeoutMs, maxBodyBytes = MAX_BODY_BYTES }) {
   return new Promise((done, fail) => {
     const payload = body === undefined ? undefined : JSON.stringify(body)
     let settled = false
@@ -23,8 +29,19 @@ export function exchange({ host = '127.0.0.1', port, method = 'GET', path = '/',
       { host, port, method, path, headers: { ...(payload === undefined ? {} : { 'content-type': 'application/json' }), ...headers } },
       (res) => {
         let text = ''
+        let bytes = 0
         res.setEncoding('utf8')
-        res.on('data', (chunk) => (text += chunk))
+        res.on('data', (chunk) => {
+          bytes += Buffer.byteLength(chunk)
+          if (bytes > maxBodyBytes) {
+            // Ended here, whatever remains: destroying the request ends the response being read.
+            const error = new Error(`${method} ${path}: the response passed ${maxBodyBytes} bytes`)
+            settle(fail, error)
+            req.destroy(error)
+            return
+          }
+          text += chunk
+        })
         res.on('end', () =>
           settle(done, { status: res.statusCode ?? 0, json: parse(text), text, cookies: res.headers['set-cookie'] ?? [] }),
         )

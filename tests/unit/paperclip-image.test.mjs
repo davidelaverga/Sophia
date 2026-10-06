@@ -1524,3 +1524,46 @@ describe('review of cc0ffbb: the snapshot before the restart is taken after the 
     assert.equal(restartOf(early).result, 'passed')
   })
 })
+
+describe('review of 9bc711a: diagnostics are redacted whole before they are cut to their last 256 KiB', () => {
+  const REDACT = fileURLToPath(new URL('../../scripts/paperclip-image-redact.mjs', import.meta.url))
+  const LIMIT = 256 * 1024
+  const SECRET = 'straddle-secret-value-0123456789abcdef'
+  const redactCli = (input) =>
+    spawnSync(process.execPath, [REDACT], {
+      input,
+      encoding: 'utf8',
+      maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, REDACT_VARS: 'PC_TEST_SECRET', PC_TEST_SECRET: SECRET, REDACT_FILES: '' },
+    })
+  const fragments = (text) => {
+    const found = []
+    for (let i = 0; i + 8 <= SECRET.length; i += 1) if (text.includes(SECRET.slice(i, i + 8))) found.push(SECRET.slice(i, i + 8))
+    return found
+  }
+
+  it('the case of the review: a value straddling the cut leaves no fragment, and the output is still bounded', () => {
+    // The value begins five characters before the cut: cut first, five characters would go and the rest be kept, unrecognised.
+    const before = 'a'.repeat(50_000)
+    const after = 'c'.repeat(LIMIT - (SECRET.length - 5))
+    const text = `${before}${SECRET}${after}`
+    assert.equal(text.length - LIMIT, before.length + 5, 'the cut lands inside the value')
+    const run = redactCli(text)
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(fragments(run.stdout), [])
+    assert.ok(run.stdout.includes('[redacted]'), 'the value was recognised whole')
+    assert.match(run.stdout, /earlier characters omitted/)
+    assert.ok(run.stdout.length <= LIMIT + 80, `${run.stdout.length} characters`)
+  })
+
+  it('positive control: a short input is redacted and not cut; a value wholly in the kept tail is redacted', () => {
+    const short = redactCli(`password=${SECRET} and token: "${SECRET}"`)
+    assert.equal(short.status, 0, short.stderr)
+    assert.deepEqual(fragments(short.stdout), [])
+    assert.doesNotMatch(short.stdout, /omitted/)
+    const tail = redactCli(`${'a'.repeat(LIMIT + 1000)}${SECRET}${'c'.repeat(100)}`)
+    assert.equal(tail.status, 0, tail.stderr)
+    assert.deepEqual(fragments(tail.stdout), [])
+    assert.match(tail.stdout, /omitted/)
+  })
+})

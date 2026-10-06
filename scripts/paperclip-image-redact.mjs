@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // WBC-02 (WBC-02-CX-0032 §3, CX-0036): redacts diagnostics and evidence before they are kept.
-//   ... | REDACT_VARS=NAME1,NAME2 node scripts/paperclip-image-redact.mjs          stdin to stdout, at most 256 KiB
+//   ... | REDACT_VARS=NAME1,NAME2 node scripts/paperclip-image-redact.mjs          stdin to stdout: redacted whole, then
+//                                                                                 at most its last 256 KiB
 //   REDACT_VARS=NAME1,NAME2 REDACT_FILES=<file>,... node scripts/paperclip-image-redact.mjs --scrub-dir <dir>
 // The value of every environment variable REDACT_VARS names (the job's generated credentials) is replaced, and every
 // line of every file REDACT_FILES names (the credentials the probe made or was given: its passwords, session cookies
@@ -88,8 +89,8 @@ if (isMain) {
     writeFileSync(join(dir, 'scrubbed.txt'), scrubbed.length > 0 ? `${scrubbed.join('\n')}\n` : 'none\n')
     console.log(`[redact] ${scrubbed.length} evidence file(s) needed scrubbing${scrubbed.length > 0 ? `: ${scrubbed.join(', ')}` : ''}`)
   } else {
-    let text = readFileSync(0, 'utf8')
-    if (text.length > LIMIT) text = `[... ${text.length - LIMIT} earlier characters omitted ...]\n${text.slice(-LIMIT)}`
-    process.stdout.write(redact(text, values))
+    // Redacted whole, then cut: a cut first could leave most of a value that straddled it (review of 9bc711a).
+    const text = redact(readFileSync(0, 'utf8'), values)
+    process.stdout.write(text.length > LIMIT ? `[... ${text.length - LIMIT} earlier characters omitted ...]\n${text.slice(-LIMIT)}` : text)
   }
 }

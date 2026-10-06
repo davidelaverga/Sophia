@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { after, describe, it } from 'node:test'
-import { exchange, until } from '../../scripts/paperclip-probe-http.mjs'
+import { exchange, MAX_BODY_BYTES, until } from '../../scripts/paperclip-probe-http.mjs'
 import { spawn } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -382,5 +382,46 @@ describe('review of 63a929a: a phase’s deadline is never shorter than what its
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('review of 9bc711a: a response is read up to a byte cap, never buffered without bound', () => {
+  /** Headers at once, then 64 KiB every millisecond, never the end. */
+  const flood = () =>
+    serve((req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      const chunk = 'x'.repeat(65536)
+      const pump = setInterval(() => res.write(chunk), 1)
+      req.on('close', () => clearInterval(pump))
+      res.on('close', () => clearInterval(pump))
+    })
+
+  it('a response past the cap is ended at once, with the cap named, long before the time deadline', async () => {
+    const port = await flood()
+    const started = Date.now()
+    const outcome = await settledWithin(exchange({ port, timeoutMs: 10_000, maxBodyBytes: 200_000 }), 3000)
+    assert.notEqual(outcome, PENDING, 'still pending at the sentinel')
+    assert.match(outcome.error.message, /the response passed 200000 bytes/)
+    assert.ok(Date.now() - started < 2000)
+  })
+
+  it('the default cap is 1 MiB: a body of exactly that many bytes resolves, one byte more is refused', async () => {
+    assert.equal(MAX_BODY_BYTES, 1024 * 1024)
+    const exact = await serve((_req, res) => res.end('x'.repeat(MAX_BODY_BYTES)))
+    const full = await settledWithin(exchange({ port: exact, timeoutMs: 10_000 }), 5000)
+    assert.notEqual(full, PENDING)
+    assert.equal(full.value?.text.length, MAX_BODY_BYTES, full.error?.message)
+    const over = await serve((_req, res) => res.end('x'.repeat(MAX_BODY_BYTES + 1)))
+    const refused = await settledWithin(exchange({ port: over, timeoutMs: 10_000 }), 5000)
+    assert.notEqual(refused, PENDING)
+    assert.match(refused.error?.message ?? '', /the response passed 1048576 bytes/)
+  })
+
+  it('the flow’s health read and the container helper’s share the cap: a flooding health answer is no answer', async () => {
+    const port = await flood()
+    const flow = flowFor({ port, origin: `http://127.0.0.1:${port}`, pluginPath: '/nonexistent' })
+    const outcome = await settledWithin(flow.health(), 5000)
+    assert.notEqual(outcome, PENDING)
+    assert.equal(outcome.value, null)
   })
 })
