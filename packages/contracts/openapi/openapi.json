@@ -12524,7 +12524,7 @@
     "/v1/runtime/design/delivered": {
       "post": {
         "operationId": "runtimeDesignDelivered",
-        "summary": "The designer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. Fenced; idempotent.",
+        "summary": "The designer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. It counts for a submission that names it. Fenced; idempotent.",
         "tags": [
           "runtime"
         ],
@@ -12636,7 +12636,7 @@
     "/v1/runtime/review/delivered": {
       "post": {
         "operationId": "runtimeReviewDelivered",
-        "summary": "The reviewer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. Fenced; idempotent.",
+        "summary": "The reviewer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. It counts for a submission that names it. Fenced; idempotent.",
         "tags": [
           "runtime"
         ],
@@ -24187,6 +24187,16 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2000
+          },
+          "seen": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "description": "The deliveries this submission rests on, acknowledged in this attempt: only these count as seen (the runtime names a delivery only when its model named the receipt the images came with). Absent, none."
           }
         },
         "required": [
@@ -24578,6 +24588,16 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2000
+          },
+          "seen": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "description": "The deliveries this submission rests on, acknowledged in this attempt: only these count as seen (the runtime names a delivery only when its model named the receipt the images came with). Absent, none."
           }
         },
         "required": [

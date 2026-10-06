@@ -3,7 +3,7 @@
   "goal": "SDD-01",
   "title": "A capture counts as seen once it reached the model (SDD-01-CX-0019)",
   "why": [
-    "SDD-01-CX-0019 F1 and F3 (CX-0020, CX-0022): handing captures over is not seeing them. The capture routes now name the delivery the service issued once every capture's bytes matched its record (deliveryId), and the runtime acknowledges it once it saved every image, unchanged, as an attachment for the model's next request: each attachment is sha256:<that capture's hash>. Only acknowledged deliveries count, for the job, attempt and render they were issued to: a review's pass and a designer's candidate need every overview tile at every target and each section (migration 0043). An acknowledgement is fenced like every runtime operation, and a replay answers the same and counts nothing twice."
+    "SDD-01-CX-0019 F1 and F3 (CX-0020, CX-0022): handing captures over is not seeing them. The capture routes now name the delivery the service issued once every capture's bytes matched its record (deliveryId), and the runtime acknowledges it once it saved every image, unchanged, as an attachment for the model's next request: each attachment is sha256:<that capture's hash>. Only acknowledged deliveries count, for the job, attempt and render they were issued to: a review's pass and a designer's candidate need every overview tile at every target and each section (migration 0043). An acknowledgement is fenced like every runtime operation, and a replay answers the same and counts nothing twice. A delivery counts only for the submission that names it (#117, CX-0033 to CX-0036): a candidate and a review's result carry seen, the acknowledged deliveries they rest on, so an acknowledgement no submission names, because its submit was never sent or the runtime restarted in between, counts for nothing."
   ],
   "patch": [
     {
@@ -113,7 +113,7 @@
       "value": {
         "post": {
           "operationId": "runtimeDesignDelivered",
-          "summary": "The designer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. Fenced; idempotent.",
+          "summary": "The designer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. It counts for a submission that names it. Fenced; idempotent.",
           "tags": ["runtime"],
           "security": [
             {
@@ -225,7 +225,7 @@
       "value": {
         "post": {
           "operationId": "runtimeReviewDelivered",
-          "summary": "The reviewer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. Fenced; idempotent.",
+          "summary": "The reviewer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. It counts for a submission that names it. Fenced; idempotent.",
           "tags": ["runtime"],
           "security": [
             {
@@ -329,6 +329,34 @@
           "x-sophia-implementation": "implemented",
           "x-sophia-release-goal": "SDD-01"
         }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignCandidate/properties/seen",
+      "value": {
+        "type": "array",
+        "maxItems": 64,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "description": "The deliveries this submission rests on, acknowledged in this attempt: only these count as seen (the runtime names a delivery only when its model named the receipt the images came with). Absent, none."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewResult/properties/seen",
+      "value": {
+        "type": "array",
+        "maxItems": 64,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "description": "The deliveries this submission rests on, acknowledged in this attempt: only these count as seen (the runtime names a delivery only when its model named the receipt the images came with). Absent, none."
       }
     }
   ]

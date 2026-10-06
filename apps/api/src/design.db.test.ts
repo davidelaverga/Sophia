@@ -511,6 +511,7 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
         revisionId: write.json.revisionId,
         renderJobId: render2.json.renderJobId,
         summary: 'Mine is great.',
+        seen: seenBy(at, 'design'),
       },
     })
     assert.equal(candidate1.json.outcome, 'reviewing', JSON.stringify(candidate1.json))
@@ -575,7 +576,11 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
     const candidate2 = await w.runtime('/v1/runtime/design/submit', {
       ...at,
       callId: 'c2',
-      candidate: { revisionId: patch.json.revisionId, renderJobId: render3.json.renderJobId },
+      candidate: {
+        revisionId: patch.json.revisionId,
+        renderJobId: render3.json.renderJobId,
+        seen: seenBy(at, 'design'),
+      },
     })
     assert.deepEqual(
       [candidate2.json.outcome, candidate2.json.round],
@@ -588,7 +593,7 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
     const pass = await w.runtime('/v1/runtime/review/submit', {
       ...review2.at,
       callId: 'v2',
-      result: { verdict: 'pass', findings: [] },
+      result: { verdict: 'pass', findings: [], seen: seenBy(review2.at, 'review') },
     })
     assert.equal(pass.json.decision?.outcome, 'published', JSON.stringify(pass.json))
 
@@ -654,7 +659,11 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
       'nothing recorded, nothing published',
     )
     await look(w, at, 'design', shots.names, String(render.json.renderJobId))
-    const done = await w.runtime('/v1/runtime/design/submit', { ...at, callId: 'c1', candidate })
+    const done = await w.runtime('/v1/runtime/design/submit', {
+      ...at,
+      callId: 'c1',
+      candidate: { ...candidate, seen: seenBy(at, 'design') },
+    })
     assert.deepEqual(
       [done.json.outcome, done.json.reviewState, done.json.versionNumber],
       ['published', 'self_review_only', 2],
@@ -816,6 +825,12 @@ const delivery = (at: Body, seen: Body, attachmentId?: (c: Body) => string): Bod
   })),
 })
 
+/** The deliveries each role's model acknowledged, by attempt: what its submissions name (`seen`, #117). */
+const acknowledged = new Map<string, string[]>()
+const seenBy = (at: Body, role: 'design' | 'review'): string[] => [
+  ...(acknowledged.get(`${role} ${String(at.attemptId)}`) ?? []),
+]
+
 /** A role's model looks at captures (SDD-01-CX-0019): handed over four at a time, each delivery acknowledged. */
 async function look(w: World, at: Body, role: 'design' | 'review', names: string[], renderJobId?: string) {
   for (let i = 0; i < names.length; i += 4) {
@@ -824,6 +839,8 @@ async function look(w: World, at: Body, role: 'design' | 'review', names: string
     assert.equal(seen.status, 200, JSON.stringify(seen.json))
     const acked = await w.runtime(`/v1/runtime/${role}/delivered`, delivery(at, seen.json))
     assert.equal(acked.status, 200, JSON.stringify(acked.json))
+    const key = `${role} ${String(at.attemptId)}`
+    acknowledged.set(key, [...(acknowledged.get(key) ?? []), String(seen.json.deliveryId)])
   }
 }
 
@@ -833,7 +850,7 @@ async function submitCandidate(w: World, at: Body, d: Body, callId = 'c1', names
   return w.runtime('/v1/runtime/design/submit', {
     ...at,
     callId,
-    candidate: { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId },
+    candidate: { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId, seen: seenBy(at, 'design') },
   })
 }
 
@@ -1013,7 +1030,11 @@ describe('Hold, Resume and Stop of a design (B-20, 0041)', () => {
     await answer(w, 'create', 'delivered', review.at.attemptId)
     await inspectAll(w, review.at, shots.names)
     assert.equal((await control(w, taskId, 'hold')).status, 'ok')
-    const verdict = { ...review.at, callId: 'v1', result: { verdict: 'pass', findings: [] } }
+    const verdict = {
+      ...review.at,
+      callId: 'v1',
+      result: { verdict: 'pass', findings: [], seen: seenBy(review.at, 'review') },
+    }
     const refused = await w.runtime('/v1/runtime/review/submit', verdict)
     assert.equal(refused.status, 409, JSON.stringify(refused.json))
     await answer(w, 'hold', 'checked')
@@ -1306,7 +1327,11 @@ describe('a scoped edit of a published page (B-16..B-18, 0041)', () => {
     const done = await w.runtime('/v1/runtime/design/submit', {
       ...at,
       callId: 'c2',
-      candidate: { revisionId: inScope.json.revisionId, renderJobId: reflowed.json.renderJobId },
+      candidate: {
+        revisionId: inScope.json.revisionId,
+        renderJobId: reflowed.json.renderJobId,
+        seen: seenBy(at, 'design'),
+      },
     })
     assert.deepEqual(
       [done.json.outcome, done.json.reviewState, done.json.versionNumber],
@@ -1477,7 +1502,7 @@ describe('SDD-01-CX-0019: a capture counts as seen only once it reached the mode
     const submitted = await w.runtime('/v1/runtime/design/submit', {
       ...at,
       callId: 'c2',
-      candidate: { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId },
+      candidate: { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId, seen: seenBy(at, 'design') },
     })
     assert.equal(submitted.json.outcome, 'reviewing', 'the render it did see is submitted')
     const review = await sent(w, 'create', REVIEWER.id)
@@ -1502,25 +1527,93 @@ describe('SDD-01-CX-0019: a capture counts as seen only once it reached the mode
     const rest = shots.names.filter((name) => !tile2.includes(name))
     const candidate = { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId }
     await look(w, at, 'design', rest, String(d.render.renderJobId))
-    const refused = await w.runtime('/v1/runtime/design/submit', { ...at, callId: 'c1', candidate })
+    const refused = await w.runtime('/v1/runtime/design/submit', {
+      ...at,
+      callId: 'c1',
+      candidate: { ...candidate, seen: seenBy(at, 'design') },
+    })
     assert.equal(refused.json.outcome, 'refused', JSON.stringify(refused.json))
     const said = failuresOf(refused).find((f) => f.startsWith('you have not looked at')) ?? ''
     for (const name of tile2) assert.ok(said.includes(name), said)
     await look(w, at, 'design', tile2, String(d.render.renderJobId))
     assert.equal(
-      (await w.runtime('/v1/runtime/design/submit', { ...at, callId: 'c2', candidate })).json.outcome,
+      (
+        await w.runtime('/v1/runtime/design/submit', {
+          ...at,
+          callId: 'c2',
+          candidate: { ...candidate, seen: seenBy(at, 'design') },
+        })
+      ).json.outcome,
       'reviewing',
     )
 
     const review = await sent(w, 'create', REVIEWER.id)
     await answer(w, 'create', 'delivered', review.at.attemptId)
     await inspectAll(w, review.at, rest)
-    const verdict = { ...review.at, callId: 'v1', result: { verdict: 'pass', findings: [] } }
-    const early = await w.runtime('/v1/runtime/review/submit', verdict)
+    const verdict = (callId: string) => ({
+      ...review.at,
+      callId,
+      result: { verdict: 'pass', findings: [], seen: seenBy(review.at, 'review') },
+    })
+    const early = await w.runtime('/v1/runtime/review/submit', verdict('v1'))
     assert.equal(early.json.outcome, 'coverage_incomplete', JSON.stringify(early.json))
     assert.deepEqual((early.json.missing as string[]).toSorted(), tile2.toSorted())
     await inspectAll(w, review.at, tile2)
-    const pass = await w.runtime('/v1/runtime/review/submit', { ...verdict, callId: 'v2' })
+    const pass = await w.runtime('/v1/runtime/review/submit', verdict('v2'))
     assert.equal(pass.json.decision?.outcome, 'published', JSON.stringify(pass.json))
+  })
+
+  it('counts a delivery only for the submission that names it: acknowledged but unnamed, unacknowledged, malformed or another role’s count nothing (#117)', async () => {
+    const { w, at } = await designing()
+    const d = await drafted(w, at)
+    const names = d.shots?.names ?? []
+    await look(w, at, 'design', names, String(d.render.renderJobId))
+    const candidate = { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId }
+    const submit = (callId: string, seen?: unknown) =>
+      w.runtime('/v1/runtime/design/submit', {
+        ...at,
+        callId,
+        candidate: seen === undefined ? candidate : { ...candidate, seen },
+      })
+    // Every capture acknowledged, then the runtime stops before its submit: a submission that names none counts none.
+    for (const [callId, seen] of [
+      ['c-omitted', undefined],
+      ['c-empty', []],
+    ] as const) {
+      const res = await submit(callId, seen)
+      assert.equal(res.json.outcome, 'refused', JSON.stringify(res.json))
+      assert.ok(
+        failuresOf(res).some((f) => f.startsWith('you have not looked at')),
+        JSON.stringify(res.json),
+      )
+    }
+    // A delivery issued but never acknowledged, or one of another role, counts nothing even when named.
+    const issued = await w.runtime('/v1/runtime/design/capture', {
+      ...at,
+      renderJobId: d.render.renderJobId,
+      names: names.slice(0, 1),
+    })
+    assert.equal(issued.status, 200, JSON.stringify(issued.json))
+    const unacknowledged = await submit('c-issued', [String(issued.json.deliveryId)])
+    assert.equal(unacknowledged.json.outcome, 'refused', JSON.stringify(unacknowledged.json))
+    assert.equal((await submit('c-malformed', ['not-a-delivery'])).status, 422)
+    const named = await submit('c-named', seenBy(at, 'design'))
+    assert.equal(named.json.outcome, 'reviewing', JSON.stringify(named.json))
+
+    const review = await sent(w, 'create', REVIEWER.id)
+    await answer(w, 'create', 'delivered', review.at.attemptId)
+    const pass = (callId: string, seen: string[]) =>
+      w.runtime('/v1/runtime/review/submit', {
+        ...review.at,
+        callId,
+        result: { verdict: 'pass', findings: [], seen },
+      })
+    const borrowed = await pass('v-borrowed', seenBy(at, 'design'))
+    assert.equal(borrowed.json.outcome, 'coverage_incomplete', 'the designer’s deliveries are not the reviewer’s')
+    await inspectAll(w, review.at, names)
+    const unnamed = await pass('v-unnamed', [])
+    assert.equal(unnamed.json.outcome, 'coverage_incomplete', 'acknowledged but unnamed: nothing counts')
+    const passed = await pass('v-named', seenBy(review.at, 'review'))
+    assert.equal(passed.json.decision?.outcome, 'published', JSON.stringify(passed.json))
   })
 })

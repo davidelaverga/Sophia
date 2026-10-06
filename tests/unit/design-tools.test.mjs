@@ -69,9 +69,10 @@ function fakeService(overrides = {}) {
     },
     async designCapture(role, body) {
       calls.push(['designCapture', role, body])
+      const issued = calls.filter(([op]) => op === 'designCapture').length - 1
       return {
         renderJobId: RENDER,
-        deliveryId: DELIVERY,
+        deliveryId: issued === 0 ? DELIVERY : `66666666-6666-4666-8666-${String(issued).padStart(12, '0')}`,
         captures: body.names.map((name) => ({ name, target: 'w390-light', kind: 'overview', tile: 1, tiles: 1, scale: 0.5, section: null, width: 1, height: 1, sha256: sha256(PNG), bytes: PNG.byteLength, mime: 'image/png', data: PNG.toString('base64') })),
       }
     },
@@ -243,8 +244,10 @@ test('a look counts only once a submit names the receipt its images came with, a
   await submit(byName, [first])
   assert.deepEqual(service.ops().slice(2), ['designDelivered', 'designSubmit'])
   assert.deepEqual(acks(service), [['design', ACK]], 'the look the submit named, not the other')
+  assert.deepEqual(submits(service)[0].candidate.seen, [DELIVERY], 'the submission names the delivery it rests on')
   await submit(byName, [first, first])
   assert.deepEqual(service.ops().slice(4), ['designSubmit'], 'a counted look is not acknowledged again')
+  assert.deepEqual(submits(service)[1].candidate.seen, [DELIVERY], 'and is named again')
   // The reviewer's result rests on its looks the same way.
   const reviewing = fakeService()
   const review = tools(reviewing, { role: reviewer }).byName
@@ -253,6 +256,8 @@ test('a look counts only once a submit names the receipt its images came with, a
   await review.review_submit_result.execute({ verdict: 'pass', seen: [seen] }, exec())
   assert.deepEqual(reviewing.ops(), ['designCapture', 'reviewContext', 'designDelivered', 'reviewSubmit'])
   assert.deepEqual(acks(reviewing), [['review', ACK]])
+  const [, verdict] = reviewing.calls.find(([op]) => op === 'reviewSubmit')
+  assert.deepEqual(verdict.result.seen, [DELIVERY])
 })
 
 test('a submit in the same batch as its inspection cannot name its receipt, so its looks do not count', async () => {
@@ -262,6 +267,7 @@ test('a submit in the same batch as its inspection cannot name its receipt, so i
   await look(one)
   await submit(one, [])
   assert.deepEqual(sequential.ops(), ['designCapture', 'designSubmit'], 'the gate gets no look to count')
+  assert.deepEqual(submits(sequential)[0].candidate.seen, [], 'and the submission names none')
   // Run at once.
   const parallel = fakeService()
   const two = tools(parallel).byName
@@ -344,6 +350,7 @@ test('an acknowledgement that stays unknown submits nothing; the next submit nam
   assert.deepEqual(service.ops(), ['designCapture', ...Array(4).fill('designDelivered')], 'four tries, no submit')
   await submit(byName, [receipt])
   assert.deepEqual(service.ops().slice(5), ['designDelivered', 'designSubmit'])
+  assert.deepEqual(submits(service)[0].candidate.seen, [DELIVERY])
   assert.ok(acks(service).every(([role, body]) => role === 'design' && JSON.stringify(body) === JSON.stringify(ACK)))
   // The reviewer: no pass or needs_revision while unknown; a blocked verdict rests on no look and is sent.
   const reviewing = failingFirst(Infinity, new TypeError('fetch failed'))
@@ -372,6 +379,7 @@ test('a refused acknowledgement is asked once per submit, does not count, and th
     await submit(byName, [receipt])
     await submit(byName, [receipt])
     assert.deepEqual(service.ops(), ['designCapture', 'designDelivered', 'designSubmit', 'designDelivered', 'designSubmit'], code)
+    assert.ok(submits(service).every((b) => b.candidate.seen.length === 0), 'a refused look is not named')
     assert.match(lines.join('\n'), /was refused .*; it does not count as seen/)
   }
 })

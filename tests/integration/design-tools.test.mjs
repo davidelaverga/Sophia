@@ -106,6 +106,8 @@ test('the designer is offered its tools and skills, pays through the design mete
   assert.match(receiptIn(w.llm.requests[2].body), /^seen-/)
   assert.deepEqual(again, delivered, 'the same acknowledgement')
   assert.deepEqual(requestsAt, [3, 3], 'acknowledged and submitted only after the request that carried the image')
+  const submitted = w.service.design.find((o) => o.op === 'design/submit').body
+  assert.deepEqual(submitted.candidate.seen, [delivered.deliveryId], 'the submission names the delivery it rests on')
   assert.equal(w.service.research.length, 0, 'nothing went through the research operations')
 
   const designer = roleOf('sophia-html-designer-v1')
@@ -164,6 +166,7 @@ test('the reviewer is offered no design tool, inspects through the review operat
   // The pass named the receipt its model received with the capture; that, and only that, acknowledged the delivery.
   assert.match(receiptIn(w.llm.requests[2].body), /^seen-/)
   const sha = createHash('sha256').update(Buffer.from(w.service.capturePng, 'base64')).digest('hex')
-  const acked = w.service.design.filter((o) => o.op === 'review/delivered').map((o) => o.body.attachments)
-  assert.deepEqual(acked, [[{ name: CAPTURE, attachmentId: `sha256:${sha}` }]])
+  const acked = w.service.design.filter((o) => o.op === 'review/delivered').map((o) => o.body)
+  assert.deepEqual(acked.map((a) => a.attachments), [[{ name: CAPTURE, attachmentId: `sha256:${sha}` }]])
+  assert.deepEqual(submitted.result.seen, [acked[0].deliveryId], 'the pass names the delivery it rests on')
 })

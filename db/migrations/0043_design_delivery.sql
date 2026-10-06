@@ -12,14 +12,19 @@
 --   attachment save acknowledges nothing. A saved attachment is what the model's next request carries; it is not a
 --   claim that the provider read it. The reviewer's `inspected` is written at the acknowledgement
 --   (runtime_review_capture no longer writes it).
+-- * What counts (#117, CX-0033 to CX-0036): only what the submission itself names. A candidate or a review's result
+--   carries `seen`, the deliveries its model's receipts stand for (the runtime hands a receipt to the model only with
+--   the images); a delivery counts for it only if it is named there, acknowledged, and of this job, attempt and render.
+--   An acknowledgement no submission names (its submit never sent, the runtime restarted in between) counts for nothing.
 -- * What must be seen (F3, F4): every overview capture the render's receipt names, every tile at every target, and
 --   each section at one target at least (an edit's own sections only), as design_capture_missing says. A review's pass
 --   needs it (review_missing), and so does the designer's candidate, for exactly the render it submits, in its current
---   attempt (design_candidate_failures). The submit with no reviewer (self_review_only) runs after that gate.
+--   attempt (design_unseen, in design_submit_candidate). The submit with no reviewer (self_review_only) runs after that
+--   gate.
 -- * Edit replay (F5). A request key replayed with another version, scope (sections, shell, styles) or instruction is a
 --   conflict, never the earlier request's receipt.
--- 0001–0042 are not edited; runtime_review_capture, review_missing, design_candidate_failures and request_design_edit
--- are replaced with the same signatures.
+-- 0001–0042 are not edited; runtime_review_capture, design_submit_candidate, runtime_review_submit and
+-- request_design_edit are replaced with the same signatures, and review_missing with the deliveries a pass names.
 BEGIN;
 
 -- --- delivery ---------------------------------------------------------------------------------------------------------------
@@ -47,12 +52,27 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.design_kind_of(text) FROM PUBLIC;
 
--- The names of a job's captures of one render that reached its model in this attempt.
-CREATE FUNCTION sophia.design_delivered(p_project uuid, p_job uuid, p_attempt uuid, p_render uuid) RETURNS text[] LANGUAGE sql STABLE
-SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+-- The names of a job's captures of one render that reached its model in this attempt, in the deliveries a submission
+-- names (p_seen): acknowledged ones only.
+CREATE FUNCTION sophia.design_delivered(p_project uuid, p_job uuid, p_attempt uuid, p_render uuid, p_seen uuid[]) RETURNS text[]
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
  SELECT coalesce(array_agg(DISTINCT c->>'name' ORDER BY c->>'name'),'{}') FROM sophia.design_capture_deliveries d, jsonb_array_elements(d.captures) c
- WHERE d.project_id=p_project AND d.job_id=p_job AND d.attempt_id=p_attempt AND d.render_job_id=p_render AND d.state='delivered' $$;
-REVOKE ALL ON FUNCTION sophia.design_delivered(uuid,uuid,uuid,uuid) FROM PUBLIC;
+ WHERE d.project_id=p_project AND d.job_id=p_job AND d.attempt_id=p_attempt AND d.render_job_id=p_render AND d.state='delivered'
+  AND d.id=ANY(coalesce(p_seen,'{}')) $$;
+REVOKE ALL ON FUNCTION sophia.design_delivered(uuid,uuid,uuid,uuid,uuid[]) FROM PUBLIC;
+
+-- The deliveries a submission names (`seen`): none when absent; at most 64 delivery ids, or the submission is refused.
+CREATE FUNCTION sophia.design_seen_ids(p_seen jsonb) RETURNS uuid[] LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog,sophia AS $$
+DECLARE out uuid[];
+BEGIN
+ IF p_seen IS NULL OR jsonb_typeof(p_seen)='null' THEN RETURN '{}'; END IF;
+ IF jsonb_typeof(p_seen)<>'array' OR jsonb_array_length(p_seen)>64 THEN
+  RAISE EXCEPTION 'seen names at most 64 deliveries' USING ERRCODE='22023'; END IF;
+ SELECT coalesce(array_agg(sophia.uuid_or_null(x)),'{}') INTO out FROM jsonb_array_elements_text(p_seen) x;
+ IF EXISTS(SELECT 1 FROM unnest(out) u WHERE u IS NULL) THEN RAISE EXCEPTION 'seen names deliveries by id' USING ERRCODE='22023'; END IF;
+ RETURN out;
+END $$;
+REVOKE ALL ON FUNCTION sophia.design_seen_ids(jsonb) FROM PUBLIC;
 
 -- POST /v1/runtime/{design,review}/capture, second step: the API checked every capture's bytes against its record and
 -- hands them over now. Recorded as issued, not yet seen. The captures must be the render's, with their recorded hashes.
@@ -154,33 +174,111 @@ CREATE FUNCTION sophia.design_seen_sections(t sophia.design_tasks) RETURNS text[
  SELECT CASE WHEN t.mode='edit' THEN ARRAY(SELECT jsonb_array_elements_text(t.scope->'sections')) END $$;
 REVOKE ALL ON FUNCTION sophia.design_seen_sections(sophia.design_tasks) FROM PUBLIC;
 
--- review_missing (0040), replaced: what a pass needs that has not reached the reviewer's model (F4: every overview tile).
-CREATE OR REPLACE FUNCTION sophia.review_missing(rv sophia.design_reviews, r sophia.render_jobs) RETURNS text[] LANGUAGE sql STABLE
-SET search_path=pg_catalog,sophia AS $$
- SELECT sophia.design_capture_missing(r,rv.inspected,
+-- review_missing (0040), replaced: what a pass needs that the deliveries it names, acknowledged in the reviewer's current
+-- attempt, do not show (F4: every overview tile; #117: only what the pass names).
+CREATE FUNCTION sophia.review_missing(rv sophia.design_reviews, r sophia.render_jobs, p_attempt uuid, p_seen uuid[]) RETURNS text[]
+LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
+ SELECT sophia.design_capture_missing(r,sophia.design_delivered(rv.project_id,rv.job_id,p_attempt,r.job_id,p_seen),
   (SELECT sophia.design_seen_sections(t) FROM sophia.design_tasks t WHERE t.project_id=rv.project_id AND t.job_id=rv.design_job_id)) $$;
+REVOKE ALL ON FUNCTION sophia.review_missing(sophia.design_reviews,sophia.render_jobs,uuid,uuid[]) FROM PUBLIC;
 
--- What the designer has not looked at of the render it submits, as a failure (or none).
-CREATE FUNCTION sophia.design_unseen(t sophia.design_tasks, r sophia.render_jobs) RETURNS text[] LANGUAGE sql STABLE
+-- What the designer has not looked at of the render it submits, in the deliveries the candidate names, as a failure.
+CREATE FUNCTION sophia.design_unseen(t sophia.design_tasks, r sophia.render_jobs, p_seen uuid[]) RETURNS text[] LANGUAGE sql STABLE
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
- SELECT CASE WHEN cardinality(m)>0 THEN ARRAY[left('you have not looked at these captures of the render you submit (design_inspect_render): '
-   ||array_to_string(m,', '),1000)] ELSE '{}' END
- FROM (SELECT sophia.design_capture_missing(r,sophia.design_delivered(t.project_id,t.job_id,j.attempt_id,r.job_id),sophia.design_seen_sections(t)) m
-   FROM sophia.jobs j WHERE j.project_id=t.project_id AND j.id=t.job_id) q $$;
-REVOKE ALL ON FUNCTION sophia.design_unseen(sophia.design_tasks,sophia.render_jobs) FROM PUBLIC;
+ SELECT CASE WHEN cardinality(m)>0 THEN ARRAY[left('you have not looked at these captures of the render you submit (design_inspect_render, '
+   ||'then name each inspection''s receipt in seen): '||array_to_string(m,', '),1000)] ELSE '{}' END
+ FROM (SELECT sophia.design_capture_missing(r,sophia.design_delivered(t.project_id,t.job_id,j.attempt_id,r.job_id,p_seen),
+   sophia.design_seen_sections(t)) m FROM sophia.jobs j WHERE j.project_id=t.project_id AND j.id=t.job_id) q $$;
+REVOKE ALL ON FUNCTION sophia.design_unseen(sophia.design_tasks,sophia.render_jobs,uuid[]) FROM PUBLIC;
 
--- design_candidate_failures (0041), replaced: as before, and the designer must have seen the render it submits, in its
--- current attempt (F3). A submit with no reviewer is published self_review_only only past this gate.
-CREATE OR REPLACE FUNCTION sophia.design_candidate_failures(t sophia.design_tasks, d sophia.design_sources, r sophia.render_jobs, rj sophia.jobs)
-RETURNS text[] LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
- SELECT (ARRAY(SELECT x FROM unnest(ARRAY[
-   CASE WHEN NOT d.complete THEN 'the source does not carry every block, citation and source of the research ('||d.finding_count||' findings)' END,
-   CASE WHEN r.design_source_id<>d.id THEN 'the render is of another revision' END,
-   CASE WHEN r.sections IS NOT NULL THEN 'the render captured only some sections: render the whole page' END,
-   CASE WHEN NOT r.targets @> t.targets THEN 'the render did not capture every target of the task' END,
-   CASE WHEN rj.state<>'succeeded' THEN 'the render did not succeed ('||rj.state||')' END]) x WHERE x IS NOT NULL)
-  ||CASE WHEN rj.state='succeeded' THEN sophia.design_gate_failures(r.receipt,sophia.design_package(t.project_id,t.job_id),t.targets)
-     ||sophia.design_edit_failures(t,d,r)||sophia.design_unseen(t,r) ELSE '{}' END)[1:40] $$;
+-- design_submit_candidate (0040), replaced: as before, and the designer must have seen the render it submits, in its
+-- current attempt, in the deliveries the candidate names (F3, #117). A submit with no reviewer is published
+-- self_review_only only past this gate.
+CREATE OR REPLACE FUNCTION sophia.design_submit_candidate(s sophia.design_scope, p_key text, p_candidate jsonb) RETURNS jsonb LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE t sophia.design_tasks; d sophia.design_sources; r sophia.render_jobs; rj sophia.jobs; c sophia.design_candidates; failures text[];
+ latest integer; review uuid; summary text:=nullif(btrim(coalesce(p_candidate->>'summary','')),'');
+BEGIN
+ SELECT * INTO t FROM sophia.design_tasks WHERE project_id=s.project_id AND job_id=s.job_id FOR UPDATE;
+ IF t.state='reviewing' THEN RAISE EXCEPTION 'Your candidate is under review: wait for its result' USING ERRCODE='40001'; END IF;
+ IF t.state<>'designing' THEN RAISE EXCEPTION 'The design has ended (%)', t.state USING ERRCODE='40001'; END IF;
+ IF length(summary)>2000 THEN RAISE EXCEPTION 'A candidate''s summary is at most 2000 characters' USING ERRCODE='22023'; END IF;
+ SELECT * INTO d FROM sophia.design_sources WHERE project_id=s.project_id AND design_job_id=t.job_id AND id=sophia.uuid_or_null(p_candidate->>'revisionId');
+ IF NOT FOUND THEN RAISE EXCEPTION 'Design revision not found' USING ERRCODE='22023'; END IF;
+ SELECT max(seq) INTO latest FROM sophia.design_sources WHERE project_id=s.project_id AND design_job_id=t.job_id;
+ IF d.seq<>latest THEN RAISE EXCEPTION 'Stale source: submit your latest revision' USING ERRCODE='40001'; END IF;
+ SELECT * INTO r FROM sophia.render_jobs WHERE project_id=s.project_id AND parent_job_id=t.job_id AND kind='capture'
+  AND job_id=sophia.uuid_or_null(p_candidate->>'renderJobId');
+ IF NOT FOUND THEN RAISE EXCEPTION 'Render not found' USING ERRCODE='22023'; END IF;
+ SELECT * INTO rj FROM sophia.jobs WHERE project_id=s.project_id AND id=r.job_id;
+ failures:=sophia.design_candidate_failures(t,d,r,rj);
+ IF rj.state='succeeded' THEN failures:=(failures||sophia.design_unseen(t,r,sophia.design_seen_ids(p_candidate->'seen')))[1:40]; END IF;
+ IF cardinality(failures)>0 THEN RETURN jsonb_build_object('outcome','refused','failures',to_jsonb(failures)); END IF;
+ IF (SELECT count(*) FROM sophia.design_candidates WHERE project_id=s.project_id AND design_job_id=t.job_id)>=1+t.max_repairs THEN
+  RAISE EXCEPTION 'Design repair limit reached' USING ERRCODE='55000'; END IF;
+ UPDATE sophia.design_candidates SET state='superseded' WHERE project_id=s.project_id AND design_job_id=t.job_id AND state='needs_revision';
+ INSERT INTO sophia.design_candidates(project_id,design_job_id,source_id,render_job_id,compiled_source_id,round,call_key,summary,gate)
+ VALUES(s.project_id,t.job_id,d.id,r.job_id,(SELECT f.source_id FROM sophia.render_job_files f WHERE f.project_id=r.project_id AND f.job_id=r.job_id AND f.role='entry'),
+  (SELECT count(*)+1 FROM sophia.design_candidates WHERE project_id=s.project_id AND design_job_id=t.job_id),p_key,summary,
+  jsonb_build_object('passed',true,'checks',r.receipt->'checks','targets',to_jsonb(t.targets),'renderer',r.receipt->'renderer'))
+ RETURNING * INTO c;
+ UPDATE sophia.jobs SET state='running' WHERE project_id=s.project_id AND id=t.job_id AND state='pending';
+ review:=sophia.design_admit_review(s.project_id,c.id);
+ IF review IS NULL THEN
+  UPDATE sophia.design_candidates SET state='self_review_only' WHERE project_id=s.project_id AND id=c.id;
+  PERFORM sophia.design_publish(s.project_id,c.id,'self_review_only',
+   ARRAY['This page was checked by software but not by a separate visual reviewer']||sophia.design_gate_limitations(r.receipt));
+ END IF;
+ SELECT * INTO c FROM sophia.design_candidates WHERE project_id=s.project_id AND id=c.id;
+ RETURN sophia.design_candidate_view(s.project_id,c);
+END $$;
+
+-- runtime_review_submit (0040), replaced: as before, and a pass counts only the deliveries it names (#117).
+CREATE OR REPLACE FUNCTION sophia.runtime_review_submit(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE s sophia.design_scope:=sophia.design_scope_of(p_token_sha256,p_unit,p_bridge,p_request,'design_review',false);
+ key text:=sophia.design_call_key(s,p_request); rv sophia.design_reviews; r sophia.render_jobs; missing text[]; v_findings jsonb; out jsonb;
+ j sophia.jobs; src sophia.source_objects; v_summary text; v_reason text:=btrim(p_request->'blocker'->>'reason');
+BEGIN
+ IF (p_request ? 'result')=(p_request ? 'blocker') THEN RAISE EXCEPTION 'A submit carries a result or a blocker' USING ERRCODE='22023'; END IF;
+ SELECT * INTO rv FROM sophia.design_reviews WHERE project_id=s.project_id AND job_id=s.job_id;
+ IF rv.closed_by_call=key THEN
+  IF (rv.verdict='blocked')<>(p_request ? 'blocker') THEN RAISE EXCEPTION 'Idempotency key reused for another submit' USING ERRCODE='23505'; END IF;
+  RETURN jsonb_build_object('outcome','recorded','verdict',rv.verdict,'candidateId',rv.candidate_id);
+ END IF;
+ IF rv.closed_by_call IS NOT NULL THEN RAISE EXCEPTION 'The review has already ended' USING ERRCODE='40001'; END IF;
+ s:=sophia.design_scope_of(p_token_sha256,p_unit,p_bridge,p_request,'design_review',true);
+ SELECT * INTO rv FROM sophia.design_reviews WHERE project_id=s.project_id AND job_id=s.job_id FOR UPDATE;
+ IF p_request ? 'result' THEN
+  v_findings:=sophia.review_findings(p_request->'result');
+  v_summary:=nullif(btrim(coalesce(p_request->'result'->>'summary','')),'');
+  IF length(v_summary)>2000 THEN RAISE EXCEPTION 'A review''s summary is at most 2000 characters' USING ERRCODE='22023'; END IF;
+  IF p_request->'result'->>'verdict'='pass' THEN
+   SELECT rj.* INTO r FROM sophia.render_jobs rj WHERE rj.project_id=s.project_id AND rj.job_id=(sophia.review_candidate(s)).render_job_id;
+   missing:=sophia.review_missing(rv,r,s.attempt_id,sophia.design_seen_ids(p_request->'result'->'seen'));
+   IF cardinality(missing)>0 THEN RETURN jsonb_build_object('outcome','coverage_incomplete','missing',to_jsonb(missing[1:40])); END IF;
+  END IF;
+  UPDATE sophia.design_reviews SET verdict=p_request->'result'->>'verdict', findings=v_findings, summary=v_summary,
+   submitted_at=now(), closed_by_call=key WHERE project_id=s.project_id AND job_id=s.job_id RETURNING * INTO rv;
+  src:=sophia.put_text_source(s.project_id,s.actor_id,'text/markdown; charset=utf-8','Review verdict: '||rv.verdict
+   ||coalesce(E'\n\n'||v_summary,''));
+  UPDATE sophia.jobs SET state='succeeded', result_source_id=src.id, result_revision=result_revision+1, reason=NULL
+   WHERE project_id=s.project_id AND id=s.job_id RETURNING * INTO j;
+  UPDATE sophia.work_attempts SET state='accepted' WHERE project_id=s.project_id AND id=s.attempt_id;
+ ELSE
+  IF v_reason IS NULL OR length(v_reason) NOT BETWEEN 1 AND 500 THEN RAISE EXCEPTION 'A blocker has a reason of 1 to 500 characters' USING ERRCODE='22023'; END IF;
+  UPDATE sophia.design_reviews SET verdict='blocked', findings='[]', summary=v_reason, submitted_at=now(), closed_by_call=key
+   WHERE project_id=s.project_id AND job_id=s.job_id RETURNING * INTO rv;
+  UPDATE sophia.jobs SET state='failed', reason=left('blocked: '||v_reason,2000), result_revision=result_revision+1
+   WHERE project_id=s.project_id AND id=s.job_id;
+  UPDATE sophia.work_attempts SET state='failed' WHERE project_id=s.project_id AND id=s.attempt_id;
+ END IF;
+ out:=sophia.design_review_outcome(s.project_id,s.job_id);
+ RETURN jsonb_build_object('outcome','recorded','verdict',rv.verdict,'candidateId',rv.candidate_id,'decision',out);
+END $$;
+
+-- review_missing's 0040 form read what the reviewer had inspected in any attempt; nothing calls it now.
+DROP FUNCTION sophia.review_missing(sophia.design_reviews,sophia.render_jobs);
 
 
 -- --- edit replay ------------------------------------------------------------------------------------------------------------

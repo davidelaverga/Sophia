@@ -14,8 +14,9 @@
  *
  * A look counts as seen only once the model has its images (SDD-01-CX-0033, CX-0035, CX-0036). Each inspection's
  * result carries, with the images, a receipt no one can guess; a candidate or a review's result names the receipts of
- * the looks it rests on, and only then does the tool acknowledge those deliveries to the service, which is what counts
- * them. A submit made before the images arrived (in the same batch of tool calls, or after an inspection that was
+ * the looks it rests on, and only then does the tool acknowledge those deliveries and name them in the submission. The
+ * service counts a delivery only for the submission that names it, so an acknowledgement whose submit never went out
+ * (the bridge stopped in between) counts for nothing. A submit made before the images arrived (in the same batch of tool calls, or after an inspection that was
  * cancelled or lost before its result reached the model) cannot name their receipt, so they do not count. The roles are
  * offered no tool that calls another, so a receipt reaches the model only in its inspection's own result. The bridge
  * keeps receipts in memory: after a restart it refuses the old ones and the model inspects again. Each acknowledgement,
@@ -293,26 +294,33 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
   }
 
   /**
-   * Acknowledge the looks a submit names by their receipts, each until its outcome is known. A problem, and nothing
-   * acknowledged, when a receipt is not one of this session's model's looks; a problem when an acknowledgement stays
-   * unknown (it is sent again by the next submit naming it). Null once each was counted or refused: a refused look
-   * does not count, and the service's gate names what is missing.
+   * Acknowledge the looks a submit names by their receipts, each until its outcome is known, and return the deliveries
+   * the submission names (`seen`). A problem, and nothing acknowledged, when a receipt is not one of this session's
+   * model's looks; a problem when an acknowledgement stays unknown (it is sent again by the next submit naming it). A
+   * refused look is left out: it does not count, and the service's gate names what is missing.
    */
-  async function confirmSeen(role: Role, session: DesignSession, seen: readonly string[], stop: AbortSignal): Promise<Json | null> {
-    if (seen.length > MAX_SEEN) return { code: 'invalid_request', message: `A submit names at most ${MAX_SEEN} receipts.` }
+  async function confirmSeen(role: Role, session: DesignSession, seen: readonly string[], stop: AbortSignal): Promise<{ problem: Json } | { deliveries: string[] }> {
+    if (seen.length > MAX_SEEN) return { problem: { code: 'invalid_request', message: `A submit names at most ${MAX_SEEN} receipts.` } }
     const owner = ownerOf(role, session)
     const named = [...new Set(seen)].map((receipt) => [receipt, looks.get(receipt)] as const)
     const strangers = named.filter(([, look]) => look?.owner !== owner).map(([receipt]) => receipt)
-    if (strangers.length > 0) return unknownReceipts(strangers)
+    if (strangers.length > 0) return { problem: unknownReceipts(strangers) }
+    const deliveries: string[] = []
     for (const [, look] of named) {
-      if (!look || look.counted) continue
-      const outcome = await untilKnown((signal) => deps.client.designDelivered(role, look.ack, signal),
-        (receipt) => receipt.deliveryId === look.ack.deliveryId && receipt.renderJobId === look.renderJobId, patience.ack, stop, true)
-      if (outcome === null) return { ...UNCONFIRMED }
-      if ('value' in outcome) look.counted = true
-      else deps.log(`${role} ${session.attemptId}: delivery ${look.ack.deliveryId} was refused (${outcome.refusal.code ?? outcome.refusal.status}); it does not count as seen`)
+      if (!look) continue
+      if (!look.counted) {
+        const outcome = await untilKnown((signal) => deps.client.designDelivered(role, look.ack, signal),
+          (receipt) => receipt.deliveryId === look.ack.deliveryId && receipt.renderJobId === look.renderJobId, patience.ack, stop, true)
+        if (outcome === null) return { problem: { ...UNCONFIRMED } }
+        if ('refusal' in outcome) {
+          deps.log(`${role} ${session.attemptId}: delivery ${look.ack.deliveryId} was refused (${outcome.refusal.code ?? outcome.refusal.status}); it does not count as seen`)
+          continue
+        }
+        look.counted = true
+      }
+      deliveries.push(look.ack.deliveryId)
     }
-    return null
+    return { deliveries }
   }
 
   /**
@@ -567,9 +575,9 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     output: { schema: { type: 'json' }, render: plain },
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
-      const problem = await confirmSeen('design', session, args.seen ?? [], exec.signal)
-      if (problem) return problem
-      const candidate = { revisionId: args.revisionId, renderJobId: args.renderJobId, ...(args.summary ? { summary: args.summary } : {}) }
+      const confirmed = await confirmSeen('design', session, args.seen ?? [], exec.signal)
+      if ('problem' in confirmed) return confirmed.problem
+      const candidate = { revisionId: args.revisionId, renderJobId: args.renderJobId, ...(args.summary ? { summary: args.summary } : {}), seen: confirmed.deliveries }
       return submitOnce('design', session, exec, { candidate }, wire.DesignSubmitRequest, (body, signal) => deps.client.designSubmit(body, signal))
     },
   })
@@ -643,11 +651,11 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
         const blocker = { reason: args.reason ?? args.summary ?? 'The candidate could not be judged.' }
         return submitOnce('review', session, exec, { blocker }, wire.ReviewSubmitRequest, (body, signal) => deps.client.reviewSubmit(body, signal))
       }
-      const problem = await confirmSeen('review', session, args.seen ?? [], exec.signal)
-      if (problem) return problem
+      const confirmed = await confirmSeen('review', session, args.seen ?? [], exec.signal)
+      if ('problem' in confirmed) return confirmed.problem
       type Finding = { severity: 'blocking' | 'major' | 'minor'; issue: string; fix?: string; target?: 'w390-light' | 'w1280-light'; section?: string; capture?: string }
       const findings = (args.findings ?? []).map((f: Finding) => ({ ...f }))
-      const result = { verdict: args.verdict, findings, ...(args.summary ? { summary: args.summary } : {}) }
+      const result = { verdict: args.verdict, findings, ...(args.summary ? { summary: args.summary } : {}), seen: confirmed.deliveries }
       return submitOnce('review', session, exec, { result }, wire.ReviewSubmitRequest, (body, signal) => deps.client.reviewSubmit(body, signal))
     },
   })

@@ -272,9 +272,9 @@ export class ServiceTransport {
   }
 
   /**
-   * The model was handed each capture of a delivery, unchanged, as a stored image: they now count as seen. The design
-   * tools send it only for a look whose receipt a submit named, and send the same body again until it is answered; the
-   * service answers a replay the same and counts nothing twice.
+   * The model was handed each capture of a delivery, unchanged, as a stored image: they count as seen for a submission
+   * that names the delivery. The design tools send it only for a look whose receipt a submit named, and send the same
+   * body again until it is answered; the service answers a replay the same and counts nothing twice.
    */
   async designDelivered(role: 'design' | 'review', body: DesignDeliveryAck, signal?: AbortSignal): Promise<DesignDeliveryReceipt> {
     checked('delivery acknowledgement', wire.DesignDeliveryAck, body)

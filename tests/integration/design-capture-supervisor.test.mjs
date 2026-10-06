@@ -227,6 +227,7 @@ describe('design capture crossing (real supervisor, capture kernel, API, Postgre
     assert.ok(unseen.json.failures.some((f) => f.startsWith('you have not looked at')), JSON.stringify(unseen.json))
     // Every real capture is handed over, each delivery acknowledged as its own bytes (what the bundle sends once dsh's
     // content-addressed store kept the image unchanged).
+    const deliveries = []
     for (let i = 0; i < names.length; i += 4) {
       const seen = await runtime('/v1/runtime/design/capture', { ...at, renderJobId: render.renderJobId, names: names.slice(i, i + 4) })
       assert.equal(seen.status, 200, JSON.stringify(seen.json))
@@ -234,10 +235,14 @@ describe('design capture crossing (real supervisor, capture kernel, API, Postgre
       const attachments = seen.json.captures.map((c) => ({ name: c.name, attachmentId: `sha256:${c.sha256}` }))
       const acked = await runtime('/v1/runtime/design/delivered', { ...at, deliveryId: seen.json.deliveryId, attachments })
       assert.equal(acked.status, 200, JSON.stringify(acked.json))
+      deliveries.push(seen.json.deliveryId)
     }
+    // #117: acknowledged but named by no submission (its submit never sent, the runtime restarted in between) counts for nothing.
+    const unnamed = await runtime('/v1/runtime/design/submit', { ...at, callId: 'c0b', candidate })
+    assert.equal(unnamed.json.outcome, 'refused', JSON.stringify(unnamed.json))
 
-    // The candidate publishes self_review_only as v2, its HTML the compiled page the kernel captured.
-    const done = await runtime('/v1/runtime/design/submit', { ...at, callId: 'c1', candidate })
+    // The candidate, naming its deliveries, publishes self_review_only as v2, its HTML the compiled page the kernel captured.
+    const done = await runtime('/v1/runtime/design/submit', { ...at, callId: 'c1', candidate: { ...candidate, seen: deliveries } })
     assert.deepEqual([done.json.outcome, done.json.reviewState, done.json.versionNumber], ['published', 'self_review_only', 2], JSON.stringify(done.json))
     const page = (
       await owner.query(
