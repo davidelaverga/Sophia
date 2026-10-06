@@ -13,6 +13,7 @@ import {
   placementIssue,
   STYLES,
   placementStep,
+  shapeOf,
   withinTime,
   type Layout,
 } from '../placement.mjs'
@@ -441,6 +442,28 @@ function owner(item: Edges, extra: Record<number, Spec> = {}, style: Style = BLA
 }
 const LINE = new Map<number, Edges[]>([[5, [[0, 100, 90, 132]]]])
 
+/** A snapshot of a window `window` high: its root element `root` high, a paragraph, and its one line at `line` (shapeOf). */
+const shaped = (window: number, root: number, line: number) => ({
+  documents: [
+    {
+      // The document (9), whose box is the window's, then the root element, a paragraph and its text.
+      nodes: { parentIndex: [-1, 0, 1, 2], nodeType: [9, 1, 1, 3] },
+      layout: {
+        nodeIndex: [0, 1, 2, 3],
+        styles: [[], [], [], []],
+        bounds: [
+          [0, 0, 800, window],
+          [0, 0, 800, root],
+          [0, 0, 800, 24],
+          [0, line, 60, 17],
+        ],
+      },
+      textBoxes: { layoutIndex: [3], bounds: [[0, line, 60, 17]] },
+    },
+  ],
+  strings: [],
+})
+
 describe('how the texts lie at one width (#117, placement.mjs meetingsIn)', () => {
   it('names a drawn box that lies on a line of text, and nothing for one beside it or the boxes the text is in', () => {
     assert.equal(meetingsIn(owner([500, 0, 1000, 100]), LINE), '')
@@ -536,6 +559,16 @@ describe('how the texts lie at one width (#117, placement.mjs meetingsIn)', () =
     assert.deepEqual(meetingsOf(snapshot(800), { maxNodes: 2 }), {
       issue: '3 boxes, more than the 2 whose placements are compared',
     })
+  })
+
+  // #117 (4201008903): what a window's height alone must leave as it is (capture-html.mjs heightIssue).
+  it("reads where a snapshot lays out its boxes and lines, the window's own box left out, within a bound", () => {
+    const own = shapeOf(shaped(800, 600, 3))
+    assert.equal(shapeOf(shaped(320, 600, 3)), own, 'a shorter window, the page laid out the same')
+    assert.notEqual(shapeOf(shaped(320, 320, 3)), own, 'a root as tall as the window')
+    assert.notEqual(shapeOf(shaped(800, 600, 300)), own, 'a line placed elsewhere')
+    assert.equal(shapeOf(shaped(800, 600, 3), { maxNodes: 3 }), null)
+    assert.equal(shapeOf({ documents: [], strings: [] }), null)
   })
 })
 

@@ -175,6 +175,14 @@ const flow = (layout: string, items: string) =>
 const flexFlow = (height: string, size: string) => flow(`display:flex;flex-wrap:wrap;${height}`, `flex:0 0 ${size}`)
 const inlineFlow = (height: string, size: string) =>
   flow(`font-size:0;${height}`, `display:inline-block;vertical-align:top;width:${size}`)
+/** How blocks_visible and widths_visible name blocks whose text is drawn out of its order or run together (#117). */
+const RUN_TOGETHER = 'blocks whose text is drawn out of its order or with its words run together: '
+/** How widths_visible names a band end laid out otherwise in a window of another height (#117, 4201008903). */
+const otherHeights = (width: number) =>
+  new RegExp(`at ${width}px: laid out otherwise in a window 320, 640, 1080, 2160px high than 800px`, 'u')
+/** Whether a contrast is read, between two ratios. */
+const readBetween = (c: { ratio: number | null; detail: string | null } | undefined, low: number, high: number) =>
+  c?.detail === null && (c.ratio ?? 0) > low && (c.ratio ?? 0) < high
 /** A sweep's check failed, its detail matching each pattern. */
 function failsAt(read: { outcome: string; detail: string | null } | undefined, ...patterns: RegExp[]) {
   assert.equal(read?.outcome, 'failed', String(read?.detail))
@@ -839,10 +847,10 @@ describe('the confined capture kernel', () => {
         'the separator is not measured',
       )
       assert.deepEqual(framing[4]?.contrast.detail, 'filtered', 'a filter changes the colours: unknown, never passed')
-      assert.deepEqual(
-        framing[5]?.contrast.detail,
-        'group_opacity',
-        'its background fades with it: unknown, never passed',
+      // White on black faded to .5 as one group over the page: #808080 against white (#117).
+      assert.ok(
+        readBetween(framing[5]?.contrast, 3.5, 4.2),
+        `its background fades with it, read as drawn: ${JSON.stringify(framing[5]?.contrast)}`,
       )
       assert.deepEqual(
         framing[6]?.contrast.detail,
@@ -1763,6 +1771,187 @@ describe('the confined capture kernel', () => {
     },
   )
 
+  // Codex's review of 1317562 (4200986784): `display: flex` with `order` drew "Not free", split across two spans, as
+  // "free Not" while the text, every target check and the sweep passed; and the owner's 4201047936: flex items "Now "
+  // and "here." drew "Nowhere.". A block's runs are held to their reading order and their spaces: the flex order (o1), a
+  // float (o2), a placed run (o3), a reversed column (o4), transformed runs (o5), the flex that runs "Now here." together
+  // (o6) and a run pulled back over its space (o7) fail, and so does a reversed wrap only between 801 and 1199px (w1,
+  // found by the sweep). Ordinary paragraphs with links, marks and wraps, a list in two columns, a table, text set right
+  // to left, a Hebrew phrase in English, a flex that keeps its space (white-space: pre, or a gap) and a word joined in
+  // the text itself read.
+  it(
+    'fails a block whose text runs the page draws out of their order or runs together, at a target and inside a band (#117)',
+    { skip },
+    async () => {
+      const blocks = [
+        [
+          'o1',
+          '.o1{display:flex} .o1 span:first-child{order:2} .o1 span:last-child{order:1;margin-right:.3em}',
+          '<p data-block="o1" class="o1"><span>Not</span> <span>free</span></p>',
+        ],
+        [
+          'o2',
+          '.o2 span:first-child{float:right}',
+          '<p data-block="o2" class="o2"><span>Not</span> <span>free to use, ever.</span></p>',
+        ],
+        [
+          'o3',
+          '.o3{position:relative} .o3 span:first-child{position:absolute;left:4em}',
+          '<p data-block="o3" class="o3"><span>Not</span> <span>free</span></p>',
+        ],
+        [
+          'o4',
+          '.o4{display:flex;flex-direction:column-reverse}',
+          '<div data-block="o4" class="o4"><p>Claim one.</p><p>Claim two.</p></div>',
+        ],
+        [
+          'o5',
+          '.o5 span{display:inline-block} .o5 span:first-child{transform:translateX(3em)} .o5 span:last-child{transform:translateX(-2.5em)}',
+          '<p data-block="o5" class="o5"><span>Not</span> <span>free</span></p>',
+        ],
+        ['o6', '.o6{display:flex}', '<p data-block="o6" class="o6"><span>Now </span><span>here.</span></p>'],
+        [
+          'o7',
+          '.o7 span:last-child{margin-left:-.3em}',
+          '<p data-block="o7" class="o7"><span>Now</span> <span>here.</span></p>',
+        ],
+        [
+          'o8',
+          '.o8{position:relative;padding-top:1.5em} .o8 span:last-child{position:absolute;top:0;left:5em}',
+          '<p data-block="o8" class="o8"><span>Not</span> <span>free</span></p>',
+        ],
+        [
+          'k1',
+          '',
+          '<p data-block="k1">A finding that wraps over lines, with <a href="#s1">a link</a>, <em>emphasis</em> and a mark<sup>[1]</sup>, then more words after it.</p>',
+        ],
+        [
+          'k2',
+          '.k2{columns:2}',
+          '<ul data-block="k2" class="k2"><li>One</li><li>Two</li><li>Three</li><li>Four</li></ul>',
+        ],
+        ['k3', '', researchTable('k3')],
+        ['k4', '', '<p data-block="k4" dir="rtl"><span>שלום</span> <span>עולם</span> <span>and English</span></p>'],
+        [
+          'k5',
+          '',
+          '<p data-block="k5"><span>The words</span> <span>שלום</span> <span>עולם</span> <span>mean hello world.</span></p>',
+        ],
+        [
+          'k6',
+          '.k6{display:flex} .k6 span:first-child{white-space:pre}',
+          '<p data-block="k6" class="k6"><span>Now </span><span>here.</span></p>',
+        ],
+        ['k7', '.k7{display:flex;gap:.3em}', '<p data-block="k7" class="k7"><span>Now</span> <span>here.</span></p>'],
+        ['k8', '.k8{display:flex}', '<p data-block="k8" class="k8"><span>Now</span><span>here.</span></p>'],
+      ]
+      const receipt = await captureHtml(
+        job(
+          page(
+            `body{margin:0;font:16px/1.5 Georgia,serif;color:#222;background:#fafafa} main{padding:0 16px} p,ul{margin:0 0 16px}
+             ${blocks.map(([, css]) => css).join(' ')}`,
+            `<main><section data-section="s1">${blocks.map(([, , html]) => html).join('')}</section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const t of ['w390-light', 'w1280-light']) {
+        const detail = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === t)?.detail
+        assert.equal(detail, `${RUN_TOGETHER}o1, o2, o3, o4, o5, o6, o7, o8`, t)
+      }
+      const sweep = String(receipt.checks.find((c) => c.name === 'widths_visible')?.detail)
+      assert.ok(sweep.startsWith(`at 320px: ${RUN_TOGETHER}o1, o2, o3, o4, o5, o6, o7, o8;`), sweep)
+      // Readable at both targets, reversed and run together only in windows 960 to 1100px wide: the band's ends fail.
+      const banded = await sweepOf(
+        `.m1,.m2{display:flex;margin:0 0 16px} .m1 span:first-child{margin-right:.3em} .m2 span:first-child{white-space:pre}
+         @media (min-width: 960px) and (max-width: 1100px){.m1 span:first-child{order:2} .m2 span:first-child{white-space:normal}}`,
+        '<p data-block="m1" class="m1"><span>Not</span><span>free</span></p><p data-block="m2" class="m2"><span>Now </span><span>here.</span></p>',
+      )
+      assert.deepEqual(
+        [banded?.outcome, banded?.detail],
+        ['failed', `at 960px: ${RUN_TOGETHER}m1, m2; at 1100px: ${RUN_TOGETHER}m1, m2`],
+      )
+      // A reversed wrap draws the second run above the first only where the runs no longer share a line.
+      const wrapped = await sweepOf(
+        `.w1{display:flex;flex-wrap:wrap-reverse} .w1 span{flex:0 0 ${RESPONSIVE}}`,
+        '<p data-block="w1" class="w1"><span>Not</span><span>free</span></p>',
+      )
+      failsAt(wrapped, /at 801px: blocks whose text is drawn out of its order or with its words run together: w1(;|$)/u)
+      const straight = await sweepOf(
+        `.w1{display:flex;flex-wrap:wrap} .w1 span{flex:0 0 ${RESPONSIVE}}`,
+        '<p data-block="w1" class="w1"><span>Not</span><span>free</span></p>',
+      )
+      assert.deepEqual([straight?.outcome, straight?.detail], ['passed', 'measured at 320, 2560px'])
+    },
+  )
+
+  // The owner's 4201040032 (P1 4201008903): a block at `top: 700px` in a section of `height: 100%` down from the root,
+  // which clips it, shows at 390×844 and 1280×800 and through the sweep, at the sweep's 800px, and is cut in a window
+  // 600px high. A static page sizes and places nothing by the window's height: at each band end the page is laid out at
+  // other heights too, and a box or line placed otherwise fails, as a box set against the window's bottom and a root
+  // and body as tall as the window do; and a window that cannot scroll shows a reader no more of the page than its
+  // height. The same content static, width percentages (padding-top among them, which CSS takes from the width), and a
+  // body that hides only what overflows its width pass.
+  it(
+    'fails a page laid out otherwise at another window height, or one the window cannot scroll down; static content and width percentages pass (#117)',
+    { skip },
+    async () => {
+      failsAt(
+        await sweepOf(
+          `html,body,main,section{height:100%} section{position:relative;overflow:hidden}
+           [data-block=b1]{position:absolute;top:700px;margin:0}`,
+          '<p data-block="b1">Not free.</p>',
+        ),
+        /^at 320px: laid out otherwise/u,
+        otherHeights(320),
+        otherHeights(2560),
+      )
+      failsAt(
+        await sweepOf(
+          '.foot{position:absolute;bottom:0;left:0;right:0;height:40px;background:#fafafa} p{margin:0}',
+          '<p data-block="b1">Free.</p><div class="foot"></div>',
+        ),
+        otherHeights(320),
+      )
+      failsAt(await sweepOf('html,body{height:100%} p{margin:0}', '<p data-block="b1">Free.</p>'), otherHeights(320))
+      for (const [css, body] of [
+        [
+          'section{position:relative;overflow:hidden} [data-block=b1]{margin:700px 0 0}',
+          '<p data-block="b1">Not free.</p>',
+        ],
+        [
+          'main{width:80%;padding:0 5%;margin:0 auto} [data-block=b1]{width:50%;padding-top:10%;margin:0}',
+          '<p data-block="b1">Not free.</p>',
+        ],
+        ['body{overflow-x:hidden} p{margin:0}', '<p data-block="b1">Free.</p>'],
+      ]) {
+        const read = await sweepOf(css ?? '', body ?? '')
+        assert.equal(read?.outcome, 'passed', `${css}: ${String(read?.detail)}`)
+      }
+      const pinned = await captureHtml(
+        job(
+          page(
+            `${BASE} body{overflow:hidden}`,
+            '<main><section data-section="s1"><p data-block="b1">Free.</p></section></main>',
+          ),
+        ),
+        { env },
+      )
+      assert.equal(pinned.status, 'succeeded', JSON.stringify(pinned.error))
+      const stuck = /the window cannot scroll down the page: its overflow is hidden on the root or the body/u
+      for (const target of ['w390-light', 'w1280-light'])
+        failsAt(
+          pinned.checks.find((c) => c.name === 'blocks_visible' && c.target === target),
+          stuck,
+        )
+      failsAt(
+        pinned.checks.find((c) => c.name === 'widths_visible'),
+        new RegExp(`^at 320px: ${stuck.source}`, 'u'),
+      )
+    },
+  )
+
   it(
     'refuses a page whose widths the sweep cannot bound, and a sweep past its time, never leaving a band out (#117, CX-0039)',
     { skip },
@@ -2101,7 +2290,7 @@ describe('the confined capture kernel', () => {
             ['f5', 'low'],
             ['f6', 'low'],
             ['q4', 'read'],
-            ['u2', 'background_elsewhere'],
+            ['u2', 'read'],
             ['g1', 'low'],
             ['g2', 'low'],
             ['g3', 'read'],
@@ -2118,6 +2307,8 @@ describe('the confined capture kernel', () => {
           assert.ok(ratio(id) < 1.5, `${target}: ${id} ${ratio(id)}`)
         for (const id of ['q1', 'q2', 'q3', 'q4', 'g3', 'q5', 'q6'])
           assert.ok(ratio(id) >= 7, `${target}: ${id} ${ratio(id)}`)
+        // White over black, faded together at .5 over the page: #fff at half over #808080 (#117, 4201022306).
+        assert.ok(ratio('u2') > 3.5 && ratio('u2') < 4.2, `${target}: u2 ${ratio('u2')}`)
         assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
       }
     },
@@ -2333,6 +2524,78 @@ describe('the confined capture kernel', () => {
         assert.ok(ratio('k2') >= 15 && ratio('k3') >= 10, `${target}: ${ratio('k2')} ${ratio('k3')}`)
         assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
       }
+    },
+  )
+
+  // The security review of 1317562 (4201022306): white text on a white block drawn at `opacity: .5` read as an unknown
+  // contrast (group_opacity), which the gate admits, while nothing of it shows; the owner's 4201111957: black on white
+  // at `.1` reads 21:1 inside its group and below 1.3:1 as drawn; and 4201191051: the same inside a section at `.5`, a
+  // group inside a group. Each paint and the text are drawn in the opacity groups around them, each group faded as one
+  // over what lies below: the text over its ground in its group (q1, q2), over a white box beneath it there (q3), in
+  // groups inside groups (q7–q9), and over a black box in two faded groups that do not hold it (q11) fail; black on
+  // white at `.5`, faded text without a ground, a ground faded to `.9` and `.8` inside `.8` (q10) read; nine groups
+  // inside one another are past what is composited and fail, never unknown (q12).
+  it(
+    'reads a text faded together with its ground as the groups are drawn: same colours and a faint group fail (#117)',
+    { skip },
+    async () => {
+      const deep = '<div>'.repeat(9) + '<p>Deep.</p>' + '</div>'.repeat(9)
+      const receipt = await captureHtml(
+        job(
+          page(
+            `body{margin:0;background:#fff;font:24px/32px Arial} main{padding:0 16px} [data-block]{margin:0 0 16px}
+             .q1{color:#fff;background:#fff;opacity:.5} .q2{color:#000;background:#fff;opacity:.1}
+             .q3{position:relative;color:#fff;background:#fff;opacity:.5} .q3 i{position:absolute;inset:0;background:#fff}
+             .q3 span{position:relative} .q4{color:#000;background:#fff;opacity:.5} .q5{color:#000;opacity:.6}
+             .q6{color:#000;background:#fff;opacity:.9} .q7{opacity:.5} .q7 p{opacity:.8;background:#fff;color:#000;margin:0}
+             .half{opacity:.5} .q8{color:#fff;background:#fff;opacity:.5} .q9{color:#000;background:#fff;opacity:.2}
+             .most{opacity:.8} .q10{color:#000;background:#fff;opacity:.8} .q11{position:relative}
+             .q11 .a,.q11 .b{opacity:.9} .q11 i{position:absolute;inset:0;background:#000}
+             .q11 p{position:relative;color:#000;margin:0} .q12 div{opacity:.99} .q12 p{color:#000;margin:0}`,
+            `<main><section data-section="s1">
+            <p data-block="q1" class="q1">Not free.</p><p data-block="q2" class="q2">Not free.</p>
+            <p data-block="q3" class="q3"><i></i><span>Not free.</span></p>
+            <p data-block="q4" class="q4">Readable.</p><p data-block="q5" class="q5">Readable.</p>
+            <p data-block="q6" class="q6">Readable.</p><div data-block="q7" class="q7"><p>Nested.</p></div>
+            <div class="half"><p data-block="q8" class="q8">Not free.</p><p data-block="q9" class="q9">Not free.</p></div>
+            <div class="most"><p data-block="q10" class="q10">Readable.</p></div>
+            <div data-block="q11" class="q11"><div class="a"><div class="b"><i></i></div></div><p>Not free.</p></div>
+            <div data-block="q12" class="q12">${deep}</div>
+            </section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      // Each block's contrast, read between two ratios, and whether it fails: black at .8 inside .8 is drawn at .64
+      // (#5c5c5c on white, q10), and at .8 inside .5 at .4 (#999, q7).
+      const expected: [string, number, number, boolean][] = [
+        ['q1', 0, 1.3, true],
+        ['q2', 0, 1.3, true],
+        ['q3', 0, 1.3, true],
+        ['q4', 3.9, 4.2, false],
+        ['q5', 5.5, 21, false],
+        ['q6', 15, 21, false],
+        ['q7', 2.7, 3, true],
+        ['q8', 0, 1.3, true],
+        ['q9', 0, 1.3, true],
+        ['q10', 6.5, 7.3, false],
+        ['q11', 0, 2, true],
+      ]
+      for (const target of ['w390-light', 'w1280-light']) {
+        const blocks = receipt.targets.find((t) => t.id === target)?.page.blocks ?? []
+        for (const [id, low, high, fails] of expected) {
+          const block = blocks.find((b) => b.id === id)
+          assert.ok(readBetween(block?.contrast, low, high), `${target} ${id}: ${JSON.stringify(block?.contrast)}`)
+          assert.equal(block?.issues.includes('low_contrast'), fails, `${target} ${id}`)
+        }
+        const deepest = blocks.find((b) => b.id === 'q12')
+        assert.deepEqual([deepest?.contrast.ratio, deepest?.contrast.detail], [null, 'group_opacity'], target)
+        assert.ok(deepest?.issues.includes('low_contrast'), target)
+        assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
+      }
+      const sweep = String(receipt.checks.find((c) => c.name === 'widths_visible')?.detail)
+      assert.match(sweep, /^at 320px: q1, q2, q3, q7, q8, q9, q11, q12;/u)
     },
   )
 

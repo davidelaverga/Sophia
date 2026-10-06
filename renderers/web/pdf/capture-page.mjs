@@ -27,13 +27,18 @@
  * @typedef {{ pseudo: string, box: Box, pieces: number }} PlacedBox a generated box (::before or ::after), where it
  *   lies in page coordinates, and in how many boxes it is drawn
  *   coordinates (generatedIndex)
- * @typedef {{ colours: string[], group: string, fade: number }} Layer one layer of paint beneath a text: the colours it
- *   may paint at a point (`transparent` among them where it may not reach it), and the opacity group it is drawn in
- *   ('' for none) at that group's opacity (groupOf)
- * @typedef {{ base: boolean, layers: Map<string, Layer[]>, unread: boolean }} Ground what lies beneath one element's
- *   text at the points looked at (noteGround): whether at some it is the background the element's contrast is read
- *   against (backgroundLayers); at others, other paint, each reading once, as layers bottom first (groundAt); and
- *   whether at any it could not be read
+ * @typedef {{ id: string, fade: number }} Group an opacity group (groupsOf): an element, or its generated box, drawn at
+ *   an opacity below 1, by a number for it, and that opacity
+ * @typedef {{ colours: string[], groups: Group[] }} Layer one layer of paint beneath a text: the colours it may paint at
+ *   a point (`transparent` among them where it may not reach it), and the opacity groups it is drawn in, outermost
+ *   first (groupsOf)
+ * @typedef {{ fill: string, groups: Group[] }} Text a text as worstOver draws it: the colour it is filled with, and the
+ *   opacity groups it is drawn in, outermost first
+ * @typedef {{ base: boolean, layers: Map<string, Layer[]>, unread: boolean, groups: Group[] }} Ground what lies
+ *   beneath one element's text at the points looked at (noteGround): whether at some it is the background the
+ *   element's contrast is read against (backgroundLayers); at others, other paint, each reading once, as layers bottom
+ *   first (groundAt); whether at any it could not be read; and the opacity groups the text is drawn in, named as the
+ *   readings name them
  * @typedef {{ c: OffscreenCanvasRenderingContext2D, method: string, from: string, to: string }} Pair two neighbouring
  *   stops of a gradient, the space and hue path they are mixed in (interpolationOf), and the canvas that mixes them
  * @typedef {{ rows: Map<number, { el: Element, box: Box, pseudo: boolean }[]>, over: boolean }} Overlaps every
@@ -55,10 +60,12 @@
  *   points the DevTools protocol is to hit-test where only it can tell what is drawn over the text (coverOf), and
  *   whether the page's budget of points ran out before its text was looked at; capture-html strips both
  * @typedef {Omit<PageMeasure, 'blocks' | 'shown' | 'framing'> & { blocks: ProbedMeasure[], shown: ProbedMeasure[],
- *   framing: ProbedMeasure[], unmeasured: number, misplaced: string[] }} PageAnswer the measure, how many labels,
- *   texts outside the blocks and runs inside them it left out past the receipt's bound for each (the kernel fails the
- *   target on any), and the research tables whose cells are drawn elsewhere than their rows and headers place them
- *   (misplacedTables), which capture-html fails the target on and strips
+ *   framing: ProbedMeasure[], unmeasured: number, misplaced: string[], reordered: string[], unscrollable: boolean }}
+ *   PageAnswer the measure, how many labels, texts outside the blocks and runs inside them it left out past the
+ *   receipt's bound for each (the kernel fails the target on any), the research tables whose cells are drawn elsewhere
+ *   than their rows and headers place them (misplacedTables), the blocks whose text is drawn out of its order
+ *   (reorderedBlocks), and whether the window cannot scroll down the page (windowScrolls), which capture-html fails the
+ *   target on and strips
  */
 
 /**
@@ -1433,18 +1440,18 @@ function ownPaint(e, p, look) {
 /**
  * A number for an element, the same for the page's whole measure: it names an opacity group in a reading.
  * @param {Element} e
- * @param {Look} look
+ * @param {Map<Element, number>} ids
  */
-function idOf(e, look) {
-  const known = look.ids.get(e)
+function idOf(e, ids) {
+  const known = ids.get(e)
   if (known !== undefined) return known
-  look.ids.set(e, look.ids.size)
-  return look.ids.size - 1
+  ids.set(e, ids.size)
+  return ids.size - 1
 }
 
 /**
- * The element holding a text and those around it that are drawn at an opacity below 1: each draws the text with all
- * else inside it as one group, faded together over what lies below.
+ * The element holding a text and those around it that are drawn at an opacity below 1, outermost first: the elements
+ * of the text's opacity groups (groupsOf), in their order.
  * @param {Element} holder
  * @returns {Element[]}
  */
@@ -1452,91 +1459,98 @@ function fadedAround(holder) {
   /** @type {Element[]} */
   const out = []
   for (let a = /** @type {Element | null} */ (holder); a; a = a.parentElement)
-    if (Number.parseFloat(getComputedStyle(a).opacity || '1') < 1) out.push(a)
+    if (Number.parseFloat(getComputedStyle(a).opacity || '1') < 1) out.unshift(a)
   return out
 }
 
 /**
- * The opacity group one paint beneath a text is drawn in (#117): an element drawn at an opacity below 1 draws all it
- * holds, and its generated boxes, as one group, faded together over what lies below, so `opacity: .1` on a black box
- * paints a pale grey, not black. The group is the one such element (or generated box) among the paint's own and the
- * elements around it, up to the first that also holds the text; '' with no such element. Null when there is more than
- * one (a group inside a group is not read), or when the paint lies inside an element around the text drawn at an
- * opacity below 1: the text and the paint then fade together, which no one opacity on the text tells.
+ * The opacity groups one paint is drawn in, outermost first (#117): every element around it, its own included, drawn
+ * at an opacity below 1, and its generated box when that is. Each draws all it holds as one group, faded together over
+ * what lies below, so `opacity: .1` on a black box paints a pale grey, not black; a text is drawn in groups too, its
+ * element's, over the paint that shares them, before they fade (composite). A group inside a group is read as drawn,
+ * whether it holds the text or not.
  * @param {Element} e the element whose paint it is
  * @param {string} pseudo its generated box's ('::before', '::after'), or '' for its own box
- * @param {{ holder: Element, faded: Element[] }} text the element holding the text, and fadedAround's
- * @param {Look} look
- * @returns {{ group: string, fade: number } | null}
+ * @param {Map<Element, number>} ids
+ * @returns {Group[]}
  */
-function groupOf(e, pseudo, text, look) {
-  if (text.faded.some((f) => f.contains(e))) return null
-  /** @type {{ group: string, fade: number }[]} */
+function groupsOf(e, pseudo, ids) {
+  /** @type {Group[]} */
   const groups = []
   const own = pseudo ? Number.parseFloat(getComputedStyle(e, pseudo).opacity || '1') : 1
-  if (own < 1) groups.push({ group: `${idOf(e, look)}${pseudo}`, fade: own })
-  for (let a = /** @type {Element | null} */ (e); a && !a.contains(text.holder); a = a.parentElement) {
+  if (own < 1) groups.push({ id: `${idOf(e, ids)}${pseudo}`, fade: own })
+  for (let a = /** @type {Element | null} */ (e); a; a = a.parentElement) {
     const fade = Number.parseFloat(getComputedStyle(a).opacity || '1')
-    if (fade < 1) groups.push({ group: String(idOf(a, look)), fade })
+    if (fade < 1) groups.push({ id: String(idOf(a, ids)), fade })
   }
-  if (groups.length > 1) return null
-  return groups[0] ?? { group: '', fade: 1 }
+  return groups.toReversed()
 }
 
 /**
- * Layers of colours drawn in one opacity group.
+ * Layers of colours drawn in the same opacity groups.
  * @param {string[][]} lists
- * @param {{ group: string, fade: number }} group
+ * @param {Group[]} groups
  * @returns {Layer[]}
  */
-function grouped(lists, group) {
-  return lists.map((colours) => ({ colours, ...group }))
+function grouped(lists, groups) {
+  return lists.map((colours) => ({ colours, groups }))
 }
 
 /**
  * What one element in the stack beneath a text paints at a point (#117): its own box (ownPaint), unless it is the root
  * or the body, whose backgrounds fill the canvas (canvasOf), and each of its generated boxes under the point
- * (generatedPaint), each in its opacity group (groupOf). Null when any of it cannot be read, or the element draws
+ * (generatedPaint), each in its opacity groups (groupsOf). Null when any of it cannot be read, or the element draws
  * generated boxes whose place was not given.
  * @param {Element} e
  * @param {{ x: number, y: number }} p in the viewport
- * @param {{ holder: Element, faded: Element[], canvas: Set<Element> }} text
+ * @param {{ holder: Element, groups: Group[], canvas: Set<Element> }} text
  * @param {Look} look
  * @returns {{ own: Layer[], pseudos: { pseudo: string, layers: Layer[] }[] } | null}
  */
 function partsAt(e, p, text, look) {
   const own = text.canvas.has(e) ? [] : ownPaint(e, p, look)
   const generated = generatedHere(e, p, look)
-  const ownGroup = own && own.length > 0 ? groupOf(e, '', text, look) : { group: '', fade: 1 }
-  if (!own || !generated || !ownGroup) return null
+  if (!own || !generated) return null
   /** @type {{ pseudo: string, layers: Layer[] }[]} */
   const pseudos = []
   for (const g of generated) {
     const colours = generatedPaint(e, g, p)
-    const group = groupOf(e, g.pseudo, text, look)
-    if (!colours || !group) return null
-    if (colours.length > 0) pseudos.push({ pseudo: g.pseudo, layers: grouped(colours, group) })
+    if (!colours) return null
+    if (colours.length > 0)
+      pseudos.push({ pseudo: g.pseudo, layers: grouped(colours, groupsOf(e, g.pseudo, look.ids)) })
   }
-  return { own: grouped(own, ownGroup), pseudos }
+  return { own: own.length > 0 ? grouped(own, groupsOf(e, '', look.ids)) : [], pseudos }
 }
 
 /**
  * What fills the canvas beneath every text: the root's background, and the body's when the root has none, which it
- * then takes. Null when it cannot be read.
- * @param {{ holder: Element, faded: Element[], canvas: Set<Element> }} text
+ * then takes, drawn in the root's opacity groups only: the root's opacity fades the canvas, the body's does not. Null
+ * when it cannot be read.
+ * @param {{ holder: Element, groups: Group[], canvas: Set<Element> }} text
  * @param {Look} look
  * @returns {Layer[] | null}
  */
 function canvasOf(text, look) {
+  const groups = groupsOf(document.documentElement, '', look.ids)
   /** @type {Layer[]} */
   const layers = []
   for (const e of text.canvas) {
     const own = backgroundOf(getComputedStyle(e))
-    const group = groupOf(e, '', text, look)
-    if (!own || !group) return null
-    layers.push(...grouped(own, group))
+    if (!own) return null
+    layers.push(...grouped(own, groups))
   }
   return layers
+}
+
+/**
+ * The elements whose backgrounds fill the canvas: the root's, and the body's with it when the root has none.
+ * @param {OffscreenCanvasRenderingContext2D} ctx
+ * @returns {Set<Element>}
+ */
+function canvasOwners(ctx) {
+  const root = document.documentElement
+  const bare = isClear(ctx, getComputedStyle(root).backgroundColor) && getComputedStyle(root).backgroundImage === 'none'
+  return new Set(bare ? [root, document.body] : [root])
 }
 
 /**
@@ -1603,52 +1617,69 @@ function arrangementsOf(e, slots, parts, max) {
 
 /**
  * Paint reaching a point from past another box (reachIndex), each as a layer of its colours, which may not reach the
- * point (`transparent` among them), in its opacity group. Null when any one's colours or group cannot be read.
+ * point (`transparent` among them), in its opacity groups. Null when any one's colours cannot be read.
  * @param {{ x: number, y: number }} p in the viewport
- * @param {{ holder: Element, faded: Element[], canvas: Set<Element> }} text
  * @param {Look} look
  * @returns {Layer[] | null}
  */
-function reachedAt(p, text, look) {
+function reachedAt(p, look) {
   /** @type {Layer[]} */
   const layers = []
   for (const e of look.reach.rows.get(Math.floor((p.y + window.scrollY) / 512)) ?? []) {
     if (pointIn(e.box, p) || !pointIn(e.box, p, e.reach)) continue
-    const group = groupOf(e.el, e.pseudo, text, look)
-    if (!e.colours || !group) return null
-    if (e.colours.length > 0) layers.push({ colours: [...e.colours, 'transparent'], ...group })
+    if (!e.colours) return null
+    if (e.colours.length > 0)
+      layers.push({ colours: [...e.colours, 'transparent'], groups: groupsOf(e.el, e.pseudo, look.ids) })
   }
   return layers
 }
 
 /**
- * Whether each opacity group's layers lie together in a reading, as an opacity group's paint always does.
+ * Whether a reading can be drawn, with the text over it: each opacity group's paint, that of the groups inside it
+ * included, lies together, as the browser draws a group whole; so a group once closed is not drawn into again, and the
+ * text's groups are still open over the last layer that shares them.
  * @param {Layer[]} layers
+ * @param {Group[]} last the text's groups
  */
-function contiguous(layers) {
+function contiguous(layers, last) {
   /** @type {Set<string>} */
-  const seen = new Set()
-  let last = ''
-  for (const { group } of layers) {
-    if (group && group !== last && seen.has(group)) return false
-    seen.add(group)
-    last = group
+  const closed = new Set()
+  /** @type {string[]} */
+  let open = []
+  for (const groups of [...layers.map((l) => l.groups), last]) {
+    const ids = groups.map((g) => g.id)
+    const kept = sharedDepth(open, ids)
+    for (const id of open.slice(kept)) closed.add(id)
+    if (ids.slice(kept).some((id) => closed.has(id))) return false
+    open = ids
   }
   return true
+}
+
+/**
+ * How many opacity groups, outermost first, two lists share.
+ * @param {string[]} a
+ * @param {string[]} b
+ */
+function sharedDepth(a, b) {
+  let k = 0
+  while (k < a.length && k < b.length && a[k] === b[k]) k += 1
+  return k
 }
 
 /**
  * Every order the paint beneath a text at a point may be drawn in, each a reading of layers bottom first: the canvas,
  * then each element's paint in one of its arrangements (arrangementsOf), in the stack's order, then each paint reaching
  * the point from past another box at any place among them, since nothing tells where. Orders that split an opacity
- * group are dropped: none is drawn so. Null past `max` orders.
+ * group are dropped: none is drawn so (contiguous). Null past `max` orders, or when every order splits one.
  * @param {Layer[]} canvas
  * @param {Part[][][]} choices each element's arrangements
- * @param {Layer[]} floating
+ * @param {{ layers: Layer[], groups: Group[] }} over paint reaching the point from past another box, and the text's
+ *   groups
  * @param {number} max
  * @returns {Layer[][] | null}
  */
-function ordersOf(canvas, choices, floating, max) {
+function ordersOf(canvas, choices, over, max) {
   /** @type {Part[][]} */
   let ways = [[]]
   for (const options of choices) {
@@ -1662,13 +1693,14 @@ function ordersOf(canvas, choices, floating, max) {
     distinct.set(JSON.stringify(order), order)
   }
   let orders = [...distinct.values()]
-  for (const layer of floating) {
+  for (const layer of over.layers) {
     orders = orders.flatMap((o) =>
       Array.from({ length: o.length + 1 }, (_, i) => [...o.slice(0, i), [layer], ...o.slice(i)]),
     )
     if (orders.length > max) return null
   }
-  return orders.map((o) => [...canvas, ...o.flat()]).filter(contiguous)
+  const drawn = orders.map((o) => [...canvas, ...o.flat()]).filter((o) => contiguous(o, over.groups))
+  return drawn.length > 0 || orders.length === 0 ? drawn : null
 }
 
 /**
@@ -1686,16 +1718,12 @@ function ordersOf(canvas, choices, floating, max) {
  */
 function groundAt(holder, stack, p, look) {
   if (look.reach.over) return null
-  const root = document.documentElement
   // The root's background fills the canvas, and the body's with it when the root has none; else the body paints its own box.
-  const bare =
-    isClear(look.ctx, getComputedStyle(root).backgroundColor) && getComputedStyle(root).backgroundImage === 'none'
-  const canvas = new Set(bare ? [root, document.body] : [root])
-  const text = { holder, faded: fadedAround(holder), canvas }
+  const text = { holder, groups: groupsOf(holder, '', look.ids), canvas: canvasOwners(look.ctx) }
   const at = stack.indexOf(holder)
   const below = (at < 0 ? stack : stack.slice(at)).toReversed()
   const base = canvasOf(text, look)
-  const floating = reachedAt(p, text, look)
+  const floating = reachedAt(p, look)
   if (!base || !floating) return null
   const max = look.maxGrounds * 4
   /** @type {Part[][][]} */
@@ -1707,7 +1735,7 @@ function groundAt(holder, stack, p, look) {
     if (!ways) return null
     if (ways.some((w) => w.length > 0)) choices.push(ways)
   }
-  return ordersOf(base, choices, floating, max)
+  return ordersOf(base, choices, { layers: floating, groups: text.groups }, max)
 }
 
 /**
@@ -1719,7 +1747,12 @@ function groundAt(holder, stack, p, look) {
  * @param {Look} look
  */
 function noteGround(holder, p, look) {
-  const ground = look.grounds.get(holder) ?? { base: false, layers: new Map(), unread: false }
+  const ground = look.grounds.get(holder) ?? {
+    base: false,
+    layers: new Map(),
+    unread: false,
+    groups: groupsOf(holder, '', look.ids),
+  }
   look.grounds.set(holder, ground)
   if (ground.unread) return
   const stack = document.elementsFromPoint(p.x, p.y)
@@ -1921,28 +1954,6 @@ function opacityOf(el) {
 }
 
 /**
- * The opacity a text is drawn at over what is behind it, or null when that is not one number: opacity fades an element
- * as a group, its own background and its descendants' together, so once a faded element, or one between it and the
- * text, paints a background, the text and that background fade together and no single alpha on the text tells their
- * contrast (#117).
- * @param {Element} el
- * @param {OffscreenCanvasRenderingContext2D} ctx
- * @returns {number | null}
- */
-function textAlpha(el, ctx) {
-  let alpha = 1
-  let painted = false
-  for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement) {
-    const style = getComputedStyle(a)
-    painted ||= style.backgroundImage !== 'none' || !isClear(ctx, style.backgroundColor)
-    const opacity = Number.parseFloat(style.opacity || '1')
-    if (opacity < 1 && painted) return null
-    alpha *= opacity
-  }
-  return alpha
-}
-
-/**
  * Whether a colour paints nothing: over black and over white it leaves each as it was.
  * @param {OffscreenCanvasRenderingContext2D} ctx
  * @param {string} colour
@@ -1954,16 +1965,15 @@ function isClear(ctx, colour) {
 }
 
 /**
- * The opacity a text is drawn at, or why its contrast cannot be read from its styles: filtered, stroked, decorated, or
- * group_opacity.
+ * Why a text's contrast cannot be read from its styles, or null: filtered, stroked or decorated. Its opacity, and that
+ * of the elements around it, is read as the groups they draw (groupsOf, composite).
  * @param {Element} el
- * @param {OffscreenCanvasRenderingContext2D} ctx
- * @returns {number | string}
+ * @returns {string | null}
  */
-function drawnAlpha(el, ctx) {
+function unreadFill(el) {
   if (isFiltered(el)) return 'filtered'
   if (isStroked(el)) return 'stroked'
-  return isDecorated(el) ? 'decorated' : (textAlpha(el, ctx) ?? 'group_opacity')
+  return isDecorated(el) ? 'decorated' : null
 }
 
 /**
@@ -2134,70 +2144,117 @@ function pixelOf(c) {
 }
 
 /**
- * Draw one way a reading's layers combine, over white: each layer's colour in turn, and each opacity group's layers
- * drawn together on a scratch canvas, then over the rest at the group's opacity, as the browser composites them (#117).
- * @param {OffscreenCanvasRenderingContext2D} ctx
- * @param {OffscreenCanvasRenderingContext2D} scratch
- * @param {string[]} combo one colour per layer
- * @param {Layer[]} layers
- */
-function drawGround(ctx, scratch, combo, layers) {
-  ctx.globalCompositeOperation = 'source-over'
-  ctx.globalAlpha = 1
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, 1, 1)
-  let i = 0
-  while (i < combo.length) {
-    const group = layers[i]?.group ?? ''
-    const fade = layers[i]?.fade ?? 1
-    if (group === '') {
-      fillWith(ctx, combo[i] ?? 'transparent')
-      i += 1
-      continue
-    }
-    scratch.clearRect(0, 0, 1, 1)
-    for (; i < combo.length && layers[i]?.group === group; i += 1) fillWith(scratch, combo[i] ?? 'transparent')
-    ctx.globalAlpha = fade
-    ctx.drawImage(scratch.canvas, 0, 0)
-    ctx.globalAlpha = 1
-  }
-}
-
-/**
- * The lowest contrast of a text's fill, drawn at its opacity, over every way the layers of each reading of what lies
- * beneath it can combine (combinations), each opacity group composited as the browser does (drawGround), or, past 64
- * ways for one reading, bounded channel by channel (boundedRatio); or why it cannot be read: an image that is not a
- * gradient.
+ * The lowest contrast of a text over every way the layers of each reading of what lies beneath it can combine
+ * (combinations), each composited with the text as the browser draws them (composite), or, past 64 ways for one
+ * reading, bounded channel by channel (boundedRatio); or why it cannot be read: an image that is not a gradient, or
+ * opacity groups past what is composited (group_opacity), which fails the text (isLow).
  * @param {OffscreenCanvasRenderingContext2D} ctx
  * @param {(Layer[] | null)[]} readings
- * @param {{ fill: string, opacity: number }} text
+ * @param {Text} text
  * @returns {number | string}
  */
 function worstOver(ctx, readings, text) {
-  const scratch = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true })
-  if (!scratch) return 'background_elsewhere'
+  // One canvas for each of eight opacity groups open at once, over the one drawn on.
+  const canvases = [ctx]
+  for (let k = 0; k < 8; k += 1) {
+    const c = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true })
+    if (!c) return 'background_elsewhere'
+    canvases.push(c)
+  }
   let worst = Number.POSITIVE_INFINITY
   for (const layers of readings) {
     if (!layers) return 'background_image'
-    const behind = combinations(
-      layers.map((l) => l.colours),
-      64,
-    )
-    if (!behind) {
-      worst = Math.min(worst, boundedRatio(scratch, layers, text))
-      continue
-    }
-    for (const combo of behind) {
-      drawGround(ctx, scratch, combo, layers)
-      const lo = luminance(pixelOf(ctx))
-      ctx.globalAlpha = text.opacity
-      fillWith(ctx, text.fill)
-      ctx.globalAlpha = 1
-      const [a, b] = [luminance(pixelOf(ctx)), lo].toSorted((x, y) => y - x)
-      worst = Math.min(worst, ((a ?? 0) + 0.05) / ((b ?? 0) + 0.05))
-    }
+    const read = readingRatio(canvases, layers, text)
+    if (typeof read === 'string') return read
+    worst = Math.min(worst, read)
   }
   return worst
+}
+
+/**
+ * The lowest contrast of a text over one reading's layers (worstOver): each way they combine drawn without the text
+ * and with it (composite). Past 64 ways, the bound (boundedRatio) reads layers in one opacity group each under a text
+ * in none; any other stack of groups that large is not read (group_opacity).
+ * @param {OffscreenCanvasRenderingContext2D[]} canvases
+ * @param {Layer[]} layers
+ * @param {Text} text
+ * @returns {number | string}
+ */
+function readingRatio(canvases, layers, text) {
+  const behind = combinations(
+    layers.map((l) => l.colours),
+    64,
+  )
+  if (!behind) {
+    const flat = text.groups.length === 0 && layers.every((l) => l.groups.length <= 1)
+    return flat && canvases[1] ? boundedRatio(canvases[1], layers, text) : 'group_opacity'
+  }
+  let worst = Number.POSITIVE_INFINITY
+  for (const combo of behind) {
+    const lo = composite(canvases, layers, combo, null)
+    const hi = composite(canvases, layers, combo, text)
+    if (!lo || !hi) return 'group_opacity'
+    const [a, b] = [luminance(hi), luminance(lo)].toSorted((x, y) => y - x)
+    worst = Math.min(worst, ((a ?? 0) + 0.05) / ((b ?? 0) + 0.05))
+  }
+  return worst
+}
+
+/**
+ * One way a reading's layers combine over white, with the text over them or without it, as the browser composites
+ * them (#117): each layer's colour in turn; each opacity group's paint, that of the groups inside it included, drawn
+ * together on a canvas of its own, and that canvas drawn over what lies below at the group's opacity once its last
+ * layer is drawn; the text drawn in its own groups, over the paint that shares them, before they fade. So white text
+ * on a white box at `opacity: .5` reads 1:1, black on white at `.1` the near-white it is drawn, and a group inside a
+ * group fades twice. Null past eight groups open at once.
+ * @param {OffscreenCanvasRenderingContext2D[]} canvases the one drawn on, then one for each group open at once
+ * @param {Layer[]} layers
+ * @param {string[]} combo one colour per layer
+ * @param {Text | null} text
+ * @returns {[number, number, number] | null}
+ */
+function composite(canvases, layers, combo, text) {
+  const [base] = canvases
+  if (!base) return null
+  base.globalCompositeOperation = 'source-over'
+  base.globalAlpha = 1
+  base.fillStyle = '#ffffff'
+  base.fillRect(0, 0, 1, 1)
+  const steps = layers.map((l, i) => ({ groups: l.groups, colour: combo[i] ?? 'transparent' }))
+  if (text) steps.push({ groups: text.groups, colour: text.fill })
+  /** @type {Group[]} */
+  let open = []
+  for (const step of steps) {
+    if (step.groups.length >= canvases.length) return null
+    const kept = sharedDepth(
+      open.map((g) => g.id),
+      step.groups.map((g) => g.id),
+    )
+    closeGroups(canvases, open, kept)
+    for (let d = kept + 1; d <= step.groups.length; d += 1) canvases[d]?.clearRect(0, 0, 1, 1)
+    open = step.groups
+    const top = canvases[open.length]
+    if (top) fillWith(top, step.colour)
+  }
+  closeGroups(canvases, open, 0)
+  return pixelOf(base)
+}
+
+/**
+ * Draw each open opacity group past the first `kept`, innermost first, over the canvas beneath it at its opacity.
+ * @param {OffscreenCanvasRenderingContext2D[]} canvases
+ * @param {Group[]} open outermost first; group d is drawn on canvases[d + 1]
+ * @param {number} kept
+ */
+function closeGroups(canvases, open, kept) {
+  for (let d = open.length; d > kept; d -= 1) {
+    const under = canvases[d - 1]
+    const own = canvases[d]
+    if (!under || !own) continue
+    under.globalAlpha = open[d - 1]?.fade ?? 1
+    under.drawImage(own.canvas, 0, 0)
+    under.globalAlpha = 1
+  }
 }
 
 /**
@@ -2207,19 +2264,19 @@ function worstOver(ctx, readings, text) {
 /**
  * The lowest contrast a text can have over one reading's layers where they combine more than 64 ways (seven gradients
  * stacked, say), read conservatively rather than left unknown (#117): each channel of what lies beneath is bounded
- * layer by layer as drawGround draws it, over white, each layer at each of its colours and alphas, each opacity group
- * composited apart and drawn at its opacity; the text is drawn at its opacity over both bounds; and where the text's
+ * layer by layer as composite draws it, over white, each layer at each of its colours and alphas, each opacity group
+ * composited apart and drawn at its opacity; the text, in no group, is drawn over both bounds; and where the text's
  * luminance and its ground's can meet, it reads 1:1. So an opaque black gradient over black text reads low however
  * many layers lie beneath it, while light layers under dark text read high; it may read a readable stack low, never a
  * low one readable.
  * @param {OffscreenCanvasRenderingContext2D} c a scratch 1×1 canvas
- * @param {Layer[]} layers
- * @param {{ fill: string, opacity: number }} text
+ * @param {Layer[]} layers each in one opacity group at most
+ * @param {Text} text in none
  */
 function boundedRatio(c, layers, text) {
   const ground = groundSpan(c, layers)
   const [t0 = 0, t1 = 0, t2 = 0, ta = 1] = rgbaOn(c, text.fill)
-  const e = ta * text.opacity
+  const e = ta
   const t = [t0, t1, t2]
   /** @type {Span} */
   const drawn = [
@@ -2234,7 +2291,7 @@ function boundedRatio(c, layers, text) {
 }
 
 /**
- * The span of each channel of what a reading's layers draw over white, as drawGround draws them.
+ * The span of each channel of what a reading's layers draw over white, as composite draws them.
  * @param {OffscreenCanvasRenderingContext2D} c
  * @param {Layer[]} layers
  * @returns {Span}
@@ -2247,7 +2304,7 @@ function groundSpan(c, layers) {
   ]
   let i = 0
   while (i < layers.length) {
-    const group = layers[i]?.group ?? ''
+    const group = layers[i]?.groups[0]?.id ?? ''
     if (group === '') {
       const alternatives = (layers[i]?.colours ?? []).map((colour) => rgbaOn(c, colour))
       const [low, high] = span
@@ -2257,7 +2314,7 @@ function groundSpan(c, layers) {
     }
     /** @type {Layer[]} */
     const run = []
-    for (let layer = layers[i]; layer?.group === group; i += 1, layer = layers[i]) run.push(layer)
+    for (let layer = layers[i]; layer?.groups[0]?.id === group; i += 1, layer = layers[i]) run.push(layer)
     span = groupOver(c, run, span)
   }
   return span
@@ -2284,7 +2341,7 @@ function spanOver(alternatives, under, k, end) {
  * @returns {Span}
  */
 function groupOver(c, run, under) {
-  const fade = run[0]?.fade ?? 1
+  const fade = run[0]?.groups[0]?.fade ?? 1
   let premultiplied = [
     [0, 0, 0],
     [0, 0, 0],
@@ -2330,14 +2387,26 @@ function rgbaOn(c, colour) {
 }
 
 /**
- * The reading of what lies beneath an element's text where it lies over its own background (backgroundLayers), its
- * layers in no opacity group; null when that background cannot be read.
+ * The reading of what lies beneath an element's text where it lies over its own background (backgroundLayers), each
+ * layer in the opacity groups of the element that paints it: those of the text's groups (`groups`, outermost first)
+ * whose element holds it, and the root's for the backgrounds that fill the canvas (canvasOf). Null when that background
+ * cannot be read.
  * @param {Element} el
+ * @param {Group[]} groups the text's, outermost first
+ * @param {Set<Element>} canvas the elements whose backgrounds fill the canvas (canvasOwners)
  * @returns {Layer[] | null}
  */
-function ownReading(el) {
-  const base = backgroundLayers(el)
-  return base ? base.map((colours) => ({ colours, group: '', fade: 1 })) : null
+function ownReading(el, groups, canvas) {
+  const faded = fadedAround(el)
+  /** @type {Layer[]} */
+  const layers = []
+  for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement) {
+    const own = backgroundOf(getComputedStyle(a))
+    if (!own) return null
+    const by = canvas.has(a) ? document.documentElement : a
+    layers.unshift(...grouped(own, groups.slice(0, faded.filter((f) => f.contains(by)).length)))
+  }
+  return layers
 }
 
 /**
@@ -2346,10 +2415,11 @@ function ownReading(el) {
  * and over the stops of any gradient there, against the floor for the size its text is drawn at (3 for large text, 4.5
  * otherwise): a heading set large and scaled or zoomed down is held to the floor of the size a capture shows, and one
  * whose drawn size the styles do not tell to the higher floor (#117). Where its text was not looked at, it is read over
- * its own background. The text is painted in the colour it is filled with, at the opacity it is drawn at (#117).
- * Unknown when what lies beneath cannot be read (background_elsewhere, background_image), a
- * filter or blend mode changes the colours, a stroke outlines the glyphs (#117), or opacity fades a background
- * together with the text (group_opacity).
+ * its own background. The text is painted in the colour it is filled with, in its opacity groups, over the paint that
+ * shares them, and each group faded as one over what lies below, as the browser draws it (composite, #117). Unknown
+ * when what lies beneath cannot be read (background_elsewhere, background_image), a filter or blend mode changes the
+ * colours, or a stroke outlines the glyphs (#117); failed (isLow) where its opacity groups are past what is composited
+ * (group_opacity).
  * @param {Element} el
  * @param {OffscreenCanvasRenderingContext2D} ctx
  * @param {Ground} [ground]
@@ -2359,15 +2429,28 @@ function contrastOf(el, ctx, ground) {
   const style = getComputedStyle(el)
   const large = isLarge(el, style)
   const floor = large ? 3 : 4.5
-  const opacity = drawnAlpha(el, ctx)
-  if (typeof opacity === 'string') return { ratio: null, floor, large, detail: opacity }
+  const unread = unreadFill(el)
+  if (unread) return { ratio: null, floor, large, detail: unread }
   if (ground?.unread) return { ratio: null, floor, large, detail: 'background_elsewhere' }
-  const own = ownReading(el)
-  const read = [...(ground?.base === false ? [] : [own]), ...(ground?.layers.values() ?? [])]
+  // The text's groups, named as the readings beneath it name them (noteGround), or for its own background alone.
+  const groups = ground?.groups ?? groupsOf(el, '', new Map())
+  const own = ownReading(el, groups, canvasOwners(ctx))
   const fill = style.getPropertyValue('-webkit-text-fill-color') || style.color
-  const worst = worstOver(ctx, read.length > 0 ? read : [own], { fill, opacity })
+  const worst = worstOver(ctx, readingsOf(own, ground), { fill, groups })
   if (typeof worst === 'string') return { ratio: null, floor, large, detail: worst }
   return { ratio: Math.round(worst * 100) / 100, floor, large, detail: null }
+}
+
+/**
+ * The readings a text's contrast is taken over (contrastOf): its own background's, unless the cover check looked at it
+ * only over other paint, and each of that paint's (noteGround).
+ * @param {Layer[] | null} own
+ * @param {Ground} [ground]
+ * @returns {(Layer[] | null)[]}
+ */
+function readingsOf(own, ground) {
+  const read = [...(ground?.base === false ? [] : [own]), ...(ground?.layers.values() ?? [])]
+  return read.length > 0 ? read : [own]
 }
 
 /**
@@ -2440,8 +2523,18 @@ function contrastMargin(c) {
  */
 function worstContrast(own, runs) {
   const all = [own, ...runs].toSorted((a, b) => contrastMargin(a) - contrastMargin(b))
-  const low = all.find((c) => c.ratio !== null && c.ratio < c.floor)
+  const low = all.find((c) => isLow(c))
   return low ?? all.find((c) => c.ratio === null) ?? all[0] ?? own
+}
+
+/**
+ * Whether a contrast fails: below its floor, or not read for the opacity groups its text is drawn in (group_opacity).
+ * Opacity can draw a text as faint as its ground whatever its colours, so a faded text the render cannot composite is
+ * failed, never left unknown, which the gate admits as a limitation (#117).
+ * @param {Contrast} contrast
+ */
+function isLow(contrast) {
+  return contrast.detail === 'group_opacity' || (contrast.ratio !== null && contrast.ratio < contrast.floor)
 }
 
 /**
@@ -2464,7 +2557,7 @@ function withRuns(measure, el, at) {
     measure.contrast,
     shown.map((j) => contrastOf(j.run, at.ctx, at.grounds.get(j.run))),
   )
-  const low = contrast.ratio !== null && contrast.ratio < contrast.floor ? ['low_contrast'] : []
+  const low = isLow(contrast) ? ['low_contrast'] : []
   const issues = [...new Set([...measure.issues, ...judged.flatMap((j) => j.issues), ...low])].slice(0, 10)
   return { ...measure, issues, contrast, probes: issues.every((i) => i === 'low_contrast') ? measure.probes : [] }
 }
@@ -2485,7 +2578,7 @@ function measureBlock(el, page, ctx, budget) {
   const { cover, probes, holders } = looked ? isCovered(el, budget, ctx) : { cover: 'clear', probes: [], holders: [] }
   // A text is read over what lay beneath it where the cover check looked: its own background, or other paint (#117).
   const contrast = textContrast(el, holders, ctx, budget.grounds)
-  if (contrast.ratio !== null && contrast.ratio < contrast.floor) issues.push('low_contrast')
+  if (isLow(contrast)) issues.push('low_contrast')
   if (cover === 'covered') issues.push('covered')
   return {
     id: el.getAttribute('data-block') ?? '',
@@ -2580,7 +2673,20 @@ function measurePage(opts) {
     framing,
     unmeasured: labels.length - shown.length + texts.length - framing.length + runs.over,
     misplaced: misplacedTables(elements),
+    reordered: reorderedBlocks(elements),
+    unscrollable: !windowScrolls(),
   }
+}
+
+/**
+ * Whether the window can scroll down the page (#117). The root's overflow, or the body's where the root's is visible,
+ * applies to the window: `hidden` or `clip` there keeps a reader from all that lies below the window's height, however
+ * tall it is, while the captures, taken whole, show it.
+ */
+function windowScrolls() {
+  const root = getComputedStyle(document.documentElement).overflowY
+  const used = root === 'visible' ? getComputedStyle(document.body).overflowY : root
+  return used !== 'hidden' && used !== 'clip'
 }
 
 /**
@@ -2604,6 +2710,166 @@ function misplacedTables(blocks) {
       return tables.length > 1 || tables.some((t) => cellsMoved(t))
     })
     .map((el) => el.getAttribute('data-block') ?? '')
+}
+
+/**
+ * The blocks whose text the page draws out of its order (#117): a block's runs of text, in the order its markup gives
+ * them, are each drawn after the one before, on the same line (to its right, or to its left in a block set right to
+ * left), on a later line, or, inside one multi-column box (`columns`), at the head of a later column. CSS can draw them
+ * otherwise while every text stays shown and readable: `display: flex` with
+ * `order`, a float, a placed or transformed run, or a reversed flex or grid draws "Not free" as "free Not". A run in
+ * the direction opposite its block's (a Hebrew name in English) is held to its lines only, since the bidi algorithm
+ * orders it on its line; a table's cells are held by misplacedTables. Within one text node the browser keeps the order.
+ * @param {Element[]} blocks
+ * @returns {string[]}
+ */
+function reorderedBlocks(blocks) {
+  return blocks.filter((el) => outOfOrder(el)).map((el) => el.getAttribute('data-block') ?? '')
+}
+
+/**
+ * Whether a block's runs of text are drawn out of their order (reorderedBlocks): each run's first line box against the
+ * last line box of the run before it.
+ * @param {Element} block
+ */
+function outOfOrder(block) {
+  const rtl = getComputedStyle(block).direction === 'rtl'
+  const opposite = rtl
+    ? /(?![\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF])\p{L}/u
+    : /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+  const look = { block, range: document.createRange(), opposite }
+  /** @type {Run | null} */
+  let before = null
+  // Whether the text between the last run and the next holds a space: a node of spaces, or one not drawn.
+  let spaced = false
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const run = runOf(node, look)
+    if (!run) {
+      spaced ||= /\s/u.test(node.textContent ?? '')
+      continue
+    }
+    const flow = before && { ...flowOf(before, run, rtl), spaced: spaced || before.spacedEnd || run.spacedStart }
+    if (before && flow && drawnBefore(run.first, before.last, flow)) return true
+    before = run
+    spaced = false
+  }
+  return false
+}
+
+/**
+ * @typedef {{ first: DOMRect, last: DOMRect, opposite: boolean, columns: Element | null, spacedStart: boolean,
+ *   spacedEnd: boolean, em: number }} Run a run of a block's text: its first and last line boxes, whether it is in the
+ *   direction opposite the block's, the multi-column box it is set in (columnsOf), whether its text starts or ends with
+ *   a space, and its font's size
+ */
+
+/**
+ * One text node of a block as a run (outOfOrder), or null: blank, in a table the block holds, or not drawn where its
+ * boxes inside the block let it show (a run a box clips away is reported as cut, not read for its order).
+ * @param {Node} node
+ * @param {{ block: Element, range: Range, opposite: RegExp }} look
+ * @returns {Run | null}
+ */
+function runOf(node, look) {
+  const text = node.textContent ?? ''
+  const table = node.parentElement?.closest('table')
+  if (!/\S/u.test(text) || (table && look.block.contains(table))) return null
+  // From its first character to its last that is not a space: a space drawn at either end parts it from its neighbour.
+  look.range.setStart(node, text.search(/\S/u))
+  look.range.setEnd(node, text.trimEnd().length)
+  const clips = clipsOf(node.parentElement, look.block)
+  const rects = [...look.range.getClientRects()].filter(
+    (r) => r.width > 0 && r.height > 0 && clips.every((c) => meets(r, c)),
+  )
+  const [first] = rects
+  const last = rects.at(-1)
+  if (!first || !last) return null
+  return {
+    first,
+    last,
+    opposite: look.opposite.test(text),
+    columns: columnsOf(node.parentElement, look.block),
+    spacedStart: /^\s/u.test(text),
+    spacedEnd: /\s$/u.test(text),
+    em: node.parentElement ? Number.parseFloat(getComputedStyle(node.parentElement).fontSize) : 16,
+  }
+}
+
+/**
+ * The boxes that clip a text within its block: each element from it up to the block whose overflow is not visible.
+ * @param {Element | null} el
+ * @param {Element} block
+ * @returns {DOMRect[]}
+ */
+function clipsOf(el, block) {
+  /** @type {DOMRect[]} */
+  const out = []
+  for (let at = el; at && block.contains(at); at = at.parentElement) {
+    const s = getComputedStyle(at)
+    if (s.overflowX !== 'visible' || s.overflowY !== 'visible') out.push(at.getBoundingClientRect())
+  }
+  return out
+}
+
+/**
+ * Whether two boxes overlap with some area.
+ * @param {DOMRect} a
+ * @param {DOMRect} b
+ */
+function meets(a, b) {
+  return Math.min(a.right, b.right) > Math.max(a.left, b.left) && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top)
+}
+
+/**
+ * How one run follows another (drawnBefore): the block's direction, whether either is in the opposite one, and whether
+ * both are set in one multi-column box.
+ * @param {Run} before
+ * @param {Run} run
+ * @param {boolean} rtl
+ */
+function flowOf(before, run, rtl) {
+  const em = Math.min(before.em, run.em)
+  return { rtl, either: before.opposite || run.opposite, columns: !!run.columns && before.columns === run.columns, em }
+}
+
+/**
+ * The multi-column box a text is set in, within its block (the element itself or one between it and the block), or
+ * null.
+ * @param {Element | null} el
+ * @param {Element} block
+ * @returns {Element | null}
+ */
+function columnsOf(el, block) {
+  for (let at = el; at && block.contains(at); at = at.parentElement) {
+    const s = getComputedStyle(at)
+    if (s.columnCount !== 'auto' || s.columnWidth !== 'auto') return at
+  }
+  return null
+}
+
+/**
+ * Whether a run whose first line box is `next` is drawn before the run whose last line box is `prev`, or run into it.
+ * The two are on one line where they overlap by at least three tenths of the smaller box's height (a smaller run, a
+ * raised mark, sit within the line); otherwise `next` is on an earlier line where its middle is above the other's, and
+ * is drawn before it unless, in one multi-column box, it heads a later column (wholly past the other, to its right, or
+ * left set right to left). On one line it is drawn before the other where it starts left of its end (right of it set
+ * right to left) by more than a pixel; and where the text has a space between them, it runs into the other where they
+ * are drawn less than three twentieths of an em apart, so that two words read as one ("Now here." drawn "Nowhere.").
+ * A run in the direction opposite the block's is held to its lines only.
+ * @param {DOMRect} next
+ * @param {DOMRect} prev
+ * @param {{ rtl: boolean, either: boolean, columns: boolean, spaced: boolean, em: number }} how
+ */
+function drawnBefore(next, prev, how) {
+  const overlap = Math.min(next.bottom, prev.bottom) - Math.max(next.top, prev.top)
+  const gap = how.rtl ? prev.left - next.right : next.left - prev.right
+  if (overlap < 0.3 * Math.min(next.height, prev.height)) {
+    const earlier = next.top + next.bottom < prev.top + prev.bottom
+    return earlier && !(how.columns && gap >= -1)
+  }
+  if (how.either) return false
+  return gap < -1 || (how.spaced && gap < 0.15 * how.em)
 }
 
 /**
@@ -2722,6 +2988,14 @@ const IN_PAGE = [
   besideLine,
   adjoinedBlocks,
   misplacedTables,
+  reorderedBlocks,
+  outOfOrder,
+  runOf,
+  clipsOf,
+  meets,
+  flowOf,
+  columnsOf,
+  drawnBefore,
   cellsMoved,
   onItsRow,
   within,
@@ -2794,15 +3068,17 @@ const IN_PAGE = [
   ownPaint,
   idOf,
   fadedAround,
-  groupOf,
+  groupsOf,
   grouped,
   partsAt,
   canvasOf,
+  canvasOwners,
   setBeneath,
   stacksAlone,
   arrangementsOf,
   reachedAt,
   contiguous,
+  sharedDepth,
   ordersOf,
   groundAt,
   noteGround,
@@ -2812,9 +3088,8 @@ const IN_PAGE = [
   tooSmall,
   paint,
   opacityOf,
-  textAlpha,
   isClear,
-  drawnAlpha,
+  unreadFill,
   isFiltered,
   isStroked,
   isDecorated,
@@ -2824,7 +3099,9 @@ const IN_PAGE = [
   combinations,
   fillWith,
   pixelOf,
-  drawGround,
+  readingRatio,
+  composite,
+  closeGroups,
   worstOver,
   boundedRatio,
   groundSpan,
@@ -2837,15 +3114,18 @@ const IN_PAGE = [
   leastScale,
   drawnScale,
   isLarge,
+  readingsOf,
   contrastOf,
   blockRuns,
   runIssues,
   contrastMargin,
   worstContrast,
+  isLow,
   withRuns,
   measureBlock,
   budgetOf,
   measurePage,
+  windowScrolls,
   shownElements,
   framingElements,
 ]
@@ -2910,10 +3190,28 @@ export function conditionsScript() {
 }
 
 /**
- * An expression that returns the window's width and the research tables whose cells are drawn elsewhere
- * (misplacedTables), which the width sweep reads at every width (capture-html.mjs, #117).
+ * An expression that returns the window's width, the research tables whose cells are drawn elsewhere
+ * (misplacedTables) and the blocks whose text is drawn out of its order (reorderedBlocks), which the width sweep reads
+ * at every width (capture-html.mjs, #117).
  */
-export function tablesScript() {
-  const source = [misplacedTables, cellsMoved, onItsRow, within, textBoxOf].map((f) => f.toString()).join('\n')
-  return `(() => {\n${source}\nreturn [innerWidth, misplacedTables([...document.querySelectorAll('[data-block]')]).join()]\n})()`
+export function orderScript() {
+  const source = [
+    misplacedTables,
+    cellsMoved,
+    onItsRow,
+    within,
+    textBoxOf,
+    reorderedBlocks,
+    outOfOrder,
+    runOf,
+    clipsOf,
+    meets,
+    flowOf,
+    columnsOf,
+    drawnBefore,
+  ]
+    .map((f) => f.toString())
+    .join('\n')
+  const blocks = "[...document.querySelectorAll('[data-block]')]"
+  return `(() => {\n${source}\nreturn [innerWidth, misplacedTables(${blocks}).join(), reorderedBlocks(${blocks}).join()]\n})()`
 }

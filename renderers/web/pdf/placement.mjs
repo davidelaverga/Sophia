@@ -18,15 +18,18 @@
 // Inside a band, how a text is drawn can change and change back where no media condition does: a grid's column count,
 // a flex line, an inline box or a float that wraps, or a text that rewraps, moves a box onto a text, or out of a parent
 // of fixed height onto the text that follows it, in the flow, and off it again; or cuts a text, sets it off the page or
-// outside its section, widens the page, or moves a research table's cells (#117). So at every whole width of every
-// band the kernel reads, for each line of text, the drawn boxes and lines of other texts that lie on it, and whether
-// a clip cuts it, it leaves the page or its section; whether the page is wider than the window; and which research
-// tables' cells are drawn elsewhere (meetingsOf, and capture-page.mjs tablesScript). Each width where any of that
-// changes is measured as band ends (layoutChanges), every check included, so each piece of a band holds the same at
-// every whole width: a box that lies on a text anywhere in it lies on it at both its ends, where the cover, contrast
-// and placement checks read them. Not read between the ends: the paint inside a box that lies on a text throughout (a
+// outside its section, widens the page, or moves a research table's cells or a block's runs of text out of their
+// order (#117). So at every whole width of every band the kernel reads, for each line of text, the drawn boxes and
+// lines of other texts that lie on it, and whether a clip cuts it, it leaves the page or its section; whether the page
+// is wider than the window; and which research tables' cells are drawn elsewhere and which blocks' text out of its
+// order (meetingsOf, and capture-page.mjs orderScript). Each width where any of that changes is measured as band ends
+// (layoutChanges), every check included, so each piece of a band holds the same at every whole width: a box that lies
+// on a text anywhere in it lies on it at both its ends, where the cover, contrast and placement checks read them. Not read between the ends: the paint inside a box that lies on a text throughout (a
 // gradient's colours beneath it), and an inline box drawn across lines, which is read by the box around its pieces.
 // Each band end's snapshot and comparison run within the sweep's time (placementStep).
+// The window's height is the sweep's own throughout. A static page lays nothing out by it, so at each band end the page is
+// also laid out at a few other heights, and a box or a line of text placed otherwise at any fails the band end (shapeOf,
+// capture-html.mjs heightIssue); heights between those are not read.
 // An inline mark offset by the same lengths at both ends (a citation raised with `top: -0.4em`) moves with the lines
 // of its own paragraph and is compared with the texts of other blocks only. Every bound fails closed: a page with more
 // boxes or pairs than are compared, or a box or text drawn at one end of a band only, fails the band.
@@ -1151,6 +1154,27 @@ export function meetingsOf(snapshot, limits = PLACEMENT) {
   // Wider by any part of a pixel, as the measure's overflow is (capture-page.mjs overflowPx).
   const wide = page !== null && Math.ceil((snapshot.documents[0]?.contentWidth ?? 0) - page[2]) > 0
   return { state: `${wide ? 'wide ' : ''}${meetingsIn(layout, linesIn(snapshot))}` }
+}
+
+/**
+ * Where the page lays out every box and line of text, from a snapshot (DOMSnapshot.captureSnapshot), the window's own
+ * box left out: what the window's height alone must leave as it is (#117). A static page sizes and places nothing by
+ * the window's height, so one laid out otherwise at another height (a block at `top: 700px` in a section of
+ * `height: 100%`, cut in a window 600px high; a box placed against the window's bottom) shows a reader there what no
+ * capture shows (capture-html.mjs heightIssue). Null where the snapshot holds no document, or more boxes than
+ * PLACEMENT.maxNodes.
+ * @param {Snapshot} snapshot
+ * @param {{ maxNodes: number }} [limits]
+ * @returns {string | null}
+ */
+export function shapeOf(snapshot, limits = PLACEMENT) {
+  const doc = snapshot.documents[0]
+  if (!doc || doc.layout.nodeIndex.length > limits.maxNodes) return null
+  const type = doc.nodes.nodeType ?? []
+  // The document's own box is the window's (node type 9).
+  const boxes = doc.layout.nodeIndex.flatMap((ni, li) => (type[ni] === 9 ? [] : [ni, ...(doc.layout.bounds[li] ?? [])]))
+  const lines = doc.textBoxes ?? { layoutIndex: [], bounds: [] }
+  return `${boxes.join()}|${lines.layoutIndex.join()}|${lines.bounds.flat().join()}`
 }
 
 /** @typedef {(widths: number[]) => Promise<({ state: string } | { issue: string })[]>} Probe how the texts lie at each

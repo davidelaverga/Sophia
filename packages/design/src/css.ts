@@ -294,6 +294,25 @@ function caseIssue(property: string, node: CssNode & { type: 'Declaration' }): s
 }
 
 /**
+ * The values `word-spacing` may take: normal, a keyword that resets it, or one length of zero or more. Spacing below
+ * zero draws two words as one ("Now here." as "Nowhere.") within a text the render reads as a whole, so a negative
+ * value, or arithmetic or a variable that may be one, is refused (#117).
+ */
+const SPACING = new Set(['normal', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
+
+/** Whether a `word-spacing` value is normal, a reset, or one length of zero or more (SPACING). */
+function isSpacing(value: CssNode): boolean {
+  const parts: CssNode[] = []
+  walk(value, (part) => {
+    if (part.type !== 'Value') parts.push(part)
+  })
+  const [only] = parts
+  if (parts.length !== 1 || !only) return false
+  if (only.type === 'Identifier') return SPACING.has(only.name.toLowerCase())
+  return (only.type === 'Dimension' || only.type === 'Number') && Number(only.value) >= 0
+}
+
+/**
  * The values `unicode-bidi` may take: those that set or isolate a direction. `bidi-override` and `isolate-override`
  * draw a text's characters in the order the direction gives, so "12.50" under `direction: rtl` is drawn "05.21" while
  * every check reads "12.50" (#117).
@@ -324,6 +343,8 @@ function isOneOf(value: CssNode, allowed: ReadonlySet<string>): boolean {
 function keywordIssue(property: string, node: CssNode & { type: 'Declaration' }): string | null {
   if (property === 'text-shadow' && !isOneOf(node.value, SHADOWLESS))
     return `${node.property} may only be none: a shadow is drawn past the text, over what lies beside it, where neither a cover nor a contrast is read`
+  if (property === 'word-spacing' && !isSpacing(node.value))
+    return `${node.property} may be normal or a length of zero or more: spacing below zero draws two words as one`
   if (property === 'unicode-bidi' && !isOneOf(node.value, BIDI))
     return `${node.property} may set or isolate a direction, not override it: an override draws a text's characters in another order than the one read`
   if (property === 'color-scheme' && !isLightOnly(node.value))

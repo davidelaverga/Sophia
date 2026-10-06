@@ -24,7 +24,7 @@ import {
   MAX_MEASURED,
   MAX_POINTS,
   pageScript,
-  tablesScript,
+  orderScript,
 } from './capture-page.mjs'
 import { launchConfined, playwrightVersion } from './confine.mjs'
 import {
@@ -33,8 +33,10 @@ import {
   layoutChanges,
   meetingsOf,
   placementStep,
+  shapeOf,
   STYLES,
   structureScript,
+  withinTime,
 } from './placement.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
 
@@ -94,7 +96,14 @@ export const RECEIPT_BYTES = 1_000_000
  * wide screen. A breakpoint past these widths, more breakpoints, a condition it cannot read, or a band end it has no
  * time left to measure fails the sweep, never a band left out.
  */
-export const SWEEP = Object.freeze({ minWidth: 320, maxWidth: 2560, height: 800, maxBreakpoints: 8, maxMs: 60_000 })
+export const SWEEP = Object.freeze({
+  minWidth: 320,
+  maxWidth: 2560,
+  height: 800,
+  heights: Object.freeze([320, 640, 1080, 2160]),
+  maxBreakpoints: 8,
+  maxMs: 60_000,
+})
 /** A stretch of the page outside every section shorter than this is not captured on its own. */
 const MARGIN_MIN_PX = 24
 const SECTION_ID = /^[a-z][a-z0-9-]{0,63}$/
@@ -375,13 +384,17 @@ async function captureTarget(shot, target, page) {
 /**
  * The checks one target's measures and coverage carry. An unknown contrast is unknown, never passed; labels or texts
  * left unmeasured past the receipt's bound, or whose lines the cover check's bounds did not reach, fail
- * blocks_visible, and so do research tables whose cells the page draws under other headers or off their rows.
+ * blocks_visible, and so do research tables whose cells the page draws under other headers or off their rows, blocks
+ * whose text it draws out of its order, and a window that cannot scroll down the page. A text whose opacity groups are
+ * past what the measure composites is failed for contrast, not unknown (capture-page.mjs isLow).
  * @param {Target} target
  * @param {import('./capture-page.mjs').PageMeasure} page
  * @param {Coverage} coverage
- * @param {{ unmeasured?: number, unsampled?: number, misplaced?: string[] }} [missed] how many labels, texts and runs
- *   the measure left out, how many texts the cover check did not reach, and the research tables whose cells are drawn
- *   elsewhere (capture-page.mjs misplacedTables)
+ * @param {{ unmeasured?: number, unsampled?: number, misplaced?: string[], reordered?: string[],
+ *   unscrollable?: boolean }} [missed] how many labels, texts and runs the measure left out, how many texts the cover
+ *   check did not reach, the research tables whose cells are drawn elsewhere (capture-page.mjs misplacedTables), the
+ *   blocks whose text is drawn out of its order (reorderedBlocks), and whether the window cannot scroll down the page
+ *   (windowScrolls)
  * @returns {Check[]}
  */
 export function targetChecks(target, page, coverage, missed = {}) {
@@ -504,12 +517,28 @@ function unreached(unmeasured, unsampled) {
 }
 
 /**
- * What else blocks_visible names at a target: what the measure left out or did not reach (unreached), and the research
- * tables whose cells are drawn elsewhere (movedCells).
- * @param {{ unmeasured?: number, unsampled?: number, misplaced?: string[] }} missed
+ * What else blocks_visible names at a target: what the measure left out or did not reach (unreached), the research
+ * tables whose cells are drawn elsewhere (movedCells), the blocks whose text is drawn out of its order (outOfOrder), and
+ * a window that cannot scroll down the page (unscrolled).
+ * @param {{ unmeasured?: number, unsampled?: number, misplaced?: string[], reordered?: string[],
+ *   unscrollable?: boolean }} missed
  */
 function unmeasuredParts(missed) {
-  return [...unreached(missed.unmeasured ?? 0, missed.unsampled ?? 0), movedCells(missed.misplaced ?? [])]
+  return [
+    ...unreached(missed.unmeasured ?? 0, missed.unsampled ?? 0),
+    movedCells(missed.misplaced ?? []),
+    outOfOrder(missed.reordered ?? []),
+    unscrolled(missed.unscrollable ?? false),
+  ]
+}
+
+/**
+ * A window that cannot scroll down the page, as blocks_visible names it: a reader sees no more of the page than the
+ * window's height, while a capture shows it whole (#117).
+ * @param {boolean} unscrollable
+ */
+function unscrolled(unscrollable) {
+  return unscrollable ? 'the window cannot scroll down the page: its overflow is hidden on the root or the body' : ''
 }
 
 /**
@@ -520,6 +549,17 @@ function unmeasuredParts(missed) {
 function movedCells(misplaced) {
   return misplaced.length > 0
     ? `tables whose cells are drawn under other headers or off their rows: ${listed(misplaced)}`
+    : ''
+}
+
+/**
+ * The blocks whose text the page draws out of the order its markup gives it, or with two of its words run into one, as
+ * blocks_visible names them: "Not free" drawn "free Not", or "Now here." drawn "Nowhere.", says another thing (#117).
+ * @param {string[]} reordered
+ */
+function outOfOrder(reordered) {
+  return reordered.length > 0
+    ? `blocks whose text is drawn out of its order or with its words run together: ${listed(reordered)}`
     : ''
 }
 
@@ -570,7 +610,10 @@ function isMeasure(value) {
     typeof value === 'object' &&
     value !== null &&
     ['width', 'height', 'overflowPx', 'unmeasured'].every((k) => typeof Reflect.get(value, k) === 'number') &&
-    ['blocks', 'sections', 'overflowing', 'misplaced'].every((k) => Array.isArray(Reflect.get(value, k)))
+    ['blocks', 'sections', 'overflowing', 'misplaced', 'reordered'].every((k) =>
+      Array.isArray(Reflect.get(value, k)),
+    ) &&
+    typeof Reflect.get(value, 'unscrollable') === 'boolean'
   )
 }
 
@@ -602,7 +645,7 @@ async function measure(page, cdp, maxLookMs = MAX_LOOK_MS) {
  * counts the texts it did not reach.
  * @param {Shot} shot
  * @param {import('playwright-core').Page} page
- * @param {Omit<import('./capture-page.mjs').PageAnswer, 'unmeasured' | 'misplaced'>} answer
+ * @param {Omit<import('./capture-page.mjs').PageAnswer, 'unmeasured' | 'misplaced' | 'reordered' | 'unscrollable'>} answer
  * @param {number} [deadline] Date.now() by which to stop, at most MAX_LOOK_MS from now (a sweep's own, when less)
  * @returns {Promise<{ measured: import('./capture-page.mjs').PageMeasure, unsampled: number }>}
  */
@@ -777,15 +820,19 @@ export function sweepPlan(media) {
 /**
  * What a measure at a band end shows wrong, or null: a block or a text outside the blocks hidden, cut, covered, set
  * beside other text or off the page, or in low contrast, horizontal overflow, text the measure did not reach, a research
- * table whose cells are drawn under other headers or off their rows, or (when the job names its sections) text of one
- * drawn outside it (outsideScope). A contrast it cannot read is a limitation, as at a target.
+ * table whose cells are drawn under other headers or off their rows, a block whose text is drawn out of its order, a
+ * window that cannot scroll down the page, or
+ * (when the job names its sections) text of one drawn outside it (outsideScope). A contrast it cannot read is a
+ * limitation, as at a target.
  * @param {import('./capture-page.mjs').PageMeasure} page
  * @param {number} missed labels, texts and runs left out, and texts the cover check did not reach
  * @param {string[] | null} requested the sections the job names, or null for every one (outsideScope)
- * @param {string[]} misplaced the research tables whose cells are drawn elsewhere (capture-page.mjs misplacedTables)
+ * @param {{ misplaced: string[], reordered: string[], unscrollable: boolean }} drawn the research tables whose cells
+ *   are drawn elsewhere, the blocks whose text is drawn out of its order, and whether the window cannot scroll down the
+ *   page (capture-page.mjs misplacedTables, reorderedBlocks, windowScrolls)
  * @returns {string | null}
  */
-function bandIssue(page, missed, requested, misplaced) {
+function bandIssue(page, missed, requested, drawn) {
   const unseen = [
     ...new Set([
       ...page.blocks.filter((m) => hiddenHere(m) || m.issues.includes('low_contrast')),
@@ -798,7 +845,9 @@ function bandIssue(page, missed, requested, misplaced) {
     unseen.length > 0 ? listed(unseen.map((m) => m.id)) : '',
     page.overflowPx > 0 ? `${page.overflowPx}px past the width` : '',
     missed > 0 ? `${missed} texts not measured` : '',
-    movedCells(misplaced),
+    movedCells(drawn.misplaced),
+    outOfOrder(drawn.reordered),
+    unscrolled(drawn.unscrollable),
   ].filter(Boolean)
   return parts.length > 0 ? parts.join(', ') : null
 }
@@ -826,9 +875,10 @@ async function measureEnds(page, shot, sweep, wrong) {
     // The probe sets the band end's width through the protocol, as it set every width of the bands, before the page is
     // measured there: Playwright keeps the width it last set as its own, and does not set it again (crPage.js).
     const [lie] = await sweep.probe([width])
-    const { unmeasured, misplaced, ...answer } = await measure(page, shot.cdp, left)
+    const { unmeasured, misplaced, reordered, unscrollable, ...answer } = await measure(page, shot.cdp, left)
     const { measured, unsampled } = await generatedCover(shot, page, answer, sweep.until)
-    const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null, misplaced)
+    const drawn = { misplaced, reordered, unscrollable }
+    const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null, drawn)
     if (issue) wrong.push(`at ${width}px: ${issue}`)
     /** @type {{ state: string }} */
     const { state } = await page.evaluate(structureScript(sweep.conditions))
@@ -837,7 +887,39 @@ async function measureEnds(page, shot, sweep, wrong) {
     const step = await placementStep(() => layoutAt(shot.cdp), here, before, sweep.until)
     if (step.issue) wrong.push(step.issue)
     before = step.end
+    const tall = await heightIssue(shot.cdp, width, sweep.until)
+    if (tall) wrong.push(tall)
   }
+}
+
+/**
+ * Whether the page is laid out otherwise at a band end's width in a window of any of SWEEP.heights than of the sweep's
+ * own (placement.mjs shapeOf), and at which: a static page sizes and places nothing by the window's height, and one that
+ * does shows a reader at another height what no capture shows (#117), as `height: 100%` down from the root, `vh` or a
+ * box placed against the window's bottom do. Width percentages, and a page whose boxes and lines stay put, pass. The
+ * heights are read in one batch, which sets the sweep's own height again last, within the sweep's time: unread by then,
+ * the band end fails. Only those heights are read, not every height between them.
+ * @param {import('playwright-core').CDPSession} cdp
+ * @param {number} width
+ * @param {number} until
+ * @returns {Promise<string | null>}
+ */
+async function heightIssue(cdp, width, until) {
+  const read = [SWEEP.height, ...SWEEP.heights].map((height) =>
+    Promise.all([
+      cdp.send('Emulation.setDeviceMetricsOverride', metricsAt(width, height)),
+      cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: [] }),
+    ]).then(([, snapshot]) => shapeOf(snapshot)),
+  )
+  const back = cdp.send('Emulation.setDeviceMetricsOverride', metricsAt(width, SWEEP.height))
+  const got = await withinTime(Promise.all([Promise.all(read), back]), until)
+  if ('late' in got) return `at ${width}px: window heights not compared within the sweep's time`
+  const [own, ...others] = got.value[0]
+  if (own === null || others.includes(null)) return `at ${width}px: window heights not compared`
+  const otherwise = SWEEP.heights.filter((_, k) => others[k] !== own)
+  return otherwise.length > 0
+    ? `at ${width}px: laid out otherwise in a window ${otherwise.join(', ')}px high than ${SWEEP.height}px`
+    : null
 }
 
 /**
@@ -872,14 +954,15 @@ async function sweepWidths(page, shot, sweepMs) {
 }
 
 /**
- * The device metrics Playwright's setViewportSize sets for a width at the sweep's height, in the kernel's context (no
- * device emulation, scale 1; crPage.js _updateViewport): the sweep's probes set them through the protocol directly.
+ * The device metrics Playwright's setViewportSize sets for a width, at the sweep's height unless another is given, in
+ * the kernel's context (no device emulation, scale 1; crPage.js _updateViewport): the sweep's probes, and its reads at
+ * other heights (heightIssue), set them through the protocol directly.
  * @param {number} width
+ * @param {number} [height]
  */
-function metricsAt(width) {
+function metricsAt(width, height = SWEEP.height) {
   /** @type {{ angle: number, type: 'landscapePrimary' }} */
   const screenOrientation = { angle: 0, type: 'landscapePrimary' }
-  const height = SWEEP.height
   return {
     mobile: false,
     width,
@@ -893,19 +976,19 @@ function metricsAt(width) {
 
 /**
  * How the texts lie at each of some window widths (placement.mjs Probe): for each width, its device metrics, the
- * window's width and the research tables whose cells are drawn elsewhere (capture-page.mjs tablesScript), and the
- * layout (meetingsOf), sent together, so the browser works through a batch without waiting on the kernel; it reads the
+ * window's width, the research tables whose cells are drawn elsewhere and the blocks whose text is drawn out of its order
+ * (capture-page.mjs orderScript), and the layout (meetingsOf), sent together, so the browser works through a batch without waiting on the kernel; it reads the
  * commands of one session in order. A width the window did not take is not read.
  * @param {import('playwright-core').CDPSession} cdp
  * @returns {import('./placement.mjs').Probe}
  */
 function probeOf(cdp) {
-  const tables = tablesScript()
+  const order = orderScript()
   return async (widths) => {
     const sent = widths.map((width) =>
       Promise.all([
         cdp.send('Emulation.setDeviceMetricsOverride', metricsAt(width)),
-        cdp.send('Runtime.evaluate', { expression: tables, returnByValue: true }),
+        cdp.send('Runtime.evaluate', { expression: order, returnByValue: true }),
         cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLES }),
       ]),
     )
@@ -914,11 +997,11 @@ function probeOf(cdp) {
       const value = read.result.value
       /** @type {unknown[]} */
       const answer = Array.isArray(value) ? value : []
-      const [inner, moved] = answer
+      const [inner, moved, reordered] = answer
       if (read.exceptionDetails || inner !== widths[k])
         return { issue: `the window was not ${String(widths[k])}px wide` }
       const lie = meetingsOf(snapshot)
-      return 'issue' in lie ? lie : { state: `${lie.state}|${String(moved)}` }
+      return 'issue' in lie ? lie : { state: `${lie.state}|${String(moved)}|${String(reordered)}` }
     })
   }
 }
@@ -934,7 +1017,7 @@ async function captureAll(page, shot, entry) {
     const target = CAPTURE_TARGETS[id]
     if (!target) throw new CaptureFailure('invalid_target', id)
     await loadAt(page, target, entry.url, entry.timeoutMs)
-    const { unmeasured, misplaced, ...answer } = await measure(page, shot.cdp)
+    const { unmeasured, misplaced, reordered, unscrollable, ...answer } = await measure(page, shot.cdp)
     const { measured, unsampled } = await generatedCover(shot, page, answer)
     if (shot.receipt.fonts.length === 0) shot.receipt.fonts = await fontsUsed(shot.cdp)
     const coverage = await captureTarget(shot, target, measured)
@@ -948,7 +1031,13 @@ async function captureAll(page, shot, entry) {
       coverage,
     })
     shot.receipt.checks.push(
-      ...targetChecks(target, measured, coverage, { unmeasured: fit.unmeasured, unsampled, misplaced }),
+      ...targetChecks(target, measured, coverage, {
+        unmeasured: fit.unmeasured,
+        unsampled,
+        misplaced,
+        reordered,
+        unscrollable,
+      }),
     )
   }
   shot.receipt.checks.push(await sweepWidths(page, shot, entry.sweepMs))

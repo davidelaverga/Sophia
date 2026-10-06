@@ -1415,6 +1415,28 @@ describe('a pseudo-element styles only generated content (#117)', () => {
   })
   // #117: a text shadow is drawn past the text, over what lies beside it; no point the render reaches and no contrast
   // it reads sees it, so white blurred shadows cast up from a heading wash out the block above.
+  // #117 (4201047936): a space drawn narrower than nothing runs two words into one, "Now here." as "Nowhere.".
+  it('refuses word spacing below zero, or that may be, and keeps normal, its resets and lengths of zero or more', () => {
+    for (const bad of [
+      'p{word-spacing:-0.3em}',
+      'p{word-spacing:-4px}',
+      'p{WORD-SPACING:-1PX}',
+      'p{word-spacing:calc(2px - 1em)}',
+      'p{word-spacing:var(--w)}',
+      '@media (min-width: 600px){p{word-spacing:-0.3em}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<h1>', '<h1 style="word-spacing:-0.3em">')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of [
+      'p{word-spacing:normal}',
+      'p{word-spacing:0}',
+      'p{word-spacing:0.1em}',
+      'p{word-spacing:2px}',
+      'p{word-spacing:inherit}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
   it('refuses a text shadow in every form, and keeps none and the keywords that reset it', () => {
     for (const bad of [
       'h2{text-shadow:0 -80px 8px #fff}',
