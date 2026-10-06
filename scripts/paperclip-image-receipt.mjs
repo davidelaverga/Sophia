@@ -74,7 +74,32 @@ function startCheck(timings, label) {
   if (records.length > 1) return { result: 'failed', detail: { reason: `${records.length} records for one start` } }
   const [t] = records
   if (!isNumber(t.seconds)) return { result: 'unavailable', detail: t }
-  return { result: t.ok === true && t.seconds <= HEALTH_LIMIT_S ? 'passed' : 'failed', detail: t }
+  // Within the bound and not negative: a negative duration is an impossible record, never a fast start (review of 9130676).
+  return { result: t.ok === true && t.seconds >= 0 && t.seconds <= HEALTH_LIMIT_S ? 'passed' : 'failed', detail: t }
+}
+
+/**
+ * What Docker configured for each start (scripts/paperclip-image-container.mjs, runtime.jsonl), against the stated
+ * scope: not privileged, no capability added to Docker's default set, not the host's network, published on 127.0.0.1
+ * only. One record per start (review of 9130676).
+ */
+function runtimeCheck(records) {
+  if (records.length === 0) return { result: 'not reached' }
+  const counts = STARTS.map((label) => records.filter((r) => r.label === label).length)
+  if (counts.some((n) => n > 1)) return { result: 'failed', detail: { reason: 'more than one record for a start', records } }
+  if (counts.some((n) => n === 0)) return { result: 'unavailable', detail: { reason: 'a start without its record', records } }
+  const holds = (r) =>
+    r.privileged === false &&
+    Array.isArray(r.capAdd) &&
+    r.capAdd.length === 0 &&
+    typeof r.networkMode === 'string' &&
+    r.networkMode !== 'host' &&
+    !r.networkMode.startsWith('container:') &&
+    Array.isArray(r.ports) &&
+    r.ports.length > 0 &&
+    r.ports.every((p) => p.hostIp === '127.0.0.1')
+  const failing = records.filter((r) => !holds(r)).map((r) => r.label)
+  return { result: failing.length === 0 ? 'passed' : 'failed', detail: { failing, records } }
 }
 
 function memoryCheck(samples, phase) {
@@ -202,10 +227,11 @@ function homeCheck(before, after) {
 }
 
 /** The receipt of one run's recorded inputs. */
-export function assess({ context = null, disk = [], identity = null, timings = [], samples = [], probes = {}, home = {} }) {
+export function assess({ context = null, disk = [], identity = null, timings = [], runtime = [], samples = [], probes = {}, home = {} }) {
   const checks = [
     { name: 'image built from the pin and a clean Sophia commit, linux/amd64, packaged files as recorded', ...identityCheck(identity, context) },
     ...STARTS.map((label) => ({ name: `${label}: healthy within ${HEALTH_LIMIT_S} s`, ...startCheck(timings, label) })),
+    { name: 'runtime: not privileged, no added capability, not the host network, loopback only', ...runtimeCheck(runtime) },
     ...PHASES.map((phase) => ({ name: `memory, ${phase}`, ...memoryCheck(samples, phase) })),
     ...['first', 'restarted'].map((phase) => ({ name: `installed plugin flow, ${phase}`, ...probeCheck(probes[phase], phase, probes.first) })),
     { name: 'home persisted across recreation', ...homeCheck(home.before, home.after) },
@@ -216,7 +242,7 @@ export function assess({ context = null, disk = [], identity = null, timings = [
     schema: 'sophia.paperclip-image-receipt.v2',
     verdict,
     scope:
-      'The two-step image from the Paperclip pin and a clean Sophia commit, built and run on a GitHub-hosted linux/amd64 runner under a 2 GiB memory cgroup without swap, with a disposable database and home and synthetic credentials; the installed plugin flow through the service probe --url. Not Render platform fit, not a registry digest, not a real Sophia (its address is closed in the container).',
+      'The two-step image from the Paperclip pin and a clean Sophia commit, built and run on a GitHub-hosted linux/amd64 runner under a 2 GiB memory cgroup without swap, with Docker’s default capability set (not privileged, no capability added, not the host network, published on loopback only), with a disposable database and home and synthetic credentials; the installed plugin flow through the service probe --url. Not Render platform fit, not a registry digest, not a real Sophia (its address is closed in the container).',
     context,
     disk,
     images: identity && { build: identity.buildImage, image: identity.image },
@@ -291,6 +317,7 @@ if (isMain) {
     disk: lines('disk.jsonl'),
     identity: json('identity.json'),
     timings: lines('timings.jsonl'),
+    runtime: lines('runtime.jsonl'),
     samples,
     probes: { first: json('probe-first.json'), restarted: json('probe-restarted.json') },
     home: { before: json('home-before.json'), after: json('home-after.json') },

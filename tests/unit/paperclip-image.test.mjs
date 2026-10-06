@@ -12,7 +12,7 @@ import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import { compareSnapshots, coverageOf, EMPTY_SHA256 } from '../../scripts/paperclip-image-home.mjs'
-import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS } from '../../scripts/paperclip-image-receipt.mjs'
+import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS, STARTS } from '../../scripts/paperclip-image-receipt.mjs'
 import { redact, scrubDir, secretValues } from '../../scripts/paperclip-image-redact.mjs'
 
 const CANDIDATE = 'a'.repeat(40)
@@ -90,6 +90,15 @@ function complete() {
       image: { id: digest('d'), size: 3e9, os: 'linux', architecture: 'amd64' },
     },
     timings: ['first', 'restart', 'recreated'].map((label) => ({ label, ok: true, seconds: 45 })),
+    runtime: STARTS.map((label) => ({
+      label,
+      privileged: false,
+      capAdd: [],
+      capDrop: [],
+      networkMode: 'pcnet',
+      securityOpt: [],
+      ports: [{ port: '3100/tcp', hostIp: '127.0.0.1', hostPort: '3100' }],
+    })),
     samples: PHASES.map(sample),
     probes: { first: probe('first'), restarted: probe('restarted') },
     home: { before: { coverage: covered(files), files }, after: structuredClone(grown) },
@@ -115,7 +124,7 @@ describe('the image qualification receipt (WBC-02-CX-0036)', () => {
     const receipt = assess(complete())
     assert.equal(receipt.verdict, 'qualified')
     assert.ok(receipt.checks.every((c) => c.result === 'passed'))
-    assert.equal(receipt.checks.length, 1 + 3 + PHASES.length + 2 + 1)
+    assert.equal(receipt.checks.length, 1 + 3 + 1 + PHASES.length + 2 + 1)
   })
 
   it('CX-0036: a memory sample without peak and current is not qualified, even with nothing listed unavailable', () => {
@@ -504,6 +513,59 @@ describe('the probe’s own credentials and credential-named fields are scrubbed
     assert.equal(probes.length, 2)
     for (const s of probes) assert.match(s.run, /--secrets "\$RUNNER_TEMP\/probe-secrets\.txt"/)
     assert.equal(steps.find((s) => s.name === 'Scrub the evidence').env.REDACT_FILES, '${{ runner.temp }}/probe-secrets.txt')
+  })
+})
+
+describe('review of 9130676: a start’s duration and its runtime configuration are facts the receipt checks', () => {
+  const runtimeOf = (run) => assess(run).checks.find((c) => c.name.startsWith('runtime:'))
+
+  it('positive control: every start recorded, not privileged, nothing added, the job network, loopback only', () => {
+    assert.equal(runtimeOf(complete()).result, 'passed')
+    assert.equal(verdictOf(complete()), 'qualified')
+  })
+
+  it('a negative or impossible duration is not a fast start', () => {
+    for (const seconds of [-0.1, -45]) {
+      const run = complete()
+      run.timings[1] = { ...run.timings[1], seconds }
+      assert.equal(resultOf(run, 'restart:'), 'failed', String(seconds))
+      assert.equal(verdictOf(run), 'failed')
+    }
+    const zero = complete()
+    zero.timings[1] = { ...zero.timings[1], seconds: 0 }
+    assert.equal(resultOf(zero, 'restart:'), 'passed', 'zero is a measured duration')
+  })
+
+  it('privileged, an added capability, the host network or a port beyond loopback fails the run', () => {
+    const faults = [
+      (r) => ({ ...r, privileged: true }),
+      (r) => ({ ...r, privileged: undefined }),
+      (r) => ({ ...r, capAdd: ['SYS_ADMIN'] }),
+      (r) => ({ ...r, capAdd: undefined }),
+      (r) => ({ ...r, networkMode: 'host' }),
+      (r) => ({ ...r, networkMode: 'container:other' }),
+      (r) => ({ ...r, ports: [{ port: '3100/tcp', hostIp: '0.0.0.0', hostPort: '3100' }] }),
+      (r) => ({ ...r, ports: [] }),
+    ]
+    for (const fault of faults) {
+      const run = complete()
+      run.runtime[2] = fault(run.runtime[2])
+      assert.equal(runtimeOf(run).result, 'failed', JSON.stringify(run.runtime[2]))
+      assert.equal(verdictOf(run), 'failed')
+    }
+  })
+
+  it('a start without its record, a doubled record, or none at all is not passed', () => {
+    const missing = complete()
+    missing.runtime = missing.runtime.filter((r) => r.label !== 'restart')
+    assert.equal(runtimeOf(missing).result, 'unavailable')
+    const doubled = complete()
+    doubled.runtime.push({ ...doubled.runtime[0] })
+    assert.equal(runtimeOf(doubled).result, 'failed')
+    const none = complete()
+    none.runtime = []
+    assert.equal(runtimeOf(none).result, 'not reached')
+    for (const run of [missing, none]) assert.equal(verdictOf(run), 'incomplete')
   })
 })
 

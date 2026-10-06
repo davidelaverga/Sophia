@@ -138,12 +138,13 @@ The review rounds and their tests:
 | review of `3db6ef9` | the root scan could be led out of the volume | a swapped directory, a swapped FIFO, the pause and scan calls; 36 mutations in force |
 | review of `34bdf76` | the evidence uploaded whatever the scrub did | the scrub through its command, a value left after rewriting, a link in the evidence, the workflow's gate; 4 mutations |
 | review of `215b276` | the probe's own credentials (its passwords, session cookie and board key) unknown to the scrub | the flow against a stand-in server, the probe command with `--secrets`, the sink, credential-named fields, the workflow's wiring; 12 mutations |
+| review of `9130676` | a negative start duration passed; the helper claimed no capability while Docker's default set applied | durations 0 to 300 s on a monotonic clock; the runtime Docker configured recorded and checked (not privileged, no capability added, not the host network, loopback only); 6 mutations |
 | review of `08c2915` | any client error read as sign-up closed | the pin's own refusal required (better-auth 1.7.2: 400, `EMAIL_PASSWORD_SIGN_UP_DISABLED`), by the probe and the receipt; 404, 429, another 400 code and a 403 all refused; 3 mutations |
 
 Each mutation in force is caught. The scan tests read `/proc` and run on Linux only.
 
 ## Limits
 
-- **Not production fit.** This is GitHub's runner, not Render's platform. The image ID is a local config digest, not a registry digest, and the image talked to no real Sophia.
+- **Not production fit.** This is GitHub's runner, not Render's platform. The container ran with Docker's default capability set: not privileged, no capability added, not the host network, published on loopback only, which the receipt checks from what Docker recorded (from the review of `9130676`). Whether a hosting platform narrows that set is not tested here. The image ID is a local config digest, not a registry digest, and the image talked to no real Sophia.
 - **No credentials.** The job's were synthetic, generated and masked in the job, and passed to Docker by name. The probe lists every credential it makes or is given (its passwords, session cookie and board key) in a file outside the evidence, and masks each in the log (from the review of `215b276`). The evidence directory is scrubbed of all of these, of fields named as credentials and of credential-shaped strings, then read again, before upload, and it is uploaded only when that scrub succeeded (from the review of `34bdf76`). The probe's state and secrets files and the full `docker inspect` are never uploaded.
 - **Decisions.** The production decisions D1–D4 remain Davide's. This record authorizes nothing.
