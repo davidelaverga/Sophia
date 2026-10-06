@@ -223,7 +223,12 @@ function concealment(el: Element, inside: boolean): string | null {
 }
 
 /** The research on a page, and every element around (holding) or inside one: the boundary the checks below keep. */
-function researchBoundary(all: readonly Element[]): { around: Set<Element>; inside: Set<Element> } {
+interface Boundary {
+  readonly around: ReadonlySet<Element>
+  readonly inside: ReadonlySet<Element>
+}
+
+function researchBoundary(all: readonly Element[]): Boundary {
   const around = new Set<Element>()
   const inside = new Set<Element>()
   for (const el of all.filter(isResearch)) {
@@ -246,11 +251,7 @@ function researchBoundary(all: readonly Element[]): { around: Set<Element>; insi
  * place in a probe on #117, but the specification moves it, and no capture shows either. A reference that only names
  * (`aria-labelledby`, `aria-describedby`) moves nothing and stays.
  */
-function ownershipIssue(
-  el: Element,
-  ids: ReadonlyMap<string, Element>,
-  boundary: { around: ReadonlySet<Element>; inside: ReadonlySet<Element> },
-): string | null {
+function ownershipIssue(el: Element, ids: ReadonlyMap<string, Element>, boundary: Boundary): string | null {
   const owned = referencedIds(el, 'aria-owns')
   if (owned.length === 0) return null
   if (boundary.inside.has(el)) return `<${el.tagName} aria-owns> on research or inside it takes other elements into it`
@@ -263,6 +264,65 @@ function ownershipIssue(
     : `<${el.tagName} aria-owns="${moved.slice(0, 64)}"> gives research, or what holds it, as its own child`
 }
 
+/** The attributes that give an element its accessible name (WAI-ARIA 1.3), before what it holds. */
+const NAMING = ['aria-label', 'aria-labelledby', 'aria-braillelabel']
+/**
+ * The roles a screen reader names by what they hold (WAI-ARIA 1.3, name from content), and the elements that take one
+ * natively: a name written on one is read in place of what it holds, a link, a disclosure's summary, a heading or a
+ * table cell (#117).
+ */
+const FROM_CONTENT = new Set([
+  'button',
+  'cell',
+  'checkbox',
+  'columnheader',
+  'comment',
+  'gridcell',
+  'heading',
+  'link',
+  'menuitem',
+  'menuitemcheckbox',
+  'menuitemradio',
+  'option',
+  'radio',
+  'row',
+  'rowheader',
+  'sectionhead',
+  'switch',
+  'tab',
+  'tooltip',
+  'treeitem',
+  'doc-backlink',
+  'doc-biblioref',
+  'doc-glossref',
+  'doc-noteref',
+])
+const FROM_CONTENT_TAGS = new Set(['summary', 'button', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'td', 'th', 'tr'])
+
+/** Whether a screen reader names an element by what it holds: by its role, or natively when it has none. */
+function namedByContent(el: Element): boolean {
+  const [role] = (attr(el, 'role') ?? '').trim().toLowerCase().split(/\s+/u)
+  if (role) return FROM_CONTENT.has(role)
+  return FROM_CONTENT_TAGS.has(el.tagName) || (el.tagName === 'a' && attr(el, 'href') !== null)
+}
+
+/**
+ * Why an element's accessible name stands in a screen reader for research it holds, or null. On research or inside it,
+ * any name does: `<summary data-block="b1" aria-label="Contents">Not free</summary>` is announced "Contents", and
+ * `aria-labelledby` names it by another element's text. Around research, a name does on an element named by what it
+ * holds (a link, a summary, a heading, a cell), while a landmark's or a table region's name only labels what it holds.
+ * A citation marker's name is citations.ts's (#117).
+ */
+function namingIssue(el: Element, boundary: Boundary): string | null {
+  const name = NAMING.find((n) => (attr(el, n) ?? '').trim() !== '')
+  if (name === undefined || isCite(el) || hasAncestor(el, isCite)) return null
+  if (boundary.inside.has(el))
+    return `<${el.tagName} ${name}> names research, or text inside it, in place of what it says`
+  return boundary.around.has(el) && namedByContent(el)
+    ? `<${el.tagName} ${name}> is read in place of the research it holds, which names it`
+    : null
+}
+
 /**
  * Research a screen reader would not be given as it is: a block or a source entry, or an element around or inside one,
  * that concealment changes, or research that ownership moves. None changes a pixel, so no capture shows it (#117).
@@ -272,9 +332,10 @@ function hiddenResearch(all: Element[], html: string): Finding[] {
   const ids = byId(all)
   const issueOf = (el: Element): string | null =>
     ownershipIssue(el, ids, boundary) ??
+    namingIssue(el, boundary) ??
     (boundary.around.has(el) || boundary.inside.has(el) ? concealment(el, boundary.inside.has(el)) : null)
   return all
-    .filter((el) => ['aria-hidden', 'role', 'aria-owns'].some((name) => attr(el, name) !== null))
+    .filter((el) => ['aria-hidden', 'role', 'aria-owns', ...NAMING].some((name) => attr(el, name) !== null))
     .map((el) => ({ el, how: issueOf(el) }))
     .filter(({ how }) => how !== null)
     .map(({ el, how }) =>
@@ -282,8 +343,8 @@ function hiddenResearch(all: Element[], html: string): Finding[] {
         'research_hidden',
         'index.html',
         `${how ?? ''}, where no capture shows it; a block, a source entry and what holds or is inside one are never ` +
-          'aria-hidden, an image, stripped of their meaning or owned by another element (aria-owns), and keep their ' +
-          'own roles',
+          'aria-hidden, an image, stripped of their meaning, owned by another element (aria-owns) or named in place ' +
+          'of what they say, and keep their own roles',
         { line: lineOf(html, el) },
       ),
     )

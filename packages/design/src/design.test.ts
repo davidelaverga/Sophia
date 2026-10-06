@@ -815,6 +815,39 @@ describe('a tooltip or an accessible name carries no text the page does not show
       'main owning its heading',
     )
   })
+  // #117: a name on research, or on what holds it and is named by what it holds, is announced in place of its text.
+  it('refuses a name read in place of research, and keeps landmark, region and citation names', () => {
+    const page = html(good).replace('<h1>Report</h1>', '<h1 id="t">Report</h1>')
+    const named = (from: string, to: string) => {
+      const next = page.replace(from, to)
+      assert.notEqual(next, page, from)
+      return codes(withHtml(good, next))
+    }
+    for (const [from, to] of [
+      ['<p data-block="b1">', '<p data-block="b1" aria-label="Contents">'],
+      ['<p data-block="b1">', '<p data-block="b1" aria-labelledby="t">'],
+      ['<p data-block="b1">', '<p data-block="b1" ARIA-LABEL="Contents">'],
+      ['<p data-block="b1">', '<p data-block="b1" aria-braillelabel="Contents">'],
+      ['needs a dedicated VM', 'needs a <span aria-label="Contents">dedicated VM</span>'],
+      ['<tbody><tr><td>', '<tbody><tr><td aria-label="Contents">'],
+      ['<table data-block=', '<table aria-labelledby="t" data-block='],
+      [`<li id="src-${A}"`, `<li aria-label="Sources" id="src-${A}"`],
+      ['<p data-block="b1">', '<details><summary aria-label="Contents"><p data-block="b1">'],
+      ['<p data-block="b1">', '<a href="#s1" aria-label="Contents"><p data-block="b1">'],
+      ['<p data-block="b1">', '<h2 aria-labelledby="t"><p data-block="b1">'],
+    ] as const)
+      assert.ok(named(from, to).includes('research_hidden'), to)
+    for (const [from, to] of [
+      ['<p data-block="b1">', '<p data-block="b1" aria-label="">'],
+      ['<main>', '<main aria-labelledby="t">'],
+      ['<p data-block="b1">', '<div role="region" aria-label="Contents"><p data-block="b1">'],
+      ['<p data-block="b1">', '<a href="#s1"><p data-block="b1">'],
+      [`<a data-cite="${A}" href="#src-${A}">`, `<a data-cite="${A}" href="#src-${A}" aria-label="Source 1">`],
+      ['</main>', '<nav aria-label="Contents"><a href="#s1" aria-label="Findings">Findings</a></nav></main>'],
+    ] as const)
+      assert.deepEqual(named(from, to), [], to)
+    assert.match(page, /<div role="region" aria-label="Table b\d+"/u, "the fixture's table region keeps its name")
+  })
   // #117: a bidi override draws a text's characters in another order than the one every check reads.
   it('refuses a bidi override in markup, in CSS and as a character, and keeps directions and isolation', () => {
     const page = html(good)
