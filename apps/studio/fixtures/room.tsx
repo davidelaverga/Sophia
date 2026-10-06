@@ -27,6 +27,7 @@ import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import { noteKept, type Notes } from './brief-data.ts'
 import { noShowing, walked } from './focus-data.ts'
+import { noReviews } from './review-data.ts'
 import { newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
@@ -97,6 +98,12 @@ interface Fixture {
   buildOnNotes: () => void
   /** The `n`th other person (or `me`, from another device) shows the report's current version; null, nothing is. */
   show: (n: number | 'me' | null) => void
+  /** The next review lands, but its reply is lost (A16). */
+  loseNextReviewReply: () => void
+  /** The next review never reaches the API (A16). */
+  dropNextReview: () => void
+  /** Another member reviews the current version (A16). */
+  reviewAs: (verdict: 'approved' | 'changes_requested') => void
   /** These others follow the shown version (their `sophia.following`, A14); the rest follow nothing. */
   followers: (people: number[]) => void
   /** Sophia moves the shown report's focus to a section, as her `present_section` would (A14). */
@@ -245,6 +252,8 @@ const project = {
   work: query.get('place') === 'work',
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
+  // A16: the versions' reviews (review-data.ts).
+  reviews: noReviews(),
   // A12: the meeting this visit is, its recap built from what happens on the page (meeting-data.ts).
   // `meeting=earlier`: the running meeting began 12 minutes before the page, so joining is joining late.
   meeting: newMeeting(
@@ -315,6 +324,24 @@ window.fixture = {
             guideId: n === 'me' ? membership.actorId : personId(n),
           }
     project.showing.at = { anchor: null, by: 'member', shownAt: project.showing.revision }
+    publish(project)
+  },
+  loseNextReviewReply: () => {
+    project.reviews.loseReply = true
+  },
+  dropNextReview: () => {
+    project.reviews.drop = true
+  },
+  reviewAs: (verdict) => {
+    const current = versionId(project.reportVersions)
+    const review = {
+      reviewId: `00000000-0000-4000-8000-0000000f${String(project.reviews.byKey.size + project.revision).padStart(4, '0')}`,
+      verdict,
+      note: verdict === 'approved' ? null : 'Tighten it',
+      by: personId(1),
+      at: new Date().toISOString(),
+    }
+    project.reviews.byVersion.set(current, [review, ...(project.reviews.byVersion.get(current) ?? [])])
     publish(project)
   },
   followers: (people) => setFollowers(people, project.showing.focus?.artifactVersionId ?? ''),

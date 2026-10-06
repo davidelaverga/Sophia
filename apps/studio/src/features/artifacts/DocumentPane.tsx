@@ -51,6 +51,8 @@ import {
   viewerFormats,
 } from './report-view.ts'
 import { ReportHistory } from './ReportHistory.tsx'
+import { ReviewRow } from './ReviewRow.tsx'
+import { VISION } from '../../app/vision.ts'
 import { SourcesList } from './SourcesList.tsx'
 import { usePaneWidth } from './usePaneWidth.ts'
 import { useTransientStatus } from './useTransientStatus.ts'
@@ -283,6 +285,8 @@ function usePaneTop() {
 interface TopProps {
   topRef: React.RefObject<HTMLDivElement | null>
   head: ReactNode
+  /** The version's review (A16, the vision flag's), under the head. */
+  review?: ReactNode
   call: ReactNode
   note: string | null
   tabs: ReactNode
@@ -292,10 +296,11 @@ interface TopProps {
  * The pane's top: its head, then (where the pane covers the dock or the mini dock) the call's switches and the note,
  * then its tabs.
  */
-function PaneTop({ topRef, head, call, note, tabs }: TopProps) {
+function PaneTop({ topRef, head, review, call, note, tabs }: TopProps) {
   return (
     <div ref={topRef} className="report-pane-top">
       {head}
+      {review}
       {/* Its own row, which wraps: the head keeps Download and Close whatever is on (a phone's 390 px). */}
       <div className="report-pane-call">{call}</div>
       {/* For the eye only: the dock's own note, still in the accessibility tree under the pane, is announced. */}
@@ -441,6 +446,7 @@ export function DocumentPane(props: Props) {
             chatUnread={props.chatUnread ?? false}
           />
         }
+        review={reviewOf(props, data)}
         call={props.call}
         note={props.note}
         tabs={<PaneTabs tab={tab} onTab={choose} {...tabFacts(data)} onFormat={onFormat} />}
@@ -459,6 +465,23 @@ export function DocumentPane(props: Props) {
       <PaneStatus {...status} />
       <PassageBar pane={pane} version={data.version} viewer={props} />
     </aside>
+  )
+}
+
+/** The version's review row (A16, the vision flag's): one per version, so nothing of one reaches another. */
+function reviewOf(props: Props, data: PaneData): ReactNode {
+  const version = data.version
+  if (!VISION || !version) return null
+  const newest = data.versions.data?.[0]?.id === version.id
+  return (
+    <ReviewRow
+      key={version.id}
+      projectId={props.projectId}
+      identity={props.identity}
+      version={version}
+      newest={newest}
+      cursor={props.cursor}
+    />
   )
 }
 
