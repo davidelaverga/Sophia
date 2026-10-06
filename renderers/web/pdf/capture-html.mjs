@@ -60,6 +60,14 @@ export const CAPTURE_LIMITS = Object.freeze({
   imageBytes: 8 * 1024 * 1024,
   totalBytes: 64 * 1024 * 1024,
 })
+/**
+ * The most one target's measure may weigh in the receipt, as PostgreSQL writes it (jsonbBytes): two targets, the
+ * captures and the checks then stay within RECEIPT_BYTES, so a page with many labels, texts or sections fails its
+ * checks in a receipt the service takes, never in one it refuses after the work is done and runs again (#117).
+ */
+export const MEASURE_BYTES = 360 * 1024
+/** The most a receipt may weigh, as PostgreSQL writes it: under the 1 MiB a capture receipt may hold (0038). */
+export const RECEIPT_BYTES = 1_000_000
 /** A stretch of the page outside every section shorter than this is not captured on its own. */
 const MARGIN_MIN_PX = 24
 const SECTION_ID = /^[a-z][a-z0-9-]{0,63}$/
@@ -387,10 +395,59 @@ export function targetChecks(target, page, coverage, unmeasured = 0, unsampled =
     check(
       'captures_complete',
       coverage.truncated ? 'failed' : 'passed',
-      coverage.missing.length > 0 ? `uncaptured: ${coverage.missing.join(', ')}` : null,
+      coverage.missing.length > 0 ? `uncaptured: ${listed(coverage.missing)}` : null,
       target.id,
     ),
   ]
+}
+
+/**
+ * Names, at most MAX_LISTED of them, and how many more there are.
+ * @param {string[]} names
+ */
+function listed(names) {
+  const more = names.length - MAX_LISTED
+  return `${names.slice(0, MAX_LISTED).join(', ')}${more > 0 ? ` and ${more} more` : ''}`
+}
+
+/**
+ * How many bytes PostgreSQL writes a value's JSON in: jsonb's text puts a space after every `:` and `,`, counted over
+ * the compact JSON (strings included), so never less.
+ * @param {unknown} value
+ */
+export function jsonbBytes(value) {
+  const json = JSON.stringify(value)
+  return Buffer.byteLength(json) + (json.match(/[:,]/gu)?.length ?? 0)
+}
+
+/**
+ * A target's measure within MEASURE_BYTES: texts outside the blocks, then labels, then sections, then blocks, are left
+ * out from the end until it fits. Every text, label or block left out is counted unmeasured, which fails the target's
+ * blocks_visible, and a block left out fails the gate, which needs each one measured (0039). A section left out stays
+ * in the coverage, which names every one the captures miss.
+ * @param {import('./capture-page.mjs').PageMeasure} measured
+ * @param {number} unmeasured
+ * @returns {{ measured: import('./capture-page.mjs').PageMeasure, unmeasured: number }}
+ */
+export function fitMeasure(measured, unmeasured) {
+  let over = jsonbBytes(measured) - MEASURE_BYTES
+  if (over <= 0) return { measured, unmeasured }
+  const kept = {
+    framing: [...measured.framing],
+    shown: [...measured.shown],
+    sections: [...measured.sections],
+    blocks: [...measured.blocks],
+  }
+  let left = 0
+  for (const key of /** @type {const} */ (['framing', 'shown', 'sections', 'blocks'])) {
+    /** @type {unknown[]} */
+    const items = kept[key]
+    while (over > 0 && items.length > 0) {
+      over -= jsonbBytes(items.pop()) + 2
+      if (key !== 'sections') left += 1
+    }
+  }
+  return { measured: { ...measured, ...kept }, unmeasured: unmeasured + left }
 }
 
 /**
@@ -402,7 +459,7 @@ export function targetChecks(target, page, coverage, unmeasured = 0, unsampled =
 function unreached(unmeasured, unsampled) {
   return [
     unmeasured > 0
-      ? `${unmeasured} more labels, texts outside the blocks or runs inside them than the ${MAX_MEASURED} of each measured`
+      ? `${unmeasured} labels, texts, runs or blocks left out of the measure (at most ${MAX_MEASURED} of each kind, within ${MEASURE_BYTES / 1024} KiB a target)`
       : '',
     unsampled > 0
       ? `${unsampled} texts the cover check did not reach within its bounds (${MAX_POINTS} points, under ${MAX_LINES} lines a text, ${MAX_LOOK_MS / 1000} s)`
@@ -597,15 +654,16 @@ async function captureAll(page, shot, entry) {
     const { measured, unsampled } = await generatedCover(shot, page, answer)
     if (shot.receipt.fonts.length === 0) shot.receipt.fonts = await fontsUsed(shot.cdp)
     const coverage = await captureTarget(shot, target, measured)
+    const fit = fitMeasure(measured, unmeasured)
     shot.receipt.targets.push({
       id,
       width: target.width,
       height: target.height,
       scheme: target.scheme,
-      page: measured,
+      page: fit.measured,
       coverage,
     })
-    shot.receipt.checks.push(...targetChecks(target, measured, coverage, unmeasured, unsampled))
+    shot.receipt.checks.push(...targetChecks(target, measured, coverage, fit.unmeasured, unsampled))
   }
 }
 
@@ -704,6 +762,8 @@ async function inConfinedBrowser(run, source) {
     await captureAll(page, shot, { url: source.entry.url, timeoutMs: run.job.timeoutMs ?? DEFAULT_TIMEOUT_MS })
     run.signal.throwIfAborted()
     finalChecks(run.receipt, source)
+    if (jsonbBytes(run.receipt) > RECEIPT_BYTES)
+      throw new CaptureFailure('receipt_too_large', "the page's measures and coverage do not fit a receipt")
   } finally {
     run.signal.removeEventListener('abort', onAbort)
     if (browser) await shutDown(browser)
@@ -802,6 +862,8 @@ export async function captureHtml(job, opts = {}) {
     settleError(receipt, error, { cancelled, timedOut: timeout.aborted && !cancelled })
     for (const c of receipt.captures) fs.rmSync(path.join(job.outputDir, c.name), { force: true })
     receipt.captures = []
+    // A failed receipt still settles: what would not fit is not kept.
+    if (jsonbBytes(receipt) > RECEIPT_BYTES) receipt.targets = []
   }
   receipt.elapsedMs = Date.now() - started
   return receipt

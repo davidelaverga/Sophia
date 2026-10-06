@@ -16,7 +16,11 @@ import {
   CAPTURE_TARGETS,
   captureHtml,
   captureSha256,
+  fitMeasure,
+  jsonbBytes,
   marginsOf,
+  MEASURE_BYTES,
+  RECEIPT_BYTES,
   targetChecks,
   tilesOf,
 } from '../capture-html.mjs'
@@ -241,7 +245,9 @@ describe('the capture plan (pure)', () => {
     assert.equal(over.blocks_visible?.[0], 'failed')
     assert.match(
       String(over.blocks_visible?.[1]),
-      new RegExp(`3 more .* than the ${String(MAX_MEASURED)} of each measured`),
+      new RegExp(
+        `^3 labels, texts, runs or blocks left out of the measure \\(at most ${String(MAX_MEASURED)} of each kind`,
+      ),
     )
     const unreached = Object.fromEntries(
       targetChecks(CAPTURE_TARGETS['w390-light']!, measures([framed('text 1 h2')]), coverage, 0, 2).map((c) => [
@@ -256,6 +262,44 @@ describe('the capture plan (pure)', () => {
     )
   })
 
+  it("keeps each target's measure within its share of the receipt, counting what it leaves out (#117)", () => {
+    const many = Array.from({ length: 4000 }, (_, i) => framed(`text ${String(i + 1)} h6`))
+    const sample = {
+      width: 390,
+      height: 9000,
+      overflowPx: 0,
+      overflowing: [],
+      sections: [],
+      blocks: [framed('b1')],
+      shown: many,
+      framing: many,
+    }
+    const measured = sample as unknown as Parameters<typeof fitMeasure>[0]
+    assert.ok(
+      jsonbBytes(measured) > MEASURE_BYTES,
+      "the review's 4000 labels, as texts and as shown, are over the share",
+    )
+    const fit = fitMeasure(measured, 2)
+    assert.ok(jsonbBytes(fit.measured) <= MEASURE_BYTES, 'fitted within the share')
+    const left = 4000 * 2 + 1 - fit.measured.framing.length - fit.measured.shown.length - fit.measured.blocks.length
+    assert.equal(fit.unmeasured, 2 + left, 'every text or label left out is counted')
+    assert.deepEqual(fit.measured.blocks, [framed('b1')], 'texts outside the blocks go first, a block last')
+    assert.ok(2 * MEASURE_BYTES < RECEIPT_BYTES, 'two targets fit a receipt with room for its captures and checks')
+    const small = sample as unknown as Parameters<typeof fitMeasure>[0]
+    const fits = fitMeasure({ ...small, shown: [], framing: [] }, 0)
+    assert.equal(fits.unmeasured, 0, 'a measure within its share is kept whole')
+    assert.equal(jsonbBytes({ a: [1, 2] }), Buffer.byteLength('{"a":[1,2]}') + 2, 'as PostgreSQL writes it')
+    const missing = Array.from({ length: 30 }, (_, i) => `s${String(i)}`)
+    const cut = { requested: null, captured: [], missing, margins: 0, marginsCaptured: 0, truncated: true }
+    const complete = targetChecks(CAPTURE_TARGETS['w390-light']!, fits.measured, cut).find(
+      (c) => c.name === 'captures_complete',
+    )
+    assert.match(
+      String(complete?.detail),
+      /^uncaptured: s0, .*, s19 and 10 more$/u,
+      'the uncaptured are named, twenty at most',
+    )
+  })
   it('takes the marks that say nothing from the design profile, so both judge the same text (#117)', () => {
     const css = fs.readFileSync(
       fileURLToPath(new URL('../../../../packages/design/src/css.ts', import.meta.url)),
@@ -815,7 +859,7 @@ describe('the confined capture kernel', () => {
       assert.equal(outcome(many, 'blocks_visible', 'w1280-light'), 'failed', 'a run past the bound is not seen')
       assert.match(
         String(many.checks.find((c) => c.name === 'blocks_visible')?.detail),
-        new RegExp(`^1 more labels, texts outside the blocks or runs inside them than the ${String(MAX_MEASURED)} `),
+        new RegExp(`^1 labels, texts, runs or blocks left out of the measure \\(at most ${String(MAX_MEASURED)} `),
       )
     },
   )
@@ -840,6 +884,36 @@ describe('the confined capture kernel', () => {
       for (const target of ['w390-light', 'w1280-light']) {
         assert.deepEqual(issuesOf(receipt, target), { b1: ['covered'], b2: ['covered'], b3: [] }, target)
         assert.equal(outcome(receipt, 'blocks_visible', target), 'failed', target)
+      }
+    },
+  )
+
+  it(
+    'settles a page of 4000 labels in a receipt the service takes, failing the measure it cut (#117)',
+    { skip },
+    async () => {
+      const labels = Array.from({ length: 4000 }, (_, i) => `<h6>Label ${String(i)}</h6>`).join('')
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} h6{display:inline;margin:0 .3em;font-size:12px}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>${labels}</section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      assert.ok(jsonbBytes(receipt) <= RECEIPT_BYTES, `the receipt weighs ${String(jsonbBytes(receipt))} bytes`)
+      for (const t of receipt.targets) {
+        assert.ok(jsonbBytes(t.page) <= MEASURE_BYTES, `${t.id} weighs ${String(jsonbBytes(t.page))} bytes`)
+        assert.deepEqual(
+          t.page.blocks.map((b) => b.id),
+          ['b1'],
+          'the block is kept',
+        )
+        const visible = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === t.id)
+        assert.equal(visible?.outcome, 'failed', t.id)
+        assert.match(String(visible?.detail), /labels, texts, runs or blocks left out of the measure/u, t.id)
       }
     },
   )
