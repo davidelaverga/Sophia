@@ -220,13 +220,12 @@ describe('the content check catches every way the research could be lost or chan
   it('a claim padded with text the research does not say', () =>
     assert.ok(mutate('cost and isolation.', 'cost and isolation. It is the best.').includes('block_altered')))
   it('accepts wording changes in headings, of any length', () => {
-    assert.deepEqual(
-      mutate(
-        '<h1>Report</h1>',
-        '<h1>Dove può girare un renderer confinato: costi, isolamento e limiti dei tre host confrontati nel dettaglio</h1>',
-      ),
-      [],
-    )
+    const heading =
+      'Dove può girare un renderer confinato: costi, isolamento e limiti dei tre host confrontati nel dettaglio'
+    const page = html(good)
+      .replace('<h1>Report</h1>', `<h1>${heading}</h1>`)
+      .replace('<title>Report</title>', `<title>${heading}</title>`)
+    assert.deepEqual(codes(withHtml(good, page)), [])
   })
   it('does not accept hiding as a content check: markup cannot prove visibility, so the render measures it', () => {
     // hidden="" keeps the text in the file; the capture kernel's visibility measurement is what refuses it.
@@ -383,7 +382,7 @@ describe('outside its blocks a page adds only the words that frame them (SDD-01-
       ['</main>', '<figure><figcaption>Costs per month, <em>in USD</em></figcaption></figure></main>'],
       ['</main>', '<details><summary>How the hosts were read</summary></details></main>'],
       ['</main>', '<table><thead><tr><th scope="col">Host</th></tr></thead></table></main>'],
-      ['<h1>Report</h1>', '<header><h1>Report <small>v2</small></h1><h2>Three hosts, compared</h2></header>'],
+      ['<h1>Report</h1>', '<header><h1>Report</h1><h2>Three hosts, <small>compared</small></h2></header>'],
       [
         `data-source="${A}">Source ${A}`,
         `data-source="${A}">Vendor notes, <a href="https://example.com/notes">example.com</a> (2026)`,
@@ -425,6 +424,36 @@ describe('a tooltip or an accessible name carries no text the page does not show
       ['</main>', '<table><tr><th scope="col" abbr="Cost">Cost per month, in USD</th></tr></table></main>'],
     ]
     for (const [from, to] of accepted) assert.deepEqual(swap(from, to), [], to)
+  })
+  // #117: a word outside the list of words for parts of the page, in any script, can carry a claim.
+  it('refuses a plain name that is not a word for a part of the page, and any plain title or description', () => {
+    const sentence = '三号主机是免费的'
+    const refused: Array<[string, string]> = [
+      ['<title>Report</title>', `<title>${sentence}</title>`],
+      ['<title>Report</title>', '<title>Cheapest</title>'],
+      ['<title>Report</title>', '<title>Report</title><meta name="description" content="Contents">'],
+      ['</main>', `<span title="${sentence}">•</span></main>`],
+      ['</main>', '<span title="Cheapest">•</span></main>'],
+      ['<main>', '<main><nav aria-label="Recommended"><a href="#s1">Findings</a></nav>'],
+      ['<main>', `<main><nav aria-label="Table 3${sentence}"><a href="#s1">Findings</a></nav>`],
+      ['</main>', '<table><tr><th scope="col" abbr="Free">Cost per month</th></tr></table></main>'],
+    ]
+    for (const [from, to] of refused) assert.deepEqual(swap(from, to), ['attribute_text'], to)
+    for (const name of [`免费 3`, 'Cheapest 1']) {
+      const to = `<a data-cite="${A}" href="#src-${A}" aria-label="${name}">[1]</a>`
+      assert.ok(
+        codes(withHtml(good, html(good).replace(/<a data-cite="[^"]+" href="[^"]+">\[1\]<\/a>/u, to))).includes(
+          'citation_marker',
+        ),
+        name,
+      )
+    }
+  })
+  it('accepts a word for a part of the page in a few languages, with a number or a short id', () => {
+    for (const name of ['Contents', 'Table b5', 'Indice 2', 'Tabelle 3', 'Sommaire', 'Índice']) {
+      const to = `<main><nav aria-label="${name}"><a href="#s1">Findings</a></nav>`
+      assert.deepEqual(swap('<main>', to), [], name)
+    }
   })
   // #117, CX-0037: a label its markup hides proves nothing, and an ID reference names only what a reader can check.
   const claim = 'Host three is free'
@@ -507,12 +536,12 @@ describe('a tooltip or an accessible name carries no text the page does not show
     assert.match(marked, /<h1 id="t" data-sophia-shown="h1#t">/)
     assert.match(
       compile(page('</main>', `<h2>${claim}</h2><span title="${claim}">•</span></main>`), 'en'),
-      /<h2 data-sophia-shown="h2:1">/,
+      new RegExp(`<h2 data-sophia-shown="h2:\\d+">${claim}</h2>`),
     )
-    assert.equal(
-      compile(good, 'en').includes('data-sophia-shown'),
-      false,
-      'a page resting on no label is compiled as before',
+    assert.deepEqual(
+      compile(good, 'en').match(/data-sophia-shown="[^"]*"/g),
+      ['data-sophia-shown="h1:1"'],
+      'the plain page marks only the heading its title repeats',
     )
   })
 })

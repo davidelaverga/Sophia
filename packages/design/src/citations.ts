@@ -11,14 +11,18 @@
 
 import { attr, elements, isElement, lineAt, textOf, type Element } from './dom.ts'
 import { error, type Finding } from './findings.ts'
-import { hiddenByMarkup, REFERENCE_ATTRIBUTES, referencedIds, TEXT_ATTRIBUTES } from './framing.ts'
+import { hiddenByMarkup, isStructureWord, REFERENCE_ATTRIBUTES, referencedIds, TEXT_ATTRIBUTES } from './framing.ts'
 
 /** The elements a marker may be. */
 const MARKER_TAGS = new Set(['a', 'sup', 'span'])
 /** A marker's text, its white space removed: brackets around up to three digits or a symbol, a symbol, or none. */
 const MARK = /^(?:[[(](?:\d{1,3}|[*†‡§¶#])[\])]|[*†‡§¶#])?$/u
-/** A marker's accessible name: its mark, or one word and a number. */
-const NAME = /^(?:\p{L}{1,16} )?[[(]?\d{1,3}[\])]?$/u
+/** A marker's accessible name: its mark, or a word for a source (framing.ts's list, #117) and a number. */
+const NAME = /^(?:(\p{L}{1,16}) )?[[(]?\d{1,3}[\])]?$/u
+const isName = (text: string): boolean => {
+  const match = NAME.exec(text)
+  return match !== null && (match[1] === undefined || isStructureWord(match[1]))
+}
 
 const isCite = (el: Element): boolean => attr(el, 'data-cite') !== null
 const childElements = (el: Element): Element[] => el.childNodes.filter(isElement)
@@ -51,7 +55,7 @@ function linkOf(marker: Element): Element | null | string {
 function nameIssue(el: Element): string | null {
   for (const name of TEXT_ATTRIBUTES) {
     const value = attr(el, name)
-    if (value !== null && !MARK.test(value.replace(/\s+/gu, '')) && !NAME.test(value.trim().replace(/\s+/gu, ' ')))
+    if (value !== null && !MARK.test(value.replace(/\s+/gu, '')) && !isName(value.trim().replace(/\s+/gu, ' ')))
       return `its ${name} ${JSON.stringify(value.slice(0, 40))} is not a citation mark`
   }
   return null

@@ -174,9 +174,94 @@ export const REFERENCE_ATTRIBUTES: readonly string[] = [
 /** The ids one reference attribute of an element names. */
 export const referencedIds = (el: Element, name: string): string[] =>
   (attr(el, name) ?? '').split(/\s+/u).filter((id) => id !== '')
-/** A name that says nothing of its own: one word, or one word and a numbered id. */
-const PLAIN_NAME = /^\p{L}{1,24}(?: \p{L}{0,3}\d[\p{L}\p{N}-]{0,10})?$/u
+/**
+ * The words a name may hold without repeating a label: what a part of the page is, never what it says (#117). A list,
+ * in a few languages, because any other word, in any script, can carry a claim ("Cheapest", 三号主机是免费的); a page
+ * in another language names a part by repeating its heading, or with aria-labelledby.
+ */
+const STRUCTURE_WORDS: ReadonlySet<string> = new Set([
+  'contents',
+  'navigation',
+  'section',
+  'table',
+  'figure',
+  'sources',
+  'source',
+  'references',
+  'reference',
+  'notes',
+  'note',
+  'footnotes',
+  'footnote',
+  'citation',
+  'appendix',
+  'glossary',
+  'index',
+  'top',
+  'indice',
+  'sommario',
+  'navigazione',
+  'sezione',
+  'tabella',
+  'figura',
+  'fonti',
+  'fonte',
+  'riferimenti',
+  'riferimento',
+  'nota',
+  'appendice',
+  'glossario',
+  'contenido',
+  'índice',
+  'navegación',
+  'sección',
+  'tabla',
+  'fuentes',
+  'fuente',
+  'referencias',
+  'referencia',
+  'notas',
+  'apéndice',
+  'glosario',
+  'conteúdo',
+  'navegação',
+  'seção',
+  'secção',
+  'tabela',
+  'fontes',
+  'referências',
+  'referência',
+  'apêndice',
+  'glossário',
+  'sommaire',
+  'tableau',
+  'référence',
+  'références',
+  'annexe',
+  'glossaire',
+  'inhalt',
+  'abschnitt',
+  'tabelle',
+  'abbildung',
+  'quellen',
+  'quelle',
+  'anmerkungen',
+  'anmerkung',
+  'anhang',
+  'glossar',
+])
+/** Whether a word names a part of the page (STRUCTURE_WORDS), whatever its case. */
+export const isStructureWord = (word: string): boolean => STRUCTURE_WORDS.has(word.toLocaleLowerCase())
+/** A name that says nothing of its own: one of those words, and optionally a number or a short id ("Table b5"). */
+const PLAIN_NAME = /^(\p{L}{1,24})(?: [a-z]?\d{1,4})?$/iu
+const isPlainName = (text: string): boolean => isStructureWord(PLAIN_NAME.exec(text)?.[1] ?? '')
 const plain = (text: string): string => text.normalize('NFC').replace(/\s+/gu, ' ').trim()
+/** The words of a text, lower-cased, for an abbreviation held to its own header's words. */
+const wordsOf = (text: string): string[] =>
+  text
+    .toLocaleLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w !== '')
 const lineOf = (html: string, el: Element): number => lineAt(html, el.sourceCodeLocation?.startOffset ?? 0)
 const concealing = (el: Element): boolean => attr(el, 'hidden') !== null || attr(el, 'aria-hidden') === 'true'
 
@@ -258,9 +343,12 @@ interface Context {
   readonly html: string
 }
 
-/** Whether a text a reader meets off the page is shown on it: none, a plain name, or a label (which goes to `shown`). */
-function shownText(text: string, cx: Context): boolean {
-  if (text === '' || PLAIN_NAME.test(text)) return true
+/**
+ * Whether a text a reader meets off the page is shown on it: none, a plain name (unless `plainNames` is off), or a
+ * label (which goes to `shown`).
+ */
+function shownText(text: string, cx: Context, plainNames = true): boolean {
+  if (text === '' || (plainNames && isPlainName(text))) return true
   const same = cx.labels.get(text)
   for (const label of same ?? []) cx.shown.add(label)
   return same !== undefined
@@ -274,16 +362,24 @@ function headFindings(el: Element, cx: Context): Finding[] {
   const description = el.tagName === 'meta' && attr(el, 'name') === 'description'
   if (el.tagName !== 'title' && !description) return []
   const value = description ? (attr(el, 'content') ?? '') : textOf(el)
-  if (shownText(plain(value), cx)) return []
+  if (shownText(plain(value), cx, false)) return []
   return [
     error(
       'attribute_text',
       'index.html',
       `<${el.tagName}${description ? ' name="description"' : ''}> says ${JSON.stringify(value.slice(0, 80))}, which the page ` +
-        'does not show: the title and the description repeat a heading or another label, or are a plain name',
+        'does not show: the title and the description repeat a heading or another label the page shows, or are empty',
       { line: lineOf(cx.html, el) },
     ),
   ]
+}
+
+/** A table header's abbreviation made only of words its own text shows ("Cost" for "Cost per month, in USD"). */
+function ownAbbreviation(el: Element, name: string, value: string | null): boolean {
+  if (name !== 'abbr' || el.tagName !== 'th' || value === null) return false
+  const own = new Set(wordsOf(textOf(el)))
+  const words = wordsOf(value)
+  return words.length > 0 && words.every((w) => own.has(w))
 }
 
 /** A tooltip or name with text the page does not show; the labels a repeated one rests on go to `shown`. */
@@ -291,14 +387,15 @@ function textAttributeFindings(el: Element, cx: Context): Finding[] {
   const out: Finding[] = []
   for (const name of TEXT_ATTRIBUTES) {
     const value = attr(el, name)
-    if (shownText(value === null ? '' : plain(value), cx)) continue
+    if (shownText(value === null ? '' : plain(value), cx) || ownAbbreviation(el, name, value)) continue
     out.push(
       error(
         'attribute_text',
         'index.html',
         `<${el.tagName} ${name}=${JSON.stringify((value ?? '').slice(0, 80))}> carries text the page does not show. A tooltip ` +
           'or an accessible name repeats a heading, caption, summary, table header, navigation link or source entry ' +
-          'that its markup does not hide, or is a plain name ("Contents", "Table b5"); aria-labelledby can point at a label instead',
+          'that its markup does not hide, or is a plain name ("Contents", "Table b5": a word for a part of the page, and a ' +
+          "number); a header's abbr takes words of its own text; aria-labelledby can point at a label instead",
         { line: lineOf(cx.html, el) },
       ),
     )
