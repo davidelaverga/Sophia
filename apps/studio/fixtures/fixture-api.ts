@@ -234,11 +234,8 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
-  const reviewOf = REVIEWS.exec(url.pathname)?.[1]
-  if (reviewOf && project.reviews) {
-    served.push('reviews:read')
-    return json({ reviews: project.reviews.byVersion.get(reviewOf) ?? [] })
-  }
+  const reviews = REVIEWS_OF.exec(url.pathname)
+  if (reviews?.[2]) return reviewsRead(project, reviews[2])
   if (url.pathname !== `/api/v1/rooms/${ROOM}/focus` || !project.showing) return undefined
   served.push('room-focus:read')
   return json(roomFocus(project.showing, project.revision))
@@ -305,6 +302,14 @@ const unavailable = () =>
 
 /** A version's reviews (A16): `/api/v1/artifacts/{report}/versions/{version}/reviews`, the version captured. */
 const REVIEWS = new RegExp(`^/api/v1/artifacts/${REPORT}/versions/([0-9a-f-]{36})/reviews$`)
+/** Any report's reviews, as read (A16): the report and the version captured. */
+const REVIEWS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions\/([0-9a-f-]{36})\/reviews$/
+
+/** A version's reviews as read (A16): none where the page keeps none, and then the read isn't counted. */
+function reviewsRead(project: Project, versionId: string) {
+  if (project.reviews) served.push('reviews:read')
+  return json({ reviews: project.reviews?.byVersion.get(versionId) ?? [] })
+}
 
 /** A review written (A16): 201, once per key; a viewer is refused; a reply lost when the page asks for that. */
 function reviewPosted(project: Project, versionId: string, init: RequestInit | undefined) {
