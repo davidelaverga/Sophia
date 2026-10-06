@@ -798,23 +798,43 @@ export function structureScript(conditions, withPlaced) {
  */
 export async function layoutChanges(probe, ends, until, limits = PLACEMENT) {
   const out = new Set(ends)
-  const budget = { probes: 0, changes: 0 }
-  /** @type {string | null} */
-  let issue = null
+  const at = { out, budget: { probes: 0, changes: 0 }, until, limits }
   for (const [i, a] of ends.entries()) {
     const b = ends[i + 1]
-    if (b === undefined || b - a <= 1 || issue) continue
-    const [atA, atB] = [await probe(a, true), await probe(b, true)]
-    budget.probes += 2
-    if ((atA.placed || atB.placed) && atA.state !== atB.state)
-      issue = await bisect(probe, [a, atA.state, b, atB.state], { out, budget, until, limits })
+    if (b === undefined || b - a <= 1) continue
+    const atA = await probeWithin(probe, a, true, at)
+    const atB = atA && (await probeWithin(probe, b, true, at))
+    if (!atA || !atB) return { ends: [...out].toSorted((x, y) => x - y), issue: LATE }
+    const issue =
+      (atA.placed || atB.placed) && atA.state !== atB.state
+        ? await bisect(probe, [a, atA.state, b, atB.state], at)
+        : null
+    if (issue) return { ends: [...out].toSorted((x, y) => x - y), issue }
   }
-  return { ends: [...out].toSorted((x, y) => x - y), issue }
+  return { ends: [...out].toSorted((x, y) => x - y), issue: null }
+}
+
+const LATE = "the changes of a container's lines inside the bands were not found within the sweep's time"
+
+/**
+ * One probe of the page's structure, raced against the sweep's time (withinTime): null when it answers late, or when
+ * the time has run out by the time its answer is read.
+ * @param {Probe} probe
+ * @param {number} width
+ * @param {boolean} withPlaced
+ * @param {{ budget: { probes: number }, until: number }} at
+ * @returns {Promise<{ state: string, placed: boolean } | null>}
+ */
+async function probeWithin(probe, width, withPlaced, at) {
+  at.budget.probes += 1
+  const got = await withinTime(probe(width, withPlaced), at.until)
+  return 'late' in got || Date.now() > at.until ? null : got.value
 }
 
 /**
  * Find, between two widths whose structures differ, every width where the structure changes, adding the widths either
- * side of each to `out`; or why not, within the bounds.
+ * side of each to `out`; or why not, within the bounds. Each probe races the sweep's time, and a change is taken only
+ * while time is left.
  * @param {Probe} probe
  * @param {[number, string, number, string]} first the two widths and their structures
  * @param {{ out: Set<number>, budget: { probes: number, changes: number }, until: number,
@@ -825,6 +845,7 @@ async function bisect(probe, first, at) {
   const stack = [first]
   for (let next = stack.pop(); next; next = stack.pop()) {
     const [a, atA, b, atB] = next
+    if (Date.now() > at.until) return LATE
     if (b - a <= 1) {
       at.budget.changes += 1
       if (at.budget.changes > at.limits.maxChanges)
@@ -832,15 +853,13 @@ async function bisect(probe, first, at) {
       at.out.add(a).add(b)
       continue
     }
-    if (Date.now() > at.until)
-      return "the changes of a container's lines inside the bands were not found within the sweep's time"
     if (at.budget.probes >= at.limits.maxProbes)
       return `the changes of a container's lines inside the bands were not found within ${at.limits.maxProbes} widths`
     const mid = Math.floor((a + b) / 2)
-    const { state } = await probe(mid, false)
-    at.budget.probes += 1
-    if (state !== atA) stack.push([a, atA, mid, state])
-    if (state !== atB) stack.push([mid, state, b, atB])
+    const answer = await probeWithin(probe, mid, false, at)
+    if (!answer) return LATE
+    if (answer.state !== atA) stack.push([a, atA, mid, answer.state])
+    if (answer.state !== atB) stack.push([mid, answer.state, b, atB])
   }
   return null
 }

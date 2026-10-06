@@ -305,6 +305,12 @@ function stepped(at: readonly number[], placed = true) {
   return { probe, widths }
 }
 const LATER = (): number => Date.now() + 60_000
+/** A page whose probe at 2560px never answers. */
+const silent = (width: number): Promise<{ state: string; placed: boolean }> =>
+  width === 2560 ? new Promise<never>(() => {}) : Promise.resolve({ state: 'a', placed: true })
+/** A page whose one container's lines change at 321px, answering at once. */
+const quick = (width: number): Promise<{ state: string; placed: boolean }> =>
+  Promise.resolve({ state: `lines ${String(width >= 321 ? 1 : 0)}`, placed: true })
 /** A reader that answers with `answer` after `ms`. */
 const readAfter = (ms: number, answer: Layout) => (): Promise<Layout> =>
   new Promise<Layout>((resolve) => {
@@ -339,6 +345,34 @@ describe("a container's lines changing inside a band (#117, placement.mjs)", () 
     assert.match(probes.issue ?? '', /not found within 5 widths$/u)
     const time = await layoutChanges(stepped([640]).probe, [320, 2560], Date.now() - 1)
     assert.match(time.issue ?? '', /not found within the sweep's time$/u)
+  })
+
+  it("races every probe against the sweep's time: a late or silent probe fails, a timely one passes", async () => {
+    const LATE_ISSUE = "the changes of a container's lines inside the bands were not found within the sweep's time"
+    // The bisection's last probes answer 200ms late, past a 60ms budget.
+    let calls = 0
+    const slow = (width: number) => {
+      calls += 1
+      const answer = { state: `lines ${String(width >= 640 ? 1 : 0)}`, placed: true }
+      return calls <= 4 ? Promise.resolve(answer) : new Promise<typeof answer>((r) => setTimeout(() => r(answer), 200))
+    }
+    const started = Date.now()
+    assert.deepEqual(await layoutChanges(slow, [320, 2560], Date.now() + 60), {
+      ends: [320, 2560],
+      issue: LATE_ISSUE,
+    })
+    assert.ok(Date.now() - started < 190, 'it returns when the time runs out, not when the probe answers')
+    // A band end's probe that never answers.
+    assert.equal((await layoutChanges(silent, [320, 2560], Date.now() + 30)).issue, LATE_ISSUE)
+    // A probe whose page work runs past the time before it answers: the last change is not taken.
+    const until = Date.now() + 40
+    const spin = (width: number) => {
+      if (width === 321) while (Date.now() <= until) Math.sqrt(width)
+      return Promise.resolve({ state: `lines ${String(width >= 321 ? 1 : 0)}`, placed: true })
+    }
+    assert.equal((await layoutChanges(spin, [320, 322], until)).issue, LATE_ISSUE)
+    // The same probes in time take the change.
+    assert.deepEqual(await layoutChanges(quick, [320, 322], Date.now() + 1000), { ends: [320, 321, 322], issue: null })
   })
 })
 
