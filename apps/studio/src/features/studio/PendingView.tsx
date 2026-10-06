@@ -3,7 +3,7 @@
 // elsewhere, it leads there. Knowledge has its Reports (SMC-M03); its Sources and Decisions come with S1-08.
 import type { View } from '../../app/route.ts'
 
-type PendingViewName = Extract<View, 'updates' | 'resources'>
+type PendingViewName = Extract<View, 'conversations' | 'updates' | 'resources'>
 
 interface Pending {
   title: string
@@ -13,6 +13,12 @@ interface Pending {
 }
 
 const PENDING: Record<PendingViewName, Pending> = {
+  // Davide's chapter 2, behind the vision flag until the API has conversations (A18).
+  conversations: {
+    title: 'Conversations',
+    body: 'The project’s text conversations, each question in its own place, will live here. Today the project talks in its room.',
+    leadsTo: { label: 'Open the Studio', view: 'studio' },
+  },
   // S1-09, owner actions.
   updates: {
     title: 'Updates',

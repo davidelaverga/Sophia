@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { HOME, joinStands, opensJoinPage, parseRoute, PLACES, projectOnScreen, routePath, VIEWS } from './route.ts'
+import {
+  HOME,
+  joinStands,
+  opensJoinPage,
+  parseRoute,
+  PLACES,
+  projectOnScreen,
+  routePath,
+  VIEWS,
+  viewsShown,
+} from './route.ts'
 
 const P = '6f1f3a52-4b8e-4c62-9d7e-0a1b2c3d4e5f'
 const project = (view: string) => ({ projectId: P, view, place: 'work' })
@@ -54,5 +64,13 @@ describe('the project on screen', () => {
     assert.equal(projectOnScreen('p1', 'p1'), 'p1')
     assert.equal(projectOnScreen('p2', 'p1'), 'p1', 'its controls stay in sight; the other opens after')
     assert.equal(projectOnScreen(null, 'p1'), null, 'in the places, the call goes on out of sight')
+  })
+})
+
+describe('viewsShown', () => {
+  it('shows Conversations only under the vision flag', () => {
+    assert.ok(viewsShown(true).includes('conversations'))
+    assert.ok(!viewsShown(false).includes('conversations'))
+    assert.equal(viewsShown(false).length, VIEWS.length - 1)
   })
 })

@@ -32,6 +32,7 @@ import { noTasks, taskOf } from './task-data.ts'
 import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
+import { CONVERSATION, conversationMission, conversations, messagesOf } from './conversation-data.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, leaving, sophiaLeaves } from './fake-livekit.ts'
 import {
   count,
@@ -121,6 +122,12 @@ interface Fixture {
   releaseTaskReads: () => void
   /** While on, searches wait; off, the waiting ones are answered (A13). */
   holdSearch: (on: boolean) => void
+  /** The conversations' list reads fail, or read again (A18). */
+  failConversations: (on: boolean) => void
+  /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
+  conversationMoves: () => void
+  /** The brief's reads fail, or read again. */
+  failMission: (on: boolean) => void
   /** The project list's reads fail, or read again (chapter 1). */
   failProjects: (on: boolean) => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
@@ -281,6 +288,9 @@ const project = {
   work: query.get('place') === 'work',
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
+  // A18: the project's conversations (`conversations=1`; `=none`, none; `=fail`, the list fails; `messages=fail`, the
+  // second one's messages fail), and the brief's context beside them.
+  ...conversationsAsked(query.get('conversations'), query.get('messages') === 'fail'),
   // A16: the versions' reviews (review-data.ts).
   // Chapter 1: what members carried in from Personal (`carried=1`), and the project list failing (`projects=fail`).
   carriedIn: query.has('carried')
@@ -312,6 +322,7 @@ const project = {
   projectsFail: query.get('projects') === 'fail',
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
+  missionFails: false,
   reviews: {
     ...noReviews(query.get('reviews') === 'fail'),
     heldReads: query.get('reviews') === 'hold' ? waiting() : null,
@@ -428,6 +439,16 @@ window.fixture = {
     const held = project.reviews.heldReads ?? []
     project.reviews.heldReads = null
     for (const answer of held) answer()
+  },
+  failConversations: (on) => {
+    if (project.conversations) project.conversations.failList = on
+  },
+  conversationMoves: () => {
+    const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
+    if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
+  },
+  failMission: (on) => {
+    project.missionFails = on
   },
   failProjects: (on) => {
     project.projectsFail = on
@@ -637,10 +658,12 @@ const nothing = () => undefined
 
 /** The page `place=` names: Knowledge, Work (with the research task's card), Updates, else the room. */
 const viewOf = (place: string | null) =>
-  place === 'knowledge' || place === 'work' || place === 'updates' ? place : 'studio'
+  place === 'knowledge' || place === 'work' || place === 'updates' || place === 'conversations' ? place : 'studio'
 
-/** The views this fixture's API serves: the room, Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
-const SERVED: readonly View[] = ['studio', 'knowledge', 'work', 'updates']
+/** The views this fixture's API serves: the room, Conversations (when the page asks for them), Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
+const SERVED: readonly View[] = query.has('conversations')
+  ? ['studio', 'conversations', 'knowledge', 'work', 'updates']
+  : ['studio', 'knowledge', 'work', 'updates']
 
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }
@@ -656,6 +679,20 @@ function Kept({ children }: { children: (background: boolean) => ReactNode }) {
       <ShortcutScope.Provider value={inSight}>{children(!inSight)}</ShortcutScope.Provider>
     </div>
   )
+}
+
+/** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
+function conversationsAsked(which: string | null, failMessages: boolean) {
+  if (which === null) return {}
+  return {
+    conversations: {
+      list: which === 'none' ? [] : conversations(),
+      messages: messagesOf(),
+      failList: which === 'fail',
+      failMessagesOf: failMessages ? CONVERSATION.briefs : null,
+    },
+    missionPlus: conversationMission(),
+  }
 }
 
 /** The project as App.tsx shows it: its view moves as the person picks another (ViewNav, the mini dock). */
