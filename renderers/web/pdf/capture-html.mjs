@@ -19,7 +19,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { conditionsScript, MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, MAX_POINTS, pageScript } from './capture-page.mjs'
 import { launchConfined, playwrightVersion } from './confine.mjs'
-import { layoutAt, layoutChanges, placementStep, structureScript } from './placement.mjs'
+import { generatedAt, layoutAt, layoutChanges, placementStep, structureScript } from './placement.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
 
 export const CAPTURE_RECEIPT_SCHEMA = 'sophia.html-capture-receipt.v1'
@@ -538,13 +538,20 @@ function isMeasure(value) {
 }
 
 /**
- * The page's measure at the current target, or band end, within a look budget.
+ * The page's measure at the current target, or band end, within a look budget. Where the page's generated boxes lie is
+ * read first through the protocol, within the same budget, for the measure to read the paint beneath a text by
+ * (placement.mjs generatedAt, #117); unread, the paint beneath any text whose element or an element around it draws
+ * one is unread, and that text's contrast unknown.
  * @param {import('playwright-core').Page} page
+ * @param {import('playwright-core').CDPSession} cdp
  * @param {number} [maxLookMs]
  */
-async function measure(page, maxLookMs = MAX_LOOK_MS) {
+async function measure(page, cdp, maxLookMs = MAX_LOOK_MS) {
+  const until = Date.now() + maxLookMs
+  const generated = await generatedAt(cdp, until)
+  const left = Math.max(0, until - Date.now())
   /** @type {unknown} */
-  const value = await page.evaluate(pageScript({ maxListed: MAX_LISTED, maxLookMs }))
+  const value = await page.evaluate(pageScript({ maxListed: MAX_LISTED, maxLookMs: left, generated }))
   if (!isMeasure(value)) throw new CaptureFailure('measure_failed', 'the page could not be measured')
   return value
 }
@@ -776,7 +783,7 @@ async function measureEnds(page, shot, sweep, wrong) {
       return
     }
     await page.setViewportSize({ width, height: SWEEP.height })
-    const { unmeasured, ...answer } = await measure(page, left)
+    const { unmeasured, ...answer } = await measure(page, shot.cdp, left)
     const { measured, unsampled } = await generatedCover(shot, page, answer, sweep.until)
     const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null)
     if (issue) wrong.push(`at ${width}px: ${issue}`)
@@ -836,7 +843,7 @@ async function captureAll(page, shot, entry) {
     const target = CAPTURE_TARGETS[id]
     if (!target) throw new CaptureFailure('invalid_target', id)
     await loadAt(page, target, entry.url, entry.timeoutMs)
-    const { unmeasured, ...answer } = await measure(page)
+    const { unmeasured, ...answer } = await measure(page, shot.cdp)
     const { measured, unsampled } = await generatedCover(shot, page, answer)
     if (shot.receipt.fonts.length === 0) shot.receipt.fonts = await fontsUsed(shot.cdp)
     const coverage = await captureTarget(shot, target, measured)

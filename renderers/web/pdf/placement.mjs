@@ -31,7 +31,8 @@ import { MARK_CLASS } from './capture-page.mjs'
 /**
  * The most boxes one band end's layout may hold to be compared, the most pairs of a placed box and a text compared
  * across one band, the most pairs a failure names, and, where a band holds placed boxes, the most changes of a
- * container's lines found inside the bands and the most widths probed to find them (layoutChanges).
+ * container's lines found inside the bands and the most widths probed to find them (layoutChanges). Also the most
+ * generated boxes whose place the page measure is given to read paint beneath text by (generatedOf).
  */
 export const PLACEMENT = Object.freeze({
   maxNodes: 60_000,
@@ -39,6 +40,7 @@ export const PLACEMENT = Object.freeze({
   maxListed: 12,
   maxChanges: 32,
   maxProbes: 400,
+  maxGenerated: 4_000,
 })
 
 /** The computed styles the comparison reads, in the order the protocol returns them for each box. */
@@ -247,6 +249,98 @@ function addLayout(node, layout, li, strings) {
 function widen(range, order) {
   if (order === undefined) return range
   return range ? [Math.min(range[0], order), Math.max(range[1], order)] : [order, order]
+}
+
+/**
+ * @typedef {{ at: number, tag: string, pseudo: string, box: Edges }} GeneratedBox a generated box (::before or ::after)
+ *   and where it lies, by the index of the element that draws it among the page's elements in document order (as
+ *   document.querySelectorAll('*') lists them) and that element's tag, which the page measure checks the index by
+ * @typedef {{ elements: number, boxes: GeneratedBox[] }} Generated the page's generated boxes, and how many elements
+ *   it has
+ */
+
+/**
+ * The element order of a snapshot's elements, by node index: generated boxes are not counted, so the order is the one
+ * document.querySelectorAll('*') gives.
+ * @param {Columns} c
+ * @returns {Map<number, number>}
+ */
+function elementOrder(c) {
+  /** @type {Map<number, number>} */
+  const order = new Map()
+  for (const [ni, type] of c.type.entries()) if (type === 1 && !c.pseudo.has(ni)) order.set(ni, order.size)
+  return order
+}
+
+/**
+ * Where the page's generated boxes lie, from a snapshot. A generated box hit-tests as the element that draws it, so
+ * only the protocol tells where one is, and the page measure reads the paint beneath a text from it
+ * (capture-page.mjs, #117). Null where the snapshot holds no document, a box's element is not one of its elements, or
+ * it holds more than `maxGenerated` boxes: the measure then leaves unread the paint beneath every text whose element or
+ * an element around it draws one.
+ * @param {Snapshot | null} snapshot
+ * @param {{ maxGenerated: number }} [limits]
+ * @returns {Generated | null}
+ */
+export function generatedOf(snapshot, limits = PLACEMENT) {
+  const doc = snapshot?.documents[0]
+  if (!snapshot || !doc) return null
+  const c = columnsOf(doc.nodes, snapshot.strings)
+  const order = elementOrder(c)
+  /** @type {Map<number, GeneratedBox>} */
+  const boxes = new Map()
+  for (const [li, ni] of doc.layout.nodeIndex.entries())
+    if (!addGenerated(boxes, { c, order, layout: doc.layout, li, ni }, limits)) return null
+  return { elements: order.size, boxes: [...boxes.values()] }
+}
+
+/**
+ * One layout box's bounds, as edges.
+ * @param {SnapshotLayout} layout
+ * @param {number} li
+ * @returns {Edges}
+ */
+function edgesAt(layout, li) {
+  const [x = 0, y = 0, w = 0, h = 0] = layout.bounds[li] ?? []
+  return [x, y, x + w, y + h]
+}
+
+/**
+ * Add one layout box to the generated boxes when its node is a ::before or ::after (its boxes united); false when its
+ * element is not one of the snapshot's, or the boxes would be more than `maxGenerated`.
+ * @param {Map<number, GeneratedBox>} boxes by node index
+ * @param {{ c: Columns, order: Map<number, number>, layout: SnapshotLayout, li: number, ni: number }} at
+ * @param {{ maxGenerated: number }} limits
+ */
+function addGenerated(boxes, at, limits) {
+  const { c, order, layout, li, ni } = at
+  const kind = c.pseudo.get(ni)
+  if (kind !== 'before' && kind !== 'after') return true
+  const parent = c.parent[ni] ?? -1
+  const box = edgesAt(layout, li)
+  const known = boxes.get(ni)
+  if (known) {
+    if (box[2] > box[0] || box[3] > box[1]) known.box = unite(known.box, box)
+    return true
+  }
+  const index = order.get(parent)
+  if (index === undefined || boxes.size >= limits.maxGenerated) return false
+  boxes.set(ni, { at: index, tag: stringAt(c.strings, c.name[parent]), pseudo: `::${kind}`, box })
+  return true
+}
+
+/**
+ * The page's generated boxes (generatedOf), read through the protocol by `until` (Date.now()); null when the snapshot
+ * does not answer by then or fails.
+ * @param {import('playwright-core').CDPSession} cdp
+ * @param {number} until
+ * @returns {Promise<Generated | null>}
+ */
+export async function generatedAt(cdp, until) {
+  /** @type {Promise<Snapshot | null>} */
+  const snapshot = cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: [] }).catch(() => null)
+  const got = await withinTime(snapshot, until)
+  return 'late' in got ? null : generatedOf(got.value)
 }
 
 /**

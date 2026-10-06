@@ -165,6 +165,12 @@ const contrastRead = (m: { id: string; contrast: { ratio: number | null; detail:
   m.id,
   m.contrast.ratio === null ? m.contrast.detail : 'read',
 ]
+/** A measure's id and whether its contrast was read and found low, read, or why it was not read. */
+const contrastSeen = (m: {
+  id: string
+  issues: string[]
+  contrast: { ratio: number | null; detail: string | null }
+}) => [m.id, m.contrast.ratio === null ? m.contrast.detail : m.issues.includes('low_contrast') ? 'low' : 'read']
 
 /** One element's measures outside the blocks, and a target's page holding them. */
 const framed = (id: string, issues: string[] = [], ratio: number | null = 12) => ({
@@ -1566,7 +1572,7 @@ describe('the confined capture kernel', () => {
   )
 
   it(
-    'reads contrast against the background beneath the text: one its styles do not give is unknown, never passed (#117)',
+    'reads contrast against the paint beneath the text: its colours where known, unknown where not, never passed (#117)',
     { skip },
     async () => {
       const receipt = await captureHtml(
@@ -1614,33 +1620,176 @@ describe('the confined capture kernel', () => {
       assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
       for (const target of ['w390-light', 'w1280-light']) {
         const measured = receipt.targets.find((t) => t.id === target)!.page
+        // Each dark or light paint beneath a text of its own shade is read, and found low: a sibling slab, its own box
+        // spilt past, a generated highlight, an inset shadow, a glow, a ring, an inward outline, a parent's border, and
+        // the page beneath a text placed outside its painted parent. A border image is not read: unknown (#117).
         assert.deepEqual(
-          [...measured.blocks, ...measured.framing].map(contrastRead),
+          [...measured.blocks, ...measured.framing].map(contrastSeen),
           [
             ['b1', 'read'],
-            ['b2', 'background_elsewhere'],
-            ['b3', 'background_elsewhere'],
-            ['b4', 'background_elsewhere'],
+            ['b2', 'low'],
+            ['b3', 'low'],
+            ['b4', 'low'],
             ['b5', 'read'],
-            ['b6', 'background_elsewhere'],
-            ['b7', 'background_elsewhere'],
+            ['b6', 'low'],
+            ['b7', 'low'],
             ['b8', 'read'],
             ['b9', 'read'],
-            ['b10', 'background_elsewhere'],
+            ['b10', 'low'],
             ['b11', 'filtered'],
             ['b12', 'background_elsewhere'],
             ['b13', 'background_elsewhere'],
             ['b14', 'background_elsewhere'],
-            ['b15', 'background_elsewhere'],
+            ['b15', 'low'],
             ['text 1 h2', 'read'],
-            ['text 2 h2', 'background_elsewhere'],
+            ['text 2 h2', 'low'],
             ['text 3 h2', 'read'],
-            ['text 4 h2', 'background_elsewhere'],
+            ['text 4 h2', 'low'],
             ['text 5 h2', 'background_elsewhere'],
           ],
           target,
         )
-        assert.equal(outcome(receipt, 'contrast', target), 'unknown', `${target}: an unknown contrast is never passed`)
+        assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
+      }
+    },
+  )
+
+  it(
+    'fails known dark paint beneath dark research as low contrast, and reads light paint, cards and decoration (#117)',
+    { skip },
+    async () => {
+      // Codex's four concealments (4197480601): black 24px research on a white page over a black generated box, a
+      // black border, a black spread shadow and a black sibling box; two a generated box's place alone tells: one
+      // beneath a positioned text at the default z-index, and one stacked in a grid cell; and a text at the corner of a
+      // white circle's box, where the black around it, not the circle, lies beneath it.
+      const stripes = Array.from(
+        { length: 20 },
+        (_, i) => `<i style="left:${String(i * 12)}px;background:hsl(${String(i * 18)} 60% 92%)"></i>`,
+      ).join('')
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} body{background:#fff} p,h2{font-size:24px;color:#000;margin:0 0 2rem}
+            .gen{position:relative} .gen::before{content:"";position:absolute;inset:0;background:#000;z-index:-1}
+            .bord{position:relative;border-top:40px solid #000} .onb{position:absolute;top:-38px;left:0}
+            .spread{height:4px;box-shadow:0 0 0 40px #000} .after{margin-top:0} .gap{height:80px}
+            .slabbed{position:relative} .slab{position:absolute;inset:0;background:#000} .over{position:relative}
+            .zauto{position:relative} .zauto::before{content:"";position:absolute;inset:0;background:#000}
+            .zauto span{position:relative}
+            .stack{display:grid} .stack::before{content:"";grid-area:1/1;background:#000} .stack span{grid-area:1/1}
+            .hl{position:relative} .hl::before{content:"";position:absolute;inset:0;background:#fff3a0;z-index:-1}
+            .hero{position:relative;color:#fff} .hero::before{content:"";position:absolute;inset:0;background:#123;z-index:-1}
+            .card{border:1px solid #bbb;box-shadow:0 4px 24px rgba(0,0,0,.25);background:#fff;padding:1rem;margin-bottom:0}
+            .card p{margin:0} .near{margin:0 0 2rem}
+            .decor{position:relative} .blob{position:absolute;inset:0;background:#eef3ff;border-radius:2rem}
+            .dot{position:relative;padding-right:2rem}
+            .dot::after{content:"";position:absolute;right:4px;top:4px;width:10px;height:10px;border-radius:50%;background:#000}
+            .bullet::before{content:"";display:inline-block;width:.4em;height:.4em;background:#000;margin-right:.4em}
+            .night{background:#000;padding:20px} .moon{position:relative;width:160px;height:160px;border-radius:50%;background:#fff}
+            .moon p{position:absolute;left:0;top:0;margin:0;font-size:12px;line-height:1}
+            .rcard{background:#123;color:#fff;border-radius:40px;padding:8px 16px 40px}
+            .gcard{position:relative;color:#fff;padding:8px 16px 40px}
+            .gcard::before{content:"";position:absolute;inset:0;background:#123;border-radius:40px;z-index:-1}
+            .striped{position:relative;width:240px} .striped i{position:absolute;top:0;bottom:0;width:12px}
+            .striped p{position:relative;white-space:nowrap;font-size:12px}`,
+            `<main><section data-section="s1"><h2>Findings</h2>
+          <p data-block="a1" class="gen">Not free, over a black box.</p>
+          <div class="bord"><p data-block="a2" class="onb">Not free, on a black border.</p></div>
+          <div class="gap"></div><div class="spread"></div><p data-block="a3" class="after">Not free, in a black shadow.</p>
+          <div class="gap"></div>
+          <div class="slabbed"><div class="slab"></div><p data-block="a4" class="over">Not free, on a black box.</p></div>
+          <p data-block="a5" class="zauto"><span>Not free, over a placed black box.</span></p>
+          <p data-block="a6" class="stack"><span>Not free, in a black grid cell.</span></p>
+          <p data-block="p1" class="hl">Under a light highlight.</p>
+          <p data-block="p2" class="hero">Light on a dark generated box.</p>
+          <div class="card"><p data-block="p3">In a shadowed, bordered card.</p></div>
+          <p data-block="p4" class="near">Just below the card's shadow.</p>
+          <div class="decor"><div class="blob"></div><p data-block="p5" class="over">Over a pale decoration.</p></div>
+          <p data-block="p6" class="dot">Beside a dark dot.</p>
+          <p data-block="p7" class="bullet">After a dark bullet.</p>
+          <p data-block="p8" class="hero"><span>Light, in a run, on a dark generated box.</span></p>
+          <div class="night"><div class="moon"><p data-block="a7">Not</p></div></div>
+          <p data-block="p9" class="rcard">In a rounded card.</p>
+          <p data-block="p10" class="gcard">On a rounded generated box.</p>
+          <div class="striped">${stripes}<p data-block="u1">Over more pale stripes than the measure reads apart.</p></div>
+          </section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const measured = receipt.targets.find((t) => t.id === target)!.page
+        assert.deepEqual(
+          measured.blocks.map(contrastSeen),
+          [
+            ['a1', 'low'],
+            ['a2', 'low'],
+            ['a3', 'low'],
+            ['a4', 'low'],
+            ['a5', 'low'],
+            ['a6', 'low'],
+            ['p1', 'read'],
+            ['p2', 'read'],
+            ['p3', 'read'],
+            ['p4', 'read'],
+            ['p5', 'read'],
+            ['p6', 'read'],
+            ['p7', 'read'],
+            ['p8', 'read'],
+            ['a7', 'low'],
+            ['p9', 'read'],
+            ['p10', 'read'],
+            ['u1', 'background_elsewhere'],
+          ],
+          target,
+        )
+        const ratio = (id: string) => measured.blocks.find((b) => b.id === id)?.contrast.ratio ?? 0
+        for (const id of ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7'])
+          assert.ok(ratio(id) < 1.5, `${target}: ${id} ${ratio(id)}`)
+        for (const id of ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10'])
+          assert.ok(ratio(id) >= 7, `${target}: ${id} ${ratio(id)}`)
+        assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
+        assert.equal(
+          receipt.checks.find((c) => c.name === 'contrast' && c.target === target)?.detail,
+          'a1, a2, a3, a4, a5, a6, a7',
+          target,
+        )
+        assert.equal(outcome(receipt, 'blocks_visible', target), 'passed', `${target}: low contrast shows the text`)
+      }
+    },
+  )
+
+  it(
+    'leaves unread the paint beneath a text whose generated boxes the protocol does not place: unknown, never passed (#117)',
+    { skip },
+    async () => {
+      // More generated boxes than the measure is given (4000): where each lies is not read, so a text over one is unknown.
+      const marks = '<b class="m"></b>'.repeat(4001)
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} body{background:#fff} p{font-size:24px;color:#000}
+            .m::before{content:"";display:inline-block;width:1px;height:1px;background:#eee}
+            .gen{position:relative} .gen::before{content:"";position:absolute;inset:0;background:#000;z-index:-1}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Plain text.</p>
+          <p data-block="b2" class="gen">Not free, over a black box.</p><div>${marks}</div></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const measured = receipt.targets.find((t) => t.id === target)!.page
+        assert.deepEqual(
+          measured.blocks.map(contrastSeen),
+          [
+            ['b1', 'read'],
+            ['b2', 'background_elsewhere'],
+          ],
+          target,
+        )
+        assert.equal(outcome(receipt, 'contrast', target), 'unknown', target)
       }
     },
   )

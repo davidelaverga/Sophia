@@ -3,6 +3,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  generatedAt,
+  generatedOf,
   layoutChanges,
   layoutOf,
   PLACEMENT,
@@ -406,5 +408,78 @@ describe("the placements read within the sweep's time (#117, placement.mjs)", ()
     assert.equal(met.issue, 'between 320 and 2560px: 1 placed boxes and texts may meet: div.cover and b1')
     const other = await placementStep(() => Promise.resolve(crossed), { width: 2560, state: 't' }, before, LATER())
     assert.equal(other.issue, null, 'another band')
+  })
+})
+
+/** A snapshot of a page: html, head, body, a p with a ::before (one box and an empty one), its text and an ::after in two
+ * boxes, and a li whose ::marker draws a glyph, not a box. */
+function withGenerated() {
+  const strings = ['HTML', 'HEAD', 'BODY', 'P', '::before', 'before', '#text', 'LI', '::marker', 'marker', '::after', 'after']
+  return {
+    documents: [
+      {
+        nodes: {
+          parentIndex: [-1, 0, 0, 2, 3, 3, 3, 2, 7],
+          nodeType: [1, 1, 1, 1, 1, 3, 1, 1, 1],
+          nodeName: [0, 1, 2, 3, 4, 6, 10, 7, 8],
+          backendNodeId: [10, 11, 12, 13, 14, 15, 16, 17, 18],
+          pseudoType: { index: [4, 6, 8], value: [5, 11, 9] },
+        },
+        layout: {
+          nodeIndex: [0, 2, 3, 4, 4, 5, 6, 6, 7, 8],
+          styles: [[], [], [], [], [], [], [], [], [], []],
+          bounds: [
+            [0, 0, 800, 600],
+            [0, 0, 800, 600],
+            [8, 16, 784, 24],
+            [8, 16, 784, 24],
+            [0, 0, 0, 0],
+            [8, 19, 90, 17],
+            [700, 40, 10, 10],
+            [8, 50, 20, 10],
+            [8, 80, 784, 24],
+            [-10, 80, 7, 17],
+          ],
+        },
+      },
+    ],
+    strings,
+  }
+}
+
+describe('where generated boxes lie, for the paint beneath a text (#117, placement.mjs)', () => {
+  it("reads each ::before and ::after by its element's place among the page's elements, its boxes joined", () => {
+    assert.deepEqual(generatedOf(withGenerated()), {
+      elements: 5,
+      boxes: [
+        { at: 3, tag: 'P', pseudo: '::before', box: [8, 16, 792, 40] },
+        { at: 3, tag: 'P', pseudo: '::after', box: [8, 40, 710, 60] },
+      ],
+    })
+  })
+
+  it('reads none past its bound, or from a snapshot whose boxes it cannot place', () => {
+    assert.equal(generatedOf(withGenerated(), { maxGenerated: 1 }), null, 'past the bound')
+    assert.equal(generatedOf(withGenerated(), { maxGenerated: 2 })?.boxes.length, 2, 'at the bound')
+    const orphan = withGenerated()
+    orphan.documents[0]!.nodes.parentIndex[4] = 5
+    assert.equal(generatedOf(orphan), null, 'a generated box whose parent is no element')
+    assert.equal(generatedOf({ documents: [], strings: [] }), null, 'no document')
+    assert.equal(generatedOf(null), null, 'no snapshot')
+  })
+
+  it('reads them within the time, and none from a snapshot that answers late or fails', async () => {
+    const answering = (ms: number, fail = false) =>
+      ({
+        send: () =>
+          new Promise((resolve, reject) => {
+            setTimeout(() => (fail ? reject(new Error('protocol')) : resolve(withGenerated())), ms)
+          }),
+      }) as unknown as Parameters<typeof generatedAt>[0]
+    assert.equal((await generatedAt(answering(5), Date.now() + 1000))?.boxes.length, 2, 'in time')
+    const start = Date.now()
+    assert.equal(await generatedAt(answering(300), Date.now() + 20), null, 'late')
+    assert.ok(Date.now() - start < 200, 'it returns when the time is out, not when the snapshot answers')
+    assert.equal(await generatedAt(answering(5, true), Date.now() + 1000), null, 'failed')
   })
 })
