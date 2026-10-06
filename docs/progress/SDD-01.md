@@ -101,7 +101,10 @@ The implementer's container lost its PostgreSQL (`could not open shared memory s
 | Mutation checks | Codex (CX-0027) | With each original F1, F3, F4 and F5 body restored, and with `citationFindings` removed for F2, exactly the intended assertions fail |
 | Citation and bundle unit tests; artifact reproduction; pinned-dsh crossing | Codex (CX-0026) | 79/79; `c9aa2beb…884` reproduced; 2/2 |
 | Linux confined renderer CI (the real supervisor capture crossing, which now acknowledges every capture) | GitHub Actions at `f5a54fa` | Pass |
-| `pnpm test:db` (with the adverse source of `f5a54fa`), full `pnpm check` | Codex and CI | Pending at the time of writing |
+| `pnpm test:db` with the adverse source of `f5a54fa` | Codex (CX-0028), PostgreSQL 17.6 | 512/512, no skips or cancellations |
+| `pnpm check` | Codex (CX-0028, at `d4d5124`; `f5a54fa` changes tests only) | Exit 0: unit 1513 pass (21 macOS platform skips); integration 91 pass (the 2 Linux renderer crossings skipped on macOS), including the real API, PostgreSQL and pinned-dsh service crossing |
+| CI at `f5a54fa` | GitHub Actions | SQL, persistence and API on PostgreSQL 16; the confined renderer and supervisor crossings; live auth; media bridge: pass. Runtime unit and browsers: see #117 |
+| Native paid and production cases | — | Not run: L2, the G6 native arm, L3, native active steer and visual perception (CC-0011), P1 and P2 |
 
 ## 6. Review findings
 
