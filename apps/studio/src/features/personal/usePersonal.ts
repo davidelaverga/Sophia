@@ -278,7 +278,9 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
     forget: (noteId: string) => run((k, at) => forgetPersonalNote(token, k, at, noteId)),
     carry: (noteId: string, projectId: string) =>
       run((k, at) => carryPersonalNote(token, k, at, noteId, projectId), true),
-    takeBack: (releaseId: string) => run((k, at) => takeBackPersonalRelease(token, k, at, releaseId), true),
+    /** `key`: the take-back's own, when it is asked again after no answer came back (it may have come back). */
+    takeBack: (releaseId: string, key?: string) =>
+      run((k, at) => takeBackPersonalRelease(token, k, at, releaseId), true, key),
     erase: () => eraseSpace(client, identity, () => setErasures((n) => n + 1)),
   }
 }
