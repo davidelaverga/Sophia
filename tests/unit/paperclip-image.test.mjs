@@ -5,7 +5,7 @@
 // digests never read) or one of the same kind, and none of them may read as qualified.
 import assert from 'node:assert/strict'
 import { execFile, spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -637,5 +637,39 @@ describe('review of 37bae0e: a start’s time ends when health answers, not afte
     } finally {
       await new Promise((closed) => server.close(closed))
     }
+  })
+})
+
+describe('review of 3f92959: every input of the image build starts its qualification', () => {
+  const ROOT = fileURLToPath(new URL('../../', import.meta.url))
+  const WORKFLOW = join(ROOT, '.github/workflows/paperclip-image.yml')
+  const manifestOf = (dir) => JSON.parse(readFileSync(join(ROOT, dir, 'package.json'), 'utf8'))
+
+  it('the trigger names the toolchain and lock, and every workspace package the bundled plugin and adapter use', () => {
+    const paths = parse(readFileSync(WORKFLOW, 'utf8')).on.pull_request.paths
+    // What the job installs and builds with: setup-node's version file, pnpm's packageManager, the frozen lock, the
+    // workspace (its packages and install rules), and the repository's own TypeScript from that lock.
+    for (const file of ['.node-version', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']) {
+      assert.ok(paths.includes(file), `${file} is not in the trigger`)
+    }
+    const byName = new Map(
+      readdirSync(join(ROOT, 'packages'), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => [manifestOf(`packages/${entry.name}`).name, `packages/${entry.name}`]),
+    )
+    const used = new Set()
+    const queue = ['packages/paperclip-plugin', 'packages/paperclip-adapters']
+    while (queue.length > 0) {
+      const dir = queue.shift()
+      if (used.has(dir)) continue
+      used.add(dir)
+      for (const [name, spec] of Object.entries(manifestOf(dir).dependencies ?? {})) {
+        if (!spec.startsWith('workspace:')) continue
+        assert.ok(byName.has(name), `${dir} depends on ${name}, which is not under packages/`)
+        queue.push(byName.get(name))
+      }
+    }
+    assert.ok(used.has('packages/contracts'), 'the walk reaches the contracts the adapter and coordination import')
+    for (const dir of used) assert.ok(paths.includes(`${dir}/**`), `${dir} is not in the trigger`)
   })
 })

@@ -12,12 +12,20 @@ name: paperclip-image
 on:
   workflow_dispatch:
   pull_request:
+    # Every input of the image: the workflow, the recipe, the scripts, the bundled packages and every workspace package
+    # they depend on, and the toolchain and lock the build installs and typechecks with (WBC-02, Codex review of
+    # 3f92959). The unit tests walk the packages' dependencies and hold this list to them.
     paths:
       - .github/workflows/paperclip-image.yml
+      - .node-version
       - deploy/paperclip/**
+      - package.json
+      - packages/contracts/**
       - packages/coordination/**
       - packages/paperclip-adapters/**
       - packages/paperclip-plugin/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - scripts/paperclip-*.mjs
 
 permissions:
