@@ -94,3 +94,20 @@ describe('a task’s quote', () => {
     assert.equal(taskQuote('c'.repeat(800)), 'c'.repeat(800))
   })
 })
+
+describe('a task’s quote, by characters', () => {
+  it('never splits a character at the limit', () => {
+    const emoji = '😀'.repeat(900)
+    const quote = taskQuote(emoji)
+    assert.ok(quote.length <= QUOTE_MAX)
+    const skin = taskQuote('👍🏽'.repeat(900))
+    assert.ok(skin.length <= QUOTE_MAX)
+    assert.ok(skin.endsWith('👍🏽…'))
+    // Where the browser has no segmenter: by code points, never a lone half.
+    const plain = taskQuote(emoji, null)
+    assert.ok(plain.length <= QUOTE_MAX)
+    assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(plain))
+    assert.ok(quote.endsWith('😀…'))
+    assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(quote))
+  })
+})

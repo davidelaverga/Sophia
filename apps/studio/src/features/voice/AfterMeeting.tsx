@@ -2,7 +2,7 @@
 // made later, each with its time and a way to it. Read from its own route (a proposed A12 refinement), so the recap,
 // the record at close, never changes. Only under the vision flag.
 import { useQuery } from '@tanstack/react-query'
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { getAfter, type AfterUpdate } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { closeEveryDialog } from '../../app/useDialog.ts'
@@ -22,6 +22,8 @@ interface Props {
   onOpen: () => void
 }
 
+const POLL_FOR_MS = 10 * 60_000
+
 const TIME = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 const DAY = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
 
@@ -34,12 +36,19 @@ const whenOf = (at: string, endedAt: string) => {
 
 export function AfterMeeting({ projectId, identity, meetingId, endedAt, waiting, anchor, onOpen }: Props) {
   const id = useId()
+  const [opened] = useState(() => Date.now())
   const viewer = useDocumentViewer()
   const after = useQuery({
     queryKey: ['vision', 'after', projectId, identity.name, meetingId],
     queryFn: ({ signal }) => getAfter(identity.token, projectId, meetingId, signal),
     gcTime: 0,
     retry: 1,
+    // While its work goes on and nothing came, read again now and then (for ten minutes at most): the sheet may stay
+    // open as it finishes.
+    refetchInterval: (query) => {
+      const came = (query.state.data?.updates ?? []).some((u) => Date.parse(u.at) >= Date.parse(endedAt))
+      return waiting && !came && Date.now() - opened < POLL_FOR_MS ? 4000 : false
+    },
   })
   // The boundary, kept here too: nothing from before the close is «after» it.
   const updates = (after.data?.updates ?? []).filter((u) => Date.parse(u.at) >= Date.parse(endedAt))

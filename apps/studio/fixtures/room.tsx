@@ -271,6 +271,7 @@ const project = {
   taskHeld: query.get('hold') === 'task',
   taskFails: false,
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
+  researchFinished: false,
   textTampered: query.get('tamper') === 'text',
   designed: query.get('designed') === 'on',
   designing: query.get('design') === 'designing',
@@ -351,6 +352,7 @@ window.fixture = {
       title: project.reportTitle,
     })
     project.researching = null
+    project.researchFinished = true // the live records keep it: «since you last looked» lists it done
     project.work = true
     publish(project)
   },
@@ -540,6 +542,12 @@ function reviewBy(by: string, verdict: 'approved' | 'changes_requested', note: s
   publish(project)
 }
 
+/** Sophia's research as the records hold it now: running, or finished once it was (`researchDone`), else none. */
+function researchWork(p: typeof project): { taskId: string; kind: string; state: string }[] {
+  if (p.researching) return [{ taskId: TASK, kind: 'research', state: 'running' }]
+  return p.researchFinished ? [{ taskId: TASK, kind: 'research', state: 'succeeded' }] : []
+}
+
 /** The meeting's records as the page holds them now: who is in it, the decision, the report made, the notes kept. */
 function meetingRecords(): ReturnType<Meeting['records']> {
   const people = others()
@@ -582,7 +590,7 @@ function meetingRecords(): ReturnType<Meeting['records']> {
     })),
     open: [],
     // Sophia's research while it runs (`research=running`): the meeting's work, said as running at close if it was.
-    work: project.researching ? [{ taskId: TASK, kind: 'research', state: 'running' }] : [],
+    work: researchWork(project),
     // The proposed `names` (#105): every actor the fixture knows, so a name shows where the room never saw them.
     names: Object.fromEntries(
       [1, 2, 3, 4, 5]

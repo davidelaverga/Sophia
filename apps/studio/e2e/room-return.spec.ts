@@ -61,6 +61,7 @@ test('return · what the research made later comes after the meeting, and the re
   const since = page.getByRole('region', { name: 'Since you last looked' })
   await expect(since).toBeVisible()
   await expect(since).not.toContainText('running')
+  await expect(since).toContainText('succeeded')
   await page.locator('.meeting-rows').getByRole('button').first().click()
   const after = part(page, 'After the meeting')
   await expect(after).toContainText('Fixture report ready · v1')
@@ -76,4 +77,11 @@ test('return · a meeting still running has nothing «after» it', async ({ page
   await expect(part(page, 'Work')).toContainText('running')
   await expect(part(page, 'After the meeting')).toHaveCount(0)
   await expect(part(page, 'Work')).not.toContainText('at close')
+})
+
+test('return · with the sheet open, what the work made comes into «After the meeting»', async ({ page }) => {
+  await closeWithResearchRunning(page)
+  await expect(part(page, 'After the meeting')).toContainText('Nothing yet.')
+  await page.evaluate(() => window.fixture?.researchDone())
+  await expect(part(page, 'After the meeting')).toContainText('Fixture report ready · v1', { timeout: 9000 })
 })

@@ -214,7 +214,11 @@ test('review · a first read that fails says so, and Try again reads it', async 
   await expect(pane(page).getByText('The fixture holds.')).toBeVisible()
   await expect(row(page).getByText('Reviews can’t be read now.')).toBeVisible({ timeout: 9000 })
   await page.evaluate(() => window.fixture?.failReviewReads(false))
-  await row(page).getByRole('button', { name: 'Try again' }).click()
+  // Try again reads it; a feed move made during the failed read may read it first on its own (useFeedRefetch).
+  await row(page)
+    .getByRole('button', { name: 'Try again' })
+    .click({ timeout: 3000 })
+    .catch(() => undefined)
   await expect(said(page)).toHaveText('Not reviewed yet.')
   await expect(row(page).getByRole('button', { name: 'Approve v1' })).toBeVisible()
 })

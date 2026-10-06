@@ -37,7 +37,7 @@ export function useTasks(identity: Identity, artifactId: string, cursor: string 
     enabled: VISION,
     retry: 1,
   })
-  useFeedRefetch(VISION ? cursor : undefined, read.refetch)
+  useFeedRefetch(VISION ? cursor : undefined, read)
   return read
 }
 
