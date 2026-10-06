@@ -3,7 +3,7 @@
 // context, the same for all of them. Members start one (New conversation) and continue one; viewers read
 // (docs/plans/project-conversation-writes.md). Under the vision flag, where the fixture pages answer (A18, proposed).
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { Membership } from '@sophia/contracts'
 import {
   listConversations,
@@ -109,6 +109,7 @@ function Open(props: {
       writer={props.writer}
       draft={drafts.of(c.id)}
       onDraft={(text) => drafts.set(c.id, text)}
+      onClearIf={(text) => drafts.clearIf(c.id, text)}
       held={drafts.heldOf(c.id)}
       onHeld={(next) => drafts.hold(c.id, next)}
       arrived={start.arrived?.id === c.id ? start.arrived : null}
@@ -137,6 +138,9 @@ function useDrafts() {
   return {
     of: (id: string) => drafts[id] ?? '',
     set: (id: string, text: string) => setDrafts((was) => ({ ...was, [id]: text })),
+    /** Clears a draft only if it still holds what was sent: words written since stay. */
+    clearIf: (id: string, text: string) =>
+      setDrafts((was) => ((was[id] ?? '').trim() === text.trim() ? { ...was, [id]: '' } : was)),
     heldOf: (id: string) => holds[id] ?? null,
     hold: (id: string, next: Held<MessageAsk> | null) => setHolds((was) => ({ ...was, [id]: next })),
   }
@@ -164,6 +168,7 @@ function useStart(projectId: string, identity: Identity, open: (id: string) => v
   const queryClient = useQueryClient()
   const [starting, setStarting] = useState(false)
   const [arrived, setArrived] = useState<{ id: string; askedAt: string | null } | null>(null)
+  const clearArrived = useCallback(() => setArrived(null), [])
   const [fields, setFields] = useState(NO_WORDS)
   const [held, setHeld] = useState<Held<ConversationAsk> | null>(null)
   const { button, back } = useFocusBack(starting)
@@ -189,7 +194,7 @@ function useStart(projectId: string, identity: Identity, open: (id: string) => v
   return {
     starting,
     arrived,
-    clearArrived: () => setArrived(null),
+    clearArrived,
     button,
     toggle: () => (starting ? cancel() : setStarting(true)),
     close: () => setStarting(false),

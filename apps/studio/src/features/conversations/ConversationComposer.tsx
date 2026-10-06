@@ -3,7 +3,7 @@
 // again under its key, never a second one, even after another conversation was opened meanwhile. The field clears only
 // if it still holds what was sent. Enter sends; Shift+Enter starts a line.
 import { useQueryClient } from '@tanstack/react-query'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { ApiError } from '../../api/client.ts'
 import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -15,6 +15,8 @@ interface Props {
   identity: Identity
   draft: string
   onDraft: (text: string) => void
+  /** Clears the draft if it still holds these words, as the view holds it now (not as this field last saw it). */
+  onClearIf: (text: string) => void
   held: Held<MessageAsk> | null
   onHeld: (next: Held<MessageAsk> | null) => void
   /** A message recorded: Sophia was asked to answer it, or not. */
@@ -29,7 +31,7 @@ export function writeFailure(err: ApiError): string {
 
 /** The message's write: the held intent again, or the draft as a new one; the draft cleared only if unchanged. */
 function useMessageWrite(props: Props, askSophia: boolean) {
-  const { conversationId, identity, draft, onDraft, onSent } = props
+  const { conversationId, identity, draft, onClearIf, onSent } = props
   const queryClient = useQueryClient()
   const write = useHeldWrite<MessageAsk, MessageSent>(props.held, props.onHeld, async (key, ask) => {
     const sent = await sendConversationMessage(identity.token, conversationId, key, ask)
@@ -38,18 +40,14 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     void queryClient.invalidateQueries({ queryKey: ['vision', 'conversations'] })
     return sent
   })
-  // The draft as it is now: read after the answer, never from the press's render.
-  const latest = useRef(draft)
-  useLayoutEffect(() => {
-    latest.current = draft
-  })
   const ready = (write.unknown?.text ?? draft).trim() !== ''
   const go = async () => {
     if (write.busy || !ready) return
     const sent = await write.run({ text: draft.trim(), askSophia })
     if (!sent) return
     onSent(sent)
-    if (latest.current.trim() === sent.message.text.trim()) onDraft('')
+    // Asked of the view: this field may be gone by now, and the words written since are the view's.
+    onClearIf(sent.message.text)
   }
   const words = write.unknown
     ? `Not confirmed: “${firstWords(write.unknown.text)}”. Send sends it again; it won’t be written twice.`

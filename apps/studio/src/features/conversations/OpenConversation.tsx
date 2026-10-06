@@ -28,6 +28,7 @@ interface Props {
   writer: boolean | undefined
   draft: string
   onDraft: (text: string) => void
+  onClearIf: (text: string) => void
   /** The message on its way here, or sent with no reply (held by the view). */
   held: Held<MessageAsk> | null
   onHeld: (next: Held<MessageAsk> | null) => void
@@ -81,6 +82,7 @@ export function OpenConversation(props: Props) {
           identity={identity}
           draft={props.draft}
           onDraft={props.onDraft}
+          onClearIf={props.onClearIf}
           held={props.held}
           onHeld={props.onHeld}
           onSent={(sent) => awaiting.ask(sent.sophia === 'asked' ? sent.message.at : null)}
