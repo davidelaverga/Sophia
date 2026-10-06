@@ -776,6 +776,31 @@ describe('a tooltip or an accessible name carries no text the page does not show
     const beside = html(good).replace('</main>', '<span role="img" aria-labelledby="sources-h"></span></main>')
     assert.deepEqual(codes(withHtml(good, beside.replace('<h2>Sources</h2>', '<h2 id="sources-h">Sources</h2>'))), [])
   })
+  // #117: a role that takes away research's meaning, or replaces it, changes what a screen reader is given of it.
+  it('refuses a role that strips or replaces the meaning of research, and keeps the roles that only annotate it', () => {
+    for (const [from, to] of [
+      ['<table data-block=', '<table role="presentation" data-block='],
+      ['<tbody><tr>', '<tbody><tr role="none">'],
+      ['<tr><td>', '<tr><td role="paragraph">'],
+      ['<p data-block="b1">', '<p data-block="b1" role="none">'],
+      ['<ul><li data-block=', '<ul role="presentation"><li data-block='],
+      ['<ul><li data-block=', '<ul><li role="generic" data-block='],
+      ['<main>', '<main role="none">'],
+      [`<li id="src-${A}"`, `<li role="note" id="src-${A}"`],
+      [`<a data-cite="${A}"`, `<a role="term" data-cite="${A}"`],
+    ] as const) {
+      const page = html(good).replace(from, to)
+      assert.notEqual(page, html(good), from)
+      assert.ok(codes(withHtml(good, page)).includes('research_hidden'), to)
+    }
+    for (const [from, to] of [
+      [`<a data-cite="${A}"`, `<a role="doc-noteref" data-cite="${A}"`],
+      [`<li id="src-${A}"`, `<li role="doc-biblioentry" id="src-${A}"`],
+      ['<main>', '<main role="main">'],
+      ['</main>', '<span role="presentation">•</span></main>'],
+    ] as const)
+      assert.deepEqual(codes(withHtml(good, html(good).replace(from, to))), [], to)
+  })
   it('refuses a name repeating a label its markup hides, or one under a hidden ancestor', () => {
     for (const hidden of [
       `<h2 hidden>${claim}</h2>`,

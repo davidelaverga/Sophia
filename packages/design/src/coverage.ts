@@ -190,41 +190,66 @@ function sourceFindings(all: Element[], content: ContentPackage): Finding[] {
 const isResearch = (el: Element): boolean => isBlock(el) || attr(el, 'data-source') !== null
 
 /**
- * Why an element takes what it holds out of what a screen reader is given, or null: `aria-hidden="true"` takes it out
- * of the accessibility tree, and `role="img"` gives it as one image, announced by its name alone, its text
- * presentational (#117). Neither changes a pixel, so no capture shows it.
+ * Roles that take an element's meaning away, or its children's: research under one is given to a screen reader as text
+ * without its table, list or heading (`none`, `presentation`, `generic`), or as one image announced by its name alone
+ * (`img`). On research, inside it or around it (#117).
  */
-function concealment(el: Element): string | null {
+const STRIPPING = new Set(['none', 'presentation', 'generic', 'img'])
+/**
+ * The roles research and what is inside it may carry: they mark a citation or a source entry as one, and replace no
+ * meaning. Any other role on them replaces what the research is announced as, a header cell as a paragraph (#117).
+ */
+const ANNOTATING = new Set(['doc-noteref', 'doc-backlink', 'doc-biblioentry', 'doc-endnote', 'doc-footnote'])
+
+/**
+ * Why an element changes what a screen reader is given of research, or null: `aria-hidden="true"` takes it out of the
+ * accessibility tree, a stripping role takes its meaning away, and on research or inside it any role but one that
+ * annotates replaces its meaning (#117). None changes a pixel, so no capture shows it.
+ * @param inside - whether the element is research or inside it (not only around it)
+ */
+function concealment(el: Element, inside: boolean): string | null {
   if (attr(el, 'aria-hidden')?.trim().toLowerCase() === 'true')
     return `<${el.tagName} aria-hidden="true"> takes research out of what a screen reader is given`
-  const roles = (attr(el, 'role') ?? '').trim().toLowerCase().split(/\s+/u)
-  return roles.includes('img')
-    ? `<${el.tagName} role="img"> gives what it holds as one image, announced by its name alone, not by its text`
-    : null
+  const roles = (attr(el, 'role') ?? '').trim().toLowerCase().split(/\s+/u).filter(Boolean)
+  const stripping = roles.find((r) => STRIPPING.has(r))
+  if (stripping !== undefined)
+    return stripping === 'img'
+      ? `<${el.tagName} role="img"> gives what it holds as one image, announced by its name alone, not by its text`
+      : `<${el.tagName} role="${stripping}"> takes away the meaning of what it holds: its table, list or heading`
+  const replacing = inside ? roles.find((r) => !ANNOTATING.has(r)) : undefined
+  return replacing === undefined
+    ? null
+    : `<${el.tagName} role="${replacing}"> replaces what the research is announced as`
 }
 
 /**
- * Research a screen reader would not be given: a block or a source entry, or an element around or inside one, that
- * concealment takes out of what it is given. It changes no pixel, so no capture shows it (#117).
+ * Research a screen reader would not be given as it is: a block or a source entry, or an element around or inside one,
+ * that concealment changes. It changes no pixel, so no capture shows it (#117).
  */
 function hiddenResearch(all: Element[], html: string): Finding[] {
   const around = new Set<Element>()
-  for (const el of all.filter(isResearch))
+  const inside = new Set<Element>()
+  for (const el of all.filter(isResearch)) {
+    for (const d of [el, ...elements(el)]) inside.add(d)
     for (
       let a: Element | null = el;
       a && !around.has(a);
       a = a.parentNode && isElement(a.parentNode) ? a.parentNode : null
     )
       around.add(a)
+  }
   return all
-    .map((el) => ({ el, how: concealment(el) }))
-    .filter(({ el, how }) => how !== null && (around.has(el) || hasAncestor(el, isResearch)))
+    .filter(
+      (el) => (around.has(el) || inside.has(el)) && (attr(el, 'aria-hidden') !== null || attr(el, 'role') !== null),
+    )
+    .map((el) => ({ el, how: concealment(el, inside.has(el)) }))
+    .filter(({ how }) => how !== null)
     .map(({ el, how }) =>
       error(
         'research_hidden',
         'index.html',
-        `${how ?? ''}, where no capture shows it; ` +
-          'a block, a source entry and what holds or is inside one are never aria-hidden and never an image',
+        `${how ?? ''}, where no capture shows it; a block, a source entry and what holds or is inside one are never ` +
+          'aria-hidden, an image, or stripped of their meaning, and keep their own roles',
         { line: lineOf(html, el) },
       ),
     )
