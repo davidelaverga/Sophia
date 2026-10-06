@@ -26,10 +26,19 @@ export function loopbackOrigin(text) {
 
 /**
  * The flow against one server. `identity` is Sophia's side (its signing key, project and work); a later phase passes
- * the one an earlier phase saved, so its signed requests name the same commission.
+ * the one an earlier phase saved, so its signed requests name the same commission. `onSecret` receives every credential
+ * the flow makes or is given (each password, session cookie and board key), so the caller can scrub them from anything
+ * it keeps: the server may log a request body (review of 215b276).
  */
-export function flowFor({ host = '127.0.0.1', port, origin, pluginPath, requestTimeoutMs = REQUEST_TIMEOUT_MS }, identity = newIdentity()) {
+export function flowFor(
+  { host = '127.0.0.1', port, origin, pluginPath, requestTimeoutMs = REQUEST_TIMEOUT_MS, onSecret = () => {} },
+  identity = newIdentity(),
+) {
   const sophia = keysOf(identity)
+  const secret = (value) => {
+    if (typeof value === 'string' && value.length > 0) onSecret(value)
+    return value
+  }
   const key = `sophia-wbc02-${identity.workId}`
 
   /**
@@ -82,18 +91,20 @@ export function flowFor({ host = '127.0.0.1', port, origin, pluginPath, requestT
   /** The first instance admin over loopback: sign-up, the private-mode claim, and a board API key that does not expire. */
   const bootstrap = async () => {
     const signUp = await call('POST', '/api/auth/sign-up/email', {
-      body: { email: 'operator@example.invalid', password: hex(16), name: 'Synthetic operator' },
+      body: { email: 'operator@example.invalid', password: secret(hex(16)), name: 'Synthetic operator' },
       headers: { origin },
     })
     assert.equal(signUp.status, 200, signUp.text)
-    const session = { cookie: signUp.cookies.map((c) => c.split(';')[0]).join('; '), origin }
+    const pairs = signUp.cookies.map((c) => c.split(';')[0])
+    for (const pair of pairs) secret(pair.slice(pair.indexOf('=') + 1))
+    const session = { cookie: pairs.join('; '), origin }
     const claim = await call('POST', '/api/bootstrap/claim', { body: {}, headers: session })
     assert.ok(claim.status < 300, `claim: ${claim.status} ${claim.text}`)
     const minted = await call('POST', '/api/board-api-keys', { body: { name: 'operator', expiresAt: null }, headers: session })
     assert.ok(minted.status < 300, `board key: ${minted.status} ${minted.text}`)
     return {
       userId: signUp.json.user.id,
-      token: minted.json.token,
+      token: secret(minted.json.token),
       statuses: { signUp: signUp.status, claim: claim.status, boardKey: minted.status },
     }
   }
@@ -201,7 +212,7 @@ export function flowFor({ host = '127.0.0.1', port, origin, pluginPath, requestT
   /** A new sign-up, once the server runs with sign-up closed: refused. */
   const signUpRefused = async () => {
     const late = await call('POST', '/api/auth/sign-up/email', {
-      body: { email: 'late@example.invalid', password: hex(16), name: 'Late' },
+      body: { email: 'late@example.invalid', password: secret(hex(16)), name: 'Late' },
       headers: { origin },
     })
     assert.ok(late.status >= 400, `sign-up after close: ${late.status}`)

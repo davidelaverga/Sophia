@@ -55,6 +55,8 @@ jobs:
         timeout-minutes: 10
         run: |
           E="$RUNNER_TEMP/evidence"; mkdir -p "$E"; echo "EVIDENCE=$E" >> "$GITHUB_ENV"
+          # The credentials the probe makes or is given, one a line, for the evidence scrub; never uploaded.
+          install -m 600 /dev/null "$RUNNER_TEMP/probe-secrets.txt"
           disk() { df -B1 --output=avail,size / | tail -1 | awk -v l="$1" '{printf "{\"label\":\"%s\",\"availBytes\":%s,\"sizeBytes\":%s}\n", l, $1, $2}' >> "$E/disk.jsonl"; }
           disk start
           # Toolchains this job never uses; the build stage, the wrapper and the pin's install need the room.
@@ -171,7 +173,7 @@ jobs:
           node sophia/scripts/paperclip-image-container.mjs start first
           node sophia/scripts/paperclip-image-cgroup.mjs pc first:healthy "$EVIDENCE/cgroup.jsonl"
           timeout 660 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase first \
-            --state "$RUNNER_TEMP/probe-state.json" --out "$EVIDENCE/probe-first.json" --wait-ms 300000 --deadline-ms 600000
+            --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-first.json" --wait-ms 300000 --deadline-ms 600000
           node sophia/scripts/paperclip-image-cgroup.mjs pc first:after-flow "$EVIDENCE/cgroup.jsonl"
           node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-before.json"
           sleep 60
@@ -190,7 +192,7 @@ jobs:
           node sophia/scripts/paperclip-image-container.mjs start recreated signup-closed
           node sophia/scripts/paperclip-image-cgroup.mjs pc recreated:healthy "$EVIDENCE/cgroup.jsonl"
           timeout 660 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase restarted \
-            --state "$RUNNER_TEMP/probe-state.json" --out "$EVIDENCE/probe-restarted.json" --wait-ms 300000 --deadline-ms 600000
+            --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-restarted.json" --wait-ms 300000 --deadline-ms 600000
           node sophia/scripts/paperclip-image-cgroup.mjs pc recreated:after-flow "$EVIDENCE/cgroup.jsonl"
           node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-after.json" "$EVIDENCE/home-before.json"
           node sophia/scripts/paperclip-image-home.mjs compare "$EVIDENCE/home-before.json" "$EVIDENCE/home-after.json" "$EVIDENCE/home-compare.json"
@@ -228,6 +230,7 @@ jobs:
         timeout-minutes: 2
         env:
           REDACT_VARS: PCDB_PASSWORD,DATABASE_URL,BETTER_AUTH_SECRET,PAPERCLIP_SECRETS_MASTER_KEY,PAPERCLIP_TOOL_ACTION_SIGNING_SECRET,PAPERCLIP_DECISION_SIGNING_SECRET,SOPHIA_COORDINATION_TOKEN
+          REDACT_FILES: ${{ runner.temp }}/probe-secrets.txt
         run: |
           if [ ! -f sophia/scripts/paperclip-image-redact.mjs ] || [ ! -d "${EVIDENCE:-/nonexistent}" ]; then
             echo "nothing scrubbed: the redactor or the evidence directory is missing, so nothing is uploaded"
@@ -264,4 +267,4 @@ jobs:
           docker rm --force pc pcdb 2>/dev/null || true
           docker volume rm pchome 2>/dev/null || true
           docker network rm pcnet 2>/dev/null || true
-          rm -f "$RUNNER_TEMP/probe-state.json"
+          rm -f "$RUNNER_TEMP/probe-state.json" "$RUNNER_TEMP/probe-secrets.txt"

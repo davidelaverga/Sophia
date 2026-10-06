@@ -8,19 +8,37 @@
 //                      commission's resend answered by the same issue, sign-up refused, the host-name guard.
 // It starts no process, opens no database and reads no /proc: the container's memory is the caller's to measure, from
 // its cgroup. Between phases it keeps its state (the synthetic board key and Sophia key among it) in --state, which
-// the caller keeps private and never uploads; the result it writes (--out) holds no credential. Sophia's address in
+// the caller keeps private and never uploads; the result it writes (--out) holds no credential. Every credential the
+// probe makes or is given (passwords, session cookies, the board key) it appends to --secrets, one a line, and masks in
+// a GitHub Actions log, so the evidence scrub can remove them wherever the server logged them (review of 215b276). Sophia's address in
 // the container is closed, so this qualifies the installed plugin and the container, not a native dispatch.
-import { readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import { flowFor, loopbackOrigin, newIdentity, until } from './paperclip-probe-flow.mjs'
 
 const STATE_SCHEMA = 'sophia.paperclip-probe-state.v1'
+
+/**
+ * Where the probe's credentials go: each, once, a line of `path` (created mode 600), and in a GitHub Actions job a mask
+ * for its log. The file stays with the caller and is read by the evidence scrub (scripts/paperclip-image-redact.mjs).
+ */
+export function secretSink(path, { env = process.env, log = console.log } = {}) {
+  const known = new Set()
+  return (value) => {
+    if (typeof value !== 'string' || value.length === 0 || known.has(value)) return
+    known.add(value)
+    if (env.GITHUB_ACTIONS === 'true') log(`::add-mask::${value}`)
+    appendFileSync(path, `${value}\n`, { mode: 0o600 })
+  }
+}
 
 export async function runUrl(values) {
   const target = loopbackOrigin(values.url ?? '')
   const phase = values.phase
   if (phase !== 'first' && phase !== 'restarted') throw new Error('--phase must be first or restarted')
   if (!values.state) throw new Error('--state <file> is required')
+  if (!values.secrets) throw new Error('--secrets <file> is required: the evidence scrub removes what it lists')
+  const onSecret = secretSink(values.secrets)
   const waitMs = Number(values['wait-ms'] ?? 300_000)
   const deadlineMs = Number(values['deadline-ms'] ?? 600_000)
   const result = { schema: 'sophia.paperclip-probe-result.v1', phase, origin: target.origin, steps: [], outcome: 'running' }
@@ -47,8 +65,8 @@ export async function runUrl(values) {
   }
   try {
     const pluginPath = values['plugin-path'] ?? '/opt/sophia/sophia-coordination-plugin'
-    if (phase === 'first') await first({ ...target, pluginPath }, values.state, waitMs, step)
-    else await restarted({ ...target, pluginPath }, values.state, waitMs, step)
+    if (phase === 'first') await first({ ...target, pluginPath, onSecret }, values.state, waitMs, step)
+    else await restarted({ ...target, pluginPath, onSecret }, values.state, waitMs, step)
     result.outcome = 'passed'
   } catch {
     result.outcome = 'failed'

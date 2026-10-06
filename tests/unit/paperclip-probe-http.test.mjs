@@ -6,7 +6,13 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { after, describe, it } from 'node:test'
 import { exchange, until } from '../../scripts/paperclip-probe-http.mjs'
+import { spawn } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { flowFor } from '../../scripts/paperclip-probe-flow.mjs'
+import { secretSink } from '../../scripts/paperclip-probe-url.mjs'
 
 const PENDING = 'pending'
 /** The promise's outcome, or PENDING if it has not settled within ms. */
@@ -107,3 +113,95 @@ describe('the bounded wait (WBC-02-CX-0037)', () => {
     assert.match(outcome.error.message, /timed out waiting for the server to report ready/)
   })
 })
+
+describe('every credential the probe makes or is given is handed over for the scrub (review of 215b276)', () => {
+  it('the bootstrap reports the password the server received, its session cookie and the board key; a refused sign-up its password', async () => {
+    const received = []
+    const port = await serve((req, res) => {
+      let body = ''
+      req.on('data', (chunk) => (body += chunk))
+      req.on('end', () => {
+        const json = body ? JSON.parse(body) : {}
+        if (req.url === '/api/auth/sign-up/email') {
+          received.push(json.password)
+          if (json.email.startsWith('late')) return res.writeHead(400).end('{}')
+          res.writeHead(200, { 'set-cookie': ['better-auth.session_token=cookie-value-0123; Path=/; HttpOnly'] })
+          return res.end(JSON.stringify({ user: { id: 'user-1' } }))
+        }
+        if (req.url === '/api/bootstrap/claim') return res.writeHead(200).end('{}')
+        if (req.url === '/api/board-api-keys') return res.writeHead(201).end(JSON.stringify({ token: 'pcp_board-key-0123456789' }))
+        res.writeHead(404).end('{}')
+      })
+    })
+    const reported = []
+    const flow = flowFor({ port, origin: `http://127.0.0.1:${port}`, pluginPath: '/nonexistent', onSecret: (v) => reported.push(v) })
+    const op = await flow.bootstrap()
+    assert.equal(op.token, 'pcp_board-key-0123456789')
+    assert.deepEqual(reported, [received[0], 'cookie-value-0123', 'pcp_board-key-0123456789'])
+    assert.match(received[0], /^[0-9a-f]{32}$/)
+    await flow.signUpRefused()
+    assert.deepEqual(reported.slice(3), [received[1]])
+  })
+
+  it('the probe command, with --secrets, lists what the server received and issued, even when a later step fails', async () => {
+    const received = []
+    const port = await serve((req, res) => {
+      let body = ''
+      req.on('data', (chunk) => (body += chunk))
+      req.on('end', () => {
+        const host = req.headers.host ?? ''
+        if (req.url === '/api/health') {
+          if (host.startsWith('evil.example')) return res.writeHead(403).end('{}')
+          return res.end(JSON.stringify({ status: 'ok' }))
+        }
+        if (req.url === '/api/auth/sign-up/email') {
+          received.push(JSON.parse(body).password)
+          res.writeHead(200, { 'set-cookie': ['better-auth.session_token=cookie-value-4567; Path=/'] })
+          return res.end(JSON.stringify({ user: { id: 'user-1' } }))
+        }
+        if (req.url === '/api/bootstrap/claim') return res.writeHead(200).end('{}')
+        if (req.url === '/api/board-api-keys') return res.writeHead(201).end(JSON.stringify({ token: 'pcp_board-key-4567890123' }))
+        res.writeHead(404).end('{}') // the plugin step fails here
+      })
+    })
+    const dir = mkdtempSync(join(tmpdir(), 'pc-probe-cli-'))
+    try {
+      const probe = fileURLToPath(new URL('../../scripts/paperclip-service-probe.mjs', import.meta.url))
+      const args = ['--url', `http://127.0.0.1:${port}`, '--phase', 'first', '--state', join(dir, 'state.json')]
+      const child = spawn(process.execPath, [probe, ...args, '--secrets', join(dir, 'secrets.txt'), '--out', join(dir, 'out.json'), '--wait-ms', '3000', '--deadline-ms', '20000'], {
+        env: { ...process.env, GITHUB_ACTIONS: '' },
+      })
+      const code = await settledWithin(new Promise((done) => child.on('exit', done)), 25_000)
+      assert.notEqual(code, PENDING, 'the probe ended')
+      assert.equal(code.value, 1, 'the plugin step failed, as the stand-in made it')
+      const out = JSON.parse(readFileSync(join(dir, 'out.json'), 'utf8'))
+      assert.equal(out.steps.find((s) => s.step === 'first admin and board key')?.ok, true)
+      assert.equal(readFileSync(join(dir, 'secrets.txt'), 'utf8'), `${received[0]}\ncookie-value-4567\npcp_board-key-4567890123\n`)
+      assert.ok(!readFileSync(join(dir, 'out.json'), 'utf8').includes(received[0]), 'the result holds no credential')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('the sink keeps each value once, a line of a file only its owner reads, masked only in a GitHub Actions log', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pc-secrets-'))
+    try {
+      const path = join(dir, 'probe-secrets.txt')
+      const masks = []
+      const sink = secretSink(path, { env: { GITHUB_ACTIONS: 'true' }, log: (line) => masks.push(line) })
+      sink('first-secret-value')
+      sink('first-secret-value')
+      sink('')
+      sink('second-secret-value')
+      assert.equal(readFileSync(path, 'utf8'), 'first-secret-value\nsecond-secret-value\n')
+      assert.equal(statSync(path).mode & 0o777, 0o600)
+      assert.deepEqual(masks, ['::add-mask::first-secret-value', '::add-mask::second-secret-value'])
+      const quiet = []
+      secretSink(join(dir, 'other.txt'), { env: {}, log: (line) => quiet.push(line) })('third-secret-value')
+      assert.deepEqual(quiet, [], 'no mask command outside GitHub Actions')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+

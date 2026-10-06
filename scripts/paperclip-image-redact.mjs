@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // WBC-02 (WBC-02-CX-0032 §3, CX-0036): redacts diagnostics and evidence before they are kept.
 //   ... | REDACT_VARS=NAME1,NAME2 node scripts/paperclip-image-redact.mjs          stdin to stdout, at most 256 KiB
-//   REDACT_VARS=NAME1,NAME2 node scripts/paperclip-image-redact.mjs --scrub-dir <dir>
-// The value of every environment variable REDACT_VARS names (the job's generated credentials) is replaced, as are
-// connection URLs, bearer tokens and PEM blocks, whatever produced them. --scrub-dir rewrites, before the evidence is
+//   REDACT_VARS=NAME1,NAME2 REDACT_FILES=<file>,... node scripts/paperclip-image-redact.mjs --scrub-dir <dir>
+// The value of every environment variable REDACT_VARS names (the job's generated credentials) is replaced, and every
+// line of every file REDACT_FILES names (the credentials the probe made or was given: its passwords, session cookies
+// and board key, review of 215b276; a named file that does not exist is an error), as are the values of fields named
+// as credentials (password, secret, token, API key, authorization, cookie, private key, credential) in JSON or
+// `name=value` form, connection URLs, bearer tokens and PEM blocks, whatever produced them. --scrub-dir rewrites, before the evidence is
 // uploaded, every file under <dir> that still holds one, lists those files in <dir>/scrubbed.txt, then reads every file
 // again and fails if any still holds one. It fails, too, on any entry it cannot read or rewrite, or that is neither a
 // regular file nor a directory: the workflow uploads the evidence only when this exits 0 (review of 34bdf76). GitHub's
@@ -14,23 +17,32 @@ import { fileURLToPath } from 'node:url'
 
 const LIMIT = 256 * 1024
 
+/** A field whose name says it holds a credential. */
+const CREDENTIAL = String.raw`(?:pass(?:word|wd|phrase)?|secret|token|api[-_]?key|authorization|cookie|private[-_]?key|credential)`
+
 /** The text with every given value and every credential-shaped string replaced. */
 export function redact(text, values = []) {
   let out = text
   for (const value of values.filter((v) => v.length >= 8).toSorted((a, b) => b.length - a.length))
     out = out.split(value).join('[redacted]')
   return out
+    .replaceAll(new RegExp(String.raw`("[^"\\]*${CREDENTIAL}[^"\\]*"\s*:\s*)"(?:[^"\\]|\\.)*"`, 'gi'), '$1"[redacted]"')
+    .replaceAll(new RegExp(String.raw`\b([\w-]*${CREDENTIAL}[\w-]*\s*=\s*)[^\s,;&"']+`, 'gi'), '$1[redacted]')
     .replaceAll(/\b(postgres(?:ql)?|redis|mysql):\/\/[^\s'"]+/gi, '$1://[redacted]')
     .replaceAll(/\b(Bearer)\s+[\w.~+/=-]+/gi, '$1 [redacted]')
     .replaceAll(/-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g, '[redacted PEM]')
 }
 
-/** The values of the variables REDACT_VARS names. */
+/** The values of the variables REDACT_VARS names, and the lines of the files REDACT_FILES names. */
 export function secretValues(env = process.env) {
-  return (env.REDACT_VARS ?? '')
-    .split(',')
-    .map((name) => env[name.trim()] ?? '')
-    .filter((value) => value.length >= 8)
+  const named = (list) =>
+    (list ?? '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+  const fromVars = named(env.REDACT_VARS).map((name) => env[name] ?? '')
+  const fromFiles = named(env.REDACT_FILES).flatMap((path) => readFileSync(path, 'utf8').split('\n'))
+  return [...fromVars, ...fromFiles].map((value) => value.trim()).filter((value) => value.length >= 8)
 }
 
 /** Every regular file under dir; anything else (a link, a device, a socket) is refused, never followed. */

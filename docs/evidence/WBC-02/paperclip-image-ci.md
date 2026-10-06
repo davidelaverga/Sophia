@@ -136,11 +136,13 @@ The review rounds and their tests:
 | CX-0039 | absent digests equal; snapshot coverage not reported | 6 cases; 19 mutations |
 | CX-0040 | counted and hashed in two reads; sizes not compared | real-directory scans with a truncation sentinel; 29 mutations in force |
 | review of `3db6ef9` | the root scan could be led out of the volume | a swapped directory, a swapped FIFO, the pause and scan calls; 36 mutations in force |
+| review of `34bdf76` | the evidence uploaded whatever the scrub did | the scrub through its command, a value left after rewriting, a link in the evidence, the workflow's gate; 4 mutations |
+| review of `215b276` | the probe's own credentials (its passwords, session cookie and board key) unknown to the scrub | the flow against a stand-in server, the probe command with `--secrets`, the sink, credential-named fields, the workflow's wiring; 12 mutations |
 
 Each mutation in force is caught. The scan tests read `/proc` and run on Linux only.
 
 ## Limits
 
 - **Not production fit.** This is GitHub's runner, not Render's platform. The image ID is a local config digest, not a registry digest, and the image talked to no real Sophia.
-- **No credentials.** They were synthetic, generated and masked in the job, and passed to Docker by name. The evidence directory is scrubbed of them and of credential-shaped strings, then read again, before upload, and it is uploaded only when that scrub succeeded (from the review of `34bdf76`). The probe's state file and the full `docker inspect` are never uploaded.
+- **No credentials.** The job's were synthetic, generated and masked in the job, and passed to Docker by name. The probe lists every credential it makes or is given (its passwords, session cookie and board key) in a file outside the evidence, and masks each in the log (from the review of `215b276`). The evidence directory is scrubbed of all of these, of fields named as credentials and of credential-shaped strings, then read again, before upload, and it is uploaded only when that scrub succeeded (from the review of `34bdf76`). The probe's state and secrets files and the full `docker inspect` are never uploaded.
 - **Decisions.** The production decisions D1–D4 remain Davide's. This record authorizes nothing.

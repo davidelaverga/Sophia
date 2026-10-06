@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import { compareSnapshots, coverageOf, EMPTY_SHA256 } from '../../scripts/paperclip-image-home.mjs'
 import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS } from '../../scripts/paperclip-image-receipt.mjs'
-import { redact, scrubDir } from '../../scripts/paperclip-image-redact.mjs'
+import { redact, scrubDir, secretValues } from '../../scripts/paperclip-image-redact.mjs'
 
 const CANDIDATE = 'a'.repeat(40)
 const PIN = '5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb'
@@ -445,3 +445,56 @@ describe('the evidence is uploaded only once scrubbed (review of 34bdf76)', () =
     assert.ok(steps.indexOf(scrub) < steps.indexOf(upload))
   })
 })
+
+describe('the probe’s own credentials and credential-named fields are scrubbed too (review of 215b276)', () => {
+  const REDACT = fileURLToPath(new URL('../../scripts/paperclip-image-redact.mjs', import.meta.url))
+  const WORKFLOW = fileURLToPath(new URL('../../.github/workflows/paperclip-image.yml', import.meta.url))
+  const PASSWORD = '0123456789abcdef0123456789abcdef'
+  const dirs = []
+  after(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
+  const temp = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pc-probe-secrets-'))
+    dirs.push(dir)
+    return dir
+  }
+
+  it('a logged request body: the password field, a session cookie and a credential variable are redacted; a receipt is not changed', () => {
+    const logged = redact(
+      `{"level":40,"req":{"body":{"email":"operator@example.invalid","password":"${PASSWORD}"}}}\ncookie: better-auth.session_token=abc.def; Path=/\nBETTER_AUTH_SECRET=zzzzzzzzzzzz`,
+    )
+    assert.ok(!logged.includes(PASSWORD) && !logged.includes('abc.def') && !logged.includes('zzzzzzzzzzzz'))
+    assert.match(logged, /"password":"\[redacted\]"/)
+    assert.equal(redact(logged), logged, 'redacting again changes nothing')
+    const receipt = JSON.stringify(assess(complete()), null, 2)
+    assert.equal(redact(receipt), receipt, 'the receipt holds no credential and is not rewritten')
+  })
+
+  it('every line of the probe’s secrets file is a value to redact, wherever it appears; a file named but missing is an error', () => {
+    const dir = temp()
+    const secrets = join(dir, 'probe-secrets.txt')
+    writeFileSync(secrets, `${PASSWORD}\npcp_board-key-0123456789\n`)
+    assert.deepEqual(secretValues({ REDACT_FILES: secrets }), [PASSWORD, 'pcp_board-key-0123456789'])
+    assert.throws(() => secretValues({ REDACT_FILES: join(dir, 'missing.txt') }), /ENOENT/)
+    const evidence = join(dir, 'evidence')
+    mkdirSync(join(evidence, 'diagnostics'), { recursive: true })
+    // Not in a credential-named field: only the probe's own list can catch it.
+    writeFileSync(join(evidence, 'diagnostics', 'server.log'), `sign-up refused for a body ending ${PASSWORD}; key pcp_board-key-0123456789\n`)
+    const run = spawnSync(process.execPath, [REDACT, '--scrub-dir', evidence], {
+      encoding: 'utf8',
+      env: { ...process.env, REDACT_VARS: '', REDACT_FILES: secrets },
+    })
+    assert.equal(run.status, 0, run.stderr)
+    const log = readFileSync(join(evidence, 'diagnostics', 'server.log'), 'utf8')
+    assert.ok(!log.includes(PASSWORD) && !log.includes('pcp_board-key-0123456789'), log)
+  })
+
+  it('the workflow keeps the probe’s secrets file from the first step, hands it to both phases and to the scrub', () => {
+    const steps = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image.steps
+    assert.match(steps.find((s) => s.run?.includes('EVIDENCE=$E')).run, /install -m 600 \/dev\/null "\$RUNNER_TEMP\/probe-secrets\.txt"/)
+    const probes = steps.filter((s) => s.run?.includes('paperclip-service-probe.mjs --url'))
+    assert.equal(probes.length, 2)
+    for (const s of probes) assert.match(s.run, /--secrets "\$RUNNER_TEMP\/probe-secrets\.txt"/)
+    assert.equal(steps.find((s) => s.name === 'Scrub the evidence').env.REDACT_FILES, '${{ runner.temp }}/probe-secrets.txt')
+  })
+})
+
