@@ -21,6 +21,7 @@ const recap = (over: Partial<MeetingRecap> = {}): MeetingRecap => ({
   noted: [],
   open: [],
   work: [],
+  names: {},
   ...over,
 })
 

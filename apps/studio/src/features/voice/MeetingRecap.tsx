@@ -3,7 +3,7 @@
 // committed records only. Copy recap puts it on the clipboard; an editor or admin closes the meeting for everyone, once
 // per key (useAdmission). Shown only under the vision flag, where the fixture pages answer.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { closeMeeting, getRecap, listMeetings, type MeetingRecap, type MeetingReceipt } from '../../api/vision.ts'
@@ -13,7 +13,7 @@ import { canInvite } from '../access/useAccess.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { useCopy } from '../resources/copy.ts'
 import { useKnownNames } from '../studio/StudioShell.tsx'
-import { recapHead, recapSections, recapText, type NameOf, type RecapSection } from './recap-view.ts'
+import { namers, recapHead, recapSections, recapText, type RecapSection, type Records } from './recap-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
 /**
@@ -25,7 +25,8 @@ export function useLeftCall(room: Pick<ProjectRoom, 'leftByPress'>) {
   const [left, setLeft] = useState<number | null>(null)
   if (seen !== room.leftByPress) {
     setSeen(room.leftByPress)
-    setLeft(room.leftByPress)
+    // Left from a recap's own sheet (one opened in Updates): the person is reading one already.
+    if (recapsShown.count === 0) setLeft(room.leftByPress)
   }
   return { left, dismiss: () => setLeft(null) }
 }
@@ -59,6 +60,8 @@ export function MeetingRecapOnLeave({ room, snapshot, membership, ...rest }: Pro
 
 interface SheetProps {
   projectId: string
+  /** The meeting to recap (a row in Updates); the latest one when absent (on leaving). */
+  meetingId?: string
   identity: Identity
   roomId: string
   title: string
@@ -68,32 +71,41 @@ interface SheetProps {
   onClose: () => void
 }
 
+/** How many recap sheets are open: leaving from inside one opens no second. */
+const recapsShown = { count: 0 }
+
+/** Every recap read of a project starts with this key: closing a meeting reads them all again. */
 const recapKey = (projectId: string) => ['vision', 'recap', projectId] as const
 
 /**
- * The latest meeting's recap: the list says which meeting, its recap says what it left. Kept only while shown, so the
- * next leave reads its own and never shows the last one meanwhile.
+ * A meeting's recap, or the latest one's (the list says which meeting). Kept only while shown, so the next leave reads
+ * its own and never shows the last one meanwhile.
  */
-function useLatestRecap(projectId: string, token: string) {
+function useRecap(projectId: string, token: string, meetingId: string | undefined) {
   return useQuery({
-    queryKey: recapKey(projectId),
+    queryKey: [...recapKey(projectId), meetingId ?? 'latest'],
     queryFn: async () => {
-      const latest = (await listMeetings(token, projectId, 1)).meetings[0]
-      return latest ? getRecap(token, projectId, latest.id) : null
+      const id = meetingId ?? (await listMeetings(token, projectId, 1)).meetings[0]?.id
+      return id ? getRecap(token, projectId, id) : null
     },
     gcTime: 0,
     retry: false,
   })
 }
 
-function RecapSheet({ projectId, identity, roomId, title, me, editor, names, onClose }: SheetProps) {
-  const recap = useLatestRecap(projectId, identity.token)
-  // In the sheet, the reader is "you"; in the copied text, which others read, the reader goes by their name.
-  const shown: NameOf = (id) => (id === me ? 'you' : (names.get(id) ?? 'a member'))
-  const copied: NameOf = (id) => names.get(id) ?? 'a member'
+/** «This meeting»: a meeting's recap in a sheet, on leaving or from Updates. */
+export function RecapSheet({ projectId, meetingId, identity, roomId, title, me, editor, names, onClose }: SheetProps) {
+  const recap = useRecap(projectId, identity.token, meetingId)
   const close = { projectId, identity, roomId }
+  const titleId = useId()
+  useEffect(() => {
+    recapsShown.count += 1
+    return () => {
+      recapsShown.count -= 1
+    }
+  }, [])
   return (
-    <Sheet id="recap-title" title="This meeting" onClose={onClose} returnTo={callAnchor}>
+    <Sheet id={titleId} title="This meeting" onClose={onClose} returnTo={callAnchor}>
       {recap.isPending && <p className="sheet-lead">Putting the meeting together…</p>}
       {recap.isError && recap.data === undefined && (
         <p className="sheet-lead" role="alert">
@@ -108,8 +120,8 @@ function RecapSheet({ projectId, identity, roomId, title, me, editor, names, onC
       {recap.data && (
         <RecapBody
           recap={recap.data}
-          text={recapText(title, recap.data, copied)}
-          names={shown}
+          title={title}
+          names={namers(me, names, recap.data.names)}
           editor={editor}
           close={close}
           onClose={onClose}
@@ -127,16 +139,16 @@ type CloseTarget = { projectId: string; identity: Identity; roomId: string }
 
 interface BodyProps {
   recap: MeetingRecap
-  /** The recap as plain text, for the clipboard. */
-  text: string
-  names: NameOf
+  title: string
+  names: ReturnType<typeof namers>
   editor: boolean
   close: CloseTarget
   onClose: () => void
 }
 
-function RecapBody({ recap, text, names, editor, close, onClose }: BodyProps) {
-  const sections = recapSections(recap, names)
+function RecapBody({ recap, title, names, editor, close, onClose }: BodyProps) {
+  const sections = recapSections(recap, names.shown)
+  const text = recapText(title, recap, names.copied)
   const copy = useCopy(() => text)
   const fallback = useFallback(copy.state === 'failed')
   const closing = useCloseMeeting(close, recap.meetingId)
@@ -146,7 +158,7 @@ function RecapBody({ recap, text, names, editor, close, onClose }: BodyProps) {
       <p className="recap-head">{recapHead(recap)}</p>
       {sections.length === 0 && <p className="sheet-lead">Nothing was decided, made or kept in this meeting.</p>}
       {sections.map((s) => (
-        <RecapPart key={s.title} section={s} recap={recap} onOpen={onClose} />
+        <RecapPart key={s.title} section={s} records={recap} onOpen={onClose} />
       ))}
       <div className="recap-acts">
         <button type="button" className="pill" onClick={copy.copy}>
@@ -219,25 +231,41 @@ function useCloseMeeting(close: CloseTarget, meetingId: string) {
     try {
       return await closeMeeting(close.identity.token, close.roomId, meetingId, key)
     } finally {
+      // Updates' list and digest move with the feed: the close is a record, and its receipt names the cursor.
       void queryClient.invalidateQueries({ queryKey: recapKey(close.projectId) })
     }
   })
 }
 
-const sectionId = (title: string) => `recap-${title.toLowerCase().replace(' ', '-')}`
+interface PartProps {
+  section: RecapSection
+  records: Records
+  /** From a sheet: it goes away for what Open opens. */
+  onOpen?: () => void
+  /** Its heading's level: 3 in the sheet, 4 under Updates' own headings. */
+  level?: 3 | 4
+}
 
 /**
- * One section; what Sophia made opens in the viewer, and the sheet goes away for it. The focus goes to Join first, so
- * the viewer gives it back there when it closes: the Open pressed is gone by then.
+ * One section of a recap or a digest. What Sophia made opens in the viewer. From a sheet (`onOpen`), the sheet goes
+ * away for it, and the focus goes to Join first, so the viewer gives it back there: the Open pressed is gone by then.
  */
-function RecapPart({ section, recap, onOpen }: { section: RecapSection; recap: MeetingRecap; onOpen: () => void }) {
+export function RecapPart({ section, records, onOpen, level = 3 }: PartProps) {
   const viewer = useDocumentViewer()
-  const id = sectionId(section.title)
+  const id = useId()
+  const Heading = level === 3 ? 'h3' : 'h4'
   const madeOf = (key: string) =>
-    section.title === 'Made' ? recap.made.find((m) => m.artifactVersionId === key) : undefined
+    section.title === 'Made' ? records.made.find((m) => m.artifactVersionId === key) : undefined
+  const open = (made: Records['made'][number]) => {
+    if (onOpen) {
+      callAnchor()?.focus()
+      onOpen()
+    }
+    viewer?.open({ artifactId: made.artifactId, versionId: made.artifactVersionId })
+  }
   return (
     <section className="recap-section" aria-labelledby={id}>
-      <h3 id={id}>{section.title}</h3>
+      <Heading id={id}>{section.title}</Heading>
       <ul>
         {section.lines.map((line) => {
           const made = viewer ? madeOf(line.key) : undefined
@@ -246,15 +274,7 @@ function RecapPart({ section, recap, onOpen }: { section: RecapSection; recap: M
               <span className="recap-line">{line.text}</span>
               <span className="recap-by">{line.by}</span>
               {made && (
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => {
-                    callAnchor()?.focus()
-                    onOpen()
-                    viewer?.open({ artifactId: made.artifactId, versionId: made.artifactVersionId })
-                  }}
-                >
+                <button type="button" className="text-button" onClick={() => open(made)}>
                   Open
                 </button>
               )}

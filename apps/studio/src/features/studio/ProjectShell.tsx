@@ -29,6 +29,7 @@ import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/usePro
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
+import { UpdatesView } from '../updates/UpdatesView.tsx'
 import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
@@ -482,7 +483,8 @@ function pageClass(work: boolean, plans: BodyProps['plans']): string {
  * A page other than the room: Goals and Work list the goals (Tasks with each goal's plan), Knowledge its reports; the
  * views still to come say so.
  */
-function PageBody({ view, projectId, identity, membership, snapshot, onShow, onInvite, plans }: BodyProps) {
+function PageBody(props: BodyProps) {
+  const { view, projectId, identity, membership, snapshot, onShow, onInvite, plans } = props
   if (view === 'knowledge') {
     return <KnowledgeReports projectId={projectId} identity={identity} canEdit={canInvite(membership)} />
   }
@@ -499,6 +501,10 @@ function PageBody({ view, projectId, identity, membership, snapshot, onShow, onI
         onInvite={onInvite}
       />
     )
+  }
+  if (view === 'updates' && VISION) {
+    const inCall = props.room.status === 'live' || props.room.status === 'reconnecting'
+    return <UpdatesView {...{ projectId, identity, snapshot, membership, inCall }} />
   }
   return view === 'studio' ? null : <PendingView view={view} onShow={onShow} />
 }

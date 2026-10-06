@@ -1,9 +1,14 @@
-// The meeting the room is in (room-recap checks), answered as A12 proposes (issue #105): its list, its recap built
-// from the fixture's own records (the notes kept with Keep, the report a result notice brought, the fixture's decision,
-// the people in the call) and its close, idempotent per key. Every word is synthetic.
-import type { MeetingRecap, MeetingReceipt } from '../src/api/vision.ts'
+// The project's meetings (room-recap and room-updates checks), answered as A12 and A13 propose (issue #105): two earlier
+// meetings, closed; the one the room is in, its recap built from the fixture's own records (the notes kept with Keep,
+// the report a result notice brought, the fixture's decision, the people in the call); its close, once; and what
+// changed since the viewer last looked, from the same records. Every word is synthetic.
+import type { Digest, MeetingRecap, MeetingReceipt } from '../src/api/vision.ts'
+import { membership } from './data.ts'
+import { personId } from './fake-people.ts'
 
 export const MEETING = '00000000-0000-4000-8000-0000000000e1'
+
+type Records = Omit<MeetingRecap, 'meetingId' | 'startedAt' | 'endedAt' | 'minutes'>
 
 export interface Meeting {
   startedAt: number
@@ -16,25 +21,85 @@ export interface Meeting {
   recaps: { held: (() => void)[] | null; fail: boolean }
   /** The close's receipt by its Idempotency-Key: any close after it replays it. */
   closes: Map<string, MeetingReceipt>
+  /**
+   * What the viewer has seen (A13's attention): the sequence last written, and the records shown up to it, so what is
+   * kept afterwards is new. `loseReply`: the next write lands, but its reply is lost.
+   */
+  seen: { sequence: string | null; records: Set<string>; loseReply: boolean }
   /** The recap's records as the page holds them now (room.tsx). */
-  records: () => Omit<MeetingRecap, 'meetingId' | 'startedAt' | 'endedAt' | 'minutes'>
+  records: () => Records
+  /** Someone joined the call on this page: until then there is no running meeting. */
+  begun: () => boolean
 }
 
-export const newMeeting = (records: Meeting['records']): Meeting => ({
+export const newMeeting = (records: Meeting['records'], begun: Meeting['begun']): Meeting => ({
   startedAt: Date.now(),
   closedAt: null,
   made: false,
   loseReply: false,
   recaps: { held: null, fail: false },
   closes: new Map(),
+  seen: { sequence: null, records: new Set(), loseReply: false },
   records,
+  begun,
 })
 
+const ME = membership.actorId
+
+/** The two meetings before this one, closed, as the API keeps them. */
+const PAST: readonly MeetingRecap[] = [
+  {
+    meetingId: '00000000-0000-4000-8000-0000000000e2',
+    startedAt: '2026-10-04T15:00:00.000Z',
+    endedAt: '2026-10-04T15:38:00.000Z',
+    minutes: 38,
+    people: [{ actorId: ME }, { actorId: personId(2) }],
+    guests: 1,
+    decided: [
+      {
+        decisionId: '00000000-0000-4000-8000-0000000000d2',
+        statement: 'Keep the room checks on fixtures',
+        proposedBy: personId(2),
+        decidedBy: ME,
+        at: '2026-10-04T15:21:00.000Z',
+        undoable: false,
+      },
+    ],
+    made: [],
+    noted: [],
+    open: [{ proposalId: '00000000-0000-4000-8000-0000000000f2', statement: 'Record a short demo of the room' }],
+    work: [],
+    names: { [ME]: 'Fixture viewer', [personId(2)]: 'Lucía' },
+  },
+  {
+    meetingId: '00000000-0000-4000-8000-0000000000e3',
+    startedAt: '2026-10-02T09:30:00.000Z',
+    endedAt: '2026-10-02T09:55:00.000Z',
+    minutes: 25,
+    people: [{ actorId: ME }, { actorId: personId(3) }],
+    guests: 0,
+    decided: [],
+    made: [],
+    noted: [],
+    open: [],
+    work: [],
+    names: { [ME]: 'Fixture viewer', [personId(3)]: 'Noor' },
+  },
+]
+
+/** The meetings, newest first: the one the room is in, once someone joined, then the earlier ones. */
 export const meetingList = (m: Meeting) => ({
-  meetings: [{ id: MEETING, startedAt: new Date(m.startedAt).toISOString(), endedAt: m.closedAt }],
+  meetings: [
+    ...(m.begun() ? [{ id: MEETING, startedAt: new Date(m.startedAt).toISOString(), endedAt: m.closedAt }] : []),
+    ...PAST.map((p) => ({ id: p.meetingId, startedAt: p.startedAt, endedAt: p.endedAt })),
+  ],
 })
 
-export function recapOf(m: Meeting): MeetingRecap {
+/** A meeting's recap: this one's from the page's records; an earlier one's as it was kept. Undefined: no such one. */
+export const recapOf = (m: Meeting, id: string): MeetingRecap | undefined =>
+  id === MEETING ? current(m) : PAST.find((p) => p.meetingId === id)
+
+function current(m: Meeting): MeetingRecap {
   const ended = m.closedAt ? Date.parse(m.closedAt) : Date.now()
   return {
     meetingId: MEETING,
@@ -53,4 +118,55 @@ export function closed(m: Meeting, key: string, cursor: number): MeetingReceipt 
   const receipt: MeetingReceipt = { meetingId: MEETING, revision: 2, cursor: String(cursor) }
   m.closes.set(key, receipt)
   return receipt
+}
+
+/**
+ * Every record so far, the earlier meetings' first: what «since» picks the new ones from. The notes kept and the report
+ * made are the project's whether or not a meeting runs; the fixture's decision is the running meeting's.
+ */
+function everything(m: Meeting) {
+  const now = current(m)
+  const all = [...PAST.toReversed(), m.begun() ? now : { ...now, decided: [] }]
+  return {
+    decided: all.flatMap((r) => r.decided),
+    made: all.flatMap((r) => r.made),
+    noted: all.flatMap((r) => r.noted),
+    open: all.flatMap((r) => r.open),
+    work: all.flatMap((r) => r.work),
+    names: Object.fromEntries(all.flatMap((r) => Object.entries(r.names))),
+  }
+}
+
+const keysOf = (r: ReturnType<typeof everything>) => [
+  ...r.decided.map((d) => d.decisionId),
+  ...r.made.map((d) => d.artifactVersionId),
+  ...r.noted.map((d) => d.entryId),
+  ...r.open.map((d) => d.proposalId),
+  ...r.work.map((d) => d.taskId),
+]
+
+/** What changed since the viewer last looked: the records not shown when they last marked them seen. */
+export function digestOf(m: Meeting, cursor: number): Digest {
+  const all = everything(m)
+  const fresh = (key: string) => !m.seen.records.has(key)
+  return {
+    fromSequence: m.seen.sequence,
+    toSequence: String(cursor),
+    decided: all.decided.filter((d) => fresh(d.decisionId)),
+    made: all.made.filter((d) => fresh(d.artifactVersionId)),
+    noted: all.noted.filter((d) => fresh(d.entryId)),
+    open: all.open.filter((d) => fresh(d.proposalId)),
+    work: all.work.filter((d) => fresh(d.taskId)),
+    names: all.names,
+  }
+}
+
+/**
+ * The viewer saw up to `sequence`: never lowered. The fixture marks the records shown when it was written, not the
+ * records up to that sequence, which is close enough for one page, whose digest is always read just before.
+ */
+export function markSeen(m: Meeting, sequence: string): void {
+  if (m.seen.sequence !== null && Number(sequence) < Number(m.seen.sequence)) return
+  m.seen.sequence = sequence
+  for (const key of keysOf(everything(m))) m.seen.records.add(key)
 }

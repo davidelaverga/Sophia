@@ -4002,3 +4002,41 @@ div.empty {
   font-size: 12.5px;
   resize: vertical;
 }
+/* Updates (UpdatesView): what changed since the person last looked, then the meetings, in the reading column. */
+.updates {
+  display: grid;
+  gap: 32px;
+  max-width: 680px;
+}
+.updates > h2 {
+  font-size: 18px;
+}
+.updates-part {
+  display: grid;
+  gap: 16px;
+}
+.updates-part > h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.meeting-rows {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.meeting-row {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+.meeting-row:hover {
+  background: var(--line);
+}

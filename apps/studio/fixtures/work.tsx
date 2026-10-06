@@ -180,15 +180,19 @@ installFixtureApi({
   textTampered: false,
   work: false,
   // A12: a call left from here has a meeting that left nothing (MeetingRecap's empty recap).
-  meeting: newMeeting(() => ({
-    people: [{ actorId: membership.actorId }],
-    guests: 0,
-    decided: [],
-    made: [],
-    noted: [],
-    open: [],
-    work: [],
-  })),
+  meeting: newMeeting(
+    () => ({
+      people: [{ actorId: membership.actorId }],
+      guests: 0,
+      decided: [],
+      made: [],
+      noted: [],
+      open: [],
+      work: [],
+      names: { [membership.actorId]: 'Fixture viewer' },
+    }),
+    () => true,
+  ),
 })
 window.workFixture = { unexpected, answered: answers, commands, receipts, questions }
 const nothing = () => undefined

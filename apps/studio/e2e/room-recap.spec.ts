@@ -78,7 +78,7 @@ test('recap · leaving from another view, by the mini dock, shows it there too',
 test('recap · on top of another sheet, Escape puts away the recap only', async ({ page }) => {
   await enter(page)
   await page.getByRole('button', { name: 'Invite' }).click()
-  const invite = page.getByRole('dialog').filter({ hasNot: page.locator('#recap-title') })
+  const invite = page.getByRole('dialog').filter({ hasNot: page.getByRole('heading', { name: 'This meeting' }) })
   await invite.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
   await expect(sheet(page)).toBeVisible()
   await page.keyboard.press('Escape')

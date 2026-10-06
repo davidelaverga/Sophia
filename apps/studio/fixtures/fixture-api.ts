@@ -41,7 +41,7 @@ import {
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
 import { focusRequest, focusSet, type Showing } from './focus-data.ts'
-import { closed, MEETING, meetingList, recapOf, type Meeting } from './meeting-data.ts'
+import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, type Meeting } from './meeting-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -232,6 +232,8 @@ function recordsAnswer(project: Project, method: string, path: string, init: Req
   const base = `/api/v1/projects/${PROJECT}`
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
+  if (method === 'GET' && path === `${base}/since` && project.meeting)
+    return json(digestOf(project.meeting, project.revision))
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
 }
@@ -245,11 +247,11 @@ function meetingAnswer(project: Project, path: string): Promise<Response> | Resp
   const base = `/api/v1/projects/${PROJECT}/meetings`
   if (!meeting) return null
   if (path === base) return json(meetingList(meeting))
-  if (path !== `${base}/${MEETING}/recap`) return null
+  const recap = recapOf(meeting, /\/meetings\/([^/]+)\/recap$/.exec(path)?.[1] ?? '')
+  if (!recap) return null
   const { held, fail } = meeting.recaps
   if (fail) return unavailable()
-  served.push(`recap:${meeting.closedAt ? 'closed' : 'running'}`)
-  const recap = recapOf(meeting)
+  served.push(`recap:${recap.endedAt ? 'closed' : 'running'}`)
   if (!held) return json(recap)
   return new Promise((resolve) => held.push(() => resolve(json(recap))))
 }
@@ -285,6 +287,7 @@ function meetingClosed(project: Project, init: RequestInit | undefined): Promise
   if (project.role === 'viewer') return notAllowed()
   const key = new Headers(init?.headers).get('idempotency-key') ?? ''
   const first = meeting.closes.size === 0
+  if (first) publish(project) // the close is a record: the feed moves, and the receipt names where it is
   const receipt = closed(meeting, key, project.revision)
   if (first) served.push('meeting:closed')
   if (meeting.loseReply) {
@@ -296,8 +299,22 @@ function meetingClosed(project: Project, init: RequestInit | undefined): Promise
 
 /** What the page writes: the room's focus (PUT), else what it posts. */
 function written(project: Project, method: string, path: string, init: RequestInit | undefined) {
+  if (method === 'PUT' && path === `/api/v1/projects/${PROJECT}/seen`) return seenPut(project, init)
   if (method === 'PUT') return path === `/api/v1/rooms/${ROOM}/focus` ? focusPut(project, init) : null
   return posted(project, path, init)
+}
+
+/** The viewer saw up to a sequence (A13): 204, never lowered; a lost reply has still landed. */
+function seenPut(project: Project, init: RequestInit | undefined): Promise<Response> | Response | null {
+  const meeting = project.meeting
+  const request: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const ok = typeof request === 'object' && request !== null && 'sequence' in request
+  if (!meeting || !ok || typeof request.sequence !== 'string') return null
+  served.push(`seen:${request.sequence}`)
+  markSeen(meeting, request.sequence)
+  if (!meeting.seen.loseReply) return new Response(null, { status: 204 })
+  meeting.seen.loseReply = false
+  return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
 }
 
 /**

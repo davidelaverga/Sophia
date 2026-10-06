@@ -25,7 +25,7 @@ import type { View } from '../src/app/route.ts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
-import type { Notes } from './brief-data.ts'
+import { noteKept, type Notes } from './brief-data.ts'
 import { noShowing } from './focus-data.ts'
 import { newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
@@ -102,6 +102,10 @@ interface Fixture {
   loseNextFocusReply: () => void
   /** The next close of the meeting lands, but its reply is lost. */
   loseNextCloseReply: () => void
+  /** A note is kept in the brief, as by this viewer's Keep in another tab: the project moves. */
+  keep: (text: string) => void
+  /** The next «Mark as seen» lands, but its reply is lost. */
+  loseNextSeenReply: () => void
   /** The recap's reads wait until `releaseRecaps`. */
   holdRecaps: () => void
   releaseRecaps: () => void
@@ -232,7 +236,10 @@ const project = {
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
   // A12: the meeting this visit is, its recap built from what happens on the page (meeting-data.ts).
-  meeting: newMeeting(() => meetingRecords()),
+  meeting: newMeeting(
+    () => meetingRecords(),
+    () => asked.includes('connect'),
+  ),
   notes: {
     kept: [],
     written: 0,
@@ -305,6 +312,18 @@ window.fixture = {
   },
   loseNextCloseReply: () => {
     project.meeting.loseReply = true
+  },
+  keep: (text) => {
+    noteKept(
+      project.notes,
+      JSON.stringify({ kind: 'observation', epistemic: 'reported', text }),
+      project.revision,
+      `keep-${text}`,
+    )
+    publish(project)
+  },
+  loseNextSeenReply: () => {
+    project.meeting.seen.loseReply = true
   },
   holdRecaps: () => {
     project.meeting.recaps.held = []
@@ -398,16 +417,23 @@ function meetingRecords(): ReturnType<Meeting['records']> {
     })),
     open: [],
     work: [],
+    // The proposed `names` (#105): every actor the fixture knows, so a name shows where the room never saw them.
+    names: Object.fromEntries(
+      [1, 2, 3, 4, 5]
+        .map((n): [string, string] => [personId(n), nameOf(personId(n))])
+        .concat([[membership.actorId, 'Fixture viewer']]),
+    ),
   }
 }
 
 const nothing = () => undefined
 
-/** The page `place=` names: Knowledge, Work (with the research task's card), else the room. */
-const viewOf = (place: string | null) => (place === 'knowledge' || place === 'work' ? place : 'studio')
+/** The page `place=` names: Knowledge, Work (with the research task's card), Updates, else the room. */
+const viewOf = (place: string | null) =>
+  place === 'knowledge' || place === 'work' || place === 'updates' ? place : 'studio'
 
-/** The views this fixture's API serves: the room, Knowledge and Work. The others' reads aren't faked, so their links stay. */
-const SERVED: readonly View[] = ['studio', 'knowledge', 'work']
+/** The views this fixture's API serves: the room, Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
+const SERVED: readonly View[] = ['studio', 'knowledge', 'work', 'updates']
 
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }

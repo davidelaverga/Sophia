@@ -5,6 +5,16 @@ import type { MeetingRecap } from '../../api/vision.ts'
 /** A member named in a sentence: "you", their name, or "a member" when the room never knew them. */
 export type NameOf = (actorId: string) => string
 
+/**
+ * How a recap or a digest names people: the names the room knew this visit, else the record's own (`names`), else
+ * "a member". On screen the reader is "you"; in copied text, which others read, the reader goes by their name.
+ */
+export function namers(me: string, known: ReadonlyMap<string, string>, named: Readonly<Record<string, string>>) {
+  const copied: NameOf = (id) => known.get(id) ?? named[id] ?? 'a member'
+  const shown: NameOf = (id) => (id === me ? 'you' : copied(id))
+  return { shown, copied }
+}
+
 const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1 ? one : many}`
 
 /** The head: how long it lasted, and who was there (guests only counted). */
@@ -32,8 +42,11 @@ export interface RecapSection {
 const keptBy = (n: MeetingRecap['noted'][number], nameOf: NameOf) =>
   n.authoredBy === 'sophia' ? 'Sophia’s paraphrase' : `kept by ${nameOf(n.actorId)}`
 
-/** The recap's sections with something in them, in the order the sheet shows them. */
-export function recapSections(recap: MeetingRecap, nameOf: NameOf): RecapSection[] {
+/** What a recap or a digest lists (A12's items), the same builder for both. */
+export type Records = Pick<MeetingRecap, 'decided' | 'made' | 'noted' | 'open' | 'work'>
+
+/** The sections with something in them, in the order the sheet (or Updates) shows them. */
+export function recapSections(recap: Records, nameOf: NameOf): RecapSection[] {
   const sections: RecapSection[] = [
     {
       title: 'Decided',
