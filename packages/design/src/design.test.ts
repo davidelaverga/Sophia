@@ -342,6 +342,7 @@ describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-00
       `<a data-cite="${A}" href="#src-${A}" aria-label="[7]">[1]</a>`,
       `<a data-cite="${A}" href="#src-${A}" aria-description="(1)">[1]</a>`,
       `<span data-cite="${A}" aria-label="[3]"></span>`,
+      `<span data-cite="${A}" role="img" aria-label="100" title="100"></span>`,
       `<a data-cite="${A}" href="#src-${A}" aria-braillelabel="Price 3">[1]</a>`,
       `<a data-cite="${A}" href="#src-${A}" title="Source">[1]</a>`,
     ])
