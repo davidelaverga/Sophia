@@ -324,6 +324,38 @@ describe('outside its blocks a page adds only the words that frame them (SDD-01-
   })
 })
 
+describe('a tooltip or an accessible name carries no text the page does not show (SDD-01-CX-0019 F2, #117 review)', () => {
+  const swap = (from: string, to: string): string[] => {
+    const page = html(good).replace(from, to)
+    assert.notEqual(page, html(good), `fixture contains ${from}`)
+    return codes(withHtml(good, page))
+  }
+  it('refuses a claim in a title or a text-bearing aria attribute, inside or outside the blocks', () => {
+    const refused: Array<[string, string]> = [
+      ['</main>', '<span title="Host three is free">•</span></main>'],
+      ['<main>', '<main aria-label="Host three is the cheapest">'],
+      ['<p data-block="b1">', '<p data-block="b1" title="Verified by NIST">'],
+      ['<h1>', '<h1 aria-description="The only safe host">'],
+      ['<main>', '<main><nav aria-roledescription="independently audited"><a href="#s1">Findings</a></nav>'],
+    ]
+    for (const [from, to] of refused) assert.deepEqual(swap(from, to), ['attribute_text'], to)
+  })
+  it('accepts a name that repeats a visible label, a plain name, or one that points at visible text', () => {
+    const accepted: Array<[string, string]> = [
+      ['<main>', '<main aria-label="Report">'],
+      [
+        '<section id="sources" data-section="sources">',
+        '<section id="sources" data-section="sources" aria-label="Sources">',
+      ],
+      ['<main>', '<main><nav aria-label="Contents"><a href="#s1" title="Findings">Findings</a></nav>'],
+      ['<main>', '<main><nav aria-label="Indice 2"><a href="#s1">Findings</a></nav>'],
+      ['<h1>', '<h1 id="t">'],
+      ['<main>', '<main aria-labelledby="t">'],
+    ]
+    for (const [from, to] of accepted) assert.deepEqual(swap(from, to), [], to)
+  })
+})
+
 describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
   const css = (rule: string): string[] => codes(withCss(good, `${rule}\n`))
   it('refuses text drawn by CSS, from a string, an attribute or a variable', () => {
