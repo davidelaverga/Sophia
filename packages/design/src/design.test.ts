@@ -61,6 +61,12 @@ const codes = (files: SourceFile[]): string[] =>
   checkSource(files, content)
     .findings.filter((f) => f.severity === 'error')
     .map((f) => f.code)
+/** The fixture table's head row, its cells opened by `a`, `b` and `c`, around the first cell's own markup. */
+const tableHead = (host: string, a = '<th>', b = '<th>', c = '<th>'): string =>
+  `<thead><tr>${a}${host}</th>${b}Cost</th>${c}Isolation</th></tr></thead>`
+/** The fixture table's body rows, the first two cells given. */
+const tableBody = (one = '<td>One</td>', cost = '<td>12.50</td>'): string =>
+  `<tbody><tr>${one}${cost}<td>seccomp</td></tr><tr><td>Two</td><td>30</td><td>VM</td></tr></tbody>`
 
 describe('the frozen content package', () => {
   it('reads every paragraph, item, table, quote, code block and stored limitation as a block, in reading order', () => {
@@ -847,6 +853,40 @@ describe('a tooltip or an accessible name carries no text the page does not show
     ] as const)
       assert.deepEqual(named(from, to), [], to)
     assert.match(page, /<div role="region" aria-label="Table b\d+"/u, "the fixture's table region keeps its name")
+  })
+  // #117: a screen reader announces a cell with its headers; `headers` and `scope` change them where no capture shows it.
+  it("refuses header cells heard over other cells than the captures show them over, and keeps a table's own", () => {
+    const flat =
+      /<tbody><tr><td>(Host[\s\S]*?)<\/td><td>Cost<\/td><td>Isolation<\/td><td>One<\/td><td>12\.50<\/td><td>seccomp<\/td><td>Two<\/td><td>30<\/td><td>VM<\/td><\/tr><\/tbody>/u
+    const table = (rows: (host: string) => string) => {
+      const page = html(good)
+      const host = flat.exec(page)?.[1]
+      assert.ok(host !== undefined, 'the fixture table')
+      return codes(withHtml(good, page.replace(flat, rows(host))))
+    }
+    for (const rows of [
+      (h: string) =>
+        tableHead(h, '<th id="host">', '<th id="cost">') +
+        tableBody('<td headers="cost">One</td>', '<td headers="host">12.50</td>'),
+      (h: string) => tableHead(h, '<th id="host">', '<th headers="host">') + tableBody(),
+      (h: string) =>
+        `${tableHead(h)}${tableBody('<td headers="aside">One</td>')}</table><table><tr><th id="aside">Cost per month</th></tr>`,
+      (h: string) => tableHead(h, '<th scope="row">') + tableBody(),
+      (h: string) => tableHead(h, '<th scope="colgroup">') + tableBody(),
+      (h: string) => tableHead(h) + tableBody('<th scope="col">One</th>'),
+      (h: string) => tableHead(h) + tableBody('<td>One</td>', '<th>12.50</th>'),
+      (h: string) => tableHead(h) + tableBody('<td>One</td>', '<th scope="row">12.50</th>'),
+    ])
+      assert.ok(table(rows).includes('table_headers'), rows('Host'))
+    for (const rows of [
+      (h: string) => tableHead(h) + tableBody(),
+      (h: string) => tableHead(h, '<th scope="col">', '<th scope="COL">', '<th scope="col">') + tableBody(),
+      (h: string) => tableHead(h) + tableBody('<th scope="row">One</th>'),
+      (h: string) => tableHead(h) + tableBody('<th>One</th>'),
+      (h: string) =>
+        `<tbody><tr><td>${h}</td><td>Cost</td><td>Isolation</td></tr>` + tableBody().replace('<tbody>', ''),
+    ])
+      assert.deepEqual(table(rows), [], rows('Host'))
   })
   // #117: a bidi override draws a text's characters in another order than the one every check reads.
   it('refuses a bidi override in markup, in CSS and as a character, and keeps directions and isolation', () => {

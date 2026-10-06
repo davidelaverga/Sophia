@@ -60,21 +60,63 @@ function linksIn(el: Element): string[] {
 const same = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((x, i) => x === b[i])
 
+/**
+ * Why a research table's header cells could be heard over other cells than the captures show them over, or null. A
+ * screen reader announces each cell with its headers; the captures show a header over the cells of its column, or
+ * beside those of its row. So a header cell sits in the table's first row (a column's) or first in a later row (a
+ * row's), its `scope` says the same or nothing, and no cell names its headers (`headers`): `headers="price"` on a
+ * "Basic" cell is heard as a price while every capture shows it under "Plan" (#117).
+ */
+function headerIssue(table: Element): string | null {
+  const rows = ownElements(table).filter((r) => r.tagName === 'tr')
+  for (const [i, row] of rows.entries()) {
+    const cells = row.childNodes.filter(isElement).filter((c) => c.tagName === 'th' || c.tagName === 'td')
+    for (const [j, cell] of cells.entries()) {
+      if (attr(cell, 'headers') !== null) return `a cell names its headers (headers), which no capture shows`
+      if (cell.tagName !== 'th') continue
+      const place = i === 0 ? 'col' : j === 0 ? 'row' : null
+      if (place === null)
+        return `a header cell (row ${String(i + 1)}, cell ${String(j + 1)}) heads cells beside it no capture shows it heading`
+      const scope = (attr(cell, 'scope') ?? '').trim().toLowerCase()
+      if (scope !== '' && scope !== place)
+        return `a header cell in the ${place === 'col' ? 'first row' : 'first column'} has scope="${scope}", not ${place}`
+    }
+  }
+  return null
+}
+
+/** What is wrong with a research table: its cells, or its header cells (headerIssue). */
+function tableFindings(block: ContentBlock, el: Element, at: { line: number; block: string }): Finding[] {
+  const out: Finding[] = []
+  const cells = cellsOf(el)
+  if (!same(cells, block.cells))
+    out.push(
+      error(
+        'block_altered',
+        'index.html',
+        `table ${block.id}'s cells differ from the research (${cells.length} cells, ${block.cells.length} expected)`,
+        at,
+      ),
+    )
+  const headers = headerIssue(el)
+  if (headers)
+    out.push(
+      error(
+        'table_headers',
+        'index.html',
+        `table ${block.id}: ${headers}; a header cell sits in the first row or first in a row, and scope, if any, ` +
+          'says which (col or row)',
+        at,
+      ),
+    )
+  return out
+}
+
 function blockFindings(block: ContentBlock, el: Element, line: number): Finding[] {
   const at = { line, block: block.id }
   const out: Finding[] = []
-  if (block.kind === 'table') {
-    const cells = cellsOf(el)
-    if (!same(cells, block.cells))
-      out.push(
-        error(
-          'block_altered',
-          'index.html',
-          `table ${block.id}'s cells differ from the research (${cells.length} cells, ${block.cells.length} expected)`,
-          at,
-        ),
-      )
-  } else if (blockText(el) !== block.text) {
+  if (block.kind === 'table') out.push(...tableFindings(block, el, at))
+  else if (blockText(el) !== block.text) {
     out.push(
       error(
         'block_altered',
