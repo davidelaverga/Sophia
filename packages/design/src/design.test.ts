@@ -778,7 +778,9 @@ describe('a tooltip or an accessible name carries no text the page does not show
       codes(
         withHtml(
           good,
-          captioned.replace('<p data-block="b1">', '<p data-block="b1" id="b1">').replace('<main>', '<main aria-labelledby="b1">'),
+          captioned
+            .replace('<p data-block="b1">', '<p data-block="b1" id="b1">')
+            .replace('<main>', '<main aria-labelledby="b1">'),
         ),
       ),
       [],
