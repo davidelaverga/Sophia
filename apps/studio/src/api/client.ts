@@ -50,6 +50,8 @@ export async function toError(res: Response, retry: ApiErrorBody['retry'] = 'nev
  */
 async function readBody<T>(res: Response, parse: (value: unknown) => T, retry: ApiErrorBody['retry']): Promise<T> {
   try {
+    // No content: the parser says whether nothing is an answer (a 204 write).
+    if (res.status === 204) return parse(null)
     return parse(await res.json())
   } catch (err: unknown) {
     const message = err instanceof ContractViolation ? err.message : 'Unreadable reply from Sophia'

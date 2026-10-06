@@ -40,8 +40,10 @@ export const setRoomFocus = (
 ): Promise<FocusReceipt> =>
   callApi(`/api/v1/rooms/${roomId}/focus`, { token, method: 'PUT', body, key }, parseFocusReceipt)
 
-// A12: the meeting, closed and recapped from committed records (issue #105). The recap's `noted` items also carry the
-// actor who kept them (`actorId`), so a member's own note is named: an addition this Studio proposes to A12.
+// A12: the meeting, closed and recapped from committed records (issue #105). Two additions this Studio proposes: the
+// recap's `noted` items carry the actor who kept them (`actorId`), so a member's own note is named; and `names` gives
+// the display name of every actor it names, since the API has no read of a project's members and the room only knows
+// who it saw this visit.
 
 export interface MeetingSummary {
   id: string
@@ -81,6 +83,17 @@ export interface MeetingRecap {
   }[]
   open: readonly { proposalId: string; statement: string }[]
   work: readonly { taskId: string; kind: string; state: string }[]
+  /** Each named actor's display name, by actor id. */
+  names: Readonly<Record<string, string>>
+}
+
+/**
+ * A13: what changed in a range, built as A12's recap is. `fromSequence` is the viewer's attention (null: never
+ * looked); `toSequence` is what «Mark as seen» writes. A shape this Studio proposes: #105 names the route only.
+ */
+export interface Digest extends Pick<MeetingRecap, 'decided' | 'made' | 'noted' | 'open' | 'work' | 'names'> {
+  fromSequence: string | null
+  toSequence: string
 }
 
 export interface MeetingReceipt {
@@ -92,6 +105,7 @@ export interface MeetingReceipt {
 const isStr = (v: unknown): v is string => typeof v === 'string'
 const isNum = (v: unknown): v is number => typeof v === 'number'
 const isStrOrNull = (v: unknown): v is string | null => v === null || isStr(v)
+const isNames = (v: unknown): boolean => isObject(v) && Object.values(v).every(isStr)
 /** Every listed field present with its kind: the answer is the proposal's shape, or an error. */
 const fields = (value: unknown, kinds: Record<string, (v: unknown) => boolean>): value is Record<string, unknown> =>
   isObject(value) && Object.entries(kinds).every(([k, ok]) => ok(value[k]))
@@ -126,6 +140,7 @@ const RECAP = {
   }),
   open: listOf({ proposalId: isStr, statement: isStr }),
   work: listOf({ taskId: isStr, kind: isStr, state: isStr }),
+  names: isNames,
 }
 
 /** A checked answer, typed: the checks above stand for the proposal's shape. */
@@ -142,6 +157,15 @@ const parseMeetings = checked<{ meetings: readonly MeetingSummary[] }>(
   'meeting list',
 )
 const parseRecap = checked<MeetingRecap>(RECAP, 'recap')
+const { decided, made, noted, open, work, names } = RECAP
+const parseDigest = checked<Digest>(
+  { fromSequence: isStrOrNull, toSequence: isStr, decided, made, noted, open, work, names },
+  'digest',
+)
+const nothing = (value: unknown): undefined => {
+  if (value === null) return undefined
+  throw new ApiError(200, 'contract_violation', 'A seen write answers nothing', 'never')
+}
 const parseMeetingReceipt = checked<MeetingReceipt>({ meetingId: isStr, revision: isNum, cursor: isStr }, 'receipt')
 
 /** A12: the project's meetings, newest first. */
@@ -155,3 +179,11 @@ export const getRecap = (token: string, projectId: string, meetingId: string): P
 /** A12: close the meeting for everyone (editors and admins), idempotent per key. */
 export const closeMeeting = (token: string, roomId: string, meetingId: string, key: string): Promise<MeetingReceipt> =>
   callApi(`/api/v1/rooms/${roomId}/meetings/${meetingId}/close`, { token, method: 'POST', key }, parseMeetingReceipt)
+
+/** A13: what changed since this viewer last looked (their own attention, kept by the API). */
+export const getSince = (token: string, projectId: string): Promise<Digest> =>
+  callApi(`/api/v1/projects/${projectId}/since`, { token, method: 'GET' }, parseDigest)
+
+/** A13: this viewer has seen up to `sequence`; the API never lowers it, so a second write is harmless. */
+export const markSeen = (token: string, projectId: string, sequence: string): Promise<undefined> =>
+  callApi(`/api/v1/projects/${projectId}/seen`, { token, method: 'PUT', body: { sequence } }, nothing)
