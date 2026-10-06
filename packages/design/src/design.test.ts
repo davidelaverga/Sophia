@@ -1406,6 +1406,66 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       assert.deepEqual(css(ok), [], ok)
     assert.deepEqual(css('h2{box-shadow:0 1px 2px #ccc}'), [], 'a box shadow, whose reach the render reads')
   })
+  // #117: a text transform draws the research in other letters: frozen "US" under lowercase is drawn "us", and every
+  // check compares the frozen text. Capitals for lower case ("pH" as small-capital "PH") are the same, by keyword or font
+  // feature, and through var() from a custom property.
+  it('refuses a text transform and capitals for lower case in every form, and keeps none, normal and resets', () => {
+    for (const bad of [
+      '[data-block]{text-transform:lowercase}',
+      'body{text-transform:uppercase}',
+      'p{text-transform:capitalize}',
+      'p{TEXT-TRANSFORM:FULL-WIDTH}',
+      'p{text-transform:full-size-kana}',
+      'p{text-transform:math-auto}',
+      'p{text-transform:var(--t)}',
+      'p{text-transform:var(--t, none)}',
+      ':root{--t:lowercase} p{text-transform:var(--t)}',
+      'p::first-letter{text-transform:lowercase}',
+      '@media (min-width: 600px){main{text-transform:lowercase}}',
+      '@media print{p{text-transform:uppercase}}',
+      'p{font-variant-caps:small-caps}',
+      'p{font-variant-caps:all-small-caps}',
+      'p{font-variant-caps:unicase}',
+      'p{font-variant-caps:var(--c)}',
+      'p{font-variant:small-caps}',
+      'p{font-variant:petite-caps tabular-nums}',
+      'p{font:small-caps 24px/32px Arial}',
+      'p{FONT:ALL-SMALL-CAPS 1rem serif}',
+      'p{font-feature-settings:"smcp"}',
+      'p{font-feature-settings:"liga" 1, "c2sc" 1}',
+      "p{font-feature-settings:'unic' on}",
+      'p{-webkit-font-feature-settings:"smcp"}',
+      ':root{--caps:small-caps} p{font-variant:var(--caps)}',
+      ':root{--f:"smcp"} p{font-feature-settings:var(--f)}',
+      ':root{--font:small-caps 24px Arial} p{font:var(--font)}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    for (const style of ['text-transform:lowercase', 'font-variant:small-caps', '--c:titling-caps']) {
+      const inline = html(good).replace('<p data-block="b1">', `<p data-block="b1" style="${style}">`)
+      assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'], style)
+    }
+    for (const ok of [
+      'p{text-transform:none}',
+      'p{text-transform:NONE}',
+      'p{text-transform:inherit}',
+      'p{text-transform:initial}',
+      'p{text-transform:unset}',
+      'p{text-transform:revert}',
+      'p{font-variant-caps:normal}',
+      'p{font-variant-caps:inherit}',
+      'p{font-variant:normal}',
+      'p{font-variant:tabular-nums}',
+      'p{font-variant-numeric:oldstyle-nums}',
+      'p{font:600 1rem/1.5 Georgia, serif}',
+      'p{font:italic 400 24px/32px "Helvetica Neue", Arial, sans-serif}',
+      ':root{--sans:Arial, sans-serif} p{font:400 1rem/1.5 var(--sans)}',
+      'p{font-feature-settings:"tnum"}',
+      'p{font-feature-settings:"liga" 0, "kern" 1}',
+      ':root{--accent:#334} p{color:var(--accent)}',
+      'h2{letter-spacing:.02em}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
   // #117: the render finds a cover by what a point on the text reaches; pointer-events: none would hide one from it.
   it('refuses pointer-events, which only a page with a pointer behaviour needs, in a stylesheet or a style attribute', () => {
     for (const bad of ['.cover{pointer-events:none}', 'h2::after{pointer-events:none}', '*{pointer-events:auto}'])

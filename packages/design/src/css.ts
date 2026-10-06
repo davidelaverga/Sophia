@@ -247,6 +247,47 @@ function paintModeIssue(property: string, node: CssNode & { type: 'Declaration' 
 }
 
 /**
+ * The values `text-transform` may take: none, or a keyword that resets it. A transform draws the research in other
+ * letters than its own: frozen "US" under `lowercase` is drawn "us", and `capitalize` turns "iPhone" into "IPhone",
+ * while every check compares the frozen text and the render reads only where the glyphs are and how they contrast
+ * (#117). Any other value, a variable included, is refused, in any medium, inherited or not.
+ */
+const UNTRANSFORMED = new Set(['none', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
+/**
+ * Capitals a font draws for lower-case letters: small, petite, unicase and titling capitals draw "pH" as "PH" in
+ * smaller capitals, by a `font-variant` keyword or by the OpenType feature that keyword turns on (#117). So
+ * `font-variant-caps` may only be normal or a keyword that resets it; `font`, `font-variant` and
+ * `font-feature-settings` may not name one; and no custom property may carry one, so none arrives through var().
+ */
+const UNCAPPED = new Set(['normal', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
+const CAPS = new Set(['small-caps', 'all-small-caps', 'petite-caps', 'all-petite-caps', 'unicase', 'titling-caps'])
+const CAPS_FEATURES = new Set(['smcp', 'c2sc', 'pcap', 'c2pc', 'unic', 'titl'])
+const CAPS_CARRIERS = /^(?:font|font-variant|(?:-webkit-)?font-feature-settings|--.*)$/
+
+/** Whether a value names capitals for lower case: a CAPS keyword, or a CAPS_FEATURES feature, on or off. */
+function namesCaps(value: CssNode): boolean {
+  let named = false
+  walk(value, (part) => {
+    if (part.type === 'Identifier' && CAPS.has(part.name.toLowerCase())) named = true
+    if (part.type === 'String' && CAPS_FEATURES.has(part.value.trim().toLowerCase())) named = true
+  })
+  return named
+}
+
+/** Why a declaration draws the research's letters other than they are (a case transform, capitals), or null. */
+function caseIssue(property: string, node: CssNode & { type: 'Declaration' }): string | null {
+  if (property === 'text-transform' && !isOneOf(node.value, UNTRANSFORMED))
+    return `${node.property} may only be none: it draws the research in other letters than its own ("US" as "us"), which no check reads`
+  const capped =
+    property === 'font-variant-caps'
+      ? !isOneOf(node.value, UNCAPPED)
+      : CAPS_CARRIERS.test(property) && namesCaps(node.value)
+  return capped
+    ? `${node.property} may not draw lower-case letters as capitals (small-caps, smcp and their kin): "pH" would read "PH", which no check reads`
+    : null
+}
+
+/**
  * The values `unicode-bidi` may take: those that set or isolate a direction. `bidi-override` and `isolate-override`
  * draw a text's characters in the order the direction gives, so "12.50" under `direction: rtl` is drawn "05.21" while
  * every check reads "12.50" (#117).
@@ -283,7 +324,7 @@ function keywordIssue(property: string, node: CssNode & { type: 'Declaration' })
     return `${node.property} may ask for the light scheme only: the captures are taken in it, and a dark one is drawn where no capture shows it`
   if (property === 'position' && !isPlacedOnPage(node.value))
     return `${node.property} may be static, relative or absolute: a fixed or sticky element moves over the text as a reader scrolls, where no capture shows it`
-  return paintModeIssue(property, node)
+  return caseIssue(property, node) ?? paintModeIssue(property, node)
 }
 
 /**
