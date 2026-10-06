@@ -1128,7 +1128,12 @@ describe('the confined capture kernel', () => {
             .inset{background:#000;color:#fff;box-shadow:inset 0 0 0 100px #fff}
             .glow{height:10px;box-shadow:0 0 0 40px #111} .ring{height:10px;outline:40px solid #111}
             .boxed{border:2px solid #222;background:#fff;padding:.5em} .card{box-shadow:0 1px 3px #888;background:#fff;padding:.5em}
-            .gap{height:80px}`,
+            .gap{height:80px}
+            .bimg{position:relative;background:#000;border:100px solid transparent;border-image:linear-gradient(#fff,#fff) 1;width:40px;height:40px}
+            .onbimg{position:absolute;top:-90px;left:-90px;margin:0;font-size:16px;color:#fff;white-space:nowrap}
+            .blend{background-color:#fff;background-image:linear-gradient(#fff,#fff);background-blend-mode:difference;color:#000}
+            .bout{height:10px;border:1px solid transparent;border-image:linear-gradient(#111,#111) 1;border-image-outset:40px}
+            .himg{position:relative} .himg::before{content:"";position:absolute;inset:0;z-index:-1;border:2em solid transparent;border-image:linear-gradient(#111,#111) 1}`,
             `<main><section data-section="s1"><h2 class="accent">Findings</h2><p data-block="b1">Text.</p>
           <div class="dark"><h2 class="out">Host three is free</h2></div>
           <div style="position:relative"><div class="slab"></div><p data-block="b2" class="over">Dark on a dark slab.</p></div>
@@ -1138,7 +1143,11 @@ describe('the confined capture kernel', () => {
           <div class="frame"><h2 class="onborder">On a white border</h2></div><p data-block="b6" class="inset">On an inset shadow.</p>
           <div class="gap"></div><div class="glow"></div><p data-block="b7">Near a dark glow.</p><div class="gap"></div>
           <p data-block="b8" class="boxed">In a bordered box.</p><p data-block="b9" class="card">In a card.</p>
-          <div class="gap"></div><div class="ring"></div><p data-block="b10">Near a dark ring.</p></section></main>`,
+          <div class="gap"></div><div class="ring"></div><p data-block="b10">Near a dark ring.</p>
+          <div class="gap"></div><div class="bimg"><h2 class="onbimg">On a white border image</h2></div>
+          <p data-block="b11" class="blend">Over blended layers.</p>
+          <div class="gap"></div><div class="bout"></div><p data-block="b12">Near a dark border image.</p>
+          <div class="gap"></div><p data-block="b13" class="himg">Over a generated border image.</p></section></main>`,
           ),
         ),
         { env },
@@ -1159,10 +1168,14 @@ describe('the confined capture kernel', () => {
             ['b8', 'read'],
             ['b9', 'read'],
             ['b10', 'background_elsewhere'],
+            ['b11', 'filtered'],
+            ['b12', 'background_elsewhere'],
+            ['b13', 'background_elsewhere'],
             ['text 1 h2', 'read'],
             ['text 2 h2', 'background_elsewhere'],
             ['text 3 h2', 'read'],
             ['text 4 h2', 'background_elsewhere'],
+            ['text 5 h2', 'background_elsewhere'],
           ],
           target,
         )

@@ -342,7 +342,7 @@ function bordersPaint(s, ctx) {
 }
 
 /**
- * Whether a style paints anything of its own: a background, a border, a shadow or an outline.
+ * Whether a style paints anything of its own: a background, a border or a border image, a shadow or an outline.
  * @param {CSSStyleDeclaration} s
  * @param {OffscreenCanvasRenderingContext2D} ctx
  */
@@ -352,7 +352,8 @@ function paintsAny(s, ctx) {
     !isClear(ctx, s.backgroundColor) ||
     bordersPaint(s, ctx) ||
     s.boxShadow !== 'none' ||
-    s.outlineStyle !== 'none'
+    s.outlineStyle !== 'none' ||
+    s.borderImageSource !== 'none'
   )
 }
 
@@ -365,6 +366,25 @@ function pixelsIn(value) {
 }
 
 /**
+ * How far a border image is drawn past its element's border box: its outset, in pixels or in border widths (#117).
+ * @param {CSSStyleDeclaration} s
+ */
+function imageOutset(s) {
+  if (s.borderImageSource === 'none') return 0
+  const widest = Math.max(
+    ...['top', 'right', 'bottom', 'left'].map(
+      (side) => Number.parseFloat(s.getPropertyValue(`border-${side}-width`)) || 0,
+    ),
+  )
+  return Math.max(
+    0,
+    ...s.borderImageOutset
+      .split(/\s+/u)
+      .map((v) => (v.endsWith('px') ? Number.parseFloat(v) : Number.parseFloat(v) * widest) || 0),
+  )
+}
+
+/**
  * How far an element's paint may reach past its border box, in CSS pixels: an outer box shadow (its offsets, blur and
  * spread), an outline (its width and offset) or a filter (three times the lengths it names, for a blur or a drop
  * shadow). 0 when it paints nothing outside its box.
@@ -374,15 +394,14 @@ function outerReach(s) {
   const shadows = s.boxShadow === 'none' ? [] : s.boxShadow.split(/,(?![^(]*\))/u).filter((x) => !x.includes('inset'))
   const outline =
     s.outlineStyle === 'none' ? 0 : Number.parseFloat(s.outlineWidth) + Math.abs(Number.parseFloat(s.outlineOffset))
-  return shadows.reduce((sum, x) => sum + pixelsIn(x), 0) + outline + (s.filter === 'none' ? 0 : 3 * pixelsIn(s.filter))
+  return (
+    shadows.reduce((sum, x) => sum + pixelsIn(x), 0) +
+    outline +
+    (s.filter === 'none' ? 0 : 3 * pixelsIn(s.filter)) +
+    imageOutset(s)
+  )
 }
 
-/**
- * Where paint reaches past the boxes on the page (outerReach), by rows of 512 CSS pixels in page coordinates, read once
- * as the page opens. A generated box's reach is taken from its element's box, widened by 32 pixels, since where it is
- * placed is not read. `over` when the page has more such paint than the index holds: every text is then off its ground.
- * @returns {Reach}
- */
 /**
  * The box an element's overflow lets its content be drawn in, in page coordinates, or null when it lets it overflow.
  * @param {Element} el
@@ -551,6 +570,12 @@ function adjoinedBlocks(blocks, bound) {
   )
 }
 
+/**
+ * Where paint reaches past the boxes on the page (outerReach), by rows of 512 CSS pixels in page coordinates, read once
+ * as the page opens. A generated box's reach is taken from its element's box, widened by 32 pixels, since where it is
+ * placed is not read. `over` when the page has more such paint than the index holds: every text is then off its ground.
+ * @returns {Reach}
+ */
 function reachIndex() {
   /** @type {Reach} */
   const index = { rows: new Map(), over: false }
@@ -591,7 +616,9 @@ function paintsOf(el, look) {
     own: style.backgroundImage !== 'none' || !isClear(look.ctx, style.backgroundColor),
     clip: style.backgroundClip,
     edge: bordersPaint(style, look.ctx),
-    inset: style.boxShadow.includes('inset'),
+    // A border image paints where its own widths say, into the padding box too (border-image-width), so like an inset
+    // shadow it is paint anywhere in the box that is not the background a text is read against (#117).
+    inset: style.boxShadow.includes('inset') || style.borderImageSource !== 'none',
     widths: ['top', 'right', 'bottom', 'left'].map((side) =>
       Number.parseFloat(style.getPropertyValue(`border-${side}-width`)),
     ),
@@ -862,13 +889,19 @@ function isStroked(el) {
 
 /**
  * Whether a filter or a blend mode, on the element or an ancestor, changes the colours it is drawn in: the contrast
- * read from its styles would not be the contrast a reader sees (#117).
+ * read from its styles would not be the contrast a reader sees (#117). A blend of an element's own background layers
+ * (`background-blend-mode`) counts too: two white layers set to `difference` paint black (#117).
  * @param {Element} el
  */
 function isFiltered(el) {
   for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement) {
     const style = getComputedStyle(a)
-    if (style.filter !== 'none' || style.mixBlendMode !== 'normal' || (style.backdropFilter || 'none') !== 'none')
+    if (
+      style.filter !== 'none' ||
+      style.mixBlendMode !== 'normal' ||
+      (style.backdropFilter || 'none') !== 'none' ||
+      style.backgroundBlendMode.split(',').some((m) => m.trim() !== 'normal')
+    )
       return true
   }
   return false
@@ -1244,6 +1277,7 @@ const IN_PAGE = [
   bordersPaint,
   paintsAny,
   pixelsIn,
+  imageOutset,
   outerReach,
   reachIndex,
   paintsOf,
