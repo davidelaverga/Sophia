@@ -41,11 +41,11 @@ M35 a write is begun only while the delivery still holds the lease (plugin, WBC-
 M36 the status a settlement restores is the one of the latest control received (plugin, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
 M37 the binding tells an update the worker stopped waiting for (the pin RPC timeout, -32003) from the host error answer (plugin bind.test.ts, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
 M38 time alone never finishes a write the host never answered (plugin, WBC-02-CX-0017): FAILS as it should
-M39 a fenced write is finished and settled (plugin, WBC-02-CX-0017, CX-0020): FAILS as it should
-M40 a host process that cannot be read names nothing, so nothing is fenced on a guess (plugin bind.ts, WBC-02-CX-0017, CX-0020): FAILS as it should
+M39 a write the operator fenced is finished and settled (plugin, WBC-02-CX-0017, CX-0020, CX-0024): FAILS as it should
+M40 a host process that cannot be read names nothing (plugin bind.ts, WBC-02-CX-0017, CX-0020): FAILS as it should
 M41 the host process is named by its pid and start time, so a restart on a reused pid is told apart (plugin bind.ts, WBC-02-CX-0017): FAILS as it should
-M42 another host process serving now is no proof the recorded one is gone (plugin, WBC-02-CX-0020): FAILS as it should
-M43 a write recorded in another namespace is never fenced by the plugin (plugin, WBC-02-CX-0020): FAILS as it should
-M44 a /proc entry that cannot be read is no proof a process is gone (plugin bind.ts, WBC-02-CX-0020): FAILS as it should
+M42 a recorded host identity finishes no write: the plugin never fences one itself (plugin, WBC-02-CX-0020, CX-0024): FAILS as it should
+M43 the operator fence refuses while a session of the previous instance remains (deploy/paperclip/fence-previous-instance.sql on PostgreSQL, WBC-02-CX-0024): FAILS as it should
+M44 ending the previous sessions rolls back what they had not committed (deploy/paperclip/fence-previous-instance.sql on PostgreSQL, with a killed client whose statement waits on a lock, WBC-02-CX-0024): FAILS as it should
 M45 a run asks again for its permit while Sophia does not answer (adapter, the reachability of WBC-02-CX-0015): FAILS as it should
 M46 a permit Sophia refused is never asked again (adapter, the reachability of WBC-02-CX-0015): FAILS as it should
