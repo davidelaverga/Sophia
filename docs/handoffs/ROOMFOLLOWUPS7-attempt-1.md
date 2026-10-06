@@ -20,6 +20,8 @@ Codex's automatic review of the first head (`02b7b3c`) found two P2s, both fixed
 - **A Leave before Search can tell opened a second recap of the running meeting** (r4200242782). A sheet now says what it recaps (`recapping`): running, past, or can't tell yet. It goes by its recap once read, else by its opener, and a recap that can't be read is past. A leave's recap waits while any sheet can't tell (`onLeave`, `useLeftCall`), so an unknown sheet neither takes nor doubles it.
 - **A remounted room reused a call's number** (review 5434386199). `room.call` restarted at 0 with each mount of the room, so a later call could find the following kept under an earlier one's key. Call numbers now come from one page-wide counter (`newCall`), so they are never reused.
 
+Codex's review of the second head (`a99112f8`) found one more P2, fixed in the third content commit. A sheet whose reads both failed was taken as past (r4200383277), so a Leave from the running meeting's sheet still opened a second, failed recap. A failed read says nothing about the meeting, so such a sheet now stays unknown. The leave's recap waits for a read that tells (the sheet's Try again) or for the sheet to close.
+
 ## Evidence
 
 Node 24.21.0, pnpm 11.7.0, Chromium (the container's pre-installed build, through a local-only Playwright wrapper config, since the pinned Playwright expects a newer build). The results below come from the working tree on `1b4e08d`, before the move to `acd394a`. The exact commit's results are in the PR, not here. Mutants were run by swapping a file in place and putting it back (each restored file compared byte for byte). A full-suite run that overlapped them was stopped and discarded.
@@ -41,9 +43,20 @@ Node 24.21.0, pnpm 11.7.0, Chromium (the container's pre-installed build, throug
 - **Gates:** `pnpm check` and the full Studio browser suite, on the exact commit, as recorded in the PR.
 
 The second content commit (Codex's two P2s on #138) was written in an isolated worktree, so the suite still running on `02b7b3c` was not disturbed. What has run on it, before publication:
-- **Units:** 14 in `recap-view.test.ts` and `new-call.test.ts`. They cover `recapping` (true, false or unknown, and failed is past) and `leaveRecap` (wait; open or not as the sheet tells; open once it closes; a second leave takes the wait over). They also check that `newCall` never repeats.
+- **Units:** 14 in `recap-view.test.ts` and `new-call.test.ts`. They cover `recapping` (true, false or unknown) and `leaveRecap` (wait; open or not as the sheet tells; open once it closes; a second leave takes the wait over). They also check that `newCall` never repeats. In the third content commit, a failed read is unknown, not past.
 - **Gates:** `tsc` and `oxlint --type-aware .`.
 - **Pending at publication:** the new browser checks and their mutants, `pnpm check`, and the full browser suite on that commit. They run once the port is free, and their outcomes are reported on the PR.
+
+On the third content commit (`e895a4d6`), before publication:
+- **Browser:** `room-search.spec.ts` passed 14/14. The run used the fix worktree with that commit's content, the container's Chromium and a local-only wrapper config.
+- **Browser mutants,** run on a separate mutation worktree at `e895a4d6` and restored to clean:
+  - unknown taken as past: 5 controls fail;
+  - unknown taken as running: 3 fail;
+  - the second head's failed-as-past: the double-failure control fails.
+- **Gates:** units (`recap-view.test.ts` 13/13), `tsc` and `oxlint`.
+- **Pending at publication:** `pnpm check` and the full browser suite on this head, run on a clean worktree.
+
+The first head (`02b7b3c`), alone in the main tree: the full browser suite passed 781/781. Its `pnpm check` passed every step through 1509 units, then failed at `pnpm artifacts`. The cause was 4 identity mismatches from stale ignored outputs (`packages/dsh-bundle/dist/review-{prompt,tools}.{js,d.ts}`), left by the held #107 branch; this branch has no source for them.
 
 **Source-register IDs consulted:** none.
 
