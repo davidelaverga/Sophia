@@ -128,6 +128,8 @@ interface Fixture {
   conversationMoves: () => void
   /** The brief's reads fail, or read again. */
   failMission: (on: boolean) => void
+  /** The running meeting closes (another member closed it), and the feed moves (chapter 7's update). */
+  endMeeting: () => void
   /** The project list's reads fail, or read again (chapter 1). */
   failProjects: (on: boolean) => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
@@ -334,11 +336,15 @@ const project = {
   },
   // A12: the meeting this visit is, its recap built from what happens on the page (meeting-data.ts).
   // `meeting=earlier`: the running meeting began 12 minutes before the page, so joining is joining late.
-  meeting: newMeeting(
-    () => meetingRecords(),
-    () => asked.includes('connect'),
-    query.get('meeting') === 'earlier' ? Date.now() - 12 * 60_000 - 5_000 : Date.now(),
-  ),
+  // `meetings=none`: none before this one, so none closed yet (chapter 7's update has nothing to build from).
+  meeting: {
+    ...newMeeting(
+      () => meetingRecords(),
+      () => asked.includes('connect'),
+      query.get('meeting') === 'earlier' ? Date.now() - 12 * 60_000 - 5_000 : Date.now(),
+    ),
+    noPast: query.get('meetings') === 'none',
+  },
   notes: {
     kept: [],
     written: 0,
@@ -449,6 +455,11 @@ window.fixture = {
   },
   failMission: (on) => {
     project.missionFails = on
+  },
+  endMeeting: () => {
+    project.meeting.closedAt = new Date().toISOString()
+    project.meeting.atClose = project.meeting.records()
+    publish(project)
   },
   failProjects: (on) => {
     project.projectsFail = on
