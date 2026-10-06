@@ -1526,7 +1526,7 @@ describe('the confined capture kernel', () => {
       assert.match(await sweep(nine.join(' ')), /^failed: 9 width breakpoints/u)
       assert.match(
         await sweep('@media (min-width: 600px){p{color:#111}}', { sweepMs: 1 }),
-        /^failed: \d+ band ends not measured within 0.001 s/u,
+        /^failed: the changes of a container's lines inside the bands were not found within the sweep's time; \d+ band ends not measured within 0.001 s$/u,
       )
       assert.match(
         await sweep('@media (min-width: 600px){p{color:#111}}'),
