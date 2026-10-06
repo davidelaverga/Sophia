@@ -573,3 +573,19 @@ describe('review of 9130676: a start’s duration and its runtime configuration 
   })
 })
 
+
+describe('review of 5446719: the job’s limit outlasts every step’s own budget', () => {
+  const WORKFLOW = fileURLToPath(new URL('../../.github/workflows/paperclip-image.yml', import.meta.url))
+
+  it('every step has a budget of its own, and the job outlasts their sum, so receipt, scrub, upload and clean-up run', () => {
+    const job = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image
+    for (const step of job.steps) {
+      const budget = step['timeout-minutes']
+      assert.ok(Number.isInteger(budget) && budget > 0, `${step.name ?? step.uses} has no budget of its own`)
+    }
+    const sum = job.steps.reduce((total, step) => total + step['timeout-minutes'], 0)
+    // Room for what no step budget covers: the job's set-up (the database service) and the actions' post steps.
+    assert.ok(job['timeout-minutes'] >= sum + 15, `the job's ${job['timeout-minutes']} minutes; the steps' budgets ${sum}`)
+    assert.ok(job['timeout-minutes'] <= 360, 'a GitHub-hosted runner ends any job at 360 minutes')
+  })
+})
