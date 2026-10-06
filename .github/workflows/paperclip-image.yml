@@ -47,10 +47,10 @@ jobs:
   image:
     name: Paperclip image under a 2 GiB cgroup
     runs-on: ubuntu-24.04
-    # Above the sum of every step's own budget (299 minutes), so a slow step that stays within its budget fails as
+    # Above the sum of every step's own budget (304 minutes), so a slow step that stays within its budget fails as
     # that step, and the receipt, scrub, upload and clean-up still run after it; the job's limit never ends the job
     # first (WBC-02, Codex review of 5446719). The unit tests hold this sum.
-    timeout-minutes: 315
+    timeout-minutes: 320
     services:
       # For scripts/paperclip-verify.mjs (the built worker under the pin's harness), as the database job has it.
       postgres:
@@ -195,16 +195,18 @@ jobs:
       #   container start or restart  450 s  (health window 300, one last read and check 27, log 60, inspects 20)
       #   container remove            150 s  (docker rm 120)
       #   cgroup sample               150 s  (two inspects 40, five files at most 50, stats 20)
-      #   service probe               660 s  (its own deadline 600)
+      #   service probe, first phase  960 s  (its own deadline 900: the health wait 300, the plugin ready 60, a settle
+      #                                         run 150, sixteen requests of 20, and 30 over; Codex review of 63a929a)
+      #   service probe, later phases 660 s  (its own deadline 600, above the 490 and 510 they permit)
       #   home snapshot               240 s  (two inspects 40, pause 20, scan 120, unpause 20)
       #   home compare                 60 s  (two local files)
       - name: First start, the installed plugin's flow, idle
-        timeout-minutes: 33
+        timeout-minutes: 38
         run: |
           timeout 450 node sophia/scripts/paperclip-image-container.mjs start first
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:healthy "$EVIDENCE/cgroup.jsonl"
-          timeout 660 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase first \
-            --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-first.json" --wait-ms 300000 --deadline-ms 600000
+          timeout 960 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase first \
+            --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-first.json" --wait-ms 300000 --deadline-ms 900000
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:after-flow "$EVIDENCE/cgroup.jsonl"
           timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-before.json"
           sleep 60

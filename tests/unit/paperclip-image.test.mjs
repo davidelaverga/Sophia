@@ -17,6 +17,7 @@ import { parse } from 'yaml'
 import { compareSnapshots, coverageOf, EMPTY_SHA256, scan } from '../../scripts/paperclip-image-home.mjs'
 import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS, STARTS } from '../../scripts/paperclip-image-receipt.mjs'
 import { redact, scrubDir, secretValues } from '../../scripts/paperclip-image-redact.mjs'
+import { minimumDeadlineMs } from '../../scripts/paperclip-probe-url.mjs'
 
 const CANDIDATE = 'a'.repeat(40)
 const PIN = '5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb'
@@ -1070,5 +1071,36 @@ describe('review of 98d114d: each probe phase records the HTTP status health ans
 
   it('a 200 whose body reports another status fails too', () => {
     assert.equal(verdictOf(withFacts('restarted', 'health', (f) => ({ ...f, status: 'starting' }))), 'failed')
+  })
+})
+
+describe('review of 63a929a: each probe phase’s deadline covers every limit the phase permits', () => {
+  const WORKFLOW = fileURLToPath(new URL('../../.github/workflows/paperclip-image.yml', import.meta.url))
+
+  it('each probe command runs under a deadline of at least its phase’s limits, and a bound above that deadline', () => {
+    const steps = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image.steps
+    const commands = steps
+      .flatMap((s) => (s.run ?? '').replace(/\\\n\s*/g, ' ').split('\n'))
+      .map((l) => l.trim())
+      .filter((l) => l.includes('paperclip-service-probe.mjs'))
+    const flag = (command, name) => Number(new RegExp(`--${name} (\\d+)(?: |$)`).exec(command)?.[1])
+    const phases = []
+    for (const command of commands) {
+      const phase = /--phase (\w+)/.exec(command)?.[1]
+      phases.push(phase)
+      const deadline = flag(command, 'deadline-ms')
+      const minimum = minimumDeadlineMs(phase, flag(command, 'wait-ms'))
+      assert.ok(deadline >= minimum, `${phase}: a deadline of ${deadline} ms, below the ${minimum} ms its limits permit`)
+      const bound = Number(/^timeout (\d+) /.exec(command)?.[1])
+      // Node's start and the result's write, outside the probe's own deadline.
+      assert.ok(bound * 1000 >= deadline + 60_000, `${phase}: a bound of ${bound} s for a deadline of ${deadline} ms`)
+    }
+    assert.deepEqual(phases, ['first', 'restart', 'restarted'])
+  })
+
+  it('the first phase permits more than 600 s: the health wait, the plugin ready, a settle run, sixteen requests', () => {
+    assert.equal(minimumDeadlineMs('first', 300_000), 860_000)
+    assert.equal(minimumDeadlineMs('restart', 300_000), 490_000)
+    assert.equal(minimumDeadlineMs('restarted', 300_000), 510_000)
   })
 })

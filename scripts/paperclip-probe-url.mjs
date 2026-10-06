@@ -16,9 +16,31 @@
 // the container is closed, so this qualifies the installed plugin and the container, not a native dispatch.
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
-import { flowFor, loopbackOrigin, newIdentity, until } from './paperclip-probe-flow.mjs'
+import { flowFor, loopbackOrigin, newIdentity, PLUGIN_READY_MS, REQUEST_TIMEOUT_MS, SETTLE_RUN_MS, until } from './paperclip-probe-flow.mjs'
 
 const STATE_SCHEMA = 'sophia.paperclip-probe-state.v1'
+
+/**
+ * What each phase may take, from the limits its steps run under: besides the health wait (--wait-ms), each other bounded
+ * wait (the plugin ready; a scheduled settle run) and each single request, at REQUEST_TIMEOUT_MS. A wait polls; a
+ * request is one exchange. The unit tests count both against a stand-in server, phase by phase.
+ */
+export const PHASE_LIMITS = Object.freeze({
+  first: Object.freeze({ waits: [PLUGIN_READY_MS, SETTLE_RUN_MS], requests: 16 }),
+  restart: Object.freeze({ waits: [PLUGIN_READY_MS], requests: 5 }),
+  restarted: Object.freeze({ waits: [PLUGIN_READY_MS], requests: 6 }),
+})
+/** What no limit bounds (signing, the state and result files, the event loop), left over above the limits. */
+export const DEADLINE_SLACK_MS = 30_000
+
+/**
+ * The shortest deadline a phase may run under: the sum of every limit it permits, and the slack. A shorter one could
+ * end a probe that is slow but within each of its limits, and is refused (Codex review of 63a929a).
+ */
+export function minimumDeadlineMs(phase, waitMs) {
+  const { waits, requests } = PHASE_LIMITS[phase]
+  return waitMs + waits.reduce((sum, ms) => sum + ms, 0) + requests * REQUEST_TIMEOUT_MS + DEADLINE_SLACK_MS
+}
 
 /**
  * Where the probe's credentials go: each, once, a line of `path` (created mode 600), and in a GitHub Actions job a mask
@@ -42,7 +64,11 @@ export async function runUrl(values) {
   if (!values.secrets) throw new Error('--secrets <file> is required: the evidence scrub removes what it lists')
   const onSecret = secretSink(values.secrets)
   const waitMs = Number(values['wait-ms'] ?? 300_000)
-  const deadlineMs = Number(values['deadline-ms'] ?? 600_000)
+  if (!Number.isSafeInteger(waitMs) || waitMs <= 0) throw new Error('--wait-ms must be a positive whole number of milliseconds')
+  const minimum = minimumDeadlineMs(phase, waitMs)
+  const deadlineMs = Number(values['deadline-ms'] ?? minimum)
+  if (!Number.isSafeInteger(deadlineMs) || deadlineMs < minimum)
+    throw new Error(`--deadline-ms must cover what the ${phase} phase permits: at least ${minimum} ms with --wait-ms ${waitMs}`)
   const result = { schema: 'sophia.paperclip-probe-result.v1', phase, origin: target.origin, steps: [], outcome: 'running' }
   const write = () =>
     values.out ? writeFileSync(values.out, `${JSON.stringify(result, null, 2)}\n`) : console.log(JSON.stringify(result, null, 2))
@@ -139,7 +165,7 @@ async function restarted(target, statePath, waitMs, step, { signUpClosed }) {
   await step('health', () => until('the server to report ready', flow.health, waitMs), (h) => ({ httpStatus: h.httpStatus, status: h.status }))
   await step(
     'plugin ready again',
-    () => until('the plugin to be ready', async () => ((await flow.pluginStatus(op, ids.pluginId)) === 'ready' ? 'ready' : null), 60_000),
+    () => until('the plugin to be ready', async () => ((await flow.pluginStatus(op, ids.pluginId)) === 'ready' ? 'ready' : null), PLUGIN_READY_MS),
     (status) => ({ pluginId: ids.pluginId, status }),
   )
   await step(

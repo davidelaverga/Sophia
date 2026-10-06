@@ -12,6 +12,9 @@ export const PRIVATE_NAME = 'paperclip-private'
 /** How the pin's auth (better-auth 1.7.2, sign-up.mjs) refuses an email sign-up while sign-up is disabled. */
 export const SIGN_UP_DISABLED = Object.freeze({ status: 400, code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' })
 export const REQUEST_TIMEOUT_MS = 20_000
+/** How long the plugin may take to be ready after its install or a restart, and a scheduled settle run to succeed. */
+export const PLUGIN_READY_MS = 60_000
+export const SETTLE_RUN_MS = 150_000
 
 export const hex = (bytes) => randomBytes(bytes).toString('hex')
 export const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
@@ -134,7 +137,7 @@ export function flowFor(
     const ready = await until(
       'the plugin to be ready',
       async () => ((await pluginStatus(op, ids.pluginId)) === 'ready' ? 'ready' : null),
-      60_000,
+      PLUGIN_READY_MS,
     )
     const configJson = {
       signingPublicKey: sophia.publicKey.export({ type: 'spki', format: 'pem' }).toString(),
@@ -201,7 +204,7 @@ export function flowFor(
         const runs = (await call('GET', `/api/plugins/${pluginId}/jobs/${job.id}/runs`, { headers: auth(op) })).json
         return Array.isArray(runs) ? runs.find((r) => r.status === 'succeeded') : null
       },
-      150_000,
+      SETTLE_RUN_MS,
     )
   }
 

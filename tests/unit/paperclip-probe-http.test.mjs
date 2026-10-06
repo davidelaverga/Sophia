@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { flowFor, newIdentity } from '../../scripts/paperclip-probe-flow.mjs'
-import { secretSink } from '../../scripts/paperclip-probe-url.mjs'
+import { minimumDeadlineMs, PHASE_LIMITS, secretSink } from '../../scripts/paperclip-probe-url.mjs'
 
 const PENDING = 'pending'
 /** The promise's outcome, or PENDING if it has not settled within ms. */
@@ -187,7 +187,7 @@ describe('every credential the probe makes or is given is handed over for the sc
     try {
       const probe = fileURLToPath(new URL('../../scripts/paperclip-service-probe.mjs', import.meta.url))
       const args = ['--url', `http://127.0.0.1:${port}`, '--phase', 'first', '--state', join(dir, 'state.json')]
-      const child = spawn(process.execPath, [probe, ...args, '--secrets', join(dir, 'secrets.txt'), '--out', join(dir, 'out.json'), '--wait-ms', '3000', '--deadline-ms', '20000'], {
+      const child = spawn(process.execPath, [probe, ...args, '--secrets', join(dir, 'secrets.txt'), '--out', join(dir, 'out.json'), '--wait-ms', '3000', '--deadline-ms', '600000'], {
         env: { ...process.env, GITHUB_ACTIONS: '' },
       })
       const code = await settledWithin(new Promise((done) => child.on('exit', done)), 25_000)
@@ -225,40 +225,40 @@ describe('every credential the probe makes or is given is handed over for the sc
 })
 
 
+const PROBE = fileURLToPath(new URL('../../scripts/paperclip-service-probe.mjs', import.meta.url))
+const CONFIG = { coordinationUrl: 'http://127.0.0.1:9' }
+
+/** A stand-in for a restarted server holding the first phase's plugin, configuration and issue. */
+const restartedServer = (calls) =>
+  serve((req, res) => {
+    req.resume()
+    req.on('end', () => {
+      calls.push(`${req.method} ${req.url.split('?')[0]}`)
+      const host = req.headers.host ?? ''
+      const json = (status, body) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body))
+      if (req.url === '/api/health') return host.startsWith('evil.example') ? json(403, {}) : json(200, { status: 'ok' })
+      if (req.url === '/api/plugins/plugin-1') return json(200, { status: 'ready' })
+      if (req.url.startsWith('/api/plugins/plugin-1/config')) return json(200, { configJson: CONFIG })
+      if (req.url === '/api/plugins/sophia.coordination/api/commissions/lookup')
+        return json(200, { outcome: 'found', issueId: 'issue-1', status: 'cancelled' })
+      if (req.url === '/api/plugins/sophia.coordination/api/commissions') return json(200, { outcome: 'existing', issueId: 'issue-1' })
+      if (req.url === '/api/auth/sign-up/email') return json(400, { code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' })
+      json(404, {})
+    })
+  })
+
+const runPhase = async (port, dir, phase, deadlineMs = '600000') => {
+  const out = join(dir, `${phase}.json`)
+  const args = ['--url', `http://127.0.0.1:${port}`, '--phase', phase, '--state', join(dir, 'state.json'), '--secrets', join(dir, 'secrets.txt')]
+  const child = spawn(process.execPath, [PROBE, ...args, '--out', out, '--wait-ms', '3000', '--deadline-ms', deadlineMs], {
+    env: { ...process.env, GITHUB_ACTIONS: '' },
+  })
+  const code = await settledWithin(new Promise((done) => child.on('exit', done)), 25_000)
+  assert.notEqual(code, PENDING, `the ${phase} phase ended`)
+  return { code: code.value, result: JSON.parse(readFileSync(out, 'utf8')) }
+}
+
 describe('review of 9ee7754: the restart phase checks what persists, and leaves sign-up alone', () => {
-  const PROBE = fileURLToPath(new URL('../../scripts/paperclip-service-probe.mjs', import.meta.url))
-  const CONFIG = { coordinationUrl: 'http://127.0.0.1:9' }
-
-  /** A stand-in for a restarted server holding the first phase's plugin, configuration and issue. */
-  const restartedServer = (calls) =>
-    serve((req, res) => {
-      req.resume()
-      req.on('end', () => {
-        calls.push(`${req.method} ${req.url.split('?')[0]}`)
-        const host = req.headers.host ?? ''
-        const json = (status, body) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body))
-        if (req.url === '/api/health') return host.startsWith('evil.example') ? json(403, {}) : json(200, { status: 'ok' })
-        if (req.url === '/api/plugins/plugin-1') return json(200, { status: 'ready' })
-        if (req.url.startsWith('/api/plugins/plugin-1/config')) return json(200, { configJson: CONFIG })
-        if (req.url === '/api/plugins/sophia.coordination/api/commissions/lookup')
-          return json(200, { outcome: 'found', issueId: 'issue-1', status: 'cancelled' })
-        if (req.url === '/api/plugins/sophia.coordination/api/commissions') return json(200, { outcome: 'existing', issueId: 'issue-1' })
-        if (req.url === '/api/auth/sign-up/email') return json(400, { code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' })
-        json(404, {})
-      })
-    })
-
-  const runPhase = async (port, dir, phase) => {
-    const out = join(dir, `${phase}.json`)
-    const args = ['--url', `http://127.0.0.1:${port}`, '--phase', phase, '--state', join(dir, 'state.json'), '--secrets', join(dir, 'secrets.txt')]
-    const child = spawn(process.execPath, [PROBE, ...args, '--out', out, '--wait-ms', '3000', '--deadline-ms', '20000'], {
-      env: { ...process.env, GITHUB_ACTIONS: '' },
-    })
-    const code = await settledWithin(new Promise((done) => child.on('exit', done)), 25_000)
-    assert.notEqual(code, PENDING, `the ${phase} phase ended`)
-    return { code: code.value, result: JSON.parse(readFileSync(out, 'utf8')) }
-  }
-
   it('restart: the same plugin, configuration and issue, the resend answered by it, the host-name guard; no sign-up', async () => {
     const calls = []
     const port = await restartedServer(calls)
@@ -287,6 +287,98 @@ describe('review of 9ee7754: the restart phase checks what persists, and leaves 
       assert.equal(recreated.code, 0, JSON.stringify(recreated.result))
       assert.equal(recreated.result.steps.at(-2).step, 'sign-up refused')
       assert.ok(calls.includes('POST /api/auth/sign-up/email'))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('review of 63a929a: a phase’s deadline is never shorter than what its limits permit', () => {
+  /** A stand-in answering each request of all three phases at once, each wait on its first poll; sign-up closes when told. */
+  const lifecycleServer = (calls, life) =>
+    serve((req, res) => {
+      let text = ''
+      req.on('data', (chunk) => (text += chunk))
+      req.on('end', () => {
+        const path = req.url.split('?')[0]
+        calls.push(`${req.method} ${path}`)
+        const host = req.headers.host ?? ''
+        const json = (status, body, headers = {}) =>
+          res.writeHead(status, { 'content-type': 'application/json', ...headers }).end(JSON.stringify(body))
+        if (path === '/api/health') return host.startsWith('evil.example') ? json(403, {}) : json(200, { status: 'ok' })
+        if (path === '/api/auth/sign-up/email')
+          return life.signUpClosed
+            ? json(400, { code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' })
+            : json(200, { user: { id: 'user-1' } }, { 'set-cookie': ['better-auth.session_token=cookie-1234; Path=/'] })
+        if (path === '/api/bootstrap/claim') return json(200, {})
+        if (path === '/api/board-api-keys') return json(201, { token: 'pcp_board-key-1234567890' })
+        if (path === '/api/companies') return json(201, { id: 'company-1' })
+        if (path === '/api/companies/company-1/projects') return json(201, { id: 'project-1' })
+        if (path === '/api/plugins/install') return json(200, { id: 'plugin-1' })
+        if (path === '/api/plugins/plugin-1') return json(200, { status: 'ready' })
+        if (path === '/api/plugins/plugin-1/config') {
+          if (req.method === 'POST') life.config = JSON.parse(text).configJson
+          return json(200, req.method === 'POST' ? {} : { configJson: life.config })
+        }
+        if (path === '/api/plugins/sophia.coordination/api/commissions')
+          return json(200, { outcome: life.commissions++ === 0 ? 'created' : 'existing', issueId: 'issue-1' })
+        if (path === '/api/plugins/sophia.coordination/api/issues/issue-1/control')
+          return json(200, { outcome: life.stops++ === 0 ? 'applied' : 'already', status: 'cancelled', issueId: 'issue-1' })
+        if (path === '/api/plugins/plugin-1/jobs') return json(200, [{ id: 'job-1', jobKey: 'settle-status-writes' }])
+        if (path === '/api/plugins/plugin-1/jobs/job-1/runs') return json(200, [{ id: 'run-1', status: 'succeeded' }])
+        if (path === '/api/plugins/sophia.coordination/api/commissions/lookup')
+          return json(200, { outcome: 'found', issueId: 'issue-1', status: 'cancelled' })
+        json(404, {})
+      })
+    })
+
+  it('each phase makes exactly the requests its limits count, one poll for each wait and for health; its minimum suffices', async () => {
+    const calls = []
+    const life = { signUpClosed: false, commissions: 0, stops: 0 }
+    const port = await lifecycleServer(calls, life)
+    const dir = mkdtempSync(join(tmpdir(), 'pc-limits-'))
+    try {
+      for (const phase of ['first', 'restart', 'restarted']) {
+        life.signUpClosed = phase === 'restarted'
+        const before = calls.length
+        const run = await runPhase(port, dir, phase, String(minimumDeadlineMs(phase, 3000)))
+        assert.equal(run.code, 0, JSON.stringify(run.result))
+        assert.equal(run.result.outcome, 'passed')
+        const { requests, waits } = PHASE_LIMITS[phase]
+        const made = calls.slice(before)
+        assert.equal(made.length, requests + waits.length + 1, `${phase}: ${made.join(', ')}`)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('a deadline shorter than its phase permits, or none a number, is refused before the server is reached', async () => {
+    const calls = []
+    const port = await lifecycleServer(calls, { signUpClosed: false, commissions: 0, stops: 0 })
+    const dir = mkdtempSync(join(tmpdir(), 'pc-short-'))
+    try {
+      for (const [phase, wait, deadline] of [
+        ['first', 3000, String(minimumDeadlineMs('first', 3000) - 1)],
+        ['first', 300_000, '600000'], // the workflow's first phase before this review
+        ['restart', 3000, String(minimumDeadlineMs('restart', 3000) - 1)],
+        ['restarted', 3000, String(minimumDeadlineMs('restarted', 3000) - 1)],
+        ['first', 3000, 'soon'],
+      ]) {
+        const out = join(dir, 'out.json')
+        const args = ['--url', `http://127.0.0.1:${port}`, '--phase', phase, '--state', join(dir, 'state.json'), '--secrets', join(dir, 'secrets.txt')]
+        const child = spawn(process.execPath, [PROBE, ...args, '--out', out, '--wait-ms', String(wait), '--deadline-ms', deadline], {
+          env: { ...process.env, GITHUB_ACTIONS: '' },
+        })
+        let stderr = ''
+        child.stderr.on('data', (chunk) => (stderr += chunk))
+        const code = await settledWithin(new Promise((done) => child.on('close', done)), 25_000)
+        assert.notEqual(code, PENDING, `${phase} ${deadline}: the probe ended`)
+        assert.notEqual(code.value, 0, `${phase} ${deadline}: refused`)
+        assert.match(stderr, new RegExp(`--deadline-ms must cover what the ${phase} phase permits: at least ${minimumDeadlineMs(phase, wait)} ms`))
+        assert.deepEqual(calls, [], `${phase} ${deadline}: the server was not reached`)
+        assert.throws(() => statSync(out), /ENOENT/, 'no result is written for a run that never began')
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
