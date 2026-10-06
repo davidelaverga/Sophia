@@ -9,6 +9,7 @@ import { focusSoon } from './focus.ts'
 import { Memory } from './Memory.tsx'
 import { membersLabel } from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
+import { CarryPackage, type PackWrites } from './CarryPackage.tsx'
 
 interface Props {
   /** Undefined until the space has loaded: nothing is said of them before (never "No notes yet"). */
@@ -26,6 +27,8 @@ interface Props {
   memory?: Remembered | undefined
   /** Under a talk: out of reach until it ends. */
   under?: boolean
+  /** The writes a reviewed package uses (CarryPackage), under the vision flag; absent, only the single Carry. */
+  pack?: PackWrites | undefined
 }
 
 /** How long a carried note takes to slide across before it leaves the list. */
@@ -140,6 +143,7 @@ export function NotesPanel(props: Props) {
         </button>
       </header>
       {props.memory && <Memory {...props.memory} />}
+      <Package {...props} />
       {props.memory && props.memory.items.length > 0 && notes !== undefined && <h3 className="c3-label">Your notes</h3>}
       {notes?.length === 0 && <p className="ps-empty">{NOTES_EMPTY}</p>}
       {notes?.map((note) => (
@@ -173,5 +177,37 @@ export function NotesPanel(props: Props) {
         </div>
       ))}
     </aside>
+  )
+}
+
+/**
+ * «Review what to carry»: a package of notes to one project, reviewed before it goes (Davide's chapter 1). Offered
+ * where there is a note and a project to carry it to; the package replaces the button while it is open.
+ */
+function Package({ notes, projects, pack }: Props) {
+  const [open, setOpen] = useState(false)
+  if (!pack) return null
+  // Open, it stays whatever the list holds: carried notes leave it, and the package says what went.
+  if (open) {
+    return (
+      <CarryPackage
+        notes={notes ?? []}
+        projects={projects ?? []}
+        writes={pack}
+        onClose={() => {
+          setOpen(false)
+          // Back to Review what to carry; with no note left to carry, to the notes themselves, never the page.
+          requestAnimationFrame(() =>
+            (document.querySelector<HTMLElement>('[data-pack-open]') ?? document.getElementById('c-notes'))?.focus(),
+          )
+        }}
+      />
+    )
+  }
+  if (!notes?.length || !projects?.length) return null
+  return (
+    <button type="button" className="ghost c3-pack-open" data-pack-open onClick={() => setOpen(true)}>
+      Review what to carry
+    </button>
   )
 }
