@@ -4,11 +4,13 @@ Goal and attempt: connections, shown before anything connects (`docs/plans/proje
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `project/connections` on `main` `7979251`, 2026-10-06
-Ending commit/tree: three commits on `project/connections`, read one by one (a merge ref or a squash folds them into one):
+Ending commit/tree: five commits on `project/connections`, read one by one (a merge ref or a squash folds them into one):
 
 - `bbd5561` «Project: connections, shown before anything connects (Davide's chapter 7)», the content;
 - `ff3433d` «Connections: the review's P3s»;
-- this handoff's own commit.
+- this handoff's own commit;
+- «Merge main into project/connections (#132, #135)»;
+- `76a0c29` «Connections: Codex on #136, and main merged (#133)».
 
 ## Outcome
 
@@ -44,13 +46,18 @@ Ending commit/tree: three commits on `project/connections`, read one by one (a m
   - a later failure beside a shown preview;
   - a stronger «nothing connected» check, plus the policy row.
 
+**Codex, on the PR:**
+
+- one P1, fixed: the cards' class `.connection` was the project head's status (theme.css), and each styled the other. The cards' classes are now their own (`conn-*`), with a check that the section holds no `.connection`;
+- two P2s, fixed: Try again reads again whatever failed (the list, the recap, or both); the update's source is read again as the feed moves, so a meeting closed meanwhile is the newest closed one (checked with the fixture's `endMeeting`).
+
 ## Evidence
 
 The machine was free (no game open, 18 GB free); every run went through the guard at its default floor.
 
 - **Browser:** `project-connections.spec.ts`, 8 of 8, on a freshly started fixture server. The server was restarted twice: a stale import resolution after many branch switches, then a file watcher that stopped seeing changes. The first passing run had possibly read stale code, so it was run again.
 - **Unit:** `update-text.test.ts`, 3 of 3.
-- **Mutations:** 6 of 6 killed, and the control survives:
+- **Mutations:** 9 of 9 killed, and the controls survive (three more after Codex: not read again as the feed moves, Try again reading the list only, the cards taking the head's class):
   - what is still open going unchosen;
   - the running meeting used;
   - a box that changes nothing;
