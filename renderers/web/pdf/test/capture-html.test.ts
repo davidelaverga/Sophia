@@ -230,6 +230,14 @@ describe('the capture plan (pure)', () => {
     const over = at([framed('text 1 h2')], 3)
     assert.equal(over.blocks_visible?.[0], 'failed')
     assert.match(String(over.blocks_visible?.[1]), new RegExp(`3 more .* than the ${String(MAX_MEASURED)} measured`))
+    const unreached = Object.fromEntries(
+      targetChecks(CAPTURE_TARGETS['w390-light']!, measures([framed('text 1 h2')]), coverage, 0, 2).map((c) => [
+        c.name,
+        [c.outcome, c.detail],
+      ]),
+    )
+    assert.equal(unreached.blocks_visible?.[0], 'failed', 'a text the cover check did not reach is not seen')
+    assert.match(String(unreached.blocks_visible?.[1]), /^2 texts the cover check's \d+ points did not reach$/)
   })
 
   it('takes the marks that say nothing from the design profile, so both judge the same text (#117)', () => {
@@ -585,8 +593,93 @@ describe('the confined capture kernel', () => {
       )
       assert.equal(veiled.status, 'succeeded', JSON.stringify(veiled.error))
       assert.deepEqual(issuesOf(veiled, 'w1280-light').b1, ['covered'])
+      // Far down a long page: the protocol hit-tests what the viewport shows, in page coordinates.
+      const below = await captureHtml(
+        job(
+          page(
+            shapes,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+            <div style="height:3000px"></div><h2 class="over">Covered far below</h2></section></main>`,
+          ),
+          { targets: ['w1280-light'] },
+        ),
+        { env },
+      )
+      assert.equal(below.status, 'succeeded', JSON.stringify(below.error))
+      assert.deepEqual(below.targets[0]!.page.framing[1]?.issues, ['covered'])
       assert.deepEqual(veiled.targets[0]!.page.framing[0]?.issues, ['covered'])
       assert.equal(outcome(veiled, 'blocks_visible', 'w1280-light'), 'failed')
+    },
+  )
+
+  it(
+    'looks along every line of every text for a cover: a second line, the end of a line, the last line of a tall block (#117)',
+    { skip },
+    async () => {
+      const long = 'A long paragraph of the research, set on many lines at either width. '.repeat(60)
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} h2,p{position:relative} .fit{display:inline-block}
+            .lower{position:absolute;left:0;right:0;bottom:0;height:1.2em;background:#fafafa}
+            .right{position:absolute;right:0;top:0;bottom:0;width:25%;background:#fafafa}
+            .foot{position:absolute;left:0;right:0;bottom:0;height:1.4em;background:#fafafa}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+          <h2>Costs compared<br>Host three is free<span class="lower"></span></h2>
+          <h2 class="fit">Costs compared, and host three is free<span class="right"></span></h2>
+          <p data-block="b2">${long}<span class="foot"></span></p><h2>Sources</h2></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const measured = receipt.targets.find((t) => t.id === target)!.page
+        const issues = Object.fromEntries(measured.framing.map((m) => [m.id, m.issues]))
+        assert.deepEqual(issues['text 1 h2'], [], target)
+        assert.deepEqual(issues['text 2 h2'], ['covered'], `${target}: the second line is covered`)
+        assert.deepEqual(issues['text 3 h2'], ['covered'], `${target}: the end of the line is covered`)
+        assert.deepEqual(issues['text 4 h2'], [], target)
+        assert.deepEqual(issuesOf(receipt, target).b2, ['covered'], `${target}: the last line of a tall block`)
+        assert.deepEqual(issuesOf(receipt, target).b1, [])
+      }
+    },
+  )
+
+  it(
+    'fails text outside the blocks set too small to read, by size, scale or squeeze; small print and a small mark pass (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .tiny{font-size:3px} .shrunk{transform:scale(.2);transform-origin:left top}
+            .squash{transform:scaleX(.15);transform-origin:left top} .print{font-size:11px} .dot{font-size:6px}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+          <h2 class="tiny">Host three is free</h2><h2 class="shrunk">Host three is free</h2>
+          <h2 class="squash">Host three is free</h2><h3 class="print">Prices as listed in May</h3>
+          <p class="dot">·</p></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const framing = receipt.targets.find((t) => t.id === target)!.page.framing
+        assert.deepEqual(
+          framing.map((m) => [m.id, m.issues.includes('no_visible_text')]),
+          [
+            ['text 1 h2', false],
+            ['text 2 h2', true],
+            ['text 3 h2', true],
+            ['text 4 h2', true],
+            ['text 5 h3', false],
+          ],
+          `${target}: the separator is not measured; small print is read`,
+        )
+        const detail = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === target)?.detail ?? ''
+        assert.equal(detail, 'text 2 h2, text 3 h2, text 4 h2', target)
+      }
     },
   )
 

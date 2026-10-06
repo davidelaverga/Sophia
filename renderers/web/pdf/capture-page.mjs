@@ -16,8 +16,9 @@
  * @typedef {{ width: number, height: number, viewportWidth: number, viewportHeight: number,
  *   overflowPx: number, overflowing: { element: string, rightPx: number }[], sections: ({ id: string } & Box)[],
  *   blocks: BlockMeasure[], shown: BlockMeasure[], framing: BlockMeasure[] }} PageMeasure
- * @typedef {BlockMeasure & { probe: { x: number, y: number } | null }} ProbedMeasure a measure, and the point the
- *   DevTools protocol is to hit-test when only it can tell what is drawn over the text (coverOf; capture-html strips it)
+ * @typedef {BlockMeasure & { probes: { x: number, y: number }[], unsampled: boolean }} ProbedMeasure a measure, the
+ *   points the DevTools protocol is to hit-test where only it can tell what is drawn over the text (coverOf), and
+ *   whether the page's budget of points ran out before its text was looked at; capture-html strips both
  * @typedef {Omit<PageMeasure, 'blocks' | 'shown' | 'framing'> & { blocks: ProbedMeasure[], shown: ProbedMeasure[],
  *   framing: ProbedMeasure[], unmeasured: number }} PageAnswer the measure, and how many labels and texts outside the
  *   blocks it left out past the receipt's bound (the kernel fails the target on any)
@@ -25,6 +26,18 @@
 
 /** The most labels, and the most texts outside the blocks, a page's measure holds: the receipt's bound for each. */
 export const MAX_MEASURED = 4000
+
+/**
+ * The most points the cover check looks at on one page, at one target: along every line of every measured text, about
+ * an em apart. A page that needs more fails the target as unmeasured, never as seen (#117).
+ */
+export const MAX_POINTS = 200_000
+
+/**
+ * The smallest text outside the blocks a capture shows readably, as rendered: a line at least this tall, and glyphs
+ * this far apart on average. A heading set at 3px, or scaled down, measures as present and is read by no one (#117).
+ */
+export const READABLE = { linePx: 10, advancePx: 3 }
 
 /**
  * The marks that say nothing, as a character class: the design profile's list (@sophia/design css.ts, MARK_TEXT; a test
@@ -182,46 +195,46 @@ function keepScroll(el) {
 }
 
 /**
- * The first text an element shows, and the point in the middle of its first line (at most 40px in) where the cover
- * check looks, in the viewport; or null when it shows none.
- * @param {Element} el
- * @returns {{ holder: Element, x: number, y: number } | null}
+ * Whether a generated run is set inline beside its element's text, where it cannot reach over it: in the flow, on the
+ * baseline, untransformed, with no negative margin or spacing, and no larger than the text.
+ * @param {CSSStyleDeclaration} s the pseudo-element's style
+ * @param {number} size the text's font size
  */
-function firstText(el) {
-  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (!node.textContent?.trim() || !node.parentElement) continue
-    const range = document.createRange()
-    range.selectNodeContents(node)
-    const line = range.getClientRects()[0]
-    if (!line || line.width < 2 || line.height < 2) continue
-    return { holder: node.parentElement, x: line.left + Math.min(line.width / 2, 40), y: line.top + line.height / 2 }
-  }
-  return null
+function besideText(s, size) {
+  const spacing = [s.marginTop, s.marginRight, s.marginBottom, s.marginLeft, s.letterSpacing, s.wordSpacing]
+  const flow = s.display === 'inline' && s.position === 'static' && s.float === 'none'
+  const set = s.transform === 'none' && s.verticalAlign === 'baseline' && Number.parseFloat(s.fontSize) <= size
+  return flow && set && spacing.every((v) => !(Number.parseFloat(v) < 0))
 }
 
 /**
- * Whether an element draws generated content (::before or ::after), which hit-testing reports as the element itself.
- * @param {Element} el
+ * Whether the element holding a text draws ::before or ::after that could be drawn over it (anything but a run set
+ * beside it). A pseudo-element hit-tests as the element that draws it, so only the DevTools protocol can tell what is
+ * on top there (capture-html).
+ * @param {Element} holder
  */
-function drawsGenerated(el) {
-  return ['::before', '::after'].some((p) => !['none', 'normal'].includes(getComputedStyle(el, p).content))
+function drawsOverText(holder) {
+  const size = Number.parseFloat(getComputedStyle(holder).fontSize)
+  return ['::before', '::after'].some((p) => {
+    const s = getComputedStyle(holder, p)
+    return !['none', 'normal'].includes(s.content) && !besideText(s, size)
+  })
 }
 
 /**
- * What a point on a text hits, as a cover. The text's own element is 'clear', unless it draws generated content:
- * a pseudo-element hit-tests as the element that draws it, so only the DevTools protocol can tell one drawn over the
- * text from the text ('generated', which capture-html asks it). Anything else is 'covered': a child of the element or
+ * What a point on a text hits, as a cover. The text's own element is 'clear', or 'generated' when it draws generated
+ * content that may be on top (capture-html asks the protocol). Anything else is 'covered': a child of the element or
  * one around it, drawn over the text (an ancestor's own ::after, or a background the text sits below), or another
  * element, unless that is fixed or sticky (a header that follows the reader).
- * @param {Element} el
+ * @param {Element} el the measured element
  * @param {Element} holder the element that holds the text
+ * @param {boolean} suspect whether the holder draws generated content that could reach the text
  * @param {Element | null} hit
  * @returns {'clear' | 'covered' | 'generated'}
  */
-function coverOf(el, holder, hit) {
+function coverOf(el, holder, suspect, hit) {
   if (!hit) return 'clear'
-  if (hit === holder) return drawsGenerated(hit) ? 'generated' : 'clear'
+  if (hit === holder) return suspect ? 'generated' : 'clear'
   if (hit.contains(holder)) return 'covered'
   const stop = el.contains(hit) ? el : null
   for (let a = /** @type {Element | null} */ (hit); a && a !== stop; a = a.parentElement) {
@@ -232,14 +245,15 @@ function coverOf(el, holder, hit) {
 }
 
 /**
- * Whether a point in the viewport is inside every box around an element that clips or scrolls what overflows it.
+ * Whether a point in the viewport is inside an element, and every box around it, that clips or scrolls what overflows
+ * it: a line its own overflow cuts off is not shown, and is judged as cut text, not as covered.
  * @param {Element} el
  * @param {number} x
  * @param {number} y
  */
 function inView(el, x, y) {
   if (x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight) return false
-  for (let a = el.parentElement; a; a = a.parentElement) {
+  for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement) {
     const style = getComputedStyle(a)
     if (style.overflowX === 'visible' && style.overflowY === 'visible') continue
     const r = a.getBoundingClientRect()
@@ -249,37 +263,114 @@ function inView(el, x, y) {
 }
 
 /**
- * Whether something else is drawn over the element's first text, seen from the middle of its first line with the
- * element scrolled into view (to its start, when it is taller than the box that scrolls it), every scroll then put
- * back (coverOf). A first line no scroll brings into view is not judged here: where the element sits says why.
- * @param {Element} el
- * @returns {'clear' | 'covered' | 'generated'}
+ * One line of a text, with the window scrolled to it when it is outside the viewport. Only the window scrolls: a box
+ * around the text stays where the page opens it, and a line it clips or scrolls away is not looked at here (where the
+ * element sits says why).
+ * @param {Range} range
+ * @param {number} i
  */
-function isCovered(el) {
-  const restore = keepScroll(el)
-  try {
-    el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
-    let text = firstText(el)
-    if (text && !inView(el, text.x, text.y)) {
-      el.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'instant' })
-      text = firstText(el)
+function lineInView(range, i) {
+  const rect = range.getClientRects()[i]
+  if (!rect) return null
+  const across = rect.left < 0 || rect.right > window.innerWidth
+  if (rect.top >= 0 && rect.bottom <= window.innerHeight && !across) return rect
+  window.scrollBy({
+    left: across ? rect.left + rect.width / 2 - window.innerWidth / 2 : 0,
+    top: rect.top + rect.height / 2 - window.innerHeight / 2,
+    behavior: 'instant',
+  })
+  return range.getClientRects()[i] ?? null
+}
+
+/**
+ * Points along a line of text where the cover check looks: through its middle, about an em apart, at most 64.
+ * @param {DOMRect} rect
+ * @param {number} em
+ */
+function pointsAlong(rect, em) {
+  const n = Math.min(64, Math.max(1, Math.ceil(rect.width / Math.max(em, 4))))
+  return Array.from({ length: n }, (_, i) => ({
+    x: rect.left + (rect.width * (i + 0.5)) / n,
+    y: rect.top + rect.height / 2,
+  }))
+}
+
+/**
+ * The cover check along every line of one text (isCovered): 'covered' at the first point something else is on top,
+ * 'unmeasured' when the page's budget of points runs out, else 'clear' with the points only the protocol can judge
+ * added to `probes` (in page coordinates).
+ * @param {Element} el
+ * @param {Element} holder the element that holds the text
+ * @param {Node} node the text
+ * @param {{ left: number }} budget
+ * @param {{ x: number, y: number }[]} probes
+ * @returns {'clear' | 'covered' | 'unmeasured'}
+ */
+function coverAlong(el, holder, node, budget, probes) {
+  const range = document.createRange()
+  range.selectNodeContents(node)
+  const suspect = drawsOverText(holder)
+  const em = Number.parseFloat(getComputedStyle(holder).fontSize)
+  for (let i = 0; i < range.getClientRects().length; i++) {
+    const rect = lineInView(range, i)
+    for (const p of rect ? pointsAlong(rect, em) : []) {
+      if (!inView(holder, p.x, p.y)) continue
+      budget.left -= 1
+      if (budget.left < 0) return 'unmeasured'
+      const verdict = coverOf(el, holder, suspect, document.elementFromPoint(p.x, p.y))
+      if (verdict === 'covered') return 'covered'
+      if (verdict === 'generated')
+        probes.push({ x: Math.round(p.x + window.scrollX), y: Math.round(p.y + window.scrollY) })
     }
-    if (!text || !inView(el, text.x, text.y)) return 'clear'
-    return coverOf(el, text.holder, document.elementFromPoint(text.x, text.y))
+  }
+  return 'clear'
+}
+
+/**
+ * Whether anything is drawn over an element's text, looked for along every line of every text in it (#117), every
+ * scroll then put back. The points where only the DevTools protocol can tell come back for capture-html to ask.
+ * @param {Element} el
+ * @param {{ left: number }} budget the points the page may still look at
+ * @returns {{ cover: 'clear' | 'covered' | 'unmeasured', probes: { x: number, y: number }[] }}
+ */
+function isCovered(el, budget) {
+  const restore = keepScroll(el)
+  /** @type {{ x: number, y: number }[]} */
+  const probes = []
+  try {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const holder = node.parentElement
+      if (!holder || !node.textContent?.trim()) continue
+      const verdict = coverAlong(el, holder, node, budget, probes)
+      if (verdict !== 'clear') return { cover: verdict, probes: [] }
+    }
+    return { cover: 'clear', probes }
   } finally {
     restore()
   }
 }
 
 /**
- * Where, on the page as it opens, the protocol is to hit-test an element whose cover is 'generated': its first text's
- * point, in page coordinates.
+ * Whether a text outside the blocks is set too small to read in a capture, as rendered (a transform's scale
+ * included): a line of it under the readable height, or its glyphs on average closer than the readable advance.
+ * Marks that say nothing are not held to it, and a text not rendered is judged by its own element (#117).
  * @param {Element} el
- * @returns {{ x: number, y: number } | null}
+ * @param {{ linePx: number, advancePx: number }} readable
+ * @param {RegExp} words a character that is not a mark
  */
-function probeOf(el) {
-  const text = firstText(el)
-  return text ? { x: Math.round(text.x + window.scrollX), y: Math.round(text.y + window.scrollY) } : null
+function tooSmall(el, readable, words) {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node.textContent ?? ''
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    const rects = [...range.getClientRects()]
+    if (!words.test(text) || rects.length === 0) continue
+    const advance = rects.reduce((sum, r) => sum + r.width, 0) / text.replace(/\s+/gu, '').length
+    if (rects.some((r) => r.height < readable.linePx) || advance < readable.advancePx) return true
+  }
+  return false
 }
 
 /**
@@ -466,17 +557,18 @@ function contrastOf(el, ctx) {
  * @param {Element} el
  * @param {Box} page
  * @param {OffscreenCanvasRenderingContext2D} ctx
+ * @param {{ left: number }} budget the points the cover check may still look at, across the page
  * @returns {ProbedMeasure}
  */
-function measureBlock(el, page, ctx) {
+function measureBlock(el, page, ctx, budget) {
   const box = boxOf(el)
   const hidden = hiddenIssues(el)
   const issues = hidden.length > 0 ? hidden : placementIssues(el, box, page)
   const contrast = contrastOf(el, ctx)
   if (contrast.ratio !== null && contrast.ratio < contrast.floor) issues.push('low_contrast')
-  const cover = hidden.length === 0 && !issues.includes('off_page') ? isCovered(el) : 'clear'
+  const looked = hidden.length === 0 && !issues.includes('off_page')
+  const { cover, probes } = looked ? isCovered(el, budget) : { cover: 'clear', probes: [] }
   if (cover === 'covered') issues.push('covered')
-  const shown = issues.every((i) => i === 'low_contrast')
   return {
     id: el.getAttribute('data-block') ?? '',
     section: el.closest('[data-section]')?.getAttribute('data-section') ?? null,
@@ -484,14 +576,16 @@ function measureBlock(el, page, ctx) {
     fontPx: Math.round(Number.parseFloat(getComputedStyle(el).fontSize) * 10) / 10,
     issues,
     contrast,
-    probe: cover === 'generated' && shown ? probeOf(el) : null,
+    probes: issues.every((i) => i === 'low_contrast') ? probes : [],
+    unsampled: cover === 'unmeasured',
   }
 }
 
 /**
  * Everything the kernel measures at the current viewport. Checking cover scrolls, and puts every scroll back (keepScroll),
  * so each element is placed, and the page captured, as it starts; the view ends at the top, where the captures begin.
- * @param {{ maxListed: number, maxMeasured: number, marks: string }} opts
+ * @param {{ maxListed: number, maxMeasured: number, marks: string, maxPoints: number,
+ *   readable: { linePx: number, advancePx: number } }} opts
  * @returns {PageAnswer}
  */
 function measurePage(opts) {
@@ -499,10 +593,12 @@ function measurePage(opts) {
   const page = { x: 0, y: 0, width: root.scrollWidth, height: root.scrollHeight }
   const ctx = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('no 2D canvas to resolve colours')
-  const blocks = [...document.querySelectorAll('[data-block]')].map((el) => measureBlock(el, page, ctx))
+  const budget = { left: opts.maxPoints }
+  const words = new RegExp(`[^\\s${opts.marks}]`, 'u')
+  const blocks = [...document.querySelectorAll('[data-block]')].map((el) => measureBlock(el, page, ctx, budget))
   const strictly = (/** @type {{ el: Element, id: string }} */ { el, id }) => {
-    const measure = measureBlock(el, page, ctx)
-    const concealed = concealedIssues(el)
+    const measure = measureBlock(el, page, ctx, budget)
+    const concealed = [...concealedIssues(el), ...(tooSmall(el, opts.readable, words) ? ['no_visible_text'] : [])]
     return { ...measure, id: id.slice(0, 200), issues: [...new Set([...concealed, ...measure.issues])].slice(0, 10) }
   }
   const labels = shownElements()
@@ -582,12 +678,15 @@ const IN_PAGE = [
   cutsOwnText,
   placementIssues,
   keepScroll,
-  firstText,
-  drawsGenerated,
+  besideText,
+  drawsOverText,
   coverOf,
   inView,
+  lineInView,
+  pointsAlong,
+  coverAlong,
   isCovered,
-  probeOf,
+  tooSmall,
   paint,
   opacityOf,
   textAlpha,
@@ -610,6 +709,6 @@ const IN_PAGE = [
  * @param {{ maxListed: number }} opts
  */
 export function pageScript(opts) {
-  const all = { ...opts, maxMeasured: MAX_MEASURED, marks: MARK_CLASS }
+  const all = { ...opts, maxMeasured: MAX_MEASURED, marks: MARK_CLASS, maxPoints: MAX_POINTS, readable: READABLE }
   return `(() => {\n${IN_PAGE.map((f) => f.toString()).join('\n')}\nreturn measurePage(${JSON.stringify(all)})\n})()`
 }

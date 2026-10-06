@@ -17,7 +17,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { MAX_MEASURED, pageScript } from './capture-page.mjs'
+import { MAX_MEASURED, MAX_POINTS, pageScript } from './capture-page.mjs'
 import { launchConfined, playwrightVersion } from './confine.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
 
@@ -339,14 +339,16 @@ async function captureTarget(shot, target, page) {
 
 /**
  * The checks one target's measures and coverage carry. An unknown contrast is unknown, never passed; labels or texts
- * left unmeasured past the receipt's bound fail blocks_visible.
+ * left unmeasured past the receipt's bound, or whose lines the cover check's budget did not reach, fail
+ * blocks_visible.
  * @param {Target} target
  * @param {import('./capture-page.mjs').PageMeasure} page
  * @param {Coverage} coverage
  * @param {number} [unmeasured]
+ * @param {number} [unsampled]
  * @returns {Check[]}
  */
-export function targetChecks(target, page, coverage, unmeasured = 0) {
+export function targetChecks(target, page, coverage, unmeasured = 0, unsampled = 0) {
   // A shown label (one a tooltip, an accessible name or an ID reference rests on), and every other text outside the
   // blocks, is held to what a block is, at every target (#117). Text a target hides is text its capture does not show:
   // kept for print, for another width, or for assistive technology, or shown at one width and hidden at another so
@@ -362,10 +364,7 @@ export function targetChecks(target, page, coverage, unmeasured = 0) {
       .slice(0, MAX_LISTED)
       .map((b) => b.id)
       .join(', ')
-  const hidden = [
-    ids(unseen),
-    unmeasured > 0 ? `${unmeasured} more labels or texts outside the blocks than the ${MAX_MEASURED} measured` : '',
-  ].filter(Boolean)
+  const hidden = [ids(unseen), ...unreached(unmeasured, unsampled)].filter(Boolean)
   return [
     check(
       'layout_overflow',
@@ -391,6 +390,19 @@ export function targetChecks(target, page, coverage, unmeasured = 0) {
       coverage.missing.length > 0 ? `uncaptured: ${coverage.missing.join(', ')}` : null,
       target.id,
     ),
+  ]
+}
+
+/**
+ * What a target's measure left out, as blocks_visible names it: labels and texts past the receipt's bound, and texts
+ * whose lines the cover check's budget of points did not reach.
+ * @param {number} unmeasured
+ * @param {number} unsampled
+ */
+function unreached(unmeasured, unsampled) {
+  return [
+    unmeasured > 0 ? `${unmeasured} more labels or texts outside the blocks than the ${MAX_MEASURED} measured` : '',
+    unsampled > 0 ? `${unsampled} texts the cover check's ${MAX_POINTS} points did not reach` : '',
   ]
 }
 
@@ -457,45 +469,98 @@ async function measure(page) {
 }
 
 /**
- * What is drawn over a text where only the DevTools protocol can tell: the text's own element draws generated content,
- * and a pseudo-element hit-tests as that element (capture-page.mjs coverOf). The protocol names the pseudo-element when
- * one is on top, whatever its pointer-events, and the text is then covered (#117). Each point is hit-tested on the page
- * as it opens, the view scrolled to it and back to the top; the points are then dropped from the measure.
+ * What is drawn over a text where only the DevTools protocol can tell: the text's element draws generated content that
+ * could reach it, and a pseudo-element hit-tests as that element (capture-page.mjs coverOf). The protocol names the
+ * pseudo-element when one is on top at a point, whatever its pointer-events, and the text is then covered (#117). Each
+ * point is hit-tested on the page as it opens, the window scrolled to it and back to the top; the points, and whether
+ * the page's budget of them ran out, are then dropped from the measure, which counts the texts it did not reach.
  * @param {Shot} shot
  * @param {import('playwright-core').Page} page
  * @param {Omit<import('./capture-page.mjs').PageAnswer, 'unmeasured'>} answer
- * @returns {Promise<import('./capture-page.mjs').PageMeasure>}
+ * @returns {Promise<{ measured: import('./capture-page.mjs').PageMeasure, unsampled: number }>}
  */
 async function generatedCover(shot, page, answer) {
   const all = [...answer.blocks, ...answer.shown, ...answer.framing]
-  if (all.some((m) => m.probe)) await shot.cdp.send('DOM.enable')
-  for (const m of all) {
-    const point = m.probe
-    if (!point) continue
-    const at = await page.evaluate(({ x, y }) => {
-      window.scrollTo({ left: x - innerWidth / 2, top: y - innerHeight / 2, behavior: 'instant' })
-      return { x: x - window.scrollX, y: y - window.scrollY }
-    }, point)
-    const hit = await shot.cdp.send('DOM.getNodeForLocation', { ...at, ignorePointerEventsNone: true })
-    const { node } = await shot.cdp.send('DOM.describeNode', { backendNodeId: hit.backendNodeId })
-    if (node.pseudoType) m.issues.push('covered')
+  const probed = all.filter((m) => m.probes.length > 0)
+  if (probed.length > 0) {
+    await shot.cdp.send('DOM.enable')
+    /** @type {View} */
+    const view = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY, w: innerWidth, h: innerHeight }))
+    /** @type {Set<number>} */
+    const plain = new Set()
+    for (const m of probed) {
+      const verdict = await pseudoOnTop(shot, page, m.probes, view, plain)
+      if (verdict === 'covered') m.issues.push('covered')
+      if (verdict === 'unreached') m.unsampled = true
+    }
+    await page.evaluate(() => window.scrollTo({ left: 0, top: 0, behavior: 'instant' }))
   }
-  if (all.some((m) => m.probe)) await page.evaluate(() => window.scrollTo({ left: 0, top: 0, behavior: 'instant' }))
-  return {
+  const measured = {
     ...answer,
     blocks: withoutProbe(answer.blocks),
     shown: withoutProbe(answer.shown),
     framing: withoutProbe(answer.framing),
   }
+  return { measured, unsampled: all.filter((m) => m.unsampled).length }
+}
+
+/** @typedef {{ x: number, y: number, w: number, h: number }} View the window's scroll and size */
+
+/**
+ * Whether a pseudo-element is the topmost thing at any of a text's points, by the protocol's hit test. It hit-tests
+ * only what the viewport shows, and takes page coordinates: the points the viewport shows are hit-tested together,
+ * and the window scrolls to the next one it does not; a point no scroll brings into view leaves the text 'unreached'
+ * (the target then fails as unmeasured). Nodes already known to be no pseudo-element are not described again.
+ * @param {Shot} shot
+ * @param {import('playwright-core').Page} page
+ * @param {{ x: number, y: number }[]} points in page coordinates
+ * @param {View} view updated as the window scrolls
+ * @param {Set<number>} plain
+ * @returns {Promise<'clear' | 'covered' | 'unreached'>}
+ */
+async function pseudoOnTop(shot, page, points, view, plain) {
+  const seen = (/** @type {{ x: number, y: number }} */ p) =>
+    p.x >= view.x && p.x < view.x + view.w && p.y >= view.y && p.y < view.y + view.h
+  let rest = points
+  while (rest.length > 0) {
+    const shown = rest.filter(seen)
+    if (shown.length === 0) {
+      Object.assign(view, await scrollTo(page, rest[0] ?? { x: 0, y: 0 }))
+      if (!rest.some(seen)) return 'unreached'
+      continue
+    }
+    rest = rest.filter((p) => !seen(p))
+    const hits = await Promise.all(
+      shown.map((p) => shot.cdp.send('DOM.getNodeForLocation', { ...p, ignorePointerEventsNone: true })),
+    )
+    const fresh = [...new Set(hits.map((h) => h.backendNodeId))].filter((id) => !plain.has(id))
+    const nodes = await Promise.all(fresh.map((id) => shot.cdp.send('DOM.describeNode', { backendNodeId: id })))
+    if (nodes.some(({ node }) => node.pseudoType)) return 'covered'
+    for (const id of fresh) plain.add(id)
+  }
+  return 'clear'
 }
 
 /**
- * Measures as the receipt holds them: the probe points are the kernel's own.
+ * Scroll the window so a point is in the middle of the viewport, as far as the page allows.
+ * @param {import('playwright-core').Page} page
+ * @param {{ x: number, y: number }} point in page coordinates
+ * @returns {Promise<View>}
+ */
+function scrollTo(page, point) {
+  return page.evaluate(({ x, y }) => {
+    window.scrollTo({ left: x - innerWidth / 2, top: y - innerHeight / 2, behavior: 'instant' })
+    return { x: window.scrollX, y: window.scrollY, w: innerWidth, h: innerHeight }
+  }, point)
+}
+
+/**
+ * Measures as the receipt holds them: the probe points and the budget flag are the kernel's own.
  * @param {import('./capture-page.mjs').ProbedMeasure[]} list
  * @returns {import('./capture-page.mjs').BlockMeasure[]}
  */
 function withoutProbe(list) {
-  return list.map(({ probe: _probe, ...m }) => m)
+  return list.map(({ probes: _probes, unsampled: _unsampled, ...m }) => m)
 }
 
 /**
@@ -510,7 +575,7 @@ async function captureAll(page, shot, entry) {
     if (!target) throw new CaptureFailure('invalid_target', id)
     await loadAt(page, target, entry.url, entry.timeoutMs)
     const { unmeasured, ...answer } = await measure(page)
-    const measured = await generatedCover(shot, page, answer)
+    const { measured, unsampled } = await generatedCover(shot, page, answer)
     if (shot.receipt.fonts.length === 0) shot.receipt.fonts = await fontsUsed(shot.cdp)
     const coverage = await captureTarget(shot, target, measured)
     shot.receipt.targets.push({
@@ -521,7 +586,7 @@ async function captureAll(page, shot, entry) {
       page: measured,
       coverage,
     })
-    shot.receipt.checks.push(...targetChecks(target, measured, coverage, unmeasured))
+    shot.receipt.checks.push(...targetChecks(target, measured, coverage, unmeasured, unsampled))
   }
 }
 
