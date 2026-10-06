@@ -1395,6 +1395,24 @@ describe('a pseudo-element styles only generated content (#117)', () => {
     assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
     for (const ok of ['h2{-webkit-text-fill-color:#111}']) assert.deepEqual(css(ok), [], ok)
   })
+  // #117 (4200844301): a box reflection draws a mirror image of the box past its edge, over what lies beside it; no point
+  // the render reaches hits it, so an opaque box below a block reflected up over its glyphs hid the research.
+  it('refuses a box reflection in every form, in any medium and in a style attribute', () => {
+    for (const bad of [
+      '.cover{-webkit-box-reflect:above}',
+      '.cover{-webkit-box-reflect:above 0 linear-gradient(#000,#000)}',
+      '.cover{-webkit-box-reflect:none}',
+      '.cover{box-reflect:above}',
+      '.cover{-WEBKIT-BOX-REFLECT:below 4px}',
+      '.cover{-webkit-box-reflect:var(--r)}',
+      '@media (min-width: 600px){.cover{-webkit-box-reflect:above}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<main>', '<main><div style="-webkit-box-reflect:above"></div>')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of ['.cover{box-shadow:0 1px 2px #ccc}', '.cover{transform:scaleY(-1)}'])
+      assert.deepEqual(css(ok), [], ok)
+  })
   // #117: a text shadow is drawn past the text, over what lies beside it; no point the render reaches and no contrast
   // it reads sees it, so white blurred shadows cast up from a heading wash out the block above.
   it('refuses a text shadow in every form, and keeps none and the keywords that reset it', () => {

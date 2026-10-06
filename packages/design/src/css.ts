@@ -113,6 +113,12 @@ const MASKING = /^(?:-webkit-)?mask(?:-|$)/
  */
 const STROKES = /^(?:-webkit-)?text-stroke(?:-|$)/
 /**
+ * A box reflection draws a mirror image of the box past its edge, over what lies beside it: no point the render
+ * reaches hits it and no contrast it reads sees it, so an opaque box just below a block, reflected up over its glyphs,
+ * hides the research while every check passes (#117).
+ */
+const REFLECTIONS = /^(?:-webkit-)?box-reflect$/
+/**
  * Properties that change what a pointer reaches, not what is drawn. A static page has no pointer behaviour, and the
  * render finds what is drawn over a text by what a point there reaches: `pointer-events: none` would hide a cover from
  * it (#117).
@@ -700,6 +706,15 @@ function generatedTextIssue(node: CssNode): string | null {
   return parts.map((part) => partIssue(node.property, part, list)).find((i) => i !== null) ?? null
 }
 
+/** The properties refused in every form, by their names' patterns, and why. */
+const REFUSED: readonly (readonly [RegExp, string])[] = [
+  [FOREIGN, 'is read only by other engines: the captures, taken in Chromium, show none of it'],
+  [MASKING, 'draws what it masks as transparent; the render would measure it as shown'],
+  [MOTION, 'changes the page after it is captured; a static page has no motion'],
+  [STROKES, 'outlines the text in a colour of its own; the render reads the contrast of its fill'],
+  [REFLECTIONS, 'draws a mirror image of the box past it, which the render neither reaches nor reads'],
+]
+
 const CHECKS: Partial<Record<CssNode['type'], Check>> = {
   Url: () => 'url() loads a resource; the static profile allows none',
   Raw: (node) => (node.type === 'Raw' ? `CSS the parser could not read (${node.value.slice(0, 40)})` : null),
@@ -731,14 +746,8 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
     const problem = nameIssue('property', node.property) ?? generatedTextIssue(node)
     if (problem) return problem
     const property = node.property.toLowerCase()
-    if (FOREIGN.test(property))
-      return `${node.property} is read only by other engines: the captures, taken in Chromium, show none of it`
-    if (MASKING.test(property))
-      return `${node.property} draws what it masks as transparent; the render would measure it as shown`
-    if (MOTION.test(property))
-      return `${node.property} changes the page after it is captured; a static page has no motion`
-    if (STROKES.test(property))
-      return `${node.property} outlines the text in a colour of its own; the render reads the contrast of its fill`
+    const refused = REFUSED.find(([pattern]) => pattern.test(property))
+    if (refused) return `${node.property} ${refused[1]}`
     if (COUNTERS.has(property)) return `${node.property} chooses the numbers a list draws; they follow its items`
     if (POINTER.has(property)) return `${node.property} changes what a pointer reaches; a static page has no pointer`
     return (
