@@ -16,8 +16,12 @@
  * @typedef {{ width: number, height: number, viewportWidth: number, viewportHeight: number,
  *   overflowPx: number, overflowing: { element: string, rightPx: number }[], sections: ({ id: string } & Box)[],
  *   blocks: BlockMeasure[], shown: BlockMeasure[], framing: BlockMeasure[] }} PageMeasure
- * @typedef {{ left: number, until: number, maxLines: number }} Budget the points the cover check may still look at,
- *   the time (performance.now) it must stop by, and the fewest lines a text may have to be refused unread
+ * @typedef {{ left: number, until: number, maxLines: number,
+ *   paints: Map<Element, { own: boolean, generated: boolean, under: boolean }> }} Budget the points the cover check may
+ *   still look at, the time (performance.now) it must stop by, the fewest lines a text may have to be refused unread,
+ *   and what each element looked at paints (paintsOf)
+ * @typedef {{ ctx: OffscreenCanvasRenderingContext2D, paints: Budget['paints'], elsewhere: boolean }} Look what the
+ *   cover check reads backgrounds with, and whether a text it looked at lies over a background its styles do not give
  * @typedef {BlockMeasure & { probes: { x: number, y: number }[], unsampled: boolean }} ProbedMeasure a measure, the
  *   points the DevTools protocol is to hit-test where only it can tell what is drawn over the text (coverOf), and
  *   whether the page's budget of points ran out before its text was looked at; capture-html strips both
@@ -309,17 +313,68 @@ function pointsAlong(rect, em) {
 }
 
 /**
+ * What an element paints that a text above it is read against, kept per element for the page: its own background, a
+ * background its ::before or ::after paints, and whether that generated box is set beneath text (a negative z-index or
+ * margin), where it hit-tests as the element itself.
+ * @param {Element} el
+ * @param {Look} look
+ */
+function paintsOf(el, look) {
+  const known = look.paints.get(el)
+  if (known) return known
+  const style = getComputedStyle(el)
+  const own = style.backgroundImage !== 'none' || !isClear(look.ctx, style.backgroundColor)
+  const drawn = ['::before', '::after']
+    .map((p) => getComputedStyle(el, p))
+    .filter((p) => !['none', 'normal'].includes(p.content))
+    .filter((p) => p.backgroundImage !== 'none' || !isClear(look.ctx, p.backgroundColor))
+  const under = drawn.some((p) =>
+    [p.zIndex, p.marginTop, p.marginRight, p.marginBottom, p.marginLeft].some((v) => Number.parseFloat(v) < 0),
+  )
+  const paints = { own, generated: drawn.length > 0, under }
+  look.paints.set(el, paints)
+  return paints
+}
+
+/**
+ * Whether the background beneath a text at a point is the one its contrast is read against (backgroundLayers): every
+ * element around the text that paints a background, its own element included, lies under the point (the root's and
+ * the body's fill the canvas), none of them sets generated content beneath text, and nothing else painted lies beneath
+ * it. Text placed outside its painted parent, past its own painted box, or over a box beside it, is over a background
+ * its styles do not give (#117).
+ * @param {Element} holder
+ * @param {Element[]} stack the elements at the point, topmost first (document.elementsFromPoint); the text is on top
+ * @param {{ x: number, y: number }} p in the viewport
+ * @param {Look} look
+ */
+function onOwnGround(holder, stack, p, look) {
+  // A glyph past its element's box hit-tests as the element, which the list of boxes at the point then leaves out.
+  const beneath = stack.slice(stack.indexOf(holder) + 1)
+  const under = (/** @type {Element} */ a) =>
+    a === document.body ||
+    a === document.documentElement ||
+    [...a.getClientRects()].some((r) => p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom)
+  for (let a = /** @type {Element | null} */ (holder); a; a = a.parentElement) {
+    const paints = paintsOf(a, look)
+    if (paints.under || (paints.own && !under(a))) return false
+  }
+  return beneath.every((e) => e.contains(holder) || !(paintsOf(e, look).own || paintsOf(e, look).generated))
+}
+
+/**
  * The cover check along every line of one text (isCovered): 'covered' at the first point something else is on top,
  * 'unmeasured' when the page's budget runs out (of points, or of time), else 'clear' with the points only the protocol
  * can judge added to `probes` (in page coordinates). The text's lines are read once, and a text with MAX_LINES lines
  * or more, or more lines than the budget has points left, is not looked at, line by line or at all (#117).
+ * Where a point's background is not the one the text's contrast is read against (onOwnGround), `look.elsewhere` is set.
  * @param {Element} holder the element that holds the text
  * @param {Node} node the text
  * @param {Budget} budget
  * @param {{ x: number, y: number }[]} probes
+ * @param {Look} look
  * @returns {'clear' | 'covered' | 'unmeasured'}
  */
-function coverAlong(holder, node, budget, probes) {
+function coverAlong(holder, node, budget, probes, look) {
   const range = document.createRange()
   range.selectNodeContents(node)
   const rects = range.getClientRects()
@@ -340,6 +395,7 @@ function coverAlong(holder, node, budget, probes) {
       if (budget.left < 0) return 'unmeasured'
       const verdict = coverOf(holder, suspect, document.elementFromPoint(p.x, p.y))
       if (verdict === 'covered') return 'covered'
+      if (!look.elsewhere) look.elsewhere = !onOwnGround(holder, document.elementsFromPoint(p.x, p.y), p, look)
       if (verdict === 'generated')
         probes.push({ x: Math.round(p.x + window.scrollX), y: Math.round(p.y + window.scrollY) })
     }
@@ -349,24 +405,28 @@ function coverAlong(holder, node, budget, probes) {
 
 /**
  * Whether anything is drawn over an element's text, looked for along every line of every text in it (#117), every
- * scroll then put back. The points where only the DevTools protocol can tell come back for capture-html to ask.
+ * scroll then put back, and whether, at any of those points, the text lies over a background other than the one its
+ * contrast is read against (onOwnGround). The points where only the DevTools protocol can tell come back for
+ * capture-html to ask.
  * @param {Element} el
  * @param {Budget} budget the points the page may still look at, and until when
- * @returns {{ cover: 'clear' | 'covered' | 'unmeasured', probes: { x: number, y: number }[] }}
+ * @param {Omit<Look, 'elsewhere'>} page what the page's elements paint
+ * @returns {{ cover: 'clear' | 'covered' | 'unmeasured', probes: { x: number, y: number }[], elsewhere: boolean }}
  */
-function isCovered(el, budget) {
+function isCovered(el, budget, page) {
   const restore = keepScroll(el)
   /** @type {{ x: number, y: number }[]} */
   const probes = []
+  const look = { ...page, elsewhere: false }
   try {
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const holder = node.parentElement
       if (!holder || !node.textContent?.trim()) continue
-      const verdict = coverAlong(holder, node, budget, probes)
-      if (verdict !== 'clear') return { cover: verdict, probes: [] }
+      const verdict = coverAlong(holder, node, budget, probes, look)
+      if (verdict !== 'clear') return { cover: verdict, probes: [], elsewhere: look.elsewhere }
     }
-    return { cover: 'clear', probes }
+    return { cover: 'clear', probes, elsewhere: look.elsewhere }
   } finally {
     restore()
   }
@@ -707,10 +767,14 @@ function measureBlock(el, page, ctx, budget) {
   const box = boxOf(el)
   const hidden = hiddenIssues(el)
   const issues = hidden.length > 0 ? hidden : placementIssues(el, box, page)
-  const contrast = contrastOf(el, ctx)
-  if (contrast.ratio !== null && contrast.ratio < contrast.floor) issues.push('low_contrast')
   const looked = hidden.length === 0 && !issues.includes('off_page')
-  const { cover, probes } = looked ? isCovered(el, budget) : { cover: 'clear', probes: [] }
+  const { cover, probes, elsewhere } = looked
+    ? isCovered(el, budget, { ctx, paints: budget.paints })
+    : { cover: 'clear', probes: [], elsewhere: false }
+  // Over a background its styles do not give, a text's contrast is not known (#117).
+  const read = contrastOf(el, ctx)
+  const contrast = elsewhere ? { ...read, ratio: null, detail: 'background_elsewhere' } : read
+  if (contrast.ratio !== null && contrast.ratio < contrast.floor) issues.push('low_contrast')
   if (cover === 'covered') issues.push('covered')
   return {
     id: el.getAttribute('data-block') ?? '',
@@ -736,7 +800,12 @@ function measurePage(opts) {
   const page = { x: 0, y: 0, width: root.scrollWidth, height: root.scrollHeight }
   const ctx = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('no 2D canvas to resolve colours')
-  const budget = { left: opts.maxPoints, until: performance.now() + opts.maxLookMs, maxLines: opts.maxLines }
+  const budget = {
+    left: opts.maxPoints,
+    until: performance.now() + opts.maxLookMs,
+    maxLines: opts.maxLines,
+    paints: new Map(),
+  }
   const words = new RegExp(`[^\\s${opts.marks}]`, 'u')
   const strictly = (/** @type {{ el: Element, id: string }} */ { el, id }) => {
     const measure = measureBlock(el, page, ctx, budget)
@@ -828,6 +897,8 @@ const IN_PAGE = [
   besideText,
   drawsOverText,
   coverOf,
+  paintsOf,
+  onOwnGround,
   inView,
   lineInView,
   pointsAlong,

@@ -130,6 +130,12 @@ const CLEAN = page(
 const runOn = (id: string, style: string, text: string) =>
   `<p data-block="${id}">Shown text, then <span style="${style}">${text}</span>.</p>`
 
+/** A measure's id and whether its contrast was read, or why not. */
+const contrastRead = (m: { id: string; contrast: { ratio: number | null; detail: string | null } }) => [
+  m.id,
+  m.contrast.ratio === null ? m.contrast.detail : 'read',
+]
+
 /** One element's measures outside the blocks, and a target's page holding them. */
 const framed = (id: string, issues: string[] = [], ratio: number | null = 12) => ({
   id,
@@ -834,6 +840,51 @@ describe('the confined capture kernel', () => {
       for (const target of ['w390-light', 'w1280-light']) {
         assert.deepEqual(issuesOf(receipt, target), { b1: ['covered'], b2: ['covered'], b3: [] }, target)
         assert.equal(outcome(receipt, 'blocks_visible', target), 'failed', target)
+      }
+    },
+  )
+
+  it(
+    'reads contrast against the background beneath the text: one its styles do not give is unknown, never passed (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .dark{position:relative;background:#000;width:40px;height:3em}
+            .out{position:absolute;left:60px;top:0;margin:0;color:#fff;white-space:nowrap}
+            .slab{position:absolute;inset:0;background:#111} .over{position:relative;color:#222}
+            .spill{width:20px;background:#000;color:#fff;white-space:nowrap}
+            .hl{position:relative} .hl::before{content:"";position:absolute;inset:0;background:#111;z-index:-1}
+            .accent{position:relative} .accent::after{content:"";position:absolute;left:0;bottom:-6px;width:2rem;height:2px;background:#c33}`,
+            `<main><section data-section="s1"><h2 class="accent">Findings</h2><p data-block="b1">Text.</p>
+          <div class="dark"><h2 class="out">Host three is free</h2></div>
+          <div style="position:relative"><div class="slab"></div><p data-block="b2" class="over">Dark on a dark slab.</p></div>
+          <p data-block="b3" class="spill">Past its own black box.</p><p data-block="b4" class="hl">Over a dark highlight.</p>
+          <p data-block="b5" style="background:#000;color:#fff">On its own black.</p>
+          <div style="background:#123"><h2 style="color:#fff">On its parent</h2></div></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const measured = receipt.targets.find((t) => t.id === target)!.page
+        assert.deepEqual(
+          [...measured.blocks, ...measured.framing].map(contrastRead),
+          [
+            ['b1', 'read'],
+            ['b2', 'background_elsewhere'],
+            ['b3', 'background_elsewhere'],
+            ['b4', 'background_elsewhere'],
+            ['b5', 'read'],
+            ['text 1 h2', 'read'],
+            ['text 2 h2', 'background_elsewhere'],
+            ['text 3 h2', 'read'],
+          ],
+          target,
+        )
+        assert.equal(outcome(receipt, 'contrast', target), 'unknown', `${target}: an unknown contrast is never passed`)
       }
     },
   )
