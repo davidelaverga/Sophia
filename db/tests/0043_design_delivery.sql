@@ -18,8 +18,8 @@ DECLARE
 BEGIN
  FOR c IN SELECT jsonb_array_elements(cases) LOOP
   seen:=sophia.design_seen_sections(jsonb_populate_record(NULL::sophia.design_tasks,c));
-  IF seen IS DISTINCT FROM CASE WHEN jsonb_typeof(c->'seen')='array'
-    THEN ARRAY(SELECT jsonb_array_elements_text(c->'seen')) END THEN
+  IF seen IS DISTINCT FROM (CASE WHEN jsonb_typeof(c->'seen')='array'
+    THEN ARRAY(SELECT jsonb_array_elements_text(c->'seen')) END) THEN
    RAISE EXCEPTION 'design_seen_sections(%) is %',c,seen; END IF;
  END LOOP;
 END $$;
