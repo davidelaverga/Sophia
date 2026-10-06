@@ -158,7 +158,8 @@ const ARIA_STATES: Readonly<Record<string, ReadonlySet<string>>> = {
   'aria-autocomplete': new Set(['inline', 'list', 'both', 'none']),
 }
 const HELD_ARIA = new Set([...TEXT_ATTRIBUTES, ...REFERENCE_ATTRIBUTES])
-const META_NAMES = new Set(['viewport', 'description', 'color-scheme', 'generator'])
+/** A `color-scheme` meta would offer a scheme no capture shows (#117); the page is drawn in the light one. */
+const META_NAMES = new Set(['viewport', 'description', 'generator'])
 /** A section id: stable, readable, usable as a fragment. */
 export const SECTION_ID = /^[a-z][a-z0-9-]{0,63}$/
 

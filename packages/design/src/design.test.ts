@@ -194,7 +194,7 @@ describe('the static profile refuses what can run, load or submit', () => {
       assert.ok(codes(withCss(good, sheet)).includes('css_unsafe'), sheet)
     const inline = html(good).replace('<h1>', '<h1 style="transition:opacity 9s">')
     assert.ok(codes(withHtml(good, inline)).includes('css_unsafe'))
-    assert.deepEqual(codes(withCss(good, 'h2{opacity:.9} @media (prefers-reduced-motion: reduce){h2{opacity:1}}')), [])
+    assert.deepEqual(codes(withCss(good, 'h2{opacity:.9}')), [])
   })
   it('allows the CSS a static article needs: media queries, gradients, custom properties, calc', () => {
     const sheet =
@@ -727,7 +727,7 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
   })
   it('accepts bullets: list markers and marks that spell nothing', () => {
     for (const ok of [
-      '@media print{ul{list-style:square inside}}',
+      '@media (min-width: 720px){ul{list-style:square inside}}',
       'ul{list-style-type:"→"}',
       'details>summary{list-style-type:disclosure-closed}',
       'ul{list-style:none}',
@@ -808,6 +808,44 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       'p{position:inherit}',
       'p{position:revert-layer}',
       ':root{--pin:fixed}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
+  // #117: the captures are taken on a screen at two widths in the light scheme; a rule for anything else is unseen.
+  it('refuses media and container queries for what no capture shows, and a dark colour scheme', () => {
+    for (const bad of [
+      '@media print{[data-block]{display:none}}',
+      '@MEDIA PRINT{[data-block]{display:none}}',
+      '@media screen, print{p{display:none}}',
+      '@media not screen{p{display:none}}',
+      '@media (prefers-color-scheme: dark){p{color:#111}}',
+      '@media (prefers-reduced-motion: no-preference){p{opacity:0}}',
+      '@media (forced-colors: active){p{color:#eee}}',
+      '@media (hover: hover){p{display:none}}',
+      '@media (orientation: portrait){p{display:none}}',
+      '@media (min-height: 900px){p{display:none}}',
+      '@media (height > 900px){p{display:none}}',
+      '@media (min-width: 720px) and (hover){p{display:none}}',
+      '@container (height > 3px){p{display:none}}',
+      'p{color:light-dark(#222,#eee)}',
+      ':root{color-scheme:light dark}',
+      ':root{color-scheme:dark}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    assert.ok(css('@media foo(bar){p{display:none}}').includes('css_unsafe'), 'a condition of its own')
+    const inline = html(good).replace('<main>', '<main><div style="color-scheme:dark"></div>')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    const meta = html(good).replace('</head>', '<meta name="color-scheme" content="light dark"></head>')
+    assert.deepEqual(codes(withHtml(good, meta)), ['unsafe_attribute'])
+    for (const ok of [
+      '@media (max-width: 600px){body{font-size:17px}}',
+      '@media screen and (min-width: 720px){main{display:grid}}',
+      '@media only screen and (width >= 720px){main{display:grid}}',
+      '@media (400px <= width <= 1000px){main{gap:2rem}}',
+      '@media not (min-width: 720px){main{gap:1rem}}',
+      '@container (inline-size > 30em){p{columns:2}}',
+      ':root{color-scheme:light}',
+      ':root{color-scheme:only light}',
     ])
       assert.deepEqual(css(ok), [], ok)
   })

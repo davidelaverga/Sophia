@@ -38,7 +38,6 @@ const FUNCTIONS = new Set([
   'oklch',
   'color',
   'color-mix',
-  'light-dark',
   'calc',
   'min',
   'max',
@@ -113,6 +112,78 @@ function isPlacedOnPage(value: CssNode): boolean {
   })
   const [only] = parts
   return parts.length === 1 && only?.type === 'Identifier' && POSITIONS.has(only.name.toLowerCase())
+}
+
+/**
+ * The colour schemes a page may ask for: the light one the captures are taken in. A page that offers a dark scheme is
+ * drawn in other colours for a reader who prefers it, where no capture shows them (#117); `light-dark()` is not a
+ * value function for the same reason.
+ */
+const SCHEMES = new Set(['normal', 'light', 'only', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
+
+/** Whether a `color-scheme` declaration's value asks for the light scheme only. */
+function isLightOnly(value: CssNode): boolean {
+  const parts: CssNode[] = []
+  walk(value, (part) => {
+    if (part.type !== 'Value') parts.push(part)
+  })
+  return parts.length > 0 && parts.every((p) => p.type === 'Identifier' && SCHEMES.has(p.name.toLowerCase()))
+}
+
+/**
+ * What a media or container query may test: the screen, and the width of it or of a container. The captures are taken
+ * on a screen at two widths, in the light scheme with reduced motion; a rule for print, a dark or forced scheme, motion,
+ * a pointer, an orientation, a height or any other condition applies where no capture shows it, so
+ * `@media print { [data-block] { display: none } }` would drop the research from every printed page (#117).
+ */
+const MEDIA_TYPES = new Set(['screen', 'all'])
+const WIDTHS = new Set(['width', 'min-width', 'max-width', 'inline-size', 'min-inline-size', 'max-inline-size'])
+
+/** The medium a media query names, when the captures are not taken in it (print, or every medium but one), or null. */
+function mediumIssue(modifier: string | null, mediaType: string | null): string | null {
+  if (modifier?.toLowerCase() === 'not') return `not ${mediaType ?? ''}`.trim()
+  return mediaType && !MEDIA_TYPES.has(mediaType.toLowerCase()) ? mediaType : null
+}
+
+/** The feature a range (`(width >= 40em)`) compares, when it is not a width, or null. */
+function rangeIssue(range: CssNode): string | null {
+  const names: string[] = []
+  walk(range, (n) => {
+    if (n.type === 'Identifier') names.push(n.name)
+  })
+  const other = names.find((n) => !WIDTHS.has(n.toLowerCase()))
+  return other === undefined ? null : `(${other})`
+}
+
+/** What one part of a media or container query tests that no capture shows, or null. */
+function uncaptured(part: CssNode): string | null {
+  if (part.type === 'MediaQuery') return mediumIssue(part.modifier, part.mediaType)
+  if (part.type === 'Feature') return WIDTHS.has(part.name.toLowerCase()) ? null : `(${part.name})`
+  if (part.type === 'FeatureRange') return rangeIssue(part)
+  return part.type === 'GeneralEnclosed' || part.type === 'FeatureFunction' ? 'a condition of its own' : null
+}
+
+/** Why a declaration's value is refused, for the properties held to keywords (`color-scheme`, `position`), or null. */
+function keywordIssue(property: string, node: CssNode & { type: 'Declaration' }): string | null {
+  if (property === 'color-scheme' && !isLightOnly(node.value))
+    return `${node.property} may ask for the light scheme only: the captures are taken in it, and a dark one is drawn where no capture shows it`
+  if (property === 'position' && !isPlacedOnPage(node.value))
+    return `${node.property} may be static, relative or absolute: a fixed or sticky element moves over the text as a reader scrolls, where no capture shows it`
+  return null
+}
+
+/** Why a media or container query reaches a state no capture shows, or null. */
+function queryIssue(node: CssNode): string | null {
+  if (node.type !== 'Atrule' || !['media', 'container'].includes(node.name.toLowerCase()) || !node.prelude) return null
+  const found: string[] = []
+  walk(node.prelude, (part) => {
+    const issue = uncaptured(part)
+    if (issue) found.push(issue)
+  })
+  return found.length === 0
+    ? null
+    : `@${node.name} tests ${found[0] ?? ''}: the captures are taken on a screen at two widths, in the light scheme, ` +
+        'so a rule for any other condition applies where no capture shows it; a query tests the width only'
 }
 
 /** The longest stylesheet a source may hold. */
@@ -227,7 +298,8 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
   Atrule: (node) => {
     if (node.type !== 'Atrule') return null
     return (
-      nameIssue('at-rule', node.name) ?? (AT_RULES.has(node.name.toLowerCase()) ? null : `@${node.name} is not allowed`)
+      nameIssue('at-rule', node.name) ??
+      (AT_RULES.has(node.name.toLowerCase()) ? queryIssue(node) : `@${node.name} is not allowed`)
     )
   },
   PseudoElementSelector: (node) =>
@@ -256,9 +328,10 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
       return `${node.property} changes the page after it is captured; a static page has no motion`
     if (COUNTERS.has(property)) return `${node.property} chooses the numbers a list draws; they follow its items`
     if (POINTER.has(property)) return `${node.property} changes what a pointer reaches; a static page has no pointer`
-    if (property === 'position' && !isPlacedOnPage(node.value))
-      return `${node.property} may be static, relative or absolute: a fixed or sticky element moves over the text as a reader scrolls, where no capture shows it`
-    return BINDINGS.has(property) ? `${node.property} binds behaviour and is not allowed` : null
+    return (
+      keywordIssue(property, node) ??
+      (BINDINGS.has(property) ? `${node.property} binds behaviour and is not allowed` : null)
+    )
   },
 }
 
