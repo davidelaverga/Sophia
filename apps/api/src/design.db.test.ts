@@ -236,6 +236,8 @@ interface CaptureOptions {
   readonly grow?: Record<string, number>
   /** Overview tiles per target (a page taller than one tile). */
   readonly overviewTiles?: number
+  /** Tiles per section and target (a section taller than one tile). */
+  readonly sectionTiles?: number
 }
 
 /** Each block's section in a page source: the data-section it sits in. */
@@ -290,7 +292,10 @@ async function settleCapture(job: Body, pkg: ContentPackage, sections: string[],
   const targets = job.targets as string[]
   const tiles = opts.overviewTiles ?? 1
   const overview = (t: string) => Array.from({ length: tiles }, (_, i) => `${t}.overview.${String(i + 1)}.png`)
-  const names = targets.flatMap((t) => [...overview(t), ...sections.map((s) => `${t}.section.${s}.1.png`)])
+  const sectionTiles = opts.sectionTiles ?? 1
+  const section = (t: string, s: string) =>
+    Array.from({ length: sectionTiles }, (_, i) => `${t}.section.${s}.${String(i + 1)}.png`)
+  const names = targets.flatMap((t) => [...overview(t), ...sections.flatMap((s) => section(t, s))])
   for (const name of names) {
     const put = await runner(`/v1/renderer/jobs/${String(job.jobId)}/captures/${name}`, {
       method: 'PUT',
@@ -339,14 +344,14 @@ async function settleCapture(job: Body, pkg: ContentPackage, sections: string[],
       coverage: { requested: null, captured: sections, missing: [], margins: 0, marginsCaptured: 0, truncated: false },
     })),
     captures: names.map((name) => {
-      const [target = '', kind = '', part] = name.split('.')
+      const [target = '', kind = '', part, sectionTile] = name.split('.')
       return {
         name,
         target,
         kind,
         section: kind === 'section' ? part : null,
-        tile: kind === 'overview' ? Number(part) : 1,
-        tiles: kind === 'overview' ? tiles : 1,
+        tile: Number(kind === 'overview' ? part : sectionTile),
+        tiles: kind === 'overview' ? tiles : sectionTiles,
         clip: { x: 0, y: 0, width: 390, height: 500 },
         scale: 1,
         width: 2,
@@ -1562,6 +1567,53 @@ describe('SDD-01-CX-0019: a capture counts as seen only once it reached the mode
     assert.equal(early.json.outcome, 'coverage_incomplete', JSON.stringify(early.json))
     assert.deepEqual((early.json.missing as string[]).toSorted(), tile2.toSorted())
     await inspectAll(w, review.at, tile2)
+    const pass = await w.runtime('/v1/runtime/review/submit', verdict('v2'))
+    assert.equal(pass.json.decision?.outcome, 'published', JSON.stringify(pass.json))
+  })
+
+  it('needs every tile of each section at one target, from the designer and the reviewer (#117)', async () => {
+    const { w, at } = await designing()
+    const d = await drafted(w, at, { capture: false })
+    const shots = await captured(d.pkg, d.sections, { html: d.html, sectionTiles: 2 })
+    const tile = (target: string, index: number) =>
+      shots.names.filter((name) => name.startsWith(`${target}.section.`) && name.endsWith(`.${String(index)}.png`))
+    const overview = shots.names.filter((name) => name.includes('.overview.'))
+    assert.equal(tile('w390-light', 2).length, d.sections.length, JSON.stringify(shots.names))
+    const candidate = { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId }
+    const submit = (callId: string) =>
+      w.runtime('/v1/runtime/design/submit', { ...at, callId, candidate: { ...candidate, seen: seenBy(at, 'design') } })
+    // The first tile of each section at both targets, the second at neither: each section is missing.
+    await look(
+      w,
+      at,
+      'design',
+      [...overview, ...tile('w390-light', 1), ...tile('w1280-light', 1)],
+      String(d.render.renderJobId),
+    )
+    const refused = await submit('c1')
+    assert.equal(refused.json.outcome, 'refused', JSON.stringify(refused.json))
+    const said = failuresOf(refused).find((f) => f.startsWith('you have not looked at')) ?? ''
+    for (const s of d.sections) assert.ok(said.includes(`section ${s} (every tile`), said)
+    // Every tile at one target is the whole section.
+    await look(w, at, 'design', tile('w1280-light', 2), String(d.render.renderJobId))
+    assert.equal((await submit('c2')).json.outcome, 'reviewing')
+
+    const review = await sent(w, 'create', REVIEWER.id)
+    await answer(w, 'create', 'delivered', review.at.attemptId)
+    const verdict = (callId: string) => ({
+      ...review.at,
+      callId,
+      result: { verdict: 'pass', findings: [], seen: seenBy(review.at, 'review') },
+    })
+    // One tile at one target and the other at the other: no target shows a section whole.
+    await inspectAll(w, review.at, [...overview, ...tile('w390-light', 1), ...tile('w1280-light', 2)])
+    const early = await w.runtime('/v1/runtime/review/submit', verdict('v1'))
+    assert.equal(early.json.outcome, 'coverage_incomplete', JSON.stringify(early.json))
+    assert.deepEqual(
+      (early.json.missing as string[]).toSorted(),
+      d.sections.map((s) => `section ${s} (every tile, at one target)`).toSorted(),
+    )
+    await inspectAll(w, review.at, tile('w390-light', 2))
     const pass = await w.runtime('/v1/runtime/review/submit', verdict('v2'))
     assert.equal(pass.json.decision?.outcome, 'published', JSON.stringify(pass.json))
   })

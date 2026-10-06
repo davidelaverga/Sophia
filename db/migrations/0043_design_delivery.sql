@@ -17,7 +17,8 @@
 --   the images); a delivery counts for it only if it is named there, acknowledged, and of this job, attempt and render.
 --   An acknowledgement no submission names (its submit never sent, the runtime restarted in between) counts for nothing.
 -- * What must be seen (F3, F4): every overview capture the render's receipt names, every tile at every target, and
---   each section at one target at least (an edit's own sections only), as design_capture_missing says. A review's pass
+--   each section, every tile of it, at one target at least (an edit's own sections only, #117), as
+--   design_capture_missing says. A review's pass
 --   needs it (review_missing), and so does the designer's candidate, for exactly the render it submits, in its current
 --   attempt (design_unseen, in design_submit_candidate). The submit with no reviewer (self_review_only) runs after that
 --   gate. A request for revision rests on what was seen too (#117): it names inspected deliveries of the candidate's
@@ -157,17 +158,20 @@ END $$;
 -- --- what must be seen ------------------------------------------------------------------------------------------------------
 
 -- The captures of a render not yet seen: every overview capture its receipt names (every tile, every target), and each
--- section (p_sections, or every section the render captured) at one target at least.
+-- section (p_sections, or every section the render captured) whole at one target at least: every tile of it the receipt
+-- names at that target (#117), since each tile is a different stretch of the section at full size.
 CREATE FUNCTION sophia.design_capture_missing(r sophia.render_jobs, p_seen text[], p_sections text[]) RETURNS text[] LANGUAGE sql STABLE
 SET search_path=pg_catalog,sophia AS $$
  SELECT coalesce(array_agg(m ORDER BY n, m),'{}') FROM (
   SELECT 0 AS n, c->>'name' AS m FROM jsonb_array_elements(coalesce(r.receipt->'captures','[]')) c
    WHERE c->>'kind'='overview' AND NOT (c->>'name')=ANY(coalesce(p_seen,'{}'))
   UNION ALL
-  SELECT 1, 'section '||sec FROM (
+  SELECT 1, 'section '||sec||' (every tile, at one target)' FROM (
     SELECT DISTINCT jsonb_array_elements_text(x->'coverage'->'captured') AS sec FROM jsonb_array_elements(coalesce(r.receipt->'targets','[]')) x) q
    WHERE (p_sections IS NULL OR q.sec=ANY(p_sections))
-    AND NOT EXISTS(SELECT 1 FROM unnest(coalesce(p_seen,'{}')) i WHERE i LIKE '%.section.'||q.sec||'.%')) z $$;
+    AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(r.receipt->'captures','[]')) c
+     WHERE c->>'kind'='section' AND c->>'section'=q.sec
+     GROUP BY c->>'target' HAVING bool_and((c->>'name')=ANY(coalesce(p_seen,'{}'))))) z $$;
 REVOKE ALL ON FUNCTION sophia.design_capture_missing(sophia.render_jobs,text[],text[]) FROM PUBLIC;
 
 -- The sections a design's captures must show: an edit's own, or all.
