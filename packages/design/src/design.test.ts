@@ -387,11 +387,85 @@ describe('a tooltip or an accessible name carries no text the page does not show
       ],
       ['<main>', '<main><nav aria-label="Contents"><a href="#s1" title="Findings">Findings</a></nav>'],
       ['<main>', '<main><nav aria-label="Indice 2"><a href="#s1">Findings</a></nav>'],
-      ['<h1>', '<h1 id="t">'],
-      ['<main>', '<main aria-labelledby="t">'],
+      ['<main>\n<h1>', '<main aria-labelledby="t">\n<h1 id="t">'],
       ['</main>', '<table><tr><th scope="col" abbr="Cost">Cost per month, in USD</th></tr></table></main>'],
     ]
     for (const [from, to] of accepted) assert.deepEqual(swap(from, to), [], to)
+  })
+  // #117, CX-0037: a label its markup hides proves nothing, and an ID reference names only what a reader can check.
+  const claim = 'Host three is free'
+  const references = [
+    'aria-labelledby',
+    'aria-describedby',
+    'aria-details',
+    'aria-errormessage',
+    'aria-activedescendant',
+    'aria-controls',
+    'aria-flowto',
+    'aria-owns',
+  ]
+  it('refuses a name repeating a label its markup hides, or one under a hidden ancestor', () => {
+    for (const hidden of [
+      `<h2 hidden>${claim}</h2>`,
+      `<h2 aria-hidden="true">${claim}</h2>`,
+      `<div hidden><h2>${claim}</h2></div>`,
+    ]) {
+      const to = `${hidden}<span title="${claim}">•</span></main>`
+      assert.deepEqual(swap('</main>', to), ['attribute_text'], to)
+    }
+  })
+  it('refuses every ID reference to a hidden label, to free text, or to nothing', () => {
+    for (const name of references) {
+      const to = `<main ${name}="claim">\n<h2 id="claim" hidden>${claim}</h2><h1>`
+      assert.deepEqual(swap('<main>\n<h1>', to), ['attribute_text'], to)
+    }
+    assert.deepEqual(
+      swap('<main>\n<h1>', `<main aria-describedby="claim">\n<h2 id="claim" aria-hidden="true">${claim}</h2><h1>`),
+      ['attribute_text'],
+    )
+    assert.deepEqual(swap('<main>\n<h1>', '<main aria-describedby="nowhere">\n<h1>'), ['attribute_text'])
+    const free = swap('<main>\n<h1>', `<main aria-describedby="claim">\n<p id="claim">${claim}</p><h1>`)
+    assert.deepEqual(free.toSorted(), ['attribute_text', 'text_outside_blocks'])
+  })
+  it('refuses a citation marker reference to anything but its own source entry', () => {
+    const marker = `<a data-cite="${A}" href="#src-${A}">[s]</a>`
+    for (const to of [
+      `<a data-cite="${A}" href="#src-${A}" aria-describedby="src-${B}">[s]</a>`,
+      `<sup data-cite="${A}"><a href="#src-${A}" aria-labelledby="claim">1</a></sup>`,
+    ]) {
+      const page = html(good)
+        .replace(marker, to)
+        .replace('<main>\n<h1>', `<main>\n<h2 id="claim" hidden>${claim}</h2><h1>`)
+      assert.ok(codes(withHtml(good, page)).includes('citation_marker'), to)
+    }
+    const own = html(good).replace(marker, `<a data-cite="${A}" href="#src-${A}" aria-describedby="src-${A}">[s]</a>`)
+    assert.deepEqual(codes(withHtml(good, own)), [])
+  })
+  it('accepts names and references resting on labels the page shows, and the render then measures those labels', () => {
+    const accepted: Array<[string, string]> = [
+      ['</main>', `<h2>${claim}</h2><span title="${claim}">•</span></main>`],
+      ['<main>\n<h1>', '<main aria-labelledby="t">\n<h1 id="t">'],
+      ['<main>\n<h1>', '<main aria-describedby="wrap">\n<div id="wrap"></div><h1>'],
+      ['</main>', '<table><tr><th id="h-cost">Cost per month</th><td headers="h-cost">•</td></tr></table></main>'],
+    ]
+    for (const [from, to] of accepted) assert.deepEqual(swap(from, to), [], to)
+    // A reference to the research itself: a block, whose visibility the render measures already.
+    const toBlock = html(good)
+      .replace('<p data-block="b1">', '<p data-block="b1" id="b1">')
+      .replace('<main>', '<main aria-describedby="b1">')
+    assert.deepEqual(codes(withHtml(good, toBlock)), [])
+    const page = (from: string, to: string) => withHtml(good, html(good).replace(from, to))
+    const marked = compile(page('<main>\n<h1>', '<main aria-labelledby="t">\n<h1 id="t">'), 'en')
+    assert.match(marked, /<h1 id="t" data-sophia-shown="h1#t">/)
+    assert.match(
+      compile(page('</main>', `<h2>${claim}</h2><span title="${claim}">•</span></main>`), 'en'),
+      /<h2 data-sophia-shown="h2:1">/,
+    )
+    assert.equal(
+      compile(good, 'en').includes('data-sophia-shown'),
+      false,
+      'a page resting on no label is compiled as before',
+    )
   })
 })
 
@@ -428,6 +502,46 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
       'blockquote::before{content:open-quote}',
     ])
       assert.deepEqual(css(ok), [], ok)
+  })
+  // #117, CX-0038: a counter or a list marker spells words in any letter, numeral or custom style, in any medium.
+  it('refuses a counter or a list marker that can spell, in print as on screen, in a stylesheet or a style attribute', () => {
+    for (const bad of [
+      '@media print{.s::after{content:counter(h,lower-alpha) counter(o,lower-alpha)}}',
+      'h2::before{content:counter(h,upper-roman)}',
+      'h2::before{content:counters(h,".",lower-greek)}',
+      'h2::before{content:counter(h,cjk-ideographic)}',
+      'h2::before{content:counter(h,my-letters)}',
+      'h2::before{content:counter(h,symbols(cyclic "h" "o"))}',
+      'ol{list-style-type:lower-alpha}',
+      'ol{list-style:upper-latin inside}',
+      '@media print{ol{list-style:lower-roman}}',
+      'p{hyphens:manual;hyphenate-character:"host three"}',
+      'p{text-emphasis-style:"h"}',
+      'p{-webkit-text-security:disc}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<main>', '<main><ol style="list-style-type:lower-latin"><li></li></ol>')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const type of ['a', 'A', 'i', 'I']) {
+      const page = html(good).replace('<main>', `<main><ol type="${type}" start="8"><li></li></ol>`)
+      assert.deepEqual(codes(withHtml(good, page)), ['unsafe_attribute'], type)
+    }
+  })
+  it('accepts numbers and bullets: counters, list markers and marks that spell nothing', () => {
+    for (const ok of [
+      'h2::before{content:counter(h)}',
+      'h2::before{content:counter(h,decimal) ". "}',
+      'h2::before{content:counters(h,".",decimal-leading-zero)}',
+      '@media print{ol{list-style:square inside}}',
+      'ul{list-style-type:"→"}',
+      'details>summary{list-style-type:disclosure-closed}',
+      'ul{list-style:none}',
+      'p{text-emphasis-style:filled circle}',
+      'p{hyphens:manual;hyphenate-character:"‐"}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+    const numbered = html(good).replace('<main>', '<main><ol type="1" start="3" reversed><li value="5"></li></ol>')
+    assert.deepEqual(codes(withHtml(good, numbered)), [])
   })
 })
 

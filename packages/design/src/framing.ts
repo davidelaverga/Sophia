@@ -6,10 +6,13 @@
 // nothing and is allowed anywhere. Whether a reworded heading or label keeps the research's meaning is not something
 // markup can show: that is the reviewer's, against the sources.
 // Text a reader meets without seeing it on the page (a tooltip, a screen reader's name) is held tighter, because no
-// screenshot shows it: it repeats a visible heading, caption, summary, table header, navigation
-// link or source entry, or it is a plain name (one word, or a word and a numbered id: "Contents", "Table b5").
-// `aria-labelledby`, which points at visible text, is free. A citation marker and its link carry the same attributes,
-// held by citations.ts to a citation mark or name.
+// screenshot shows it: it repeats a label (a heading, caption, summary, table header, navigation link or source entry)
+// or it is a plain name (one word, or a word and a numbered id: "Contents", "Table b5"). An ID reference
+// (aria-labelledby and the rest) names only research, labels or marks. A label that markup hides (hidden, aria-hidden)
+// proves nothing; one that a tooltip, a name or a reference rests on is marked at compile (shownLabels,
+// data-sophia-shown) and the render measures it as it measures a block, so CSS cannot hide it either (#117, CX-0037).
+// A citation marker and its link carry the same attributes, held by citations.ts to a citation mark or name and to
+// their own source's entry.
 
 import {
   attr,
@@ -22,6 +25,7 @@ import {
   type ChildNode,
   type Document,
   type Element,
+  type TextNode,
 } from './dom.ts'
 import { error, type Finding } from './findings.ts'
 
@@ -150,48 +154,170 @@ export const TEXT_ATTRIBUTES: readonly string[] = [
   'aria-colindextext',
   'aria-rowindextext',
 ]
+/**
+ * Attributes that name other elements by id, whose text assistive technology then reads there or takes the reader to:
+ * every ID reference of WAI-ARIA 1.3, and a table cell's `headers`. citations.ts holds a marker to the same list.
+ */
+export const REFERENCE_ATTRIBUTES: readonly string[] = [
+  'aria-labelledby',
+  'aria-describedby',
+  'aria-details',
+  'aria-errormessage',
+  'aria-activedescendant',
+  'aria-controls',
+  'aria-flowto',
+  'aria-owns',
+  'headers',
+]
+/** The ids one reference attribute of an element names. */
+export const referencedIds = (el: Element, name: string): string[] =>
+  (attr(el, name) ?? '').split(/\s+/u).filter((id) => id !== '')
 /** A name that says nothing of its own: one word, or one word and a numbered id. */
 const PLAIN_NAME = /^\p{L}{1,24}(?: \p{L}{0,3}\d[\p{L}\p{N}-]{0,10})?$/u
 const plain = (text: string): string => text.normalize('NFC').replace(/\s+/gu, ' ').trim()
 const lineOf = (html: string, el: Element): number => lineAt(html, el.sourceCodeLocation?.startOffset ?? 0)
+const concealing = (el: Element): boolean => attr(el, 'hidden') !== null || attr(el, 'aria-hidden') === 'true'
 
-/** What the page shows as labels: its headings, captions, summaries, table headers, navigation links, source entries. */
-function visibleLabels(all: readonly Element[]): Set<string> {
-  const out = new Set<string>()
+/** Hidden by its markup: it or an ancestor carries `hidden` or `aria-hidden="true"`. What CSS hides, the render measures. */
+export const hiddenByMarkup = (el: Element): boolean => concealing(el) || hasAncestor(el, concealing)
+
+/** Whether an element's own text frames the research: a heading, caption, summary, table header or legend, a source
+ * entry, or an in-page navigation link. */
+export function isLabel(el: Element): boolean {
+  if ((LABELS.has(el.tagName) && el.tagName !== 'title') || attr(el, 'data-source') !== null) return true
+  return el.tagName === 'a' && (attr(el, 'href') ?? '').startsWith('#') && inNav(el)
+}
+
+/** The labels a tooltip or a name may repeat, by their text: those their markup does not hide. */
+function labelsByText(all: readonly Element[]): Map<string, Element[]> {
+  const out = new Map<string, Element[]>()
   for (const el of all) {
-    const label = (LABELS.has(el.tagName) && el.tagName !== 'title') || attr(el, 'data-source') !== null
-    const navLink = el.tagName === 'a' && (attr(el, 'href') ?? '').startsWith('#') && inNav(el)
-    if (label || navLink) out.add(plain(textOf(el)))
+    if (!isLabel(el) || hiddenByMarkup(el)) continue
+    const text = plain(textOf(el))
+    out.set(text, [...(out.get(text) ?? []), el])
   }
   return out
 }
 
-/** Every tooltip or accessible name that carries text the page does not show. */
-function attributeFindings(all: readonly Element[], html: string): Finding[] {
-  const labels = visibleLabels(all)
-  const shown = (value: string) => value === '' || labels.has(value) || PLAIN_NAME.test(value)
-  const out: Finding[] = []
+/** Every element by its id (the first, if the page repeats one: the profile refuses that). */
+function byId(all: readonly Element[]): Map<string, Element> {
+  const out = new Map<string, Element>()
   for (const el of all) {
-    if (isCite(el) || hasAncestor(el, isCite)) continue
-    for (const name of TEXT_ATTRIBUTES) {
-      const value = attr(el, name)
-      if (value === null || shown(plain(value))) continue
-      out.push(
-        error(
-          'attribute_text',
-          'index.html',
-          `<${el.tagName} ${name}=${JSON.stringify(value.slice(0, 80))}> carries text the page does not show. A tooltip ` +
-            'or an accessible name repeats a visible heading, caption, summary, table header, navigation link or source ' +
-            'entry, or is a plain name ("Contents", "Table b5"); aria-labelledby can point at visible text instead',
-          { line: lineOf(html, el) },
-        ),
-      )
-    }
+    const id = attr(el, 'id')
+    if (id !== null && !out.has(id)) out.set(id, el)
   }
   return out
+}
+
+/** The text nodes inside an element, in order. */
+function textNodesIn(el: Element): TextNode[] {
+  return el.childNodes.flatMap((node) => (isText(node) ? [node] : isElement(node) ? textNodesIn(node) : []))
+}
+
+/** The nearest label that holds a node, or null. */
+function labelOf(node: ChildNode): Element | null {
+  for (let p = node.parentNode; p && isElement(p); p = p.parentNode) if (isLabel(p)) return p
+  return null
+}
+
+const inBlock = (node: ChildNode): boolean => {
+  for (let p = node.parentNode; p && isElement(p); p = p.parentNode) if (isBlock(p)) return true
+  return false
+}
+
+/**
+ * Why an ID reference may not name `target`, or null, with the labels whose text it reads added to `shown`: the target
+ * is on the page, not hidden by its markup, and holds only research (blocks), labels or marks.
+ */
+function referenceIssue(target: Element | undefined, shown: Set<Element>): string | null {
+  if (!target) return 'names no element of the page'
+  if (hiddenByMarkup(target)) return 'names an element its markup hides (hidden, aria-hidden)'
+  const labels: Element[] = []
+  for (const node of textNodesIn(target)) {
+    if (MARKS.test(node.value.trim()) || inBlock(node)) continue
+    const label = labelOf(node)
+    if (!label) return 'names text that is neither the research (a block) nor a label'
+    labels.push(label)
+  }
+  for (const label of labels) shown.add(label)
+  return null
+}
+
+interface Context {
+  readonly labels: ReadonlyMap<string, Element[]>
+  readonly ids: ReadonlyMap<string, Element>
+  readonly shown: Set<Element>
+  readonly html: string
+}
+
+/** A tooltip or name with text the page does not show; the labels a repeated one rests on go to `shown`. */
+function textAttributeFindings(el: Element, cx: Context): Finding[] {
+  const out: Finding[] = []
+  for (const name of TEXT_ATTRIBUTES) {
+    const value = attr(el, name)
+    const text = value === null ? '' : plain(value)
+    if (text === '' || PLAIN_NAME.test(text)) continue
+    const same = cx.labels.get(text)
+    if (same) {
+      for (const label of same) cx.shown.add(label)
+      continue
+    }
+    out.push(
+      error(
+        'attribute_text',
+        'index.html',
+        `<${el.tagName} ${name}=${JSON.stringify((value ?? '').slice(0, 80))}> carries text the page does not show. A tooltip ` +
+          'or an accessible name repeats a heading, caption, summary, table header, navigation link or source entry ' +
+          'that its markup does not hide, or is a plain name ("Contents", "Table b5"); aria-labelledby can point at a label instead',
+        { line: lineOf(cx.html, el) },
+      ),
+    )
+  }
+  return out
+}
+
+/** An ID reference to what a reader cannot check; the labels a valid one reads go to `shown`. */
+function referenceFindings(el: Element, cx: Context): Finding[] {
+  const out: Finding[] = []
+  for (const name of REFERENCE_ATTRIBUTES)
+    for (const id of referencedIds(el, name)) {
+      const issue = referenceIssue(cx.ids.get(id), cx.shown)
+      if (issue)
+        out.push(
+          error('attribute_text', 'index.html', `<${el.tagName} ${name}="${id.slice(0, 64)}"> ${issue}`, {
+            line: lineOf(cx.html, el),
+          }),
+        )
+    }
+  return out
+}
+
+/** The labels a citation marker's references rest on (citations.ts says which it may name). */
+function markerShown(el: Element, cx: Context): void {
+  for (const name of REFERENCE_ATTRIBUTES)
+    for (const id of referencedIds(el, name)) {
+      const target = cx.ids.get(id)
+      if (target && isLabel(target)) cx.shown.add(target)
+    }
+}
+
+/** Every tooltip, name or reference that carries what the page does not show, and the labels the others rest on. */
+function attributeFraming(all: readonly Element[], html: string): { findings: Finding[]; shown: Set<Element> } {
+  const cx: Context = { labels: labelsByText(all), ids: byId(all), shown: new Set<Element>(), html }
+  const findings: Finding[] = []
+  for (const el of all) {
+    if (isCite(el) || hasAncestor(el, isCite)) markerShown(el, cx)
+    else findings.push(...textAttributeFindings(el, cx), ...referenceFindings(el, cx))
+  }
+  return { findings, shown: cx.shown }
+}
+
+/** The labels a tooltip, a name or a reference rests on: the render measures each as it measures a block (compile). */
+export function shownLabels(doc: Document): Element[] {
+  return [...attributeFraming(elements(doc), '').shown]
 }
 
 /** The page's own words around the research: its text, and the text its attributes carry. */
 export function framingFindings(doc: Document, html: string): Finding[] {
-  return [...textFindings(doc, html), ...attributeFindings(elements(doc), html)]
+  return [...textFindings(doc, html), ...attributeFraming(elements(doc), html).findings]
 }

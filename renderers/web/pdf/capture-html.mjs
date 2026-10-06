@@ -337,9 +337,11 @@ async function captureTarget(shot, target, page) {
  * @returns {Check[]}
  */
 function targetChecks(target, page, coverage) {
-  const unseen = page.blocks.filter((b) => b.issues.some((i) => i !== 'low_contrast' && i !== 'scrolls'))
-  const low = page.blocks.filter((b) => b.issues.includes('low_contrast'))
-  const unknown = page.blocks.filter((b) => b.contrast.ratio === null)
+  // A shown label (one a tooltip, an accessible name or an ID reference rests on) is held to what a block is.
+  const measured = [...page.blocks, ...page.shown]
+  const unseen = measured.filter((b) => b.issues.some((i) => i !== 'low_contrast' && i !== 'scrolls'))
+  const low = measured.filter((b) => b.issues.includes('low_contrast'))
+  const unknown = measured.filter((b) => b.contrast.ratio === null)
   const ids = (/** @type {{ id: string }[]} */ list) =>
     list
       .slice(0, MAX_LISTED)

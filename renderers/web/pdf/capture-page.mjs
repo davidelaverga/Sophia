@@ -1,5 +1,8 @@
 // What the capture kernel measures inside a designed page (SDD-01 §7, pack 05 §3 and §5): its size and horizontal
-// overflow, its sections, and every content block's visibility, clipping, cover and contrast. Page JavaScript is off,
+// overflow, its sections, and every content block's visibility, clipping, cover and contrast. The labels a tooltip,
+// an accessible name or an ID reference rests on (marked data-sophia-shown by the design compile), and each element
+// inside one that holds text, are measured as blocks are, and more strictly: a reader meets their text elsewhere, so
+// it must be seen here (SDD-01, #117). Page JavaScript is off,
 // so these functions are not the page's: the kernel sends their source (`pageScript`) and runs it through the
 // browser's protocol. Each is self-contained but for the others in this file, which travel with it; none reads the
 // network or writes the document.
@@ -11,7 +14,7 @@
  *   contrast: Contrast }} BlockMeasure
  * @typedef {{ width: number, height: number, viewportWidth: number, viewportHeight: number,
  *   overflowPx: number, overflowing: { element: string, rightPx: number }[], sections: ({ id: string } & Box)[],
- *   blocks: BlockMeasure[] }} PageMeasure
+ *   blocks: BlockMeasure[], shown: BlockMeasure[] }} PageMeasure
  */
 
 /**
@@ -69,6 +72,25 @@ function hiddenIssues(el) {
   const t = text.getBoundingClientRect()
   if (el.textContent.trim() !== '' && (t.width < 2 || t.height < 2)) return ['no_visible_text']
   if (Number.parseFloat(style.fontSize) < 1) return ['no_visible_text']
+  return []
+}
+
+/**
+ * Why a shown label's text cannot be seen beyond what hides a block: cut out by a clip or a clip path, on it or an
+ * ancestor, or pushed off the page (a negative text indent).
+ * @param {Element} el
+ * @returns {string[]}
+ */
+function concealedIssues(el) {
+  for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement) {
+    const style = getComputedStyle(a)
+    if ((style.clipPath && style.clipPath !== 'none') || (style.clip && style.clip !== 'auto')) return ['clipped']
+  }
+  const text = document.createRange()
+  text.selectNodeContents(el)
+  const t = text.getBoundingClientRect()
+  if (el.textContent.trim() !== '' && (t.right + window.scrollX <= 0 || t.bottom + window.scrollY <= 0))
+    return ['off_page']
   return []
 }
 
@@ -286,6 +308,11 @@ function measurePage(opts) {
   const ctx = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('no 2D canvas to resolve colours')
   const blocks = [...document.querySelectorAll('[data-block]')].map((el) => measureBlock(el, page, ctx))
+  const shown = shownElements().map(({ el, id }) => {
+    const measure = measureBlock(el, page, ctx)
+    const concealed = concealedIssues(el)
+    return { ...measure, id, issues: concealed.length > 0 ? [...concealed, ...measure.issues] : measure.issues }
+  })
   window.scrollTo(0, 0)
   return {
     width: page.width,
@@ -299,7 +326,29 @@ function measurePage(opts) {
       ...boxOf(el),
     })),
     blocks,
+    shown,
   }
+}
+
+/**
+ * The labels marked data-sophia-shown, and each element inside one that holds text of its own, with the name a check
+ * gives them.
+ * @returns {{ el: Element, id: string }[]}
+ */
+function shownElements() {
+  /** @type {{ el: Element, id: string }[]} */
+  const out = []
+  for (const label of document.querySelectorAll('[data-sophia-shown]')) {
+    const name = `label ${label.getAttribute('data-sophia-shown') ?? ''}`
+    out.push({ el: label, id: name })
+    for (const inner of label.querySelectorAll('*')) {
+      const holds = [...inner.childNodes].some(
+        (n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== '',
+      )
+      if (holds) out.push({ el: inner, id: `${name} ${nameOf(inner)}` })
+    }
+  }
+  return out
 }
 
 /** The functions above, in the order they are defined, as the source the kernel sends. */
@@ -308,6 +357,7 @@ const IN_PAGE = [
   nameOf,
   overflowingElements,
   hiddenIssues,
+  concealedIssues,
   inside,
   hides,
   cutsOwnText,
@@ -321,6 +371,7 @@ const IN_PAGE = [
   contrastOf,
   measureBlock,
   measurePage,
+  shownElements,
 ]
 
 /**

@@ -285,6 +285,42 @@ describe('the confined capture kernel', () => {
     }
   })
 
+  it(
+    'holds a label a name or a reference rests on to what a block is held to, inside and out (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+           .cp{clip-path:inset(50%)} .ti{text-indent:-9999px} .ghost{color:transparent}`,
+            `<main><section data-section="s1"><h2 data-sophia-shown="h2:1">Findings</h2><p data-block="b1">Text.</p>
+          <h2 data-sophia-shown="h2:2" class="vh">Hidden from the eye</h2><h2 data-sophia-shown="h2:3" class="cp">Clipped away</h2>
+          <h2 data-sophia-shown="h2:4" class="ti">Indented away</h2><h2 data-sophia-shown="h2:5" class="ghost">Transparent</h2>
+          <h2 data-sophia-shown="h2:6">Seen <span class="vh">with a concealed part</span></h2></section></main>`,
+          ),
+          { targets: ['w1280-light'] },
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      const shown = Object.fromEntries((receipt.targets[0]!.page.shown ?? []).map((b) => [b.id, b.issues]))
+      assert.deepEqual(shown['label h2:1'], [], JSON.stringify(shown))
+      assert.ok((shown['label h2:2'] ?? []).length > 0, JSON.stringify(shown))
+      assert.ok(shown['label h2:3']?.includes('clipped'), JSON.stringify(shown))
+      assert.ok(shown['label h2:4']?.includes('off_page'), JSON.stringify(shown))
+      assert.ok(shown['label h2:5']?.includes('low_contrast'), JSON.stringify(shown))
+      assert.deepEqual(shown['label h2:6'], [], JSON.stringify(shown))
+      assert.ok((shown['label h2:6 span'] ?? []).length > 0, JSON.stringify(shown))
+      assert.equal(outcome(receipt, 'blocks_visible', 'w1280-light'), 'failed')
+      assert.equal(outcome(receipt, 'contrast', 'w1280-light'), 'failed')
+      const named = receipt.checks.find((c) => c.name === 'blocks_visible')?.detail ?? ''
+      for (const id of ['label h2:2', 'label h2:3', 'label h2:4', 'label h2:6 span'])
+        assert.ok(named.includes(id), named)
+      assert.equal(named.includes('label h2:1,'), false, named)
+    },
+  )
+
   it('names horizontal overflow and the element that causes it', { skip }, async () => {
     const receipt = await captureHtml(
       job(

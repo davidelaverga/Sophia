@@ -3,7 +3,7 @@
 // `url()` in any form, an at-rule or a value function outside the allowlists, or a binding property is refused. Nothing
 // here judges whether the CSS is good design.
 
-import { parse, walk, type CssNode } from 'css-tree'
+import { parse, walk, type CssNode, type FunctionNode } from 'css-tree'
 import { error, type Finding } from './findings.ts'
 
 /** At-rules a static research page may use. `@import`, `@font-face`, `@namespace`, `@charset` and the rest are refused. */
@@ -63,6 +63,8 @@ const FUNCTIONS = new Set([
 
 /** Properties that bind behaviour in old engines. */
 const BINDINGS = new Set(['behavior', '-moz-binding', '-ms-behavior'])
+/** Properties that draw text as other marks: what a capture shows would not be the text a reader is given. */
+const MASKS = new Set(['-webkit-text-security', 'text-security'])
 
 /** The longest stylesheet a source may hold. */
 export const CSS_BYTES = 131_072
@@ -75,21 +77,85 @@ const nameIssue = (kind: string, name: string): string | null =>
 /**
  * Properties that can draw text of their own (SDD-01-CX-0019 F2): only the research's text is shown, so these may draw
  * decoration only: keywords, counters, and strings of at most two characters that are neither letters nor digits
- * (a bullet, a quote mark, an arrow). No value may come from elsewhere: `attr()`, `var()` or `env()`.
+ * (a bullet, a quote mark, an arrow). No value may come from elsewhere: `attr()`, `var()` or `env()`. A counter or a
+ * list marker draws numbers or bullets only (#117, CX-0038): a letter, numeral or custom counter style spells words
+ * from the values counter-reset, counter-set or a list's start choose. The same in every media (print included), in
+ * a stylesheet and in a style attribute.
  */
-const TEXT_PROPERTIES = new Set(['content', 'quotes', 'list-style', 'list-style-type', 'text-overflow'])
+const TEXT_PROPERTIES = new Set([
+  'content',
+  'quotes',
+  'list-style',
+  'list-style-type',
+  'text-overflow',
+  'hyphenate-character',
+  '-webkit-hyphenate-character',
+  'text-emphasis',
+  'text-emphasis-style',
+  '-webkit-text-emphasis',
+  '-webkit-text-emphasis-style',
+])
 const DECORATION = /^[^\p{L}\p{N}]{0,2}$/u
 const TEXT_FUNCTIONS = new Set(['counter', 'counters'])
+/** The counter styles a counter or a list marker may draw in: numbers and bullets, which spell nothing. */
+export const COUNTER_STYLES: ReadonlySet<string> = new Set([
+  'decimal',
+  'decimal-leading-zero',
+  'disc',
+  'circle',
+  'square',
+  'disclosure-open',
+  'disclosure-closed',
+  'none',
+])
+/** What else a list-style may say: where its marker sits, and the keywords every property takes. */
+const LIST_KEYWORDS = new Set([
+  ...COUNTER_STYLES,
+  'inside',
+  'outside',
+  'initial',
+  'inherit',
+  'unset',
+  'revert',
+  'revert-layer',
+])
+
+/** A counter drawn in a style other than numbers or bullets (the name comes first, then a counters() separator). */
+function counterStyleIssue(fn: FunctionNode): string | null {
+  const styles = fn.children
+    .toArray()
+    .flatMap((c) => (c.type === 'Identifier' ? [c.name] : []))
+    .slice(1)
+  const style = styles.find((name) => !COUNTER_STYLES.has(name.toLowerCase()))
+  return style === undefined
+    ? null
+    : `${fn.name}() may draw numbers or bullets only, not in the ${style} style: it can spell words`
+}
+
+/** What one part of a text property's value draws that is not decoration, or null. */
+function partIssue(property: string, part: CssNode, list: boolean): string | null {
+  if (part.type === 'String')
+    return DECORATION.test(part.value)
+      ? null
+      : `${property} may draw decoration only, not the text ${JSON.stringify(part.value.slice(0, 40))}`
+  if (part.type === 'Function')
+    return TEXT_FUNCTIONS.has(part.name.toLowerCase())
+      ? counterStyleIssue(part)
+      : `${property} may not draw ${part.name}(): only the research's text is shown`
+  if (list && part.type === 'Identifier' && !LIST_KEYWORDS.has(part.name.toLowerCase()))
+    return `${property} may draw numbers or bullets only, not ${part.name}: it can spell words`
+  return null
+}
 
 function generatedTextIssue(node: CssNode): string | null {
-  if (node.type !== 'Declaration' || !TEXT_PROPERTIES.has(node.property.toLowerCase())) return null
+  if (node.type !== 'Declaration') return null
+  const property = node.property.toLowerCase()
+  if (MASKS.has(property)) return `${node.property} draws text as other marks: a capture would not show the text`
+  if (!TEXT_PROPERTIES.has(property)) return null
+  const list = property === 'list-style' || property === 'list-style-type'
   let issue: string | null = null
   walk(node.value, (part) => {
-    if (issue) return
-    if (part.type === 'String' && !DECORATION.test(part.value))
-      issue = `${node.property} may draw decoration only, not the text ${JSON.stringify(part.value.slice(0, 40))}`
-    else if (part.type === 'Function' && !TEXT_FUNCTIONS.has(part.name.toLowerCase()))
-      issue = `${node.property} may not draw ${part.name}(): only the research's text is shown`
+    issue ??= partIssue(node.property, part, list)
   })
   return issue
 }

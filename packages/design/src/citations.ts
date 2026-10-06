@@ -4,11 +4,12 @@
 // or none); and when it links, only to the page's own entry for that source (the element marked `data-source` with the
 // same id). Every attribute that carries text a reader meets without seeing it (a tooltip, an accessible name or
 // description, a braille label: framing.ts's list), on the marker and on its link, is held to the same mark, or a word
-// and a number ("Source 3").
+// and a number ("Source 3"); an ID reference on either (framing.ts's list) names only that source's entry, which its
+// markup does not hide (the render measures it: framing.ts's shownLabels).
 
 import { attr, elements, isElement, lineAt, textOf, type Element } from './dom.ts'
 import { error, type Finding } from './findings.ts'
-import { TEXT_ATTRIBUTES } from './framing.ts'
+import { hiddenByMarkup, REFERENCE_ATTRIBUTES, referencedIds, TEXT_ATTRIBUTES } from './framing.ts'
 
 /** The elements a marker may be. */
 const MARKER_TAGS = new Set(['a', 'sup', 'span'])
@@ -21,13 +22,14 @@ const isCite = (el: Element): boolean => attr(el, 'data-cite') !== null
 const childElements = (el: Element): Element[] => el.childNodes.filter(isElement)
 const markOf = (el: Element): string => textOf(el).replace(/\s+/gu, '')
 
-/** Where each source's entry is, by its element id: the id a marker's link must name. */
+/** Where each source's entry is, by its element id: the id a marker's link must name. An entry its markup hides is
+ * no destination. */
 function entryIds(all: readonly Element[]): Map<string, string> {
   const out = new Map<string, string>()
   for (const el of all) {
     const source = attr(el, 'data-source')
     const id = attr(el, 'id')
-    if (source !== null && id !== null) out.set(id, source.toLowerCase())
+    if (source !== null && id !== null && !hiddenByMarkup(el)) out.set(id, source.toLowerCase())
   }
   return out
 }
@@ -62,6 +64,15 @@ function destinationIssue(marker: Element, link: Element, entries: ReadonlyMap<s
     : `it links to ${JSON.stringify(href.slice(0, 80))}, not to this source's entry on the page`
 }
 
+/** An ID reference on a marker or its link that names anything but this source's own entry. */
+function referenceIssue(els: readonly Element[], cited: string, entries: ReadonlyMap<string, string>): string | null {
+  const named = els.flatMap((el) =>
+    REFERENCE_ATTRIBUTES.flatMap((name) => referencedIds(el, name).map((id) => ({ name, id }))),
+  )
+  const stray = named.find(({ id }) => entries.get(id) !== cited)
+  return stray ? `its ${stray.name} names ${JSON.stringify(stray.id.slice(0, 40))}, not this source's entry` : null
+}
+
 /** What is wrong with one marker, or null. */
 function markerIssue(marker: Element, entries: ReadonlyMap<string, string>): string | null {
   if (!MARKER_TAGS.has(marker.tagName)) return `a marker is <a>, <sup> or <span>, not <${marker.tagName}>`
@@ -70,8 +81,10 @@ function markerIssue(marker: Element, entries: ReadonlyMap<string, string>): str
   if (typeof link === 'string') return link
   const mark = markOf(marker)
   if (!MARK.test(mark)) return `its text ${JSON.stringify(mark.slice(0, 40))} is not a citation mark`
-  const named = nameIssue(marker) ?? (link && link !== marker ? nameIssue(link) : null)
-  return named ?? (link === null ? null : destinationIssue(marker, link, entries))
+  const both = link && link !== marker ? [marker, link] : [marker]
+  const named = both.map(nameIssue).find((issue) => issue !== null) ?? null
+  const referenced = referenceIssue(both, (attr(marker, 'data-cite') ?? '').toLowerCase(), entries)
+  return named ?? referenced ?? (link === null ? null : destinationIssue(marker, link, entries))
 }
 
 /** Every citation marker whose shape could carry a claim or lead away from its source. */
