@@ -38,3 +38,10 @@ export const taskPeople = (people: readonly RoomParticipant[]): { actorId: strin
       .map((p) => [p.identity, { actorId: p.identity, name: p.name }]),
   ).values(),
 ]
+
+/** The API's limit on a task's quote (A17). */
+export const QUOTE_MAX = 800
+
+/** The passage as selected, within the API's limit; a cut ends in "…", inside the limit. */
+export const taskQuote = (text: string): string =>
+  text.length <= QUOTE_MAX ? text : `${text.slice(0, QUOTE_MAX - 1)}…`

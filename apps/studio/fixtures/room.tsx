@@ -105,6 +105,24 @@ interface Fixture {
   dropNextReview: () => void
   /** Another member reviews the current version (A16). */
   reviewAs: (verdict: 'approved' | 'changes_requested') => void
+  /** This person reviews the current version from another device, with these words (A16). */
+  reviewAsMe: (verdict: 'approved' | 'changes_requested', note: string | null) => void
+  /** The next review lands and the feed moves, and only then is its reply lost (A16). */
+  publishThenLoseReview: () => void
+  /** While on, reviews land but their replies wait for `releaseReviews` (A16). */
+  holdReviews: (on: boolean) => void
+  releaseReviews: () => void
+  /** Reviews' reads fail, or read again (A16). */
+  failReviewReads: (on: boolean) => void
+  /** Reviews' reads held since the page opened (`reviews=hold`) are answered now (A16). */
+  releaseReviewReads: () => void
+  /** Tasks' reads held since the page opened (`tasks=hold`) are answered now (A17). */
+  releaseTaskReads: () => void
+  /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
+  holdTasks: (on: boolean) => void
+  releaseTasks: () => void
+  /** Tasks' reads fail, or read again (A17). */
+  failTaskReads: (on: boolean) => void
   /** The next task's write lands, but its reply is lost (A17). */
   loseNextTaskReply: () => void
   /** Marco makes a task from the current version's first passage, for the `n`th other person or (null) anyone (A17). */
@@ -258,9 +276,15 @@ const project = {
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
   // A16: the versions' reviews (review-data.ts).
-  reviews: noReviews(),
+  reviews: {
+    ...noReviews(query.get('reviews') === 'fail'),
+    heldReads: query.get('reviews') === 'hold' ? waiting() : null,
+  },
   // A17: the report's tasks (task-data.ts).
-  tasks: noTasks(nameOf, (id) => Number(id.slice(-1))),
+  tasks: {
+    ...noTasks(nameOf, (id) => Number(id.slice(-1)), query.get('tasks') === 'fail'),
+    heldReads: query.get('tasks') === 'hold' ? waiting() : null,
+  },
   // A12: the meeting this visit is, its recap built from what happens on the page (meeting-data.ts).
   // `meeting=earlier`: the running meeting began 12 minutes before the page, so joining is joining late.
   meeting: newMeeting(
@@ -339,17 +363,44 @@ window.fixture = {
   dropNextReview: () => {
     project.reviews.drop = true
   },
-  reviewAs: (verdict) => {
-    const current = versionId(project.reportVersions)
-    const review = {
-      reviewId: `00000000-0000-4000-8000-0000000f${String(project.reviews.byKey.size + project.revision).padStart(4, '0')}`,
-      verdict,
-      note: verdict === 'approved' ? null : 'Tighten it',
-      by: personId(1),
-      at: new Date().toISOString(),
-    }
-    project.reviews.byVersion.set(current, [review, ...(project.reviews.byVersion.get(current) ?? [])])
-    publish(project)
+  reviewAs: (verdict) => reviewBy(personId(1), verdict, verdict === 'approved' ? null : 'Tighten it'),
+  reviewAsMe: (verdict, note) => reviewBy(membership.actorId, verdict, note),
+  publishThenLoseReview: () => {
+    project.reviews.publishThenLose = true
+  },
+  holdReviews: (on) => {
+    if (!on) for (const reply of project.reviews.held ?? []) reply()
+    project.reviews.held = on ? [] : null
+  },
+  releaseReviews: () => {
+    const held = project.reviews.held ?? []
+    project.reviews.held = null
+    for (const reply of held) reply()
+  },
+  failReviewReads: (on) => {
+    project.reviews.failReads = on
+  },
+  releaseReviewReads: () => {
+    const held = project.reviews.heldReads ?? []
+    project.reviews.heldReads = null
+    for (const answer of held) answer()
+  },
+  releaseTaskReads: () => {
+    const held = project.tasks.heldReads ?? []
+    project.tasks.heldReads = null
+    for (const answer of held) answer()
+  },
+  holdTasks: (on) => {
+    if (!on) for (const reply of project.tasks.held ?? []) reply()
+    project.tasks.held = on ? [] : null
+  },
+  releaseTasks: () => {
+    const held = project.tasks.held ?? []
+    project.tasks.held = null
+    for (const reply of held) reply()
+  },
+  failTaskReads: (on) => {
+    project.tasks.failReads = on
   },
   loseNextTaskReply: () => {
     project.tasks.loseReply = true
@@ -449,6 +500,28 @@ window.fixture = {
   asked,
   served,
   unexpected,
+}
+
+/** Answers waiting to be let through, typed as the fixture keeps them. */
+function waiting(): (() => void)[] {
+  return []
+}
+
+let reviewsBy = 0
+
+/** A review of the current version by `by`, recorded as the API would, newest first; the feed moves (A16). */
+function reviewBy(by: string, verdict: 'approved' | 'changes_requested', note: string | null) {
+  const current = versionId(project.reportVersions)
+  reviewsBy += 1
+  const review = {
+    reviewId: `00000000-0000-4000-8000-0000000f${String(reviewsBy).padStart(4, '0')}`,
+    verdict,
+    note,
+    by,
+    at: new Date().toISOString(),
+  }
+  project.reviews.byVersion.set(current, [review, ...(project.reviews.byVersion.get(current) ?? [])])
+  publish(project)
 }
 
 /** The meeting's records as the page holds them now: who is in it, the decision, the report made, the notes kept. */

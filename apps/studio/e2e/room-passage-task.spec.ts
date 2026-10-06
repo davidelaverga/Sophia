@@ -200,3 +200,76 @@ test('task · while a Create has no reply, no other Task is offered; closed, the
   await expect(added(page)).toContainText('Task added for you.')
   expect(await writes(page)).toEqual(['task:create'])
 })
+
+test('task · a Create on its way says so', async ({ page }) => {
+  await open(page)
+  await page.evaluate(() => window.fixture?.holdTasks(true))
+  await startTask(page)
+  await what(page).fill('Check it')
+  await form(page).getByRole('button', { name: 'Create' }).click()
+  await expect(form(page).getByRole('button', { name: 'Creating…' })).toBeVisible()
+  await page.evaluate(() => window.fixture?.releaseTasks())
+  await expect(added(page)).toContainText('Task added for you.')
+})
+
+test('task · a first read of the tasks that fails says so, and Try again reads them', async ({ page }) => {
+  await open(page, '&tasks=fail')
+  await tasksTab(page).click()
+  await expect(pane(page).getByText('Tasks can’t be read now.')).toBeVisible({ timeout: 9000 })
+  await page.evaluate(() => window.fixture?.failTaskReads(false))
+  await pane(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(pane(page).getByText('No tasks yet. Select a passage and press Task.')).toBeVisible()
+})
+
+test('task · a Create closed while on its way still says so, in the foot', async ({ page }) => {
+  await open(page)
+  await page.evaluate(() => window.fixture?.holdTasks(true))
+  await startTask(page)
+  await what(page).fill('Check it')
+  await form(page).getByRole('button', { name: 'Create' }).click()
+  await form(page).getByRole('button', { name: 'Cancel' }).click()
+  await expect(added(page)).toContainText('Creating the task…')
+  await page.evaluate(() => window.fixture?.releaseTasks())
+  await expect(added(page)).toContainText('Task added for you.')
+})
+
+test('task · while the tasks are read, the tab says so; a task made meanwhile is there', async ({ page }) => {
+  await open(page, '&tasks=hold')
+  await tasksTab(page).click()
+  await expect(pane(page).getByText('Reading tasks…')).toBeVisible()
+  await pane(page).getByRole('tab', { name: 'Document' }).click()
+  await startTask(page)
+  await what(page).fill('Check it')
+  await form(page).getByRole('button', { name: 'Create' }).click()
+  await added(page).getByRole('button', { name: 'See tasks' }).click()
+  await expect(rows(page)).toHaveCount(1)
+  await expect(rows(page).first()).toContainText('Check it')
+})
+
+test('task · a viewer with no tasks is told so, not sent to a press they don’t have', async ({ page }) => {
+  await open(page, '&role=viewer')
+  await tasksTab(page).click()
+  await expect(pane(page).getByText('No tasks yet.', { exact: true })).toBeVisible()
+})
+
+test('task · a refresh that fails as the feed moves keeps the tasks read', async ({ page }) => {
+  await open(page)
+  await page.evaluate(() => window.fixture?.taskBy(null))
+  await tasksTab(page).click()
+  await expect(rows(page)).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.failTaskReads(true))
+  await page.evaluate(() => window.fixture?.update())
+  await page.evaluate(() => new Promise((done) => setTimeout(done, 3000)))
+  await expect(pane(page).getByText('Tasks can’t be read now.')).toHaveCount(0)
+  await expect(rows(page)).toHaveCount(1)
+})
+
+test('task · while a form is open, no other Task is offered, so its words stay', async ({ page }) => {
+  await open(page)
+  await startTask(page)
+  await what(page).fill('Half typed')
+  await pane(page).locator('.md p', { hasText: 'Read it once.' }).selectText()
+  await expect(bar(page)).toBeVisible()
+  await expect(bar(page).getByRole('button', { name: 'Task' })).toHaveCount(0)
+  await expect(what(page)).toHaveValue('Half typed')
+})

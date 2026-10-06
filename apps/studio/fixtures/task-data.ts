@@ -11,14 +11,23 @@ export interface Tasks {
   nameOf: (actorId: string) => string
   /** A version's number, from its id. */
   numberOf: (versionId: string) => number
+  /** While set, writes land but their replies wait for `releaseTasks` (`holdTasks`). */
+  held: (() => void)[] | null
+  /** Reads fail as the API does when its records can't be read (`failTaskReads`, `tasks=fail`). */
+  failReads: boolean
+  /** While set, reads wait for `releaseTaskReads` (`tasks=hold`). */
+  heldReads: (() => void)[] | null
 }
 
-export const noTasks = (nameOf: Tasks['nameOf'], numberOf: Tasks['numberOf']): Tasks => ({
+export const noTasks = (nameOf: Tasks['nameOf'], numberOf: Tasks['numberOf'], failReads = false): Tasks => ({
   list: [],
   byKey: new Map(),
   loseReply: false,
   nameOf,
   numberOf,
+  held: null,
+  failReads,
+  heldReads: null,
 })
 
 const isStr = (v: unknown): v is string => typeof v === 'string'
