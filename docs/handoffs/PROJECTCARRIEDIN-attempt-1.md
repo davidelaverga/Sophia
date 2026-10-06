@@ -39,7 +39,7 @@ Ending commit/tree: two commits on `personal/carried-in`, read one by one (a mer
 
 - **Browser:** `project-carried-in.spec.ts`, 3 of 3, run alone with the guard at its default floors (a game was open).
 - **Gates:** `tsc`, `oxlint --type-aware` and Prettier pass.
-- **Mutations: not run yet.** The machine froze at 12:53 during this PR's mutation loop, beside two games; the guard's RAM floor had been lowered (see `.claude-guards/README.md`). On Luis's word, the mutants wait for a day with no game open:
+- **Mutations: 5 of 5 killed, and the control survives.** The first loop was stopped when the machine froze at 12:53 beside two games, with the guard's RAM floor lowered (see `.claude-guards/README.md`). On Luis's word they waited for a free machine, and ran there under the guard at its default floor:
   - oldest first;
   - mine not said as yours;
   - a failed read said empty;
@@ -50,8 +50,7 @@ Ending commit/tree: two commits on `personal/carried-in`, read one by one (a mer
 
 ## Remaining obligations
 
-- The mutants above.
-- This PR awaits #131, CI and Codex.
+- This PR awaits CI and Codex (#131 merged).
 
 ## Next bounded action
 
