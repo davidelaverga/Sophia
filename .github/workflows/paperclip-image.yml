@@ -47,10 +47,10 @@ jobs:
   image:
     name: Paperclip image under a 2 GiB cgroup
     runs-on: ubuntu-24.04
-    # Above the sum of every step's own budget (304 minutes), so a slow step that stays within its budget fails as
+    # Above the sum of every step's own budget (308 minutes), so a slow step that stays within its budget fails as
     # that step, and the receipt, scrub, upload and clean-up still run after it; the job's limit never ends the job
     # first (WBC-02, Codex review of 5446719). The unit tests hold this sum.
-    timeout-minutes: 320
+    timeout-minutes: 325
     services:
       # For scripts/paperclip-verify.mjs (the built worker under the pin's harness), as the database job has it.
       postgres:
@@ -208,20 +208,24 @@ jobs:
           timeout 960 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase first \
             --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-first.json" --wait-ms 300000 --deadline-ms 900000
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:after-flow "$EVIDENCE/cgroup.jsonl"
-          timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-before.json"
+          timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-first.json"
           sleep 60
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:idle "$EVIDENCE/cgroup.jsonl"
 
       # After the restart, what persists is probed before the recreation, and memory read after it as after the other
-      # probes (review of 9ee7754, CX-0045): sign-up is still open, so the probe does not try it.
+      # probes (review of 9ee7754, CX-0045): sign-up is still open, so the probe does not try it. The home is
+      # snapshotted last, at the recreation boundary, so what the idle period, the restart and its probe wrote is in
+      # home-before.json and held across the recreation; from the first phase's snapshot, so it is held across the
+      # restart too (review of 2bad104).
       - name: Restart
-        timeout-minutes: 25
+        timeout-minutes: 29
         run: |
           timeout 450 node sophia/scripts/paperclip-image-container.mjs restart restart
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc restart:healthy "$EVIDENCE/cgroup.jsonl"
           timeout 660 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase restart \
             --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-restart.json" --wait-ms 300000 --deadline-ms 600000
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc restart:after-flow "$EVIDENCE/cgroup.jsonl"
+          timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-before.json" "$EVIDENCE/home-first.json"
 
       - name: Recreate on the same volume and database, sign-up closed
         timeout-minutes: 37
@@ -234,6 +238,7 @@ jobs:
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc recreated:after-flow "$EVIDENCE/cgroup.jsonl"
           timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-after.json" "$EVIDENCE/home-before.json"
           timeout 60 node sophia/scripts/paperclip-image-home.mjs compare "$EVIDENCE/home-before.json" "$EVIDENCE/home-after.json" "$EVIDENCE/home-compare.json"
+          timeout 60 node sophia/scripts/paperclip-image-home.mjs compare "$EVIDENCE/home-first.json" "$EVIDENCE/home-before.json" "$EVIDENCE/home-restart-compare.json"
           sleep 60
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc recreated:idle "$EVIDENCE/cgroup.jsonl"
 

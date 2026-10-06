@@ -37,6 +37,11 @@ const covered = (list) => ({ total: list.length, oversize: [], errors: [], maxFi
 /** The log grew to 5000 bytes, its first 4000 the ones it had: the prefix the later snapshot read. */
 const grownFiles = files.map((f) => (f.path === LOG ? { ...f, size: 5000, sha256: '9'.repeat(64) } : f))
 const grown = { coverage: covered(grownFiles), files: grownFiles, prefixes: { [LOG]: { size: 4000, sha256: '3'.repeat(64) } } }
+/** The home after the first phase: the log at 3000 bytes, before the idle period, the restart and its probe grew it. */
+const firstFiles = files.map((f) => (f.path === LOG ? { ...f, size: 3000, sha256: '5'.repeat(64) } : f))
+const first = { coverage: covered(firstFiles), files: firstFiles }
+/** The home at the recreation boundary: the log at 4000, its first 3000 the ones it had after the first phase. */
+const boundary = { coverage: covered(files), files, prefixes: { [LOG]: { size: 3000, sha256: '5'.repeat(64) } } }
 
 /** The build's MANIFEST, as bytes; the Dockerfile is recorded for reference and not copied into the image. */
 const manifestOf = (change = {}) =>
@@ -140,7 +145,7 @@ function complete() {
     samples: PHASES.map(sample),
     probes: { first: probe('first'), restart: probe('restart'), restarted: probe('restarted') },
     // Copies, never the shared lists: a test that changes one run must not change the next (review of ebdbaa9).
-    home: { before: { coverage: covered(files), files: structuredClone(files) }, after: structuredClone(grown) },
+    home: { first: structuredClone(first), before: structuredClone(boundary), after: structuredClone(grown) },
   }
 }
 
@@ -163,7 +168,7 @@ describe('the image qualification receipt (WBC-02-CX-0036)', () => {
     const receipt = assess(complete())
     assert.equal(receipt.verdict, 'qualified')
     assert.ok(receipt.checks.every((c) => c.result === 'passed'))
-    assert.equal(receipt.checks.length, 1 + 3 + 1 + PHASES.length + 3 + 1)
+    assert.equal(receipt.checks.length, 1 + 3 + 1 + PHASES.length + 3 + 2)
   })
 
   it('CX-0036: a memory sample without peak and current is not qualified, even with nothing listed unavailable', () => {
@@ -929,6 +934,7 @@ describe('the receipt command reads every input the workflow writes, by its own 
       'probe-first.json': JSON.stringify(run.probes.first),
       'probe-restart.json': JSON.stringify(run.probes.restart),
       'probe-restarted.json': JSON.stringify(run.probes.restarted),
+      'home-first.json': JSON.stringify(run.home.first),
       'home-before.json': JSON.stringify(run.home.before),
       'home-after.json': JSON.stringify(run.home.after),
       'manifest.json': run.packaged.manifest,
@@ -1172,6 +1178,7 @@ describe('review of 705c2b8: whatever shape a record has, at any depth, the rece
     ['identity'],
     ['packaged', 'imageFiles'],
     ...['first', 'restart', 'restarted'].map((p) => ['probes', p]),
+    ['home', 'first'],
     ['home', 'before'],
     ['home', 'after'],
     ...['timings', 'runtime', 'samples'].flatMap((list) => run[list].map((_, i) => [list, i])),
@@ -1231,6 +1238,7 @@ describe('review of 705c2b8: whatever shape a record has, at any depth, the rece
     for (const [record, check] of [
       [['home', 'after'], 'home persisted across recreation'],
       [['home', 'before'], 'home persisted across recreation'],
+      [['home', 'first'], 'home persisted across restart'],
       [['probes', 'first'], 'installed plugin flow, first'],
       [['probes', 'restarted'], 'installed plugin flow, restarted'],
       [['packaged', 'imageFiles'], 'image built from the pin'],
@@ -1385,5 +1393,86 @@ describe('review of ebdbaa9: the runtime’s security options and ports are judg
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('review of 2bad104: the home is snapshotted at the recreation boundary, and judged across the restart too', () => {
+  const WORKFLOW = fileURLToPath(new URL('../../.github/workflows/paperclip-image.yml', import.meta.url))
+  const restartOf = (run) => assess(run).checks.find((c) => c.name === 'home persisted across restart')
+  const recreationOf = (run) => assess(run).checks.find((c) => c.name === 'home persisted across recreation')
+  const WRITTEN = { path: 'instances/default/state.json', size: 50, sha256: 'a'.repeat(64) }
+
+  it('positive control: three snapshots, the log grown twice with its earlier bytes kept, both transitions passed', () => {
+    const run = complete()
+    assert.equal(restartOf(run).result, 'passed')
+    assert.equal(recreationOf(run).result, 'passed')
+    assert.equal(verdictOf(run), 'qualified')
+  })
+
+  it('the case of the review: a file written after the first phase and lost at the recreation fails, where the first snapshot alone saw nothing', () => {
+    const run = complete()
+    run.home.before.files = [...run.home.before.files, WRITTEN]
+    run.home.before.coverage.total += 1
+    assert.equal(restartOf(run).result, 'passed', 'written during the idle period, the restart or its probe: no loss across the restart')
+    const recreation = recreationOf(run)
+    assert.equal(recreation.result, 'failed')
+    assert.deepEqual(recreation.detail.missing, [WRITTEN.path])
+    assert.equal(verdictOf(run), 'failed')
+    // Judged from the first phase's snapshot, as before this review, the loss was invisible: the file was never listed.
+    assert.deepEqual(compareSnapshots(run.home.first.files, run.home.after.files, run.home.after.prefixes).missing, [])
+  })
+
+  it('a file present after the first phase and gone at the boundary, or a log rewritten by then, fails the restart transition', () => {
+    const lost = complete()
+    lost.home.before.files = lost.home.before.files.filter((f) => f.path !== 'instances/default/config.json')
+    lost.home.before.coverage.total -= 1
+    assert.equal(restartOf(lost).result, 'failed')
+    assert.deepEqual(restartOf(lost).detail.missing, ['instances/default/config.json'])
+    assert.equal(verdictOf(lost), 'failed')
+    const rewritten = complete()
+    rewritten.home.before.prefixes[LOG] = { size: 3000, sha256: 'e'.repeat(64) }
+    assert.equal(restartOf(rewritten).result, 'failed')
+    assert.deepEqual(restartOf(rewritten).detail.rewrittenGrowing, [LOG])
+    assert.equal(recreationOf(rewritten).result, 'passed', 'the recreation kept what the boundary held')
+  })
+
+  it('a file lost at the recreation is a definite failure, however much else the snapshot left unread', () => {
+    const run = complete()
+    run.home.before.files = [...run.home.before.files, WRITTEN]
+    run.home.before.coverage.total += 1
+    // An unread entry beside the loss: unverified on its own, never a reason to soften a definite loss to unavailable.
+    run.home.after.files = [...run.home.after.files, { path: 'instances/default/other.json', size: null, sha256: null, error: 'EACCES' }]
+    run.home.after.coverage.total += 1
+    const recreation = recreationOf(run)
+    assert.equal(recreation.result, 'failed')
+    assert.deepEqual(recreation.detail.missing, [WRITTEN.path])
+    assert.deepEqual(recreation.detail.unverified, ['instances/default/other.json'])
+  })
+
+  it('without the first snapshot the restart transition is not reached, and the run is not qualified', () => {
+    const run = complete()
+    run.home.first = null
+    assert.equal(restartOf(run).result, 'not reached')
+    assert.equal(recreationOf(run).result, 'passed')
+    assert.equal(verdictOf(run), 'incomplete')
+  })
+
+  it('the workflow: the first phase writes home-first.json; the boundary snapshot, from it, is the Restart step’s last command, and the next is the removal', () => {
+    const steps = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image.steps
+    const commandsOf = (step) => step.run.replace(/\\\n\s*/g, ' ').split('\n').map((l) => l.trim()).filter(Boolean)
+    const firstStep = commandsOf(steps.find((s) => s.name === "First start, the installed plugin's flow, idle"))
+    const restart = commandsOf(steps.find((s) => s.name === 'Restart'))
+    const recreate = commandsOf(steps.find((s) => s.name?.startsWith('Recreate')))
+    const snapshot = 'node sophia/scripts/paperclip-image-home.mjs snapshot pc'
+    assert.ok(firstStep.includes(`timeout 240 ${snapshot} "$EVIDENCE/home-first.json"`), 'the first phase’s snapshot, from nothing earlier')
+    assert.equal(restart.at(-1), `timeout 240 ${snapshot} "$EVIDENCE/home-before.json" "$EVIDENCE/home-first.json"`, 'the boundary snapshot is the last thing before the removal')
+    assert.match(recreate[0], /paperclip-image-container\.mjs remove$/)
+    assert.ok(recreate.includes(`timeout 240 ${snapshot} "$EVIDENCE/home-after.json" "$EVIDENCE/home-before.json"`))
+    const compare = 'node sophia/scripts/paperclip-image-home.mjs compare'
+    assert.ok(recreate.includes(`timeout 60 ${compare} "$EVIDENCE/home-before.json" "$EVIDENCE/home-after.json" "$EVIDENCE/home-compare.json"`))
+    assert.ok(recreate.includes(`timeout 60 ${compare} "$EVIDENCE/home-first.json" "$EVIDENCE/home-before.json" "$EVIDENCE/home-restart-compare.json"`))
+    // home-before.json is written once, at the boundary, and nowhere earlier.
+    const writers = steps.flatMap((s) => commandsOf({ run: s.run ?? '' })).filter((c) => c.includes('snapshot pc "$EVIDENCE/home-before.json"'))
+    assert.equal(writers.length, 1)
   })
 })

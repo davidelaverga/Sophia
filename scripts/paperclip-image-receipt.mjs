@@ -4,7 +4,8 @@
 //   node scripts/paperclip-image-receipt.mjs <dir> <receipt.json> <summary.md>
 // Inputs (each optional; a missing one is `not reached`, never filled in): context.json, disk.jsonl, identity.json,
 // timings.jsonl, cgroup.jsonl (scripts/paperclip-image-cgroup.mjs), probe-first.json, probe-restart.json and
-// probe-restarted.json (the service probe's --url phases), home-before.json and home-after.json (scripts/paperclip-image-home.mjs snapshots),
+// probe-restarted.json (the service probe's --url phases), home-first.json, home-before.json and home-after.json (scripts/paperclip-image-home.mjs snapshots: after the first
+// phase, at the recreation boundary, after the recreation),
 // manifest.json and image-manifest.json (the build's MANIFEST and the image's copy, as bytes) and image-files.json (a
 // scan of /opt/sophia inside the image).
 // Every check validates the recorded values themselves, never a producer's own pass flag: the identity against the
@@ -13,8 +14,10 @@
 // exactly once, from the container's own cgroup (resolved from its process, the path naming it; the restart's the same
 // container, the recreation's a new one), every figure a whole number, the limit 2 GiB without swap, peak and current
 // within it, and no OOM event of any kind; each probe phase's required steps all present and passed, and what each observed (statuses, outcomes, the same plugin, issue and configuration
-// across both phases) recorded and as required; the home's persistence recomputed from the two snapshots, every size
-// and digest it compares one that was read, and every file under the home covered (CX-0039).
+// across both phases) recorded and as required; the home's persistence across the restart and across the recreation,
+// each recomputed from the two snapshots either side of it (the later one at the recreation boundary, so what was
+// written up to it is held; review of 2bad104), every size and digest it compares one that was read, and every file
+// under the home covered (CX-0039).
 // A check is passed, failed, unavailable (recorded but incomplete, or not in the shape it is read in) or not reached. The verdict is `qualified` only when
 // every check passed, `failed` when any failed, and `incomplete` otherwise. What it qualifies: the image built from the
 // pin and a clean Sophia commit, on a GitHub-hosted linux/amd64 runner, under a 2 GiB memory cgroup without swap, with
@@ -319,7 +322,7 @@ function probeCheck(probe, phase, firstProbe) {
 }
 
 /**
- * The home across the recreation, recomputed from the two snapshots. Failed on a definite difference between measured
+ * The home across one transition (the restart; the recreation), recomputed from the snapshots either side of it. Failed on a definite difference between measured
  * files (a stable file changed, a growing record rewritten; with complete coverage, a file or the registry gone);
  * unavailable when an entry was recorded without its size or digest, or a snapshot did not list and hash every file
  * (WBC-02-CX-0039): what was not read is reported, never counted as equal.
@@ -377,6 +380,7 @@ export function assess({
     guarded('runtime: not privileged, Docker’s default capabilities (none added or dropped) and security options, not the host network, loopback only', () => runtimeCheck(runtime), unreadable),
     ...PHASES.map((phase) => guarded(`memory, ${phase}`, () => memoryCheck(samples, phase), unreadable)),
     ...['first', 'restart', 'restarted'].map((phase) => guarded(`installed plugin flow, ${phase}`, () => probeCheck(probes[phase], phase, probes.first), unreadable)),
+    guarded('home persisted across restart', () => homeCheck(home.first, home.before), unreadable),
     guarded('home persisted across recreation', () => homeCheck(home.before, home.after), unreadable),
   ]
   const results = checks.map((c) => c.result)
@@ -394,16 +398,16 @@ export function assess({
   }
 }
 
-function homeLine(check) {
+function homeLine(label, check) {
   const d = check?.detail
-  if (!d?.coverage) return `Home: ${check?.result ?? 'not reached'}.`
+  if (!d?.coverage) return `Home across ${label}: ${check?.result ?? 'not reached'}.`
   const cover = (c) =>
     `${c.listed ?? '?'} of ${c.total ?? '?'} files listed` +
     `${c.oversize?.length ? `, ${c.oversize.length} too large to hash` : ''}` +
     `${c.errors?.length ? `, ${c.errors.length} directories unread` : ''}${c.complete ? '' : ' (incomplete)'}`
   const list = (name, paths) => (paths.length ? `; ${name}: ${paths.join(', ')}` : '')
   return (
-    `Home: ${check.result}. Before ${cover(d.coverage.before)}; after ${cover(d.coverage.after)}` +
+    `Home across ${label}: ${check.result}. Before ${cover(d.coverage.before)}; after ${cover(d.coverage.after)}` +
     list('missing', d.missing) +
     list('changed stable', d.changedStable) +
     list('growing, rewritten', d.rewrittenGrowing) +
@@ -437,7 +441,8 @@ function summaryOf(receipt, samples) {
         : `| ${p} | not reached | | | | | |`
     }),
     '',
-    homeLine(receipt.checks.find((c) => c.name === 'home persisted across recreation')),
+    homeLine('the restart', receipt.checks.find((c) => c.name === 'home persisted across restart')),
+    homeLine('the recreation', receipt.checks.find((c) => c.name === 'home persisted across recreation')),
     '',
     image
       ? `Image ${image.id} (${image.os}/${image.architecture}, ${mib(image.size)}); build stage ${receipt.images.build?.id} (${mib(receipt.images.build?.size)}). The image ID is the local config digest; nothing was pushed.`
@@ -483,7 +488,7 @@ export function readEvidence(dir) {
     runtime: lines('runtime.jsonl'),
     samples: lines('cgroup.jsonl'),
     probes: { first: json('probe-first.json'), restart: json('probe-restart.json'), restarted: json('probe-restarted.json') },
-    home: { before: json('home-before.json'), after: json('home-after.json') },
+    home: { first: json('home-first.json'), before: json('home-before.json'), after: json('home-after.json') },
   }
   return { inputs, malformed }
 }
