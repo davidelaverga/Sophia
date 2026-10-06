@@ -7,7 +7,7 @@
 // so it shows none of the notes on what changed: alone, a note that the rest was kept read as true when it was not
 // (CX-0026). Editors and admins edit a description against the revision they saw.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
 import { Tag } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
@@ -24,6 +24,8 @@ interface Props {
   identity: Identity
   /** Editors and admins of this project edit its reports' descriptions. */
   canEdit: boolean
+  /** What members carried in from Personal (the vision flag's), shown with this project's reports only. */
+  carriedIn?: ReactNode
 }
 
 const FORMATS: [Format, string][] = [
@@ -105,7 +107,7 @@ function useFormatOffer(format: Format, cards: readonly ReportCard[], loading: b
   return now
 }
 
-export function KnowledgeReports({ projectId, identity, canEdit }: Props) {
+export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = null }: Props) {
   const f = useFilters(projectId)
   const reports = useReports(identity, { project: f.project, format: f.format, q: f.q })
   const cards = reports.data?.pages.flatMap((p) => p.reports) ?? []
@@ -132,6 +134,7 @@ export function KnowledgeReports({ projectId, identity, canEdit }: Props) {
           onChange={(e) => f.setTyped(e.target.value)}
         />
       </div>
+      {f.project === projectId && carriedIn}
       <ReportCards
         cards={cards}
         state={reports.isPending ? 'loading' : reports.isError ? 'failed' : 'ready'}
