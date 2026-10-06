@@ -8,6 +8,7 @@
  */
 
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -24,6 +25,8 @@ const manifest = JSON.parse(readFileSync(join(SKILLS, 'manifest.json'), 'utf8'))
 const SESSION = { attemptId: 'a1', nativeSessionId: 'sophia-a1' }
 const RENDER = '55555555-5555-4555-8555-555555555555'
 const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8cfc0f01f0005000201a1d0e8d40000000049454e44ae426082', 'hex')
+const sha256 = (data) => createHash('sha256').update(data).digest('hex')
+const DELIVERY = '66666666-6666-4666-8666-666666666666'
 
 const designer = DESIGN_ROLES.get('sophia-html-designer-v1')
 const reviewer = DESIGN_ROLES.get('sophia-visual-review-v1')
@@ -45,6 +48,7 @@ function fakeService(overrides = {}) {
     designSubmit: record('designSubmit'),
     reviewContext: record('reviewContext'),
     reviewSubmit: record('reviewSubmit'),
+    designDelivered: record('designDelivered'),
     async designRender(body) {
       calls.push(['designRender', body])
       return overrides.designRender?.(body) ?? { renderJobId: RENDER, revisionId: body.revisionId, state: 'queued', targets: ['w390-light', 'w1280-light'], captures: [] }
@@ -60,21 +64,25 @@ function fakeService(overrides = {}) {
       calls.push(['designCapture', role, body])
       return {
         renderJobId: RENDER,
-        captures: body.names.map((name) => ({ name, target: 'w390-light', kind: 'overview', tile: 1, tiles: 1, scale: 0.5, section: null, width: 1, height: 1, sha256: 'e'.repeat(64), bytes: PNG.byteLength, mime: 'image/png', data: PNG.toString('base64') })),
+        deliveryId: DELIVERY,
+        captures: body.names.map((name) => ({ name, target: 'w390-light', kind: 'overview', tile: 1, tiles: 1, scale: 0.5, section: null, width: 1, height: 1, sha256: sha256(PNG), bytes: PNG.byteLength, mime: 'image/png', data: PNG.toString('base64') })),
       }
     },
   }
   return { client, calls, ops: () => calls.map(([op]) => op) }
 }
 
-function fakeImages() {
+/** A content-addressed store, as dsh's: an image kept unchanged is named by the sha256 of its bytes. */
+function fakeImages({ fail = false, alter = false } = {}) {
   const saved = []
   return {
     saved,
     store: {
       async saveImage(input) {
+        if (fail) throw new Error('disk full')
         saved.push(input)
-        return { attachmentId: `att-${saved.length}`, mediaType: input.mediaType, bytes: input.data.byteLength, width: 1, height: 1, name: input.name }
+        const id = `sha256:${alter ? 'f'.repeat(64) : sha256(input.data)}`
+        return { attachmentId: id, mediaType: input.mediaType, bytes: input.data.byteLength, width: 1, height: 1, name: input.name }
       },
     },
   }
@@ -172,13 +180,30 @@ test('an inspection reaches the model as image blocks stored through the attachm
   assert.equal('data' in out.captures[0], false, 'no base64 in the canonical value')
   const blocks = tool.output.render({ names: ['w390-light.overview.1.png'] }, out)
   const image = blocks.find((b) => b.type === 'image')
-  assert.deepEqual(image.attachment, { attachmentId: 'att-1', mediaType: 'image/png', bytes: PNG.byteLength, width: 1, height: 1, name: 'w390-light.overview.1.png' })
+  assert.deepEqual(image.attachment, { attachmentId: `sha256:${sha256(PNG)}`, mediaType: 'image/png', bytes: PNG.byteLength, width: 1, height: 1, name: 'w390-light.overview.1.png' })
+  // Seen only once saved for the model: the delivery is acknowledged with each capture's own bytes, after the save.
+  assert.deepEqual(service.ops().slice(-2), ['designCapture', 'designDelivered'])
+  assert.deepEqual(service.calls.at(-1), ['designDelivered', 'design', { ...SESSION, deliveryId: DELIVERY, attachments: [{ name: 'w390-light.overview.1.png', attachmentId: `sha256:${sha256(PNG)}` }] }, service.calls.at(-1)[3]])
   assert.ok(blocks.some((b) => b.type === 'text' && /w390-light, overview, tile 1\/1, scale 0.5/.test(b.text)))
   // The reviewer's inspection is the review operation, with no render of its choosing.
   const review = tools(service, { role: reviewer })
   assert.equal('renderJobId' in review.byName.review_inspect_render.parameters.properties, false)
   await review.byName.review_inspect_render.execute({ names: ['w390-light.overview.1.png'] }, exec())
   assert.equal(service.calls.filter(([op]) => op === 'designCapture').at(-1)[1], 'review')
+})
+
+test('a capture whose image was not saved, or was altered, is neither shown nor acknowledged (SDD-01-CX-0019 F1)', async () => {
+  for (const images of [fakeImages({ fail: true }), fakeImages({ alter: true })]) {
+    const service = fakeService()
+    const { byName } = tools(service, { images })
+    await assert.rejects(byName.design_inspect_render.execute({ names: ['w390-light.overview.1.png'] }, exec()))
+    assert.equal(service.ops().includes('designDelivered'), false, 'nothing counts as seen')
+  }
+  // A refused acknowledgement (the work held, stopped or withdrawn meanwhile) shows nothing either.
+  const refusing = fakeService({ designDelivered: () => { throw new TransportError('POST /v1/runtime/review/delivered answered 409 invalid_state', 409, 'invalid_state') } })
+  const { byName } = tools(refusing, { role: reviewer })
+  const out = await byName.review_inspect_render.execute({ names: ['w390-light.overview.1.png'] }, exec())
+  assert.equal('captures' in out, false, JSON.stringify(out))
 })
 
 test('no image is stored or sent on a route without image input, or without an attachment service', async () => {

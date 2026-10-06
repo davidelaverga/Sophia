@@ -34,6 +34,8 @@ import { wire } from './runtime-wire.generated.js'
 import type { WireValidator } from './runtime-wire.generated.js'
 import type {
   DesignCaptureReply,
+  DesignDeliveryAck,
+  DesignDeliveryReceipt,
   DesignCaptureRequest,
   DesignContextReply,
   DesignContextRequest,
@@ -267,6 +269,12 @@ export class ServiceTransport {
   async designCapture(role: 'design' | 'review', body: DesignCaptureRequest, signal?: AbortSignal): Promise<DesignCaptureReply> {
     checked('capture request', wire.DesignCaptureRequest, body)
     return checked('captures', wire.DesignCaptureReply, await this.request('POST', `/v1/runtime/${role}/capture`, body, signal))
+  }
+
+  /** The runtime saved each capture of a delivery, unchanged, as an attachment for its model: they now count as seen. */
+  async designDelivered(role: 'design' | 'review', body: DesignDeliveryAck, signal?: AbortSignal): Promise<DesignDeliveryReceipt> {
+    checked('delivery acknowledgement', wire.DesignDeliveryAck, body)
+    return checked('delivery', wire.DesignDeliveryReceipt, await this.request('POST', `/v1/runtime/${role}/delivered`, body, signal))
   }
 
   /** A model call of the designer or the reviewer, reserved against the research lineage's allowance. */

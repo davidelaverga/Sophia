@@ -10747,7 +10747,7 @@
     "/v1/runtime/review/capture": {
       "post": {
         "operationId": "runtimeReviewCapture",
-        "summary": "The actual pixels of up to four captures of the candidate's render; each one handed over is recorded. Fenced.",
+        "summary": "The actual pixels of up to four captures of the candidate's render, checked against their hashes; they count as seen once the runtime acknowledges their delivery. Fenced.",
         "tags": [
           "runtime"
         ],
@@ -12519,6 +12519,230 @@
         },
         "x-sophia-implementation": "implemented",
         "x-sophia-release-goal": "WBC-02"
+      }
+    },
+    "/v1/runtime/design/delivered": {
+      "post": {
+        "operationId": "runtimeDesignDelivered",
+        "summary": "The designer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. Fenced; idempotent.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignDeliveryAck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The captures now count as seen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignDeliveryReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active, or the delivery was already acknowledged with other attachments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a delivery of another job, attempt or render, or attachments that are not exactly its captures' own bytes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
+      }
+    },
+    "/v1/runtime/review/delivered": {
+      "post": {
+        "operationId": "runtimeReviewDelivered",
+        "summary": "The reviewer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. Fenced; idempotent.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignDeliveryAck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The captures now count as seen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignDeliveryReceipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The work is not active, or the delivery was already acknowledged with other attachments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a delivery of another job, attempt or render, or attachments that are not exactly its captures' own bytes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01"
       }
     }
   },
@@ -23934,11 +24158,17 @@
             "items": {
               "$ref": "#/components/schemas/DesignCaptureImage"
             }
+          },
+          "deliveryId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "description": "The delivery these captures are, issued once their bytes matched their records. They count as seen only when the runtime acknowledges it (DesignDeliveryAck)."
           }
         },
         "required": [
           "renderJobId",
-          "captures"
+          "captures",
+          "deliveryId"
         ]
       },
       "DesignCandidate": {
@@ -27678,6 +27908,95 @@
           "reason",
           "result",
           "usage"
+        ]
+      },
+      "DesignDeliveryAck": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "deliveryId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "attachments": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "description": "Each capture of the delivery once, as the attachment the runtime saved for the model.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160,
+                  "pattern": "^[a-z0-9][a-z0-9.-]{0,150}\\.png$"
+                },
+                "attachmentId": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "description": "The content-addressed attachment: sha256 of the capture's own bytes, saved unchanged."
+                }
+              },
+              "required": [
+                "name",
+                "attachmentId"
+              ]
+            }
+          }
+        },
+        "required": [
+          "attemptId",
+          "nativeSessionId",
+          "deliveryId",
+          "attachments"
+        ]
+      },
+      "DesignDeliveryReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "delivered"
+            ]
+          },
+          "captures": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[a-z0-9][a-z0-9.-]{0,150}\\.png$"
+            }
+          }
+        },
+        "required": [
+          "deliveryId",
+          "renderJobId",
+          "state",
+          "captures"
         ]
       }
     }

@@ -218,15 +218,145 @@ describe('the content check catches every way the research could be lost or chan
   it('a dropped stored limitation', () => assert.ok(mutate('<p data-block="b8">', '<p>').includes('block_missing')))
   it('a claim padded with text the research does not say', () =>
     assert.ok(mutate('cost and isolation.', 'cost and isolation. It is the best.').includes('block_altered')))
-  it('accepts wording changes only in headings and around blocks', () => {
+  it('accepts wording changes in headings, of any length', () => {
     assert.deepEqual(
-      mutate('<h1>Report</h1>', '<h1>Where a sandboxed renderer can run</h1><p>An added standfirst.</p>'),
+      mutate(
+        '<h1>Report</h1>',
+        '<h1>Dove può girare un renderer confinato: costi, isolamento e limiti dei tre host confrontati nel dettaglio</h1>',
+      ),
       [],
     )
   })
   it('does not accept hiding as a content check: markup cannot prove visibility, so the render measures it', () => {
     // hidden="" keeps the text in the file; the capture kernel's visibility measurement is what refuses it.
     assert.deepEqual(mutate('<p data-block="b1">', '<p data-block="b1" hidden>'), [])
+  })
+})
+
+describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-0019 F2)', () => {
+  const marker = `<a data-cite="${A}" href="#src-${A}">[s]</a>`
+  const swap = (to: string): string[] => {
+    const page = html(good).replace(marker, to)
+    assert.notEqual(page, html(good), 'the fixture carries the marker')
+    return codes(withHtml(good, page))
+  }
+  it('refuses the counterexample: a fabricated claim linking elsewhere inside the marker', () =>
+    assert.deepEqual(swap(`<span data-cite="${A}"><a href="https://unrelated.example">fabricated claim</a></span>`), [
+      'citation_marker',
+    ]))
+  it('refuses a marker whose text is more than a mark', () => {
+    assert.deepEqual(swap(`<sup data-cite="${A}">verified by NIST</sup>`), ['citation_marker'])
+    assert.deepEqual(swap(`<a data-cite="${A}" href="#src-${A}">[12] cheap</a>`), ['citation_marker'])
+  })
+  it("refuses a link to anywhere but this source's own entry on the page", () => {
+    assert.deepEqual(swap(`<a data-cite="${A}" href="https://example.com/">[s]</a>`), ['citation_marker'])
+    assert.deepEqual(swap(`<a data-cite="${A}" href="#src-${B}">[s]</a>`), ['citation_marker'])
+    // A fragment naming nothing on the page is already refused by the profile.
+    assert.deepEqual(swap(`<a data-cite="${A}" href="#nowhere">[s]</a>`), ['anchor_missing'])
+    assert.deepEqual(swap(`<a data-cite="${A}">[s]</a>`), ['citation_marker'])
+  })
+  it('refuses another element, a second link or a nested marker inside it', () => {
+    assert.deepEqual(swap(`<sup data-cite="${A}"><em>1</em></sup>`), ['citation_marker'])
+    assert.deepEqual(swap(`<sup data-cite="${A}"><a href="#src-${A}">1</a><a href="#src-${A}">2</a></sup>`), [
+      'citation_marker',
+    ])
+    assert.ok(swap(`<sup data-cite="${A}"><span data-cite="${A}">1</span></sup>`).includes('citation_marker'))
+    assert.ok(swap(`<div data-cite="${A}">1</div>`).includes('citation_marker'))
+  })
+  it('refuses a claim in its accessible name', () =>
+    assert.deepEqual(swap(`<a data-cite="${A}" href="#src-${A}" aria-label="Independently verified">[s]</a>`), [
+      'citation_marker',
+    ]))
+  it('accepts the ways a page marks a citation', () => {
+    for (const ok of [
+      `<sup data-cite="${A}">1</sup>`,
+      `<sup data-cite="${A}"><a href="#src-${A}">12</a></sup>`,
+      `<sup data-cite="${A}">[<a href="#src-${A}">2</a>]</sup>`,
+      `<a data-cite="${A}" href="#src-${A}" title="Source 3">(a)</a>`,
+      `<span data-cite="${A}" aria-label="Fonte 4"></span>`,
+      `<sup data-cite="${A}">†</sup>`,
+    ])
+      assert.deepEqual(swap(ok), [], ok)
+  })
+})
+
+describe('outside its blocks a page adds only the words that frame them (SDD-01-CX-0019 F2, CX-0022)', () => {
+  const add = (from: string, to: string): string[] => {
+    const page = html(good).replace(from, to)
+    assert.notEqual(page, html(good), `fixture contains ${from}`)
+    return codes(withHtml(good, page))
+  }
+  it('refuses a claim in a paragraph, a list item, a cell or the page footer', () => {
+    assert.deepEqual(add('</main>', '<p>Host three is free and fully isolated.</p></main>'), ['text_outside_blocks'])
+    assert.deepEqual(add('</main>', '<ul><li>Host three wins.</li></ul></main>'), ['text_outside_blocks'])
+    assert.deepEqual(add('</main>', '<table><tr><td>Host three: free</td></tr></table></main>'), [
+      'text_outside_blocks',
+    ])
+    assert.deepEqual(add('</main>', '</main><footer>Independently verified.</footer>'), ['text_outside_blocks'])
+    assert.deepEqual(add('<main>', '<main>Best host: three.'), ['text_outside_blocks'])
+  })
+  it('judges each text where it sits: a label around a paragraph does not let the paragraph pass', () => {
+    assert.deepEqual(add('</main>', '<figure><figcaption><p>Host three is free.</p></figcaption></figure></main>'), [
+      'text_outside_blocks',
+    ])
+    assert.deepEqual(add('<main>', '<main><nav><p>Host three is free.</p><a href="#s1">Findings</a></nav>'), [
+      'text_outside_blocks',
+    ])
+    assert.deepEqual(add('<main>', '<main><nav><ul><li>Host three is free</li></ul></nav>'), ['text_outside_blocks'])
+    assert.deepEqual(add('<main>', '<main><nav><a href="https://example.com">Host three is free</a></nav>'), [
+      'text_outside_blocks',
+    ])
+  })
+  it('accepts headings, captions, a summary, table headers, in-page navigation, separators and source entries', () => {
+    const cases: [string, string][] = [
+      ['<main>', '<main><nav aria-label="Contents"><ol><li><a href="#s1"><span>1.</span> Findings</a></li></ol></nav>'],
+      ['<main>', '<main><nav><a href="#s1">Findings</a> · <a href="#sources">Sources</a></nav>'],
+      ['</main>', '<figure><figcaption>Costs per month, <em>in USD</em></figcaption></figure></main>'],
+      ['</main>', '<details><summary>How the hosts were read</summary></details></main>'],
+      ['</main>', '<table><thead><tr><th scope="col">Host</th></tr></thead></table></main>'],
+      ['<h1>Report</h1>', '<header><h1>Report <small>v2</small></h1><h2>Three hosts, compared</h2></header>'],
+      [
+        `data-source="${A}">Source ${A}`,
+        `data-source="${A}">Vendor notes, <a href="https://example.com/notes">example.com</a> (2026)`,
+      ],
+    ]
+    for (const [from, to] of cases) assert.deepEqual(add(from, to), [], to)
+  })
+})
+
+describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
+  const css = (rule: string): string[] => codes(withCss(good, `${rule}\n`))
+  it('refuses text drawn by CSS, from a string, an attribute or a variable', () => {
+    for (const bad of [
+      '[data-block]::after{content:" (verified by NIST)"}',
+      'p::before{content:attr(title)}',
+      ':root{--claim:"cheapest"} p::after{content:var(--claim)}',
+      'ul{list-style:"Best: " inside}',
+      'q{quotes:"Said" "end"}',
+      'p{text-overflow:"read more"}',
+    ])
+      assert.deepEqual(css(bad), ['css_unsafe'], bad)
+    assert.deepEqual(
+      codes(
+        withHtml(
+          good,
+          html(good).replace('<h1>', '<h1 style="--x:1">').replace('<main>', '<main style="content:\'cheap\'">'),
+        ),
+      ),
+      ['css_unsafe'],
+    )
+  })
+  it('accepts decoration: keywords, counters, a bullet, quote marks, an arrow', () => {
+    for (const ok of [
+      'li::before{content:"•"}',
+      'q{quotes:"“" "”"}',
+      'h2::before{content:counter(section) ". "}',
+      'a::after{content:" →"}',
+      'p::after{content:none}',
+      'ol{list-style-type:decimal}',
+      'blockquote::before{content:open-quote}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
   })
 })
 

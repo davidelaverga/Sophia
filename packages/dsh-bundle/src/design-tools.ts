@@ -39,6 +39,7 @@ export type DesignClient = Pick<
   | 'designRender'
   | 'designRenderResult'
   | 'designCapture'
+  | 'designDelivered'
   | 'designSubmit'
   | 'reviewContext'
   | 'reviewSubmit'
@@ -350,8 +351,12 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     name,
     description:
       'Look at the actual captures of a render: up to four per call, by name (from the render\'s captures list), returned ' +
-      'as the images themselves with their place on the page. Look at the overview first, then the sections. ' +
-      (role === 'review' ? 'Only your candidate\'s captures are available; each one you look at is recorded.' : 'Omit renderJobId for your latest render.'),
+      'as the images themselves with their place on the page. Look at the overview first, then the sections. A capture ' +
+      'counts as seen once it is here. ' +
+      (role === 'review'
+        ? 'Only your candidate\'s captures are available. A pass needs every overview tile at every target and each section at one target at least.'
+        : 'Omit renderJobId for your latest render. Before you submit a candidate, look at every overview tile at every target ' +
+          'and each section at one target at least of the very render you submit; a submit names what you have not seen.'),
     parameters: {
       ...(role === 'design' ? { renderJobId: { type: 'string', description: 'The render; omit for the latest.' } } : {}),
       names: { type: 'array', required: true, items: { type: 'string' }, description: '1 to 4 capture names.' },
@@ -363,6 +368,13 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
         const renderJobId = (args as { renderJobId?: string }).renderJobId
         const reply = await deps.client.designCapture(role, { ...ids(session), ...(renderJobId ? { renderJobId } : {}), names: args.names }, exec.signal)
         const images = await stored(exec, reply.captures.map((c) => ({ data: Buffer.from(c.data, 'base64'), mediaType: 'image/png' as const, name: c.name })))
+        // Seen only as the bytes handed over: the store keeps an image it did not alter under sha256 of those bytes.
+        const attachments = reply.captures.map((c, i) => {
+          const id = images[i]?.attachmentId
+          if (id !== `sha256:${c.sha256}`) throw new Error(`The image store altered ${c.name}: it was not shown, and does not count as seen.`)
+          return { name: c.name, attachmentId: id }
+        })
+        await deps.client.designDelivered(role, { ...ids(session), deliveryId: reply.deliveryId, attachments }, exec.signal)
         return asJson({
           renderJobId: reply.renderJobId,
           captures: reply.captures.map(({ data: _data, ...c }, i) => ({ ...c, image: images[i] })),

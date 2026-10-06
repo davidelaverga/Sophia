@@ -9,7 +9,7 @@
  */
 
 import { createServer } from 'node:http'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 export async function startFixtureService({ token = randomUUID(), runtimeUnitId, bindings = [] } = {}) {
   const outbox = [] // { seq, command }
@@ -48,18 +48,22 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   // PNG (a 3x2 one, so its dimensions survive dsh's normalization recognisably).
   const design = []
   const CAPTURE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAFUlEQVR4nGP4z8DAAMH//4PohoYGAEfPB3vT+rJCAAAAAElFTkSuQmCC'
+  const CAPTURE_SHA256 = createHash('sha256').update(Buffer.from(CAPTURE_PNG, 'base64')).digest('hex')
   const designDefaults = {
     'design/record': (body) => ({ entries: (body.expectedEntries ?? 0) + body.entries.length, replayed: false }),
     'design/reserve': researchDefaults.reserve,
     'design/settle': researchDefaults.settle,
     'design/capture': (body) => ({
       renderJobId: body.renderJobId ?? uuid(6100),
+      deliveryId: uuid(6200 + design.length),
       captures: body.names.map((name) => ({ name, target: 'w390-light', kind: 'overview', section: null, tile: 1, tiles: 1, width: 3, height: 2, scale: 0.5,
-        sha256: 'd'.repeat(64), bytes: 78, mime: 'image/png', data: CAPTURE_PNG })),
+        sha256: CAPTURE_SHA256, bytes: 78, mime: 'image/png', data: CAPTURE_PNG })),
     }),
+    'design/delivered': (body) => ({ deliveryId: body.deliveryId, renderJobId: uuid(6100), state: 'delivered', captures: body.attachments.map((a) => a.name) }),
     'review/submit': (body) => ({ outcome: 'recorded', verdict: body.result?.verdict ?? 'blocked', candidateId: uuid(6000) }),
   }
   designDefaults['review/capture'] = designDefaults['design/capture']
+  designDefaults['review/delivered'] = designDefaults['design/delivered']
   // The source reviewer's operations (WBC-02, A13), recorded and answered the same way: a one-source task, a page of
   // fixture text, a reservation and its settlement, and a published review.
   const review = []

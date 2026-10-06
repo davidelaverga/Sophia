@@ -10,6 +10,7 @@
  */
 
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
@@ -73,7 +74,13 @@ test('the designer is offered its tools and skills, pays through the design mete
 
   const session = `sophia-${w.attemptId}`
   for (const { body } of w.service.design) assert.deepEqual([body.attemptId, body.nativeSessionId], [w.attemptId, session], 'every operation names its own session')
-  assert.deepEqual(w.service.design.filter((o) => !/reserve|settle/.test(o.op)).map((o) => o.op), ['design/record', 'design/capture'])
+  assert.deepEqual(w.service.design.filter((o) => !/reserve|settle/.test(o.op)).map((o) => o.op), ['design/record', 'design/capture', 'design/delivered'])
+  // SDD-01-CX-0019 F1: seen only once dsh's own attachment store kept the capture unchanged, named by its bytes' hash.
+  const capture = w.service.design.find((o) => o.op === 'design/capture')
+  const delivered = w.service.design.find((o) => o.op === 'design/delivered').body
+  const sha = createHash('sha256').update(Buffer.from(w.service.capturePng, 'base64')).digest('hex')
+  assert.deepEqual(delivered.attachments, [{ name: CAPTURE, attachmentId: `sha256:${sha}` }])
+  assert.ok(delivered.deliveryId && capture, 'the delivery the capture call was issued')
   assert.equal(w.service.research.length, 0, 'nothing went through the research operations')
 
   const designer = roleOf('sophia-html-designer-v1')
@@ -117,7 +124,7 @@ test('the reviewer is offered no design tool, inspects through the review operat
   for (const request of w.llm.requests) assert.deepEqual(toolsOffered(request), reviewer.native_tools.toSorted(), 'exactly the reviewer\'s tools')
   assert.match(JSON.stringify(w.llm.requests[1].body.input), /not permitted for role sophia-visual-review-v1|unknown tool|not available/i, 'the design tool was refused')
   const ops = w.service.design.filter((o) => !/reserve|settle/.test(o.op)).map((o) => o.op)
-  assert.deepEqual(ops, ['review/capture', 'review/submit'], 'no design operation, no source written')
+  assert.deepEqual(ops, ['review/capture', 'review/delivered', 'review/submit'], 'no design operation, no source written')
   const seen = imagesIn(w.llm.requests[2])
   assert.deepEqual(seen.map((i) => i.bytes.toString('base64')), [w.service.capturePng], 'the reviewer saw the capture')
   const precedent = imagesIn(w.llm.requests[3]).at(-1)

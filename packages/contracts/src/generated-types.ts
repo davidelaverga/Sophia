@@ -185,7 +185,7 @@ export type DesignTargetMeasures = { "target": string; "width": number; "height"
 export type DesignRender = { "renderJobId": string; "state": "queued" | "rendering" | "succeeded" | "failed" | "cancelled"; "reason"?: string; "revisionId": string; "sha256": string; "targets": ReadonlyArray<"w390-light" | "w1280-light">; "sections"?: ReadonlyArray<string>; "captures"?: ReadonlyArray<DesignCaptureRef>; "measures"?: ReadonlyArray<DesignTargetMeasures>; "checks"?: ReadonlyArray<DesignCheck>; "warnings"?: ReadonlyArray<string>; "fonts"?: ReadonlyArray<string>; "browser"?: string | null; "errorCode"?: string; "gate"?: { "passed": boolean; "failures": ReadonlyArray<string>; }; };
 export type DesignCaptureRequest = { "attemptId": string; "nativeSessionId": string; "renderJobId"?: string; "names": ReadonlyArray<string>; };
 export type DesignCaptureImage = { "name": string; "target": string; "kind": "overview" | "section" | "margin"; "section": string | null; "tile": number; "tiles": number; "width": number; "height": number; "scale": number; "sha256": string; "bytes": number; "mime": "image/png"; "data": string; };
-export type DesignCaptureReply = { "renderJobId": string; "captures": ReadonlyArray<DesignCaptureImage>; };
+export type DesignCaptureReply = { "renderJobId": string; "captures": ReadonlyArray<DesignCaptureImage>; "deliveryId": string; };
 export type DesignCandidate = { "revisionId": string; "renderJobId": string; "summary"?: string; };
 export type DesignSubmitRequest = { "attemptId": string; "nativeSessionId": string; "callId": string; "candidate"?: DesignCandidate; "blocker"?: ResearchBlocker; };
 export type DesignSubmission = { "outcome": "refused" | "reviewing" | "published" | "self_review_only" | "review_unresolved" | "needs_revision" | "reviewed" | "superseded" | "failed" | "submitted" | "blocked"; "failures"?: ReadonlyArray<string>; "candidateId"?: string; "round"?: number; "reviewTaskId"?: string; "reviewState"?: "reviewed" | "self_review_only" | "review_unresolved"; "versionId"?: string; "versionNumber"?: number; "taskId"?: string; "resultSourceId"?: string; };
@@ -235,6 +235,8 @@ export type CoordinationRunRequest = { "companyId": string; "runId": string; "fi
 export type CoordinationStart = { "attemptId"?: string; "nativeSessionId"?: string; "workId": string; "started"?: boolean; "denied"?: true; "code"?: string; "reason"?: string; };
 export type CoordinationUsage = { "calls": number; "uncertainCalls": number; "inputTokens": number; "outputTokens": number; "cachedInputTokens": number; "costUsd": number | null; "models": ReadonlyArray<string>; "providers": ReadonlyArray<string>; "basis": "per_run"; };
 export type CoordinationObservation = { "phase": "queued" | "running" | "holding" | "held" | "stopping" | "stopped" | "result_ready" | "blocked" | "failed" | "withdrawn" | "unknown"; "workId": string; "attemptId": string | null; "nativeSessionId": string | null; "reason": string | null; "result": { "resultId": string; "sourceId": string; "sha256": string; "verdict": "supported" | "changes_required" | "insufficient_evidence"; "findings": number; "state": "current" | "withdrawn"; } | null; "usage": CoordinationUsage | null; };
+export type DesignDeliveryAck = { "attemptId": string; "nativeSessionId": string; "deliveryId": string; "attachments": ReadonlyArray<{ "name": string; "attachmentId": string; }>; };
+export type DesignDeliveryReceipt = { "deliveryId": string; "renderJobId": string; "state": "delivered"; "captures": ReadonlyArray<string>; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -371,4 +373,6 @@ export interface Operations {
   "coordinationStart": { method: "POST"; path: "/v1/coordination/start"; request: CoordinationRunRequest; response: CoordinationStart; };
   "coordinationObserve": { method: "POST"; path: "/v1/coordination/observe"; request: CoordinationRunRequest; response: CoordinationObservation; };
   "coordinationCancel": { method: "POST"; path: "/v1/coordination/cancel"; request: CoordinationRunRequest; response: CoordinationObservation; };
+  "runtimeDesignDelivered": { method: "POST"; path: "/v1/runtime/design/delivered"; request: DesignDeliveryAck; response: DesignDeliveryReceipt; };
+  "runtimeReviewDelivered": { method: "POST"; path: "/v1/runtime/review/delivered"; request: DesignDeliveryAck; response: DesignDeliveryReceipt; };
 }

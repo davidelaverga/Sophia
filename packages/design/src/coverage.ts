@@ -1,11 +1,14 @@
 // Whether an authored page keeps its frozen content (SDD-01, pack 05 §3, B-06). Each content block appears exactly once,
 // as the element marked `data-block="<id>"`, holding its exact text (citations left out), every source it cites as an
-// element marked `data-cite="<sourceId>"` inside it, and its links. Every cited source is listed once, as an element
-// marked `data-source="<sourceId>"`. Whether each block is also visible and readable is the render's measurement
-// (the capture kernel), not this check: markup alone cannot prove what a reader sees.
+// element marked `data-cite="<sourceId>"` inside it (a bare mark, or a link to that source's entry: citations.ts), and
+// its links. Every cited source is listed once, as an element marked `data-source="<sourceId>"`. Outside the blocks a
+// page adds only the words that frame them (framing.ts). Whether each block is also visible and readable is the render's measurement (the capture kernel), not this check: markup alone cannot
+// prove what a reader sees.
 
 import { safeHref } from '@sophia/report/markdown'
 import { comparable, type ContentBlock, type ContentPackage } from './blocks.ts'
+import { citationFindings } from './citations.ts'
+import { framingFindings } from './framing.ts'
 import { attr, elements, hasAncestor, lineAt, textOf, type Document, type Element } from './dom.ts'
 import { error, type Finding } from './findings.ts'
 
@@ -186,5 +189,10 @@ function sourceFindings(all: Element[], content: ContentPackage): Finding[] {
 /** Every way the page departs from its frozen content. Empty when every block and source is in place. */
 export function checkCoverage(doc: Document, html: string, content: ContentPackage): Finding[] {
   const all = elements(doc)
-  return [...placeBlocks(all, content, html), ...sourceFindings(all, content)]
+  return [
+    ...placeBlocks(all, content, html),
+    ...sourceFindings(all, content),
+    ...citationFindings(all, html),
+    ...framingFindings(doc, html),
+  ]
 }

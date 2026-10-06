@@ -72,6 +72,28 @@ type Check = (node: CssNode) => string | null
 const nameIssue = (kind: string, name: string): string | null =>
   name.includes('\\') ? `an escaped ${kind} name (${name}) is not allowed; escapes belong inside strings` : null
 
+/**
+ * Properties that can draw text of their own (SDD-01-CX-0019 F2): only the research's text is shown, so these may draw
+ * decoration only: keywords, counters, and strings of at most two characters that are neither letters nor digits
+ * (a bullet, a quote mark, an arrow). No value may come from elsewhere: `attr()`, `var()` or `env()`.
+ */
+const TEXT_PROPERTIES = new Set(['content', 'quotes', 'list-style', 'list-style-type', 'text-overflow'])
+const DECORATION = /^[^\p{L}\p{N}]{0,2}$/u
+const TEXT_FUNCTIONS = new Set(['counter', 'counters'])
+
+function generatedTextIssue(node: CssNode): string | null {
+  if (node.type !== 'Declaration' || !TEXT_PROPERTIES.has(node.property.toLowerCase())) return null
+  let issue: string | null = null
+  walk(node.value, (part) => {
+    if (issue) return
+    if (part.type === 'String' && !DECORATION.test(part.value))
+      issue = `${node.property} may draw decoration only, not the text ${JSON.stringify(part.value.slice(0, 40))}`
+    else if (part.type === 'Function' && !TEXT_FUNCTIONS.has(part.name.toLowerCase()))
+      issue = `${node.property} may not draw ${part.name}(): only the research's text is shown`
+  })
+  return issue
+}
+
 const CHECKS: Partial<Record<CssNode['type'], Check>> = {
   Url: () => 'url() loads a resource; the static profile allows none',
   Raw: (node) => (node.type === 'Raw' ? `CSS the parser could not read (${node.value.slice(0, 40)})` : null),
@@ -90,7 +112,7 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
   },
   Declaration: (node) => {
     if (node.type !== 'Declaration') return null
-    const problem = nameIssue('property', node.property)
+    const problem = nameIssue('property', node.property) ?? generatedTextIssue(node)
     if (problem) return problem
     return BINDINGS.has(node.property.toLowerCase()) ? `${node.property} binds behaviour and is not allowed` : null
   },

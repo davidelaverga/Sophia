@@ -3,7 +3,8 @@
 // (the runtime capability, then the binding, in SQL). A source is checked with @sophia/design and a render compiled in
 // the persistence layer, inside the operation's transaction. An inspection reads the captures' bytes from the byte
 // store here and checks each against the hash the service recorded before it is sent: the model sees exactly the
-// pixels the renderer produced, or nothing.
+// pixels the renderer produced, or nothing. Only then is the delivery issued (0043), and the captures count as seen once
+// the runtime acknowledges that it saved them for its model (`…/delivered`), not when they were asked for.
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type pg from 'pg'
 import type {
@@ -11,6 +12,7 @@ import type {
   DesignCaptureReply,
   DesignCaptureRequest,
   DesignContextRequest,
+  DesignDeliveryAck,
   DesignPatchRequest,
   DesignRecordRequest,
   DesignRenderRequest,
@@ -24,6 +26,8 @@ import type {
 import { DomainError } from '@sophia/domain'
 import {
   designCaptureRefs,
+  designDelivered,
+  issueDesignDelivery,
   runtimeDesignContext,
   runtimeDesignRecord,
   runtimeDesignRender,
@@ -50,11 +54,13 @@ export const DESIGN_ROUTES: readonly string[] = [
   '/v1/runtime/design/render',
   '/v1/runtime/design/render-result',
   '/v1/runtime/design/capture',
+  '/v1/runtime/design/delivered',
   '/v1/runtime/design/reserve',
   '/v1/runtime/design/settle',
   '/v1/runtime/design/submit',
   '/v1/runtime/review/context',
   '/v1/runtime/review/capture',
+  '/v1/runtime/review/delivered',
   '/v1/runtime/review/submit',
 ]
 
@@ -116,7 +122,12 @@ async function inspect(deps: Deps, req: FastifyRequest<{ Body: DesignCaptureRequ
     const { storageKey: _key, sourceId: _source, ...shown } = capture
     captures.push({ ...shown, mime: 'image/png', data: Buffer.from(bytes).toString('base64') })
   }
-  const reply: DesignCaptureReply = { renderJobId: refs.renderJobId, captures }
+  // Issued only now, every byte checked, under the work's authority checked again after the read.
+  const named = captures.map((c) => ({ name: c.name, sha256: c.sha256 }))
+  const delivery = await withService(deps.pool, (c) =>
+    issueDesignDelivery(c, callerOf(req), role, { ...req.body, renderJobId: refs.renderJobId, captures: named }),
+  )
+  const reply: DesignCaptureReply = { renderJobId: refs.renderJobId, deliveryId: delivery.deliveryId, captures }
   return reply
 }
 
@@ -157,6 +168,11 @@ function designerRoutes(app: FastifyInstance, deps: Deps): void {
     schema('DesignCaptureRequest', 'DesignCaptureReply'),
     async (req) => inspect(deps, req, 'design'),
   )
+  app.post<{ Body: DesignDeliveryAck }>(
+    '/v1/runtime/design/delivered',
+    schema('DesignDeliveryAck', 'DesignDeliveryReceipt'),
+    async (req) => withService(pool, (c) => designDelivered(c, callerOf(req), 'design', req.body)),
+  )
   app.post<{ Body: DesignSubmitRequest }>(
     '/v1/runtime/design/submit',
     schema('DesignSubmitRequest', 'DesignSubmission'),
@@ -189,6 +205,11 @@ function reviewerRoutes(app: FastifyInstance, deps: Deps): void {
     '/v1/runtime/review/capture',
     schema('DesignCaptureRequest', 'DesignCaptureReply'),
     async (req) => inspect(deps, req, 'review'),
+  )
+  app.post<{ Body: DesignDeliveryAck }>(
+    '/v1/runtime/review/delivered',
+    schema('DesignDeliveryAck', 'DesignDeliveryReceipt'),
+    async (req) => withService(pool, (c) => designDelivered(c, callerOf(req), 'review', req.body)),
   )
   app.post<{ Body: ReviewSubmitRequest }>(
     '/v1/runtime/review/submit',
