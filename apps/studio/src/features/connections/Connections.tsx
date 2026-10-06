@@ -13,9 +13,11 @@ interface Props {
   identity: Identity
   /** The project's title, as the snapshot names it. */
   title: string
+  /** The project's feed position: the update's source is read again as it moves. */
+  cursor: string | undefined
 }
 
-export function Connections({ projectId, identity, title }: Props) {
+export function Connections({ projectId, identity, title, cursor }: Props) {
   const headId = useId()
   const [open, setOpen] = useState<'access' | 'update' | null>(null)
   return (
@@ -23,29 +25,27 @@ export function Connections({ projectId, identity, title }: Props) {
       <h3 id={headId}>Connections</h3>
       <p className="connections-lead">Your work can be reachable, without becoming public.</p>
       <div className="connections-parts">
-        <article className="connection">
+        <article className="conn-card">
           <span className="eyebrow">From your own assistant</span>
-          <p className="connection-ask">“What did we decide about our checks?”</p>
-          <p className="connection-note">
+          <p className="conn-ask">“What did we decide about our checks?”</p>
+          <p className="conn-note">
             The current decisions and their recaps; no private notes, work controls or access.
           </p>
           <button type="button" className="ghost" onClick={() => setOpen('access')}>
             Review the read-only access
           </button>
         </article>
-        <article className="connection">
+        <article className="conn-card">
           <span className="eyebrow">To the team’s Slack channel</span>
-          <p className="connection-ask">Share a selected milestone, not every discussion.</p>
-          <p className="connection-note">Built from the newest closed meeting’s recap; you choose its lines.</p>
+          <p className="conn-ask">Share a selected milestone, not every discussion.</p>
+          <p className="conn-note">Built from the newest closed meeting’s recap; you choose its lines.</p>
           <button type="button" className="ghost" onClick={() => setOpen('update')}>
             Preview the update
           </button>
         </article>
       </div>
       {open === 'access' && <AccessSheet title={title} onClose={() => setOpen(null)} />}
-      {open === 'update' && (
-        <UpdateSheet projectId={projectId} identity={identity} title={title} onClose={() => setOpen(null)} />
-      )}
+      {open === 'update' && <UpdateSheet {...{ projectId, identity, title, cursor }} onClose={() => setOpen(null)} />}
     </section>
   )
 }
@@ -78,7 +78,7 @@ function AccessSheet({ title, onClose }: { title: string; onClose: () => void })
           </div>
         ))}
       </dl>
-      <p className="connection-note">
+      <p className="conn-note">
         No assistant is connected, and none can be from here yet: connecting one is an integration Davide qualifies
         client by client.
       </p>

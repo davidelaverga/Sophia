@@ -1,5 +1,6 @@
 /* Connections, shown before anything connects (Connections, Davide's chapter 7): two parts under the reports, and
-   their sheets: the read-only access, and the update as a channel would receive it. */
+   their sheets: the read-only access, and the update as a channel would receive it. Its classes are its own
+   (conn-*): `.connection` is the project head's status (theme.css). */
 .connections {
   display: grid;
   gap: 10px;
@@ -13,7 +14,7 @@
   font-weight: 600;
 }
 .connections-lead,
-.connection-note {
+.conn-note {
   margin: 0;
   color: var(--text-2);
   font-size: var(--type-small);
@@ -23,7 +24,7 @@
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
 }
-.connection {
+.conn-card {
   display: grid;
   align-content: start;
   gap: 6px;
@@ -31,11 +32,11 @@
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
 }
-.connection-ask {
+.conn-ask {
   margin: 0;
   font-size: var(--type-body);
 }
-.connection > button {
+.conn-card > button {
   justify-self: start;
   margin-top: 4px;
 }

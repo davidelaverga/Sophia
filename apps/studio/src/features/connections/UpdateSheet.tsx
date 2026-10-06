@@ -1,7 +1,7 @@
 // The update's preview (docs/plans/project-connections.md): built from the newest closed meeting's recap (A12), its
 // lines chosen one by one, shown exactly as a channel would receive it, and copied as it is. Nothing is sent.
 import { useQuery } from '@tanstack/react-query'
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { getRecap, listMeetings, type MeetingRecap } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { routePath } from '../../app/route.ts'
@@ -13,19 +13,34 @@ interface Props {
   projectId: string
   identity: Identity
   title: string
+  /** The project's feed position: a meeting closed meanwhile is read as it moves. */
+  cursor: string | undefined
   onClose: () => void
 }
 
 const DAY = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
 const dayOf = (iso: string) => DAY.format(new Date(iso))
 
+/** Read again each time the feed moves on from a position already seen; the first one learned isn't a move. */
+function useReadAgain(cursor: string | undefined, refetch: () => Promise<unknown>) {
+  const seen = useRef(cursor)
+  useEffect(() => {
+    if (seen.current === cursor) return
+    const moved = seen.current !== undefined
+    seen.current = cursor
+    if (moved) void refetch()
+  }, [cursor, refetch])
+}
+
 /** The newest closed meeting's recap: undefined while read, null when there is none. */
-function useNewestRecap({ projectId, identity }: Pick<Props, 'projectId' | 'identity'>) {
+function useNewestRecap({ projectId, identity, cursor }: Pick<Props, 'projectId' | 'identity' | 'cursor'>) {
   const meetings = useQuery({
     queryKey: ['vision', 'update-meetings', projectId, identity.name],
     queryFn: ({ signal }) => listMeetings(identity.token, projectId, 20, signal),
     retry: 1,
   })
+  // A meeting closed meanwhile is the newest closed one now: the list is read again as the feed moves.
+  useReadAgain(cursor, meetings.refetch)
   const newest = meetings.data?.meetings.find((m) => m.endedAt !== null)
   const recap = useQuery({
     queryKey: ['vision', 'update-recap', projectId, newest?.id, identity.name],
@@ -35,7 +50,11 @@ function useNewestRecap({ projectId, identity }: Pick<Props, 'projectId' | 'iden
   })
   const failed = meetings.isError || recap.isError
   const none = meetings.isSuccess && newest === undefined
-  const again = () => void (meetings.isError ? meetings.refetch() : recap.refetch())
+  // Try again reads again whatever failed: the list, the recap, or both.
+  const again = () => {
+    if (meetings.isError) void meetings.refetch()
+    if (recap.isError) void recap.refetch()
+  }
   return { recap: recap.data, waiting: !failed && !none && recap.data === undefined, failed, none, again }
 }
 
@@ -55,7 +74,7 @@ export function UpdateSheet(props: Props) {
       )}
       {read.none && <p className="sheet-lead">An update is built from a closed meeting’s recap. There is none yet.</p>}
       {read.recap && <Compose recap={read.recap} title={props.title} projectId={props.projectId} />}
-      <p className="connection-note">No Slack channel is connected. Nothing is sent from here.</p>
+      <p className="conn-note">No Slack channel is connected. Nothing is sent from here.</p>
     </Sheet>
   )
 }
@@ -121,7 +140,7 @@ function Copyable({ text, ready }: { text: string; ready: boolean }) {
         <button type="button" className="pill" aria-disabled={!ready || undefined} onClick={copy}>
           Copy the update
         </button>
-        <span role="status" className="connection-note">
+        <span role="status" className="conn-note">
           {said}
         </span>
       </div>

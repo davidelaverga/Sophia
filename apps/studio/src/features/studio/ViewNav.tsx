@@ -3,16 +3,21 @@
 // sight, and an edge fades only where more views hide.
 import { useEffect, type RefObject } from 'react'
 import { useSlidingThumb } from '@sophia/ui'
-import { routePath, VIEWS, type View } from '../../app/route.ts'
+import { routePath, viewsShown, type View } from '../../app/route.ts'
+import { VISION } from '../../app/vision.ts'
 
 const LABEL: Record<View, string> = {
   studio: 'Studio',
+  conversations: 'Conversations',
   goals: 'Goals',
   work: 'Tasks',
   knowledge: 'Knowledge',
   updates: 'Updates',
   resources: 'Resources',
 }
+
+/** Conversations is the vision flag's (Davide's chapter 2): elsewhere its tab isn't there, and its address says «Coming». */
+const SHOWN = viewsShown(VISION)
 
 interface Props {
   projectId: string
@@ -64,7 +69,7 @@ export function ViewNav({ projectId, view, onShow }: Props) {
   }
   return (
     <nav ref={thumb} className="view-nav" aria-label="Project views">
-      {VIEWS.map((v) => (
+      {SHOWN.map((v) => (
         <a
           key={v}
           href={routePath({ projectId, view: v })}

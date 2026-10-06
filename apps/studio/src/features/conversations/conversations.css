@@ -1,0 +1,218 @@
+/* Several conversations, one project (ConversationsView, Davide's chapter 2): the list, the one open, and the
+   project's context; one column on a narrow screen, the context last. */
+.conversations {
+  display: grid;
+  gap: 20px;
+}
+.conversations > h2 {
+  font-size: 18px;
+}
+.conversations-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(200px, 260px);
+  align-items: start;
+  gap: 28px;
+}
+@media (max-width: 1080px) {
+  .conversations-grid {
+    grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  }
+  .conv-context {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 720px) {
+  .conversations-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.conv-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.conv-filter {
+  width: 100%;
+  min-height: 28px;
+  font-size: var(--type-body);
+}
+.conv-rows {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.conv-row {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+.conv-row:hover {
+  background: var(--line);
+}
+.conv-row[aria-pressed='true'] {
+  background: var(--plane-2);
+  box-shadow: inset 2px 0 0 var(--halo);
+}
+.conv-title {
+  font-size: var(--type-title);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.conv-gist {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.conv-who,
+.conv-state,
+.conv-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  overflow-wrap: anywhere;
+}
+.conv-state {
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.conv-open {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.conv-open > h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.conv-summary {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+}
+.conv-summary p {
+  margin: 0;
+  font-size: var(--type-body);
+}
+.conv-earlier {
+  margin: 0;
+  font-size: var(--type-small);
+}
+.conv-earlier .text-button,
+.conv-note .text-button {
+  min-height: 24px;
+}
+.conv-about {
+  display: grid;
+  gap: 3px;
+}
+.conv-msg:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 4px;
+  border-radius: var(--r-1);
+}
+.conv-messages {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.conv-msg {
+  display: grid;
+  gap: 3px;
+}
+.conv-msg-by {
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+.conv-msg.sophia .conv-msg-by {
+  color: var(--halo-text);
+}
+.conv-msg p {
+  margin: 0;
+  font-size: var(--type-body);
+  overflow-wrap: anywhere;
+}
+.conv-output {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: none;
+  color: var(--text);
+  font-size: var(--type-body);
+  text-align: left;
+}
+.conv-output:hover {
+  border-color: var(--line-3);
+}
+.conv-help summary {
+  min-height: 24px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  cursor: pointer;
+}
+.conv-help p {
+  max-width: 62ch;
+  margin: 6px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+
+.conv-context {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+}
+.conv-context section {
+  display: grid;
+  gap: 6px;
+}
+.conv-mission {
+  display: grid;
+  gap: 4px;
+}
+.conv-mission p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.conv-mission .conv-mission-statement {
+  color: var(--text);
+  font-size: var(--type-title);
+  font-weight: 600;
+}
+.conv-decisions {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 0 0 14px;
+  font-size: var(--type-body);
+}
+.conv-decisions.open {
+  list-style: circle;
+  color: var(--text-2);
+}

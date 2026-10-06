@@ -84,6 +84,29 @@ test('connections · with a meeting running, the update is still the newest clos
   await expect(preview(page)).toContainText('Decided: Keep the room checks on fixtures')
 })
 
+test('connections · a meeting closed while the preview is open is the update’s source as the feed moves', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&call=on`)
+  await connections(page).getByRole('button', { name: 'Preview the update' }).click()
+  await expect(preview(page)).toContainText('Decided: Keep the room checks on fixtures')
+  // Another member closes the meeting the room is in: it is the newest closed one now, with what it decided.
+  await page.evaluate(() => window.fixture?.endMeeting())
+  await expect(preview(page)).toContainText('Decided: Pilot the fixture with fourteen teams')
+  await expect(preview(page)).not.toContainText('Keep the room checks on fixtures')
+})
+
+test('connections · the project head’s connection status keeps its own look beside these', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(connections(page)).toBeVisible()
+  // `.connection` is the head's status (theme.css); these parts have their own classes and leave it alone.
+  const status = page.locator('.connection').first()
+  if ((await status.count()) > 0) {
+    expect(await status.evaluate((el) => getComputedStyle(el).borderTopStyle)).toBe('none')
+  }
+  await expect(connections(page).locator('.connection')).toHaveCount(0)
+})
+
 test('connections · Copy the update copies exactly the preview, and says so', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto(PAGE)
