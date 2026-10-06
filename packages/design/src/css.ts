@@ -3,7 +3,7 @@
 // `url()` in any form, an at-rule or a value function outside the allowlists, or a binding property is refused. Nothing
 // here judges whether the CSS is good design.
 
-import { parse, walk, type CssNode, type FunctionNode } from 'css-tree'
+import { parse, walk, type CssNode } from 'css-tree'
 import { error, type Finding } from './findings.ts'
 
 /**
@@ -84,11 +84,11 @@ const nameIssue = (kind: string, name: string): string | null =>
 
 /**
  * Properties that can draw text of their own (SDD-01-CX-0019 F2): only the research's text is shown, so these may draw
- * decoration only: keywords, counters, and strings of the marks that say nothing (a bullet, a quote mark, an arrow:
- * MARK_TEXT), a few of them across all of a property's strings (#117). No value may come from elsewhere: `attr()`,
- * `var()` or `env()`. A counter or a list marker draws numbers or bullets only (#117, CX-0038): a letter, numeral or
- * custom counter style spells words from the values counter-reset, counter-set or a list's start choose. The same in
- * every media (print included), in a stylesheet and in a style attribute.
+ * decoration only: keywords, and strings of the marks that say nothing (a bullet, a quote mark, an arrow: MARK_TEXT), a
+ * few of them across all of a property's strings (#117). No value may come from elsewhere: `attr()`, `var()` or
+ * `env()`, and no counter: a generated number is content no block holds, in any style (#117, CX-0038). A list marker
+ * draws numbers or bullets only, and its numbers follow the list's items: nothing may set them. The same in every media
+ * (print included), in a stylesheet and in a style attribute.
  */
 const TEXT_PROPERTIES = new Set([
   'content',
@@ -120,8 +120,12 @@ export function onlyMarks(text: string, max: number): boolean {
 
 /** The most marks one property's strings may draw together (nested quote marks, a separator and its arrow). */
 const DECORATION_MARKS = 6
-const TEXT_FUNCTIONS = new Set(['counter', 'counters'])
-/** The counter styles a counter or a list marker may draw in: numbers and bullets, which spell nothing. */
+/**
+ * Properties that choose the numbers a list draws. A list's numbers follow its items; a page that sets them can number
+ * an item, or append to a block, a value no block holds (#117).
+ */
+const COUNTERS = new Set(['counter-reset', 'counter-set', 'counter-increment'])
+/** The counter styles a list marker may draw in: numbers and bullets, which spell nothing. */
 export const COUNTER_STYLES: ReadonlySet<string> = new Set([
   'decimal',
   'decimal-leading-zero',
@@ -144,18 +148,6 @@ const LIST_KEYWORDS = new Set([
   'revert-layer',
 ])
 
-/** A counter drawn in a style other than numbers or bullets (the name comes first, then a counters() separator). */
-function counterStyleIssue(fn: FunctionNode): string | null {
-  const styles = fn.children
-    .toArray()
-    .flatMap((c) => (c.type === 'Identifier' ? [c.name] : []))
-    .slice(1)
-  const style = styles.find((name) => !COUNTER_STYLES.has(name.toLowerCase()))
-  return style === undefined
-    ? null
-    : `${fn.name}() may draw numbers or bullets only, not in the ${style} style: it can spell words`
-}
-
 /** What one part of a text property's value draws that is not decoration, or null. */
 function partIssue(property: string, part: CssNode, list: boolean): string | null {
   if (part.type === 'String')
@@ -163,8 +155,8 @@ function partIssue(property: string, part: CssNode, list: boolean): string | nul
       ? null
       : `${property} may draw decoration only, not the text ${JSON.stringify(part.value.slice(0, 40))}`
   if (part.type === 'Function')
-    return TEXT_FUNCTIONS.has(part.name.toLowerCase())
-      ? counterStyleIssue(part)
+    return /^counters?$/i.test(part.name)
+      ? `${property} may not draw ${part.name}(): a generated number, in any style, is content no block holds`
       : `${property} may not draw ${part.name}(): only the research's text is shown`
   if (list && part.type === 'Identifier' && !LIST_KEYWORDS.has(part.name.toLowerCase()))
     return `${property} may draw numbers or bullets only, not ${part.name}: it can spell words`
@@ -212,6 +204,7 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
     const property = node.property.toLowerCase()
     if (MOTION.test(property))
       return `${node.property} changes the page after it is captured; a static page has no motion`
+    if (COUNTERS.has(property)) return `${node.property} chooses the numbers a list draws; they follow its items`
     return BINDINGS.has(property) ? `${node.property} binds behaviour and is not allowed` : null
   },
 }

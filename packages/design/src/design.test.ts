@@ -636,7 +636,6 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
     for (const ok of [
       'li::before{content:"•"}',
       'q{quotes:"“" "”"}',
-      'h2::before{content:counter(section) ". "}',
       'a::after{content:" →"}',
       'p::after{content:none}',
       'ol{list-style-type:decimal}',
@@ -668,15 +667,30 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
     const inline = html(good).replace('<main>', '<main><ol style="list-style-type:lower-latin"><li></li></ol>')
     assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
     for (const type of ['a', 'A', 'i', 'I']) {
-      const page = html(good).replace('<main>', `<main><ol type="${type}" start="8"><li></li></ol>`)
+      const page = html(good).replace('<main>', `<main><ol type="${type}"><li></li></ol>`)
       assert.deepEqual(codes(withHtml(good, page)), ['unsafe_attribute'], type)
     }
   })
-  it('accepts numbers and bullets: counters, list markers and marks that spell nothing', () => {
-    for (const ok of [
+  // #117: a counter's number is content no block holds, in any style; a list's numbers follow its items.
+  it('refuses a generated number, and anything that chooses a list number', () => {
+    for (const bad of [
+      '.price::after{content:" " counter(n)}',
       'h2::before{content:counter(h)}',
       'h2::before{content:counter(h,decimal) ". "}',
       'h2::before{content:counters(h,".",decimal-leading-zero)}',
+      'ol{counter-reset:list-item 999}',
+      'li{counter-set:list-item 5}',
+      'li{counter-increment:list-item 10}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    for (const list of ['<ol start="3"><li></li></ol>', '<ol><li value="5"></li></ol>']) {
+      const page = html(good).replace('<main>', `<main>${list}`)
+      assert.deepEqual(codes(withHtml(good, page)), ['unsafe_attribute'], list)
+    }
+  })
+  it('accepts numbers and bullets: list markers and marks that spell nothing', () => {
+    for (const ok of [
+      'ol{list-style-type:decimal}',
       '@media print{ol{list-style:square inside}}',
       'ul{list-style-type:"→"}',
       'details>summary{list-style-type:disclosure-closed}',
@@ -685,7 +699,7 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
       'p{hyphens:manual;hyphenate-character:"‐"}',
     ])
       assert.deepEqual(css(ok), [], ok)
-    const numbered = html(good).replace('<main>', '<main><ol type="1" start="3" reversed><li value="5"></li></ol>')
+    const numbered = html(good).replace('<main>', '<main><ol type="1" reversed><li></li></ol>')
     assert.deepEqual(codes(withHtml(good, numbered)), [])
   })
 })

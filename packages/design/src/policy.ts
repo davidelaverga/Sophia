@@ -189,9 +189,19 @@ function attributeIssue(el: Element, name: string, value: string): string | null
 function valueIssue(tag: string, name: string, value: string): string | null {
   if (tag === 'meta' && name === 'name' && !META_NAMES.has(value)) return `<meta name="${value}"> is not allowed`
   if (tag === 'a' && name === 'href') return hrefIssue(value)
-  // A list's markers draw numbers only: letters and numerals spell words from its start and values (#117, CX-0038).
+  if (tag === 'ol' || tag === 'li') return listIssue(tag, name, value)
+  return null
+}
+
+/**
+ * A list's markers draw numbers only: letters and numerals spell words from its start and values (#117, CX-0038); and
+ * its numbers follow its items: start and value would number one with a value no block holds (#117).
+ */
+function listIssue(tag: string, name: string, value: string): string | null {
   if (tag === 'ol' && name === 'type' && value !== '1')
     return `<ol type="${value.slice(0, 8)}"> may only be 1: its markers would spell words`
+  if ((tag === 'ol' && name === 'start') || (tag === 'li' && name === 'value'))
+    return `<${tag} ${name}> chooses the numbers a list draws; they follow its items`
   return null
 }
 
