@@ -363,12 +363,12 @@ async function captureTarget(shot, target, page) {
  * @param {Target} target
  * @param {import('./capture-page.mjs').PageMeasure} page
  * @param {Coverage} coverage
- * @param {number} [unmeasured]
- * @param {number} [unsampled]
- * @param {string[]} [misplaced] the research tables whose cells are drawn elsewhere (capture-page.mjs misplacedTables)
+ * @param {{ unmeasured?: number, unsampled?: number, misplaced?: string[] }} [missed] how many labels, texts and runs
+ *   the measure left out, how many texts the cover check did not reach, and the research tables whose cells are drawn
+ *   elsewhere (capture-page.mjs misplacedTables)
  * @returns {Check[]}
  */
-export function targetChecks(target, page, coverage, unmeasured = 0, unsampled = 0, misplaced = []) {
+export function targetChecks(target, page, coverage, missed = {}) {
   const escaped = outsideScope(page, coverage.requested)
   // A shown label (one a tooltip, an accessible name or an ID reference rests on), and every other text outside the
   // blocks, is held to what a block is, at every target (#117). Text a target hides is text its capture does not show:
@@ -391,7 +391,7 @@ export function targetChecks(target, page, coverage, unmeasured = 0, unsampled =
       .slice(0, MAX_LISTED)
       .map((b) => b.id)
       .join(', ')
-  const hidden = [ids(unseen), ...unreached(unmeasured, unsampled), movedCells(misplaced)].filter(Boolean)
+  const hidden = [ids(unseen), ...unmeasuredParts(missed)].filter(Boolean)
   return [
     check(
       'layout_overflow',
@@ -485,6 +485,15 @@ function unreached(unmeasured, unsampled) {
       ? `${unsampled} texts the cover check did not reach: past its bounds (${MAX_POINTS} points, under ${MAX_LINES} lines a text, ${MAX_LOOK_MS / 1000} s), off the window, or not set along the page's lines (vertical, turned or mirrored)`
       : '',
   ]
+}
+
+/**
+ * What else blocks_visible names at a target: what the measure left out or did not reach (unreached), and the research
+ * tables whose cells are drawn elsewhere (movedCells).
+ * @param {{ unmeasured?: number, unsampled?: number, misplaced?: string[] }} missed
+ */
+function unmeasuredParts(missed) {
+  return [...unreached(missed.unmeasured ?? 0, missed.unsampled ?? 0), movedCells(missed.misplaced ?? [])]
 }
 
 /**
@@ -870,7 +879,9 @@ async function captureAll(page, shot, entry) {
       page: fit.measured,
       coverage,
     })
-    shot.receipt.checks.push(...targetChecks(target, measured, coverage, fit.unmeasured, unsampled, misplaced))
+    shot.receipt.checks.push(
+      ...targetChecks(target, measured, coverage, { unmeasured: fit.unmeasured, unsampled, misplaced }),
+    )
   }
   shot.receipt.checks.push(await sweepWidths(page, shot, entry.sweepMs))
 }

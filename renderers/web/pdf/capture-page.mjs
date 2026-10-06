@@ -34,9 +34,14 @@
  *   text at the points looked at (noteGround): whether at some it is the background the element's contrast is read
  *   against (backgroundLayers); at others, other paint, each reading once, as layers bottom first (groundAt); and
  *   whether at any it could not be read
+ * @typedef {{ c: OffscreenCanvasRenderingContext2D, method: string, from: string, to: string }} Pair two neighbouring
+ *   stops of a gradient, the space and hue path they are mixed in (interpolationOf), and the canvas that mixes them
+ * @typedef {{ rows: Map<number, { el: Element, box: Box, pseudo: boolean }[]>, over: boolean }} Overlaps every
+ *   element's box, and every generated box the protocol placed, by 512px row in page coordinates (overlapIndex); `over`
+ *   when the page has more than the index holds
  * @typedef {{ left: number, until: number, maxLines: number, paints: Map<Element, Paints>, reach: Reach,
  *   upright: Map<Element, boolean>, generated: Map<Element, PlacedBox[]> | null, grounds: Map<Element, Ground>,
- *   maxGrounds: number, ids: Map<Element, number> }} Budget the points the cover check may still look at, the time (performance.now) it must stop
+ *   maxGrounds: number, ids: Map<Element, number>, overlaps: Overlaps }} Budget the points the cover check may still look at, the time (performance.now) it must stop
  *   by, the fewest lines a text may have to be refused unread, what each element looked at paints, where paint reaches
  *   past the boxes, which elements are drawn along the page's lines (isUpright), where generated boxes lie, what lies
  *   beneath each text looked at, the most readings of it kept for one element, and a number for each element that
@@ -693,6 +698,68 @@ function pointIn(b, p, d = 0) {
 }
 
 /**
+ * Every element's box, and every generated box the protocol placed (generatedIndex), by rows of 512 CSS pixels in page
+ * coordinates, read once as the page opens: where the cover check looks besides a line's middle (pointsOver). Boxes
+ * under a pixel each way are left out. `over` past 50 000 rows of entries: every text is then unmeasured.
+ * @param {Map<Element, PlacedBox[]> | null} generated
+ * @returns {Overlaps}
+ */
+function overlapIndex(generated) {
+  /** @type {Overlaps} */
+  const index = { rows: new Map(), over: false }
+  let entries = 0
+  for (const el of document.querySelectorAll('body *')) {
+    const r = el.getBoundingClientRect()
+    const own = {
+      el,
+      box: { x: r.left + window.scrollX, y: r.top + window.scrollY, width: r.width, height: r.height },
+      pseudo: false,
+    }
+    for (const entry of [own, ...(generated?.get(el) ?? []).map((g) => ({ el, box: g.box, pseudo: true }))]) {
+      if (entry.box.width < 1 || entry.box.height < 1) continue
+      const first = Math.floor(entry.box.y / 512)
+      const last = Math.floor((entry.box.y + entry.box.height) / 512)
+      entries += last - first + 1
+      if (entries > 50_000) return { rows: new Map(), over: true }
+      for (let row = first; row <= last; row += 1) {
+        const list = index.rows.get(row) ?? []
+        list.push(entry)
+        index.rows.set(row, list)
+      }
+    }
+  }
+  return index
+}
+
+/**
+ * Points on a line of text where another box overlaps it by a pixel or more each way, one at the middle of each overlap,
+ * in page coordinates: the cover check looks there besides along the line's middle, so a box drawn over the top or the
+ * bottom of the glyphs, leaving their middle clear, or between two points along it, is found (#117). The text's own
+ * element and those around it are left out (the line lies inside them); their generated boxes are not, since one can
+ * be drawn over the text. What is on top at each point is the browser's hit test's to say: a box beneath the text
+ * there is clear. Null when the page has more boxes than the index holds.
+ * @param {Box} line in page coordinates
+ * @param {Element} holder
+ * @param {Overlaps} overlaps
+ * @returns {{ x: number, y: number }[] | null}
+ */
+function pointsOver(line, holder, overlaps) {
+  if (overlaps.over) return null
+  /** @type {Map<string, { x: number, y: number }>} */
+  const out = new Map()
+  for (let row = Math.floor(line.y / 512); row <= Math.floor((line.y + line.height) / 512); row += 1)
+    for (const { el, box, pseudo } of overlaps.rows.get(row) ?? []) {
+      if (!pseudo && el.contains(holder)) continue
+      const [left, right] = [Math.max(line.x, box.x), Math.min(line.x + line.width, box.x + box.width)]
+      const [top, bottom] = [Math.max(line.y, box.y), Math.min(line.y + line.height, box.y + box.height)]
+      if (right - left < 1 || bottom - top < 1) continue
+      const p = { x: (left + right) / 2, y: (top + bottom) / 2 }
+      out.set(`${Math.round(p.x)} ${Math.round(p.y)}`, p)
+    }
+  return [...out.values()]
+}
+
+/**
  * Where paint reaches past the boxes on the page (reachOf), by rows of 512 CSS pixels in page coordinates, read once
  * as the page opens. `over` when the page has more such paint than the index holds: what lies beneath every text is
  * then unread.
@@ -962,45 +1029,53 @@ function gradientColours(stops, method) {
  * @returns {string[] | null}
  */
 function pathOf(c, method, from, to) {
+  const pair = { c, method, from, to }
   const steps = /^(?:hsl|hwb|lch|oklch)\b/.test(method) ? 16 : 5
   const ts = Array.from({ length: steps + 1 }, (_, k) => k / steps)
-  const colours = ts.map((t) => (t === 0 ? from : t === 1 ? to : mixOf(c, method, from, to, t)))
+  const colours = ts.map((t, k) => (k === 0 ? from : k === steps ? to : mixOf(pair, t)))
   if (colours.includes(null)) return null
   const ys = colours.map((colour) => yOf(c, colour ?? 'transparent'))
   /** @type {string[]} */
   const out = []
   for (let k = 1; k < steps; k += 1) {
     out.push(colours[k] ?? 'transparent')
-    const [y0, y, y1] = [ys[k - 1] ?? 0, ys[k] ?? 0, ys[k + 1] ?? 0]
-    if ((y > y0 && y >= y1) || (y < y0 && y <= y1)) {
-      const extreme = extremeNear(c, method, from, to, [ts[k - 1] ?? 0, ts[k + 1] ?? 1], y > y0)
-      if (extreme === null) return null
-      out.push(extreme)
-    }
+    const turn = turnAt(ys, k)
+    const extreme = turn === 0 ? '' : extremeNear(pair, [ts[k - 1] ?? 0, ts[k + 1] ?? 1], turn > 0)
+    if (extreme === null) return null
+    if (extreme) out.push(extreme)
   }
   return out
 }
 
 /**
- * The lightest (or, not `peak`, the darkest) colour a gradient paints between two stops within `[lo, hi]`, found by
+ * Whether the `k`th of a path's luminances turns there: 1 where it is lighter than the one before and no darker than the
+ * one after, -1 where it is darker than the one before and no lighter than the one after, else 0.
+ * @param {number[]} ys
+ * @param {number} k
+ */
+function turnAt(ys, k) {
+  const [y0, y, y1] = [ys[k - 1] ?? 0, ys[k] ?? 0, ys[k + 1] ?? 0]
+  if (y > y0 && y >= y1) return 1
+  return y < y0 && y <= y1 ? -1 : 0
+}
+
+/**
+ * The lightest (or, not `peak`, the darkest) colour a gradient paints between two stops within `span`, found by
  * narrowing the span by a third twelve times, to within a five-hundredth of it. Null when the canvas cannot mix.
- * @param {OffscreenCanvasRenderingContext2D} c
- * @param {string} method
- * @param {string} from
- * @param {string} to
+ * @param {Pair} pair
  * @param {[number, number]} span
  * @param {boolean} peak
  * @returns {string | null}
  */
-function extremeNear(c, method, from, to, span, peak) {
+function extremeNear(pair, span, peak) {
   let [lo, hi] = span
   for (let i = 0; i < 12; i += 1) {
-    const [a, b] = [mixOf(c, method, from, to, lo + (hi - lo) / 3), mixOf(c, method, from, to, hi - (hi - lo) / 3)]
+    const [a, b] = [mixOf(pair, lo + (hi - lo) / 3), mixOf(pair, hi - (hi - lo) / 3)]
     if (a === null || b === null) return null
-    if (yOf(c, a) < yOf(c, b) === peak) lo += (hi - lo) / 3
+    if (yOf(pair.c, a) < yOf(pair.c, b) === peak) lo += (hi - lo) / 3
     else hi -= (hi - lo) / 3
   }
-  return mixOf(c, method, from, to, (lo + hi) / 2)
+  return mixOf(pair, (lo + hi) / 2)
 }
 
 /**
@@ -1018,19 +1093,16 @@ function yOf(c, colour) {
 
 /**
  * The colour a gradient paints `t` of the way from one stop to the next, mixed by the canvas as `color-mix()` mixes:
- * in `method`, with premultiplied alpha, as a gradient interpolates. Null when the canvas does not take the mix.
- * @param {OffscreenCanvasRenderingContext2D} c
- * @param {string} method
- * @param {string} from
- * @param {string} to
+ * in the pair's method, with premultiplied alpha, as a gradient interpolates. Null when the canvas does not take the mix.
+ * @param {Pair} pair
  * @param {number} t
  * @returns {string | null}
  */
-function mixOf(c, method, from, to, t) {
+function mixOf(pair, t) {
   const unset = '#010203'
-  c.fillStyle = unset
-  c.fillStyle = `color-mix(in ${method}, ${from} ${((1 - t) * 100).toFixed(3)}%, ${to})`
-  const mixed = String(c.fillStyle)
+  pair.c.fillStyle = unset
+  pair.c.fillStyle = `color-mix(in ${pair.method}, ${pair.from} ${((1 - t) * 100).toFixed(3)}%, ${pair.to})`
+  const mixed = pair.c.fillStyle
   return mixed === unset ? null : mixed
 }
 
@@ -1636,8 +1708,10 @@ function coverAlong(holder, node, budget, probes, look) {
   const suspect = drawsOverText(holder)
   const em = Number.parseFloat(getComputedStyle(holder).fontSize)
   for (const line of lines) {
-    const points = pointsAlong(lineInView(line), em, budget)
-    if (!points) return 'unmeasured'
+    const along = pointsAlong(lineInView(line), em, budget)
+    const over = pointsOver(line, holder, budget.overlaps)
+    if (!along || !over) return 'unmeasured'
+    const points = [...along, ...over.map((q) => ({ x: q.x - window.scrollX, y: q.y - window.scrollY }))]
     for (const p of points) {
       if (!inView(holder, p.x, p.y)) continue
       if (!inWindow(p)) return 'unmeasured'
@@ -2217,6 +2291,30 @@ function measureBlock(el, page, ctx, budget) {
 }
 
 /**
+ * What the measure of one page may spend and what it reads once, as the page opens: its points and time, where its
+ * generated boxes lie, where paint reaches past the boxes, and where each box lies (overlapIndex).
+ * @param {{ maxPoints: number, maxLookMs: number, maxLines: number, maxGrounds: number,
+ *   generated?: Parameters<typeof generatedIndex>[0] }} opts
+ * @returns {Budget}
+ */
+function budgetOf(opts) {
+  const generated = generatedIndex(opts.generated)
+  return {
+    left: opts.maxPoints,
+    until: performance.now() + opts.maxLookMs,
+    maxLines: opts.maxLines,
+    paints: new Map(),
+    upright: new Map(),
+    reach: reachIndex(generated),
+    generated,
+    grounds: new Map(),
+    maxGrounds: opts.maxGrounds,
+    ids: new Map(),
+    overlaps: overlapIndex(generated),
+  }
+}
+
+/**
  * Everything the kernel measures at the current viewport. Checking cover scrolls, and puts every scroll back (keepScroll),
  * so each element is placed, and the page captured, as it starts; the view ends at the top, where the captures begin.
  * @param {{ maxListed: number, maxMeasured: number, marks: string, maxPoints: number, maxLookMs: number,
@@ -2229,20 +2327,7 @@ function measurePage(opts) {
   const page = { x: 0, y: 0, width: root.scrollWidth, height: root.scrollHeight }
   const ctx = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('no 2D canvas to resolve colours')
-  const generated = generatedIndex(opts.generated)
-  /** @type {Budget} */
-  const budget = {
-    left: opts.maxPoints,
-    until: performance.now() + opts.maxLookMs,
-    maxLines: opts.maxLines,
-    paints: new Map(),
-    upright: new Map(),
-    reach: reachIndex(generated),
-    generated,
-    grounds: new Map(),
-    maxGrounds: opts.maxGrounds,
-    ids: new Map(),
-  }
+  const budget = budgetOf(opts)
   const words = new RegExp(`[^\\s${opts.marks}]`, 'u')
   const strictly = (/** @type {{ el: Element, id: string }} */ { el, id }) => {
     const measure = measureBlock(el, page, ctx, budget)
@@ -2460,6 +2545,8 @@ const IN_PAGE = [
   isUpright,
   pointsAlong,
   generatedIndex,
+  overlapIndex,
+  pointsOver,
   pointIn,
   reachOf,
   generatedHere,
@@ -2467,6 +2554,7 @@ const IN_PAGE = [
   interpolationOf,
   gradientColours,
   pathOf,
+  turnAt,
   extremeNear,
   yOf,
   mixOf,
@@ -2532,6 +2620,7 @@ const IN_PAGE = [
   worstContrast,
   withRuns,
   measureBlock,
+  budgetOf,
   measurePage,
   shownElements,
   framingElements,
