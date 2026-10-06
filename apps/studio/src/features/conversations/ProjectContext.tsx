@@ -3,28 +3,18 @@
 // (MissionContext, the same read as the room's mission panel), the same for every conversation. One query, read again
 // as the feed moves: a later read that fails keeps what was read, and says it may be out of date.
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useId, useRef } from 'react'
+import { useId } from 'react'
 import { getMission } from '../../api/mission.ts'
 import type { MissionContext } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { missionKey } from '../mission/mission-view.ts'
 import { acceptedOf, pendingOf } from './conversation-list.ts'
+import { useReadAgain } from './useReadAgain.ts'
 
 interface Props {
   projectId: string
   identity: Identity
   cursor: string | undefined
-}
-
-/** Reads again each time the feed moves on from a position already seen (not on the first, which the read is). */
-function useReadAgain(cursor: string | undefined, refetch: () => Promise<unknown>) {
-  const seen = useRef(cursor)
-  useEffect(() => {
-    if (seen.current === cursor) return
-    const moved = seen.current !== undefined
-    seen.current = cursor
-    if (moved) void refetch()
-  }, [cursor, refetch])
 }
 
 export function ProjectContext({ projectId, identity, cursor }: Props) {

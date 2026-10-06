@@ -35,6 +35,7 @@ import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
 import { useKnownNames } from './useKnownNames.ts'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
+import { Connections } from '../connections/Connections.tsx'
 import { ConversationsView } from '../conversations/ConversationsView.tsx'
 import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
@@ -571,16 +572,29 @@ function PageBody(props: BodyProps) {
   return view === 'studio' ? null : <PendingView view={view} onShow={onShow} />
 }
 
-/** Knowledge: the project's reports, and under the vision flag what members carried in from Personal. */
+/**
+ * Knowledge: the project's reports; under the vision flag, what members carried in from Personal, and the connections
+ * shown before anything connects (Davide's chapter 7).
+ */
 function Knowledge(props: Pick<BodyProps, 'projectId' | 'identity' | 'membership' | 'snapshot'>) {
   const { projectId, identity, membership, snapshot } = props
   return (
-    <KnowledgeReports
-      projectId={projectId}
-      identity={identity}
-      canEdit={canInvite(membership)}
-      carriedIn={VISION ? <CarriedIn projectId={projectId} identity={identity} cursor={snapshot?.cursor} /> : null}
-    />
+    <>
+      <KnowledgeReports
+        projectId={projectId}
+        identity={identity}
+        canEdit={canInvite(membership)}
+        carriedIn={VISION ? <CarriedIn projectId={projectId} identity={identity} cursor={snapshot?.cursor} /> : null}
+      />
+      {VISION && (
+        <Connections
+          projectId={projectId}
+          identity={identity}
+          title={snapshot?.title ?? 'This project'}
+          cursor={snapshot?.cursor}
+        />
+      )}
+    </>
   )
 }
 

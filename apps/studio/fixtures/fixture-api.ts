@@ -46,6 +46,7 @@ import { reviewed, type Reviews } from './review-data.ts'
 import { created, finished, type Tasks } from './task-data.ts'
 import type { ConversationMessage, ConversationSummary, ProjectTask, VersionReview } from '../src/api/vision.ts'
 import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
+import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
 import type { ProjectRelease } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
@@ -143,8 +144,8 @@ interface Project {
   missionFails?: boolean
 }
 
-/** The conversations as the A18 reads give them, and the reads that fail. */
-export interface Conversations {
+/** The conversations as the A18 reads give them (and its writes keep them), and the reads that fail. */
+export interface Conversations extends TalkWrites {
   list: ConversationSummary[]
   messages: Record<string, ConversationMessage[]>
   /** The list's reads fail (`conversations=fail`, `window.fixture.failConversations`). */
@@ -264,6 +265,22 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   return answerReports(project, method, url, init)
 }
 
+/** The vision's proposed reads, and A18's writes; undefined for any other request. */
+function visionAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  if (method === 'GET') return visionRead(project, url)
+  return method === 'POST' ? talkWritten(project, url.pathname, init) : undefined
+}
+
+/** A18's writes, where the page keeps conversations; undefined for any other request. */
+function talkWritten(project: Project, path: string, init: RequestInit | undefined) {
+  if (!project.conversations) return undefined
+  return conversationWritten(project.conversations, path, init, {
+    viewer: project.role === 'viewer',
+    record: (what) => served.push(what),
+    moved: () => publish(project),
+  })
+}
+
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
@@ -283,8 +300,8 @@ function visionRead(project: Project, url: URL) {
 function recordsAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
-  const read = method === 'GET' ? visionRead(project, url) : undefined
-  if (read !== undefined) return read
+  const vision = visionAnswer(project, method, url, init)
+  if (vision !== undefined) return vision
   if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   if (method === 'GET' && path === `${base}/since` && project.meeting)
