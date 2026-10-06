@@ -156,3 +156,37 @@ test('carry · Done after every note went puts the focus on the notes, never the
   await pkg(page).getByRole('button', { name: 'Done' }).click()
   await expect(panel(page)).toBeFocused()
 })
+
+// Codex on #131 (follow-ups).
+
+test('carry · with the package open, the notes’ own Carry is put away: one way to carry at a time', async ({
+  page,
+}) => {
+  await openPackage(page)
+  await expect(panel(page).locator('[data-carry]')).toHaveCount(0)
+  await pkg(page).getByRole('button', { name: 'Cancel' }).click()
+  await expect(panel(page).locator('[data-carry]')).toHaveCount(3)
+})
+
+test('carry · a release already taken back elsewhere is said taken back', async ({ page }) => {
+  await openPackage(page, '&takenElsewhere=1')
+  await pkg(page).getByRole('checkbox', { name: 'Ask finance for the March close' }).check()
+  await pkg(page).getByRole('button', { name: 'Carry 1 note to Product launch' }).click()
+  await pkg(page).getByRole('button', { name: 'Take back' }).click()
+  await expect(pkg(page).getByRole('status')).toHaveText('Taken back from Product launch.')
+})
+
+test('carry · while notes are on their way, the notes stay open: Close and Esc wait', async ({ page }) => {
+  await openPackage(page, '&carrySlow=1')
+  await pkg(page).getByRole('checkbox', { name: 'Ask finance for the March close' }).check()
+  await pkg(page).getByRole('button', { name: 'Carry 1 note to Product launch' }).click()
+  const close = panel(page).getByRole('button', { name: 'Close notes' })
+  await expect(close).toHaveAttribute('aria-disabled', 'true')
+  await close.click({ force: true })
+  await page.keyboard.press('Escape')
+  await expect(panel(page)).toBeVisible()
+  await expect(pkg(page).getByRole('status')).toContainText('Carried 1 note')
+  await expect(close).not.toHaveAttribute('aria-disabled', 'true')
+  await page.keyboard.press('Escape')
+  await expect(panel(page)).toHaveCount(0)
+})
