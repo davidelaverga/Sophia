@@ -108,6 +108,8 @@ interface Fixture {
   loseNextSeenReply: () => void
   /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
   holdLeave: () => void
+  /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
+  failLeave: () => void
   releaseLeave: () => void
   /** The recap's reads wait until `releaseRecaps`. */
   holdRecaps: () => void
@@ -330,6 +332,9 @@ window.fixture = {
   },
   holdLeave: () => {
     leaving.held = true
+  },
+  failLeave: () => {
+    leaving.fails = true
   },
   releaseLeave: () => {
     leaving.held = false

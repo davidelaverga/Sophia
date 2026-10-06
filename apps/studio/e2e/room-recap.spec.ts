@@ -120,6 +120,16 @@ test('recap · a sheet put away while its read waits leaves nothing for the next
   await expect(section(page, 'Kept')).toContainText('Kept between the two calls')
 })
 
+test('recap · a disconnect that fails still leaves: the room is out of the call, and the recap opens', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failLeave())
+  await leave(page).click()
+  await expect(page.getByRole('button', { name: 'Join the room' }).first()).toBeVisible()
+  await expect(section(page, 'Decided')).toBeVisible()
+})
+
 test('recap · Leave pressed twice while the call is still ending opens one recap, read once', async ({ page }) => {
   await enter(page)
   await page.evaluate(() => window.fixture?.holdLeave())

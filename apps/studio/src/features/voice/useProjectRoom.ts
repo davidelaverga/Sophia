@@ -284,7 +284,9 @@ function useLeave(calls: CallFence<RoomConnection>, outOfCall: (why: CallEnd | n
     // A second press while the call is still ending (a slow disconnect) does nothing: the first ends it and says so,
     // so no Join shows meanwhile, and no join it began could be ended by the first press's late finish.
     if (how?.pressed && calls.current === null) return
-    await calls.end()
+    // A teardown that fails (LiveKit's disconnect rejecting) still leaves this person out of the call here: the call
+    // is no longer theirs, and the room says so instead of staying live with a Leave that does nothing.
+    await calls.end().catch(() => undefined)
     outOfCall(null)
     if (how?.pressed) setLeftByPress((n) => n + 1)
   }
