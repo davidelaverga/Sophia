@@ -120,6 +120,9 @@ test('the registry defines the designer and a separate reviewer that is offered 
   assert.deepEqual([...review.nativeTools].sort(), ['review_inspect_render', 'review_read_context', 'review_read_reference', 'review_submit_result'])
   assert.equal([...review.nativeTools].some((name) => name.startsWith('design_')), false)
   assert.equal([...roleOf('sophia-html-designer-v1').nativeTools].some((name) => name.startsWith('review_')), false)
+  // SDD-01-CX-0036: no visual role has a tool that calls another (role-registry.ts gives `workflow` to research and
+  // prototype only), so an inspection's receipt reaches its model only in that inspection's own result.
+  for (const id of DESIGN_ROLES.keys()) assert.equal([...roleOf(id).nativeTools].some((name) => /^(workflow|task|agent|dispatch)/.test(name)), false, id)
   assert.equal(designer.imageInput && reviewer.imageInput, true)
 })
 
