@@ -2,9 +2,11 @@
 // WBC-02 (WBC-02-CX-0032 §5, CX-0036, CX-0039, CX-0040): what the container's home (/paperclip, a named volume)
 // actually holds, so persistence is checked on its contents and not on the volume's existence:
 //   node scripts/paperclip-image-home.mjs snapshot <container> <out.json> [<before.json>]
-//       every regular file under the volume mounted at the container's /paperclip, read from the runner (through sudo
-//       when not root), outside the container and so outside the memory cgroup the qualification measures: path, size
-//       and sha256 of files under MAX_FILE_BYTES, at most MAX_FILES of them; its coverage (how many regular files there
+//       every regular file of the volume mounted at the container's /paperclip, read with the container paused, so
+//       nothing can change the tree mid-scan (WBC-02-CX-0040's review), by a disposable scanner container of the same
+//       image: the volume read-only, no network, no environment, no capability but reading, so no path in the volume
+//       can lead it to the runner's files, and outside the memory cgroup the qualification measures. Path, size and
+//       sha256 of files under MAX_FILE_BYTES, at most MAX_FILES of them; its coverage (how many regular files there
 //       are, which were too large to hash, which directories could not be read); given the earlier snapshot, each
 //       growing file's prefix: the sha256 of its first N bytes, N its earlier size
 //   node scripts/paperclip-image-home.mjs scan <dir>          (what snapshot runs: the JSON of one scan, to stdout)
@@ -12,6 +14,8 @@
 // Each file is read once (open, fstat, then exactly the bytes fstat named): its size is the count of the bytes read and
 // its digest their hash, and its prefix is hashed from the same bytes, so a record appended to mid-scan is described
 // consistently; a read that came up short, or that failed, leaves size and digest null (unverified, never a default).
+// A file is read only if the kernel's own path for the opened descriptor is the one listed under the root: one reached
+// through a directory swapped for a symbolic link after the listing is recorded as escaped, and none of its bytes read.
 // The comparison passes only when the first container wrote files there; every one of them is still there after the
 // container was recreated on the same volume; the adapter registry start.sh writes (adapter-plugins.json) exists both
 // times; every file is the same size with the same digest except the documented growing runtime records (GROWING: logs,
@@ -22,7 +26,7 @@
 // are recorded.
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { closeSync, constants, fstatSync, openSync, readdirSync, readFileSync, readSync, realpathSync, writeFileSync } from 'node:fs'
+import { closeSync, constants, fstatSync, openSync, readdirSync, readFileSync, readlinkSync, readSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -47,10 +51,11 @@ const measured = (f) => typeof f?.path === 'string' && f.path !== '' && consiste
 
 /**
  * One scan of a home directory: every regular file under it (symbolic links are neither listed nor followed), each read
- * once. `prefixOf` ({ [path]: N }) names the growing files whose first N bytes to hash from that same read. `onOpened`
- * (path) runs after a file's size was read and before its bytes are: the test seam for a file changing in between.
+ * once. `prefixOf` ({ [path]: N }) names the growing files whose first N bytes to hash from that same read. The test
+ * seams: `onListed` (paths) runs after the tree was listed and before any file is opened, `onOpened` (path) after a
+ * file's size was read and before its bytes are.
  */
-export function scan(root, { prefixOf = {}, maxFiles = MAX_FILES, maxFileBytes = MAX_FILE_BYTES, onOpened } = {}) {
+export function scan(root, { prefixOf = {}, maxFiles = MAX_FILES, maxFileBytes = MAX_FILE_BYTES, onListed, onOpened } = {}) {
   const paths = []
   const errors = []
   const visit = (rel) => {
@@ -69,13 +74,24 @@ export function scan(root, { prefixOf = {}, maxFiles = MAX_FILES, maxFileBytes =
     }
   }
   visit('')
+  onListed?.(paths)
+  let realRoot = null
+  try {
+    realRoot = realpathSync(root)
+  } catch {
+    // The listing above already recorded the root as unread.
+  }
   const files = []
   const oversize = []
   const prefixes = {}
   for (const path of paths) {
     let fd
     try {
-      fd = openSync(join(root, path), constants.O_RDONLY | constants.O_NOFOLLOW)
+      // O_NONBLOCK: a name swapped for a FIFO after the listing must not hold the scan open.
+      fd = openSync(join(root, path), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+      // O_NOFOLLOW guards only the last component; the descriptor's own path shows where the open actually went.
+      if (realRoot === null || readlinkSync(`/proc/self/fd/${fd}`) !== join(realRoot, path))
+        throw Object.assign(new Error('opened outside the listed path'), { code: 'ESCAPED' })
       const stat = fstatSync(fd)
       if (!stat.isFile()) throw Object.assign(new Error('not a regular file'), { code: 'ENOTREG' })
       if (stat.size >= maxFileBytes) {
@@ -192,26 +208,53 @@ export function coverageOf(snapshot) {
   }
 }
 
-/** The host directory behind the container's /paperclip mount. */
-function homeSource(container) {
-  const mounts = JSON.parse(
-    execFileSync('docker', ['inspect', '--format', '{{json .Mounts}}', container], { encoding: 'utf8', timeout: 20_000 }),
-  )
+/** The named volume mounted at the container's /paperclip, and the image the container runs. */
+function homeOf(container) {
+  const inspect = (format) => execFileSync('docker', ['inspect', '--format', format, container], { encoding: 'utf8', timeout: 20_000 }).trim()
+  const mounts = JSON.parse(inspect('{{json .Mounts}}'))
   const home = Array.isArray(mounts) ? mounts.find((m) => m.Destination === '/paperclip') : null
-  if (!home?.Source) throw new Error(`${container} has no mount at /paperclip`)
-  return home.Source
+  if (home?.Type !== 'volume' || !home.Name) throw new Error(`${container} has no named volume at /paperclip`)
+  return { volume: home.Name, image: inspect('{{.Image}}') }
 }
 
 function snapshot(container, out, beforePath) {
   const before = beforePath ? JSON.parse(readFileSync(beforePath, 'utf8')).files : []
   const prefixOf = Object.fromEntries(before.filter((f) => measured(f) && growing(f.path)).map((f) => [f.path, f.size]))
-  const self = fileURLToPath(import.meta.url)
-  const command = [process.execPath, self, 'scan', homeSource(container)]
-  // The volume's files belong to the container's user; the runner reads them as root.
-  const [program, ...args] = process.getuid?.() === 0 ? command : ['sudo', '-n', ...command]
-  const result = JSON.parse(
-    execFileSync(program, args, { encoding: 'utf8', timeout: 120_000, maxBuffer: 8 * 1024 * 1024, input: JSON.stringify({ prefixOf }) }),
-  )
+  const { volume, image } = homeOf(container)
+  const scanner = [
+    'run',
+    '--rm',
+    '--interactive',
+    '--network=none',
+    '--read-only',
+    '--cap-drop=ALL',
+    '--cap-add=DAC_READ_SEARCH',
+    '--security-opt=no-new-privileges',
+    '--pids-limit=32',
+    '--memory=512m',
+    '--user=0',
+    '--entrypoint=node',
+    `--volume=${volume}:/paperclip:ro`,
+    `--volume=${fileURLToPath(import.meta.url)}:/opt/home-scan/scan.mjs:ro`,
+    image,
+    '/opt/home-scan/scan.mjs',
+    'scan',
+    '/paperclip',
+  ]
+  // The only writer of the volume is frozen for the scan, so the tree cannot change under it; always thawed after.
+  execFileSync('docker', ['pause', container], { timeout: 20_000 })
+  let output
+  try {
+    output = execFileSync('docker', scanner, {
+      encoding: 'utf8',
+      timeout: 120_000,
+      maxBuffer: 8 * 1024 * 1024,
+      input: JSON.stringify({ prefixOf }),
+    })
+  } finally {
+    execFileSync('docker', ['unpause', container], { timeout: 20_000 })
+  }
+  const result = JSON.parse(output)
   writeFileSync(out, `${JSON.stringify({ at: new Date().toISOString(), ...result }, null, 2)}\n`)
   const { coverage, files, prefixes } = result
   const { complete } = coverageOf(result)

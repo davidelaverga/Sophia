@@ -1,4 +1,4 @@
-// WBC-02 (WBC-02-CX-0040): the home snapshot's scan, on real directories. Each file is read once: its size is the count
+// WBC-02 (WBC-02-CX-0040 and the review of 3db6ef9): the home snapshot's scan, on real directories. Each file is read once: its size is the count
 // of the bytes read and its digest their hash, and a growing file's prefix is hashed from the same bytes. The sentinel
 // cases change a file between the moment its size is read and the moment its bytes are (CX-0040's race: a truncation
 // between a count and a separate hash), through the scan's own seam, and the positive controls append, keep an empty
@@ -6,11 +6,11 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, truncateSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { compareSnapshots, coverageOf, EMPTY_SHA256, scan } from '../../scripts/paperclip-image-home.mjs'
 
 const HOME_SCRIPT = fileURLToPath(new URL('../../scripts/paperclip-image-home.mjs', import.meta.url))
@@ -35,7 +35,10 @@ function home() {
 const growingOf = (snapshot) => Object.fromEntries(snapshot.files.filter((f) => f.path === LOG).map((f) => [f.path, f.size]))
 const entry = (snapshot, path) => snapshot.files.find((f) => f.path === path)
 
-describe('the home scan (WBC-02-CX-0040)', () => {
+/** The scan checks each opened descriptor's path through /proc/self/fd, as the Linux scanner container does. */
+const LINUX_ONLY = process.platform !== 'linux' && `the home scan reads /proc/self/fd: Linux only (here: ${process.platform})`
+
+describe('the home scan (WBC-02-CX-0040)', { skip: LINUX_ONLY }, () => {
   it('positive control: every file read once, sizes and digests of the actual bytes, an empty file included, coverage complete', () => {
     const root = home()
     const snapshot = scan(root)
@@ -114,6 +117,41 @@ describe('the home scan (WBC-02-CX-0040)', () => {
     assert.deepEqual(compareSnapshots(snapshot.files, snapshot.files).unverified, ['instances/default/a b.txt'])
   })
 
+  it('review of 3db6ef9: a directory swapped for a symbolic link after the listing is not followed out of the home', () => {
+    const root = home()
+    const outside = mkdtempSync(join(tmpdir(), 'pc-outside-'))
+    roots.push(outside)
+    writeFileSync(join(outside, 'server.log'), 'a file outside the home')
+    const logs = join(root, 'instances/default/logs')
+    const snapshot = scan(root, {
+      onListed: () => {
+        renameSync(logs, `${logs}.moved`)
+        symlinkSync(outside, logs)
+      },
+    })
+    assert.deepEqual(entry(snapshot, LOG), { path: LOG, size: null, sha256: null, error: 'ESCAPED' })
+    assert.ok(!JSON.stringify(snapshot).includes(sha256('a file outside the home')), 'no digest of the outside file is recorded')
+    assert.deepEqual(compareSnapshots(snapshot.files, snapshot.files).unverified, [LOG])
+  })
+
+  it('review of 3db6ef9: a file swapped for a FIFO after the listing does not hold the scan open', () => {
+    const root = home()
+    // In a child process with a deadline: a scan that blocked on the FIFO would otherwise hang this test.
+    const program = [
+      "import { spawnSync } from 'node:child_process'",
+      "import { unlinkSync } from 'node:fs'",
+      `const { scan } = await import(${JSON.stringify(pathToFileURL(HOME_SCRIPT).href)})`,
+      `const target = ${JSON.stringify(join(root, LOG))}`,
+      `const result = scan(${JSON.stringify(root)}, { onListed: () => { unlinkSync(target); spawnSync('mkfifo', [target]) } })`,
+      `console.log(JSON.stringify(result.files.find((f) => f.path === ${JSON.stringify(LOG)})))`,
+    ].join('\n')
+    const run = spawnSync(process.execPath, ['--input-type=module', '-e', program], { encoding: 'utf8', timeout: 10_000 })
+    assert.equal(run.signal, null, 'the scan finished within its deadline')
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(JSON.parse(run.stdout), { path: LOG, size: null, sha256: null, error: 'ENOTREG' })
+    unlinkSync(join(root, LOG))
+  })
+
   it('the bounds: a file too large to hash and the file count are reported as incomplete coverage', () => {
     const root = home()
     const large = scan(root, { maxFileBytes: 50 })
@@ -144,3 +182,62 @@ describe('the home scan (WBC-02-CX-0040)', () => {
     assert.equal(compareSnapshots(before.files, later.files, later.prefixes).persisted, true)
   })
 })
+
+/**
+ * A stand-in for the docker calls the snapshot makes: it logs each call, answers the two inspects, and runs the scanner
+ * command locally (the mounted script on the home directory) unless FAIL_RUN is set.
+ */
+const FAKE_DOCKER = `#!/usr/bin/env bash
+echo "$*" >> "$DOCKER_LOG"
+case "$1" in
+  inspect)
+    case "$3" in
+      '{{json .Mounts}}') echo '[{"Type":"volume","Name":"pchome","Destination":"/paperclip"}]' ;;
+      '{{.Image}}') echo sha256:${'c'.repeat(64)} ;;
+    esac ;;
+  pause|unpause) echo "$2" ;;
+  run)
+    [ -n "$FAIL_RUN" ] && { echo 'scanner failed' >&2; exit 1; }
+    for a in "$@"; do case "$a" in --volume=*:/opt/home-scan/scan.mjs:ro) s="\${a#--volume=}"; s="\${s%%:*}" ;; esac; done
+    exec "$NODE" "$s" scan "$HOME_ROOT" ;;
+esac
+`
+
+describe('the snapshot around the scan (review of 3db6ef9)', { skip: LINUX_ONLY }, () => {
+  const snapshotWith = (root, extra = {}) => {
+    const bin = mkdtempSync(join(tmpdir(), 'pc-docker-'))
+    roots.push(bin)
+    writeFileSync(join(bin, 'docker'), FAKE_DOCKER, { mode: 0o755 })
+    const out = join(bin, 'snapshot.json')
+    const log = join(bin, 'docker.log')
+    const run = spawnSync(process.execPath, [HOME_SCRIPT, 'snapshot', 'pc', out], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, NODE: process.execPath, HOME_ROOT: root, DOCKER_LOG: log, ...extra },
+    })
+    const calls = readFileSync(log, 'utf8').trim().split('\n')
+    return { run, calls, out }
+  }
+
+  it('freezes the container, scans its volume read-only in a disposable container, then thaws it', () => {
+    const root = home()
+    const { run, calls, out } = snapshotWith(root)
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(
+      calls.map((c) => c.split(' ')[0]),
+      ['inspect', 'inspect', 'pause', 'run', 'unpause'],
+    )
+    const scanner = calls[3].split(' ')
+    for (const flag of ['--rm', '--network=none', '--read-only', '--cap-drop=ALL', '--cap-add=DAC_READ_SEARCH', '--security-opt=no-new-privileges', '--volume=pchome:/paperclip:ro'])
+      assert.ok(scanner.includes(flag), flag)
+    assert.ok(scanner.some((a) => /^--volume=.+:\/opt\/home-scan\/scan\.mjs:ro$/.test(a)), 'the scan script, read-only')
+    assert.ok(!scanner.some((a) => a.startsWith('--env') || a.startsWith('-e')), 'no environment')
+    assert.equal(coverageOf(JSON.parse(readFileSync(out, 'utf8'))).complete, true)
+  })
+
+  it('thaws the container when the scan fails', () => {
+    const { run, calls } = snapshotWith(home(), { FAIL_RUN: '1' })
+    assert.notEqual(run.status, 0)
+    assert.deepEqual(calls.map((c) => c.split(' ')[0]).slice(-2), ['run', 'unpause'])
+  })
+})
+
