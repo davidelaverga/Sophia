@@ -20,8 +20,8 @@ import {
   targetChecks,
   tilesOf,
 } from '../capture-html.mjs'
-import { MARK_CLASS, MAX_MEASURED } from '../capture-page.mjs'
-import { chromiumPath } from '../confine.mjs'
+import { MARK_CLASS, MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, pageScript } from '../capture-page.mjs'
+import { chromiumPath, launchConfined } from '../confine.mjs'
 
 const sha = (data: string | Uint8Array): string => createHash('sha256').update(data).digest('hex')
 const KERNEL_DIR = fileURLToPath(new URL('..', import.meta.url))
@@ -237,7 +237,10 @@ describe('the capture plan (pure)', () => {
       ]),
     )
     assert.equal(unreached.blocks_visible?.[0], 'failed', 'a text the cover check did not reach is not seen')
-    assert.match(String(unreached.blocks_visible?.[1]), /^2 texts the cover check's \d+ points did not reach$/)
+    assert.match(
+      String(unreached.blocks_visible?.[1]),
+      /^2 texts the cover check did not reach within its bounds \(\d+ points, under \d+ lines a text, \d+ s\)$/,
+    )
   })
 
   it('takes the marks that say nothing from the design profile, so both judge the same text (#117)', () => {
@@ -642,6 +645,105 @@ describe('the confined capture kernel', () => {
         assert.deepEqual(issues['text 4 h2'], [], target)
         assert.deepEqual(issuesOf(receipt, target).b2, ['covered'], `${target}: the last line of a tall block`)
         assert.deepEqual(issuesOf(receipt, target).b1, [])
+      }
+    },
+  )
+
+  it(
+    'refuses at once, unread, a text set on as many lines as the cover check reads at most; a narrow text under it is read (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .narrow{width:1px;overflow-wrap:anywhere;font:12px/12px Georgia,serif}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+          <h2 class="narrow">${'x'.repeat(MAX_LINES)}</h2><h2 class="narrow">${'y'.repeat(400)}</h2></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const framing = receipt.targets.find((t) => t.id === target)!.page.framing
+        assert.deepEqual(
+          framing.map((m) => [m.id, m.issues]),
+          [
+            ['text 1 h2', []],
+            ['text 2 h2', []],
+            ['text 3 h2', []],
+          ],
+          target,
+        )
+        const visible = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === target)
+        assert.equal(visible?.outcome, 'failed', `${target}: a text the cover check did not read is not seen`)
+        assert.match(String(visible?.detail), /^1 texts the cover check did not reach within its bounds /u, target)
+      }
+    },
+  )
+
+  it(
+    'hit-tests generated content through the protocol within a bound of points: a text past it is not reached (#117)',
+    { skip },
+    async () => {
+      const long = 'A long paragraph of the research, set on many lines at either width. '.repeat(750)
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} p{position:relative}
+            .rule::after{content:"";position:absolute;left:0;bottom:-6px;width:2rem;height:2px;background:#c33}
+            .veil::after{content:"";position:absolute;inset:0;background:#fafafa}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+          <p data-block="b2" class="rule">${long}</p><p data-block="b3" class="veil">Covered by its own veil.</p>
+          <p data-block="b4" class="rule">Underlined.</p></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        assert.deepEqual(
+          issuesOf(receipt, target),
+          { b1: [], b2: [], b3: ['covered'], b4: [] },
+          `${target}: the texts after the long one are still hit-tested`,
+        )
+        const visible = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === target)
+        assert.match(
+          String(visible?.detail),
+          /^b3; 1 texts the cover check did not reach within its bounds /u,
+          `${target}: the long text's points are past the protocol's bound`,
+        )
+      }
+    },
+  )
+
+  it(
+    'stops looking along lines when the cover check runs out of time, and names every text it did not reach (#117)',
+    {
+      skip,
+    },
+    async () => {
+      const workDir = fs.mkdtempSync(path.join(SCRATCH, 'sophia-look-'))
+      const browser = await launchConfined({ workDir, env })
+      try {
+        const tab = await browser.context.newPage()
+        await tab.setContent(
+          page(BASE, '<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p></section></main>'),
+        )
+        const script = pageScript({ maxListed: 20 })
+        const budget = `"maxLookMs":${String(MAX_LOOK_MS)}`
+        assert.ok(script.includes(budget), "the page is measured with the kernel's own time budget")
+        const unsampled = async (source: string) => {
+          const answer = await tab.evaluate<{ blocks: { unsampled: boolean }[]; framing: { unsampled: boolean }[] }>(
+            source,
+          )
+          return [...answer.blocks, ...answer.framing].map((m) => m.unsampled)
+        }
+        assert.deepEqual(await unsampled(script), [false, false], 'read within the budget')
+        assert.deepEqual(await unsampled(script.replace(budget, '"maxLookMs":-1')), [true, true], 'past it')
+      } finally {
+        await browser.close()
+        fs.rmSync(workDir, { recursive: true, force: true })
       }
     },
   )

@@ -17,7 +17,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { MAX_MEASURED, MAX_POINTS, pageScript } from './capture-page.mjs'
+import { MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, MAX_POINTS, pageScript } from './capture-page.mjs'
 import { launchConfined, playwrightVersion } from './confine.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
 
@@ -339,7 +339,7 @@ async function captureTarget(shot, target, page) {
 
 /**
  * The checks one target's measures and coverage carry. An unknown contrast is unknown, never passed; labels or texts
- * left unmeasured past the receipt's bound, or whose lines the cover check's budget did not reach, fail
+ * left unmeasured past the receipt's bound, or whose lines the cover check's bounds did not reach, fail
  * blocks_visible.
  * @param {Target} target
  * @param {import('./capture-page.mjs').PageMeasure} page
@@ -395,14 +395,16 @@ export function targetChecks(target, page, coverage, unmeasured = 0, unsampled =
 
 /**
  * What a target's measure left out, as blocks_visible names it: labels and texts past the receipt's bound, and texts
- * whose lines the cover check's budget of points did not reach.
+ * whose lines the cover check's bounds (of points, of lines a text, and of time) did not reach.
  * @param {number} unmeasured
  * @param {number} unsampled
  */
 function unreached(unmeasured, unsampled) {
   return [
     unmeasured > 0 ? `${unmeasured} more labels or texts outside the blocks than the ${MAX_MEASURED} measured` : '',
-    unsampled > 0 ? `${unsampled} texts the cover check's ${MAX_POINTS} points did not reach` : '',
+    unsampled > 0
+      ? `${unsampled} texts the cover check did not reach within its bounds (${MAX_POINTS} points, under ${MAX_LINES} lines a text, ${MAX_LOOK_MS / 1000} s)`
+      : '',
   ]
 }
 
@@ -472,8 +474,9 @@ async function measure(page) {
  * What is drawn over a text where only the DevTools protocol can tell: the text's element draws generated content that
  * could reach it, and a pseudo-element hit-tests as that element (capture-page.mjs coverOf). The protocol names the
  * pseudo-element when one is on top at a point, whatever its pointer-events, and the text is then covered (#117). Each
- * point is hit-tested on the page as it opens, the window scrolled to it and back to the top; the points, and whether
- * the page's budget of them ran out, are then dropped from the measure, which counts the texts it did not reach.
+ * point is hit-tested on the page as it opens, the window scrolled to it and back to the top, within a budget of
+ * points and of time; the points, and whether the page's budget ran out, are then dropped from the measure, which
+ * counts the texts it did not reach.
  * @param {Shot} shot
  * @param {import('playwright-core').Page} page
  * @param {Omit<import('./capture-page.mjs').PageAnswer, 'unmeasured'>} answer
@@ -486,10 +489,15 @@ async function generatedCover(shot, page, answer) {
     await shot.cdp.send('DOM.enable')
     /** @type {View} */
     const view = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY, w: innerWidth, h: innerHeight }))
-    /** @type {Set<number>} */
-    const plain = new Set()
+    const look = { plain: new Set(), until: Date.now() + MAX_LOOK_MS }
+    let left = MAX_PROBES
     for (const m of probed) {
-      const verdict = await pseudoOnTop(shot, page, m.probes, view, plain)
+      if (m.probes.length > left || Date.now() > look.until) {
+        m.unsampled = true
+        continue
+      }
+      left -= m.probes.length
+      const verdict = await pseudoOnTop(shot, page, m.probes, view, look)
       if (verdict === 'covered') m.issues.push('covered')
       if (verdict === 'unreached') m.unsampled = true
     }
@@ -507,22 +515,31 @@ async function generatedCover(shot, page, answer) {
 /** @typedef {{ x: number, y: number, w: number, h: number }} View the window's scroll and size */
 
 /**
+ * The most points the DevTools protocol hit-tests on one page, at one target, within the cover check's time: a text
+ * whose points do not fit in what is left of them is not reached, and its target fails as unmeasured (#117).
+ */
+const MAX_PROBES = 20_000
+
+/**
  * Whether a pseudo-element is the topmost thing at any of a text's points, by the protocol's hit test. It hit-tests
  * only what the viewport shows, and takes page coordinates: the points the viewport shows are hit-tested together,
  * and the window scrolls to the next one it does not; a point no scroll brings into view leaves the text 'unreached'
- * (the target then fails as unmeasured). Nodes already known to be no pseudo-element are not described again.
+ * (the target then fails as unmeasured), as does the check's time running out. Nodes already known to be no
+ * pseudo-element are not described again.
  * @param {Shot} shot
  * @param {import('playwright-core').Page} page
  * @param {{ x: number, y: number }[]} points in page coordinates
  * @param {View} view updated as the window scrolls
- * @param {Set<number>} plain
+ * @param {{ plain: Set<number>, until: number }} look the nodes known to be no pseudo-element, and the time (Date.now)
+ *   the check must stop by
  * @returns {Promise<'clear' | 'covered' | 'unreached'>}
  */
-async function pseudoOnTop(shot, page, points, view, plain) {
+async function pseudoOnTop(shot, page, points, view, look) {
   const seen = (/** @type {{ x: number, y: number }} */ p) =>
     p.x >= view.x && p.x < view.x + view.w && p.y >= view.y && p.y < view.y + view.h
   let rest = points
   while (rest.length > 0) {
+    if (Date.now() > look.until) return 'unreached'
     const shown = rest.filter(seen)
     if (shown.length === 0) {
       Object.assign(view, await scrollTo(page, rest[0] ?? { x: 0, y: 0 }))
@@ -533,10 +550,10 @@ async function pseudoOnTop(shot, page, points, view, plain) {
     const hits = await Promise.all(
       shown.map((p) => shot.cdp.send('DOM.getNodeForLocation', { ...p, ignorePointerEventsNone: true })),
     )
-    const fresh = [...new Set(hits.map((h) => h.backendNodeId))].filter((id) => !plain.has(id))
+    const fresh = [...new Set(hits.map((h) => h.backendNodeId))].filter((id) => !look.plain.has(id))
     const nodes = await Promise.all(fresh.map((id) => shot.cdp.send('DOM.describeNode', { backendNodeId: id })))
     if (nodes.some(({ node }) => node.pseudoType)) return 'covered'
-    for (const id of fresh) plain.add(id)
+    for (const id of fresh) look.plain.add(id)
   }
   return 'clear'
 }

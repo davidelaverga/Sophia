@@ -16,6 +16,8 @@
  * @typedef {{ width: number, height: number, viewportWidth: number, viewportHeight: number,
  *   overflowPx: number, overflowing: { element: string, rightPx: number }[], sections: ({ id: string } & Box)[],
  *   blocks: BlockMeasure[], shown: BlockMeasure[], framing: BlockMeasure[] }} PageMeasure
+ * @typedef {{ left: number, until: number, maxLines: number }} Budget the points the cover check may still look at,
+ *   the time (performance.now) it must stop by, and the fewest lines a text may have to be refused unread
  * @typedef {BlockMeasure & { probes: { x: number, y: number }[], unsampled: boolean }} ProbedMeasure a measure, the
  *   points the DevTools protocol is to hit-test where only it can tell what is drawn over the text (coverOf), and
  *   whether the page's budget of points ran out before its text was looked at; capture-html strips both
@@ -32,6 +34,20 @@ export const MAX_MEASURED = 4000
  * an em apart. A page that needs more fails the target as unmeasured, never as seen (#117).
  */
 export const MAX_POINTS = 200_000
+
+/**
+ * The longest the cover check may look at one page, at one target, in milliseconds: within the capture's own time, so
+ * no page's shape (a column one pixel wide, a hundred thousand lines) holds the renderer; a page that needs longer
+ * fails the target as unmeasured (#117).
+ */
+export const MAX_LOOK_MS = 20_000
+
+/**
+ * The fewest lines one text may have for the cover check to refuse it unread, as unmeasured: far under the lines a
+ * browser lists for one text at most (so a text with more lines than it lists is never taken as seen), and few enough
+ * that looking along every line of the longest text it reads takes seconds, not the whole of MAX_LOOK_MS (#117).
+ */
+export const MAX_LINES = 10_000
 
 /**
  * The smallest text outside the blocks a capture shows readably, as rendered: a line at least this tall, and glyphs
@@ -263,57 +279,66 @@ function inView(el, x, y) {
 }
 
 /**
- * One line of a text, with the window scrolled to it when it is outside the viewport. Only the window scrolls: a box
- * around the text stays where the page opens it, and a line it clips or scrolls away is not looked at here (where the
- * element sits says why).
- * @param {Range} range
- * @param {number} i
+ * One line of a text, given in page coordinates, in the viewport: the window scrolled to it when it is outside. Only
+ * the window scrolls, which moves no line on the page: a box around the text stays where the page opens it, and a line
+ * it clips or scrolls away is not looked at here (where the element sits says why).
+ * @param {Box} line
+ * @returns {Box} the line in viewport coordinates
  */
-function lineInView(range, i) {
-  const rect = range.getClientRects()[i]
-  if (!rect) return null
-  const across = rect.left < 0 || rect.right > window.innerWidth
-  if (rect.top >= 0 && rect.bottom <= window.innerHeight && !across) return rect
+function lineInView(line) {
+  const at = () => ({ x: line.x - window.scrollX, y: line.y - window.scrollY, width: line.width, height: line.height })
+  const rect = at()
+  const across = rect.x < 0 || rect.x + rect.width > window.innerWidth
+  if (rect.y >= 0 && rect.y + rect.height <= window.innerHeight && !across) return rect
   window.scrollBy({
-    left: across ? rect.left + rect.width / 2 - window.innerWidth / 2 : 0,
-    top: rect.top + rect.height / 2 - window.innerHeight / 2,
+    left: across ? rect.x + rect.width / 2 - window.innerWidth / 2 : 0,
+    top: rect.y + rect.height / 2 - window.innerHeight / 2,
     behavior: 'instant',
   })
-  return range.getClientRects()[i] ?? null
+  return at()
 }
 
 /**
  * Points along a line of text where the cover check looks: through its middle, about an em apart, at most 64.
- * @param {DOMRect} rect
+ * @param {Box} rect in viewport coordinates
  * @param {number} em
  */
 function pointsAlong(rect, em) {
   const n = Math.min(64, Math.max(1, Math.ceil(rect.width / Math.max(em, 4))))
   return Array.from({ length: n }, (_, i) => ({
-    x: rect.left + (rect.width * (i + 0.5)) / n,
-    y: rect.top + rect.height / 2,
+    x: rect.x + (rect.width * (i + 0.5)) / n,
+    y: rect.y + rect.height / 2,
   }))
 }
 
 /**
  * The cover check along every line of one text (isCovered): 'covered' at the first point something else is on top,
- * 'unmeasured' when the page's budget of points runs out, else 'clear' with the points only the protocol can judge
- * added to `probes` (in page coordinates).
+ * 'unmeasured' when the page's budget runs out (of points, or of time), else 'clear' with the points only the protocol
+ * can judge added to `probes` (in page coordinates). The text's lines are read once, and a text with MAX_LINES lines
+ * or more, or more lines than the budget has points left, is not looked at, line by line or at all (#117).
  * @param {Element} el
  * @param {Element} holder the element that holds the text
  * @param {Node} node the text
- * @param {{ left: number }} budget
+ * @param {Budget} budget
  * @param {{ x: number, y: number }[]} probes
  * @returns {'clear' | 'covered' | 'unmeasured'}
  */
 function coverAlong(el, holder, node, budget, probes) {
   const range = document.createRange()
   range.selectNodeContents(node)
+  const rects = range.getClientRects()
+  if (rects.length >= budget.maxLines || rects.length > budget.left) return 'unmeasured'
+  const lines = [...rects].map((r) => ({
+    x: r.left + window.scrollX,
+    y: r.top + window.scrollY,
+    width: r.width,
+    height: r.height,
+  }))
   const suspect = drawsOverText(holder)
   const em = Number.parseFloat(getComputedStyle(holder).fontSize)
-  for (let i = 0; i < range.getClientRects().length; i++) {
-    const rect = lineInView(range, i)
-    for (const p of rect ? pointsAlong(rect, em) : []) {
+  for (const line of lines) {
+    if (performance.now() > budget.until) return 'unmeasured'
+    for (const p of pointsAlong(lineInView(line), em)) {
       if (!inView(holder, p.x, p.y)) continue
       budget.left -= 1
       if (budget.left < 0) return 'unmeasured'
@@ -330,7 +355,7 @@ function coverAlong(el, holder, node, budget, probes) {
  * Whether anything is drawn over an element's text, looked for along every line of every text in it (#117), every
  * scroll then put back. The points where only the DevTools protocol can tell come back for capture-html to ask.
  * @param {Element} el
- * @param {{ left: number }} budget the points the page may still look at
+ * @param {Budget} budget the points the page may still look at, and until when
  * @returns {{ cover: 'clear' | 'covered' | 'unmeasured', probes: { x: number, y: number }[] }}
  */
 function isCovered(el, budget) {
@@ -557,7 +582,7 @@ function contrastOf(el, ctx) {
  * @param {Element} el
  * @param {Box} page
  * @param {OffscreenCanvasRenderingContext2D} ctx
- * @param {{ left: number }} budget the points the cover check may still look at, across the page
+ * @param {Budget} budget the points the cover check may still look at, across the page, and until when
  * @returns {ProbedMeasure}
  */
 function measureBlock(el, page, ctx, budget) {
@@ -584,8 +609,8 @@ function measureBlock(el, page, ctx, budget) {
 /**
  * Everything the kernel measures at the current viewport. Checking cover scrolls, and puts every scroll back (keepScroll),
  * so each element is placed, and the page captured, as it starts; the view ends at the top, where the captures begin.
- * @param {{ maxListed: number, maxMeasured: number, marks: string, maxPoints: number,
- *   readable: { linePx: number, advancePx: number } }} opts
+ * @param {{ maxListed: number, maxMeasured: number, marks: string, maxPoints: number, maxLookMs: number,
+ *   maxLines: number, readable: { linePx: number, advancePx: number } }} opts
  * @returns {PageAnswer}
  */
 function measurePage(opts) {
@@ -593,7 +618,7 @@ function measurePage(opts) {
   const page = { x: 0, y: 0, width: root.scrollWidth, height: root.scrollHeight }
   const ctx = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('no 2D canvas to resolve colours')
-  const budget = { left: opts.maxPoints }
+  const budget = { left: opts.maxPoints, until: performance.now() + opts.maxLookMs, maxLines: opts.maxLines }
   const words = new RegExp(`[^\\s${opts.marks}]`, 'u')
   const blocks = [...document.querySelectorAll('[data-block]')].map((el) => measureBlock(el, page, ctx, budget))
   const strictly = (/** @type {{ el: Element, id: string }} */ { el, id }) => {
@@ -709,6 +734,14 @@ const IN_PAGE = [
  * @param {{ maxListed: number }} opts
  */
 export function pageScript(opts) {
-  const all = { ...opts, maxMeasured: MAX_MEASURED, marks: MARK_CLASS, maxPoints: MAX_POINTS, readable: READABLE }
+  const all = {
+    ...opts,
+    maxMeasured: MAX_MEASURED,
+    marks: MARK_CLASS,
+    maxPoints: MAX_POINTS,
+    maxLookMs: MAX_LOOK_MS,
+    maxLines: MAX_LINES,
+    readable: READABLE,
+  }
   return `(() => {\n${IN_PAGE.map((f) => f.toString()).join('\n')}\nreturn measurePage(${JSON.stringify(all)})\n})()`
 }
