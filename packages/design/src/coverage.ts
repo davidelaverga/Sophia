@@ -237,7 +237,7 @@ export function checkCoverage(doc: Document, html: string, content: ContentPacka
     ...placeBlocks(all, content, html),
     ...hiddenResearch(all, html),
     ...sourceFindings(all, content),
-    ...citationFindings(all, html),
+    ...citationFindings(all, html, content.citations),
     ...framingFindings(doc, html),
   ]
 }

@@ -333,6 +333,9 @@ describe('the content check catches every way the research could be lost or chan
   })
 })
 
+/** A source's entry as the plain page lists it. */
+const entry = (id: string) => `<li id="src-${id}" data-source="${id}">Source ${id}</li>`
+
 describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-0019 F2)', () => {
   const marker = `<a data-cite="${A}" href="#src-${A}">[1]</a>`
   const swap = (to: string): string[] => {
@@ -397,10 +400,10 @@ describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-00
   it('accepts the ways a page marks a citation', () => {
     for (const ok of [
       `<sup data-cite="${A}">[1]</sup>`,
-      `<sup data-cite="${A}"><a href="#src-${A}">(12)</a></sup>`,
-      `<sup data-cite="${A}">[<a href="#src-${A}">2</a>]</sup>`,
-      `<a data-cite="${A}" href="#src-${A}" title="Source 3">(1)</a>`,
-      `<span data-cite="${A}" aria-label="Fonte 4"></span>`,
+      `<sup data-cite="${A}"><a href="#src-${A}">(1)</a></sup>`,
+      `<sup data-cite="${A}">[<a href="#src-${A}">1</a>]</sup>`,
+      `<a data-cite="${A}" href="#src-${A}" title="Source 1">(1)</a>`,
+      `<span data-cite="${A}" aria-label="Fonte 1"></span>`,
       `<sup data-cite="${A}">†</sup>`,
       `<a data-cite="${A}" href="#src-${A}">[*]</a>`,
     ])
@@ -435,12 +438,53 @@ describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-00
   })
   it('accepts a citation mark or name in any text-bearing attribute of the marker or its link', () => {
     for (const ok of [
-      `<a data-cite="${A}" href="#src-${A}" aria-description="Source 4" aria-braillelabel="[1]">[1]</a>`,
-      `<sup data-cite="${A}" aria-roledescription="" aria-label="Fuente 2"><a href="#src-${A}" title="Source [2]">[2]</a></sup>`,
-      `<sup data-cite="${A}"><a href="#src-${A}" aria-description="Fonte 4" aria-braillelabel="(4)">(4)</a></sup>`,
+      `<a data-cite="${A}" href="#src-${A}" aria-description="Source 1" aria-braillelabel="[1]">[1]</a>`,
+      `<sup data-cite="${A}" aria-roledescription="" aria-label="Fuente 1"><a href="#src-${A}" title="Source [1]">[1]</a></sup>`,
+      `<sup data-cite="${A}"><a href="#src-${A}" aria-description="Fonte 1" aria-braillelabel="(1)">(1)</a></sup>`,
       `<sup data-cite="${A}" title=" [ 1 ] " aria-label="">[1]</sup>`,
       `<a data-cite="${A}" href="#src-${A}" aria-label="†">†</a>`,
-      `<sup data-cite="${A}" aria-label="[2]">[<a href="#src-${A}" title="[2]">2</a>]</sup>`,
+      `<sup data-cite="${A}" aria-label="[1]">[<a href="#src-${A}" title="[1]">1</a>]</sup>`,
+    ])
+      assert.deepEqual(swap(ok), [], ok)
+  })
+  // #117: a number on a marker is its source's place in the report's frozen citation order (A first, B second), so a
+  // marker cannot attribute a claim to another source, or to none.
+  it("refuses a number, shown or announced, other than its source's place in the report's citation order", () => {
+    for (const bad of [
+      `<a data-cite="${A}" href="#src-${A}">[2]</a>`,
+      `<sup data-cite="${A}"><a href="#src-${A}">(12)</a></sup>`,
+      `<sup data-cite="${A}">[<a href="#src-${A}">2</a>]</sup>`,
+      `<a data-cite="${A}" href="#src-${A}" aria-label="Source 3">[1]</a>`,
+      `<a data-cite="${A}" href="#src-${A}" title="Fonte 4">[1]</a>`,
+      `<span data-cite="${A}" aria-label="Source 2"></span>`,
+      `<sup data-cite="${A}" aria-label="[1]"><a href="#src-${A}" title="Source [2]">[1]</a></sup>`,
+      `<a data-cite="${A}" href="#src-${A}">[01]</a>`,
+    ])
+      assert.deepEqual(swap(bad), ['citation_marker'], bad)
+    const page = html(good)
+    const second = `<a data-cite="${B}" href="#src-${B}">[2]</a>`
+    assert.ok(page.includes(second))
+    assert.deepEqual(codes(withHtml(good, page.replace(second, second.replace('[2]', '[1]')))), ['citation_marker'])
+    // A source cited twice is numbered alike each time.
+    const last = page.lastIndexOf(marker)
+    assert.notEqual(last, page.indexOf(marker), 'the fixture cites A twice')
+    const repeat = `${page.slice(0, last)}${marker.replace('[1]', '[2]')}${page.slice(last + marker.length)}`
+    assert.deepEqual(codes(withHtml(good, repeat)), ['citation_marker'])
+  })
+  it('accepts a marker numbered by the report wherever the page lists its sources, and one that numbers nothing', () => {
+    const page = html(good)
+    const reordered = page.replace(`${entry(A)}\n${entry(B)}`, `${entry(B)}\n${entry(A)}`)
+    assert.notEqual(reordered, page, 'the fixture lists A, then B')
+    assert.deepEqual(codes(withHtml(good, reordered)), [], 'B listed first, the markers still follow the report')
+    const second = `<a data-cite="${B}" href="#src-${B}">[2]</a>`
+    const byList = reordered
+      .replaceAll(marker, marker.replace('[1]', '[2]'))
+      .replace(second, second.replace('[2]', '[1]'))
+    assert.deepEqual([...new Set(codes(withHtml(good, byList)))], ['citation_marker'], 'numbered by the list instead')
+    for (const ok of [
+      `<sup data-cite="${A}">†</sup>`,
+      `<span data-cite="${A}" aria-label=""></span>`,
+      `<a data-cite="${A}" href="#src-${A}" aria-label="[*]">[*]</a>`,
     ])
       assert.deepEqual(swap(ok), [], ok)
   })

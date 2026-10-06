@@ -8,7 +8,9 @@
 // and on its link, is empty, the marker's own mark as the page shows it, or a word for a source and a number
 // ("Source 3"): never a bare number, which a reader would hear as a value no screenshot shows (#117). An ID reference
 // on either (framing.ts's list) names only that source's entry, which its markup does not hide (the render measures
-// it: framing.ts's shownLabels).
+// it: framing.ts's shownLabels). A number a marker shows or announces is its source's place in the report's frozen
+// citation order (the content package's), never one the page chooses: `[2]` or "Source 3" on the first source would
+// attribute a claim to another source, or to none (#117).
 
 import { attr, elements, isElement, lineAt, textOf, type Element } from './dom.ts'
 import { error, type Finding } from './findings.ts'
@@ -79,8 +81,28 @@ function referenceIssue(els: readonly Element[], cited: string, entries: Readonl
   return stray ? `its ${stray.name} names ${JSON.stringify(stray.id.slice(0, 40))}, not this source's entry` : null
 }
 
+/** The number a mark or a citation name gives, or null when it gives none. */
+const numberIn = (text: string): string | null => /\d+/u.exec(text)?.[0] ?? null
+
+/**
+ * A number a marker shows or announces, on it or its link, that is not its source's place in the report's frozen
+ * citation order, or null. A mark with no number (a symbol, or none) and a name with no number say no place.
+ */
+function ordinalIssue(els: readonly Element[], mark: string, place: number | undefined): string | null {
+  const said = [mark, ...els.flatMap((el) => TEXT_ATTRIBUTES.map((name) => attr(el, name) ?? ''))]
+  const wrong = said.map(numberIn).find((n) => n !== null && n !== String(place))
+  if (wrong === undefined || wrong === null) return null
+  return place === undefined
+    ? `it numbers a source the report does not cite (${wrong})`
+    : `it numbers its source ${wrong}, but that source is number ${String(place)} in the report's citation order`
+}
+
 /** What is wrong with one marker, or null. */
-function markerIssue(marker: Element, entries: ReadonlyMap<string, string>): string | null {
+function markerIssue(
+  marker: Element,
+  entries: ReadonlyMap<string, string>,
+  places: ReadonlyMap<string, number>,
+): string | null {
   if (!MARKER_TAGS.has(marker.tagName)) return `a marker is <a>, <sup> or <span>, not <${marker.tagName}>`
   if (elements(marker).some(isCite)) return 'a marker holds no other marker'
   const link = linkOf(marker)
@@ -88,17 +110,29 @@ function markerIssue(marker: Element, entries: ReadonlyMap<string, string>): str
   const mark = markOf(marker)
   if (!MARK.test(mark)) return `its text ${JSON.stringify(mark.slice(0, 40))} is not a citation mark`
   const both = link && link !== marker ? [marker, link] : [marker]
-  const named = both.map((el) => nameIssue(el, mark)).find((issue) => issue !== null) ?? null
-  const referenced = referenceIssue(both, (attr(marker, 'data-cite') ?? '').toLowerCase(), entries)
-  return named ?? referenced ?? (link === null ? null : destinationIssue(marker, link, entries))
+  const cited = (attr(marker, 'data-cite') ?? '').toLowerCase()
+  const said = saidIssue(both, mark, places.get(cited))
+  return (
+    said ?? referenceIssue(both, cited, entries) ?? (link === null ? null : destinationIssue(marker, link, entries))
+  )
 }
 
-/** Every citation marker whose shape could carry a claim or lead away from its source. */
-export function citationFindings(all: readonly Element[], html: string): Finding[] {
+/** What a marker and its link show or announce that is neither its mark, a citation name, nor its source's place. */
+function saidIssue(els: readonly Element[], mark: string, place: number | undefined): string | null {
+  const named = els.map((el) => nameIssue(el, mark)).find((issue) => issue !== null) ?? null
+  return named ?? ordinalIssue(els, mark, place)
+}
+
+/**
+ * Every citation marker whose shape could carry a claim, lead away from its source, or number it otherwise than the
+ * report does. `citations` is the content package's: every cited source id, in the order the report first cites them.
+ */
+export function citationFindings(all: readonly Element[], html: string, citations: readonly string[]): Finding[] {
   const entries = entryIds(all)
+  const places = new Map(citations.map((id, i) => [id.toLowerCase(), i + 1]))
   const out: Finding[] = []
   for (const marker of all.filter(isCite)) {
-    const issue = markerIssue(marker, entries)
+    const issue = markerIssue(marker, entries, places)
     if (issue)
       out.push(
         error('citation_marker', 'index.html', `data-cite ${attr(marker, 'data-cite') ?? ''}: ${issue}`, {
