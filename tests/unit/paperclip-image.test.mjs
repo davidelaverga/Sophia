@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { promisify } from 'node:util'
+import { isDeepStrictEqual, promisify } from 'node:util'
 import { parse } from 'yaml'
 import { compareSnapshots, coverageOf, EMPTY_SHA256, scan } from '../../scripts/paperclip-image-home.mjs'
 import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS, receiptOf, STARTS } from '../../scripts/paperclip-image-receipt.mjs'
@@ -972,9 +972,12 @@ describe('the receipt command reads every input the workflow writes, by its own 
       ['probe-first.json', '{"phase":"first","steps":[null]}', 'installed plugin flow, first', true],
       ['image-files.json', '{"files":[null]}', 'image built from the pin', true],
       ['home-after.json', '{"files":[null]}', 'home persisted across recreation', false],
+      ['runtime.jsonl', (run) => run.runtime.map((r, i) => JSON.stringify(i === 0 ? { ...r, ports: [null] } : r)).join('\n'), 'runtime:', true],
+      ['cgroup.jsonl', (run) => run.samples.map((r, i) => JSON.stringify(i === 0 ? { ...r, events: [null] } : r)).join('\n'), 'memory, first:healthy', false],
     ]) {
-      const { dir } = evidenceOf(complete())
-      writeFileSync(join(dir, name), content)
+      const run = complete()
+      const { dir } = evidenceOf(run)
+      writeFileSync(join(dir, name), typeof content === 'function' ? `${content(run)}\n` : content)
       assert.notEqual(verdictIn(dir), 'qualified', name)
       const receipt = JSON.parse(readFileSync(join(dir, 'receipt.json'), 'utf8'))
       const unavailable = receipt.checks.find((c) => c.name.startsWith(check))
@@ -1170,7 +1173,20 @@ describe('review of 705c2b8: whatever shape a record has, at any depth, the rece
     ...['timings', 'runtime', 'samples'].flatMap((list) => run[list].map((_, i) => [list, i])),
   ]
 
-  it('every path inside every record, given each wrong shape: never thrown, a check unavailable or failed when one is read', () => {
+  /**
+   * What the receipt does not judge, by design: the producer's own flags (the identity is recomputed instead), the
+   * build stage's platform (the image's is judged), the scans' informational settings, and each step's duration.
+   */
+  const UNJUDGED =
+    /^(identity\.(pin|sophiaCommit|sophiaTreeDirty|manifestMatches|verifyManifestInImage)|identity\.buildImage\.(os|architecture)|(home\.\w+|packaged\.imageFiles)\.coverage\.(maxFiles|maxFileBytes)|packaged\.imageFiles\.prefixes|probes\.\w+\.steps\.\d+\.ms)$/
+
+  it('positive control: the complete run is qualified, nothing unreadable', () => {
+    const { receipt } = receiptOf(complete())
+    assert.equal(receipt.verdict, 'qualified')
+    assert.equal(receipt.unreadable, undefined)
+  })
+
+  it('every path inside every record, given each wrong shape: never thrown, and never qualified unless still valid', () => {
     let cases = 0
     for (const record of RECORDS(complete())) {
       const base = complete()
@@ -1178,12 +1194,17 @@ describe('review of 705c2b8: whatever shape a record has, at any depth, the rece
       for (const path of inside)
         for (const shape of SHAPES) {
           const run = complete()
+          const where = [...record, ...path].join('.')
+          const original = [...record, ...path].reduce((at, key) => at[key], base)
           setAt(run, [...record, ...path], structuredClone(shape))
           const { receipt, summary } = receiptOf(run)
           assert.ok(['qualified', 'failed', 'incomplete'].includes(receipt.verdict))
           assert.equal(typeof summary, 'string')
-          for (const name of receipt.unreadable ?? [])
-            assert.equal(receipt.checks.find((c) => c.name === name).result, 'unavailable', `${record.join('.')}.${path.join('.')}`)
+          for (const name of receipt.unreadable ?? []) assert.equal(receipt.checks.find((c) => c.name === name).result, 'unavailable', where)
+          // No silent acceptance: a judged value replaced by a wrong shape is never qualified, unless the replacement is
+          // itself what was recorded (`true` for `true`, `[]` for `[]`) or a valid value of its own (a run named "x").
+          const stillValid = isDeepStrictEqual(shape, original) || (path.at(-1) === 'runId' && shape === 'x')
+          if (receipt.verdict === 'qualified') assert.ok(UNJUDGED.test(where) || stillValid, `${where} <- ${JSON.stringify(shape)}`)
           cases += 1
         }
     }
