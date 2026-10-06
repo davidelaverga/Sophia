@@ -250,18 +250,40 @@ interface Context {
   readonly html: string
 }
 
+/** Whether a text a reader meets off the page is shown on it: none, a plain name, or a label (which goes to `shown`). */
+function shownText(text: string, cx: Context): boolean {
+  if (text === '' || PLAIN_NAME.test(text)) return true
+  const same = cx.labels.get(text)
+  for (const label of same ?? []) cx.shown.add(label)
+  return same !== undefined
+}
+
+/**
+ * The document's title and description (a tab, a bookmark, a search result, a link preview): no capture shows them,
+ * so they are held as a tooltip is (#117).
+ */
+function headFindings(el: Element, cx: Context): Finding[] {
+  const description = el.tagName === 'meta' && attr(el, 'name') === 'description'
+  if (el.tagName !== 'title' && !description) return []
+  const value = description ? (attr(el, 'content') ?? '') : textOf(el)
+  if (shownText(plain(value), cx)) return []
+  return [
+    error(
+      'attribute_text',
+      'index.html',
+      `<${el.tagName}${description ? ' name="description"' : ''}> says ${JSON.stringify(value.slice(0, 80))}, which the page ` +
+        'does not show: the title and the description repeat a heading or another label, or are a plain name',
+      { line: lineOf(cx.html, el) },
+    ),
+  ]
+}
+
 /** A tooltip or name with text the page does not show; the labels a repeated one rests on go to `shown`. */
 function textAttributeFindings(el: Element, cx: Context): Finding[] {
   const out: Finding[] = []
   for (const name of TEXT_ATTRIBUTES) {
     const value = attr(el, name)
-    const text = value === null ? '' : plain(value)
-    if (text === '' || PLAIN_NAME.test(text)) continue
-    const same = cx.labels.get(text)
-    if (same) {
-      for (const label of same) cx.shown.add(label)
-      continue
-    }
+    if (shownText(value === null ? '' : plain(value), cx)) continue
     out.push(
       error(
         'attribute_text',
@@ -307,7 +329,7 @@ function attributeFraming(all: readonly Element[], html: string): { findings: Fi
   const findings: Finding[] = []
   for (const el of all) {
     if (isCite(el) || hasAncestor(el, isCite)) markerShown(el, cx)
-    else findings.push(...textAttributeFindings(el, cx), ...referenceFindings(el, cx))
+    else findings.push(...textAttributeFindings(el, cx), ...referenceFindings(el, cx), ...headFindings(el, cx))
   }
   return { findings, shown: cx.shown }
 }

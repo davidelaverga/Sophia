@@ -8,18 +8,19 @@ import { type SourceFile } from './package.ts'
 const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-const cites = (b: ContentBlock): string =>
-  b.citations.map((id) => `<a data-cite="${id}" href="#src-${id}">[s]</a>`).join('')
+/** Each citation as a bracketed number, the source's place in the package's citation order. */
+const cites = (b: ContentBlock, order: readonly string[]): string =>
+  b.citations.map((id) => `<a data-cite="${id}" href="#src-${id}">[${order.indexOf(id) + 1}]</a>`).join('')
 const links = (b: ContentBlock): string => b.links.map((href) => ` <a href="${esc(href)}"></a>`).join('')
 
-function blockHtml(b: ContentBlock): string {
+function blockHtml(b: ContentBlock, order: readonly string[]): string {
   if (b.kind === 'table') {
-    const cells = b.cells.map((c, i) => `<td>${esc(c)}${i === 0 ? cites(b) + links(b) : ''}</td>`).join('')
+    const cells = b.cells.map((c, i) => `<td>${esc(c)}${i === 0 ? cites(b, order) + links(b) : ''}</td>`).join('')
     return `<div role="region" aria-label="Table ${b.id}" tabindex="0"><table data-block="${b.id}"><tbody><tr>${cells}</tr></tbody></table></div>`
   }
-  if (b.kind === 'item') return `<ul><li data-block="${b.id}">${esc(b.text)}${cites(b)}${links(b)}</li></ul>`
+  if (b.kind === 'item') return `<ul><li data-block="${b.id}">${esc(b.text)}${cites(b, order)}${links(b)}</li></ul>`
   if (b.kind === 'code') return `<pre data-block="${b.id}"><code>${esc(b.text)}</code></pre>`
-  return `<p data-block="${b.id}">${esc(b.text)}${cites(b)}${links(b)}</p>`
+  return `<p data-block="${b.id}">${esc(b.text)}${cites(b, order)}${links(b)}</p>`
 }
 
 export interface PageOptions {
@@ -37,7 +38,7 @@ export function plainPage(content: ContentPackage, options: PageOptions = {}): S
   for (let i = 0; i < Math.max(content.blocks.length, 1); i += per) {
     const body = content.blocks
       .slice(i, i + per)
-      .map(blockHtml)
+      .map((b) => blockHtml(b, content.citations))
       .join('\n')
     sections.push(`<section id="s${sections.length + 1}" data-section="s${sections.length + 1}">\n${body}\n</section>`)
   }

@@ -1,11 +1,13 @@
 // What a citation marker may be (SDD-01-CX-0019 F2). The coverage check compares a block's own text without its
 // citations, so a marker is held to a shape that cannot carry a claim or lead elsewhere: the element marked
-// `data-cite="<sourceId>"`, or one link inside it, and nothing more; a short mark for text ("1", "[s]", "(a)", "†",
-// or none); and when it links, only to the page's own entry for that source (the element marked `data-source` with the
-// same id). Every attribute that carries text a reader meets without seeing it (a tooltip, an accessible name or
-// description, a braille label: framing.ts's list), on the marker and on its link, is held to the same mark, or a word
-// and a number ("Source 3"); an ID reference on either (framing.ts's list) names only that source's entry, which its
-// markup does not hide (the render measures it: framing.ts's shownLabels).
+// `data-cite="<sourceId>"`, or one link inside it, and nothing more; a short mark for text: a number in brackets
+// ("[1]", "(12)"), a symbol ("†", "[*]"), or none. No letters, so markers side by side cannot spell a word, and no bare
+// number, which would read as part of the number beside it (#117); and when it links, only to the page's own entry for
+// that source (the element marked `data-source` with the same id). Every attribute that carries text a reader meets
+// without seeing it (a tooltip, an accessible name or description, a braille label: framing.ts's list), on the marker
+// and on its link, is held to the same mark, or a word and a number ("Source 3"); an ID reference on either
+// (framing.ts's list) names only that source's entry, which its markup does not hide (the render measures it:
+// framing.ts's shownLabels).
 
 import { attr, elements, isElement, lineAt, textOf, type Element } from './dom.ts'
 import { error, type Finding } from './findings.ts'
@@ -13,8 +15,8 @@ import { hiddenByMarkup, REFERENCE_ATTRIBUTES, referencedIds, TEXT_ATTRIBUTES } 
 
 /** The elements a marker may be. */
 const MARKER_TAGS = new Set(['a', 'sup', 'span'])
-/** A marker's text, its white space removed: brackets around up to three digits, one letter or one symbol, or none. */
-const MARK = /^[[(]?(?:\d{1,3}|\p{L}|[*†‡§¶#])?[\])]?$/u
+/** A marker's text, its white space removed: brackets around up to three digits or a symbol, a symbol, or none. */
+const MARK = /^(?:[[(](?:\d{1,3}|[*†‡§¶#])[\])]|[*†‡§¶#])?$/u
 /** A marker's accessible name: its mark, or one word and a number. */
 const NAME = /^(?:\p{L}{1,16} )?[[(]?\d{1,3}[\])]?$/u
 

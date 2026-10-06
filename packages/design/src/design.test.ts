@@ -197,7 +197,7 @@ describe('the content check catches every way the research could be lost or chan
   it('a changed number', () => assert.ok(mutate('12.50 USD', '12.05 USD').includes('block_altered')))
   it('a changed table cell', () => assert.ok(mutate('<td>30</td>', '<td>35</td>').includes('block_altered')))
   it('a dropped citation', () =>
-    assert.ok(mutate(`<a data-cite="${B}" href="#src-${B}">[s]</a>`, '').includes('citation_altered')))
+    assert.ok(mutate(`<a data-cite="${B}" href="#src-${B}">[2]</a>`, '').includes('citation_altered')))
   it('an added citation', () =>
     assert.ok(
       mutate('<p data-block="b1">', `<p data-block="b1"><a data-cite="${B}" href="#src-${B}">x</a>`).includes(
@@ -234,7 +234,7 @@ describe('the content check catches every way the research could be lost or chan
 })
 
 describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-0019 F2)', () => {
-  const marker = `<a data-cite="${A}" href="#src-${A}">[s]</a>`
+  const marker = `<a data-cite="${A}" href="#src-${A}">[1]</a>`
   const swap = (to: string): string[] => {
     const page = html(good).replace(marker, to)
     assert.notEqual(page, html(good), 'the fixture carries the marker')
@@ -249,11 +249,11 @@ describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-00
     assert.deepEqual(swap(`<a data-cite="${A}" href="#src-${A}">[12] cheap</a>`), ['citation_marker'])
   })
   it("refuses a link to anywhere but this source's own entry on the page", () => {
-    assert.deepEqual(swap(`<a data-cite="${A}" href="https://example.com/">[s]</a>`), ['citation_marker'])
-    assert.deepEqual(swap(`<a data-cite="${A}" href="#src-${B}">[s]</a>`), ['citation_marker'])
+    assert.deepEqual(swap(`<a data-cite="${A}" href="https://example.com/">[1]</a>`), ['citation_marker'])
+    assert.deepEqual(swap(`<a data-cite="${A}" href="#src-${B}">[1]</a>`), ['citation_marker'])
     // A fragment naming nothing on the page is already refused by the profile.
-    assert.deepEqual(swap(`<a data-cite="${A}" href="#nowhere">[s]</a>`), ['anchor_missing'])
-    assert.deepEqual(swap(`<a data-cite="${A}">[s]</a>`), ['citation_marker'])
+    assert.deepEqual(swap(`<a data-cite="${A}" href="#nowhere">[1]</a>`), ['anchor_missing'])
+    assert.deepEqual(swap(`<a data-cite="${A}">[1]</a>`), ['citation_marker'])
   })
   it('refuses another element, a second link or a nested marker inside it', () => {
     assert.deepEqual(swap(`<sup data-cite="${A}"><em>1</em></sup>`), ['citation_marker'])
@@ -264,7 +264,7 @@ describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-00
     assert.ok(swap(`<div data-cite="${A}">1</div>`).includes('citation_marker'))
   })
   it('refuses a claim in its accessible name', () =>
-    assert.deepEqual(swap(`<a data-cite="${A}" href="#src-${A}" aria-label="Independently verified">[s]</a>`), [
+    assert.deepEqual(swap(`<a data-cite="${A}" href="#src-${A}" aria-label="Independently verified">[1]</a>`), [
       'citation_marker',
     ]))
   // Every attribute whose text a reader meets without seeing it (SDD-01-CX-0031, CX-0032), on the marker and its link.
@@ -284,32 +284,44 @@ describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-00
   ]
   it('refuses a claim in any text-bearing attribute of the marker', () => {
     for (const name of textAttributes) {
-      const to = `<a data-cite="${A}" href="#src-${A}" ${name}="${claim}">[s]</a>`
+      const to = `<a data-cite="${A}" href="#src-${A}" ${name}="${claim}">[1]</a>`
       assert.deepEqual(swap(to), ['citation_marker'], to)
     }
   })
   it("refuses a claim in any text-bearing attribute of the marker's link", () => {
     for (const name of textAttributes) {
-      const to = `<sup data-cite="${A}"><a href="#src-${A}" ${name}="${claim}">1</a></sup>`
+      const to = `<sup data-cite="${A}"><a href="#src-${A}" ${name}="${claim}">[1]</a></sup>`
       assert.deepEqual(swap(to), ['citation_marker'], to)
     }
   })
   it('accepts the ways a page marks a citation', () => {
     for (const ok of [
-      `<sup data-cite="${A}">1</sup>`,
-      `<sup data-cite="${A}"><a href="#src-${A}">12</a></sup>`,
+      `<sup data-cite="${A}">[1]</sup>`,
+      `<sup data-cite="${A}"><a href="#src-${A}">(12)</a></sup>`,
       `<sup data-cite="${A}">[<a href="#src-${A}">2</a>]</sup>`,
-      `<a data-cite="${A}" href="#src-${A}" title="Source 3">(a)</a>`,
+      `<a data-cite="${A}" href="#src-${A}" title="Source 3">(1)</a>`,
       `<span data-cite="${A}" aria-label="Fonte 4"></span>`,
       `<sup data-cite="${A}">†</sup>`,
+      `<a data-cite="${A}" href="#src-${A}">[*]</a>`,
     ])
       assert.deepEqual(swap(ok), [], ok)
   })
+  // #117: markers side by side spell nothing, and a mark does not run into the number beside it.
+  it('refuses a mark with a letter, or a bare number, alone or in a row of markers', () => {
+    for (const bad of [
+      `<span data-cite="${A}">H</span><span data-cite="${A}">o</span><span data-cite="${A}">s</span><span data-cite="${A}">t</span>`,
+      `<a data-cite="${A}" href="#src-${A}">[s]</a>`,
+      `<a data-cite="${A}" href="#src-${A}">(a)</a>`,
+      `<sup data-cite="${A}">1</sup>`,
+      `<a data-cite="${A}" href="#src-${A}">12</a>`,
+    ])
+      assert.ok(swap(bad).includes('citation_marker'), bad)
+  })
   it('accepts a citation mark or name in any text-bearing attribute of the marker or its link', () => {
     for (const ok of [
-      `<a data-cite="${A}" href="#src-${A}" aria-description="Source 4" aria-braillelabel="[s]">[s]</a>`,
-      `<sup data-cite="${A}" aria-roledescription="" aria-label="Fuente 2"><a href="#src-${A}" title="Source [2]">2</a></sup>`,
-      `<sup data-cite="${A}"><a href="#src-${A}" aria-description="Fonte 4" aria-braillelabel="(4)">4</a></sup>`,
+      `<a data-cite="${A}" href="#src-${A}" aria-description="Source 4" aria-braillelabel="[1]">[1]</a>`,
+      `<sup data-cite="${A}" aria-roledescription="" aria-label="Fuente 2"><a href="#src-${A}" title="Source [2]">[2]</a></sup>`,
+      `<sup data-cite="${A}"><a href="#src-${A}" aria-description="Fonte 4" aria-braillelabel="(4)">(4)</a></sup>`,
     ])
       assert.deepEqual(swap(ok), [], ok)
   })
@@ -404,6 +416,20 @@ describe('a tooltip or an accessible name carries no text the page does not show
     'aria-flowto',
     'aria-owns',
   ]
+  it('holds the document title and description to what the page shows (#117)', () => {
+    const title = 'Where a confined renderer can run'
+    for (const [from, to] of [
+      ['<title>Report</title>', `<title>${claim}</title>`],
+      ['<title>Report</title>', `<title>Report</title><meta name="description" content="${claim}">`],
+      ['<title>Report</title>', `<title>${claim}</title><h2 hidden>${claim}</h2>`],
+    ] as const)
+      assert.ok(swap(from, to).includes('attribute_text'), to)
+    const page = html(good)
+      .replace('<title>Report</title>', `<title>${title}</title><meta name="description" content="${title}">`)
+      .replace('<h1>Report</h1>', `<h1>${title}</h1>`)
+    assert.deepEqual(codes(withHtml(good, page)), [], 'a title and description repeating the heading')
+    assert.match(compile(withHtml(good, page), 'en'), /<h1 data-sophia-shown="h1:1">/)
+  })
   it('refuses a name repeating a label its markup hides, or one under a hidden ancestor', () => {
     for (const hidden of [
       `<h2 hidden>${claim}</h2>`,
@@ -428,17 +454,17 @@ describe('a tooltip or an accessible name carries no text the page does not show
     assert.deepEqual(free.toSorted(), ['attribute_text', 'text_outside_blocks'])
   })
   it('refuses a citation marker reference to anything but its own source entry', () => {
-    const marker = `<a data-cite="${A}" href="#src-${A}">[s]</a>`
+    const marker = `<a data-cite="${A}" href="#src-${A}">[1]</a>`
     for (const to of [
-      `<a data-cite="${A}" href="#src-${A}" aria-describedby="src-${B}">[s]</a>`,
-      `<sup data-cite="${A}"><a href="#src-${A}" aria-labelledby="claim">1</a></sup>`,
+      `<a data-cite="${A}" href="#src-${A}" aria-describedby="src-${B}">[1]</a>`,
+      `<sup data-cite="${A}"><a href="#src-${A}" aria-labelledby="claim">[1]</a></sup>`,
     ]) {
       const page = html(good)
         .replace(marker, to)
         .replace('<main>\n<h1>', `<main>\n<h2 id="claim" hidden>${claim}</h2><h1>`)
       assert.ok(codes(withHtml(good, page)).includes('citation_marker'), to)
     }
-    const own = html(good).replace(marker, `<a data-cite="${A}" href="#src-${A}" aria-describedby="src-${A}">[s]</a>`)
+    const own = html(good).replace(marker, `<a data-cite="${A}" href="#src-${A}" aria-describedby="src-${A}">[1]</a>`)
     assert.deepEqual(codes(withHtml(good, own)), [])
   })
   it('accepts names and references resting on labels the page shows, and the render then measures those labels', () => {
