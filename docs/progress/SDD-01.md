@@ -80,10 +80,10 @@ The earlier list (live revocation, Resume after Hold, edit admission, host probe
 
 | Check | Result |
 |---|---|
-| `pnpm check` | Exit 0 on the tree with `main` merged (`7819832`, #111–#113). Unit 1444: 1443 pass, 1 skipped. `pnpm artifacts`: every identity of `sophia-runtime-sdd01-dev` reproduced. Integration 99: 97 pass, 2 skipped (as on `main`), including `tests/integration/design-tools.test.mjs` and `design-capture-supervisor.test.mjs` (2/2, the real confined capture kernel). Only records changed after the run |
-| `pnpm test:db` | 451/451 on a local PostgreSQL 16, including the 0041 cases in `apps/api/src/design.db.test.ts` (452 at `e35111a`: the withdrawn Stop helper's test is gone) |
-| `pnpm test:sql` (repo, 41 migrations; pack) | Pass |
-| Studio e2e, merged tree | `room-discussion`, `room-passage`, `room-passage-link`, `room-voice-trail`, `room-present`, `room-live-version`, `room-work`, `report`, `report-reading`, `voice-chat`, `work`: 301/301 (local preinstalled Chromium through `executablePath`; CI runs the pinned browser) |
+| `pnpm check`, with `main` at `ffb2a2c` (#114) merged | Every stage up to integration passed: toolchain, format, lint, build, typecheck, contracts, unit 1446 (1445 pass, 1 skipped) and `pnpm artifacts` (every identity of `sophia-runtime-sdd01-dev` reproduced). **Integration is pending.** The local PostgreSQL stopped when the container restarted mid-run (`ECONNREFUSED 127.0.0.1:5432`), so the three database crossings were cancelled. The rerun is reported in the CC message. At `4c4b647` (main at `7819832`) the whole check passed: integration 99, 97 pass, 2 skipped |
+| `pnpm test:db` | **Pending** at this merge, for the same reason. 451/451 at `4c4b647` on PostgreSQL 16; the merge changes no SQL or API source |
+| `pnpm test:sql` (repo, 41 migrations; pack) | Pass at `4c4b647`; no migration changed since |
+| Studio e2e, tree with #114 merged | `room-discussion`, `room-passage`, `room-passage-link`, `room-voice-trail`, `room-present`, `room-live-version`, `room-work`, `report`, `report-reading`, `voice-chat`, `work`: 305/305 (local preinstalled Chromium through `executablePath`; CI runs the pinned browser) |
 | Host probe on this host (root, render user 1000), at `e35111a`; the renderer is byte-identical since | `render`, `kernel_checks`, `sandbox`, `capture`, `capture_checks`, `capture_sandbox`, `capture_images` (10 captures) pass; `host-probe.test.ts` 13 pass, 1 skipped (root reads every file) |
 | Mutations (at `e35111a`) | Without the revocation call in `mission_erase_source`, both RF-0003 tests fail; without the work card's refresh, the B-19 e2e check fails |
 | G6 control | `node scripts/g6-control.mjs --check` reproduces (unchanged) |
