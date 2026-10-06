@@ -319,3 +319,50 @@ export const listReviews = (token: string, artifactId: string, versionId: string
 /** A16: review a version (editors and admins), once per key; asking for changes admits Sophia's revision. */
 export const reviewVersion = (token: string, artifactId: string, versionId: string, key: string, body: ReviewAsk) =>
   callApi(`/api/v1/artifacts/${artifactId}/versions/${versionId}/reviews`, { token, key, body }, parseReview)
+
+/** A17 (proposed): a task made from a passage of a report, for a member or for anyone. */
+export interface ProjectTask {
+  taskId: string
+  text: string
+  /** The member it is for (an actor id), or null: anyone. */
+  owner: string | null
+  ownerName: string | null
+  /** The passage it came from: its version, its place there (passage-link.ts) and its words, as selected. */
+  from: { versionId: string; versionNumber: number; passage: string; quote: string }
+  by: string
+  at: string
+  doneBy: string | null
+  doneAt: string | null
+}
+
+export interface TaskAsk {
+  text: string
+  owner: string | null
+  from: { artifactId: string; versionId: string; passage: string; quote: string }
+}
+
+const TASK = {
+  taskId: isStr,
+  text: isStr,
+  owner: isStrOrNull,
+  ownerName: isStrOrNull,
+  from: (v: unknown) => fields(v, { versionId: isStr, versionNumber: isNum, passage: isStr, quote: isStr }),
+  by: isStr,
+  at: isStr,
+  doneBy: isStrOrNull,
+  doneAt: isStrOrNull,
+}
+const parseTask = checked<ProjectTask>(TASK, 'task')
+const parseTasks = checked<{ tasks: readonly ProjectTask[] }>({ tasks: listOf(TASK) }, 'task list')
+
+/** A17: a report's tasks, newest first. */
+export const listTasks = (token: string, artifactId: string, signal?: AbortSignal) =>
+  callApi(`/api/v1/artifacts/${artifactId}/tasks`, { token, method: 'GET', ...(signal ? { signal } : {}) }, parseTasks)
+
+/** A17: a task from a passage (editors and admins), once per key. */
+export const createTask = (token: string, projectId: string, key: string, body: TaskAsk) =>
+  callApi(`/api/v1/projects/${projectId}/tasks`, { token, key, body }, parseTask)
+
+/** A17: a task done (whoever it is for, an editor or an admin), once per key. */
+export const finishTask = (token: string, projectId: string, taskId: string, key: string) =>
+  callApi(`/api/v1/projects/${projectId}/tasks/${taskId}/done`, { token, key, body: {} }, parseTask)

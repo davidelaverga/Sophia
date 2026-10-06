@@ -43,7 +43,7 @@ test('passage · a selection in the report shows the bar; one in its head shows 
   await expect(bar(page)).toHaveCount(0)
   await paragraph(page, 'The fixture holds.').selectText()
   await expect(bar(page)).toBeVisible()
-  await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Keep', 'Link'])
+  await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Keep', 'Link', 'Task'])
   // Above the selection, inside the pane, once it has risen into place.
   await bar(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
   const sel = await paragraph(page, 'The fixture holds.').boundingBox()
@@ -133,7 +133,7 @@ test('passage · a Keep whose reply is lost says so, and Try again sends the sam
   await expect(status(page)).toContainText('Not confirmed it was kept.')
   // No other Keep while this one is open: a retry must never carry another note's key.
   await paragraph(page, 'Read it once.').selectText()
-  await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Link'])
+  await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Link', 'Task'])
   await status(page).getByRole('button', { name: 'Try again' }).click()
   await expect(status(page)).toContainText('Kept in the brief.')
   expect(await kept(page)).toEqual([`${HOLDS} — Fixture report, v1`])
@@ -162,7 +162,7 @@ test('passage · Undo refuses when something was built on the note, and the brie
 test('passage · Keep is absent when the brief allows no note', async ({ page }) => {
   await open(page, 'call=on&exchange=open&notes=off')
   await paragraph(page, 'The fixture holds.').selectText()
-  await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Link'])
+  await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Link', 'Task'])
 })
 
 test('passage · when the brief can’t be read, Keep is still offered: the write says why if it is refused', async ({
@@ -170,13 +170,13 @@ test('passage · when the brief can’t be read, Keep is still offered: the writ
 }) => {
   await open(page, 'call=on&exchange=open&notes=unread')
   await paragraph(page, 'The fixture holds.').selectText()
-  await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Keep', 'Link'])
+  await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Keep', 'Link', 'Task'])
 })
 
 test('passage · outside the room, the chat isn’t there: Keep only', async ({ page }) => {
   await open(page, 'place=knowledge')
   await paragraph(page, 'The fixture holds.').selectText()
-  await expect(bar(page).getByRole('button')).toHaveText(['Keep', 'Link'])
+  await expect(bar(page).getByRole('button')).toHaveText(['Keep', 'Link', 'Task'])
 })
 
 test('made · Esc puts it away with the focus on the page, not only inside it', async ({ page }) => {
