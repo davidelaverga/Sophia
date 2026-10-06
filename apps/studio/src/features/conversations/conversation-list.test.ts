@@ -144,15 +144,19 @@ describe('pendingOf', () => {
   })
 })
 
-const m = (id: string, author: 'member' | 'sophia') => ({ id, author })
+const m = (minute: number, author: 'member' | 'sophia') => ({
+  author,
+  at: `2026-10-06T10:${String(minute).padStart(2, '0')}:00.000Z`,
+})
+const ASKED = '2026-10-06T10:05:00.000Z'
 
 describe('answeredAfter', () => {
-  it('is true only when Sophia wrote after the message', () => {
-    assert.equal(answeredAfter([m('a', 'member'), m('b', 'sophia')], 'a'), true)
-    assert.equal(answeredAfter([m('b', 'sophia'), m('a', 'member')], 'a'), false)
-    assert.equal(answeredAfter([m('a', 'member'), m('c', 'member')], 'a'), false)
-    // Not listed yet: not answered.
-    assert.equal(answeredAfter([m('b', 'sophia')], 'a'), false)
+  it('is true only when Sophia wrote after she was asked', () => {
+    assert.equal(answeredAfter([m(5, 'member'), m(6, 'sophia')], ASKED), true)
+    assert.equal(answeredAfter([m(4, 'sophia'), m(5, 'member')], ASKED), false)
+    assert.equal(answeredAfter([m(5, 'member'), m(7, 'member')], ASKED), false)
+    // Her answer counts wherever the page holds it, even with the message asked out of the page.
+    assert.equal(answeredAfter([m(8, 'member'), m(9, 'sophia')], ASKED), true)
   })
 })
 

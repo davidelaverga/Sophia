@@ -70,10 +70,13 @@ export const messageBy = (
   me: string,
 ) => (m.author === 'sophia' ? 'Sophia' : m.actorId === me ? 'You' : (m.name ?? 'A member'))
 
-/** Whether Sophia answered after this message: a message of hers listed after it. */
-export function answeredAfter(messages: readonly { id: string; author: 'member' | 'sophia' }[], id: string): boolean {
-  const at = messages.findIndex((m) => m.id === id)
-  return at >= 0 && messages.slice(at + 1).some((m) => m.author === 'sophia')
+/** Whether Sophia answered since she was asked: a message of hers written after then (wherever the page holds it). */
+export function answeredAfter(
+  messages: readonly { author: 'member' | 'sophia'; at: string }[],
+  askedAt: string,
+): boolean {
+  const asked = Date.parse(askedAt)
+  return messages.some((m) => m.author === 'sophia' && Date.parse(m.at) > asked)
 }
 
 /** A message's first words, for the line that says which one wasn't confirmed. */

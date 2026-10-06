@@ -5,10 +5,17 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Membership } from '@sophia/contracts'
-import { listConversations, type ConversationStarted, type ConversationSummary } from '../../api/vision.ts'
+import {
+  listConversations,
+  type ConversationAsk,
+  type ConversationStarted,
+  type ConversationSummary,
+  type MessageAsk,
+} from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { byActivity, contributorsLine, listKey, matching, messagesKey, openWords } from './conversation-list.ts'
+import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
 import { OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
@@ -28,7 +35,8 @@ interface Props {
 
 export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
   const me = membership?.actorId ?? ''
-  const canWrite = membership !== undefined && membership.role !== 'viewer'
+  // Unknown until the membership is read: neither a field nor the viewer's line meanwhile.
+  const writer = membership && membership.role !== 'viewer'
   const list = useQuery({
     queryKey: listKey(projectId, identity.name),
     queryFn: ({ signal }) => listConversations(identity.token, projectId, signal),
@@ -45,39 +53,67 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
       <h2 id="conversations-title">Conversations</h2>
       <div className="conversations-grid">
         <section className="conv-list" aria-label="All conversations">
-          {canWrite && (
-            <button ref={start.button} type="button" className="pill conv-start" onClick={start.begin}>
+          {writer && (
+            <button
+              ref={start.button}
+              type="button"
+              className="pill conv-start"
+              aria-pressed={start.starting}
+              onClick={start.toggle}
+            >
               New conversation
             </button>
           )}
           <ListState read={list} count={all.length} />
-          {all.length > 0 && <Rows all={all} openId={open?.id} me={me} onOpen={choose} />}
+          {all.length > 0 && (
+            <Rows
+              all={all}
+              openId={start.starting ? undefined : open?.id}
+              me={me}
+              onOpen={(id) => {
+                start.close()
+                choose(id)
+              }}
+            />
+          )}
         </section>
         {start.starting ? (
-          <NewConversation
-            projectId={projectId}
-            identity={identity}
-            onStarted={start.started}
-            onCancel={start.cancel}
-          />
+          <NewConversation projectId={projectId} identity={identity} {...start.form} />
         ) : (
-          open && (
-            <OpenConversation
-              key={open.id}
-              conversation={open}
-              identity={identity}
-              me={me}
-              cursor={cursor}
-              canWrite={canWrite}
-              draft={drafts.of(open.id)}
-              onDraft={(text) => drafts.set(open.id, text)}
-              arrived={start.arrived === open.id}
-            />
-          )
+          open && <Open conversation={open} {...{ identity, me, cursor, writer, drafts, start }} />
         )}
         <ProjectContext projectId={projectId} identity={identity} cursor={cursor} />
       </div>
     </section>
+  )
+}
+
+/** The open conversation, with its draft and its message on its way kept by the view. */
+function Open(props: {
+  conversation: ConversationSummary
+  identity: Identity
+  me: string
+  cursor: string | undefined
+  writer: boolean | undefined
+  drafts: ReturnType<typeof useDrafts>
+  start: ReturnType<typeof useStart>
+}) {
+  const { conversation: c, drafts, start } = props
+  return (
+    <OpenConversation
+      key={c.id}
+      conversation={c}
+      identity={props.identity}
+      me={props.me}
+      cursor={props.cursor}
+      writer={props.writer}
+      draft={drafts.of(c.id)}
+      onDraft={(text) => drafts.set(c.id, text)}
+      held={drafts.heldOf(c.id)}
+      onHeld={(next) => drafts.hold(c.id, next)}
+      arrived={start.arrived?.id === c.id ? start.arrived : null}
+      onArrived={start.clearArrived}
+    />
   )
 }
 
@@ -91,23 +127,25 @@ function useChosen(all: readonly ConversationSummary[]) {
   return { open: all.find((c) => c.id === chosen) ?? all[0], choose: setChosen }
 }
 
-/** Each conversation's draft, kept while the view is open: opening another and coming back finds it. */
+/**
+ * Each conversation's draft, and its message on its way or sent with no reply, kept while the view is open: opening
+ * another and coming back finds both, so that message is sent again under its own key, never as a second one.
+ */
 function useDrafts() {
   const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({})
+  const [holds, setHolds] = useState<Readonly<Record<string, Held<MessageAsk> | null>>>({})
   return {
     of: (id: string) => drafts[id] ?? '',
     set: (id: string, text: string) => setDrafts((was) => ({ ...was, [id]: text })),
+    heldOf: (id: string) => holds[id] ?? null,
+    hold: (id: string, next: Held<MessageAsk> | null) => setHolds((was) => ({ ...was, [id]: next })),
   }
 }
 
-/**
- * New conversation: its form in place of the open one. Started, the conversation is put in the list and its messages
- * at once (then read again), and it opens; put away, the focus goes back to New conversation.
- */
-function useStart(projectId: string, identity: Identity, open: (id: string) => void) {
-  const queryClient = useQueryClient()
-  const [starting, setStarting] = useState(false)
-  const [arrived, setArrived] = useState<string | null>(null)
+const NO_WORDS: ConversationAsk = { title: '', text: '', askSophia: true }
+
+/** Where the focus goes as the form goes: back to New conversation when put away, not when a row is pressed. */
+function useFocusBack(starting: boolean) {
   const button = useRef<HTMLButtonElement>(null)
   const back = useRef(false)
   useEffect(() => {
@@ -115,7 +153,21 @@ function useStart(projectId: string, identity: Identity, open: (id: string) => v
     back.current = false
     button.current?.focus()
   }, [starting])
-  const started = ({ conversation, message }: ConversationStarted) => {
+  return { button, back }
+}
+
+/**
+ * New conversation: its form in place of the open one, its words and its intent kept while it is away. Started, the
+ * conversation is put in the list and its messages at once (then read again), and it opens.
+ */
+function useStart(projectId: string, identity: Identity, open: (id: string) => void) {
+  const queryClient = useQueryClient()
+  const [starting, setStarting] = useState(false)
+  const [arrived, setArrived] = useState<{ id: string; askedAt: string | null } | null>(null)
+  const [fields, setFields] = useState(NO_WORDS)
+  const [held, setHeld] = useState<Held<ConversationAsk> | null>(null)
+  const { button, back } = useFocusBack(starting)
+  const started = ({ conversation, message }: ConversationStarted, ask: ConversationAsk) => {
     const key = listKey(projectId, identity.name)
     queryClient.setQueryData<{ conversations: readonly ConversationSummary[] }>(key, (was) => ({
       conversations: [conversation, ...(was?.conversations ?? []).filter((c) => c.id !== conversation.id)],
@@ -126,14 +178,23 @@ function useStart(projectId: string, identity: Identity, open: (id: string) => v
     })
     void queryClient.invalidateQueries({ queryKey: key })
     open(conversation.id)
-    setArrived(conversation.id)
+    setArrived({ id: conversation.id, askedAt: ask.askSophia ? message.at : null })
+    setFields(NO_WORDS)
     setStarting(false)
   }
   const cancel = () => {
     back.current = true
     setStarting(false)
   }
-  return { starting, arrived, button, begin: () => setStarting(true), started, cancel }
+  return {
+    starting,
+    arrived,
+    clearArrived: () => setArrived(null),
+    button,
+    toggle: () => (starting ? cancel() : setStarting(true)),
+    close: () => setStarting(false),
+    form: { fields, onFields: setFields, held, onHeld: setHeld, onStarted: started, onCancel: cancel },
+  }
 }
 
 /** The rows, narrowed by the filter: each opens its conversation. */

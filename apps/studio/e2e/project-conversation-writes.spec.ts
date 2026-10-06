@@ -74,14 +74,19 @@ test('writes · asked, Sophia is answering until her answer is listed, after the
 test('writes · Send is unavailable with nothing written; Enter sends, Shift+Enter starts a line', async ({ page }) => {
   await openBriefs(page)
   await expect(send(page)).toHaveAttribute('aria-disabled', 'true')
-  await send(page).click()
+  // Pressed anyway, and Enter in the empty field: nothing goes.
+  await send(page).click({ force: true })
+  await field(page).press('Enter')
   expect(await written(page, 'conversation-message')).toEqual([])
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
   await field(page).fill('First line')
   await field(page).press('Shift+Enter')
   await field(page).pressSequentially('second line')
   await expect(field(page)).toHaveValue('First line\nsecond line')
   await field(page).press('Enter')
   await expect(messages(page).last()).toContainText('First line')
+  // Its lines kept as written.
+  expect(await messages(page).last().locator('p').innerText()).toBe('First line\nsecond line')
   expect(await written(page, 'conversation-message')).toHaveLength(1)
 })
 
@@ -98,6 +103,25 @@ test('writes · a lost reply says Not confirmed, and Send sends it again under i
   await expect(open(page)).not.toContainText('Not confirmed')
   await expect(messages(page).filter({ hasText: 'Did this one land?' })).toHaveCount(1)
   await expect(field(page)).toHaveValue('')
+  expect(await written(page, 'conversation-message')).toHaveLength(1)
+})
+
+test('writes · a message with no reply is still that message after another conversation is opened', async ({
+  page,
+}) => {
+  await openBriefs(page, '&send=lost')
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Did this one land?')
+  await send(page).click()
+  await expect(open(page)).toContainText('Not confirmed: “Did this one land?”')
+  await rows(page).filter({ hasText: 'What makes a report worth reading?' }).click()
+  await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('What makes a report worth reading?')
+  // Back again: the same message, sent again under its key, never a second one.
+  await rows(page).filter({ hasText: 'Short or long briefs?' }).click()
+  await expect(open(page)).toContainText('Not confirmed: “Did this one land?”')
+  await send(page).click()
+  await expect(open(page)).not.toContainText('Not confirmed')
+  await expect(messages(page).filter({ hasText: 'Did this one land?' })).toHaveCount(1)
   expect(await written(page, 'conversation-message')).toHaveLength(1)
 })
 
@@ -146,6 +170,45 @@ test('writes · New conversation: Start waits for both fields; started, it opens
   await expect(messages(page)).toHaveCount(1)
   await expect(messages(page).first()).toContainText('Finance or us?')
   expect(await written(page, 'conversation-start')).toEqual(['conversation-start:Who checks the March figures?:no'])
+})
+
+test('writes · a start with no reply is kept when the form is put away, and Start sends it again: one conversation', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&start=lost`)
+  const start = list(page).getByRole('button', { name: 'New conversation' })
+  await start.click()
+  await form(page).getByRole('textbox', { name: 'Question' }).fill('Who checks the March figures?')
+  await form(page).getByRole('textbox', { name: 'First message' }).fill('Finance or us?')
+  await form(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await form(page).getByRole('button', { name: 'Start' }).click()
+  await expect(form(page)).toContainText('Not confirmed: “Who checks the March figures?”')
+  await form(page).getByRole('button', { name: 'Cancel' }).click()
+  await start.click()
+  await expect(form(page)).toContainText('Not confirmed')
+  await expect(form(page).getByRole('textbox', { name: 'Question' })).toHaveValue('Who checks the March figures?')
+  await form(page).getByRole('button', { name: 'Start' }).click()
+  await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('Who checks the March figures?')
+  await expect(titles(page).filter({ hasText: 'Who checks the March figures?' })).toHaveCount(1)
+  expect(await written(page, 'conversation-start')).toHaveLength(1)
+})
+
+test('writes · a row pressed with the form open opens that conversation, and the form’s words wait', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  const start = list(page).getByRole('button', { name: 'New conversation' })
+  await start.click()
+  await expect(start).toHaveAttribute('aria-pressed', 'true')
+  await form(page).getByRole('textbox', { name: 'Question' }).fill('Half a question')
+  await rows(page).nth(1).click()
+  await expect(form(page)).toHaveCount(0)
+  await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('Short or long briefs?')
+  await start.click()
+  await expect(form(page).getByRole('textbox', { name: 'Question' })).toHaveValue('Half a question')
+  // Pressed again, New conversation puts the form away.
+  await start.click()
+  await expect(form(page)).toHaveCount(0)
 })
 
 test('writes · a viewer has no field and no New conversation, and is told why', async ({ page }) => {

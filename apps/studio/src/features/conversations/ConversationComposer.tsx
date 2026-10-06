@@ -1,19 +1,22 @@
 // Continuing a conversation (docs/plans/project-conversation-writes.md): a field, «Ask Sophia», and Send. Each message
-// is one intent with one key: with no reply it says so, and Send sends that message again under its key (pressFor),
-// never a second one. The field clears only if it still holds what was sent. Enter sends; Shift+Enter starts a line.
+// is one intent with one key, held by the view (held-write.ts): with no reply it says so, and Send sends that message
+// again under its key, never a second one, even after another conversation was opened meanwhile. The field clears only
+// if it still holds what was sent. Enter sends; Shift+Enter starts a line.
 import { useQueryClient } from '@tanstack/react-query'
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { ApiError } from '../../api/client.ts'
-import { useAdmission } from '../../api/useAdmission.ts'
 import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { firstWords, messagesKey } from './conversation-list.ts'
+import { useHeldWrite, type Held } from './held-write.ts'
 
 interface Props {
   conversationId: string
   identity: Identity
   draft: string
   onDraft: (text: string) => void
+  held: Held<MessageAsk> | null
+  onHeld: (next: Held<MessageAsk> | null) => void
   /** A message recorded: Sophia was asked to answer it, or not. */
   onSent: (sent: MessageSent) => void
 }
@@ -24,10 +27,11 @@ export function writeFailure(err: ApiError): string {
   return 'That didn’t go through. Try again.'
 }
 
-/** The message's write: one key per message, the draft cleared only if it still holds what was sent. */
-function useMessageWrite({ conversationId, identity, draft, onDraft, onSent }: Props, askSophia: boolean) {
+/** The message's write: the held intent again, or the draft as a new one; the draft cleared only if unchanged. */
+function useMessageWrite(props: Props, askSophia: boolean) {
+  const { conversationId, identity, draft, onDraft, onSent } = props
   const queryClient = useQueryClient()
-  const write = useAdmission<MessageAsk, MessageSent>(async (key, ask) => {
+  const write = useHeldWrite<MessageAsk, MessageSent>(props.held, props.onHeld, async (key, ask) => {
     const sent = await sendConversationMessage(identity.token, conversationId, key, ask)
     // The list moves too: its order, and who wrote there.
     void queryClient.invalidateQueries({ queryKey: messagesKey(conversationId, identity.name) })
@@ -39,23 +43,18 @@ function useMessageWrite({ conversationId, identity, draft, onDraft, onSent }: P
   useLayoutEffect(() => {
     latest.current = draft
   })
-  const unknown = write.state.status === 'unknown' ? write.state.args : null
-  const busy = write.state.status === 'sending'
-  const ready = (unknown?.text ?? draft).trim() !== ''
+  const ready = (write.unknown?.text ?? draft).trim() !== ''
   const go = async () => {
-    if (busy || !ready) return
-    const text = (unknown?.text ?? draft).trim()
-    const sent = await write.send({ text, askSophia })
+    if (write.busy || !ready) return
+    const sent = await write.run({ text: draft.trim(), askSophia })
     if (!sent) return
     onSent(sent)
-    if (latest.current.trim() === text) onDraft('')
+    if (latest.current.trim() === sent.message.text.trim()) onDraft('')
   }
-  const words = unknown
-    ? `Not confirmed: “${firstWords(unknown.text)}”. Send sends it again; it won’t be written twice.`
-    : write.state.status === 'rejected'
-      ? writeFailure(write.state.error)
-      : null
-  return { busy, ready, go, words }
+  const words = write.unknown
+    ? `Not confirmed: “${firstWords(write.unknown.text)}”. Send sends it again; it won’t be written twice.`
+    : write.error && writeFailure(write.error)
+  return { busy: write.busy, ready, go, words }
 }
 
 export function ConversationComposer(props: Props) {

@@ -12,10 +12,10 @@
 
 - Enter sends; Shift+Enter starts a new line. Send is unavailable (aria-disabled) while the field is empty or a message is on its way.
 - **Sent:** the message is listed last, as «You», and the conversation moves to the top of the list. The field clears only if it still holds what was sent.
-- **Asked Sophia:** «Sophia is answering…» until her answer is listed. It comes later, through the project's feed; the list and the open conversation are read again as the feed moves.
-- **Each draft is kept per conversation** while the view is open: opening another and coming back finds it.
+- **Asked Sophia:** «Sophia is answering…» until an answer of hers written after then is listed. It comes later, through the project's feed; the list and the open conversation are read again as the feed moves. After two minutes it says «Sophia hasn’t answered yet. Her answer will show here when it comes.» A conversation started with Ask Sophia waits the same way.
+- **Each draft is kept per conversation** while the view is open, and so is a message on its way or sent with no reply: opening another and coming back finds both.
 
-**Start a conversation:** «New conversation» above the list opens a form in place of the open conversation:
+**Start a conversation:** «New conversation» above the list opens a form in place of the open conversation (pressed again, it puts the form away). A row pressed meanwhile opens that conversation; the form's words wait for it to open again:
 
 - «Question» (the title, up to 120 characters) and «First message»;
 - «Ask Sophia» (on);
@@ -24,10 +24,10 @@
 
 **A message is one intent with one key** (`useAdmission`):
 
-- With no reply, it says «Not confirmed: “…”», and Send sends that message again under the same key. It is never recorded twice, and never a second message.
+- With no reply, it says «Not confirmed: “…”», and Send sends that message again under the same key. It is never recorded twice, and never a second message, even after another conversation was opened, or the form put away, meanwhile: the key and the words are held by the view, not by the field.
 - A refusal says why and keeps the words.
 
-**Viewers read; they don't write.** For them, no field and no New conversation, only «Viewers read conversations; members write in them.»
+**Viewers read; they don't write.** For them, no field and no New conversation, only «Viewers read conversations; members write in them.» Until the membership is read, neither shows.
 
 **Only under the vision flag**, as #133.
 
@@ -51,9 +51,11 @@
   - asked, «Sophia is answering…» shows until her answer is listed, after the feed moves;
   - not asked, no answer is waited for;
   - Send is unavailable with an empty field; Enter sends, Shift+Enter doesn't;
-  - a lost reply says «Not confirmed», and Send sends it again under the same key: one message recorded;
+  - a lost reply says «Not confirmed», and Send sends it again under the same key: one message recorded, also after another conversation was opened meanwhile;
   - a refusal says why and keeps the words;
   - a draft is kept when another conversation is opened and this one again;
   - New conversation: Start unavailable until both fields are written; started, it opens at the top with its first message; Cancel returns the focus;
+  - a start with no reply is kept when the form is put away, and Start sends it again: one conversation;
+  - a row pressed with the form open opens that conversation, and the form's words wait;
   - a viewer has no field and no New conversation, and is told why;
   - controls are at least 24 px and the text keeps to the scale with the form open.

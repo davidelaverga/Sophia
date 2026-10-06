@@ -4,12 +4,18 @@
 // (docs/plans/project-conversation-writes.md); Sophia's answer is read as the feed moves.
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type RefObject } from 'react'
-import { getConversationMessages, type ConversationMessage, type ConversationSummary } from '../../api/vision.ts'
+import {
+  getConversationMessages,
+  type ConversationMessage,
+  type ConversationSummary,
+  type MessageAsk,
+} from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { answeredAfter, contributorsLine, messageBy, messagesKey, messageWhen } from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
+import type { Held } from './held-write.ts'
 import { useReadAgain } from './useReadAgain.ts'
 
 interface Props {
@@ -18,23 +24,44 @@ interface Props {
   me: string
   /** The project's feed position: the messages are read again as it moves (Sophia's answer, others' messages). */
   cursor: string | undefined
-  /** Members write here; viewers read. */
-  canWrite: boolean
+  /** Members write here; viewers read; undefined until the membership is read (neither, meanwhile). */
+  writer: boolean | undefined
   draft: string
   onDraft: (text: string) => void
-  /** Just started here: the focus goes to its title. */
-  arrived: boolean
+  /** The message on its way here, or sent with no reply (held by the view). */
+  held: Held<MessageAsk> | null
+  onHeld: (next: Held<MessageAsk> | null) => void
+  /** Just started here: the focus goes to its title, once; and when its first message asked Sophia, since when. */
+  arrived: { askedAt: string | null } | null
+  onArrived: () => void
+}
+
+/** How long «Sophia is answering…» waits before it says her answer will come later. */
+export const ANSWER_WAIT_MS = 120_000
+
+/** Since when Sophia was asked here, until her answer is listed after it; late when it hasn't come in time. */
+function useAwaiting(askedAt: string | null) {
+  const [since, setSince] = useState(askedAt)
+  const [late, setLate] = useState(false)
+  useEffect(() => {
+    setLate(false)
+    if (since === null) return undefined
+    const timer = setTimeout(() => setLate(true), ANSWER_WAIT_MS)
+    return () => clearTimeout(timer)
+  }, [since])
+  return { since, late, ask: setSince }
 }
 
 export function OpenConversation(props: Props) {
-  const { conversation: c, identity, me, arrived } = props
+  const { conversation: c, identity, me, arrived, onArrived } = props
   const summaryId = useId()
-  // The message Sophia was asked to answer, until her answer is listed after it.
-  const [awaiting, setAwaiting] = useState<string | null>(null)
+  const awaiting = useAwaiting(arrived?.askedAt ?? null)
   const head = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
-    if (arrived) head.current?.focus()
-  }, [arrived])
+    if (!arrived) return
+    head.current?.focus()
+    onArrived()
+  }, [arrived, onArrived])
   return (
     <section className="conv-open" aria-label="Open conversation">
       <h3 ref={head} tabIndex={-1}>
@@ -48,17 +75,18 @@ export function OpenConversation(props: Props) {
         <p>{c.summary ?? 'No summary yet.'}</p>
       </section>
       <Messages conversationId={c.id} identity={identity} me={me} cursor={props.cursor} awaiting={awaiting} />
-      {props.canWrite ? (
+      {props.writer === true && (
         <ConversationComposer
           conversationId={c.id}
           identity={identity}
           draft={props.draft}
           onDraft={props.onDraft}
-          onSent={(sent) => setAwaiting(sent.sophia === 'asked' ? sent.message.id : null)}
+          held={props.held}
+          onHeld={props.onHeld}
+          onSent={(sent) => awaiting.ask(sent.sophia === 'asked' ? sent.message.at : null)}
         />
-      ) : (
-        <p className="conv-note">Viewers read conversations; members write in them.</p>
       )}
+      {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
       <Output output={c.output} />
       <details className="conv-help">
         <summary>How conversation context works</summary>
@@ -93,7 +121,7 @@ function Messages(props: {
   identity: Identity
   me: string
   cursor: string | undefined
-  awaiting: string | null
+  awaiting: { since: string | null; late: boolean }
 }) {
   const { conversationId, identity, me } = props
   const read = useInfiniteQuery({
@@ -136,9 +164,11 @@ function Messages(props: {
         />
       )}
       {messages.length > 0 && <MessageList messages={messages} me={me} first={first} />}
-      {props.awaiting !== null && !answeredAfter(messages, props.awaiting) && (
+      {props.awaiting.since !== null && !answeredAfter(messages, props.awaiting.since) && (
         <p className="conv-note" role="status">
-          Sophia is answering…
+          {props.awaiting.late
+            ? 'Sophia hasn’t answered yet. Her answer will show here when it comes.'
+            : 'Sophia is answering…'}
         </p>
       )}
     </>

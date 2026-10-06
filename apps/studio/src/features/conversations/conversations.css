@@ -148,6 +148,7 @@
 }
 .conv-msg p {
   margin: 0;
+  white-space: pre-wrap;
   font-size: var(--type-body);
   overflow-wrap: anywhere;
 }
@@ -231,9 +232,14 @@
 .conv-new textarea,
 .conv-new input:not([type='checkbox']) {
   width: 100%;
-  min-height: 28px;
   font: inherit;
   font-size: var(--type-body);
+}
+.conv-compose textarea,
+.conv-new textarea {
+  height: auto;
+  min-height: 56px;
+  padding: 8px 11px;
 }
 .conv-compose textarea {
   resize: vertical;
@@ -255,6 +261,18 @@
   min-height: 24px;
   color: var(--text-2);
   font-size: var(--type-small);
+}
+/* The app's fields are 36 px boxes (theme.css): a checkbox is a box of its own size. */
+.conv-ask input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--halo);
+}
+.conv-compose-acts .text-button {
+  min-height: 24px;
 }
 .conv-new > h3 {
   margin: 0;

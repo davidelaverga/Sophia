@@ -11,7 +11,10 @@ export interface TalkWrites {
   messages: Record<string, ConversationMessage[]>
   /** `send=lost`: the first message lands, its reply lost; `send=refused`: messages are refused. */
   send: 'lost' | 'refused' | null
-  receipts: Map<string, unknown>
+  /** `start=lost`: the first conversation started lands, its reply lost. */
+  start: 'lost' | null
+  /** Each write's receipt by its key, with the words it was sent with: the same key replays it, only with them. */
+  receipts: Map<string, { body: string; receipt: unknown }>
 }
 
 interface Context {
@@ -54,16 +57,18 @@ export function conversationWritten(talk: TalkWrites, path: string, init: Reques
   const route = routeOf(path)
   if (!route) return undefined
   if (ctx.viewer) return refused()
-  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const key = new Headers(init?.headers).get('idempotency-key')
+  // A write without its key, or a key again with other words, is the client's mistake: unexpected.
+  if (!key) return null
   const replayed = talk.receipts.get(key)
-  if (replayed) return json(replayed)
+  if (replayed) return replayed.body === init?.body ? json(replayed.receipt) : null
   const body = bodyOf(init)
   if (typeof body?.text !== 'string' || typeof body.askSophia !== 'boolean') return null
   return 'to' in route ? messageSent(talk, route.to, key, body, ctx) : started(talk, key, body, ctx)
 }
 
 function started(talk: TalkWrites, key: string, body: Record<string, unknown>, ctx: Context) {
-  if (typeof body.title !== 'string') return null
+  if (typeof body.title !== 'string' || body.title.length > 120) return null
   made += 1
   const id = `00000000-0000-4000-8000-0000000000e${String(made)}`
   const at = next(talk.list)
@@ -88,9 +93,11 @@ function started(talk: TalkWrites, key: string, body: Record<string, unknown>, c
   talk.list.unshift(conversation)
   talk.messages[id] = [message]
   const receipt = { conversation, message }
-  talk.receipts.set(key, receipt)
+  talk.receipts.set(key, { body: JSON.stringify(body), receipt })
   ctx.record(`conversation-start:${body.title}:${body.askSophia ? 'yes' : 'no'}`)
   if (body.askSophia) answerLater(talk, id, ctx)
+  // It landed; the page never hears so, and only starting again under the same key can tell it.
+  if (talk.start === 'lost' && made === 1) return Promise.reject(new TypeError('Failed to fetch'))
   return json(receipt, 201)
 }
 
@@ -115,7 +122,7 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
     conversation.contributors = [...conversation.contributors, { actorId: ME, name: 'Fixture viewer' }]
   }
   const receipt = { message, sophia: body.askSophia ? 'asked' : 'not_asked' }
-  talk.receipts.set(key, receipt)
+  talk.receipts.set(key, { body: JSON.stringify(body), receipt })
   ctx.record(`conversation-message:${String(body.text)}:${body.askSophia ? 'yes' : 'no'}`)
   if (body.askSophia) answerLater(talk, id, ctx)
   // It landed; the page never hears so, and only sending again under the same key can tell it.

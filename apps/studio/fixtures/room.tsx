@@ -662,7 +662,8 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       failList: which === 'fail',
       failMessagesOf: failMessages ? CONVERSATION.briefs : null,
       send: sendAsked(query.get('send')),
-      receipts: new Map<string, unknown>(),
+      start: query.get('start') === 'lost' ? ('lost' as const) : null,
+      receipts: new Map<string, { body: string; receipt: unknown }>(),
     },
     missionPlus: conversationMission(),
   }
