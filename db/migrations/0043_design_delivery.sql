@@ -17,8 +17,8 @@
 --   the images); a delivery counts for it only if it is named there, acknowledged, and of this job, attempt and render.
 --   An acknowledgement no submission names (its submit never sent, the runtime restarted in between) counts for nothing.
 -- * What must be seen (F3, F4): every overview capture the render's receipt names, every tile at every target, and
---   each section, every tile of it, at one target at least (an edit's own sections only, #117), as
---   design_capture_missing says. A review's pass
+--   each section, every tile of it, at one target at least (an edit's own sections only, #117), and the margins outside
+--   the sections, every capture of them, at one target at least (#117), as design_capture_missing says. A review's pass
 --   needs it (review_missing), and so does the designer's candidate, for exactly the render it submits, in its current
 --   attempt (design_unseen, in design_submit_candidate). The submit with no reviewer (self_review_only) runs after that
 --   gate. A request for revision rests on what was seen too (#117): it names inspected deliveries of the candidate's
@@ -157,9 +157,11 @@ END $$;
 
 -- --- what must be seen ------------------------------------------------------------------------------------------------------
 
--- The captures of a render not yet seen: every overview capture its receipt names (every tile, every target), and each
+-- The captures of a render not yet seen: every overview capture its receipt names (every tile, every target), each
 -- section (p_sections, or every section the render captured) whole at one target at least: every tile of it the receipt
--- names at that target (#117), since each tile is a different stretch of the section at full size.
+-- names at that target (#117), since each tile is a different stretch of the section at full size; and the margins
+-- outside the sections (a header, a footer, a gap), whole at one target at least when the render captured any (#117):
+-- at overview scale their text may not be readable.
 CREATE FUNCTION sophia.design_capture_missing(r sophia.render_jobs, p_seen text[], p_sections text[]) RETURNS text[] LANGUAGE sql STABLE
 SET search_path=pg_catalog,sophia AS $$
  SELECT coalesce(array_agg(m ORDER BY n, m),'{}') FROM (
@@ -171,6 +173,12 @@ SET search_path=pg_catalog,sophia AS $$
    WHERE (p_sections IS NULL OR q.sec=ANY(p_sections))
     AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(r.receipt->'captures','[]')) c
      WHERE c->>'kind'='section' AND c->>'section'=q.sec
+     GROUP BY c->>'target' HAVING bool_and((c->>'name')=ANY(coalesce(p_seen,'{}'))))
+  UNION ALL
+  SELECT 2, 'the margins outside the sections (every margin capture, at one target)'
+   WHERE EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(r.receipt->'captures','[]')) c WHERE c->>'kind'='margin')
+    AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(coalesce(r.receipt->'captures','[]')) c
+     WHERE c->>'kind'='margin'
      GROUP BY c->>'target' HAVING bool_and((c->>'name')=ANY(coalesce(p_seen,'{}'))))) z $$;
 REVOKE ALL ON FUNCTION sophia.design_capture_missing(sophia.render_jobs,text[],text[]) FROM PUBLIC;
 

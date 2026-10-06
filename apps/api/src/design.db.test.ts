@@ -238,6 +238,8 @@ interface CaptureOptions {
   readonly overviewTiles?: number
   /** Tiles per section and target (a section taller than one tile). */
   readonly sectionTiles?: number
+  /** Margins outside the sections per target (a header, a footer), one tile each. */
+  readonly margins?: number
 }
 
 /** Each block's section in a page source: the data-section it sits in. */
@@ -295,7 +297,9 @@ async function settleCapture(job: Body, pkg: ContentPackage, sections: string[],
   const sectionTiles = opts.sectionTiles ?? 1
   const section = (t: string, s: string) =>
     Array.from({ length: sectionTiles }, (_, i) => `${t}.section.${s}.${String(i + 1)}.png`)
-  const names = targets.flatMap((t) => [...overview(t), ...sections.flatMap((s) => section(t, s))])
+  const margin = (t: string) =>
+    Array.from({ length: opts.margins ?? 0 }, (_, i) => `${t}.margin.m${String(i + 1)}.1.png`)
+  const names = targets.flatMap((t) => [...overview(t), ...sections.flatMap((s) => section(t, s)), ...margin(t)])
   for (const name of names) {
     const put = await runner(`/v1/renderer/jobs/${String(job.jobId)}/captures/${name}`, {
       method: 'PUT',
@@ -341,7 +345,14 @@ async function settleCapture(job: Body, pkg: ContentPackage, sections: string[],
         })),
         blocks: blockMeasures(pkg, sections, opts),
       },
-      coverage: { requested: null, captured: sections, missing: [], margins: 0, marginsCaptured: 0, truncated: false },
+      coverage: {
+        requested: null,
+        captured: sections,
+        missing: [],
+        margins: opts.margins ?? 0,
+        marginsCaptured: opts.margins ?? 0,
+        truncated: false,
+      },
     })),
     captures: names.map((name) => {
       const [target = '', kind = '', part, sectionTile] = name.split('.')
@@ -349,7 +360,7 @@ async function settleCapture(job: Body, pkg: ContentPackage, sections: string[],
         name,
         target,
         kind,
-        section: kind === 'section' ? part : null,
+        section: kind === 'overview' ? null : part,
         tile: Number(kind === 'overview' ? part : sectionTile),
         tiles: kind === 'overview' ? tiles : sectionTiles,
         clip: { x: 0, y: 0, width: 390, height: 500 },
@@ -1614,6 +1625,41 @@ describe('SDD-01-CX-0019: a capture counts as seen only once it reached the mode
       d.sections.map((s) => `section ${s} (every tile, at one target)`).toSorted(),
     )
     await inspectAll(w, review.at, tile('w390-light', 2))
+    const pass = await w.runtime('/v1/runtime/review/submit', verdict('v2'))
+    assert.equal(pass.json.decision?.outcome, 'published', JSON.stringify(pass.json))
+  })
+
+  it('needs every margin capture at one target, from the designer and the reviewer (#117)', async () => {
+    const { w, at } = await designing()
+    const d = await drafted(w, at, { capture: false })
+    const shots = await captured(d.pkg, d.sections, { html: d.html, margins: 2 })
+    const margins = (target: string) => shots.names.filter((name) => name.startsWith(`${target}.margin.`))
+    const rest = shots.names.filter((name) => !name.includes('.margin.'))
+    assert.equal(margins('w390-light').length, 2, JSON.stringify(shots.names))
+    const candidate = { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId }
+    const submit = (callId: string) =>
+      w.runtime('/v1/runtime/design/submit', { ...at, callId, candidate: { ...candidate, seen: seenBy(at, 'design') } })
+    const missing = 'the margins outside the sections (every margin capture, at one target)'
+    await look(w, at, 'design', rest, String(d.render.renderJobId))
+    const refused = await submit('c1')
+    assert.equal(refused.json.outcome, 'refused', JSON.stringify(refused.json))
+    assert.ok((failuresOf(refused).find((f) => f.startsWith('you have not looked at')) ?? '').includes(missing))
+    await look(w, at, 'design', margins('w1280-light'), String(d.render.renderJobId))
+    assert.equal((await submit('c2')).json.outcome, 'reviewing')
+
+    const review = await sent(w, 'create', REVIEWER.id)
+    await answer(w, 'create', 'delivered', review.at.attemptId)
+    const verdict = (callId: string) => ({
+      ...review.at,
+      callId,
+      result: { verdict: 'pass', findings: [], seen: seenBy(review.at, 'review') },
+    })
+    // One margin at one target and the other at the other: no target shows the margins whole.
+    await inspectAll(w, review.at, [...rest, margins('w390-light')[0] ?? '', margins('w1280-light')[1] ?? ''])
+    const early = await w.runtime('/v1/runtime/review/submit', verdict('v1'))
+    assert.equal(early.json.outcome, 'coverage_incomplete', JSON.stringify(early.json))
+    assert.deepEqual(early.json.missing, [missing])
+    await inspectAll(w, review.at, [margins('w390-light')[1] ?? ''])
     const pass = await w.runtime('/v1/runtime/review/submit', verdict('v2'))
     assert.equal(pass.json.decision?.outcome, 'published', JSON.stringify(pass.json))
   })
