@@ -214,6 +214,49 @@ function opacityOf(el) {
 }
 
 /**
+ * The opacity a text is drawn at over what is behind it, or null when that is not one number: opacity fades an element
+ * as a group, its own background and its descendants' together, so once a faded element, or one between it and the
+ * text, paints a background, the text and that background fade together and no single alpha on the text tells their
+ * contrast (#117).
+ * @param {Element} el
+ * @param {OffscreenCanvasRenderingContext2D} ctx
+ * @returns {number | null}
+ */
+function textAlpha(el, ctx) {
+  let alpha = 1
+  let painted = false
+  for (let a = /** @type {Element | null} */ (el); a; a = a.parentElement) {
+    const style = getComputedStyle(a)
+    painted ||= style.backgroundImage !== 'none' || !isClear(ctx, style.backgroundColor)
+    const opacity = Number.parseFloat(style.opacity || '1')
+    if (opacity < 1 && painted) return null
+    alpha *= opacity
+  }
+  return alpha
+}
+
+/**
+ * Whether a colour paints nothing: over black and over white it leaves each as it was.
+ * @param {OffscreenCanvasRenderingContext2D} ctx
+ * @param {string} colour
+ */
+function isClear(ctx, colour) {
+  const [r, g, b] = paint(ctx, ['#000000', colour])
+  const [r2, g2, b2] = paint(ctx, ['#ffffff', colour])
+  return r + g + b === 0 && r2 + g2 + b2 === 765
+}
+
+/**
+ * The opacity a text is drawn at, or why its contrast cannot be read from its styles: filtered, or group_opacity.
+ * @param {Element} el
+ * @param {OffscreenCanvasRenderingContext2D} ctx
+ * @returns {number | string}
+ */
+function drawnAlpha(el, ctx) {
+  return isFiltered(el) ? 'filtered' : (textAlpha(el, ctx) ?? 'group_opacity')
+}
+
+/**
  * Whether a filter or a blend mode, on the element or an ancestor, changes the colours it is drawn in: the contrast
  * read from its styles would not be the contrast a reader sees (#117).
  * @param {Element} el
@@ -288,8 +331,8 @@ function combinations(layers, max) {
 /**
  * The block's text contrast against what is behind it (WCAG 2): the worst case over the stops of any gradient behind
  * it, against the floor for its size (3 for large text, 4.5 otherwise). The text is painted in the colour it is filled
- * with, at its effective opacity (#117). Unknown when the background cannot be read, or a filter or blend mode changes
- * the colours.
+ * with, at the opacity it is drawn at (#117). Unknown when the background cannot be read, a filter or blend mode changes
+ * the colours, or opacity fades a background together with the text (group_opacity).
  * @param {Element} el
  * @param {OffscreenCanvasRenderingContext2D} ctx
  * @returns {Contrast}
@@ -299,12 +342,12 @@ function contrastOf(el, ctx) {
   const px = Number.parseFloat(style.fontSize)
   const large = px >= 24 || (px >= 18.66 && Number.parseInt(style.fontWeight, 10) >= 700)
   const floor = large ? 3 : 4.5
-  if (isFiltered(el)) return { ratio: null, floor, large, detail: 'filtered' }
+  const opacity = drawnAlpha(el, ctx)
+  if (typeof opacity === 'string') return { ratio: null, floor, large, detail: opacity }
   const layers = backgroundLayers(el)
   const behind = layers ? combinations(layers, 64) : null
   if (!behind) return { ratio: null, floor, large, detail: layers ? 'background_too_complex' : 'background_image' }
   const fill = style.getPropertyValue('-webkit-text-fill-color') || style.color
-  const opacity = opacityOf(el)
   let worst = Number.POSITIVE_INFINITY
   for (const under of behind) {
     const [hi = 0, lo = 0] = [luminance(paint(ctx, [...under, fill], opacity)), luminance(paint(ctx, under))].toSorted(
@@ -435,6 +478,9 @@ const IN_PAGE = [
   isCovered,
   paint,
   opacityOf,
+  textAlpha,
+  isClear,
+  drawnAlpha,
   isFiltered,
   luminance,
   gradientStops,
