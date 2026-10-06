@@ -1044,6 +1044,17 @@ describe('the confined capture kernel', () => {
           <p data-block="b2" class="long">${'abcdefghij'.repeat(20)}</p></section></main>`,
           ),
         )
+        const script = pageScript({ maxListed: 20 })
+        type Answer = { blocks: { id: string; issues: string[]; unsampled: boolean }[] }
+        const read = (source: string) =>
+          tab
+            .evaluate<Answer>(source)
+            .then((a) => a.blocks.map((b) => [b.id, b.issues.includes('covered'), b.unsampled]))
+        // The long line on its own is read whole: not covered, and within the page's points.
+        assert.deepEqual(await read(script), [
+          ['b1', false, false],
+          ['b2', false, false],
+        ])
         // A box over the line between the 11th and 12th of 64 points spread along it: wider than an em, narrower
         // than their gap.
         const gap = await tab.evaluate(() => {
@@ -1057,15 +1068,10 @@ describe('the confined capture kernel', () => {
           return step
         })
         assert.ok(gap - 2 > 10, `the box (${String(gap - 2)}px) is wider than an em (10px)`)
-        const script = pageScript({ maxListed: 20 })
-        const answer = await tab.evaluate<{ blocks: { id: string; issues: string[]; unsampled: boolean }[] }>(script)
-        assert.deepEqual(
-          answer.blocks.map((b) => [b.id, b.issues.includes('covered'), b.unsampled]),
-          [
-            ['b1', false, false],
-            ['b2', true, false],
-          ],
-        )
+        assert.deepEqual(await read(script), [
+          ['b1', false, false],
+          ['b2', true, false],
+        ])
         // A line that needs more points than the page has left is unmeasured, never looked at more sparsely.
         const points = `"maxPoints":${String(MAX_POINTS)}`
         assert.ok(script.includes(points))
