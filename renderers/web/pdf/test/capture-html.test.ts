@@ -1940,6 +1940,78 @@ describe('the confined capture kernel', () => {
   )
 
   it(
+    'fails a research table whose cells the page draws under other headers or off their rows; a native table passes (#117)',
+    { skip },
+    async () => {
+      // Codex's table (4198787418) and the owner's reproduction (4198885408): `tr { display: flex }` with
+      // `td:first-child { order: 2 }` draws $10 under Plan and Basic under Price, while the markup, the rows and every
+      // text stay. And the other ways to draw a cell elsewhere: a body row reversed, cells stacked, a cell's text moved
+      // under the next header or off its row, the head row drawn below the body, the header labels swapped, and a table
+      // rearranged only between the targets. The positives: the native table, a styled one with a row header, and one
+      // set right to left.
+      const table = (id: string, cls = '', dir = '') =>
+        `<table data-block="${id}" class="${cls}"${dir}><thead><tr><th><span>Plan</span></th><th><span>Price</span></th></tr></thead>` +
+        '<tbody><tr><td>Basic</td><td><span>$10</span></td></tr><tr><td>Pro</td><td><span>$20</span></td></tr></tbody></table>'
+      const receipt = await captureHtml(
+        job(
+          page(
+            `body{font:16px/24px Arial;margin:0;padding:16px;background:#fff;color:#000} table{margin:0 0 40px;border-collapse:collapse}
+            th,td{padding:4px 12px;text-align:left;width:80px} .styled td:last-child{text-align:right}
+            .styled tbody tr:nth-child(odd){background:#f3f3f3} .styled th,.styled td{border-bottom:1px solid #ccc}
+            .m1 tr{display:flex} .m1 tbody td:first-child{order:2}
+            .m2 tbody tr{display:flex;flex-direction:row-reverse}
+            .m3 th,.m3 td{display:block}
+            .m4 tbody td:first-child{position:relative;left:110px}
+            .m5 tbody tr:first-child td:last-child span{position:relative;top:40px}
+            .m6 thead{display:table-footer-group}
+            .m8 th span{position:relative} .m8 th:first-child span{left:104px} .m8 th:last-child span{left:-104px}
+            @media (min-width:600px) and (max-width:900px){.m7 tr{display:flex} .m7 tbody td:first-child{order:2}}`,
+            `<main>
+          ${table('n1')}
+          <table data-block="n2" class="styled"><thead><tr><th>Plan</th><th>Price</th></tr></thead>
+          <tbody><tr><th>Basic</th><td>$10</td></tr><tr><th>Pro</th><td>$20</td></tr></tbody></table>
+          ${table('n3', '', ' dir="rtl"')}
+          ${table('m1', 'm1')}
+          ${table('m2', 'm2')}
+          ${table('m3', 'm3')}
+          ${table('m4', 'm4')}
+          ${table('m5', 'm5')}
+          ${table('m6', 'm6')}
+          ${table('m7', 'm7')}
+          ${table('m8', 'm8')}
+          </main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      // A cell's text moved onto its neighbour's (m4, m5) is also drawn over or beside other text; the rest only move.
+      const moved =
+        'm4, m5; tables whose cells are drawn under other headers or off their rows: m1, m2, m3, m4, m5, m6, m8'
+      for (const target of ['w390-light', 'w1280-light']) {
+        const check = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === target)
+        assert.deepEqual([check?.outcome, check?.detail], ['failed', moved], target)
+        const measured = receipt.targets.find((t) => t.id === target)!.page
+        assert.equal('misplaced' in measured, false, `${target}: the list is the kernel's own, not the receipt's`)
+        assert.deepEqual(
+          measured.blocks.filter((b) => b.issues.length > 0).map((b) => b.id),
+          ['m4', 'm5'],
+          `${target}: every other text is shown, whole and apart`,
+        )
+      }
+      const widths = receipt.checks.find((c) => c.name === 'widths_visible')
+      assert.equal(widths?.outcome, 'failed')
+      // m7 is rearranged only within 600 to 900px, between the targets: the band ends there show it, and only there.
+      const at = (width: number, ids: string) =>
+        `at ${width}px: m4, m5, tables whose cells are drawn under other headers or off their rows: ${ids};`
+      for (const width of [600, 900])
+        assert.ok(widths?.detail?.includes(at(width, 'm1, m2, m3, m4, m5, m6, m7, m8')), `${width}`)
+      for (const width of [599, 901])
+        assert.ok(widths?.detail?.includes(at(width, 'm1, m2, m3, m4, m5, m6, m8')), `${width}`)
+    },
+  )
+
+  it(
     'leaves a gradient unread where the canvas does not mix its colours: unknown, never read as another colour (#117)',
     { skip },
     async () => {

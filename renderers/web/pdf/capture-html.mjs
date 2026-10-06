@@ -359,15 +359,16 @@ async function captureTarget(shot, target, page) {
 /**
  * The checks one target's measures and coverage carry. An unknown contrast is unknown, never passed; labels or texts
  * left unmeasured past the receipt's bound, or whose lines the cover check's bounds did not reach, fail
- * blocks_visible.
+ * blocks_visible, and so do research tables whose cells the page draws under other headers or off their rows.
  * @param {Target} target
  * @param {import('./capture-page.mjs').PageMeasure} page
  * @param {Coverage} coverage
  * @param {number} [unmeasured]
  * @param {number} [unsampled]
+ * @param {string[]} [misplaced] the research tables whose cells are drawn elsewhere (capture-page.mjs misplacedTables)
  * @returns {Check[]}
  */
-export function targetChecks(target, page, coverage, unmeasured = 0, unsampled = 0) {
+export function targetChecks(target, page, coverage, unmeasured = 0, unsampled = 0, misplaced = []) {
   const escaped = outsideScope(page, coverage.requested)
   // A shown label (one a tooltip, an accessible name or an ID reference rests on), and every other text outside the
   // blocks, is held to what a block is, at every target (#117). Text a target hides is text its capture does not show:
@@ -390,7 +391,7 @@ export function targetChecks(target, page, coverage, unmeasured = 0, unsampled =
       .slice(0, MAX_LISTED)
       .map((b) => b.id)
       .join(', ')
-  const hidden = [ids(unseen), ...unreached(unmeasured, unsampled)].filter(Boolean)
+  const hidden = [ids(unseen), ...unreached(unmeasured, unsampled), movedCells(misplaced)].filter(Boolean)
   return [
     check(
       'layout_overflow',
@@ -487,6 +488,17 @@ function unreached(unmeasured, unsampled) {
 }
 
 /**
+ * The research tables whose cells the page draws under other headers than their markup gives them, or off their rows,
+ * as blocks_visible names them: a value drawn under another header reads as that header's (#117).
+ * @param {string[]} misplaced
+ */
+function movedCells(misplaced) {
+  return misplaced.length > 0
+    ? `tables whose cells are drawn under other headers or off their rows: ${listed(misplaced)}`
+    : ''
+}
+
+/**
  * The platform fonts the page's text was actually drawn with (CSS.getPlatformFontsForNode), over its headings and up
  * to forty of its blocks.
  * @param {import('playwright-core').CDPSession} cdp
@@ -533,7 +545,7 @@ function isMeasure(value) {
     typeof value === 'object' &&
     value !== null &&
     ['width', 'height', 'overflowPx', 'unmeasured'].every((k) => typeof Reflect.get(value, k) === 'number') &&
-    ['blocks', 'sections', 'overflowing'].every((k) => Array.isArray(Reflect.get(value, k)))
+    ['blocks', 'sections', 'overflowing', 'misplaced'].every((k) => Array.isArray(Reflect.get(value, k)))
   )
 }
 
@@ -565,7 +577,7 @@ async function measure(page, cdp, maxLookMs = MAX_LOOK_MS) {
  * counts the texts it did not reach.
  * @param {Shot} shot
  * @param {import('playwright-core').Page} page
- * @param {Omit<import('./capture-page.mjs').PageAnswer, 'unmeasured'>} answer
+ * @param {Omit<import('./capture-page.mjs').PageAnswer, 'unmeasured' | 'misplaced'>} answer
  * @param {number} [deadline] Date.now() by which to stop, at most MAX_LOOK_MS from now (a sweep's own, when less)
  * @returns {Promise<{ measured: import('./capture-page.mjs').PageMeasure, unsampled: number }>}
  */
@@ -739,15 +751,16 @@ export function sweepPlan(media) {
 
 /**
  * What a measure at a band end shows wrong, or null: a block or a text outside the blocks hidden, cut, covered, set
- * beside other text or off the page, or in low contrast, horizontal overflow, text the measure did not reach, or (when
- * the job names its sections) text of one drawn outside it (outsideScope).
- * A contrast it cannot read is a limitation, as at a target.
+ * beside other text or off the page, or in low contrast, horizontal overflow, text the measure did not reach, a research
+ * table whose cells are drawn under other headers or off their rows, or (when the job names its sections) text of one
+ * drawn outside it (outsideScope). A contrast it cannot read is a limitation, as at a target.
  * @param {import('./capture-page.mjs').PageMeasure} page
  * @param {number} missed labels, texts and runs left out, and texts the cover check did not reach
  * @param {string[] | null} requested the sections the job names, or null for every one (outsideScope)
+ * @param {string[]} misplaced the research tables whose cells are drawn elsewhere (capture-page.mjs misplacedTables)
  * @returns {string | null}
  */
-function bandIssue(page, missed, requested) {
+function bandIssue(page, missed, requested, misplaced) {
   const unseen = [
     ...new Set([
       ...page.blocks.filter((m) => hiddenHere(m) || m.issues.includes('low_contrast')),
@@ -760,6 +773,7 @@ function bandIssue(page, missed, requested) {
     unseen.length > 0 ? listed(unseen.map((m) => m.id)) : '',
     page.overflowPx > 0 ? `${page.overflowPx}px past the width` : '',
     missed > 0 ? `${missed} texts not measured` : '',
+    movedCells(misplaced),
   ].filter(Boolean)
   return parts.length > 0 ? parts.join(', ') : null
 }
@@ -783,9 +797,9 @@ async function measureEnds(page, shot, sweep, wrong) {
       return
     }
     await page.setViewportSize({ width, height: SWEEP.height })
-    const { unmeasured, ...answer } = await measure(page, shot.cdp, left)
+    const { unmeasured, misplaced, ...answer } = await measure(page, shot.cdp, left)
     const { measured, unsampled } = await generatedCover(shot, page, answer, sweep.until)
-    const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null)
+    const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null, misplaced)
     if (issue) wrong.push(`at ${width}px: ${issue}`)
     /** @type {{ state: string }} */
     const { state } = await page.evaluate(structureScript(sweep.conditions, false))
@@ -843,7 +857,7 @@ async function captureAll(page, shot, entry) {
     const target = CAPTURE_TARGETS[id]
     if (!target) throw new CaptureFailure('invalid_target', id)
     await loadAt(page, target, entry.url, entry.timeoutMs)
-    const { unmeasured, ...answer } = await measure(page, shot.cdp)
+    const { unmeasured, misplaced, ...answer } = await measure(page, shot.cdp)
     const { measured, unsampled } = await generatedCover(shot, page, answer)
     if (shot.receipt.fonts.length === 0) shot.receipt.fonts = await fontsUsed(shot.cdp)
     const coverage = await captureTarget(shot, target, measured)
@@ -856,7 +870,7 @@ async function captureAll(page, shot, entry) {
       page: fit.measured,
       coverage,
     })
-    shot.receipt.checks.push(...targetChecks(target, measured, coverage, fit.unmeasured, unsampled))
+    shot.receipt.checks.push(...targetChecks(target, measured, coverage, fit.unmeasured, unsampled, misplaced))
   }
   shot.receipt.checks.push(await sweepWidths(page, shot, entry.sweepMs))
 }

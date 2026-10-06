@@ -50,8 +50,10 @@
  *   points the DevTools protocol is to hit-test where only it can tell what is drawn over the text (coverOf), and
  *   whether the page's budget of points ran out before its text was looked at; capture-html strips both
  * @typedef {Omit<PageMeasure, 'blocks' | 'shown' | 'framing'> & { blocks: ProbedMeasure[], shown: ProbedMeasure[],
- *   framing: ProbedMeasure[], unmeasured: number }} PageAnswer the measure, and how many labels, texts outside the
- *   blocks and runs inside them it left out past the receipt's bound for each (the kernel fails the target on any)
+ *   framing: ProbedMeasure[], unmeasured: number, misplaced: string[] }} PageAnswer the measure, how many labels,
+ *   texts outside the blocks and runs inside them it left out past the receipt's bound for each (the kernel fails the
+ *   target on any), and the research tables whose cells are drawn elsewhere than their rows and headers place them
+ *   (misplacedTables), which capture-html fails the target on and strips
  */
 
 /**
@@ -2283,7 +2285,87 @@ function measurePage(opts) {
     shown,
     framing,
     unmeasured: labels.length - shown.length + texts.length - framing.length + runs.over,
+    misplaced: misplacedTables(elements),
   }
+}
+
+/**
+ * The research tables whose cells are drawn elsewhere than their rows and header cells place them (#117). The markup
+ * says which header a cell is heard under, and the profile keeps the research's rows, head row first, with no cell
+ * spanning (packages/design); CSS can still draw a body cell under another header (`tr { display: flex }` with
+ * `td:first-child { order: 2 }` draws Basic under Price and $10 under Plan), stack a row's cells, or move a cell's text
+ * out of its row, while every text stays shown. So, where the page draws them: the head row's cells side by side, each
+ * a column's own span, with its label centred within it; each cell's text inside its own row's band; and each body
+ * cell's text below its column's header cell and centred within that header's span. A table set right to left mirrors
+ * its headers with its cells, and passes.
+ * @param {Element[]} blocks
+ * @returns {string[]}
+ */
+function misplacedTables(blocks) {
+  return blocks
+    .filter((el) => el instanceof HTMLTableElement && cellsMoved(el))
+    .map((el) => el.getAttribute('data-block') ?? '')
+}
+
+/**
+ * Whether a table's cells are drawn elsewhere than its rows and head row place them (misplacedTables).
+ * @param {HTMLTableElement} table
+ */
+function cellsMoved(table) {
+  const [head, ...body] = [...table.rows]
+  if (!head) return false
+  const headers = [...head.cells].map((c) => c.getBoundingClientRect())
+  const apart = headers.every((h, i) =>
+    headers.slice(0, i).every((o) => h.left >= o.right - 1 || h.right <= o.left + 1),
+  )
+  const labelled = [...head.cells].every((cell, i) => within(textBoxOf(cell), headers[i]))
+  if (!apart || !labelled || !onItsRow(head)) return true
+  return body.some(
+    (row) =>
+      !onItsRow(row) ||
+      [...row.cells].some((cell, i) => {
+        const header = headers[i]
+        if (!header) return false
+        const text = textBoxOf(cell)
+        return !within(text, header) || text.top < header.bottom - 1
+      }),
+  )
+}
+
+/**
+ * Whether a text's horizontal centre lies within a box's span, to a pixel.
+ * @param {Clip} text
+ * @param {Clip | undefined} box
+ */
+function within(text, box) {
+  const x = (text.left + text.right) / 2
+  return box !== undefined && x >= box.left - 1 && x <= box.right + 1
+}
+
+/**
+ * Whether each of a row's cells has its text inside the row's band, as the page draws them.
+ * @param {HTMLTableRowElement} row
+ */
+function onItsRow(row) {
+  const band = row.getBoundingClientRect()
+  return [...row.cells].every((cell) => {
+    const text = textBoxOf(cell)
+    const y = (text.top + text.bottom) / 2
+    return band.height > 0 && y >= band.top - 1 && y <= band.bottom + 1
+  })
+}
+
+/**
+ * Where a cell's content is drawn: the box around its text and what it holds, or the cell's own box when it holds
+ * nothing drawn.
+ * @param {HTMLTableCellElement} cell
+ * @returns {Clip}
+ */
+function textBoxOf(cell) {
+  const range = document.createRange()
+  range.selectNodeContents(cell)
+  const drawn = range.getBoundingClientRect()
+  return drawn.width > 0 || drawn.height > 0 ? drawn : cell.getBoundingClientRect()
 }
 
 /**
@@ -2340,6 +2422,11 @@ const IN_PAGE = [
   textBoxes,
   besideLine,
   adjoinedBlocks,
+  misplacedTables,
+  cellsMoved,
+  onItsRow,
+  within,
+  textBoxOf,
   boxOf,
   nameOf,
   overflowingElements,
