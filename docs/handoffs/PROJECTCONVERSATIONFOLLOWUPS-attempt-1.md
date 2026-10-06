@@ -58,25 +58,27 @@ A plain message never ends an earlier wait. Everything kept is forgotten wheneve
 
 - **Gates:** `tsc`, `oxlint --type-aware` and Prettier pass.
 - **Unit:** `conversation-list.test.ts` (with `withMessage`), 14 of 14.
-- **Browser:** `project-conversation-follow-ups.spec.ts`, 8 of 9 locally before a game opened.
-  - The 9th failed on the review's P1 (not on timing, as first thought), and is fixed.
-  - The full run (this spec, writes and reading) is CI's: the guard refuses beside the game (5.7 GB free, under its 8 GB floor), and the floor isn't lowered.
-  - The first full run here found a fixture constant read before it was defined (the room page didn't load), fixed.
-- **Mutations:** deferred to a free machine.
+- **Browser**, under the guard beside a game once memory allowed (9.8 GB free, at its default floor), one spec at a time:
+  - `project-conversation-follow-ups.spec.ts` 9 of 9;
+  - `project-conversation-writes.spec.ts` 13 of 13;
+  - `project-conversations.spec.ts` 11 of 11.
+  - The first full run here found a fixture constant read before it was defined (the room page didn't load), fixed; the 9th test's first failure was the review's P1.
+- **Mutations:** 8 of 8 killed, and the control survives:
+  - the held intent forgotten on a trip away;
+  - a refusal not kept;
+  - the receipt not put in the page;
+  - nobody written yet never said;
+  - out of date said as unreadable;
+  - a start pulling the person in;
+  - the wait timed by the server's clock;
+  - Send never saying it is sending.
 
 **Source-register IDs consulted:** none.
 
 ## Remaining obligations
 
-- Mutants, with a control, when the machine is free:
-  - the kept intent forgotten on a trip away;
-  - a refusal not kept;
-  - a plain message ending the wait;
-  - the receipt not put in the page;
-  - the empty and out-of-date states;
-  - a start pulling the person in;
-  - the late timer by the server's clock.
+- None of this change's own; A18 and its retention contract stay with Davide (#105).
 
 ## Next bounded action
 
-Merge the open stack as CI and Codex allow (#134, #136, #137), then this.
+#137 (carry follow-ups 2), then the room's tiles past a number («+N»), then replies in the chat (A20).
