@@ -50,7 +50,7 @@ Runs used the guards' gentle mode, at Idle priority beside Luis's games, on his 
 
 ## Remaining obligations
 
-- Davide: the `after` route and its shape, an A12 refinement (#105, to post with Luis's word).
+- Davide: the `after` route and its shape, an A12 refinement ([posted to #105](https://github.com/davidelaverga/Sophia/issues/105#issuecomment-6013736483)).
 - This PR awaits #128, CI and Codex.
 
 ## Next bounded action

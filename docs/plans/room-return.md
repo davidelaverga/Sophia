@@ -17,7 +17,7 @@ A meeting can close while Sophia's research is still running. Today the recap's 
 - Without work running at close, it shows only when something came, so a failed read there stays quiet.
 - While nothing has come: «Nothing yet. The work goes on after the meeting.» This shows only when work was still running at close.
 
-**API (proposed, an A12 refinement for #105):**
+**API (proposed, an A12 refinement, [posted to #105](https://github.com/davidelaverga/Sophia/issues/105#issuecomment-6013736483)):**
 ```ts
 GET /api/v1/projects/{projectId}/meetings/{meetingId}/after   → { updates: AfterUpdate[] }   // oldest first
 type AfterUpdate = {
