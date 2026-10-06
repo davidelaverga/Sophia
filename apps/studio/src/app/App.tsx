@@ -49,7 +49,14 @@ export function App() {
   const routing = useProjectRoute()
   // Cached server state belongs to one identity: whenever it changes or goes, also from another tab, none of it stays.
   const signedInAs = state.status === 'signed_in' ? state.identity.name : null
-  useEffect(() => () => queryClient.clear(), [signedInAs])
+  useEffect(
+    () => () => {
+      queryClient.clear()
+      // And what was under way in a project's conversations: another tab signing out, a session that ended.
+      forgetKept()
+    },
+    [signedInAs],
+  )
   useDraftsOnlyOfWhoIsIn(state)
   const joinPage = opensJoinPage(window.location.pathname, state.status)
   // The opening hands off once all is ready: the Studio's once it has prepared what the person opens first.

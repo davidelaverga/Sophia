@@ -12,9 +12,18 @@ export interface Kept {
   holds: Readonly<Record<string, Held<MessageAsk> | null>>
   /** The words of a refusal that answered a write, by conversation (or START for the form), until the next press. */
   refusals: Readonly<Record<string, string | null>>
-  /** Since when Sophia was asked to answer there, by conversation. */
-  asked: Readonly<Record<string, string | null>>
+  /** When Sophia was asked to answer there, by conversation. */
+  asked: Readonly<Record<string, Asked | null>>
   start: { fields: ConversationAsk; held: Held<ConversationAsk> | null }
+}
+
+/**
+ * When Sophia was asked: the server's time of the message that asked (her answer comes after it, by the same clock),
+ * and this page's own time then (how long she has been waiting, by this page's clock: never the two mixed).
+ */
+export interface Asked {
+  at: string
+  here: number
 }
 
 /** The form's own place among the refusals. */

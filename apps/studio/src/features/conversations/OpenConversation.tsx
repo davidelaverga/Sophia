@@ -16,6 +16,7 @@ import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { answeredAfter, contributorsLine, messageBy, messagesKey, messageWhen } from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
+import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 
 interface Props {
@@ -35,9 +36,9 @@ interface Props {
   /** The refusal that answered the last press here (kept by the view). */
   refused: string | null
   onRefused: (words: string | null) => void
-  /** Since when Sophia was asked here (kept by the view): a message that doesn't ask her leaves it. */
-  asked: string | null
-  onAsked: (since: string) => void
+  /** When Sophia was asked here (kept by the view): a message that doesn't ask her leaves it. */
+  asked: Asked | null
+  onAsked: (at: string) => void
   /** Just started here: the focus goes to its title, once. */
   arrived: boolean
   onArrived: () => void
@@ -46,17 +47,20 @@ interface Props {
 /** How long «Sophia is answering…» waits before it says her answer will come later. */
 export const ANSWER_WAIT_MS = 120_000
 
-/** Since when Sophia was asked here; late once she hasn't answered in time, counted from then (not from coming back). */
-function useAwaiting(since: string | null) {
+/**
+ * When Sophia was asked here; late once she hasn't answered in time, counted on this page's clock from when it asked
+ * (not from coming back, and never against the server's clock).
+ */
+function useAwaiting(asked: Asked | null) {
   const [late, setLate] = useState(false)
+  const here = asked?.here ?? null
   useEffect(() => {
     setLate(false)
-    if (since === null) return undefined
-    const left = Math.max(0, ANSWER_WAIT_MS - (Date.now() - Date.parse(since)))
-    const timer = setTimeout(() => setLate(true), left)
+    if (here === null) return undefined
+    const timer = setTimeout(() => setLate(true), Math.max(0, ANSWER_WAIT_MS - (Date.now() - here)))
     return () => clearTimeout(timer)
-  }, [since])
-  return { since, late }
+  }, [here])
+  return { since: asked?.at ?? null, late }
 }
 
 export function OpenConversation(props: Props) {

@@ -142,7 +142,7 @@ function useTalk(projectId: string, name: string) {
     refused: kept.refusals[id] ?? null,
     onRefused: (words: string | null) => change((k) => ({ ...k, refusals: withEntry(k.refusals, id, words) })),
     asked: kept.asked[id] ?? null,
-    onAsked: (since: string) => change((k) => ({ ...k, asked: withEntry(k.asked, id, since) })),
+    onAsked: (at: string) => change((k) => ({ ...k, asked: withEntry(k.asked, id, { at, here: Date.now() }) })),
   })
   return { of, kept, change }
 }
@@ -167,8 +167,11 @@ function useFocusBack(starting: boolean) {
 function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof useTalk>, open: (id: string) => void) {
   const queryClient = useQueryClient()
   const [starting, setStarting] = useState(false)
+  // Whether the person is on the form now, for a start that lands later (set after each commit, not while rendering).
   const onForm = useRef(false)
-  onForm.current = starting
+  useEffect(() => {
+    onForm.current = starting
+  }, [starting])
   const [arrived, setArrived] = useState<string | null>(null)
   const clearArrived = useCallback(() => setArrived(null), [])
   const { button, back } = useFocusBack(starting)
@@ -186,7 +189,7 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
     change((k) => ({
       ...k,
       start: { ...k.start, fields: NO_WORDS },
-      asked: ask.askSophia ? withEntry(k.asked, conversation.id, message.at) : k.asked,
+      asked: ask.askSophia ? withEntry(k.asked, conversation.id, { at: message.at, here: Date.now() }) : k.asked,
     }))
     if (!onForm.current) return
     open(conversation.id)
