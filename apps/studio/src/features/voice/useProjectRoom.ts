@@ -18,6 +18,10 @@ import type { SophiaSignal } from './sophia-view.ts'
 
 export type { VideoFeed } from './livekit-room.ts'
 
+export interface LeaveHow {
+  pressed: true
+}
+
 export interface ProjectRoom {
   chat: ChatTurn[]
   /** Finished results' cards, one per task, for this member whether they hear or read Sophia (SMC-M03 S6, CX-0022). */
@@ -45,7 +49,13 @@ export interface ProjectRoom {
   ready: boolean
   /** Resolves to whether this person is in the call once it settles. */
   join: (options?: { textOnly?: boolean }) => Promise<boolean>
-  leave: () => Promise<void>
+  /**
+   * Out of the call. `pressed`: the person's own Leave, which counts in `leftByPress`; any other leave (another
+   * project's call, the project closing) is quiet.
+   */
+  leave: (how?: LeaveHow) => Promise<void>
+  /** How many calls this person was in and left by their own press: what the meeting left opens on each. */
+  leftByPress: number
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
@@ -267,6 +277,18 @@ function useConversation(connection: { current: RoomConnection | null }, silence
   }
 }
 
+/** Leaving, and how many calls the person was in and left by their own press (ProjectRoom.leftByPress). */
+function useLeave(calls: CallFence<RoomConnection>, outOfCall: (why: CallEnd | null) => void) {
+  const [leftByPress, setLeftByPress] = useState(0)
+  // Leave is offered only in the call, so a pressed one always leaves a meeting behind.
+  const leave = async (how?: LeaveHow) => {
+    await calls.end()
+    outOfCall(null)
+    if (how?.pressed) setLeftByPress((n) => n + 1)
+  }
+  return { leave, leftByPress }
+}
+
 /** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
   /**
@@ -311,10 +333,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
 
   const { call, join } = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining)
 
-  const leave = async () => {
-    await calls.end()
-    outOfCall(null)
-  }
+  const { leave, leftByPress } = useLeave(calls, outOfCall)
 
   // Speaking is voice: a microphone that came on leaves text mode, so Sophia is heard again (switchMicrophone).
   const setMicrophone = (on: boolean) =>
@@ -344,5 +363,6 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ready: issue !== null,
     join,
     leave,
+    leftByPress,
   }
 }

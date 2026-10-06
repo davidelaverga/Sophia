@@ -39,3 +39,119 @@ export const setRoomFocus = (
   body: { artifactVersionId: string | null; expectedRoomRevision: number },
 ): Promise<FocusReceipt> =>
   callApi(`/api/v1/rooms/${roomId}/focus`, { token, method: 'PUT', body, key }, parseFocusReceipt)
+
+// A12: the meeting, closed and recapped from committed records (issue #105). The recap's `noted` items also carry the
+// actor who kept them (`actorId`), so a member's own note is named: an addition this Studio proposes to A12.
+
+export interface MeetingSummary {
+  id: string
+  startedAt: string
+  endedAt: string | null
+}
+
+export interface MeetingRecap {
+  meetingId: string
+  startedAt: string
+  endedAt: string | null
+  minutes: number
+  people: readonly { actorId: string }[]
+  guests: number
+  decided: readonly {
+    decisionId: string
+    statement: string
+    proposedBy: string
+    decidedBy: string
+    at: string
+    undoable: boolean
+  }[]
+  made: readonly {
+    artifactId: string
+    artifactVersionId: string
+    title: string
+    versionNumber: number
+    askedBy: string
+  }[]
+  noted: readonly {
+    entryId: string
+    kind: string
+    text: string
+    authoredBy: 'member' | 'sophia'
+    actorId: string
+    at: string
+  }[]
+  open: readonly { proposalId: string; statement: string }[]
+  work: readonly { taskId: string; kind: string; state: string }[]
+}
+
+export interface MeetingReceipt {
+  meetingId: string
+  revision: number
+  cursor: string
+}
+
+const isStr = (v: unknown): v is string => typeof v === 'string'
+const isNum = (v: unknown): v is number => typeof v === 'number'
+const isStrOrNull = (v: unknown): v is string | null => v === null || isStr(v)
+/** Every listed field present with its kind: the answer is the proposal's shape, or an error. */
+const fields = (value: unknown, kinds: Record<string, (v: unknown) => boolean>): value is Record<string, unknown> =>
+  isObject(value) && Object.entries(kinds).every(([k, ok]) => ok(value[k]))
+const listOf =
+  (kinds: Record<string, (v: unknown) => boolean>) =>
+  (v: unknown): boolean =>
+    Array.isArray(v) && v.every((item) => fields(item, kinds))
+
+const RECAP = {
+  meetingId: isStr,
+  startedAt: isStr,
+  endedAt: isStrOrNull,
+  minutes: isNum,
+  guests: isNum,
+  people: listOf({ actorId: isStr }),
+  decided: listOf({
+    decisionId: isStr,
+    statement: isStr,
+    proposedBy: isStr,
+    decidedBy: isStr,
+    at: isStr,
+    undoable: (v) => typeof v === 'boolean',
+  }),
+  made: listOf({ artifactId: isStr, artifactVersionId: isStr, title: isStr, versionNumber: isNum, askedBy: isStr }),
+  noted: listOf({
+    entryId: isStr,
+    kind: isStr,
+    text: isStr,
+    authoredBy: (v) => v === 'member' || v === 'sophia',
+    actorId: isStr,
+    at: isStr,
+  }),
+  open: listOf({ proposalId: isStr, statement: isStr }),
+  work: listOf({ taskId: isStr, kind: isStr, state: isStr }),
+}
+
+/** A checked answer, typed: the checks above stand for the proposal's shape. */
+const checked =
+  <T>(kinds: Record<string, (v: unknown) => boolean>, what: string) =>
+  (value: unknown): T => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every field was checked against the proposal's shape
+    if (fields(value, kinds)) return value as unknown as T
+    throw new ApiError(200, 'contract_violation', `The ${what} is not one`, 'safe_read')
+  }
+
+const parseMeetings = checked<{ meetings: readonly MeetingSummary[] }>(
+  { meetings: listOf({ id: isStr, startedAt: isStr, endedAt: isStrOrNull }) },
+  'meeting list',
+)
+const parseRecap = checked<MeetingRecap>(RECAP, 'recap')
+const parseMeetingReceipt = checked<MeetingReceipt>({ meetingId: isStr, revision: isNum, cursor: isStr }, 'receipt')
+
+/** A12: the project's meetings, newest first. */
+export const listMeetings = (token: string, projectId: string, limit: number) =>
+  callApi(`/api/v1/projects/${projectId}/meetings?limit=${String(limit)}`, { token, method: 'GET' }, parseMeetings)
+
+/** A12: a meeting's recap, built from the records of its range. */
+export const getRecap = (token: string, projectId: string, meetingId: string): Promise<MeetingRecap> =>
+  callApi(`/api/v1/projects/${projectId}/meetings/${meetingId}/recap`, { token, method: 'GET' }, parseRecap)
+
+/** A12: close the meeting for everyone (editors and admins), idempotent per key. */
+export const closeMeeting = (token: string, roomId: string, meetingId: string, key: string): Promise<MeetingReceipt> =>
+  callApi(`/api/v1/rooms/${roomId}/meetings/${meetingId}/close`, { token, method: 'POST', key }, parseMeetingReceipt)

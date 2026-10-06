@@ -1236,7 +1236,12 @@ async function callKeptInReach(page: Page) {
   await page.keyboard.press('Space')
   await expect(mic).toHaveAttribute('aria-pressed', 'false') // muted from the sheet
   await leave.click()
-  await expect(call).toHaveCount(0) // the call is over: the row goes, the sheet stays, the focus in it
+  await expect(call).toHaveCount(0) // the call is over: the row goes, the sheet stays
+  // What the meeting left opens on top (room-recap.spec.ts); put away, the focus is back in the sheet.
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(recap).toContainText('Nothing was decided, made or kept in this meeting.')
+  await page.keyboard.press('Escape')
+  await expect(recap).toHaveCount(0)
   await expect(sheet).toBeVisible()
   expect(await sheet.evaluate((s) => s.contains(document.activeElement))).toBe(true)
   await page.keyboard.press('Escape')

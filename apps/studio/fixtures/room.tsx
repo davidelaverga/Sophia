@@ -27,13 +27,16 @@ import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import type { Notes } from './brief-data.ts'
 import { noShowing } from './focus-data.ts'
+import { newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
+import type { CallEnd } from '../src/features/voice/call-end.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, sophiaLeaves } from './fake-livekit.ts'
 import {
   count,
   endPause,
   nameOf,
   oneOfUs,
+  others,
   personId,
   setSophia,
   setSpeaking,
@@ -52,6 +55,7 @@ import {
 import {
   briefNotice,
   LONG_TITLE,
+  REPORT,
   researchNotice,
   revisedNotice,
   SOPHIAS_DESCRIPTION,
@@ -66,7 +70,7 @@ interface Fixture {
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
   /** The call's connection is lost. */
-  drop: () => void
+  drop: (why?: CallEnd) => void
   /** The fixture report's next version is published (the viewer learns of it when it reads the list again). */
   publishReport: () => void
   /** Sophia publishes the report's next version while it is open: the project's feed says so at once. */
@@ -96,6 +100,13 @@ interface Fixture {
   loseNextContributionReply: () => void
   /** The next show lands, but its reply is lost: the page can't tell it was committed. */
   loseNextFocusReply: () => void
+  /** The next close of the meeting lands, but its reply is lost. */
+  loseNextCloseReply: () => void
+  /** The recap's reads wait until `releaseRecaps`. */
+  holdRecaps: () => void
+  releaseRecaps: () => void
+  /** The recap's reads fail (503) until called with false. */
+  failRecaps: (fails?: boolean) => void
   /** The notes members wrote in the brief, by their text. */
   notes: () => readonly (string | null)[]
   /** The next note written lands, but its reply is lost: the page can't tell it was kept. */
@@ -204,6 +215,7 @@ const project = {
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
   pilot: query.get('history') === 'pilot',
   waiting: query.get('lobby') === 'waiting',
+  ...(query.get('role') === 'viewer' ? { role: 'viewer' as const } : {}),
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
@@ -219,6 +231,8 @@ const project = {
   work: query.get('place') === 'work',
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
+  // A12: the meeting this visit is, its recap built from what happens on the page (meeting-data.ts).
+  meeting: newMeeting(() => meetingRecords()),
   notes: {
     kept: [],
     written: 0,
@@ -245,7 +259,10 @@ window.fixture = {
     project.reportVersions += 1
     publish(project)
   },
-  notice: () => deliverNotice(researchNotice),
+  notice: () => {
+    project.meeting.made = true
+    deliverNotice(researchNotice)
+  },
   noticeRevised: () => {
     project.reportVersions = 2
     project.taskRevision = 2
@@ -286,6 +303,20 @@ window.fixture = {
   loseNextFocusReply: () => {
     project.showing.loseReply = true
   },
+  loseNextCloseReply: () => {
+    project.meeting.loseReply = true
+  },
+  holdRecaps: () => {
+    project.meeting.recaps.held = []
+  },
+  releaseRecaps: () => {
+    const held = project.meeting.recaps.held ?? []
+    project.meeting.recaps.held = null
+    for (const release of held) release()
+  },
+  failRecaps: (fails = true) => {
+    project.meeting.recaps.fail = fails
+  },
   notes: () => project.notes.kept.map((entry) => entry.text),
   loseNextReply: () => {
     project.notes.loseReply = true
@@ -323,6 +354,51 @@ window.fixture = {
   asked,
   served,
   unexpected,
+}
+
+/** The meeting's records as the page holds them now: who is in it, the decision, the report made, the notes kept. */
+function meetingRecords(): ReturnType<Meeting['records']> {
+  const people = others()
+  const at = new Date().toISOString()
+  return {
+    people: [membership.actorId, ...people.filter((p) => p.standing !== 'guest').map((p) => p.identity)].map(
+      (actorId) => ({
+        actorId,
+      }),
+    ),
+    guests: people.filter((p) => p.standing === 'guest').length,
+    decided: [
+      {
+        decisionId: '00000000-0000-4000-8000-0000000000ad',
+        statement: 'Pilot the fixture with fourteen teams',
+        proposedBy: personId(1),
+        decidedBy: membership.actorId,
+        at,
+        undoable: false,
+      },
+    ],
+    made: project.meeting.made
+      ? [
+          {
+            artifactId: REPORT,
+            artifactVersionId: versionId(project.reportVersions),
+            title: project.reportTitle,
+            versionNumber: project.reportVersions,
+            askedBy: membership.actorId,
+          },
+        ]
+      : [],
+    noted: project.notes.kept.map((e) => ({
+      entryId: e.id,
+      kind: e.kind,
+      text: e.text ?? '',
+      authoredBy: e.authoredBy,
+      actorId: e.actorId,
+      at: e.recordedAt,
+    })),
+    open: [],
+    work: [],
+  }
 }
 
 const nothing = () => undefined
