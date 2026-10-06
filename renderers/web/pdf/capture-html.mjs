@@ -461,6 +461,40 @@ async function captureAll(page, shot, entry) {
     })
     shot.receipt.checks.push(...targetChecks(target, measured, coverage))
   }
+  // Text outside the blocks that no target shows (kept for print, for a width no capture takes, or for assistive
+  // technology alone) is text no reviewer saw: each target's blocks_visible names it (#117).
+  const unseen = hiddenEverywhere(shot.receipt.targets.map((t) => t.page))
+  if (unseen.length > 0)
+    for (const c of shot.receipt.checks.filter((k) => k.name === 'blocks_visible')) {
+      c.outcome = 'failed'
+      c.detail = [c.detail, `text hidden at every target: ${unseen.slice(0, MAX_LISTED).join(', ')}`]
+        .filter(Boolean)
+        .join('; ')
+        .slice(0, 2000)
+    }
+}
+
+/**
+ * Whether a measured element's text is not seen: hidden, cut, covered or off the page, or all but invisible against
+ * what is behind it. Low contrast alone, or a scrolling container, still shows it.
+ * @param {import('./capture-page.mjs').BlockMeasure} m
+ */
+function isUnseen(m) {
+  return (
+    m.issues.some((i) => i !== 'low_contrast' && i !== 'scrolls') ||
+    (m.contrast.ratio !== null && m.contrast.ratio < 1.5)
+  )
+}
+
+/**
+ * The text outside the blocks that is not seen at any measured target: hidden, cut, covered, off the page, or all but
+ * invisible against what is behind it at each one.
+ * @param {import('./capture-page.mjs').PageMeasure[]} pages
+ * @returns {string[]}
+ */
+export function hiddenEverywhere(pages) {
+  const [first, ...rest] = pages.map((p) => new Set(p.framing.filter(isUnseen).map((m) => m.id)))
+  return first ? [...first].filter((id) => rest.every((at) => at.has(id))) : []
 }
 
 /**

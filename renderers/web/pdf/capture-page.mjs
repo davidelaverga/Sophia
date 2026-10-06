@@ -2,7 +2,8 @@
 // overflow, its sections, and every content block's visibility, clipping, cover and contrast. The labels a tooltip,
 // an accessible name or an ID reference rests on (marked data-sophia-shown by the design compile), and each element
 // inside one that holds text, are measured as blocks are, and more strictly: a reader meets their text elsewhere, so
-// it must be seen here (SDD-01, #117). Page JavaScript is off,
+// it must be seen here (SDD-01, #117). Every other element outside the blocks that holds text is measured too, so the
+// kernel can name text no capture shows at any target (capture-html.mjs). Page JavaScript is off,
 // so these functions are not the page's: the kernel sends their source (`pageScript`) and runs it through the
 // browser's protocol. Each is self-contained but for the others in this file, which travel with it; none reads the
 // network or writes the document.
@@ -14,7 +15,7 @@
  *   contrast: Contrast }} BlockMeasure
  * @typedef {{ width: number, height: number, viewportWidth: number, viewportHeight: number,
  *   overflowPx: number, overflowing: { element: string, rightPx: number }[], sections: ({ id: string } & Box)[],
- *   blocks: BlockMeasure[], shown: BlockMeasure[] }} PageMeasure
+ *   blocks: BlockMeasure[], shown: BlockMeasure[], framing: BlockMeasure[] }} PageMeasure
  */
 
 /**
@@ -308,11 +309,13 @@ function measurePage(opts) {
   const ctx = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true })
   if (!ctx) throw new Error('no 2D canvas to resolve colours')
   const blocks = [...document.querySelectorAll('[data-block]')].map((el) => measureBlock(el, page, ctx))
-  const shown = shownElements().map(({ el, id }) => {
+  const strictly = (/** @type {{ el: Element, id: string }} */ { el, id }) => {
     const measure = measureBlock(el, page, ctx)
     const concealed = concealedIssues(el)
     return { ...measure, id: id.slice(0, 200), issues: [...new Set([...concealed, ...measure.issues])].slice(0, 10) }
-  })
+  }
+  const shown = shownElements().map(strictly)
+  const framing = framingElements().map(strictly)
   window.scrollTo(0, 0)
   return {
     width: page.width,
@@ -327,6 +330,7 @@ function measurePage(opts) {
     })),
     blocks,
     shown,
+    framing,
   }
 }
 
@@ -347,6 +351,25 @@ function shownElements() {
       )
       if (holds) out.push({ el: inner, id: `${name} ${nameOf(inner)}` })
     }
+  }
+  return out
+}
+
+/**
+ * Every element outside the blocks that holds text of its own beyond a few marks: a heading, a caption, a source
+ * entry, a navigation link, a footer line. Numbered in document order, the same at every target.
+ * @returns {{ el: Element, id: string }[]}
+ */
+function framingElements() {
+  /** @type {{ el: Element, id: string }[]} */
+  const out = []
+  for (const el of document.body.querySelectorAll('*')) {
+    if (el.closest('[data-block]')) continue
+    const own = [...el.childNodes]
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent ?? '')
+      .join('')
+    if (/[\p{L}\p{N}]/u.test(own)) out.push({ el, id: `text ${out.length + 1} ${nameOf(el)}` })
   }
   return out
 }
@@ -372,6 +395,7 @@ const IN_PAGE = [
   measureBlock,
   measurePage,
   shownElements,
+  framingElements,
 ]
 
 /**

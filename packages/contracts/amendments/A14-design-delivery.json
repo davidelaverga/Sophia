@@ -3,7 +3,7 @@
   "goal": "SDD-01",
   "title": "A capture counts as seen once it reached the model (SDD-01-CX-0019)",
   "why": [
-    "SDD-01-CX-0019 F1 and F3 (CX-0020, CX-0022): handing captures over is not seeing them. The capture routes now name the delivery the service issued once every capture's bytes matched its record (deliveryId), and the runtime acknowledges it once it saved every image, unchanged, as an attachment for the model's next request: each attachment is sha256:<that capture's hash>. Only acknowledged deliveries count, for the job, attempt and render they were issued to: a review's pass and a designer's candidate need every overview tile at every target and each section (migration 0043). An acknowledgement is fenced like every runtime operation, and a replay answers the same and counts nothing twice. A delivery counts only for the submission that names it (#117, CX-0033 to CX-0036): a candidate and a review's result carry seen, the acknowledged deliveries they rest on, so an acknowledgement no submission names, because its submit was never sent or the runtime restarted in between, counts for nothing. The capture receipt also carries, per target, the measures of the labels a tooltip, an accessible name or an ID reference rests on (shown), held to what a block is (#117, CX-0037)."
+    "SDD-01-CX-0019 F1 and F3 (CX-0020, CX-0022): handing captures over is not seeing them. The capture routes now name the delivery the service issued once every capture's bytes matched its record (deliveryId), and the runtime acknowledges it once it saved every image, unchanged, as an attachment for the model's next request: each attachment is sha256:<that capture's hash>. Only acknowledged deliveries count, for the job, attempt and render they were issued to: a review's pass and a designer's candidate need every overview tile at every target and each section (migration 0043). An acknowledgement is fenced like every runtime operation, and a replay answers the same and counts nothing twice. A delivery counts only for the submission that names it (#117, CX-0033 to CX-0036): a candidate and a review's result carry seen, the acknowledged deliveries they rest on, so an acknowledgement no submission names, because its submit was never sent or the runtime restarted in between, counts for nothing. The capture receipt also carries, per target, the measures of the labels a tooltip, an accessible name or an ID reference rests on (shown), held to what a block is (#117, CX-0037). It carries the measures of every other element outside the blocks that holds text (framing), so text hidden at every captured target (kept for print, for a width no capture takes, or for assistive technology alone) fails the render's blocks_visible (#117)."
   ],
   "patch": [
     {
@@ -488,6 +488,18 @@
           "$ref": "#/components/schemas/DesignShownMeasure"
         },
         "description": "The labels a name or a reference rests on, and each element inside one that holds text, measured as blocks are; absent from a kernel that measures none."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/CaptureReceipt/properties/targets/items/properties/page/properties/framing",
+      "value": {
+        "type": "array",
+        "maxItems": 4000,
+        "items": {
+          "$ref": "#/components/schemas/DesignShownMeasure"
+        },
+        "description": "Every other element outside the blocks that holds text, measured as blocks are, numbered in document order; absent from a kernel that measures none."
       }
     }
   ]

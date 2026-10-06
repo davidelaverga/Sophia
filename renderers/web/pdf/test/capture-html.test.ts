@@ -16,6 +16,7 @@ import {
   CAPTURE_TARGETS,
   captureHtml,
   captureSha256,
+  hiddenEverywhere,
   marginsOf,
   tilesOf,
 } from '../capture-html.mjs'
@@ -80,6 +81,12 @@ const lingering = () =>
 type Receipt = Awaited<ReturnType<typeof captureHtml>>
 const outcome = (r: Receipt, name: string, target: string | null = null) =>
   r.checks.find((c) => c.name === name && c.target === target)?.outcome
+/** The kernel's name for the element outside the blocks that holds `text`, by its order on the page. */
+function framingId(r: Receipt, text: string): string | undefined {
+  const order = ['Seen everywhere', 'Printed only', 'Between the widths', 'Read aloud only', 'On wide screens']
+  const n = order.findIndex((t) => t.startsWith(text)) + 1
+  return r.targets[0]?.page.framing.find((m) => m.id.startsWith(`text ${n} `))?.id
+}
 const issuesOf = (r: Receipt, target: string) =>
   Object.fromEntries((r.targets.find((t) => t.id === target)?.page.blocks ?? []).map((b) => [b.id, b.issues]))
 
@@ -108,6 +115,18 @@ const CLEAN = page(
   `<main><h1>A clean report</h1><section data-section="s1"><p data-block="b1">First paragraph.</p>
   <ul><li data-block="b2">An item.</li></ul></section><section data-section="sources"><ol><li data-source="s1" class="note">Source.</li></ol></section></main>`,
 )
+
+/** One element's measures outside the blocks, and a target's page holding them. */
+const framed = (id: string, issues: string[] = [], ratio: number | null = 12) => ({
+  id,
+  section: null,
+  box: { x: 0, y: 0, width: 100, height: 20 },
+  fontPx: 18,
+  issues,
+  contrast: { ratio, floor: 4.5, large: false, detail: null },
+})
+const withFraming = (...framing: ReturnType<typeof framed>[]) =>
+  ({ framing }) as unknown as Parameters<typeof hiddenEverywhere>[0][number]
 
 describe('the capture plan (pure)', () => {
   it('cuts a span into equal tiles, the last one shorter', () => {
@@ -162,6 +181,30 @@ describe('the capture plan (pure)', () => {
       assert.deepEqual([receipt.status, receipt.error?.code], ['failed', code], JSON.stringify(extra))
       assert.equal(receipt.sandbox, null, 'no browser was started')
     }
+  })
+
+  it('names the text outside the blocks that no target shows, and only that (#117)', () => {
+    const narrow = withFraming(
+      framed('text 1 h2'),
+      framed('text 2 h2', ['not_rendered']),
+      framed('text 3 h2', ['clipped']),
+      framed('text 4 p', ['low_contrast'], 1.2),
+      framed('text 5 p', ['low_contrast'], 3.1),
+      framed('text 6 a', ['scrolls']),
+      framed('text 7 h3', ['not_rendered']),
+    )
+    const wide = withFraming(
+      framed('text 1 h2'),
+      framed('text 2 h2', ['not_rendered']),
+      framed('text 3 h2', ['off_page']),
+      framed('text 4 p', ['low_contrast'], 1),
+      framed('text 5 p', ['low_contrast'], 3.1),
+      framed('text 6 a', ['scrolls']),
+      framed('text 7 h3'),
+    )
+    assert.deepEqual(hiddenEverywhere([narrow, wide]), ['text 2 h2', 'text 3 h2', 'text 4 p'])
+    assert.deepEqual(hiddenEverywhere([narrow]), ['text 2 h2', 'text 3 h2', 'text 4 p', 'text 7 h3'])
+    assert.deepEqual(hiddenEverywhere([]), [])
   })
 
   it('keeps nothing when cancelled', async () => {
@@ -318,6 +361,36 @@ describe('the confined capture kernel', () => {
       for (const id of ['label h2:2', 'label h2:3', 'label h2:4', 'label h2:6 span'])
         assert.ok(named.includes(id), named)
       assert.equal(named.includes('label h2:1,'), false, named)
+    },
+  )
+
+  it(
+    'fails text outside the blocks that no target shows: for print only, for another width, for a screen reader (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .print{display:none} @media print{.print{display:block}}
+           @media (min-width:700px) and (max-width:900px){.between{display:block}} .between{display:none}
+           .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+           @media (max-width:500px){.wide-only{display:none}}`,
+            `<main><section data-section="s1"><h2>Seen everywhere</h2><p data-block="b1">Text.</p>
+          <h2 class="print">Printed only</h2><h2 class="between">Between the widths</h2><h2 class="vh">Read aloud only</h2>
+          <h2 class="wide-only">On wide screens</h2><p>·</p></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        assert.equal(outcome(receipt, 'blocks_visible', target), 'failed', target)
+        const detail = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === target)?.detail ?? ''
+        for (const hidden of ['Printed', 'Between', 'Read aloud'].map((t) => framingId(receipt, t)))
+          assert.ok(hidden && detail.includes(hidden), `${target}: ${hidden} in ${detail}`)
+        for (const seen of ['Seen everywhere', 'On wide screens'].map((t) => framingId(receipt, t)))
+          assert.ok(seen && !detail.includes(`${seen},`) && !detail.endsWith(seen), `${target}: ${seen} in ${detail}`)
+      }
     },
   )
 

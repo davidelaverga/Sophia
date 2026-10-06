@@ -24996,6 +24996,14 @@
                         "$ref": "#/components/schemas/DesignShownMeasure"
                       },
                       "description": "The labels a name or a reference rests on, and each element inside one that holds text, measured as blocks are; absent from a kernel that measures none."
+                    },
+                    "framing": {
+                      "type": "array",
+                      "maxItems": 4000,
+                      "items": {
+                        "$ref": "#/components/schemas/DesignShownMeasure"
+                      },
+                      "description": "Every other element outside the blocks that holds text, measured as blocks are, numbered in document order; absent from a kernel that measures none."
                     }
                   },
                   "required": [
