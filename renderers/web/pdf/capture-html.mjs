@@ -457,6 +457,48 @@ async function measure(page) {
 }
 
 /**
+ * What is drawn over a text where only the DevTools protocol can tell: the text's own element draws generated content,
+ * and a pseudo-element hit-tests as that element (capture-page.mjs coverOf). The protocol names the pseudo-element when
+ * one is on top, whatever its pointer-events, and the text is then covered (#117). Each point is hit-tested on the page
+ * as it opens, the view scrolled to it and back to the top; the points are then dropped from the measure.
+ * @param {Shot} shot
+ * @param {import('playwright-core').Page} page
+ * @param {Omit<import('./capture-page.mjs').PageAnswer, 'unmeasured'>} answer
+ * @returns {Promise<import('./capture-page.mjs').PageMeasure>}
+ */
+async function generatedCover(shot, page, answer) {
+  const all = [...answer.blocks, ...answer.shown, ...answer.framing]
+  if (all.some((m) => m.probe)) await shot.cdp.send('DOM.enable')
+  for (const m of all) {
+    const point = m.probe
+    if (!point) continue
+    const at = await page.evaluate(({ x, y }) => {
+      window.scrollTo({ left: x - innerWidth / 2, top: y - innerHeight / 2, behavior: 'instant' })
+      return { x: x - window.scrollX, y: y - window.scrollY }
+    }, point)
+    const hit = await shot.cdp.send('DOM.getNodeForLocation', { ...at, ignorePointerEventsNone: true })
+    const { node } = await shot.cdp.send('DOM.describeNode', { backendNodeId: hit.backendNodeId })
+    if (node.pseudoType) m.issues.push('covered')
+  }
+  if (all.some((m) => m.probe)) await page.evaluate(() => window.scrollTo({ left: 0, top: 0, behavior: 'instant' }))
+  return {
+    ...answer,
+    blocks: withoutProbe(answer.blocks),
+    shown: withoutProbe(answer.shown),
+    framing: withoutProbe(answer.framing),
+  }
+}
+
+/**
+ * Measures as the receipt holds them: the probe points are the kernel's own.
+ * @param {import('./capture-page.mjs').ProbedMeasure[]} list
+ * @returns {import('./capture-page.mjs').BlockMeasure[]}
+ */
+function withoutProbe(list) {
+  return list.map(({ probe: _probe, ...m }) => m)
+}
+
+/**
  * Measure and capture every target of the job.
  * @param {import('playwright-core').Page} page
  * @param {Shot} shot
@@ -467,7 +509,8 @@ async function captureAll(page, shot, entry) {
     const target = CAPTURE_TARGETS[id]
     if (!target) throw new CaptureFailure('invalid_target', id)
     await loadAt(page, target, entry.url, entry.timeoutMs)
-    const { unmeasured, ...measured } = await measure(page)
+    const { unmeasured, ...answer } = await measure(page)
+    const measured = await generatedCover(shot, page, answer)
     if (shot.receipt.fonts.length === 0) shot.receipt.fonts = await fontsUsed(shot.cdp)
     const coverage = await captureTarget(shot, target, measured)
     shot.receipt.targets.push({

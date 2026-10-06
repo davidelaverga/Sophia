@@ -509,6 +509,84 @@ describe('the confined capture kernel', () => {
       assert.equal(opens.status, 'succeeded', JSON.stringify(opens.error))
       for (const target of ['w390-light', 'w1280-light'])
         assert.equal(outcome(opens, 'blocks_visible', target), 'passed', target)
+      // A block taller than the box: its first line is judged with the block scrolled to its start, so a cover over it
+      // is still seen.
+      const veiled = await captureHtml(
+        job(
+          page(
+            `${BASE} .box{height:220px;overflow:auto} .box p{position:relative}
+            .veil{position:absolute;left:0;right:0;top:0;height:3em;background:#fafafa}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+            <div class="box"><p data-block="b2"><span class="veil"></span>${long}</p></div></section></main>`,
+          ),
+          { targets: ['w1280-light'] },
+        ),
+        { env },
+      )
+      assert.equal(veiled.status, 'succeeded', JSON.stringify(veiled.error))
+      assert.deepEqual(issuesOf(veiled, 'w1280-light').b2, ['scrolls', 'covered'])
+    },
+  )
+
+  it(
+    'names text drawn over by generated content, a child or a section around it, and not a highlight behind it or an accent below (#117)',
+    { skip },
+    async () => {
+      const shapes = `${BASE} h2,section{position:relative}
+        .over::after{content:"";position:absolute;inset:0;background:#fafafa}
+        .child{position:absolute;inset:0;background:#fafafa}
+        .under::before{content:"";position:absolute;inset:0;background:#eef;z-index:-1}
+        .accent::after{content:"";position:absolute;left:0;bottom:-6px;width:40px;height:3px;background:#c00}
+        li::before{content:"• "} .veil::after{content:"";position:absolute;inset:0;background:#fafafa}`
+      const drawn = await captureHtml(
+        job(
+          page(
+            shapes,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+          <h2 class="over">Covered by its own after</h2><h2>Covered by a child<span class="child"></span></h2>
+          <h2 class="under">A highlight behind</h2><h2 class="accent">An accent below</h2>
+          <ul><li data-block="b2">A bulleted item.</li></ul></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(drawn.status, 'succeeded', JSON.stringify(drawn.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const measured = drawn.targets.find((t) => t.id === target)!.page
+        assert.deepEqual(
+          measured.framing.map((m) => [m.id, m.issues]),
+          [
+            ['text 1 h2', []],
+            ['text 2 h2', ['covered']],
+            ['text 3 h2', ['covered']],
+            ['text 4 h2', []],
+            ['text 5 h2', []],
+          ],
+          target,
+        )
+        assert.deepEqual(issuesOf(drawn, target), { b1: [], b2: [] }, 'a bullet drawn before an item covers nothing')
+        assert.ok(
+          [...measured.blocks, ...measured.framing].every((m) => !('probe' in m)),
+          'the receipt holds no probe point',
+        )
+        const detail = drawn.checks.find((c) => c.name === 'blocks_visible' && c.target === target)?.detail ?? ''
+        assert.equal(detail, 'text 2 h2, text 3 h2', target)
+      }
+      // A section that draws over everything in it, from its own ::after: each text in it hit-tests as the section.
+      const veiled = await captureHtml(
+        job(
+          page(
+            shapes,
+            `<main><section data-section="s1" class="veil"><h2>Findings</h2><p data-block="b1">Text.</p></section></main>`,
+          ),
+          { targets: ['w1280-light'] },
+        ),
+        { env },
+      )
+      assert.equal(veiled.status, 'succeeded', JSON.stringify(veiled.error))
+      assert.deepEqual(issuesOf(veiled, 'w1280-light').b1, ['covered'])
+      assert.deepEqual(veiled.targets[0]!.page.framing[0]?.issues, ['covered'])
+      assert.equal(outcome(veiled, 'blocks_visible', 'w1280-light'), 'failed')
     },
   )
 

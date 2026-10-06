@@ -16,7 +16,10 @@
  * @typedef {{ width: number, height: number, viewportWidth: number, viewportHeight: number,
  *   overflowPx: number, overflowing: { element: string, rightPx: number }[], sections: ({ id: string } & Box)[],
  *   blocks: BlockMeasure[], shown: BlockMeasure[], framing: BlockMeasure[] }} PageMeasure
- * @typedef {PageMeasure & { unmeasured: number }} PageAnswer the measure, and how many labels and texts outside the
+ * @typedef {BlockMeasure & { probe: { x: number, y: number } | null }} ProbedMeasure a measure, and the point the
+ *   DevTools protocol is to hit-test when only it can tell what is drawn over the text (coverOf; capture-html strips it)
+ * @typedef {Omit<PageMeasure, 'blocks' | 'shown' | 'framing'> & { blocks: ProbedMeasure[], shown: ProbedMeasure[],
+ *   framing: ProbedMeasure[], unmeasured: number }} PageAnswer the measure, and how many labels and texts outside the
  *   blocks it left out past the receipt's bound (the kernel fails the target on any)
  */
 
@@ -179,29 +182,104 @@ function keepScroll(el) {
 }
 
 /**
- * Whether something else is drawn over the block's first line of text, seen from the middle of it with the block
- * scrolled into view, every scroll then put back. Fixed and sticky elements (a header that follows the reader) do not
- * count.
+ * The first text an element shows, and the point in the middle of its first line (at most 40px in) where the cover
+ * check looks, in the viewport; or null when it shows none.
+ * @param {Element} el
+ * @returns {{ holder: Element, x: number, y: number } | null}
+ */
+function firstText(el) {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent?.trim() || !node.parentElement) continue
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    const line = range.getClientRects()[0]
+    if (!line || line.width < 2 || line.height < 2) continue
+    return { holder: node.parentElement, x: line.left + Math.min(line.width / 2, 40), y: line.top + line.height / 2 }
+  }
+  return null
+}
+
+/**
+ * Whether an element draws generated content (::before or ::after), which hit-testing reports as the element itself.
  * @param {Element} el
  */
+function drawsGenerated(el) {
+  return ['::before', '::after'].some((p) => !['none', 'normal'].includes(getComputedStyle(el, p).content))
+}
+
+/**
+ * What a point on a text hits, as a cover. The text's own element is 'clear', unless it draws generated content:
+ * a pseudo-element hit-tests as the element that draws it, so only the DevTools protocol can tell one drawn over the
+ * text from the text ('generated', which capture-html asks it). Anything else is 'covered': a child of the element or
+ * one around it, drawn over the text (an ancestor's own ::after, or a background the text sits below), or another
+ * element, unless that is fixed or sticky (a header that follows the reader).
+ * @param {Element} el
+ * @param {Element} holder the element that holds the text
+ * @param {Element | null} hit
+ * @returns {'clear' | 'covered' | 'generated'}
+ */
+function coverOf(el, holder, hit) {
+  if (!hit) return 'clear'
+  if (hit === holder) return drawsGenerated(hit) ? 'generated' : 'clear'
+  if (hit.contains(holder)) return 'covered'
+  const stop = el.contains(hit) ? el : null
+  for (let a = /** @type {Element | null} */ (hit); a && a !== stop; a = a.parentElement) {
+    const position = getComputedStyle(a).position
+    if (position === 'fixed' || position === 'sticky') return 'clear'
+  }
+  return 'covered'
+}
+
+/**
+ * Whether a point in the viewport is inside every box around an element that clips or scrolls what overflows it.
+ * @param {Element} el
+ * @param {number} x
+ * @param {number} y
+ */
+function inView(el, x, y) {
+  if (x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight) return false
+  for (let a = el.parentElement; a; a = a.parentElement) {
+    const style = getComputedStyle(a)
+    if (style.overflowX === 'visible' && style.overflowY === 'visible') continue
+    const r = a.getBoundingClientRect()
+    if (x < r.left || x > r.right || y < r.top || y > r.bottom) return false
+  }
+  return true
+}
+
+/**
+ * Whether something else is drawn over the element's first text, seen from the middle of its first line with the
+ * element scrolled into view (to its start, when it is taller than the box that scrolls it), every scroll then put
+ * back (coverOf). A first line no scroll brings into view is not judged here: where the element sits says why.
+ * @param {Element} el
+ * @returns {'clear' | 'covered' | 'generated'}
+ */
 function isCovered(el) {
-  const range = document.createRange()
-  range.selectNodeContents(el)
   const restore = keepScroll(el)
   try {
     el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
-    const line = range.getClientRects()[0]
-    if (!line || line.width < 2 || line.height < 2) return false
-    const hit = document.elementFromPoint(line.left + Math.min(line.width / 2, 40), line.top + line.height / 2)
-    if (!hit || el.contains(hit) || hit.contains(el)) return false
-    for (let a = /** @type {Element | null} */ (hit); a; a = a.parentElement) {
-      const position = getComputedStyle(a).position
-      if (position === 'fixed' || position === 'sticky') return false
+    let text = firstText(el)
+    if (text && !inView(el, text.x, text.y)) {
+      el.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'instant' })
+      text = firstText(el)
     }
-    return true
+    if (!text || !inView(el, text.x, text.y)) return 'clear'
+    return coverOf(el, text.holder, document.elementFromPoint(text.x, text.y))
   } finally {
     restore()
   }
+}
+
+/**
+ * Where, on the page as it opens, the protocol is to hit-test an element whose cover is 'generated': its first text's
+ * point, in page coordinates.
+ * @param {Element} el
+ * @returns {{ x: number, y: number } | null}
+ */
+function probeOf(el) {
+  const text = firstText(el)
+  return text ? { x: Math.round(text.x + window.scrollX), y: Math.round(text.y + window.scrollY) } : null
 }
 
 /**
@@ -388,7 +466,7 @@ function contrastOf(el, ctx) {
  * @param {Element} el
  * @param {Box} page
  * @param {OffscreenCanvasRenderingContext2D} ctx
- * @returns {BlockMeasure}
+ * @returns {ProbedMeasure}
  */
 function measureBlock(el, page, ctx) {
   const box = boxOf(el)
@@ -396,7 +474,9 @@ function measureBlock(el, page, ctx) {
   const issues = hidden.length > 0 ? hidden : placementIssues(el, box, page)
   const contrast = contrastOf(el, ctx)
   if (contrast.ratio !== null && contrast.ratio < contrast.floor) issues.push('low_contrast')
-  if (hidden.length === 0 && !issues.includes('off_page') && isCovered(el)) issues.push('covered')
+  const cover = hidden.length === 0 && !issues.includes('off_page') ? isCovered(el) : 'clear'
+  if (cover === 'covered') issues.push('covered')
+  const shown = issues.every((i) => i === 'low_contrast')
   return {
     id: el.getAttribute('data-block') ?? '',
     section: el.closest('[data-section]')?.getAttribute('data-section') ?? null,
@@ -404,6 +484,7 @@ function measureBlock(el, page, ctx) {
     fontPx: Math.round(Number.parseFloat(getComputedStyle(el).fontSize) * 10) / 10,
     issues,
     contrast,
+    probe: cover === 'generated' && shown ? probeOf(el) : null,
   }
 }
 
@@ -501,7 +582,12 @@ const IN_PAGE = [
   cutsOwnText,
   placementIssues,
   keepScroll,
+  firstText,
+  drawsGenerated,
+  coverOf,
+  inView,
   isCovered,
+  probeOf,
   paint,
   opacityOf,
   textAlpha,
