@@ -29,7 +29,8 @@ test('connections · Knowledge shows both, and nothing claims to be connected', 
   await expect(connections(page)).toContainText('Your work can be reachable, without becoming public.')
   await expect(connections(page).getByRole('button', { name: 'Review the read-only access' })).toBeVisible()
   await expect(connections(page).getByRole('button', { name: 'Preview the update' })).toBeVisible()
-  await expect(connections(page)).not.toContainText(/\bConnected\b/)
+  // Nothing here says it is connected: each sheet ends saying none is.
+  await expect(connections(page)).not.toContainText(/\bconnected\b/i)
 })
 
 test('connections · the access sheet says what an assistant could read, what never, and that none is connected', async ({
@@ -43,6 +44,9 @@ test('connections · the access sheet says what an assistant could read, what ne
     'Meeting recaps, the current brief, the project’s reports and project search',
   )
   await expect(access(page)).toContainText('Personal notes, private conversations, credentials and work controls')
+  await expect(access(page)).toContainText(
+    'Current membership + source eligibility + outbound permission + a grant bound to one assistant',
+  )
   await expect(access(page)).toContainText('Stops future access. It can’t erase copies already received elsewhere.')
   await expect(access(page)).toContainText('No assistant is connected, and none can be from here yet')
   await access(page).getByRole('button', { name: 'Close' }).click()
@@ -71,6 +75,13 @@ test('connections · the update is built from the newest closed meeting, with on
   await expect(preview(page)).not.toContainText('Lucía')
   await expect(preview(page)).not.toContainText('Fixture viewer')
   await expect(update(page)).toContainText('No Slack channel is connected. Nothing is sent from here.')
+})
+
+test('connections · with a meeting running, the update is still the newest closed one’s', async ({ page }) => {
+  await page.goto(`${PAGE}&call=on`)
+  await connections(page).getByRole('button', { name: 'Preview the update' }).click()
+  await expect(preview(page)).toContainText('Fixture project · Project update · Oct 4')
+  await expect(preview(page)).toContainText('Decided: Keep the room checks on fixtures')
 })
 
 test('connections · Copy the update copies exactly the preview, and says so', async ({ page, context }) => {

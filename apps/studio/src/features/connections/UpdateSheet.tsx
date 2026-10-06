@@ -47,7 +47,7 @@ export function UpdateSheet(props: Props) {
       <Waiting words="Reading the newest meeting…" waiting={read.waiting} />
       {read.failed && (
         <p className="sheet-lead" role="alert">
-          The meeting’s recap can’t be read now.{' '}
+          {read.recap ? 'This may be out of date.' : 'The meeting’s recap can’t be read now.'}{' '}
           <button type="button" className="text-button" onClick={read.again}>
             Try again
           </button>
@@ -65,6 +65,7 @@ function Compose({ recap, title, projectId }: { recap: MeetingRecap; title: stri
   const previewId = useId()
   const lines = updateLines(recap)
   const [changed, setChanged] = useState<Readonly<Record<string, boolean>>>({})
+  if (lines.length === 0) return <p className="sheet-lead">That meeting’s recap has nothing to share.</p>
   const chosen = new Set(lines.filter((l) => changed[l.key] ?? l.chosen).map((l) => l.key))
   const link = `${window.location.origin}${routePath({ projectId, view: 'studio' })}`
   const text = updateText({ title, recap, lines, chosen, link, day: dayOf })
@@ -98,18 +99,18 @@ function Compose({ recap, title, projectId }: { recap: MeetingRecap; title: stri
 function Copyable({ text, ready }: { text: string; ready: boolean }) {
   const pre = useRef<HTMLPreElement>(null)
   const [said, setSaid] = useState<string | null>(null)
+  // Where copying isn't allowed (or there is no clipboard at all), the text is selected for the keyboard's copy.
+  const select = () => {
+    const range = document.createRange()
+    if (pre.current) range.selectNodeContents(pre.current)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    setSaid('Selected: copy it with your keyboard.')
+  }
   const copy = () => {
     if (!ready) return
-    navigator.clipboard.writeText(text).then(
-      () => setSaid('Copied. Paste it where your team reads it.'),
-      () => {
-        const range = document.createRange()
-        if (pre.current) range.selectNodeContents(pre.current)
-        window.getSelection()?.removeAllRanges()
-        window.getSelection()?.addRange(range)
-        setSaid('Selected: copy it with your keyboard.')
-      },
-    )
+    if (!('clipboard' in navigator)) return select()
+    navigator.clipboard.writeText(text).then(() => setSaid('Copied. Paste it where your team reads it.'), select)
   }
   return (
     <>

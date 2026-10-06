@@ -33,11 +33,13 @@ His sketch says «Nothing connects or sends from this sketch», and so does this
   - the project's title, «Project update», and the date of that meeting;
   - the chosen lines, as recorded;
   - a link to the project.
-  - No one's name, and nothing else.
+  - No names are added (who proposed or decided stays out); each line is as recorded, and nothing else goes.
 - **«Copy the update»** copies exactly that text and says so. Where copying isn't allowed, it selects the text instead.
 - **The sheet's last line:** «No Slack channel is connected. Nothing is sent from here.»
 - **With no closed meeting:** «An update is built from a closed meeting’s recap. There is none yet.», and nothing to copy.
-- **A recap that can't be read** says so, with Try again.
+- **A recap that can't be read** says so, with Try again; read before and failing later, «This may be out of date.»
+- **A recap with nothing decided, made or open:** «That meeting’s recap has nothing to share.»
+- **The newest closed meeting**, never the one running.
 
 ## The proposed API (A19, issue #105; not used here)
 
@@ -57,6 +59,7 @@ For Davide, when he qualifies it:
   - Knowledge shows Connections with both parts; nothing claims to be connected;
   - the access sheet lists the allowed reads, what is excluded, the policy and the revocation, names the project, and says no assistant is connected; Close returns the focus;
   - the update's preview is built from the newest closed meeting: the decision in it, the open item not, until its box is checked; no one's name;
+  - with a meeting running, the update is still the newest closed one's;
   - Copy the update copies exactly the preview and says so;
   - with no closed meeting, it says so, with nothing to copy;
   - a recap that can't be read says so, with Try again;
