@@ -6,7 +6,7 @@
 
 import { safeHref } from '@sophia/report/markdown'
 import { checkCss, mediaWidths, SWEEP_WIDTHS } from './css.ts'
-import { attr, depthOf, elements, hasAncestor, inHtml, lineAt, type Document, type Element } from './dom.ts'
+import { attr, depthOf, elements, hasAncestor, inHtml, isText, lineAt, type Document, type Element } from './dom.ts'
 import { error, warning, type Finding } from './findings.ts'
 import { REFERENCE_ATTRIBUTES, TEXT_ATTRIBUTES } from './framing.ts'
 
@@ -82,7 +82,6 @@ const ELEMENTS = new Set([
   'del',
   'ins',
   'bdi',
-  'bdo',
   'details',
   'summary',
 ])
@@ -108,6 +107,9 @@ const GLOBAL_ATTRIBUTES = new Set([
  */
 const REFUSED: Readonly<Record<string, string>> = {
   ol: ': an ordered list numbers its items by their place on the page, a number no block holds; a list is <ul>',
+  bdo:
+    ': it overrides the order a text is drawn in, so "12.50" is drawn "05.21" while the text read stays "12.50"; ' +
+    'set a direction with dir, or isolate a text with <bdi>',
 }
 
 /** Attributes only some elements may carry. */
@@ -363,6 +365,31 @@ function structureFindings(html: string, all: Element[]): Finding[] {
 }
 
 /** Every finding the static profile has about an authored page and its stylesheet. */
+/**
+ * The characters that override the order a text is drawn in (LEFT-TO-RIGHT and RIGHT-TO-LEFT OVERRIDE): written, or as
+ * a character reference, before a text or a block, they draw "12.50" as "05.21" while every check reads "12.50" (#117).
+ */
+const OVERRIDES = /[\u202D\u202E]/u
+
+/** A text or an attribute value that carries a bidi override character, as a finding, or null. */
+function overrideFindings(html: string, all: Element[]): Finding[] {
+  const out: Finding[] = []
+  for (const el of all) {
+    const values = [...el.attrs.map((a) => a.value), ...el.childNodes.filter(isText).map((n) => n.value)]
+    if (values.some((v) => OVERRIDES.test(v)))
+      out.push(
+        error(
+          'bidi_override',
+          'index.html',
+          `<${el.tagName}> carries a bidi override character (U+202D or U+202E): ` +
+            'it draws a text in an order other than the one read',
+          { line: lineOf(html, el) },
+        ),
+      )
+  }
+  return out
+}
+
 export function checkPolicy(doc: Document, html: string, css: string | null): Finding[] {
   if (Buffer.byteLength(html, 'utf8') > HTML_BYTES)
     return [error('html_too_large', 'index.html', `index.html is limited to ${HTML_BYTES} bytes`)]
@@ -371,7 +398,7 @@ export function checkPolicy(doc: Document, html: string, css: string | null): Fi
     return [error('html_too_deep', 'index.html', `index.html nests elements ${depth} deep; at most ${MAX_DEPTH}`)]
   const all = elements(doc)
   const out: Finding[] = all.flatMap((el) => elementFindings(html, el))
-  out.push(...structureFindings(html, all))
+  out.push(...structureFindings(html, all), ...overrideFindings(html, all))
   if (!/^\s*<!doctype html>/i.test(html)) out.push(warning('no_doctype', 'index.html', 'start with <!doctype html>'))
   if (!all.some((el) => el.tagName === 'main')) out.push(warning('no_main', 'index.html', 'the report has no <main>'))
   if (!all.some((el) => attr(el, 'data-section') !== null))

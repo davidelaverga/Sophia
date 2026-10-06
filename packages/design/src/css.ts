@@ -185,8 +185,37 @@ function uncaptured(part: CssNode): string | null {
   return part.type === 'GeneralEnclosed' || part.type === 'FeatureFunction' ? 'a condition of its own' : null
 }
 
+/**
+ * The values `unicode-bidi` may take: those that set or isolate a direction. `bidi-override` and `isolate-override`
+ * draw a text's characters in the order the direction gives, so "12.50" under `direction: rtl` is drawn "05.21" while
+ * every check reads "12.50" (#117).
+ */
+const BIDI = new Set([
+  'normal',
+  'embed',
+  'isolate',
+  'plaintext',
+  'initial',
+  'inherit',
+  'unset',
+  'revert',
+  'revert-layer',
+])
+
+/** Whether a declaration's value is one keyword of `allowed`. */
+function isOneOf(value: CssNode, allowed: ReadonlySet<string>): boolean {
+  const parts: CssNode[] = []
+  walk(value, (part) => {
+    if (part.type !== 'Value') parts.push(part)
+  })
+  const [only] = parts
+  return parts.length === 1 && only?.type === 'Identifier' && allowed.has(only.name.toLowerCase())
+}
+
 /** Why a declaration's value is refused, for the properties held to keywords (`color-scheme`, `position`), or null. */
 function keywordIssue(property: string, node: CssNode & { type: 'Declaration' }): string | null {
+  if (property === 'unicode-bidi' && !isOneOf(node.value, BIDI))
+    return `${node.property} may set or isolate a direction, not override it: an override draws a text's characters in another order than the one read`
   if (property === 'color-scheme' && !isLightOnly(node.value))
     return `${node.property} may ask for the light scheme only: the captures are taken in it, and a dark one is drawn where no capture shows it`
   if (property === 'position' && !isPlacedOnPage(node.value))

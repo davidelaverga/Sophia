@@ -776,6 +776,43 @@ describe('a tooltip or an accessible name carries no text the page does not show
     const beside = html(good).replace('</main>', '<span role="img" aria-labelledby="sources-h"></span></main>')
     assert.deepEqual(codes(withHtml(good, beside.replace('<h2>Sources</h2>', '<h2 id="sources-h">Sources</h2>'))), [])
   })
+  // #117: a bidi override draws a text's characters in another order than the one every check reads.
+  it('refuses a bidi override in markup, in CSS and as a character, and keeps directions and isolation', () => {
+    const page = html(good)
+    const altered = (from: string, to: string) => {
+      const next = page.replace(from, to)
+      assert.notEqual(next, page, from)
+      return codes(withHtml(good, next))
+    }
+    const css = (rule: string): string[] => codes(withCss(good, `${rule}\n`))
+    for (const [from, to, code] of [
+      ['<h1>Report</h1>', '<h1><bdo dir="rtl">Report</bdo></h1>', 'unsafe_element'],
+      ['<p data-block="b1">', '<bdo dir="rtl"><p data-block="b1">', 'unsafe_element'],
+      ['<h1>Report</h1>', '<h1>\u202eReport</h1>', 'bidi_override'],
+      ['<h1>Report</h1>', '<h1>&#x202E;Report</h1>', 'bidi_override'],
+      ['<h1>Report</h1>', '<h1>&#8237;Report</h1>', 'bidi_override'],
+      ['<h1>Report</h1>', '<h1 title="&#x202E;Report">Report</h1>', 'bidi_override'],
+      ['<h1>Report</h1>', '<h1 style="unicode-bidi:bidi-override;direction:rtl">Report</h1>', 'css_unsafe'],
+    ] as const)
+      assert.ok(altered(from, to).includes(code), to)
+    for (const bad of [
+      'h1{unicode-bidi:bidi-override;direction:rtl}',
+      '[data-block]{unicode-bidi:isolate-override;direction:rtl}',
+      'p{unicode-bidi:var(--u)}',
+      'p{UNICODE-BIDI:BIDI-OVERRIDE}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    for (const ok of [
+      'p{direction:rtl}',
+      'p{unicode-bidi:isolate}',
+      'p{unicode-bidi:plaintext}',
+      'p{unicode-bidi:embed;direction:ltr}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+    assert.deepEqual(altered('<h1>Report</h1>', '<h1 dir="ltr">Report</h1>'), [])
+    assert.deepEqual(altered('<h1>Report</h1>', '<h1><bdi>Report</bdi></h1>'), [])
+    assert.deepEqual(altered('<h2>Sources</h2>', '<h2>\u2068Sources\u2069</h2>'), [])
+  })
   // #117: a role that takes away research's meaning, or replaces it, changes what a screen reader is given of it.
   it('refuses a role that strips or replaces the meaning of research, and keeps the roles that only annotate it', () => {
     for (const [from, to] of [
