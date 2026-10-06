@@ -13,14 +13,34 @@ import { barTarget, type Target } from './discussion-view.ts'
 /** A message's first words, for the line that says which one wasn't confirmed. */
 const firstWords = (text: string) => (text.length > 48 ? `${text.slice(0, 47).trimEnd()}…` : text)
 
-export function useRoomMessage(projectId: string, identity: Identity, draft: string, onDraft: (text: string) => void) {
+/** A message to the room, and the entry of the discussion it answers (A20, the vision flag's), if any. */
+interface RoomMessage {
+  text: string
+  replyTo: string | null
+}
+
+/** The reply under way: the entry answered (or none), and what to do once the reply is recorded. */
+export interface ReplyUnderWay {
+  id: string | null
+  done: () => void
+}
+
+const NO_REPLY: ReplyUnderWay = { id: null, done: () => undefined }
+
+export function useRoomMessage(
+  projectId: string,
+  identity: Identity,
+  draft: string,
+  onDraft: (text: string) => void,
+  reply: ReplyUnderWay = NO_REPLY,
+) {
   const queryClient = useQueryClient()
-  const write = useAdmission<string, ContributionReceipt>(async (key, text) => {
+  const write = useAdmission<RoomMessage, ContributionReceipt>(async (key, message) => {
     try {
       return await submitContribution(identity.token, projectId, key, {
         source: null,
-        text,
-        threadId: null,
+        text: message.text,
+        threadId: message.replyTo,
         artifactVersionId: null,
         intent: 'discuss',
       })
@@ -40,11 +60,13 @@ export function useRoomMessage(projectId: string, identity: Identity, draft: str
    * still holds what was sent: words written meanwhile stay.
    */
   const send = async () => {
-    const text = (unknown ?? draft).trim()
-    if (text && (await write.send(text)) && latest.current.trim() === text) onDraft('')
+    const message = unknown ?? { text: draft.trim(), replyTo: reply.id }
+    if (!message.text || !(await write.send(message))) return
+    if (message.replyTo) reply.done()
+    if (latest.current.trim() === message.text) onDraft('')
   }
   const words = unknown
-    ? `Not sent to the room: “${firstWords(unknown)}”`
+    ? `Not sent to the room: “${firstWords(unknown.text)}”`
     : write.state.status === 'rejected'
       ? write.state.error.message
       : null

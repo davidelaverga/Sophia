@@ -1799,6 +1799,53 @@ img.avatar {
   color: var(--text-2);
   font-size: 12px;
 }
+/* Replies (A20, the vision flag's): Reply after a message's words, the quote of what a reply answers above them, and
+   above the bar what is being answered, with ✕. */
+.contribution:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+.contribution-reply {
+  min-height: 24px;
+  margin-left: 6px;
+  font-size: 12px;
+}
+.contribution-quote {
+  display: block;
+  max-width: 100%;
+  margin: 0 0 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+button.contribution-quote {
+  min-height: 24px;
+  cursor: pointer;
+}
+button.contribution-quote:hover {
+  color: var(--text-2);
+}
+.replying {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 4px 4px 4px 10px;
+  border-left: 2px solid var(--halo);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.replying-words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .brief-request {
   display: flex;
   flex-wrap: wrap;

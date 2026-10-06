@@ -1,8 +1,11 @@
 // The chat: the project's recent discussion and the conversation with Sophia, typed and, as live captions, spoken
 // (CX-0023), newest at the bottom, then the composer. It lives in the room's side panel (StudioShell), as meeting apps have it, so the stage keeps Sophia's
 // light and the people at its centre. Discussion never starts work.
-import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { DiscussionEntry, Snapshot } from '@sophia/contracts'
+import { listReplies, type DiscussionReply } from '../../api/vision.ts'
+import { VISION } from '../../app/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { captionText, type CaptionTurn } from './captions.ts'
@@ -10,6 +13,8 @@ import { chatTimeline, type ChatEntryItem, type ChatTurn } from './chat-view.ts'
 import { Composer } from './Composer.tsx'
 import { authorLabel } from './conversation-view.ts'
 import { NoticeCard } from './NoticeCard.tsx'
+import { quoteOf } from './replies.ts'
+import type { Replying } from './ReplyingTo.tsx'
 
 interface Props {
   projectId: string
@@ -54,11 +59,19 @@ export function Conversation(props: Props) {
   }
   const timeline = chatTimeline(room.chat, room.notices, room.captions)
   const empty = discussion.length === 0 && timeline.length === 0
+  const [replying, setReplying] = useState<Replying | null>(null)
+  const replies = useReplies(projectId, identity, snapshot?.cursor)
   return (
     <div className="conversation">
       <div className="conversation-history" ref={history} onScroll={onScroll}>
         {empty && <p className="chat-empty">Messages stay in this conversation. Notes live in the brief.</p>}
-        <Discussion entries={discussion} me={me} names={names} />
+        <Discussion
+          entries={discussion}
+          me={me}
+          names={names}
+          replies={replies}
+          onReply={VISION ? setReplying : undefined}
+        />
         {timeline.length > 0 && (
           <ol className="chat-messages" aria-label="Conversation with Sophia">
             {timeline.map((entry) => (
@@ -81,9 +94,22 @@ export function Conversation(props: Props) {
         draft={draft}
         onDraft={onDraft}
         onShowRoom={onShowRoom}
+        replying={replying}
+        onStopReplying={() => setReplying(null)}
       />
     </div>
   )
+}
+
+/** Which entries of the discussion answer which (A20, proposed; the vision flag's), read again as the feed moves. */
+function useReplies(projectId: string, identity: Identity, cursor: string | undefined) {
+  const read = useQuery({
+    queryKey: ['vision', 'replies', projectId, identity.name, cursor],
+    queryFn: ({ signal }) => listReplies(identity.token, projectId, signal),
+    placeholderData: keepPreviousData,
+    enabled: VISION,
+  })
+  return new Map((read.data?.replies ?? []).map((r) => [r.entryId, r.replyTo]))
 }
 
 function entryKey(entry: ChatEntryItem): string {
@@ -133,18 +159,69 @@ interface DiscussionProps {
   entries: readonly DiscussionEntry[]
   me: string
   names: ReadonlyMap<string, string>
+  /** What each reply answers, by the reply's entry id (A20). */
+  replies: ReadonlyMap<string, DiscussionReply['replyTo']>
+  /** Reply to an entry (the vision flag's): absent, no entry offers it. */
+  onReply: ((replying: Replying) => void) | undefined
 }
 
-function Discussion({ entries, me, names }: DiscussionProps) {
+function Discussion({ entries, me, names, replies, onReply }: DiscussionProps) {
   if (entries.length === 0) return null
+  const here = new Set(entries.map((e) => e.id))
   return (
     <ol className="discussion" aria-label="Recent discussion">
-      {entries.map((entry) => (
-        <li key={entry.id} className="contribution">
-          <span className="contribution-author">{authorLabel(entry.actorId, me, names)}</span>
-          <span className="contribution-text">{entry.text}</span>
-        </li>
-      ))}
+      {entries.map((entry) => {
+        const author = authorLabel(entry.actorId, me, names)
+        const answers = replies.get(entry.id)
+        return (
+          <li key={entry.id} id={`entry-${entry.id}`} className="contribution" tabIndex={-1}>
+            {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
+            <span className="contribution-author">{author}</span>
+            <span className="contribution-text">{entry.text}</span>
+            {onReply && (
+              <button
+                type="button"
+                className="text-button contribution-reply"
+                aria-label={`Reply to ${author}`}
+                onClick={() => onReply({ id: entry.id, author, quote: quoteOf(entry.text) })}
+              >
+                Reply
+              </button>
+            )}
+          </li>
+        )
+      })}
     </ol>
+  )
+}
+
+/**
+ * What a reply answers, quoted above its words: it takes you to that message while the discussion still holds it, and
+ * is plain words when it doesn't.
+ */
+function Quote(props: {
+  answers: DiscussionReply['replyTo']
+  here: boolean
+  me: string
+  names: ReadonlyMap<string, string>
+}) {
+  const { answers } = props
+  const author = authorLabel(answers.actorId, props.me, props.names)
+  const words = `↪ ${author}: “${quoteOf(answers.excerpt)}”`
+  if (!props.here) return <span className="contribution-quote">{words}</span>
+  const go = () => {
+    const original = document.getElementById(`entry-${answers.id}`)
+    original?.scrollIntoView({ block: 'nearest' })
+    original?.focus({ preventScroll: true })
+  }
+  return (
+    <button
+      type="button"
+      className="contribution-quote"
+      aria-label={`Replying to ${author}: ${answers.excerpt}`}
+      onClick={go}
+    >
+      {words}
+    </button>
   )
 }
