@@ -267,6 +267,33 @@ describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-00
     assert.deepEqual(swap(`<a data-cite="${A}" href="#src-${A}" aria-label="Independently verified">[s]</a>`), [
       'citation_marker',
     ]))
+  // Every attribute whose text a reader meets without seeing it (SDD-01-CX-0031, CX-0032), on the marker and its link.
+  const claim = 'Host three is free'
+  const textAttributes = [
+    'title',
+    'aria-label',
+    'aria-description',
+    'aria-roledescription',
+    'aria-valuetext',
+    'aria-placeholder',
+    'aria-keyshortcuts',
+    'aria-braillelabel',
+    'aria-brailleroledescription',
+    'aria-colindextext',
+    'aria-rowindextext',
+  ]
+  it('refuses a claim in any text-bearing attribute of the marker', () => {
+    for (const name of textAttributes) {
+      const to = `<a data-cite="${A}" href="#src-${A}" ${name}="${claim}">[s]</a>`
+      assert.deepEqual(swap(to), ['citation_marker'], to)
+    }
+  })
+  it("refuses a claim in any text-bearing attribute of the marker's link", () => {
+    for (const name of textAttributes) {
+      const to = `<sup data-cite="${A}"><a href="#src-${A}" ${name}="${claim}">1</a></sup>`
+      assert.deepEqual(swap(to), ['citation_marker'], to)
+    }
+  })
   it('accepts the ways a page marks a citation', () => {
     for (const ok of [
       `<sup data-cite="${A}">1</sup>`,
@@ -275,6 +302,14 @@ describe('a citation marker cannot carry a claim or lead elsewhere (SDD-01-CX-00
       `<a data-cite="${A}" href="#src-${A}" title="Source 3">(a)</a>`,
       `<span data-cite="${A}" aria-label="Fonte 4"></span>`,
       `<sup data-cite="${A}">†</sup>`,
+    ])
+      assert.deepEqual(swap(ok), [], ok)
+  })
+  it('accepts a citation mark or name in any text-bearing attribute of the marker or its link', () => {
+    for (const ok of [
+      `<a data-cite="${A}" href="#src-${A}" aria-description="Source 4" aria-braillelabel="[s]">[s]</a>`,
+      `<sup data-cite="${A}" aria-roledescription="" aria-label="Fuente 2"><a href="#src-${A}" title="Source [2]">2</a></sup>`,
+      `<sup data-cite="${A}"><a href="#src-${A}" aria-description="Fonte 4" aria-braillelabel="(4)">4</a></sup>`,
     ])
       assert.deepEqual(swap(ok), [], ok)
   })
@@ -337,6 +372,9 @@ describe('a tooltip or an accessible name carries no text the page does not show
       ['<p data-block="b1">', '<p data-block="b1" title="Verified by NIST">'],
       ['<h1>', '<h1 aria-description="The only safe host">'],
       ['<main>', '<main><nav aria-roledescription="independently audited"><a href="#s1">Findings</a></nav>'],
+      ['</main>', '<table><tr><th scope="col" abbr="Host three is free">Host</th></tr></table></main>'],
+      ['<p data-block="b1">', '<p data-block="b1" aria-keyshortcuts="Host three is free">'],
+      ['</main>', '<table><tr aria-rowindextext="Host three is free"><th>Host</th></tr></table></main>'],
     ]
     for (const [from, to] of refused) assert.deepEqual(swap(from, to), ['attribute_text'], to)
   })
@@ -351,6 +389,7 @@ describe('a tooltip or an accessible name carries no text the page does not show
       ['<main>', '<main><nav aria-label="Indice 2"><a href="#s1">Findings</a></nav>'],
       ['<h1>', '<h1 id="t">'],
       ['<main>', '<main aria-labelledby="t">'],
+      ['</main>', '<table><tr><th scope="col" abbr="Cost">Cost per month, in USD</th></tr></table></main>'],
     ]
     for (const [from, to] of accepted) assert.deepEqual(swap(from, to), [], to)
   })

@@ -8,7 +8,8 @@
 // Text a reader meets without seeing it on the page (a tooltip, a screen reader's name) is held tighter, because no
 // screenshot shows it: it repeats a visible heading, caption, summary, table header, navigation
 // link or source entry, or it is a plain name (one word, or a word and a numbered id: "Contents", "Table b5").
-// `aria-labelledby`, which points at visible text, is free. A citation mark's names are citations.ts's.
+// `aria-labelledby`, which points at visible text, is free. A citation marker and its link carry the same attributes,
+// held by citations.ts to a citation mark or name.
 
 import {
   attr,
@@ -129,16 +130,25 @@ function textFindings(doc: Document, html: string): Finding[] {
   return out
 }
 
-/** Attributes whose text a reader meets: a tooltip, or what assistive technology reads. */
-const TEXT_ATTRIBUTES = [
+/**
+ * Attributes whose text a reader meets without seeing it on the page: a tooltip, a table header's short form, and every
+ * ARIA attribute whose value is a string (WAI-ARIA 1.3), which assistive technology reads or puts on a braille display.
+ * The profile allows no other attribute that shows text, and CSS cannot draw one (`attr()` is refused). citations.ts holds
+ * a citation marker and its link to the same list.
+ */
+export const TEXT_ATTRIBUTES: readonly string[] = [
   'title',
+  'abbr',
   'aria-label',
   'aria-description',
   'aria-roledescription',
   'aria-valuetext',
   'aria-placeholder',
+  'aria-keyshortcuts',
   'aria-braillelabel',
   'aria-brailleroledescription',
+  'aria-colindextext',
+  'aria-rowindextext',
 ]
 /** A name that says nothing of its own: one word, or one word and a numbered id. */
 const PLAIN_NAME = /^\p{L}{1,24}(?: \p{L}{0,3}\d[\p{L}\p{N}-]{0,10})?$/u

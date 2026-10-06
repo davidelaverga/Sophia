@@ -2,11 +2,13 @@
 // citations, so a marker is held to a shape that cannot carry a claim or lead elsewhere: the element marked
 // `data-cite="<sourceId>"`, or one link inside it, and nothing more; a short mark for text ("1", "[s]", "(a)", "†",
 // or none); and when it links, only to the page's own entry for that source (the element marked `data-source` with the
-// same id). A name for assistive technology (`title`, `aria-label`) is held to the same mark, or a word and a number
-// ("Source 3").
+// same id). Every attribute that carries text a reader meets without seeing it (a tooltip, an accessible name or
+// description, a braille label: framing.ts's list), on the marker and on its link, is held to the same mark, or a word
+// and a number ("Source 3").
 
 import { attr, elements, isElement, lineAt, textOf, type Element } from './dom.ts'
 import { error, type Finding } from './findings.ts'
+import { TEXT_ATTRIBUTES } from './framing.ts'
 
 /** The elements a marker may be. */
 const MARKER_TAGS = new Set(['a', 'sup', 'span'])
@@ -41,8 +43,9 @@ function linkOf(marker: Element): Element | null | string {
   return only
 }
 
+/** The first text-bearing attribute on a marker or its link that is not a citation mark or name. */
 function nameIssue(el: Element): string | null {
-  for (const name of ['title', 'aria-label']) {
+  for (const name of TEXT_ATTRIBUTES) {
     const value = attr(el, name)
     if (value !== null && !MARK.test(value.replace(/\s+/gu, '')) && !NAME.test(value.trim().replace(/\s+/gu, ' ')))
       return `its ${name} ${JSON.stringify(value.slice(0, 40))} is not a citation mark`
