@@ -117,6 +117,10 @@ const lists = (detail: string, id: string) => detail.split(/[,;] /u).includes(id
 const issuesOf = (r: Receipt, target: string) =>
   Object.fromEntries((r.targets.find((t) => t.id === target)?.page.blocks ?? []).map((b) => [b.id, b.issues]))
 
+/** Seven gradients stacked as one background, the top one first, for the gradient stack test. */
+const seven = (top: string, rest: string) =>
+  [top, ...Array.from({ length: 6 }, () => rest)].map((g) => `linear-gradient(90deg,${g})`).join(',')
+
 /** A research table of two plans and their prices, its cells' text in spans, for the table placement test. */
 const researchTable = (id: string, cls = '', dir = '') =>
   `<table data-block="${id}" class="${cls}"${dir}><thead><tr><th><span>Plan</span></th><th><span>Price</span></th></tr></thead>` +
@@ -2134,6 +2138,65 @@ describe('the confined capture kernel', () => {
         assert.ok(widths?.detail?.includes(movedAt(width, 'm1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11')), `${width}`)
       for (const width of [599, 901])
         assert.ok(widths?.detail?.includes(movedAt(width, 'm1, m2, m3, m4, m5, m6, m8, m9, m10, m11')), `${width}`)
+    },
+  )
+
+  // The security review of ecf149b (4199947381): seven gradients stacked combine past 64 ways, so a reading was unknown,
+  // which the gate admits, while a black top gradient hid black research. Past the cap each channel is bounded instead.
+  // The owner's (4199983800): six wrappers and the paragraph each with one black gradient (k5), and seven hard-stop
+  // black-to-white layers (k6); and one white (k7) and one black (k8) layer, read exactly as before.
+  it(
+    'reads a stack of gradients past 64 combinations conservatively: a dark top over dark text is low, light layers read (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `body{font:24px/32px Arial;margin:0;padding:16px;background:#fff;color:#000} [data-block]{margin:0 0 32px}
+            .k1{background-image:${seven('#000,#000', 'red,blue')}}
+            .k2{background-image:${seven('rgba(255,255,255,.2),rgba(240,240,255,.2)', 'rgba(255,255,255,.2),rgba(250,240,230,.2)')}}
+            .k3{color:#fff;background-image:${seven('rgba(0,0,0,.3),rgba(0,0,40,.3)', 'rgba(0,0,0,.3),rgba(30,0,0,.3)')}}
+            .k4{background-image:${seven('rgba(0,0,0,.3),rgba(0,0,40,.3)', 'rgba(0,0,0,.3),rgba(30,0,0,.3)')}}
+            .nest,.k5{background-image:linear-gradient(black,black)} .nest{padding:1px}
+            .k6{background-image:${seven('black 100%,white 100%', 'black 100%,white 100%')}}
+            .k7{background-image:linear-gradient(white,white)} .k8{background-image:linear-gradient(black,black)}`,
+            `<main>
+          <p data-block="k1" class="k1">Not free.</p>
+          <p data-block="k2" class="k2">Readable.</p>
+          <p data-block="k3" class="k3">Readable.</p>
+          <p data-block="k4" class="k4">Not free.</p>
+          <div class="nest"><div class="nest"><div class="nest"><div class="nest"><div class="nest"><div class="nest">
+          <p data-block="k5" class="k5">Not free.</p></div></div></div></div></div></div>
+          <p data-block="k6" class="k6">Not free.</p>
+          <p data-block="k7" class="k7">Readable.</p>
+          <p data-block="k8" class="k8">Not free.</p>
+          </main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const measured = receipt.targets.find((t) => t.id === target)!.page
+        assert.deepEqual(
+          measured.blocks.map(contrastSeen),
+          [
+            ['k1', 'low'],
+            ['k2', 'read'],
+            ['k3', 'read'],
+            ['k4', 'low'],
+            ['k5', 'low'],
+            ['k6', 'low'],
+            ['k7', 'read'],
+            ['k8', 'low'],
+          ],
+          target,
+        )
+        const ratio = (id: string) => measured.blocks.find((b) => b.id === id)?.contrast.ratio ?? 0
+        assert.ok(ratio('k1') < 1.2 && ratio('k4') < 2, `${target}: ${ratio('k1')} ${ratio('k4')}`)
+        assert.ok(ratio('k2') >= 15 && ratio('k3') >= 10, `${target}: ${ratio('k2')} ${ratio('k3')}`)
+        assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
+      }
     },
   )
 

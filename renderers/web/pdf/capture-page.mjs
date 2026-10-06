@@ -857,6 +857,17 @@ function reachOf(el, generated) {
 }
 
 /**
+ * The box a background is clipped to, of the clips its layers name (`border-box, border-box` for two layers): the
+ * narrowest of them, so a background of several layers is read where every layer paints, as one of a single layer is
+ * (#117). `text` or `content-box` in any layer leaves the background unread.
+ * @param {string} clips the computed background-clip
+ */
+function clipOfLayers(clips) {
+  const each = listItems(clips)
+  return ['text', 'content-box', 'padding-box'].find((c) => each.includes(c)) ?? 'border-box'
+}
+
+/**
  * What an element paints that a text above it is read against, kept per element for the page: its own background
  * (and the box it is clipped to), a border, an inset shadow, whether its corners are rounded, and which of its
  * ::before and ::after paint anything.
@@ -869,7 +880,7 @@ function paintsOf(el, look) {
   const style = getComputedStyle(el)
   const paints = {
     own: style.backgroundImage !== 'none' || !isClear(look.ctx, style.backgroundColor),
-    clip: style.backgroundClip,
+    clip: clipOfLayers(style.backgroundClip),
     edge: bordersPaint(style, look.ctx),
     // A border image paints where its own widths say, into the padding box too (border-image-width), and an outline
     // drawn inward paints over the box's own content, so like an inset shadow each is paint anywhere in the box that is
@@ -2154,8 +2165,9 @@ function drawGround(ctx, scratch, combo, layers) {
 
 /**
  * The lowest contrast of a text's fill, drawn at its opacity, over every way the layers of each reading of what lies
- * beneath it can combine (combinations), each opacity group composited as the browser does (drawGround), or why it
- * cannot be read: an image that is not a gradient, or more than 64 ways for one reading.
+ * beneath it can combine (combinations), each opacity group composited as the browser does (drawGround), or, past 64
+ * ways for one reading, bounded channel by channel (boundedRatio); or why it cannot be read: an image that is not a
+ * gradient.
  * @param {OffscreenCanvasRenderingContext2D} ctx
  * @param {(Layer[] | null)[]} readings
  * @param {{ fill: string, opacity: number }} text
@@ -2171,7 +2183,10 @@ function worstOver(ctx, readings, text) {
       layers.map((l) => l.colours),
       64,
     )
-    if (!behind) return 'background_too_complex'
+    if (!behind) {
+      worst = Math.min(worst, boundedRatio(scratch, layers, text))
+      continue
+    }
     for (const combo of behind) {
       drawGround(ctx, scratch, combo, layers)
       const lo = luminance(pixelOf(ctx))
@@ -2183,6 +2198,135 @@ function worstOver(ctx, readings, text) {
     }
   }
   return worst
+}
+
+/**
+ * @typedef {[[number, number, number], [number, number, number]]} Span the least and the most each sRGB channel can be
+ */
+
+/**
+ * The lowest contrast a text can have over one reading's layers where they combine more than 64 ways (seven gradients
+ * stacked, say), read conservatively rather than left unknown (#117): each channel of what lies beneath is bounded
+ * layer by layer as drawGround draws it, over white, each layer at each of its colours and alphas, each opacity group
+ * composited apart and drawn at its opacity; the text is drawn at its opacity over both bounds; and where the text's
+ * luminance and its ground's can meet, it reads 1:1. So an opaque black gradient over black text reads low however
+ * many layers lie beneath it, while light layers under dark text read high; it may read a readable stack low, never a
+ * low one readable.
+ * @param {OffscreenCanvasRenderingContext2D} c a scratch 1×1 canvas
+ * @param {Layer[]} layers
+ * @param {{ fill: string, opacity: number }} text
+ */
+function boundedRatio(c, layers, text) {
+  const ground = groundSpan(c, layers)
+  const [t0 = 0, t1 = 0, t2 = 0, ta = 1] = rgbaOn(c, text.fill)
+  const e = ta * text.opacity
+  const t = [t0, t1, t2]
+  /** @type {Span} */
+  const drawn = [
+    rgbOf((k) => e * (t[k] ?? 0) + (1 - e) * ground[0][k]),
+    rgbOf((k) => e * (t[k] ?? 0) + (1 - e) * ground[1][k]),
+  ]
+  const [g0, g1] = ground.map((g) => luminance(g))
+  const [d0, d1] = drawn.map((g) => luminance(g))
+  if (g0 === undefined || g1 === undefined || d0 === undefined || d1 === undefined) return 1
+  if (d1 >= g0 && g1 >= d0) return 1
+  return d0 > g1 ? (d0 + 0.05) / (g1 + 0.05) : (g0 + 0.05) / (d1 + 0.05)
+}
+
+/**
+ * The span of each channel of what a reading's layers draw over white, as drawGround draws them.
+ * @param {OffscreenCanvasRenderingContext2D} c
+ * @param {Layer[]} layers
+ * @returns {Span}
+ */
+function groundSpan(c, layers) {
+  /** @type {Span} */
+  let span = [
+    [255, 255, 255],
+    [255, 255, 255],
+  ]
+  let i = 0
+  while (i < layers.length) {
+    const group = layers[i]?.group ?? ''
+    if (group === '') {
+      const alternatives = (layers[i]?.colours ?? []).map((colour) => rgbaOn(c, colour))
+      const [low, high] = span
+      span = [rgbOf((k) => spanOver(alternatives, low[k], k, 0)), rgbOf((k) => spanOver(alternatives, high[k], k, 1))]
+      i += 1
+      continue
+    }
+    /** @type {Layer[]} */
+    const run = []
+    for (let layer = layers[i]; layer?.group === group; i += 1, layer = layers[i]) run.push(layer)
+    span = groupOver(c, run, span)
+  }
+  return span
+}
+
+/**
+ * The least (`end` 0) or the most (1) a channel can be once one of `alternatives` is drawn over `under`, source-over.
+ * @param {number[][]} alternatives each as [r, g, b, alpha]
+ * @param {number} under
+ * @param {number} k the channel
+ * @param {number} end
+ */
+function spanOver(alternatives, under, k, end) {
+  const each = alternatives.map(([r = 0, g = 0, b = 0, a = 0]) => a * ([r, g, b][k] ?? 0) + (1 - a) * under)
+  return end === 0 ? Math.min(...each) : Math.max(...each)
+}
+
+/**
+ * The span once an opacity group's layers, composited apart on a clear canvas, are drawn over `under` at the group's
+ * opacity: the group's premultiplied colour and its alpha are bounded apart, each at the end that bounds the result.
+ * @param {OffscreenCanvasRenderingContext2D} c
+ * @param {Layer[]} run
+ * @param {Span} under
+ * @returns {Span}
+ */
+function groupOver(c, run, under) {
+  const fade = run[0]?.fade ?? 1
+  let premultiplied = [
+    [0, 0, 0],
+    [0, 0, 0],
+  ]
+  let alpha = [0, 0]
+  for (const layer of run) {
+    const alternatives = layer.colours.map((colour) => rgbaOn(c, colour))
+    premultiplied = premultiplied.map((p, end) => [0, 1, 2].map((k) => spanOver(alternatives, p[k] ?? 0, k, end)))
+    const alphas = alternatives.map(([, , , a = 0]) => a)
+    alpha = [
+      Math.min(...alphas.map((a) => a + (1 - a) * (alpha[0] ?? 0))),
+      Math.max(...alphas.map((a) => a + (1 - a) * (alpha[1] ?? 0))),
+    ]
+  }
+  const [low = [0, 0, 0], high = [0, 0, 0]] = premultiplied
+  return [
+    rgbOf((k) => fade * (low[k] ?? 0) + (1 - fade * (alpha[1] ?? 0)) * under[0][k]),
+    rgbOf((k) => fade * (high[k] ?? 0) + (1 - fade * (alpha[0] ?? 0)) * under[1][k]),
+  ]
+}
+
+/**
+ * Three channels, each from its index.
+ * @param {(k: 0 | 1 | 2) => number} f
+ * @returns {[number, number, number]}
+ */
+function rgbOf(f) {
+  return [f(0), f(1), f(2)]
+}
+
+/**
+ * A colour as its sRGB channels and alpha, painted alone as fillWith paints it (an unreadable colour paints white).
+ * @param {OffscreenCanvasRenderingContext2D} c
+ * @param {string} colour
+ * @returns {number[]}
+ */
+function rgbaOn(c, colour) {
+  c.clearRect(0, 0, 1, 1)
+  c.globalAlpha = 1
+  fillWith(c, colour)
+  const [r = 0, g = 0, b = 0, a = 0] = c.getImageData(0, 0, 1, 1).data
+  return [r, g, b, a / 255]
 }
 
 /**
@@ -2203,7 +2347,7 @@ function ownReading(el) {
  * otherwise): a heading set large and scaled or zoomed down is held to the floor of the size a capture shows, and one
  * whose drawn size the styles do not tell to the higher floor (#117). Where its text was not looked at, it is read over
  * its own background. The text is painted in the colour it is filled with, at the opacity it is drawn at (#117).
- * Unknown when what lies beneath cannot be read (background_elsewhere, background_image, background_too_complex), a
+ * Unknown when what lies beneath cannot be read (background_elsewhere, background_image), a
  * filter or blend mode changes the colours, a stroke outlines the glyphs (#117), or opacity fades a background
  * together with the text (group_opacity).
  * @param {Element} el
@@ -2604,6 +2748,7 @@ const IN_PAGE = [
   imageOutset,
   outerReach,
   reachIndex,
+  clipOfLayers,
   paintsOf,
   placeOf,
   groundAround,
@@ -2681,6 +2826,12 @@ const IN_PAGE = [
   pixelOf,
   drawGround,
   worstOver,
+  boundedRatio,
+  groundSpan,
+  spanOver,
+  groupOver,
+  rgbOf,
+  rgbaOn,
   ownReading,
   textContrast,
   leastScale,
