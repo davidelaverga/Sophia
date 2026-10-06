@@ -1,6 +1,7 @@
 // A passage of the open report, asked about or kept (docs/plans/room-passage.md). Selecting text in the report's
 // Markdown shows a small bar above it: «Ask Sophia», where the room's chat is, puts the passage in the chat's message;
-// «Keep», where the brief allows this person a note, writes it there as their own note, with Undo for a few seconds.
+// «Keep», where the brief allows this person a note, writes it there as their own note, with Undo for a few seconds;
+// «Task», under the vision flag, makes it an owned task (PassageTask.tsx).
 // The words are the member's selection, never paraphrased, and go to the shared brief only by their press.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
@@ -11,7 +12,8 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
 import { forgetReach, missionKey } from '../mission/mission-view.ts'
 import { LinkedLine, useLinkCopy } from './PassageLink.tsx'
-import { locate, PASSAGE_BLOCKS, type Locator } from './passage-link.ts'
+import { locate, locatorParam, PASSAGE_BLOCKS, type Locator } from './passage-link.ts'
+import { usePassageTask, type TaskPerson } from './PassageTask.tsx'
 import { blockText, type BlockText } from '../voice/useVoiceTrail.ts'
 import { keptLine, keptText, passageText, undoable, type Check, type PassageSource } from './passage.ts'
 
@@ -257,12 +259,30 @@ interface Props {
     identity: Identity
     /** In the room: puts the passage in the chat's message and opens Chat. Absent elsewhere, so Ask isn't offered. */
     onAsk: ((passage: Passage) => void) | undefined
+    /** The members in the call, whom a task may be for; none out of a call. */
+    people?: readonly TaskPerson[] | undefined
+    /** Opens the Tasks tab, from the line a task made leaves. */
+    onSeeTasks: () => void
   }
 }
 
 /** The report and version a selected passage came from; null until the version is known. */
 const sourceOf = (version: ArtifactVersion | undefined): PassageSource | null =>
   version?.versionNumber === undefined ? null : { title: version.title ?? 'Report', version: version.versionNumber }
+
+/** The tools that need the passage's place in its version: Link, and Task (where it is offered). */
+function placedTools(
+  linkable: { version: ArtifactVersion; at: Locator } | null,
+  link: ReturnType<typeof useLinkCopy>,
+  task: ReturnType<typeof usePassageTask>,
+): Tool[] {
+  if (!linkable) return []
+  const report = { artifactId: linkable.version.artifactId, versionId: linkable.version.id }
+  const linkTool = { label: 'Link', act: () => link.copy(report, linkable.at) }
+  if (!task.offered) return [linkTool]
+  const place = { ...report, passage: locatorParam(linkable.at) }
+  return [linkTool, { label: 'Task', act: (p: Passage) => task.start({ ...p, place }) }]
+}
 
 /** The bar over a selected passage, and the line saying what Keep did. */
 export function PassageBar({ pane, version, viewer }: Props) {
@@ -274,21 +294,14 @@ export function PassageBar({ pane, version, viewer }: Props) {
   const allowed = useNoteAllowed(projectId, identity, !!spot)
   const kept = useKeep(projectId, identity)
   const link = useLinkCopy()
+  const task = usePassageTask({ projectId, identity, people: viewer.people ?? [], onSeeTasks: viewer.onSeeTasks })
   const keeps = allowed && !kept.said.busy
   // Link is offered wherever the version is known: no chat or brief needed to point a teammate at a passage.
   const linkable = version && spot?.locator ? { version, at: spot.locator } : null
   const tools: Tool[] = [
     ...(onAsk ? [{ label: 'Ask Sophia', className: 'passage-ask', act: onAsk }] : []),
     ...(keeps ? [{ label: 'Keep', act: (p: Passage) => kept.keep(keptText(p.text, p.source)) }] : []),
-    ...(linkable
-      ? [
-          {
-            label: 'Link',
-            act: () =>
-              link.copy({ artifactId: linkable.version.artifactId, versionId: linkable.version.id }, linkable.at),
-          },
-        ]
-      : []),
+    ...placedTools(linkable, link, task),
   ]
   const offered = spot && source && tools.length > 0 ? { text: spot.text, source } : null
   useEscapeBar(!!offered, bar, pane)
@@ -297,6 +310,7 @@ export function PassageBar({ pane, version, viewer }: Props) {
       {offered && <PassageTools bar={bar} tools={tools} passage={offered} />}
       <KeptLine {...kept} />
       <LinkedLine copied={link.copied} />
+      {task.node}
     </>
   )
 }

@@ -42,6 +42,8 @@ import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
 import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
 import { reviewed, type Reviews } from './review-data.ts'
+import { created, finished, type Tasks } from './task-data.ts'
+import type { ProjectTask } from '../src/api/vision.ts'
 import { searchHits, searchPage } from './search-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
@@ -116,6 +118,8 @@ interface Project {
   showing?: Showing
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
   reviews?: Reviews
+  /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
+  tasks?: Tasks
   /** The meeting the room is in (meeting-data.ts, A12); absent, its requests are unexpected. */
   meeting?: Meeting
 }
@@ -236,6 +240,8 @@ function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
   const reviews = REVIEWS_OF.exec(url.pathname)
   if (reviews?.[2]) return reviewsRead(project, reviews[2])
+  const tasksOf = TASKS_OF.exec(url.pathname)?.[1]
+  if (tasksOf) return tasksRead(project, tasksOf)
   if (url.pathname !== `/api/v1/rooms/${ROOM}/focus` || !project.showing) return undefined
   served.push('room-focus:read')
   return json(roomFocus(project.showing, project.revision))
@@ -302,13 +308,20 @@ const unavailable = () =>
 
 /** A version's reviews (A16): `/api/v1/artifacts/{report}/versions/{version}/reviews`, the version captured. */
 const REVIEWS = new RegExp(`^/api/v1/artifacts/${REPORT}/versions/([0-9a-f-]{36})/reviews$`)
-/** Any report's reviews, as read (A16): the report and the version captured. */
+/** Any report's reviews or tasks, as read (A16, A17): the report (and the version) captured. */
 const REVIEWS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions\/([0-9a-f-]{36})\/reviews$/
+const TASKS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
 
 /** A version's reviews as read (A16): none where the page keeps none, and then the read isn't counted. */
 function reviewsRead(project: Project, versionId: string) {
   if (project.reviews) served.push('reviews:read')
   return json({ reviews: project.reviews?.byVersion.get(versionId) ?? [] })
+}
+
+/** A report's tasks as read (A17): the fixture report's, where the page keeps them; any other report's, none. */
+function tasksRead(project: Project, artifactId: string) {
+  if (project.tasks) served.push('tasks:read')
+  return json({ tasks: artifactId === REPORT ? (project.tasks?.list ?? []) : [] })
 }
 
 /** A review written (A16): 201, once per key; a viewer is refused; a reply lost when the page asks for that. */
@@ -335,6 +348,52 @@ function reviewPosted(project: Project, versionId: string, init: RequestInit | u
   }
   return new Response(JSON.stringify(done.review), { status: 201, headers: { 'content-type': 'application/json' } })
 }
+
+/** A task done (A17): `/api/v1/projects/{project}/tasks/{task}/done`, the task captured. */
+const TASK_DONE = new RegExp(`^/api/v1/projects/${PROJECT}/tasks/([0-9a-f-]{36})/done$`)
+
+/** The answer to a task's write (A17): its reply lost when the page asks for that, else the task and the feed moved. */
+function taskAnswer(project: Project, tasks: Tasks, done: { task: ProjectTask; first: boolean }, what: string) {
+  if (done.first) served.push(`task:${what}`)
+  if (tasks.loseReply) {
+    tasks.loseReply = false
+    return Promise.reject(new TypeError('Failed to fetch')) // it landed; only Try again can tell it
+  }
+  if (done.first) publish(project) // a record: the feed moves
+  return new Response(JSON.stringify(done.task), {
+    status: what === 'create' ? 201 : 200,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+
+/** A task made from a passage (A17): 201, once per key; a viewer is refused. */
+function taskPosted(project: Project, init: RequestInit | undefined) {
+  const tasks = project.tasks
+  if (!tasks) return null
+  if (project.role === 'viewer') return refused('Only editors and admins make tasks')
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const done = created(tasks, membership.actorId, key, init?.body)
+  return done ? taskAnswer(project, tasks, done, 'create') : null
+}
+
+/** A task done (A17): by whoever it is for (anyone's, any member's), an editor or an admin. */
+function taskDone(project: Project, taskId: string, init: RequestInit | undefined) {
+  const tasks = project.tasks
+  const task = tasks?.list.find((t) => t.taskId === taskId)
+  if (!tasks || !task) return null
+  const mine = task.owner === null || task.owner === membership.actorId
+  if (project.role === 'viewer' && !mine) return refused('Only whoever it is for, an editor or an admin marks it done')
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const done = finished(tasks, taskId, membership.actorId, key)
+  return done ? taskAnswer(project, tasks, done, 'done') : null
+}
+
+/** A refusal in the API's words: 403, never retried. */
+const refused = (message: string) =>
+  new Response(
+    JSON.stringify({ code: 'forbidden', message, requestId: '00000000-0000-4000-8000-0000000000bd', retry: 'never' }),
+    { status: 403 },
+  )
 
 /** A close by a member who may only read: closing is an editor's or an admin's (A12). */
 const notAllowed = () =>
@@ -538,6 +597,9 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   if (path === `${base}/contributions`) return contributed(project, init)
   const reviewOf = REVIEWS.exec(path)?.[1]
   if (reviewOf) return reviewPosted(project, reviewOf, init)
+  if (path === `${base}/tasks`) return taskPosted(project, init)
+  const doneOf = TASK_DONE.exec(path)?.[1]
+  if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
   if (path === `${base}/room-token`) return json(roomToken)
   if (path === `${base}/commands`) return admitted(project, init)

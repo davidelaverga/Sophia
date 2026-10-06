@@ -28,6 +28,7 @@ import '../src/app/theme.css'
 import { noteKept, type Notes } from './brief-data.ts'
 import { noShowing, walked } from './focus-data.ts'
 import { noReviews } from './review-data.ts'
+import { noTasks, taskOf } from './task-data.ts'
 import { newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
@@ -104,6 +105,10 @@ interface Fixture {
   dropNextReview: () => void
   /** Another member reviews the current version (A16). */
   reviewAs: (verdict: 'approved' | 'changes_requested') => void
+  /** The next task's write lands, but its reply is lost (A17). */
+  loseNextTaskReply: () => void
+  /** Marco makes a task from the current version's first passage, for the `n`th other person or (null) anyone (A17). */
+  taskBy: (n: number | null) => void
   /** These others follow the shown version (their `sophia.following`, A14); the rest follow nothing. */
   followers: (people: number[]) => void
   /** Sophia moves the shown report's focus to a section, as her `present_section` would (A14). */
@@ -254,6 +259,8 @@ const project = {
   showing: noShowing(),
   // A16: the versions' reviews (review-data.ts).
   reviews: noReviews(),
+  // A17: the report's tasks (task-data.ts).
+  tasks: noTasks(nameOf, (id) => Number(id.slice(-1))),
   // A12: the meeting this visit is, its recap built from what happens on the page (meeting-data.ts).
   // `meeting=earlier`: the running meeting began 12 minutes before the page, so joining is joining late.
   meeting: newMeeting(
@@ -342,6 +349,20 @@ window.fixture = {
       at: new Date().toISOString(),
     }
     project.reviews.byVersion.set(current, [review, ...(project.reviews.byVersion.get(current) ?? [])])
+    publish(project)
+  },
+  loseNextTaskReply: () => {
+    project.tasks.loseReply = true
+  },
+  taskBy: (n) => {
+    const owner = n === null ? null : personId(n)
+    const from = {
+      artifactId: REPORT,
+      versionId: versionId(project.reportVersions),
+      passage: '0.0.3',
+      quote: 'The fixture holds.',
+    }
+    project.tasks.list.unshift(taskOf(project.tasks, personId(1), { text: 'Check the figures', owner, from }))
     publish(project)
   },
   followers: (people) => setFollowers(people, project.showing.focus?.artifactVersionId ?? ''),

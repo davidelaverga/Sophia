@@ -3,6 +3,7 @@
 // keeps you in the room. Views change the address, never the project. The call also outlives leaving the
 // project for home or the personal space: the shell stays mounted out of sight (`background`), takes no keys,
 // and reports the call upward (`onCall`) so the places' bar shows it with Leave one tap away.
+import { taskPeople } from '../artifacts/task-view.ts'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
@@ -518,6 +519,7 @@ function WithViewer({ projectId, identity, view, room, panel, looking, snapshot,
       closePanel={() => panel.show(null)}
       openChat={studio ? () => panel.toggle('chat') : undefined}
       askAbout={studio ? panel.ask : undefined}
+      people={studio && isInCall(room) ? taskPeople(room.participants) : undefined}
       cursor={snapshot?.cursor}
       show={studio ? showRenderOf(snapshot, room, { projectId, identity }) : undefined}
       chatUnread={panel.unread}

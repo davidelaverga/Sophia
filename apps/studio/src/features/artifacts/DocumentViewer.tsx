@@ -2,6 +2,7 @@
 // Work page, Knowledge and the room. The open report lives in the address bar (report-link.ts): each intent (open,
 // enlarge) adds one history entry, so Back steps down, and Esc does the same (full → side → closed). One pane at a
 // time: opening a report closes the side panel, and opening the side panel closes the report.
+import type { TaskPerson } from './PassageTask.tsx'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Identity } from '../../app/dev-identity.ts'
 import { ShortcutScope } from '../../app/shortcuts.ts'
@@ -121,6 +122,8 @@ interface Props {
   cursor?: string | undefined
   /** In the room: a passage of the report, asked about in the chat (PassageBar). */
   askAbout?: ((passage: Passage) => void) | undefined
+  /** In a call: the members in it, whom a task may be for (PassageTask). */
+  people?: readonly TaskPerson[] | undefined
   children: ReactNode
 }
 
@@ -181,6 +184,7 @@ export function DocumentViewerProvider(props: Props) {
           call={call}
           note={note ?? null}
           onAsk={askAbout}
+          people={props.people}
           cursor={props.cursor}
           show={props.show}
           section={section}

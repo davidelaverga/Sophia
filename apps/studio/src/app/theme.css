@@ -4134,3 +4134,94 @@ div.empty {
   color: var(--warn, var(--text-2));
   font-size: 12.5px;
 }
+/* A passage made a task (PassageTask, A17): the form in the pane's foot, the line it leaves, and the Tasks tab. */
+.task-form {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.task-quote {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--halo);
+  color: var(--text-2);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.task-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.task-for {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.task-for select {
+  height: 28px;
+  border-radius: var(--r-2);
+  font: inherit;
+}
+.task-said {
+  flex: 1 1 8rem;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.task-added {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 16px 10px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.task-added:empty {
+  padding: 0;
+}
+.task-rows {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.task-row > .pill {
+  grid-row: 1 / span 3;
+  grid-column: 2;
+}
+.task-row[data-done] .task-text {
+  color: var(--text-2);
+  text-decoration: line-through;
+}
+.task-text {
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+.task-meta,
+.task-row .task-said,
+.task-none {
+  color: var(--text-2);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.task-row .task-said:empty {
+  height: 0;
+}
