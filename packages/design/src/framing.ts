@@ -257,12 +257,6 @@ export const isStructureWord = (word: string): boolean => STRUCTURE_WORDS.has(wo
 const PLAIN_NAME = /^(\p{L}{1,24})(?: [a-z]?\d{1,4})?$/iu
 const isPlainName = (text: string): boolean => isStructureWord(PLAIN_NAME.exec(text)?.[1] ?? '')
 const plain = (text: string): string => text.normalize('NFC').replace(/\s+/gu, ' ').trim()
-/** The words of a text, lower-cased, for an abbreviation held to its own header's words. */
-const wordsOf = (text: string): string[] =>
-  text
-    .toLocaleLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((w) => w !== '')
 const lineOf = (html: string, el: Element): number => lineAt(html, el.sourceCodeLocation?.startOffset ?? 0)
 const concealing = (el: Element): boolean => attr(el, 'hidden') !== null || attr(el, 'aria-hidden') === 'true'
 
@@ -428,20 +422,16 @@ function headFindings(el: Element, cx: Context): Finding[] {
   ]
 }
 
-/** A table header's abbreviation made only of words its own text shows ("Cost" for "Cost per month, in USD"). */
-function ownAbbreviation(el: Element, name: string, value: string | null): boolean {
-  if (name !== 'abbr' || el.tagName !== 'th' || value === null) return false
-  const own = new Set(wordsOf(textOf(el)))
-  const words = wordsOf(value)
-  return words.length > 0 && words.every((w) => own.has(w))
-}
-
-/** A tooltip or name with text the page does not show; the labels a repeated one rests on go to `shown`. */
+/**
+ * A tooltip or name with text the page does not show; the labels a repeated one rests on go to `shown`. A table
+ * header's `abbr` is held the same: words taken from its header can say the opposite of it (`abbr="free"` on "Not
+ * free"), and a screen reader may read the abbreviation in its place (#117).
+ */
 function textAttributeFindings(el: Element, cx: Context): Finding[] {
   const out: Finding[] = []
   for (const name of TEXT_ATTRIBUTES) {
     const value = attr(el, name)
-    if (shownText(value === null ? '' : plain(value), cx) || ownAbbreviation(el, name, value)) continue
+    if (shownText(value === null ? '' : plain(value), cx)) continue
     out.push(
       error(
         'attribute_text',
@@ -449,7 +439,7 @@ function textAttributeFindings(el: Element, cx: Context): Finding[] {
         `<${el.tagName} ${name}=${JSON.stringify((value ?? '').slice(0, 80))}> carries text the page does not show. A tooltip ` +
           'or an accessible name repeats a heading, caption, summary, table header, navigation link or source entry ' +
           'that its markup does not hide, or is a plain name ("Contents", "Table b5": a word for a part of the page, and a ' +
-          "number); a header's abbr takes words of its own text; aria-labelledby can point at a label instead",
+          'number); aria-labelledby can point at a label instead',
         { line: lineOf(cx.html, el) },
       ),
     )

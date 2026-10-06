@@ -440,6 +440,10 @@ describe('a tooltip or an accessible name carries no text the page does not show
       ['<h1>', '<h1 aria-description="The only safe host">'],
       ['<main>', '<main><nav aria-roledescription="independently audited"><a href="#s1">Findings</a></nav>'],
       ['</main>', '<table><tr><th scope="col" abbr="Host three is free">Host</th></tr></table></main>'],
+      // #117: words of its own header can say the opposite of it, and a screen reader may read the abbreviation.
+      ['</main>', '<table><tr><th scope="col" abbr="free">Not free</th></tr></table></main>'],
+      ['</main>', '<table><tr><th scope="col" abbr="Cost">Cost per month, in USD</th></tr></table></main>'],
+      ['</main>', '<table><tr><th scope="col" abbr="three free">Host three is not free</th></tr></table></main>'],
       ['<p data-block="b1">', '<p data-block="b1" aria-keyshortcuts="Host three is free">'],
       ['</main>', '<table><tr aria-rowindextext="Host three is free"><th>Host</th></tr></table></main>'],
     ]
@@ -455,7 +459,7 @@ describe('a tooltip or an accessible name carries no text the page does not show
       ['<main>', '<main><nav aria-label="Contents"><a href="#s1" title="Findings">Findings</a></nav>'],
       ['<main>', '<main><nav aria-label="Indice 2"><a href="#s1">Findings</a></nav>'],
       ['<main>\n<h1>', '<main aria-labelledby="t">\n<h1 id="t">'],
-      ['</main>', '<table><tr><th scope="col" abbr="Cost">Cost per month, in USD</th></tr></table></main>'],
+      ['</main>', '<table><tr><th scope="col" abbr="Cost per month">Cost per month</th></tr></table></main>'],
     ]
     for (const [from, to] of accepted) assert.deepEqual(swap(from, to), [], to)
   })
