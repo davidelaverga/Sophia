@@ -1,11 +1,11 @@
 // WBC-02 (WBC-02-CX-0036 and the review of its correction): the image qualification's verdicts, on recorded inputs. A
 // complete, legitimate run is the positive control; each fault below is one Codex executed against the helpers
 // (missing peak and current, an OOM event without a kill, a start past its health deadline, a changed adapter
-// registry, a growing record truncated, a missing group-OOM counter, a step whose recorded facts do not hold) or one of
-// the same kind, and none of them may read as qualified.
+// registry, a growing record truncated, a missing group-OOM counter, a step whose recorded facts do not hold, home
+// digests never read) or one of the same kind, and none of them may read as qualified.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { compareSnapshots } from '../../scripts/paperclip-image-home.mjs'
+import { compareSnapshots, coverageOf, parseListing } from '../../scripts/paperclip-image-home.mjs'
 import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS } from '../../scripts/paperclip-image-receipt.mjs'
 import { redact } from '../../scripts/paperclip-image-redact.mjs'
 
@@ -22,8 +22,11 @@ const files = [
   { path: 'instances/default/config.json', size: 900, sha256: '2'.repeat(64) },
   { path: LOG, size: 4000, sha256: '3'.repeat(64) },
 ]
+/** Every regular file under the home listed and hashed: none too large, the file bound not reached. */
+const covered = (list) => ({ total: list.length, oversize: [], maxFiles: 500, maxFileBytes: 10 * 1024 * 1024 })
 /** The log grew to 5000 bytes, its first 4000 the ones it had: the prefix the later snapshot read. */
-const grown = { files: files.map((f) => (f.path === LOG ? { ...f, size: 5000, sha256: '9'.repeat(64) } : f)), prefixes: { [LOG]: { size: 4000, sha256: '3'.repeat(64) } } }
+const grownFiles = files.map((f) => (f.path === LOG ? { ...f, size: 5000, sha256: '9'.repeat(64) } : f))
+const grown = { coverage: covered(grownFiles), files: grownFiles, prefixes: { [LOG]: { size: 4000, sha256: '3'.repeat(64) } } }
 
 /** What each step observed in a legitimate run, as the probe records it. */
 const FACTS = {
@@ -83,7 +86,7 @@ function complete() {
     timings: ['first', 'restart', 'recreated'].map((label) => ({ label, ok: true, seconds: 45 })),
     samples: PHASES.map(sample),
     probes: { first: probe('first'), restarted: probe('restarted') },
-    home: { before: { files }, after: grown },
+    home: { before: { coverage: covered(files), files }, after: structuredClone(grown) },
   }
 }
 
@@ -254,6 +257,103 @@ describe('the home across a recreation (WBC-02-CX-0036)', () => {
     assert.deepEqual(compareSnapshots(noRegistry, noRegistry).requiredAbsent, ['adapter-plugins.json'])
     assert.equal(compareSnapshots(noRegistry, noRegistry).persisted, false, 'no registry, though nothing changed')
     assert.equal(compareSnapshots([], []).persisted, false)
+  })
+})
+
+describe('the home snapshots’ own measurements and coverage (WBC-02-CX-0039)', () => {
+  const homeOf = (run) => assess(run).checks.find((c) => c.name === 'home persisted across recreation')
+
+  it('positive control: complete coverage, every size and digest read, reads as passed', () => {
+    const check = homeOf(complete())
+    assert.equal(check.result, 'passed')
+    assert.deepEqual(check.detail.unverified, [])
+    assert.equal(check.detail.coverage.before.complete && check.detail.coverage.after.complete, true)
+  })
+
+  it('CX-0039: sha256 removed from both snapshots, the adapter registry included, is never equal: not qualified', () => {
+    const run = complete()
+    for (const side of [run.home.before, run.home.after]) side.files = side.files.map(({ sha256: _gone, ...f }) => f)
+    assert.equal(compareSnapshots(run.home.before.files, run.home.after.files, run.home.after.prefixes).persisted, false)
+    const check = homeOf(run)
+    assert.equal(check.result, 'unavailable')
+    assert.deepEqual(check.detail.unverified.sort(), files.map((f) => f.path).sort())
+    assert.equal(verdictOf(run), 'incomplete')
+  })
+
+  it('a size not read, a digest not of sha256 form, or a path listed twice is unverified', () => {
+    const variants = [
+      (f) => (f.path === 'adapter-plugins.json' ? { ...f, size: undefined } : f),
+      (f) => (f.path === 'adapter-plugins.json' ? { ...f, size: -1 } : f),
+      (f) => (f.path === 'adapter-plugins.json' ? { ...f, size: '120' } : f),
+      (f) => (f.path === 'adapter-plugins.json' ? { ...f, sha256: '' } : f),
+      (f) => (f.path === 'adapter-plugins.json' ? { ...f, sha256: 'Z'.repeat(64) } : f),
+    ]
+    for (const change of variants) {
+      const run = complete()
+      run.home.after.files = run.home.after.files.map(change)
+      const check = homeOf(run)
+      assert.equal(check.result, 'unavailable', JSON.stringify(run.home.after.files[0]))
+      assert.deepEqual(check.detail.unverified, ['adapter-plugins.json'])
+      assert.equal(compareSnapshots(run.home.before.files, run.home.after.files, run.home.after.prefixes).persisted, false)
+      assert.equal(verdictOf(run), 'incomplete')
+    }
+    const twice = complete()
+    twice.home.after.files = [...twice.home.after.files, { ...files[0], sha256: 'f'.repeat(64) }]
+    twice.home.after.coverage.total += 1
+    assert.deepEqual(homeOf(twice).detail.unverified, ['adapter-plugins.json'])
+    assert.notEqual(verdictOf(twice), 'qualified')
+  })
+
+  it('CX-0039: a snapshot that did not cover the home (bound reached, a file too large, coverage not recorded) is reported, never passed', () => {
+    const capped = complete()
+    capped.home.after.coverage.total = 900
+    const cappedCheck = homeOf(capped)
+    assert.equal(cappedCheck.result, 'unavailable')
+    assert.deepEqual(cappedCheck.detail.coverage.after, { total: 900, listed: 3, oversize: [], complete: false })
+    const large = complete()
+    large.home.before.coverage = { ...large.home.before.coverage, total: 4, oversize: [{ path: 'instances/default/data.bin', size: 20 * 1024 * 1024 }] }
+    assert.equal(homeOf(large).result, 'unavailable')
+    assert.deepEqual(homeOf(large).detail.coverage.before.oversize, [{ path: 'instances/default/data.bin', size: 20 * 1024 * 1024 }])
+    // A record naming a file too large to hash is never covered, even if its counts were made to agree.
+    const inconsistent = complete()
+    inconsistent.home.before.coverage.oversize = [{ path: 'instances/default/data.bin', size: 20 * 1024 * 1024 }]
+    assert.equal(homeOf(inconsistent).result, 'unavailable')
+    const unrecorded = complete()
+    delete unrecorded.home.before.coverage
+    assert.equal(coverageOf(unrecorded.home.before).complete, false)
+    assert.equal(homeOf(unrecorded).result, 'unavailable')
+    for (const run of [capped, large, inconsistent, unrecorded]) assert.equal(verdictOf(run), 'incomplete')
+  })
+
+  it('the listing keeps a size or digest that was not read absent, never zero or empty', () => {
+    const listing = [
+      'total\t3',
+      'oversize\t20971520\t./instances/default/data.bin',
+      `file\t120\t${'1'.repeat(64)}\t./adapter-plugins.json`,
+      'file\t\t\t./instances/default/unreadable.json',
+    ].join('\n')
+    const { coverage, files: parsed } = parseListing(listing)
+    assert.deepEqual(coverage.oversize, [{ path: 'instances/default/data.bin', size: 20971520 }])
+    assert.equal(coverage.total, 3)
+    assert.deepEqual(parsed, [
+      { path: 'adapter-plugins.json', size: 120, sha256: '1'.repeat(64) },
+      { path: 'instances/default/unreadable.json', size: null, sha256: null },
+    ])
+    assert.deepEqual(compareSnapshots(parsed, parsed).unverified, ['instances/default/unreadable.json'])
+    assert.equal(parseListing('').coverage.total, null, 'no total line: coverage not recorded')
+    assert.equal(coverageOf(parseListing('')).complete, false)
+  })
+
+  it('incomplete coverage does not hide a definite difference between measured files', () => {
+    const run = complete()
+    run.home.after.coverage.total = 900
+    run.home.after.files = run.home.after.files.map((f) => (f.path === 'adapter-plugins.json' ? { ...f, sha256: 'f'.repeat(64) } : f))
+    assert.equal(homeOf(run).result, 'failed')
+    // A file absent from a capped listing may lie past the bound: unavailable, not failed.
+    const capped = complete()
+    capped.home.after.coverage.total = 900
+    capped.home.after.files = capped.home.after.files.slice(1)
+    assert.equal(homeOf(capped).result, 'unavailable')
   })
 })
 

@@ -9,7 +9,8 @@
 // run's context; each start healthy within HEALTH_LIMIT_S; each memory phase read exactly once, every figure a number,
 // the limit 2 GiB without swap, peak and current within it, and no OOM event of any kind; each probe phase's required
 // steps all present and passed, and what each observed (statuses, outcomes, the same plugin, issue and configuration
-// across both phases) recorded and as required; the home's persistence recomputed from the two snapshots.
+// across both phases) recorded and as required; the home's persistence recomputed from the two snapshots, every size
+// and digest it compares one that was read, and every file under the home covered (CX-0039).
 // A check is passed, failed, unavailable (recorded but incomplete) or not reached. The verdict is `qualified` only when
 // every check passed, `failed` when any failed, and `incomplete` otherwise. What it qualifies: the image built from the
 // pin and a clean Sophia commit, on a GitHub-hosted linux/amd64 runner, under a 2 GiB memory cgroup without swap, with
@@ -18,7 +19,7 @@
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { compareSnapshots } from './paperclip-image-home.mjs'
+import { compareSnapshots, coverageOf } from './paperclip-image-home.mjs'
 
 export const LIMIT_BYTES = 2 * 1024 ** 3
 export const HEALTH_LIMIT_S = 300
@@ -177,11 +178,26 @@ function probeCheck(probe, phase, firstProbe) {
   }
 }
 
+/**
+ * The home across the recreation, recomputed from the two snapshots. Failed on a definite difference between measured
+ * files (a stable file changed, a growing record rewritten; with complete coverage, a file or the registry gone);
+ * unavailable when an entry was recorded without its size or digest, or a snapshot did not list and hash every file
+ * (WBC-02-CX-0039): what was not read is reported, never counted as equal.
+ */
 function homeCheck(before, after) {
   if (!before || !after) return { result: 'not reached' }
   if (!Array.isArray(before.files) || !Array.isArray(after.files)) return { result: 'unavailable' }
   const comparison = compareSnapshots(before.files, after.files, after.prefixes ?? {})
-  return { result: comparison.persisted ? 'passed' : 'failed', detail: comparison }
+  const coverage = { before: coverageOf(before), after: coverageOf(after) }
+  const complete = coverage.before.complete && coverage.after.complete
+  const detail = { ...comparison, coverage }
+  const definite =
+    comparison.changedStable.length > 0 ||
+    comparison.rewrittenGrowing.length > 0 ||
+    (complete && (comparison.missing.length > 0 || comparison.requiredAbsent.length > 0))
+  if (definite) return { result: 'failed', detail }
+  if (!complete || comparison.unverified.length > 0) return { result: 'unavailable', detail }
+  return { result: comparison.persisted ? 'passed' : 'failed', detail }
 }
 
 /** The receipt of one run's recorded inputs. */
@@ -207,6 +223,23 @@ export function assess({ context = null, disk = [], identity = null, timings = [
   }
 }
 
+function homeLine(check) {
+  const d = check?.detail
+  if (!d) return `Home: ${check?.result ?? 'not reached'}.`
+  const cover = (c) => `${c.listed ?? '?'} of ${c.total ?? '?'} files listed${c.oversize?.length ? `, ${c.oversize.length} too large to hash` : ''}${c.complete ? '' : ' (incomplete)'}`
+  const list = (name, paths) => (paths.length ? `; ${name}: ${paths.join(', ')}` : '')
+  return (
+    `Home: ${check.result}. Before ${cover(d.coverage.before)}; after ${cover(d.coverage.after)}` +
+    list('missing', d.missing) +
+    list('changed stable', d.changedStable) +
+    list('growing, rewritten', d.rewrittenGrowing) +
+    list('growing, appended', d.changedGrowing.filter((p) => !d.rewrittenGrowing.includes(p))) +
+    list('required absent', d.requiredAbsent) +
+    list('unverified', d.unverified) +
+    '.'
+  )
+}
+
 function summaryOf(receipt, samples) {
   const mib = (n) => (isNumber(n) ? `${Math.round(n / 1048576)} MiB` : '—')
   const image = receipt.images?.image
@@ -219,14 +252,16 @@ function summaryOf(receipt, samples) {
     '|---|---|',
     ...receipt.checks.map((c) => `| ${c.name} | ${c.result} |`),
     '',
-    '| Memory phase | max | swap.max | peak | current | oom / oom_kill | OOMKilled |',
+    '| Memory phase | max | swap.max | peak | current | oom / oom_kill / oom_group_kill | OOMKilled |',
     '|---|---|---|---|---|---|---|',
     ...PHASES.map((p) => {
       const s = samples.find((r) => r.label === p)
       return s
-        ? `| ${p} | ${mib(s.max)} | ${s.swapMax ?? '—'} | ${mib(s.peak)} | ${mib(s.current)} | ${s.events?.oom ?? '—'} / ${s.events?.oom_kill ?? '—'} | ${s.oomKilled} |`
+        ? `| ${p} | ${mib(s.max)} | ${s.swapMax ?? '—'} | ${mib(s.peak)} | ${mib(s.current)} | ${s.events?.oom ?? '—'} / ${s.events?.oom_kill ?? '—'} / ${s.events?.oom_group_kill ?? '—'} | ${s.oomKilled} |`
         : `| ${p} | not reached | | | | | |`
     }),
+    '',
+    homeLine(receipt.checks.find((c) => c.name === 'home persisted across recreation')),
     '',
     image
       ? `Image ${image.id} (${image.os}/${image.architecture}, ${mib(image.size)}); build stage ${receipt.images.build?.id} (${mib(receipt.images.build?.size)}). The image ID is the local config digest; nothing was pushed.`
