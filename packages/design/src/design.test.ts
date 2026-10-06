@@ -506,22 +506,77 @@ describe('a tooltip or an accessible name carries no text the page does not show
       'aria-sort="cheapest first"',
     ]
     for (const attribute of numeric) {
-      const to = `<main><span role="slider" tabindex="0" aria-labelledby="t" ${attribute}></span>\n<h1 id="t">`
+      const to = `<main><span role="img" aria-labelledby="t" ${attribute}></span>\n<h1 id="t">`
       assert.deepEqual(swap('<main>\n<h1>', to), ['unsafe_attribute'], attribute)
     }
   })
-  it('accepts the ARIA states that carry no data of their own', () => {
-    for (const attribute of [
-      'aria-hidden="true"',
-      'aria-current="page"',
-      'aria-expanded="false"',
-      'aria-sort="ascending"',
-      'aria-relevant="additions text"',
-      'aria-live="polite"',
-    ]) {
+  it('accepts the one ARIA state that takes decoration away, aria-hidden, outside the research', () => {
+    for (const attribute of ['aria-hidden="true"', 'aria-hidden="false"']) {
       const to = `<main><nav ${attribute}><a href="#s1">Findings</a></nav>`
       assert.deepEqual(swap('<main>', to), [], attribute)
     }
+  })
+  // #117: a state is announced as a fact of its own, a box "checked" beside a heading, where no capture shows it.
+  it('refuses every other ARIA state, in any of its tokens', () => {
+    for (const attribute of [
+      'aria-checked="true"',
+      'aria-checked="false"',
+      'aria-pressed="true"',
+      'aria-selected="true"',
+      'aria-expanded="false"',
+      'aria-current="page"',
+      'aria-sort="ascending"',
+      'aria-invalid="true"',
+      'aria-required="true"',
+      'aria-disabled="true"',
+      'aria-readonly="true"',
+      'aria-busy="true"',
+      'aria-live="polite"',
+      'aria-relevant="additions text"',
+      'aria-atomic="true"',
+      'aria-haspopup="true"',
+      'aria-modal="true"',
+      'aria-orientation="vertical"',
+      'aria-autocomplete="list"',
+      'aria-multiline="true"',
+      'aria-multiselectable="true"',
+    ]) {
+      const to = `<main><span role="img" aria-labelledby="t" ${attribute}></span>\n<h1 id="t">`
+      assert.deepEqual(swap('<main>\n<h1>', to), ['unsafe_attribute'], attribute)
+    }
+  })
+  it("refuses a widget's role, which announces a state or a value of its own, and accepts a document's parts", () => {
+    for (const role of [
+      'checkbox',
+      'switch',
+      'radio',
+      'slider',
+      'progressbar',
+      'meter',
+      'status',
+      'alert',
+      'tooltip',
+      'button',
+      'link',
+      'tab',
+      'option',
+      'heading',
+      'separator',
+      'deletion',
+      'insertion',
+      'img checkbox',
+      'CHECKBOX',
+      '',
+    ]) {
+      const to = `<main><span role="${role}" aria-labelledby="t"></span>\n<h1 id="t">`
+      assert.deepEqual(swap('<main>\n<h1>', to), ['unsafe_attribute'], role)
+    }
+    for (const role of ['img', 'presentation', 'none', 'group', 'note', 'doc-noteref', 'IMG', 'img presentation']) {
+      const to = `<main><span role="${role}" aria-labelledby="t"></span>\n<h1 id="t">`
+      assert.deepEqual(swap('<main>\n<h1>', to), [], role)
+    }
+    const region = '<main><nav role="navigation" aria-label="Contents"><a href="#s1">Findings</a></nav>'
+    assert.deepEqual(swap('<main>', region), [], 'a landmark')
   })
   it('accepts a word for a part of the page in a few languages, with a number or a short id', () => {
     for (const name of ['Contents', 'Table b5', 'Indice 2', 'Tabelle 3', 'Sommaire', 'Índice']) {
