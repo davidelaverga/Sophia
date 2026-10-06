@@ -584,8 +584,16 @@ function Notes({ props, actions, under }: { props: Props; actions: ReturnType<ty
       carrying={actions.waits}
       memory={props.extras?.memory}
       under={under}
+      away={props.hidden}
       pack={
-        VISION ? { carry: props.writes.carry, takeBack: props.writes.takeBack, onCarried: props.onCarried } : undefined
+        VISION
+          ? {
+              carry: props.writes.carry,
+              takeBack: props.writes.takeBack,
+              onCarried: props.onCarried,
+              here: props.writes.here,
+            }
+          : undefined
       }
     />
   )

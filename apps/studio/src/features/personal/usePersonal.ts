@@ -202,7 +202,11 @@ function useRun(identity: Identity) {
       // It settles once what it changed can show: the space is read until a read works, and the Work list too when the
       // write changed it (a note carried or taken back). An erasure doesn't come this way (eraseSpace).
       await readUntilRead(client, space)
-      if (projects) await readUntilRead(client, work)
+      if (projects) {
+        await readUntilRead(client, work)
+        // A carry or a take-back changes what the project shows as carried in, too (CarriedIn).
+        await client.invalidateQueries({ queryKey: ['vision', 'carried-in', identity.name] })
+      }
       return receipt
     } catch (err: unknown) {
       if (readsAgain(err)) await readAfterRefusal(client, identity.name, err, projects)
@@ -230,6 +234,14 @@ async function readAfterRefusal(client: QueryClient, name: string, err: unknown,
 export function usePersonalWrites(identity: Identity, locked: boolean) {
   const client = useQueryClient()
   const run = useRun(identity)
+  // These writes live as long as the account's session does: gone, nothing more goes under it (a package mid-carry).
+  const present = useRef(true)
+  useEffect(() => {
+    present.current = true
+    return () => {
+      present.current = false
+    }
+  }, [])
   const [sending, setSending] = useState<Sending | null>(null)
   const [busy, setBusy] = useState(false)
   const onItsWay = useRef(false)
@@ -286,6 +298,8 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
     takeBack: (releaseId: string, key?: string) =>
       run((k, at) => takeBackPersonalRelease(token, k, at, releaseId), true, key),
     erase: () => eraseSpace(client, identity, () => setErasures((n) => n + 1)),
+    /** The account these writes are under is still signed in here. */
+    here: () => present.current,
   }
 }
 

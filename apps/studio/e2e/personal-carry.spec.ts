@@ -204,14 +204,26 @@ test('carry · when the account goes mid-carry, nothing more goes under it', asy
   expect(await carried(page)).toHaveLength(1)
 })
 
+test('carry · the notes closed mid-step (their toggle), the chosen notes still all go', async ({ page }) => {
+  await openPackage(page, '&carrySlow=1')
+  for (const box of await pkg(page).getByRole('checkbox').all()) await box.check()
+  await pkg(page).getByRole('button', { name: 'Carry 3 notes to Product launch' }).click()
+  await expect.poll(() => carried(page)).toHaveLength(1)
+  await page.locator('[aria-controls="c-notes"]').click()
+  await expect(panel(page)).toHaveCount(0)
+  // Nothing chosen stops halfway: the package goes with the notes, its batch doesn't.
+  await expect.poll(() => carried(page), { timeout: 8000 }).toHaveLength(3)
+})
+
 test('carry · after leaving Personal and coming back mid-step, Esc still waits', async ({ page }) => {
   await openPackage(page, '&carrySlow=1')
   await pkg(page).getByRole('checkbox', { name: 'Ask finance for the March close' }).check()
   await pkg(page).getByRole('button', { name: 'Carry 1 note to Product launch' }).click()
-  await page.evaluate(() => {
-    window.personalFixture?.away?.()
-    window.personalFixture?.back?.()
-  })
+  // Two renders apart, as leaving and coming back are: the notes' layer goes, then opens again after the package's.
+  await page.evaluate(() => window.personalFixture?.away?.())
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 50))))
+  await page.evaluate(() => window.personalFixture?.back?.())
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 50))))
   await page.keyboard.press('Escape')
   await expect(panel(page)).toBeVisible()
   await expect(pkg(page).getByRole('status')).toContainText('Carried 1 note')

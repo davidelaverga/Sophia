@@ -17,6 +17,8 @@ export interface PackWrites {
   /** `key`: one per release taken back, the same when it is asked again after no answer came back. */
   takeBack: (releaseId: string, key: string) => Promise<unknown>
   onCarried: (releaseId: string | null) => void
+  /** The account the writes go under is still signed in here: once it isn't, nothing more goes. */
+  here: () => boolean
 }
 
 interface Props {
@@ -26,6 +28,8 @@ interface Props {
   onClose: () => void
   /** A step runs (carrying, taking back): the notes stay open meanwhile. */
   onBusy?: (busy: boolean) => void
+  /** Personal is out of sight (another place): Escape there is that place's, not the package's. */
+  away?: boolean
 }
 
 type Phase = 'choose' | 'carrying' | 'carried' | 'partial' | 'taking' | 'taken' | 'took-part'
@@ -39,24 +43,13 @@ interface Gone {
 
 const noun = (n: number) => (n === 1 ? '1 note' : `${String(n)} notes`)
 
-/**
- * Whether the package is mounted still, and the notes as they are now (a carried note leaves them). While a step runs
- * the notes can't be closed and Personal stays mounted across the places, so the package goes only with the account
- * (signing out, another identity): the batch stops there, and nothing more goes under the account that left.
- */
+/** The notes as they are now (a carried note leaves them). */
 function useLive(notes: readonly PersonalNote[]) {
-  const here = useRef(true)
   const live = useRef(notes)
   useEffect(() => {
     live.current = notes
   })
-  useEffect(() => {
-    here.current = true
-    return () => {
-      here.current = false
-    }
-  }, [])
-  return { here, live }
+  return live
 }
 
 /**
@@ -93,7 +86,7 @@ function usePackage({ notes, projects, writes }: Omit<Props, 'onClose'>) {
   const [phase, setPhase] = useState<Phase>('choose')
   const [gone, setGone] = useState<Gone>({ noteIds: [], releases: [], unsure: [] })
   const [why, setWhy] = useState<{ reason: string; sure: boolean } | null>(null)
-  const { here, live } = useLive(notes)
+  const live = useLive(notes)
   const takeKeys = useRef(new Map<string, string>())
   const picked = batch ?? notes.filter((n) => chosen.has(n.id))
   const project = projects.find((p) => p.projectId === projectId)
@@ -105,8 +98,9 @@ function usePackage({ notes, projects, writes }: Omit<Props, 'onClose'>) {
       return next
     })
   /**
-   * Carries the batch's notes that haven't gone, in order, stopping at the first that fails, or when the package goes
-   * (only with the account: see useLive).
+   * Carries the batch's notes that haven't gone, in order, stopping at the first that fails, or when the account leaves
+   * (`writes.here`). Should the package go otherwise (the notes closed, the place left), the batch still goes: nothing
+   * chosen stops halfway, and Work marks what arrived.
    */
   const carry = async () => {
     if (!project || picked.length === 0 || phase === 'carrying' || phase === 'taking') return
@@ -117,7 +111,7 @@ function usePackage({ notes, projects, writes }: Omit<Props, 'onClose'>) {
     const done: Gone = { noteIds: [...gone.noteIds], releases: [...gone.releases], unsure: [...gone.unsure] }
     const left = (id: string) => !live.current.some((n) => n.id === id)
     for (const note of fixed.filter((n) => !done.noteIds.includes(n.id) && !done.unsure.includes(n.id))) {
-      if (!here.current) return
+      if (!writes.here()) return
       // Gone from the list since (carried another way, or a lost reply that landed): never asked for again.
       if (left(note.id)) {
         done.unsure.push(note.id)
@@ -183,7 +177,7 @@ export function CarryPackage(props: Props) {
   useEffect(() => () => onBusy?.(false), [onBusy])
   // While a step runs, Escape waits with it, above the notes even when they open again after it (coming back to
   // Personal): the notes stay open, and so does what the package will say.
-  useEscape(busy, () => undefined, 1)
+  useEscape(busy && props.away !== true, () => undefined, 1)
   const head = useRef<HTMLHeadingElement>(null)
   const status = useRef<HTMLParagraphElement>(null)
   useEffect(() => head.current?.focus(), [])

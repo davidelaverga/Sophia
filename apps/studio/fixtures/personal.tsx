@@ -48,6 +48,8 @@ const takenBack: string[] = []
 window.personalFixture = { sent, pressed, carried, takenBack }
 /** `carryFails=N`: the Nth carry fails, once (a package stops there); `carryLost=N`: it lands, its reply lost. */
 let carries = 0
+/** The fixture's account, signed in until `signOut` (the writes' `here`). */
+const account = { present: true }
 /** `takeBackFails=N`: the Nth take-back fails, once; `takeBackLost=N`: it lands, its reply lost. */
 let takes = 0
 /** Each release taken back, and the key it was taken back under: asked again, the API answers by that key. */
@@ -286,6 +288,7 @@ function useSimulated() {
   const answer = useRef(0)
   const add = (t: PersonalTurn) => setSpace((s) => ({ ...s, revision: s.revision + 1, turns: [...s.turns, t] }))
   const writes: PersonalWrites = {
+    here: () => account.present,
     sending,
     busy,
     welcoming: false,
@@ -388,24 +391,36 @@ function useHanded() {
   return [handed, setHanded] as const
 }
 
+/**
+ * Personal as Places holds it: Escape closes the notes, unless a layer holds it above them (the package mid-step);
+ * `window.personalFixture.away/back` leave Personal and come back (its notes' layer goes, then opens again), and
+ * `signOut` takes the account away. Whether the account is still signed in.
+ */
+function useFixturePlace(notes: boolean, setNotes: (open: boolean) => void): boolean {
+  const [here, setHere] = useState(true)
+  useEscape(notes && here, () => setNotes(false))
+  const [signedIn, setSignedIn] = useState(true)
+  useEffect(() => {
+    if (!window.personalFixture) return
+    window.personalFixture.signOut = () => {
+      account.present = false
+      setSignedIn(false)
+    }
+    window.personalFixture.away = () => setHere(false)
+    window.personalFixture.back = () => setHere(true)
+  }, [])
+  return signedIn
+}
+
 function Personal() {
   const { space, writes, wrote } = useSimulated()
   const readBack = useReadBack()
   const extras = useExtras(query, pressed, ago, wrote)
   const projects = useMemo(() => projectsFor(query, ahead), [])
   const [notes, setNotes] = useState(query.get('notes') === 'open')
-  // As Places has it: Escape closes the notes, unless a layer opened after them (the package mid-step) holds it.
-  const [here, setHere] = useState(true)
-  useEscape(notes && here, () => setNotes(false))
+  const signedIn = useFixturePlace(notes, setNotes)
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
-  const [signedIn, setSignedIn] = useState(true)
-  useEffect(() => {
-    if (!window.personalFixture) return
-    window.personalFixture.signOut = () => setSignedIn(false)
-    window.personalFixture.away = () => setHere(false)
-    window.personalFixture.back = () => setHere(true)
-  }, [])
   const epochKnown = useLater('epochAfter')
   const spaceRead = useLater('spaceAfter')
   const [handed, setHanded] = useHanded()

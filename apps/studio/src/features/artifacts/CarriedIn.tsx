@@ -32,13 +32,17 @@ const releasesOf = (projects: readonly { projectId: string; releases: readonly P
   return project ? project.releases.toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)) : null
 }
 
-/** Read again each time the project's feed moves on from a position already seen (a member carried or took back). */
+/**
+ * Read again each time the project's feed moves on from a position already seen (a member carried or took back); the
+ * first position the page learns isn't a move, the read is.
+ */
 function useReadAgain(cursor: string | undefined, refetch: () => Promise<unknown>) {
   const seen = useRef(cursor)
   useEffect(() => {
     if (seen.current === cursor) return
+    const moved = seen.current !== undefined
     seen.current = cursor
-    void refetch()
+    if (moved) void refetch()
   }, [cursor, refetch])
 }
 
