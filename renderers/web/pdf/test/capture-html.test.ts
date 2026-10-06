@@ -157,6 +157,8 @@ const runOn = (id: string, style: string, text: string) =>
   `<p data-block="${id}">Shown text, then <span style="${style}">${text}</span>.</p>`
 
 /** A measure's id and whether its contrast was read, or why not. */
+/** Whether a measure finds its text unreadable. */
+const unreadable = (m: { issues: string[] }) => m.issues.includes('no_visible_text')
 /** Whether a measure finds its text off the page. */
 const off = (m: { issues: string[] }) => m.issues.includes('off_page')
 const contrastRead = (m: { id: string; contrast: { ratio: number | null; detail: string | null } }) => [
@@ -523,6 +525,45 @@ describe('the confined capture kernel', () => {
       for (const id of ['label h2:2', 'label h2:3', 'label h2:4', 'label h2:6 span'])
         assert.ok(named.includes(id), named)
       assert.equal(named.includes('label h2:1,'), false, named)
+    },
+  )
+
+  it(
+    'fails a text whose lines are drawn over each other, and reads lines set tight but apart (#117)',
+    { skip },
+    async () => {
+      const long = 'Host three costs twelve dollars a month and runs every job in its own sandbox. '.repeat(3)
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .narrow{width:250px;padding:40px;font:18px Arial} .zero{line-height:0} .tight{line-height:1}
+             .loose{line-height:1.6}`,
+            `<main><section data-section="s1"><h2>Findings</h2>
+            <p data-block="b1" class="narrow zero">${long}</p><p data-block="b2" class="narrow tight">${long}</p>
+            <p data-block="b3" class="narrow loose">${long.replaceAll('own sandbox', '<em>own</em> <a>sandbox</a>')}</p>
+            <h2 class="narrow zero">A heading set on one line over another</h2>
+            <h2 class="narrow tight">A heading set tight on two lines</h2></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const measured = receipt.targets.find((t) => t.id === target)!.page
+        assert.deepEqual(
+          [...measured.blocks, ...measured.framing].map((m) => [m.id, unreadable(m)]),
+          [
+            ['b1', true],
+            ['b2', false],
+            ['b3', false],
+            ['text 1 h2', false],
+            ['text 2 h2', true],
+            ['text 3 h2', false],
+          ],
+          target,
+        )
+        assert.equal(outcome(receipt, 'blocks_visible', target), 'failed', target)
+      }
     },
   )
 

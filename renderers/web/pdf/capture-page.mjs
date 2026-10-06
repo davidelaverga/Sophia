@@ -849,15 +849,42 @@ function isCovered(el, budget, page) {
 }
 
 /**
+ * Whether any two of a text's line boxes are drawn over each other: side by side and overlapping by more than half the
+ * height of the shorter. `line-height: 0` draws every wrapped line of a block on its first, while each line box keeps a
+ * glyph's height and advance (#117); a tight line height (1) overlaps its neighbours by a sliver only. Read in order of
+ * their tops against those still open above, within a bound of comparisons; past it the text is taken as overprinted.
+ * @param {DOMRect[]} rects
+ */
+function overprinted(rects) {
+  let left = 200_000
+  /** @type {DOMRect[]} */
+  let open = []
+  for (const r of rects.filter((b) => b.width > 0 && b.height > 0).toSorted((a, b) => a.top - b.top)) {
+    open = open.filter((o) => o.bottom > r.top)
+    left -= open.length
+    if (left < 0) return true
+    const over = (/** @type {DOMRect} */ o) =>
+      Math.min(o.bottom, r.bottom) - r.top > Math.min(o.height, r.height) / 2 &&
+      Math.min(o.right, r.right) - Math.max(o.left, r.left) > 1
+    if (open.some(over)) return true
+    open.push(r)
+  }
+  return false
+}
+
+/**
  * Whether a text outside the blocks is set too small to read in a capture, as rendered (a transform's scale
- * included): a line of it under the readable height, or its glyphs on average closer than the readable advance.
- * Marks that say nothing are not held to it, and a text not rendered is judged by its own element (#117).
+ * included): a line of it under the readable height, or its glyphs on average closer than the readable advance, or its
+ * lines drawn over each other (overprinted). Marks that say nothing are not held to it, and a text not rendered is
+ * judged by its own element (#117).
  * @param {Element} el
  * @param {{ linePx: number, advancePx: number }} readable
  * @param {RegExp} words a character that is not a mark
  */
 function tooSmall(el, readable, words) {
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  /** @type {DOMRect[]} */
+  const lines = []
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const text = node.textContent ?? ''
     const range = document.createRange()
@@ -866,8 +893,9 @@ function tooSmall(el, readable, words) {
     if (!words.test(text) || rects.length === 0) continue
     const advance = rects.reduce((sum, r) => sum + r.width, 0) / text.replace(/\s+/gu, '').length
     if (rects.some((r) => r.height < readable.linePx) || advance < readable.advancePx) return true
+    lines.push(...rects)
   }
-  return false
+  return overprinted(lines)
 }
 
 /**
@@ -1389,6 +1417,7 @@ const IN_PAGE = [
   pointsAlong,
   coverAlong,
   isCovered,
+  overprinted,
   tooSmall,
   paint,
   opacityOf,
