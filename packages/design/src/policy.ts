@@ -5,7 +5,7 @@
 // allowlist; anything else is refused.
 
 import { safeHref } from '@sophia/report/markdown'
-import { checkCss } from './css.ts'
+import { checkCss, mediaWidths, SWEEP_WIDTHS } from './css.ts'
 import { attr, depthOf, elements, hasAncestor, inHtml, lineAt, type Document, type Element } from './dom.ts'
 import { error, warning, type Finding } from './findings.ts'
 import { REFERENCE_ATTRIBUTES, TEXT_ATTRIBUTES } from './framing.ts'
@@ -272,11 +272,31 @@ function elementFindings(html: string, el: Element): Finding[] {
   return out
 }
 
+const styleText = (el: Element): string => el.childNodes.map((n) => ('value' in n ? n.value : '')).join('')
+
 function styleFindings(html: string, el: Element, line: number): Finding[] {
   if (!hasAncestor(el, (a) => a.tagName === 'head'))
     return [error('style_outside_head', 'index.html', '<style> belongs in <head>', { line })]
-  const text = el.childNodes.map((n) => ('value' in n ? n.value : '')).join('')
-  return checkCss(text, 'index.html', 'stylesheet', line)
+  return checkCss(styleText(el), 'index.html', 'stylesheet', line)
+}
+
+/**
+ * More width breakpoints, across the page's stylesheets, than the render measures the bands of (css.ts SWEEP_WIDTHS):
+ * it measures both ends of each band they make, so a page with more could hide what it shows in one (#117, CX-0039).
+ */
+function breakpointFindings(all: Element[], css: string | null): Finding[] {
+  const sheets = [...all.filter((el) => el.tagName === 'style').map(styleText), ...(css === null ? [] : [css])]
+  const widths = new Set(sheets.flatMap(mediaWidths))
+  return widths.size > SWEEP_WIDTHS.breakpoints
+    ? [
+        error(
+          'css_unsafe',
+          css === null ? 'index.html' : 'styles.css',
+          `the stylesheets set ${widths.size} width breakpoints; the render measures every band they make, so at most ` +
+            `${SWEEP_WIDTHS.breakpoints}`,
+        ),
+      ]
+    : []
 }
 
 function idCounts(all: Element[]): Map<string, number> {
@@ -349,5 +369,6 @@ export function checkPolicy(doc: Document, html: string, css: string | null): Fi
   if (!all.some((el) => attr(el, 'data-section') !== null))
     out.push(error('no_sections', 'index.html', 'mark each top-level section with data-section'))
   if (css !== null) out.push(...checkCss(css, 'styles.css', 'stylesheet'))
+  out.push(...breakpointFindings(all, css))
   return out
 }

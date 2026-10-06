@@ -280,18 +280,71 @@ function stateRuleIssue(node: CssNode): string | null {
         'select by place (:first-child, :nth-of-type(), :is(), :has()...) or :any-link otherwise'
 }
 
-/** Why a media or container query reaches a state no capture shows, or null. */
+/**
+ * The window widths the render's width sweep measures between, and the most breakpoints it measures (#117, CX-0039):
+ * the same as the capture kernel's (capture-html.mjs SWEEP), which a test holds equal. Between two breakpoints a page's
+ * media queries hold or fail alike, so the render measures both ends of every band they make; a width in another unit
+ * (an em moves with the reader's font size), past those widths, or computed is one it cannot bound.
+ */
+export const SWEEP_WIDTHS = Object.freeze({ min: 320, max: 2560, breakpoints: 8 })
+
+/** What a width a media query names gives that the render cannot measure, or null. */
+function widthIssue(part: CssNode): string | null {
+  if (part.type === 'Function') return `a width is a length in pixels, not ${part.name}()`
+  if (part.type === 'Number') return `a width is a length in pixels, not ${part.value}`
+  if (part.type !== 'Dimension') return null
+  if (part.unit.toLowerCase() !== 'px')
+    return `${part.value}${part.unit}: a width is a length in pixels, as the window's`
+  const px = Number(part.value)
+  return px >= SWEEP_WIDTHS.min && px <= SWEEP_WIDTHS.max
+    ? null
+    : `${part.value}px is past the ${SWEEP_WIDTHS.min}–${SWEEP_WIDTHS.max}px the render measures between`
+}
+
+/**
+ * Why a media query reaches a state no capture shows, or a width the render cannot measure, or null. A container
+ * query is refused: a container's width is not the window's, so no window width the render measures settles it (#117).
+ */
 function queryIssue(node: CssNode): string | null {
-  if (node.type !== 'Atrule' || !['media', 'container'].includes(node.name.toLowerCase()) || !node.prelude) return null
+  if (node.type !== 'Atrule') return null
+  if (node.name.toLowerCase() === 'container')
+    return "@container tests a container's width, which no window width the render measures settles; test the window's"
+  if (node.name.toLowerCase() !== 'media' || !node.prelude) return null
   const found: string[] = []
+  const widths: string[] = []
   walk(node.prelude, (part) => {
     const issue = uncaptured(part)
     if (issue) found.push(issue)
+    const width = widthIssue(part)
+    if (width) widths.push(width)
   })
-  return found.length === 0
-    ? null
-    : `@${node.name} tests ${found[0] ?? ''}: the captures are taken on a screen at two widths, in the light scheme, ` +
-        'so a rule for any other condition applies where no capture shows it; a query tests the width only'
+  if (found.length > 0)
+    return (
+      `@${node.name} tests ${found[0] ?? ''}: the captures are taken on a screen at two widths, in the light scheme, ` +
+      'so a rule for any other condition applies where no capture shows it; a query tests the width only'
+    )
+  return widths.length > 0 ? `@${node.name}: ${widths[0] ?? ''}` : null
+}
+
+/**
+ * The widths a stylesheet's media queries name, in pixels: the breakpoints the render's sweep measures around. A
+ * stylesheet that does not parse names none here; checkCss refuses it.
+ */
+export function mediaWidths(css: string): number[] {
+  const out: number[] = []
+  let ast: CssNode
+  try {
+    ast = parse(css, { context: 'stylesheet' })
+  } catch {
+    return out
+  }
+  walk(ast, (node) => {
+    if (node.type !== 'Atrule' || node.name.toLowerCase() !== 'media' || !node.prelude) return
+    walk(node.prelude, (part) => {
+      if (part.type === 'Dimension' && part.unit.toLowerCase() === 'px') out.push(Number(part.value))
+    })
+  })
+  return out
 }
 
 /** The longest stylesheet a source may hold. */

@@ -49,6 +49,9 @@ const withHtml = (files: SourceFile[], text: string): SourceFile[] =>
   files.map((f) => (f.path === 'index.html' ? { ...f, text } : f))
 const withCss = (files: SourceFile[], text: string): SourceFile[] =>
   files.map((f) => (f.path === 'styles.css' ? { ...f, text } : f))
+/** A stylesheet of `n` media queries, at widths 100px apart from `from`. */
+const mediaSheet = (from: number, n: number): string =>
+  Array.from({ length: n }, (_, i) => `@media (min-width: ${String(from + i * 100)}px){p{color:#111}}`).join('\n')
 /** The codes of a source's errors against a content package. */
 const errorCodes = (files: SourceFile[], pkg: ContentPackage): string[] =>
   checkSource(files, pkg)
@@ -1038,11 +1041,47 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       '@media only screen and (width >= 720px){main{display:grid}}',
       '@media (400px <= width <= 1000px){main{gap:2rem}}',
       '@media not (min-width: 720px){main{gap:1rem}}',
-      '@container (inline-size > 30em){p{columns:2}}',
       ':root{color-scheme:light}',
       ':root{color-scheme:only light}',
     ])
       assert.deepEqual(css(ok), [], ok)
+  })
+  // #117, CX-0039: the render measures both ends of every band of window widths a page's breakpoints make, so a width
+  // is one it can bound: in pixels, between 320 and 2560px, eight breakpoints at most across the page's stylesheets.
+  it('refuses a width the render cannot bound, a container query, and more breakpoints than it measures', () => {
+    for (const bad of [
+      '@media (min-width: 40em){p{color:#111}}',
+      '@media (min-width: 400em){p{color:#111}}',
+      '@media (max-width: 2.5rem){p{color:#111}}',
+      '@media (width >= 50vw){p{color:#111}}',
+      '@media (min-width: 200px){p{color:#111}}',
+      '@media (min-width: 3000px){p{color:#111}}',
+      '@media (min-width: calc(600px + 1em)){p{color:#111}}',
+      '@media (min-width: 0){p{color:#111}}',
+      '@container (inline-size > 30em){p{columns:2}}',
+      '@container (min-width: 400px){p{color:#111}}',
+      '@CONTAINER card (min-width: 400px){p{color:#111}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    for (const ok of [
+      '@media (min-width: 320px){p{color:#111}}',
+      '@media (max-width: 2560px){p{color:#111}}',
+      '@media (max-width: 999.5px){p{color:#111}}',
+      '@media (700PX <= width <= 900px){p{color:#111}}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+    const head = (rules: string) => html(good).replace('</head>', `<style>${rules}</style></head>`)
+    assert.deepEqual(
+      codes(withCss(withHtml(good, head(mediaSheet(400, 4))), mediaSheet(800, 4))),
+      [],
+      'eight in two stylesheets',
+    )
+    assert.deepEqual(
+      codes(withCss(withHtml(good, head(mediaSheet(400, 4))), mediaSheet(800, 5))),
+      ['css_unsafe'],
+      'nine',
+    )
+    assert.deepEqual(codes(withCss(good, `${mediaSheet(400, 8)}\n${mediaSheet(400, 8)}`)), [], 'the same eight twice')
   })
   // #117: the captures take no state a reader puts the page in: a pointer, focus, a followed fragment, a visited link.
   it('holds a rule for a state no capture takes to an outline or a text decoration of a few pixels', () => {
