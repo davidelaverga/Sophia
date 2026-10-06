@@ -209,11 +209,15 @@ function carryWritesFor(setSpace: (next: (s: Space) => Space) => void): Pick<Per
       if (carries === Number(query.get('carryLost'))) {
         return Promise.reject(new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key'))
       }
-      return Promise.resolve({ ...receipt('carry_note'), releaseId: `release-${noteId}`, projectId })
+      const done = { ...receipt('carry_note'), releaseId: `release-${noteId}`, projectId }
+      // `carrySlow=1`: each carry's reply takes 1.5 s.
+      return query.has('carrySlow') ? new Promise((r) => setTimeout(() => r(done), 1500)) : Promise.resolve(done)
     },
     takeBack: (releaseId, key) => {
       takes += 1
       if (takes === Number(query.get('takeBackFails'))) return Promise.reject(new TypeError('Failed to fetch'))
+      // `takenElsewhere=1`: Work (or another tab) took it back first, under its own key.
+      if (query.has('takenElsewhere')) takeKeys.set(releaseId, 'elsewhere')
       if (takeKeys.has(releaseId)) {
         // Asked again: under the same key, the answer it had; under another, the release is gone.
         if (key !== undefined && takeKeys.get(releaseId) === key) return Promise.resolve(receipt('take_back'))
