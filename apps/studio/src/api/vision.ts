@@ -366,3 +366,38 @@ export const createTask = (token: string, projectId: string, key: string, body: 
 /** A17: a task done (whoever it is for, an editor or an admin), once per key. */
 export const finishTask = (token: string, projectId: string, taskId: string, key: string) =>
   callApi(`/api/v1/projects/${projectId}/tasks/${taskId}/done`, { token, key, body: {} }, parseTask)
+
+/** A12 refinement (proposed): what a closed meeting's work made later, linked to it, never inside its recap. */
+export interface AfterUpdate {
+  at: string
+  kind: 'work_finished' | 'version_made'
+  taskId: string | null
+  artifactId: string | null
+  artifactVersionId: string | null
+  versionNumber: number | null
+  title: string | null
+}
+
+const isNumOrNull = (v: unknown): v is number | null => v === null || isNum(v)
+const parseAfter = checked<{ updates: readonly AfterUpdate[] }>(
+  {
+    updates: listOf({
+      at: isStr,
+      kind: (v) => v === 'work_finished' || v === 'version_made',
+      taskId: isStrOrNull,
+      artifactId: isStrOrNull,
+      artifactVersionId: isStrOrNull,
+      versionNumber: isNumOrNull,
+      title: isStrOrNull,
+    }),
+  },
+  'after-meeting list',
+)
+
+/** A12 refinement: a closed meeting's later outcomes, oldest first. */
+export const getAfter = (token: string, projectId: string, meetingId: string, signal?: AbortSignal) =>
+  callApi(
+    `/api/v1/projects/${projectId}/meetings/${meetingId}/after`,
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseAfter,
+  )

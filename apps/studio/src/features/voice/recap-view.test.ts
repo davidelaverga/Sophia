@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { MeetingRecap } from '../../api/vision.ts'
-import { recapHead, recapSections, recapText } from './recap-view.ts'
+import { afterLine, recapHead, recapSections, recapText } from './recap-view.ts'
 
 const names = new Map([
   ['me', 'you'],
@@ -77,6 +77,59 @@ describe('the recap’s sections', () => {
     assert.equal(
       recapText('Fixture project', recap(), nameOf),
       'Fixture project\n42 minutes · 2 members\nNothing was decided, made or kept in this meeting.',
+    )
+  })
+})
+
+describe('the record at close, and what came after', () => {
+  const running = recap({ work: [{ taskId: 't1', kind: 'research', state: 'running' }] })
+
+  it('says work still running at close as such, never as done', () => {
+    const closed = recapSections(running, nameOf, true).find((s) => s.title === 'Work')
+    assert.deepEqual(
+      closed?.lines.map((l) => [l.text, l.by]),
+      [['research', 'still running at close']],
+    )
+    const queued = recap({ work: [{ taskId: 't2', kind: 'research', state: 'pending' }] })
+    assert.deepEqual(
+      recapSections(queued, nameOf, true)
+        .find((s) => s.title === 'Work')
+        ?.lines.map((l) => l.by),
+      ['still running at close'],
+    )
+    assert.ok(
+      recapText('This meeting', { ...running, endedAt: '2026-10-05T11:00:00.000Z' }, nameOf).includes(
+        'research (still running at close)',
+      ),
+    )
+    const open = recapSections(running, nameOf, false).find((s) => s.title === 'Work')
+    assert.deepEqual(
+      open?.lines.map((l) => l.by),
+      ['running'],
+    )
+  })
+
+  it('names a later outcome by what it made, and its version', () => {
+    const base = {
+      at: '2026-10-06T17:34:00Z',
+      taskId: 't1',
+      artifactId: 'a',
+      artifactVersionId: 'v',
+      versionNumber: 2,
+      title: 'Fixture report',
+    }
+    assert.equal(afterLine({ ...base, kind: 'work_finished' }), 'Fixture report ready · v2')
+    assert.equal(afterLine({ ...base, kind: 'version_made' }), 'Fixture report · v2')
+    assert.equal(
+      afterLine({
+        ...base,
+        kind: 'work_finished',
+        artifactId: null,
+        artifactVersionId: null,
+        versionNumber: null,
+        title: null,
+      }),
+      'Work finished',
     )
   })
 })

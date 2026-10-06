@@ -29,7 +29,7 @@ import { noteKept, type Notes } from './brief-data.ts'
 import { noShowing, walked } from './focus-data.ts'
 import { noReviews } from './review-data.ts'
 import { noTasks, taskOf } from './task-data.ts'
-import { newMeeting, type Meeting } from './meeting-data.ts'
+import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, leaving, sophiaLeaves } from './fake-livekit.ts'
@@ -64,6 +64,7 @@ import {
   SOPHIAS_DESCRIPTION,
   TEAMMATE,
   TITLE,
+  TASK,
   versionId,
 } from './report-data.ts'
 
@@ -342,6 +343,13 @@ window.fixture = {
     project.researching = { reads }
   },
   researchDone: () => {
+    finishedAfter(project.meeting, {
+      taskId: TASK,
+      artifactId: REPORT,
+      artifactVersionId: versionId(project.reportVersions),
+      versionNumber: project.reportVersions,
+      title: project.reportTitle,
+    })
     project.researching = null
     project.work = true
     publish(project)
@@ -573,7 +581,8 @@ function meetingRecords(): ReturnType<Meeting['records']> {
       at: e.recordedAt,
     })),
     open: [],
-    work: [],
+    // Sophia's research while it runs (`research=running`): the meeting's work, said as running at close if it was.
+    work: project.researching ? [{ taskId: TASK, kind: 'research', state: 'running' }] : [],
     // The proposed `names` (#105): every actor the fixture knows, so a name shows where the room never saw them.
     names: Object.fromEntries(
       [1, 2, 3, 4, 5]

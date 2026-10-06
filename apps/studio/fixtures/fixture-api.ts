@@ -280,12 +280,22 @@ function searchAnswer(project: Project, url: URL): Response | Promise<Response> 
 /** This viewer's membership: the fixture's own, in the role the page asked for. */
 const membershipOf = (project: Project) => ({ ...membership, role: project.role ?? membership.role })
 
+/** What a closed meeting's work made after it (the proposed `after` route): the running one's, once closed; none else. */
+function afterAnswer(meeting: Meeting, path: string): Response | null {
+  const afterOf = /\/meetings\/([^/]+)\/after$/.exec(path)?.[1]
+  if (!afterOf) return null
+  served.push('after')
+  return json({ updates: afterOf === MEETING && meeting.closedAt ? meeting.after : [] })
+}
+
 /** The meeting's list and its recap (A12, meeting-data.ts). */
 function meetingAnswer(project: Project, path: string): Promise<Response> | Response | null {
   const meeting = project.meeting
   const base = `/api/v1/projects/${PROJECT}/meetings`
   if (!meeting) return null
   if (path === base) return json(meetingList(meeting))
+  const after = afterAnswer(meeting, path)
+  if (after) return after
   if (path === `${base}/${MEETING}/so-far`) {
     served.push('so-far')
     return json(soFarOf(meeting, project.revision))

@@ -1,6 +1,6 @@
 // What a meeting left (docs/plans/room-recap.md): the recap's head, its sections with something in them, and the text
 // «Copy recap» puts on the clipboard, all from the A12 recap's records. Pure, so the words are unit-tested.
-import type { MeetingRecap } from '../../api/vision.ts'
+import type { AfterUpdate, MeetingRecap } from '../../api/vision.ts'
 
 /** A member named in a sentence: "you", their name, or "a member" when the room never knew them. */
 export type NameOf = (actorId: string) => string
@@ -46,7 +46,11 @@ const keptBy = (n: MeetingRecap['noted'][number], nameOf: NameOf) =>
 export type Records = Pick<MeetingRecap, 'decided' | 'made' | 'noted' | 'open' | 'work'>
 
 /** The sections with something in them, in the order the sheet (or Updates) shows them. */
-export function recapSections(recap: Records, nameOf: NameOf): RecapSection[] {
+/** Work not finished yet: queued or running. */
+export const ongoing = (state: string): boolean => state === 'pending' || state === 'running'
+
+/** `closed`: the recap is the record at close, so work running then is said as such, never as done. */
+export function recapSections(recap: Records, nameOf: NameOf, closed = false): RecapSection[] {
   const sections: RecapSection[] = [
     {
       title: 'Decided',
@@ -71,7 +75,7 @@ export function recapSections(recap: Records, nameOf: NameOf): RecapSection[] {
       lines: recap.work.map((w) => ({
         key: w.taskId,
         text: w.kind.replaceAll('_', ' '),
-        by: w.state.replaceAll('_', ' '),
+        by: closed && ongoing(w.state) ? 'still running at close' : w.state.replaceAll('_', ' '),
       })),
     },
   ]
@@ -80,10 +84,17 @@ export function recapSections(recap: Records, nameOf: NameOf): RecapSection[] {
 
 /** The recap as plain text, for «Copy recap»: its head, then each section's lines. */
 export function recapText(title: string, recap: MeetingRecap, nameOf: NameOf): string {
-  const sections = recapSections(recap, nameOf)
+  const sections = recapSections(recap, nameOf, recap.endedAt !== null)
   const body =
     sections.length === 0
       ? ['Nothing was decided, made or kept in this meeting.']
       : sections.flatMap((s) => ['', s.title, ...s.lines.map((l) => `- ${l.text} (${l.by})`)])
   return [title, recapHead(recap), ...body].join('\n')
+}
+
+/** A later outcome, in words: what its work made, and the version. */
+export function afterLine(update: AfterUpdate): string {
+  const version = update.versionNumber === null ? '' : ` · v${String(update.versionNumber)}`
+  if (update.title === null) return update.kind === 'work_finished' ? 'Work finished' : `A new version${version}`
+  return update.kind === 'work_finished' ? `${update.title} ready${version}` : `${update.title}${version}`
 }
