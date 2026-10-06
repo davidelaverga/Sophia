@@ -401,3 +401,88 @@ export const getAfter = (token: string, projectId: string, meetingId: string, si
     { token, method: 'GET', ...(signal ? { signal } : {}) },
     parseAfter,
   )
+
+/** A18 (proposed): one of the project's text conversations, as listed; its own history, the project's context. */
+export interface ConversationSummary {
+  id: string
+  title: string
+  /** Sophia's, from this conversation's records only; null when there is none yet. */
+  summary: string | null
+  lastAt: string
+  /** Who wrote there: never everyone who can read it. */
+  contributors: readonly { actorId: string; name: string }[]
+  /** Sophia answered there. */
+  sophia: boolean
+  openQuestions: number
+  /** The report it made, if any. */
+  output: { artifactId: string; versionId: string; versionNumber: number; title: string } | null
+}
+
+/** A18: a message in a conversation, a member's or Sophia's. */
+export interface ConversationMessage {
+  id: string
+  author: 'member' | 'sophia'
+  actorId: string | null
+  name: string | null
+  text: string
+  at: string
+}
+
+/** A18: a page of a conversation's messages, oldest first; `before` reads the page before it. */
+export interface MessagePage {
+  messages: readonly ConversationMessage[]
+  before: string | null
+}
+
+const isOutput = (v: unknown) =>
+  v === null || fields(v, { artifactId: isStr, versionId: isStr, versionNumber: isNum, title: isStr })
+const parseConversations = checked<{ conversations: readonly ConversationSummary[] }>(
+  {
+    conversations: listOf({
+      id: isStr,
+      title: isStr,
+      summary: isStrOrNull,
+      lastAt: isStr,
+      contributors: listOf({ actorId: isStr, name: isStr }),
+      sophia: (v) => typeof v === 'boolean',
+      openQuestions: isNum,
+      output: isOutput,
+    }),
+  },
+  'conversation list',
+)
+const parseMessages = checked<MessagePage>(
+  {
+    messages: listOf({
+      id: isStr,
+      author: (v) => v === 'member' || v === 'sophia',
+      actorId: isStrOrNull,
+      name: isStrOrNull,
+      text: isStr,
+      at: isStr,
+    }),
+    before: isStrOrNull,
+  },
+  'message page',
+)
+
+/** A18: the project's conversations, newest activity first. */
+export const listConversations = (token: string, projectId: string, signal?: AbortSignal) =>
+  callApi(
+    `/api/v1/projects/${projectId}/conversations`,
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseConversations,
+  )
+
+/** A18: a page of a conversation's messages: the newest, or those before `before`. */
+export const getConversationMessages = (
+  token: string,
+  conversationId: string,
+  before: string | null,
+  signal?: AbortSignal,
+) =>
+  callApi(
+    `/api/v1/conversations/${conversationId}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`,
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseMessages,
+  )

@@ -8,6 +8,7 @@ import type {
   FloorRequest,
   GoalCommand,
   Membership,
+  MissionContext,
   Receipt,
   Snapshot,
 } from '@sophia/contracts'
@@ -43,7 +44,8 @@ import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-
 import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
 import { reviewed, type Reviews } from './review-data.ts'
 import { created, finished, type Tasks } from './task-data.ts'
-import type { ProjectTask, VersionReview } from '../src/api/vision.ts'
+import type { ConversationMessage, ConversationSummary, ProjectTask, VersionReview } from '../src/api/vision.ts'
+import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
 import type { ProjectRelease } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
@@ -133,6 +135,22 @@ interface Project {
   tasks?: Tasks
   /** The meeting the room is in (meeting-data.ts, A12); absent, its requests are unexpected. */
   meeting?: Meeting
+  /** The project's conversations (conversation-data.ts, A18); absent, their requests are unexpected. */
+  conversations?: Conversations
+  /** What the brief adds for the conversations' context: a purpose, accepted decisions, one still open. */
+  missionPlus?: ReturnType<typeof conversationMission>
+  /** The brief's reads fail (`window.fixture.failMission`). */
+  missionFails?: boolean
+}
+
+/** The conversations as the A18 reads give them, and the reads that fail. */
+export interface Conversations {
+  list: ConversationSummary[]
+  messages: Record<string, ConversationMessage[]>
+  /** The list's reads fail (`conversations=fail`, `window.fixture.failConversations`). */
+  failList: boolean
+  /** This conversation's messages fail to read (`messages=fail`: the second one's). */
+  failMessagesOf: string | null
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -249,6 +267,8 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
+  const talk = project.conversations && conversationRead(project.conversations, url)
+  if (talk !== undefined) return talk
   if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
   const reviews = REVIEWS_OF.exec(url.pathname)
   if (reviews?.[2]) return reviewsRead(project, reviews[2])
@@ -334,6 +354,35 @@ const unavailable = () =>
 /** Any report's reviews or tasks (A16, A17): the report (and the version) captured. */
 const REVIEWS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions\/([0-9a-f-]{36})\/reviews$/
 const TASKS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
+const MESSAGES_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
+
+/** A18's reads: the list, or a page of a conversation's messages; undefined for any other request. */
+function conversationRead(talk: Conversations, url: URL) {
+  if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk)
+  const messagesOf = MESSAGES_OF.exec(url.pathname)?.[1]
+  return messagesOf ? messagesRead(talk, messagesOf, url) : undefined
+}
+
+/** The project's conversations (A18), as listed. */
+function conversationsRead(talk: Conversations) {
+  if (talk.failList) return unavailable()
+  served.push('conversations:read')
+  return json({ conversations: talk.list })
+}
+
+/** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
+function messagesRead(talk: Conversations, conversationId: string, url: URL) {
+  if (talk.failMessagesOf === conversationId) return unavailable()
+  const all = talk.messages[conversationId]
+  if (!all) return null
+  const before = url.searchParams.get('before')
+  // A cursor this list never gave is the client's mistake: unexpected, not an empty page.
+  if (before !== null && !/^[1-9][0-9]*$/u.test(before)) return null
+  const end = Math.min(all.length, Number(before ?? all.length))
+  const start = Math.max(0, end - MESSAGE_PAGE)
+  served.push(`messages:${conversationId.slice(-2)}:${String(start)}`)
+  return json({ messages: all.slice(start, end), before: start > 0 ? String(start) : null })
+}
 
 /** The person's projects (`GET /api/v1/projects`): this one, with what members carried in from Personal. */
 function projectListAnswer(project: Project): Response | Promise<Response> {
@@ -587,11 +636,24 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
 function missionAnswer(project: Project, method: string, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}/mission`
   if (method === 'GET' && path === base) {
-    if (project.notes?.unread) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+    if (project.notes?.unread || project.missionFails) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
     served.push(`mission:${project.revision}`)
-    return json(mission(project.revision, project.notes?.kept, !project.notes?.refused))
+    return json(
+      withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus),
+    )
   }
   return project.notes ? notesAnswer(project.revision, project.notes, method, path, init) : null
+}
+
+/** The brief with what the conversations' context adds (a purpose, accepted decisions, one still open), if any. */
+function withContext(ctx: MissionContext, plus: Project['missionPlus']): MissionContext {
+  if (!plus || !ctx.mission) return ctx
+  return {
+    ...ctx,
+    mission: { ...ctx.mission, purpose: plus.purpose },
+    constraints: plus.constraints,
+    pending: plus.pending,
+  }
 }
 
 /** A note written in the brief, or its withdrawal. */
