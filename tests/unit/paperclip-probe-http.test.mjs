@@ -7,11 +7,12 @@ import { createServer } from 'node:http'
 import { after, describe, it } from 'node:test'
 import { exchange, until } from '../../scripts/paperclip-probe-http.mjs'
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-import { flowFor } from '../../scripts/paperclip-probe-flow.mjs'
+import { createHash } from 'node:crypto'
+import { flowFor, newIdentity } from '../../scripts/paperclip-probe-flow.mjs'
 import { secretSink } from '../../scripts/paperclip-probe-url.mjs'
 
 const PENDING = 'pending'
@@ -223,3 +224,70 @@ describe('every credential the probe makes or is given is handed over for the sc
   })
 })
 
+
+describe('review of 9ee7754: the restart phase checks what persists, and leaves sign-up alone', () => {
+  const PROBE = fileURLToPath(new URL('../../scripts/paperclip-service-probe.mjs', import.meta.url))
+  const CONFIG = { coordinationUrl: 'http://127.0.0.1:9' }
+
+  /** A stand-in for a restarted server holding the first phase's plugin, configuration and issue. */
+  const restartedServer = (calls) =>
+    serve((req, res) => {
+      req.resume()
+      req.on('end', () => {
+        calls.push(`${req.method} ${req.url.split('?')[0]}`)
+        const host = req.headers.host ?? ''
+        const json = (status, body) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body))
+        if (req.url === '/api/health') return host.startsWith('evil.example') ? json(403, {}) : json(200, { status: 'ok' })
+        if (req.url === '/api/plugins/plugin-1') return json(200, { status: 'ready' })
+        if (req.url.startsWith('/api/plugins/plugin-1/config')) return json(200, { configJson: CONFIG })
+        if (req.url === '/api/plugins/sophia.coordination/api/commissions/lookup')
+          return json(200, { outcome: 'found', issueId: 'issue-1', status: 'cancelled' })
+        if (req.url === '/api/plugins/sophia.coordination/api/commissions') return json(200, { outcome: 'existing', issueId: 'issue-1' })
+        if (req.url === '/api/auth/sign-up/email') return json(400, { code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' })
+        json(404, {})
+      })
+    })
+
+  const runPhase = async (port, dir, phase) => {
+    const out = join(dir, `${phase}.json`)
+    const args = ['--url', `http://127.0.0.1:${port}`, '--phase', phase, '--state', join(dir, 'state.json'), '--secrets', join(dir, 'secrets.txt')]
+    const child = spawn(process.execPath, [PROBE, ...args, '--out', out, '--wait-ms', '3000', '--deadline-ms', '20000'], {
+      env: { ...process.env, GITHUB_ACTIONS: '' },
+    })
+    const code = await settledWithin(new Promise((done) => child.on('exit', done)), 25_000)
+    assert.notEqual(code, PENDING, `the ${phase} phase ended`)
+    return { code: code.value, result: JSON.parse(readFileSync(out, 'utf8')) }
+  }
+
+  it('restart: the same plugin, configuration and issue, the resend answered by it, the host-name guard; no sign-up', async () => {
+    const calls = []
+    const port = await restartedServer(calls)
+    const dir = mkdtempSync(join(tmpdir(), 'pc-restart-'))
+    try {
+      const state = {
+        schema: 'sophia.paperclip-probe-state.v1',
+        origin: `http://127.0.0.1:${port}`,
+        identity: newIdentity(),
+        op: { userId: 'user-1', token: 'pcp_board-key-0000000000' },
+        ids: { pluginId: 'plugin-1', companyId: 'company-1', projectId: 'project-1' },
+        issueId: 'issue-1',
+        configDigest: createHash('sha256').update(JSON.stringify(CONFIG)).digest('hex'),
+      }
+      writeFileSync(join(dir, 'state.json'), JSON.stringify(state))
+      const restart = await runPhase(port, dir, 'restart')
+      assert.equal(restart.code, 0, JSON.stringify(restart.result))
+      assert.equal(restart.result.outcome, 'passed')
+      assert.deepEqual(
+        restart.result.steps.map((s) => s.step),
+        ['health', 'plugin ready again', 'config unchanged', 'same issue found, still cancelled', 'commission resend answered by the same issue', 'host-name guard'],
+      )
+      assert.ok(!calls.includes('POST /api/auth/sign-up/email'), 'sign-up is still open after a restart: not tried')
+      const recreated = await runPhase(port, dir, 'restarted')
+      assert.equal(recreated.code, 0, JSON.stringify(recreated.result))
+      assert.equal(recreated.result.steps.at(-2).step, 'sign-up refused')
+      assert.ok(calls.includes('POST /api/auth/sign-up/email'))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})

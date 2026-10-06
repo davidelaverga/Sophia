@@ -88,6 +88,8 @@ const FACTS = {
     'host-name guard': { privateName: 200, otherName: 403 },
   },
 }
+// After the restart, sign-up is still open: the recreation's facts but the refusal.
+FACTS.restart = Object.fromEntries(Object.entries(FACTS.restarted).filter(([step]) => step !== 'sign-up refused'))
 const probe = (phase) => ({
   phase,
   outcome: 'passed',
@@ -132,7 +134,7 @@ function complete() {
       ports: [{ port: '3100/tcp', hostIp: '127.0.0.1', hostPort: '3100' }],
     })),
     samples: PHASES.map(sample),
-    probes: { first: probe('first'), restarted: probe('restarted') },
+    probes: { first: probe('first'), restart: probe('restart'), restarted: probe('restarted') },
     home: { before: { coverage: covered(files), files }, after: structuredClone(grown) },
   }
 }
@@ -156,7 +158,7 @@ describe('the image qualification receipt (WBC-02-CX-0036)', () => {
     const receipt = assess(complete())
     assert.equal(receipt.verdict, 'qualified')
     assert.ok(receipt.checks.every((c) => c.result === 'passed'))
-    assert.equal(receipt.checks.length, 1 + 3 + 1 + PHASES.length + 2 + 1)
+    assert.equal(receipt.checks.length, 1 + 3 + 1 + PHASES.length + 3 + 1)
   })
 
   it('CX-0036: a memory sample without peak and current is not qualified, even with nothing listed unavailable', () => {
@@ -543,11 +545,11 @@ describe('the probe’s own credentials and credential-named fields are scrubbed
     assert.ok(!log.includes(PASSWORD) && !log.includes('pcp_board-key-0123456789'), log)
   })
 
-  it('the workflow keeps the probe’s secrets file from the first step, hands it to both phases and to the scrub', () => {
+  it('the workflow keeps the probe’s secrets file from the first step, hands it to every phase and to the scrub', () => {
     const steps = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image.steps
     assert.match(steps.find((s) => s.run?.includes('EVIDENCE=$E')).run, /install -m 600 \/dev\/null "\$RUNNER_TEMP\/probe-secrets\.txt"/)
     const probes = steps.filter((s) => s.run?.includes('paperclip-service-probe.mjs --url'))
-    assert.equal(probes.length, 2)
+    assert.equal(probes.length, 3)
     for (const s of probes) assert.match(s.run, /--secrets "\$RUNNER_TEMP\/probe-secrets\.txt"/)
     assert.equal(steps.find((s) => s.name === 'Scrub the evidence').env.REDACT_FILES, '${{ runner.temp }}/probe-secrets.txt')
   })
@@ -852,6 +854,96 @@ describe('review of 4c63217: a start is judged by the health answer recorded, an
         sum += Number(bound[1])
       }
       assert.ok(step['timeout-minutes'] * 60 >= sum + 60, `${step.name}: ${step['timeout-minutes']} min for ${sum} s of commands`)
+    }
+  })
+})
+
+describe('review of 9ee7754: what persists is probed after the restart too, not only after the recreation', () => {
+  const RESTART = 'installed plugin flow, restart'
+  const WORKFLOW = fileURLToPath(new URL('../../.github/workflows/paperclip-image.yml', import.meta.url))
+
+  it('positive control: the restart phase passes with the first phase’s plugin, configuration and issue', () => {
+    assert.equal(resultOf(complete(), RESTART), 'passed')
+    assert.deepEqual(PROBE_STEPS.restart, PROBE_STEPS.restarted.filter((step) => step !== 'sign-up refused'))
+  })
+
+  it('no restart probe is not reached, never qualified', () => {
+    const run = complete()
+    delete run.probes.restart
+    assert.equal(resultOf(run, RESTART), 'not reached')
+    assert.equal(verdictOf(run), 'incomplete')
+  })
+
+  it('a plugin, configuration or issue that did not survive the restart fails, though the recreation’s did', () => {
+    for (const [step, change] of [
+      ['plugin ready again', (f) => ({ ...f, status: 'error' })],
+      ['plugin ready again', (f) => ({ ...f, pluginId: 'another' })],
+      ['config unchanged', () => ({ before: CONFIG, after: 'd'.repeat(64) })],
+      ['same issue found, still cancelled', (f) => ({ ...f, outcome: 'missing' })],
+      ['commission resend answered by the same issue', (f) => ({ ...f, issueId: 'another' })],
+      ['host-name guard', (f) => ({ ...f, otherName: 200 })],
+    ])
+      assert.equal(verdictOf(withFacts('restart', step, change)), 'failed', step)
+    const failedStep = complete()
+    failedStep.probes.restart.steps[1].ok = false
+    failedStep.probes.restart.outcome = 'failed'
+    assert.equal(resultOf(failedStep, RESTART), 'failed')
+  })
+
+  it('the restart step probes before the recreation, with its own bound inside the step’s budget', () => {
+    const steps = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image.steps
+    const restart = steps.find((s) => s.name === 'Restart')
+    assert.match(restart.run, /timeout 660 node sophia\/scripts\/paperclip-service-probe\.mjs --url http:\/\/127\.0\.0\.1:3100 --phase restart /)
+    assert.match(restart.run, /--out "\$EVIDENCE\/probe-restart\.json"/)
+    const recreate = steps.findIndex((s) => s.name?.startsWith('Recreate'))
+    assert.ok(steps.indexOf(restart) < recreate)
+  })
+})
+
+describe('the receipt command reads every input the workflow writes, by its own name', () => {
+  const RECEIPT = fileURLToPath(new URL('../../scripts/paperclip-image-receipt.mjs', import.meta.url))
+  const dirs = []
+  after(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
+
+  /** The evidence directory of a complete, legitimate run, as the workflow's steps write it. */
+  const evidenceOf = (run) => {
+    const dir = mkdtempSync(join(tmpdir(), 'pc-receipt-'))
+    dirs.push(dir)
+    const lines = (list) => list.map((item) => `${JSON.stringify(item)}\n`).join('')
+    const files = {
+      'context.json': JSON.stringify(run.context),
+      'identity.json': JSON.stringify(run.identity),
+      'timings.jsonl': lines(run.timings),
+      'runtime.jsonl': lines(run.runtime),
+      'cgroup.jsonl': lines(run.samples),
+      'probe-first.json': JSON.stringify(run.probes.first),
+      'probe-restart.json': JSON.stringify(run.probes.restart),
+      'probe-restarted.json': JSON.stringify(run.probes.restarted),
+      'home-before.json': JSON.stringify(run.home.before),
+      'home-after.json': JSON.stringify(run.home.after),
+      'manifest.json': run.packaged.manifest,
+      'image-manifest.json': run.packaged.imageManifest,
+      'image-files.json': JSON.stringify(run.packaged.imageFiles),
+    }
+    for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, name), content)
+    return { dir, names: Object.keys(files) }
+  }
+  const verdictIn = (dir) => {
+    const run = spawnSync(process.execPath, [RECEIPT, dir, join(dir, 'receipt.json'), join(dir, 'summary.md')], { encoding: 'utf8' })
+    assert.equal(run.status, 0, run.stderr)
+    return JSON.parse(readFileSync(join(dir, 'receipt.json'), 'utf8')).verdict
+  }
+
+  it('positive control: the files of a complete run are qualified', () => {
+    assert.equal(verdictIn(evidenceOf(complete()).dir), 'qualified')
+  })
+
+  it('without any one of them, the run is not qualified', () => {
+    const { names } = evidenceOf(complete())
+    for (const name of names) {
+      const { dir } = evidenceOf(complete())
+      rmSync(join(dir, name))
+      assert.notEqual(verdictIn(dir), 'qualified', `${name} missing`)
     }
   })
 })

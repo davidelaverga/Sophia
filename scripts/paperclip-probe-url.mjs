@@ -1,11 +1,13 @@
 // WBC-02 (WBC-02-CX-0031, CX-0032): the service probe's --url mode. It drives a Paperclip server that is already
-// running, at a loopback origin only (a disposable container whose port is published on 127.0.0.1), in two phases:
+// running, at a loopback origin only (a disposable container whose port is published on 127.0.0.1), in three phases:
 //   --phase first      health, the host-name guard, the first admin, the plugin installed from its path in the image
 //                      and configured, a signed commission (and its resend: the same issue), a signed Stop (and its
 //                      resend: already applied), a scheduled run of the settle job, the lookup, the config's digest;
-//   --phase restarted  after the server was restarted or recreated (sign-up closed) on the same database and home:
-//                      the plugin ready again, the config unchanged, the same issue found and still cancelled, the
-//                      commission's resend answered by the same issue, sign-up refused, the host-name guard.
+//   --phase restart    after the same container was restarted (sign-up still open): the plugin ready again, the config
+//                      unchanged, the same issue found and still cancelled, the commission's resend answered by the same
+//                      issue, the host-name guard (review of 9ee7754);
+//   --phase restarted  after the container was recreated (sign-up closed) on the same database and home: the same,
+//                      and sign-up refused.
 // It starts no process, opens no database and reads no /proc: the container's memory is the caller's to measure, from
 // its cgroup. Between phases it keeps its state (the synthetic board key and Sophia key among it) in --state, which
 // the caller keeps private and never uploads; the result it writes (--out) holds no credential. Every credential the
@@ -35,7 +37,7 @@ export function secretSink(path, { env = process.env, log = console.log } = {}) 
 export async function runUrl(values) {
   const target = loopbackOrigin(values.url ?? '')
   const phase = values.phase
-  if (phase !== 'first' && phase !== 'restarted') throw new Error('--phase must be first or restarted')
+  if (!['first', 'restart', 'restarted'].includes(phase)) throw new Error('--phase must be first, restart or restarted')
   if (!values.state) throw new Error('--state <file> is required')
   if (!values.secrets) throw new Error('--secrets <file> is required: the evidence scrub removes what it lists')
   const onSecret = secretSink(values.secrets)
@@ -66,7 +68,7 @@ export async function runUrl(values) {
   try {
     const pluginPath = values['plugin-path'] ?? '/opt/sophia/sophia-coordination-plugin'
     if (phase === 'first') await first({ ...target, pluginPath, onSecret }, values.state, waitMs, step)
-    else await restarted({ ...target, pluginPath, onSecret }, values.state, waitMs, step)
+    else await restarted({ ...target, pluginPath, onSecret }, values.state, waitMs, step, { signUpClosed: phase === 'restarted' })
     result.outcome = 'passed'
   } catch {
     result.outcome = 'failed'
@@ -127,7 +129,8 @@ async function first(target, statePath, waitMs, step) {
   writeFileSync(statePath, JSON.stringify(state), { mode: 0o600 })
 }
 
-async function restarted(target, statePath, waitMs, step) {
+/** What persists across a restart or a recreation; sign-up is refused only once the recreation closed it. */
+async function restarted(target, statePath, waitMs, step, { signUpClosed }) {
   const state = JSON.parse(readFileSync(statePath, 'utf8'))
   assert.equal(state.schema, STATE_SCHEMA)
   assert.equal(state.origin, target.origin, 'the restarted phase drives the server the first phase drove')
@@ -166,6 +169,6 @@ async function restarted(target, statePath, waitMs, step) {
     },
     seen,
   )
-  await step('sign-up refused', () => flow.signUpRefused(), (refusal) => ({ status: refusal.status, code: refusal.code }))
+  if (signUpClosed) await step('sign-up refused', () => flow.signUpRefused(), (refusal) => ({ status: refusal.status, code: refusal.code }))
   await step('host-name guard', () => flow.hostGuard(), seen)
 }

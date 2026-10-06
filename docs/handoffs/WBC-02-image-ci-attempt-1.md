@@ -4,7 +4,7 @@ Goal and attempt: WBC-02 (SCM-01), the isolated CI qualification of the Papercli
 Human owner / executor resource: Davide (decisions); Codex (review, deployment, testing); Claude Code in a cloud container (linux-x64), the only implementation writer  
 Native session: this Claude Code session; no Sophia native session was created  
 Starting worktree/commit: the held WBC-02 branch `scm-01/workboard-source-review` at exactly `29371f5a3703f4358563886407bc360df7c38603`, verified in this container; this slice's branch `scm-01/paperclip-image-ci` was cut from it  
-Ending commit/tree and changed files: PR #119's head, the latest commit to change this file. Its 22 commits run from `fecc2d2` (the three probe drafts of WBC-02-CC-0014) to the review rounds and this handoff. Files: `.github/workflows/paperclip-image.yml`, `scripts/paperclip-{service-probe,probe-flow,probe-url,probe-http}.mjs`, `scripts/paperclip-image-{container,cgroup,home,redact,receipt}.mjs`, `tests/unit/paperclip-{image,image-home,probe-http}.test.mjs`, `docs/evidence/WBC-02/paperclip-image-ci.md`, one source-map row (`docs/SOURCE_MAP.md` PC-11, the upstream sign-up refusal) and this handoff. Nothing under `packages/`, `apps/`, contracts, migrations, `config/runtime-unit`, `deploy/` or `docs/progress/`
+Ending commit/tree and changed files: PR #119's head, the latest commit to change this file. Its 23 commits run from `fecc2d2` (the three probe drafts of WBC-02-CC-0014) to the review rounds and this handoff. Files: `.github/workflows/paperclip-image.yml`, `scripts/paperclip-{service-probe,probe-flow,probe-url,probe-http}.mjs`, `scripts/paperclip-image-{container,cgroup,home,redact,receipt}.mjs`, `tests/unit/paperclip-{image,image-home,probe-http}.test.mjs`, `docs/evidence/WBC-02/paperclip-image-ci.md`, one source-map row (`docs/SOURCE_MAP.md` PC-11, the upstream sign-up refusal) and this handoff. Nothing under `packages/`, `apps/`, contracts, migrations, `config/runtime-unit`, `deploy/` or `docs/progress/`
 
 ## Outcome
 
@@ -12,7 +12,7 @@ On a GitHub-hosted runner, a workflow builds the image from the pin's own build 
 
 - **The container:** Docker's default capability set (none added or dropped), not privileged, published on loopback only, with each start healthy within 0–300 s on a monotonic clock.
 - **The flow:** the installed plugin's whole flow runs through the service probe's `--url` mode: the host-name guard, the first admin and a board key, install and configuration, a signed commission and its resend, a signed Stop and its resend, the scheduled settle run, the lookup and the configuration digest.
-- **Restart and recreation:** after a restart, and a recreation on the same volume and database with sign-up closed, the plugin, configuration and issue persist, and sign-up is refused exactly as the pin refuses it.
+- **Restart and recreation:** after a restart (from the review of `9ee7754`), and again after a recreation on the same volume and database with sign-up closed, the plugin, configuration and issue persist and the commission's resend is answered by that issue; after the recreation, sign-up is refused exactly as the pin refuses it.
 - **Memory and home:** memory is read from the container's own cgroup at every phase, with every OOM counter. The home is scanned once per file by a paused, read-only scanner container, with complete coverage, and growing records may only append.
 - **The receipt** validates recorded facts, never producer flags, and says `qualified` only when every check passed. The evidence is scrubbed and read again before it is uploaded, and only then.
 
@@ -27,9 +27,9 @@ On a GitHub-hosted runner, a workflow builds the image from the pin's own build 
   - Unit: 1581 pass, 0 fail, 1 skipped.
   - Integration: 86 pass, 0 fail, 2 skipped.
 - **`pnpm check` on this commit's tree:** exit 0.
-  - Unit: 1594 pass, 0 fail, 1 skipped.
+  - Unit: 1601 pass, 0 fail, 1 skipped.
   - Integration: 86 pass, 0 fail, 2 skipped.
-- **Tests:** the receipt, scan, scrub, probe, runtime, time-budget, start-timing, health-answer, runtime-bound, trigger and packaged-file tests are in `tests/unit/paperclip-image.test.mjs`, `paperclip-image-home.test.mjs` (Linux only: it reads `/proc`) and `paperclip-probe-http.test.mjs`.
+- **Tests:** the receipt, scan, scrub, probe, runtime, time-budget, start-timing, health-answer, runtime-bound, restart-phase, trigger and packaged-file tests are in `tests/unit/paperclip-image.test.mjs`, `paperclip-image-home.test.mjs` (Linux only: it reads `/proc`) and `paperclip-probe-http.test.mjs`.
 - **Mutations:** each mutation of those checks is caught; the counts per review round are in the evidence record.
 - **Codex's independent checks at `5446719` (CX-0042):**
   - `pnpm check` exits 0;

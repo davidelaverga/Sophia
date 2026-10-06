@@ -109,6 +109,8 @@ In run 6, every phase again had `memory.max` 2,147,483,648, `memory.swap.max` 0,
   - a new sign-up refused (400; from the review of `08c2915` the probe and the receipt also require the auth's own code, `EMAIL_PASSWORD_SIGN_UP_DISABLED`);
   - the host-name guard again.
 
+From the review of `9ee7754`, the same checks but the sign-up refusal also run straight after the restart, as phase `restart`, before the recreation; sign-up is still open then. The runs listed above predate this phase.
+
 **The home** held 4 files in runs 1, 2, 4, 5 and 6. All 4 were still there after the recreation, with the same size and digest. None of them was a growing record. In run 5, the first with the single-read scan and the coverage fields, each snapshot listed and hashed 4 of 4 files, with none unread and no directory unread. Run 6 did the same through the paused, isolated snapshot (from `ae09294`): the container paused, the volume scanned read-only by a disposable scanner container, then unpaused, in about 0.3 s each time. The snapshot has no fallback, so a failed pause, scan or unpause would have failed the step.
 
 ## What the receipt checks
@@ -158,6 +160,7 @@ The review rounds and their tests:
 | review of `3f92959` | a change to the root toolchain, lock or workspace, or to `packages/contracts`, started no image run, though the build installs, typechecks and bundles with them | the trigger names `.node-version`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `packages/contracts/**`; a test walks the bundled packages' workspace dependencies and holds the trigger to them; 7 mutations |
 | review of `896a92d` | the packaged files passed on the identity step's two flags, and the manifests stayed on the runner | both manifests and a confined scan of `/opt/sophia` inside the image kept as evidence; the receipt recomputes the digest, the byte-identical copy, the pin, commit and clean tree, and every packaged file; a real tree scanned and changed; 11 mutations |
 | review of `4c63217` | a start passed on the helper's `ok` flag with no health answer recorded; the runtime steps' budgets were shorter than what they run could take | the helper records the answer (status and reported state) and the receipt judges it, an `ok` without one incomplete; every runtime command under an explicit `timeout` above its own worst case, each step's budget their sum and a minute (33, 12 and 37 minutes), the job 315; 9 mutations |
+| review of `9ee7754` | after `docker restart` only health and memory were checked, so a plugin that did not reload after a restart could still qualify | probe phase `restart` after the restart: the plugin ready again, the configuration unchanged, the same issue still cancelled, the resend answered by it, the host-name guard, held to the first phase's facts; sign-up left alone; the restart step 22 minutes; the receipt command run over a whole evidence directory, and without each of its files; 9 mutations |
 
 Each mutation in force is caught. The scan tests read `/proc` and run on Linux only.
 

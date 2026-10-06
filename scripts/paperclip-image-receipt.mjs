@@ -3,8 +3,8 @@
 // from what the workflow recorded in one directory, whatever point the run reached:
 //   node scripts/paperclip-image-receipt.mjs <dir> <receipt.json> <summary.md>
 // Inputs (each optional; a missing one is `not reached`, never filled in): context.json, disk.jsonl, identity.json,
-// timings.jsonl, cgroup.jsonl (scripts/paperclip-image-cgroup.mjs), probe-first.json and probe-restarted.json (the
-// service probe's --url phases), home-before.json and home-after.json (scripts/paperclip-image-home.mjs snapshots),
+// timings.jsonl, cgroup.jsonl (scripts/paperclip-image-cgroup.mjs), probe-first.json, probe-restart.json and
+// probe-restarted.json (the service probe's --url phases), home-before.json and home-after.json (scripts/paperclip-image-home.mjs snapshots),
 // manifest.json and image-manifest.json (the build's MANIFEST and the image's copy, as bytes) and image-files.json (a
 // scan of /opt/sophia inside the image).
 // Every check validates the recorded values themselves, never a producer's own pass flag: the identity against the
@@ -40,6 +40,15 @@ export const PROBE_STEPS = {
     'scheduled settle job',
     'lookup',
     'config digest',
+  ],
+  // After `docker restart`, sign-up still open: what persists, checked before the recreation (review of 9ee7754).
+  restart: [
+    'health',
+    'plugin ready again',
+    'config unchanged',
+    'same issue found, still cancelled',
+    'commission resend answered by the same issue',
+    'host-name guard',
   ],
   restarted: [
     'health',
@@ -229,6 +238,8 @@ const FACTS = {
     'host-name guard': (f) => f.privateName === 200 && f.otherName === 403,
   },
 }
+// The restart's steps are the recreation's but the sign-up refusal, each held to the same facts.
+FACTS.restart = FACTS.restarted
 
 const factsOf = (probe) => Object.fromEntries((probe?.steps ?? []).map((s) => [s.step, s.detail ?? {}]))
 
@@ -292,7 +303,7 @@ export function assess({
     ...STARTS.map((label) => ({ name: `${label}: healthy within ${HEALTH_LIMIT_S} s`, ...startCheck(timings, label) })),
     { name: 'runtime: not privileged, Docker’s default capabilities (none added or dropped), not the host network, loopback only', ...runtimeCheck(runtime) },
     ...PHASES.map((phase) => ({ name: `memory, ${phase}`, ...memoryCheck(samples, phase) })),
-    ...['first', 'restarted'].map((phase) => ({ name: `installed plugin flow, ${phase}`, ...probeCheck(probes[phase], phase, probes.first) })),
+    ...['first', 'restart', 'restarted'].map((phase) => ({ name: `installed plugin flow, ${phase}`, ...probeCheck(probes[phase], phase, probes.first) })),
     { name: 'home persisted across recreation', ...homeCheck(home.before, home.after) },
   ]
   const results = checks.map((c) => c.result)
@@ -380,7 +391,7 @@ if (isMain) {
     timings: lines('timings.jsonl'),
     runtime: lines('runtime.jsonl'),
     samples,
-    probes: { first: json('probe-first.json'), restarted: json('probe-restarted.json') },
+    probes: { first: json('probe-first.json'), restart: json('probe-restart.json'), restarted: json('probe-restarted.json') },
     home: { before: json('home-before.json'), after: json('home-after.json') },
   })
   writeFileSync(out, `${JSON.stringify(receipt, null, 2)}\n`)

@@ -20,9 +20,9 @@
 // Synthetic data only: no provider, no Sophia service (the adapter is given an address nothing listens on), nothing
 // beyond loopback. The database and the home are removed at the end.
 //
-// With --url, it starts nothing and drives a server already running at a loopback origin, in two phases (WBC-02-CX-0031;
+// With --url, it starts nothing and drives a server already running at a loopback origin, in three phases (WBC-02-CX-0031;
 // scripts/paperclip-probe-url.mjs):
-//   node scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase first|restarted --state <file> --secrets <file> [--out <file>]
+//   node scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase first|restart|restarted --state <file> --secrets <file> [--out <file>]
 import { execFileSync, spawn } from 'node:child_process'
 import { mkdtempSync, openSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
