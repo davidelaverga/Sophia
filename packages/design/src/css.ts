@@ -1,7 +1,7 @@
 // The static profile's CSS rules (SDD-01, pack 05 §5), checked with a CSS parser (css-tree), never with patterns over
 // the text. It fails closed: CSS that does not parse cleanly, an escaped name (escapes belong in strings only), a
-// `url()` in any form, an at-rule or a value function outside the allowlists, or a binding property is refused. Nothing
-// here judges whether the CSS is good design.
+// `url()` in any form, an at-rule, a value function or a pseudo-element outside the allowlists, or a binding property
+// is refused. Nothing here judges whether the CSS is good design.
 
 import { parse, walk, type CssNode } from 'css-tree'
 import { error, type Finding } from './findings.ts'
@@ -11,6 +11,19 @@ import { error, type Finding } from './findings.ts'
  * and so is `@keyframes`: the page is static (#117).
  */
 const AT_RULES = new Set(['media', 'supports', 'container', 'layer', 'page'])
+
+/**
+ * Pseudo-elements a page may style: generated content, held to marks below (::before, ::after, ::marker), the reader's
+ * own selection, and a summary's disclosure marker. Every other one styles part of a text, or a box around it, apart
+ * from the element the render measures: `::first-line { color: transparent }` hides a heading whose element still
+ * measures whole, and `::details-content` can fade a disclosure's text where no ancestor shows it (#117). The legacy
+ * one-colon forms (`:first-line`, `:first-letter`) are pseudo-elements too.
+ */
+const PSEUDO_ELEMENTS = new Set(['before', 'after', 'marker', 'selection', '-webkit-details-marker'])
+const LEGACY_PSEUDO_ELEMENTS = new Set(['first-line', 'first-letter'])
+const pseudoIssue = (name: string): string =>
+  `::${name} styles part of a text apart from the element the render measures, so a capture could lack what the ` +
+  'measures pass; style the element itself (generated content is ::before, ::after or ::marker)'
 
 /** Value functions that compute or select; none can load a resource. */
 const FUNCTIONS = new Set([
@@ -189,6 +202,14 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
       nameIssue('at-rule', node.name) ?? (AT_RULES.has(node.name.toLowerCase()) ? null : `@${node.name} is not allowed`)
     )
   },
+  PseudoElementSelector: (node) =>
+    node.type === 'PseudoElementSelector' && !PSEUDO_ELEMENTS.has(node.name.toLowerCase())
+      ? pseudoIssue(node.name)
+      : null,
+  PseudoClassSelector: (node) =>
+    node.type === 'PseudoClassSelector' && LEGACY_PSEUDO_ELEMENTS.has(node.name.toLowerCase())
+      ? pseudoIssue(node.name)
+      : null,
   Function: (node) => {
     if (node.type !== 'Function') return null
     return (

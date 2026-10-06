@@ -740,6 +740,39 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
   })
 })
 
+describe('a pseudo-element styles only generated content (#117)', () => {
+  const css = (rule: string): string[] => codes(withCss(good, `${rule}\n`))
+  it('refuses a pseudo-element that styles part of a text apart from its element, in any form or medium', () => {
+    for (const bad of [
+      'h2::first-line{color:transparent}',
+      'h2::first-line{font-size:0}',
+      'p::first-letter{color:#fafafa}',
+      'h2:first-line{color:transparent}',
+      'h2:FIRST-LETTER{font-size:0}',
+      'H2::First-Line{opacity:0}',
+      '@media print{h2::first-line{color:transparent}}',
+      'details::details-content{opacity:0}',
+      'p::target-text{color:transparent}',
+      'h2::-webkit-scrollbar{width:0}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+  })
+  it("accepts generated content, the reader's selection and the disclosure marker", () => {
+    for (const ok of [
+      'h2::before{content:"§ "}',
+      'a::after{content:" →"}',
+      'a:after{content:" →"}',
+      'blockquote:before{content:open-quote}',
+      'li::marker{color:#999}',
+      '::selection{background:#ffd}',
+      'summary::-webkit-details-marker{display:none}',
+      'h2:first-child{margin-top:0}',
+      'p:first-of-type{font-size:1.1em}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
+})
+
 describe('a page any walk can finish (#117)', () => {
   const nested = (depth: number): SourceFile[] => {
     const deep = `<h2 id="deep">${'<span>'.repeat(depth)}Findings${'</span>'.repeat(depth)}</h2>`
