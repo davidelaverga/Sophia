@@ -124,18 +124,18 @@ export type Recapping = 'running' | 'past' | 'unknown'
 
 /**
  * What a recap's sheet recaps: the latest meeting, on leaving, runs; else as its recap says once read; until then, as
- * its opener knew it; and while neither has said, it can't tell, until its recap can't be read either: then past.
+ * its opener knew it. While neither has said, it can't tell, even when a read failed (Codex on #138): a failure says
+ * nothing about the meeting, so it waits for a read that does (Try again), or for the sheet to close.
  */
 export function recapping(sheet: {
   latest: boolean
   read: Pick<MeetingRecap, 'endedAt'> | null | undefined
-  failed: boolean
   running: boolean | undefined
 }): Recapping {
   if (sheet.latest) return 'running'
   if (sheet.read !== undefined) return sheet.read?.endedAt === null ? 'running' : 'past'
   if (sheet.running !== undefined) return sheet.running ? 'running' : 'past'
-  return sheet.failed ? 'past' : 'unknown'
+  return 'unknown'
 }
 
 /** The sheets recapping a meeting now: how many recap the running one, and how many can't tell yet. */

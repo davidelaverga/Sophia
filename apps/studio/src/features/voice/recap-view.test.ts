@@ -171,7 +171,7 @@ describe('reading again what came after the meeting', () => {
 })
 
 describe('whether a recap’s sheet recaps the running meeting, and what a leave does then', () => {
-  const sheet = { latest: false, read: undefined, failed: false, running: undefined }
+  const sheet = { latest: false, read: undefined, running: undefined }
   const ended = { endedAt: '2026-10-06T17:00:00Z' }
 
   it('goes by its recap once read, else by its opener, and the latest on leaving runs', () => {
@@ -183,9 +183,8 @@ describe('whether a recap’s sheet recaps the running meeting, and what a leave
     assert.equal(recapping({ ...sheet, running: false }), 'past')
   })
 
-  it('can’t tell while neither has said, until its recap can’t be read (Codex on #138)', () => {
+  it('can’t tell while neither has said, a failed read included: a failure says nothing (Codex on #138)', () => {
     assert.equal(recapping(sheet), 'unknown')
-    assert.equal(recapping({ ...sheet, failed: true }), 'past')
   })
 
   const none = { running: 0, unknown: 0 }

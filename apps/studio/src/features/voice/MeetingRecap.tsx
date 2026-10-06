@@ -151,12 +151,7 @@ export function RecapSheet(props: SheetProps) {
   const titleId = useId()
   // Leaving from the running meeting's sheet opens no second; from a past one's, the recap of the call left; and while
   // it can't tell yet, that recap waits until it can (Codex on #130 and #138).
-  const which = recapping({
-    latest: props.meetingId === undefined,
-    read: recap.data,
-    failed: recap.isError,
-    running: props.running,
-  })
+  const which = recapping({ latest: props.meetingId === undefined, read: recap.data, running: props.running })
   useEffect(() => {
     countSheet(which, 1)
     return () => countSheet(which, -1)

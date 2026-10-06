@@ -243,6 +243,30 @@ test('search · closing a recap that can’t tell yet lets the leave’s own rec
   await expect(page.getByRole('dialog')).toHaveCount(1)
 })
 
+test('search · with both its reads failed, the running meeting’s sheet still can’t tell: its leave waits until it closes (Codex on #138)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?people=2&call=on')
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Search' }).click()
+  await field(page).fill('fourteen teams')
+  const recapHit = hits(page).filter({ hasText: 'Meeting recap' })
+  await expect(recapHit).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.failRecaps(true))
+  await watchLatest(page, 'fail')
+  await recapHit.getByRole('button').click()
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(recap).toContainText('The recap couldn’t be read.')
+  await leaveFrom(page, recap)
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+  // Closed, it can't tell any more: the leave's own recap opens, and reads for itself.
+  await page.evaluate(() => window.fixture?.failRecaps(false))
+  await releaseLatest(page)
+  await page.keyboard.press('Escape')
+  await expect(recap.getByRole('region', { name: 'Decided' })).toContainText('Pilot the fixture with fourteen teams')
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+})
+
 test('search · as soon as the words change, the last query’s hits are not offered', async ({ page }) => {
   await page.getByRole('button', { name: 'Search' }).click()
   await field(page).fill('fixture')
