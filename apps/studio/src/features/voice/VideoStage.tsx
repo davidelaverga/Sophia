@@ -3,6 +3,7 @@
 // the shared screen's place (PresentedReport, docs/plans/room-present.md). Past a few people the tiles stop, and «+N»
 // opens everyone in the call (tile-view.ts, docs/plans/room-tiles-overflow.md).
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { VideoFeed } from './livekit-room.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import {
@@ -71,6 +72,8 @@ export function VideoStage({ mode, people, feeds, floor, shown }: Props) {
   const cameraOf = (identity: string) => feeds.find((f) => f.identity === identity && f.source === 'camera')
   const present = mode === 'present' && (screen !== undefined || shown !== undefined)
   const { kept, more, count } = useKeptTiles(people, floor, screen?.identity ?? null, present)
+  // Held here, not in «+N»: the tiles move between the strip and the gallery, and the sheet stays open across.
+  const [everyone, setEveryone] = useState(false)
   const tiles = (
     <>
       <li className="tile sophia-tile" data-sophia-tile>
@@ -84,7 +87,7 @@ export function VideoStage({ mode, people, feeds, floor, shown }: Props) {
           holds={floor.holder?.identity === p.identity}
         />
       ))}
-      {more.length > 0 && <MoreTile people={people} count={more.length} floor={floor} />}
+      {more.length > 0 && <MoreTile count={more.length} onOpen={() => setEveryone(true)} />}
     </>
   )
   if (present) {
@@ -102,12 +105,14 @@ export function VideoStage({ mode, people, feeds, floor, shown }: Props) {
         <ul className="tile-strip" aria-label="In the room">
           {tiles}
         </ul>
+        {everyone && <InTheCall people={people} floor={floor} onClose={() => setEveryone(false)} />}
       </div>
     )
   }
   return (
     <ul className="gallery" data-count={count} aria-label="In the room">
       {tiles}
+      {everyone && <InTheCall people={people} floor={floor} onClose={() => setEveryone(false)} />}
     </ul>
   )
 }
@@ -123,45 +128,57 @@ function useKeptTiles(people: RoomParticipant[], floor: FloorView, showing: stri
 /** When each person last spoke, on this page's clock: who spoke most recently keeps a tile next (tile-view.ts). */
 function useSpokeAt(people: readonly RoomParticipant[]): ReadonlyMap<string, number> {
   const spokeAt = useRef(new Map<string, number>())
+  const before = useRef<readonly string[]>([])
   const speaking = people
     .filter((p) => p.speaking)
     .map((p) => p.identity)
     .join(' ')
+  // Stamped as someone speaks and again as they stop: whoever talked last, not whoever began last, ranks first.
   useEffect(() => {
-    for (const identity of speaking.split(' ').filter(Boolean)) spokeAt.current.set(identity, Date.now())
+    const now = speaking.split(' ').filter(Boolean)
+    for (const identity of [...now, ...before.current]) spokeAt.current.set(identity, Date.now())
+    before.current = now
   }, [speaking])
   return spokeAt.current
 }
 
-/** The people past the tiles: «+N», which opens everyone in the call (and Close gives the focus back to it). */
-function MoreTile(props: { people: readonly RoomParticipant[]; count: number; floor: FloorView }) {
-  const [open, setOpen] = useState(false)
+/** The people past the tiles: «+N», which opens everyone in the call; its name says what it shows. */
+function MoreTile({ count, onOpen }: { count: number; onOpen: () => void }) {
   return (
     <li className="tile tile-more">
-      <button type="button" aria-label={`${String(props.count)} more in the call`} onClick={() => setOpen(true)}>
-        {`+${String(props.count)}`}
+      <button type="button" data-more-tile aria-label={`+${String(count)} more in the call`} onClick={onOpen}>
+        {`+${String(count)}`}
       </button>
-      {open && <InTheCall people={props.people} floor={props.floor} onClose={() => setOpen(false)} />}
     </li>
   )
 }
+
+/** Where the focus goes when «+N» went while the sheet was open (the call fell under the cap): the room's Leave. */
+const backToRoom = () =>
+  document.querySelector<HTMLElement>('[data-more-tile]') ??
+  document.querySelector<HTMLElement>('button[aria-label="Leave the room"]')
 
 /** Everyone in the call, with what sets them apart (the floor, a guest, speaking), and you. */
 function InTheCall(props: { people: readonly RoomParticipant[]; floor: FloorView; onClose: () => void }) {
   const id = useId()
   return (
-    <Sheet id={id} title="In the call" onClose={props.onClose}>
-      <ul className="in-the-call">
-        {props.people.map((p) => {
-          const role = presenceRole(p, props.floor.holder?.identity === p.identity)
-          return (
-            <li key={p.identity}>
-              <span className="in-the-call-name">{`${shortName(p.name)}${p.local ? ' · you' : ''}`}</span>
-              {role && <span className="in-the-call-role">{role}</span>}
-            </li>
-          )
-        })}
-      </ul>
-    </Sheet>
+    // Over the whole page, never inside the stage: its layers (the dock, the captions) would draw over a sheet held
+    // in the gallery's own stacking.
+    createPortal(
+      <Sheet id={id} title="In the call" onClose={props.onClose} returnTo={backToRoom}>
+        <ul className="in-the-call">
+          {props.people.map((p) => {
+            const role = presenceRole(p, props.floor.holder?.identity === p.identity)
+            return (
+              <li key={p.identity}>
+                <span className="in-the-call-name">{`${shortName(p.name)}${p.local ? ' · you' : ''}`}</span>
+                {role && <span className="in-the-call-role">{role}</span>}
+              </li>
+            )
+          })}
+        </ul>
+      </Sheet>,
+      document.body,
+    )
   )
 }

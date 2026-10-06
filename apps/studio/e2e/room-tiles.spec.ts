@@ -7,7 +7,7 @@ const leave = (page: Page) => page.getByRole('button', { name: 'Leave the room' 
 const room = (page: Page) => page.getByRole('list', { name: 'In the room' })
 const tiles = (page: Page) => room(page).locator('.tile')
 const names = (page: Page) => room(page).locator('.tile:not(.tile-more) .tile-name')
-const more = (page: Page) => room(page).getByRole('button', { name: /more in the call$/ })
+const more = (page: Page) => room(page).getByRole('button', { name: /^\+\d+ more in the call$/ })
 const sheet = (page: Page) => page.getByRole('dialog', { name: 'In the call' })
 const unexpected = (page: Page) => page.evaluate(() => [...(window.fixture?.unexpected ?? [])])
 
@@ -33,7 +33,8 @@ test('tiles · a shared screen with nine others: Sophia, three people and «+7»
   // Sophia's, three people's and «+N»: nine others and you, ten in all, past the four kept.
   await expect(tiles(page)).toHaveCount(5)
   await expect(more(page)).toHaveText('+7')
-  await expect(more(page)).toHaveAccessibleName('7 more in the call')
+  // Its name holds what it shows (+7), for whoever says it aloud.
+  await expect(more(page)).toHaveAccessibleName('+7 more in the call')
   const heights = await tiles(page).evaluateAll((all) => all.map((el) => el.getBoundingClientRect().height))
   expect(
     heights.filter((h) => h < 60),
@@ -60,6 +61,8 @@ test('tiles · someone who starts speaking gets a tile', async ({ page }) => {
 test('tiles · «+N» opens everyone in the call, and Close gives the focus back', async ({ page }) => {
   await enter(page, 'people=9&video=screen&floor=2')
   await more(page).click()
+  // Over the whole page, not inside the stage, where the dock would draw over it.
+  await expect(page.locator('body > .sheet-backdrop')).toHaveCount(1)
   await expect(sheet(page).getByRole('listitem')).toHaveCount(10)
   await expect(sheet(page).getByRole('listitem').filter({ hasText: 'Lucía' })).toContainText('has the floor')
   await expect(sheet(page).getByRole('listitem').filter({ hasText: 'you' })).toHaveCount(1)
