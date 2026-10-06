@@ -13,11 +13,29 @@ const cites = (b: ContentBlock, order: readonly string[]): string =>
   b.citations.map((id) => `<a data-cite="${id}" href="#src-${id}">[${order.indexOf(id) + 1}]</a>`).join('')
 const links = (b: ContentBlock): string => b.links.map((href) => ` <a href="${esc(href)}"></a>`).join('')
 
-function blockHtml(b: ContentBlock, order: readonly string[]): string {
-  if (b.kind === 'table') {
-    const cells = b.cells.map((c, i) => `<td>${esc(c)}${i === 0 ? cites(b, order) + links(b) : ''}</td>`).join('')
-    return `<div role="region" aria-label="Table ${b.id}" tabindex="0"><table data-block="${b.id}"><tbody><tr>${cells}</tr></tbody></table></div>`
+/** A table block as a table of its own shape: its head row of header cells, then its rows. */
+function tableHtml(b: ContentBlock, order: readonly string[]): string {
+  const cell = (tag: 'th' | 'td', text: string, first: boolean): string =>
+    `<${tag}>${esc(text)}${first ? cites(b, order) + links(b) : ''}</${tag}>`
+  const rows: string[] = []
+  let at = 0
+  for (const [r, n] of b.rows.entries()) {
+    const tag = r === 0 ? 'th' : 'td'
+    rows.push(
+      `<tr>${b.cells
+        .slice(at, at + n)
+        .map((c, i) => cell(tag, c, at + i === 0))
+        .join('')}</tr>`,
+    )
+    at += n
   }
+  const [head = '', ...body] = rows
+  const tbody = body.length > 0 ? `<tbody>${body.join('')}</tbody>` : ''
+  return `<div role="region" aria-label="Table ${b.id}" tabindex="0"><table data-block="${b.id}"><thead>${head}</thead>${tbody}</table></div>`
+}
+
+function blockHtml(b: ContentBlock, order: readonly string[]): string {
+  if (b.kind === 'table') return tableHtml(b, order)
   if (b.kind === 'item') return `<ul><li data-block="${b.id}">${esc(b.text)}${cites(b, order)}${links(b)}</li></ul>`
   if (b.kind === 'code') return `<pre data-block="${b.id}"><code>${esc(b.text)}</code></pre>`
   return `<p data-block="${b.id}">${esc(b.text)}${cites(b, order)}${links(b)}</p>`

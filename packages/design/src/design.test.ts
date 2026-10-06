@@ -61,6 +61,8 @@ const codes = (files: SourceFile[]): string[] =>
   checkSource(files, content)
     .findings.filter((f) => f.severity === 'error')
     .map((f) => f.code)
+/** Cells of one tag around each text. */
+const cells = (tag: string, ...texts: string[]): string => texts.map((t) => `<${tag}>${t}</${tag}>`).join('')
 /** The fixture table's head row, its cells opened by `a`, `b` and `c`, around the first cell's own markup. */
 const tableHead = (host: string, a = '<th>', b = '<th>', c = '<th>'): string =>
   `<thead><tr>${a}${host}</th>${b}Cost</th>${c}Isolation</th></tr></thead>`
@@ -84,6 +86,8 @@ describe('the frozen content package', () => {
       'the citation leaves no stray space',
     )
     assert.deepEqual(content.blocks[0]?.citations, [A])
+    assert.deepEqual(content.blocks[4]?.rows, [3, 3, 3], "a table's shape, its head row first")
+    assert.deepEqual(content.blocks[0]?.rows, [], 'none for other blocks')
     assert.deepEqual(content.blocks[4]?.cells, [
       'Host',
       'Cost',
@@ -577,7 +581,7 @@ describe('a tooltip or an accessible name carries no text the page does not show
       ['</main>', '<table><tr><th scope="col" abbr="Host three is free">Host</th></tr></table></main>'],
       // #117: words of its own header can say the opposite of it, and a screen reader may read the abbreviation.
       ['</main>', '<table><tr><th scope="col" abbr="free">Not free</th></tr></table></main>'],
-      ['</main>', '<table><tr><th scope="col" abbr="Cost">Cost per month, in USD</th></tr></table></main>'],
+      ['</main>', '<table><tr><th scope="col" abbr="Price">Price per month, in USD</th></tr></table></main>'],
       ['</main>', '<table><tr><th scope="col" abbr="three free">Host three is not free</th></tr></table></main>'],
       ['<p data-block="b1">', '<p data-block="b1" aria-keyshortcuts="Host three is free">'],
       ['</main>', '<table><tr aria-rowindextext="Host three is free"><th>Host</th></tr></table></main>'],
@@ -857,7 +861,7 @@ describe('a tooltip or an accessible name carries no text the page does not show
   // #117: a screen reader announces a cell with its headers; `headers` and `scope` change them where no capture shows it.
   it("refuses header cells heard over other cells than the captures show them over, and keeps a table's own", () => {
     const flat =
-      /<tbody><tr><td>(Host[\s\S]*?)<\/td><td>Cost<\/td><td>Isolation<\/td><td>One<\/td><td>12\.50<\/td><td>seccomp<\/td><td>Two<\/td><td>30<\/td><td>VM<\/td><\/tr><\/tbody>/u
+      /<thead><tr><th>(Host[\s\S]*?)<\/th><th>Cost<\/th><th>Isolation<\/th><\/tr><\/thead><tbody><tr><td>One<\/td><td>12\.50<\/td><td>seccomp<\/td><\/tr><tr><td>Two<\/td><td>30<\/td><td>VM<\/td><\/tr><\/tbody>/u
     const table = (rows: (host: string) => string) => {
       const page = html(good)
       const host = flat.exec(page)?.[1]
@@ -883,10 +887,43 @@ describe('a tooltip or an accessible name carries no text the page does not show
       (h: string) => tableHead(h, '<th scope="col">', '<th scope="COL">', '<th scope="col">') + tableBody(),
       (h: string) => tableHead(h) + tableBody('<th scope="row">One</th>'),
       (h: string) => tableHead(h) + tableBody('<th>One</th>'),
-      (h: string) =>
-        `<tbody><tr><td>${h}</td><td>Cost</td><td>Isolation</td></tr>` + tableBody().replace('<tbody>', ''),
     ])
       assert.deepEqual(table(rows), [], rows('Host'))
+  })
+  // #117: coverage compares a table's cells in order; its rows are the research's too, or values lose their headers.
+  it("refuses a research table whose rows are not the research's, and keeps its own shape", () => {
+    const page = html(good)
+    const head = /<thead><tr><th>(Host[\s\S]*?)<\/th>/u.exec(page)?.[1] ?? ''
+    assert.ok(head !== '', 'the fixture table')
+    const whole = /<thead>[\s\S]*?<\/tbody>/u
+    const shaped = (inner: string) => codes(withHtml(good, page.replace(whole, inner)))
+    const th = `<th>${head}</th>${cells('th', 'Cost', 'Isolation')}`
+    const one = cells('td', 'One', '12.50', 'seccomp')
+    const two = cells('td', 'Two', '30', 'VM')
+    for (const inner of [
+      `<thead><tr>${th}${one}${two}</tr></thead>`,
+      `<thead><tr>${th}</tr></thead><tbody><tr>${one}${two}</tr></tbody>`,
+      `<thead><tr>${th}</tr></thead><tbody><tr>${one}<td>Two</td></tr><tr>${cells('td', '30', 'VM')}</tr></tbody>`,
+      `<thead><tr><th>${head}</th></tr><tr>${cells('th', 'Cost', 'Isolation')}</tr></thead><tbody><tr>${one}</tr><tr>${two}</tr></tbody>`,
+      `<thead><tr>${th}</tr></thead><tbody><tr><td colspan="2">One</td>${cells('td', '12.50', 'seccomp')}</tr><tr>${two}</tr></tbody>`,
+      `<thead><tr>${th}</tr></thead><tbody><tr><td rowspan="2">One</td>${cells('td', '12.50', 'seccomp')}</tr><tr>${two}</tr></tbody>`,
+      `<thead><tr>${th}</tr></thead><tfoot><tr>${two}</tr></tfoot><tbody><tr>${one}</tr></tbody>`,
+      `<thead><tr><td>${head}</td>${cells('td', 'Cost', 'Isolation')}</tr></thead><tbody><tr>${one}</tr><tr>${two}</tr></tbody>`,
+    ])
+      assert.ok(shaped(inner).includes('block_altered'), inner)
+    for (const inner of [
+      `<thead><tr>${th}</tr></thead><tbody><tr>${one}</tr><tr>${two}</tr></tbody>`,
+      `<tr>${th}</tr><tr>${one}</tr><tr>${two}</tr>`,
+      `<thead><tr>${th}</tr></thead><tbody><tr><th scope="row">One</th>${cells('td', '12.50', 'seccomp')}</tr><tr>${two}</tr></tbody>`,
+      `<thead><tr>${th}</tr></thead><tbody><tr><td colspan="1">One</td>${cells('td', '12.50', 'seccomp')}</tr><tr>${two}</tr></tbody>`,
+    ])
+      assert.deepEqual(shaped(inner), [], inner)
+    // A package frozen before tables kept their shape has none to keep: it fails rather than passing unchecked.
+    const unshaped = {
+      ...content,
+      blocks: content.blocks.map((b) => (b.kind === 'table' ? { ...b, rows: undefined as unknown as number[] } : b)),
+    }
+    assert.ok(errorCodes(good, unshaped).includes('block_altered'))
   })
   // #117: a bidi override draws a text's characters in another order than the one every check reads.
   it('refuses a bidi override in markup, in CSS and as a character, and keeps directions and isolation', () => {

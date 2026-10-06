@@ -85,7 +85,35 @@ function headerIssue(table: Element): string | null {
   return null
 }
 
-/** What is wrong with a research table: its cells, or its header cells (headerIssue). */
+/** A table row's cells. */
+const rowCells = (row: Element): Element[] =>
+  row.childNodes.filter(isElement).filter((c) => c.tagName === 'th' || c.tagName === 'td')
+
+/**
+ * Why a research table's rows are not the research's, or null: the rows the package froze (`rows`: how many cells
+ * each holds, the head first, which holds header cells), and no cell spanning rows or columns (a footer row placed
+ * before the body already reorders its cells). One row of four cells laid out as two by CSS shows the same and is announced as one row, its
+ * values under no header (#117). A package frozen before tables kept their shape holds none, and fails.
+ */
+function shapeIssue(table: Element, rows: readonly number[] | undefined): string | null {
+  if (!Array.isArray(rows) || rows.length === 0) return 'the frozen package holds no shape for it'
+  const native = ownElements(table).filter((r) => r.tagName === 'tr')
+  const counts = native.map((r) => rowCells(r).length)
+  if (counts.length !== rows.length || counts.some((n, i) => n !== rows[i]))
+    return `its rows hold ${counts.join(', ') || 'no'} cells, where the research's hold ${rows.join(', ')}`
+  const spans = native.flatMap(rowCells).some((c) =>
+    ['colspan', 'rowspan'].some((a) => {
+      const v = attr(c, a)
+      return v !== null && v.trim() !== '1'
+    }),
+  )
+  if (spans) return 'a cell spans rows or columns the research does not'
+  return rowCells(native[0] ?? table).every((c) => c.tagName === 'th')
+    ? null
+    : "its head row's cells are not header cells (th)"
+}
+
+/** What is wrong with a research table: its cells, its rows (shapeIssue), or its header cells (headerIssue). */
 function tableFindings(block: ContentBlock, el: Element, at: { line: number; block: string }): Finding[] {
   const out: Finding[] = []
   const cells = cellsOf(el)
@@ -98,7 +126,17 @@ function tableFindings(block: ContentBlock, el: Element, at: { line: number; blo
         at,
       ),
     )
-  const headers = headerIssue(el)
+  const shape = shapeIssue(el, block.rows)
+  if (shape)
+    out.push(
+      error(
+        'block_altered',
+        'index.html',
+        `table ${block.id}: ${shape}; a research table keeps the research's rows, its head row of header cells first`,
+        at,
+      ),
+    )
+  const headers = shape ? null : headerIssue(el)
   if (headers)
     out.push(
       error(

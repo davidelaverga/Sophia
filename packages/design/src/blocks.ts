@@ -18,6 +18,12 @@ export interface ContentBlock {
   readonly text: string
   /** A table's cells in reading order (head first), each comparable text; empty for other kinds. */
   readonly cells: readonly string[]
+  /**
+   * A table's shape: how many of its cells each row holds, the head row first (`[2, 2]` for `Plan | Price` over
+   * `Basic | $10`); empty for other kinds. A design keeps the rows, not only the cells' order: one row of four cells
+   * laid out as two shows the same and is announced with no header over its values (#117).
+   */
+  readonly rows: readonly number[]
   /** Source ids the block cites, sorted. */
   readonly citations: readonly string[]
   /** http, https and mailto links the block carries, sorted. */
@@ -99,12 +105,13 @@ function runOf(inline: readonly Inline[]): Run {
 class Builder {
   readonly blocks: ContentBlock[] = []
 
-  add(kind: ContentKind, run: Run, cells: readonly string[] = []): void {
+  add(kind: ContentKind, run: Run, cells: readonly string[] = [], rows: readonly number[] = []): void {
     this.blocks.push({
       id: `b${this.blocks.length + 1}`,
       kind,
       text: comparable(run.text),
       cells,
+      rows,
       citations: [...run.citations].toSorted(),
       links: [...run.links].toSorted(),
     })
@@ -131,14 +138,14 @@ class Builder {
       case 'code':
         return this.add('code', { text: b.text, citations: new Set(), links: new Set() })
       case 'table':
-        return this.addTable([b.head, ...b.rows].flat())
+        return this.addTable([b.head, ...b.rows])
       case 'rule':
         return
     }
   }
 
-  private addTable(cells: readonly (readonly Inline[])[]): void {
-    const runs = cells.map((c) => runOf(c))
+  private addTable(rows: readonly (readonly (readonly Inline[])[])[]): void {
+    const runs = rows.flat().map((c) => runOf(c))
     const merged: Run = { text: runs.map((r) => r.text).join(' '), citations: new Set(), links: new Set() }
     for (const r of runs) {
       for (const c of r.citations) merged.citations.add(c)
@@ -148,6 +155,7 @@ class Builder {
       'table',
       merged,
       runs.map((r) => comparable(r.text)),
+      rows.map((r) => r.length),
     )
   }
 }
