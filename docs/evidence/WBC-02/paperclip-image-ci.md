@@ -151,6 +151,7 @@ The review rounds and their tests:
 | review of `08c2915` | any client error read as sign-up closed | the pin's own refusal required (better-auth 1.7.2: 400, `EMAIL_PASSWORD_SIGN_UP_DISABLED`), by the probe and the receipt; 404, 429, another 400 code and a 403 all refused; 3 mutations |
 | review of `5446719` | the job's 120-minute limit sat below its steps' own budgets, so a slow step within its budget could end the job before the receipt, scrub, upload and clean-up | every step has its own budget (the two checkouts, the pnpm and Node set-up and the upload too), and the job's 270 minutes outlast their 252 plus set-up; 5 mutations |
 | review of `37bae0e` | a start's time was taken after its log was read (up to a minute), so a start healthy near 300 s could read as over it | the time taken as the wait ends, before any diagnostics; the helper run against a stand-in docker whose log takes two seconds, its start still under one; 1 mutation |
+| review of `f13801d` | the exact upstream sign-up refusal the probe and receipt rely on was not in the source map | `docs/SOURCE_MAP.md` PC-11: the pin's configuration, auth and handler lines and better-auth 1.7.2's `sign-up.mjs`, with the Sophia files that use them; documentation only |
 
 Each mutation in force is caught. The scan tests read `/proc` and run on Linux only.
 
