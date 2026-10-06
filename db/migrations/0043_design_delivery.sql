@@ -160,6 +160,15 @@ SET search_path=pg_catalog,sophia AS $$
  SELECT sophia.design_capture_missing(r,rv.inspected,
   (SELECT sophia.design_seen_sections(t) FROM sophia.design_tasks t WHERE t.project_id=rv.project_id AND t.job_id=rv.design_job_id)) $$;
 
+-- What the designer has not looked at of the render it submits, as a failure (or none).
+CREATE FUNCTION sophia.design_unseen(t sophia.design_tasks, r sophia.render_jobs) RETURNS text[] LANGUAGE sql STABLE
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT CASE WHEN cardinality(m)>0 THEN ARRAY[left('you have not looked at these captures of the render you submit (design_inspect_render): '
+   ||array_to_string(m,', '),1000)] ELSE '{}' END
+ FROM (SELECT sophia.design_capture_missing(r,sophia.design_delivered(t.project_id,t.job_id,j.attempt_id,r.job_id),sophia.design_seen_sections(t)) m
+   FROM sophia.jobs j WHERE j.project_id=t.project_id AND j.id=t.job_id) q $$;
+REVOKE ALL ON FUNCTION sophia.design_unseen(sophia.design_tasks,sophia.render_jobs) FROM PUBLIC;
+
 -- design_candidate_failures (0041), replaced: as before, and the designer must have seen the render it submits, in its
 -- current attempt (F3). A submit with no reviewer is published self_review_only only past this gate.
 CREATE OR REPLACE FUNCTION sophia.design_candidate_failures(t sophia.design_tasks, d sophia.design_sources, r sophia.render_jobs, rj sophia.jobs)
@@ -173,14 +182,6 @@ RETURNS text[] LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,s
   ||CASE WHEN rj.state='succeeded' THEN sophia.design_gate_failures(r.receipt,sophia.design_package(t.project_id,t.job_id),t.targets)
      ||sophia.design_edit_failures(t,d,r)||sophia.design_unseen(t,r) ELSE '{}' END)[1:40] $$;
 
--- What the designer has not looked at of the render it submits, as a failure (or none).
-CREATE FUNCTION sophia.design_unseen(t sophia.design_tasks, r sophia.render_jobs) RETURNS text[] LANGUAGE sql STABLE
-SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
- SELECT CASE WHEN cardinality(m)>0 THEN ARRAY[left('you have not looked at these captures of the render you submit (design_inspect_render): '
-   ||array_to_string(m,', '),1000)] ELSE '{}' END
- FROM (SELECT sophia.design_capture_missing(r,sophia.design_delivered(t.project_id,t.job_id,j.attempt_id,r.job_id),sophia.design_seen_sections(t)) m
-   FROM sophia.jobs j WHERE j.project_id=t.project_id AND j.id=t.job_id) q $$;
-REVOKE ALL ON FUNCTION sophia.design_unseen(sophia.design_tasks,sophia.render_jobs) FROM PUBLIC;
 
 -- --- edit replay ------------------------------------------------------------------------------------------------------------
 
