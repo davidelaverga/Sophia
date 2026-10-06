@@ -776,6 +776,45 @@ describe('a tooltip or an accessible name carries no text the page does not show
     const beside = html(good).replace('</main>', '<span role="img" aria-labelledby="sources-h"></span></main>')
     assert.deepEqual(codes(withHtml(good, beside.replace('<h2>Sources</h2>', '<h2 id="sources-h">Sources</h2>'))), [])
   })
+  // #117: aria-owns gives what it names as the owner's child, wherever the markup puts it; naming moves nothing.
+  it('refuses aria-owns that moves research or takes elements into it, and keeps references that only name it', () => {
+    const page = html(good).replace('<p data-block="b1">', '<p data-block="b1" id="b1">')
+    const owned = (from: string, to: string) => {
+      const next = page.replace(from, to)
+      assert.notEqual(next, page, from)
+      return codes(withHtml(good, next))
+    }
+    for (const [from, to] of [
+      ['</main>', '<span role="img" aria-label="Figure" aria-owns="b1"></span></main>'],
+      ['</main>', '<div aria-owns="s1"></div></main>'],
+      ['</main>', `<div aria-owns="src-${A}"></div></main>`],
+      ['</main>', '<div ARIA-OWNS="h1 b1"></div></main>'],
+    ] as const)
+      assert.ok(owned(from, to).includes('research_hidden'), to)
+    const part = page.replace('needs a dedicated VM', 'needs a <span id="vm">dedicated VM</span>')
+    assert.ok(
+      codes(withHtml(good, part.replace('</main>', '<span aria-owns="vm"></span></main>'))).includes('research_hidden'),
+    )
+    const into = page.replace('<h1>Report</h1>', '<h1 id="t">Report</h1>')
+    for (const [from, to] of [
+      ['<p data-block="b1" id="b1">', '<p data-block="b1" id="b1" aria-owns="t">'],
+      [`<a data-cite="${A}"`, `<a aria-owns="src-${A}" data-cite="${A}"`],
+    ] as const)
+      assert.ok(codes(withHtml(good, into.replace(from, to))).includes('research_hidden'), to)
+    for (const to of [
+      '<span role="img" aria-labelledby="b1"></span></main>',
+      '<span role="img" aria-label="Figure" aria-describedby="b1"></span></main>',
+      '<div aria-owns="sources-h"></div></main>',
+    ]) {
+      const next = page.replace('<h2>Sources</h2>', '<h2 id="sources-h">Sources</h2>').replace('</main>', to)
+      assert.deepEqual(codes(withHtml(good, next)), [], to)
+    }
+    assert.deepEqual(
+      codes(withHtml(good, into.replace('<main>', '<main aria-owns="t">'))),
+      [],
+      'main owning its heading',
+    )
+  })
   // #117: a bidi override draws a text's characters in another order than the one every check reads.
   it('refuses a bidi override in markup, in CSS and as a character, and keeps directions and isolation', () => {
     const page = html(good)

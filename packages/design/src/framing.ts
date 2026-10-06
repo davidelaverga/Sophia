@@ -295,7 +295,7 @@ function labelsByText(all: readonly Element[]): Map<string, Element[]> {
 }
 
 /** Every element by its id (the first, if the page repeats one: the profile refuses that). */
-function byId(all: readonly Element[]): Map<string, Element> {
+export function byId(all: readonly Element[]): Map<string, Element> {
   const out = new Map<string, Element>()
   for (const el of all) {
     const id = attr(el, 'id')

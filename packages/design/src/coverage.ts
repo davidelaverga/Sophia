@@ -8,7 +8,7 @@
 import { safeHref } from '@sophia/report/markdown'
 import { comparable, type ContentBlock, type ContentPackage } from './blocks.ts'
 import { citationFindings } from './citations.ts'
-import { framingFindings } from './framing.ts'
+import { byId, framingFindings, referencedIds } from './framing.ts'
 import { attr, elements, hasAncestor, isElement, lineAt, textOf, type Document, type Element } from './dom.ts'
 import { error, type Finding } from './findings.ts'
 
@@ -222,11 +222,8 @@ function concealment(el: Element, inside: boolean): string | null {
     : `<${el.tagName} role="${replacing}"> replaces what the research is announced as`
 }
 
-/**
- * Research a screen reader would not be given as it is: a block or a source entry, or an element around or inside one,
- * that concealment changes. It changes no pixel, so no capture shows it (#117).
- */
-function hiddenResearch(all: Element[], html: string): Finding[] {
+/** The research on a page, and every element around (holding) or inside one: the boundary the checks below keep. */
+function researchBoundary(all: readonly Element[]): { around: Set<Element>; inside: Set<Element> } {
   const around = new Set<Element>()
   const inside = new Set<Element>()
   for (const el of all.filter(isResearch)) {
@@ -238,18 +235,55 @@ function hiddenResearch(all: Element[], html: string): Finding[] {
     )
       around.add(a)
   }
+  return { around, inside }
+}
+
+/**
+ * Why an element's `aria-owns` moves research in what a screen reader is given, or null. Ownership gives each element
+ * it names as the owner's child, wherever the markup puts it: research it names, or what holds or is inside research,
+ * would be given beneath an element whose role and hiding the checks here never read (an image's children are
+ * presentational), and an owner on or inside research takes other elements into it. Chromium kept such a table in
+ * place in a probe on #117, but the specification moves it, and no capture shows either. A reference that only names
+ * (`aria-labelledby`, `aria-describedby`) moves nothing and stays.
+ */
+function ownershipIssue(
+  el: Element,
+  ids: ReadonlyMap<string, Element>,
+  boundary: { around: ReadonlySet<Element>; inside: ReadonlySet<Element> },
+): string | null {
+  const owned = referencedIds(el, 'aria-owns')
+  if (owned.length === 0) return null
+  if (boundary.inside.has(el)) return `<${el.tagName} aria-owns> on research or inside it takes other elements into it`
+  const moved = owned.find((id) => {
+    const target = ids.get(id)
+    return target !== undefined && (boundary.around.has(target) || boundary.inside.has(target))
+  })
+  return moved === undefined
+    ? null
+    : `<${el.tagName} aria-owns="${moved.slice(0, 64)}"> gives research, or what holds it, as its own child`
+}
+
+/**
+ * Research a screen reader would not be given as it is: a block or a source entry, or an element around or inside one,
+ * that concealment changes, or research that ownership moves. None changes a pixel, so no capture shows it (#117).
+ */
+function hiddenResearch(all: Element[], html: string): Finding[] {
+  const boundary = researchBoundary(all)
+  const ids = byId(all)
+  const issueOf = (el: Element): string | null =>
+    ownershipIssue(el, ids, boundary) ??
+    (boundary.around.has(el) || boundary.inside.has(el) ? concealment(el, boundary.inside.has(el)) : null)
   return all
-    .filter(
-      (el) => (around.has(el) || inside.has(el)) && (attr(el, 'aria-hidden') !== null || attr(el, 'role') !== null),
-    )
-    .map((el) => ({ el, how: concealment(el, inside.has(el)) }))
+    .filter((el) => ['aria-hidden', 'role', 'aria-owns'].some((name) => attr(el, name) !== null))
+    .map((el) => ({ el, how: issueOf(el) }))
     .filter(({ how }) => how !== null)
     .map(({ el, how }) =>
       error(
         'research_hidden',
         'index.html',
         `${how ?? ''}, where no capture shows it; a block, a source entry and what holds or is inside one are never ` +
-          'aria-hidden, an image, or stripped of their meaning, and keep their own roles',
+          'aria-hidden, an image, stripped of their meaning or owned by another element (aria-owns), and keep their ' +
+          'own roles',
         { line: lineOf(html, el) },
       ),
     )
