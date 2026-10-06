@@ -220,8 +220,24 @@ describe('design capture crossing (real supervisor, capture kernel, API, Postgre
     assert.deepEqual([bytes.readUInt32BE(16), bytes.readUInt32BE(20)], [recorded.width, recorded.height])
     assert.equal(Math.round(recorded.width / recorded.scale), 390)
 
-    // No reviewer runs: the candidate publishes self_review_only as v2, its HTML the compiled page the kernel captured.
-    const done = await runtime('/v1/runtime/design/submit', { ...at, callId: 'c1', candidate: { revisionId: write.revisionId, renderJobId: render.renderJobId } })
+    // SDD-01-CX-0019: no reviewer runs, and measurements alone publish nothing until the designer has seen the render.
+    const candidate = { revisionId: write.revisionId, renderJobId: render.renderJobId }
+    const unseen = await runtime('/v1/runtime/design/submit', { ...at, callId: 'c0', candidate })
+    assert.equal(unseen.json.outcome, 'refused', JSON.stringify(unseen.json))
+    assert.ok(unseen.json.failures.some((f) => f.startsWith('you have not looked at')), JSON.stringify(unseen.json))
+    // Every real capture is handed over, each delivery acknowledged as its own bytes (what the bundle sends once dsh's
+    // content-addressed store kept the image unchanged).
+    for (let i = 0; i < names.length; i += 4) {
+      const seen = await runtime('/v1/runtime/design/capture', { ...at, renderJobId: render.renderJobId, names: names.slice(i, i + 4) })
+      assert.equal(seen.status, 200, JSON.stringify(seen.json))
+      for (const c of seen.json.captures) assert.equal(sha(Buffer.from(c.data, 'base64')), c.sha256, c.name)
+      const attachments = seen.json.captures.map((c) => ({ name: c.name, attachmentId: `sha256:${c.sha256}` }))
+      const acked = await runtime('/v1/runtime/design/delivered', { ...at, deliveryId: seen.json.deliveryId, attachments })
+      assert.equal(acked.status, 200, JSON.stringify(acked.json))
+    }
+
+    // The candidate publishes self_review_only as v2, its HTML the compiled page the kernel captured.
+    const done = await runtime('/v1/runtime/design/submit', { ...at, callId: 'c1', candidate })
     assert.deepEqual([done.json.outcome, done.json.reviewState, done.json.versionNumber], ['published', 'self_review_only', 2], JSON.stringify(done.json))
     const page = (
       await owner.query(

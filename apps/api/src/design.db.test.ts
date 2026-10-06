@@ -54,6 +54,7 @@ const REVIEWER = { id: 'sophia-visual-review-v1', route: 'research-sol-medium-v1
 let db: TestDatabase
 let pool: pg.Pool
 let worker: pg.Pool
+let bytes: ReturnType<typeof memoryByteStore>
 let app: FastifyInstance
 let base: string
 
@@ -95,7 +96,8 @@ before(async () => {
   worker = createPool(db.workerUrl, { max: 2 })
   const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
   const mediaBridgeTokenSha256 = createHash('sha256').update(MEDIA_TOKEN, 'utf8').digest()
-  app = buildApp({ pool, verifyActor, mediaBridgeTokenSha256, byteStore: memoryByteStore() })
+  bytes = memoryByteStore()
+  app = buildApp({ pool, verifyActor, mediaBridgeTokenSha256, byteStore: bytes })
   await app.listen({ port: 0, host: '127.0.0.1' })
   base = `http://127.0.0.1:${String((app.server.address() as AddressInfo).port)}`
   const admin = new pg.Client({ connectionString: db.ownerUrl })
@@ -232,6 +234,8 @@ interface CaptureOptions {
   readonly shift?: number
   /** Blocks that render this much taller than the others. */
   readonly grow?: Record<string, number>
+  /** Overview tiles per target (a page taller than one tile). */
+  readonly overviewTiles?: number
 }
 
 /** Each block's section in a page source: the data-section it sits in. */
@@ -284,7 +288,9 @@ async function settleCapture(job: Body, pkg: ContentPackage, sections: string[],
   const entry = await runner(`/v1/renderer/jobs/${String(job.jobId)}/file?path=index.html`, { headers: lease })
   assert.equal(entry.status, 200)
   const targets = job.targets as string[]
-  const names = targets.flatMap((t) => [`${t}.overview.1.png`, ...sections.map((s) => `${t}.section.${s}.1.png`)])
+  const tiles = opts.overviewTiles ?? 1
+  const overview = (t: string) => Array.from({ length: tiles }, (_, i) => `${t}.overview.${String(i + 1)}.png`)
+  const names = targets.flatMap((t) => [...overview(t), ...sections.map((s) => `${t}.section.${s}.1.png`)])
   for (const name of names) {
     const put = await runner(`/v1/renderer/jobs/${String(job.jobId)}/captures/${name}`, {
       method: 'PUT',
@@ -333,14 +339,14 @@ async function settleCapture(job: Body, pkg: ContentPackage, sections: string[],
       coverage: { requested: null, captured: sections, missing: [], margins: 0, marginsCaptured: 0, truncated: false },
     })),
     captures: names.map((name) => {
-      const [target = '', kind = '', section] = name.split('.')
+      const [target = '', kind = '', part] = name.split('.')
       return {
         name,
         target,
         kind,
-        section: kind === 'section' ? section : null,
-        tile: 1,
-        tiles: 1,
+        section: kind === 'section' ? part : null,
+        tile: kind === 'overview' ? Number(part) : 1,
+        tiles: kind === 'overview' ? tiles : 1,
         clip: { x: 0, y: 0, width: 390, height: 500 },
         scale: 1,
         width: 2,
@@ -478,17 +484,26 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
     const shots = await captured(pkg, sections)
     const result = await w.runtime('/v1/runtime/design/render-result', { ...at, renderJobId: render2.json.renderJobId })
     assert.equal(result.json.gate?.passed, true, JSON.stringify(result.json))
-    const look = await w.runtime('/v1/runtime/design/capture', {
+    const peek = await w.runtime('/v1/runtime/design/capture', {
       ...at,
       renderJobId: render2.json.renderJobId,
       names: [shots.names[0]],
     })
-    assert.equal(look.status, 200, JSON.stringify(look.json))
+    assert.equal(peek.status, 200, JSON.stringify(peek.json))
     assert.equal(
-      Buffer.from(String(look.json.captures[0].data), 'base64').equals(PNG),
+      Buffer.from(String(peek.json.captures[0].data), 'base64').equals(PNG),
       true,
       'the actual bytes, checked',
     )
+    // SDD-01-CX-0019 F3: the designer has not yet seen every overview tile and section of this render.
+    const unseen = await w.runtime('/v1/runtime/design/submit', {
+      ...at,
+      callId: 'c0b',
+      candidate: { revisionId: write.json.revisionId, renderJobId: render2.json.renderJobId },
+    })
+    assert.equal(unseen.json.outcome, 'refused', JSON.stringify(unseen.json))
+    assert.ok((unseen.json.failures as string[]).some((f) => f.startsWith('you have not looked at')))
+    await look(w, at, 'design', shots.names, String(render2.json.renderJobId))
     const candidate1 = await w.runtime('/v1/runtime/design/submit', {
       ...at,
       callId: 'c1',
@@ -515,10 +530,18 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
       result: { verdict: 'pass', findings: [] },
     })
     assert.equal(early.json.outcome, 'coverage_incomplete', JSON.stringify(early.json))
+    // SDD-01-CX-0019 F1: handed over is not seen; only acknowledged deliveries count.
     for (let i = 0; i < shots.names.length; i += 4) {
       const seen = await w.runtime('/v1/runtime/review/capture', { ...review.at, names: shots.names.slice(i, i + 4) })
       assert.equal(seen.status, 200, JSON.stringify(seen.json))
     }
+    const handedOver = await w.runtime('/v1/runtime/review/submit', {
+      ...review.at,
+      callId: 'v0b',
+      result: { verdict: 'pass', findings: [] },
+    })
+    assert.equal(handedOver.json.outcome, 'coverage_incomplete', JSON.stringify(handedOver.json))
+    await inspectAll(w, review.at, shots.names)
     const revise = await w.runtime('/v1/runtime/review/submit', {
       ...review.at,
       callId: 'v1',
@@ -548,6 +571,7 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
       revisionId: patch.json.revisionId,
     })
     const shots3 = await captured(pkg, sections)
+    await look(w, at, 'design', shots3.names, String(render3.json.renderJobId))
     const candidate2 = await w.runtime('/v1/runtime/design/submit', {
       ...at,
       callId: 'c2',
@@ -560,9 +584,7 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
     )
 
     const review2 = await sent(w, 'create', REVIEWER.id)
-    for (let i = 0; i < shots3.names.length; i += 4) {
-      await w.runtime('/v1/runtime/review/capture', { ...review2.at, names: shots3.names.slice(i, i + 4) })
-    }
+    await inspectAll(w, review2.at, shots3.names)
     const pass = await w.runtime('/v1/runtime/review/submit', {
       ...review2.at,
       callId: 'v2',
@@ -612,15 +634,27 @@ describe('the design, its review and its publication (SDD-01, 0038–0040)', () 
       callId: 'r1',
       revisionId: write.json.revisionId,
     })
-    await captured(
+    const shots = await captured(
       pkg,
       (write.json.sections as Array<{ id: string }>).map((s) => s.id),
     )
-    const done = await w.runtime('/v1/runtime/design/submit', {
-      ...at,
-      callId: 'c1',
-      candidate: { revisionId: write.json.revisionId, renderJobId: render.json.renderJobId },
-    })
+    const candidate = { revisionId: write.json.revisionId, renderJobId: render.json.renderJobId }
+    // SDD-01-CX-0019 F3: with no reviewer, measurements alone publish nothing: the designer must have seen the render.
+    const unseen = await w.runtime('/v1/runtime/design/submit', { ...at, callId: 'c0', candidate })
+    assert.equal(unseen.json.outcome, 'refused', JSON.stringify(unseen.json))
+    assert.equal(
+      (
+        await owner((c) =>
+          c.query(`SELECT count(*)::int AS n FROM sophia.design_candidates WHERE design_job_id=$1`, [
+            submission.html.taskId,
+          ]),
+        )
+      ).rows[0].n,
+      0,
+      'nothing recorded, nothing published',
+    )
+    await look(w, at, 'design', shots.names, String(render.json.renderJobId))
+    const done = await w.runtime('/v1/runtime/design/submit', { ...at, callId: 'c1', candidate })
     assert.deepEqual(
       [done.json.outcome, done.json.reviewState, done.json.versionNumber],
       ['published', 'self_review_only', 2],
@@ -772,21 +806,39 @@ async function drafted(w: World, at: Body, opts: { perSection?: number; capture?
   return { pkg, files, html, write: stored, render: queued, sections, shots }
 }
 
-/** Submit the drafted page as a candidate. */
-const submitCandidate = (w: World, at: Body, d: Body, callId = 'c1') =>
-  w.runtime('/v1/runtime/design/submit', {
+/** An acknowledgement of a delivery: each capture's attachment, its own bytes' hash unless told otherwise. */
+const delivery = (at: Body, seen: Body, attachmentId?: (c: Body) => string): Body => ({
+  ...at,
+  deliveryId: String(seen.deliveryId),
+  attachments: (seen.captures as Body[]).map((c) => ({
+    name: String(c.name),
+    attachmentId: attachmentId?.(c) ?? `sha256:${String(c.sha256)}`,
+  })),
+})
+
+/** A role's model looks at captures (SDD-01-CX-0019): handed over four at a time, each delivery acknowledged. */
+async function look(w: World, at: Body, role: 'design' | 'review', names: string[], renderJobId?: string) {
+  for (let i = 0; i < names.length; i += 4) {
+    const body = { ...at, ...(renderJobId ? { renderJobId } : {}), names: names.slice(i, i + 4) }
+    const seen = await w.runtime(`/v1/runtime/${role}/capture`, body)
+    assert.equal(seen.status, 200, JSON.stringify(seen.json))
+    const acked = await w.runtime(`/v1/runtime/${role}/delivered`, delivery(at, seen.json))
+    assert.equal(acked.status, 200, JSON.stringify(acked.json))
+  }
+}
+
+/** Submit the drafted page as a candidate, the designer having looked at its render (or at `names` of it). */
+async function submitCandidate(w: World, at: Body, d: Body, callId = 'c1', names: string[] = d.shots?.names ?? []) {
+  await look(w, at, 'design', names, String(d.render.renderJobId))
+  return w.runtime('/v1/runtime/design/submit', {
     ...at,
     callId,
     candidate: { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId },
   })
-
-/** The reviewer inspects every capture it must. */
-async function inspectAll(w: World, at: Body, names: string[]) {
-  for (let i = 0; i < names.length; i += 4) {
-    const seen = await w.runtime('/v1/runtime/review/capture', { ...at, names: names.slice(i, i + 4) })
-    assert.equal(seen.status, 200, JSON.stringify(seen.json))
-  }
 }
+
+/** The reviewer looks at every capture it must. */
+const inspectAll = (w: World, at: Body, names: string[]) => look(w, at, 'review', names)
 
 describe('SDD-01-RF-0003: a withdrawn source stops design and review (0041)', () => {
   it('revokes the running design and its review in the erasing transaction; nothing reads, reserves, writes, renders, reviews or publishes; incurred usage settles', async () => {
@@ -805,6 +857,15 @@ describe('SDD-01-RF-0003: a withdrawn source stops design and review (0041)', ()
     const review = await sent(w, 'create', REVIEWER.id)
     await answer(w, 'create', 'delivered', review.at.attemptId)
     assert.equal((await w.runtime('/v1/runtime/review/context', review.at)).status, 200)
+
+    // Each role was handed a capture whose delivery it had not acknowledged yet (SDD-01-CX-0019).
+    const designPending = await w.runtime('/v1/runtime/design/capture', {
+      ...at,
+      renderJobId: d.render.renderJobId,
+      names: [shots[0]],
+    })
+    const reviewPending = await w.runtime('/v1/runtime/review/capture', { ...review.at, names: [shots[0]] })
+    assert.deepEqual([designPending.status, reviewPending.status], [200, 200])
 
     // CX-0003's reproduction: a cited research source is erased after the design froze its package.
     await erase(w.projectId, submission.citedSourceId)
@@ -836,12 +897,24 @@ describe('SDD-01-RF-0003: a withdrawn source stops design and review (0041)', ()
       ['/v1/runtime/review/context', review.at],
       ['/v1/runtime/review/capture', { ...review.at, names: [shots[0]] }],
       ['/v1/runtime/review/submit', { ...review.at, callId: 'v9', result: { verdict: 'pass', findings: [] } }],
+      ['/v1/runtime/design/delivered', delivery(at, designPending.json)],
+      ['/v1/runtime/review/delivered', delivery(review.at, reviewPending.json)],
     ]
     for (const [path, body] of refusals) {
       const res = await w.runtime(path, body)
       assert.equal(res.status, 409, `${path}: ${JSON.stringify(res.json)}`)
       assert.match(String(res.json.message), /a source it drew on was withdrawn/, path)
     }
+    const unacknowledged = await owner((c) =>
+      c.query(`SELECT state FROM sophia.design_capture_deliveries WHERE id = ANY($1::uuid[]) ORDER BY state`, [
+        [designPending.json.deliveryId, reviewPending.json.deliveryId],
+      ]),
+    )
+    assert.deepEqual(
+      unacknowledged.rows.map((r: Body) => String(r.state)),
+      ['issued', 'issued'],
+      'nothing counts as seen',
+    )
 
     // What was already incurred settles: settle is never fenced.
     const settled = await w.runtime('/v1/runtime/design/settle', {
@@ -933,7 +1006,7 @@ describe('Hold, Resume and Stop of a design (B-20, 0041)', () => {
     assert.equal((await control(w, taskId, 'resume')).status, 'ok')
     await answer(w, 'resume', 'delivered')
     const shots = await captured(d.pkg, d.sections, { html: d.html })
-    assert.equal((await submitCandidate(w, at, d)).json.outcome, 'reviewing')
+    assert.equal((await submitCandidate(w, at, d, 'c1', shots.names)).json.outcome, 'reviewing')
 
     // A Hold during the review: the reviewer's verdict is refused until Resume, then publishes.
     const review = await sent(w, 'create', REVIEWER.id)
@@ -1228,7 +1301,8 @@ describe('a scoped edit of a published page (B-16..B-18, 0041)', () => {
       callId: 'r2',
       revisionId: inScope.json.revisionId,
     })
-    await captured(d.pkg, d.sections, { html: d.html, shift: 40 })
+    const reflowShots = await captured(d.pkg, d.sections, { html: d.html, shift: 40 })
+    await look(w, at, 'design', reflowShots.names, String(reflowed.json.renderJobId))
     const done = await w.runtime('/v1/runtime/design/submit', {
       ...at,
       callId: 'c2',
@@ -1251,5 +1325,202 @@ describe('a scoped edit of a published page (B-16..B-18, 0041)', () => {
       [progress.design?.mode, progress.design?.scope?.sections, progress.design?.state],
       ['edit', ['s2'], 'published'],
     )
+  })
+
+  it('a replayed key with another scope or instruction is a conflict, never the earlier receipt (SDD-01-CX-0019 F5)', async () => {
+    const { w, versionId } = await publishedPage()
+    const body = { versionId, sections: ['s2'], instruction: 'Make the second section a short list.' }
+    const first = await edit(w, 'e-1', body)
+    assert.equal(first.status, 202, JSON.stringify(first.json))
+    for (const changed of [
+      { ...body, shell: true },
+      { ...body, styles: true },
+      { ...body, sections: ['s2', 's3'] },
+      { ...body, instruction: 'Something else.' },
+    ]) {
+      const replay = await edit(w, 'e-1', changed)
+      assert.equal(replay.status, 409, `${JSON.stringify(changed)}: ${JSON.stringify(replay.json)}`)
+      assert.equal(replay.json.taskId, undefined, "never the earlier request's receipt")
+    }
+    const same = await edit(w, 'e-1', { ...body, shell: false, styles: false })
+    assert.equal(same.json.taskId, first.json.taskId, 'the same request, its defaults spelled out, is the same edit')
+  })
+})
+
+const failuresOf = (res: Body) => (res.json.failures ?? []) as string[]
+
+describe('SDD-01-CX-0019: a capture counts as seen only once it reached the model (0043)', () => {
+  const deliveryState = async (id: unknown) =>
+    String(
+      (await owner((c) => c.query(`SELECT state FROM sophia.design_capture_deliveries WHERE id=$1`, [id]))).rows[0]
+        ?.state,
+    )
+
+  it('counts exactly the delivery’s captures, each as its own bytes, once; a replay counts nothing twice (F1)', async () => {
+    const { w, at } = await designing()
+    const d = await drafted(w, at)
+    const names = (d.shots?.names ?? []).slice(0, 2)
+    const seen = await w.runtime('/v1/runtime/design/capture', { ...at, renderJobId: d.render.renderJobId, names })
+    assert.equal(seen.status, 200, JSON.stringify(seen.json))
+    assert.match(String(seen.json.deliveryId), /^[0-9a-f-]{36}$/)
+    const ack = (body: object) => w.runtime('/v1/runtime/design/delivered', body)
+    const good = delivery(at, seen.json)
+    const [one, two] = good.attachments
+    const refused = [
+      delivery(at, seen.json, () => `sha256:${'f'.repeat(64)}`),
+      { ...good, attachments: [one] },
+      { ...good, attachments: [one, one] },
+      { ...good, attachments: [one, { name: d.shots?.names[2], attachmentId: two?.attachmentId }] },
+      { ...good, deliveryId: randomUUID() },
+    ]
+    for (const body of refused) {
+      const res = await ack(body)
+      assert.equal(res.status, 422, `${JSON.stringify(body.attachments)}: ${JSON.stringify(res.json)}`)
+    }
+    assert.equal(await deliveryState(seen.json.deliveryId), 'issued', 'nothing counted yet')
+    const first = await ack(good)
+    assert.deepEqual([first.status, first.json.state, first.json.captures], [200, 'delivered', names.toSorted()])
+    const replay = await ack(good)
+    assert.deepEqual(replay.json, first.json, 'a replay answers the same')
+    assert.equal((await ack(refused[0] ?? good)).status, 422, 'other attachments are refused after it too')
+    const rows = await owner((c) =>
+      c.query(
+        `SELECT count(*)::int AS n, min(attachments::text) AS a FROM sophia.design_capture_deliveries WHERE id=$1`,
+        [seen.json.deliveryId],
+      ),
+    )
+    assert.equal(rows.rows[0].n, 1)
+    assert.match(String(rows.rows[0].a), new RegExp(`sha256:${String(one?.attachmentId).slice(7)}`))
+  })
+
+  it('issues nothing for bytes that do not match their record; a Hold or a Stop refuses the acknowledgement (F1)', async () => {
+    const { w, taskId, at } = await designing()
+    const d = await drafted(w, at)
+    const [first, second] = d.shots?.names ?? []
+    const located = await owner((c) =>
+      c.query(
+        `SELECT so.storage_key FROM sophia.render_job_outputs o JOIN sophia.source_objects so ON so.project_id=o.project_id AND so.id=o.source_id
+          WHERE o.job_id=$1 AND o.name=$2`,
+        [d.render.renderJobId, first],
+      ),
+    )
+    const path = String(located.rows[0].storage_key).replace(/^objects\//, '')
+    const original = bytes.objects.get(path)
+    bytes.objects.set(path, Buffer.from('not the capture'))
+    const broken = await w.runtime('/v1/runtime/design/capture', {
+      ...at,
+      renderJobId: d.render.renderJobId,
+      names: [first],
+    })
+    assert.equal(broken.status, 503, JSON.stringify(broken.json))
+    const issued = await owner((c) =>
+      c.query(`SELECT count(*)::int AS n FROM sophia.design_capture_deliveries WHERE render_job_id=$1`, [
+        d.render.renderJobId,
+      ]),
+    )
+    assert.equal(issued.rows[0].n, 0, 'no delivery is issued for bytes that do not match')
+    if (original) bytes.objects.set(path, original)
+
+    const pending = await w.runtime('/v1/runtime/design/capture', {
+      ...at,
+      renderJobId: d.render.renderJobId,
+      names: [second],
+    })
+    assert.equal(pending.status, 200, JSON.stringify(pending.json))
+    assert.equal((await control(w, taskId, 'hold')).status, 'ok')
+    const underHold = await w.runtime('/v1/runtime/design/delivered', delivery(at, pending.json))
+    assert.equal(underHold.status, 409, JSON.stringify(underHold.json))
+    await answer(w, 'hold', 'checked')
+    assert.equal((await control(w, taskId, 'resume')).status, 'ok')
+    await answer(w, 'resume', 'delivered')
+    assert.equal(await deliveryState(pending.json.deliveryId), 'issued', 'the Hold counted nothing')
+
+    const again = await w.runtime('/v1/runtime/design/capture', {
+      ...at,
+      renderJobId: d.render.renderJobId,
+      names: [second],
+    })
+    assert.equal(again.status, 200, JSON.stringify(again.json))
+    assert.equal((await control(w, taskId, 'stop')).status, 'ok')
+    const afterStop = await w.runtime('/v1/runtime/design/delivered', delivery(at, again.json))
+    assert.equal(afterStop.status, 409, JSON.stringify(afterStop.json))
+    assert.equal(await deliveryState(again.json.deliveryId), 'issued', 'the Stop counted nothing')
+  })
+
+  it('binds a delivery to its job and render: an earlier render’s captures do not count; the reviewer cannot use the designer’s (F1, F3)', async () => {
+    const { w, at } = await designing()
+    const d = await drafted(w, at)
+    await look(w, at, 'design', d.shots?.names ?? [], String(d.render.renderJobId))
+    const render2 = await w.runtime('/v1/runtime/design/render', {
+      ...at,
+      callId: 'r2',
+      revisionId: d.write.revisionId,
+    })
+    assert.equal(render2.status, 200, JSON.stringify(render2.json))
+    const shots2 = await captured(d.pkg, d.sections, { html: d.html })
+    const unseen = await w.runtime('/v1/runtime/design/submit', {
+      ...at,
+      callId: 'c1',
+      candidate: { revisionId: d.write.revisionId, renderJobId: render2.json.renderJobId },
+    })
+    assert.equal(unseen.json.outcome, 'refused', JSON.stringify(unseen.json))
+    assert.ok(
+      failuresOf(unseen).some((f) => f.startsWith('you have not looked at')),
+      JSON.stringify(unseen.json),
+    )
+    const designerDelivery = await w.runtime('/v1/runtime/design/capture', {
+      ...at,
+      renderJobId: render2.json.renderJobId,
+      names: [shots2.names[0]],
+    })
+    assert.equal(designerDelivery.status, 200, JSON.stringify(designerDelivery.json))
+    const submitted = await w.runtime('/v1/runtime/design/submit', {
+      ...at,
+      callId: 'c2',
+      candidate: { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId },
+    })
+    assert.equal(submitted.json.outcome, 'reviewing', 'the render it did see is submitted')
+    const review = await sent(w, 'create', REVIEWER.id)
+    await answer(w, 'create', 'delivered', review.at.attemptId)
+    const foreign = await w.runtime('/v1/runtime/review/delivered', delivery(review.at, designerDelivery.json))
+    assert.equal(foreign.status, 422, JSON.stringify(foreign.json))
+    const otherRender = await w.runtime('/v1/runtime/review/capture', {
+      ...review.at,
+      renderJobId: render2.json.renderJobId,
+      names: [shots2.names[0]],
+    })
+    assert.equal(otherRender.status, 422, 'a reviewer is handed only its candidate’s render')
+    assert.equal(await deliveryState(designerDelivery.json.deliveryId), 'issued')
+  })
+
+  it('needs every overview tile at every target, from the designer and the reviewer (F3, F4)', async () => {
+    const { w, at } = await designing()
+    const d = await drafted(w, at, { capture: false })
+    const shots = await captured(d.pkg, d.sections, { html: d.html, overviewTiles: 2 })
+    const tile2 = shots.names.filter((name) => name.endsWith('.overview.2.png'))
+    assert.equal(tile2.length, 2, JSON.stringify(shots.names))
+    const rest = shots.names.filter((name) => !tile2.includes(name))
+    const candidate = { revisionId: d.write.revisionId, renderJobId: d.render.renderJobId }
+    await look(w, at, 'design', rest, String(d.render.renderJobId))
+    const refused = await w.runtime('/v1/runtime/design/submit', { ...at, callId: 'c1', candidate })
+    assert.equal(refused.json.outcome, 'refused', JSON.stringify(refused.json))
+    const said = failuresOf(refused).find((f) => f.startsWith('you have not looked at')) ?? ''
+    for (const name of tile2) assert.ok(said.includes(name), said)
+    await look(w, at, 'design', tile2, String(d.render.renderJobId))
+    assert.equal(
+      (await w.runtime('/v1/runtime/design/submit', { ...at, callId: 'c2', candidate })).json.outcome,
+      'reviewing',
+    )
+
+    const review = await sent(w, 'create', REVIEWER.id)
+    await answer(w, 'create', 'delivered', review.at.attemptId)
+    await inspectAll(w, review.at, rest)
+    const verdict = { ...review.at, callId: 'v1', result: { verdict: 'pass', findings: [] } }
+    const early = await w.runtime('/v1/runtime/review/submit', verdict)
+    assert.equal(early.json.outcome, 'coverage_incomplete', JSON.stringify(early.json))
+    assert.deepEqual((early.json.missing as string[]).toSorted(), tile2.toSorted())
+    await inspectAll(w, review.at, tile2)
+    const pass = await w.runtime('/v1/runtime/review/submit', { ...verdict, callId: 'v2' })
+    assert.equal(pass.json.decision?.outcome, 'published', JSON.stringify(pass.json))
   })
 })
