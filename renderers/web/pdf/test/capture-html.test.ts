@@ -815,6 +815,30 @@ describe('the confined capture kernel', () => {
   )
 
   it(
+    'takes a fixed or sticky element drawn over a text where the page starts as a cover (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .pin{position:fixed;left:0;right:0;top:0;height:6em;background:#fafafa}
+          .stuck{position:sticky;top:0;height:3em;margin-bottom:-3em;background:#fafafa}`,
+            `<div class="pin"></div><main><section data-section="s1"><p data-block="b1">Under a fixed cover.</p>
+          <div style="height:8em"></div><div class="stuck"></div><p data-block="b2">Under a sticky cover.</p>
+          <h2>Findings</h2><p data-block="b3">Text.</p></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        assert.deepEqual(issuesOf(receipt, target), { b1: ['covered'], b2: ['covered'], b3: [] }, target)
+        assert.equal(outcome(receipt, 'blocks_visible', target), 'failed', target)
+      }
+    },
+  )
+
+  it(
     'holds text to the contrast floor of the size it is drawn at: scaled, zoomed or adjusted down, large text is not (#117)',
     { skip },
     async () => {

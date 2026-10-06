@@ -244,22 +244,16 @@ function drawsOverText(holder) {
  * What a point on a text hits, as a cover. The text's own element is 'clear', or 'generated' when it draws generated
  * content that may be on top (capture-html asks the protocol). Anything else is 'covered': a child of the element or
  * one around it, drawn over the text (an ancestor's own ::after, or a background the text sits below), or another
- * element, unless that is fixed or sticky (a header that follows the reader).
- * @param {Element} el the measured element
+ * element, a fixed or sticky one included: it is drawn over the text where the captures show it (#117). The static
+ * profile has no fixed or sticky element, which a reader would see move over text no capture shows it over.
  * @param {Element} holder the element that holds the text
  * @param {boolean} suspect whether the holder draws generated content that could reach the text
  * @param {Element | null} hit
  * @returns {'clear' | 'covered' | 'generated'}
  */
-function coverOf(el, holder, suspect, hit) {
+function coverOf(holder, suspect, hit) {
   if (!hit) return 'clear'
   if (hit === holder) return suspect ? 'generated' : 'clear'
-  if (hit.contains(holder)) return 'covered'
-  const stop = el.contains(hit) ? el : null
-  for (let a = /** @type {Element | null} */ (hit); a && a !== stop; a = a.parentElement) {
-    const position = getComputedStyle(a).position
-    if (position === 'fixed' || position === 'sticky') return 'clear'
-  }
   return 'covered'
 }
 
@@ -319,14 +313,13 @@ function pointsAlong(rect, em) {
  * 'unmeasured' when the page's budget runs out (of points, or of time), else 'clear' with the points only the protocol
  * can judge added to `probes` (in page coordinates). The text's lines are read once, and a text with MAX_LINES lines
  * or more, or more lines than the budget has points left, is not looked at, line by line or at all (#117).
- * @param {Element} el
  * @param {Element} holder the element that holds the text
  * @param {Node} node the text
  * @param {Budget} budget
  * @param {{ x: number, y: number }[]} probes
  * @returns {'clear' | 'covered' | 'unmeasured'}
  */
-function coverAlong(el, holder, node, budget, probes) {
+function coverAlong(holder, node, budget, probes) {
   const range = document.createRange()
   range.selectNodeContents(node)
   const rects = range.getClientRects()
@@ -345,7 +338,7 @@ function coverAlong(el, holder, node, budget, probes) {
       if (!inView(holder, p.x, p.y)) continue
       budget.left -= 1
       if (budget.left < 0) return 'unmeasured'
-      const verdict = coverOf(el, holder, suspect, document.elementFromPoint(p.x, p.y))
+      const verdict = coverOf(holder, suspect, document.elementFromPoint(p.x, p.y))
       if (verdict === 'covered') return 'covered'
       if (verdict === 'generated')
         probes.push({ x: Math.round(p.x + window.scrollX), y: Math.round(p.y + window.scrollY) })
@@ -370,7 +363,7 @@ function isCovered(el, budget) {
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const holder = node.parentElement
       if (!holder || !node.textContent?.trim()) continue
-      const verdict = coverAlong(el, holder, node, budget, probes)
+      const verdict = coverAlong(holder, node, budget, probes)
       if (verdict !== 'clear') return { cover: verdict, probes: [] }
     }
     return { cover: 'clear', probes }

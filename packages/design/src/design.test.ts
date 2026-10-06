@@ -786,6 +786,31 @@ describe('a pseudo-element styles only generated content (#117)', () => {
     const inline = html(good).replace('<main>', '<main><div style="pointer-events:none"></div>')
     assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
   })
+  // #117: a pinned element moves over the text as a reader scrolls; the captures show it only where the page starts.
+  it('refuses fixed and sticky positions, in every spelling, in any medium and in a style attribute', () => {
+    for (const bad of [
+      'header{position:fixed}',
+      'nav{position:sticky}',
+      'nav{position:-webkit-sticky}',
+      'nav{POSITION:FIXED}',
+      'nav{position:fixed!important}',
+      'nav{position:var(--pin)}',
+      '@media print{nav{position:sticky}}',
+      '@supports (position:sticky){nav{position:sticky}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<main>', '<main><div style="position:fixed;top:0"></div>')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of [
+      'h2{position:relative}',
+      'h2::after{position:absolute;inset:auto 0 0}',
+      'p{position:static}',
+      'p{position:inherit}',
+      'p{position:revert-layer}',
+      ':root{--pin:fixed}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
   it("accepts generated content, the reader's selection and the disclosure marker", () => {
     for (const ok of [
       'h2::before{content:"§ "}',

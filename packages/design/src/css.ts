@@ -97,6 +97,23 @@ const MASKING = /^(?:-webkit-)?mask(?:-|$)/
  * it (#117).
  */
 const POINTER = new Set(['pointer-events'])
+/**
+ * The positions an element may take: in the flow, or placed against a box of the page, and the keywords every property
+ * takes. A fixed or sticky element is pinned to the window as the reader scrolls: the captures show it where the page
+ * starts, and a reader would see it move over text no capture shows it over (#117). Any other value, a function
+ * included, is refused.
+ */
+const POSITIONS = new Set(['static', 'relative', 'absolute', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
+
+/** Whether a `position` declaration's value is one keyword POSITIONS allows. */
+function isPlacedOnPage(value: CssNode): boolean {
+  const parts: CssNode[] = []
+  walk(value, (part) => {
+    if (part.type !== 'Value') parts.push(part)
+  })
+  const [only] = parts
+  return parts.length === 1 && only?.type === 'Identifier' && POSITIONS.has(only.name.toLowerCase())
+}
 
 /** The longest stylesheet a source may hold. */
 export const CSS_BYTES = 131_072
@@ -239,6 +256,8 @@ const CHECKS: Partial<Record<CssNode['type'], Check>> = {
       return `${node.property} changes the page after it is captured; a static page has no motion`
     if (COUNTERS.has(property)) return `${node.property} chooses the numbers a list draws; they follow its items`
     if (POINTER.has(property)) return `${node.property} changes what a pointer reaches; a static page has no pointer`
+    if (property === 'position' && !isPlacedOnPage(node.value))
+      return `${node.property} may be static, relative or absolute: a fixed or sticky element moves over the text as a reader scrolls, where no capture shows it`
     return BINDINGS.has(property) ? `${node.property} binds behaviour and is not allowed` : null
   },
 }
