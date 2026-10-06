@@ -80,8 +80,8 @@ function startCheck(timings, label) {
 
 /**
  * What Docker configured for each start (scripts/paperclip-image-container.mjs, runtime.jsonl), against the stated
- * scope: not privileged, no capability added to Docker's default set, not the host's network, published on 127.0.0.1
- * only. One record per start (review of 9130676).
+ * scope: not privileged, Docker's default capability set exactly (none added or dropped, review of 3c29dd1), not the
+ * host's network, published on 127.0.0.1 only. One record per start (review of 9130676).
  */
 function runtimeCheck(records) {
   if (records.length === 0) return { result: 'not reached' }
@@ -92,6 +92,9 @@ function runtimeCheck(records) {
     r.privileged === false &&
     Array.isArray(r.capAdd) &&
     r.capAdd.length === 0 &&
+    // Docker's default set exactly: nothing dropped either, so a stricter runtime never qualifies (review of 3c29dd1).
+    Array.isArray(r.capDrop) &&
+    r.capDrop.length === 0 &&
     typeof r.networkMode === 'string' &&
     r.networkMode !== 'host' &&
     !r.networkMode.startsWith('container:') &&
@@ -231,7 +234,7 @@ export function assess({ context = null, disk = [], identity = null, timings = [
   const checks = [
     { name: 'image built from the pin and a clean Sophia commit, linux/amd64, packaged files as recorded', ...identityCheck(identity, context) },
     ...STARTS.map((label) => ({ name: `${label}: healthy within ${HEALTH_LIMIT_S} s`, ...startCheck(timings, label) })),
-    { name: 'runtime: not privileged, no added capability, not the host network, loopback only', ...runtimeCheck(runtime) },
+    { name: 'runtime: not privileged, Docker’s default capabilities (none added or dropped), not the host network, loopback only', ...runtimeCheck(runtime) },
     ...PHASES.map((phase) => ({ name: `memory, ${phase}`, ...memoryCheck(samples, phase) })),
     ...['first', 'restarted'].map((phase) => ({ name: `installed plugin flow, ${phase}`, ...probeCheck(probes[phase], phase, probes.first) })),
     { name: 'home persisted across recreation', ...homeCheck(home.before, home.after) },
@@ -242,7 +245,7 @@ export function assess({ context = null, disk = [], identity = null, timings = [
     schema: 'sophia.paperclip-image-receipt.v2',
     verdict,
     scope:
-      'The two-step image from the Paperclip pin and a clean Sophia commit, built and run on a GitHub-hosted linux/amd64 runner under a 2 GiB memory cgroup without swap, with Docker’s default capability set (not privileged, no capability added, not the host network, published on loopback only), with a disposable database and home and synthetic credentials; the installed plugin flow through the service probe --url. Not Render platform fit, not a registry digest, not a real Sophia (its address is closed in the container).',
+      'The two-step image from the Paperclip pin and a clean Sophia commit, built and run on a GitHub-hosted linux/amd64 runner under a 2 GiB memory cgroup without swap, with Docker’s default capability set (none added or dropped; not privileged, not the host network, published on loopback only), with a disposable database and home and synthetic credentials; the installed plugin flow through the service probe --url. Not Render platform fit, not a registry digest, not a real Sophia (its address is closed in the container).',
     context,
     disk,
     images: identity && { build: identity.buildImage, image: identity.image },

@@ -536,12 +536,16 @@ describe('review of 9130676: a start’s duration and its runtime configuration 
     assert.equal(resultOf(zero, 'restart:'), 'passed', 'zero is a measured duration')
   })
 
-  it('privileged, an added capability, the host network or a port beyond loopback fails the run', () => {
+  it('privileged, an added or dropped capability, the host network or a port beyond loopback fails the run', () => {
     const faults = [
       (r) => ({ ...r, privileged: true }),
       (r) => ({ ...r, privileged: undefined }),
       (r) => ({ ...r, capAdd: ['SYS_ADMIN'] }),
       (r) => ({ ...r, capAdd: undefined }),
+      // Review of 3c29dd1: a narrower set is not Docker's default either.
+      (r) => ({ ...r, capDrop: ['ALL'] }),
+      (r) => ({ ...r, capDrop: ['NET_RAW'] }),
+      (r) => ({ ...r, capDrop: undefined }),
       (r) => ({ ...r, networkMode: 'host' }),
       (r) => ({ ...r, networkMode: 'container:other' }),
       (r) => ({ ...r, ports: [{ port: '3100/tcp', hostIp: '0.0.0.0', hostPort: '3100' }] }),
