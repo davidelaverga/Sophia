@@ -78,6 +78,14 @@ async function takeBackAll(writes: PackWrites, releases: readonly string[], keys
   return { still, reason }
 }
 
+/** The set with `id` in it if it wasn't, out of it if it was. */
+function toggled(was: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  const next = new Set(was)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  return next
+}
+
 /** The package's state: what is chosen, where to, the batch fixed at Carry, and what has gone. */
 function usePackage({ notes, projects, writes }: Omit<Props, 'onClose'>) {
   const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set())
@@ -90,13 +98,7 @@ function usePackage({ notes, projects, writes }: Omit<Props, 'onClose'>) {
   const takeKeys = useRef(new Map<string, string>())
   const picked = batch ?? notes.filter((n) => chosen.has(n.id))
   const project = projects.find((p) => p.projectId === projectId)
-  const toggle = (id: string) =>
-    setChosen((was) => {
-      const next = new Set(was)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const toggle = (id: string) => setChosen((was) => toggled(was, id))
   /**
    * Carries the batch's notes that haven't gone, in order, stopping at the first that fails, or when the account leaves
    * (`writes.here`). Should the package go otherwise (the notes closed, the place left), the batch still goes: nothing
@@ -111,7 +113,11 @@ function usePackage({ notes, projects, writes }: Omit<Props, 'onClose'>) {
     const done: Gone = { noteIds: [...gone.noteIds], releases: [...gone.releases], unsure: [...gone.unsure] }
     const left = (id: string) => !live.current.some((n) => n.id === id)
     for (const note of fixed.filter((n) => !done.noteIds.includes(n.id) && !done.unsure.includes(n.id))) {
-      if (!writes.here()) return
+      // The account left (or is leaving): nothing more goes under it, and the package says how far it went.
+      if (!writes.here()) {
+        setGone(done)
+        return setPhase('partial')
+      }
       // Gone from the list since (carried another way, or a lost reply that landed): never asked for again.
       if (left(note.id)) {
         done.unsure.push(note.id)

@@ -62,6 +62,8 @@ export function App() {
     setSignedIn(null)
     queryClient.clear()
     chooseDev(identity)
+    // The same identity again is no change App's effect would see: it is in, as it was.
+    setSignedIn(identity?.name ?? null)
   }
   // Signing out leaves nothing personal on this device: the cache, and every message being written to Sophia.
   const leaveSession = () => {
