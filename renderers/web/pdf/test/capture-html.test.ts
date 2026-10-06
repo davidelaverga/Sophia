@@ -28,7 +28,15 @@ import {
   targetChecks,
   tilesOf,
 } from '../capture-html.mjs'
-import { MARK_CLASS, MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, MAX_TEXT_RECTS, pageScript } from '../capture-page.mjs'
+import {
+  MARK_CLASS,
+  MAX_LINES,
+  MAX_LOOK_MS,
+  MAX_MEASURED,
+  MAX_POINTS,
+  MAX_TEXT_RECTS,
+  pageScript,
+} from '../capture-page.mjs'
 import { chromiumPath, launchConfined } from '../confine.mjs'
 
 const sha = (data: string | Uint8Array): string => createHash('sha256').update(data).digest('hex')
@@ -1013,6 +1021,59 @@ describe('the confined capture kernel', () => {
         const boxes = `"maxTextRects":${String(MAX_TEXT_RECTS)}`
         assert.ok(script.includes(boxes), "the page's text is indexed within the kernel's own bound")
         assert.deepEqual(await unsampled(script.replace(boxes, '"maxTextRects":1')), [true, false], 'past the boxes')
+      } finally {
+        await browser.close()
+        fs.rmSync(workDir, { recursive: true, force: true })
+      }
+    },
+  )
+
+  it(
+    'looks along a long line an em apart at most, so a box between points 64 to a line would see is found (#117)',
+    { skip },
+    async () => {
+      const workDir = fs.mkdtempSync(path.join(SCRATCH, 'sophia-long-'))
+      const browser = await launchConfined({ workDir, env })
+      try {
+        const tab = await browser.context.newPage()
+        await tab.setViewportSize({ width: 1280, height: 800 })
+        await tab.setContent(
+          page(
+            `${BASE} .long{position:absolute;left:0;top:200px;margin:0;font:10px/1.5 monospace;white-space:nowrap}`,
+            `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>
+          <p data-block="b2" class="long">${'abcdefghij'.repeat(20)}</p></section></main>`,
+          ),
+        )
+        // A box over the line between the 11th and 12th of 64 points spread along it: wider than an em, narrower
+        // than their gap.
+        const gap = await tab.evaluate(() => {
+          const range = document.createRange()
+          range.selectNodeContents(document.querySelector('.long')!.firstChild!)
+          const r = range.getBoundingClientRect()
+          const step = r.width / 64
+          const box = document.createElement('div')
+          box.style.cssText = `position:absolute;left:${String(r.left + 10.5 * step + 1)}px;top:${String(r.top)}px;width:${String(step - 2)}px;height:${String(r.height)}px;background:#fafafa`
+          document.body.append(box)
+          return step
+        })
+        assert.ok(gap - 2 > 10, `the box (${String(gap - 2)}px) is wider than an em (10px)`)
+        const script = pageScript({ maxListed: 20 })
+        const answer = await tab.evaluate<{ blocks: { id: string; issues: string[]; unsampled: boolean }[] }>(script)
+        assert.deepEqual(
+          answer.blocks.map((b) => [b.id, b.issues.includes('covered'), b.unsampled]),
+          [
+            ['b1', false, false],
+            ['b2', true, false],
+          ],
+        )
+        // A line that needs more points than the page has left is unmeasured, never looked at more sparsely.
+        const points = `"maxPoints":${String(MAX_POINTS)}`
+        assert.ok(script.includes(points))
+        const short = await tab.evaluate<{ blocks: { unsampled: boolean }[] }>(script.replace(points, '"maxPoints":20'))
+        assert.deepEqual(
+          short.blocks.map((b) => b.unsampled),
+          [false, true],
+        )
       } finally {
         await browser.close()
         fs.rmSync(workDir, { recursive: true, force: true })

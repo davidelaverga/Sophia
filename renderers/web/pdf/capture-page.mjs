@@ -373,12 +373,18 @@ function isUpright(el, memo) {
 }
 
 /**
- * Points along a line of text where the cover check looks: through its middle, about an em apart, at most 64.
+ * Points along a line of text where the cover check looks: through its middle, an em apart at most, however long the
+ * line. A cap on points per line would widen the gaps on a long one, where a box could cover a glyph between two
+ * points (#117). Null when the line needs more points than the page has left, or its time is up: the text is then
+ * unmeasured, never looked at more sparsely.
  * @param {Box} rect in viewport coordinates
  * @param {number} em
+ * @param {Budget} budget
+ * @returns {{ x: number, y: number }[] | null}
  */
-function pointsAlong(rect, em) {
-  const n = Math.min(64, Math.max(1, Math.ceil(rect.width / Math.max(em, 4))))
+function pointsAlong(rect, em, budget) {
+  const n = Math.max(1, Math.ceil(rect.width / Math.max(em, 4)))
+  if (n > budget.left || performance.now() > budget.until) return null
   return Array.from({ length: n }, (_, i) => ({
     x: rect.x + (rect.width * (i + 0.5)) / n,
     y: rect.y + rect.height / 2,
@@ -766,7 +772,7 @@ function onOwnGround(holder, stack, p, look) {
 
 /**
  * The cover check along every line of one text (isCovered): 'covered' at the first point something else is on top,
- * 'unmeasured' when the page's budget runs out (of points, or of time) or a point no scroll of the window shows is
+ * 'unmeasured' when the page's budget runs out (of points, a line's included, or of time) or a point no scroll of the window shows is
  * reached (inWindow), else 'clear' with the points only the protocol can judge added to `probes` (in page
  * coordinates). The text's lines are read once, and a text with MAX_LINES lines or more, or more lines than the budget
  * has points left, is not looked at, line by line or at all (#117).
@@ -792,8 +798,9 @@ function coverAlong(holder, node, budget, probes, look) {
   const suspect = drawsOverText(holder)
   const em = Number.parseFloat(getComputedStyle(holder).fontSize)
   for (const line of lines) {
-    if (performance.now() > budget.until) return 'unmeasured'
-    for (const p of pointsAlong(lineInView(line), em)) {
+    const points = pointsAlong(lineInView(line), em, budget)
+    if (!points) return 'unmeasured'
+    for (const p of points) {
       if (!inView(holder, p.x, p.y)) continue
       if (!inWindow(p)) return 'unmeasured'
       budget.left -= 1
