@@ -6,7 +6,7 @@
 
 import { safeHref } from '@sophia/report/markdown'
 import { checkCss } from './css.ts'
-import { attr, elements, hasAncestor, inHtml, lineAt, type Document, type Element } from './dom.ts'
+import { attr, depthOf, elements, hasAncestor, inHtml, lineAt, type Document, type Element } from './dom.ts'
 import { error, warning, type Finding } from './findings.ts'
 
 const ELEMENTS = new Set([
@@ -127,6 +127,11 @@ export const SECTION_ID = /^[a-z][a-z0-9-]{0,63}$/
 
 /** The largest authored page a source may hold. */
 export const HTML_BYTES = 524_288
+/**
+ * The deepest a page may nest its elements. A report needs a few dozen levels; deeper nesting only strains every walk
+ * over the page, the compile's serializer among them, so it is refused before any other check (#117).
+ */
+export const MAX_DEPTH = 256
 
 const lineOf = (html: string, el: Element): number => lineAt(html, el.sourceCodeLocation?.startOffset ?? 0)
 
@@ -239,6 +244,9 @@ function structureFindings(html: string, all: Element[]): Finding[] {
 export function checkPolicy(doc: Document, html: string, css: string | null): Finding[] {
   if (Buffer.byteLength(html, 'utf8') > HTML_BYTES)
     return [error('html_too_large', 'index.html', `index.html is limited to ${HTML_BYTES} bytes`)]
+  const depth = depthOf(doc)
+  if (depth > MAX_DEPTH)
+    return [error('html_too_deep', 'index.html', `index.html nests elements ${depth} deep; at most ${MAX_DEPTH}`)]
   const all = elements(doc)
   const out: Finding[] = all.flatMap((el) => elementFindings(html, el))
   out.push(...structureFindings(html, all))

@@ -211,9 +211,15 @@ function byId(all: readonly Element[]): Map<string, Element> {
   return out
 }
 
-/** The text nodes inside an element, in order. */
+/** The text nodes inside an element, in order (iterative, like dom.ts's walks: hostile nesting has no depth limit). */
 function textNodesIn(el: Element): TextNode[] {
-  return el.childNodes.flatMap((node) => (isText(node) ? [node] : isElement(node) ? textNodesIn(node) : []))
+  const out: TextNode[] = []
+  const stack: ChildNode[] = el.childNodes.toReversed()
+  for (let node = stack.pop(); node; node = stack.pop()) {
+    if (isText(node)) out.push(node)
+    else if (isElement(node)) stack.push(...node.childNodes.toReversed())
+  }
+  return out
 }
 
 /** The nearest label that holds a node, or null. */

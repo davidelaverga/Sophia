@@ -10,6 +10,7 @@ import {
   reviseSource,
   type SourceFile,
 } from './index.ts'
+import { lineAt } from './dom.ts'
 import { plainPage } from './testing.ts'
 
 const A = '11111111-1111-4111-8111-111111111111'
@@ -607,6 +608,34 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
       assert.deepEqual(css(ok), [], ok)
     const numbered = html(good).replace('<main>', '<main><ol type="1" start="3" reversed><li value="5"></li></ol>')
     assert.deepEqual(codes(withHtml(good, numbered)), [])
+  })
+})
+
+describe('a page any walk can finish (#117)', () => {
+  const nested = (depth: number): SourceFile[] => {
+    const deep = `<h2 id="deep">${'<span>'.repeat(depth)}Findings${'</span>'.repeat(depth)}</h2>`
+    return withHtml(good, html(good).replace('<main>', `<main aria-describedby="deep">${deep}`))
+  }
+  it('refuses nesting past the profile depth as a finding, before any walk over it', () => {
+    for (const depth of [300, 5000, 38_000]) {
+      const started = Date.now()
+      assert.deepEqual(codes(nested(depth)), ['html_too_deep'], String(depth))
+      assert.ok(Date.now() - started < 5000, `${String(depth)} levels are refused quickly`)
+    }
+  })
+  it('checks and compiles a page nested near the limit, a referenced label at the bottom of it', () => {
+    const files = nested(240)
+    assert.deepEqual(codes(files), [])
+    assert.match(compile(files, 'en'), /<h2 id="deep" data-sophia-shown="h2#deep">/)
+  })
+  it('numbers lines as the text reads, whichever text was asked about last', () => {
+    const text = 'a\nb\n\nc'
+    assert.deepEqual(
+      [0, 1, 2, 4, 5, 99].map((offset) => lineAt(text, offset)),
+      [1, 1, 2, 3, 4, 4],
+    )
+    assert.equal(lineAt('x\ny', 2), 2)
+    assert.equal(lineAt(text, 5), 4)
   })
 })
 
