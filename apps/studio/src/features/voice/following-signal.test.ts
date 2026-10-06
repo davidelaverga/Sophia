@@ -124,6 +124,34 @@ describe('after a drop', () => {
     assert.equal(signal.of('ana'), 'v2')
   })
 
+  it('keeps an answer heard before the ask is published, the same version in the same tick included (Codex on #130)', async () => {
+    const { room, emit } = fakeRoom([ANA, BEN, NOBODY])
+    let changes = 0
+    const signal = followingSignal(room, () => (changes += 1), { resync: true })
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), BEN, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.Reconnected)
+    // In the same tick as the drop's end, before the ask is published: Ana answers the very same version, Ben nothing.
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    await new Promise((done) => setTimeout(done, 0))
+    assert.equal(signal.of('ana'), 'v2')
+    assert.equal(signal.of('ben'), null) // heard only before the drop: forgotten
+    assert.equal(changes, 4)
+  })
+
+  it('keeps a changed answer, a second member’s answer, and an answer of nothing, heard since the drop', async () => {
+    const { room, emit } = fakeRoom([ANA, BEN])
+    const signal = followingSignal(room, () => undefined, { resync: true })
+    emit(RoomEvent.DataReceived, encodeFollowing('v1'), ANA, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeFollowing('v1'), BEN, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.Reconnected)
+    emit(RoomEvent.DataReceived, encodeFollowing('v3'), BEN, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeFollowing(null), ANA, undefined, FOLLOWING_TOPIC)
+    await new Promise((done) => setTimeout(done, 0))
+    assert.equal(signal.of('ben'), 'v3')
+    assert.equal(signal.of('ana'), null)
+  })
+
   it('answers a member’s ask to that member only, nothing included; a guest’s ask, never', () => {
     const { room, emit, sent } = fakeRoom([ANA, BEN, GUEST])
     followingSignal(room, () => undefined, { resync: true })
@@ -170,6 +198,28 @@ describe('a resync that can’t be asked', () => {
     await new Promise((done) => setTimeout(done, 20))
     assert.equal(signal.of('ana'), null)
     assert.equal(sent.filter((s) => s.ask).length, 1)
+  })
+
+  it('keeps an answer heard between a refused ask and the one published, the same version included', async () => {
+    const { room, emit } = fakeRoom([ANA, BEN])
+    let fail = 1
+    const publish = room.localParticipant.publishData.bind(room.localParticipant)
+    room.localParticipant.publishData = (data, opts) => {
+      if (decodePacket(data) && 'ask' in (decodePacket(data) ?? {}) && fail > 0) {
+        fail -= 1
+        return Promise.reject(new Error('not now'))
+      }
+      return publish(data, opts)
+    }
+    const signal = followingSignal(room, () => undefined, { resync: true, retryMs: 5 })
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), BEN, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.Reconnected)
+    await new Promise((done) => setTimeout(done, 0))
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), BEN, undefined, FOLLOWING_TOPIC)
+    await new Promise((done) => setTimeout(done, 20))
+    assert.equal(signal.of('ana'), null)
+    assert.equal(signal.of('ben'), 'v2')
   })
 })
 

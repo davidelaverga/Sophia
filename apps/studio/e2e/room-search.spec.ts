@@ -106,7 +106,45 @@ test('search · while the next query is read, the last one’s hits are not offe
   await expect(hits(page).filter({ hasText: 'Keep the room checks on fixtures' }).first()).toBeVisible()
 })
 
-test('search · the running meeting’s recap, opened from a hit, is the running one until it is read: leaving opens no second', async ({
+declare global {
+  interface Window {
+    /** The page's reads of the project's latest meeting, as this check watches them (room-search.spec.ts). */
+    latestMeeting?: { reads: number; holding: boolean; held: (() => void)[] }
+  }
+}
+
+/**
+ * The page's reads of the project's latest meeting from now on, counted, and with `hold`, answered only once released
+ * (and every later one at once): its own fetch, wrapped, answers as before.
+ */
+const watchLatest = (page: Page, hold = false) =>
+  page.evaluate((holding) => {
+    const own = window.fetch
+    const latest = { reads: 0, holding, held: [] as (() => void)[] }
+    window.latestMeeting = latest
+    window.fetch = async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input)
+      if (!url.includes('/meetings?limit=1')) return own(input, init)
+      latest.reads += 1
+      if (latest.holding) await new Promise<void>((release) => latest.held.push(release))
+      return own(input, init)
+    }
+  }, hold)
+const latestReads = (page: Page) => page.evaluate(() => window.latestMeeting?.reads ?? 0)
+const releaseLatest = (page: Page) =>
+  page.evaluate(() => {
+    const latest = window.latestMeeting
+    if (!latest) return
+    latest.holding = false
+    for (const release of latest.held.splice(0)) release()
+  })
+/** What a read answered has been rendered, and its effects run. */
+const settled = (page: Page) =>
+  page.evaluate(
+    () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 0)))),
+  )
+
+test('search · a past meeting’s recap, opened from a hit and not yet read, leaves Leave its own recap, on top', async ({
   page,
 }) => {
   await page.goto('/room.html?people=2&call=on')
@@ -115,12 +153,46 @@ test('search · the running meeting’s recap, opened from a hit, is the running
   await field(page).fill('room checks')
   const recapHit = hits(page).filter({ hasText: 'Meeting recap' })
   await expect(recapHit).toHaveCount(1)
+  // Held, so Leave comes before its recap, or the latest meeting, is read (Codex on #130): unknown is not running.
   await page.evaluate(() => window.fixture?.holdRecaps())
+  await watchLatest(page, true)
   await recapHit.getByRole('button').click()
   const recap = page.getByRole('dialog', { name: 'This meeting' })
   await expect(recap).toContainText('Putting the meeting together…')
+  await expect.poll(() => latestReads(page)).toBe(1)
+  await recap.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
+  await expect(recap).toHaveCount(2)
+  await releaseLatest(page)
+  await page.evaluate(() => window.fixture?.releaseRecaps())
+  await expect(recap.filter({ hasText: 'Pilot the fixture with fourteen teams' })).toHaveCount(1)
+  // The recap of the call left is on top: Escape puts it away, and the past meeting's is still there.
+  await page.keyboard.press('Escape')
+  await expect(recap).toHaveCount(1)
+  await expect(recap.getByRole('region', { name: 'Decided' })).toContainText('Keep the room checks on fixtures')
+})
+
+test('search · the running meeting’s recap, opened from a hit, is the running one before it is read: leaving opens no second', async ({
+  page,
+}) => {
+  await page.goto('/room.html?people=2&call=on')
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Search' }).click()
+  await field(page).fill('fourteen teams')
+  const recapHit = hits(page).filter({ hasText: 'Meeting recap' })
+  await expect(recapHit).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.holdRecaps())
+  await watchLatest(page)
+  await recapHit.getByRole('button').click()
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(recap).toContainText('Putting the meeting together…')
+  // The project's latest meeting, read as the sheet opens, says this one runs.
+  await expect.poll(() => latestReads(page)).toBe(1)
+  await settled(page)
   await recap.getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
   await expect(recap.getByRole('group', { name: 'Your call' })).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.releaseRecaps())
+  await expect(recap.getByRole('region', { name: 'Decided' })).toContainText('Pilot the fixture with fourteen teams')
   await expect(page.getByRole('dialog')).toHaveCount(1)
 })
 

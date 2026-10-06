@@ -94,16 +94,31 @@ const keptFollowing = new Map<string, Followed>()
 
 /**
  * Following is this device's, and of one thing: that version as that member shows it (follows). It begins with Follow
- * and ends with Stop following, or when something else, or nothing, is shown. Stopped, the focus goes to Follow.
+ * and ends with Stop following, or when something else, or nothing, is shown. Stopped, the focus goes to Follow. Each
+ * call (`keep`) has its own: exported for its fixture page (fixtures/following-keys.tsx).
  */
-
-function useFollowing(shown: Shown | null, keep: string) {
-  const [followed, setFollowed] = useState<Followed | null>(() => keptFollowing.get(keep) ?? null)
+export function useFollowing(shown: Shown | null, keep: string) {
+  // What is followed, with the call it belongs to, so it is only ever kept under that call's key.
+  const [kept, setKept] = useState(() => ({ keep, followed: keptFollowing.get(keep) ?? null }))
+  const [wasStopped, setStopped] = useState(false)
+  let followed = kept.followed
+  let stopped = wasStopped
+  // Another call (or project, or person): what that one followed, as it was left, and no focus owed to a Follow
+  // stopped in the one before. Read before anything below decides on it (Codex on #130).
+  if (kept.keep !== keep) {
+    followed = keptFollowing.get(keep) ?? null
+    stopped = false
+    setKept({ keep, followed })
+    setStopped(false)
+  }
+  const setFollowed = useCallback(
+    (next: Followed | null) => setKept((k) => (k.followed === next ? k : { ...k, followed: next })),
+    [],
+  )
   useEffect(() => {
-    if (followed) keptFollowing.set(keep, followed)
-    else keptFollowing.delete(keep)
-  }, [followed, keep])
-  const [stopped, setStopped] = useState(false)
+    if (kept.followed) keptFollowing.set(kept.keep, kept.followed)
+    else keptFollowing.delete(kept.keep)
+  }, [kept])
   if (!shown && (followed || stopped)) {
     setFollowed(null)
     setStopped(false)

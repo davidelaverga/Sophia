@@ -2,8 +2,8 @@
 // follow in a reliable packet on its own topic, sent to the members only (never to a guest), and only when it changes.
 // What others said is kept by the sender the SFU authenticated, so nobody can speak for another, and nothing touches
 // a participant's metadata (the standing the API signed). Said again to whoever joins. Back from a drop, a client says
-// its own again («nothing» too) and asks the members theirs, forgetting what it heard until they answer: LiveKit keeps
-// no reliable packet for a receiver that was away. Forgotten when its sender leaves.
+// its own again («nothing» too) and asks the members theirs, forgetting what it heard before the drop, never an answer
+// heard since: LiveKit keeps no reliable packet for a receiver that was away. Forgotten when its sender leaves.
 import { ConnectionState, RoomEvent, type Participant, type Room } from 'livekit-client'
 import { standingOf } from './room-view.ts'
 import { isSophia } from './sophia-channel.ts'
@@ -50,27 +50,28 @@ export interface FollowingSignal {
 }
 
 /**
- * Back from a drop: say ours again, and ask the members theirs. What was heard is forgotten only once they are asked;
- * an ask refused is asked again, so a transient failure never leaves the counts empty for the rest of the call. Each
- * drop is its own resync: a later one, or the call ending, stops an earlier one's retries.
+ * Back from a drop: say ours again, and ask the members theirs. What was heard before the drop is forgotten only once
+ * they are asked, and only that: an answer heard since, the same version included, stays. An ask refused is asked
+ * again, so a transient failure never leaves the counts empty for the rest of the call. Each drop is its own resync: a
+ * later one, or the call ending, stops an earlier one's retries.
  */
 function onReconnect(
   room: Room,
-  on: { members: () => string[]; forget: () => void; sayMine: () => void },
+  on: { members: () => string[]; received: () => number; forget: (upTo: number) => void; sayMine: () => void },
   retryMs: number,
 ) {
   let retry: ReturnType<typeof setTimeout> | undefined
   let resyncs = 0
-  const ask = (which: number) => {
+  const ask = (which: number, upTo: number) => {
     const to = on.members()
     // Nobody to ask (only guests, or Sophia): never an ask to everyone, which would reach a guest.
-    if (to.length === 0) return on.forget()
+    if (to.length === 0) return on.forget(upTo)
     room.localParticipant
       .publishData(encodeAsk(), { reliable: true, destinationIdentities: to, topic: FOLLOWING_TOPIC })
-      .then(() => which === resyncs && on.forget())
+      .then(() => which === resyncs && on.forget(upTo))
       .catch(() => {
         if (which !== resyncs || room.state === ConnectionState.Disconnected) return
-        retry = setTimeout(() => ask(which), retryMs)
+        retry = setTimeout(() => ask(which, upTo), retryMs)
       })
   }
   const stop = () => {
@@ -80,8 +81,10 @@ function onReconnect(
   room.on(RoomEvent.Disconnected, stop)
   room.on(RoomEvent.Reconnected, () => {
     stop()
+    // Counted, not timed: an answer in the same clock tick as the drop's end is still one heard since.
+    const upTo = on.received()
     on.sayMine()
-    ask(resyncs)
+    ask(resyncs, upTo)
   })
 }
 
@@ -95,7 +98,9 @@ export function followingSignal(
   { resync = false, retryMs = 2000 } = {},
 ): FollowingSignal {
   let mine: string | null = null
-  const heard = new Map<string, string>()
+  /** Each member's word, with when it was heard: the count of words heard so far, which only grows. */
+  const heard = new Map<string, { version: string; at: number }>()
+  let received = 0
   const publish = (to: string[], data: ReturnType<typeof encodeAsk>) => {
     if (to.length === 0) return
     room.localParticipant
@@ -111,8 +116,9 @@ export function followingSignal(
     // Asked: the answer goes to the asker only, «nothing» included.
     if ('ask' in packet) return resync ? send([participant.identity]) : undefined
     const { following } = packet
+    received += 1
     if (following === null) heard.delete(participant.identity)
-    else heard.set(participant.identity, following)
+    else heard.set(participant.identity, { version: following, at: received })
     onChange()
   })
   room.on(RoomEvent.ParticipantConnected, (p) => {
@@ -120,11 +126,11 @@ export function followingSignal(
   })
   room.on(RoomEvent.ParticipantDisconnected, (p) => heard.delete(p.identity))
   if (resync) {
-    const forget = () => {
-      heard.clear()
+    const forget = (upTo: number) => {
+      for (const [identity, word] of heard) if (word.at <= upTo) heard.delete(identity)
       onChange()
     }
-    onReconnect(room, { members, forget, sayMine: () => send(members()) }, retryMs)
+    onReconnect(room, { members, received: () => received, forget, sayMine: () => send(members()) }, retryMs)
   }
   return {
     set: (versionId) => {
@@ -132,6 +138,6 @@ export function followingSignal(
       mine = versionId
       send(members())
     },
-    of: (identity) => heard.get(identity) ?? null,
+    of: (identity) => heard.get(identity)?.version ?? null,
   }
 }

@@ -98,3 +98,23 @@ export function afterLine(update: AfterUpdate): string {
   if (update.title === null) return update.kind === 'work_finished' ? 'Work finished' : `A new version${version}`
   return update.kind === 'work_finished' ? `${update.title} ready${version}` : `${update.title}${version}`
 }
+
+/** How long «After the meeting» reads again, at most, from when it opened. */
+export const AFTER_POLL_MS = 10 * 60_000
+
+/**
+ * Whether «After the meeting» reads again: while any task running at close has not finished since (its own
+ * `work_finished`, after the close), for ten minutes at most. Another task's outcome, or a version made, ends nothing.
+ */
+export function pollAfter(
+  running: readonly string[],
+  updates: readonly Pick<AfterUpdate, 'at' | 'kind' | 'taskId'>[],
+  endedAt: string,
+  openFor: number,
+): boolean {
+  if (openFor >= AFTER_POLL_MS) return false
+  const finished = new Set(
+    updates.filter((u) => u.kind === 'work_finished' && Date.parse(u.at) >= Date.parse(endedAt)).map((u) => u.taskId),
+  )
+  return running.some((taskId) => !finished.has(taskId))
+}

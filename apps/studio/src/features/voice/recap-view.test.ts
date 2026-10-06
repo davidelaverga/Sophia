@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { MeetingRecap } from '../../api/vision.ts'
-import { afterLine, recapHead, recapSections, recapText } from './recap-view.ts'
+import { AFTER_POLL_MS, afterLine, pollAfter, recapHead, recapSections, recapText } from './recap-view.ts'
 
 const names = new Map([
   ['me', 'you'],
@@ -131,5 +131,32 @@ describe('the record at close, and what came after', () => {
       }),
       'Work finished',
     )
+  })
+})
+
+const finished = (taskId: string, at = '2026-10-06T17:05:00Z') => ({ at, kind: 'work_finished', taskId }) as const
+
+describe('reading again what came after the meeting', () => {
+  const endedAt = '2026-10-06T17:00:00Z'
+
+  it('goes on while any task running at close has not finished since', () => {
+    assert.equal(pollAfter(['t1', 't2'], [], endedAt, 0), true)
+    assert.equal(pollAfter(['t1', 't2'], [finished('t1')], endedAt, 0), true) // the first of two (Codex on #130)
+    assert.equal(pollAfter(['t1', 't2'], [finished('t2'), finished('t1')], endedAt, 0), false)
+  })
+
+  it('counts only a task’s own finish, after the close', () => {
+    assert.equal(pollAfter(['t1'], [finished('t1', '2026-10-06T16:59:59Z')], endedAt, 0), true)
+    assert.equal(
+      pollAfter(['t1'], [{ at: '2026-10-06T17:05:00Z', kind: 'version_made', taskId: 't1' }], endedAt, 0),
+      true,
+    )
+    assert.equal(pollAfter(['t1'], [finished('t9'), { ...finished('t1'), taskId: null }], endedAt, 0), true)
+  })
+
+  it('never without work running at close, and never past ten minutes', () => {
+    assert.equal(pollAfter([], [], endedAt, 0), false)
+    assert.equal(pollAfter(['t1'], [], endedAt, AFTER_POLL_MS - 1), true)
+    assert.equal(pollAfter(['t1'], [], endedAt, AFTER_POLL_MS), false)
   })
 })

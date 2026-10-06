@@ -110,8 +110,9 @@ export function RecapSheet(props: SheetProps) {
   const close = { projectId, identity, roomId }
   const titleId = useId()
   // It recaps the running meeting (the latest, on leaving; else as its recap says, or, until it is read, as the opener
-  // knew it, and if unknown, as running): leaving from it opens no second.
-  const known = recap.data === undefined ? (props.running ?? true) : recap.data?.endedAt === null
+  // knew it): leaving from it opens no second. Unknown is not running, so a past meeting's sheet never takes the recap
+  // of the call left from it (Codex on #130).
+  const known = recap.data === undefined ? (props.running ?? false) : recap.data?.endedAt === null
   const running = props.meetingId === undefined || known
   useEffect(() => {
     if (!running) return undefined
@@ -182,7 +183,7 @@ function RecapBody({ recap, title, names, editor, close, onClose }: BodyProps) {
           identity={close.identity}
           meetingId={recap.meetingId}
           endedAt={recap.endedAt}
-          waiting={recap.work.some((w) => ongoing(w.state))}
+          running={recap.work.filter((w) => ongoing(w.state)).map((w) => w.taskId)}
           anchor={callAnchor}
           onOpen={onClose}
         />
