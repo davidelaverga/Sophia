@@ -96,6 +96,7 @@ function sayFollowing(versionId: string | null): Promise<void> {
 
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   asked.push('connect')
+  said = null // a new connection has said nothing yet, as following-signal.ts starts each one
   const me = viewer()
   let textOnly = false
   let open = true

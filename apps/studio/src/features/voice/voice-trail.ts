@@ -68,6 +68,32 @@ export function sectionIndex(blocks: readonly Block[]): IndexEntry[] {
   })
 }
 
+/** Where a walk goes: its heading, at any level, and the index's section it lies in (itself, or the nearest above). */
+export interface WalkTarget {
+  anchor: string
+  occurrence: number
+  text: string
+  /** The index entry to mark (`anchor#n`); null when no section comes before it. */
+  section: string | null
+}
+
+/** The heading a walk's key (`anchor#n`) names, among all the report's headings, not only the index's. */
+export function walkTarget(blocks: readonly Block[], entries: readonly IndexEntry[], key: string): WalkTarget | null {
+  const headings = blocks.flatMap((b) => (b.kind === 'heading' && b.anchor ? [b] : []))
+  const keys = headingKeys(headings.map((h) => h.anchor))
+  const at = keys.indexOf(key)
+  const heading = headings[at]
+  if (!heading) return null
+  const indexed = new Set(entries.map((e) => e.key))
+  const section = keys.slice(0, at + 1).findLast((k) => indexed.has(k)) ?? null
+  return {
+    anchor: heading.anchor,
+    occurrence: Number(key.split('#')[1]),
+    text: inlineText(heading.children).trim(),
+    section,
+  }
+}
+
 /** A word in a text: its form for matching, and where it is. */
 export interface Word {
   key: string

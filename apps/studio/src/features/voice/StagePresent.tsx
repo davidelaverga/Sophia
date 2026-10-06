@@ -35,6 +35,8 @@ interface Context {
   names: ReadonlyMap<string, string>
   /** What Sophia is saying now (latestSpoken): the report on the stage lights it. */
   spoken: string | null
+  /** The project is kept out of sight (home, Personal), the call still on: nothing on its stage is followed. */
+  background?: boolean
 }
 
 /** Where the room's focus is written, once the snapshot is read. */
@@ -162,6 +164,13 @@ function useSayFollowing(room: Room, shown: Shown | null, following: boolean) {
   useEffect(() => {
     if (VISION && live) void setFollowing(followed)
   }, [setFollowing, followed, live, call])
+  // The stage going (another view, the call still on) is following nothing: never counted for what isn't in sight.
+  useEffect(
+    () => () => {
+      if (VISION) void setFollowing(null)
+    },
+    [setFollowing],
+  )
 }
 
 /** How many others in the call said they follow the version shown. */
@@ -193,7 +202,7 @@ export function useStagePresent(snapshot: Snapshot | undefined, room: Room, cont
   const screen = room.feeds.some((f) => f.source === 'screen')
   const target = targetOf(snapshot, projectId, identity)
   const walk = useWalked(snapshot, { shown, screen, followed }, identity)
-  useSayFollowing(room, shown, following)
+  useSayFollowing(room, shown, following && !context.background)
   if (!shown) return { presented: null, card: null }
   const guide = shown.mine ? 'you' : shortName(names.get(shown.guideId) ?? 'A member')
   // Mine, I can always stop it: on the stage, or on my card when the stage can't present it.

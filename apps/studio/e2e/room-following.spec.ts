@@ -45,3 +45,41 @@ test('following · following someone’s report says so to the room, and Stop fo
   // Said once per change, never on a render: the room's other events re-render the stage meanwhile.
   expect((await asked(page)).filter((a) => a.startsWith('following:'))).toEqual([`following:${V1}`, 'following:'])
 })
+
+test('following · going to another view while following says nothing is followed; the call stays', async ({ page }) => {
+  await page.evaluate(() => window.fixture?.show(1))
+  await card(page).getByRole('button', { name: 'Follow' }).click()
+  await expect.poll(() => asked(page)).toContain(`following:${V1}`)
+  const nav = page.getByRole('navigation', { name: 'Project views' })
+  await nav.getByRole('link', { name: 'Knowledge' }).click()
+  await expect.poll(async () => (await asked(page)).at(-1)).toBe('following:')
+  expect(await asked(page)).not.toContain('leave')
+})
+
+test('following · a rejoin says the version again, as the real connection does', async ({ page }) => {
+  await page.evaluate(() => window.fixture?.show(1))
+  await card(page).getByRole('button', { name: 'Follow' }).click()
+  await expect.poll(() => asked(page)).toContain(`following:${V1}`)
+  await page.getByRole('button', { name: 'Leave the room' }).first().click()
+  await page.keyboard.press('Escape') // the recap goes
+  await page.getByRole('button', { name: 'Join the room' }).first().click()
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  // Still following the report shown, or following it again: either way the new connection hears it.
+  const follow = card(page).getByRole('button', { name: 'Follow' })
+  if (await follow.isVisible()) await follow.click()
+  await expect
+    .poll(async () => (await asked(page)).filter((a) => a === `following:${V1}`).length)
+    .toBeGreaterThanOrEqual(2)
+})
+
+test('following · leaving the project for home, the call still on, says nothing is followed; back, it says it again', async ({
+  page,
+}) => {
+  await page.evaluate(() => window.fixture?.show(1))
+  await card(page).getByRole('button', { name: 'Follow' }).click()
+  await expect.poll(() => asked(page)).toContain(`following:${V1}`)
+  await page.evaluate(() => window.fixture?.away())
+  await expect.poll(async () => (await asked(page)).at(-1)).toBe('following:')
+  await page.evaluate(() => window.fixture?.back())
+  await expect.poll(async () => (await asked(page)).at(-1)).toBe(`following:${V1}`)
+})

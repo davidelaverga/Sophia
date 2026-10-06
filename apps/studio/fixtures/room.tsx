@@ -588,20 +588,20 @@ const SERVED: readonly View[] = ['studio', 'knowledge', 'work', 'updates']
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }
 
 /** The project as App.tsx holds it: out of sight while the person is in the places, and taking no keys then. */
-function Kept({ children }: { children: ReactNode }) {
+function Kept({ children }: { children: (background: boolean) => ReactNode }) {
   const [inSight, setInSight] = useState(true)
   useEffect(() => {
     sight.set = setInSight
   }, [])
   return (
     <div hidden={!inSight}>
-      <ShortcutScope.Provider value={inSight}>{children}</ShortcutScope.Provider>
+      <ShortcutScope.Provider value={inSight}>{children(!inSight)}</ShortcutScope.Provider>
     </div>
   )
 }
 
 /** The project as App.tsx shows it: its view moves as the person picks another (ViewNav, the mini dock). */
-function Project() {
+function Project({ background }: { background: boolean }) {
   const [view, setView] = useState<View>(viewOf(query.get('place')))
   return (
     <ProjectShell
@@ -622,6 +622,7 @@ function Project() {
       onWork={nothing}
       onSignOut={nothing}
       joinOnOpen={query.get('call') === 'on'}
+      background={background}
     />
   )
 }
@@ -635,9 +636,7 @@ createRoot(root).render(
       <p className="fixture-label" role="note">
         Fixture — no API, no call
       </p>
-      <Kept>
-        <Project />
-      </Kept>
+      <Kept>{(background) => <Project background={background} />}</Kept>
     </QueryClientProvider>
   </StrictMode>,
 )

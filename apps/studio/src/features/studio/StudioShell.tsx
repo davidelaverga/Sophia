@@ -93,6 +93,8 @@ interface Props {
   made: StageMadeState
   /** For whoever joined late, the card that offers the meeting so far, kept where the room lives (useCatchUp). */
   catchUp?: ReactNode
+  /** The project out of sight, the call still on: what its stage shows is followed by nobody here. */
+  background?: boolean
 }
 
 /**
@@ -168,14 +170,17 @@ interface Extras {
   who: RoomNames
   spoken: string | null
   catchUp: ReactNode
+  /** The project out of sight, the call still on (ProjectShell's `background`). */
+  background: boolean
 }
 
 /**
  * Under her line in Converse, what she made (with Show everyone, where it is offered); and what the room shows to
  * everyone: presented on the stage, or the card that says who shows what.
  */
-function useUnderTheLine({ snapshot, room, made, panel, common, who, spoken, catchUp }: Extras, chatOpen: boolean) {
-  const present = useStagePresent(snapshot, room, { ...common, spoken })
+function useUnderTheLine(extras: Extras, chatOpen: boolean) {
+  const { snapshot, room, made, panel, common, who, spoken, catchUp, background } = extras
+  const present = useStagePresent(snapshot, room, { ...common, spoken, background })
   const show = showRenderOf(snapshot, room, common)
   const object = madeOnTheStage(made, room, { chatOpen, anyOpen: panel.panel !== null }, { ...common, who, show })
   // On the stage: what is shown to everyone, and, for whoever joined late, the meeting so far (A13, the flag's).
@@ -202,6 +207,7 @@ function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
 
 export function StudioShell(props: Props) {
   const { projectId, identity, room, snapshot, panel, looking, captions: held, made, catchUp = null } = props
+  const background = props.background ?? false
   const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
   const chatDraft = useAskedInto(panel, state.drafts.converse ?? '', (text) => setDraft('converse', text))
   const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
@@ -211,7 +217,7 @@ export function StudioShell(props: Props) {
   const who = { me, names, guests: useKnownGuests(room) }
   const chatOpen = panel.panel === 'chat'
   const captions = useStageCaptions(held, room, chatOpen, who)
-  const stageExtras = { snapshot, room, made, panel, common, who, spoken: latestSpoken(held), catchUp }
+  const stageExtras = { snapshot, room, made, panel, common, who, spoken: latestSpoken(held), catchUp, background }
   const { present, under, showing } = useUnderTheLine(stageExtras, chatOpen)
   return (
     <div className="studio">
