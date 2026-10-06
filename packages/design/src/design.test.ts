@@ -949,6 +949,14 @@ describe('a tooltip or an accessible name carries no text the page does not show
       'del{text-decoration:none}\n',
     )
     assert.ok(codes(reset).includes('unsafe_element'), 'a CSS reset keeps the deletion a screen reader announces')
+    // The same meaning given by a role, on research, around it or on a source entry, is refused too.
+    for (const [from, to] of [
+      ['<p data-block="b1">', '<p data-block="b1" role="deletion">'],
+      ['<main>', '<main role="insertion">'],
+      [`data-source="${A}">Source ${A}`, `data-source="${A}"><span role="deletion">Source ${A}</span>`],
+      ['<h1>Report</h1>', '<h1><span role="mark insertion">Report</span></h1>'],
+    ] as const)
+      assert.ok(marked(from, to).includes('unsafe_attribute'), to)
     for (const [from, to] of [
       ['needs a dedicated VM', 'needs a <em>dedicated</em> <code>VM</code>'],
       ['needs a dedicated VM', 'needs a <mark>dedicated VM</mark>'],
@@ -1378,6 +1386,38 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       'section{isolation:isolate}',
       'p{opacity:.8}',
       'div{box-shadow:0 1px 2px #ccc;border:1px solid #ddd}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
+  // #117: a border image paints a picture the render cannot read beneath a text; black over black would be unknown.
+  it('refuses a border image in every form, and keeps borders, backgrounds and gradients', () => {
+    for (const bad of [
+      'div{border-image:linear-gradient(#000,#000) 1}',
+      'div{border:30px solid transparent;border-image:linear-gradient(#000,#000) fill 1}',
+      'div{border-image-source:linear-gradient(#000,#000)}',
+      'div{BORDER-IMAGE-SOURCE:radial-gradient(#000,#000)}',
+      'div{-webkit-border-image:linear-gradient(#000,#000) 1}',
+      'div{border-image:none 10px}',
+      'div{border-image-source:var(--b)}',
+      'div{border-image-source:var(--b, none)}',
+      'p::before{border-image:linear-gradient(#000,#000) 1}',
+      '@media (min-width: 600px){div{border-image-source:linear-gradient(#000,#000)}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace(
+      '<p data-block="b1">',
+      '<p data-block="b1" style="border-image:linear-gradient(#000,#000) 1">',
+    )
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of [
+      'div{border-image:none}',
+      'div{border-image-source:none}',
+      'div{border-image:initial}',
+      'div{border-image-source:INHERIT}',
+      'div{border-image-width:2px;border-image-slice:1}',
+      'div{border:30px solid #000}',
+      'div{background:linear-gradient(#fff,#eee)}',
+      'p::before{content:"";background:#fff3a0;border-radius:4px}',
     ])
       assert.deepEqual(css(ok), [], ok)
   })

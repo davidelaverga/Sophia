@@ -202,6 +202,13 @@ const SHADOWLESS = new Set(['none', 'initial', 'inherit', 'unset', 'revert', 're
  */
 const UNBLENDED = new Set(['normal', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
 const UNFILTERED = new Set(['none', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
+/**
+ * The values a border image may take: none, or a keyword that resets it. A border image paints a picture of its own,
+ * a gradient included, over the border, and with `fill` over the whole box; the render reads a border's colours
+ * beneath a text, but not an image's, so black research over a black gradient border image would read as an unknown
+ * contrast, never as a low one (#117). Borders, backgrounds and gradients stay.
+ */
+const IMAGELESS = new Set(['none', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
 const PAINT_MODES: Readonly<Record<string, ReadonlySet<string>>> = {
   'mix-blend-mode': UNBLENDED,
   'background-blend-mode': UNBLENDED,
@@ -209,6 +216,9 @@ const PAINT_MODES: Readonly<Record<string, ReadonlySet<string>>> = {
   '-webkit-filter': UNFILTERED,
   'backdrop-filter': UNFILTERED,
   '-webkit-backdrop-filter': UNFILTERED,
+  'border-image': IMAGELESS,
+  'border-image-source': IMAGELESS,
+  '-webkit-border-image': IMAGELESS,
 }
 
 /** Whether a value is one or more keywords of `allowed`, separated by commas (`normal, normal` for each layer). */
@@ -220,10 +230,15 @@ function isKeywordList(value: CssNode, allowed: ReadonlySet<string>): boolean {
   return parts.length > 0 && parts.every((p) => p.type === 'Identifier' && allowed.has(p.name.toLowerCase()))
 }
 
-/** Why a blend or a filter is refused (PAINT_MODES), or null. */
+/** Why a blend, a filter or a border image is refused (PAINT_MODES), or null. */
 function paintModeIssue(property: string, node: CssNode & { type: 'Declaration' }): string | null {
   const allowed = PAINT_MODES[property]
   if (!allowed || isKeywordList(node.value, allowed)) return null
+  if (allowed === IMAGELESS)
+    return (
+      `${node.property} may only be none: a border image paints a picture over the border and the box, whose colours ` +
+      'the render cannot read beneath a text; draw a border or a background instead'
+    )
   const keyword = allowed === UNBLENDED ? 'normal' : 'none'
   return (
     `${node.property} may only be ${keyword}: a blend or a filter changes the colours text is drawn in, so the render ` +
