@@ -10,8 +10,8 @@
 
 ## What changes
 
-- **One writer:** while the package is open, it replaces the notes' own Carry (the notes' list with its Carry buttons isn't shown). Cancel or Done brings them back.
-- **Taken back is taken back:** a take-back answered `not_found` is a release that came back, whoever asked. Its key is let go.
+- **One writer:** while the package is open, it replaces the notes' own Carry (the notes' list with its Carry buttons isn't shown). Cancel or Done brings them back. And the other way: while a note crosses by its own Carry, Review what to carry waits.
+- **Taken back is taken back:** a take-back answered `not_found` is a release that came back, whoever asked. Its key is let go. (On today's contract `not_found` means the release is gone; should the API ever answer 404 to hide a project the person lost, this would need its own code.)
 - **The notes stay open while a step runs** (carrying, taking back): Close is unavailable (aria-disabled), and Esc waits (the package holds the top Escape layer meanwhile). Once the step settles, both work again.
 - **Should the package go anyway** (the place left for Work or home), the batch still goes. Nothing chosen stops halfway, and Work marks what arrived (`onCarried`).
 
