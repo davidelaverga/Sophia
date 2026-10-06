@@ -2,9 +2,10 @@
 // designer may add only the words that frame it: headings (reworded, of any length: pack 05 §3, E4.3), captions, a
 // summary of a disclosure, table headers, in-page navigation links, and the entries of the source list. Each piece of
 // text is judged where it sits, by the element that holds it once inline markup is set aside: a paragraph inside a
-// caption or a navigation list is a paragraph, not a label. Text of only a few marks (a bullet, a separator) frames
-// nothing and is allowed anywhere. Whether a reworded heading or label keeps the research's meaning is not something
-// markup can show: that is the reviewer's, against the sources.
+// caption or a navigation list is a paragraph, not a label. Text of only a few marks (a bullet, a separator, from
+// css.ts's list, which holds no letter-shaped symbol: #117) frames nothing and is allowed anywhere. Whether a reworded
+// heading or label keeps the research's meaning is not something markup can show: that is the reviewer's, against the
+// sources.
 // Text a reader meets without seeing it on the page (a tooltip, a screen reader's name) is held tighter, because no
 // screenshot shows it: it repeats a label (a heading, caption, summary, table header, navigation link or source entry)
 // or it is a plain name (one word, or a word and a numbered id: "Contents", "Table b5"). An ID reference
@@ -27,6 +28,7 @@ import {
   type Element,
   type TextNode,
 } from './dom.ts'
+import { onlyMarks } from './css.ts'
 import { error, type Finding } from './findings.ts'
 
 /** Inline elements: text inside them belongs to the element that holds them. */
@@ -75,8 +77,8 @@ const LABELS = new Set([
   'legend',
   'title',
 ])
-/** A few marks that say nothing: separators, bullets, arrows. */
-const MARKS = /^[^\p{L}\p{N}]{0,3}$/u
+/** A few marks that say nothing (separators, bullets, arrows: css.ts's list), which a row of them cannot change. */
+const isMarks = (text: string): boolean => onlyMarks(text, 3)
 
 const isBlock = (el: Element): boolean => attr(el, 'data-block') !== null
 const isCite = (el: Element): boolean => attr(el, 'data-cite') !== null
@@ -116,7 +118,7 @@ function textFindings(doc: Document, html: string): Finding[] {
   const flagged = new Set<Element>()
   for (const el of elements(doc))
     for (const node of el.childNodes) {
-      if (!isText(node) || MARKS.test(node.value.trim()) || checkedElsewhere(node)) continue
+      if (!isText(node) || isMarks(node.value) || checkedElsewhere(node)) continue
       const { holder, inPageLink } = holderOf(node)
       if (!holder || frames(holder, inPageLink) || flagged.has(holder)) continue
       flagged.add(holder)
@@ -234,7 +236,7 @@ function referenceIssue(target: Element | undefined, shown: Set<Element>): strin
   if (hiddenByMarkup(target)) return 'names an element its markup hides (hidden, aria-hidden)'
   const labels: Element[] = []
   for (const node of textNodesIn(target)) {
-    if (MARKS.test(node.value.trim()) || inBlock(node)) continue
+    if (isMarks(node.value) || inBlock(node)) continue
     const label = labelOf(node)
     if (!label) return 'names text that is neither the research (a block) nor a label'
     labels.push(label)

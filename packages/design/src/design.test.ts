@@ -354,6 +354,27 @@ describe('outside its blocks a page adds only the words that frame them (SDD-01-
       'text_outside_blocks',
     ])
   })
+  it('refuses letter-shaped symbols and marks that change a number, alone or in a row (#117)', () => {
+    for (const marks of [
+      '<div><span>ⒽⓄ</span><span>ⓈⓉ</span> <span>ⒻⓇ</span><span>ⒺⒺ</span></div>',
+      '<p>🄷</p>',
+      '<p>ℍ</p>',
+      '<p>✓</p>',
+      '<p>%</p>',
+      '<p>+</p>',
+      '<p>$</p>',
+    ])
+      assert.deepEqual(add('</main>', `${marks}</main>`), ['text_outside_blocks'], marks)
+  })
+  it('accepts the marks that say nothing, side by side', () => {
+    for (const marks of [
+      '<p>·</p>',
+      '<p>• — →</p>',
+      '<div><span>|</span><span>/</span><span>…</span></div>',
+      '<p>§ ¶</p>',
+    ])
+      assert.deepEqual(add('</main>', `${marks}</main>`), [], marks)
+  })
   it('accepts headings, captions, a summary, table headers, in-page navigation, separators and source entries', () => {
     const cases: [string, string][] = [
       ['<main>', '<main><nav aria-label="Contents"><ol><li><a href="#s1"><span>1.</span> Findings</a></li></ol></nav>'],
@@ -517,6 +538,20 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
       ['css_unsafe'],
     )
   })
+  it('refuses letter-shaped symbols, marks that change a number, and strings that spell together (#117)', () => {
+    for (const bad of [
+      '[data-block]::after{content:"ⒽⓄ" "ⓈⓉ" " " "ⒻⓇ" "ⒺⒺ"}',
+      '[data-block]::after{content:"Ⓗ" "Ⓞ"}',
+      'p::before{content:"🄷"}',
+      'p::before{content:"ℍ"}',
+      'p::before{content:"\\24BD"}',
+      '[data-block]::after{content:"%"}',
+      '[data-block]::after{content:"✗"}',
+      'p::before{content:"•" "•" "•" "•" "•" "•" "•"}',
+      'q{quotes:"Ⓢ" "Ⓘ"}',
+    ])
+      assert.deepEqual(css(bad), ['css_unsafe'], bad)
+  })
   it('accepts decoration: keywords, counters, a bullet, quote marks, an arrow', () => {
     for (const ok of [
       'li::before{content:"•"}',
@@ -526,6 +561,10 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
       'p::after{content:none}',
       'ol{list-style-type:decimal}',
       'blockquote::before{content:open-quote}',
+      'q{quotes:"“" "”" "‘" "’"}',
+      'nav a+a::before{content:" · "}',
+      'a.back::after{content:" ↩"}',
+      'li::marker{content:"§ "}',
     ])
       assert.deepEqual(css(ok), [], ok)
   })

@@ -356,8 +356,8 @@ function shownElements() {
 }
 
 /**
- * Every element outside the blocks that holds text of its own beyond a few marks: a heading, a caption, a source
- * entry, a navigation link, a footer line. Numbered in document order, the same at every target.
+ * Every element outside the blocks that holds text of its own: a heading, a caption, a source entry, a navigation
+ * link, a separator. Numbered in document order, the same at every target.
  * @returns {{ el: Element, id: string }[]}
  */
 function framingElements() {
@@ -369,7 +369,7 @@ function framingElements() {
       .filter((n) => n.nodeType === Node.TEXT_NODE)
       .map((n) => n.textContent ?? '')
       .join('')
-    if (/[\p{L}\p{N}]/u.test(own)) out.push({ el, id: `text ${out.length + 1} ${nameOf(el)}` })
+    if (/\S/u.test(own)) out.push({ el, id: `text ${out.length + 1} ${nameOf(el)}` })
   }
   return out
 }
