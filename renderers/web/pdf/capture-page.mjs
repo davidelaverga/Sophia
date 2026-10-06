@@ -311,7 +311,7 @@ function measurePage(opts) {
   const shown = shownElements().map(({ el, id }) => {
     const measure = measureBlock(el, page, ctx)
     const concealed = concealedIssues(el)
-    return { ...measure, id, issues: concealed.length > 0 ? [...concealed, ...measure.issues] : measure.issues }
+    return { ...measure, id: id.slice(0, 200), issues: [...new Set([...concealed, ...measure.issues])].slice(0, 10) }
   })
   window.scrollTo(0, 0)
   return {

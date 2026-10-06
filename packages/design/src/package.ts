@@ -109,7 +109,7 @@ function metaFirst(head: Element, attrs: Record<string, string>): void {
 function markShown(doc: Document): void {
   for (const [i, label] of shownLabels(doc).entries()) {
     const id = attr(label, 'id')
-    setAttr(label, 'data-sophia-shown', `${label.tagName}${id === null ? `:${i + 1}` : `#${id}`}`)
+    setAttr(label, 'data-sophia-shown', `${label.tagName}${id === null ? `:${i + 1}` : `#${id}`}`.slice(0, 80))
   }
 }
 

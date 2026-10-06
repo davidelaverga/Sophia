@@ -3,7 +3,7 @@
   "goal": "SDD-01",
   "title": "A capture counts as seen once it reached the model (SDD-01-CX-0019)",
   "why": [
-    "SDD-01-CX-0019 F1 and F3 (CX-0020, CX-0022): handing captures over is not seeing them. The capture routes now name the delivery the service issued once every capture's bytes matched its record (deliveryId), and the runtime acknowledges it once it saved every image, unchanged, as an attachment for the model's next request: each attachment is sha256:<that capture's hash>. Only acknowledged deliveries count, for the job, attempt and render they were issued to: a review's pass and a designer's candidate need every overview tile at every target and each section (migration 0043). An acknowledgement is fenced like every runtime operation, and a replay answers the same and counts nothing twice. A delivery counts only for the submission that names it (#117, CX-0033 to CX-0036): a candidate and a review's result carry seen, the acknowledged deliveries they rest on, so an acknowledgement no submission names, because its submit was never sent or the runtime restarted in between, counts for nothing."
+    "SDD-01-CX-0019 F1 and F3 (CX-0020, CX-0022): handing captures over is not seeing them. The capture routes now name the delivery the service issued once every capture's bytes matched its record (deliveryId), and the runtime acknowledges it once it saved every image, unchanged, as an attachment for the model's next request: each attachment is sha256:<that capture's hash>. Only acknowledged deliveries count, for the job, attempt and render they were issued to: a review's pass and a designer's candidate need every overview tile at every target and each section (migration 0043). An acknowledgement is fenced like every runtime operation, and a replay answers the same and counts nothing twice. A delivery counts only for the submission that names it (#117, CX-0033 to CX-0036): a candidate and a review's result carry seen, the acknowledged deliveries they rest on, so an acknowledgement no submission names, because its submit was never sent or the runtime restarted in between, counts for nothing. The capture receipt also carries, per target, the measures of the labels a tooltip, an accessible name or an ID reference rests on (shown), held to what a block is (#117, CX-0037)."
   ],
   "patch": [
     {
@@ -357,6 +357,137 @@
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         },
         "description": "The deliveries this submission rests on, acknowledged in this attempt: only these count as seen (the runtime names a delivery only when its model named the receipt the images came with). Absent, none."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignShownMeasure",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "box": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "x": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              },
+              "y": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              },
+              "width": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              },
+              "height": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              }
+            },
+            "required": ["x", "y", "width", "height"]
+          },
+          "fontPx": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "issues": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "enum": [
+                "not_rendered",
+                "hidden",
+                "transparent",
+                "no_visible_text",
+                "off_page",
+                "text_cut",
+                "clipped",
+                "scrolls",
+                "covered",
+                "low_contrast"
+              ]
+            }
+          },
+          "contrast": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ratio": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "floor": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "large": {
+                "type": "boolean"
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["ratio", "floor", "large", "detail"]
+          }
+        },
+        "required": ["id", "section", "box", "fontPx", "issues", "contrast"],
+        "description": "One label a tooltip, an accessible name or an ID reference rests on (data-sophia-shown), or an element inside one that holds text, measured as a block is (#117, CX-0037)."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/CaptureReceipt/properties/targets/items/properties/page/properties/shown",
+      "value": {
+        "type": "array",
+        "maxItems": 4000,
+        "items": {
+          "$ref": "#/components/schemas/DesignShownMeasure"
+        },
+        "description": "The labels a name or a reference rests on, and each element inside one that holds text, measured as blocks are; absent from a kernel that measures none."
       }
     }
   ]
