@@ -198,7 +198,7 @@ describe('the static profile refuses what can run, load or submit', () => {
   })
   it('allows the CSS a static article needs: media queries, gradients, custom properties, calc', () => {
     const sheet =
-      ':root{--ink:#1a1a1a} body{color:var(--ink);background:linear-gradient(#fff,#fafafa);width:calc(100% - 2rem)} @media (max-width: 600px){body{font-size:17px}} h1::before{content:"\\201C"}'
+      ':root{--ink:#1a1a1a} body{color:var(--ink);background:linear-gradient(#fff,#fafafa);width:calc(100% - 2rem)} @media (max-width: 600px){body{font-size:17px}} h1::before{content:"";display:block;border-top:2px solid}'
     assert.deepEqual(codes(withCss(good, sheet)), [])
   })
 })
@@ -727,19 +727,42 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
     ])
       assert.deepEqual(css(bad), ['css_unsafe'], bad)
   })
-  it('accepts decoration: keywords, counters, a bullet, quote marks, an arrow', () => {
+  it('accepts decoration that draws no text: keywords, quote keywords, an empty box', () => {
     for (const ok of [
-      'li::before{content:"•"}',
-      'q{quotes:"“" "”"}',
-      'a::after{content:" →"}',
       'p::after{content:none}',
+      'p::before{content:normal}',
       'blockquote::before{content:open-quote}',
-      'q{quotes:"“" "”" "‘" "’"}',
-      'nav a+a::before{content:" · "}',
-      'a.back::after{content:" ↩"}',
-      'li::marker{content:"§ "}',
+      'blockquote::after{content:close-quote}',
+      'q{quotes:auto}',
+      'q{quotes:none}',
+      'h2::after{content:"";display:block;height:2px;background:#1a4fd6}',
+      'li::marker{color:#999}',
     ])
       assert.deepEqual(css(ok), [], ok)
+  })
+  // #117: a mark drawn beside a block's text reads as part of it: "-" before "10%" makes it "-10%".
+  it('refuses generated text of any kind, a mark included, in any property, medium or style attribute', () => {
+    for (const bad of [
+      '[data-block]::before{content:"-"}',
+      '[data-block]::before{content:"\\2212"}',
+      '[data-block]::before{content:"("}',
+      'p::after{content:")"}',
+      'li::before{content:"•"}',
+      'a::after{content:" →"}',
+      'nav a+a::before{content:" · "}',
+      'li::marker{content:"§ "}',
+      'q{quotes:"“" "”"}',
+      'q{quotes:"-" "-"}',
+      'ul{list-style-type:"→"}',
+      'ul{list-style:"-" inside}',
+      'p{hyphens:manual;hyphenate-character:"‐"}',
+      'p{text-overflow:"…"}',
+      'p{text-emphasis-style:"-"}',
+      '@media (min-width: 600px){[data-block]::before{content:"-"}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<p data-block="b1">', '<p data-block="b1" style="list-style:\'-\' inside">')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
   })
   // #117, CX-0038: a counter or a list marker spells words in any letter, numeral or custom style, in any medium.
   it('refuses a counter or a list marker that can spell, in print as on screen, in a stylesheet or a style attribute', () => {
@@ -803,11 +826,10 @@ describe('generated content draws decoration only (SDD-01-CX-0019 F2)', () => {
   it('accepts bullets: list markers and marks that spell nothing', () => {
     for (const ok of [
       '@media (min-width: 720px){ul{list-style:square inside}}',
-      'ul{list-style-type:"→"}',
       'details>summary{list-style-type:disclosure-closed}',
       'ul{list-style:none}',
       'p{text-emphasis-style:filled circle}',
-      'p{hyphens:manual;hyphenate-character:"‐"}',
+      'p{hyphens:manual;hyphenate-character:auto}',
     ])
       assert.deepEqual(css(ok), [], ok)
     const bulleted = html(good).replace('<main>', '<main><ul><li>•</li></ul><menu><li></li></menu>')
@@ -972,9 +994,9 @@ describe('a pseudo-element styles only generated content (#117)', () => {
   })
   it("accepts generated content, the reader's selection and the disclosure marker", () => {
     for (const ok of [
-      'h2::before{content:"§ "}',
-      'a::after{content:" →"}',
-      'a:after{content:" →"}',
+      'h2::before{content:""}',
+      'a::after{content:none}',
+      'a:after{content:""}',
       'blockquote:before{content:open-quote}',
       'li::marker{color:#999}',
       '::selection{background:#ffd}',
