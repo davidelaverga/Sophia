@@ -57,6 +57,8 @@ Every run used the guards' gentle mode, waiting for Luis's games to close first.
 
 **Source-register IDs consulted:** none.
 
+**After the PR opened:** Codex's P2 on #118 (a disconnect that rejects left the room live, and every later Leave did nothing) is fixed. The disconnect's failure still leaves this person out of the call. The check `room-recap.spec.ts` «a disconnect that fails still leaves» kills its mutant, and the control survives.
+
 ## Remaining obligations
 
 - This PR awaits #116, CI and Codex.
