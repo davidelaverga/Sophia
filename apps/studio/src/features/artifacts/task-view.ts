@@ -1,5 +1,6 @@
 // What the Tasks tab says of a report's tasks (docs/plans/room-passage-task.md): who each is for, in what order, and
 // who may mark it done. Pure, so the units test it.
+import { segmenter } from './cite-view.ts'
 import type { Membership } from '@sophia/contracts'
 import type { ProjectTask } from '../../api/vision.ts'
 import type { RoomParticipant } from '../voice/room-view.ts'
@@ -43,5 +44,15 @@ export const taskPeople = (people: readonly RoomParticipant[]): { actorId: strin
 export const QUOTE_MAX = 800
 
 /** The passage as selected, within the API's limit; a cut ends in "…", inside the limit. */
-export const taskQuote = (text: string): string =>
-  text.length <= QUOTE_MAX ? text : `${text.slice(0, QUOTE_MAX - 1)}…`
+export function taskQuote(text: string, by: Intl.Segmenter | null = segmenter()): string {
+  // Measured in UTF-16 units, the strictest count an API applies, and cut between characters as a reader sees them
+  // (graphemes; code points where the browser has no segmenter), so a cut never splits one.
+  if (text.length <= QUOTE_MAX) return text
+  const parts = by ? Array.from(by.segment(text), (s) => s.segment) : Array.from(text)
+  let kept = ''
+  for (const part of parts) {
+    if (kept.length + part.length > QUOTE_MAX - 1) break
+    kept += part
+  }
+  return `${kept}…`
+}

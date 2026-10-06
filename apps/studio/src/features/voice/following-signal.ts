@@ -4,7 +4,7 @@
 // a participant's metadata (the standing the API signed). Said again to whoever joins. Back from a drop, a client says
 // its own again («nothing» too) and asks the members theirs, forgetting what it heard until they answer: LiveKit keeps
 // no reliable packet for a receiver that was away. Forgotten when its sender leaves.
-import { RoomEvent, type Participant, type Room } from 'livekit-client'
+import { ConnectionState, RoomEvent, type Participant, type Room } from 'livekit-client'
 import { standingOf } from './room-view.ts'
 import { isSophia } from './sophia-channel.ts'
 
@@ -50,10 +50,50 @@ export interface FollowingSignal {
 }
 
 /**
+ * Back from a drop: say ours again, and ask the members theirs. What was heard is forgotten only once they are asked;
+ * an ask refused is asked again, so a transient failure never leaves the counts empty for the rest of the call. Each
+ * drop is its own resync: a later one, or the call ending, stops an earlier one's retries.
+ */
+function onReconnect(
+  room: Room,
+  on: { members: () => string[]; forget: () => void; sayMine: () => void },
+  retryMs: number,
+) {
+  let retry: ReturnType<typeof setTimeout> | undefined
+  let resyncs = 0
+  const ask = (which: number) => {
+    const to = on.members()
+    // Nobody to ask (only guests, or Sophia): never an ask to everyone, which would reach a guest.
+    if (to.length === 0) return on.forget()
+    room.localParticipant
+      .publishData(encodeAsk(), { reliable: true, destinationIdentities: to, topic: FOLLOWING_TOPIC })
+      .then(() => which === resyncs && on.forget())
+      .catch(() => {
+        if (which !== resyncs || room.state === ConnectionState.Disconnected) return
+        retry = setTimeout(() => ask(which), retryMs)
+      })
+  }
+  const stop = () => {
+    clearTimeout(retry)
+    resyncs += 1
+  }
+  room.on(RoomEvent.Disconnected, stop)
+  room.on(RoomEvent.Reconnected, () => {
+    stop()
+    on.sayMine()
+    ask(resyncs)
+  })
+}
+
+/**
  * `resync`: back from a drop, say ours again and ask the members theirs, and answer their asks (the vision flag's;
  * without it, nobody follows anything and nothing is said).
  */
-export function followingSignal(room: Room, onChange: () => void, { resync = false } = {}): FollowingSignal {
+export function followingSignal(
+  room: Room,
+  onChange: () => void,
+  { resync = false, retryMs = 2000 } = {},
+): FollowingSignal {
   let mine: string | null = null
   const heard = new Map<string, string>()
   const publish = (to: string[], data: ReturnType<typeof encodeAsk>) => {
@@ -79,13 +119,13 @@ export function followingSignal(room: Room, onChange: () => void, { resync = fal
     if (mine !== null && isMember(p)) send([p.identity])
   })
   room.on(RoomEvent.ParticipantDisconnected, (p) => heard.delete(p.identity))
-  room.on(RoomEvent.Reconnected, () => {
-    if (!resync) return
-    heard.clear()
-    onChange()
-    send(members())
-    publish(members(), encodeAsk())
-  })
+  if (resync) {
+    const forget = () => {
+      heard.clear()
+      onChange()
+    }
+    onReconnect(room, { members, forget, sayMine: () => send(members()) }, retryMs)
+  }
   return {
     set: (versionId) => {
       if (versionId === mine) return

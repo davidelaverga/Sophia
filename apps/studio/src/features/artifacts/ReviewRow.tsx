@@ -44,7 +44,7 @@ function useReviews(props: Props) {
     queryFn: ({ signal }) => listReviews(identity.token, version.artifactId, version.id, signal),
     retry: 1,
   })
-  useFeedRefetch(props.cursor, read.refetch)
+  useFeedRefetch(props.cursor, read)
   const write = useAdmission<ReviewAsk, VersionReview>((key, ask) =>
     reviewVersion(identity.token, version.artifactId, version.id, key, ask),
   )

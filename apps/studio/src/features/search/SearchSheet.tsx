@@ -133,21 +133,24 @@ function SearchSheet({ projectId, identity, onClose, onHit }: SheetProps) {
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
-      {asked && <SearchOutcome search={search} q={q} hits={hits.length} />}
+      {asked && <SearchOutcome search={search} q={q} hits={hits.length} typing={text.trim() !== q} />}
       <ul className="search-hits" aria-label="Results">
         {/* The last query's hits are no answer to the next: none is offered under it until its own come. */}
         {asked &&
           !search.isPlaceholderData &&
+          text.trim() === q &&
           hits.map((hit, i) => <Hit key={`${String(i)} ${hit.kind} ${hit.id}`} hit={hit} onHit={onHit} />)}
       </ul>
-      {asked && search.hasNextPage && !search.isPlaceholderData && <MoreResults search={search} />}
+      {asked && text.trim() === q && search.hasNextPage && !search.isPlaceholderData && <MoreResults search={search} />}
     </Sheet>
   )
 }
 
 /** What the search says about itself: under way, failed, or found nothing. */
-function SearchOutcome({ search, q, hits }: { search: ReturnType<typeof useSearch>; q: string; hits: number }) {
-  const settled = search.isSuccess && !search.isPlaceholderData
+function SearchOutcome(props: { search: ReturnType<typeof useSearch>; q: string; hits: number; typing: boolean }) {
+  const { search, q, hits } = props
+  // While the words settle, the last query's count is no answer either.
+  const settled = search.isSuccess && !search.isPlaceholderData && !props.typing
   return (
     <>
       {/* Fetching, or waiting for the network to come back: either way the list waits for this query. */}

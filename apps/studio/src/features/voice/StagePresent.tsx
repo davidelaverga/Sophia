@@ -89,12 +89,20 @@ function ShowingCard({ words, action, focused, onFocused }: CardProps) {
   )
 }
 
+/** What each call followed, kept beyond the stage: back from another view, it is followed again. */
+const keptFollowing = new Map<string, Followed>()
+
 /**
  * Following is this device's, and of one thing: that version as that member shows it (follows). It begins with Follow
  * and ends with Stop following, or when something else, or nothing, is shown. Stopped, the focus goes to Follow.
  */
-function useFollowing(shown: Shown | null) {
-  const [followed, setFollowed] = useState<Followed | null>(null)
+
+function useFollowing(shown: Shown | null, keep: string) {
+  const [followed, setFollowed] = useState<Followed | null>(() => keptFollowing.get(keep) ?? null)
+  useEffect(() => {
+    if (followed) keptFollowing.set(keep, followed)
+    else keptFollowing.delete(keep)
+  }, [followed, keep])
   const [stopped, setStopped] = useState(false)
   if (!shown && (followed || stopped)) {
     setFollowed(null)
@@ -197,7 +205,8 @@ const onStageOf = (shown: Shown | null, following: boolean, screen: boolean) =>
 export function useStagePresent(snapshot: Snapshot | undefined, room: Room, context: Context) {
   const { projectId, identity, me, names, spoken } = context
   const shown = shownOf(snapshot?.sharedFocus, snapshot?.artifacts, me)
-  const followed = useFollowing(shown)
+  // Whose call, of which project: another person in this tab, or a project opened again, starts afresh.
+  const followed = useFollowing(shown, `${projectId} ${identity.name} ${String(room.call)}`)
   const { following, stopped, focused, follow, unfollow } = followed
   const screen = room.feeds.some((f) => f.source === 'screen')
   const target = targetOf(snapshot, projectId, identity)

@@ -83,3 +83,15 @@ test('following · leaving the project for home, the call still on, says nothing
   await page.evaluate(() => window.fixture?.back())
   await expect.poll(async () => (await asked(page)).at(-1)).toBe(`following:${V1}`)
 })
+
+test('following · back from another view, what was followed is followed again', async ({ page }) => {
+  await page.evaluate(() => window.fixture?.show(1))
+  await card(page).getByRole('button', { name: 'Follow' }).click()
+  await expect.poll(() => asked(page)).toContain(`following:${V1}`)
+  const nav = page.getByRole('navigation', { name: 'Project views' })
+  await nav.getByRole('link', { name: 'Knowledge' }).click()
+  await expect.poll(async () => (await asked(page)).at(-1)).toBe('following:')
+  await nav.getByRole('link', { name: 'Studio' }).click()
+  await expect(presented(page)).toBeVisible()
+  await expect.poll(async () => (await asked(page)).at(-1)).toBe(`following:${V1}`)
+})

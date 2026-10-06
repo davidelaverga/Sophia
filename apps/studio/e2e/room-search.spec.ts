@@ -123,3 +123,13 @@ test('search · the running meeting’s recap, opened from a hit, is the running
   await expect(recap.getByRole('group', { name: 'Your call' })).toHaveCount(0)
   await expect(page.getByRole('dialog')).toHaveCount(1)
 })
+
+test('search · as soon as the words change, the last query’s hits are not offered', async ({ page }) => {
+  await page.getByRole('button', { name: 'Search' }).click()
+  await field(page).fill('fixture')
+  await expect(hits(page).filter({ hasText: 'Conclusion' })).toBeVisible()
+  await field(page).fill('room checks')
+  // Before the words settle (a quarter second): none of the last query's hits.
+  expect(await hits(page).count()).toBe(0)
+  await expect(hits(page).filter({ hasText: 'Keep the room checks on fixtures' }).first()).toBeVisible()
+})

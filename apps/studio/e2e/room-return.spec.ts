@@ -77,3 +77,10 @@ test('return · a meeting still running has nothing «after» it', async ({ page
   await expect(part(page, 'After the meeting')).toHaveCount(0)
   await expect(part(page, 'Work')).not.toContainText('at close')
 })
+
+test('return · with the sheet open, what the work made comes into «After the meeting»', async ({ page }) => {
+  await closeWithResearchRunning(page)
+  await expect(part(page, 'After the meeting')).toContainText('Nothing yet.')
+  await page.evaluate(() => window.fixture?.researchDone())
+  await expect(part(page, 'After the meeting')).toContainText('Fixture report ready · v1', { timeout: 9000 })
+})
