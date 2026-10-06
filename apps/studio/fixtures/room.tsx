@@ -32,7 +32,7 @@ import { noTasks, taskOf } from './task-data.ts'
 import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
-import { CONVERSATION, conversationMission, conversations, messagesOf } from './conversation-data.ts'
+import { CONVERSATION, conversationMission, conversations, messagesOf, quietConversation } from './conversation-data.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, leaving, sophiaLeaves } from './fake-livekit.ts'
 import {
   count,
@@ -137,6 +137,8 @@ interface Fixture {
   conversationMoves: () => void
   /** The brief's reads fail, or read again. */
   failMission: (on: boolean) => void
+  /** While on, the brief's reads wait; off, the waiting ones are answered. */
+  holdMission: (on: boolean) => void
   /** The running meeting closes (another member closed it), and the feed moves (chapter 7's update). */
   endMeeting: () => void
   /** The project list's reads fail, or read again (chapter 1). */
@@ -337,6 +339,7 @@ const project = {
       ]
     : [],
   projectsFail: query.get('projects') === 'fail',
+  missionHeld: query.get('mission') === 'hold' ? waiting() : null,
   carriedElsewhere: query.get('carried') === 'elsewhere',
   projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
   // A13: searches held while the page asks (`holdSearch`).
@@ -497,6 +500,11 @@ window.fixture = {
     project.meeting.closedAt = new Date().toISOString()
     project.meeting.atClose = project.meeting.records()
     publish(project)
+  },
+  holdMission: (on) => {
+    const held = project.missionHeld ?? []
+    project.missionHeld = on ? held : null
+    if (!on) for (const answer of held) answer()
   },
   failProjects: (on) => {
     project.projectsFail = on
@@ -748,8 +756,18 @@ function Kept({ children }: { children: (background: boolean) => ReactNode }) {
 }
 
 /** `send=lost`: the first message lands, its reply lost; `send=refused`: refused; `send=slow`: replies take 1.5 s (A18). */
-function sendAsked(which: string | null): 'lost' | 'refused' | 'slow' | null {
-  return which === 'lost' || which === 'refused' || which === 'slow' ? which : null
+
+/** `start=lost`: the first start lands, its reply lost; `start=slow`: its reply takes 1.5 s (A18). */
+function startAsked(which: string | null): 'lost' | 'slow' | null {
+  return which === 'lost' || which === 'slow' ? which : null
+}
+
+type Send = 'lost' | 'refused' | 'refusedSlow' | 'slow' | 'thenFail'
+
+/** Read while the page's project is made, before any module constant below it: the list is its own. */
+function sendAsked(which: string | null): Send | null {
+  const sends: readonly Send[] = ['lost', 'refused', 'refusedSlow', 'slow', 'thenFail']
+  return sends.find((s) => s === which) ?? null
 }
 
 /** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
@@ -757,12 +775,13 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
   if (which === null) return {}
   return {
     conversations: {
-      list: which === 'none' ? [] : conversations(),
-      messages: messagesOf(),
+      list: which === 'none' ? [] : which === 'quiet' ? [...conversations(), quietConversation()] : conversations(),
+      messages: { ...messagesOf(), [CONVERSATION.quiet]: [] },
       failList: which === 'fail',
       failMessagesOf: failMessages ? CONVERSATION.briefs : null,
       send: sendAsked(query.get('send')),
-      start: query.get('start') === 'lost' ? ('lost' as const) : null,
+      start: startAsked(query.get('start')),
+      answerMs: query.get('answer') === 'slow' ? 10_000 : 900,
       receipts: new Map<string, { body: string; receipt: unknown }>(),
     },
     missionPlus: conversationMission(),

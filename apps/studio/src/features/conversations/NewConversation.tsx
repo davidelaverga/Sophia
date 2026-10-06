@@ -5,6 +5,7 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { writeFailure } from './ConversationComposer.tsx'
 import { firstWords } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
@@ -20,6 +21,9 @@ interface Props {
   onFields: (next: ConversationAsk) => void
   held: Held<ConversationAsk> | null
   onHeld: (next: Held<ConversationAsk> | null) => void
+  /** The refusal that answered the last Start, kept by the view. */
+  refused: string | null
+  onRefused: (words: string | null) => void
   onStarted: (started: ConversationStarted, ask: ConversationAsk) => void
   onCancel: () => void
 }
@@ -27,8 +31,11 @@ interface Props {
 /** The start's write: the held intent again, or the form's words as a new one. */
 function useStartWrite(props: Props) {
   const { projectId, identity, fields } = props
-  const write = useHeldWrite<ConversationAsk, ConversationStarted>(props.held, props.onHeld, (key, ask) =>
-    startConversation(identity.token, projectId, key, ask),
+  const write = useHeldWrite<ConversationAsk, ConversationStarted>(
+    props.held,
+    props.onHeld,
+    (key, ask) => startConversation(identity.token, projectId, key, ask),
+    { words: props.refused, onWords: props.onRefused, say: writeFailure },
   )
   const asked = { title: fields.title.trim(), text: fields.text.trim(), askSophia: fields.askSophia }
   const ready = write.unknown !== null || (asked.title !== '' && asked.text !== '')
@@ -40,7 +47,7 @@ function useStartWrite(props: Props) {
   }
   const words = write.unknown
     ? `Not confirmed: “${firstWords(write.unknown.title)}”. Start sends it again; it won’t be started twice.`
-    : write.error && writeFailure(write.error)
+    : write.refused
   // With no reply, the words are the held intent's: shown as sent, and not to be changed.
   const shown = write.unknown ?? fields
   return { busy: write.busy, fixed: write.busy || write.unknown !== null, shown, ready, go, words }
@@ -51,6 +58,9 @@ export function NewConversation(props: Props) {
   const question = useRef<HTMLInputElement>(null)
   useEffect(() => question.current?.focus(), [])
   const { busy, fixed, shown, ready, go, words } = useStartWrite(props)
+  // On its way past a few seconds, the Studio's slow note.
+  const slow = useSlow(busy)
+  const said = words ?? (slow ? SLOW_NOTE : null)
   return (
     <form
       className="conv-new"
@@ -69,7 +79,7 @@ export function NewConversation(props: Props) {
       />
       <div className="conv-compose-acts">
         <button type="submit" className="pill" aria-disabled={!ready || busy || undefined}>
-          Start
+          {busy ? 'Starting…' : 'Start'}
         </button>
         <button
           type="button"
@@ -80,9 +90,9 @@ export function NewConversation(props: Props) {
           Cancel
         </button>
       </div>
-      {words && (
+      {said && (
         <p className="conv-note" role="alert">
-          {words}
+          {said}
         </p>
       )}
     </form>

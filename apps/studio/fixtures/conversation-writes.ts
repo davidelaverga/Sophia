@@ -9,11 +9,17 @@ import { PROJECT } from './data.ts'
 export interface TalkWrites {
   list: ConversationSummary[]
   messages: Record<string, ConversationMessage[]>
-  /** `send=lost`: the first message lands, its reply lost; `send=refused`: messages are refused; `send=slow`: each
-   * message's reply takes 1.5 s. */
-  send: 'lost' | 'refused' | 'slow' | null
-  /** `start=lost`: the first conversation started lands, its reply lost. */
-  start: 'lost' | null
+  /**
+   * `send=lost`: the first message lands, its reply lost; `send=refused`: messages are refused; `send=refusedSlow`:
+   * refused 1.5 s on; `send=slow`: each reply takes 1.5 s; `send=thenFail`: it lands, then the conversation's reads fail.
+   */
+  send: 'lost' | 'refused' | 'refusedSlow' | 'slow' | 'thenFail' | null
+  /** `start=lost`: the first conversation started lands, its reply lost; `start=slow`: its reply takes 1.5 s. */
+  start: 'lost' | 'slow' | null
+  /** How long Sophia takes to answer (`answer=slow`: 10 s; else 0.9 s). */
+  answerMs: number
+  /** This conversation's messages fail to read (`messages=fail`, or after a `send=thenFail` write). */
+  failMessagesOf: string | null
   /** Each write's receipt by its key, with the words it was sent with: the same key replays it, only with them. */
   receipts: Map<string, { body: string; receipt: unknown }>
 }
@@ -45,9 +51,15 @@ const refused = () =>
     403,
   )
 
-/** One minute after the newest activity: the conversation written in becomes the newest. */
+/** One minute after the newest activity (or the fixtures' day, with none): the conversation written in is the newest. */
 const next = (list: readonly ConversationSummary[]) =>
-  new Date(Math.max(...list.map((c) => Date.parse(c.lastAt))) + 60_000).toISOString()
+  new Date(
+    Math.max(Date.parse('2026-10-06T00:00:00.000Z'), ...list.map((c) => Date.parse(c.lastAt))) + 60_000,
+  ).toISOString()
+
+/** An answer `ms` later. */
+const later = (ms: number, answer: () => Response) =>
+  new Promise<Response>((resolve) => setTimeout(() => resolve(answer()), ms))
 
 const bodyOf = (init: RequestInit | undefined): Record<string, unknown> | null => {
   const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
@@ -107,6 +119,7 @@ function started(talk: TalkWrites, key: string, body: Record<string, unknown>, c
   if (body.askSophia) answerLater(talk, id, ctx)
   // It landed; the page never hears so, and only starting again under the same key can tell it.
   if (talk.start === 'lost' && made === 1) return Promise.reject(new TypeError('Failed to fetch'))
+  if (talk.start === 'slow') return later(1500, () => json(receipt, 201))
   return json(receipt, 201)
 }
 
@@ -115,6 +128,7 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
   const all = talk.messages[id]
   if (!conversation || !all) return null
   if (talk.send === 'refused') return refused()
+  if (talk.send === 'refusedSlow') return later(1500, refused)
   sent += 1
   const at = next(talk.list)
   const message: ConversationMessage = {
@@ -134,9 +148,15 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
   talk.receipts.set(key, { body: JSON.stringify(body), receipt })
   ctx.record(`conversation-message:${String(body.text)}:${body.askSophia ? 'yes' : 'no'}`)
   if (body.askSophia) answerLater(talk, id, ctx)
+  return replied(talk, id, receipt)
+}
+
+/** How a message that landed is answered, as the page asked (`send=`): lost, slow, then its reads failing, or at once. */
+function replied(talk: TalkWrites, id: string, receipt: unknown) {
   // It landed; the page never hears so, and only sending again under the same key can tell it.
   if (talk.send === 'lost' && sent === 1) return Promise.reject(new TypeError('Failed to fetch'))
-  if (talk.send === 'slow') return new Promise<Response>((r) => setTimeout(() => r(json(receipt, 201)), 1500))
+  if (talk.send === 'slow') return later(1500, () => json(receipt, 201))
+  if (talk.send === 'thenFail') talk.failMessagesOf = id
   return json(receipt, 201)
 }
 
@@ -151,5 +171,5 @@ function answerLater(talk: TalkWrites, id: string, ctx: Context) {
     conversation.lastAt = at
     conversation.sophia = true
     ctx.moved()
-  }, 900)
+  }, talk.answerMs)
 }
