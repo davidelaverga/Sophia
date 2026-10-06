@@ -5,6 +5,7 @@
 // digests never read) or one of the same kind, and none of them may read as qualified.
 import assert from 'node:assert/strict'
 import { execFile, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -13,7 +14,7 @@ import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { parse } from 'yaml'
-import { compareSnapshots, coverageOf, EMPTY_SHA256 } from '../../scripts/paperclip-image-home.mjs'
+import { compareSnapshots, coverageOf, EMPTY_SHA256, scan } from '../../scripts/paperclip-image-home.mjs'
 import { assess, LIMIT_BYTES, PHASES, PROBE_STEPS, STARTS } from '../../scripts/paperclip-image-receipt.mjs'
 import { redact, scrubDir, secretValues } from '../../scripts/paperclip-image-redact.mjs'
 
@@ -35,6 +36,34 @@ const covered = (list) => ({ total: list.length, oversize: [], errors: [], maxFi
 /** The log grew to 5000 bytes, its first 4000 the ones it had: the prefix the later snapshot read. */
 const grownFiles = files.map((f) => (f.path === LOG ? { ...f, size: 5000, sha256: '9'.repeat(64) } : f))
 const grown = { coverage: covered(grownFiles), files: grownFiles, prefixes: { [LOG]: { size: 4000, sha256: '3'.repeat(64) } } }
+
+/** The build's MANIFEST, as bytes; the Dockerfile is recorded for reference and not copied into the image. */
+const manifestOf = (change = {}) =>
+  Buffer.from(
+    `${JSON.stringify(
+      {
+        paperclipPin: PIN,
+        sophiaCommit: CANDIDATE,
+        sophiaTreeDirty: false,
+        files: { Dockerfile: '4'.repeat(64), 'sophia-dsh-adapter/dist/index.js': '5'.repeat(64), 'start.sh': '6'.repeat(64) },
+        ...change,
+      },
+      null,
+      2,
+    )}\n`,
+  )
+const sha256Of = (bytes) => createHash('sha256').update(bytes).digest('hex')
+/** What the image holds under /opt/sophia, as the scan inside it records it: each recorded file and the MANIFEST. */
+const imageFilesOf = (manifest) => {
+  const list = [
+    ...Object.entries(JSON.parse(manifest.toString('utf8')).files)
+      .filter(([path]) => path !== 'Dockerfile')
+      .map(([path, sha]) => ({ path, size: 10, sha256: sha })),
+    { path: 'MANIFEST.json', size: manifest.length, sha256: sha256Of(manifest) },
+  ]
+  return { coverage: covered(list), files: list, prefixes: {} }
+}
+const packagedOf = (manifest) => ({ manifest, imageManifest: Buffer.from(manifest), imageFiles: imageFilesOf(manifest) })
 
 /** What each step observed in a legitimate run, as the probe records it. */
 const FACTS = {
@@ -85,12 +114,13 @@ function complete() {
       pin: PIN,
       sophiaCommit: CANDIDATE,
       sophiaTreeDirty: false,
-      manifestSha256: 'b'.repeat(64),
+      manifestSha256: sha256Of(manifestOf()),
       manifestMatches: true,
       verifyManifestInImage: true,
       buildImage: { id: digest('c'), size: 6e9, os: 'linux', architecture: 'amd64' },
       image: { id: digest('d'), size: 3e9, os: 'linux', architecture: 'amd64' },
     },
+    packaged: packagedOf(manifestOf()),
     timings: ['first', 'restart', 'recreated'].map((label) => ({ label, ok: true, seconds: 45 })),
     runtime: STARTS.map((label) => ({
       label,
@@ -231,15 +261,20 @@ describe('the image qualification receipt (WBC-02-CX-0036)', () => {
   })
 
   it('the identity is checked against the run itself, not the producer’s flags', () => {
-    const otherCommit = complete()
-    otherCommit.identity.sophiaCommit = 'e'.repeat(40)
-    assert.equal(verdictOf(otherCommit), 'failed')
+    // The pin, the commit and the clean tree are read from the manifest's own bytes (review of 896a92d).
+    const built = (change) => {
+      const run = complete()
+      const manifest = manifestOf(change)
+      run.packaged = packagedOf(manifest)
+      run.identity.manifestSha256 = sha256Of(manifest)
+      return run
+    }
+    assert.equal(verdictOf(built({ sophiaCommit: 'e'.repeat(40) })), 'failed')
+    assert.equal(verdictOf(built({ paperclipPin: 'f'.repeat(40) })), 'failed')
+    assert.equal(verdictOf(built({ sophiaTreeDirty: true })), 'failed')
     const arm = complete()
     arm.identity.image.architecture = 'arm64'
     assert.equal(verdictOf(arm), 'failed')
-    const dirty = complete()
-    dirty.identity.sophiaTreeDirty = true
-    assert.equal(verdictOf(dirty), 'failed')
   })
 
   it('nothing recorded reads as not reached, never as passed', () => {
@@ -671,5 +706,107 @@ describe('review of 3f92959: every input of the image build starts its qualifica
     }
     assert.ok(used.has('packages/contracts'), 'the walk reaches the contracts the adapter and coordination import')
     for (const dir of used) assert.ok(paths.includes(`${dir}/**`), `${dir} is not in the trigger`)
+  })
+})
+
+describe('review of 896a92d: the packaged files are recomputed from the manifests and the image, not from flags', () => {
+  const IDENTITY = 'image built from'
+  const WORKFLOW = fileURLToPath(new URL('../../.github/workflows/paperclip-image.yml', import.meta.url))
+  const withPackaged = (change) => {
+    const run = complete()
+    change(run.packaged, run)
+    return run
+  }
+  const dirs = []
+  after(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
+
+  it('positive control: the manifest, its copy in the image and the image’s files agree, without either flag', () => {
+    const run = complete()
+    delete run.identity.manifestMatches
+    delete run.identity.verifyManifestInImage
+    assert.equal(resultOf(run, IDENTITY), 'passed')
+    assert.equal(verdictOf(run), 'qualified')
+  })
+
+  it('flags without the manifests and the scan are not evidence: unavailable, never qualified', () => {
+    const run = complete()
+    delete run.packaged
+    assert.equal(resultOf(run, IDENTITY), 'unavailable')
+    assert.equal(verdictOf(run), 'incomplete')
+  })
+
+  it('a manifest that is not the one recorded, or whose copy in the image differs by a byte, fails', () => {
+    for (const run of [
+      withPackaged((p, r) => (r.identity.manifestSha256 = '0'.repeat(64))),
+      withPackaged((p) => (p.imageManifest = Buffer.concat([p.imageManifest, Buffer.from(' ')]))),
+      withPackaged((p) => (p.imageManifest = null)),
+      withPackaged((p, r) => {
+        p.manifest = Buffer.from('{ not json')
+        p.imageManifest = Buffer.from(p.manifest)
+        r.identity.manifestSha256 = sha256Of(p.manifest)
+      }),
+    ])
+      assert.equal(resultOf(run, IDENTITY), 'failed')
+  })
+
+  it('a file packaged with another digest, missing, or not in the manifest fails', () => {
+    const changed = withPackaged((p) => (p.imageFiles.files.find((f) => f.path === 'start.sh').sha256 = '7'.repeat(64)))
+    const missing = withPackaged((p) => {
+      p.imageFiles.files = p.imageFiles.files.filter((f) => f.path !== 'sophia-dsh-adapter/dist/index.js')
+      p.imageFiles.coverage = covered(p.imageFiles.files)
+    })
+    const extra = withPackaged((p) => {
+      p.imageFiles.files.push({ path: 'sophia-dsh-adapter/dist/extra.js', size: 3, sha256: '8'.repeat(64) })
+      p.imageFiles.coverage = covered(p.imageFiles.files)
+    })
+    const unread = withPackaged((p) => {
+      p.imageFiles.files.find((f) => f.path === 'start.sh').size = null
+    })
+    for (const run of [changed, missing, extra, unread]) assert.equal(resultOf(run, IDENTITY), 'failed')
+    assert.deepEqual(assess(extra).checks[0].detail.unrecorded, ['sophia-dsh-adapter/dist/extra.js'])
+  })
+
+  it('an image scan that did not cover every file fails', () => {
+    const errored = withPackaged((p) => (p.imageFiles.coverage.errors = [{ path: 'x', error: 'EACCES' }]))
+    const oversize = withPackaged((p) => (p.imageFiles.coverage.oversize = [{ path: 'big', size: 11e6 }]))
+    const short = withPackaged((p) => (p.imageFiles.coverage.total += 1))
+    const twice = withPackaged((p) => {
+      p.imageFiles.files.push({ ...p.imageFiles.files[0] })
+      p.imageFiles.coverage = covered(p.imageFiles.files)
+    })
+    for (const run of [errored, oversize, short, twice]) assert.equal(resultOf(run, IDENTITY), 'failed')
+  })
+
+  it('the scan the image runs, on a real tree laid out as /opt/sophia, is what the receipt accepts', { skip: process.platform !== 'linux' && 'the scan reads /proc' }, () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pc-packaged-'))
+    dirs.push(dir)
+    mkdirSync(join(dir, 'sophia-dsh-adapter', 'dist'), { recursive: true })
+    const adapter = Buffer.from('export const createServerAdapter = () => ({})\n')
+    const start = Buffer.from('#!/bin/sh\nexec node server\n')
+    writeFileSync(join(dir, 'sophia-dsh-adapter', 'dist', 'index.js'), adapter)
+    writeFileSync(join(dir, 'start.sh'), start)
+    const manifest = manifestOf({
+      files: { Dockerfile: '4'.repeat(64), 'sophia-dsh-adapter/dist/index.js': sha256Of(adapter), 'start.sh': sha256Of(start) },
+    })
+    writeFileSync(join(dir, 'MANIFEST.json'), manifest)
+    const run = complete()
+    run.identity.manifestSha256 = sha256Of(manifest)
+    run.packaged = { manifest, imageManifest: readFileSync(join(dir, 'MANIFEST.json')), imageFiles: scan(dir) }
+    assert.equal(resultOf(run, IDENTITY), 'passed')
+    writeFileSync(join(dir, 'start.sh'), Buffer.from('#!/bin/sh\nexec node other\n'))
+    run.packaged.imageFiles = scan(dir)
+    assert.equal(resultOf(run, IDENTITY), 'failed')
+  })
+
+  it('the workflow keeps both manifests and scans the image’s files inside it, confined, for the receipt', () => {
+    const steps = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image.steps
+    const identity = steps.find((s) => s.name === 'The image’s identity and packaged files' || s.name === "The image's identity and packaged files").run
+    assert.match(identity, /cp "\$M" "\$EVIDENCE\/manifest\.json"/)
+    assert.match(identity, /\/opt\/sophia\/MANIFEST\.json > "\$EVIDENCE\/image-manifest\.json"/)
+    const scanLine = identity.split('\n').filter((l) => /--network none|paperclip-image-home|image-files/.test(l)).join(' ')
+    for (const flag of ['--network none', '--read-only', '--cap-drop=ALL', '--security-opt=no-new-privileges'])
+      assert.ok(scanLine.includes(flag), `the image scan runs with ${flag}`)
+    assert.match(scanLine, /paperclip-image-home\.mjs:\/opt\/check\/scan\.mjs:ro/)
+    assert.match(scanLine, /scan \/opt\/sophia > "\$EVIDENCE\/image-files\.json"/)
   })
 })

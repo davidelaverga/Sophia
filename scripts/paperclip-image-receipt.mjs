@@ -4,10 +4,13 @@
 //   node scripts/paperclip-image-receipt.mjs <dir> <receipt.json> <summary.md>
 // Inputs (each optional; a missing one is `not reached`, never filled in): context.json, disk.jsonl, identity.json,
 // timings.jsonl, cgroup.jsonl (scripts/paperclip-image-cgroup.mjs), probe-first.json and probe-restarted.json (the
-// service probe's --url phases), home-before.json and home-after.json (scripts/paperclip-image-home.mjs snapshots).
+// service probe's --url phases), home-before.json and home-after.json (scripts/paperclip-image-home.mjs snapshots),
+// manifest.json and image-manifest.json (the build's MANIFEST and the image's copy, as bytes) and image-files.json (a
+// scan of /opt/sophia inside the image).
 // Every check validates the recorded values themselves, never a producer's own pass flag: the identity against the
-// run's context; each start healthy within HEALTH_LIMIT_S; each memory phase read exactly once, every figure a number,
-// the limit 2 GiB without swap, peak and current within it, and no OOM event of any kind; each probe phase's required
+// run's context, and the packaged files recomputed from the manifests and the image's own files (review of 896a92d);
+// each start healthy within HEALTH_LIMIT_S; each memory phase read exactly once, every figure a number, the limit 2 GiB
+// without swap, peak and current within it, and no OOM event of any kind; each probe phase's required
 // steps all present and passed, and what each observed (statuses, outcomes, the same plugin, issue and configuration
 // across both phases) recorded and as required; the home's persistence recomputed from the two snapshots, every size
 // and digest it compares one that was read, and every file under the home covered (CX-0039).
@@ -16,6 +19,7 @@
 // pin and a clean Sophia commit, on a GitHub-hosted linux/amd64 runner, under a 2 GiB memory cgroup without swap, with
 // the installed plugin's flow. Not Render's platform, not a registry digest (the image ID is the local config digest),
 // not a real Sophia.
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -51,21 +55,60 @@ const OOM_EVENTS = ['oom', 'oom_kill', 'oom_group_kill']
 
 const isNumber = (v) => typeof v === 'number' && Number.isFinite(v)
 const DIGEST = /^sha256:[0-9a-f]{64}$/
+const SHA256 = /^[0-9a-f]{64}$/
 
-function identityCheck(identity, context) {
+/**
+ * What the image packages, recomputed from the bytes rather than the identity step's flags (review of 896a92d): the
+ * build's MANIFEST, the image's copy of it (byte for byte the same), and a scan of /opt/sophia inside the image (every
+ * file read once, complete). Every file the manifest records but the Dockerfile (recorded for reference, not copied) is
+ * there with its digest, and nothing else is but the MANIFEST itself.
+ */
+function packagedFacts(identity, context, { manifest, imageManifest, imageFiles } = {}) {
+  if (!Buffer.isBuffer(manifest)) return null
+  let recorded = null
+  try {
+    recorded = JSON.parse(manifest.toString('utf8'))
+  } catch {
+    // An unreadable manifest packages nothing.
+  }
+  const files = recorded?.files && typeof recorded.files === 'object' ? Object.entries(recorded.files) : []
+  const digest = createHash('sha256').update(manifest).digest('hex')
+  const scanned = Array.isArray(imageFiles?.files) ? imageFiles.files : []
+  const inImage = new Map(scanned.map((f) => [f.path, f]))
+  const expected = new Map([...files.filter(([path]) => path !== 'Dockerfile'), ['MANIFEST.json', digest]])
+  const missing = [...expected].filter(([path, sha]) => inImage.get(path)?.sha256 !== sha || !isNumber(inImage.get(path)?.size)).map(([path]) => path)
+  const unrecorded = scanned.filter((f) => !expected.has(f.path)).map((f) => f.path)
+  return {
+    facts: {
+      pin: recorded?.paperclipPin === context.pin,
+      sophiaCommit: recorded?.sophiaCommit === context.candidate,
+      cleanTree: recorded?.sophiaTreeDirty === false,
+      manifestDigest: digest === identity.manifestSha256,
+      imageManifest: Buffer.isBuffer(imageManifest) && imageManifest.equals(manifest),
+      manifestFiles: files.length > 0 && files.every(([path, sha]) => path.length > 0 && SHA256.test(sha)),
+      imageScanned: coverageOf(imageFiles).complete && inImage.size === scanned.length,
+      packaged: expected.size > 1 && missing.length === 0 && unrecorded.length === 0,
+    },
+    detail: { manifestSha256: digest, files: files.length, missing, unrecorded },
+  }
+}
+
+function identityCheck(identity, context, packaged) {
   if (!identity || !context) return { result: 'not reached' }
   const image = identity.image ?? {}
   const build = identity.buildImage ?? {}
+  const recomputed = packagedFacts(identity, context, packaged)
+  if (!recomputed) return { result: 'unavailable', detail: { reason: 'the manifests and the image scan were not recorded' } }
   const facts = {
-    pin: identity.pin === context.pin,
-    sophiaCommit: identity.sophiaCommit === context.candidate,
-    cleanTree: identity.sophiaTreeDirty === false,
-    manifest: identity.manifestMatches === true && identity.verifyManifestInImage === true && /^[0-9a-f]{64}$/.test(identity.manifestSha256 ?? ''),
+    ...recomputed.facts,
     image: DIGEST.test(image.id ?? '') && isNumber(image.size) && image.size > 0,
     buildStage: DIGEST.test(build.id ?? '') && isNumber(build.size) && build.size > 0,
     platform: image.os === 'linux' && image.architecture === 'amd64',
   }
-  return { result: Object.values(facts).every(Boolean) ? 'passed' : 'failed', detail: { ...facts, imageId: image.id, buildImageId: build.id } }
+  return {
+    result: Object.values(facts).every(Boolean) ? 'passed' : 'failed',
+    detail: { ...facts, ...recomputed.detail, imageId: image.id, buildImageId: build.id },
+  }
 }
 
 function startCheck(timings, label) {
@@ -143,7 +186,6 @@ function memoryCheck(samples, phase) {
 }
 
 const is2xx = (v) => isNumber(v) && v >= 200 && v < 300
-const SHA256 = /^[0-9a-f]{64}$/
 const id = (v) => typeof v === 'string' && v.length > 0
 
 /**
@@ -230,9 +272,19 @@ function homeCheck(before, after) {
 }
 
 /** The receipt of one run's recorded inputs. */
-export function assess({ context = null, disk = [], identity = null, timings = [], runtime = [], samples = [], probes = {}, home = {} }) {
+export function assess({
+  context = null,
+  disk = [],
+  identity = null,
+  packaged = {},
+  timings = [],
+  runtime = [],
+  samples = [],
+  probes = {},
+  home = {},
+}) {
   const checks = [
-    { name: 'image built from the pin and a clean Sophia commit, linux/amd64, packaged files as recorded', ...identityCheck(identity, context) },
+    { name: 'image built from the pin and a clean Sophia commit, linux/amd64, packaged files as recorded', ...identityCheck(identity, context, packaged) },
     ...STARTS.map((label) => ({ name: `${label}: healthy within ${HEALTH_LIMIT_S} s`, ...startCheck(timings, label) })),
     { name: 'runtime: not privileged, Docker’s default capabilities (none added or dropped), not the host network, loopback only', ...runtimeCheck(runtime) },
     ...PHASES.map((phase) => ({ name: `memory, ${phase}`, ...memoryCheck(samples, phase) })),
@@ -307,6 +359,7 @@ const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) ==
 if (isMain) {
   const [dir, out, summary] = process.argv.slice(2)
   const json = (name) => (existsSync(join(dir, name)) ? JSON.parse(readFileSync(join(dir, name), 'utf8')) : null)
+  const bytes = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name)) : null)
   const lines = (name) =>
     existsSync(join(dir, name))
       ? readFileSync(join(dir, name), 'utf8')
@@ -319,6 +372,7 @@ if (isMain) {
     context: json('context.json'),
     disk: lines('disk.jsonl'),
     identity: json('identity.json'),
+    packaged: { manifest: bytes('manifest.json'), imageManifest: bytes('image-manifest.json'), imageFiles: json('image-files.json') },
     timings: lines('timings.jsonl'),
     runtime: lines('runtime.jsonl'),
     samples,

@@ -152,9 +152,16 @@ jobs:
         run: |
           inspect() { docker image inspect "$1" --format '{{json .}}' | jq '{id: .Id, size: .Size, os: .Os, architecture: .Architecture}'; }
           M="$RUNNER_TEMP/sophia-paperclip/MANIFEST.json"
+          # The receipt recomputes the packaged files from the bytes, not from the flags below (review of 896a92d): the
+          # build's manifest, the image's copy of it, and every file under /opt/sophia read once inside the image by the
+          # home scanner, confined (no network, read-only, no capability). Paths, digests, the pin and the commit only.
+          cp "$M" "$EVIDENCE/manifest.json"
           docker run --rm --network none --entrypoint node "$IMAGE" /opt/sophia/verify-manifest.mjs /opt/sophia "$PAPERCLIP_PIN" && vm=true || vm=false
-          docker run --rm --network none --entrypoint cat "$IMAGE" /opt/sophia/MANIFEST.json > "$RUNNER_TEMP/image-manifest.json"
-          cmp -s "$RUNNER_TEMP/image-manifest.json" "$M" && mm=true || mm=false
+          docker run --rm --network none --entrypoint cat "$IMAGE" /opt/sophia/MANIFEST.json > "$EVIDENCE/image-manifest.json"
+          cmp -s "$EVIDENCE/image-manifest.json" "$M" && mm=true || mm=false
+          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+            --volume "$GITHUB_WORKSPACE/sophia/scripts/paperclip-image-home.mjs:/opt/check/scan.mjs:ro" \
+            --entrypoint node "$IMAGE" /opt/check/scan.mjs scan /opt/sophia > "$EVIDENCE/image-files.json"
           jq -n --argjson build "$(inspect paperclip-build:5edf55d)" --argjson image "$(inspect "$IMAGE")" \
             --argjson vm "$vm" --argjson mm "$mm" --arg sha "$(sha256sum "$M" | cut -c1-64)" --slurpfile m "$M" \
             --arg c "$CANDIDATE" --arg p "$PAPERCLIP_PIN" \
