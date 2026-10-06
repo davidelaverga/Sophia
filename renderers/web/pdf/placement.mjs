@@ -15,9 +15,13 @@
 // at the other (a diagonal path that may meet in between), or overlapping at one end only.
 // Positions inside a band move affinely with the window where they are fixed lengths, `vw` or percentages of boxes
 // that widen with it, and their sums: two such boxes on one side of each other at both ends stay on it throughout.
-// It is not a proof where a box's place bends inside a band: a `min()`, `max()` or `clamp()` that changes arguments, a
-// text that rewraps and moves what follows by steps, a flex or grid line that wraps, an `auto-fit` grid's column count.
-// Nor is any paint inside a box that overlaps a text at both ends, beneath it, which only the ends' checks read.
+// Where a band holds placed boxes, a grid's, a flex container's or columns' lines that change inside it (an `auto-fit`
+// grid's column count, a flex line that wraps) are found by bisection and measured as band ends (layoutChanges), so
+// each piece of the band is read at its own ends. It is not a proof where a box's place bends inside a band otherwise:
+// a `min()`, `max()` or `clamp()` that changes arguments, a text that rewraps and moves what follows by steps, a float
+// or an inline box that wraps, or a container whose lines change and change back between two widths the bisection
+// reads. Nor is any paint inside a box that overlaps a text at both ends, beneath it, which only the ends' checks read.
+// Each band end's snapshot and comparison run within the sweep's time (placementStep).
 // An inline mark offset by the same lengths at both ends (a citation raised with `top: -0.4em`) moves with the lines
 // of its own paragraph and is compared with the texts of other blocks only. Every bound fails closed: a page with more
 // boxes or pairs than are compared, or a box or text drawn at one end of a band only, fails the band.
@@ -26,9 +30,16 @@ import { MARK_CLASS } from './capture-page.mjs'
 
 /**
  * The most boxes one band end's layout may hold to be compared, the most pairs of a placed box and a text compared
- * across one band, and the most pairs a failure names.
+ * across one band, the most pairs a failure names, and, where a band holds placed boxes, the most changes of a
+ * container's lines found inside the bands and the most widths probed to find them (layoutChanges).
  */
-export const PLACEMENT = Object.freeze({ maxNodes: 60_000, maxPairs: 2_000_000, maxListed: 12 })
+export const PLACEMENT = Object.freeze({
+  maxNodes: 60_000,
+  maxPairs: 2_000_000,
+  maxListed: 12,
+  maxChanges: 32,
+  maxProbes: 400,
+})
 
 /** The computed styles the comparison reads, in the order the protocol returns them for each box. */
 const STYLES = [
@@ -662,4 +673,219 @@ function nameOf(layout, id) {
 function listed(names, max) {
   const shown = names.slice(0, max).join(', ')
   return names.length > max ? `${shown} and ${names.length - max} more` : shown
+}
+
+/**
+ * In the page: whether a box's styles place it out of flow (isPlaced's rule, read from a computed style).
+ * @param {CSSStyleDeclaration} s
+ */
+function isPlacedStyle(s) {
+  if (['absolute', 'fixed', 'sticky'].includes(s.position)) return true
+  const offset = ['left', 'top', 'right', 'bottom'].some((k) => Number.parseFloat(s.getPropertyValue(k)) !== 0)
+  if (s.position === 'relative' && offset) return true
+  const moved = ['transform', 'translate', 'rotate', 'scale', 'offset-path'].some(
+    (k) => !['none', ''].includes(s.getPropertyValue(k)),
+  )
+  return (
+    moved ||
+    ['margin-top', 'margin-right', 'margin-bottom', 'margin-left'].some(
+      (k) => Number.parseFloat(s.getPropertyValue(k)) < 0,
+    )
+  )
+}
+
+/**
+ * In the page: whether an element, or a generated box of it, is placed out of flow.
+ * @param {Element} el
+ */
+function placedAt(el) {
+  if (isPlacedStyle(getComputedStyle(el))) return true
+  return ['::before', '::after'].some((p) => {
+    const g = getComputedStyle(el, p)
+    return !['none', 'normal'].includes(g.content) && isPlacedStyle(g)
+  })
+}
+
+/**
+ * In the page: the items a container sets, its children in flow and a `display: contents` child's own.
+ * @param {Element} el
+ * @returns {Element[]}
+ */
+function itemsOf(el) {
+  return [...el.children].flatMap((k) => {
+    const ks = getComputedStyle(k)
+    if (ks.display === 'contents') return itemsOf(k)
+    return ks.display === 'none' || ks.position === 'absolute' || ks.position === 'fixed' ? [] : [k]
+  })
+}
+
+/**
+ * In the page: each item's line (items that share height share a line) and place along it, as one string.
+ * @param {DOMRect[]} rects
+ */
+function linesOf(rects) {
+  const order = rects.map((_, i) => i).toSorted((x, y) => (rects[x]?.top ?? 0) - (rects[y]?.top ?? 0))
+  /** @type {number[]} */
+  const line = []
+  let n = -1
+  let bottom = -Infinity
+  for (const i of order) {
+    const r = rects[i]
+    if (!r) continue
+    if (r.top >= bottom - 0.5) {
+      n += 1
+      bottom = r.bottom
+    } else bottom = Math.max(bottom, r.bottom)
+    line[i] = n
+  }
+  const lefts = [...new Set(rects.map((r) => Math.round(r.left)))].toSorted((x, y) => x - y)
+  return rects.map((r, i) => `${String(line[i])}.${String(lefts.indexOf(Math.round(r.left)))}`).join(',')
+}
+
+/**
+ * In the page: which of the page's media conditions hold, and where every grid, flex or multi-column container sets its
+ * items (linesOf), so a change in a container's column count (`repeat(auto-fit, …)`), a flex line that wraps or a
+ * column that fills changes the string; and, when `withPlaced`, whether any element or generated box is placed out of
+ * flow. Page JavaScript is off: the kernel sends these functions' source (structureScript).
+ * @param {string[]} conditions the page's media conditions
+ * @param {boolean} withPlaced
+ * @returns {{ state: string, placed: boolean }}
+ */
+function structureNow(conditions, withPlaced) {
+  /** @type {string[]} */
+  const containers = []
+  let placed = false
+  for (const el of document.querySelectorAll('*')) {
+    if (withPlaced && !placed) placed = placedAt(el)
+    const s = getComputedStyle(el)
+    if (!/grid|flex/u.test(s.display) && s.columnCount === 'auto' && s.columnWidth === 'auto') continue
+    containers.push(linesOf(itemsOf(el).map((k) => k.getBoundingClientRect())))
+  }
+  const media = conditions.map((q) => matchMedia(q).matches).join()
+  return { state: `${media}|${containers.join(';')}`, placed }
+}
+
+/** The functions above, as the source the kernel sends. */
+const IN_PAGE = [isPlacedStyle, placedAt, itemsOf, linesOf, structureNow]
+
+/**
+ * An expression that returns the page's structure (structureNow) for its media conditions.
+ * @param {string[]} conditions
+ * @param {boolean} withPlaced
+ */
+export function structureScript(conditions, withPlaced) {
+  const source = IN_PAGE.map((f) => f.toString()).join('\n')
+  return `(() => {\n${source}\nreturn structureNow(${JSON.stringify(conditions)}, ${String(withPlaced)})\n})()`
+}
+
+/** @typedef {(width: number, withPlaced: boolean) => Promise<{ state: string, placed: boolean }>} Probe the page's
+ *   structure at a window width (structureNow) */
+
+/**
+ * The band ends the sweep measures, with the widths where a container's lines change inside a band that holds placed
+ * boxes: each change is found by bisection between two widths whose structures differ, to the pixel, and both widths
+ * either side of it become band ends, measured and compared as a breakpoint's are. A grid's column count
+ * (`repeat(auto-fit, minmax(320px, 1fr))`) or a wrapping flex line changes where no media condition does, and moves
+ * a placed box with it (#117). Bounded: more changes than PLACEMENT.maxChanges, more probes than PLACEMENT.maxProbes,
+ * or the sweep's time running out fails the sweep, never a change left out. A band without placed boxes is not
+ * probed: nothing placed can meet its texts. A container whose lines change and change back inside a band is not
+ * seen; nor is text that rewraps, which no container's lines show.
+ * @param {Probe} probe
+ * @param {number[]} ends the band ends the media conditions make (bandEnds)
+ * @param {number} until Date.now() by which to stop
+ * @param {{ maxChanges: number, maxProbes: number }} [limits]
+ * @returns {Promise<{ ends: number[], issue: string | null }>}
+ */
+export async function layoutChanges(probe, ends, until, limits = PLACEMENT) {
+  const out = new Set(ends)
+  const budget = { probes: 0, changes: 0 }
+  /** @type {string | null} */
+  let issue = null
+  for (const [i, a] of ends.entries()) {
+    const b = ends[i + 1]
+    if (b === undefined || b - a <= 1 || issue) continue
+    const [atA, atB] = [await probe(a, true), await probe(b, true)]
+    budget.probes += 2
+    if ((atA.placed || atB.placed) && atA.state !== atB.state)
+      issue = await bisect(probe, [a, atA.state, b, atB.state], { out, budget, until, limits })
+  }
+  return { ends: [...out].toSorted((x, y) => x - y), issue }
+}
+
+/**
+ * Find, between two widths whose structures differ, every width where the structure changes, adding the widths either
+ * side of each to `out`; or why not, within the bounds.
+ * @param {Probe} probe
+ * @param {[number, string, number, string]} first the two widths and their structures
+ * @param {{ out: Set<number>, budget: { probes: number, changes: number }, until: number,
+ *   limits: { maxChanges: number, maxProbes: number } }} at
+ * @returns {Promise<string | null>}
+ */
+async function bisect(probe, first, at) {
+  const stack = [first]
+  for (let next = stack.pop(); next; next = stack.pop()) {
+    const [a, atA, b, atB] = next
+    if (b - a <= 1) {
+      at.budget.changes += 1
+      if (at.budget.changes > at.limits.maxChanges)
+        return `more than ${at.limits.maxChanges} changes of a grid's, a flex container's or columns' lines inside the bands, more than the sweep measures`
+      at.out.add(a).add(b)
+      continue
+    }
+    if (Date.now() > at.until)
+      return "the changes of a container's lines inside the bands were not found within the sweep's time"
+    if (at.budget.probes >= at.limits.maxProbes)
+      return `the changes of a container's lines inside the bands were not found within ${at.limits.maxProbes} widths`
+    const mid = Math.floor((a + b) / 2)
+    const { state } = await probe(mid, false)
+    at.budget.probes += 1
+    if (state !== atA) stack.push([a, atA, mid, state])
+    if (state !== atB) stack.push([mid, state, b, atB])
+  }
+  return null
+}
+
+/**
+ * A promise's value, or `late` when Date.now() reaches `until` first. The work itself goes on; its answer is dropped.
+ * @template T
+ * @param {Promise<T>} work
+ * @param {number} until
+ * @returns {Promise<{ value: T } | { late: true }>}
+ */
+export async function withinTime(work, until) {
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer
+  /** @type {Promise<{ late: true }>} */
+  const late = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ late: true }), Math.max(0, until - Date.now()))
+  })
+  try {
+    return await Promise.race([work.then((value) => ({ value })), late])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** @typedef {{ width: number, state: string, layout: Layout }} BandEnd */
+
+/**
+ * Read the placements at a band end and compare them with the last band end's, when both are ends of one band (their
+ * states, the page's conditions and its containers' lines, alike), within the sweep's time: a snapshot that does not
+ * answer in time, or a comparison that ends past it, fails the band end, never passes it unread (#117).
+ * @param {() => Promise<Layout | { issue: string }>} read the band end's layout (layoutAt)
+ * @param {{ width: number, state: string }} here
+ * @param {BandEnd | null} before the last band end read
+ * @param {number} until Date.now() by which to stop
+ * @returns {Promise<{ issue: string | null, end: BandEnd | null }>} what is wrong, and this band end for the next
+ */
+export async function placementStep(read, here, before, until) {
+  const got = await withinTime(read(), until)
+  if ('late' in got) return { issue: `at ${here.width}px: placements not read within the sweep's time`, end: null }
+  const layout = got.value
+  if ('issue' in layout) return { issue: `at ${here.width}px: ${layout.issue}`, end: null }
+  const met = before?.state === here.state ? placementIssue(before.layout, layout) : null
+  if (Date.now() > until)
+    return { issue: `at ${here.width}px: placements not compared within the sweep's time`, end: null }
+  const between = met ? `between ${String(before?.width)} and ${here.width}px: ${met}` : null
+  return { issue: between, end: { ...here, layout } }
 }

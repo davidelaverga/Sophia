@@ -2,7 +2,15 @@
 // browser tests read real pages; these read layouts written out, for the pair rule and every bound.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { layoutOf, PLACEMENT, placementIssue, type Layout } from '../placement.mjs'
+import {
+  layoutChanges,
+  layoutOf,
+  PLACEMENT,
+  placementIssue,
+  placementStep,
+  withinTime,
+  type Layout,
+} from '../placement.mjs'
 
 type Edges = [number, number, number, number]
 type Style = Record<string, string>
@@ -284,5 +292,85 @@ describe('placed boxes and texts between the ends of a band (#117, placement.mjs
         ['pseudo', '::after', null, 11, [400, 0, 410, 10], 'absolute'],
       ],
     )
+  })
+})
+
+/** A page whose one container's lines change at each of `at`, and that holds placed boxes or not; it counts probes. */
+function stepped(at: readonly number[], placed = true) {
+  const widths: number[] = []
+  const probe = (width: number) => {
+    widths.push(width)
+    return Promise.resolve({ state: `lines ${String(at.filter((w) => width >= w).length)}`, placed })
+  }
+  return { probe, widths }
+}
+const LATER = (): number => Date.now() + 60_000
+/** A reader that answers with `answer` after `ms`. */
+const readAfter = (ms: number, answer: Layout) => (): Promise<Layout> =>
+  new Promise<Layout>((resolve) => {
+    setTimeout(() => resolve(answer), ms)
+  })
+
+describe("a container's lines changing inside a band (#117, placement.mjs)", () => {
+  it('finds each change to the pixel and measures the widths either side of it as band ends', async () => {
+    const page = stepped([640, 960, 1280])
+    const { ends, issue } = await layoutChanges(page.probe, [320, 2560], LATER())
+    assert.equal(issue, null)
+    assert.deepEqual(ends, [320, 639, 640, 959, 960, 1279, 1280, 2560])
+    assert.ok(page.widths.length <= 2 + 3 * 12, `${String(page.widths.length)} probes`)
+  })
+
+  it('leaves a band without placed boxes, and one whose lines do not change, as it is', async () => {
+    const plain = stepped([640, 960], false)
+    assert.deepEqual(await layoutChanges(plain.probe, [320, 2560], LATER()), { ends: [320, 2560], issue: null })
+    assert.deepEqual(plain.widths, [320, 2560])
+    const still = stepped([])
+    assert.deepEqual(await layoutChanges(still.probe, [320, 599, 600, 2560], LATER()), {
+      ends: [320, 599, 600, 2560],
+      issue: null,
+    })
+  })
+
+  it('fails past its changes, its probes or its time, never leaving a change out', async () => {
+    const many = Array.from({ length: 40 }, (_, i) => 400 + i * 50)
+    const changes = await layoutChanges(stepped(many).probe, [320, 2560], LATER())
+    assert.match(changes.issue ?? '', /^more than 32 changes of a grid's, a flex container's or columns' lines/u)
+    const probes = await layoutChanges(stepped([640, 960]).probe, [320, 2560], LATER(), { ...PLACEMENT, maxProbes: 5 })
+    assert.match(probes.issue ?? '', /not found within 5 widths$/u)
+    const time = await layoutChanges(stepped([640]).probe, [320, 2560], Date.now() - 1)
+    assert.match(time.issue ?? '', /not found within the sweep's time$/u)
+  })
+})
+
+describe("the placements read within the sweep's time (#117, placement.mjs)", () => {
+  const one = end([100, 100, 180, 130], [200, 100, 260, 130])
+
+  it('takes an answer in time, and drops one that comes late', async () => {
+    assert.deepEqual(await withinTime(Promise.resolve(7), Date.now() + 1000), { value: 7 })
+    assert.deepEqual(await withinTime(new Promise((r) => setTimeout(() => r(7), 200)), Date.now() + 20), { late: true })
+  })
+
+  it('fails a band end whose snapshot answers late, and passes one that answers in time', async () => {
+    const late = await placementStep(readAfter(200, one), { width: 2560, state: 's' }, null, Date.now() + 20)
+    assert.deepEqual(late, { issue: "at 2560px: placements not read within the sweep's time", end: null })
+    const ok = await placementStep(readAfter(5, one), { width: 2560, state: 's' }, null, Date.now() + 1000)
+    assert.equal(ok.issue, null)
+    assert.equal(ok.end?.width, 2560)
+  })
+
+  it('fails a band end compared past the time, and names a crossing found in time', async () => {
+    const before = { width: 320, state: 's', layout: end([100, 100, 180, 130], [200, 100, 260, 130]) }
+    const crossed = end([100, 100, 180, 130], [20, 100, 80, 130])
+    const past = await placementStep(
+      () => Promise.resolve(crossed),
+      { width: 2560, state: 's' },
+      before,
+      Date.now() - 1,
+    )
+    assert.match(past.issue ?? '', /^at 2560px: placements not (read|compared) within the sweep's time$/u)
+    const met = await placementStep(() => Promise.resolve(crossed), { width: 2560, state: 's' }, before, LATER())
+    assert.equal(met.issue, 'between 320 and 2560px: 1 placed boxes and texts may meet: div.cover and b1')
+    const other = await placementStep(() => Promise.resolve(crossed), { width: 2560, state: 't' }, before, LATER())
+    assert.equal(other.issue, null, 'another band')
   })
 })

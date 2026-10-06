@@ -19,7 +19,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { conditionsScript, MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, MAX_POINTS, pageScript } from './capture-page.mjs'
 import { launchConfined, playwrightVersion } from './confine.mjs'
-import { layoutAt, placementIssue } from './placement.mjs'
+import { layoutAt, layoutChanges, placementStep, structureScript } from './placement.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
 
 export const CAPTURE_RECEIPT_SCHEMA = 'sophia.html-capture-receipt.v1'
@@ -757,32 +757,42 @@ function bandIssue(page, missed, requested) {
   return parts.length > 0 ? parts.join(', ') : null
 }
 
-/** @typedef {{ width: number, state: string, layout: import('./placement.mjs').Layout }} BandEnd */
-
 /**
- * Read the placements at a band end, and where placed boxes and texts may meet between it and the last one measured,
- * when both are ends of one band: the page's conditions hold alike at both (placement.mjs). What is wrong goes to
- * `wrong`.
+ * Measure each band end, as at a target, and read and compare its placements (placement.mjs), within the sweep's time:
+ * each band end's placements, the last's included, fail when read or compared past it (placementStep). What is wrong
+ * goes to `wrong`.
+ * @param {import('playwright-core').Page} page
  * @param {Shot} shot
- * @param {{ width: number, state: string }} here the width, and which of the page's conditions hold at it
- * @param {BandEnd | null} before the last band end read
+ * @param {{ ends: number[], conditions: string[], until: number, sweepMs: number }} sweep
  * @param {string[]} wrong
- * @returns {Promise<BandEnd | null>} this band end, for the next; null when its placements could not be read
  */
-async function placementsAt(shot, here, before, wrong) {
-  const layout = await layoutAt(shot.cdp)
-  if ('issue' in layout) {
-    wrong.push(`at ${here.width}px: ${layout.issue}`)
-    return null
+async function measureEnds(page, shot, sweep, wrong) {
+  /** @type {import('./placement.mjs').BandEnd | null} */
+  let before = null
+  for (const [i, width] of sweep.ends.entries()) {
+    const left = sweep.until - Date.now()
+    if (left <= 0) {
+      wrong.push(`${sweep.ends.length - i} band ends not measured within ${sweep.sweepMs / 1000} s`)
+      return
+    }
+    await page.setViewportSize({ width, height: SWEEP.height })
+    const { unmeasured, ...answer } = await measure(page, left)
+    const { measured, unsampled } = await generatedCover(shot, page, answer, sweep.until)
+    const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null)
+    if (issue) wrong.push(`at ${width}px: ${issue}`)
+    /** @type {{ state: string }} */
+    const { state } = await page.evaluate(structureScript(sweep.conditions, false))
+    const step = await placementStep(() => layoutAt(shot.cdp), { width, state }, before, sweep.until)
+    if (step.issue) wrong.push(step.issue)
+    before = step.end
   }
-  const met = before?.state === here.state ? placementIssue(before.layout, layout) : null
-  if (met) wrong.push(`between ${String(before?.width)} and ${here.width}px: ${met}`)
-  return { ...here, layout }
 }
 
 /**
  * The width sweep (SWEEP): the page measured, without capturing, at both ends of every band its media conditions
- * make, as at a target. Its check fails on what any band end shows wrong, and on any band end it could not measure.
+ * make, and of every band a container's lines changing inside one make where it holds placed boxes (layoutChanges),
+ * as at a target. Its check fails on what any band end shows wrong, on placed boxes and texts that may meet between a
+ * band's ends, and on any band end it could not measure.
  * @param {import('playwright-core').Page} page
  * @param {Shot} shot
  * @param {number} sweepMs
@@ -795,27 +805,21 @@ async function sweepWidths(page, shot, sweepMs) {
   const plan = sweepPlan(media)
   if ('issue' in plan) return check('widths_visible', 'failed', plan.issue)
   const holding = `(${JSON.stringify(media.conditions)}).map((q) => matchMedia(q).matches).join()`
-  const ends = await bandEnds(plan.breakpoints, async (width) => {
+  const bands = await bandEnds(plan.breakpoints, async (width) => {
     await page.setViewportSize({ width, height: SWEEP.height })
     return String(await page.evaluate(holding))
   })
-  /** @type {string[]} */
-  const wrong = []
-  /** @type {BandEnd | null} */
-  let before = null
-  for (const [i, width] of ends.entries()) {
-    const left = until - Date.now()
-    if (left <= 0) {
-      wrong.push(`${ends.length - i} band ends not measured within ${sweepMs / 1000} s`)
-      break
-    }
+  /** @type {import('./placement.mjs').Probe} */
+  const probe = async (width, withPlaced) => {
     await page.setViewportSize({ width, height: SWEEP.height })
-    const { unmeasured, ...answer } = await measure(page, left)
-    const { measured, unsampled } = await generatedCover(shot, page, answer, until)
-    const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null)
-    if (issue) wrong.push(`at ${width}px: ${issue}`)
-    before = await placementsAt(shot, { width, state: String(await page.evaluate(holding)) }, before, wrong)
+    /** @type {{ state: string, placed: boolean }} */
+    const structure = await page.evaluate(structureScript(media.conditions, withPlaced))
+    return structure
   }
+  const { ends, issue } = await layoutChanges(probe, bands, until)
+  /** @type {string[]} */
+  const wrong = issue ? [issue] : []
+  await measureEnds(page, shot, { ends, conditions: media.conditions, until, sweepMs }, wrong)
   return wrong.length > 0
     ? check('widths_visible', 'failed', wrong.join('; ').slice(0, 2000))
     : check('widths_visible', 'passed', `measured at ${ends.join(', ')}px`.slice(0, 2000))

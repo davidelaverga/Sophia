@@ -1439,6 +1439,62 @@ describe('the confined capture kernel', () => {
     },
   )
 
+  // #117: a grid's column count changes where no media condition does, and moves a placed box with it.
+  it(
+    "finds where a container's lines change inside a band, and measures a placed box across each change (#117)",
+    { skip },
+    async () => {
+      const cells = Array.from({ length: 9 }, (_, i) =>
+        i === 8 ? '<div class="cell"><div class="cover"></div></div>' : '<div class="cell"></div>',
+      ).join('')
+      const adverse = await captureHtml(
+        job(
+          page(
+            `body{margin:0;font:16px/1.5 Georgia,serif;color:#222;background:#fafafa}
+             .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));grid-auto-rows:0}
+             .cell{position:relative} .cover{position:absolute;left:-417px;top:150px;width:60px;height:20px;background:#fff;z-index:2}
+             .claim{position:absolute;left:250px;top:150px;margin:0;font:12px monospace}`,
+            `<main><section data-section="s1"><div class="grid">${cells}</div>
+            <p data-block="b1" class="claim">Not free.</p></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(adverse.status, 'succeeded', JSON.stringify(adverse.error))
+      for (const t of ['w390-light', 'w1280-light']) assert.equal(outcome(adverse, 'blocks_visible', t), 'passed', t)
+      assert.equal(outcome(adverse, 'widths_visible'), 'failed')
+      const detail = String(adverse.checks.find((c) => c.name === 'widths_visible')?.detail)
+      assert.match(detail, /at 960px: b1(;|$)/u, 'the cover over the claim where the grid takes a third column')
+      assert.match(detail, /between 960 and 1279px: 1 placed boxes and texts may meet: div\.cover and b1(;|$)/u)
+      assert.match(detail, /at 1920px: b1; between 1920 and 2239px: /u, 'and again where it takes a sixth')
+      // A grid of cards whose columns change, and an accent beneath a heading above it, pass at every change.
+      // The second card's corner badge changes sides of the first card's text where the columns change, never over it.
+      const cards = Array.from({ length: 4 }, (_, i) =>
+        i === 1
+          ? '<div class="card"><p data-block="c2">Card 2.</p><span class="badge">New</span></div>'
+          : `<p data-block="c${String(i + 1)}">Card ${String(i + 1)}.</p>`,
+      )
+      const ordinary = await captureHtml(
+        job(
+          page(
+            `body{margin:0;font:16px/1.5 Georgia,serif;color:#222;background:#fafafa}
+             h2{position:relative} h2::after{content:"";position:absolute;left:0;bottom:-8px;width:48px;height:3px;background:#c33}
+             .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0}
+             .card{position:relative} .badge{position:absolute;right:4px;top:4px;font-size:12px;background:#eee}`,
+            `<main><section data-section="s1"><h2>Findings</h2><div class="cards">${cards.join('')}</div></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(ordinary.status, 'succeeded', JSON.stringify(ordinary.error))
+      const sweep = ordinary.checks.find((c) => c.name === 'widths_visible')
+      assert.deepEqual(
+        [sweep?.outcome, sweep?.detail],
+        ['passed', 'measured at 320, 479, 480, 719, 720, 959, 960, 2560px'],
+      )
+    },
+  )
+
   it(
     'refuses a page whose widths the sweep cannot bound, and a sweep past its time, never leaving a band out (#117, CX-0039)',
     { skip },
