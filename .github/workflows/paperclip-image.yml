@@ -3,8 +3,10 @@
 # wrapper (deploy/paperclip/Dockerfile) for linux/amd64 from the exact candidate head, checks the image's identity and
 # packaged files, runs it under a 2 GiB memory cgroup without swap with a disposable database and home and synthetic
 # credentials, drives the installed plugin's flow through the service probe's --url mode, restarts and recreates it,
-# and writes a credential-free receipt to the run summary. No secret, no registry, no push, no deployment: this is
-# development CI, not Render's platform fit, not a registry digest and not a real Sophia (its address is closed).
+# and writes a credential-free receipt to the run summary; the curated, scrubbed evidence (per-phase records, the
+# receipt, bounded redacted diagnostics) is uploaded as an artifact whatever the outcome (WBC-02-CX-0036). No secret,
+# no registry, no push, no deployment: this is development CI, not Render's platform fit, not a registry digest and
+# not a real Sophia (its address is closed).
 name: paperclip-image
 
 on:
@@ -211,6 +213,39 @@ jobs:
           { echo; echo '<details><summary>receipt.json</summary>'; echo; echo '```json'; cat "$EVIDENCE/receipt.json"; echo '```'; echo '</details>'; } >> "$GITHUB_STEP_SUMMARY"
           cat "$EVIDENCE/receipt.json"
           jq -e '.verdict == "qualified"' "$EVIDENCE/receipt.json"
+
+      # The evidence directory holds only what the steps above wrote there: the probe's state file and the image's
+      # manifest copy live outside it, and nothing from `docker inspect` but the container's state. Every file is
+      # scrubbed of the job's generated values and of credential-shaped strings before it is uploaded.
+      - name: Scrub the evidence
+        if: always()
+        timeout-minutes: 2
+        env:
+          REDACT_VARS: PCDB_PASSWORD,DATABASE_URL,BETTER_AUTH_SECRET,PAPERCLIP_SECRETS_MASTER_KEY,PAPERCLIP_TOOL_ACTION_SIGNING_SECRET,PAPERCLIP_DECISION_SIGNING_SECRET,SOPHIA_COORDINATION_TOKEN
+        run: |
+          [ -f sophia/scripts/paperclip-image-redact.mjs ] && [ -d "${EVIDENCE:-/nonexistent}" ] || exit 0
+          node sophia/scripts/paperclip-image-redact.mjs --scrub-dir "$EVIDENCE"
+
+      - name: Upload the evidence
+        id: evidence
+        if: always() && env.EVIDENCE != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: paperclip-image-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: The evidence artifact's identity
+        if: always() && steps.evidence.outputs.artifact-id != ''
+        timeout-minutes: 1
+        env:
+          ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.evidence.outputs.artifact-digest }}
+          ARTIFACT_URL: ${{ steps.evidence.outputs.artifact-url }}
+        run: |
+          echo "evidence artifact $ARTIFACT_ID, sha256 $ARTIFACT_DIGEST, $ARTIFACT_URL"
+          printf '\nEvidence artifact `%s`, sha256 `%s`: %s\n' "$ARTIFACT_ID" "$ARTIFACT_DIGEST" "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Clean up
         if: always()

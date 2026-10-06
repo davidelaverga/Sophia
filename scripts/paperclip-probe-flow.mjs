@@ -2,9 +2,11 @@
 // modes (scripts/paperclip-service-probe.mjs): a server it starts itself, or one already running at a loopback origin
 // (a container, WBC-02-CX-0031/CX-0032). Nothing here starts a process, opens a database or reads /proc.
 import { createHash, generateKeyPairSync, randomBytes, randomUUID, createPrivateKey, createPublicKey } from 'node:crypto'
-import { request as httpRequest } from 'node:http'
 import assert from 'node:assert/strict'
 import { signEnvelope } from '../packages/coordination/src/envelope.ts'
+import { exchange, until } from './paperclip-probe-http.mjs'
+
+export { until }
 
 export const PRIVATE_NAME = 'paperclip-private'
 export const REQUEST_TIMEOUT_MS = 20_000
@@ -12,17 +14,6 @@ export const REQUEST_TIMEOUT_MS = 20_000
 export const hex = (bytes) => randomBytes(bytes).toString('hex')
 export const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 const sha256 = (text) => createHash('sha256').update(text).digest('hex')
-
-/** Waits for check() to return a value, polling every second, and fails after timeoutMs: never for ever. */
-export async function until(what, check, timeoutMs) {
-  const deadline = Date.now() + timeoutMs
-  for (;;) {
-    const value = await check()
-    if (value) return value
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what} (${Math.round(timeoutMs / 1000)} s)`)
-    await sleep(1000)
-  }
-}
 
 /** A loopback origin, refused otherwise: this probe signs up an admin and must only ever reach a disposable server. */
 export function loopbackOrigin(text) {
@@ -37,38 +28,23 @@ export function loopbackOrigin(text) {
  * The flow against one server. `identity` is Sophia's side (its signing key, project and work); a later phase passes
  * the one an earlier phase saved, so its signed requests name the same commission.
  */
-export function flowFor({ host = '127.0.0.1', port, origin, pluginPath }, identity = newIdentity()) {
+export function flowFor({ host = '127.0.0.1', port, origin, pluginPath, requestTimeoutMs = REQUEST_TIMEOUT_MS }, identity = newIdentity()) {
   const sophia = keysOf(identity)
   const key = `sophia-wbc02-${identity.workId}`
 
-  /** One HTTP exchange, with an explicit Host header when asked (fetch cannot set one), and a finite wait. */
+  /**
+   * One HTTP exchange, with an explicit Host header when asked (fetch cannot set one); never pending past
+   * requestTimeoutMs, whatever the server does (scripts/paperclip-probe-http.mjs, WBC-02-CX-0037).
+   */
   const call = (method, path, { body, headers = {}, hostHeader } = {}) =>
-    new Promise((done, fail) => {
-      const payload = body === undefined ? undefined : JSON.stringify(body)
-      const req = httpRequest(
-        {
-          host,
-          port,
-          method,
-          path,
-          headers: {
-            ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
-            ...(hostHeader === undefined ? {} : { host: hostHeader }),
-            ...headers,
-          },
-        },
-        (res) => {
-          let text = ''
-          res.setEncoding('utf8')
-          res.on('data', (chunk) => (text += chunk))
-          res.on('end', () => done({ status: res.statusCode ?? 0, json: parse(text), text, cookies: res.headers['set-cookie'] ?? [] }))
-        },
-      )
-      req.on('error', fail)
-      // a server that accepts and never answers (one thrashing in garbage collection, say) must not hang the probe
-      req.setTimeout(REQUEST_TIMEOUT_MS, () => req.destroy(new Error(`${method} ${path}: no answer in ${REQUEST_TIMEOUT_MS / 1000} s`)))
-      if (payload !== undefined) req.write(payload)
-      req.end()
+    exchange({
+      host,
+      port,
+      method,
+      path,
+      body,
+      headers: { ...(hostHeader === undefined ? {} : { host: hostHeader }), ...headers },
+      timeoutMs: requestTimeoutMs,
     })
 
   const envelope = (ids, op, deliveryKey, body) => {
@@ -239,12 +215,4 @@ export function newIdentity() {
 function keysOf(identity) {
   const privateKey = createPrivateKey(identity.privateKeyPem)
   return { privateKey, publicKey: createPublicKey(privateKey) }
-}
-
-function parse(text) {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return null
-  }
 }

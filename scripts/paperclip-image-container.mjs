@@ -12,8 +12,8 @@
 // outcome to $EVIDENCE/timings.jsonl.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
-import { request } from 'node:http'
 import { join } from 'node:path'
+import { exchange } from './paperclip-probe-http.mjs'
 
 const NAME = 'pc'
 const PORT = 3100
@@ -32,23 +32,14 @@ const docker = (args, timeout = 120_000) =>
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 const evidence = process.env.EVIDENCE ?? '.'
 
-function health() {
-  return new Promise((done) => {
-    const req = request({ host: '127.0.0.1', port: PORT, path: '/api/health', method: 'GET' }, (res) => {
-      let text = ''
-      res.on('data', (c) => (text += c))
-      res.on('end', () => {
-        try {
-          done(res.statusCode === 200 && JSON.parse(text).status === 'ok')
-        } catch {
-          done(false)
-        }
-      })
-    })
-    req.on('error', () => done(false))
-    req.setTimeout(5000, () => req.destroy())
-    req.end()
-  })
+/** One health read, settled within 5 s whatever the server does (scripts/paperclip-probe-http.mjs, WBC-02-CX-0037). */
+async function health() {
+  try {
+    const reply = await exchange({ port: PORT, path: '/api/health', timeoutMs: 5000 })
+    return reply.status === 200 && reply.json?.status === 'ok'
+  } catch {
+    return false
+  }
 }
 
 /** The container's whole log, both streams, kept in memory to be counted: never printed here. */
@@ -66,7 +57,7 @@ async function waitHealthy(label, started) {
       ok = true
       break
     }
-    if (docker(['inspect', '--format', '{{.State.Running}}', NAME]) !== 'true') {
+    if (docker(['inspect', '--format', '{{.State.Running}}', NAME], 20_000) !== 'true') {
       reason = 'container exited'
       break
     }
