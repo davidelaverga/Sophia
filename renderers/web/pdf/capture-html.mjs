@@ -339,12 +339,13 @@ async function captureTarget(shot, target, page) {
  * @returns {Check[]}
  */
 export function targetChecks(target, page, coverage, unmeasured = 0) {
-  // A shown label (one a tooltip, an accessible name or an ID reference rests on) is held to what a block is. Other
-  // text outside the blocks is read for contrast wherever this target shows it (#117); where it is shown at no target
-  // at all, captureAll fails it.
-  const measured = [...page.blocks, ...page.shown]
-  const read = [...measured, ...page.framing.filter((m) => !hiddenHere(m))]
-  const unseen = measured.filter(hiddenHere)
+  // A shown label (one a tooltip, an accessible name or an ID reference rests on), and every other text outside the
+  // blocks, is held to what a block is, at every target (#117). Text a target hides is text its capture does not show:
+  // kept for print, for another width, or for assistive technology, or shown at one width and hidden at another so
+  // that pieces seen apart compose a claim nowhere reviewed. Text outside the blocks that a target hides is not read
+  // for contrast there.
+  const unseen = [...page.blocks, ...page.shown, ...page.framing].filter(hiddenHere)
+  const read = [...page.blocks, ...page.shown, ...page.framing.filter((m) => !hiddenHere(m))]
   const low = read.filter((b) => b.issues.includes('low_contrast'))
   const unknown = read.filter((b) => b.contrast.ratio === null)
   const ids = (/** @type {{ id: string }[]} */ list) =>
@@ -470,17 +471,6 @@ async function captureAll(page, shot, entry) {
     })
     shot.receipt.checks.push(...targetChecks(target, measured, coverage, unmeasured))
   }
-  // Text outside the blocks that no target shows (kept for print, for a width no capture takes, or for assistive
-  // technology alone) is text no reviewer saw: each target's blocks_visible names it (#117).
-  const unseen = hiddenEverywhere(shot.receipt.targets.map((t) => t.page))
-  if (unseen.length > 0)
-    for (const c of shot.receipt.checks.filter((k) => k.name === 'blocks_visible')) {
-      c.outcome = 'failed'
-      c.detail = [c.detail, `text hidden at every target: ${unseen.slice(0, MAX_LISTED).join(', ')}`]
-        .filter(Boolean)
-        .join('; ')
-        .slice(0, 2000)
-    }
 }
 
 /**
@@ -490,25 +480,6 @@ async function captureAll(page, shot, entry) {
  */
 function hiddenHere(m) {
   return m.issues.some((i) => i !== 'low_contrast' && i !== 'scrolls')
-}
-
-/**
- * Whether a measured element's text is not seen: not shown here, or all but invisible against what is behind it.
- * @param {import('./capture-page.mjs').BlockMeasure} m
- */
-function isUnseen(m) {
-  return hiddenHere(m) || (m.contrast.ratio !== null && m.contrast.ratio < 1.5)
-}
-
-/**
- * The text outside the blocks that is not seen at any measured target: hidden, cut, covered, off the page, or all but
- * invisible against what is behind it at each one.
- * @param {import('./capture-page.mjs').PageMeasure[]} pages
- * @returns {string[]}
- */
-export function hiddenEverywhere(pages) {
-  const [first, ...rest] = pages.map((p) => new Set(p.framing.filter(isUnseen).map((m) => m.id)))
-  return first ? [...first].filter((id) => rest.every((at) => at.has(id))) : []
 }
 
 /**

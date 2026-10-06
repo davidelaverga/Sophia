@@ -16,7 +16,6 @@ import {
   CAPTURE_TARGETS,
   captureHtml,
   captureSha256,
-  hiddenEverywhere,
   marginsOf,
   targetChecks,
   tilesOf,
@@ -85,10 +84,19 @@ const outcome = (r: Receipt, name: string, target: string | null = null) =>
   r.checks.find((c) => c.name === name && c.target === target)?.outcome
 /** The kernel's name for the element outside the blocks that holds `text`, by its order on the page. */
 function framingId(r: Receipt, text: string): string | undefined {
-  const order = ['Seen everywhere', 'Printed only', 'Between the widths', 'Read aloud only', 'On wide screens']
+  const order = [
+    'Seen everywhere',
+    'Printed only',
+    'Between the widths',
+    'Read aloud only',
+    'On wide screens',
+    'On narrow screens',
+  ]
   const n = order.findIndex((t) => t.startsWith(text)) + 1
   return r.targets[0]?.page.framing.find((m) => m.id.startsWith(`text ${n} `))?.id
 }
+/** Whether a check's detail lists an element among its ids. */
+const lists = (detail: string, id: string) => detail.split(/[,;] /u).includes(id)
 const issuesOf = (r: Receipt, target: string) =>
   Object.fromEntries((r.targets.find((t) => t.id === target)?.page.blocks ?? []).map((b) => [b.id, b.issues]))
 
@@ -127,8 +135,6 @@ const framed = (id: string, issues: string[] = [], ratio: number | null = 12) =>
   issues,
   contrast: { ratio, floor: 4.5, large: false, detail: null },
 })
-const withFraming = (...framing: ReturnType<typeof framed>[]) =>
-  ({ framing }) as unknown as Parameters<typeof hiddenEverywhere>[0][number]
 
 describe('the capture plan (pure)', () => {
   it('cuts a span into equal tiles, the last one shorter', () => {
@@ -185,31 +191,7 @@ describe('the capture plan (pure)', () => {
     }
   })
 
-  it('names the text outside the blocks that no target shows, and only that (#117)', () => {
-    const narrow = withFraming(
-      framed('text 1 h2'),
-      framed('text 2 h2', ['not_rendered']),
-      framed('text 3 h2', ['clipped']),
-      framed('text 4 p', ['low_contrast'], 1.2),
-      framed('text 5 p', ['low_contrast'], 3.1),
-      framed('text 6 a', ['scrolls']),
-      framed('text 7 h3', ['not_rendered']),
-    )
-    const wide = withFraming(
-      framed('text 1 h2'),
-      framed('text 2 h2', ['not_rendered']),
-      framed('text 3 h2', ['off_page']),
-      framed('text 4 p', ['low_contrast'], 1),
-      framed('text 5 p', ['low_contrast'], 3.1),
-      framed('text 6 a', ['scrolls']),
-      framed('text 7 h3'),
-    )
-    assert.deepEqual(hiddenEverywhere([narrow, wide]), ['text 2 h2', 'text 3 h2', 'text 4 p'])
-    assert.deepEqual(hiddenEverywhere([narrow]), ['text 2 h2', 'text 3 h2', 'text 4 p', 'text 7 h3'])
-    assert.deepEqual(hiddenEverywhere([]), [])
-  })
-
-  it('reads text outside the blocks for contrast where a target shows it, and fails what it could not measure (#117)', () => {
+  it('holds text outside the blocks to what a block is at each target: shown, readable, and measured (#117)', () => {
     const coverage = { requested: null, captured: [], missing: [], margins: 0, marginsCaptured: 0, truncated: false }
     const measures = (framing: ReturnType<typeof framed>[]) =>
       ({ overflowPx: 0, blocks: [framed('b1')], shown: [], framing }) as unknown as Parameters<typeof targetChecks>[1]
@@ -223,8 +205,11 @@ describe('the capture plan (pure)', () => {
     const muted = at([framed('text 1 h2'), framed('text 2 p', ['low_contrast'], 2.4)])
     assert.deepEqual(muted.contrast, ['failed', 'text 2 p'])
     assert.deepEqual(muted.blocks_visible, ['passed', null], 'shown here, only hard to read')
-    const elsewhere = at([framed('text 1 h2', ['not_rendered', 'low_contrast'], 2.4)])
-    assert.deepEqual(elsewhere.contrast, ['passed', null], 'not shown at this target: read where it is')
+    const elsewhere = at([framed('text 1 h2', ['not_rendered', 'low_contrast'], 2.4), framed('text 2 a', ['scrolls'])])
+    assert.deepEqual(elsewhere.blocks_visible, ['failed', 'text 1 h2'], 'hidden at this target: its capture lacks it')
+    assert.deepEqual(elsewhere.contrast, ['passed', null], 'a hidden text is not read for contrast')
+    for (const issue of ['clipped', 'off_page', 'text_cut', 'covered', 'no_visible_text', 'transparent', 'hidden'])
+      assert.equal(at([framed('text 1 h2', [issue])]).blocks_visible?.[0], 'failed', issue)
     assert.deepEqual(at([framed('text 1 h2', [], null)]).contrast, ['unknown', 'unmeasured: text 1 h2'])
     const over = at([framed('text 1 h2')], 3)
     assert.equal(over.blocks_visible?.[0], 'failed')
@@ -403,7 +388,7 @@ describe('the confined capture kernel', () => {
   )
 
   it(
-    'fails text outside the blocks that no target shows: for print only, for another width, for a screen reader (#117)',
+    'fails text outside the blocks at each target that hides it: print only, another width, a screen reader, one width of two (#117)',
     { skip },
     async () => {
       const receipt = await captureHtml(
@@ -412,22 +397,25 @@ describe('the confined capture kernel', () => {
             `${BASE} .print{display:none} @media print{.print{display:block}}
            @media (min-width:700px) and (max-width:900px){.between{display:block}} .between{display:none}
            .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-           @media (max-width:500px){.wide-only{display:none}}`,
+           @media (max-width:500px){.wide-only{display:none}} @media (min-width:900px){.narrow-only{display:none}}`,
             `<main><section data-section="s1"><h2>Seen everywhere</h2><p data-block="b1">Text.</p>
           <h2 class="print">Printed only</h2><h2 class="between">Between the widths</h2><h2 class="vh">Read aloud only</h2>
-          <h2 class="wide-only">On wide screens</h2><p>·</p></section></main>`,
+          <h2 class="wide-only">On wide screens</h2><h2 class="narrow-only">On narrow screens</h2><p>·</p></section></main>`,
           ),
         ),
         { env },
       )
       assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
-      for (const target of ['w390-light', 'w1280-light']) {
+      for (const [target, hides, shows] of [
+        ['w390-light', ['Printed', 'Between', 'Read aloud', 'On wide'], ['Seen everywhere', 'On narrow']],
+        ['w1280-light', ['Printed', 'Between', 'Read aloud', 'On narrow'], ['Seen everywhere', 'On wide']],
+      ] as const) {
         assert.equal(outcome(receipt, 'blocks_visible', target), 'failed', target)
         const detail = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === target)?.detail ?? ''
-        for (const hidden of ['Printed', 'Between', 'Read aloud'].map((t) => framingId(receipt, t)))
-          assert.ok(hidden && detail.includes(hidden), `${target}: ${hidden} in ${detail}`)
-        for (const seen of ['Seen everywhere', 'On wide screens'].map((t) => framingId(receipt, t)))
-          assert.ok(seen && !detail.includes(`${seen},`) && !detail.endsWith(seen), `${target}: ${seen} in ${detail}`)
+        for (const hidden of hides.map((t) => framingId(receipt, t)))
+          assert.ok(hidden && lists(detail, hidden), `${target}: ${hidden} in ${detail}`)
+        for (const seen of shows.map((t) => framingId(receipt, t)))
+          assert.ok(seen && !lists(detail, seen), `${target}: ${seen} in ${detail}`)
       }
     },
   )
