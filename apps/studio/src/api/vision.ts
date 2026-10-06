@@ -254,3 +254,32 @@ export const searchProject = (
     { token, method: 'GET', ...(signal ? { signal } : {}) },
     parseSearchPage,
   )
+
+/**
+ * A14: the room's focus as it stands, with the section it is at and who put it there. The snapshot's `sharedFocus`
+ * will carry `anchor` and `by` (amendment A14); until then this read, the PUT's receipt plus `by`, is where they are.
+ */
+export interface RoomFocus {
+  revision: number
+  artifactVersionId: string | null
+  /** A heading's anchor, `#n` for its n-th repeat; null at the report's top. */
+  anchor: string | null
+  by: 'member' | 'sophia'
+  /** The revision the current showing began at (its member's show); Sophia's walks don't move it. */
+  shownAt: number
+}
+
+const parseRoomFocus = checked<RoomFocus>(
+  {
+    revision: isNum,
+    artifactVersionId: isStrOrNull,
+    anchor: isStrOrNull,
+    by: (v) => v === 'member' || v === 'sophia',
+    shownAt: isNum,
+  },
+  'room focus',
+)
+
+/** A14: where the room's focus is now (proposed read; see RoomFocus). */
+export const getRoomFocus = (token: string, roomId: string, signal?: AbortSignal): Promise<RoomFocus> =>
+  callApi(`/api/v1/rooms/${roomId}/focus`, { token, method: 'GET', ...(signal ? { signal } : {}) }, parseRoomFocus)

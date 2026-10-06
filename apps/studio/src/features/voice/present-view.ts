@@ -39,14 +39,43 @@ export function showingWords(
 export interface Followed {
   revision: number
   versionId: string
+  guideId: string
 }
 
 /**
- * I follow what is shown only while it is what I chose: any change of the focus (another report, another member
- * showing, even the same one shown again) asks again.
+ * I follow what is shown only while it is what I chose: the focus at that revision. Any change of it (another report,
+ * another member showing, even the same one shown again) asks again; only Sophia walking it carries it (carriesOver).
  */
 export const follows = (followed: Followed | null, shown: Shown | null): boolean =>
   !!followed && !!shown && shown.revision === followed.revision && shown.version?.id === followed.versionId
+
+/** What the room's focus read says (A14's proposed read): enough to tell Sophia's walk from a new showing. */
+export interface FocusAt {
+  revision: number
+  artifactVersionId: string | null
+  by: 'member' | 'sophia'
+  /** The revision the current showing began at (its member's show): her walks after it don't move it. */
+  shownAt: number
+}
+
+/** The focus moved on from what I follow, within the same showing: whether it was Sophia walking it is worth asking. */
+export const mayCarry = (followed: Followed | null, shown: Shown | null): boolean =>
+  !!followed &&
+  !!shown &&
+  shown.revision > followed.revision &&
+  shown.guideId === followed.guideId &&
+  shown.version?.id === followed.versionId
+
+/**
+ * Sophia walked what I follow to another section (A14): the focus's new revision is hers, on the same version, in
+ * the very showing I chose (it began no later than my follow, so no member showed it again between, even in one
+ * snapshot). Following carries over to it; anything else at that revision asks again.
+ */
+export function carriesOver(followed: Followed | null, shown: Shown | null, at: FocusAt | undefined): boolean {
+  if (!followed || !shown || !at || !mayCarry(followed, shown)) return false
+  const hers = at.revision === shown.revision && at.by === 'sophia' && at.artifactVersionId === followed.versionId
+  return hers && at.shownAt <= followed.revision
+}
 
 /**
  * The stage presents the report when I follow it, or show it myself; never while a screen is shared (live media keeps

@@ -25,6 +25,28 @@ interface Props {
   action: ReactNode
   /** What Sophia is saying now, from the room's captions (latestSpoken): lit in the text, her section marked. */
   spoken: string | null
+  /** The section Sophia moved the room's focus to (A14), `#n` for a repeat, at the focus's revision; null for none. */
+  walk?: { anchor: string; revision: number } | null
+}
+
+/**
+ * Where Sophia put the report (A14, docs/plans/room-walk.md): its entry in the index, and, as she moves, its heading
+ * brought to the top of the report. Nobody's focus moves: the person stays where they are.
+ */
+function useWalk(body: RefObject<HTMLDivElement | null>, walk: Props['walk'], entries: readonly IndexEntry[]) {
+  const key = walk ? (walk.anchor.includes('#') ? walk.anchor : `${walk.anchor}#0`) : null
+  const entry = key ? entries.find((e) => e.key === key) : undefined
+  // Once per move (its revision), even to the same section again; never again for a re-render or sources arriving.
+  const placed = entry ? `${entry.key} ${String(walk?.revision)}` : null
+  useEffect(() => {
+    const area = body.current
+    if (!placed || !entry || !area) return
+    const heading = area.querySelectorAll<HTMLElement>(`.md > [id="md-${CSS.escape(entry.anchor)}"]`)[entry.occurrence]
+    if (heading) area.scrollTop += heading.getBoundingClientRect().top - area.getBoundingClientRect().top - 8
+    // `placed` names the entry and the move: a new entry object for the same place is no move.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [placed, body])
+  return entry
 }
 
 /**
@@ -101,13 +123,16 @@ function useShownText(version: ArtifactVersion, identity: Identity) {
   return { parsed, listed, language, failed: text.isError }
 }
 
-export function PresentedReport({ version, identity, by, action, spoken }: Props) {
+export function PresentedReport({ version, identity, by, action, spoken, walk }: Props) {
   const { parsed, listed, language, failed } = useShownText(version, identity)
   const self = useFocusOnArrival(version.id)
   const body = useRef<HTMLDivElement>(null)
   const entries = useMemo(() => (parsed ? sectionIndex(parsed.blocks) : []), [parsed])
   const anchors = useMemo(() => new Set(entries.map((e) => e.key)), [entries])
-  const here = useVoiceTrail(body, spoken, parsed, anchors)
+  const voiced = useVoiceTrail(body, spoken, parsed, anchors)
+  // Where she put the report wins over where her words were last matched: she moved there to speak about it.
+  const placed = useWalk(body, walk, entries)
+  const here = placed?.key ?? voiced
   const viewer = useDocumentViewer()
   const title = version.title ?? 'Report'
   // Stable, so a section marked anew doesn't rebuild every citation of the text.
@@ -128,6 +153,9 @@ export function PresentedReport({ version, identity, by, action, spoken }: Props
         <span className="report-main-acts">{action}</span>
       </header>
       <SectionIndex entries={entries} here={here} body={body} />
+      <p className="report-walk" role="status">
+        {placed ? `Sophia is in ${placed.text}.` : ''}
+      </p>
       <div ref={body} className="report-main-body">
         {parsed && <MarkdownView report={parsed} sources={listed} language={language} onCite={cite} />}
         {!parsed && <p className="muted">{failed ? 'The report couldn’t be loaded.' : 'Loading the report…'}</p>}

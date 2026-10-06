@@ -26,7 +26,7 @@ import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
 import { noteKept, type Notes } from './brief-data.ts'
-import { noShowing } from './focus-data.ts'
+import { noShowing, walked } from './focus-data.ts'
 import { newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
@@ -96,6 +96,8 @@ interface Fixture {
   buildOnNotes: () => void
   /** The `n`th other person (or `me`, from another device) shows the report's current version; null, nothing is. */
   show: (n: number | 'me' | null) => void
+  /** Sophia moves the shown report's focus to a section, as her `present_section` would (A14). */
+  sophiaWalks: (anchor: string) => void
   /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
   loseNextContributionReply: () => void
   /** The next show lands, but its reply is lost: the page can't tell it was committed. */
@@ -309,6 +311,11 @@ window.fixture = {
             artifactVersionId: versionId(project.reportVersions),
             guideId: n === 'me' ? membership.actorId : personId(n),
           }
+    project.showing.at = { anchor: null, by: 'member', shownAt: project.showing.revision }
+    publish(project)
+  },
+  sophiaWalks: (anchor) => {
+    walked(project.showing, anchor)
     publish(project)
   },
   loseNextContributionReply: () => {

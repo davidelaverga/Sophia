@@ -3727,8 +3727,8 @@ div.empty {
    its own: its head with who shows it and the way back, then the text at the reading measure, scrolled on its own. */
 .report-main {
   display: grid;
-  /* Its head, the section index when it has one, and the text, which takes the rest and scrolls. */
-  grid-template-rows: auto auto minmax(0, 1fr);
+  /* Its head, the section index when it has one, where Sophia walked it, and the text, which takes the rest and scrolls. */
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   min-height: 0;
   margin: 0;
   overflow: hidden;
@@ -3769,7 +3769,7 @@ div.empty {
   gap: 8px;
 }
 .report-main-body {
-  grid-row: 3;
+  grid-row: 4;
   overflow: auto;
   padding: 20px 24px 40px;
 }
@@ -4084,4 +4084,17 @@ div.empty {
   color: var(--text-3);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+/* Where Sophia walked the shown report (PresentedReport, A14): one quiet line under the sections; empty, nothing. */
+.report-walk {
+  grid-row: 3;
+  margin: 0;
+  padding: 6px 24px 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.report-walk:empty {
+  height: 0;
+  padding: 0;
+  overflow: hidden;
 }
