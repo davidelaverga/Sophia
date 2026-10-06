@@ -23645,7 +23645,8 @@
                 "clipped",
                 "scrolls",
                 "covered",
-                "low_contrast"
+                "low_contrast",
+                "adjoined"
               ]
             }
           },

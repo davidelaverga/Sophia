@@ -24,7 +24,7 @@ import {
   targetChecks,
   tilesOf,
 } from '../capture-html.mjs'
-import { MARK_CLASS, MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, pageScript } from '../capture-page.mjs'
+import { MARK_CLASS, MAX_LINES, MAX_LOOK_MS, MAX_MEASURED, MAX_TEXT_RECTS, pageScript } from '../capture-page.mjs'
 import { chromiumPath, launchConfined } from '../confine.mjs'
 
 const sha = (data: string | Uint8Array): string => createHash('sha256').update(data).digest('hex')
@@ -804,6 +804,10 @@ describe('the confined capture kernel', () => {
         }
         assert.deepEqual(await unsampled(script), [false, false], 'read within the budget')
         assert.deepEqual(await unsampled(script.replace(budget, '"maxLookMs":-1')), [true, true], 'past it')
+        // #117: the line boxes the page's text is indexed by, to find text beside a block, are bounded too.
+        const boxes = `"maxTextRects":${String(MAX_TEXT_RECTS)}`
+        assert.ok(script.includes(boxes), "the page's text is indexed within the kernel's own bound")
+        assert.deepEqual(await unsampled(script.replace(boxes, '"maxTextRects":1')), [true, false], 'past the boxes')
       } finally {
         await browser.close()
         fs.rmSync(workDir, { recursive: true, force: true })
@@ -890,6 +894,46 @@ describe('the confined capture kernel', () => {
       for (const target of ['w390-light', 'w1280-light']) {
         assert.deepEqual(issuesOf(receipt, target), { b1: ['covered'], b2: ['covered'], b3: [] }, target)
         assert.equal(outcome(receipt, 'blocks_visible', target), 'failed', target)
+      }
+    },
+  )
+
+  it(
+    'fails a block that other text sits beside on its lines, however the page places it; its own citation does not (#117)',
+    { skip },
+    async () => {
+      const receipt = await captureHtml(
+        job(
+          page(
+            `${BASE} .row{display:flex} .row p{margin:0} .grid{display:grid;grid-template-columns:8em 1fr;column-gap:2em}
+             .near{position:relative} .near p{margin:0} .near span{position:absolute;left:-0.6em;top:0}
+             .hide{overflow:hidden;width:0;height:0} .gone{overflow:hidden;height:0}`,
+            `<main><section data-section="s1"><h2>Findings</h2>
+            <p>-<span data-block="b1">10% growth</span></p>
+            <div class="row"><span>−</span><p data-block="b2">10% growth</p></div>
+            <div class="near"><span>-</span><p data-block="b3">10% growth</p></div>
+            <p><span data-block="b4">10</span><span data-block="b5">0% growth</span></p>
+            <p data-block="b6">10% growth<sup data-cite="a"><a href="#src-a">[1]</a></sup></p>
+            <h3>Cost</h3><p data-block="b7">10 USD a month</p>
+            <div class="grid"><span>Cost</span><p data-block="b8">10 USD a month</p></div>
+            <ul><li data-block="b9">10% growth</li></ul>
+            <div class="near"><div class="hide"><span>-</span></div><p data-block="b10">10% growth</p></div>
+            <div class="gone"><p>-</p></div><p data-block="b11">10% growth</p>
+            <p><span style="visibility:hidden">-</span><span data-block="b12">10% growth</span></p>
+            <ol id="src-a"><li data-source="a">Source</li></ol></section></main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const t of receipt.targets) {
+        const adjoined = t.page.blocks.filter((b) => b.issues.includes('adjoined')).map((b) => b.id)
+        assert.deepEqual(adjoined, ['b1', 'b2', 'b3', 'b4', 'b5', 'b10'], t.id)
+        assert.equal(outcome(receipt, 'blocks_visible', t.id), 'failed', t.id)
+        assert.match(
+          String(receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === t.id)?.detail),
+          /^b1, b2, b3, b4, b5, b10$/u,
+        )
       }
     },
   )

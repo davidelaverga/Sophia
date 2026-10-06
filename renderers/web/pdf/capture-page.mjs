@@ -23,6 +23,9 @@
  * @typedef {{ left: number, until: number, maxLines: number, paints: Map<Element, Paints>, reach: Reach }} Budget the
  *   points the cover check may still look at, the time (performance.now) it must stop by, the fewest lines a text may
  *   have to be refused unread, what each element looked at paints, and where paint reaches past the boxes
+ * @typedef {{ left: number, top: number, right: number, bottom: number }} Clip where overflow lets content be drawn
+ * @typedef {Clip & { owner: Element | null }} TextBox a line box of
+ *   text on the page, and the block it sits in (null outside every block)
  * @typedef {{ ctx: OffscreenCanvasRenderingContext2D, paints: Budget['paints'], reach: Reach, elsewhere: boolean }} Look
  *   what the cover check reads backgrounds with, and whether a text it looked at lies over a background its styles do
  *   not give
@@ -65,6 +68,14 @@ export const MAX_LINES = 10_000
  * this far apart on average. A heading set at 3px, or scaled down, measures as present and is read by no one (#117).
  */
 export const READABLE = { linePx: 10, advancePx: 3 }
+/**
+ * How close, in ems of a block's own text, another text may come to either end of one of its lines (#117): a mark, a
+ * label or another block set that near reads as part of the block's text, as "-" before "10%" reads "-10%", while the
+ * page's text still holds the block whole. A column beside the block, a word's width away or more, does not.
+ */
+export const BESIDE_EM = 0.5
+/** The most line boxes of text the page's index of them holds; past it every block's text is left unmeasured. */
+export const MAX_TEXT_RECTS = 100_000
 
 /**
  * The marks that say nothing, as a character class: the design profile's list (@sophia/design css.ts, MARK_TEXT; a test
@@ -372,6 +383,174 @@ function outerReach(s) {
  * placed is not read. `over` when the page has more such paint than the index holds: every text is then off its ground.
  * @returns {Reach}
  */
+/**
+ * The box an element's overflow lets its content be drawn in, in page coordinates, or null when it lets it overflow.
+ * @param {Element} el
+ */
+function ownClip(el) {
+  const style = getComputedStyle(el)
+  if (style.overflowX === 'visible' && style.overflowY === 'visible') return null
+  const r = el.getBoundingClientRect()
+  const left = r.left + el.clientLeft + window.scrollX
+  const top = r.top + el.clientTop + window.scrollY
+  return { left, top, right: left + el.clientWidth, bottom: top + el.clientHeight }
+}
+
+/**
+ * Where two clips overlap, or the one there is.
+ * @param {Clip | null} a
+ * @param {Clip | null} b
+ * @returns {Clip | null}
+ */
+function meet(a, b) {
+  if (!a || !b) return a ?? b
+  return {
+    left: Math.max(a.left, b.left),
+    top: Math.max(a.top, b.top),
+    right: Math.min(a.right, b.right),
+    bottom: Math.min(a.bottom, b.bottom),
+  }
+}
+
+/**
+ * Where the content of an element can be drawn, as the overflow of it and its ancestors clips it, or null when nothing
+ * clips it. An absolutely positioned box escapes every ancestor up to the positioned one it is placed in, so those do
+ * not clip it; any other box that sets where it is placed (a transform, a filter) is not followed, so a box may be
+ * taken as drawn where it is not, never the reverse.
+ * @param {Element | null} el
+ * @param {boolean} escaping whether the content is an absolutely positioned box not yet in its containing block
+ * @param {{ plain: Map<Element, Clip | null>, escaping: Map<Element, Clip | null> }} memo
+ * @returns {Clip | null}
+ */
+function clipOf(el, escaping, memo) {
+  if (!el) return null
+  const known = (escaping ? memo.escaping : memo.plain).get(el)
+  if (known !== undefined) return known
+  const position = getComputedStyle(el).position
+  const clip =
+    escaping && position === 'static'
+      ? clipOf(el.parentElement, true, memo)
+      : meet(ownClip(el), clipOf(el.parentElement, position === 'absolute', memo))
+  ;(escaping ? memo.escaping : memo.plain).set(el, clip)
+  return clip
+}
+
+/**
+ * The list a map holds for a key, made when there is none.
+ * @template K
+ * @param {Map<K, TextBox[]>} map
+ * @param {K} key
+ * @returns {TextBox[]}
+ */
+function listOf(map, key) {
+  const known = map.get(key)
+  if (known) return known
+  /** @type {TextBox[]} */
+  const list = []
+  map.set(key, list)
+  return list
+}
+
+/**
+ * A line box of text as it is drawn, in page coordinates, cut to what overflow lets be drawn of it; null when none is.
+ * @param {DOMRect} r
+ * @param {Clip | null} clip
+ * @param {Element | null} owner
+ * @returns {TextBox | null}
+ */
+function drawnBox(r, clip, owner) {
+  const at = { left: r.left + window.scrollX, top: r.top + window.scrollY }
+  const box = meet({ ...at, right: at.left + r.width, bottom: at.top + r.height }, clip)
+  return box && box.right > box.left && box.bottom > box.top ? { ...box, owner } : null
+}
+
+/**
+ * The element holding a text a reader can see, the block it sits in, and whether it is that block's own text: a
+ * block's citation mark sits in it and beside its text, but is not its text, so never one of its lines. Null for
+ * white space and for text that is not visible.
+ * @param {Node} node
+ * @returns {{ holder: Element, owner: Element | null, own: boolean } | null}
+ */
+function textHolder(node) {
+  const holder = node.parentElement
+  if (!holder || (node.textContent ?? '').trim() === '' || getComputedStyle(holder).visibility !== 'visible')
+    return null
+  const owner = holder.closest('[data-block]')
+  const cite = holder.closest('[data-cite]')
+  return { holder, owner, own: owner !== null && !(cite && owner.contains(cite)) }
+}
+
+/**
+ * Every line box of text on the page as it is drawn at the scroll it opens at, by 512px row, and each block's own; a
+ * box is cut to what overflow lets be drawn of it (clipOf), and text that is not visible is none. Null past
+ * `bound.maxRects` boxes or `bound.until`.
+ * @param {{ until: number, maxRects: number }} bound
+ * @returns {{ rows: Map<number, TextBox[]>, own: Map<Element, TextBox[]> } | null}
+ */
+function textBoxes(bound) {
+  /** @type {{ rows: Map<number, TextBox[]>, own: Map<Element, TextBox[]> }} */
+  const index = { rows: new Map(), own: new Map() }
+  /** @type {{ plain: Map<Element, Clip | null>, escaping: Map<Element, Clip | null> }} */
+  const memo = { plain: new Map(), escaping: new Map() }
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+  const range = document.createRange()
+  let count = 0
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = textHolder(node)
+    if (!text) continue
+    const clip = clipOf(text.holder, false, memo)
+    range.selectNodeContents(node)
+    for (const r of range.getClientRects()) {
+      count += 1
+      if (count > bound.maxRects || performance.now() > bound.until) return null
+      const box = drawnBox(r, clip, text.owner)
+      if (!box) continue
+      if (text.owner && text.own) listOf(index.own, text.owner).push(box)
+      for (let row = Math.floor(box.top / 512); row <= Math.floor(box.bottom / 512); row += 1)
+        listOf(index.rows, row).push(box)
+    }
+  }
+  return index
+}
+
+/**
+ * Whether text outside a block sits on one of its lines within `gap` of the line: the two share at least half the
+ * shorter one's height, and nothing a word wide parts them (#117).
+ * @param {TextBox} line one of the block's line boxes
+ * @param {Map<number, TextBox[]>} rows every text's line boxes, by 512px row
+ * @param {number} gap
+ */
+function besideLine(line, rows, gap) {
+  for (let row = Math.floor(line.top / 512); row <= Math.floor(line.bottom / 512); row += 1)
+    for (const other of rows.get(row) ?? []) {
+      if (other.owner === line.owner) continue
+      const shared = Math.min(line.bottom, other.bottom) - Math.max(line.top, other.top)
+      const shorter = Math.min(line.bottom - line.top, other.bottom - other.top)
+      if (shared >= shorter / 2 && other.right >= line.left - gap && other.left <= line.right + gap) return true
+    }
+  return false
+}
+
+/**
+ * The blocks a text outside them sits beside, on one of their lines (BESIDE_EM): a mark, a label, another block or
+ * its citation mark, however the page places it (inline, a flex or grid cell, a float, an absolute box). The
+ * page's text reads the block whole while a reader sees the two as one (#117). Null when the page's text runs past
+ * MAX_TEXT_RECTS line boxes or the time left, and then no block is measured for it.
+ * @param {Element[]} blocks
+ * @param {{ until: number, maxRects: number, besideEm: number }} bound
+ * @returns {Set<Element> | null}
+ */
+function adjoinedBlocks(blocks, bound) {
+  const index = textBoxes(bound)
+  if (!index) return null
+  return new Set(
+    blocks.filter((block) => {
+      const gap = Number.parseFloat(getComputedStyle(block).fontSize) * bound.besideEm
+      return (index.own.get(block) ?? []).some((line) => besideLine(line, index.rows, gap))
+    }),
+  )
+}
+
 function reachIndex() {
   /** @type {Reach} */
   const index = { rows: new Map(), over: false }
@@ -942,7 +1121,7 @@ function measureBlock(el, page, ctx, budget) {
  * Everything the kernel measures at the current viewport. Checking cover scrolls, and puts every scroll back (keepScroll),
  * so each element is placed, and the page captured, as it starts; the view ends at the top, where the captures begin.
  * @param {{ maxListed: number, maxMeasured: number, marks: string, maxPoints: number, maxLookMs: number,
- *   maxLines: number, readable: { linePx: number, advancePx: number } }} opts
+ *   maxLines: number, readable: { linePx: number, advancePx: number }, maxTextRects: number, besideEm: number }} opts
  * @returns {PageAnswer}
  */
 function measurePage(opts) {
@@ -963,11 +1142,16 @@ function measurePage(opts) {
     const concealed = [...concealedIssues(el), ...(tooSmall(el, opts.readable, words) ? ['no_visible_text'] : [])]
     return { ...measure, id: id.slice(0, 200), issues: [...new Set([...concealed, ...measure.issues])].slice(0, 10) }
   }
-  // A block is held to what a label is, and so is each run of its text in an element inside it (#117).
+  // A block is held to what a label is, and so is each run of its text in an element inside it (#117); and no other
+  // text sits beside one on its lines, read as the page opens, before any scroll (#117).
   const runs = { left: opts.maxMeasured, over: 0 }
-  const blocks = [...document.querySelectorAll('[data-block]')].map((el) =>
-    withRuns(strictly({ el, id: el.getAttribute('data-block') ?? '' }), el, { page, ctx, runs }),
-  )
+  const elements = [...document.querySelectorAll('[data-block]')]
+  const beside = adjoinedBlocks(elements, { until: budget.until, maxRects: opts.maxTextRects, besideEm: opts.besideEm })
+  const blocks = elements.map((el) => {
+    const m = withRuns(strictly({ el, id: el.getAttribute('data-block') ?? '' }), el, { page, ctx, runs })
+    if (beside === null) return { ...m, unsampled: true }
+    return beside.has(el) ? { ...m, issues: [...new Set([...m.issues, 'adjoined'])].slice(0, 10) } : m
+  })
   const labels = shownElements()
   const texts = framingElements(opts.marks)
   const shown = labels.slice(0, opts.maxMeasured).map(strictly)
@@ -1035,6 +1219,15 @@ function framingElements(marks) {
 
 /** The functions above, in the order they are defined, as the source the kernel sends. */
 const IN_PAGE = [
+  ownClip,
+  meet,
+  clipOf,
+  listOf,
+  drawnBox,
+  textHolder,
+  textBoxes,
+  besideLine,
+  adjoinedBlocks,
   boxOf,
   nameOf,
   overflowingElements,
@@ -1103,6 +1296,8 @@ export function pageScript(opts) {
     maxLookMs: MAX_LOOK_MS,
     maxLines: MAX_LINES,
     readable: READABLE,
+    maxTextRects: MAX_TEXT_RECTS,
+    besideEm: BESIDE_EM,
   }
   return `(() => {\n${IN_PAGE.map((f) => f.toString()).join('\n')}\nreturn measurePage(${JSON.stringify(all)})\n})()`
 }
