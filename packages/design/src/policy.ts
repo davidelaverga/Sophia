@@ -8,6 +8,7 @@ import { safeHref } from '@sophia/report/markdown'
 import { checkCss } from './css.ts'
 import { attr, depthOf, elements, hasAncestor, inHtml, lineAt, type Document, type Element } from './dom.ts'
 import { error, warning, type Finding } from './findings.ts'
+import { REFERENCE_ATTRIBUTES, TEXT_ATTRIBUTES } from './framing.ts'
 
 const ELEMENTS = new Set([
   'html',
@@ -120,7 +121,37 @@ const ELEMENT_ATTRIBUTES: Readonly<Record<string, ReadonlySet<string>>> = {
 }
 
 const DATA_ATTRIBUTE = /^data-[a-z][a-z0-9-]{0,40}$/
-const ARIA_ATTRIBUTE = /^aria-[a-z]{2,24}$/
+const BOOLEAN = new Set(['true', 'false'])
+const TRISTATE = new Set(['true', 'false', 'mixed', 'undefined'])
+/**
+ * The ARIA states a page may declare, each with the tokens it takes: none carries data of its own (#117). Every other
+ * ARIA attribute is a text (framing.ts holds it to a shown label), a reference (to a block, a label or a mark), or
+ * refused: a value, a count, a position or a level announces a number that no capture shows.
+ */
+const ARIA_STATES: Readonly<Record<string, ReadonlySet<string>>> = {
+  'aria-hidden': new Set(['true', 'false', 'undefined']),
+  'aria-current': new Set(['page', 'step', 'location', 'date', 'time', 'true', 'false']),
+  'aria-expanded': new Set(['true', 'false', 'undefined']),
+  'aria-selected': new Set(['true', 'false', 'undefined']),
+  'aria-checked': TRISTATE,
+  'aria-pressed': TRISTATE,
+  'aria-disabled': BOOLEAN,
+  'aria-busy': BOOLEAN,
+  'aria-atomic': BOOLEAN,
+  'aria-modal': BOOLEAN,
+  'aria-multiline': BOOLEAN,
+  'aria-multiselectable': BOOLEAN,
+  'aria-readonly': BOOLEAN,
+  'aria-required': BOOLEAN,
+  'aria-live': new Set(['off', 'polite', 'assertive']),
+  'aria-relevant': new Set(['additions', 'removals', 'text', 'all']),
+  'aria-haspopup': new Set(['true', 'false', 'menu', 'listbox', 'tree', 'grid', 'dialog']),
+  'aria-invalid': new Set(['true', 'false', 'grammar', 'spelling']),
+  'aria-orientation': new Set(['horizontal', 'vertical', 'undefined']),
+  'aria-sort': new Set(['ascending', 'descending', 'none', 'other']),
+  'aria-autocomplete': new Set(['inline', 'list', 'both', 'none']),
+}
+const HELD_ARIA = new Set([...TEXT_ATTRIBUTES, ...REFERENCE_ATTRIBUTES])
 const META_NAMES = new Set(['viewport', 'description', 'color-scheme', 'generator'])
 /** A section id: stable, readable, usable as a fragment. */
 export const SECTION_ID = /^[a-z][a-z0-9-]{0,63}$/
@@ -135,11 +166,20 @@ export const MAX_DEPTH = 256
 
 const lineOf = (html: string, el: Element): number => lineAt(html, el.sourceCodeLocation?.startOffset ?? 0)
 
-const isGlobal = (name: string): boolean =>
-  GLOBAL_ATTRIBUTES.has(name) || DATA_ATTRIBUTE.test(name) || ARIA_ATTRIBUTE.test(name)
+const isGlobal = (name: string): boolean => GLOBAL_ATTRIBUTES.has(name) || DATA_ATTRIBUTE.test(name)
+
+/** Why an ARIA attribute is refused, or null: a held text or reference, or a state with its own tokens (#117). */
+function ariaIssue(name: string, value: string): string | null {
+  if (HELD_ARIA.has(name)) return null
+  const tokens = ARIA_STATES[name]
+  if (!tokens) return `${name} is not allowed: a value, count, position or level is announced but never shown`
+  const given = value.trim().toLowerCase().split(/\s+/u)
+  return given.every((t) => tokens.has(t)) ? null : `${name} takes ${[...tokens].join(', ')}`
+}
 
 function attributeIssue(el: Element, name: string, value: string): string | null {
   if (/^on/i.test(name)) return `event handler ${name} is not allowed`
+  if (name.startsWith('aria-')) return ariaIssue(name, value)
   if (isGlobal(name))
     return name === 'tabindex' && value !== '0' && value !== '-1' ? 'tabindex may only be 0 or -1' : null
   if (!ELEMENT_ATTRIBUTES[el.tagName]?.has(name)) return `attribute ${name} is not allowed on <${el.tagName}>`

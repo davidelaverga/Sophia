@@ -463,6 +463,42 @@ describe('a tooltip or an accessible name carries no text the page does not show
       )
     }
   })
+  it('refuses an ARIA value, count, position or level, an unknown ARIA attribute, and a state given free text (#117)', () => {
+    const numeric = [
+      'aria-valuenow="0"',
+      'aria-valuemin="0"',
+      'aria-valuemax="100"',
+      'aria-rowcount="3"',
+      'aria-colcount="3"',
+      'aria-rowindex="2"',
+      'aria-colindex="2"',
+      'aria-rowspan="2"',
+      'aria-colspan="2"',
+      'aria-posinset="1"',
+      'aria-setsize="9"',
+      'aria-level="2"',
+      'aria-cost="free"',
+      'aria-current="Host three is free"',
+      'aria-sort="cheapest first"',
+    ]
+    for (const attribute of numeric) {
+      const to = `<main><span role="slider" tabindex="0" aria-labelledby="t" ${attribute}></span>\n<h1 id="t">`
+      assert.deepEqual(swap('<main>\n<h1>', to), ['unsafe_attribute'], attribute)
+    }
+  })
+  it('accepts the ARIA states that carry no data of their own', () => {
+    for (const attribute of [
+      'aria-hidden="true"',
+      'aria-current="page"',
+      'aria-expanded="false"',
+      'aria-sort="ascending"',
+      'aria-relevant="additions text"',
+      'aria-live="polite"',
+    ]) {
+      const to = `<main><nav ${attribute}><a href="#s1">Findings</a></nav>`
+      assert.deepEqual(swap('<main>', to), [], attribute)
+    }
+  })
   it('accepts a word for a part of the page in a few languages, with a number or a short id', () => {
     for (const name of ['Contents', 'Table b5', 'Indice 2', 'Tabelle 3', 'Sommaire', 'Índice']) {
       const to = `<main><nav aria-label="${name}"><a href="#s1">Findings</a></nav>`
