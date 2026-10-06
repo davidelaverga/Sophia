@@ -32,6 +32,7 @@ import { noTasks, taskOf } from './task-data.ts'
 import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
+import { CONVERSATION, conversationMission, conversations, messagesOf } from './conversation-data.ts'
 import { asked, deliverCaption, deliverNotice, dropCall, leaving, sophiaLeaves } from './fake-livekit.ts'
 import {
   count,
@@ -121,6 +122,8 @@ interface Fixture {
   releaseTaskReads: () => void
   /** While on, searches wait; off, the waiting ones are answered (A13). */
   holdSearch: (on: boolean) => void
+  /** The conversations' list reads fail, or read again (A18). */
+  failConversations: (on: boolean) => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
   holdTasks: (on: boolean) => void
   releaseTasks: () => void
@@ -280,6 +283,9 @@ const project = {
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
   // A16: the versions' reviews (review-data.ts).
+  // A18: the project's conversations (`conversations=1`; `=none`, none; `=fail`, the list fails; `messages=fail`, the
+  // second one's messages fail), and the brief's context beside them.
+  ...conversationsAsked(query.get('conversations'), query.get('messages') === 'fail'),
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
   reviews: {
@@ -398,6 +404,9 @@ window.fixture = {
     const held = project.reviews.heldReads ?? []
     project.reviews.heldReads = null
     for (const answer of held) answer()
+  },
+  failConversations: (on) => {
+    if (project.conversations) project.conversations.failList = on
   },
   holdSearch: (on) => {
     if (!on) for (const answer of project.searchHeld ?? []) answer()
@@ -604,10 +613,10 @@ const nothing = () => undefined
 
 /** The page `place=` names: Knowledge, Work (with the research task's card), Updates, else the room. */
 const viewOf = (place: string | null) =>
-  place === 'knowledge' || place === 'work' || place === 'updates' ? place : 'studio'
+  place === 'knowledge' || place === 'work' || place === 'updates' || place === 'conversations' ? place : 'studio'
 
-/** The views this fixture's API serves: the room, Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
-const SERVED: readonly View[] = ['studio', 'knowledge', 'work', 'updates']
+/** The views this fixture's API serves: the room, Conversations, Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
+const SERVED: readonly View[] = ['studio', 'conversations', 'knowledge', 'work', 'updates']
 
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }
@@ -623,6 +632,20 @@ function Kept({ children }: { children: (background: boolean) => ReactNode }) {
       <ShortcutScope.Provider value={inSight}>{children(!inSight)}</ShortcutScope.Provider>
     </div>
   )
+}
+
+/** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
+function conversationsAsked(which: string | null, failMessages: boolean) {
+  if (which === null) return {}
+  return {
+    conversations: {
+      list: which === 'none' ? [] : conversations(),
+      messages: messagesOf(),
+      failList: which === 'fail',
+      failMessagesOf: failMessages ? CONVERSATION.briefs : null,
+    },
+    missionPlus: conversationMission(),
+  }
 }
 
 /** The project as App.tsx shows it: its view moves as the person picks another (ViewNav, the mini dock). */

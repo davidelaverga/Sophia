@@ -3,7 +3,7 @@
 // navigation lives here: the lens, drafts and panels are per-viewer (viewer-state.ts).
 
 /** Project views (architecture 04 §1). Studio is the shared room; the others inspect the same records. */
-export const VIEWS = ['studio', 'goals', 'work', 'knowledge', 'updates', 'resources'] as const
+export const VIEWS = ['studio', 'conversations', 'goals', 'work', 'knowledge', 'updates', 'resources'] as const
 export type View = (typeof VIEWS)[number]
 
 /** Outside a project: the two doors (home), the personal space and the work space (A10, direction C). */

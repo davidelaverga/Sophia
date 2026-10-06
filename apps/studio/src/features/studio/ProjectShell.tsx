@@ -34,6 +34,7 @@ import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
 import { useKnownNames } from './useKnownNames.ts'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
+import { ConversationsView } from '../conversations/ConversationsView.tsx'
 import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
@@ -560,6 +561,9 @@ function PageBody(props: BodyProps) {
         onInvite={onInvite}
       />
     )
+  }
+  if (view === 'conversations' && VISION) {
+    return <ConversationsView {...{ projectId, identity, membership }} cursor={snapshot?.cursor} />
   }
   if (view === 'updates' && VISION) {
     const inCall = props.room.status === 'live' || props.room.status === 'reconnecting'
