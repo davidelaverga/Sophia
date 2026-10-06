@@ -47,7 +47,7 @@ jobs:
   image:
     name: Paperclip image under a 2 GiB cgroup
     runs-on: ubuntu-24.04
-    # Above the sum of every step's own budget (308 minutes), so a slow step that stays within its budget fails as
+    # Above the sum of every step's own budget (310 minutes), so a slow step that stays within its budget fails as
     # that step, and the receipt, scrub, upload and clean-up still run after it; the job's limit never ends the job
     # first (WBC-02, Codex review of 5446719). The unit tests hold this sum.
     timeout-minutes: 325
@@ -193,6 +193,7 @@ jobs:
       # minute more, so no step ends before what it runs could finish (WBC-02, Codex review of 4c63217; the unit tests
       # hold the sums):
       #   container start or restart  450 s  (health window 300, one last read and check 27, log 60, inspects 20)
+      #   container stop              150 s  (docker stop: 30 s of grace, then the kill; 90)
       #   container remove            150 s  (docker rm 120)
       #   cgroup sample               150 s  (two inspects 40, five files at most 50, stats 20)
       #   service probe, first phase  960 s  (its own deadline 900: the health wait 300, the plugin ready 60, a settle
@@ -213,18 +214,19 @@ jobs:
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:idle "$EVIDENCE/cgroup.jsonl"
 
       # After the restart, what persists is probed before the recreation, and memory read after it as after the other
-      # probes (review of 9ee7754, CX-0045): sign-up is still open, so the probe does not try it. The home is
-      # snapshotted last, at the recreation boundary, so what the idle period, the restart and its probe wrote is in
-      # home-before.json and held across the recreation; from the first phase's snapshot, so it is held across the
-      # restart too (review of 2bad104).
+      # probes (review of 9ee7754, CX-0045): sign-up is still open, so the probe does not try it. Last, the container is
+      # stopped and its home snapshotted, at the recreation boundary: what the idle period, the restart and its probe
+      # wrote is in home-before.json, nothing writes between that scan and the removal, and it is held across the
+      # recreation; from the first phase's snapshot, so it is held across the restart too (review of 2bad104).
       - name: Restart
-        timeout-minutes: 29
+        timeout-minutes: 31
         run: |
           timeout 450 node sophia/scripts/paperclip-image-container.mjs restart restart
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc restart:healthy "$EVIDENCE/cgroup.jsonl"
           timeout 660 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase restart \
             --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-restart.json" --wait-ms 300000 --deadline-ms 600000
           timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc restart:after-flow "$EVIDENCE/cgroup.jsonl"
+          timeout 150 node sophia/scripts/paperclip-image-container.mjs stop
           timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-before.json" "$EVIDENCE/home-first.json"
 
       - name: Recreate on the same volume and database, sign-up closed

@@ -214,13 +214,13 @@ function homeOf(container) {
   const mounts = JSON.parse(inspect('{{json .Mounts}}'))
   const home = Array.isArray(mounts) ? mounts.find((m) => m.Destination === '/paperclip') : null
   if (home?.Type !== 'volume' || !home.Name) throw new Error(`${container} has no named volume at /paperclip`)
-  return { volume: home.Name, image: inspect('{{.Image}}') }
+  return { volume: home.Name, image: inspect('{{.Image}}'), running: inspect('{{.State.Running}}') === 'true' }
 }
 
 function snapshot(container, out, beforePath) {
   const before = beforePath ? JSON.parse(readFileSync(beforePath, 'utf8')).files : []
   const prefixOf = Object.fromEntries(before.filter((f) => measured(f) && growing(f.path)).map((f) => [f.path, f.size]))
-  const { volume, image } = homeOf(container)
+  const { volume, image, running } = homeOf(container)
   const scanner = [
     'run',
     '--rm',
@@ -241,8 +241,10 @@ function snapshot(container, out, beforePath) {
     'scan',
     '/paperclip',
   ]
-  // The only writer of the volume is frozen for the scan, so the tree cannot change under it; always thawed after.
-  execFileSync('docker', ['pause', container], { timeout: 20_000 })
+  // The only writer of the volume is frozen for the scan, so the tree cannot change under it; always thawed after. A
+  // container already stopped (the recreation boundary, review of 2bad104) is scanned as it is: nothing writes between
+  // the scan and its removal. The record says which, for the receipt to require.
+  if (running) execFileSync('docker', ['pause', container], { timeout: 20_000 })
   let output
   try {
     output = execFileSync('docker', scanner, {
@@ -252,16 +254,17 @@ function snapshot(container, out, beforePath) {
       input: JSON.stringify({ prefixOf }),
     })
   } finally {
-    execFileSync('docker', ['unpause', container], { timeout: 20_000 })
+    if (running) execFileSync('docker', ['unpause', container], { timeout: 20_000 })
   }
   const result = JSON.parse(output)
-  writeFileSync(out, `${JSON.stringify({ at: new Date().toISOString(), ...result }, null, 2)}\n`)
+  const writer = running ? 'paused' : 'stopped'
+  writeFileSync(out, `${JSON.stringify({ at: new Date().toISOString(), writer, ...result }, null, 2)}\n`)
   const { coverage, files, prefixes } = result
   const { complete } = coverageOf(result)
   console.log(
     `[home] ${files.length} of ${coverage.total} files under /paperclip listed, ${files.filter((f) => !measured(f)).length} of them unread, ` +
       `${coverage.oversize.length} too large to hash, ${coverage.errors.length} directories unread ` +
-      `(coverage ${complete ? 'complete' : 'incomplete'}); ${Object.keys(prefixes).length} growing records' prefixes read`,
+      `(coverage ${complete ? 'complete' : 'incomplete'}); ${Object.keys(prefixes).length} growing records' prefixes read; the writer ${writer}`,
   )
 }
 

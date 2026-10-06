@@ -3,6 +3,8 @@
 //   node scripts/paperclip-image-container.mjs start <label> [signup-closed]   run it under the 2 GiB ceiling and wait
 //                                                                           (300 s at most) until it reports healthy
 //   node scripts/paperclip-image-container.mjs restart <label>              docker restart, then the same wait
+//   node scripts/paperclip-image-container.mjs stop                         docker stop (30 s of grace), before the
+//                                                                           home's boundary snapshot (review of 2bad104)
 //   node scripts/paperclip-image-container.mjs remove
 //   node scripts/paperclip-image-container.mjs diagnostics <dir>             bounded, redacted logs and state
 // The image is $IMAGE; the database ($DATABASE_URL, a disposable PostgreSQL on the job's own network) and the
@@ -145,6 +147,9 @@ if (mode === 'start') {
   docker(['restart', '-t', '30', NAME])
   recordRuntime(label)
   await waitHealthy(label, started)
+} else if (mode === 'stop') {
+  // Stopped before the home's boundary snapshot, so nothing writes between that scan and the removal (review of 2bad104).
+  docker(['stop', '-t', '30', NAME], 90_000)
 } else if (mode === 'remove') {
   docker(['rm', '--force', NAME])
 } else if (mode === 'diagnostics') {
@@ -169,5 +174,5 @@ if (mode === 'start') {
   writeFileSync(join(label, 'pcdb-logs.txt'), redact(capture(['logs', '--tail', '100', 'pcdb'])))
   console.log(`[container] redacted diagnostics in ${label}`)
 } else {
-  throw new Error('usage: paperclip-image-container.mjs start <label> [signup-closed] | restart <label> | remove | diagnostics <dir>')
+  throw new Error('usage: paperclip-image-container.mjs start <label> [signup-closed] | restart <label> | stop | remove | diagnostics <dir>')
 }

@@ -15,8 +15,8 @@
 // container, the recreation's a new one), every figure a whole number, the limit 2 GiB without swap, peak and current
 // within it, and no OOM event of any kind; each probe phase's required steps all present and passed, and what each observed (statuses, outcomes, the same plugin, issue and configuration
 // across both phases) recorded and as required; the home's persistence across the restart and across the recreation,
-// each recomputed from the two snapshots either side of it (the later one at the recreation boundary, so what was
-// written up to it is held; review of 2bad104), every size and digest it compares one that was read, and every file
+// each recomputed from the two snapshots either side of it (the later one at the recreation boundary, of the stopped
+// container, so what was written up to the removal is held; review of 2bad104), every size and digest it compares one that was read, and every file
 // under the home covered (CX-0039).
 // A check is passed, failed, unavailable (recorded but incomplete, or not in the shape it is read in) or not reached. The verdict is `qualified` only when
 // every check passed, `failed` when any failed, and `incomplete` otherwise. What it qualifies: the image built from the
@@ -327,9 +327,13 @@ function probeCheck(probe, phase, firstProbe) {
  * unavailable when an entry was recorded without its size or digest, or a snapshot did not list and hash every file
  * (WBC-02-CX-0039): what was not read is reported, never counted as equal.
  */
-function homeCheck(before, after) {
+function homeCheck(before, after, { cutover = false } = {}) {
   if (!before || !after) return { result: 'not reached' }
   if (!Array.isArray(before.files) || !Array.isArray(after.files)) return { result: 'unavailable' }
+  // At the recreation boundary the earlier snapshot must be of the stopped container, as the snapshot records: of a
+  // running or paused one, what it wrote after the scan and before the removal is unknown (review of 2bad104).
+  if (cutover && before.writer !== 'stopped')
+    return { result: 'unavailable', detail: { reason: 'the boundary snapshot is not of a stopped writer', writer: before.writer ?? null } }
   const comparison = compareSnapshots(before.files, after.files, after.prefixes ?? {})
   const coverage = { before: coverageOf(before), after: coverageOf(after) }
   const complete = coverage.before.complete && coverage.after.complete
@@ -381,7 +385,7 @@ export function assess({
     ...PHASES.map((phase) => guarded(`memory, ${phase}`, () => memoryCheck(samples, phase), unreadable)),
     ...['first', 'restart', 'restarted'].map((phase) => guarded(`installed plugin flow, ${phase}`, () => probeCheck(probes[phase], phase, probes.first), unreadable)),
     guarded('home persisted across restart', () => homeCheck(home.first, home.before), unreadable),
-    guarded('home persisted across recreation', () => homeCheck(home.before, home.after), unreadable),
+    guarded('home persisted across recreation', () => homeCheck(home.before, home.after, { cutover: true }), unreadable),
   ]
   const results = checks.map((c) => c.result)
   const verdict = results.includes('failed') ? 'failed' : results.every((r) => r === 'passed') ? 'qualified' : 'incomplete'

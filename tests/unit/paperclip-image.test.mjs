@@ -36,12 +36,12 @@ const files = [
 const covered = (list) => ({ total: list.length, oversize: [], errors: [], maxFiles: 500, maxFileBytes: 10 * 1024 * 1024 })
 /** The log grew to 5000 bytes, its first 4000 the ones it had: the prefix the later snapshot read. */
 const grownFiles = files.map((f) => (f.path === LOG ? { ...f, size: 5000, sha256: '9'.repeat(64) } : f))
-const grown = { coverage: covered(grownFiles), files: grownFiles, prefixes: { [LOG]: { size: 4000, sha256: '3'.repeat(64) } } }
+const grown = { coverage: covered(grownFiles), files: grownFiles, prefixes: { [LOG]: { size: 4000, sha256: '3'.repeat(64) } }, writer: 'paused' }
 /** The home after the first phase: the log at 3000 bytes, before the idle period, the restart and its probe grew it. */
 const firstFiles = files.map((f) => (f.path === LOG ? { ...f, size: 3000, sha256: '5'.repeat(64) } : f))
-const first = { coverage: covered(firstFiles), files: firstFiles }
-/** The home at the recreation boundary: the log at 4000, its first 3000 the ones it had after the first phase. */
-const boundary = { coverage: covered(files), files, prefixes: { [LOG]: { size: 3000, sha256: '5'.repeat(64) } } }
+const first = { coverage: covered(firstFiles), files: firstFiles, writer: 'paused' }
+/** The home at the recreation boundary, of the stopped container: the log at 4000, its first 3000 the ones it had. */
+const boundary = { coverage: covered(files), files, prefixes: { [LOG]: { size: 3000, sha256: '5'.repeat(64) } }, writer: 'stopped' }
 
 /** The build's MANIFEST, as bytes; the Dockerfile is recorded for reference and not copied into the image. */
 const manifestOf = (change = {}) =>
@@ -1186,10 +1186,11 @@ describe('review of 705c2b8: whatever shape a record has, at any depth, the rece
 
   /**
    * What the receipt does not judge, by design: the producer's own flags (the identity is recomputed instead), the
-   * build stage's platform (the image's is judged), the scans' informational settings, and each step's duration.
+   * build stage's platform (the image's is judged), the scans' informational settings, each step's duration, and whether
+   * the first and the after snapshots paused their writer (only the boundary's must have been stopped).
    */
   const UNJUDGED =
-    /^(identity\.(pin|sophiaCommit|sophiaTreeDirty|manifestMatches|verifyManifestInImage)|identity\.buildImage\.(os|architecture)|(home\.\w+|packaged\.imageFiles)\.coverage\.(maxFiles|maxFileBytes)|packaged\.imageFiles\.prefixes|probes\.\w+\.steps\.\d+\.ms)$/
+    /^(identity\.(pin|sophiaCommit|sophiaTreeDirty|manifestMatches|verifyManifestInImage)|identity\.buildImage\.(os|architecture)|(home\.\w+|packaged\.imageFiles)\.coverage\.(maxFiles|maxFileBytes)|home\.(first|after)\.writer|packaged\.imageFiles\.prefixes|probes\.\w+\.steps\.\d+\.ms)$/
 
   it('positive control: the complete run is qualified, nothing unreadable', () => {
     const { receipt } = receiptOf(complete())
@@ -1449,6 +1450,26 @@ describe('review of 2bad104: the home is snapshotted at the recreation boundary,
     assert.deepEqual(recreation.detail.unverified, ['instances/default/other.json'])
   })
 
+  it('the boundary snapshot must be of the stopped container: of a paused or unrecorded writer, the recreation is unavailable', () => {
+    for (const writer of ['paused', null, 'x', 7]) {
+      const run = complete()
+      run.home.before.writer = writer
+      const recreation = recreationOf(run)
+      assert.equal(recreation.result, 'unavailable', String(writer))
+      assert.equal(recreation.detail.reason, 'the boundary snapshot is not of a stopped writer')
+      assert.equal(restartOf(run).result, 'passed', 'the restart transition does not need a stopped writer')
+      assert.equal(verdictOf(run), 'incomplete')
+    }
+    const unrecorded = complete()
+    delete unrecorded.home.before.writer
+    assert.equal(recreationOf(unrecorded).result, 'unavailable')
+    // The first and the after snapshots pause a running container; their writer's state is recorded, not required.
+    const paused = complete()
+    paused.home.first.writer = 'stopped'
+    paused.home.after.writer = undefined
+    assert.equal(verdictOf(paused), 'qualified')
+  })
+
   it('without the first snapshot the restart transition is not reached, and the run is not qualified', () => {
     const run = complete()
     run.home.first = null
@@ -1466,6 +1487,8 @@ describe('review of 2bad104: the home is snapshotted at the recreation boundary,
     const snapshot = 'node sophia/scripts/paperclip-image-home.mjs snapshot pc'
     assert.ok(firstStep.includes(`timeout 240 ${snapshot} "$EVIDENCE/home-first.json"`), 'the first phase’s snapshot, from nothing earlier')
     assert.equal(restart.at(-1), `timeout 240 ${snapshot} "$EVIDENCE/home-before.json" "$EVIDENCE/home-first.json"`, 'the boundary snapshot is the last thing before the removal')
+    assert.equal(restart.at(-2), 'timeout 150 node sophia/scripts/paperclip-image-container.mjs stop', 'the writer is stopped before that snapshot, and nothing starts it again')
+    assert.ok(!restart.slice(0, -2).some((c) => c.includes('container.mjs stop')), 'stopped once, last')
     assert.match(recreate[0], /paperclip-image-container\.mjs remove$/)
     assert.ok(recreate.includes(`timeout 240 ${snapshot} "$EVIDENCE/home-after.json" "$EVIDENCE/home-before.json"`))
     const compare = 'node sophia/scripts/paperclip-image-home.mjs compare'

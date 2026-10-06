@@ -194,6 +194,7 @@ case "$1" in
     case "$3" in
       '{{json .Mounts}}') echo '[{"Type":"volume","Name":"pchome","Destination":"/paperclip"}]' ;;
       '{{.Image}}') echo sha256:${'c'.repeat(64)} ;;
+      '{{.State.Running}}') echo "\${RUNNING:-true}" ;;
     esac ;;
   pause|unpause) echo "$2" ;;
   run)
@@ -224,14 +225,27 @@ describe('the snapshot around the scan (review of 3db6ef9)', { skip: LINUX_ONLY 
     assert.equal(run.status, 0, run.stderr)
     assert.deepEqual(
       calls.map((c) => c.split(' ')[0]),
-      ['inspect', 'inspect', 'pause', 'run', 'unpause'],
+      ['inspect', 'inspect', 'inspect', 'pause', 'run', 'unpause'],
     )
-    const scanner = calls[3].split(' ')
+    assert.equal(JSON.parse(readFileSync(out, 'utf8')).writer, 'paused', 'the record says the writer was paused for the scan')
+    const scanner = calls[4].split(' ')
     for (const flag of ['--rm', '--network=none', '--read-only', '--cap-drop=ALL', '--cap-add=DAC_READ_SEARCH', '--security-opt=no-new-privileges', '--volume=pchome:/paperclip:ro'])
       assert.ok(scanner.includes(flag), flag)
     assert.ok(scanner.some((a) => /^--volume=.+:\/opt\/home-scan\/scan\.mjs:ro$/.test(a)), 'the scan script, read-only')
     assert.ok(!scanner.some((a) => a.startsWith('--env') || a.startsWith('-e')), 'no environment')
     assert.equal(coverageOf(JSON.parse(readFileSync(out, 'utf8'))).complete, true)
+  })
+
+  it('review of 2bad104: a container already stopped is scanned as it is, neither paused nor thawed, and the record says so', () => {
+    const { run, calls, out } = snapshotWith(home(), { RUNNING: 'false' })
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(
+      calls.map((c) => c.split(' ')[0]),
+      ['inspect', 'inspect', 'inspect', 'run'],
+    )
+    const record = JSON.parse(readFileSync(out, 'utf8'))
+    assert.equal(record.writer, 'stopped')
+    assert.equal(coverageOf(record).complete, true)
   })
 
   it('thaws the container when the scan fails', () => {
