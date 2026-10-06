@@ -414,7 +414,20 @@ describe("the placements read within the sweep's time (#117, placement.mjs)", ()
 /** A snapshot of a page: html, head, body, a p with a ::before (one box and an empty one), its text and an ::after in two
  * boxes, and a li whose ::marker draws a glyph, not a box. */
 function withGenerated() {
-  const strings = ['HTML', 'HEAD', 'BODY', 'P', '::before', 'before', '#text', 'LI', '::marker', 'marker', '::after', 'after']
+  const strings = [
+    'HTML',
+    'HEAD',
+    'BODY',
+    'P',
+    '::before',
+    'before',
+    '#text',
+    'LI',
+    '::marker',
+    'marker',
+    '::after',
+    'after',
+  ]
   return {
     documents: [
       {
