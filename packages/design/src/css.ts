@@ -194,6 +194,44 @@ function uncaptured(part: CssNode): string | null {
 const SHADOWLESS = new Set(['none', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
 
 /**
+ * The values a blend or a filter may take: none, or a keyword that resets it. A blend mode (`mix-blend-mode`,
+ * `background-blend-mode`) or a filter (`filter`, `backdrop-filter`) changes the colours text is drawn in after its
+ * styles give them: `mix-blend-mode: screen` draws black research white on white, and `filter: opacity(0)`,
+ * `brightness(0)` or `invert(1)` hide or recolour it, while the render can only report the contrast as unknown, which
+ * the gate takes as a limitation, not a failure (#117). Any other value, a variable included, is refused.
+ */
+const UNBLENDED = new Set(['normal', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
+const UNFILTERED = new Set(['none', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
+const PAINT_MODES: Readonly<Record<string, ReadonlySet<string>>> = {
+  'mix-blend-mode': UNBLENDED,
+  'background-blend-mode': UNBLENDED,
+  filter: UNFILTERED,
+  '-webkit-filter': UNFILTERED,
+  'backdrop-filter': UNFILTERED,
+  '-webkit-backdrop-filter': UNFILTERED,
+}
+
+/** Whether a value is one or more keywords of `allowed`, separated by commas (`normal, normal` for each layer). */
+function isKeywordList(value: CssNode, allowed: ReadonlySet<string>): boolean {
+  const parts: CssNode[] = []
+  walk(value, (part) => {
+    if (part.type !== 'Value' && !(part.type === 'Operator' && part.value.trim() === ',')) parts.push(part)
+  })
+  return parts.length > 0 && parts.every((p) => p.type === 'Identifier' && allowed.has(p.name.toLowerCase()))
+}
+
+/** Why a blend or a filter is refused (PAINT_MODES), or null. */
+function paintModeIssue(property: string, node: CssNode & { type: 'Declaration' }): string | null {
+  const allowed = PAINT_MODES[property]
+  if (!allowed || isKeywordList(node.value, allowed)) return null
+  const keyword = allowed === UNBLENDED ? 'normal' : 'none'
+  return (
+    `${node.property} may only be ${keyword}: a blend or a filter changes the colours text is drawn in, so the render ` +
+    'cannot read its contrast (screen draws black text white on white)'
+  )
+}
+
+/**
  * The values `unicode-bidi` may take: those that set or isolate a direction. `bidi-override` and `isolate-override`
  * draw a text's characters in the order the direction gives, so "12.50" under `direction: rtl` is drawn "05.21" while
  * every check reads "12.50" (#117).
@@ -230,7 +268,7 @@ function keywordIssue(property: string, node: CssNode & { type: 'Declaration' })
     return `${node.property} may ask for the light scheme only: the captures are taken in it, and a dark one is drawn where no capture shows it`
   if (property === 'position' && !isPlacedOnPage(node.value))
     return `${node.property} may be static, relative or absolute: a fixed or sticky element moves over the text as a reader scrolls, where no capture shows it`
-  return null
+  return paintModeIssue(property, node)
 }
 
 /**

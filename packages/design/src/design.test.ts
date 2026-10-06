@@ -1278,6 +1278,41 @@ describe('a pseudo-element styles only generated content (#117)', () => {
     const inline = html(good).replace('<main>', '<main><div style="pointer-events:none"></div>')
     assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
   })
+  // #117: a blend or a filter recolours text after its styles; `screen` draws black research white on white, unread.
+  it('refuses a blend mode or a filter in every form, and keeps normal, none and the keywords that reset them', () => {
+    for (const bad of [
+      '[data-block]{mix-blend-mode:screen}',
+      'p{mix-blend-mode:difference}',
+      'p{MIX-BLEND-MODE:SCREEN}',
+      'p{mix-blend-mode:var(--m)}',
+      'p{mix-blend-mode:var(--m, normal)}',
+      'p{background-blend-mode:difference}',
+      'p{background-blend-mode:normal, screen}',
+      'h2{filter:invert(1)}',
+      'p{filter:opacity(0)}',
+      'p{filter:brightness(0)}',
+      'p{filter:drop-shadow(0 0 2px #000)}',
+      'p{filter:var(--f, none)}',
+      'div{backdrop-filter:blur(4px)}',
+      'div{-webkit-backdrop-filter:invert(1)}',
+      '@media (min-width: 600px){p{mix-blend-mode:screen}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<p data-block="b1">', '<p data-block="b1" style="mix-blend-mode:screen">')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of [
+      'p{mix-blend-mode:normal}',
+      'p{mix-blend-mode:NORMAL}',
+      'p{background-blend-mode:normal, normal}',
+      'p{filter:none}',
+      'p{filter:inherit}',
+      'div{backdrop-filter:none}',
+      'section{isolation:isolate}',
+      'p{opacity:.8}',
+      'div{box-shadow:0 1px 2px #ccc;border:1px solid #ddd}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
   // #117: a pinned element moves over the text as a reader scrolls; the captures show it only where the page starts.
   it('refuses fixed and sticky positions, in every spelling, in any medium and in a style attribute', () => {
     for (const bad of [
