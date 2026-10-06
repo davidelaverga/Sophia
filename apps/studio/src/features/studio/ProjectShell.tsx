@@ -24,11 +24,13 @@ import { lookingText } from '../voice/sophia-view.ts'
 import { useHeldCaptions } from '../voice/StageCaptions.tsx'
 import { useStageMade } from '../voice/StageMade.tsx'
 import { showRenderOf } from '../voice/StagePresent.tsx'
+import { useCatchUp } from '../voice/CatchUp.tsx'
 import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
 import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/useProjectRoom.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
+import { useKnownNames } from './useKnownNames.ts'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
 import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
@@ -393,10 +395,13 @@ function ProjectBody(props: BodyProps) {
   // What the meeting left, on leaving it from any view (A12, behind the vision flag): after the page, so it opens on top
   // of any sheet the page has open, and in the same place in every view, so switching views keeps it.
   const recap = VISION && <MeetingRecapOnLeave {...{ projectId, identity, room, snapshot, membership }} />
+  // For whoever joined late, the meeting so far (A13): its card goes on the stage, its sheet on the page.
+  const catchUp = useCatchUp(room, { projectId, identity, me: membership?.actorId ?? '', names: useKnownNames(room) })
   const withViewer = (body: React.ReactNode) => (
     <WithViewer {...props} panel={panel} looking={looking}>
       {body}
       {recap}
+      {catchUp.sheet}
     </WithViewer>
   )
   const lobby = (
@@ -420,6 +425,7 @@ function ProjectBody(props: BodyProps) {
           looking={looking}
           captions={captions}
           made={made}
+          catchUp={catchUp.card}
         />
       </>,
     )

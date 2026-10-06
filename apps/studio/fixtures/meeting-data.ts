@@ -32,8 +32,8 @@ export interface Meeting {
   begun: () => boolean
 }
 
-export const newMeeting = (records: Meeting['records'], begun: Meeting['begun']): Meeting => ({
-  startedAt: Date.now(),
+export const newMeeting = (records: Meeting['records'], begun: Meeting['begun'], startedAt = Date.now()): Meeting => ({
+  startedAt,
   closedAt: null,
   made: false,
   loseReply: false,
@@ -159,6 +159,12 @@ export function digestOf(m: Meeting, cursor: number): Digest {
     work: all.work.filter((d) => fresh(d.taskId)),
     names: all.names,
   }
+}
+
+/** The running meeting until now (A13's `so-far`): built as its recap is, for whoever joins late. */
+export function soFarOf(m: Meeting, cursor: number): Digest {
+  const { decided, made, noted, open, work, names } = current(m)
+  return { fromSequence: null, toSequence: String(cursor), decided, made, noted, open, work, names }
 }
 
 /**
