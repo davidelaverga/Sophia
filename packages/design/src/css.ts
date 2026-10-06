@@ -186,6 +186,14 @@ function uncaptured(part: CssNode): string | null {
 }
 
 /**
+ * The values `text-shadow` may take: none, or a keyword that resets it. A text shadow is drawn from the glyphs out,
+ * past the text's own box and over whatever lies there: a heading's white, blurred shadows cast 80px up wash a block
+ * above it out, and neither a point the render reaches nor the block's contrast sees them (#117). Any other value, a
+ * variable included, is refused.
+ */
+const SHADOWLESS = new Set(['none', 'initial', 'inherit', 'unset', 'revert', 'revert-layer'])
+
+/**
  * The values `unicode-bidi` may take: those that set or isolate a direction. `bidi-override` and `isolate-override`
  * draw a text's characters in the order the direction gives, so "12.50" under `direction: rtl` is drawn "05.21" while
  * every check reads "12.50" (#117).
@@ -214,6 +222,8 @@ function isOneOf(value: CssNode, allowed: ReadonlySet<string>): boolean {
 
 /** Why a declaration's value is refused, for the properties held to keywords (`color-scheme`, `position`), or null. */
 function keywordIssue(property: string, node: CssNode & { type: 'Declaration' }): string | null {
+  if (property === 'text-shadow' && !isOneOf(node.value, SHADOWLESS))
+    return `${node.property} may only be none: a shadow is drawn past the text, over what lies beside it, where neither a cover nor a contrast is read`
   if (property === 'unicode-bidi' && !isOneOf(node.value, BIDI))
     return `${node.property} may set or isolate a direction, not override it: an override draws a text's characters in another order than the one read`
   if (property === 'color-scheme' && !isLightOnly(node.value))

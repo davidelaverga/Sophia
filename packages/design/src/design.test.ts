@@ -1171,8 +1171,32 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
     const inline = html(good).replace('<h1>', '<h1 style="-webkit-text-stroke:12px #fff">')
     assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
-    for (const ok of ['h2{text-shadow:0 1px 2px #ccc}', 'h2{-webkit-text-fill-color:#111}'])
+    for (const ok of ['h2{-webkit-text-fill-color:#111}']) assert.deepEqual(css(ok), [], ok)
+  })
+  // #117: a text shadow is drawn past the text, over what lies beside it; no point the render reaches and no contrast
+  // it reads sees it, so white blurred shadows cast up from a heading wash out the block above.
+  it('refuses a text shadow in every form, and keeps none and the keywords that reset it', () => {
+    for (const bad of [
+      'h2{text-shadow:0 -80px 8px #fff}',
+      'h2{text-shadow:0 1px 2px #ccc}',
+      'h2{text-shadow:-30px -80px 8px #fff, 30px -80px 8px #fff}',
+      'h2{TEXT-SHADOW:0 0 1px red}',
+      'h2{text-shadow:var(--s)}',
+      'h2{text-shadow:var(--s, none)}',
+      ':root{--s:0 -80px 8px #fff} h2{text-shadow:var(--s)}',
+      '@media (min-width: 600px){h2{text-shadow:0 -80px 8px #fff}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    const inline = html(good).replace('<h1>', '<h1 style="text-shadow:0 -80px 8px #fff">')
+    assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'])
+    for (const ok of [
+      'h2{text-shadow:none}',
+      'h2{text-shadow:NONE}',
+      'h2{text-shadow:inherit}',
+      'h2{text-shadow:unset}',
+    ])
       assert.deepEqual(css(ok), [], ok)
+    assert.deepEqual(css('h2{box-shadow:0 1px 2px #ccc}'), [], 'a box shadow, whose reach the render reads')
   })
   // #117: the render finds a cover by what a point on the text reaches; pointer-events: none would hide one from it.
   it('refuses pointer-events, which only a page with a pointer behaviour needs, in a stylesheet or a style attribute', () => {
