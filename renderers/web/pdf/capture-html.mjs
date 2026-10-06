@@ -179,19 +179,27 @@ export function tilesOf(top, height, step) {
 }
 
 /**
- * The stretches of the page outside every section, at least MARGIN_MIN_PX tall.
+ * The stretches of the page outside every section: each at least MARGIN_MIN_PX tall, or shorter but holding text the
+ * page shows (a one-line footer), which a full-size capture must show too (#117).
  * @param {{ y: number, height: number }[]} sections
  * @param {number} pageHeight
+ * @param {{ y: number, height: number }[]} [texts] the boxes of the text the page shows
  */
-export function marginsOf(sections, pageHeight) {
+export function marginsOf(sections, pageHeight, texts = []) {
   /** @type {{ y: number, height: number }[]} */
   const out = []
+  const holdsText = (/** @type {number} */ top, /** @type {number} */ bottom) =>
+    texts.some((t) => Math.min(bottom, t.y + t.height) - Math.max(top, t.y) > 2)
+  const keep = (/** @type {number} */ top, /** @type {number} */ bottom) => {
+    if (bottom - top >= MARGIN_MIN_PX || (bottom > top && holdsText(top, bottom)))
+      out.push({ y: top, height: bottom - top })
+  }
   let at = 0
   for (const s of sections.toSorted((a, b) => a.y - b.y)) {
-    if (s.y - at >= MARGIN_MIN_PX) out.push({ y: at, height: s.y - at })
+    keep(at, s.y)
     at = Math.max(at, s.y + s.height)
   }
-  if (pageHeight - at >= MARGIN_MIN_PX) out.push({ y: at, height: pageHeight - at })
+  keep(at, pageHeight)
   return out
 }
 
@@ -301,7 +309,8 @@ async function captureTarget(shot, target, page) {
     )
       captured.push(s.id)
   }
-  const margins = shot.job.sections ? [] : marginsOf(page.sections, depth)
+  const texts = [...page.blocks, ...page.shown, ...page.framing].filter((m) => !hiddenHere(m)).map((m) => m.box)
+  const margins = shot.job.sections ? [] : marginsOf(page.sections, depth, texts)
   let marginsCaptured = 0
   for (const [i, m] of margins.entries()) {
     if (

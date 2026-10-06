@@ -158,6 +158,11 @@ describe('the capture plan (pure)', () => {
       { y: 1000, height: 200 },
     ])
     assert.deepEqual(marginsOf([{ y: 10, height: 1180 }], 1200), [])
+    // #117: a sliver that holds text the page shows (a one-line footer) is a margin too; a box that only grazes it is not.
+    const footer = { y: 1184, height: 14 }
+    assert.deepEqual(marginsOf([{ y: 10, height: 1170 }], 1200, [footer]), [{ y: 1180, height: 20 }])
+    assert.deepEqual(marginsOf([{ y: 10, height: 1170 }], 1200, [{ y: 1170, height: 12 }]), [])
+    assert.deepEqual(marginsOf([{ y: 10, height: 1170 }], 1200), [])
   })
 
   it('admits the two light targets of html-design-v1 and bounds every job', () => {
@@ -458,6 +463,25 @@ describe('the confined capture kernel', () => {
       }
     },
   )
+
+  it('captures a one-line footer outside the sections at full size (#117)', { skip }, async () => {
+    const receipt = await captureHtml(
+      job(
+        page(
+          `${BASE} section{min-height:1400px} footer{height:16px;margin:0;padding:0 2rem;font:12px/16px Georgia,serif}`,
+          `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p></section></main>
+          <footer>Prepared from the research package</footer>`,
+        ),
+        { targets: ['w1280-light'] },
+      ),
+      { env },
+    )
+    assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+    const margins = receipt.captures.filter((c) => c.kind === 'margin')
+    assert.equal(margins.length, 1, JSON.stringify(receipt.captures.map((c) => c.name)))
+    assert.ok(margins[0]!.clip.height < 24, `a sliver: ${String(margins[0]!.clip.height)}px`)
+    assert.equal(margins[0]!.scale, 1, 'at full size')
+  })
 
   it('names horizontal overflow and the element that causes it', { skip }, async () => {
     const receipt = await captureHtml(
