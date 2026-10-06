@@ -2,7 +2,7 @@
 // meetings, closed; the one the room is in, its recap built from the fixture's own records (the notes kept with Keep,
 // the report a result notice brought, the fixture's decision, the people in the call); its close, once; and what
 // changed since the viewer last looked, from the same records. Every word is synthetic.
-import type { Digest, MeetingRecap, MeetingReceipt } from '../src/api/vision.ts'
+import type { AfterUpdate, Digest, MeetingRecap, MeetingReceipt } from '../src/api/vision.ts'
 import { membership } from './data.ts'
 import { personId } from './fake-people.ts'
 
@@ -28,6 +28,10 @@ export interface Meeting {
   seen: { sequence: string | null; records: Set<string>; loseReply: boolean }
   /** The recap's records as the page holds them now (room.tsx). */
   records: () => Records
+  /** Once closed, the record at close: later work never changes the recap. */
+  atClose: Records | null
+  /** What the meeting's work made after it closed, oldest first (the proposed `after` route). */
+  after: AfterUpdate[]
   /** Someone joined the call on this page: until then there is no running meeting. */
   begun: () => boolean
 }
@@ -41,6 +45,8 @@ export const newMeeting = (records: Meeting['records'], begun: Meeting['begun'],
   closes: new Map(),
   seen: { sequence: null, records: new Set(), loseReply: false },
   records,
+  atClose: null,
+  after: [],
   begun,
 })
 
@@ -106,7 +112,7 @@ function current(m: Meeting): MeetingRecap {
     startedAt: new Date(m.startedAt).toISOString(),
     endedAt: m.closedAt,
     minutes: Math.floor((ended - m.startedAt) / 60_000),
-    ...m.records(),
+    ...(m.atClose ?? m.records()),
   }
 }
 
@@ -115,6 +121,7 @@ export function closed(m: Meeting, key: string, cursor: number): MeetingReceipt 
   const first = m.closes.values().next().value
   if (first) return first
   m.closedAt = new Date().toISOString()
+  m.atClose = m.records()
   const receipt: MeetingReceipt = { meetingId: MEETING, revision: 2, cursor: String(cursor) }
   m.closes.set(key, receipt)
   return receipt
@@ -128,7 +135,8 @@ export const allRecaps = (m: Meeting): MeetingRecap[] => [...(m.begun() ? [curre
  * made are the project's whether or not a meeting runs; the fixture's decision is the running meeting's.
  */
 function everything(m: Meeting) {
-  const now = current(m)
+  // The project as it is now: since you last looked is not the record at close, so later work shows here.
+  const now = { ...current(m), ...m.records() }
   const all = [...PAST.toReversed(), m.begun() ? now : { ...now, decided: [] }]
   return {
     decided: all.flatMap((r) => r.decided),
@@ -178,4 +186,11 @@ export function markSeen(m: Meeting, sequence: string): void {
   if (m.seen.sequence !== null && Number(sequence) < Number(m.seen.sequence)) return
   m.seen.sequence = sequence
   for (const key of keysOf(everything(m))) m.seen.records.add(key)
+}
+
+/** The meeting's work, running at close, finished now: a later outcome linked to it, the recap untouched. */
+export function finishedAfter(m: Meeting, made: Omit<AfterUpdate, 'at' | 'kind'>): void {
+  if (!m.closedAt || !m.atClose?.work.some((w) => w.state === 'running')) return
+  if (m.after.some((u) => u.taskId === made.taskId)) return // finished once
+  m.after.push({ at: new Date().toISOString(), kind: 'work_finished', ...made })
 }

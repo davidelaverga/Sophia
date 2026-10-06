@@ -2,6 +2,9 @@
 // (the dock, the mini dock, a sheet's call row), opens «This meeting», the A12 recap proposed in issue #105, built from
 // committed records only. Copy recap puts it on the clipboard; an editor or admin closes the meeting for everyone, once
 // per key (useAdmission). Shown only under the vision flag, where the fixture pages answer.
+import { AfterMeeting } from './AfterMeeting.tsx'
+import { namers, ongoing, recapHead, recapSections, recapText, type RecapSection, type Records } from './recap-view.ts'
+import { VISION } from '../../app/vision.ts'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
@@ -15,7 +18,6 @@ import { canInvite } from '../access/useAccess.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { useCopy } from '../resources/copy.ts'
 import { useKnownNames } from '../studio/useKnownNames.ts'
-import { namers, recapHead, recapSections, recapText, type RecapSection, type Records } from './recap-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
 
 /**
@@ -161,7 +163,7 @@ interface BodyProps {
 }
 
 function RecapBody({ recap, title, names, editor, close, onClose }: BodyProps) {
-  const sections = recapSections(recap, names.shown)
+  const sections = recapSections(recap, names.shown, recap.endedAt !== null)
   const text = recapText(title, recap, names.copied)
   const copy = useCopy(() => text)
   const fallback = useFallback(copy.state === 'failed')
@@ -174,6 +176,17 @@ function RecapBody({ recap, title, names, editor, close, onClose }: BodyProps) {
       {sections.map((s) => (
         <RecapPart key={s.title} section={s} records={recap} onOpen={onClose} />
       ))}
+      {VISION && recap.endedAt !== null && (
+        <AfterMeeting
+          projectId={close.projectId}
+          identity={close.identity}
+          meetingId={recap.meetingId}
+          endedAt={recap.endedAt}
+          waiting={recap.work.some((w) => ongoing(w.state))}
+          anchor={callAnchor}
+          onOpen={onClose}
+        />
+      )}
       <div className="recap-acts">
         <button type="button" className="pill" onClick={copy.copy}>
           Copy recap
