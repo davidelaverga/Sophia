@@ -56,10 +56,11 @@ export function oneOfUs(value: string | null, viewer: boolean): number | null {
   return Number.isInteger(n) && n >= (viewer ? 0 : 1) && n <= count ? n : null
 }
 
-const now = {
+const first = oneOfUs(query.get('speaking'), true)
+const now: { sophia: SophiaState | null; speaking: readonly number[] } = {
   sophia: isState(asked) ? asked : null,
-  /** Who speaks: 0 the viewer, `n` the `n`th other person, null no one. */
-  speaking: oneOfUs(query.get('speaking'), true),
+  /** Who speak: 0 the viewer, `n` the `n`th other person; empty, no one. */
+  speaking: first === null ? [] : [first],
 }
 
 /** Sophia's conversation paused (`paused=`): her bridge pauses what it hears, whatever else it was doing. */
@@ -90,7 +91,7 @@ export function others(): RoomParticipant[] {
   return NAMES.slice(0, count).map((name, i) => ({
     identity: personId(i + 1),
     name,
-    speaking: now.speaking === i + 1,
+    speaking: now.speaking.includes(i + 1),
     micOn: true,
     cameraOn: video === 'camera',
     screenOn: video === 'screen' && i === screenBy - 1,
@@ -98,13 +99,15 @@ export function others(): RoomParticipant[] {
     // `guest=1`: the last of the others came in as a guest.
     standing: query.has('guest') && i === count - 1 ? 'guest' : 'editor',
     following: followingBy.get(i + 1) ?? null,
+    // They came in the order of NAMES, a minute apart.
+    joinedAt: Date.UTC(2026, 9, 6, 15) + i * 60_000,
   }))
 }
 
 /** A name for an actor id, as the room shows it: the viewer's own, an other's, or nobody's. */
 export const nameOf = (actorId: string) => NAMES[NAMES.findIndex((_, i) => personId(i + 1) === actorId)] ?? actorId
 
-export const viewerSpeaks = () => now.speaking === 0
+export const viewerSpeaks = () => now.speaking.includes(0)
 export function sophiaSignal(): SophiaSignal | null {
   if (!now.sophia) return null
   return paused ? { ...SIGNALS[now.sophia], input: 'paused' } : SIGNALS[now.sophia]
@@ -132,8 +135,8 @@ export function setSophia(state: SophiaState | null): void {
   changed()
 }
 
-export function setSpeaking(who: number | null): void {
-  now.speaking = who
+export function setSpeaking(who: number | readonly number[] | null): void {
+  now.speaking = who === null ? [] : typeof who === 'number' ? [who] : who
   changed()
 }
 

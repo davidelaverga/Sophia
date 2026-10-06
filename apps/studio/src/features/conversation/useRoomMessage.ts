@@ -48,10 +48,10 @@ export function useRoomMessage(
       void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
     }
   })
-  // The draft as it is now: read after the answer, never from the press's render.
-  const latest = useRef(draft)
+  // The draft and the reply as they are now: read after the answer, never from the press's render.
+  const latest = useRef({ draft, reply })
   useLayoutEffect(() => {
-    latest.current = draft
+    latest.current = { draft, reply }
   })
   const unknown = write.state.status === 'unknown' ? write.state.args : null
   /**
@@ -62,9 +62,10 @@ export function useRoomMessage(
   const send = async () => {
     const message = unknown ?? { text: draft.trim(), replyTo: reply.id }
     if (!message.text || !(await write.send(message))) return
-    // The reply sent is let go; another begun meanwhile (a message re-sent after no reply) stays.
-    if (message.replyTo !== null && message.replyTo === reply.id) reply.done()
-    if (latest.current.trim() === message.text) onDraft('')
+    // The reply sent is let go; another chosen meanwhile (while it went, or a message re-sent after no reply) stays.
+    const now = latest.current.reply
+    if (message.replyTo !== null && message.replyTo === now.id) now.done()
+    if (latest.current.draft.trim() === message.text) onDraft('')
   }
   const words = unknown
     ? `Not sent to the room: “${firstWords(unknown.text)}”`
