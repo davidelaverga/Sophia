@@ -134,7 +134,9 @@ test('follow · the first conversation of an empty project starts', async ({ pag
   expect(await written(page, 'conversation-start')).toHaveLength(1)
 })
 
-test('follow · a start that lands after a row was pressed is listed, and the row pressed stays open', async ({ page }) => {
+test('follow · a start that lands after a row was pressed is listed, and the row pressed stays open', async ({
+  page,
+}) => {
   await page.goto(`${PAGE}&start=slow`)
   await list(page).getByRole('button', { name: 'New conversation' }).click()
   await form(page).getByRole('textbox', { name: 'Question' }).fill('A slow start')
