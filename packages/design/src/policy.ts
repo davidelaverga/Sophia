@@ -115,11 +115,13 @@ const GLOBAL_ATTRIBUTES = new Set([
  */
 /**
  * Why a page marks no text struck out, deleted or inserted: `<s>` says a text is no longer accurate, `<del>` and `<ins>`
- * that it was taken out of or put into the document, and a screen reader announces them so, whatever CSS draws.
+ * that it was taken out of or put into the document, and the browser exposes each so to assistive technology (a
+ * deletion or insertion role), whatever CSS draws.
  * Frozen research has no such history for a page to invent: `<del>Not free.</del>` reads as a withdrawn claim (#117).
  */
 const STRUCK =
-  ': it marks a text as no longer accurate, deleted or inserted, which a screen reader announces whatever CSS draws; ' +
+  ': it marks a text as no longer accurate, deleted or inserted, which the browser exposes to assistive technology ' +
+  'whatever CSS draws; ' +
   'the research has no such history'
 
 const REFUSED: Readonly<Record<string, string>> = {
