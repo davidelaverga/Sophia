@@ -19,26 +19,32 @@
  * @typedef {{ own: boolean, clip: string, edge: boolean, inset: boolean, widths: number[], rounded: boolean,
  *   generated: string[] }} Paints what an element paints that a text above it is read against (paintsOf), whether its
  *   corners are rounded, and which of its generated boxes paint
- * @typedef {{ box: Box, reach: number, colours: string[] | null }} Reached paint that reaches past a box, how far, and
- *   the colours it may paint there (null when they cannot be read)
+ * @typedef {{ box: Box, reach: number, colours: string[] | null, el: Element, pseudo: string }} Reached paint that
+ *   reaches past a box, how far, the colours it may paint there (null when they cannot be read), and the element (and
+ *   its generated box, or '') that paints it
  * @typedef {{ rows: Map<number, Reached[]>, over: boolean }} Reach where paint reaches past the boxes on the page
  *   (reachIndex)
- * @typedef {{ pseudo: string, box: Box }} PlacedBox a generated box (::before or ::after) and where it lies, in page
+ * @typedef {{ pseudo: string, box: Box, pieces: number }} PlacedBox a generated box (::before or ::after), where it
+ *   lies in page coordinates, and in how many boxes it is drawn
  *   coordinates (generatedIndex)
- * @typedef {{ base: boolean, layers: Map<string, string[][]>, unread: boolean }} Ground what lies beneath one element's
+ * @typedef {{ colours: string[], group: string, fade: number }} Layer one layer of paint beneath a text: the colours it
+ *   may paint at a point (`transparent` among them where it may not reach it), and the opacity group it is drawn in
+ *   ('' for none) at that group's opacity (groupOf)
+ * @typedef {{ base: boolean, layers: Map<string, Layer[]>, unread: boolean }} Ground what lies beneath one element's
  *   text at the points looked at (noteGround): whether at some it is the background the element's contrast is read
- *   against (backgroundLayers); at others, other paint, each reading once, as layers bottom first of the colours each
- *   may paint there (groundAt); and whether at any it could not be read
+ *   against (backgroundLayers); at others, other paint, each reading once, as layers bottom first (groundAt); and
+ *   whether at any it could not be read
  * @typedef {{ left: number, until: number, maxLines: number, paints: Map<Element, Paints>, reach: Reach,
  *   upright: Map<Element, boolean>, generated: Map<Element, PlacedBox[]> | null, grounds: Map<Element, Ground>,
- *   maxGrounds: number }} Budget the points the cover check may still look at, the time (performance.now) it must stop
+ *   maxGrounds: number, ids: Map<Element, number> }} Budget the points the cover check may still look at, the time (performance.now) it must stop
  *   by, the fewest lines a text may have to be refused unread, what each element looked at paints, where paint reaches
  *   past the boxes, which elements are drawn along the page's lines (isUpright), where generated boxes lie, what lies
- *   beneath each text looked at, and the most readings of it kept for one element
+ *   beneath each text looked at, the most readings of it kept for one element, and a number for each element that
+ *   names an opacity group (idOf)
  * @typedef {{ left: number, top: number, right: number, bottom: number }} Clip where overflow lets content be drawn
  * @typedef {Clip & { owner: Element | null }} TextBox a line box of
  *   text on the page, and the block it sits in (null outside every block)
- * @typedef {Pick<Budget, 'paints' | 'reach' | 'generated' | 'grounds' | 'maxGrounds'> &
+ * @typedef {Pick<Budget, 'paints' | 'reach' | 'generated' | 'grounds' | 'maxGrounds' | 'ids'> &
  *   { ctx: OffscreenCanvasRenderingContext2D }} Look what the cover check reads what lies beneath a text with
  * @typedef {BlockMeasure & { probes: { x: number, y: number }[], unsampled: boolean }} ProbedMeasure a measure, the
  *   points the DevTools protocol is to hit-test where only it can tell what is drawn over the text (coverOf), and
@@ -653,7 +659,7 @@ function adjoinedBlocks(blocks, bound) {
  * The page's generated boxes by the element that draws each, in page coordinates, as the protocol's snapshot gave them
  * (placement.mjs generatedOf). A generated box hit-tests as its element, so only the snapshot tells where one lies
  * (#117). Null when none were given, or the page's elements are not the snapshot's.
- * @param {{ elements: number, boxes: { at: number, tag: string, pseudo: string, box: number[] }[] } | null} [given]
+ * @param {{ elements: number, boxes: { at: number, tag: string, pseudo: string, box: number[], pieces: number }[] } | null} [given]
  * @returns {Map<Element, PlacedBox[]> | null}
  */
 function generatedIndex(given) {
@@ -662,11 +668,11 @@ function generatedIndex(given) {
   if (all.length !== given.elements) return null
   /** @type {Map<Element, PlacedBox[]>} */
   const out = new Map()
-  for (const { at, tag, pseudo, box } of given.boxes) {
+  for (const { at, tag, pseudo, box, pieces } of given.boxes) {
     const el = all[at]
     if (el?.tagName !== tag) return null
     const [left = 0, top = 0, right = 0, bottom = 0] = box
-    const placed = { pseudo, box: { x: left, y: top, width: right - left, height: bottom - top } }
+    const placed = { pseudo, box: { x: left, y: top, width: right - left, height: bottom - top }, pieces }
     out.set(el, [...(out.get(el) ?? []), placed])
   }
   return out
@@ -722,7 +728,7 @@ function reachOf(el, generated) {
   const style = getComputedStyle(el)
   const reach = outerReach(style)
   /** @type {Reached[]} */
-  const out = reach > 0 ? [{ box: own(), reach, colours: outerColours(style) }] : []
+  const out = reach > 0 ? [{ box: own(), reach, colours: outerColours(style), el, pseudo: '' }] : []
   for (const pseudo of ['::before', '::after']) {
     const s = getComputedStyle(el, pseudo)
     const far = ['none', 'normal'].includes(s.content) ? 0 : outerReach(s)
@@ -730,7 +736,7 @@ function reachOf(el, generated) {
     const boxes = generated
       ? (generated.get(el) ?? []).filter((g) => g.pseudo === pseudo).map((g) => ({ box: g.box, reach: far }))
       : [{ box: own(), reach: far + 32 }]
-    for (const placed of boxes) out.push({ ...placed, colours: outerColours(s) })
+    for (const placed of boxes) out.push({ ...placed, colours: outerColours(s), el, pseudo })
   }
   return out
 }
@@ -765,7 +771,7 @@ function paintsOf(el, look) {
     ),
     generated: ['::before', '::after'].filter((p) => {
       const s = getComputedStyle(el, p)
-      return !['none', 'normal'].includes(s.content) && paintsAny(s, look.ctx)
+      return !['none', 'normal'].includes(s.content) && s.visibility === 'visible' && paintsAny(s, look.ctx)
     }),
   }
   look.paints.set(el, paints)
@@ -832,7 +838,8 @@ function groundAround(a, p, look) {
 
 /**
  * Whether an element paints at a point of its box nothing but its background: off its border, where it paints one, with
- * no inset paint, and inside its rounded corners' curve (shapeAt). Outside its boxes it paints nothing there.
+ * no inset paint, and inside its rounded corners' curve (shapeAt), clear of a corner where it paints a border, whose
+ * inner curve may reach the point. Outside its boxes it paints nothing there.
  * @param {Element} a
  * @param {Paints} paints
  * @param {'outside' | 'border' | 'padding'} at
@@ -841,7 +848,8 @@ function groundAround(a, p, look) {
 function plainAt(a, paints, at, p) {
   if (at === 'outside') return true
   if (paints.inset || (paints.edge && at === 'border')) return false
-  return shapeAt(a, getComputedStyle(a), paints, p) === 'inside'
+  const shape = shapeAt(a, getComputedStyle(a), paints, p)
+  return shape === 'inside' || (shape === 'corner' && !paints.edge)
 }
 
 /**
@@ -884,15 +892,100 @@ function onOwnGround(holder, stack, p, look) {
 }
 
 /**
- * What a style paints as its background, as layers bottom first: its colour, then its image's colours (a gradient's
- * stops). Null for an image that is not a gradient, or a gradient whose colours are not read.
+ * A computed list's items, split at its commas outside parentheses.
+ * @param {string} value
+ */
+function listItems(value) {
+  /** @type {string[]} */
+  const items = ['']
+  let depth = 0
+  for (const ch of value) {
+    depth += ch === '(' ? 1 : ch === ')' ? -1 : 0
+    if (ch === ',' && depth === 0) items.push('')
+    else items[items.length - 1] += ch
+  }
+  return items.map((item) => item.trim())
+}
+
+/**
+ * A colour as sRGB bytes and an alpha, painted on its own: whatever syntax the page used, the canvas resolves it.
+ * @param {OffscreenCanvasRenderingContext2D} c
+ * @param {string} colour
+ * @returns {[number, number, number, number]}
+ */
+function rgbaOf(c, colour) {
+  c.clearRect(0, 0, 1, 1)
+  c.fillStyle = '#000000'
+  c.fillStyle = colour
+  c.fillRect(0, 0, 1, 1)
+  const [r = 0, g = 0, b = 0, a = 0] = c.getImageData(0, 0, 1, 1).data
+  return [r, g, b, a / 255]
+}
+
+/**
+ * A gradient's colours: each stop, and four colours evenly between each two, mixed as the browser mixes them (with
+ * their alpha). Between two stops a gradient passes every shade between theirs: grey text between a black and a white
+ * stop is read against both, and passes, though the gradient crosses its own shade; a colour within a fifth of the way
+ * from that crossing is read against it instead, below 1.5:1 (#117).
+ * @param {string[]} stops
+ * @returns {string[]}
+ */
+function gradientColours(stops) {
+  const c = stops.length > 1 ? new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true }) : null
+  if (!c) return stops
+  const rgba = stops.map((stop) => rgbaOf(c, stop))
+  /** @type {Set<string>} */
+  const out = new Set()
+  for (const [i, stop] of stops.entries()) {
+    const before = rgba[i - 1]
+    const here = rgba[i]
+    if (before && here) for (const colour of mixesOf(before, here)) out.add(colour)
+    out.add(stop)
+  }
+  return [...out]
+}
+
+/**
+ * Four colours evenly between two, each with its alpha, mixed with their alpha as a gradient mixes them.
+ * @param {[number, number, number, number]} from
+ * @param {[number, number, number, number]} to
+ * @returns {string[]}
+ */
+function mixesOf(from, to) {
+  return [0.2, 0.4, 0.6, 0.8].map((t) => {
+    const a = from[3] * (1 - t) + to[3] * t
+    const [r, g, b] = [0, 1, 2].map((k) =>
+      a > 0 ? Math.round(((from[k] ?? 0) * from[3] * (1 - t) + (to[k] ?? 0) * to[3] * t) / a) : 0,
+    )
+    return `rgba(${r ?? 0}, ${g ?? 0}, ${b ?? 0}, ${a.toFixed(3)})`
+  })
+}
+
+/**
+ * What a style paints as its background, as layers bottom first: its colour, then each of its images (the last listed
+ * lowest), each a gradient's colours (gradientColours). An image that does not cover the box (sized or not repeated)
+ * may not lie under a point: `transparent` is among its colours. Null for an image that is not a gradient, or a
+ * gradient whose colours are not read.
  * @param {CSSStyleDeclaration} s
  * @returns {string[][] | null}
  */
 function backgroundOf(s) {
   if (s.backgroundImage === 'none') return [[s.backgroundColor]]
-  const stops = s.backgroundImage.includes('gradient(') ? gradientStops(s.backgroundImage) : []
-  return stops.length === 0 ? null : [[s.backgroundColor], stops]
+  const images = listItems(s.backgroundImage)
+  const sizes = listItems(s.backgroundSize)
+  const repeats = listItems(s.backgroundRepeat)
+  /** @type {string[][]} */
+  const layers = []
+  for (const [i, image] of images.entries()) {
+    const stops = image.includes('gradient(') ? gradientStops(image) : []
+    if (stops.length === 0) return null
+    const covers =
+      (sizes[i % sizes.length] ?? 'auto') === 'auto' &&
+      ['repeat', 'repeat repeat'].includes(repeats[i % repeats.length] ?? '')
+    const colours = gradientColours(stops)
+    layers.unshift(covers ? colours : [...colours, 'transparent'])
+  }
+  return [[s.backgroundColor], ...layers]
 }
 
 /**
@@ -964,30 +1057,31 @@ function fitOf(side, a, b) {
 
 /**
  * Where a point lies against one rounded corner, by its distances from the corner's two edges and the corner's radii:
- * inside the curve, outside it, or within a pixel of it.
+ * clear of the corner ('inside'), inside its curve ('corner'), outside it, or within a pixel of it.
  * @param {number} dx
  * @param {number} dy
  * @param {number} rx
  * @param {number} ry
- * @returns {'inside' | 'outside' | 'near'}
+ * @returns {'inside' | 'outside' | 'near' | 'corner'}
  */
 function cornerPlace(dx, dy, rx, ry) {
   if (rx <= 0 || ry <= 0 || dx >= rx || dy >= ry) return 'inside'
   const d = Math.hypot((rx - dx) / rx, (ry - dy) / ry)
   const band = 1 / Math.min(rx, ry)
-  if (d <= 1 - band) return 'inside'
+  if (d <= 1 - band) return 'corner'
   return d > 1 + band ? 'outside' : 'near'
 }
 
 /**
  * Where a point inside a box's rectangle lies against the curve of its rounded corners (radii too large for a side
  * scaled down together): inside the shape its background and border are drawn in, outside it past a corner's curve,
- * or within a pixel of the curve, where either may hold. A rectangle is not the shape a rounded box paints: a white
- * circle does not lie beneath a text at its bounding box's corner (#117).
+ * or within a pixel of the curve, where either may hold; 'corner' inside the curve but within a corner's radii, where a
+ * border's inner curve may reach. A rectangle is not the shape a rounded box paints: a white circle does not lie
+ * beneath a text at its bounding box's corner (#117).
  * @param {CSSStyleDeclaration} s
  * @param {{ left: number, top: number, width: number, height: number }} r the box, in the viewport
  * @param {{ x: number, y: number }} p in the viewport
- * @returns {'inside' | 'outside' | 'near'}
+ * @returns {'inside' | 'outside' | 'near' | 'corner'}
  */
 function curveAt(s, r, p) {
   const radii = ['top-left', 'top-right', 'bottom-right', 'bottom-left'].map((corner) => {
@@ -1012,7 +1106,8 @@ function curveAt(s, r, p) {
     cornerPlace(left, bottom, bl.x * f, bl.y * f),
   ]
   if (places.includes('outside')) return 'outside'
-  return places.includes('near') ? 'near' : 'inside'
+  if (places.includes('near')) return 'near'
+  return places.includes('corner') ? 'corner' : 'inside'
 }
 
 /**
@@ -1022,7 +1117,7 @@ function curveAt(s, r, p) {
  * @param {CSSStyleDeclaration} style
  * @param {Paints} paints
  * @param {{ x: number, y: number }} p in the viewport
- * @returns {'inside' | 'outside' | 'near'}
+ * @returns {'inside' | 'outside' | 'near' | 'corner'}
  */
 function shapeAt(e, style, paints, p) {
   const r = paints.rounded ? rectAt(e, p) : null
@@ -1031,9 +1126,12 @@ function shapeAt(e, style, paints, p) {
 
 /**
  * What a generated box under a point paints there, as layers bottom first: its background, then its border's and its
- * inset paint's colours, which may not reach the point, with `transparent` among them. Past its rounded corners' curve
- * it paints nothing there, and within a pixel of it each layer may not reach the point (curveAt). Null for a background
- * image that is not a gradient, or a border image.
+ * inset paint's colours, which may not reach the point, with `transparent` among them. Past its rounded corners'
+ * curve it paints nothing there. Each layer may not reach the point (`transparent` among its colours) within a pixel of
+ * that curve, where it is drawn in more than one box (its union then holds points it does not paint), where it is turned
+ * or scaled (its bounds then hold points its shape does not), and where a box around it clips the point (it may yet
+ * escape that clip): the protocol gives its bounds, not its shape. Null for a background image that is not a gradient,
+ * or a border image.
  * @param {Element} el
  * @param {PlacedBox} g
  * @param {{ x: number, y: number }} p in the viewport
@@ -1053,15 +1151,25 @@ function generatedPaint(el, g, p) {
   if (shape === 'outside') return []
   const edges = [...borderColours(s), ...insetColours(s)]
   const layers = [...background, ...(edges.length > 0 ? [[...edges, 'transparent']] : [])]
-  return shape === 'near' ? layers.map((l) => [...l, 'transparent']) : layers
+  const unsure = shape === 'near' || g.pieces > 1 || isTurned(s) || !inView(el, p.x, p.y)
+  return unsure ? layers.map((l) => [...l, 'transparent']) : layers
+}
+
+/**
+ * Whether a style turns or scales what it draws, so that its bounds hold points its shape does not paint.
+ * @param {CSSStyleDeclaration} s
+ */
+function isTurned(s) {
+  return s.transform !== 'none' || s.rotate !== 'none' || s.scale !== 'none'
 }
 
 /**
  * What an element's own box paints beneath a point, as layers bottom first: its background where it lies under the
  * point (backgroundUnder), or, clipped to its content or its text, which may not reach the point, with `transparent`
- * among its colours; its border's colours on its border; and inside it, its inset shadows' and an inward outline's,
- * which may not reach the point either. Null for a background image that is not a gradient, or a border image there
- * (the profile refuses it: css.ts).
+ * among its colours; its border's colours on its border, or, turned or scaled, where its border may lie, which may
+ * not reach the point; and inside it, its inset shadows' and an inward outline's, which may not reach the point
+ * either. Null for a background image that is not a gradient, or a border image there (the profile refuses it:
+ * css.ts).
  * @param {Element} e
  * @param {CSSStyleDeclaration} style
  * @param {Paints} paints
@@ -1069,100 +1177,341 @@ function generatedPaint(el, g, p) {
  * @returns {string[][] | null}
  */
 function boxPaint(e, style, paints, at) {
-  const background = paints.own ? backgroundOf(style) : []
+  const background = backgroundPart(e, style, paints, at)
   if (!background || (at !== 'outside' && style.borderImageSource !== 'none')) return null
-  const under = backgroundUnder(e, paints.clip, at)
-  const clipped = !under && at === 'padding' ? background.map((l) => [...l, 'transparent']) : []
-  const edges = at === 'border' ? borderColours(style) : []
+  const turned = at !== 'outside' && isTurned(style)
+  const edges = at === 'border' || turned ? borderColours(style) : []
   const inset = at === 'outside' ? [] : insetColours(style)
   return [
-    ...(under ? background : clipped),
-    ...(edges.length > 0 ? [edges] : []),
+    ...background,
+    ...(edges.length > 0 ? [turned ? [...edges, 'transparent'] : edges] : []),
     ...(inset.length > 0 ? [[...inset, 'transparent']] : []),
   ]
 }
 
 /**
- * What one element paints beneath a point of a text, as layers bottom first (boxPaint): nothing past its rounded
- * corners' curve, and within a pixel of it, layers that may not reach the point (curveAt); then what each of its
- * generated boxes under the point paints there (generatedPaint). Null when any of it cannot be read, or the element
- * draws generated boxes whose place was not given.
+ * What an element's background paints beneath a point (boxPaint): its layers where it lies under the point, unturned or
+ * clipped to its border box; layers that may not reach it (`transparent` among their colours) where it may lie there
+ * (clipped to its content, or turned and clipped inside its border); else none. Null for an image that is not a
+ * gradient.
+ * @param {Element} e
+ * @param {CSSStyleDeclaration} style
+ * @param {Paints} paints
+ * @param {'outside' | 'border' | 'padding'} at
+ * @returns {string[][] | null}
+ */
+function backgroundPart(e, style, paints, at) {
+  const background = paints.own ? backgroundOf(style) : []
+  if (!background) return null
+  const under = backgroundUnder(e, paints.clip, at)
+  if (under && (paints.clip === 'border-box' || !isTurned(style))) return background
+  return at === 'outside' ? [] : background.map((l) => [...l, 'transparent'])
+}
+
+/**
+ * What an element's own box paints beneath a point of a text (boxPaint): nothing past its rounded corners' curve,
+ * within a pixel of it layers that may not reach the point, and inside a corner, its border's colours, which its inner
+ * curve may reach there (curveAt). Null when it cannot be read.
  * @param {Element} e
  * @param {{ x: number, y: number }} p in the viewport
  * @param {Look} look
  * @returns {string[][] | null}
  */
-function paintAt(e, p, look) {
+function ownPaint(e, p, look) {
   const paints = paintsOf(e, look)
   const style = getComputedStyle(e)
   const placed = paints.own || paints.edge || paints.inset ? placeOf(e, paints.widths, p) : 'outside'
   const shape = placed === 'outside' ? 'inside' : shapeAt(e, style, paints, p)
   const own = boxPaint(e, style, paints, shape === 'outside' ? 'outside' : placed)
+  if (own && shape === 'corner' && placed === 'padding' && paints.edge)
+    return [...own, [...borderColours(style), 'transparent']]
+  return own && shape === 'near' ? own.map((l) => [...l, 'transparent']) : own
+}
+
+/**
+ * A number for an element, the same for the page's whole measure: it names an opacity group in a reading.
+ * @param {Element} e
+ * @param {Look} look
+ */
+function idOf(e, look) {
+  const known = look.ids.get(e)
+  if (known !== undefined) return known
+  look.ids.set(e, look.ids.size)
+  return look.ids.size - 1
+}
+
+/**
+ * The element holding a text and those around it that are drawn at an opacity below 1: each draws the text with all
+ * else inside it as one group, faded together over what lies below.
+ * @param {Element} holder
+ * @returns {Element[]}
+ */
+function fadedAround(holder) {
+  /** @type {Element[]} */
+  const out = []
+  for (let a = /** @type {Element | null} */ (holder); a; a = a.parentElement)
+    if (Number.parseFloat(getComputedStyle(a).opacity || '1') < 1) out.push(a)
+  return out
+}
+
+/**
+ * The opacity group one paint beneath a text is drawn in (#117): an element drawn at an opacity below 1 draws all it
+ * holds, and its generated boxes, as one group, faded together over what lies below, so `opacity: .1` on a black box
+ * paints a pale grey, not black. The group is the one such element (or generated box) among the paint's own and the
+ * elements around it, up to the first that also holds the text; '' with no such element. Null when there is more than
+ * one (a group inside a group is not read), or when the paint lies inside an element around the text drawn at an
+ * opacity below 1: the text and the paint then fade together, which no one opacity on the text tells.
+ * @param {Element} e the element whose paint it is
+ * @param {string} pseudo its generated box's ('::before', '::after'), or '' for its own box
+ * @param {{ holder: Element, faded: Element[] }} text the element holding the text, and fadedAround's
+ * @param {Look} look
+ * @returns {{ group: string, fade: number } | null}
+ */
+function groupOf(e, pseudo, text, look) {
+  if (text.faded.some((f) => f.contains(e))) return null
+  /** @type {{ group: string, fade: number }[]} */
+  const groups = []
+  const own = pseudo ? Number.parseFloat(getComputedStyle(e, pseudo).opacity || '1') : 1
+  if (own < 1) groups.push({ group: `${idOf(e, look)}${pseudo}`, fade: own })
+  for (let a = /** @type {Element | null} */ (e); a && !a.contains(text.holder); a = a.parentElement) {
+    const fade = Number.parseFloat(getComputedStyle(a).opacity || '1')
+    if (fade < 1) groups.push({ group: String(idOf(a, look)), fade })
+  }
+  if (groups.length > 1) return null
+  return groups[0] ?? { group: '', fade: 1 }
+}
+
+/**
+ * Layers of colours drawn in one opacity group.
+ * @param {string[][]} lists
+ * @param {{ group: string, fade: number }} group
+ * @returns {Layer[]}
+ */
+function grouped(lists, group) {
+  return lists.map((colours) => ({ colours, ...group }))
+}
+
+/**
+ * What one element in the stack beneath a text paints at a point (#117): its own box (ownPaint), unless it is the root
+ * or the body, whose backgrounds fill the canvas (canvasOf), and each of its generated boxes under the point
+ * (generatedPaint), each in its opacity group (groupOf). Null when any of it cannot be read, or the element draws
+ * generated boxes whose place was not given.
+ * @param {Element} e
+ * @param {{ x: number, y: number }} p in the viewport
+ * @param {{ holder: Element, faded: Element[], canvas: Set<Element> }} text
+ * @param {Look} look
+ * @returns {{ own: Layer[], pseudos: { pseudo: string, layers: Layer[] }[] } | null}
+ */
+function partsAt(e, p, text, look) {
+  const own = text.canvas.has(e) ? [] : ownPaint(e, p, look)
   const generated = generatedHere(e, p, look)
-  if (!own || !generated) return null
-  const layers = shape === 'near' ? own.map((l) => [...l, 'transparent']) : own
+  const ownGroup = own && own.length > 0 ? groupOf(e, '', text, look) : { group: '', fade: 1 }
+  if (!own || !generated || !ownGroup) return null
+  /** @type {{ pseudo: string, layers: Layer[] }[]} */
+  const pseudos = []
   for (const g of generated) {
-    const drawn = generatedPaint(e, g, p)
-    if (!drawn) return null
-    layers.push(...drawn)
+    const colours = generatedPaint(e, g, p)
+    const group = groupOf(e, g.pseudo, text, look)
+    if (!colours || !group) return null
+    if (colours.length > 0) pseudos.push({ pseudo: g.pseudo, layers: grouped(colours, group) })
+  }
+  return { own: grouped(own, ownGroup), pseudos }
+}
+
+/**
+ * What fills the canvas beneath every text: the root's background, and the body's when the root has none, which it
+ * then takes. Null when it cannot be read.
+ * @param {{ holder: Element, faded: Element[], canvas: Set<Element> }} text
+ * @param {Look} look
+ * @returns {Layer[] | null}
+ */
+function canvasOf(text, look) {
+  /** @type {Layer[]} */
+  const layers = []
+  for (const e of text.canvas) {
+    const own = backgroundOf(getComputedStyle(e))
+    const group = groupOf(e, '', text, look)
+    if (!own || !group) return null
+    layers.push(...grouped(own, group))
   }
   return layers
 }
 
 /**
- * Paint that reaches a point from past another box (reachIndex), as layers: each one's colours, which may not reach
- * the point, with `transparent` among them. Null when any one's colours cannot be read.
- * @param {{ x: number, y: number }} p in the viewport
- * @param {Look} look
- * @returns {string[][] | null}
+ * Whether a generated box's z-index is negative, so it may be painted under its element's own box.
+ * @param {Element} e
+ * @param {string} pseudo
  */
-function reachedAt(p, look) {
-  /** @type {string[][]} */
+function setBeneath(e, pseudo) {
+  return Number.parseFloat(getComputedStyle(e, pseudo).zIndex) < 0
+}
+
+/**
+ * Whether an element surely forms a stacking context of its own, inside which its generated boxes, a negative z-index
+ * included, are painted over its own box: the root, an element drawn at an opacity below 1, isolated, transformed, or
+ * placed with a z-index. Any other may not, and a generated box beneath it may then be painted under its own box.
+ * @param {Element} e
+ */
+function stacksAlone(e) {
+  const s = getComputedStyle(e)
+  const placed = s.zIndex !== 'auto' && s.position !== 'static'
+  const faded = Number.parseFloat(s.opacity || '1') < 1
+  return e === document.documentElement || faded || s.isolation === 'isolate' || isTurned(s) || placed
+}
+
+/**
+ * @typedef {{ layers: Layer[], slot: number, rank: number }} Part paint beneath a text, at a place in the stack beneath
+ *   it (a slot, bottom first) and, within one slot, in an order (its rank)
+ */
+
+/**
+ * Every way one element's paint at a point may be placed among its hits in the stack beneath a text (#117). A generated
+ * box hit-tests as its element, so the stack does not tell which hit is which: its own box is at its lowest hit, and
+ * each generated box at any hit, over its own box. One set beneath with a negative z-index, of an element that may not
+ * form a stacking context of its own (stacksAlone), may lie under its own box: its own box is then at any hit, and the
+ * generated box at any hit, under or over it. Null past `max` ways.
+ * @param {Element} e
+ * @param {number[]} slots its hits in the stack, bottom first
+ * @param {{ own: Layer[], pseudos: { pseudo: string, layers: Layer[] }[] }} parts
+ * @param {number} max
+ * @returns {Part[][] | null}
+ */
+function arrangementsOf(e, slots, parts, max) {
+  const alone = stacksAlone(e)
+  const under = parts.pseudos.some((g) => !alone && setBeneath(e, g.pseudo))
+  /** @type {{ own: number, parts: Part[] }[]} */
+  let ways = (under ? slots : slots.slice(0, 1)).map((own) => ({
+    own,
+    parts: [{ layers: parts.own, slot: own, rank: 0 }],
+  }))
+  for (const [k, g] of parts.pseudos.entries()) {
+    const beneath = !alone && setBeneath(e, g.pseudo)
+    const ranks = beneath ? [-(k + 1), k + 1] : [k + 1]
+    ways = ways.flatMap((w) =>
+      slots
+        .filter((slot) => beneath || slot >= w.own)
+        .flatMap((slot) =>
+          ranks.map((rank) => ({ own: w.own, parts: [...w.parts, { layers: g.layers, slot, rank }] })),
+        ),
+    )
+    if (ways.length > max) return null
+  }
+  return ways.map((w) => w.parts.filter((part) => part.layers.length > 0))
+}
+
+/**
+ * Paint reaching a point from past another box (reachIndex), each as a layer of its colours, which may not reach the
+ * point (`transparent` among them), in its opacity group. Null when any one's colours or group cannot be read.
+ * @param {{ x: number, y: number }} p in the viewport
+ * @param {{ holder: Element, faded: Element[], canvas: Set<Element> }} text
+ * @param {Look} look
+ * @returns {Layer[] | null}
+ */
+function reachedAt(p, text, look) {
+  /** @type {Layer[]} */
   const layers = []
   for (const e of look.reach.rows.get(Math.floor((p.y + window.scrollY) / 512)) ?? []) {
     if (pointIn(e.box, p) || !pointIn(e.box, p, e.reach)) continue
-    if (!e.colours) return null
-    if (e.colours.length > 0) layers.push([...e.colours, 'transparent'])
+    const group = groupOf(e.el, e.pseudo, text, look)
+    if (!e.colours || !group) return null
+    if (e.colours.length > 0) layers.push({ colours: [...e.colours, 'transparent'], ...group })
   }
   return layers
 }
 
 /**
- * What lies beneath a text at a point, as layers bottom first, each the colours that may be painted there (#117): what
- * each element around the text paints there, from the root down; then what each other element beneath the text there
- * paints (document.elementsFromPoint), bottom first; then paint reaching there from past another box. All of it is
- * layered, in that order: where one paints over another in another order, the reading still holds both. Null when any
- * of it cannot be read, or the page has more paint reaching past its boxes than the index holds.
+ * Whether each opacity group's layers lie together in a reading, as an opacity group's paint always does.
+ * @param {Layer[]} layers
+ */
+function contiguous(layers) {
+  /** @type {Set<string>} */
+  const seen = new Set()
+  let last = ''
+  for (const { group } of layers) {
+    if (group && group !== last && seen.has(group)) return false
+    seen.add(group)
+    last = group
+  }
+  return true
+}
+
+/**
+ * Every order the paint beneath a text at a point may be drawn in, each a reading of layers bottom first: the canvas,
+ * then each element's paint in one of its arrangements (arrangementsOf), in the stack's order, then each paint reaching
+ * the point from past another box at any place among them, since nothing tells where. Orders that split an opacity
+ * group are dropped: none is drawn so. Null past `max` orders.
+ * @param {Layer[]} canvas
+ * @param {Part[][][]} choices each element's arrangements
+ * @param {Layer[]} floating
+ * @param {number} max
+ * @returns {Layer[][] | null}
+ */
+function ordersOf(canvas, choices, floating, max) {
+  /** @type {Part[][]} */
+  let ways = [[]]
+  for (const options of choices) {
+    ways = ways.flatMap((w) => options.map((o) => [...w, ...o]))
+    if (ways.length > max) return null
+  }
+  /** @type {Map<string, Layer[][]>} */
+  const distinct = new Map()
+  for (const w of ways) {
+    const order = w.toSorted((a, b) => a.slot - b.slot || a.rank - b.rank).map((part) => part.layers)
+    distinct.set(JSON.stringify(order), order)
+  }
+  let orders = [...distinct.values()]
+  for (const layer of floating) {
+    orders = orders.flatMap((o) =>
+      Array.from({ length: o.length + 1 }, (_, i) => [...o.slice(0, i), [layer], ...o.slice(i)]),
+    )
+    if (orders.length > max) return null
+  }
+  return orders.map((o) => [...canvas, ...o.flat()]).filter(contiguous)
+}
+
+/**
+ * What lies beneath a text at a point, as the readings it may be (#117): each a list of layers bottom first, each the
+ * colours that may be painted there, in its opacity group. The order is the browser's: the elements at the point, from
+ * the bottom up to the text (document.elementsFromPoint, in paint order), each painting its own box and its generated
+ * boxes there (arrangementsOf), over the canvas, and paint reaching there from past another box at any place among
+ * them. A reading that holds every order the stack leaves open never takes a layer for the one on top that another
+ * covers. Null when any of it cannot be read, or the orders are more than four times `maxGrounds`.
  * @param {Element} holder
  * @param {Element[]} stack the elements at the point, topmost first
  * @param {{ x: number, y: number }} p in the viewport
  * @param {Look} look
- * @returns {string[][] | null}
+ * @returns {Layer[][] | null}
  */
 function groundAt(holder, stack, p, look) {
   if (look.reach.over) return null
-  /** @type {Element[]} */
-  const around = []
-  for (let a = /** @type {Element | null} */ (holder); a; a = a.parentElement) around.unshift(a)
-  const beneath = stack
-    .slice(stack.indexOf(holder) + 1)
-    .filter((e) => !e.contains(holder))
-    .toReversed()
-  /** @type {string[][]} */
-  const layers = []
-  for (const e of [...around, ...beneath]) {
-    const own = paintAt(e, p, look)
-    if (!own) return null
-    layers.push(...own)
+  const root = document.documentElement
+  // The root's background fills the canvas, and the body's with it when the root has none; else the body paints its own box.
+  const bare =
+    isClear(look.ctx, getComputedStyle(root).backgroundColor) && getComputedStyle(root).backgroundImage === 'none'
+  const canvas = new Set(bare ? [root, document.body] : [root])
+  const text = { holder, faded: fadedAround(holder), canvas }
+  const at = stack.indexOf(holder)
+  const below = (at < 0 ? stack : stack.slice(at)).toReversed()
+  const base = canvasOf(text, look)
+  const floating = reachedAt(p, text, look)
+  if (!base || !floating) return null
+  const max = look.maxGrounds * 4
+  /** @type {Part[][][]} */
+  const choices = []
+  for (const e of new Set(below)) {
+    const parts = partsAt(e, p, text, look)
+    const slots = below.flatMap((x, i) => (x === e ? [i] : []))
+    const ways = parts ? arrangementsOf(e, slots, parts, max) : null
+    if (!ways) return null
+    if (ways.some((w) => w.length > 0)) choices.push(ways)
   }
-  const reached = reachedAt(p, look)
-  return reached ? [...layers, ...reached] : null
+  return ordersOf(base, choices, floating, max)
 }
 
 /**
  * Note what lies beneath a text at a point (Ground): the background its element's contrast is read against
- * (onOwnGround), or other paint (groundAt). Past `maxGrounds` readings for one element, or where any cannot be read,
- * what lies beneath its text is unread, and its contrast unknown.
+ * (onOwnGround), or the readings of other paint (groundAt). Past `maxGrounds` readings for one element, or where any
+ * cannot be read, what lies beneath its text is unread, and its contrast unknown.
  * @param {Element} holder
  * @param {{ x: number, y: number }} p in the viewport
  * @param {Look} look
@@ -1176,10 +1525,14 @@ function noteGround(holder, p, look) {
     ground.base = true
     return
   }
-  const layers = groundAt(holder, stack, p, look)
-  const key = JSON.stringify(layers)
-  if (!layers || (!ground.layers.has(key) && ground.layers.size >= look.maxGrounds)) ground.unread = true
-  else ground.layers.set(key, layers)
+  const readings = groundAt(holder, stack, p, look)
+  for (const layers of readings ?? []) {
+    const key = JSON.stringify(layers)
+    if (ground.layers.has(key)) continue
+    if (ground.layers.size >= look.maxGrounds) break
+    ground.layers.set(key, layers)
+  }
+  ground.unread ||= !readings || readings.some((l) => !ground.layers.has(JSON.stringify(l)))
 }
 
 /**
@@ -1243,8 +1596,8 @@ function isCovered(el, budget, ctx) {
   const probes = []
   /** @type {Set<Element>} */
   const holders = new Set()
-  const { paints, reach, generated, grounds, maxGrounds } = budget
-  const look = { ctx, paints, reach, generated, grounds, maxGrounds }
+  const { paints, reach, generated, grounds, maxGrounds, ids } = budget
+  const look = { ctx, paints, reach, generated, grounds, maxGrounds, ids }
   try {
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -1537,29 +1890,98 @@ function isLarge(el, style) {
 }
 
 /**
- * The lowest contrast of a text's fill, drawn at its opacity, over every way the layers of each reading of what lies
- * beneath it can combine (combinations), or why it cannot be read: an image that is not a gradient, or more than 64
- * ways for one reading.
+ * Fill a 1×1 canvas with a colour over what it holds; whatever syntax the page used, the canvas resolves it.
+ * @param {OffscreenCanvasRenderingContext2D} c
+ * @param {string} colour
+ */
+function fillWith(c, colour) {
+  c.fillStyle = '#ffffff'
+  c.fillStyle = colour
+  c.fillRect(0, 0, 1, 1)
+}
+
+/**
+ * A 1×1 canvas's colour, as sRGB bytes.
+ * @param {OffscreenCanvasRenderingContext2D} c
+ * @returns {[number, number, number]}
+ */
+function pixelOf(c) {
+  const [r = 0, g = 0, b = 0] = c.getImageData(0, 0, 1, 1).data
+  return [r, g, b]
+}
+
+/**
+ * Draw one way a reading's layers combine, over white: each layer's colour in turn, and each opacity group's layers
+ * drawn together on a scratch canvas, then over the rest at the group's opacity, as the browser composites them (#117).
  * @param {OffscreenCanvasRenderingContext2D} ctx
- * @param {(string[][] | null)[]} readings
+ * @param {OffscreenCanvasRenderingContext2D} scratch
+ * @param {string[]} combo one colour per layer
+ * @param {Layer[]} layers
+ */
+function drawGround(ctx, scratch, combo, layers) {
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.globalAlpha = 1
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, 1, 1)
+  let i = 0
+  while (i < combo.length) {
+    const group = layers[i]?.group ?? ''
+    const fade = layers[i]?.fade ?? 1
+    if (group === '') {
+      fillWith(ctx, combo[i] ?? 'transparent')
+      i += 1
+      continue
+    }
+    scratch.clearRect(0, 0, 1, 1)
+    for (; i < combo.length && layers[i]?.group === group; i += 1) fillWith(scratch, combo[i] ?? 'transparent')
+    ctx.globalAlpha = fade
+    ctx.drawImage(scratch.canvas, 0, 0)
+    ctx.globalAlpha = 1
+  }
+}
+
+/**
+ * The lowest contrast of a text's fill, drawn at its opacity, over every way the layers of each reading of what lies
+ * beneath it can combine (combinations), each opacity group composited as the browser does (drawGround), or why it
+ * cannot be read: an image that is not a gradient, or more than 64 ways for one reading.
+ * @param {OffscreenCanvasRenderingContext2D} ctx
+ * @param {(Layer[] | null)[]} readings
  * @param {{ fill: string, opacity: number }} text
  * @returns {number | string}
  */
 function worstOver(ctx, readings, text) {
+  const scratch = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true })
+  if (!scratch) return 'background_elsewhere'
   let worst = Number.POSITIVE_INFINITY
   for (const layers of readings) {
     if (!layers) return 'background_image'
-    const behind = combinations(layers, 64)
+    const behind = combinations(
+      layers.map((l) => l.colours),
+      64,
+    )
     if (!behind) return 'background_too_complex'
-    for (const under of behind) {
-      const [hi = 0, lo = 0] = [
-        luminance(paint(ctx, [...under, text.fill], text.opacity)),
-        luminance(paint(ctx, under)),
-      ].toSorted((a, b) => b - a)
-      worst = Math.min(worst, (hi + 0.05) / (lo + 0.05))
+    for (const combo of behind) {
+      drawGround(ctx, scratch, combo, layers)
+      const lo = luminance(pixelOf(ctx))
+      ctx.globalAlpha = text.opacity
+      fillWith(ctx, text.fill)
+      ctx.globalAlpha = 1
+      const [a, b] = [luminance(pixelOf(ctx)), lo].toSorted((x, y) => y - x)
+      worst = Math.min(worst, ((a ?? 0) + 0.05) / ((b ?? 0) + 0.05))
     }
   }
   return worst
+}
+
+/**
+ * The reading of what lies beneath an element's text where it lies over its own background (backgroundLayers), its
+ * layers in no opacity group; null when that background cannot be read.
+ * @param {Element} el
+ * @returns {Layer[] | null}
+ */
+function ownReading(el) {
+  const base = backgroundLayers(el)
+  return base ? base.map((colours) => ({ colours, group: '', fade: 1 })) : null
 }
 
 /**
@@ -1584,9 +2006,10 @@ function contrastOf(el, ctx, ground) {
   const opacity = drawnAlpha(el, ctx)
   if (typeof opacity === 'string') return { ratio: null, floor, large, detail: opacity }
   if (ground?.unread) return { ratio: null, floor, large, detail: 'background_elsewhere' }
-  const read = [...(ground?.base === false ? [] : [backgroundLayers(el)]), ...(ground?.layers.values() ?? [])]
+  const own = ownReading(el)
+  const read = [...(ground?.base === false ? [] : [own]), ...(ground?.layers.values() ?? [])]
   const fill = style.getPropertyValue('-webkit-text-fill-color') || style.color
-  const worst = worstOver(ctx, read.length > 0 ? read : [backgroundLayers(el)], { fill, opacity })
+  const worst = worstOver(ctx, read.length > 0 ? read : [own], { fill, opacity })
   if (typeof worst === 'string') return { ratio: null, floor, large, detail: worst }
   return { ratio: Math.round(worst * 100) / 100, floor, large, detail: null }
 }
@@ -1745,6 +2168,7 @@ function measurePage(opts) {
     generated,
     grounds: new Map(),
     maxGrounds: opts.maxGrounds,
+    ids: new Map(),
   }
   const words = new RegExp(`[^\\s${opts.marks}]`, 'u')
   const strictly = (/** @type {{ el: Element, id: string }} */ { el, id }) => {
@@ -1881,6 +2305,10 @@ const IN_PAGE = [
   pointIn,
   reachOf,
   generatedHere,
+  listItems,
+  rgbaOf,
+  gradientColours,
+  mixesOf,
   backgroundOf,
   borderColours,
   shadowColours,
@@ -1893,9 +2321,22 @@ const IN_PAGE = [
   curveAt,
   shapeAt,
   generatedPaint,
+  isTurned,
   boxPaint,
-  paintAt,
+  backgroundPart,
+  ownPaint,
+  idOf,
+  fadedAround,
+  groupOf,
+  grouped,
+  partsAt,
+  canvasOf,
+  setBeneath,
+  stacksAlone,
+  arrangementsOf,
   reachedAt,
+  contiguous,
+  ordersOf,
   groundAt,
   noteGround,
   coverAlong,
@@ -1914,7 +2355,11 @@ const IN_PAGE = [
   gradientStops,
   backgroundLayers,
   combinations,
+  fillWith,
+  pixelOf,
+  drawGround,
   worstOver,
+  ownReading,
   textContrast,
   leastScale,
   drawnScale,

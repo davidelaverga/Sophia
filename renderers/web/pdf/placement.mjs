@@ -252,9 +252,11 @@ function widen(range, order) {
 }
 
 /**
- * @typedef {{ at: number, tag: string, pseudo: string, box: Edges }} GeneratedBox a generated box (::before or ::after)
- *   and where it lies, by the index of the element that draws it among the page's elements in document order (as
- *   document.querySelectorAll('*') lists them) and that element's tag, which the page measure checks the index by
+ * @typedef {{ at: number, tag: string, pseudo: string, box: Edges, pieces: number }} GeneratedBox a generated box
+ *   (::before or ::after) and where it lies, by the index of the element that draws it among the page's elements in
+ *   document order (as document.querySelectorAll('*') lists them) and that element's tag, which the page measure checks
+ *   the index by; and how many boxes of some size it is drawn in (an inline one across lines in more than one, whose
+ *   union holds points it does not paint)
  * @typedef {{ elements: number, boxes: GeneratedBox[] }} Generated the page's generated boxes, and how many elements
  *   it has
  */
@@ -318,14 +320,17 @@ function addGenerated(boxes, at, limits) {
   if (kind !== 'before' && kind !== 'after') return true
   const parent = c.parent[ni] ?? -1
   const box = edgesAt(layout, li)
+  const sized = box[2] > box[0] || box[3] > box[1]
   const known = boxes.get(ni)
   if (known) {
-    if (box[2] > box[0] || box[3] > box[1]) known.box = unite(known.box, box)
+    if (sized) known.box = unite(known.box, box)
+    known.pieces += sized ? 1 : 0
     return true
   }
   const index = order.get(parent)
   if (index === undefined || boxes.size >= limits.maxGenerated) return false
-  boxes.set(ni, { at: index, tag: stringAt(c.strings, c.name[parent]), pseudo: `::${kind}`, box })
+  const tag = stringAt(c.strings, c.name[parent])
+  boxes.set(ni, { at: index, tag, pseudo: `::${kind}`, box, pieces: sized ? 1 : 0 })
   return true
 }
 

@@ -1761,6 +1761,97 @@ describe('the confined capture kernel', () => {
   )
 
   it(
+    'reads paint through its opacity and in the order the browser paints it, never taking a covered box for the top (#117)',
+    { skip },
+    async () => {
+      // Codex's faded backdrops (4198217238): white 24px research over black drawn at opacity .1, a generated box and a
+      // sibling, reads about 1.3, not 21; black over the same reads high. And the paint order the hit-test stack gives:
+      // a black box under a white card, a negative-z black box under its own white section, a white generated box
+      // drawn over a black block, and a black shadow drawn under a half-white veil, each under a text of its shade; and a
+      // gradient crossing the text's grey between its stops, a small black tile beneath white text, and black text
+      // inside a white box's padding where its thick black rounded border's inner curve reaches.
+      const receipt = await captureHtml(
+        job(
+          page(
+            `body{font:24px/32px Arial;margin:0;padding:16px;background:white;color:black} [data-block]{margin:0}
+            .case{position:relative;margin-bottom:80px}
+            .f1,.f2,.q1,.q3{isolation:isolate} .f1,.f2{color:#fff}
+            .f1::before,.q1::before{content:"";position:absolute;inset:0;background:#000;opacity:.1;z-index:-1}
+            .dim{position:absolute;inset:0;background:#000;opacity:.1;z-index:-1}
+            .q2{isolation:isolate;color:#fff} .q2::before{content:"";position:absolute;inset:0;background:#000;z-index:-1}
+            .q3 .dim{opacity:.2}
+            .under{position:absolute;inset:0;background:#000;z-index:-1} .card{background:#fff;color:#fff}
+            .f4{position:static;background:#000} .f4 section,.f7 section{background:#fff;color:#fff}
+            .f4 section::before,.f7 section::before{content:"";position:absolute;left:0;right:0;height:60px;background:#000;z-index:-1}
+            .f7{isolation:isolate}
+            .f5{isolation:isolate;color:#fff} .f5::before{content:"";position:absolute;inset:0;background:#fff}
+            .f5 .x{background:#000} .f5 span{position:relative}
+            .glow{height:4px;box-shadow:0 0 0 40px #000} .veil i{position:absolute;inset:0;background:rgba(255,255,255,.5)}
+            .veil p{position:relative;color:#808080}
+            .q4{isolation:isolate;background:#fff} .q4::before{content:"";position:absolute;inset:0;background:#eef3ff;z-index:-1}
+            .u2{opacity:.5;color:#fff} .u2 .box{position:absolute;inset:0;background:#000} .u2 p{position:relative}
+            .g1{font-size:18px;color:#757575;background:linear-gradient(90deg,#000,#fff)}
+            .g2{color:#fff;background:#fff linear-gradient(#000,#000) no-repeat;background-size:12px 12px}
+            .g3{color:#222;background:linear-gradient(#fff,#eee)}
+            .ring{position:relative;width:200px;height:160px;border:24px solid #000;border-radius:60px;background:#fff}
+            .ring p{position:absolute;left:0;top:0;font-size:12px;line-height:1;color:#000}`,
+            `<main>
+          <div class="case f1"><p data-block="f1">Not free, over a faded generated box.</p></div>
+          <div class="case f2"><div class="dim"></div><p data-block="f2">Not free, over a faded box.</p></div>
+          <div class="case q1"><p data-block="q1">Readable over a faded generated box.</p></div>
+          <div class="case q2"><p data-block="q2">Light over a black generated box.</p></div>
+          <div class="case q3"><div class="dim"></div><p data-block="q3">Readable over a faded box.</p></div>
+          <div class="case"><div class="under"></div><div class="card"><p data-block="f3">Not free, on a white card.</p></div></div>
+          <div class="case f4"><section><p data-block="f4">Not free, on a white section.</p></section></div>
+          <div class="case f7"><section><p data-block="f7">Not free, on its own white section.</p></section></div>
+          <div class="case f5"><div class="x"><p data-block="f5"><span>Not free, over a white box.</span></p></div></div>
+          <div class="case"><div class="glow"></div><div class="case veil"><i></i><p data-block="f6">Not free, under a veil.</p></div></div>
+          <div class="case q4"><p data-block="q4">Readable on a card over its pale decoration.</p></div>
+          <div class="case u2"><div class="box"></div><p data-block="u2">Faded with its backdrop.</p></div>
+          <div class="case"><p data-block="g1" class="g1">Not free, grey across a black-to-white gradient.</p></div>
+          <div class="case"><p data-block="g2" class="g2">Not free, white beside a small black tile.</p></div>
+          <div class="case"><p data-block="g3" class="g3">Readable on a subtle gradient.</p></div>
+          <div class="case ring"><p data-block="c1">Not</p></div>
+          </main>`,
+          ),
+        ),
+        { env },
+      )
+      assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
+      for (const target of ['w390-light', 'w1280-light']) {
+        const measured = receipt.targets.find((t) => t.id === target)!.page
+        assert.deepEqual(
+          measured.blocks.map(contrastSeen),
+          [
+            ['f1', 'low'],
+            ['f2', 'low'],
+            ['q1', 'read'],
+            ['q2', 'read'],
+            ['q3', 'read'],
+            ['f3', 'low'],
+            ['f4', 'low'],
+            ['f7', 'low'],
+            ['f5', 'low'],
+            ['f6', 'low'],
+            ['q4', 'read'],
+            ['u2', 'background_elsewhere'],
+            ['g1', 'low'],
+            ['g2', 'low'],
+            ['g3', 'read'],
+            ['c1', 'low'],
+          ],
+          target,
+        )
+        const ratio = (id: string) => measured.blocks.find((b) => b.id === id)?.contrast.ratio ?? 0
+        for (const id of ['f1', 'f2']) assert.ok(ratio(id) > 1.2 && ratio(id) < 1.35, `${target}: ${id} ${ratio(id)}`)
+        for (const id of ['f3', 'f4', 'f7', 'f5', 'f6']) assert.ok(ratio(id) < 1.5, `${target}: ${id} ${ratio(id)}`)
+        for (const id of ['q1', 'q2', 'q3', 'q4', 'g3']) assert.ok(ratio(id) >= 7, `${target}: ${id} ${ratio(id)}`)
+        assert.equal(outcome(receipt, 'contrast', target), 'failed', target)
+      }
+    },
+  )
+
+  it(
     'leaves unread the paint beneath a text whose generated boxes the protocol does not place: unknown, never passed (#117)',
     { skip },
     async () => {

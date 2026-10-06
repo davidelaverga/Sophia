@@ -465,8 +465,8 @@ describe('where generated boxes lie, for the paint beneath a text (#117, placeme
     assert.deepEqual(generatedOf(withGenerated()), {
       elements: 5,
       boxes: [
-        { at: 3, tag: 'P', pseudo: '::before', box: [8, 16, 792, 40] },
-        { at: 3, tag: 'P', pseudo: '::after', box: [8, 40, 710, 60] },
+        { at: 3, tag: 'P', pseudo: '::before', box: [8, 16, 792, 40], pieces: 1 },
+        { at: 3, tag: 'P', pseudo: '::after', box: [8, 40, 710, 60], pieces: 2 },
       ],
     })
   })
