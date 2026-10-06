@@ -4,7 +4,7 @@ Goal and attempt: WBC-02 (SCM-01), the isolated CI qualification of the Papercli
 Human owner / executor resource: Davide (decisions); Codex (review, deployment, testing); Claude Code in a cloud container (linux-x64), the only implementation writer  
 Native session: this Claude Code session; no Sophia native session was created  
 Starting worktree/commit: the held WBC-02 branch `scm-01/workboard-source-review` at exactly `29371f5a3703f4358563886407bc360df7c38603`, verified in this container; this slice's branch `scm-01/paperclip-image-ci` was cut from it  
-Ending commit/tree and changed files: commit `ea7aeb8704775fa2289a269d9ea4675a8c838f34`, tree `1307b6d84322e838dcb60bcad9a83c165e616a67`: the last commit with code, and the one every check below ran on. The one commit after it changes only this file, to record that identity (`git diff --stat ea7aeb8` from it names this file alone). From the base, that code commit is the 28th: from `fecc2d2` (the three probe drafts of WBC-02-CC-0014) through the review rounds. Files: `.github/workflows/paperclip-image.yml`, `scripts/paperclip-{service-probe,probe-flow,probe-url,probe-http}.mjs`, `scripts/paperclip-image-{container,cgroup,home,redact,receipt}.mjs`, `tests/unit/paperclip-{image,image-home,probe-http}.test.mjs`, `docs/evidence/WBC-02/paperclip-image-ci.md`, one source-map row (`docs/SOURCE_MAP.md` PC-11, the upstream sign-up refusal) and this handoff. Nothing under `packages/`, `apps/`, contracts, migrations, `config/runtime-unit`, `deploy/` or `docs/progress/`
+Ending commit/tree and changed files: commit `15f3ef10882f56c7271fd9fcf6af0db068f18114`, tree `e0a4ede5256277412cb6a1a9a9f86e898ae74cb4`: the last commit with code, and the one every check below ran on. The one commit after it changes only this file, to record that identity (`git diff --stat 15f3ef1` from it names this file alone). From the base, that code commit is the 30th: from `fecc2d2` (the three probe drafts of WBC-02-CC-0014) through the review rounds. Files: `.github/workflows/paperclip-image.yml`, `scripts/paperclip-{service-probe,probe-flow,probe-url,probe-http}.mjs`, `scripts/paperclip-image-{container,cgroup,home,redact,receipt}.mjs`, `tests/unit/paperclip-{image,image-home,probe-http}.test.mjs`, `docs/evidence/WBC-02/paperclip-image-ci.md`, one source-map row (`docs/SOURCE_MAP.md` PC-11, the upstream sign-up refusal) and this handoff. Nothing under `packages/`, `apps/`, contracts, migrations, `config/runtime-unit`, `deploy/` or `docs/progress/`
 
 ## Outcome
 
@@ -26,8 +26,8 @@ On a GitHub-hosted runner, a workflow builds the image from the pin's own build 
 - **`pnpm check`, Node 24.21.0, at `37bae0e`:** exit 0.
   - Unit: 1581 pass, 0 fail, 1 skipped.
   - Integration: 86 pass, 0 fail, 2 skipped.
-- **`pnpm check` at `ea7aeb8`:** exit 0.
-  - Unit: 1612 pass, 0 fail, 1 skipped.
+- **`pnpm check` at `15f3ef1`:** exit 0.
+  - Unit: 1614 pass, 0 fail, 1 skipped.
   - Integration: 86 pass, 0 fail, 2 skipped.
 - **Tests:** the receipt, scan, scrub, probe, runtime, time-budget, start-timing, health-answer, runtime-bound, restart-phase, trigger and packaged-file tests are in `tests/unit/paperclip-image.test.mjs`, `paperclip-image-home.test.mjs` (Linux only: it reads `/proc`) and `paperclip-probe-http.test.mjs`.
 - **Mutations:** each mutation of those checks is caught; the counts per review round are in the evidence record.
