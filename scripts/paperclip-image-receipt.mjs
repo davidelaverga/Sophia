@@ -9,9 +9,9 @@
 // scan of /opt/sophia inside the image).
 // Every check validates the recorded values themselves, never a producer's own pass flag: the identity against the
 // run's context, and the packaged files recomputed from the manifests and the image's own files (review of 896a92d);
-// each start healthy within HEALTH_LIMIT_S; each memory phase read exactly once, every figure a number, the limit 2 GiB
-// without swap, peak and current within it, and no OOM event of any kind; each probe phase's required
-// steps all present and passed, and what each observed (statuses, outcomes, the same plugin, issue and configuration
+// each start's recorded health answer 200 and ok within HEALTH_LIMIT_S (review of 4c63217); each memory phase read
+// exactly once, every figure a number, the limit 2 GiB without swap, peak and current within it, and no OOM event of
+// any kind; each probe phase's required steps all present and passed, and what each observed (statuses, outcomes, the same plugin, issue and configuration
 // across both phases) recorded and as required; the home's persistence recomputed from the two snapshots, every size
 // and digest it compares one that was read, and every file under the home covered (CX-0039).
 // A check is passed, failed, unavailable (recorded but incomplete) or not reached. The verdict is `qualified` only when
@@ -117,8 +117,12 @@ function startCheck(timings, label) {
   if (records.length > 1) return { result: 'failed', detail: { reason: `${records.length} records for one start` } }
   const [t] = records
   if (!isNumber(t.seconds)) return { result: 'unavailable', detail: t }
+  // Healthy is the answer the server gave, as recorded: 200 with the status `ok`, never the producer's own flag (review
+  // of 4c63217). A start said ok with no answer recorded is incomplete; one said not ok has failed whatever it holds.
+  const healthy = t.health?.status === 200 && t.health?.reported === 'ok'
+  if (!healthy && t.health == null && t.ok === true) return { result: 'unavailable', detail: t }
   // Within the bound and not negative: a negative duration is an impossible record, never a fast start (review of 9130676).
-  return { result: t.ok === true && t.seconds >= 0 && t.seconds <= HEALTH_LIMIT_S ? 'passed' : 'failed', detail: t }
+  return { result: healthy && t.seconds >= 0 && t.seconds <= HEALTH_LIMIT_S ? 'passed' : 'failed', detail: t }
 }
 
 /**

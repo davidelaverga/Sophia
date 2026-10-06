@@ -121,7 +121,7 @@ function complete() {
       image: { id: digest('d'), size: 3e9, os: 'linux', architecture: 'amd64' },
     },
     packaged: packagedOf(manifestOf()),
-    timings: ['first', 'restart', 'recreated'].map((label) => ({ label, ok: true, seconds: 45 })),
+    timings: ['first', 'restart', 'recreated'].map((label) => ({ label, ok: true, seconds: 45, health: { status: 200, reported: 'ok' } })),
     runtime: STARTS.map((label) => ({
       label,
       privileged: false,
@@ -175,7 +175,7 @@ describe('the image qualification receipt (WBC-02-CX-0036)', () => {
 
   it('CX-0036: a start reported ok past the health deadline fails', () => {
     const run = complete()
-    run.timings[1] = { label: 'restart', ok: true, seconds: 420 }
+    run.timings[1] = { label: 'restart', ok: true, seconds: 420, health: { status: 200, reported: 'ok' } }
     assert.equal(verdictOf(run), 'failed')
     assert.equal(resultOf(run, 'restart: healthy'), 'failed')
   })
@@ -667,6 +667,7 @@ describe('review of 37bae0e: a start’s time ends when health answers, not afte
       const [timing] = readFileSync(join(dir, 'timings.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
       assert.ok(wall >= 2, `the log read took its two seconds (${wall} s in all)`)
       assert.equal(timing.ok, true)
+      assert.deepEqual(timing.health, { status: 200, reported: 'ok' }, 'the answer health gave is recorded')
       assert.equal(timing.adapterLogLines, 1)
       assert.ok(timing.seconds < 1, `the start was healthy at once, yet recorded ${timing.seconds} s`)
     } finally {
@@ -808,5 +809,49 @@ describe('review of 896a92d: the packaged files are recomputed from the manifest
       assert.ok(scanLine.includes(flag), `the image scan runs with ${flag}`)
     assert.match(scanLine, /paperclip-image-home\.mjs:\/opt\/check\/scan\.mjs:ro/)
     assert.match(scanLine, /scan \/opt\/sophia > "\$EVIDENCE\/image-files\.json"/)
+  })
+})
+
+describe('review of 4c63217: a start is judged by the health answer recorded, and every runtime step outlasts its commands', () => {
+  const WORKFLOW = fileURLToPath(new URL('../../.github/workflows/paperclip-image.yml', import.meta.url))
+  const withStart = (change) => {
+    const run = complete()
+    run.timings[1] = change({ ...run.timings[1] })
+    return run
+  }
+
+  it('an ok flag with no answer recorded is incomplete, never qualified', () => {
+    const run = withStart(({ health, ...t }) => t)
+    assert.equal(resultOf(run, 'restart:'), 'unavailable')
+    assert.equal(verdictOf(run), 'incomplete')
+  })
+
+  it('an answer other than 200 with the status ok fails the start, whatever its flag says', () => {
+    for (const health of [{ status: 503, reported: 'ok' }, { status: 200, reported: 'starting' }, { status: 200, reported: null }])
+      assert.equal(resultOf(withStart((t) => ({ ...t, health })), 'restart:'), 'failed', JSON.stringify(health))
+  })
+
+  it('a start said not ok fails, with or without an answer recorded', () => {
+    assert.equal(resultOf(withStart(({ health, ...t }) => ({ ...t, ok: false, reason: 'deadline' })), 'restart:'), 'failed')
+  })
+
+  it('every runtime command runs under an explicit bound, and each step’s budget outlasts their sum by a minute', () => {
+    const steps = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image.steps
+    const runtime = steps.filter((s) => /paperclip-image-container\.mjs (start|restart)/.test(s.run ?? ''))
+    assert.deepEqual(
+      runtime.map((s) => s.name),
+      ["First start, the installed plugin's flow, idle", 'Restart', 'Recreate on the same volume and database, sign-up closed'],
+    )
+    for (const step of runtime) {
+      // One command a line, a continued line joined to its command.
+      const commands = step.run.replace(/\\\n\s*/g, ' ').split('\n').map((l) => l.trim()).filter(Boolean)
+      let sum = 0
+      for (const command of commands) {
+        const bound = /^(?:timeout|sleep) (\d+)(?: |$)/.exec(command)
+        assert.ok(bound, `${step.name}: "${command.slice(0, 60)}" runs without an explicit bound`)
+        sum += Number(bound[1])
+      }
+      assert.ok(step['timeout-minutes'] * 60 >= sum + 60, `${step.name}: ${step['timeout-minutes']} min for ${sum} s of commands`)
+    }
   })
 })

@@ -118,7 +118,7 @@ In run 6, every phase again had `memory.max` 2,147,483,648, `memory.swap.max` 0,
   - the build's manifest (`manifest.json`), its digest the one recorded, naming the pin, the candidate commit and a clean tree;
   - the image's copy of it (`image-manifest.json`), byte for byte the same;
   - every file under `/opt/sophia`, read once inside the image by the home scanner (`image-files.json`), confined and with complete coverage: each recorded file but the Dockerfile there with its digest, and nothing else but the manifest.
-- **Each start** healthy within 300 s.
+- **Each start** healthy within 300 s, judged from the health answer recorded (200 with the status `ok`), never the helper's own flag (from the review of `4c63217`).
 - **Each memory phase** read exactly once, with every figure a number:
   - the limit 2 GiB and no swap;
   - peak and current within the limit;
@@ -157,6 +157,7 @@ The review rounds and their tests:
 | review of `f13801d` | the exact upstream sign-up refusal the probe and receipt rely on was not in the source map | `docs/SOURCE_MAP.md` PC-11: the pin's configuration, auth and handler lines and better-auth 1.7.2's `sign-up.mjs`, with the Sophia files that use them; documentation only |
 | review of `3f92959` | a change to the root toolchain, lock or workspace, or to `packages/contracts`, started no image run, though the build installs, typechecks and bundles with them | the trigger names `.node-version`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `packages/contracts/**`; a test walks the bundled packages' workspace dependencies and holds the trigger to them; 7 mutations |
 | review of `896a92d` | the packaged files passed on the identity step's two flags, and the manifests stayed on the runner | both manifests and a confined scan of `/opt/sophia` inside the image kept as evidence; the receipt recomputes the digest, the byte-identical copy, the pin, commit and clean tree, and every packaged file; a real tree scanned and changed; 11 mutations |
+| review of `4c63217` | a start passed on the helper's `ok` flag with no health answer recorded; the runtime steps' budgets were shorter than what they run could take | the helper records the answer (status and reported state) and the receipt judges it, an `ok` without one incomplete; every runtime command under an explicit `timeout` above its own worst case, each step's budget their sum and a minute (33, 12 and 37 minutes), the job 315; 9 mutations |
 
 Each mutation in force is caught. The scan tests read `/proc` and run on Linux only.
 

@@ -35,13 +35,17 @@ const docker = (args, timeout = 120_000) =>
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 const evidence = process.env.EVIDENCE ?? '.'
 
-/** One health read, settled within 5 s whatever the server does (scripts/paperclip-probe-http.mjs, WBC-02-CX-0037). */
+/**
+ * One health read, settled within 5 s whatever the server does (scripts/paperclip-probe-http.mjs, WBC-02-CX-0037): the
+ * HTTP status and the status the server reported, recorded so the receipt judges what was observed (review of
+ * 4c63217); null when nothing answered.
+ */
 async function health() {
   try {
     const reply = await exchange({ port: PORT, path: '/api/health', timeoutMs: 5000 })
-    return reply.status === 200 && reply.json?.status === 'ok'
+    return { status: reply.status, reported: typeof reply.json?.status === 'string' ? reply.json.status : null }
   } catch {
-    return false
+    return null
   }
 }
 
@@ -72,12 +76,16 @@ function recordRuntime(label) {
 /**
  * Waits for health, at most HEALTH_DEADLINE_MS; stops early if the container is no longer running. `started` is a
  * performance.now() reading: a monotonic clock, so a wall-clock step cannot make a start look shorter or negative.
+ * At most about 407 s in all: the window (300 s), one last read and check begun inside it (27 s), the log (60 s) and
+ * the health inspect (20 s); the workflow's `timeout` for each start is above that.
  */
 async function waitHealthy(label, started) {
   let ok = false
   let reason = 'deadline'
+  let last = null
   while (performance.now() - started < HEALTH_DEADLINE_MS) {
-    if (await health()) {
+    last = await health()
+    if (last?.status === 200 && last.reported === 'ok') {
       ok = true
       break
     }
@@ -95,8 +103,9 @@ async function waitHealthy(label, started) {
     label,
     ok,
     seconds,
+    health: last,
     ...(ok ? {} : { reason }),
-    dockerHealth: docker(['inspect', '--format', '{{if .State.Health}}{{.State.Health.Status}}{{end}}', NAME]),
+    dockerHealth: docker(['inspect', '--format', '{{if .State.Health}}{{.State.Health.Status}}{{end}}', NAME], 20_000),
     adapterLogLines: logs.split('\n').filter((l) => l.includes('sophia_dsh')).length,
   }
   appendFileSync(join(evidence, 'timings.jsonl'), `${JSON.stringify(record)}\n`)
