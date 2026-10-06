@@ -277,6 +277,7 @@ describe('review of 9ee7754: the restart phase checks what persists, and leaves 
       const restart = await runPhase(port, dir, 'restart')
       assert.equal(restart.code, 0, JSON.stringify(restart.result))
       assert.equal(restart.result.outcome, 'passed')
+      assert.deepEqual(restart.result.steps[0].detail, { httpStatus: 200, status: 'ok' }, 'health as observed: its HTTP status and body')
       assert.deepEqual(
         restart.result.steps.map((s) => s.step),
         ['health', 'plugin ready again', 'config unchanged', 'same issue found, still cancelled', 'commission resend answered by the same issue', 'host-name guard'],

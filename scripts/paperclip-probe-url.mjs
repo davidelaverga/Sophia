@@ -85,7 +85,7 @@ const seen = (facts) => facts
 
 async function first(target, statePath, waitMs, step) {
   const flow = flowFor(target, newIdentity())
-  await step('health', () => until('the server to report ready', flow.health, waitMs), (h) => ({ status: h.status }))
+  await step('health', () => until('the server to report ready', flow.health, waitMs), (h) => ({ httpStatus: h.httpStatus, status: h.status }))
   await step('host-name guard', () => flow.hostGuard(), seen)
   const op = await step('first admin and board key', () => flow.bootstrap(), (o) => ({
     ...o.statuses,
@@ -136,7 +136,7 @@ async function restarted(target, statePath, waitMs, step, { signUpClosed }) {
   assert.equal(state.origin, target.origin, 'the restarted phase drives the server the first phase drove')
   const flow = flowFor(target, state.identity)
   const { op, ids, issueId } = state
-  await step('health', () => until('the server to report ready', flow.health, waitMs), (h) => ({ status: h.status }))
+  await step('health', () => until('the server to report ready', flow.health, waitMs), (h) => ({ httpStatus: h.httpStatus, status: h.status }))
   await step(
     'plugin ready again',
     () => until('the plugin to be ready', async () => ((await flow.pluginStatus(op, ids.pluginId)) === 'ready' ? 'ready' : null), 60_000),

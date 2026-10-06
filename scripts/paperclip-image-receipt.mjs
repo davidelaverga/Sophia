@@ -72,6 +72,8 @@ export const PROBE_STEPS = {
 const OOM_EVENTS = ['oom', 'oom_kill', 'oom_group_kill']
 
 const isNumber = (v) => typeof v === 'number' && Number.isFinite(v)
+/** A cgroup byte or event counter: a non-negative whole number, as the kernel writes it (review of 98d114d). */
+const isCounter = (v) => Number.isSafeInteger(v) && v >= 0
 const DIGEST = /^sha256:[0-9a-f]{64}$/
 const SHA256 = /^[0-9a-f]{64}$/
 
@@ -124,8 +126,8 @@ function identityCheck(identity, context, packaged) {
   if (!recomputed) return { result: 'unavailable', detail: { reason: 'the manifests and the image scan were not recorded' } }
   const facts = {
     ...recomputed.facts,
-    image: DIGEST.test(image.id ?? '') && isNumber(image.size) && image.size > 0,
-    buildStage: DIGEST.test(build.id ?? '') && isNumber(build.size) && build.size > 0,
+    image: DIGEST.test(image.id ?? '') && isCounter(image.size) && image.size > 0,
+    buildStage: DIGEST.test(build.id ?? '') && isCounter(build.size) && build.size > 0,
     platform: image.os === 'linux' && image.architecture === 'amd64',
   }
   return {
@@ -196,7 +198,7 @@ function memoryCheck(samples, phase) {
   const read =
     Array.isArray(s.unavailable) &&
     s.unavailable.length === 0 &&
-    [s.max, s.swapMax, s.peak, s.current, ...OOM_EVENTS.map((name) => events[name])].every(isNumber) &&
+    [s.max, s.swapMax, s.peak, s.current, ...OOM_EVENTS.map((name) => events[name])].every(isCounter) &&
     typeof s.oomKilled === 'boolean' &&
     typeof s.running === 'boolean'
   if (!read) return { result: 'unavailable', detail }
@@ -213,7 +215,7 @@ function memoryCheck(samples, phase) {
   return { result: within ? 'passed' : 'failed', detail }
 }
 
-const is2xx = (v) => isNumber(v) && v >= 200 && v < 300
+const is2xx = (v) => Number.isInteger(v) && v >= 200 && v < 300
 const id = (v) => typeof v === 'string' && v.length > 0
 
 /**
@@ -222,7 +224,8 @@ const id = (v) => typeof v === 'string' && v.length > 0
  */
 const FACTS = {
   first: {
-    health: (f) => f.status === 'ok',
+    // The HTTP status observed and the status reported, both recorded (review of 98d114d).
+    health: (f) => f.httpStatus === 200 && f.status === 'ok',
     'host-name guard': (f) => f.privateName === 200 && f.otherName === 403,
     'first admin and board key': (f) => f.signUp === 200 && is2xx(f.claim) && is2xx(f.boardKey) && f.boardKeyMinted === true,
     'plugin installed and configured': (f) => id(f.pluginId) && f.install === 200 && f.status === 'ready' && is2xx(f.config),
@@ -241,7 +244,8 @@ const FACTS = {
     'config digest': (f) => SHA256.test(f.sha256 ?? ''),
   },
   restarted: {
-    health: (f) => f.status === 'ok',
+    // The HTTP status observed and the status reported, both recorded (review of 98d114d).
+    health: (f) => f.httpStatus === 200 && f.status === 'ok',
     'plugin ready again': (f, _all, first) => f.status === 'ready' && f.pluginId === first['plugin installed and configured']?.pluginId,
     'config unchanged': (f, _all, first) =>
       SHA256.test(f.after ?? '') && f.before === f.after && f.after === first['config digest']?.sha256,

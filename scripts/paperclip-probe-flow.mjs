@@ -76,9 +76,13 @@ export function flowFor(
     return signEnvelope(claims, body, sophia.privateKey)
   }
 
+  /**
+   * Health as the server answered it, once it answers 200 with the status ok: the HTTP status and the status it
+   * reported, both observed, for the receipt to judge (review of 98d114d); null until then.
+   */
   const health = async () => {
     const reply = await call('GET', '/api/health').catch(() => null)
-    return reply?.status === 200 && reply.json?.status === 'ok' ? reply.json : null
+    return reply?.status === 200 && reply.json?.status === 'ok' ? { httpStatus: reply.status, status: reply.json.status } : null
   }
 
   /** The private name is admitted and any other host name refused. */

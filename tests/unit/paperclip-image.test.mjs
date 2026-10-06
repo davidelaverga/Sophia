@@ -68,7 +68,7 @@ const packagedOf = (manifest) => ({ manifest, imageManifest: Buffer.from(manifes
 /** What each step observed in a legitimate run, as the probe records it. */
 const FACTS = {
   first: {
-    health: { status: 'ok' },
+    health: { httpStatus: 200, status: 'ok' },
     'host-name guard': { privateName: 200, otherName: 403 },
     'first admin and board key': { signUp: 200, claim: 200, boardKey: 201, boardKeyMinted: true },
     'plugin installed and configured': { pluginId: PLUGIN, install: 200, status: 'ready', config: 200 },
@@ -79,7 +79,7 @@ const FACTS = {
     'config digest': { sha256: CONFIG },
   },
   restarted: {
-    health: { status: 'ok' },
+    health: { httpStatus: 200, status: 'ok' },
     'plugin ready again': { pluginId: PLUGIN, status: 'ready' },
     'config unchanged': { before: CONFIG, after: CONFIG },
     'same issue found, still cancelled': { outcome: 'found', issueId: ISSUE, status: 'cancelled' },
@@ -1002,5 +1002,51 @@ describe('review of fe59572: a packaged size a read cannot give, or a settle run
   it('a settle job recorded succeeded without the run it names fails the first phase', () => {
     for (const change of [({ runId, ...f }) => f, (f) => ({ ...f, runId: '' })])
       assert.equal(verdictOf(withFacts('first', 'scheduled settle job', change)), 'failed')
+  })
+})
+
+describe('review of 98d114d: a memory figure a cgroup counter cannot hold is no reading', () => {
+  it('a fractional, negative or unsafe byte or event count does not pass the phase, and the run is not qualified', () => {
+    for (const change of [
+      (s) => ({ ...s, peak: 0.5 }),
+      (s) => ({ ...s, current: 1_000_000_000.5 }),
+      (s) => ({ ...s, peak: -1 }),
+      (s) => ({ ...s, max: LIMIT_BYTES + 0.25 }),
+      (s) => ({ ...s, swapMax: 0.5 }),
+      (s) => ({ ...s, current: Number.MAX_SAFE_INTEGER + 1 }),
+      (s) => ({ ...s, events: { ...s.events, oom: 0.5 } }),
+      (s) => ({ ...s, events: { ...s.events, oom_group_kill: -0.5 } }),
+    ]) {
+      const run = withSample('first:after-flow', change)
+      assert.notEqual(resultOf(run, 'memory, first:after-flow'), 'passed', JSON.stringify(change(sample('x'))))
+      assert.notEqual(verdictOf(run), 'qualified')
+    }
+  })
+})
+
+describe('review of 98d114d: image sizes are whole bytes, and an HTTP status a whole number', () => {
+  it('a fractional image or build-stage size fails the identity', () => {
+    for (const key of ['image', 'buildImage']) {
+      const run = complete()
+      run.identity[key].size = 3e9 + 0.5
+      assert.equal(resultOf(run, 'image built from'), 'failed', key)
+    }
+  })
+
+  it('a fractional 2xx status fails the step that records it', () => {
+    assert.equal(verdictOf(withFacts('first', 'first admin and board key', (f) => ({ ...f, claim: 200.5 }))), 'failed')
+    assert.equal(verdictOf(withFacts('first', 'plugin installed and configured', (f) => ({ ...f, config: 204.5 }))), 'failed')
+  })
+})
+
+describe('review of 98d114d: each probe phase records the HTTP status health answered with, and the body’s', () => {
+  it('a health step without the HTTP status, or with one other than 200, fails its phase', () => {
+    for (const phase of ['first', 'restart', 'restarted'])
+      for (const change of [({ httpStatus, ...f }) => f, (f) => ({ ...f, httpStatus: 503 }), (f) => ({ ...f, httpStatus: '200' })])
+        assert.equal(resultOf(withFacts(phase, 'health', change), `installed plugin flow, ${phase}`), 'failed', phase)
+  })
+
+  it('a 200 whose body reports another status fails too', () => {
+    assert.equal(verdictOf(withFacts('restarted', 'health', (f) => ({ ...f, status: 'starting' }))), 'failed')
   })
 })
