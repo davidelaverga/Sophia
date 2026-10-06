@@ -705,12 +705,14 @@ describe('a tooltip or an accessible name carries no text the page does not show
       'insertion',
       'img checkbox',
       'CHECKBOX',
+      'doc-noteref',
+      'doc-footnote',
       '',
     ]) {
       const to = `<main><span role="${role}" aria-labelledby="t"></span>\n<h1 id="t">`
       assert.deepEqual(swap('<main>\n<h1>', to), ['unsafe_attribute'], role)
     }
-    for (const role of ['img', 'presentation', 'none', 'group', 'note', 'doc-noteref', 'IMG', 'img presentation']) {
+    for (const role of ['img', 'presentation', 'none', 'group', 'note', 'IMG', 'img presentation']) {
       const to = `<main><span role="${role}" aria-labelledby="t"></span>\n<h1 id="t">`
       assert.deepEqual(swap('<main>\n<h1>', to), [], role)
     }
@@ -1025,6 +1027,62 @@ describe('a tooltip or an accessible name carries no text the page does not show
       ['</main>', '<span role="presentation">•</span></main>'],
     ] as const)
       assert.deepEqual(codes(withHtml(good, html(good).replace(from, to))), [], to)
+  })
+  // #117 (4198305255, 4198387163, 4198402569): a document role replaces the meaning of what carries it; a source entry
+  // is listed apart from the blocks.
+  it('holds a note reference to its citation marker and a bibliography entry to a source entry apart from the blocks', () => {
+    const page = html(good)
+    const at = (from: string, to: string, text = page) => {
+      const next = text.replace(from, to)
+      assert.notEqual(next, text, from)
+      return next
+    }
+    const cite = `<a data-cite="${A}" href="#src-${A}">[1]</a>`
+    const entry = `<li id="src-${A}" data-source="${A}">Source ${A}</li>`
+    for (const [from, to] of [
+      ['<p data-block="b1">', '<p data-block="b1" role="doc-noteref">'],
+      ['<table data-block="b5">', '<table data-block="b5" role="doc-biblioentry">'],
+      ['<table data-block="b5"><thead><tr><th>', '<table data-block="b5"><thead><tr><th role="doc-noteref">'],
+      ['<tr><td>One', '<tr><td role="doc-biblioentry">One'],
+      ['needs a dedicated VM', 'needs a <span role="doc-noteref">dedicated</span> VM'],
+      ['<main>', '<main role="doc-noteref">'],
+      ['<section id="s1" data-section="s1">', '<section id="s1" data-section="s1" role="doc-biblioentry">'],
+      [entry, entry.replace('<li ', '<li role="doc-noteref" ')],
+      [cite, cite.replace('<a ', '<a role="doc-biblioentry" ')],
+      ['<table data-block="b5">', '<table data-block="b5" role="DOC-BIBLIOENTRY">'],
+      ['<table data-block="b5">', '<table data-block="b5" role="table doc-biblioentry">'],
+      [entry, entry.replace('<li ', '<li role="doc-endnote" ')],
+      [entry, entry.replace('<li ', '<li role="doc-footnote" ')],
+      [cite, cite.replace('<a ', '<a role="doc-backlink" ')],
+    ] as const)
+      assert.ok(codes(withHtml(good, at(from, to))).includes('unsafe_attribute'), to)
+    // Codex's spoof: the research table made the source entry, its frozen cells kept, the real entry removed.
+    const spoofed = (role: string) =>
+      at('<table data-block="b5">', `<table data-block="b5" id="src-${A}" data-source="${A}"${role}>`, at(entry, ''))
+    assert.ok(codes(withHtml(good, spoofed(' role="doc-biblioentry"'))).includes('unsafe_attribute'), 'the role on it')
+    assert.ok(codes(withHtml(good, spoofed(''))).includes('source_misplaced'), 'a source attribute alone is not enough')
+    const holder = at(
+      '<ul><li data-block="b3">',
+      `<ul id="src-${A}" data-source="${A}"><li data-block="b3">`,
+      at(entry, ''),
+    )
+    assert.ok(codes(withHtml(good, holder)).includes('source_misplaced'), 'a source entry holding a block')
+    const inner = at(
+      'needs a dedicated VM',
+      `needs a <span id="src-${A}" data-source="${A}">dedicated</span> VM`,
+      at(entry, ''),
+    )
+    assert.ok(codes(withHtml(good, inner)).includes('source_misplaced'), 'a source entry inside a block')
+    for (const [from, to] of [
+      [cite, cite.replace('<a ', '<a role="doc-noteref" ')],
+      [cite, cite.replace('<a ', '<a role="DOC-NOTEREF" ')],
+      [cite, `<span data-cite="${A}"><a role="doc-noteref" href="#src-${A}">[1]</a></span>`],
+      [entry, entry.replace('<li ', '<li role="doc-biblioentry" ')],
+      ['<h2>Sources</h2><ul>', '<h2>Sources</h2><ul role="doc-bibliography">'],
+      ['<main>', '<main role="main">'],
+      ['<section id="s1" data-section="s1">', '<section id="s1" data-section="s1" role="region">'],
+    ] as const)
+      assert.deepEqual(codes(withHtml(good, at(from, to))), [], to)
   })
   it('refuses a name repeating a label its markup hides, or one under a hidden ancestor', () => {
     for (const hidden of [

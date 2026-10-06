@@ -6,7 +6,18 @@
 
 import { safeHref } from '@sophia/report/markdown'
 import { checkCss, mediaWidths, SWEEP_WIDTHS } from './css.ts'
-import { attr, depthOf, elements, hasAncestor, inHtml, isText, lineAt, type Document, type Element } from './dom.ts'
+import {
+  attr,
+  depthOf,
+  elements,
+  hasAncestor,
+  inHtml,
+  isElement,
+  isText,
+  lineAt,
+  type Document,
+  type Element,
+} from './dom.ts'
 import { error, warning, type Finding } from './findings.ts'
 import { REFERENCE_ATTRIBUTES, TEXT_ATTRIBUTES } from './framing.ts'
 
@@ -190,15 +201,12 @@ const ROLES = new Set([
   'time',
   'doc-abstract',
   'doc-appendix',
-  'doc-backlink',
   'doc-biblioentry',
   'doc-bibliography',
   'doc-chapter',
   'doc-conclusion',
-  'doc-endnote',
   'doc-endnotes',
   'doc-example',
-  'doc-footnote',
   'doc-introduction',
   'doc-noteref',
   'doc-part',
@@ -231,13 +239,46 @@ function ariaIssue(name: string, value: string): string | null {
   return given.every((t) => tokens.has(t)) ? null : `${name} takes ${[...tokens].join(', ')}`
 }
 
-/** Why a role is refused, or null: each of its tokens names a part of a document or a landmark (#117). */
-function roleIssue(value: string): string | null {
+const isBlock = (el: Element): boolean => attr(el, 'data-block') !== null
+
+/** A citation marker (`data-cite`), or the one link inside it to its source (citations.ts). */
+function isMarkerOrLink(el: Element): boolean {
+  if (attr(el, 'data-cite') !== null) return true
+  const parent = el.parentNode
+  return el.tagName === 'a' && parent !== null && isElement(parent) && attr(parent, 'data-cite') !== null
+}
+
+/** A source entry (`data-source`) listed apart from the blocks: no block, holding none and inside none (#117). */
+function isSourceEntry(el: Element): boolean {
+  return attr(el, 'data-source') !== null && !isBlock(el) && !hasAncestor(el, isBlock) && !elements(el).some(isBlock)
+}
+
+/**
+ * The document roles that annotate research, and the one element each may sit on: a note reference on a citation
+ * marker or its link, a bibliography entry on a source entry. Each replaces the meaning of what carries it: a research
+ * table given `doc-biblioentry` is announced as one entry with no table, rows or cells, and a paragraph given
+ * `doc-noteref` as a reference, while its text and pixels stay; and around research it makes everything inside a note
+ * or an entry. So each sits only on what it names (#117). A backlink, an endnote and a footnote name nothing a report
+ * holds, and are refused (ROLES).
+ */
+const ANNOTATIONS: Readonly<Record<string, { on: (el: Element) => boolean; what: string }>> = {
+  'doc-noteref': { on: isMarkerOrLink, what: 'a citation marker (data-cite) or its link' },
+  'doc-biblioentry': { on: isSourceEntry, what: 'a source entry (data-source) apart from every block' },
+}
+
+/**
+ * Why a role is refused, or null: each of its tokens names a part of a document or a landmark (#117), and a token that
+ * annotates research sits on what it annotates (ANNOTATIONS).
+ */
+function roleIssue(el: Element, value: string): string | null {
   const given = value.trim().toLowerCase().split(/\s+/u)
   const other = given.find((r) => !ROLES.has(r))
-  return other === undefined
+  if (other !== undefined)
+    return `role ${other} is not allowed: a widget's role announces a state or a value that no capture shows`
+  const misplaced = given.find((r) => ANNOTATIONS[r] !== undefined && !ANNOTATIONS[r].on(el))
+  return misplaced === undefined
     ? null
-    : `role ${other} is not allowed: a widget's role announces a state or a value that no capture shows`
+    : `role ${misplaced} is only allowed on ${ANNOTATIONS[misplaced]?.what ?? 'what it annotates'}: on <${el.tagName}> it replaces what that element is announced as`
 }
 
 /**
@@ -251,7 +292,7 @@ function attributeIssue(el: Element, name: string, value: string): string | null
   if (/^on/i.test(name)) return `event handler ${name} is not allowed`
   if (RESERVED.test(name)) return `${name} is written by Sophia's compile, not by the page`
   if (name.startsWith('aria-')) return ariaIssue(name, value)
-  if (name === 'role') return roleIssue(value)
+  if (name === 'role') return roleIssue(el, value)
   if (isGlobal(name))
     return name === 'tabindex' && value !== '0' && value !== '-1' ? 'tabindex may only be 0 or -1' : null
   if (!ELEMENT_ATTRIBUTES[el.tagName]?.has(name)) return `attribute ${name} is not allowed on <${el.tagName}>`

@@ -236,6 +236,24 @@ function listedSources(all: Element[]): Map<string, number> {
   return listed
 }
 
+/**
+ * Source entries on, around or inside a content block. A source entry is listed apart from the blocks: one that is a
+ * block, holds one or sits inside one would make the research its own bibliography, a table announced as an entry and
+ * linked to as a source (#117).
+ */
+function misplacedSources(all: readonly Element[]): Finding[] {
+  return all
+    .filter((el) => attr(el, 'data-source') !== null)
+    .filter((el) => isBlock(el) || hasAncestor(el, isBlock) || elements(el).some(isBlock))
+    .map((el) =>
+      error(
+        'source_misplaced',
+        'index.html',
+        `data-source ${attr(el, 'data-source') ?? ''} is on, around or inside a content block; list a source apart from the blocks`,
+      ),
+    )
+}
+
 function sourceFindings(all: Element[], content: ContentPackage): Finding[] {
   const out: Finding[] = []
   const cited = new Set(content.citations)
@@ -254,6 +272,7 @@ function sourceFindings(all: Element[], content: ContentPackage): Finding[] {
   for (const id of listed.keys())
     if (!cited.has(id))
       out.push(error('source_unknown', 'index.html', `data-source ${id} is not a source the research cites`))
+  out.push(...misplacedSources(all))
   for (const el of all.filter((c) => isCite(c) && !hasAncestor(c, isBlock))) {
     out.push(
       error(
@@ -277,9 +296,10 @@ const isResearch = (el: Element): boolean => isBlock(el) || attr(el, 'data-sourc
 const STRIPPING = new Set(['none', 'presentation', 'generic', 'img'])
 /**
  * The roles research and what is inside it may carry: they mark a citation or a source entry as one, and replace no
- * meaning. Any other role on them replaces what the research is announced as, a header cell as a paragraph (#117).
+ * meaning, where they sit on that marker or that entry (the profile holds each to it: policy.ts). Any other role on
+ * research or inside it replaces what the research is announced as, a header cell as a paragraph (#117).
  */
-const ANNOTATING = new Set(['doc-noteref', 'doc-backlink', 'doc-biblioentry', 'doc-endnote', 'doc-footnote'])
+const ANNOTATING = new Set(['doc-noteref', 'doc-biblioentry'])
 
 /**
  * Why an element changes what a screen reader is given of research, or null: `aria-hidden="true"` takes it out of the
