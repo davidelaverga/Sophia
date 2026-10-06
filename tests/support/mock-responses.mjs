@@ -34,8 +34,9 @@ export async function startMockResponses() {
     res.on('close', () => { closed = true })
     // Every answer starts with an opaque reasoning item, as a reasoning model's does, so the next request replays it.
     const reasoning = { id: `rs_mock_${n}`, type: 'reasoning', summary: [], encrypted_content: `mock-encrypted-${n}` }
+    const args = typeof step.toolCall?.arguments === 'function' ? step.toolCall.arguments(body) : step.toolCall?.arguments
     const answer = step.toolCall
-      ? { id: `fc_mock_${n}`, type: 'function_call', status: 'completed', call_id: `call_mock_${n}`, name: step.toolCall.name, arguments: JSON.stringify(step.toolCall.arguments ?? {}) }
+      ? { id: `fc_mock_${n}`, type: 'function_call', status: 'completed', call_id: `call_mock_${n}`, name: step.toolCall.name, arguments: JSON.stringify(args ?? {}) }
       : { id: `msg_mock_${n}`, type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: step.text, annotations: [] }] }
     const response = (status, output) => ({ id, object: 'response', created_at: 0, model: body.model, status, output, usage: status === 'completed' ? { input_tokens: 1, output_tokens: 1, total_tokens: 2, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 }, ...step.usage } : null })
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
@@ -65,6 +66,7 @@ export async function startMockResponses() {
     requests,
     /**
      * Queue answers; each request consumes one (default: a short "ok"). `{ toolCall: { name, arguments } }` calls a tool;
+     * `arguments` may be a function of the request body, for an argument only what the model received can give.
      * `usage` replaces fields of the reported usage.
      */
     script: (...steps) => { queue.push(...steps) },

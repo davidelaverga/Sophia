@@ -11,9 +11,20 @@
  * The inspect tools hand the model the actual pixels: each capture comes from the service with its bytes checked
  * against the hash the renderer recorded, is stored through dsh's attachment service and reaches the model as an image
  * block, on a route that declares image input. A reference image of a skill reaches it the same way.
+ *
+ * A look counts as seen only once the model has its images (SDD-01-CX-0033, CX-0035, CX-0036). Each inspection's
+ * result carries, with the images, a receipt no one can guess; a candidate or a review's result names the receipts of
+ * the looks it rests on, and only then does the tool acknowledge those deliveries to the service, which is what counts
+ * them. A submit made before the images arrived (in the same batch of tool calls, or after an inspection that was
+ * cancelled or lost before its result reached the model) cannot name their receipt, so they do not count. The roles are
+ * offered no tool that calls another, so a receipt reaches the model only in its inspection's own result. The bridge
+ * keeps receipts in memory: after a restart it refuses the old ones and the model inspects again. Each acknowledgement,
+ * and each submit, is sent unchanged until its outcome is known, within a deadline; an acknowledgement still unknown
+ * submits nothing, and a submit still unknown is sent again under the same call key by the next identical submit.
  * @module @sophia/dsh-bundle/design-tools
  */
 
+import { randomBytes } from 'node:crypto'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
@@ -21,7 +32,9 @@ import type { DesignReference, LoadedAssets } from './design-assets.js'
 import { callKeyOf } from './research-tools.js'
 import { TransportError } from './transport.js'
 import type { ServiceTransport } from './transport.js'
-import type { DesignCaptureImage, DesignRender } from './runtime-wire-types.generated.js'
+import { wire } from './runtime-wire.generated.js'
+import type { WireValidator } from './runtime-wire.generated.js'
+import type { DesignCaptureImage, DesignDeliveryAck, DesignRender } from './runtime-wire-types.generated.js'
 
 /** The attempt and native session a design or review tool works for. */
 export interface DesignSession {
@@ -74,10 +87,30 @@ export interface DesignToolDeps {
   readonly log: (line: string) => void
   /** How long design_render waits for its capture and how often it looks (defaults: CAPTURE_WAIT). */
   readonly renderWait?: { readonly maxMs: number; readonly pollMs: number }
+  /** How an acknowledgement and a submit are sent until their outcome is known (defaults: ACK_PATIENCE, SUBMIT_PATIENCE). */
+  readonly patience?: { readonly ack: Patience; readonly submit: Patience }
+}
+
+/** How often, and for how long, the same request is sent before its outcome counts as unknown. */
+export interface Patience {
+  /** Requests at most. */
+  readonly tries: number
+  /** The pause before the second request; each next pause is twice the last. */
+  readonly pauseMs: number
+  /** No request or pause runs past this, from the first request. */
+  readonly maxMs: number
 }
 
 /** design_render waits up to this long for its capture, looking this often (a look is a service call, not a model call). */
 export const CAPTURE_WAIT = { maxMs: 240_000, pollMs: 2_000 } as const
+/** An acknowledgement is sent up to four times, 0.5, 1 and 2 s apart, within 15 s. */
+export const ACK_PATIENCE: Patience = { tries: 4, pauseMs: 500, maxMs: 15_000 }
+/** A submit is sent up to four times within 60 s: a candidate's gate and publication take longer than an acknowledgement. */
+export const SUBMIT_PATIENCE: Patience = { tries: 4, pauseMs: 1_000, maxMs: 60_000 }
+/** The bridge remembers at most this many looks; the oldest is forgotten first, and its receipt is then refused. */
+const MAX_LOOKS = 4_096
+/** A submit names at most this many receipts. */
+const MAX_SEEN = 64
 /** A text reference is read in pages of this many characters. */
 const REFERENCE_PAGE = 12_000
 
@@ -100,7 +133,79 @@ function serviceProblem(error: unknown): { code: string; message: string } {
   if (error instanceof TransportError && error.code) {
     return { code: error.code, message: MESSAGES[error.code] ?? `The Sophia service refused the operation (${error.code}).` }
   }
-  return { code: 'service_unavailable', message: 'The Sophia service could not be reached; nothing was changed.' }
+  return {
+    code: 'service_unavailable',
+    message: 'The Sophia service could not be reached, or its answer could not be read: the call may or may not have taken effect. Read your context before you repeat it.',
+  }
+}
+
+/** What a submit answers when an acknowledgement it rests on stays unknown: it sent nothing. */
+const UNCONFIRMED = {
+  code: 'service_unavailable',
+  message: 'The Sophia service has not confirmed that the captures you were shown count as seen, so nothing was submitted. Submit again, naming the same receipts, after a pause.',
+} as const
+
+/** What a submit answers when its own outcome stays unknown. */
+const SUBMIT_UNKNOWN = {
+  code: 'service_unavailable',
+  message: 'The Sophia service\'s answer to this submit was lost: it may have been recorded. Submit exactly the same again after a pause; it is sent as the same call and recorded at most once.',
+} as const
+
+/** What a submit answers when it names a receipt this task's model was not handed. */
+function unknownReceipts(receipts: readonly string[]): Json {
+  return {
+    code: 'unknown_receipt',
+    message: `Not the receipt of an inspection you were shown in this task: ${receipts.slice(0, 4).join(', ')}. Each inspection ` +
+      'returns its receipt with its images, and the runtime forgets receipts when it restarts: inspect again and name the receipts it returns. Nothing was submitted.',
+  }
+}
+
+type Role = 'design' | 'review'
+
+/** A look handed to the model: whose it is, and the one acknowledgement that counts it, sent unchanged. */
+interface Look {
+  readonly owner: string
+  readonly role: Role
+  readonly renderJobId: string
+  readonly ack: DesignDeliveryAck
+  counted: boolean
+}
+
+/** Whether a failed request is the service's answer that it recorded nothing (a refusal); anything else is unknown. */
+function refusedOutright(error: unknown): error is TransportError {
+  const status = error instanceof TransportError ? error.status : undefined
+  return status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429
+}
+
+/** Wait `ms`, or less if `stop` fires. */
+const pause = (ms: number, stop: AbortSignal): Promise<void> => new Promise((resolve) => {
+  const timer = setTimeout(resolve, ms)
+  stop.addEventListener('abort', () => { clearTimeout(timer); resolve() }, { once: true })
+})
+
+/**
+ * Send one request until its outcome is known: an answer `accept` takes, or the service's refusal. Anything else (no
+ * answer, one that is unreadable or off the contract, a 5xx, 408 or 429, an answer `accept` rejects) is unknown, and
+ * the same request is sent again, at most `tries` times within `maxMs`; none starts once `stop` fires. Each request is
+ * given the time left; `stop` cancels one in flight only when `cancel` says so (a submit runs to its answer).
+ * Null when the outcome stays unknown.
+ */
+async function untilKnown<T>(send: (signal: AbortSignal) => Promise<T>, accept: (value: T) => boolean, patience: Patience, stop: AbortSignal, cancel: boolean): Promise<{ value: T } | { refusal: TransportError } | null> {
+  const deadline = Date.now() + patience.maxMs
+  let wait = patience.pauseMs
+  for (let tried = 1; !stop.aborted; tried += 1) {
+    const timeout = AbortSignal.timeout(Math.max(1, deadline - Date.now()))
+    try {
+      const value = await send(cancel ? AbortSignal.any([stop, timeout]) : timeout)
+      if (accept(value)) return { value }
+    } catch (error) {
+      if (refusedOutright(error)) return { refusal: error }
+    }
+    if (tried >= patience.tries || Date.now() + wait >= deadline) return null
+    await pause(wait, stop)
+    wait *= 2
+  }
+  return null
 }
 
 /** Run a service call; a refusal becomes the model-facing problem, anything else is the tool's own failure. */
@@ -136,6 +241,7 @@ function imageBlocks(images: ReadonlyArray<{ label: string; image: StoredImage }
 
 interface InspectValue {
   readonly renderJobId: string
+  readonly receipt: string
   readonly captures: ReadonlyArray<Omit<DesignCaptureImage, 'data'> & { image: StoredImage }>
 }
 
@@ -144,7 +250,8 @@ function inspectBlocks(value: unknown): ContentBlock[] {
   const v = value as InspectValue | { code: string }
   if (!('captures' in v)) return json(v)
   const header = `Captures of render ${v.renderJobId}. Each is a real screenshot of the compiled page in the confined renderer; ` +
-    'judge only what you can see in it, and name the capture each finding rests on.'
+    'judge only what you can see in it, and name the capture each finding rests on. ' +
+    `Receipt of this inspection: ${v.receipt}. Name it in seen when you submit: these captures count as seen only then.`
   const blocks = imageBlocks(v.captures.map((c) => ({
     label: `${c.name} (${c.target}, ${c.kind}${c.section ? ` ${c.section}` : ''}, tile ${c.tile}/${c.tiles}, scale ${c.scale})`,
     image: c.image,
@@ -169,6 +276,65 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
   }
   const ids = (s: DesignSession) => ({ attemptId: s.attemptId, nativeSessionId: s.nativeSessionId })
   const wait = deps.renderWait ?? CAPTURE_WAIT
+  const patience = deps.patience ?? { ack: ACK_PATIENCE, submit: SUBMIT_PATIENCE }
+  const ownerOf = (role: Role, s: DesignSession) => `${role} ${s.attemptId} ${s.nativeSessionId}`
+
+  /** The looks handed to the models, by receipt, oldest first. */
+  const looks = new Map<string, Look>()
+  /** Per role and session, the submit whose answer was lost: its content and the call key it is sent again under. */
+  const unanswered = new Map<string, { content: string; callId: string }>()
+
+  /** Remember a look the model is being handed, under a new receipt that only its result will carry. */
+  function handOver(look: Look): string {
+    const receipt = `seen-${randomBytes(16).toString('base64url')}`
+    looks.set(receipt, look)
+    if (looks.size > MAX_LOOKS) looks.delete(looks.keys().next().value!)
+    return receipt
+  }
+
+  /**
+   * Acknowledge the looks a submit names by their receipts, each until its outcome is known. A problem, and nothing
+   * acknowledged, when a receipt is not one of this session's model's looks; a problem when an acknowledgement stays
+   * unknown (it is sent again by the next submit naming it). Null once each was counted or refused: a refused look
+   * does not count, and the service's gate names what is missing.
+   */
+  async function confirmSeen(role: Role, session: DesignSession, seen: readonly string[], stop: AbortSignal): Promise<Json | null> {
+    if (seen.length > MAX_SEEN) return { code: 'invalid_request', message: `A submit names at most ${MAX_SEEN} receipts.` }
+    const owner = ownerOf(role, session)
+    const named = [...new Set(seen)].map((receipt) => [receipt, looks.get(receipt)] as const)
+    const strangers = named.filter(([, look]) => look?.owner !== owner).map(([receipt]) => receipt)
+    if (strangers.length > 0) return unknownReceipts(strangers)
+    for (const [, look] of named) {
+      if (!look || look.counted) continue
+      const outcome = await untilKnown((signal) => deps.client.designDelivered(role, look.ack, signal),
+        (receipt) => receipt.deliveryId === look.ack.deliveryId && receipt.renderJobId === look.renderJobId, patience.ack, stop, true)
+      if (outcome === null) return { ...UNCONFIRMED }
+      if ('value' in outcome) look.counted = true
+      else deps.log(`${role} ${session.attemptId}: delivery ${look.ack.deliveryId} was refused (${outcome.refusal.code ?? outcome.refusal.status}); it does not count as seen`)
+    }
+    return null
+  }
+
+  /**
+   * Send a submit until its outcome is known, under one call key. When its answer stays unknown, the next submit of
+   * exactly the same content in this session is sent under the same key, so the service records it at most once. A
+   * request off the contract is refused here: it is never sent, so its outcome is known.
+   */
+  async function submitOnce<B>(role: Role, session: DesignSession, exec: ToolRunContext, content: object, valid: WireValidator<B>, post: (body: B, signal: AbortSignal) => Promise<unknown>): Promise<Json> {
+    const owner = ownerOf(role, session)
+    const text = JSON.stringify(content)
+    const earlier = unanswered.get(owner)
+    const body = { ...ids(session), callId: earlier?.content === text ? earlier.callId : callKeyOf(exec.callId), ...content }
+    if (!valid(body)) return { code: 'invalid_request', message: MESSAGES.invalid_request! }
+    const callId = body.callId
+    const outcome = await untilKnown((signal) => post(body, signal), () => true, patience.submit, exec.signal, false)
+    if (outcome === null) {
+      unanswered.set(owner, { content: text, callId })
+      return { ...SUBMIT_UNKNOWN }
+    }
+    unanswered.delete(owner)
+    return 'value' in outcome ? asJson(outcome.value) : serviceProblem(outcome.refusal)
+  }
 
   /** Store images through the attachment service, after checking the route can take them. */
   async function stored(exec: ToolRunContext, items: ReadonlyArray<{ data: Uint8Array; mediaType: 'image/png' | 'image/jpeg'; name: string }>) {
@@ -351,8 +517,8 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     name,
     description:
       'Look at the actual captures of a render: up to four per call, by name (from the render\'s captures list), returned ' +
-      'as the images themselves with their place on the page. Look at the overview first, then the sections. A capture ' +
-      'counts as seen once it is here. ' +
+      'as the images themselves with their place on the page, and a receipt. Look at the overview first, then the sections. ' +
+      'A capture counts as seen only once a submit names its inspection\'s receipt (seen). ' +
       (role === 'review'
         ? 'Only your candidate\'s captures are available. A pass needs every overview tile at every target and each section at one target at least.'
         : 'Omit renderJobId for your latest render. Before you submit a candidate, look at every overview tile at every target ' +
@@ -374,9 +540,12 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
           if (id !== `sha256:${c.sha256}`) throw new Error(`The image store altered ${c.name}: it was not shown, and does not count as seen.`)
           return { name: c.name, attachmentId: id }
         })
-        await deps.client.designDelivered(role, { ...ids(session), deliveryId: reply.deliveryId, attachments }, exec.signal)
+        // Not acknowledged here: only a submit naming this result's receipt shows the model had these images.
+        if (exec.signal.aborted) throw new Error('The inspection was cancelled: its captures were not shown and do not count as seen.')
+        const receipt = handOver({ owner: ownerOf(role, session), role, renderJobId: reply.renderJobId, ack: { ...ids(session), deliveryId: reply.deliveryId, attachments }, counted: false })
         return asJson({
           renderJobId: reply.renderJobId,
+          receipt,
           captures: reply.captures.map(({ data: _data, ...c }, i) => ({ ...c, image: images[i] })),
         })
       })
@@ -392,13 +561,16 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     parameters: {
       revisionId: { type: 'string', required: true },
       renderJobId: { type: 'string', required: true },
+      seen: { type: 'array', required: true, items: { type: 'string' }, description: 'The receipts of the inspections this candidate rests on, each as its result gave it: only these captures count as seen.' },
       summary: { type: 'string', description: 'What the page does for its reader, at most 2000 characters (for the record; the reviewer does not see it).' },
     },
     output: { schema: { type: 'json' }, render: plain },
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
+      const problem = await confirmSeen('design', session, args.seen ?? [], exec.signal)
+      if (problem) return problem
       const candidate = { revisionId: args.revisionId, renderJobId: args.renderJobId, ...(args.summary ? { summary: args.summary } : {}) }
-      return guarded(async () => asJson(await deps.client.designSubmit({ ...ids(session), callId: callKeyOf(exec.callId), candidate })))
+      return submitOnce('design', session, exec, { candidate }, wire.DesignSubmitRequest, (body, signal) => deps.client.designSubmit(body, signal))
     },
   })
 
@@ -413,7 +585,7 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
       const blocker = { reason: args.reason, ...(args.remainingWork ? { remainingWork: args.remainingWork } : {}) }
-      return guarded(async () => asJson(await deps.client.designSubmit({ ...ids(session), callId: callKeyOf(exec.callId), blocker })))
+      return submitOnce('design', session, exec, { blocker }, wire.DesignSubmitRequest, (body, signal) => deps.client.designSubmit(body, signal))
     },
   })
 
@@ -421,7 +593,7 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     name: 'review_read_context',
     description:
       'Read your review task: the original request, the frozen content package, your criteria and the candidate with its ' +
-      'render (captures, measures, checks) and what you have inspected so far. With a sourceId, read one page of a text you ' +
+      'render (captures, measures, checks) and the captures counted as inspected so far (a look counts once a submit names its receipt). With a sourceId, read one page of a text you ' +
       'may read (the package, the candidate\'s files or compiled page).',
     parameters: {
       sourceId: { type: 'string', description: 'A text to page through; omit to read the task.' },
@@ -440,9 +612,11 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     description:
       'Submit your verdict: pass (nothing blocking or major remains), needs_revision (with the findings that must change: ' +
       'severity blocking or major, each with its fix and the capture it rests on), or blocked (you cannot judge; give the ' +
-      'reason). A pass before you inspected each target\'s overview and every section is answered with what is missing.',
+      'reason). Name in seen the receipts of the inspections a pass or needs_revision rests on: only those captures count ' +
+      'as inspected. A pass before you inspected each target\'s overview and every section is answered with what is missing.',
     parameters: {
       verdict: { type: 'string', enum: ['pass', 'needs_revision', 'blocked'], required: true },
+      seen: { type: 'array', items: { type: 'string' }, description: 'pass, needs_revision: the receipts of the inspections it rests on, each as its result gave it.' },
       findings: {
         type: 'array',
         description: 'At most 40.',
@@ -465,14 +639,16 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     output: { schema: { type: 'json' }, render: plain },
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
-      const call = { ...ids(session), callId: callKeyOf(exec.callId) }
       if (args.verdict === 'blocked') {
-        return guarded(async () => asJson(await deps.client.reviewSubmit({ ...call, blocker: { reason: args.reason ?? args.summary ?? 'The candidate could not be judged.' } })))
+        const blocker = { reason: args.reason ?? args.summary ?? 'The candidate could not be judged.' }
+        return submitOnce('review', session, exec, { blocker }, wire.ReviewSubmitRequest, (body, signal) => deps.client.reviewSubmit(body, signal))
       }
+      const problem = await confirmSeen('review', session, args.seen ?? [], exec.signal)
+      if (problem) return problem
       type Finding = { severity: 'blocking' | 'major' | 'minor'; issue: string; fix?: string; target?: 'w390-light' | 'w1280-light'; section?: string; capture?: string }
       const findings = (args.findings ?? []).map((f: Finding) => ({ ...f }))
       const result = { verdict: args.verdict, findings, ...(args.summary ? { summary: args.summary } : {}) }
-      return guarded(async () => asJson(await deps.client.reviewSubmit({ ...call, result })))
+      return submitOnce('review', session, exec, { result }, wire.ReviewSubmitRequest, (body, signal) => deps.client.reviewSubmit(body, signal))
     },
   })
 
