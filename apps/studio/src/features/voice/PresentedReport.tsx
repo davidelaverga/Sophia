@@ -27,6 +27,8 @@ interface Props {
   spoken: string | null
   /** The section Sophia moved the room's focus to (A14), `#n` for a repeat, at the focus's revision; null for none. */
   walk?: { anchor: string; revision: number } | null
+  /** To whoever shows it, how many others in the call follow it (A14's «N following»); 0 says nothing. */
+  followers?: number
 }
 
 /**
@@ -123,7 +125,7 @@ function useShownText(version: ArtifactVersion, identity: Identity) {
   return { parsed, listed, language, failed: text.isError }
 }
 
-export function PresentedReport({ version, identity, by, action, spoken, walk }: Props) {
+export function PresentedReport({ version, identity, by, action, spoken, walk, followers = 0 }: Props) {
   const { parsed, listed, language, failed } = useShownText(version, identity)
   const self = useFocusOnArrival(version.id)
   const body = useRef<HTMLDivElement>(null)
@@ -148,6 +150,8 @@ export function PresentedReport({ version, identity, by, action, spoken, walk }:
           <span className="report-main-title">{title}</span>
           <span className="report-main-meta">
             {version.versionNumber ? `v${String(version.versionNumber)} · ` : ''}Shown by {by}
+            {/* Announced as it changes, politely: whoever shows it hears who came along. */}
+            <span aria-live="polite">{followers > 0 ? ` · ${String(followers)} following` : ''}</span>
           </span>
         </span>
         <span className="report-main-acts">{action}</span>

@@ -44,6 +44,8 @@ export interface RoomParticipant {
   screenOn: boolean
   local: boolean
   standing: Standing
+  /** The version this member said they follow (A14, following-signal.ts); absent or null: none. */
+  following?: string | null
 }
 
 const ROLES: ReadonlyArray<Standing> = ['admin', 'editor', 'viewer']

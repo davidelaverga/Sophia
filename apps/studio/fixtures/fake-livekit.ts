@@ -84,6 +84,16 @@ const viewer = (): RoomParticipant => ({
   standing: 'admin',
 })
 
+/** What the page said it follows, last (following-signal.ts sends only a change). */
+let said: string | null = null
+
+/** What the page says it follows, as the room's connection records it: only a change is sent. */
+function sayFollowing(versionId: string | null): Promise<void> {
+  if (versionId !== said) asked.push(`following:${versionId ?? ''}`)
+  said = versionId
+  return Promise.resolve()
+}
+
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   asked.push('connect')
   const me = viewer()
@@ -135,6 +145,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     setMicrophone: device('microphone', 'micOn'),
     setCamera: device('camera', 'cameraOn'),
     setScreenShare: device('screen', 'screenOn'),
+    setFollowing: sayFollowing,
     leave: () => {
       asked.push('leave')
       open = false

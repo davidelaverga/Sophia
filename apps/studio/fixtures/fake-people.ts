@@ -55,6 +55,16 @@ export const sophiaAsked = now.sophia !== null
 
 let changed: () => void = () => undefined
 
+/** What the others follow, by their place among them (`window.fixture.followers`): their `sophia.following`. */
+const followingBy = new Map<number, string>()
+
+/** These others follow `versionId`; everyone else follows nothing. */
+export function setFollowers(people: readonly number[], versionId: string): void {
+  followingBy.clear()
+  for (const n of people) followingBy.set(n, versionId)
+  changed()
+}
+
 /** The room's connection hears of a change here as LiveKit's events tell it: it reads its participants again. */
 export function onPeopleChange(fn: () => void): void {
   changed = fn
@@ -72,6 +82,7 @@ export function others(): RoomParticipant[] {
     local: false,
     // `guest=1`: the last of the others came in as a guest.
     standing: query.has('guest') && i === count - 1 ? 'guest' : 'editor',
+    following: followingBy.get(i + 1) ?? null,
   }))
 }
 
