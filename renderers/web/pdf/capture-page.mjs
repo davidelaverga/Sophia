@@ -2384,7 +2384,7 @@ function budgetOf(opts) {
  * so each element is placed, and the page captured, as it starts; the view ends at the top, where the captures begin.
  * @param {{ maxListed: number, maxMeasured: number, marks: string, maxPoints: number, maxLookMs: number,
  *   maxLines: number, readable: { linePx: number, advancePx: number }, maxTextRects: number, besideEm: number,
- *   maxGrounds: number, generated?: Parameters<typeof generatedIndex>[0] }} opts
+ *   maxGrounds: number, maxOverlaps: number, generated?: Parameters<typeof generatedIndex>[0] }} opts
  * @returns {PageAnswer}
  */
 function measurePage(opts) {
