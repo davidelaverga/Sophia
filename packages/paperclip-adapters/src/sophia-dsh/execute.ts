@@ -9,7 +9,8 @@
  *    attempt that is live or whose state is uncertain), or deny (unknown or foreign issue, held, stopped, finished or
  *    withdrawn work, spent allowance). A denial returns before any effect.
  * 3. To start: `onDispatch` immediately before asking Sophia to start, and only then. A start whose answer was lost is
- *    never repeated: the run observes what Sophia recorded.
+ *    asked again under the same run, which Sophia answers with the attempt it recorded, never a second one; never once
+ *    the run is cancelled, whose cancel then settles what Sophia recorded.
  * 4. Observe until the work settles. On cancellation Sophia holds the work (fenced and settled through its native
  *    path) and the run waits, bounded, for that settlement. Until Sophia answers the cancel, every look asks it again
  *    under the same run (Sophia's cancel is idempotent per run): a cancel lost before or after it arrived is never
@@ -220,14 +221,17 @@ const START_TRIES = 3
 /**
  * Start the permitted attempt, `onDispatch` first. A refusal ends the run. A lost answer is asked again under the same
  * run: Sophia's start is idempotent per run (it answers the attempt it already started), so this never starts a second
- * attempt; if Sophia still does not answer, the run observes what Sophia recorded.
+ * attempt; if Sophia still does not answer, the run observes what Sophia recorded. A run cancelled meanwhile is never
+ * asked to start again (Codex on #107): the first ask may have started the attempt, or not, and the run's cancel (the
+ * watch) settles whichever Sophia recorded, under the same run, rather than starting one after the cancel.
  */
 async function start(
   ctx: AdapterExecutionContext,
   deps: ExecuteDeps,
   run: CoordinationRunRequest,
 ): Promise<AdapterExecutionResult | null> {
-  if (ctx.signal?.aborted === true) return CANCELLED_BEFORE_START
+  const cancelled = () => ctx.signal?.aborted === true
+  if (cancelled()) return CANCELLED_BEFORE_START
   ctx.onDispatch?.()
   for (let tries = 1; tries <= START_TRIES; tries += 1) {
     const started = await ask(() => deps.client.start(run))
@@ -237,7 +241,8 @@ async function start(
         started.reason ?? 'Sophia refused to start the work.',
       )
     if (started !== null) return null
-    await deps.sleep(deps.pollMs)
+    await deps.sleep(deps.pollMs, ctx.signal)
+    if (cancelled()) return null
   }
   return null
 }

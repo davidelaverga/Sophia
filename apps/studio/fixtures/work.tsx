@@ -125,6 +125,8 @@ declare global {
       reconnect?: () => void
       /** Each goal command sent (Request review, Hold, Stop), with its key (LFE-07.2). */
       goalCommands?: readonly { kind: string; key: string }[]
+      /** Each source review proposed (`proposed=lost`), with its key and its body. */
+      proposals?: readonly { key: string; body: unknown }[]
       replay?: (operationId: string) => void
       /** A newer receipt for an operation saying less of its delivery (Codex F-014). */
       weaken?: (operationId: string) => void
@@ -161,6 +163,9 @@ const two = six || query.get('two') === '1'
 const served = query.get('served') === '1'
 /** `cap=<usd>`: the project's cap for one review, in place of the pilot's half a dollar (a sub-cent one, Codex on #107). */
 const cap = query.get('cap')
+/** `proposed=lost`: the first proposal's reply is lost, the next answered; `workFixture.proposals` lists each sent. */
+const proposals =
+  query.get('proposed') === 'lost' ? { lose: 1, sent: [] as { key: string; body: unknown }[] } : undefined
 /** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
 let onGoalCommand: ((command: GoalCommand, key: string) => void) | null = null
 installFixtureApi({
@@ -185,6 +190,7 @@ installFixtureApi({
   textTampered: false,
   work: false,
   ...(served && { review: cap === null ? SOURCE_REVIEW : { ...SOURCE_REVIEW, maxAllowanceUsd: Number(cap) } }),
+  ...(proposals && { proposals }),
   // A12: a call left from here has a meeting that left nothing (MeetingRecap's empty recap).
   meeting: newMeeting(
     () => ({
@@ -200,7 +206,14 @@ installFixtureApi({
     () => true,
   ),
 })
-window.workFixture = { unexpected, answered: answers, commands, receipts, questions }
+window.workFixture = {
+  unexpected,
+  answered: answers,
+  commands,
+  receipts,
+  questions,
+  ...(proposals && { proposals: proposals.sent }),
+}
 const nothing = () => undefined
 
 /** `review=…`: how the lead answers Request review (work-review.ts). */
@@ -712,16 +725,19 @@ function Tasks() {
   const [onCommand] = useState(() => serve((command, effect) => update(settled(command, effect, looking.current))))
   const { review, lead, again } = useLead(first, viewer)
   useEffect(() => {
-    window.workFixture = controls(
-      update,
-      (v) => {
-        setViewer(v)
-        setFirst(opening(v))
-      },
-      { arrive: () => setArrived(true), connect: setConnected, port: setPorted, read: setCoverage },
-      viewer,
-      { commands: lead.commands, again },
-    )
+    window.workFixture = {
+      ...controls(
+        update,
+        (v) => {
+          setViewer(v)
+          setFirst(opening(v))
+        },
+        { arrive: () => setArrived(true), connect: setConnected, port: setPorted, read: setCoverage },
+        viewer,
+        { commands: lead.commands, again },
+      ),
+      ...(proposals && { proposals: proposals.sent }),
+    }
   }, [update, viewer, lead, again])
   const board = viewOf(first, arrived, now, coverage)
   const read = readBoardView(board)

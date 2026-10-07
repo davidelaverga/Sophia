@@ -54,6 +54,7 @@ import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
 import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
 import type { ProjectRelease } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
+import { SOURCE_REVIEW } from './source-review-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
@@ -119,6 +120,11 @@ interface Project {
   goals?: Snapshot['goals']
   /** What Sophia offers for a source review (WBC-02); absent, the pilot is not enabled. */
   review?: SourceReviewAvailability
+  /**
+   * Each source review proposed, with its key and its body (`proposed=lost`): the first `lose` replies are lost, the
+   * request having arrived; the next is answered. Absent, a proposal is unexpected.
+   */
+  proposals?: { lose: number; sent: { key: string; body: unknown }[] }
   /** A goal's command (Request review, Hold, Stop), with its idempotency key; absent, a command is unexpected. */
   onCommand?: (command: GoalCommand, key: string) => void
   /** The floor and Sophia's presence as the page asked for them (data.ts, room-people checks). */
@@ -575,6 +581,8 @@ function meetingClosed(project: Project, init: RequestInit | undefined): Promise
 
 /** What the page writes: the room's focus (PUT), else what it posts. */
 function written(project: Project, method: string, path: string, init: RequestInit | undefined) {
+  if (method === 'POST' && path === `/api/v1/projects/${PROJECT}/plans/source-review` && project.proposals)
+    return proposed(project.proposals, init)
   if (method === 'PUT' && path === `/api/v1/projects/${PROJECT}/seen`) return seenPut(project, init)
   if (method === 'PUT') return path === `/api/v1/rooms/${ROOM}/focus` ? focusPut(project, init) : null
   return posted(project, path, init)
@@ -988,6 +996,36 @@ function versionsRead(project: Project): Response {
   }
   served.push(`versions:${String(project.reportVersions)}`)
   return json(versions(project.reportVersions, project.reportTitle, project.pilot, project.designed))
+}
+
+const proposalId = (n: number) => `00000000-0000-4000-8000-0000000072${String(n).padStart(2, '0')}`
+
+/** A source review proposed: recorded, its reply lost while `lose` lasts (a connection cut), then answered. */
+function proposed(p: NonNullable<Project['proposals']>, init: RequestInit | undefined): Promise<Response> {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  p.sent.push({ key: new Headers(init?.headers).get('idempotency-key') ?? '', body })
+  if (p.sent.length <= p.lose) return Promise.reject(new TypeError('Failed to fetch'))
+  return Promise.resolve(
+    new Response(
+      JSON.stringify({
+        projectId: proposalId(0),
+        planId: proposalId(1),
+        planRevision: 1,
+        decisionId: proposalId(2),
+        decisionRevision: 1,
+        workId: proposalId(3),
+        goalId: proposalId(4),
+        goalRevision: 1,
+        criteriaRef: 'goal:criteria:1',
+        manifestSourceId: proposalId(5),
+        allowanceUsd: 0.5,
+        limits: SOURCE_REVIEW.limits,
+        route: SOURCE_REVIEW.route,
+        cursor: '2',
+      }),
+      { status: 201, headers: { 'content-type': 'application/json' } },
+    ),
+  )
 }
 
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */

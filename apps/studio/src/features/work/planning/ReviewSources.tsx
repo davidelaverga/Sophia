@@ -21,53 +21,84 @@ interface Props {
 /** The allowance a review starts from: half a dollar, or the cap when it is lower. */
 const startingAllowance = (a: SourceReviewAvailability) => Math.min(0.5, a.maxAllowanceUsd ?? 0.5)
 
+/** One proposal as sent: its key and its whole request, kept together until Sophia answers it. */
+interface Asked {
+  readonly key: string
+  readonly request: SourceReviewProposalRequest
+}
+
 type Sent =
   | { state: 'idle' }
-  | { state: 'sending'; key: string }
+  | ({ state: 'sending' } & Asked)
   | { state: 'proposed' }
-  | { state: 'refused'; said: string; key?: string }
+  | { state: 'refused'; said: string }
+  | ({ state: 'unanswered'; said: string } & Asked)
 
-/** What a failed proposal says; a reply that never came keeps its key, so asking again is the same proposal. */
-function refusalOf(err: unknown, key: string): Sent {
+/**
+ * What a failed proposal says. A reply that never came keeps its key and the request as it was sent: asking again sends
+ * exactly that, so Sophia answers it as the same proposal, never as a different body under its key (Codex on #107).
+ */
+function outcomeOf(err: unknown, asked: Asked): Sent {
   if (err instanceof ApiError && err.status > 0 && err.status < 500) return { state: 'refused', said: err.message }
-  return { state: 'refused', said: 'No reply from Sophia. Propose again to check; it is the same proposal.', key }
+  return {
+    state: 'unanswered',
+    said: 'No reply from Sophia. Propose again to check; it is the same proposal.',
+    ...asked,
+  }
 }
+
+/** Whether a proposal is in flight or unanswered: its fields are kept as it was sent until Sophia answers it. */
+const pending = (sent: Sent): sent is Extract<Sent, Asked> => sent.state === 'sending' || sent.state === 'unanswered'
 
 function choose(chosen: readonly string[], id: string, max: number): string[] {
   if (chosen.includes(id)) return chosen.filter((c) => c !== id)
   return chosen.length < max ? [...chosen, id] : [...chosen]
 }
 
+type Proposal = ReturnType<typeof useProposal>
+
 interface FormProps extends Props {
   availability: SourceReviewAvailability
+  proposal: Proposal
   onClose: () => void
 }
 
-/** The proposal, sent once per press, its key kept for a press after no reply (the same proposal again). */
+/**
+ * The proposal, sent once per press. After no reply, a press sends the same key and the same request again; only
+ * Sophia's answer ends it. It is held beside the form, so closing and reopening the form keeps it too.
+ */
 function useProposal({ projectId, identity, goal, onProposed }: Props) {
   const [sent, setSent] = useState<Sent>({ state: 'idle' })
   const propose = async (body: Omit<SourceReviewProposalRequest, 'goalId' | 'goalRevision'>) => {
-    const key = sent.state === 'refused' && sent.key ? sent.key : crypto.randomUUID()
-    setSent({ state: 'sending', key })
+    if (sent.state === 'sending') return
+    const asked: Asked =
+      sent.state === 'unanswered'
+        ? { key: sent.key, request: sent.request }
+        : { key: crypto.randomUUID(), request: { goalId: goal.id, goalRevision: goal.revision, ...body } }
+    setSent({ state: 'sending', ...asked })
     try {
-      await proposeReview(identity.token, projectId, key, { goalId: goal.id, goalRevision: goal.revision, ...body })
+      await proposeReview(identity.token, projectId, asked.key, asked.request)
       setSent({ state: 'proposed' })
       onProposed()
     } catch (err: unknown) {
-      setSent(refusalOf(err, key))
+      setSent(outcomeOf(err, asked))
     }
   }
-  return { sent, propose }
+  /** A new form starts afresh, unless a proposal is still unanswered. */
+  const reset = () => setSent((now) => (pending(now) ? now : { state: 'idle' }))
+  return { sent, propose, reset }
 }
 
 function SourcesField({
   availability,
   chosen,
   onChoose,
+  frozen,
 }: {
   availability: SourceReviewAvailability
   chosen: readonly string[]
   onChoose: (id: string) => void
+  frozen: boolean
 }) {
   return (
     <fieldset>
@@ -75,7 +106,12 @@ function SourcesField({
       {availability.sources.length === 0 && <p className="view-note">No report version can be reviewed yet.</p>}
       {availability.sources.map((s) => (
         <label key={s.sourceId} className="review-source">
-          <input type="checkbox" checked={chosen.includes(s.sourceId)} onChange={() => onChoose(s.sourceId)} />
+          <input
+            type="checkbox"
+            checked={chosen.includes(s.sourceId)}
+            disabled={frozen}
+            onChange={() => onChoose(s.sourceId)}
+          />
           <span>{s.label}</span>
         </label>
       ))}
@@ -116,14 +152,17 @@ function Bounds({ availability }: { availability: SourceReviewAvailability }) {
 }
 
 function ReviewForm(props: FormProps) {
-  const { goal, availability, onClose } = props
-  const [chosen, setChosen] = useState<string[]>([])
-  const [allowance, setAllowance] = useState(() => startingAllowance(availability))
-  const [purpose, setPurpose] = useState('')
-  const { sent, propose } = useProposal(props)
+  const { goal, availability, proposal, onClose } = props
+  const { sent, propose } = proposal
+  // A proposal still unanswered is shown as it was sent, and cannot be changed until Sophia answers it.
+  const kept = pending(sent) ? sent.request : null
+  const [chosen, setChosen] = useState<string[]>(() => [...(kept?.sourceIds ?? [])])
+  const [allowance, setAllowance] = useState(() => kept?.allowanceUsd ?? startingAllowance(availability))
+  const [purpose, setPurpose] = useState(() => kept?.purpose ?? '')
+  const frozen = kept !== null
   const max = availability.maxAllowanceUsd ?? 0
   const selection = selectionOf(availability.sources, chosen, availability.limits.maxInputBytes)
-  const valid = chosen.length > 0 && !selection.over && allowanceOk(allowance, max)
+  const valid = frozen || (chosen.length > 0 && !selection.over && allowanceOk(allowance, max))
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!valid) return
@@ -135,6 +174,7 @@ function ReviewForm(props: FormProps) {
       <SourcesField
         availability={availability}
         chosen={chosen}
+        frozen={frozen}
         onChoose={(id) => setChosen(choose(chosen, id, availability.limits.maxSources))}
       />
       <TooMuch bytes={selection.bytes} over={selection.over} limit={availability.limits.maxInputBytes} />
@@ -146,6 +186,7 @@ function ReviewForm(props: FormProps) {
           max={max}
           step={ALLOWANCE_STEP}
           value={allowance}
+          readOnly={frozen}
           aria-invalid={!allowanceOk(allowance, max)}
           onChange={(e) => setAllowance(Number(e.target.value))}
         />
@@ -155,24 +196,34 @@ function ReviewForm(props: FormProps) {
           id={`review-purpose-${goal.id}`}
           maxLength={300}
           value={purpose}
+          readOnly={frozen}
           onChange={(e) => setPurpose(e.target.value)}
         />
       </TextField>
       <Bounds availability={availability} />
+      <SendRow sent={sent} valid={valid} onClose={onClose} />
+    </form>
+  )
+}
+
+/** Propose, or propose again what went unanswered; and what Sophia said to the last press. */
+function SendRow({ sent, valid, onClose }: { sent: Sent; valid: boolean; onClose: () => void }) {
+  return (
+    <>
       <div className="control-row">
         <button type="submit" className="pill primary" disabled={!valid || sent.state === 'sending'}>
-          {sent.state === 'sending' ? 'Proposing…' : 'Propose review'}
+          {sent.state === 'sending' ? 'Proposing…' : sent.state === 'unanswered' ? 'Propose again' : 'Propose review'}
         </button>
         <button type="button" className="ghost" onClick={onClose}>
           Cancel
         </button>
       </div>
-      {sent.state === 'refused' && (
+      {(sent.state === 'refused' || sent.state === 'unanswered') && (
         <p className="form-error" role="alert">
           {sent.said}
         </p>
       )}
-    </form>
+    </>
   )
 }
 
@@ -190,6 +241,7 @@ function Proposed({ onClose }: { onClose: () => void }) {
 /** Review sources, under a goal, where Sophia offers it to the viewer. */
 export function ReviewSources(props: Props) {
   const [open, setOpen] = useState(false)
+  const proposal = useProposal(props)
   const availability = useQuery({
     queryKey: ['review-availability', props.projectId, props.identity.name],
     queryFn: ({ signal }) => reviewAvailability(props.identity.token, props.projectId, signal),
@@ -200,10 +252,17 @@ export function ReviewSources(props: Props) {
   if (!a?.enabled) return null
   if (!open) {
     return (
-      <button type="button" className="ghost review-sources-open" onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className="ghost review-sources-open"
+        onClick={() => {
+          proposal.reset()
+          setOpen(true)
+        }}
+      >
         Review sources
       </button>
     )
   }
-  return <ReviewForm {...props} availability={a} onClose={() => setOpen(false)} />
+  return <ReviewForm {...props} availability={a} proposal={proposal} onClose={() => setOpen(false)} />
 }

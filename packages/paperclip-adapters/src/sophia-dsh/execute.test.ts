@@ -240,6 +240,24 @@ describe('sophia_dsh execute', () => {
     assert.equal(result.exitCode, 0)
   })
 
+  it('never asks to start again once the run was cancelled after a lost start answer: its cancel settles it (Codex on #107)', async () => {
+    const holding = observation('holding')
+    const h = harness(
+      {
+        permit: start(),
+        start: [down(), started()],
+        cancel: [holding],
+        observe: [observation('held')],
+      },
+      // Paperclip cancels the run during the wait after the lost start answer.
+      { abortAfterObserves: 1 },
+    )
+    const result = await h.run()
+    assert.equal(h.ops().filter((op) => op === 'start').length, 1, 'no start after the cancel')
+    assert.deepEqual(h.ops().slice(0, 5), ['cancellation-ready', 'permit', 'dispatch', 'start', 'cancel'])
+    assert.equal(outcome(result), 'sophia_held', 'the cancel held what Sophia recorded')
+  })
+
   it('returns a start refusal without observing', async () => {
     const h = harness({
       permit: start(),

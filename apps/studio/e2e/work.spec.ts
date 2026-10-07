@@ -3101,6 +3101,53 @@ test('codex · #107 · sources over a review’s limit together are said so and 
   await expect(propose).toBeEnabled()
 })
 
+/** A proposal whose reply was lost (`proposed=lost`): kept as sent, across closing the form, and proposed again so. */
+async function lostProposal(page: Page) {
+  await page.goto(`${PAGE}?served=1&proposed=lost`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  const purpose = form.getByLabel('Purpose (optional)')
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await purpose.fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  // Kept as it was sent until Sophia answers: nothing in it can be changed, so no other body goes under its key.
+  await expect(form.getByRole('checkbox', { name: 'Launch brief v3' })).toBeDisabled()
+  await expect(form.getByRole('checkbox', { name: 'Press plan v2' })).toBeChecked()
+  await expect(purpose).toHaveJSProperty('readOnly', true)
+  await expect(form.getByLabel('Allowance, USD (at most 0.5)')).toHaveJSProperty('readOnly', true)
+  // Closed and opened again, it is the same proposal still.
+  await form.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(purpose).toHaveValue('Check the budgets agree')
+  await expect(purpose).toHaveJSProperty('readOnly', true)
+  await form.getByRole('button', { name: 'Propose again' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Proposed.' })).toBeVisible()
+  const sent = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(sent[0])
+  expect(sent[0]?.body).toMatchObject({ purpose: 'Check the budgets agree', allowanceUsd: 0.5 })
+  // Answered, a new form starts afresh.
+  await page.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByLabel('Purpose (optional)')).toHaveValue('')
+  await expect(form.getByRole('checkbox', { name: 'Launch brief v3' })).toBeEnabled()
+}
+
+test('codex · #107 · a proposal whose reply was lost is proposed again as it was sent, under its key, never edited', async ({
+  page,
+}) => {
+  await lostProposal(page)
+})
+
+test('@phone · codex · #107 · on a phone too, a proposal whose reply was lost is proposed again as it was sent', async ({
+  page,
+}) => {
+  await lostProposal(page)
+})
+
 test('codex · #107 · a cap below a cent, or between cents, starts the allowance there and the form may be sent', async ({
   page,
 }) => {
