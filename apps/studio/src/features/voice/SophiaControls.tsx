@@ -114,12 +114,16 @@ function Conversation({ view, snapshot, identity, me, exchangeId, busy, run }: C
       {canShow && <ShowSophia exchangeId={exchangeId} source={source} identity={identity} busy={busy} run={run} />}
       {presence.looking && (
         <button type="button" className="pill" disabled={busy} onClick={control('stop-looking')}>
-          <DockWord icon="eyeOff">Stop looking</DockWord>
+          <DockWord icon="eyeOff" said="Sophia stops looking">
+            Stop looking
+          </DockWord>
         </button>
       )}
       {view.exchange === 'paused' && (
         <button type="button" className="pill warm" disabled={busy} onClick={control('resume')}>
-          <DockWord icon="play">Resume</DockWord>
+          <DockWord icon="play" said="Resume with Sophia">
+            Resume
+          </DockWord>
         </button>
       )}
       <button type="button" className="pill has-tip" disabled={busy} onClick={control('end')}>
@@ -141,7 +145,9 @@ export function SophiaControls(props: Props) {
       {view.exchange === 'none' && <AskIn snapshot={snapshot} identity={identity} busy={busy} run={run} />}
       {view.needsAudio && (
         <button type="button" className="pill warm" onClick={onAllowAudio}>
-          <DockWord icon="speaker">Allow audio</DockWord>
+          <DockWord icon="speaker" said="Allow Sophia’s audio">
+            Allow audio
+          </DockWord>
         </button>
       )}
       {view.exchange !== 'none' && exchangeId && (

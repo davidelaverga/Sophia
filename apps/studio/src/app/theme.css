@@ -1948,8 +1948,10 @@ button.contribution-quote:hover {
 .dock .pill {
   height: 36px;
 }
-/* A control's icon shows on a phone only (DockWord); on a computer the words say it. */
-.dock-icon {
+/* A control's icon shows on a phone only (DockWord); on a computer the words say it, and a tip kept for a phone's held
+   press never shows. */
+.dock-icon,
+.dock-tip {
   display: none;
 }
 /* On a phone the dock is a row of icons in 42 px squares, its box hugging them; the words stay the controls' names,
@@ -1966,6 +1968,7 @@ button.contribution-quote:hover {
     padding-left: 0;
   }
   .dock :is(.round, .pill:has(.dock-icon)) {
+    position: relative;
     display: grid;
     place-items: center;
     width: 42px;

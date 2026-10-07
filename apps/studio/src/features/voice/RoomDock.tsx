@@ -295,14 +295,16 @@ function FloorAction({ floor, me, busy, onPass }: ActionProps) {
   if (floor.canTake) {
     return (
       <button type="button" className="pill warm" disabled={busy} onClick={() => onPass(me)}>
-        <DockWord icon="hand">Take the floor</DockWord>
+        <DockWord icon="hand" said="Take the floor">
+          Take the floor
+        </DockWord>
       </button>
     )
   }
   if (floor.passTargets.length === 1 && only) {
     return (
       <button type="button" className="pill warm" disabled={busy} onClick={() => onPass(only.identity)}>
-        <DockWord icon="pass" badge={shortName(only.name).charAt(0)}>
+        <DockWord icon="pass" badge={shortName(only.name).charAt(0)} said={`Pass to ${shortName(only.name)}`}>
           Pass to {shortName(only.name)}
         </DockWord>
       </button>

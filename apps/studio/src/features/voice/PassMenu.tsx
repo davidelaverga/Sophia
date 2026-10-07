@@ -36,7 +36,9 @@ export function PassMenu({ targets, busy, onPass }: Props) {
         disabled={busy}
         onClick={() => setOpen((o) => !o)}
       >
-        <DockWord icon="pass">Pass to…</DockWord>
+        <DockWord icon="pass" said="Pass the floor to…">
+          Pass to…
+        </DockWord>
       </button>
       {open && (
         <PassList

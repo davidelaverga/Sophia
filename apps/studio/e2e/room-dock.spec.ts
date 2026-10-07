@@ -76,6 +76,24 @@ test('dock · on a phone, passing the floor to one person shows whose it becomes
   await expect(pass.locator('.dock-badge')).toHaveText('M')
 })
 
+for (const [state, query, shows] of [
+  ['Sophia speaking, the floor yours', 'people=1&floor=me&exchange=open&sophia=speaking', 'Stop speaking'],
+  ['Sophia paused', 'people=1&floor=me&exchange=open&sophia=here&paused=holder_left', 'Resume'],
+] as const) {
+  test(`dock · on a phone, every control has words to show while pressed and held (${state})`, async ({ page }) => {
+    await enter(page, query, 390)
+    await expect(dock(page).getByRole('button', { name: shows, exact: true })).toBeVisible()
+    const bare = await dock(page)
+      .getByRole('button')
+      .evaluateAll((all) =>
+        all
+          .filter((b) => b.getBoundingClientRect().width > 0 && !b.querySelector(':scope > .tip'))
+          .map((b) => b.getAttribute('aria-label') ?? b.textContent),
+      )
+    expect(bare).toEqual([])
+  })
+}
+
 test('dock · on a phone, its box hugs the row: no empty sides', async ({ page }) => {
   await enter(page, 'people=2', 390)
   const gap = await dock(page).evaluate((nav) => {

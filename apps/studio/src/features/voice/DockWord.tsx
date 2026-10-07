@@ -3,8 +3,16 @@
 import type { ReactNode } from 'react'
 import { Icon, type IconName } from '@sophia/ui'
 
-/** `badge`: a letter on the icon, where the words name someone (passing the floor: whose it becomes). */
-export function DockWord({ icon, badge, children }: { icon: IconName; badge?: string; children: ReactNode }) {
+interface Props {
+  icon: IconName
+  /** A letter on the icon, where the words name someone (passing the floor: whose it becomes). */
+  badge?: string
+  /** For a control with no tip of its own: its words, shown on a phone while it is pressed and held. */
+  said?: string
+  children: ReactNode
+}
+
+export function DockWord({ icon, badge, said, children }: Props) {
   return (
     <>
       <span className="dock-icon" aria-hidden>
@@ -12,6 +20,11 @@ export function DockWord({ icon, badge, children }: { icon: IconName; badge?: st
         {badge && <span className="dock-badge">{badge}</span>}
       </span>
       <span className="dock-word">{children}</span>
+      {said && (
+        <span className="tip dock-tip" aria-hidden>
+          {said}
+        </span>
+      )}
     </>
   )
 }
