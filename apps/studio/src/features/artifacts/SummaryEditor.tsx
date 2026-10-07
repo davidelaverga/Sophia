@@ -2,12 +2,15 @@
 // date. An editor's change is saved against the revision they saw when they began (summaryEdit): when someone else
 // changed it first, theirs is shown and nothing is overwritten, even after the cards were read again meanwhile. A save
 // with no reply is never sent again by itself (it may have landed). Edit moves the focus to the text, and leaving the
-// form (Cancel, Esc, a save) hands it back to Edit.
-import { useEffect, useRef, useState } from 'react'
+// form (Cancel, Esc, a save) hands it back to Edit. Sophia's own description opens with her mark, which says so to a
+// screen reader and under the pointer; a member's edit is said in words (docs/plans/knowledge-quiet.md). Edit sits at the
+// tile's foot, after what the tile puts there (History).
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
 import { editReportSummary } from '../../api/artifacts.ts'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { Mark } from '../../app/Mark.tsx'
 import { summaryEdit, type SummaryDraft } from './report-view.ts'
 import { dayOf } from '../../app/time-words.ts'
 
@@ -19,10 +22,12 @@ interface Props {
   editable: boolean
   /** The description changed (saved here, or found newer): read the cards again. */
   onSaved: () => void
+  /** What the tile puts at its foot, before Edit. */
+  children?: ReactNode
 }
 
+/** A member's edit, said in words (Sophia's own is said by her mark). */
 function attribution(card: ReportCard): string {
-  if (card.summaryAuthorId === null) return 'Description by Sophia'
   const when = card.summaryUpdatedAt ? dayOf(card.summaryUpdatedAt, Date.now()) : null
   return when ? `Edited by a member · ${when}` : 'Edited by a member'
 }
@@ -68,7 +73,17 @@ function useDraft() {
   return { draft, start: setDraft, write, stop, edit }
 }
 
-export function SummaryEditor({ card, identity, editable, onSaved }: Props) {
+/** Sophia's mark before her own description: «Description by Sophia» to a screen reader and under the pointer. */
+function SophiasMark() {
+  return (
+    <span className="report-by">
+      <Mark />
+      <span className="sr-only">Description by Sophia: </span>
+    </span>
+  )
+}
+
+export function SummaryEditor({ card, identity, editable, onSaved, children = null }: Props) {
   const { draft, start, write, stop, edit } = useDraft()
   const [problem, setProblem] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -87,12 +102,19 @@ export function SummaryEditor({ card, identity, editable, onSaved }: Props) {
     }
   }
   if (draft === null) {
+    // No description is no one's: only one that exists is credited.
+    const sophias = card.summary !== null && card.summaryAuthorId === null
     return (
       <div className="report-summary">
-        <p>{card.summary ?? 'No description yet.'}</p>
-        <p className="report-attribution">
-          {/* No description is no one's: only one that exists is credited. */}
-          {card.summary !== null && attribution(card)}
+        <p className="report-summary-text">
+          {sophias && <SophiasMark />}
+          {card.summary ?? 'No description yet.'}
+        </p>
+        {card.summary !== null && !sophias && <p className="report-attribution">{attribution(card)}</p>}
+        <Problem text={problem} />
+        {/* One key in both forms: the foot, and History in it, stay as the form comes and goes (its focus too). */}
+        <div key="foot" className="report-foot">
+          {children}
           {editable && (
             <button
               ref={edit}
@@ -103,19 +125,23 @@ export function SummaryEditor({ card, identity, editable, onSaved }: Props) {
               Edit
             </button>
           )}
-        </p>
-        <Problem text={problem} />
+        </div>
       </div>
     )
   }
   return (
-    <SummaryForm
-      draft={draft.text}
-      saving={saving}
-      problem={problem}
-      onDraft={(text) => (text === null ? stop() : write(text))}
-      onSave={() => void save(draft)}
-    />
+    <div className="report-summary">
+      <SummaryForm
+        draft={draft.text}
+        saving={saving}
+        problem={problem}
+        onDraft={(text) => (text === null ? stop() : write(text))}
+        onSave={() => void save(draft)}
+      />
+      <div key="foot" className="report-foot">
+        {children}
+      </div>
+    </div>
   )
 }
 
