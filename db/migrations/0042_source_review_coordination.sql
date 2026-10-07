@@ -1402,8 +1402,10 @@ END $$;
 REVOKE ALL ON FUNCTION sophia.review_checks(sophia.review_scope,jsonb,jsonb) FROM PUBLIC;
 
 -- The reads a submit's receipts prove: each must be a receipt served to this attempt (a page that reached the model);
--- the sources they are of are recorded as read, and only those may be cited (review_checks). Returns what the pages
--- cover of each source, in characters: one page is not the whole source, and the result says which were read whole.
+-- the sources they are of are recorded as read, and only those may be cited (review_checks). A page with no text of a
+-- source that has some (asked past its end) brought the model nothing: its receipt proves no read (Codex on #107).
+-- Returns what the pages cover of each source, in characters: one page is not the whole source, and the result says
+-- which were read whole.
 CREATE FUNCTION sophia.review_receipts_read(s sophia.review_scope, p_receipts jsonb) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE r text; x sophia.work_review_receipts; seen bytea[]:='{}'; coverage jsonb;
@@ -1415,6 +1417,7 @@ BEGIN
   SELECT * INTO x FROM sophia.work_review_receipts
    WHERE project_id=s.project_id AND receipt_sha256=sha256(convert_to(r,'UTF8')) AND attempt_id=s.attempt_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'A receipt was not served to this review' USING ERRCODE='22023'; END IF;
+  CONTINUE WHEN x.page_chars=0 AND x.total_chars>0;
   seen:=seen||x.receipt_sha256;
   INSERT INTO sophia.work_review_reads(project_id,attempt_id,source_id,first_read_at) VALUES(s.project_id,s.attempt_id,x.source_id,x.issued_at)
    ON CONFLICT(project_id,attempt_id,source_id) DO UPDATE SET first_read_at=least(work_review_reads.first_read_at,EXCLUDED.first_read_at);

@@ -8,6 +8,7 @@ import type { Goal, SourceReviewAvailability, SourceReviewProposalRequest } from
 import { proposeReview, reviewAvailability } from '../../../api/work.ts'
 import { ApiError } from '../../../api/client.ts'
 import type { Identity } from '../../../app/dev-identity.ts'
+import { kib, selectionOf } from './review-sources.ts'
 
 interface Props {
   projectId: string
@@ -93,6 +94,16 @@ function TextField({ id, label, children }: { id: string; label: string; childre
   )
 }
 
+/** The chosen sources hold more text than a review reads: said where they are chosen, before anything is proposed. */
+function TooMuch({ bytes, over, limit }: { bytes: number; over: boolean; limit: number }) {
+  if (!over) return null
+  return (
+    <p className="form-error" role="status">
+      These sources hold {kib(bytes)} of text; a review reads at most {kib(limit)}. Choose fewer or shorter sources.
+    </p>
+  )
+}
+
 /** What the reviewer may do, said before anything is proposed. */
 function Bounds({ availability }: { availability: SourceReviewAvailability }) {
   return (
@@ -111,7 +122,8 @@ function ReviewForm(props: FormProps) {
   const [purpose, setPurpose] = useState('')
   const { sent, propose } = useProposal(props)
   const max = availability.maxAllowanceUsd ?? 0
-  const valid = chosen.length > 0 && allowance > 0 && allowance <= max
+  const selection = selectionOf(availability.sources, chosen, availability.limits.maxInputBytes)
+  const valid = chosen.length > 0 && !selection.over && allowance > 0 && allowance <= max
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     void propose({ sourceIds: chosen, allowanceUsd: allowance, ...(purpose.trim() ? { purpose: purpose.trim() } : {}) })
@@ -124,6 +136,7 @@ function ReviewForm(props: FormProps) {
         chosen={chosen}
         onChoose={(id) => setChosen(choose(chosen, id, availability.limits.maxSources))}
       />
+      <TooMuch bytes={selection.bytes} over={selection.over} limit={availability.limits.maxInputBytes} />
       <TextField id={`review-allowance-${goal.id}`} label={`Allowance, USD (at most ${String(max)})`}>
         <input
           id={`review-allowance-${goal.id}`}

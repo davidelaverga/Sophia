@@ -637,6 +637,12 @@ describe('one Paperclip-managed source review', () => {
     const refused = await submit('s-foreign', [foreign], [w.sourceA])
     assert.equal(refused.status, 422, JSON.stringify(refused.json))
     assert.match(String(refused.json.message), /not served to this review/)
+    // A page asked past the source's end carries a receipt and no text: it proves no read (Codex on #107).
+    const past = await w.runtime('/v1/runtime/source-review/context', { ...at, sourceId: w.sourceB, offset: 100_000 })
+    assert.deepEqual([past.status, past.json.text, past.json.nextOffset], [200, '', null], JSON.stringify(past.json))
+    const empty = await submit('s-past', [past.json.receipt], [w.sourceB])
+    assert.equal(empty.status, 422, JSON.stringify(empty.json))
+    assert.match(String(empty.json.message), /did not read/)
     // A page lost on its way, then read again: the reread's receipt, which did arrive, lets the source be cited.
     await pageOf(w, at, w.sourceA)
     const partial = await w.runtime('/v1/runtime/source-review/context', { ...at, sourceId: w.sourceA, limit: 10 })
