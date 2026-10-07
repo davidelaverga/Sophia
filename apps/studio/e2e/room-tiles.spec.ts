@@ -152,6 +152,9 @@ for (const width of [320, 390, 820]) {
   })
 }
 
+/** What a screen reader is given for a tile's label (its accessibility tree, not its text nodes). */
+const said = (page: Page, name: string) => room(page).locator('.tile-name').filter({ hasText: name }).ariaSnapshot()
+
 /** A tile's label at a phone's width: the width each part takes on screen, and its words. */
 const label = (page: Page, name: string) =>
   room(page)
@@ -165,7 +168,6 @@ const label = (page: Page, name: string) =>
       const box = el.getBoundingClientRect()
       const guest = el.querySelector('.tile-mark[data-mark="guest"]')?.getBoundingClientRect()
       return {
-        text: el.textContent,
         who: width('.tile-who'),
         you: width('.tile-mark[data-mark="you"]'),
         floor: width('.tile-floor'),
@@ -181,6 +183,7 @@ test('tiles · on a phone, a guest’s tile says «guest» whole, and still some
   expect(guest.guestWhole).toBe(true)
   expect(guest.guest).toBeGreaterThan(20)
   expect(guest.who).toBeGreaterThanOrEqual(10)
+  expect(await said(page, 'Noor')).toBe('- text: Noor · guest')
 })
 
 test('tiles · on a phone, the floor’s holder has the warm edge; « · floor» is said, not shown', async ({ page }) => {
@@ -199,7 +202,7 @@ test('tiles · on a phone, the floor’s holder has the warm edge; « · floor»
   })
   expect(edge).toBe(warm)
   const iv = await label(page, 'Iván')
-  expect(iv.text).toBe('Iván · floor')
+  expect(await said(page, 'Iván')).toBe('- text: Iván · floor')
   expect(iv.floor).toBeLessThanOrEqual(1)
 })
 
@@ -207,7 +210,7 @@ test('tiles · on a phone, your own tile gives the name the label; « · you» i
   await page.setViewportSize({ width: 390, height: 844 })
   await enter(page, 'people=9&video=screen')
   const you = await label(page, 'Fixture')
-  expect(you.text).toBe('Fixture · you')
+  expect(await said(page, 'Fixture')).toBe('- text: Fixture · you')
   expect(you.you).toBeLessThanOrEqual(1)
   expect(you.who).toBeGreaterThanOrEqual(30)
 })

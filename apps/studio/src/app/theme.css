@@ -3215,15 +3215,13 @@ div.empty {
     white-space: nowrap;
   }
   /* A fifth of a phone holds a name and one short word. A guest says so («guest», warm: it tells a visitor from a
-     member); « · you» and « · floor» stay said to a screen reader, and the floor's holder has the warm edge. */
-  .tile-strip .tile-sep {
-    display: none;
-  }
+     member); « · you» and « · floor» stay said to a screen reader, and the floor's holder has the warm edge. The
+     separator is hidden from sight only: a screen reader still hears «Noor · guest», never «Noor guest». */
   .tile-strip .tile-mark[data-mark='guest'] {
     margin-left: 4px;
     color: var(--warm);
   }
-  .tile-strip :is(.tile-mark[data-mark='you'], .tile-floor) {
+  .tile-strip :is(.tile-sep, .tile-mark[data-mark='you'], .tile-floor) {
     position: absolute;
     width: 1px;
     height: 1px;
