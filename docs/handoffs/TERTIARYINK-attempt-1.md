@@ -9,7 +9,7 @@ Ending commit/tree: `c474ad1754c6b945a2dc57217ca026264d53f172` (tree `c137268e74
 
 ## Outcome
 
-`--text-3` goes from 0.44 to 0.52 (`theme.css`): 4.8:1 or more on the void, the plane and a raised plane, under the
+`--text-3` goes from 0.44 to 0.52 (`theme.css`): 4.6:1 or more on the void, the plane and a raised plane, under the
 second ink (0.66). Note: `docs/plans/tertiary-ink.md`.
 
 ## Evidence

@@ -12,11 +12,16 @@ const PAGES = [
   ['Updates', '/room.html?demo=1&place=updates'],
 ] as const
 
+test.afterEach(async ({ page }) => {
+  expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
+})
+
 for (const [name, url] of PAGES) {
   for (const phone of [false, true]) {
     test(`ink${phone ? ' @phone' : ''} · on ${name}, every word at rest reads at 4.5:1`, async ({ page }) => {
       await page.goto(url)
-      await expect(page.locator('body')).not.toBeEmpty()
+      // The page has drawn: its first heading.
+      await expect(page.getByRole('heading').first()).toBeVisible()
       await page.waitForLoadState('networkidle')
       expect(await lowContrast(page, 'body')).toEqual([])
     })

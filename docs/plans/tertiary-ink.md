@@ -11,7 +11,7 @@ people read: the project bar's other views and «Up to date», Home's date line,
 
 ## What changes
 
-- `--text-3` goes to 0.52: 4.8:1 or more on the void, the plane and a raised plane, still well under the second ink
+- `--text-3` goes to 0.52: 4.6:1 or more on the void, the plane and a raised plane, still well under the second ink
   (0.66), so the order of the three inks holds. One token, every use.
 
 ## Checks
