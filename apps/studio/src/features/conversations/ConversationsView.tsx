@@ -145,6 +145,9 @@ function useTalk(projectId: string, name: string) {
     onRefused: (words: string | null) => change((k) => ({ ...k, refusals: withEntry(k.refusals, id, words) })),
     asked: kept.asked[id] ?? null,
     onAsked: (at: string) => change((k) => ({ ...k, asked: withEntry(k.asked, id, { at, here: Date.now() }) })),
+    /** Her answer to the ask made at `at` seen: that wait goes (one asked since stays). */
+    onAnswered: (at: string) =>
+      change((k) => (k.asked[id]?.at === at ? { ...k, asked: withEntry(k.asked, id, null) } : k)),
   })
   return { of, kept, change }
 }
