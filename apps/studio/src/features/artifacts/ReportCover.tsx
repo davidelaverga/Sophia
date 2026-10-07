@@ -3,8 +3,9 @@
 // query keys: opening the report after reads its versions again, never its page or its text), and checked against the
 // version's hashes as the viewer checks them. The page is shown as the viewer shows it, in a frame with no permission
 // at all (no scripts, no same origin, no forms, no popups), and as a picture: hidden from screen readers and inert, out
-// of the Tab order with every link inside it, since the press over it names it. Until it arrives the cover is a quiet
-// plane; a read that fails or doesn't match leaves the monogram.
+// of the Tab order with every link inside it, since the press over it names it. The frame is there only while the tile
+// is within reach: one scrolled far away keeps its checked page in the cache, not a live document. Until it arrives the
+// cover is a quiet plane; a read that fails or doesn't match leaves the monogram.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion, ReportCard } from '@sophia/contracts'
@@ -16,20 +17,29 @@ import { renditionOf } from './report-view.ts'
 
 const retryRead = (n: number, error: Error) => !(error instanceof HashMismatch) && n < 2
 
-/** Whether the cover has come within a screen's reach: once it has, its read is kept. */
+/**
+ * Whether the cover is within a screen's reach now (`inReach`), and whether it ever has been (`near`): once it has, its
+ * read is kept.
+ */
 function useNear() {
   const ref = useRef<HTMLDivElement>(null)
+  const [inReach, setInReach] = useState(false)
   const [near, setNear] = useState(false)
   useEffect(() => {
     const el = ref.current
-    if (!el || near) return undefined
-    const seen = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setNear(true), {
-      rootMargin: '240px',
-    })
+    if (!el) return undefined
+    const seen = new IntersectionObserver(
+      (entries) => {
+        const now = entries.some((e) => e.isIntersecting)
+        setInReach(now)
+        if (now) setNear(true)
+      },
+      { rootMargin: '240px' },
+    )
     seen.observe(el)
     return () => seen.disconnect()
-  }, [near])
-  return { ref, near }
+  }, [])
+  return { ref, near, inReach }
 }
 
 type Cover =
@@ -90,11 +100,11 @@ function useCover(card: ReportCard, identity: Identity, near: boolean): Cover {
 }
 
 export function ReportCover({ card, identity }: { card: ReportCard; identity: Identity }) {
-  const { ref, near } = useNear()
+  const { ref, near, inReach } = useNear()
   const cover = useCover(card, identity, near)
   return (
     <div ref={ref} className="report-cover" data-cover={cover.kind}>
-      {cover.kind === 'page' && (
+      {cover.kind === 'page' && inReach && (
         <iframe
           className="report-cover-frame"
           title={`${card.title}, first screen`}

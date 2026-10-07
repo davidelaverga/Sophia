@@ -24,7 +24,9 @@
 - **A Markdown report:** the cover is its first lines, typeset as a page: its first heading, then its opening words,
   without citation ids or emphasis marks. They are drawn as text, never as HTML.
 - **Lazy:** a cover reads its report only once its tile comes near the screen. It uses the viewer's own reads (the same
-  query keys), so opening the report after reads its page and text from what the cover read.
+  query keys), so opening the report after reads its page and text from what the cover read. A designed page's frame
+  is there only while its tile is within reach: scrolled far away, the checked page stays in the cache, not as a live
+  document, and comes back without a new read.
 - **Until it arrives,** the cover is a quiet plane of the same size. A read that fails or does not match its hash leaves
   the format's monogram (HTML, PDF or MD), never a broken frame.
 
@@ -51,6 +53,7 @@ For example «HTML · v2 · 2 versions · Oct 1»; with all projects shown, the 
   from screen readers; the press over it opens the designed page.
 - A Markdown tile's cover shows its first heading and words as text, with no citation id.
 - A cover whose page does not match its hash shows the monogram, and no frame.
+- A cover scrolled far away keeps no frame; scrolled back, it shows the same page with no new read.
 - The meta line: «v2 · 2 versions» kept; no «1 version»; no «updated».
 - The tiles' type sizes are at most the four tokens.
 - At 390 px one column, nothing past the screen; at 1440 px three columns or more.
