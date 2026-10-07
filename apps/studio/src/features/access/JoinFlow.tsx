@@ -12,6 +12,7 @@ import { devIdentities, type Identity } from '../../app/dev-identity.ts'
 import { Centered, CodeForm, HomeLink, SlowNote } from '../../app/SignIn.tsx'
 import { askAgainIn, clock, countdown, freshJoinToken, readJoinToken, sessionLabel } from './access-view.ts'
 import { GuestRoom, VisitEnd } from './GuestRoom.tsx'
+import { useNow } from '../../app/use-now.ts'
 
 interface Props {
   auth: AuthState
@@ -120,11 +121,7 @@ function Unreachable({ onRetry }: { onRetry: () => void }) {
 }
 
 function SessionNote({ preview }: { preview: InvitationPreview }) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30_000)
-    return () => clearInterval(t)
-  }, [])
+  const now = useNow(30_000)
   if (!preview.session) return null
   return (
     <p className="join-session">

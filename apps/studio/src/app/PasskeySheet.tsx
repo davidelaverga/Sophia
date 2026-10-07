@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ConfirmButton } from '@sophia/ui'
 import { addPasskey, listPasskeys, removePasskey, type SavedPasskey } from './auth.ts'
 import { dayInSentence } from './time-words.ts'
+import { useNow } from './use-now.ts'
 import { Sheet } from './Sheet.tsx'
 
 type Load = { status: 'loading' } | { status: 'ready'; passkeys: SavedPasskey[] } | { status: 'error'; message: string }
@@ -26,7 +27,7 @@ function usePasskeys() {
 }
 
 function PasskeyRow({ passkey, onRemove }: { passkey: SavedPasskey; onRemove: () => void }) {
-  const now = Date.now()
+  const now = useNow()
   const used = passkey.lastUsedAt ? `used ${dayInSentence(passkey.lastUsedAt, now, { past: true })}` : 'not used yet'
   return (
     <li className="passkey-row">
