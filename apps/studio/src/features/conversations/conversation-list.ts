@@ -33,6 +33,20 @@ export function matching(all: readonly ConversationSummary[], typed: string): re
   return words.length > 0 ? all.filter((c) => words.every((w) => folded(c.title).includes(w))) : all
 }
 
+/** What the list is narrowed to: title words, those with an open question, those the reader wrote in. */
+export interface Narrowing {
+  typed: string
+  open: boolean
+  mine: boolean
+}
+
+/** The conversations that pass every narrowing asked for, in the list's order. */
+export function narrowed(all: readonly ConversationSummary[], by: Narrowing, me: string) {
+  return matching(all, by.typed).filter(
+    (c) => (!by.open || c.openQuestions > 0) && (!by.mine || c.contributors.some((p) => p.actorId === me)),
+  )
+}
+
 /** How many accepted decisions show before «and N more». */
 export const SHOWN_DECISIONS = 3
 

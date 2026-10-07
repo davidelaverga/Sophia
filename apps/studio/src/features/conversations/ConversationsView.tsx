@@ -5,7 +5,7 @@
 // In three panes (docs/plans/conversations-panes.md): the list, the open one, its context. Under 1180 px the context is
 // a panel «Context» opens; on a phone one screen shows at a time, the list or the conversation.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Membership } from '@sophia/contracts'
 import {
   listConversations,
@@ -16,9 +16,9 @@ import {
 } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
-import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { Waiting } from '../../app/Waiting.tsx'
-import { byActivity, contributorsLine, listKey, matching, messagesKey, openWords } from './conversation-list.ts'
+import { byActivity, listKey, messagesKey } from './conversation-list.ts'
+import { Rows } from './ConversationRows.tsx'
 import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
 import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
@@ -77,6 +77,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
       aria-labelledby="conversations-title"
     >
       <ListPane
+        projectId={projectId}
         read={list}
         all={all}
         openId={shown?.id}
@@ -105,6 +106,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
 
 /** The left pane: the list's name and New conversation (for members), the list's state, and its rows. */
 function ListPane(props: {
+  projectId: string
   read: Parameters<typeof ListState>[0]['read']
   all: readonly ConversationSummary[]
   openId: string | undefined
@@ -124,7 +126,9 @@ function ListPane(props: {
         </div>
       </div>
       <ListState read={props.read} count={all.length} />
-      {all.length > 0 && <Rows all={all} openId={props.openId} me={props.me} onOpen={props.onOpen} />}
+      {all.length > 0 && (
+        <Rows projectId={props.projectId} all={all} openId={props.openId} me={props.me} onOpen={props.onOpen} />
+      )}
     </section>
   )
 }
@@ -374,78 +378,6 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
     form,
   }
 }
-
-/** The rows, narrowed by the filter: each opens its conversation. */
-function Rows(props: {
-  all: readonly ConversationSummary[]
-  openId: string | undefined
-  me: string
-  onOpen: (id: string) => void
-}) {
-  const [typed, setTyped] = useState('')
-  const shown = matching(props.all, typed)
-  return (
-    <>
-      <input
-        type="search"
-        className="conv-filter"
-        aria-label="Filter conversations"
-        placeholder="Filter by title"
-        value={typed}
-        onChange={(e) => setTyped(e.target.value)}
-      />
-      {shown.length === 0 ? (
-        <p className="conv-note">{`No conversation’s title has «${typed.trim()}».`}</p>
-      ) : (
-        <ul className="conv-rows">
-          {shown.map((c) => (
-            <Row key={c.id} conversation={c} open={c.id === props.openId} me={props.me} onOpen={props.onOpen} />
-          ))}
-        </ul>
-      )}
-    </>
-  )
-}
-
-/**
- * A conversation as listed: named by its title, then when it last moved and Sophia's summary in a line, what is open as
- * an amber count. Who wrote there and what is open are said in words to a screen reader.
- */
-function Row(props: { conversation: ConversationSummary; open: boolean; me: string; onOpen: (id: string) => void }) {
-  const { conversation: c } = props
-  const id = useId()
-  return (
-    <li>
-      <button
-        type="button"
-        className="conv-row"
-        aria-pressed={props.open}
-        aria-labelledby={`${id}-t`}
-        aria-describedby={`${id}-d`}
-        onClick={() => props.onOpen(c.id)}
-      >
-        <span id={`${id}-t`} className="conv-title">
-          {c.title}
-        </span>
-        <span className="conv-row-at" aria-hidden>
-          {movedAt(c.lastAt, Date.now())}
-        </span>
-        <span id={`${id}-d`} className="conv-about">
-          {c.summary && <span className="conv-gist">{c.summary}</span>}
-          <span className="sr-only">{`${contributorsLine(c, props.me)}. ${openWords(c.openQuestions)}.`}</span>
-          {c.openQuestions > 0 && (
-            <span className="conv-open-flag" aria-hidden>
-              {c.openQuestions}
-            </span>
-          )}
-        </span>
-      </button>
-    </li>
-  )
-}
-
-/** When a conversation last moved: the clock today, the day before. */
-const movedAt = (at: string, now: number) => (sameDay(at, new Date(now)) ? clock(at) : dayOf(at, now))
 
 /** What the list's read says: waiting, failed (out of date when some were read), or none yet. */
 function ListState(props: {
