@@ -2,8 +2,10 @@
 // conversations, newest activity first, each with its own history; the one open beside them; and the project's
 // context, the same for all of them. Members start one (New conversation) and continue one; viewers read
 // (docs/plans/project-conversation-writes.md). Under the vision flag, where the fixture pages answer (A18, proposed).
+// In three panes (docs/plans/conversations-panes.md): the list, the open one, its context. Under 1180 px the context is
+// a panel «Context» opens; on a phone one screen shows at a time, the list or the conversation.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react'
 import type { Membership } from '@sophia/contracts'
 import {
   listConversations,
@@ -13,11 +15,13 @@ import {
   type MessageAsk,
 } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { modalOnScreen } from '../../app/shortcuts.ts'
+import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { byActivity, contributorsLine, listKey, matching, messagesKey, openWords } from './conversation-list.ts'
 import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
-import { OpenConversation } from './OpenConversation.tsx'
+import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
 import { NO_WORDS, START, useKept, withEntry } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
@@ -34,10 +38,14 @@ interface Props {
   cursor: string | undefined
 }
 
-export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
-  const me = membership?.actorId ?? ''
-  // Unknown until the membership is read: neither a field nor the viewer's line meanwhile.
-  const writer = membership && membership.role !== 'viewer'
+/** Who reads here: their id, and whether they write (unknown until the membership is read: neither, meanwhile). */
+const readerOf = (membership: Membership | undefined) => ({
+  me: membership?.actorId ?? '',
+  writer: membership && membership.role !== 'viewer',
+})
+
+/** The project's conversations, newest activity first, read again as the feed moves. */
+function useList(projectId: string, identity: Identity, cursor: string | undefined) {
   const list = useQuery({
     queryKey: listKey(projectId, identity.name),
     queryFn: ({ signal }) => listConversations(identity.token, projectId, signal),
@@ -45,48 +53,181 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     retry: 1,
   })
   useReadAgain(cursor, list.refetch)
-  const all = list.data ?? []
+  return { list, all: list.data ?? [] }
+}
+
+export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
+  const { me, writer } = readerOf(membership)
+  const { list, all } = useList(projectId, identity, cursor)
   const { open, choose } = useChosen(all)
+  const panes = usePanes()
   const talk = useTalk(projectId, identity.name)
-  const start = useStart(projectId, identity, talk, choose)
+  const start = useStart(projectId, identity, talk, (id) => {
+    choose(id)
+    panes.show()
+  })
+  // The one open, unless the form for a new one is in its place.
+  const shown = start.starting ? undefined : open
   return (
-    <section className="conversations" aria-labelledby="conversations-title">
-      <h2 id="conversations-title">Conversations</h2>
-      <div className="conversations-grid">
-        <section className="conv-list" aria-label="All conversations">
-          {writer && (
-            <button
-              ref={start.button}
-              type="button"
-              className="pill conv-start"
-              aria-pressed={start.starting}
-              onClick={start.toggle}
-            >
-              New conversation
-            </button>
-          )}
-          <ListState read={list} count={all.length} />
-          {all.length > 0 && (
-            <Rows
-              all={all}
-              openId={start.starting ? undefined : open?.id}
-              me={me}
-              onOpen={(id) => {
-                start.close()
-                choose(id)
-              }}
-            />
-          )}
-        </section>
-        {start.starting ? (
-          <NewConversation projectId={projectId} identity={identity} {...start.form} />
-        ) : (
-          open && <Open conversation={open} {...{ identity, me, cursor, writer, talk, start }} />
-        )}
-        <ProjectContext projectId={projectId} identity={identity} cursor={cursor} />
-      </div>
+    <section
+      ref={panes.view}
+      className="conversations"
+      data-screen={shown || start.starting ? (start.starting ? 'thread' : panes.screen) : 'list'}
+      data-context={panes.context || undefined}
+      aria-labelledby="conversations-title"
+    >
+      <ListPane
+        read={list}
+        all={all}
+        openId={shown?.id}
+        me={me}
+        start={writer ? start : null}
+        // With no conversation open (none yet, or the form for a new one), «Context» is the list's.
+        context={shown ? null : { open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
+        onOpen={(id) => {
+          start.close()
+          choose(id)
+          panes.show()
+        }}
+      />
+      {start.starting && <NewConversation projectId={projectId} identity={identity} {...start.form} />}
+      {shown && <Open conversation={shown} {...{ identity, me, cursor, writer, talk, start, panes }} />}
+      <ProjectContext
+        {...{ projectId, identity, cursor }}
+        conversation={shown}
+        opened={panes.context}
+        onClose={panes.closeContext}
+      />
+      {panes.context && <div className="conv-scrim" aria-hidden onClick={panes.closeContext} />}
     </section>
   )
+}
+
+/** The left pane: the list's name and New conversation (for members), the list's state, and its rows. */
+function ListPane(props: {
+  read: Parameters<typeof ListState>[0]['read']
+  all: readonly ConversationSummary[]
+  openId: string | undefined
+  me: string
+  start: ReturnType<typeof useStart> | null
+  context: Parameters<typeof ContextToggle>[0]['context'] | null
+  onOpen: (id: string) => void
+}) {
+  const { all } = props
+  return (
+    <section className="conv-list" aria-label="All conversations">
+      <div className="conv-list-head">
+        <h2 id="conversations-title">Conversations</h2>
+        <div className="conv-list-acts">
+          {props.context && <ContextToggle context={props.context} />}
+          {props.start && <StartButton start={props.start} />}
+        </div>
+      </div>
+      <ListState read={props.read} count={all.length} />
+      {all.length > 0 && <Rows all={all} openId={props.openId} me={props.me} onOpen={props.onOpen} />}
+    </section>
+  )
+}
+
+/** New conversation: a + press beside the list's name, its words in its name and its tip. */
+function StartButton({ start }: { start: ReturnType<typeof useStart> }) {
+  return (
+    <button
+      ref={start.button}
+      type="button"
+      className="icon-button conv-start"
+      aria-label="New conversation"
+      title="New conversation"
+      aria-pressed={start.starting}
+      onClick={start.toggle}
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+        <path d="M7 1.5v11M1.5 7h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </button>
+  )
+}
+
+/**
+ * What the panes show where they can't all show: on a phone, the list or the conversation (back to the list puts the
+ * focus on the row pressed); under 1180 px, whether the context is open (Esc, Close or a press outside closes it, and the
+ * focus goes back to «Context»). Over those widths the panes all show, and these change nothing.
+ */
+function usePanes() {
+  const view = useRef<HTMLElement>(null)
+  const toggle = useRef<HTMLButtonElement>(null)
+  // A phone opens on the list; a wider screen on the conversation, which stays when a report beside it leaves room for
+  // one pane only.
+  const [screen, setScreen] = useState<'list' | 'thread'>(() =>
+    window.matchMedia('(max-width: 720px)').matches ? 'list' : 'thread',
+  )
+  const [context, setContext] = useState(false)
+  const closeContext = useCallback(() => {
+    setContext(false)
+    // Once what was behind it is no longer inert: then «Context» can take the focus.
+    requestAnimationFrame(() => toggle.current?.focus())
+  }, [])
+  const dropContext = useCallback(() => setContext(false), [])
+  useContextPanel(view, context, closeContext, dropContext)
+  const show = () => {
+    setScreen('thread')
+    // Shown now (a phone kept it hidden): it opens at its newest message.
+    requestAnimationFrame(() => {
+      const thread = view.current?.querySelector('.conv-scroll')
+      if (thread) thread.scrollTop = thread.scrollHeight
+    })
+  }
+  const back = () => {
+    setContext(false)
+    setScreen('list')
+    // After the list shows again: the row of the conversation left, else the filter (that row may be filtered out).
+    requestAnimationFrame(() => {
+      const at = view.current?.querySelector<HTMLElement>('.conv-row[aria-pressed="true"]')
+      ;(at ?? view.current?.querySelector<HTMLElement>('.conv-filter, .conv-start'))?.focus()
+    })
+  }
+  return {
+    view,
+    toggle,
+    screen,
+    show,
+    back,
+    context,
+    toggleContext: () => setContext((on) => !on),
+    closeContext,
+  }
+}
+
+/** Over 1180 px of the view (not of the window: a report beside it narrows it) the context is a pane, not a panel. */
+const PANEL = 1180
+
+/**
+ * The context as a panel, while it is open: Esc closes it (unless a dialog or another view's key owns the Esc), the
+ * list and the conversation behind it are inert, and the room's dock under it (the focus stays in it), and the view
+ * grown past a panel's width closes it.
+ */
+function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, close: () => void, drop: () => void) {
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target instanceof HTMLElement ? e.target : null
+      if (e.key !== 'Escape' || e.defaultPrevented || modalOnScreen() || t?.closest('[role="dialog"]')) return
+      close()
+    }
+    const behind = [
+      ...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? []),
+      ...document.querySelectorAll<HTMLElement>('.mini-dock'),
+    ]
+    for (const el of behind) el.inert = true
+    const width = new ResizeObserver(([entry]) => entry && entry.contentRect.width > PANEL && drop())
+    if (view.current) width.observe(view.current)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      width.disconnect()
+      for (const el of behind) el.inert = false
+    }
+  }, [view, open, close, drop])
 }
 
 /** The open conversation, with what is under way in it kept by the view (talk-store.ts). */
@@ -98,8 +239,9 @@ function Open(props: {
   writer: boolean | undefined
   talk: ReturnType<typeof useTalk>
   start: ReturnType<typeof useStart>
+  panes: ReturnType<typeof usePanes>
 }) {
-  const { conversation: c, talk, start } = props
+  const { conversation: c, talk, start, panes } = props
   return (
     <OpenConversation
       key={c.id}
@@ -111,6 +253,8 @@ function Open(props: {
       {...talk.of(c.id)}
       arrived={start.arrived === c.id}
       onArrived={start.clearArrived}
+      onBack={panes.back}
+      context={{ open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
     />
   )
 }
@@ -263,7 +407,10 @@ function Rows(props: {
   )
 }
 
-/** A conversation as listed: named by its title, described by the rest. */
+/**
+ * A conversation as listed: named by its title, then when it last moved and Sophia's summary in a line, what is open as
+ * an amber count. Who wrote there and what is open are said in words to a screen reader.
+ */
 function Row(props: { conversation: ConversationSummary; open: boolean; me: string; onOpen: (id: string) => void }) {
   const { conversation: c } = props
   const id = useId()
@@ -280,15 +427,25 @@ function Row(props: { conversation: ConversationSummary; open: boolean; me: stri
         <span id={`${id}-t`} className="conv-title">
           {c.title}
         </span>
+        <span className="conv-row-at" aria-hidden>
+          {movedAt(c.lastAt, Date.now())}
+        </span>
         <span id={`${id}-d`} className="conv-about">
           {c.summary && <span className="conv-gist">{c.summary}</span>}
-          <span className="conv-who">{contributorsLine(c, props.me)}</span>
-          <span className="conv-state">{openWords(c.openQuestions)}</span>
+          <span className="sr-only">{`${contributorsLine(c, props.me)}. ${openWords(c.openQuestions)}.`}</span>
+          {c.openQuestions > 0 && (
+            <span className="conv-open-flag" aria-hidden>
+              {c.openQuestions}
+            </span>
+          )}
         </span>
       </button>
     </li>
   )
 }
+
+/** When a conversation last moved: the clock today, the day before. */
+const movedAt = (at: string, now: number) => (sameDay(at, new Date(now)) ? clock(at) : dayOf(at, now))
 
 /** What the list's read says: waiting, failed (out of date when some were read), or none yet. */
 function ListState(props: {

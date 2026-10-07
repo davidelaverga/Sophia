@@ -1,9 +1,13 @@
-// The open conversation (docs/plans/project-conversations.md): its title, who wrote there, Sophia's summary of it, its
-// messages oldest first (a page at a time: Earlier messages reads the one before), and the report it made, which opens
-// in the document viewer. How its context works is one disclosure away. Members continue it below its messages
-// (docs/plans/project-conversation-writes.md); Sophia's answer is read as the feed moves.
+// The open conversation (docs/plans/project-conversations.md), the middle pane (docs/plans/conversations-panes.md): its
+// head (who wrote there, its title, the way back on a phone, «Context» where the context is a panel), the report it
+// made as a strip, which opens in the document viewer, its messages oldest first in their own scroll (a page at a time:
+// Earlier messages reads the one before), and the field at the pane's foot. Sophia's summary is in the context pane.
+// Members continue it (docs/plans/project-conversation-writes.md); Sophia's answer is read as the feed moves. Each
+// message has a face, a person's initial or Sophia's mark; messages by one author within minutes read as one run, its
+// byline said once in sight and every time to a screen reader (docs/plans/conversation-thread.md). The thread follows
+// what is written: a message sent comes into sight, and one read at its end stays at its end.
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { useEffect, useId, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   getConversationMessages,
   type ConversationMessage,
@@ -13,12 +17,20 @@ import {
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
-import { answeredAfter, contributorsLine, messageBy, messagesKey } from './conversation-list.ts'
+import { Mark } from '../../app/Mark.tsx'
+import {
+  answeredAfter,
+  continuesRun,
+  contributorsLine,
+  initialOf,
+  messageBy,
+  messagesKey,
+} from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
 import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { when } from '../../app/time-words.ts'
+import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 
 interface Props {
   conversation: ConversationSummary
@@ -47,6 +59,10 @@ interface Props {
   /** Just started here: the focus goes to its title, once. */
   arrived: boolean
   onArrived: () => void
+  /** Back to the list (a phone shows one at a time). */
+  onBack: () => void
+  /** The context as a panel (under 1180 px): whether it is open, its press, and that press's element for the focus. */
+  context: { open: boolean; toggle: () => void; ref: RefObject<HTMLButtonElement | null> }
 }
 
 /** How long «Sophia is answering…» waits before it says her answer will come later. */
@@ -70,10 +86,10 @@ function useAwaiting(asked: Asked | null) {
 
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
-  const summaryId = useId()
   const awaiting = useAwaiting(props.asked)
   const read = useTranscript(c.id, identity, props.cursor)
   const head = useRef<HTMLHeadingElement>(null)
+  const follow = useFollow()
   useEffect(() => {
     if (!arrived) return
     head.current?.focus()
@@ -81,17 +97,10 @@ export function OpenConversation(props: Props) {
   }, [arrived, onArrived])
   return (
     <section className="conv-open" aria-label="Open conversation">
-      <h3 ref={head} tabIndex={-1}>
-        {c.title}
-      </h3>
-      <p className="conv-who">{`Contributors: ${contributorsLine(c, me)}`}</p>
-      <section className="conv-summary" aria-labelledby={summaryId}>
-        <h4 id={summaryId} className="eyebrow">
-          Summary
-        </h4>
-        <p>{c.summary ?? 'No summary yet.'}</p>
-      </section>
-      <Messages read={read} me={me} awaiting={awaiting} onAnswered={props.onAnswered} />
+      <Head conversation={c} me={me} head={head} onBack={props.onBack} context={props.context} />
+      <div ref={follow.scroll} className="conv-scroll" onScroll={follow.onScroll}>
+        <Messages read={read} me={me} awaiting={awaiting} onAnswered={props.onAnswered} onGrown={follow.grown} />
+      </div>
       {props.writer === true && (
         <ConversationComposer
           conversationId={c.id}
@@ -106,23 +115,115 @@ export function OpenConversation(props: Props) {
           onHeld={props.onHeld}
           refused={props.refused}
           onRefused={props.onRefused}
-          onSent={(sent) => sent.sophia === 'asked' && props.onAsked(sent.message.at)}
+          onSent={(sent) => {
+            follow.sent()
+            if (sent.sophia === 'asked') props.onAsked(sent.message.at)
+          }}
         />
       )}
       {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
-      <Output output={c.output} />
-      <details className="conv-help">
-        <summary>How conversation context works</summary>
-        <p>
-          A conversation keeps its own messages and summary. Sophia’s next answer here can also read the project’s
-          current mission, decisions and eligible sources. Other conversations are read only when asked, never merged.
-        </p>
-      </details>
     </section>
   )
 }
 
-/** What the conversation made: the report, which opens in the document viewer (none without one to open it in). */
+/**
+ * The head: the way back (a phone), the title, who wrote there with their faces, what the conversation made, and
+ * «Context» where the context is a panel.
+ */
+function Head(props: {
+  conversation: ConversationSummary
+  me: string
+  head: RefObject<HTMLHeadingElement | null>
+  onBack: () => void
+  context: Props['context']
+}) {
+  const { conversation: c, context } = props
+  return (
+    <header className="conv-head">
+      <button type="button" className="icon-button conv-back" aria-label="All conversations" onClick={props.onBack}>
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+          <path d="M9 2L4 7l5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </button>
+      <div className="conv-head-words">
+        <h3 ref={props.head} tabIndex={-1}>
+          {c.title}
+        </h3>
+        <p className="conv-who">
+          <Faces conversation={c} />
+          <span className="sr-only">Contributors: </span>
+          {contributorsLine(c, props.me)}
+        </p>
+      </div>
+      <div className="conv-head-acts">
+        <Output output={c.output} />
+        <ContextToggle context={context} />
+      </div>
+    </header>
+  )
+}
+
+/** «Context»: opens the project's context where it is a panel (under 1180 px); over that it is a pane, and this hides. */
+export function ContextToggle({ context }: { context: Props['context'] }) {
+  return (
+    <button
+      ref={context.ref}
+      type="button"
+      className="icon-button conv-context-toggle"
+      aria-label="Context"
+      title="Context"
+      aria-expanded={context.open}
+      aria-controls="conv-context"
+      onClick={context.toggle}
+    >
+      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
+        <rect x="1.5" y="2.5" width="13" height="11" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.3" />
+      </svg>
+    </button>
+  )
+}
+
+/** Who wrote there, as faces: up to three people, then Sophia's mark when she answered. */
+function Faces({ conversation: c }: { conversation: ConversationSummary }) {
+  return (
+    <span className="conv-faces" aria-hidden>
+      {c.contributors.slice(0, 3).map((p) => (
+        <span key={p.actorId} className="conv-face">
+          {initialOf(p.name)}
+        </span>
+      ))}
+      {c.sophia && (
+        <span className="conv-face sophia">
+          <Mark />
+        </span>
+      )}
+    </span>
+  )
+}
+
+/**
+ * The thread's own scroll follows what is written: a message sent comes into sight (with «Sophia is answering…»), and a
+ * thread read at its end stays at its end as messages come; one scrolled up stays where the reader is.
+ */
+function useFollow() {
+  const scroll = useRef<HTMLDivElement>(null)
+  const atEnd = useRef(true)
+  const onScroll = () => {
+    const el = scroll.current
+    if (el) atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+  }
+  const grown = useCallback(() => {
+    const el = scroll.current
+    if (el && atEnd.current) el.scrollTop = el.scrollHeight
+  }, [])
+  const sent = () => {
+    atEnd.current = true
+  }
+  return { scroll, onScroll, grown, sent }
+}
+
+/** What the conversation made: its page in small and its name, in the head; it opens in the document viewer. */
 function Output({ output }: { output: ConversationSummary['output'] }) {
   const viewer = useDocumentViewer()
   if (!output || !viewer) return null
@@ -130,10 +231,20 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
     <button
       type="button"
       className="conv-output"
+      title={output.title}
       onClick={() => viewer.open({ artifactId: output.artifactId, versionId: output.versionId })}
     >
-      <span className="eyebrow">What it made</span>
-      <span>{`${output.title} · v${String(output.versionNumber)}`}</span>
+      <span className="conv-output-page" aria-hidden>
+        <i />
+        <i />
+        <i />
+        <i />
+        <i />
+      </span>
+      <span className="conv-output-words">
+        <span className="conv-output-title">{output.title}</span>
+        <span className="conv-output-v">{`What it made · v${String(output.versionNumber)}`}</span>
+      </span>
     </button>
   )
 }
@@ -157,8 +268,10 @@ function Messages(props: {
   me: string
   awaiting: { since: string | null; late: boolean }
   onAnswered: (at: string) => void
+  /** The thread grew (a message, or «Sophia is answering…»): its scroll may follow. */
+  onGrown: () => void
 }) {
-  const { read, me, onAnswered } = props
+  const { read, me, onAnswered, onGrown } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
   const messages = read.data?.pages.toReversed().flatMap((p) => p.messages) ?? []
   const since = props.awaiting.since
@@ -167,6 +280,10 @@ function Messages(props: {
   useEffect(() => {
     if (answered) onAnswered(since)
   }, [answered, since, onAnswered])
+  const waiting = since !== null && !answered
+  // Grown at its end (a message, or the wait): an earlier page read above leaves where the reader is.
+  const newest = messages.at(-1)?.id
+  useEffect(() => onGrown(), [newest, waiting, onGrown])
   const first = useRef<HTMLLIElement>(null)
   const asked = useRef(false)
   // Earlier messages goes with the last page: the focus goes to the first message, never to the page.
@@ -189,8 +306,11 @@ function Messages(props: {
         />
       )}
       {messages.length > 0 && <MessageList messages={messages} me={me} first={first} />}
-      {since !== null && !answered && (
-        <p className="conv-note" role="status">
+      {waiting && (
+        <p className="conv-note conv-answering" role="status">
+          <span className="conv-glyph" aria-hidden>
+            <Mark />
+          </span>
           {props.awaiting.late
             ? 'Sophia hasn’t answered yet. Her answer will show here when it comes.'
             : 'Sophia is answering…'}
@@ -217,6 +337,10 @@ function Earlier({ reading, failed, onRead }: { reading: boolean; failed: boolea
   )
 }
 
+/** A message's place: Sophia's on her plane, yours on the right, the team's on the left. */
+const classOf = (m: ConversationMessage, me: string) =>
+  m.author === 'sophia' ? 'conv-msg sophia' : m.actorId === me ? 'conv-msg mine' : 'conv-msg'
+
 /** The messages, oldest first, each with who wrote it and when; the first takes the focus when it is given. */
 function MessageList(props: {
   messages: readonly ConversationMessage[]
@@ -224,21 +348,51 @@ function MessageList(props: {
   first: RefObject<HTMLLIElement | null>
 }) {
   const { messages, me, first } = props
+  const now = Date.now()
   return (
     <ol className="conv-messages">
-      {messages.map((m, i) => (
-        <li
-          key={m.id}
-          ref={i === 0 ? first : undefined}
-          tabIndex={i === 0 ? -1 : undefined}
-          className={m.author === 'sophia' ? 'conv-msg sophia' : 'conv-msg'}
-        >
-          <span className="conv-msg-by">
-            {messageBy(m, me)} · <time dateTime={m.at}>{when(m.at, Date.now())}</time>
+      {messages.map((m, i) => {
+        const before = messages[i - 1]
+        const sophia = m.author === 'sophia'
+        // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
+        const at = (
+          <span className="conv-msg-at" aria-hidden>
+            {clock(m.at)}
           </span>
-          <p>{m.text}</p>
-        </li>
-      ))}
+        )
+        return (
+          <li
+            key={m.id}
+            ref={i === 0 ? first : undefined}
+            tabIndex={i === 0 ? -1 : undefined}
+            className={classOf(m, me)}
+            data-run={continuesRun(before, m) ? 'on' : undefined}
+          >
+            {(!before || !sameDay(before.at, m.at)) && (
+              <span className="conv-day" aria-hidden>
+                {dayOf(m.at, now)}
+              </span>
+            )}
+            {sophia && (
+              <span className="conv-glyph" aria-hidden>
+                <Mark />
+              </span>
+            )}
+            <span className="conv-msg-by">
+              {messageBy(m, me)}
+              <span className="sr-only">
+                {' · '}
+                <time dateTime={m.at}>{when(m.at, now)}</time>
+              </span>
+            </span>
+            <div className="conv-msg-body">
+              <p>{m.text}</p>
+              {sophia && at}
+            </div>
+            {!sophia && at}
+          </li>
+        )
+      })}
     </ol>
   )
 }
