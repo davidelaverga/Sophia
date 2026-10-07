@@ -57,17 +57,23 @@ test('filters · every word in the filters reads: no contrast under 4.5:1, press
   expect(await lowContrast(page, '.knowledge-filters')).toEqual([])
 })
 
-test('filters · another project’s button and its count read at 4.5:1, pressed or not', async ({ page }) => {
+test('filters · another project’s button and its count read at 4.5:1, pressed or not; pressed, it shows that project’s reports', async ({
+  page,
+}) => {
   await page.goto('/room.html?place=knowledge&reports=elsewhere')
   await page.getByRole('button', { name: 'All projects' }).click()
   const other = page
     .getByRole('group', { name: 'Project', exact: true })
     .getByRole('button', { name: /Another project/ })
-  await expect(other.locator('.count')).toHaveText('3')
+  await expect(other.locator('.count')).toHaveText('1')
   expect(await lowContrast(page, '.knowledge-filters')).toEqual([])
   await other.click()
   await expect(other).toHaveAttribute('aria-pressed', 'true')
   expect(await lowContrast(page, '.knowledge-filters')).toEqual([])
+  // Its one report, filed there; none of this project's.
+  const cards = page.locator('.report-card')
+  await expect(cards).toHaveCount(1)
+  await expect(cards).toContainText('An older fixture report')
 })
 
 test('order · the reports come first; what was carried in follows them', async ({ page }) => {
@@ -88,6 +94,18 @@ test('demo · the first page is a library: two full rows of tiles, two of them w
   await page.getByRole('button', { name: 'More reports' }).click()
   await expect(page.locator('.report-card')).toHaveCount(7) // the pilot's plan
   await expect(page.locator('.report-cover[data-cover="mark"]')).toHaveCount(0) // every cover read and matched
+})
+
+test('demo · newest first across the pages: More reports brings only older ones', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=knowledge')
+  await page.getByRole('button', { name: 'More reports' }).click()
+  await expect(page.locator('.report-card')).toHaveCount(7)
+  // Each tile's day ends its meta line («… · Sep 29»).
+  const days = await page
+    .locator('.report-meta')
+    .evaluateAll((all) => all.map((p) => Date.parse(`${(p.textContent ?? '').split(' · ').at(-1) ?? ''} 2026`)))
+  for (const d of days) expect(d, 'a day the check can read').not.toBeNaN()
+  expect(days).toEqual(days.toSorted((a, b) => b - a))
 })
 
 test('demo · a library report opens from its tile, its sources read', async ({ page }) => {
