@@ -616,7 +616,8 @@ test('presence · her voice reads first: her turns at 17 px, yours at 15', async
 test('presence · an exchange reads as one: her answer sits closer to you than your next turn to her', async ({
   page,
 }) => {
-  await page.goto(PAGE)
+  // At midday: the fixture's talk is dated back from now, and just after midnight its first exchange straddles it.
+  await page.goto(`${PAGE}?at=12:00`)
   await settled(page)
   const gaps = await page.evaluate(() => {
     const turns = [...document.querySelectorAll('.msgs > *')]

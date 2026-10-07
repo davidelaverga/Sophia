@@ -148,14 +148,19 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
   talk.receipts.set(key, { body: JSON.stringify(body), receipt })
   ctx.record(`conversation-message:${String(body.text)}:${body.askSophia ? 'yes' : 'no'}`)
   if (body.askSophia) answerLater(talk, id, ctx)
-  return replied(talk, id, receipt)
+  return replied(talk, id, receipt, ctx)
 }
 
 /** How a message that landed is answered, as the page asked (`send=`): lost, slow, then its reads failing, or at once. */
-function replied(talk: TalkWrites, id: string, receipt: unknown) {
+function replied(talk: TalkWrites, id: string, receipt: unknown, ctx: Context) {
   // It landed; the page never hears so, and only sending again under the same key can tell it.
   if (talk.send === 'lost' && sent === 1) return Promise.reject(new TypeError('Failed to fetch'))
-  if (talk.send === 'slow') return later(1500, () => json(receipt, 201))
+  if (talk.send === 'slow') {
+    return later(1500, () => {
+      ctx.record('reply:message') // the receipt reaches the page now
+      return json(receipt, 201)
+    })
+  }
   if (talk.send === 'thenFail') talk.failMessagesOf = id
   return json(receipt, 201)
 }

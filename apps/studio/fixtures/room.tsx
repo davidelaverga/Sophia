@@ -18,6 +18,7 @@ import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { forgetKept } from '../src/features/conversations/talk-store.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccountMenu } from '../src/app/AccountMenu.tsx'
@@ -74,6 +75,8 @@ interface Fixture {
   update: () => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
   forgetDiscussion: () => void
+  /** The account is forgotten, as signing out or switching identity forgets it (App): reads cleared, nothing kept. */
+  forgetAccount: () => void
   /** The oldest message leaves the recent discussion (past what the snapshot holds); a reply to it keeps its quote. */
   dropOldest: () => void
   /** While on, the viewer's messages land but their replies wait for `releaseMessages`. */
@@ -382,6 +385,10 @@ window.fixture = {
   say: (text) => {
     project.messages.push(text)
     publish(project)
+  },
+  forgetAccount: () => {
+    queryClient.clear()
+    forgetKept()
   },
   forgetDiscussion: () => {
     project.messages.length = 0
@@ -818,9 +825,12 @@ function Project({ background }: { background: boolean }) {
 const root = document.getElementById('root')
 if (!root) throw new Error('room.html must contain #root')
 
+/** The page's reads, which `forgetAccount` clears as App clears them. */
+const queryClient = new QueryClient()
+
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <p className="fixture-label" role="note">
         Fixture — no API, no call
       </p>
