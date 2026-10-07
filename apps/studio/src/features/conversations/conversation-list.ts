@@ -139,6 +139,6 @@ export function gistOf(c: ConversationSummary, me: string): string | null {
       ? 'Sophia'
       : last.actorId === me
         ? 'You'
-        : (c.contributors.find((p) => p.actorId === last.actorId)?.name ?? 'Someone')
+        : (c.contributors.find((p) => p.actorId === last.actorId)?.name ?? last.name ?? 'Someone')
   return `${who}: ${last.text}`
 }

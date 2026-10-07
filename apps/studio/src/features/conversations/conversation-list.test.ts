@@ -102,12 +102,14 @@ describe('gistOf', () => {
     const withSummary = conversation({ summary: 'Short or long.', contributors: [lucia] })
     assert.equal(gistOf(withSummary, ME), 'Short or long.')
     assert.equal(gistOf({ ...withSummary, lastMessage: null }, ME), 'Short or long.')
-    const said = (author: 'member' | 'sophia', actorId: string | null) =>
-      gistOf({ ...withSummary, lastMessage: { author, actorId, text: 'One page.', at } }, ME)
+    const said = (author: 'member' | 'sophia', actorId: string | null, name: string | null = null) =>
+      gistOf({ ...withSummary, lastMessage: { author, actorId, name, text: 'One page.', at } }, ME)
     assert.equal(said('member', ME), 'You: One page.')
     assert.equal(said('sophia', null), 'Sophia: One page.')
     assert.equal(said('member', 'lucia'), 'Lucía: One page.')
     assert.equal(said('member', 'gone'), 'Someone: One page.')
+    // Not listed, but the message names them.
+    assert.equal(said('member', 'marco', 'Marco'), 'Marco: One page.')
   })
 })
 

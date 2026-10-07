@@ -14,7 +14,7 @@
 
 ## Proposed for Davide (not sent)
 
-`ConversationSummary.lastMessage: { author, actorId, text (≤ 140 chars, whitespace folded), at } | null`, additive to
+`ConversationSummary.lastMessage: { author, actorId, name, text (≤ 140 chars, whitespace folded), at } | null`, additive to
 A18's list answer; and later an `unread` count with a read marker. Draft:
 the session's scratchpad `davide-a18-lastmessage.md`, for Luis to send or not.
 

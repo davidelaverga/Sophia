@@ -420,7 +420,14 @@ export interface ConversationSummary {
    * A18 (proposed, for Davide): its newest message, a line of it; absent where the API doesn't say it yet, null when
    * there is none. Behind the vision flag, the fixture pages answer it.
    */
-  lastMessage?: { author: 'member' | 'sophia'; actorId: string | null; text: string; at: string } | null
+  lastMessage?: {
+    author: 'member' | 'sophia'
+    actorId: string | null
+    /** The author's name, as a message carries it: a member no longer listed is still named. */
+    name: string | null
+    text: string
+    at: string
+  } | null
 }
 
 /** A18: a message in a conversation, a member's or Sophia's. */
@@ -456,6 +463,7 @@ const SUMMARY = {
     fields(v, {
       author: (a: unknown) => a === 'member' || a === 'sophia',
       actorId: isStrOrNull,
+      name: isStrOrNull,
       text: isStr,
       at: isStr,
     }),

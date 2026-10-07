@@ -420,7 +420,13 @@ function conversationsRead(talk: Conversations) {
   const lastOf = (id: string) => {
     const m = talk.messages[id]?.at(-1)
     return m
-      ? { author: m.author, actorId: m.actorId, text: m.text.replace(/\s+/gu, ' ').slice(0, 140), at: m.at }
+      ? {
+          author: m.author,
+          actorId: m.actorId,
+          name: m.name,
+          text: m.text.replace(/\s+/gu, ' ').slice(0, 140),
+          at: m.at,
+        }
       : null
   }
   return json({ conversations: talk.list.map((c) => ({ ...c, lastMessage: lastOf(c.id) })) })
