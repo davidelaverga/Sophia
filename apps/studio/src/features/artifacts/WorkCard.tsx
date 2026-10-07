@@ -6,7 +6,7 @@
 // delivered without the PDF it asked for offers editors "Try PDF again" (RetryPdf). Hold and Stop live on its goal
 // (WorkControls), as for every task, a PDF rendering again included.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { ArtifactVersion, NativeTask, NativeTaskDetail, ResearchProgress } from '@sophia/contracts'
 import { Icon, Tag } from '@sophia/ui'
 import { listArtifactVersions } from '../../api/artifacts.ts'
@@ -29,6 +29,8 @@ import {
 import { useTransientStatus } from './useTransientStatus.ts'
 import './artifacts.css'
 import { WORKING_PHASES } from '../voice/room-view.ts'
+import { clock } from '../../app/time-words.ts'
+import { useNow } from '../../app/use-now.ts'
 
 type Output = NonNullable<NonNullable<NativeTaskDetail['result']>['outputs']>[number]
 
@@ -94,17 +96,6 @@ function useOpen(artifactId: string | undefined): Open | null {
   return viewer && artifactId ? (r) => viewer.open({ artifactId, ...r }) : null
 }
 
-/** A clock that moves once a minute while the task runs, for the elapsed time. */
-function useMinute(running: boolean): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!running) return undefined
-    const t = setInterval(() => setNow(Date.now()), 60_000)
-    return () => clearInterval(t)
-  }, [running])
-  return now
-}
-
 /** "Try PDF again" is offered to editors on a report missing its PDF, while that PDF is not already rendering again. */
 const offersRetry = (canAct: boolean, words: StateWords, research: ResearchProgress | undefined) =>
   canAct && words.missing === 'pdf' && research !== undefined && !research.pdfRendering
@@ -112,7 +103,7 @@ const offersRetry = (canAct: boolean, words: StateWords, research: ResearchProgr
 export function WorkCard(props: Props) {
   const { task, identity, projectId, canAct = false } = props
   const { research, outputs, versions, words, current } = useResearch(props)
-  const now = useMinute(ACTIVE.has(task.phase))
+  const now = useNow()
   const open = useOpen(task.artifactId)
   const retry = offersRetry(canAct, words, research)
   return (
@@ -234,7 +225,7 @@ function CardHead({
   research: ResearchProgress | undefined
   now: number
 }) {
-  const asked = new Date(task.createdAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const asked = clock(task.createdAt)
   return (
     <div className="goal-meta work-card-head">
       <Tag tone={words.tone}>{words.label}</Tag>

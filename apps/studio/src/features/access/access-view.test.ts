@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { ago } from '../../app/time-words.ts'
 import {
   admissionLabel,
-  ago,
   askAgainIn,
   clashWith,
   clock,
@@ -38,11 +38,11 @@ describe('room access, as the Studio shows it', () => {
 
   it('says what a room link still allows', () => {
     assert.equal(
-      linkLimits({ expiresAt: '2026-10-02T12:00:00Z', uses: 3, maxUses: 50 }),
+      linkLimits({ expiresAt: '2026-10-02T12:00:00Z', uses: 3, maxUses: 50 }, Date.parse('2026-09-30T12:00:00Z')),
       'Works until Oct 2 · 3 of 50 uses',
     )
     assert.equal(
-      linkLimits({ expiresAt: '2026-10-02T12:00:00Z', uses: 0, maxUses: 1 }),
+      linkLimits({ expiresAt: '2026-10-02T12:00:00Z', uses: 0, maxUses: 1 }, Date.parse('2026-09-30T12:00:00Z')),
       'Works until Oct 2 · 0 of 1 use',
     )
   })

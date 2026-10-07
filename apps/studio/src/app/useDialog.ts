@@ -24,6 +24,14 @@ function keepFocusInside(e: KeyboardEvent, root: HTMLElement): void {
   }
 }
 
+/** The dialogs taking keys, the latest on top: only the top one hears Escape and Tab. */
+const taking: { panel: HTMLElement; close: () => void }[] = []
+
+/** Every open dialog closes, the top one first: what opens next (a report from a recap) must not sit under one. */
+export function closeEveryDialog(): void {
+  for (const dialog of taking.toReversed()) dialog.close()
+}
+
 export function useDialog(
   panel: RefObject<HTMLElement | null>,
   onClose: () => void,
@@ -50,11 +58,18 @@ export function useDialog(
     // Back on screen (a project kept for its call, shown again), it takes the focus again: the browser moved it out
     // when its part of the page was hidden.
     if (!panel.current?.contains(document.activeElement)) panel.current?.focus()
+    const self = panel.current
+    if (self) taking.push({ panel: self, close: () => close.current() })
     const onKey = (e: KeyboardEvent) => {
+      if (taking.at(-1)?.panel !== self) return
       if (e.key === 'Escape') close.current()
       else if (e.key === 'Tab' && panel.current) keepFocusInside(e, panel.current)
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      const at = taking.findLastIndex((d) => d.panel === self)
+      if (at >= 0) taking.splice(at, 1)
+    }
   }, [panel, scoped])
 }

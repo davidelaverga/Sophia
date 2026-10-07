@@ -11,6 +11,7 @@ import { startChat } from './chat-start.ts'
 import { chatEntry, chatLine, footError, waitsOnRoom, type ChatEntry, type ChatMoment } from './chat-view.ts'
 import { ContinuityChoice } from './ContinuityChoice.tsx'
 import { HELD_WORDS, TARGET_WORDS, type Target } from './discussion-view.ts'
+import { ReplyingTo, useReplyBar, type Replying } from './ReplyingTo.tsx'
 import { useBarTarget, useRoomMessage } from './useRoomMessage.ts'
 import { getSnapshot } from '../../api/client.ts'
 import { startExchange } from '../../api/exchange.ts'
@@ -27,6 +28,31 @@ interface Props {
   onDraft: (text: string) => void
   /** Closes the panel, so the room's dock shows: where the panel covers it, its controls are out of reach. */
   onShowRoom: () => void
+  /** The room's message being answered (A20, the vision flag's), and how to stop answering it. */
+  replying?: Replying | null
+  onStopReplying?: () => void
+}
+
+const NOTHING = () => undefined
+
+/** The room's message being answered, if any (A20): the bar moves to the room, and the reply goes with the message. */
+function useReply(
+  props: Props,
+  bar: { target: Target; choose: (target: Target) => void },
+  field: RefObject<HTMLTextAreaElement | null>,
+) {
+  const replying = props.replying ?? null
+  const stop = props.onStopReplying ?? NOTHING
+  useReplyBar(replying, bar, field, stop)
+  return {
+    replying,
+    underWay: { id: replying?.id ?? null, done: stop },
+    /** ✕: the reply goes and its button with it, so the focus goes to the field, the words kept. */
+    stopHere: () => {
+      stop()
+      field.current?.focus({ preventScroll: true })
+    },
+  }
 }
 
 function useChatStart({ projectId, identity, room }: Pick<Props, 'projectId' | 'identity' | 'room'>) {
@@ -299,7 +325,8 @@ function FootLine({ words, unknown, onRetry, held, onMove }: FootLineProps) {
  * Typed turns use the same admitted exchange and lifecycle handlers as voice, with no microphone required. The same
  * bar writes to the room's discussion, always (useRoomMessage).
  */
-export function Composer({ projectId, identity, snapshot, room, draft, onDraft, onShowRoom }: Props) {
+export function Composer(props: Props) {
+  const { projectId, identity, snapshot, room, draft, onDraft, onShowRoom } = props
   const { starting, start, error: startError } = useChatStart({ projectId, identity, room })
   const chat = useChatSend({ projectId, identity, snapshot, room, draft, onDraft, onShowRoom })
   const field = useRef<HTMLTextAreaElement>(null)
@@ -308,7 +335,8 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft, 
   const asked = useTypeNext(entry, field)
   const bar = entry === 'bar'
   const target = useBarTarget(bar && chat.mine, draft, field)
-  const toRoom = useRoomMessage(projectId, identity, draft, onDraft)
+  const reply = useReply(props, target, field)
+  const toRoom = useRoomMessage(projectId, identity, draft, onDraft, reply.underWay)
   const begin = async () => {
     asked.current = true
     if (!(await start())) asked.current = false
@@ -346,6 +374,7 @@ export function Composer({ projectId, identity, snapshot, room, draft, onDraft, 
       {!bar && (
         <ChatStart starting={starting} ready={room.ready && room.status !== 'joining'} onStart={() => void begin()} />
       )}
+      <ReplyingTo replying={reply.replying} onStop={reply.stopHere} />
       <MessageBar
         field={field}
         draft={draft}

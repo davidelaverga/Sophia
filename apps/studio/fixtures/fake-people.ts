@@ -8,10 +8,23 @@ import type { SophiaSignal } from '../src/features/voice/sophia-view.ts'
 
 const query = new URLSearchParams(window.location.search)
 
-const NAMES = ['Marco', 'Lucía', 'Noor', 'Tomás', 'Inés'] as const
+const NAMES = [
+  'Marco',
+  'Lucía',
+  'Noor',
+  'Tomás',
+  'Inés',
+  'Ana',
+  'Diego',
+  'Sara',
+  'Iván',
+  'Julia',
+  'Pablo',
+  'Elena',
+] as const
 
 /** The `n`th other person's actor id (1-based), as the API signs one into a token. */
-export const personId = (n: number) => `00000000-0000-4000-8000-0000000000b${String(n)}`
+export const personId = (n: number) => `00000000-0000-4000-8000-0000000000${(0xb0 + n).toString(16)}`
 
 /**
  * Sophia as the page can ask for her: the attributes her bridge sets (`sophia.input`: closed, admitted, settling or
@@ -32,7 +45,9 @@ const isState = (value: string | null): value is SophiaState => value !== null &
 
 const asked = query.get('sophia')
 const video = query.get('video')
-/** How many others are in the room (`people`, at most five). */
+/** Who shows their screen (`video=screen`): the `screenBy`th other person, the first unless the page says. */
+const screenBy = Math.max(1, Number(query.get('screenBy')) || 1)
+/** How many others are in the room (`people`, at most twelve). */
 export const count = Math.min(NAMES.length, Math.max(0, Number(query.get('people')) || 0))
 
 /** The `n` the page named, if it is one of the others (1…count), or the viewer too (0) when `viewer` allows it. */
@@ -41,10 +56,11 @@ export function oneOfUs(value: string | null, viewer: boolean): number | null {
   return Number.isInteger(n) && n >= (viewer ? 0 : 1) && n <= count ? n : null
 }
 
-const now = {
+const first = oneOfUs(query.get('speaking'), true)
+const now: { sophia: SophiaState | null; speaking: readonly number[] } = {
   sophia: isState(asked) ? asked : null,
-  /** Who speaks: 0 the viewer, `n` the `n`th other person, null no one. */
-  speaking: oneOfUs(query.get('speaking'), true),
+  /** Who speak: 0 the viewer, `n` the `n`th other person; empty, no one. */
+  speaking: first === null ? [] : [first],
 }
 
 /** Sophia's conversation paused (`paused=`): her bridge pauses what it hears, whatever else it was doing. */
@@ -54,6 +70,16 @@ let paused = ['guest', 'holder_left'].includes(query.get('paused') ?? '')
 export const sophiaAsked = now.sophia !== null
 
 let changed: () => void = () => undefined
+
+/** What the others follow, by their place among them (`window.fixture.followers`): their `sophia.following`. */
+const followingBy = new Map<number, string>()
+
+/** These others follow `versionId`; everyone else follows nothing. */
+export function setFollowers(people: readonly number[], versionId: string): void {
+  followingBy.clear()
+  for (const n of people) followingBy.set(n, versionId)
+  changed()
+}
 
 /** The room's connection hears of a change here as LiveKit's events tell it: it reads its participants again. */
 export function onPeopleChange(fn: () => void): void {
@@ -65,20 +91,23 @@ export function others(): RoomParticipant[] {
   return NAMES.slice(0, count).map((name, i) => ({
     identity: personId(i + 1),
     name,
-    speaking: now.speaking === i + 1,
+    speaking: now.speaking.includes(i + 1),
     micOn: true,
     cameraOn: video === 'camera',
-    screenOn: video === 'screen' && i === 0,
+    screenOn: video === 'screen' && i === screenBy - 1,
     local: false,
     // `guest=1`: the last of the others came in as a guest.
     standing: query.has('guest') && i === count - 1 ? 'guest' : 'editor',
+    following: followingBy.get(i + 1) ?? null,
+    // They came in the order of NAMES, a minute apart.
+    joinedAt: Date.UTC(2026, 9, 6, 15) + i * 60_000,
   }))
 }
 
 /** A name for an actor id, as the room shows it: the viewer's own, an other's, or nobody's. */
 export const nameOf = (actorId: string) => NAMES[NAMES.findIndex((_, i) => personId(i + 1) === actorId)] ?? actorId
 
-export const viewerSpeaks = () => now.speaking === 0
+export const viewerSpeaks = () => now.speaking.includes(0)
 export function sophiaSignal(): SophiaSignal | null {
   if (!now.sophia) return null
   return paused ? { ...SIGNALS[now.sophia], input: 'paused' } : SIGNALS[now.sophia]
@@ -106,8 +135,8 @@ export function setSophia(state: SophiaState | null): void {
   changed()
 }
 
-export function setSpeaking(who: number | null): void {
-  now.speaking = who
+export function setSpeaking(who: number | readonly number[] | null): void {
+  now.speaking = who === null ? [] : typeof who === 'number' ? [who] : who
   changed()
 }
 
@@ -128,7 +157,7 @@ function stream(label: string, wide: boolean): MediaStream {
     g.fillText(wide ? `${label}’s screen (synthetic)` : label.charAt(0), canvas.width / 2, canvas.height / 2)
   }
   draw()
-  // Kept for the page's life: one per person and source (at most six), as `kept` holds them.
+  // Kept for the page's life: one per person and source (at most thirteen), as `kept` holds them.
   window.setInterval(draw, 500)
   return canvas.captureStream(2)
 }
@@ -157,9 +186,9 @@ function feed(n: number, source: 'camera' | 'screen'): VideoFeed {
   return made
 }
 
-/** The cameras on (`video=camera`), or the first person's shared screen (`video=screen`). */
+/** The cameras on (`video=camera`), or one person's shared screen (`video=screen`, `screenBy`). */
 export function feeds(): VideoFeed[] {
   if (video === 'camera') return others().map((_, i) => feed(i + 1, 'camera'))
-  if (video === 'screen' && count > 0) return [feed(1, 'screen')]
+  if (video === 'screen' && count > 0) return [feed(screenBy, 'screen')]
   return []
 }

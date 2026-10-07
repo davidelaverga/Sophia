@@ -6,6 +6,7 @@ import type { Place } from '../../app/route.ts'
 import { shortName } from '../voice/room-view.ts'
 import type { Way } from './arrive.ts'
 import { dayLabel, topicOf } from './conversation-view.ts'
+import { clock, dayInSentence, inTime } from '../../app/time-words.ts'
 
 const MINUTE = 60_000
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -216,24 +217,17 @@ const soon = (project: ProjectSummary, now: Date) => {
   return mins !== null && mins <= SOON_MIN
 }
 
-/** A day ahead in words: "today", "tomorrow", a weekday within the week, then the date. */
-export function dayAhead(date: Date, now: Date): string {
-  const days = Math.round((startOfDay(date) - startOfDay(now)) / 86_400_000)
-  if (days <= 0) return 'today'
-  if (days === 1) return 'tomorrow'
-  if (days < 7) return date.toLocaleDateString('en-US', { weekday: 'long' })
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
+/** A day ahead in words: "today", "tomorrow", a weekday within the week, then the date (app/time-words.ts). */
+const dayAhead = (date: Date, now: Date): string => dayInSentence(date, now.getTime())
 
 /** When a session starts, in words: "starts in 12 min", "started", "today at 16:00", "Thursday at 16:00". */
 export function sessionWhen(project: ProjectSummary, now: Date): string | null {
   const mins = minutesToSession(project, now)
   if (mins === null || !project.nextSession) return null
   if (mins <= 0) return 'started'
-  if (mins < 60) return `starts in ${mins} min`
+  if (mins < 60) return `starts ${inTime(project.nextSession.startsAt, now.getTime())}`
   const start = new Date(project.nextSession.startsAt)
-  const clock = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
-  return `${dayAhead(start, now)} at ${clock}`
+  return `${dayAhead(start, now)} at ${clock(start)}`
 }
 
 const DAY_AHEAD_MS = 86_400_000

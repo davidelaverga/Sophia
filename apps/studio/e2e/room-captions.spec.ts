@@ -164,6 +164,8 @@ test('captions · after leaving and joining again, the last call’s captions do
   await expect(lines(page)).toHaveCount(1)
   await leave(page).click()
   await page.clock.fastForward(7000)
+  // Leaving opens what the meeting left (room-recap.spec.ts); put away, the way back is Join.
+  await page.getByRole('dialog', { name: 'This meeting' }).getByRole('button', { name: 'Close', exact: true }).click()
   await page.getByRole('button', { name: 'Join the room' }).click()
   await expect(leave(page)).toBeVisible()
   await expect(page.locator('.stage-captions')).toHaveCount(0)

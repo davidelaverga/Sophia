@@ -4,7 +4,7 @@
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export type ViewerTab = 'document' | 'sources' | 'history'
+export type ViewerTab = 'document' | 'sources' | 'history' | 'tasks'
 export type ViewerSize = 'side' | 'full'
 /** What the Document tab shows: the report's Markdown, the version's PDF, or its designed HTML page (SDD-01). */
 export type ViewerFormat = 'markdown' | 'pdf' | 'html'

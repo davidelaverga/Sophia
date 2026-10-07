@@ -3,8 +3,12 @@
 // navigation lives here: the lens, drafts and panels are per-viewer (viewer-state.ts).
 
 /** Project views (architecture 04 §1). Studio is the shared room; the others inspect the same records. */
-export const VIEWS = ['studio', 'goals', 'work', 'knowledge', 'updates', 'resources'] as const
+export const VIEWS = ['studio', 'conversations', 'goals', 'work', 'knowledge', 'updates', 'resources'] as const
 export type View = (typeof VIEWS)[number]
+
+/** The views a project's nav shows: Conversations only under the vision flag (Davide's chapter 2, A18 proposed). */
+export const viewsShown = (vision: boolean): readonly View[] =>
+  vision ? VIEWS : VIEWS.filter((v) => v !== 'conversations')
 
 /** Outside a project: the two doors (home), the personal space and the work space (A10, direction C). */
 export const PLACES = ['home', 'personal', 'work'] as const

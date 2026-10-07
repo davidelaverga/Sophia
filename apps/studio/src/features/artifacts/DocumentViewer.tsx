@@ -2,12 +2,14 @@
 // Work page, Knowledge and the room. The open report lives in the address bar (report-link.ts): each intent (open,
 // enlarge) adds one history entry, so Back steps down, and Esc does the same (full → side → closed). One pane at a
 // time: opening a report closes the side panel, and opening the side panel closes the report.
+import type { TaskPerson } from './PassageTask.tsx'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Identity } from '../../app/dev-identity.ts'
 import { ShortcutScope } from '../../app/shortcuts.ts'
 import { DocumentPane } from './DocumentPane.tsx'
 import type { ShowRender } from '../voice/ShowEveryone.tsx'
 import type { Passage } from './PassageBar.tsx'
+import type { SectionAsk } from './useSectionArrival.ts'
 import {
   openedLink,
   readReportLink,
@@ -25,6 +27,8 @@ export interface OpenRequest {
   tab?: ViewerTab
   /** The PDF of the version, when it has one; the Markdown otherwise. */
   format?: ViewerFormat
+  /** A section to open at, by its heading's anchor (a search hit's). */
+  section?: string
 }
 
 interface ViewerApi {
@@ -118,6 +122,8 @@ interface Props {
   cursor?: string | undefined
   /** In the room: a passage of the report, asked about in the chat (PassageBar). */
   askAbout?: ((passage: Passage) => void) | undefined
+  /** In a call: the members in it, whom a task may be for (PassageTask). */
+  people?: readonly TaskPerson[] | undefined
   children: ReactNode
 }
 
@@ -125,6 +131,10 @@ export function DocumentViewerProvider(props: Props) {
   const { projectId, identity, panelOpen, closePanel, openChat, chatUnread, call, note, askAbout, children } = props
   const { link, write, back } = useReportHistory(projectId)
   const [tab, setTab] = useState<ViewerTab>('document')
+  // The section asked for with the report on screen: none once the report closes or opens without one.
+  const [section, setSection] = useState<SectionAsk | null>(null)
+  const asks = useRef(0)
+  if (!link && section) setSection(null)
   // What opened the report, read before the side panel closes and takes it out of sight: the focus returns there.
   const opener = useRef<HTMLElement | null>(null)
   const open = useCallback(
@@ -132,8 +142,10 @@ export function DocumentViewerProvider(props: Props) {
       opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       closePanel()
       setTab(r.tab ?? 'document')
-      // A first open is an intent of its own (Back closes it); another report replaces the one on screen.
-      write(openedLink(link, r), link === null)
+      // A first open is an intent of its own (Back closes it); another report replaces the one on screen. A section is
+      // placed in the Markdown, so it opens there; each ask is the pane's to place once (useSectionArrival).
+      write(openedLink(link, r.section ? { ...r, format: 'markdown' } : r), link === null)
+      setSection(r.section ? { anchor: r.section, versionId: r.versionId ?? null, n: (asks.current += 1) } : null)
     },
     [closePanel, link, write],
   )
@@ -172,8 +184,10 @@ export function DocumentViewerProvider(props: Props) {
           call={call}
           note={note ?? null}
           onAsk={askAbout}
+          people={props.people}
           cursor={props.cursor}
           show={props.show}
+          section={section}
         />
       )}
     </ViewerContext.Provider>

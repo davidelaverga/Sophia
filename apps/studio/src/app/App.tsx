@@ -9,6 +9,8 @@ import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
 import { accountOf } from './auth-callback.ts'
+import { forgetKept } from '../features/conversations/talk-store.ts'
+import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
@@ -48,7 +50,16 @@ export function App() {
   const routing = useProjectRoute()
   // Cached server state belongs to one identity: whenever it changes or goes, also from another tab, none of it stays.
   const signedInAs = state.status === 'signed_in' ? state.identity.name : null
-  useEffect(() => () => queryClient.clear(), [signedInAs])
+  useEffect(
+    () => () => {
+      queryClient.clear()
+      // And what was under way in a project's conversations: another tab signing out, a session that ended.
+      forgetKept()
+    },
+    [signedInAs],
+  )
+  // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
+  useEffect(() => setSignedIn(signedInAs), [signedInAs])
   useDraftsOnlyOfWhoIsIn(state)
   const joinPage = opensJoinPage(window.location.pathname, state.status)
   // The opening hands off once all is ready: the Studio's once it has prepared what the person opens first.
@@ -56,14 +67,22 @@ export function App() {
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
   const switchIdentity = (identity: Identity | null) => {
+    setSignedIn(null)
     queryClient.clear()
+    forgetKept()
     chooseDev(identity)
+    // The same identity again is no change App's effect would see: it is in, as it was.
+    setSignedIn(identity?.name ?? null)
   }
-  // Signing out leaves nothing personal on this device: the cache, and every message being written to Sophia.
+  // Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, and what
+  // was under way in a project's conversations (talk-store.ts).
   const leaveSession = () => {
+    setSignedIn(null)
     queryClient.clear()
+    forgetKept()
     forgetPendingUnlock()
-    void signOutForgetting(signOut, forgetDrafts).catch(() => undefined)
+    // A sign-out that fails leaves the person in: their writes are theirs again.
+    void signOutForgetting(signOut, forgetDrafts).catch(() => setSignedIn(signedInAs))
   }
 
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question
@@ -146,6 +165,7 @@ const inCall = (call: ProjectCall, onReturn: () => void): InCall & { projectId: 
   note: call.note,
   onReturn,
   onVoice: () => void call.leaveTextMode(),
+  // Quiet: the call's project goes with the call from here, so no recap could show (MeetingRecap; A13's Updates will).
   onLeave: () => void call.leave(),
   onMicrophone: (on) => void call.setMicrophone(on),
   onCamera: (on) => void call.setCamera(on),

@@ -148,6 +148,8 @@ test('BASE-03 @phone · leaving, a lost connection and the way back stay in reac
   await page.getByRole('complementary', { name: 'Chat' }).getByRole('button', { name: 'Close' }).click()
   await expect(leave(page)).toBeInViewport()
   await leave(page).click()
+  // Leaving opens what the meeting left (room-recap.spec.ts); put away, the way back is in reach.
+  await page.getByRole('dialog', { name: 'This meeting' }).getByRole('button', { name: 'Close', exact: true }).click()
   const back = page.getByRole('button', { name: /^Join the room/ })
   await expect(back).toBeInViewport()
   await back.click()

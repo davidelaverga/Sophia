@@ -32,11 +32,25 @@ export const membership: Membership = { actorId: ME, role: 'admin' }
 export interface Said {
   text: string
   me?: boolean
+  /** Its entry id, kept as written (a message written on the page); absent, by its place in the discussion. */
+  id?: string
+  /** The entry it answers (A20's reply), by id, with who wrote that and its first words, recorded with the reply. */
+  replyTo?: { id: string; actorId: string; excerpt: string }
 }
 
+/** The `n`th message's entry id in the discussion (0-based), as the snapshot lists it. */
+export const entryIdOf = (n: number) => `00000000-0000-4000-8000-${String(n + 1).padStart(12, '0')}`
+
+/** A message's entry id: the one it was written with, or its place in the discussion. */
+export const idOf = (message: string | Said, n: number) =>
+  typeof message !== 'string' && message.id ? message.id : entryIdOf(n)
+
+/** Who wrote a message: the viewer's own, or another member's. */
+export const authorOf = (message: string | Said) => (typeof message === 'string' || !message.me ? OTHER : ME)
+
 const said = (message: string | Said, n: number): DiscussionEntry => ({
-  id: `00000000-0000-4000-8000-${String(n + 1).padStart(12, '0')}`,
-  actorId: typeof message === 'string' || !message.me ? OTHER : ME,
+  id: idOf(message, n),
+  actorId: authorOf(message),
   intent: 'discuss',
   origin: 'composer',
   text: typeof message === 'string' ? message : message.text,

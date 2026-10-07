@@ -14,6 +14,7 @@ import type {
 } from '@sophia/contracts'
 import type { Tone } from '@sophia/ui'
 import { anchorOf } from './markdown.ts'
+import { lasted } from '../../app/time-words.ts'
 
 export type ResearchState =
   'starting' | 'researching' | 'ready' | 'partial' | 'not_produced' | 'replaced' | 'held' | 'stopped'
@@ -182,13 +183,7 @@ export const progressRatio = (p: Pick<ResearchProgress, 'committedUsd' | 'capUsd
   p.capUsd <= 0 ? 0 : Math.min(1, Math.max(0, p.committedUsd / p.capUsd))
 
 /** "6 min", "1 h 12 min", "under a minute": how long since the task was asked for. */
-export function elapsedText(since: string, now: number): string {
-  const minutes = Math.floor(Math.max(0, now - Date.parse(since)) / 60_000)
-  if (minutes < 1) return 'under a minute'
-  if (minutes < 60) return `${minutes} min`
-  const hours = Math.floor(minutes / 60)
-  return minutes % 60 === 0 ? `${hours} h` : `${hours} h ${minutes % 60} min`
-}
+export const elapsedText = (since: string, now: number): string => lasted(now - Date.parse(since))
 
 /** "812 B", "4.2 KB", "1.3 MB". */
 export function formatBytes(n: number): string {

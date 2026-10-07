@@ -1236,7 +1236,12 @@ async function callKeptInReach(page: Page) {
   await page.keyboard.press('Space')
   await expect(mic).toHaveAttribute('aria-pressed', 'false') // muted from the sheet
   await leave.click()
-  await expect(call).toHaveCount(0) // the call is over: the row goes, the sheet stays, the focus in it
+  await expect(call).toHaveCount(0) // the call is over: the row goes, the sheet stays
+  // What the meeting left opens on top (room-recap.spec.ts); put away, the focus is back in the sheet.
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(recap).toContainText('Nothing was decided, made or kept in this meeting.')
+  await page.keyboard.press('Escape')
+  await expect(recap).toHaveCount(0)
   await expect(sheet).toBeVisible()
   expect(await sheet.evaluate((s) => s.contains(document.activeElement))).toBe(true)
   await page.keyboard.press('Escape')
@@ -1319,10 +1324,10 @@ test('review · asked, the goal’s line says the lead is reviewing; a routine e
   await requestReview(page).click()
   // Its own receipt is Request review's: sent, never done.
   await expect(page.locator('.controls .outcome')).toContainText('Sent')
-  await expect(reviewLine(page)).toHaveText(/^The lead is reviewing · asked by you \d+ s ago$/)
+  await expect(reviewLine(page)).toHaveText(/^The lead is reviewing · asked by you (just now|\d+ s ago)$/)
   await expect(reviewLine(page).locator('.activity-dot')).toBeVisible()
   await page.clock.runFor(2100)
-  await expect(reviewLine(page)).toHaveText(/^Reviewed \d+ s ago · no change$/)
+  await expect(reviewLine(page)).toHaveText(/^Reviewed (just now|\d+ s ago) · no change$/)
   // PLAN-04: nothing announced, beyond the request's own receipt.
   await expect(page.getByRole('status').filter({ hasText: /Reviewed|no change|reviewing/ })).toHaveCount(0)
   expect(await commandsOf(page)).toEqual([{ kind: 'request_review', key: expect.any(String) }])

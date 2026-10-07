@@ -1,20 +1,16 @@
 // renderPulse → WorkPulse (frontend bindings): what changed in the project, from the SSE feed.
 // Quiet by design; no percent-complete, no invented progress, no sequence numbers. Repeats close together
 // fold into one row with a count (pulse.ts).
-import { useEffect, useState } from 'react'
 import type { Event as ProjectEvent } from '@sophia/contracts'
 import { isCursorAdvance } from '@sophia/contracts/validate'
 import type { Feed } from '../../projectors/projection.ts'
 import type { Connection } from '../studio/useProjectFeed.ts'
 import { pulseRows } from './pulse.ts'
+import { ago as agoWords } from '../../app/time-words.ts'
+import { useNow } from '../../app/use-now.ts'
 
-function ago(iso: string, now: number): string {
-  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000))
-  if (s < 10) return 'just now'
-  if (s < 60) return `${s}s ago`
-  if (s < 3600) return `${Math.round(s / 60)} min ago`
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
+/** When it happened, to the second while fresh (app/time-words.ts). */
+const ago = (iso: string, now: number) => agoWords(iso, now, { seconds: true })
 
 /** Nothing to show yet: say why, in the connection's own terms. */
 const QUIET: Record<Connection, string> = {
@@ -26,11 +22,7 @@ const QUIET: Record<Connection, string> = {
 }
 
 export function WorkPulse({ feed, connection }: { feed: Feed | null; connection: Connection }) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 15_000)
-    return () => clearInterval(t)
-  }, [])
+  const now = useNow(15_000)
 
   const items = feed?.recent ?? []
   // Changes this person may not see stay private: one honest line for all of them, not a row each.

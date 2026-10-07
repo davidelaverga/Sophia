@@ -14,6 +14,7 @@ import { shortName } from '../voice/room-view.ts'
 import { CARD_ACTION, carriedFrom, EDGE_TIP, projectCard, workOrder, type LockedBy } from './places-view.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 import { useCapped } from './useCapped.ts'
+import { useNow } from '../../app/use-now.ts'
 
 /** The most characters a project's title holds. */
 const TITLE_MOST = 180
@@ -190,9 +191,9 @@ function Carried({
   )
 }
 
-function Card({ project, props }: { project: ProjectSummary; props: Props }) {
+function Card({ project, props, now }: { project: ProjectSummary; props: Props; now: number }) {
   const { actions } = props
-  const card = projectCard(project, new Date(), props.inCallProject === project.projectId)
+  const card = projectCard(project, new Date(now), props.inCallProject === project.projectId)
   const run = {
     leave: actions.leaveRoom,
     join: () => actions.join(project.projectId),
@@ -236,7 +237,8 @@ function Empty({ onStart }: { onStart: () => void }) {
 
 export function WorkSpace(props: Props) {
   const { token, projects, newProject, personalLock, actions } = props
-  const list = projects ? workOrder(projects, new Date()) : []
+  const now = useNow(20_000)
+  const list = projects ? workOrder(projects, new Date(now)) : []
   return (
     <section className="c3-space job" data-place-view="work" hidden={props.hidden} aria-labelledby="c-w-h">
       <Edge lock={personalLock} onCross={actions.cross} />
@@ -265,7 +267,7 @@ export function WorkSpace(props: Props) {
         )}
         {projects && list.length === 0 && !newProject.open && <Empty onStart={() => newProject.set(true)} />}
         {list.map((p) => (
-          <Card key={p.projectId} project={p} props={props} />
+          <Card key={p.projectId} project={p} props={props} now={now} />
         ))}
       </div>
     </section>

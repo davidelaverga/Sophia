@@ -2,6 +2,9 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { reaches } from './reach.ts'
 import { typeSizes } from './type-sizes.ts'
 
+// Times said in the viewer's zone, here UTC, whatever the machine's.
+test.use({ timezoneId: 'UTC' })
+
 // LFE-06's resource checks (RES-01 … RES-03): the real ResourcePanel inside the Studio's own ProjectShell, on its
 // Resources view, on the labelled simulated fixture page (fixtures/resources.html). Each resource is a tile; its
 // detail opens in a sheet. The panel calls nothing: each check ends by asking the page for any request the fixture
@@ -88,7 +91,7 @@ test('LFE-06.1 · the three enrollments as tiles; a sheet holds the owner, host,
   await expect(luis.getByText('Model not reported')).toBeVisible() // nothing reported, nothing made up
   const age = luis.locator('time')
   await expect(age).toHaveText('3 h ago') // the host's age, and the exact time on hover
-  await expect(age).toHaveAttribute('title', 'Fri, 02 Oct 2026 09:00:00 GMT')
+  await expect(age).toHaveAttribute('title', 'Oct 2, 09:00') // in the viewer's zone (UTC here)
 })
 
 test('RES-01 · two sessions on one account are listed apart, and its capacity is counted once', async ({ page }) => {
@@ -334,7 +337,7 @@ test('by attention, what needs someone comes first; a waiting tile stands out, a
     'Davide · Grok', // offline
   ])
   const grok = tile(page, 'Davide · Grok')
-  await expect(grok).toContainText('Offline · 26 h')
+  await expect(grok).toContainText('Offline · 1 day')
   await expect(grok.locator('.tool-logo')).toHaveCSS('filter', 'grayscale(1)')
   await expect(tile(page, 'Davide · Codex').locator('.tool-logo')).toHaveCSS('filter', 'none')
   const edge = (name: string) => tile(page, name).evaluate((t) => getComputedStyle(t).borderTopColor)

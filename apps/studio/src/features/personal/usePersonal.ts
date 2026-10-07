@@ -1,6 +1,7 @@
 // The personal space and the Work list as server state (react-query), and the writes the three places make. Every
 // write has its own Idempotency-Key and is retried once with the SAME key when no reply came, while its first attempt
 // is recent (once.ts); any other refusal is the caller's to say. Nothing is fetched while the personal space is locked.
+import { stillSignedIn } from '../../app/signed-in.ts'
 import { useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { PersonalReceipt, PersonalSpace, PersonalTurn, ProjectList } from '@sophia/contracts'
@@ -202,7 +203,11 @@ function useRun(identity: Identity) {
       // It settles once what it changed can show: the space is read until a read works, and the Work list too when the
       // write changed it (a note carried or taken back). An erasure doesn't come this way (eraseSpace).
       await readUntilRead(client, space)
-      if (projects) await readUntilRead(client, work)
+      if (projects) {
+        await readUntilRead(client, work)
+        // A carry or a take-back changes what the project shows as carried in, too (CarriedIn).
+        await client.invalidateQueries({ queryKey: ['vision', 'carried-in', identity.name] })
+      }
       return receipt
     } catch (err: unknown) {
       if (readsAgain(err)) await readAfterRefusal(client, identity.name, err, projects)
@@ -215,7 +220,11 @@ function useRun(identity: Identity) {
 async function readAfterRefusal(client: QueryClient, name: string, err: unknown, projects: boolean) {
   if (refusedAsErased(err)) await readAfresh(client, name)
   else await client.invalidateQueries({ queryKey: ['personal', name], exact: true })
-  if (projects) await client.invalidateQueries({ queryKey: ['projects', name] })
+  // A carry or a take-back changes what a project shows as carried in (CarriedIn) as well as Work's list.
+  if (projects) {
+    await client.invalidateQueries({ queryKey: ['projects', name] })
+    await client.invalidateQueries({ queryKey: ['vision', 'carried-in', name] })
+  }
 }
 
 /**
@@ -278,8 +287,12 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
     forget: (noteId: string) => run((k, at) => forgetPersonalNote(token, k, at, noteId)),
     carry: (noteId: string, projectId: string) =>
       run((k, at) => carryPersonalNote(token, k, at, noteId, projectId), true),
-    takeBack: (releaseId: string) => run((k, at) => takeBackPersonalRelease(token, k, at, releaseId), true),
+    /** `key`: the take-back's own, when it is asked again after no answer came back (it may have come back). */
+    takeBack: (releaseId: string, key?: string) =>
+      run((k, at) => takeBackPersonalRelease(token, k, at, releaseId), true, key),
     erase: () => eraseSpace(client, identity, () => setErasures((n) => n + 1)),
+    /** The account these writes are under is still signed in here (signed-in.ts): not after leaving, or another. */
+    here: () => stillSignedIn(identity.name),
   }
 }
 

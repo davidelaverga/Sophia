@@ -12,7 +12,6 @@ import { followPointer } from './motion.ts'
 import { OwnerAvatar } from './OwnerAvatar.tsx'
 import {
   activity,
-  ago,
   capacity,
   freshness,
   liveSession,
@@ -26,13 +25,14 @@ import {
   type Session,
 } from './resource.ts'
 import { ToolLogo } from './ToolLogo.tsx'
+import { roughly } from '../../app/time-words.ts'
 
 const HOST = { online: 'Online', offline: 'Offline', unknown: 'Unknown' } as const
 
-/** An offline host says how long it has been gone: "Offline · 26 h". */
+/** An offline host says how long it has been gone, in a word: "Offline · 3 h", "Offline · 1 day". */
 function hostLabel({ state, observedAt }: Resource['host'], now: Date): string {
   if (state !== 'offline' || !observedAt) return HOST[state]
-  return `${HOST[state]} · ${ago(observedAt, now).replace(/ ago$/, '')}`
+  return `${HOST[state]} · ${roughly(now.getTime() - Date.parse(observedAt))}`
 }
 
 interface Props {

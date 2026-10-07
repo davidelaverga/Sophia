@@ -13,14 +13,34 @@ import { barTarget, type Target } from './discussion-view.ts'
 /** A message's first words, for the line that says which one wasn't confirmed. */
 const firstWords = (text: string) => (text.length > 48 ? `${text.slice(0, 47).trimEnd()}…` : text)
 
-export function useRoomMessage(projectId: string, identity: Identity, draft: string, onDraft: (text: string) => void) {
+/** A message to the room, and the entry of the discussion it answers (A20, the vision flag's), if any. */
+interface RoomMessage {
+  text: string
+  replyTo: string | null
+}
+
+/** The reply under way: the entry answered (or none), and what to do once the reply is recorded. */
+export interface ReplyUnderWay {
+  id: string | null
+  done: () => void
+}
+
+const NO_REPLY: ReplyUnderWay = { id: null, done: () => undefined }
+
+export function useRoomMessage(
+  projectId: string,
+  identity: Identity,
+  draft: string,
+  onDraft: (text: string) => void,
+  reply: ReplyUnderWay = NO_REPLY,
+) {
   const queryClient = useQueryClient()
-  const write = useAdmission<string, ContributionReceipt>(async (key, text) => {
+  const write = useAdmission<RoomMessage, ContributionReceipt>(async (key, message) => {
     try {
       return await submitContribution(identity.token, projectId, key, {
         source: null,
-        text,
-        threadId: null,
+        text: message.text,
+        threadId: message.replyTo,
         artifactVersionId: null,
         intent: 'discuss',
       })
@@ -28,10 +48,10 @@ export function useRoomMessage(projectId: string, identity: Identity, draft: str
       void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
     }
   })
-  // The draft as it is now: read after the answer, never from the press's render.
-  const latest = useRef(draft)
+  // The draft and the reply as they are now: read after the answer, never from the press's render.
+  const latest = useRef({ draft, reply })
   useLayoutEffect(() => {
-    latest.current = draft
+    latest.current = { draft, reply }
   })
   const unknown = write.state.status === 'unknown' ? write.state.args : null
   /**
@@ -40,11 +60,15 @@ export function useRoomMessage(projectId: string, identity: Identity, draft: str
    * still holds what was sent: words written meanwhile stay.
    */
   const send = async () => {
-    const text = (unknown ?? draft).trim()
-    if (text && (await write.send(text)) && latest.current.trim() === text) onDraft('')
+    const message = unknown ?? { text: draft.trim(), replyTo: reply.id }
+    if (!message.text || !(await write.send(message))) return
+    // The reply sent is let go; another chosen meanwhile (while it went, or a message re-sent after no reply) stays.
+    const now = latest.current.reply
+    if (message.replyTo !== null && message.replyTo === now.id) now.done()
+    if (latest.current.draft.trim() === message.text) onDraft('')
   }
   const words = unknown
-    ? `Not sent to the room: “${firstWords(unknown)}”`
+    ? `Not sent to the room: “${firstWords(unknown.text)}”`
     : write.state.status === 'rejected'
       ? write.state.error.message
       : null

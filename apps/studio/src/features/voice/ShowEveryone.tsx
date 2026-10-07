@@ -3,7 +3,7 @@
 // with the intent, so a retry resends the very same request. Offered only under the vision flag, where the fixture
 // pages answer it. Committed, the room's feed carries the focus to every stage.
 import { useQueryClient } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { setRoomFocus, type FocusReceipt } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -28,8 +28,8 @@ interface Props extends FocusTarget {
   /** Before the request: the feed may present it before its answer comes. */
   onPress?: () => void
   onShown?: () => void
-  /** The request didn't go through (refused, or no reply). */
-  onFailed?: () => void
+  /** The request was refused: it will not be shown (no reply is not a refusal: it may have been committed). */
+  onRefused?: () => void
 }
 
 /** One intent: what to show, against the room as it was read when it was pressed. */
@@ -62,17 +62,26 @@ function useFocusWrite({ projectId, identity, roomId }: Omit<FocusTarget, 'revis
 }
 
 export function FocusButton(props: Props) {
-  const { versionId, label, className = 'pill', onPress, onShown, onFailed, revision, ...target } = props
+  const { versionId, label, className = 'pill', onPress, onShown, onRefused, revision, ...target } = props
   const write = useFocusWrite(target)
   // Refused against a room that moved, it waits for the room's new revision: pressed again before it, it would be too.
   const state = write.state
   const waiting =
     state.status === 'rejected' && state.error.code === 'stale_revision' && state.args.revision === revision
+  // Only a refusal says it won't be shown; no reply may still have been committed.
+  // Once per refusal, with the latest onRefused: a re-render while it stays refused says nothing again.
+  const refused = state.status === 'rejected'
+  const latestRefused = useRef(onRefused)
+  useEffect(() => {
+    latestRefused.current = onRefused
+  })
+  useEffect(() => {
+    if (refused) latestRefused.current?.()
+  }, [refused])
   // After no reply, a press is the open intent again, with its own request and key (pressFor), never a second one.
   const press = async () => {
     onPress?.()
     if (await write.send({ versionId, revision })) onShown?.()
-    else onFailed?.()
   }
   return (
     <>

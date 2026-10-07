@@ -26,6 +26,8 @@ import {
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
 import { deviceChange } from './device-change.ts'
+import { followingSignal } from './following-signal.ts'
+import { VISION } from '../../app/vision.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import { isSophia, listenToSophia } from './sophia-channel.ts'
 import type { SophiaSignal } from './sophia-view.ts'
@@ -70,6 +72,8 @@ export interface RoomConnection {
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
+  /** What this person follows, said to the members in the call (following-signal.ts); sent only when it changes. */
+  setFollowing: (versionId: string | null) => Promise<void>
   leave: () => Promise<void>
 }
 
@@ -97,6 +101,7 @@ const toView = (p: Participant, local: boolean): RoomParticipant => ({
   screenOn: p.isScreenShareEnabled,
   local,
   standing: standingOf(p.metadata),
+  ...(p.joinedAt ? { joinedAt: p.joinedAt.getTime() } : {}),
 })
 
 function sophiaSignal(p: Participant | undefined): SophiaSignal | null {
@@ -225,6 +230,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   })
   listenToSophia(room, cb)
   const signalMode = modeSignal(room, () => textOnly)
+  const following = followingSignal(room, cb.onChange, { resync: VISION })
   await room.connect(serverUrl, token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {
@@ -232,6 +238,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     cb.onChange()
   }
   const people = () => [...room.remoteParticipants.values()].filter((p) => !isSophia(p))
+  const other = (p: Participant) => ({ ...toView(p, false), following: following.of(p.identity) })
   const me = room.localParticipant
   return {
     sendChat: (packet) =>
@@ -246,7 +253,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
       signalMode()
     },
     textMode: () => textOnly,
-    participants: () => [toView(room.localParticipant, true), ...people().map((p) => toView(p, false))],
+    participants: () => [toView(room.localParticipant, true), ...people().map(other)],
     sophia: () => sophiaSignal([...room.remoteParticipants.values()].find(isSophia)),
     audioBlocked: () => !room.canPlaybackAudio,
     startAudio: () => after(room.startAudio()),
@@ -262,6 +269,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
           () => me.isScreenShareEnabled === on,
         ),
       ),
+    setFollowing: (versionId) => Promise.resolve(following.set(versionId)),
     leave: () => room.disconnect(),
   }
 }

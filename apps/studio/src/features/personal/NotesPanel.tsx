@@ -9,6 +9,7 @@ import { focusSoon } from './focus.ts'
 import { Memory } from './Memory.tsx'
 import { membersLabel } from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
+import { CarryPackage, type PackWrites } from './CarryPackage.tsx'
 
 interface Props {
   /** Undefined until the space has loaded: nothing is said of them before (never "No notes yet"). */
@@ -26,6 +27,10 @@ interface Props {
   memory?: Remembered | undefined
   /** Under a talk: out of reach until it ends. */
   under?: boolean
+  /** Personal is out of sight (another place): the package's hold on Escape is let go meanwhile. */
+  away?: boolean
+  /** The writes a reviewed package uses (CarryPackage), under the vision flag; absent, only the single Carry. */
+  pack?: PackWrites | undefined
 }
 
 /** How long a carried note takes to slide across before it leaves the list. */
@@ -128,50 +133,114 @@ export function NotesPanel(props: Props) {
   const panel = useRef<HTMLElement>(null)
   const { carrying, setCarrying, crossing, carry } = useCarry(panel, onCarry)
   const crossed = (id: string) => crossing === id || props.carrying(id)
+  // The package, open: it replaces the notes' own Carry, so one writer carries at a time; while a step of it runs
+  // (carrying, taking back), the notes stay open, so what it says stays in sight.
+  const [packing, setPacking] = useState(false)
+  const [packBusy, setPackBusy] = useState(false)
   // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
   useEffect(() => panel.current?.focus({ preventScroll: true }), [])
   return (
     <aside ref={panel} id="c-notes" className="c3-notes" aria-labelledby="c-notes-h" tabIndex={-1} inert={props.under}>
       <header className="sheet-head">
         <h2 id="c-notes-h">Notes</h2>
-        <button type="button" className="round has-tip" aria-label="Close notes" onClick={onClose}>
-          <Icon name="close" />
-          <Tip label="Close" keys="Esc" side="bottom" align="end" />
-        </button>
+        <CloseNotes waits={packBusy} onClose={onClose} />
       </header>
       {props.memory && <Memory {...props.memory} />}
-      {props.memory && props.memory.items.length > 0 && notes !== undefined && <h3 className="c3-label">Your notes</h3>}
+      <Package {...props} open={packing} onOpen={setPacking} onBusy={setPackBusy} crossing={crossed} />
+      {!packing && props.memory && props.memory.items.length > 0 && notes !== undefined && (
+        <h3 className="c3-label">Your notes</h3>
+      )}
       {notes?.length === 0 && <p className="ps-empty">{NOTES_EMPTY}</p>}
-      {notes?.map((note) => (
-        <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>
-          <p>
-            {note.text}
-            {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}
-          </p>
-          <button
-            className="ghost"
-            type="button"
-            data-carry={note.id}
-            aria-expanded={carrying === note.id}
-            onClick={() => setCarrying(carrying === note.id ? null : note.id)}
-          >
-            Carry
-          </button>
-          {carrying === note.id && (
-            <CarryTo
-              projects={projects}
-              projectsRead={projectsRead}
-              onPick={(p) => carry(note, p)}
-              onCancel={() => {
-                // "Keep here" goes with the list it heads: the focus goes back to the note's Carry.
-                setCarrying(null)
-                focusSoon(`[data-carry="${note.id}"]`)
-              }}
-              onStartProject={onStartProject}
-            />
-          )}
-        </div>
-      ))}
+      {!packing &&
+        notes?.map((note) => (
+          <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>
+            <p>
+              {note.text}
+              {note.keptBy === 'sophia' && <span className="by">from Sophia</span>}
+            </p>
+            <button
+              className="ghost"
+              type="button"
+              data-carry={note.id}
+              aria-expanded={carrying === note.id}
+              onClick={() => setCarrying(carrying === note.id ? null : note.id)}
+            >
+              Carry
+            </button>
+            {carrying === note.id && (
+              <CarryTo
+                projects={projects}
+                projectsRead={projectsRead}
+                onPick={(p) => carry(note, p)}
+                onCancel={() => {
+                  // "Keep here" goes with the list it heads: the focus goes back to the note's Carry.
+                  setCarrying(null)
+                  focusSoon(`[data-carry="${note.id}"]`)
+                }}
+                onStartProject={onStartProject}
+              />
+            )}
+          </div>
+        ))}
     </aside>
+  )
+}
+
+/** Close: unavailable while the package's step runs, so what it says stays in sight. */
+function CloseNotes({ waits, onClose }: { waits: boolean; onClose: () => void }) {
+  return (
+    <button
+      type="button"
+      className="round has-tip"
+      aria-label="Close notes"
+      aria-disabled={waits || undefined}
+      onClick={() => !waits && onClose()}
+    >
+      <Icon name="close" />
+      <Tip label="Close" keys="Esc" side="bottom" align="end" />
+    </button>
+  )
+}
+
+/**
+ * «Review what to carry»: a package of notes to one project, reviewed before it goes (Davide's chapter 1). Offered
+ * where there is a note and a project to carry it to; the package replaces the button while it is open.
+ */
+/** The package's own: open or not, a step running, and a note crossing by its own Carry (not offered meanwhile). */
+interface PackageState {
+  open: boolean
+  onOpen: (open: boolean) => void
+  onBusy: (busy: boolean) => void
+  crossing: (id: string) => boolean
+}
+
+function Package(props: Props & PackageState) {
+  const { notes, projects, pack, open, onOpen: setOpen, onBusy } = props
+  if (!pack) return null
+  // Open, it stays whatever the list holds: carried notes leave it, and the package says what went.
+  if (open) {
+    return (
+      <CarryPackage
+        notes={notes ?? []}
+        projects={projects ?? []}
+        writes={pack}
+        onBusy={onBusy}
+        away={props.away === true}
+        onClose={() => {
+          setOpen(false)
+          // Back to Review what to carry; with no note left to carry, to the notes themselves, never the page.
+          requestAnimationFrame(() =>
+            (document.querySelector<HTMLElement>('[data-pack-open]') ?? document.getElementById('c-notes'))?.focus(),
+          )
+        }}
+      />
+    )
+  }
+  // A note on its way by its own Carry: the package waits for it, so the two never carry one note.
+  if (!notes?.length || !projects?.length || notes.some((n) => props.crossing(n.id))) return null
+  return (
+    <button type="button" className="ghost c3-pack-open" data-pack-open onClick={() => setOpen(true)}>
+      Review what to carry
+    </button>
   )
 }

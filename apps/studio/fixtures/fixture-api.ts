@@ -7,6 +7,8 @@ import type {
   ExchangeReceipt,
   FloorRequest,
   GoalCommand,
+  Membership,
+  MissionContext,
   Receipt,
   Snapshot,
   SourceReviewAvailability,
@@ -23,6 +25,9 @@ import {
   snapshot,
   type RoomAsked,
   type Said,
+  authorOf,
+  entryIdOf,
+  idOf,
 } from './data.ts'
 import {
   content,
@@ -41,7 +46,15 @@ import {
 } from './report-data.ts'
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
-import { focusRequest, focusSet, type Showing } from './focus-data.ts'
+import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
+import { reviewed, type Reviews } from './review-data.ts'
+import { created, finished, type Tasks } from './task-data.ts'
+import type { ConversationMessage, ConversationSummary, ProjectTask, VersionReview } from '../src/api/vision.ts'
+import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
+import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
+import type { ProjectRelease } from '@sophia/contracts'
+import { searchHits, searchPage } from './search-data.ts'
+import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -59,6 +72,10 @@ interface Project {
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
   loseContributionReply?: boolean
+  /** While set, messages land but their replies wait for `releaseMessages` (`window.fixture.holdMessages`). */
+  messagesHeld?: (() => void)[] | null
+  /** A20's replies read fails as the API's `unavailable` (`window.fixture.failReplies`). */
+  failReplies?: boolean
   /** How many versions of the fixture report are published (report-data.ts). */
   reportVersions: number
   /** The fixture report's title (report-data.ts): LONG_TITLE with `title=long`. */
@@ -67,6 +84,8 @@ interface Project {
   pilot?: boolean
   /** Someone is waiting at the door (report-data.ts). */
   waiting: boolean
+  /** This viewer's role in the project (`role=viewer`); the fixture's own, admin, otherwise. */
+  role?: Membership['role']
   /** The report's description on Knowledge (report-data.ts). */
   description: Description
   /**
@@ -110,6 +129,38 @@ interface Project {
   notes?: Notes
   /** What the room shows to everyone (focus-data.ts); absent, showing is unexpected. */
   showing?: Showing
+  /** While set, searches wait for `holdSearch(false)` (A13). */
+  searchHeld?: (() => void)[] | null
+  /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
+  reviews?: Reviews
+  /** What members carried in from Personal (the project list's releases, chapter 1); absent, none. */
+  carriedIn?: ProjectRelease[]
+  /** The project list holds other projects only (`carried=elsewhere`): this one is past its first ones. */
+  carriedElsewhere?: boolean
+  /** While set, the project list's reads wait for these (`window.fixture.holdProjects`). */
+  projectsHeld?: (() => void)[] | null
+  /** The project list's reads fail (`projects=fail`). */
+  projectsFail?: boolean
+  /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
+  tasks?: Tasks
+  /** The meeting the room is in (meeting-data.ts, A12); absent, its requests are unexpected. */
+  meeting?: Meeting
+  /** The project's conversations (conversation-data.ts, A18); absent, their requests are unexpected. */
+  conversations?: Conversations
+  /** What the brief adds for the conversations' context: a purpose, accepted decisions, one still open. */
+  missionPlus?: ReturnType<typeof conversationMission>
+  /** The brief's reads fail (`window.fixture.failMission`). */
+  missionFails?: boolean
+  /** While set, the brief's reads wait for these (`mission=hold`, `window.fixture.holdMission`). */
+  missionHeld?: (() => void)[] | null
+}
+
+/** The conversations as the A18 reads give them (and its writes keep them), and the reads that fail. */
+export interface Conversations extends TalkWrites {
+  list: ConversationSummary[]
+  messages: Record<string, ConversationMessage[]>
+  /** The list's reads fail (`conversations=fail`, `window.fixture.failConversations`). */
+  failList: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -213,8 +264,9 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
     served.push(`snapshot:${project.revision}`)
     return json(snapshotOf(project))
   }
-  if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
-  if (method === 'GET' && path === `${base}/membership`) return json(membership)
+  const records = recordsAnswer(project, method, url, init)
+  if (records !== undefined) return records
+  if (method === 'GET' && path === `${base}/membership`) return json(membershipOf(project))
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
@@ -222,10 +274,321 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   return answerReports(project, method, url, init)
 }
 
+/** The vision's proposed reads, and A18's writes; undefined for any other request. */
+function visionAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  if (method === 'GET') return visionRead(project, url)
+  return method === 'POST' ? talkWritten(project, url.pathname, init) : undefined
+}
+
+/** A18's writes, where the page keeps conversations; undefined for any other request. */
+function talkWritten(project: Project, path: string, init: RequestInit | undefined) {
+  if (!project.conversations) return undefined
+  return conversationWritten(project.conversations, path, init, {
+    viewer: project.role === 'viewer',
+    record: (what) => served.push(what),
+    moved: () => publish(project),
+  })
+}
+
+/** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
+function visionRead(project: Project, url: URL) {
+  if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
+  if (url.pathname === `/api/v1/projects/${PROJECT}/discussion/replies`) return repliesRead(project)
+  const talk = project.conversations && conversationRead(project.conversations, url)
+  if (talk !== undefined) return talk
+  if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
+  const reviews = REVIEWS_OF.exec(url.pathname)
+  if (reviews?.[2]) return reviewsRead(project, reviews[2])
+  const tasksOf = TASKS_OF.exec(url.pathname)?.[1]
+  if (tasksOf) return tasksRead(project, tasksOf)
+  if (url.pathname !== `/api/v1/rooms/${ROOM}/focus` || !project.showing) return undefined
+  served.push('room-focus:read')
+  return json(roomFocus(project.showing, project.revision))
+}
+
+/** The brief, the meeting's records and the invitations sent (none) (A08, A12); undefined for any other request. */
+function recordsAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  const base = `/api/v1/projects/${PROJECT}`
+  const path = url.pathname
+  const vision = visionAnswer(project, method, url, init)
+  if (vision !== undefined) return vision
+  if (path.startsWith(`${base}/mission`)) return missionAnswer(project, method, path, init)
+  if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
+  if (method === 'GET' && path === `${base}/since` && project.meeting)
+    return json(digestOf(project.meeting, project.revision))
+  if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
+  return undefined
+}
+
+/** A project search (A13, search-data.ts): one page of the hits, three a page. */
+function searchAnswer(project: Project, url: URL): Response | Promise<Response> | null {
+  const q = url.searchParams.get('q') ?? ''
+  const cursor = url.searchParams.get('cursor')
+  const meeting = project.meeting
+  if (!meeting) return null
+  served.push(`search:${q}:${cursor ?? '0'}`)
+  const held = project.searchHeld
+  const kept = project.notes?.kept ?? []
+  const report = { versions: project.reportVersions, title: project.reportTitle, pilot: project.pilot }
+  const page = () => json(searchPage(searchHits({ meeting, kept, report }, q), cursor))
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(page()))) : page()
+}
+
+/** This viewer's membership: the fixture's own, in the role the page asked for. */
+const membershipOf = (project: Project) => ({ ...membership, role: project.role ?? membership.role })
+
+/** What a closed meeting's work made after it (the proposed `after` route): the running one's, once closed; none else. */
+function afterAnswer(meeting: Meeting, path: string): Response | null {
+  const afterOf = /\/meetings\/([^/]+)\/after$/.exec(path)?.[1]
+  if (!afterOf) return null
+  served.push('after')
+  return json({ updates: afterOf === MEETING && meeting.closedAt ? meeting.after : [] })
+}
+
+/** The meeting's list and its recap (A12, meeting-data.ts). */
+function meetingAnswer(project: Project, path: string): Promise<Response> | Response | null {
+  const meeting = project.meeting
+  const base = `/api/v1/projects/${PROJECT}/meetings`
+  if (!meeting) return null
+  if (path === base) return json(meetingList(meeting))
+  const after = afterAnswer(meeting, path)
+  if (after) return after
+  if (path === `${base}/${MEETING}/so-far`) {
+    served.push('so-far')
+    return json(soFarOf(meeting, project.revision))
+  }
+  const recap = recapOf(meeting, /\/meetings\/([^/]+)\/recap$/.exec(path)?.[1] ?? '')
+  if (!recap) return null
+  const { held, fail } = meeting.recaps
+  if (fail) return unavailable()
+  served.push(`recap:${recap.endedAt ? 'closed' : 'running'}`)
+  if (!held) return json(recap)
+  return new Promise((resolve) => held.push(() => resolve(json(recap))))
+}
+
+/** The API's answer while it can't read the records (packages/domain/src/errors.ts). */
+const unavailable = () =>
+  new Response(
+    JSON.stringify({
+      code: 'unavailable',
+      message: 'The records can’t be read right now',
+      requestId: '00000000-0000-4000-8000-0000000000bf',
+      retry: 'safe_read',
+    }),
+    { status: 503 },
+  )
+
+/** Any report's reviews or tasks (A16, A17): the report (and the version) captured. */
+const REVIEWS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions\/([0-9a-f-]{36})\/reviews$/
+const TASKS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
+const MESSAGES_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
+
+/** A18's reads: the list, or a page of a conversation's messages; undefined for any other request. */
+function conversationRead(talk: Conversations, url: URL) {
+  if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk)
+  const messagesOf = MESSAGES_OF.exec(url.pathname)?.[1]
+  return messagesOf ? messagesRead(talk, messagesOf, url) : undefined
+}
+
+/** The project's conversations (A18), as listed. */
+function conversationsRead(talk: Conversations) {
+  if (talk.failList) return unavailable()
+  served.push('conversations:read')
+  return json({ conversations: talk.list })
+}
+
+/** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
+function messagesRead(talk: Conversations, conversationId: string, url: URL) {
+  if (talk.failMessagesOf === conversationId) return unavailable()
+  const all = talk.messages[conversationId]
+  if (!all) return null
+  const before = url.searchParams.get('before')
+  // A cursor this list never gave is the client's mistake: unexpected, not an empty page.
+  if (before !== null && !/^[1-9][0-9]*$/u.test(before)) return null
+  const end = Math.min(all.length, Number(before ?? all.length))
+  const start = Math.max(0, end - MESSAGE_PAGE)
+  served.push(`messages:${conversationId.slice(-2)}:${String(start)}`)
+  return json({ messages: all.slice(start, end), before: start > 0 ? String(start) : null })
+}
+
+/** The person's projects (`GET /api/v1/projects`): this one, with what members carried in from Personal. */
+function projectListAnswer(project: Project): Response | Promise<Response> {
+  const held = project.projectsHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(projectListAnswer(project))))
+  if (project.projectsFail) return unavailable()
+  served.push('projects:read')
+  const room = null
+  const listed = {
+    projectId: PROJECT,
+    title: 'Fixture project',
+    role: project.role ?? membership.role,
+    members: 3,
+    room,
+    nextSession: null,
+    releases: project.carriedIn ?? [],
+  }
+  const other = { ...listed, projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', releases: [] }
+  return json({ projects: project.carriedElsewhere ? [other] : [listed], personalEpoch: 1 })
+}
+
+/** A version's reviews as read (A16): none where the page keeps none, and then the read isn't counted. */
+function reviewsRead(project: Project, versionId: string) {
+  if (project.reviews?.failReads) return unavailable()
+  const reply = () => {
+    if (project.reviews) served.push('reviews:read')
+    return json({ reviews: project.reviews?.byVersion.get(versionId) ?? [] })
+  }
+  const held = project.reviews?.heldReads
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(reply()))) : reply()
+}
+
+/** A report's tasks as read (A17): the fixture report's, where the page keeps them; any other report's, none. */
+function tasksRead(project: Project, artifactId: string) {
+  if (project.tasks?.failReads) return unavailable()
+  const reply = () => {
+    if (project.tasks) served.push('tasks:read')
+    return json({ tasks: artifactId === REPORT ? (project.tasks?.list ?? []) : [] })
+  }
+  const held = project.tasks?.heldReads
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(reply()))) : reply()
+}
+
+/** A review written (A16): 201, once per key; a viewer is refused; a reply lost when the page asks for that. */
+function reviewPosted(project: Project, versionId: string, init: RequestInit | undefined) {
+  const reviews = project.reviews
+  if (!reviews) return null
+  if (project.role === 'viewer') return notAllowed()
+  if (reviews.drop) {
+    reviews.drop = false
+    return Promise.reject(new TypeError('Failed to fetch')) // it never reached the API: nothing recorded
+  }
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const done = reviewed(reviews, versionId, membership.actorId, key, init?.body)
+  if (!done) return null
+  if (reviews.loseReply) {
+    reviews.loseReply = false
+    if (done.first) served.push(`review:${done.review.verdict}`)
+    // It landed, but neither its reply nor its event has reached the page yet: only Try again can tell it.
+    return Promise.reject(new TypeError('Failed to fetch'))
+  }
+  if (done.first) served.push(`review:${done.review.verdict}`)
+  return reviewAnswer(project, reviews, done)
+}
+
+/** A review's reply: after the feed moved and then lost, held until released, or at once (the feed moving). */
+function reviewAnswer(project: Project, reviews: Reviews, done: { review: VersionReview; first: boolean }) {
+  const reply = () =>
+    new Response(JSON.stringify(done.review), { status: 201, headers: { 'content-type': 'application/json' } })
+  if (reviews.publishThenLose) {
+    reviews.publishThenLose = false
+    publish(project) // its record reaches the page while the press is still on its way
+    return new Promise<Response>((_, reject) => setTimeout(() => reject(new TypeError('Failed to fetch')), 1500))
+  }
+  // Held, it is recorded at once and its reply waits; the feed moves with whatever comes next, not with the release.
+  const held = reviews.held
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(reply())))
+  if (done.first) publish(project) // a record: the feed moves
+  return reply()
+}
+
+/** A task done (A17): `/api/v1/projects/{project}/tasks/{task}/done`, the task captured. */
+const TASK_DONE = new RegExp(`^/api/v1/projects/${PROJECT}/tasks/([0-9a-f-]{36})/done$`)
+
+/** The answer to a task's write (A17): its reply lost when the page asks for that, else the task and the feed moved. */
+function taskAnswer(project: Project, tasks: Tasks, done: { task: ProjectTask; first: boolean }, what: string) {
+  if (done.first) served.push(`task:${what}`)
+  if (tasks.loseReply) {
+    tasks.loseReply = false
+    return Promise.reject(new TypeError('Failed to fetch')) // it landed; only Try again can tell it
+  }
+  const reply = () =>
+    new Response(JSON.stringify(done.task), {
+      status: what === 'create' ? 201 : 200,
+      headers: { 'content-type': 'application/json' },
+    })
+  // Held, it is recorded at once and its reply waits; the feed moves with whatever comes next, not with the release.
+  const held = tasks.held
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(reply())))
+  if (done.first) publish(project) // a record: the feed moves
+  return reply()
+}
+
+/** A task made from a passage (A17): 201, once per key; a viewer is refused. */
+function taskPosted(project: Project, init: RequestInit | undefined) {
+  const tasks = project.tasks
+  if (!tasks) return null
+  if (project.role === 'viewer') return refused('Only editors and admins make tasks')
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const done = created(tasks, membership.actorId, key, init?.body)
+  return done ? taskAnswer(project, tasks, done, 'create') : null
+}
+
+/** A task done (A17): by whoever it is for (anyone's, any member's), an editor or an admin. */
+function taskDone(project: Project, taskId: string, init: RequestInit | undefined) {
+  const tasks = project.tasks
+  const task = tasks?.list.find((t) => t.taskId === taskId)
+  if (!tasks || !task) return null
+  const mine = task.owner === null || task.owner === membership.actorId
+  if (project.role === 'viewer' && !mine) return refused('Only whoever it is for, an editor or an admin marks it done')
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const done = finished(tasks, taskId, membership.actorId, key)
+  return done ? taskAnswer(project, tasks, done, 'done') : null
+}
+
+/** A refusal in the API's words: 403, never retried. */
+const refused = (message: string) =>
+  new Response(
+    JSON.stringify({ code: 'forbidden', message, requestId: '00000000-0000-4000-8000-0000000000bd', retry: 'never' }),
+    { status: 403 },
+  )
+
+/** A close by a member who may only read: closing is an editor's or an admin's (A12). */
+const notAllowed = () =>
+  new Response(
+    JSON.stringify({
+      code: 'forbidden',
+      message: 'Only editors and admins close a meeting',
+      requestId: '00000000-0000-4000-8000-0000000000be',
+      retry: 'never',
+    }),
+    { status: 403 },
+  )
+
+/** The meeting closed for everyone (A12): once, whatever key a later close carries. */
+function meetingClosed(project: Project, init: RequestInit | undefined): Promise<Response> | Response | null {
+  const meeting = project.meeting
+  if (!meeting) return null
+  if (project.role === 'viewer') return notAllowed()
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const first = meeting.closes.size === 0
+  if (first) publish(project) // the close is a record: the feed moves, and the receipt names where it is
+  const receipt = closed(meeting, key, project.revision)
+  if (first) served.push('meeting:closed')
+  if (meeting.loseReply) {
+    meeting.loseReply = false
+    return Promise.reject(new TypeError('Failed to fetch')) // it closed; the page never hears so
+  }
+  return new Response(JSON.stringify(receipt), { status: 202, headers: { 'content-type': 'application/json' } })
+}
+
 /** What the page writes: the room's focus (PUT), else what it posts. */
 function written(project: Project, method: string, path: string, init: RequestInit | undefined) {
+  if (method === 'PUT' && path === `/api/v1/projects/${PROJECT}/seen`) return seenPut(project, init)
   if (method === 'PUT') return path === `/api/v1/rooms/${ROOM}/focus` ? focusPut(project, init) : null
   return posted(project, path, init)
+}
+
+/** The viewer saw up to a sequence (A13): 204, never lowered; a lost reply has still landed. */
+function seenPut(project: Project, init: RequestInit | undefined): Promise<Response> | Response | null {
+  const meeting = project.meeting
+  const request: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const ok = typeof request === 'object' && request !== null && 'sequence' in request
+  if (!meeting || !ok || typeof request.sequence !== 'string') return null
+  served.push(`seen:${request.sequence}`)
+  markSeen(meeting, request.sequence)
+  if (!meeting.seen.loseReply) return new Response(null, { status: 204 })
+  meeting.seen.loseReply = false
+  return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
 }
 
 /**
@@ -347,11 +710,29 @@ function edited(project: Project, path: string, init: RequestInit | undefined) {
 function missionAnswer(project: Project, method: string, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}/mission`
   if (method === 'GET' && path === base) {
-    if (project.notes?.unread) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
-    served.push(`mission:${project.revision}`)
-    return json(mission(project.revision, project.notes?.kept, !project.notes?.refused))
+    const held = project.missionHeld
+    if (held) return new Promise<Response>((resolve) => held.push(() => resolve(missionRead(project))))
+    return missionRead(project)
   }
   return project.notes ? notesAnswer(project.revision, project.notes, method, path, init) : null
+}
+
+/** The brief as read: refused while notes are unread or reads fail (`failMission`), else with the conversations' part. */
+function missionRead(project: Project): Response {
+  if (project.notes?.unread || project.missionFails) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  served.push(`mission:${project.revision}`)
+  return json(withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus))
+}
+
+/** The brief with what the conversations' context adds (a purpose, accepted decisions, one still open), if any. */
+function withContext(ctx: MissionContext, plus: Project['missionPlus']): MissionContext {
+  if (!plus || !ctx.mission) return ctx
+  return {
+    ...ctx,
+    mission: { ...ctx.mission, purpose: plus.purpose },
+    constraints: plus.constraints,
+    pending: plus.pending,
+  }
 }
 
 /** A note written in the brief, or its withdrawal. */
@@ -392,7 +773,10 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
     served.push('replayed:contribution')
     return replayed.text === body.text ? recorded(replayed.receipt) : keyConflict()
   }
-  project.messages.push({ text: body.text, me: true })
+  const replyTo = replyOf(project, body)
+  if (replyTo instanceof Response) return replyTo
+  const id = entryIdOf(project.messages.length)
+  project.messages.push({ id, text: body.text, me: true, ...(replyTo ? { replyTo } : {}) })
   publish(project)
   served.push(`contribution:${body.intent}`)
   const receipt: ContributionReceipt = {
@@ -405,6 +789,13 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
     stage: 'recorded',
   }
   map.set(key, { text: body.text, receipt })
+  return contributionAnswer(project, receipt)
+}
+
+/** A message's reply: at once, held until `releaseMessages`, or lost on the way. */
+function contributionAnswer(project: Project, receipt: ContributionReceipt): Response | Promise<Response> {
+  const held = project.messagesHeld
+  if (held) return new Promise((resolve) => held.push(() => resolve(recorded(receipt))))
   if (!project.loseContributionReply) return recorded(receipt)
   project.loseContributionReply = false
   return Promise.reject(new TypeError('Failed to fetch')) // it landed; the page never hears so
@@ -426,6 +817,12 @@ const isContribution = (value: unknown): value is { text: string; intent: Contri
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/contributions`) return contributed(project, init)
+  const reviewOf = REVIEWS_OF.exec(path)?.[2]
+  if (reviewOf) return reviewPosted(project, reviewOf, init)
+  if (path === `${base}/tasks`) return taskPosted(project, init)
+  const doneOf = TASK_DONE.exec(path)?.[1]
+  if (doneOf) return taskDone(project, doneOf, init)
+  if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
   if (path === `${base}/room-token`) return json(roomToken)
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
@@ -448,7 +845,47 @@ const UNAVAILABLE = {
   retry: 'safe_read',
 }
 
+/**
+ * A20: the entry a message answers (`threadId`), with who wrote it and its first words, recorded with the reply;
+ * refused when the discussion no longer holds it; none, undefined.
+ */
+function replyOf(project: Project, body: object): Said['replyTo'] | Response {
+  const id = 'threadId' in body && typeof body.threadId === 'string' ? body.threadId : undefined
+  if (id === undefined) return undefined
+  const original = project.messages.find((m, n) => idOf(m, n) === id)
+  if (original === undefined) return noLongerThere()
+  served.push(`contribution-reply:${id}`)
+  const text = typeof original === 'string' ? original : original.text
+  return { id, actorId: authorOf(original), excerpt: text.slice(0, 80) }
+}
+
 /** The API's answer to a key used before for another request (packages/domain/src/errors.ts). */
+
+/** A reply to an entry the discussion no longer holds (A20): refused, nothing recorded. */
+const noLongerThere = () =>
+  new Response(
+    JSON.stringify({
+      code: 'invalid_state',
+      message: 'That message is no longer in the discussion.',
+      requestId: '00000000-0000-4000-8000-0000000000bd',
+      retry: 'never',
+    }),
+    { status: 409 },
+  )
+
+/** A20's proposed read: which entries answer which, with the original's first words (an excerpt, as recorded). */
+function repliesRead(project: Project) {
+  if (project.failReplies) {
+    served.push('replies:failed')
+    return unavailable()
+  }
+  const replies = project.messages.flatMap((m, n) =>
+    typeof m === 'string' || !m.replyTo ? [] : [{ entryId: idOf(m, n), replyTo: m.replyTo }],
+  )
+  served.push('replies:read')
+  return json({ replies })
+}
+
 const keyConflict = () =>
   new Response(
     JSON.stringify({

@@ -1,0 +1,254 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import { RoomEvent, type Participant, type Room } from 'livekit-client'
+import {
+  decodeFollowing,
+  decodePacket,
+  encodeAsk,
+  encodeFollowing,
+  FOLLOWING_TOPIC,
+  followingSignal,
+} from './following-signal.ts'
+
+const bytes = (text: string) => new TextEncoder().encode(text)
+
+describe('what a member says they follow', () => {
+  it('carries a version, or nothing, both ways', () => {
+    assert.equal(decodeFollowing(encodeFollowing('v1')), 'v1')
+    assert.equal(decodeFollowing(encodeFollowing(null)), null)
+  })
+
+  it('reads anything else as no packet of its own, never as a version', () => {
+    assert.equal(decodeFollowing(bytes('not json')), undefined)
+    assert.equal(decodeFollowing(bytes('{}')), undefined)
+    assert.equal(decodeFollowing(bytes('{"following":7}')), undefined)
+    assert.equal(decodeFollowing(bytes('{"following":""}')), undefined)
+    assert.equal(decodeFollowing(bytes('null')), undefined)
+  })
+})
+
+const person = (identity: string, metadata: string) => ({ identity, metadata }) as Participant
+const ANA = person('ana', JSON.stringify({ role: 'editor' }))
+const BEN = person('ben', JSON.stringify({ role: 'viewer' }))
+const GUEST = person('gus', JSON.stringify({ guest: true }))
+const SOPHIA = person('sophia', JSON.stringify({ sophia: true }))
+/** Someone the API signed no standing for: not a member either. */
+const NOBODY = person('nob', '{}')
+
+/** A room that keeps its listeners and what was sent, to play it as LiveKit would. */
+function fakeRoom(present: Participant[]) {
+  const listeners = new Map<string, ((...args: unknown[]) => void)[]>()
+  const sent: { to: string[]; following?: string | null | undefined; ask?: true }[] = []
+  const remote = new Map(present.map((p) => [p.identity, p]))
+  const room = {
+    on: (event: string, fn: (...args: unknown[]) => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), fn])
+    },
+    remoteParticipants: remote,
+    localParticipant: {
+      publishData: (data: Uint8Array, opts: { destinationIdentities: string[]; topic: string }) => {
+        assert.equal(opts.topic, FOLLOWING_TOPIC)
+        const packet = decodePacket(data)
+        sent.push(
+          packet && 'ask' in packet
+            ? { to: opts.destinationIdentities, ask: true }
+            : { to: opts.destinationIdentities, following: decodeFollowing(data) },
+        )
+        return Promise.resolve()
+      },
+    },
+  }
+  const emit = (event: string, ...args: unknown[]) => {
+    for (const fn of listeners.get(event) ?? []) fn(...args)
+  }
+  return { room: room as unknown as Room, emit, sent, remote }
+}
+
+describe('saying it to the room', () => {
+  it('goes to the members only, and only when it changes', () => {
+    const { room, sent } = fakeRoom([ANA, GUEST, SOPHIA, BEN, NOBODY])
+    const signal = followingSignal(room, () => undefined)
+    signal.set(null) // nothing yet: nothing to say
+    signal.set('v1')
+    signal.set('v1')
+    signal.set(null)
+    assert.deepEqual(sent, [
+      { to: ['ana', 'ben'], following: 'v1' },
+      { to: ['ana', 'ben'], following: null },
+    ])
+  })
+
+  it('tells whoever joins what this person follows, never a guest', () => {
+    const { room, emit, sent } = fakeRoom([])
+    const signal = followingSignal(room, () => undefined)
+    signal.set('v1')
+    emit(RoomEvent.ParticipantConnected, GUEST)
+    emit(RoomEvent.ParticipantConnected, ANA)
+    assert.deepEqual(sent, [{ to: ['ana'], following: 'v1' }])
+  })
+})
+
+describe('hearing it from the room', () => {
+  it('keeps each member’s word by who sent it, forgets whoever leaves, and ignores guests', () => {
+    const { room, emit } = fakeRoom([ANA, GUEST])
+    let changes = 0
+    const signal = followingSignal(room, () => (changes += 1))
+    emit(RoomEvent.DataReceived, encodeFollowing('v1'), ANA, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeFollowing('v1'), GUEST, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeFollowing('v1'), BEN, undefined, 'another.topic')
+    assert.equal(signal.of('ana'), 'v1')
+    assert.equal(signal.of('gus'), null)
+    assert.equal(signal.of('ben'), null)
+    assert.equal(changes, 1)
+    emit(RoomEvent.ParticipantDisconnected, ANA)
+    assert.equal(signal.of('ana'), null)
+  })
+})
+
+describe('after a drop', () => {
+  it('asks the members what they follow, forgets what it heard until they answer, and says its own, nothing too', async () => {
+    const { room, emit, sent } = fakeRoom([ANA, BEN, GUEST])
+    const signal = followingSignal(room, () => undefined, { resync: true })
+    signal.set('v1')
+    signal.set(null)
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    sent.length = 0
+    emit(RoomEvent.Reconnected)
+    await new Promise((done) => setTimeout(done, 0)) // forgotten once the ask is published
+    assert.equal(signal.of('ana'), null)
+    assert.deepEqual(sent, [
+      { to: ['ana', 'ben'], following: null },
+      { to: ['ana', 'ben'], ask: true },
+    ])
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    assert.equal(signal.of('ana'), 'v2')
+  })
+
+  it('keeps an answer heard before the ask is published, the same version in the same tick included (Codex on #130)', async () => {
+    const { room, emit } = fakeRoom([ANA, BEN, NOBODY])
+    let changes = 0
+    const signal = followingSignal(room, () => (changes += 1), { resync: true })
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), BEN, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.Reconnected)
+    // In the same tick as the drop's end, before the ask is published: Ana answers the very same version, Ben nothing.
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    await new Promise((done) => setTimeout(done, 0))
+    assert.equal(signal.of('ana'), 'v2')
+    assert.equal(signal.of('ben'), null) // heard only before the drop: forgotten
+    assert.equal(changes, 4)
+  })
+
+  it('keeps a changed answer, a second member’s answer, and an answer of nothing, heard since the drop', async () => {
+    const { room, emit } = fakeRoom([ANA, BEN])
+    const signal = followingSignal(room, () => undefined, { resync: true })
+    emit(RoomEvent.DataReceived, encodeFollowing('v1'), ANA, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeFollowing('v1'), BEN, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.Reconnected)
+    emit(RoomEvent.DataReceived, encodeFollowing('v3'), BEN, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeFollowing(null), ANA, undefined, FOLLOWING_TOPIC)
+    await new Promise((done) => setTimeout(done, 0))
+    assert.equal(signal.of('ben'), 'v3')
+    assert.equal(signal.of('ana'), null)
+  })
+
+  it('answers a member’s ask to that member only, nothing included; a guest’s ask, never', () => {
+    const { room, emit, sent } = fakeRoom([ANA, BEN, GUEST])
+    followingSignal(room, () => undefined, { resync: true })
+    emit(RoomEvent.DataReceived, encodeAsk(), ANA, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeAsk(), GUEST, undefined, FOLLOWING_TOPIC)
+    assert.deepEqual(sent, [{ to: ['ana'], following: null }])
+  })
+
+  it('reads an ask as no following, and a following as no ask', () => {
+    assert.equal(decodeFollowing(encodeAsk()), undefined)
+    assert.deepEqual(decodePacket(encodeAsk()), { ask: true })
+    assert.deepEqual(decodePacket(encodeFollowing('v1')), { following: 'v1' })
+    assert.equal(decodePacket(bytes('{}')), undefined)
+  })
+})
+
+describe('without the vision flag', () => {
+  it('a drop says nothing and asks nothing, and an ask goes unanswered', () => {
+    const { room, emit, sent } = fakeRoom([ANA, BEN])
+    followingSignal(room, () => undefined)
+    emit(RoomEvent.Reconnected)
+    emit(RoomEvent.DataReceived, encodeAsk(), ANA, undefined, FOLLOWING_TOPIC)
+    assert.deepEqual(sent, [])
+  })
+})
+
+describe('a resync that can’t be asked', () => {
+  it('keeps what it heard until the ask is published, and asks again after a failure', async () => {
+    const { room, emit, sent } = fakeRoom([ANA, BEN])
+    let fail = 1
+    const publish = room.localParticipant.publishData.bind(room.localParticipant)
+    room.localParticipant.publishData = (data, opts) => {
+      if (decodePacket(data) && 'ask' in (decodePacket(data) ?? {}) && fail > 0) {
+        fail -= 1
+        return Promise.reject(new Error('not now'))
+      }
+      return publish(data, opts)
+    }
+    const signal = followingSignal(room, () => undefined, { resync: true, retryMs: 5 })
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.Reconnected)
+    await new Promise((done) => setTimeout(done, 0))
+    assert.equal(signal.of('ana'), 'v2')
+    await new Promise((done) => setTimeout(done, 20))
+    assert.equal(signal.of('ana'), null)
+    assert.equal(sent.filter((s) => s.ask).length, 1)
+  })
+
+  it('keeps an answer heard between a refused ask and the one published, the same version included', async () => {
+    const { room, emit } = fakeRoom([ANA, BEN])
+    let fail = 1
+    const publish = room.localParticipant.publishData.bind(room.localParticipant)
+    room.localParticipant.publishData = (data, opts) => {
+      if (decodePacket(data) && 'ask' in (decodePacket(data) ?? {}) && fail > 0) {
+        fail -= 1
+        return Promise.reject(new Error('not now'))
+      }
+      return publish(data, opts)
+    }
+    const signal = followingSignal(room, () => undefined, { resync: true, retryMs: 5 })
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), ANA, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), BEN, undefined, FOLLOWING_TOPIC)
+    emit(RoomEvent.Reconnected)
+    await new Promise((done) => setTimeout(done, 0))
+    emit(RoomEvent.DataReceived, encodeFollowing('v2'), BEN, undefined, FOLLOWING_TOPIC)
+    await new Promise((done) => setTimeout(done, 20))
+    assert.equal(signal.of('ana'), null)
+    assert.equal(signal.of('ben'), 'v2')
+  })
+})
+
+describe('a resync the call outlives no more', () => {
+  it('stops asking once the call ends', async () => {
+    const { room, emit } = fakeRoom([ANA])
+    let asks = 0
+    room.localParticipant.publishData = (data) => {
+      if (decodePacket(data) && 'ask' in (decodePacket(data) ?? {})) asks += 1
+      return Promise.reject(new Error('closed'))
+    }
+    followingSignal(room, () => undefined, { resync: true, retryMs: 5 })
+    emit(RoomEvent.Reconnected)
+    await new Promise((done) => setTimeout(done, 0))
+    emit(RoomEvent.Disconnected)
+    const after = asks
+    await new Promise((done) => setTimeout(done, 30))
+    assert.equal(asks, after)
+  })
+
+  it('with only guests in the call, asks nobody and forgets', async () => {
+    const { room, emit, sent } = fakeRoom([GUEST])
+    const signal = followingSignal(room, () => undefined, { resync: true })
+    emit(RoomEvent.Reconnected)
+    await new Promise((done) => setTimeout(done, 0))
+    assert.deepEqual(
+      sent.filter((s) => s.ask),
+      [],
+    )
+    assert.equal(signal.of('gus'), null)
+  })
+})

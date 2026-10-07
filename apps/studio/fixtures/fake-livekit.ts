@@ -6,6 +6,7 @@
 // feeds come from fake-people.ts. Nothing else in the Studio is replaced.
 import { RoomEvent, type Room } from 'livekit-client'
 import { CHAT_REPLY_TOPIC, encodeChatPacket, type ChatPacket } from '@sophia/contracts/room-chat'
+import type { CallEnd } from '../src/features/voice/call-end.ts'
 import type { RoomCallbacks, RoomConnection } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
 import { listenToSophia } from '../src/features/voice/sophia-channel.ts'
@@ -22,6 +23,13 @@ import {
 
 /** What the room's connection was asked, in order: `connect`, `microphone:on`, `text:off`, `leave`… */
 export const asked: string[] = []
+
+/** Leaving waits while held, as a real disconnect can (room-recap checks). */
+export const leaving: { held: boolean; fails: boolean; waiting: (() => void)[] } = {
+  held: false,
+  fails: false,
+  waiting: [],
+}
 
 /** `refuse=camera`: the browser refuses the camera, as a blocked permission does. */
 const refused = new URLSearchParams(window.location.search).get('refuse')
@@ -41,9 +49,9 @@ function fromSophia(packet: ChatPacket): void {
   emit(RoomEvent.DataReceived, encodeChatPacket(packet), SOPHIA, undefined, CHAT_REPLY_TOPIC)
 }
 
-/** The call is lost, as LiveKit reports a connection gone. */
-export function dropCall(): void {
-  ended?.('dropped')
+/** The call ends without this person leaving: lost by default, as LiveKit reports a connection gone. */
+export function dropCall(why: CallEnd = 'dropped'): void {
+  ended?.(why)
 }
 
 /** The bridge tells this reader a result is ready, as its chat notice arrives (SMC-M03 S6). */
@@ -76,8 +84,19 @@ const viewer = (): RoomParticipant => ({
   standing: 'admin',
 })
 
+/** What the page said it follows, last (following-signal.ts sends only a change). */
+let said: string | null = null
+
+/** What the page says it follows, as the room's connection records it: only a change is sent. */
+function sayFollowing(versionId: string | null): Promise<void> {
+  if (versionId !== said) asked.push(`following:${versionId ?? ''}`)
+  said = versionId
+  return Promise.resolve()
+}
+
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   asked.push('connect')
+  said = null // a new connection has said nothing yet, as following-signal.ts starts each one
   const me = viewer()
   let textOnly = false
   let open = true
@@ -127,10 +146,13 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     setMicrophone: device('microphone', 'micOn'),
     setCamera: device('camera', 'cameraOn'),
     setScreenShare: device('screen', 'screenOn'),
+    setFollowing: sayFollowing,
     leave: () => {
       asked.push('leave')
       open = false
-      return Promise.resolve()
+      // A slow disconnect (`window.fixture.holdLeave`): it ends when released.
+      if (leaving.fails) return Promise.reject(new Error('Disconnect failed'))
+      return leaving.held ? new Promise<void>((resolve) => leaving.waiting.push(resolve)) : Promise.resolve()
     },
   })
 }

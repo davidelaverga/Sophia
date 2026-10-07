@@ -44,6 +44,10 @@ export interface RoomParticipant {
   screenOn: boolean
   local: boolean
   standing: Standing
+  /** The version this member said they follow (A14, following-signal.ts); absent or null: none. */
+  following?: string | null
+  /** When they joined the call (ms), as LiveKit says; absent when it doesn't. */
+  joinedAt?: number
 }
 
 const ROLES: ReadonlyArray<Standing> = ['admin', 'editor', 'viewer']

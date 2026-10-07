@@ -237,7 +237,8 @@ button {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-button:disabled {
+button:disabled,
+.pill[aria-disabled='true'] {
   cursor: default;
   opacity: 0.45;
 }
@@ -262,11 +263,11 @@ button:disabled {
     border-color var(--fast) var(--ease),
     color var(--fast) var(--ease);
 }
-.pill:hover:not(:disabled) {
+.pill:hover:not(:disabled, [aria-disabled='true']) {
   background: rgba(236, 235, 241, 0.08);
   border-color: var(--line-3);
 }
-.pill:active:not(:disabled) {
+.pill:active:not(:disabled, [aria-disabled='true']) {
   transform: translateY(0.5px);
 }
 .pill.primary {
@@ -1798,6 +1799,53 @@ img.avatar {
   color: var(--text-2);
   font-size: 12px;
 }
+/* Replies (A20, the vision flag's): Reply after a message's words, the quote of what a reply answers above them, and
+   above the bar what is being answered, with ✕. */
+.contribution:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+.contribution-reply {
+  min-height: 24px;
+  margin-left: 6px;
+  font-size: 12px;
+}
+.contribution-quote {
+  display: block;
+  max-width: 100%;
+  margin: 0 0 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+button.contribution-quote {
+  min-height: 24px;
+  cursor: pointer;
+}
+button.contribution-quote:hover {
+  color: var(--text-2);
+}
+.replying {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 4px 4px 4px 10px;
+  border-left: 2px solid var(--halo);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.replying-words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .brief-request {
   display: flex;
   flex-wrap: wrap;
@@ -2079,6 +2127,13 @@ img.avatar {
   --cols: 3;
   --rows: 2;
 }
+/* Past six, three rows of three: the last people's tile is «+N» (tile-view.ts). */
+.gallery[data-count='7'],
+.gallery[data-count='8'],
+.gallery[data-count='9'] {
+  --cols: 3;
+  --rows: 3;
+}
 .gallery .tile {
   width: min(
     calc((100cqw - (var(--cols) - 1) * 8px) / var(--cols)),
@@ -2091,17 +2146,63 @@ img.avatar {
   gap: 8px;
   grid-template-columns: minmax(0, 1fr) clamp(180px, 18vw, 250px);
 }
+/* Beside a shown screen: at most five tiles (Sophia's, four people's or «+N», tile-view.ts), five rows that share the
+   stage's height, so no tile runs into the next however tall the stage is. */
 .tile-strip {
   display: grid;
+  /* A fifth of the stage each (no row kept for a tile that isn't there); on a short stage 64 px, and the strip scrolls
+     rather than shrink a tile under its name. */
+  grid-auto-rows: minmax(64px, calc((100% - 32px) / 5));
   gap: 8px;
   align-content: start;
+  min-height: 0;
   margin: 0;
   padding: 0;
   list-style: none;
   overflow-y: auto;
 }
 .tile-strip .tile {
-  aspect-ratio: 16 / 10;
+  max-height: 100%;
+}
+/* «+N»: the people past the tiles, a tile of its own that opens everyone in the call. */
+.tile-more {
+  padding: 0;
+}
+.tile-more button {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.tile-more button:hover {
+  color: var(--text);
+  background: var(--line);
+}
+.in-the-call {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.in-the-call li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--type-body);
+}
+.in-the-call-role {
+  color: var(--text-2);
+  font-size: var(--type-small);
 }
 .tile {
   position: relative;
@@ -3060,9 +3161,13 @@ div.empty {
     grid-template-rows: minmax(0, 1fr) auto;
   }
   .tile-strip {
+    grid-auto-rows: auto;
     grid-auto-flow: column;
     grid-auto-columns: 150px;
     overflow-x: auto;
+  }
+  .tile-strip .tile {
+    aspect-ratio: 16 / 10;
   }
 }
 
@@ -3148,6 +3253,12 @@ div.empty {
   .gallery[data-count='5'],
   .gallery[data-count='6'] {
     --cols: 2;
+    --rows: 3;
+  }
+  .gallery[data-count='7'],
+  .gallery[data-count='8'],
+  .gallery[data-count='9'] {
+    --cols: 3;
     --rows: 3;
   }
   .page {
@@ -3726,8 +3837,8 @@ div.empty {
    its own: its head with who shows it and the way back, then the text at the reading measure, scrolled on its own. */
 .report-main {
   display: grid;
-  /* Its head, the section index when it has one, and the text, which takes the rest and scrolls. */
-  grid-template-rows: auto auto minmax(0, 1fr);
+  /* Its head, the section index when it has one, where Sophia walked it, and the text, which takes the rest and scrolls. */
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   min-height: 0;
   margin: 0;
   overflow: hidden;
@@ -3768,7 +3879,7 @@ div.empty {
   gap: 8px;
 }
 .report-main-body {
-  grid-row: 3;
+  grid-row: 4;
   overflow: auto;
   padding: 20px 24px 40px;
 }
@@ -3816,6 +3927,10 @@ div.empty {
   z-index: 4;
   width: min(420px, calc(100% - 2 * var(--gutter)));
   transform: translateX(-50%);
+  /* The shown card and the meeting so far, one above the other. */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .stage-over-video .stage-showing {
   margin: 0;
@@ -3936,4 +4051,287 @@ div.empty {
   .message-bar .bar-target {
     margin-bottom: 7px;
   }
+}
+/* What the meeting left (MeetingRecap): the head, then each section's lines, each with who and how under it. */
+.recap {
+  display: grid;
+  gap: 18px;
+}
+.recap-head {
+  color: var(--text-2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.recap-section {
+  display: grid;
+  gap: 8px;
+}
+.recap-section h3 {
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.recap-section ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recap-section li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 12px;
+  align-items: baseline;
+}
+.recap-line {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.recap-by {
+  grid-column: 1;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.recap-section li > .text-button {
+  grid-row: 1;
+  grid-column: 2;
+}
+.recap-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.recap-said {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.recap-text {
+  width: 100%;
+  font-size: 12.5px;
+  resize: vertical;
+}
+/* Updates (UpdatesView): what changed since the person last looked, then the meetings, in the reading column. */
+.updates {
+  display: grid;
+  gap: 32px;
+  max-width: 680px;
+}
+.updates > h2 {
+  font-size: 18px;
+}
+.updates-part {
+  display: grid;
+  gap: 16px;
+}
+.updates-part > h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.meeting-rows {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.meeting-row {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+.meeting-row:hover {
+  background: var(--line);
+}
+/* Search (SearchSheet): the field, then each hit's title, its record's words and where it is from. */
+.search-field {
+  width: 100%;
+}
+.search-hits {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.search-hit {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+.search-hit:hover {
+  background: var(--line);
+}
+.search-hit-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.search-hit-snippet {
+  overflow-wrap: anywhere;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.search-hit-source {
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+/* Where Sophia walked the shown report (PresentedReport, A14): one quiet line under the sections; empty, nothing. */
+.report-walk {
+  grid-row: 3;
+  margin: 0;
+  padding: 6px 24px 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.report-walk:empty {
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+/* The version's review (ReviewRow, A16): one line under the pane's head, its acts beside it, the ask below. */
+.review-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.review-said {
+  flex: 1 1 14rem;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.review-acts {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.review-ask {
+  display: grid;
+  flex-basis: 100%;
+  gap: 8px;
+}
+.review-note {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+}
+.review-empty {
+  color: var(--warn, var(--text-2));
+  font-size: 12.5px;
+}
+/* A passage made a task (PassageTask, A17): the form in the pane's foot, the line it leaves, and the Tasks tab. */
+.task-form {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--glass);
+}
+.task-quote {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--halo);
+  color: var(--text-2);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.task-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.task-for {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.task-for select {
+  height: 28px;
+  border-radius: var(--r-2);
+  font: inherit;
+}
+.task-said {
+  flex: 1 1 8rem;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.task-added {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 16px 10px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.task-added:empty {
+  padding: 0;
+}
+.task-rows {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.task-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.task-row > .pill {
+  grid-row: 1 / span 3;
+  grid-column: 2;
+}
+.task-row[data-done] .task-text {
+  color: var(--text-2);
+  text-decoration: line-through;
+}
+.task-text {
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+.task-meta,
+.task-row .task-said,
+.task-none {
+  color: var(--text-2);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.task-row .task-said:empty {
+  height: 0;
 }

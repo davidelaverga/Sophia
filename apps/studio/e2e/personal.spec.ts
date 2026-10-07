@@ -406,17 +406,24 @@ test('detail · the field shows its focus as Home’s line does, a ring of light
 
 test('detail · every control is at least 24 px tall, the day dividers too', async ({ page }) => {
   await page.goto(`${PAGE}?all=1`)
-  const short = await page
-    .locator('.c3-space button:visible, .c3-space input:visible, .c3-space textarea:visible')
-    .evaluateAll(
-      (all) =>
-        all
-          .filter((el) => !el.closest('[inert], .c3-edge'))
-          .map((el) => ({ name: el.textContent.trim().slice(0, 20), h: el.getBoundingClientRect().height }))
-          .filter((c) => c.h < 23.5), // 24 px, a renderer's sub-pixel aside
-    )
-  expect(short).toEqual([])
+  await expect(page.locator('.c3-space').first()).toBeVisible()
+  expect(await shortControls(page)).toEqual([])
+  // The package of notes to carry, open (personal-carry).
+  await page.goto(`${PAGE}?notes=open&ready=1&many=1`)
+  await page.locator('#c-notes').getByRole('button', { name: 'Review what to carry' }).click()
+  expect(await shortControls(page)).toEqual([])
 })
+
+/** Controls shorter than 24 px (a renderer's sub-pixel aside), out of reach ones aside. */
+const shortControls = (page: Page) =>
+  page
+    .locator('.c3-space button:visible, .c3-space input:visible, .c3-space textarea:visible, .c3-space select:visible')
+    .evaluateAll((all) =>
+      all
+        .filter((el) => !el.closest('[inert], .c3-edge'))
+        .map((el) => ({ name: el.textContent.trim().slice(0, 20), h: el.getBoundingClientRect().height }))
+        .filter((c) => c.h < 23.5),
+    )
 
 test('detail · one type scale: Personal’s text comes in five sizes, in every state it shows', async ({ page }) => {
   const sizes = new Set<string>()
@@ -442,6 +449,11 @@ test('detail · one type scale: Personal’s text comes in five sizes, in every 
   await mine.locator('.note-this').click()
   await read()
   await page.locator('.c3-day').first().click()
+  await read()
+  // The package of notes to carry, open (personal-carry).
+  await page.goto(`${PAGE}?notes=open&ready=1&many=1`)
+  await page.locator('#c-notes').getByRole('button', { name: 'Review what to carry' }).click()
+  await page.locator('#c-notes').getByRole('checkbox').first().check()
   await read()
   expect([...sizes].toSorted()).toEqual(['10.5px', '11px', '13px', '15px', '17px'])
 })
@@ -604,7 +616,8 @@ test('presence · her voice reads first: her turns at 17 px, yours at 15', async
 test('presence · an exchange reads as one: her answer sits closer to you than your next turn to her', async ({
   page,
 }) => {
-  await page.goto(PAGE)
+  // At midday: the fixture's talk is dated back from now, and just after midnight its first exchange straddles it.
+  await page.goto(`${PAGE}?at=12:00`)
   await settled(page)
   const gaps = await page.evaluate(() => {
     const turns = [...document.querySelectorAll('.msgs > *')]

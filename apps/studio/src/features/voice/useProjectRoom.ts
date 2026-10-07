@@ -18,6 +18,10 @@ import type { SophiaSignal } from './sophia-view.ts'
 
 export type { VideoFeed } from './livekit-room.ts'
 
+export interface LeaveHow {
+  pressed: true
+}
+
 export interface ProjectRoom {
   chat: ChatTurn[]
   /** Finished results' cards, one per task, for this member whether they hear or read Sophia (SMC-M03 S6, CX-0022). */
@@ -31,7 +35,10 @@ export interface ProjectRoom {
   sendChat: (packet: ChatInput) => Promise<void>
   status: DockStatus
   error: string | null
-  /** Which call this is: it moves when a new one begins, so what belonged to the last (a chat error) goes with it. */
+  /**
+   * Which call this is: it moves when a new one begins, so what belonged to the last (a chat error, what it followed)
+   * goes with it. Never another call's, even once the room is mounted again (newCall).
+   */
   call: number
   /** Why a microphone, camera or screen did not start, in words a person can act on. */
   mediaError: string | null
@@ -45,10 +52,20 @@ export interface ProjectRoom {
   ready: boolean
   /** Resolves to whether this person is in the call once it settles. */
   join: (options?: { textOnly?: boolean }) => Promise<boolean>
-  leave: () => Promise<void>
+  /**
+   * Out of the call. `pressed`: the person's own Leave, which counts in `leftByPress`; any other leave (another
+   * project's call, the project closing) is quiet.
+   */
+  leave: (how?: LeaveHow) => Promise<void>
+  /** How many calls this person was in and left by their own press: what the meeting left opens on each. */
+  leftByPress: number
+  /** When this person's latest call went live (ms): what a late join is measured from; null before any. */
+  liveSince: number | null
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
+  /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
+  setFollowing: (versionId: string | null) => Promise<void>
 }
 
 /** A failed join in words: the API's own refusal, or what to check when the room could not be reached. */
@@ -225,6 +242,12 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
   }
 }
 
+/** Calls numbered on this page, by any room: a room mounted again starts from where the last left off. */
+let callsNumbered = 0
+
+/** A call's number, never another's: what a call keeps (what it followed) is never a later call's (Codex on #138). */
+export const newCall = (): number => (callsNumbered += 1)
+
 /**
  * One join at a time: a second connection for the same person makes LiveKit drop the first, and the call would say
  * it moved elsewhere. A join asked for while one is under way waits on that one, until its call ends (`joining` is
@@ -232,17 +255,21 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
  * `call` moves with each call begun.
  */
 function useJoin(ports: Omit<JoinPorts, 'onLive'>, joining: { current: Promise<boolean> | null }) {
-  const [call, setCall] = useState(0)
+  const [call, setCall] = useState(newCall)
+  const [liveSince, setLiveSince] = useState<number | null>(null)
   const join = (options?: { textOnly?: boolean }) => {
     if (joining.current) return joining.current
-    const onLive = () => setCall((n) => n + 1)
+    const onLive = () => {
+      setCall(newCall())
+      setLiveSince(Date.now())
+    }
     const attempt: Promise<boolean> = joinConnection({ ...ports, onLive }, options).finally(() => {
       if (joining.current === attempt) joining.current = null
     })
     joining.current = attempt
     return attempt
   }
-  return { call, join }
+  return { call, liveSince, join }
 }
 
 /**
@@ -266,6 +293,26 @@ function useConversation(connection: { current: RoomConnection | null }, silence
     interrupted,
   }
 }
+
+/** Leaving, and how many calls the person was in and left by their own press (ProjectRoom.leftByPress). */
+function useLeave(calls: CallFence<RoomConnection>, outOfCall: (why: CallEnd | null) => void) {
+  const [leftByPress, setLeftByPress] = useState(0)
+  const leave = async (how?: LeaveHow) => {
+    // A second press while the call is still ending (a slow disconnect) does nothing: the first ends it and says so,
+    // so no Join shows meanwhile, and no join it began could be ended by the first press's late finish.
+    if (how?.pressed && calls.current === null) return
+    // A teardown that fails (LiveKit's disconnect rejecting) still leaves this person out of the call here: the call
+    // is no longer theirs, and the room says so instead of staying live with a Leave that does nothing.
+    await calls.end().catch(() => undefined)
+    outOfCall(null)
+    if (how?.pressed) setLeftByPress((n) => n + 1)
+  }
+  return { leave, leftByPress }
+}
+
+/** Saying what this person follows to the call they are in; out of a call, there is no one to tell. */
+const followingOf = (calls: CallFence<RoomConnection>) => (versionId: string | null) =>
+  calls.current?.setFollowing(versionId) ?? Promise.resolve()
 
 /** Null `issue` while nobody may join yet (the project has not loaded): Join waits. */
 export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
@@ -309,12 +356,9 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     setError(why ? CALL_END[why].note : null)
   }
 
-  const { call, join } = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining)
+  const joined = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining)
 
-  const leave = async () => {
-    await calls.end()
-    outOfCall(null)
-  }
+  const { leave, leftByPress } = useLeave(calls, outOfCall)
 
   // Speaking is voice: a microphone that came on leaves text mode, so Sophia is heard again (switchMicrophone).
   const setMicrophone = (on: boolean) =>
@@ -325,11 +369,12 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     })
 
   const startAudio = () => calls.current?.startAudio() ?? Promise.resolve()
+  const [setFollowing] = useState(() => followingOf(calls))
 
   return {
     status,
     error,
-    call,
+    ...joined,
     ...people,
     ...devices,
     setMicrophone,
@@ -341,8 +386,9 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     setTextMode: typedChat.setTextMode,
     sendChat: typedChat.sendChat,
     startAudio,
+    setFollowing,
     ready: issue !== null,
-    join,
     leave,
+    leftByPress,
   }
 }

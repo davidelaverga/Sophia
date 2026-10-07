@@ -34,6 +34,7 @@ import type { Room } from './room.ts'
 import { sessionTarget, UNFENCED, type CommandTarget } from './receipts.ts'
 import { actsSaid, canAct, routeOffers, SessionActs, type Acts } from './SessionActs.tsx'
 import { ToolLogo } from './ToolLogo.tsx'
+import { when } from '../../app/time-words.ts'
 
 const HOST = { online: 'online', offline: 'offline', unknown: 'unknown' } as const
 const CONTROL: Record<ControlName, string> = { stop: 'Stop', hold: 'Hold', steer: 'Guidance', permissions: 'Requests' }
@@ -50,7 +51,7 @@ const GLYPH: Record<Support, string> = { supported: '✓', unqualified: '–', u
 function Since({ at, now }: { at: string | null; now: Date }) {
   if (!at) return <span className="resource-age">never observed</span>
   return (
-    <time className="resource-age" dateTime={at} title={new Date(at).toUTCString()}>
+    <time className="resource-age" dateTime={at} title={when(at, now.getTime())}>
       {ago(at, now)}
     </time>
   )

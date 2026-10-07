@@ -18,6 +18,7 @@ import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { forgetKept } from '../src/features/conversations/talk-store.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccountMenu } from '../src/app/AccountMenu.tsx'
@@ -25,16 +26,23 @@ import type { View } from '../src/app/route.ts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
-import type { Notes } from './brief-data.ts'
-import { noShowing } from './focus-data.ts'
+import { noteKept, type Notes } from './brief-data.ts'
+import { noShowing, walked } from './focus-data.ts'
+import { noReviews } from './review-data.ts'
+import { noTasks, taskOf } from './task-data.ts'
+import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
-import { asked, deliverCaption, deliverNotice, dropCall, sophiaLeaves } from './fake-livekit.ts'
+import type { CallEnd } from '../src/features/voice/call-end.ts'
+import { CONVERSATION, conversationMission, conversations, messagesOf, quietConversation } from './conversation-data.ts'
+import { asked, deliverCaption, deliverNotice, dropCall, leaving, sophiaLeaves } from './fake-livekit.ts'
 import {
   count,
   endPause,
   nameOf,
   oneOfUs,
+  others,
   personId,
+  setFollowers,
   setSophia,
   setSpeaking,
   sophiaAsked,
@@ -52,21 +60,34 @@ import {
 import {
   briefNotice,
   LONG_TITLE,
+  REPORT,
   researchNotice,
   revisedNotice,
   SOPHIAS_DESCRIPTION,
   TEAMMATE,
   TITLE,
+  TASK,
   versionId,
 } from './report-data.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
   update: () => void
+  /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
+  forgetDiscussion: () => void
+  /** The account is forgotten, as signing out or switching identity forgets it (App): reads cleared, nothing kept. */
+  forgetAccount: () => void
+  /** The oldest message leaves the recent discussion (past what the snapshot holds); a reply to it keeps its quote. */
+  dropOldest: () => void
+  /** While on, the viewer's messages land but their replies wait for `releaseMessages`. */
+  holdMessages: (on: boolean) => void
+  releaseMessages: () => void
+  /** While on, the read of which messages answer which fails (A20). */
+  failReplies: (on: boolean) => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
   /** The call's connection is lost. */
-  drop: () => void
+  drop: (why?: CallEnd) => void
   /** The fixture report's next version is published (the viewer learns of it when it reads the list again). */
   publishReport: () => void
   /** Sophia publishes the report's next version while it is open: the project's feed says so at once. */
@@ -92,10 +113,76 @@ interface Fixture {
   buildOnNotes: () => void
   /** The `n`th other person (or `me`, from another device) shows the report's current version; null, nothing is. */
   show: (n: number | 'me' | null) => void
+  /** The next review lands, but its reply is lost (A16). */
+  loseNextReviewReply: () => void
+  /** The next review never reaches the API (A16). */
+  dropNextReview: () => void
+  /** Another member reviews the current version (A16). */
+  reviewAs: (verdict: 'approved' | 'changes_requested') => void
+  /** This person reviews the current version from another device, with these words (A16). */
+  reviewAsMe: (verdict: 'approved' | 'changes_requested', note: string | null) => void
+  /** The next review lands and the feed moves, and only then is its reply lost (A16). */
+  publishThenLoseReview: () => void
+  /** While on, reviews land but their replies wait for `releaseReviews` (A16). */
+  holdReviews: (on: boolean) => void
+  releaseReviews: () => void
+  /** Reviews' reads fail, or read again (A16). */
+  failReviewReads: (on: boolean) => void
+  /** Reviews' reads held since the page opened (`reviews=hold`) are answered now (A16). */
+  releaseReviewReads: () => void
+  /** Tasks' reads held since the page opened (`tasks=hold`) are answered now (A17). */
+  releaseTaskReads: () => void
+  /** While on, searches wait; off, the waiting ones are answered (A13). */
+  holdSearch: (on: boolean) => void
+  /** The conversations' list reads fail, or read again (A18). */
+  failConversations: (on: boolean) => void
+  /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
+  conversationMoves: () => void
+  /** The brief's reads fail, or read again. */
+  failMission: (on: boolean) => void
+  /** While on, the brief's reads wait; off, the waiting ones are answered. */
+  holdMission: (on: boolean) => void
+  /** The running meeting closes (another member closed it), and the feed moves (chapter 7's update). */
+  endMeeting: () => void
+  /** The project list's reads fail, or read again (chapter 1). */
+  failProjects: (on: boolean) => void
+  /** While on, the project list's reads wait; off, the waiting ones are answered (chapter 1). */
+  holdProjects: (on: boolean) => void
+  /** Marco carries a note to this project, and the feed moves (chapter 1). */
+  carryIn: () => void
+  /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
+  holdTasks: (on: boolean) => void
+  releaseTasks: () => void
+  /** Tasks' reads fail, or read again (A17). */
+  failTaskReads: (on: boolean) => void
+  /** The next task's write lands, but its reply is lost (A17). */
+  loseNextTaskReply: () => void
+  /** Marco makes a task from the current version's first passage, for the `n`th other person or (null) anyone (A17). */
+  taskBy: (n: number | null) => void
+  /** These others follow the shown version (their `sophia.following`, A14); the rest follow nothing. */
+  followers: (people: number[]) => void
+  /** Sophia moves the shown report's focus to a section, as her `present_section` would (A14). */
+  sophiaWalks: (anchor: string) => void
   /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
   loseNextContributionReply: () => void
   /** The next show lands, but its reply is lost: the page can't tell it was committed. */
   loseNextFocusReply: () => void
+  /** The next close of the meeting lands, but its reply is lost. */
+  loseNextCloseReply: () => void
+  /** A note is kept in the brief, as by this viewer's Keep in another tab: the project moves. */
+  keep: (text: string) => void
+  /** The next «Mark as seen» lands, but its reply is lost. */
+  loseNextSeenReply: () => void
+  /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
+  holdLeave: () => void
+  /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
+  failLeave: () => void
+  releaseLeave: () => void
+  /** The recap's reads wait until `releaseRecaps`. */
+  holdRecaps: () => void
+  releaseRecaps: () => void
+  /** The recap's reads fail (503) until called with false. */
+  failRecaps: (fails?: boolean) => void
   /** The notes members wrote in the brief, by their text. */
   notes: () => readonly (string | null)[]
   /** The next note written lands, but its reply is lost: the page can't tell it was kept. */
@@ -122,8 +209,8 @@ interface Fixture {
   back: () => void
   /** Sophia's participant says this now (fake-people.ts). */
   sophia: (state: SophiaState) => void
-  /** Who speaks now: 0 the viewer, `n` the `n`th other person, null no one. */
-  speaking: (who: number | null) => void
+  /** Who speak now: 0 the viewer, `n` the `n`th other person, several at once as a list; null no one. */
+  speaking: (who: number | readonly number[] | null) => void
   /** Another member's change reaches the API just before the page's next pass: that pass is refused as stale. */
   moveRoom: () => void
   /** Whom the floor was passed to, by name, in order. */
@@ -200,10 +287,13 @@ const project = {
   messages: [] as (string | Said)[],
   contributions: new Map(),
   loseContributionReply: false,
+  messagesHeld: null as (() => void)[] | null,
+  failReplies: false,
   reportVersions: Math.max(1, Number(query.get('versions')) || 1),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
   pilot: query.get('history') === 'pilot',
   waiting: query.get('lobby') === 'waiting',
+  ...(query.get('role') === 'viewer' ? { role: 'viewer' as const } : {}),
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
@@ -212,6 +302,7 @@ const project = {
   taskHeld: query.get('hold') === 'task',
   taskFails: false,
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
+  researchFinished: false,
   textTampered: query.get('tamper') === 'text',
   designed: query.get('designed') === 'on',
   designing: query.get('design') === 'designing',
@@ -219,6 +310,64 @@ const project = {
   work: query.get('place') === 'work',
   // `notes=off`: the brief allows this person no note.
   showing: noShowing(),
+  // A18: the project's conversations (`conversations=1`; `=none`, none; `=fail`, the list fails; `messages=fail`, the
+  // second one's messages fail), and the brief's context beside them.
+  ...conversationsAsked(query.get('conversations'), query.get('messages') === 'fail'),
+  // A16: the versions' reviews (review-data.ts).
+  // Chapter 1: what members carried in from Personal (`carried=1`), and the project list failing (`projects=fail`).
+  carriedIn: query.has('carried')
+    ? [
+        // As the API orders them: oldest first (project-list.ts); the Studio shows them newest first.
+        {
+          id: '00000000-0000-4000-8000-0000000007f0',
+          text: 'Name the sources we trust',
+          ownerName: 'Lucía',
+          mine: false,
+          createdAt: '2026-10-05T10:00:00.000Z',
+        },
+        {
+          id: '00000000-0000-4000-8000-0000000007f1',
+          text: 'Start the deck from one number I trust',
+          ownerName: 'Fixture viewer',
+          mine: true,
+          createdAt: '2026-10-05T16:00:00.000Z',
+        },
+        {
+          id: '00000000-0000-4000-8000-0000000007f2',
+          text: 'Ask finance for the March close',
+          ownerName: 'Marco',
+          mine: false,
+          createdAt: '2026-10-06T09:00:00.000Z',
+        },
+      ]
+    : [],
+  projectsFail: query.get('projects') === 'fail',
+  missionHeld: query.get('mission') === 'hold' ? waiting() : null,
+  carriedElsewhere: query.get('carried') === 'elsewhere',
+  projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
+  // A13: searches held while the page asks (`holdSearch`).
+  searchHeld: null as (() => void)[] | null,
+  missionFails: false,
+  reviews: {
+    ...noReviews(query.get('reviews') === 'fail'),
+    heldReads: query.get('reviews') === 'hold' ? waiting() : null,
+  },
+  // A17: the report's tasks (task-data.ts).
+  tasks: {
+    ...noTasks(nameOf, (id) => Number(id.slice(-1)), query.get('tasks') === 'fail'),
+    heldReads: query.get('tasks') === 'hold' ? waiting() : null,
+  },
+  // A12: the meeting this visit is, its recap built from what happens on the page (meeting-data.ts).
+  // `meeting=earlier`: the running meeting began 12 minutes before the page, so joining is joining late.
+  // `meetings=none`: none before this one, so none closed yet (chapter 7's update has nothing to build from).
+  meeting: {
+    ...newMeeting(
+      () => meetingRecords(),
+      () => asked.includes('connect'),
+      query.get('meeting') === 'earlier' ? Date.now() - 12 * 60_000 - 5_000 : Date.now(),
+    ),
+    noPast: query.get('meetings') === 'none',
+  },
   notes: {
     kept: [],
     written: 0,
@@ -237,6 +386,30 @@ window.fixture = {
     project.messages.push(text)
     publish(project)
   },
+  forgetAccount: () => {
+    queryClient.clear()
+    forgetKept()
+  },
+  forgetDiscussion: () => {
+    project.messages.length = 0
+    publish(project)
+  },
+  dropOldest: () => {
+    project.messages.shift()
+    publish(project)
+  },
+  holdMessages: (on) => {
+    if (!on) for (const reply of project.messagesHeld ?? []) reply()
+    project.messagesHeld = on ? [] : null
+  },
+  releaseMessages: () => {
+    const held = project.messagesHeld ?? []
+    project.messagesHeld = null
+    for (const reply of held) reply()
+  },
+  failReplies: (on) => {
+    project.failReplies = on
+  },
   drop: dropCall,
   publishReport: () => {
     project.reportVersions += 1
@@ -245,7 +418,10 @@ window.fixture = {
     project.reportVersions += 1
     publish(project)
   },
-  notice: () => deliverNotice(researchNotice),
+  notice: () => {
+    project.meeting.made = true
+    deliverNotice(researchNotice)
+  },
   noticeRevised: () => {
     project.reportVersions = 2
     project.taskRevision = 2
@@ -262,7 +438,15 @@ window.fixture = {
     project.researching = { reads }
   },
   researchDone: () => {
+    finishedAfter(project.meeting, {
+      taskId: TASK,
+      artifactId: REPORT,
+      artifactVersionId: versionId(project.reportVersions),
+      versionNumber: project.reportVersions,
+      title: project.reportTitle,
+    })
     project.researching = null
+    project.researchFinished = true // the live records keep it: «since you last looked» lists it done
     project.work = true
     publish(project)
   },
@@ -278,6 +462,116 @@ window.fixture = {
             artifactVersionId: versionId(project.reportVersions),
             guideId: n === 'me' ? membership.actorId : personId(n),
           }
+    project.showing.at = { anchor: null, by: 'member', shownAt: project.showing.revision }
+    publish(project)
+  },
+  loseNextReviewReply: () => {
+    project.reviews.loseReply = true
+  },
+  dropNextReview: () => {
+    project.reviews.drop = true
+  },
+  reviewAs: (verdict) => reviewBy(personId(1), verdict, verdict === 'approved' ? null : 'Tighten it'),
+  reviewAsMe: (verdict, note) => reviewBy(membership.actorId, verdict, note),
+  publishThenLoseReview: () => {
+    project.reviews.publishThenLose = true
+  },
+  holdReviews: (on) => {
+    if (!on) for (const reply of project.reviews.held ?? []) reply()
+    project.reviews.held = on ? [] : null
+  },
+  releaseReviews: () => {
+    const held = project.reviews.held ?? []
+    project.reviews.held = null
+    for (const reply of held) reply()
+  },
+  failReviewReads: (on) => {
+    project.reviews.failReads = on
+  },
+  releaseReviewReads: () => {
+    const held = project.reviews.heldReads ?? []
+    project.reviews.heldReads = null
+    for (const answer of held) answer()
+  },
+  failConversations: (on) => {
+    if (project.conversations) project.conversations.failList = on
+  },
+  conversationMoves: () => {
+    const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
+    if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
+  },
+  failMission: (on) => {
+    project.missionFails = on
+  },
+  endMeeting: () => {
+    project.meeting.closedAt = new Date().toISOString()
+    project.meeting.atClose = project.meeting.records()
+    publish(project)
+  },
+  holdMission: (on) => {
+    const held = project.missionHeld ?? []
+    project.missionHeld = on ? held : null
+    if (!on) for (const answer of held) answer()
+  },
+  failProjects: (on) => {
+    project.projectsFail = on
+  },
+  holdProjects: (on) => {
+    const held = project.projectsHeld ?? []
+    project.projectsHeld = on ? held : null
+    if (!on) for (const answer of held) answer()
+  },
+  carryIn: () => {
+    project.carriedIn = [
+      ...project.carriedIn,
+      {
+        id: '00000000-0000-4000-8000-0000000007f9',
+        text: 'Ask the team for one number we trust',
+        ownerName: 'Marco',
+        mine: false,
+        createdAt: '2026-10-06T12:00:00.000Z',
+      },
+    ]
+    publish(project)
+  },
+  holdSearch: (on) => {
+    if (!on) for (const answer of project.searchHeld ?? []) answer()
+    project.searchHeld = on ? waiting() : null
+  },
+  releaseTaskReads: () => {
+    const held = project.tasks.heldReads ?? []
+    project.tasks.heldReads = null
+    for (const answer of held) answer()
+  },
+  holdTasks: (on) => {
+    if (!on) for (const reply of project.tasks.held ?? []) reply()
+    project.tasks.held = on ? [] : null
+  },
+  releaseTasks: () => {
+    const held = project.tasks.held ?? []
+    project.tasks.held = null
+    for (const reply of held) reply()
+  },
+  failTaskReads: (on) => {
+    project.tasks.failReads = on
+  },
+  loseNextTaskReply: () => {
+    project.tasks.loseReply = true
+  },
+  taskBy: (n) => {
+    const owner = n === null ? null : personId(n)
+    const from = {
+      artifactId: REPORT,
+      versionId: versionId(project.reportVersions),
+      passage: '0.0.3',
+      quote: 'The fixture holds.',
+    }
+    project.tasks.list.unshift(taskOf(project.tasks, personId(1), { text: 'Check the figures', owner, from }))
+    publish(project)
+  },
+  followers: (people) => setFollowers(people, project.showing.focus?.artifactVersionId ?? ''),
+  sophiaWalks: (anchor) => {
+    walked(project.showing, anchor)
     publish(project)
   },
   loseNextContributionReply: () => {
@@ -285,6 +579,42 @@ window.fixture = {
   },
   loseNextFocusReply: () => {
     project.showing.loseReply = true
+  },
+  loseNextCloseReply: () => {
+    project.meeting.loseReply = true
+  },
+  keep: (text) => {
+    noteKept(
+      project.notes,
+      JSON.stringify({ kind: 'observation', epistemic: 'reported', text }),
+      project.revision,
+      `keep-${text}`,
+    )
+    publish(project)
+  },
+  loseNextSeenReply: () => {
+    project.meeting.seen.loseReply = true
+  },
+  holdLeave: () => {
+    leaving.held = true
+  },
+  failLeave: () => {
+    leaving.fails = true
+  },
+  releaseLeave: () => {
+    leaving.held = false
+    for (const done of leaving.waiting.splice(0)) done()
+  },
+  holdRecaps: () => {
+    project.meeting.recaps.held = []
+  },
+  releaseRecaps: () => {
+    const held = project.meeting.recaps.held ?? []
+    project.meeting.recaps.held = null
+    for (const release of held) release()
+  },
+  failRecaps: (fails = true) => {
+    project.meeting.recaps.fail = fails
   },
   notes: () => project.notes.kept.map((entry) => entry.text),
   loseNextReply: () => {
@@ -325,32 +655,148 @@ window.fixture = {
   unexpected,
 }
 
+/** Answers waiting to be let through, typed as the fixture keeps them. */
+function waiting(): (() => void)[] {
+  return []
+}
+
+let reviewsBy = 0
+
+/** A review of the current version by `by`, recorded as the API would, newest first; the feed moves (A16). */
+function reviewBy(by: string, verdict: 'approved' | 'changes_requested', note: string | null) {
+  const current = versionId(project.reportVersions)
+  reviewsBy += 1
+  const review = {
+    reviewId: `00000000-0000-4000-8000-0000000f${String(reviewsBy).padStart(4, '0')}`,
+    verdict,
+    note,
+    by,
+    at: new Date().toISOString(),
+  }
+  project.reviews.byVersion.set(current, [review, ...(project.reviews.byVersion.get(current) ?? [])])
+  publish(project)
+}
+
+/** Sophia's research as the records hold it now: running, or finished once it was (`researchDone`), else none. */
+function researchWork(p: typeof project): { taskId: string; kind: string; state: string }[] {
+  if (p.researching) return [{ taskId: TASK, kind: 'research', state: 'running' }]
+  return p.researchFinished ? [{ taskId: TASK, kind: 'research', state: 'succeeded' }] : []
+}
+
+/** The meeting's records as the page holds them now: who is in it, the decision, the report made, the notes kept. */
+function meetingRecords(): ReturnType<Meeting['records']> {
+  const people = others()
+  const at = new Date().toISOString()
+  return {
+    people: [membership.actorId, ...people.filter((p) => p.standing !== 'guest').map((p) => p.identity)].map(
+      (actorId) => ({
+        actorId,
+      }),
+    ),
+    guests: people.filter((p) => p.standing === 'guest').length,
+    decided: [
+      {
+        decisionId: '00000000-0000-4000-8000-0000000000ad',
+        statement: 'Pilot the fixture with fourteen teams',
+        proposedBy: personId(1),
+        decidedBy: membership.actorId,
+        at,
+        undoable: false,
+      },
+    ],
+    made: project.meeting.made
+      ? [
+          {
+            artifactId: REPORT,
+            artifactVersionId: versionId(project.reportVersions),
+            title: project.reportTitle,
+            versionNumber: project.reportVersions,
+            askedBy: membership.actorId,
+          },
+        ]
+      : [],
+    noted: project.notes.kept.map((e) => ({
+      entryId: e.id,
+      kind: e.kind,
+      text: e.text ?? '',
+      authoredBy: e.authoredBy,
+      actorId: e.actorId,
+      at: e.recordedAt,
+    })),
+    open: [],
+    // Sophia's research while it runs (`research=running`): the meeting's work, said as running at close if it was.
+    work: researchWork(project),
+    // The proposed `names` (#105): every actor the fixture knows, so a name shows where the room never saw them.
+    names: Object.fromEntries(
+      [1, 2, 3, 4, 5]
+        .map((n): [string, string] => [personId(n), nameOf(personId(n))])
+        .concat([[membership.actorId, 'Fixture viewer']]),
+    ),
+  }
+}
+
 const nothing = () => undefined
 
-/** The page `place=` names: Knowledge, Work (with the research task's card), else the room. */
-const viewOf = (place: string | null) => (place === 'knowledge' || place === 'work' ? place : 'studio')
+/** The page `place=` names: Knowledge, Work (with the research task's card), Updates, else the room. */
+const viewOf = (place: string | null) =>
+  place === 'knowledge' || place === 'work' || place === 'updates' || place === 'conversations' ? place : 'studio'
 
-/** The views this fixture's API serves: the room, Knowledge and Work. The others' reads aren't faked, so their links stay. */
-const SERVED: readonly View[] = ['studio', 'knowledge', 'work']
+/** The views this fixture's API serves: the room, Conversations (when the page asks for them), Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
+const SERVED: readonly View[] = query.has('conversations')
+  ? ['studio', 'conversations', 'knowledge', 'work', 'updates']
+  : ['studio', 'knowledge', 'work', 'updates']
 
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }
 
 /** The project as App.tsx holds it: out of sight while the person is in the places, and taking no keys then. */
-function Kept({ children }: { children: ReactNode }) {
+function Kept({ children }: { children: (background: boolean) => ReactNode }) {
   const [inSight, setInSight] = useState(true)
   useEffect(() => {
     sight.set = setInSight
   }, [])
   return (
     <div hidden={!inSight}>
-      <ShortcutScope.Provider value={inSight}>{children}</ShortcutScope.Provider>
+      <ShortcutScope.Provider value={inSight}>{children(!inSight)}</ShortcutScope.Provider>
     </div>
   )
 }
 
+/** `send=lost`: the first message lands, its reply lost; `send=refused`: refused; `send=slow`: replies take 1.5 s (A18). */
+
+/** `start=lost`: the first start lands, its reply lost; `start=slow`: its reply takes 1.5 s (A18). */
+function startAsked(which: string | null): 'lost' | 'slow' | null {
+  return which === 'lost' || which === 'slow' ? which : null
+}
+
+type Send = 'lost' | 'refused' | 'refusedSlow' | 'slow' | 'thenFail'
+
+/** Read while the page's project is made, before any module constant below it: the list is its own. */
+function sendAsked(which: string | null): Send | null {
+  const sends: readonly Send[] = ['lost', 'refused', 'refusedSlow', 'slow', 'thenFail']
+  return sends.find((s) => s === which) ?? null
+}
+
+/** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
+function conversationsAsked(which: string | null, failMessages: boolean) {
+  if (which === null) return {}
+  return {
+    conversations: {
+      list: which === 'none' ? [] : which === 'quiet' ? [...conversations(), quietConversation()] : conversations(),
+      messages: { ...messagesOf(), [CONVERSATION.quiet]: [] },
+      failList: which === 'fail',
+      failMessagesOf: failMessages ? CONVERSATION.briefs : null,
+      send: sendAsked(query.get('send')),
+      start: startAsked(query.get('start')),
+      answerMs: query.get('answer') === 'slow' ? 10_000 : 900,
+      receipts: new Map<string, { body: string; receipt: unknown }>(),
+    },
+    missionPlus: conversationMission(),
+  }
+}
+
 /** The project as App.tsx shows it: its view moves as the person picks another (ViewNav, the mini dock). */
-function Project() {
+function Project({ background }: { background: boolean }) {
   const [view, setView] = useState<View>(viewOf(query.get('place')))
   return (
     <ProjectShell
@@ -371,6 +817,7 @@ function Project() {
       onWork={nothing}
       onSignOut={nothing}
       joinOnOpen={query.get('call') === 'on'}
+      background={background}
     />
   )
 }
@@ -378,15 +825,16 @@ function Project() {
 const root = document.getElementById('root')
 if (!root) throw new Error('room.html must contain #root')
 
+/** The page's reads, which `forgetAccount` clears as App clears them. */
+const queryClient = new QueryClient()
+
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <p className="fixture-label" role="note">
         Fixture — no API, no call
       </p>
-      <Kept>
-        <Project />
-      </Kept>
+      <Kept>{(background) => <Project background={background} />}</Kept>
     </QueryClientProvider>
   </StrictMode>,
 )

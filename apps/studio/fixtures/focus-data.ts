@@ -5,6 +5,9 @@ import type { FocusReceipt } from '../src/api/vision.ts'
 
 export interface Showing {
   focus: { artifactVersionId: string; guideId: string } | null
+  /** The section it is at (A14), who put it there (Sophia walks: `window.fixture.sophiaWalks`), and the revision the
+   * showing began at. */
+  at: { anchor: string | null; by: 'member' | 'sophia'; shownAt: number }
   /** The focus's own revision: one more with each change. */
   revision: number
   /** Each receipt by its Idempotency-Key, with the request it answered: the same key again replays it. */
@@ -13,7 +16,13 @@ export interface Showing {
   loseReply: boolean
 }
 
-export const noShowing = (): Showing => ({ focus: null, revision: 0, receipts: new Map(), loseReply: false })
+export const noShowing = (): Showing => ({
+  focus: null,
+  at: { anchor: null, by: 'member', shownAt: 0 },
+  revision: 0,
+  receipts: new Map(),
+  loseReply: false,
+})
 
 interface FocusRequest {
   artifactVersionId: string | null
@@ -38,6 +47,7 @@ export function focusRequest(body: unknown): FocusRequest | null {
 export function focusSet(showing: Showing, request: FocusRequest, guideId: string, key: string, cursor: number) {
   showing.revision += 1
   showing.focus = request.artifactVersionId === null ? null : { artifactVersionId: request.artifactVersionId, guideId }
+  showing.at = { anchor: null, by: 'member', shownAt: showing.revision }
   const receipt: FocusReceipt = {
     revision: showing.revision,
     artifactVersionId: request.artifactVersionId,
@@ -47,3 +57,20 @@ export function focusSet(showing: Showing, request: FocusRequest, guideId: strin
   showing.receipts.set(key, { request: JSON.stringify(request), receipt })
   return receipt
 }
+
+/** Sophia moves the shown report's focus to a section (A14's `present_section`), at the room's next revision. */
+export function walked(showing: Showing, anchor: string): void {
+  if (!showing.focus) return
+  showing.revision += 1
+  showing.at = { ...showing.at, anchor, by: 'sophia' }
+}
+
+/** The room's focus as A14's proposed read answers it: the PUT's receipt, plus who put it there. */
+export const roomFocus = (showing: Showing, cursor: number) => ({
+  revision: showing.revision,
+  artifactVersionId: showing.focus?.artifactVersionId ?? null,
+  anchor: showing.at.anchor,
+  by: showing.at.by,
+  shownAt: showing.at.shownAt,
+  cursor: String(cursor),
+})

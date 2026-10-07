@@ -10,6 +10,7 @@ import {
   sectionIndex,
   spokenBlock,
   spokenRun,
+  walkTarget,
   wordsOf,
 } from './voice-trail.ts'
 
@@ -146,5 +147,45 @@ describe('her section', () => {
     const index = new Set(['fixture-report#0', 'conclusion#0', 'recommendations#0'])
     assert.equal(sectionAmong(['fixture-report#0', 'conclusion#0', 'a-detail#0'], index), 'conclusion#0')
     assert.equal(sectionAmong(['a-detail#0'], index), null)
+  })
+})
+
+describe('where her walk goes', () => {
+  const md = [
+    '# R',
+    'x',
+    '## Findings',
+    'y',
+    '### Recovery',
+    'z',
+    '#### Restore times',
+    'w',
+    '## Notes',
+    'v',
+    '### Recovery',
+    'u',
+  ]
+  const report = parseMarkdown(`${md.join('\n\n')}\n`)
+  const entries = sectionIndex(report.blocks)
+
+  it('reaches every heading, at any level, and marks the section it is in', () => {
+    assert.deepEqual(walkTarget(report.blocks, entries, 'recovery#0'), {
+      anchor: 'recovery',
+      occurrence: 0,
+      text: 'Recovery',
+      section: 'findings#0',
+    })
+    assert.equal(walkTarget(report.blocks, entries, 'restore-times#0')?.section, 'findings#0')
+    assert.deepEqual(walkTarget(report.blocks, entries, 'recovery#1'), {
+      anchor: 'recovery',
+      occurrence: 1,
+      text: 'Recovery',
+      section: 'notes#0',
+    })
+  })
+
+  it('a section is its own mark; a heading that isn’t there is no walk', () => {
+    assert.equal(walkTarget(report.blocks, entries, 'notes#0')?.section, 'notes#0')
+    assert.equal(walkTarget(report.blocks, entries, 'nowhere#0'), null)
   })
 })

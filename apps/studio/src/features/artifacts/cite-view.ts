@@ -188,7 +188,7 @@ function boundPart(tail: string): string {
  * the Studio from loading at all in Firefox before 125, which has no Intl.Segmenter (report-view.ts avoids it too). */
 let graphemes: Intl.Segmenter | null | undefined
 
-function segmenter(): Intl.Segmenter | null {
+export function segmenter(): Intl.Segmenter | null {
   if (graphemes === undefined) {
     // Firefox before 125 has no Intl.Segmenter, whatever the types say.
     graphemes = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null

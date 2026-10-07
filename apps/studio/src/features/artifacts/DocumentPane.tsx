@@ -28,6 +28,7 @@ import { HtmlView, reviewTag } from './HtmlView.tsx'
 import { MarkdownView } from './MarkdownView.tsx'
 import { PassageBar, type Passage } from './PassageBar.tsx'
 import { usePassageArrival } from './usePassageArrival.ts'
+import { useSectionArrival, type SectionAsk } from './useSectionArrival.ts'
 import { offerWords } from './live-version.ts'
 import { useLiveVersion, type LiveChanges, type Shown } from './useLiveVersion.ts'
 import type { ShowRender } from '../voice/ShowEveryone.tsx'
@@ -50,6 +51,11 @@ import {
   viewerFormats,
 } from './report-view.ts'
 import { ReportHistory } from './ReportHistory.tsx'
+import { ReviewRow } from './ReviewRow.tsx'
+import { TaskList, useTasks } from './TaskList.tsx'
+import { openCount } from './task-view.ts'
+import type { TaskPerson } from './PassageTask.tsx'
+import { VISION } from '../../app/vision.ts'
 import { SourcesList } from './SourcesList.tsx'
 import { usePaneWidth } from './usePaneWidth.ts'
 import { useTransientStatus } from './useTransientStatus.ts'
@@ -67,6 +73,8 @@ interface Props {
   onEnlarge: () => void
   /** Esc and "Back to side panel": full → side → closed. */
   onStepDown: () => void
+  /** A section asked for (a search hit's), placed once it is on screen (useSectionArrival). */
+  section?: SectionAsk | null
   onClose: () => void
   /** In the room: the chat in the report's place. */
   onChat?: (() => void) | undefined
@@ -87,6 +95,8 @@ interface Props {
   show?: ShowRender | undefined
   /** In the room: a selected passage goes to the chat's message (PassageBar). */
   onAsk: ((passage: Passage) => void) | undefined
+  /** In a call: the members in it, whom a task made from a passage may be for (PassageTask). */
+  people?: readonly TaskPerson[] | undefined
 }
 
 /** pdf.js loads with the first PDF opened, never with the Studio. */
@@ -280,6 +290,8 @@ function usePaneTop() {
 interface TopProps {
   topRef: React.RefObject<HTMLDivElement | null>
   head: ReactNode
+  /** The version's review (A16, the vision flag's), under the head. */
+  review?: ReactNode
   call: ReactNode
   note: string | null
   tabs: ReactNode
@@ -289,10 +301,11 @@ interface TopProps {
  * The pane's top: its head, then (where the pane covers the dock or the mini dock) the call's switches and the note,
  * then its tabs.
  */
-function PaneTop({ topRef, head, call, note, tabs }: TopProps) {
+function PaneTop({ topRef, head, review, call, note, tabs }: TopProps) {
   return (
     <div ref={topRef} className="report-pane-top">
       {head}
+      {review}
       {/* Its own row, which wraps: the head keeps Download and Close whatever is on (a phone's 390 px). */}
       <div className="report-pane-call">{call}</div>
       {/* For the eye only: the dock's own note, still in the accessibility tree under the pane, is announced. */}
@@ -408,12 +421,15 @@ export function DocumentPane(props: Props) {
   const { identity, link, tab, onTab, onVersion, onFormat, onEnlarge, onStepDown, onClose, onChat } = props
   const pane = useRef<HTMLElement>(null)
   const data = usePaneData(identity, link, props.cursor, tab)
+  // A section asked for (a search hit's): its heading, once its version's Markdown is on screen.
+  useSectionArrival(props.section, { text: data.parsed, inSight: data.shown.inSight, versionId: data.version?.id })
   const live = useLiveVersion(pane, data.shown, data.versions.data)
   const { title, top, offer, recover, onCurrent } = usePaneBehaviour(props, data, live.showing)
   const width = usePaneWidth()
   const status = useTransientStatus()
   const { focusSource, cite, choose } = useCitation(tab, onTab)
   const full = link.size === 'full'
+  const tasks = useTaskTab(props)
   return (
     <aside ref={pane} className="report-pane" data-size={link.size} aria-labelledby="report-pane-title">
       {!full && <div className="report-pane-grip" aria-hidden onPointerDown={width.drag} />}
@@ -436,9 +452,10 @@ export function DocumentPane(props: Props) {
             chatUnread={props.chatUnread ?? false}
           />
         }
+        review={reviewOf(props, data)}
         call={props.call}
         note={props.note}
-        tabs={<PaneTabs tab={tab} onTab={choose} {...tabFacts(data)} onFormat={onFormat} />}
+        tabs={<PaneTabs tab={tab} onTab={choose} {...tabFacts(data)} tasks={tasks.open} onFormat={onFormat} />}
       />
       <PaneBody
         tab={tab}
@@ -450,10 +467,45 @@ export function DocumentPane(props: Props) {
         onVersion={onVersion}
         recover={recover}
         changes={live.changes}
+        tasks={tasks.list}
       />
       <PaneStatus {...status} />
-      <PassageBar pane={pane} version={data.version} viewer={props} />
+      <PassageBar pane={pane} version={data.version} viewer={{ ...props, onSeeTasks: () => choose('tasks') }} />
     </aside>
+  )
+}
+
+/** The Tasks tab (A17, the vision flag's): how many are open, and its list. */
+function useTaskTab(props: Props): { open: number | undefined; list: ReactNode } {
+  const read = useTasks(props.identity, props.link.artifactId, props.cursor)
+  return {
+    open: VISION && read.data ? openCount(read.data.tasks) : undefined,
+    list: VISION ? (
+      <TaskList
+        projectId={props.projectId}
+        identity={props.identity}
+        artifactId={props.link.artifactId}
+        cursor={props.cursor}
+      />
+    ) : null,
+  }
+}
+
+/** The version's review row (A16, the vision flag's): one per version, so nothing of one reaches another. */
+function reviewOf(props: Props, data: PaneData): ReactNode {
+  const version = data.version
+  if (!VISION || !version) return null
+  const newest = data.versions.data?.[0]?.id === version.id
+  return (
+    <ReviewRow
+      key={version.id}
+      projectId={props.projectId}
+      identity={props.identity}
+      version={version}
+      newest={newest}
+      cursor={props.cursor}
+      readable={headOf(data).canDownload}
+    />
   )
 }
 
@@ -477,6 +529,8 @@ interface BodyProps {
   recover: Recover
   /** The new version's changes, when it was shown from the offer (useLiveVersion). */
   changes: LiveChanges
+  /** The Tasks tab's list (A17), under the vision flag. */
+  tasks: ReactNode
 }
 
 /**
@@ -558,7 +612,7 @@ function DocumentView({ data, full, onCite, changes }: Pick<BodyProps, 'data' | 
   return <DocumentTab data={data} onCite={onCite} changes={changes} />
 }
 
-function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion, changes }: BodyProps) {
+function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion, changes, tasks }: BodyProps) {
   return (
     <>
       {tab === 'document' && <DocumentView data={data} full={full} onCite={onCite} changes={changes} />}
@@ -578,6 +632,7 @@ function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion,
           onShow={onVersion}
         />
       )}
+      {tab === 'tasks' && tasks}
     </>
   )
 }
@@ -791,22 +846,28 @@ interface TabsProps {
   formats: readonly ViewerFormat[]
   format: ViewerFormat
   onFormat: (format: ViewerFormat) => void
+  /** The open tasks (A17); undefined until read, or outside the vision flag. */
+  tasks: number | undefined
 }
 
 const count = (n: number | undefined) => (n === undefined ? '' : ` ${n}`)
 
-const TABS: readonly ViewerTab[] = ['document', 'sources', 'history']
+/** The Tasks tab only under the vision flag (A17). */
+const TABS: readonly ViewerTab[] = VISION
+  ? ['document', 'sources', 'history', 'tasks']
+  : ['document', 'sources', 'history']
 
 /**
  * The report's tabs, as every tab row in Studio: the one selected is the one Tab reaches, arrow keys, Home and End move
  * between them. The format switch sits beside the row, not in it (a tab list holds tabs only).
  */
-function PaneTabs({ tab, onTab, sources, versions, formats, format, onFormat }: TabsProps) {
+function PaneTabs({ tab, onTab, sources, versions, tasks, formats, format, onFormat }: TabsProps) {
   const buttons = useRef(new Map<ViewerTab, HTMLButtonElement>())
   const label: Record<ViewerTab, string> = {
     document: 'Document',
     sources: `Sources${count(sources)}`,
     history: `History${count(versions)}`,
+    tasks: `Tasks${count(tasks)}`,
   }
   const onKey = (e: React.KeyboardEvent) => {
     const next = nextInRow(TABS, tab, e.key)

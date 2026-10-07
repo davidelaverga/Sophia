@@ -7,6 +7,7 @@
 // `memory=1` (`=old`: one learned last year), `week=1`, `voice=1`, `ready=1` (a session in 10 min), or `all=1` (personal-extras.ts).
 // `spaceAfter=ms`, `epochAfter=ms`: the space, or its epoch, read that much later; `readSlow=1`: earlier days take
 // 1.5 s. `slow=1`: a message takes 1.5 s on its way, not 0.3, and her answer 2.5 s, not 0.9. `kept=sophia`: the note was Sophia's. `holdReply=1`: her answer waits for `window.personalFixture.answer()`. `window.personalFixture.sent` lists what was sent; `pressed`, what those parts were asked.
+import { ApiError } from '../src/api/client.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { PersonalReceipt, PersonalSpace as Space, PersonalTurn } from '@sophia/contracts'
@@ -18,19 +19,41 @@ import { useSharedRead } from '../src/features/personal/shared-read.ts'
 import { PersonalSpace } from '../src/features/personal/PersonalSpace.tsx'
 import type { PersonalWrites } from '../src/features/personal/usePersonal.ts'
 import { projectsFor, useExtras } from './personal-extras.ts'
+import { useEscape } from '../src/features/personal/useEscape.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 
 declare global {
   interface Window {
-    personalFixture?: { sent: string[]; pressed: string[]; answer?: () => void }
+    personalFixture?: {
+      sent: string[]
+      pressed: string[]
+      answer?: () => void
+      carried: string[]
+      takenBack: string[]
+      /** The account leaves (signing out): Personal goes from the page, as App's leaveSession takes it. */
+      signOut?: () => void
+      /** Personal left for another place, and come back to: the notes' Escape layer goes and opens again, as Places'. */
+      away?: () => void
+      back?: () => void
+    }
   }
 }
 
 const query = new URLSearchParams(window.location.search)
 const sent: string[] = []
 const pressed: string[] = []
-window.personalFixture = { sent, pressed }
+const carried: string[] = []
+const takenBack: string[] = []
+window.personalFixture = { sent, pressed, carried, takenBack }
+/** `carryFails=N`: the Nth carry fails, once (a package stops there); `carryLost=N`: it lands, its reply lost. */
+let carries = 0
+/** The fixture's account, signed in until `signOut` (the writes' `here`). */
+const account = { present: true }
+/** `takeBackFails=N`: the Nth take-back fails, once; `takeBackLost=N`: it lands, its reply lost. */
+let takes = 0
+/** Each release taken back, and the key it was taken back under: asked again, the API answers by that key. */
+const takeKeys = new Map<string, string | undefined>()
 // `at=HH:MM`: the fixture's clock stands at that time today (her light follows the hour).
 const NOW = ((at) => {
   const [, h, m] = /^(\d{1,2}):(\d{2})$/.exec(at ?? '')?.map(Number) ?? []
@@ -161,11 +184,68 @@ const firstSpace = (): Space => ({
             fromTurnId: null,
             createdAt: ago(DAY),
           },
+          // `many=1`: three notes, a finding, Sophia's suggestion and an unfinished thought (personal-carry checks).
+          ...(query.has('many')
+            ? [
+                {
+                  id: 'note-2',
+                  text: 'Ask finance for the March close',
+                  keptBy: 'sophia' as const,
+                  fromTurnId: null,
+                  createdAt: ago(DAY),
+                },
+                {
+                  id: 'note-3',
+                  text: 'Unfinished: whether the pilot needs a second region',
+                  keptBy: 'person' as const,
+                  fromTurnId: null,
+                  createdAt: ago(DAY),
+                },
+              ]
+            : []),
         ],
   releases: [],
   epoch: 1,
   days: 2,
 })
+
+/**
+ * Carried and taken back as the API records them, each once (personal-carry checks): a carried note leaves the notes,
+ * as the space reads only kept ones. `carryFails=N`: the Nth carry fails; `takeBackFails=1`: the first take-back does.
+ */
+function carryWritesFor(setSpace: (next: (s: Space) => Space) => void): Pick<PersonalWrites, 'carry' | 'takeBack'> {
+  return {
+    carry: (noteId, projectId) => {
+      carries += 1
+      if (carries === Number(query.get('carryFails'))) return Promise.reject(new TypeError('Failed to fetch'))
+      carried.push(`${noteId}>${projectId}`)
+      setSpace((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== noteId) }))
+      if (carries === Number(query.get('carryLost'))) {
+        return Promise.reject(new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key'))
+      }
+      const done = { ...receipt('carry_note'), releaseId: `release-${noteId}`, projectId }
+      // `carrySlow=1`: each carry's reply takes 1.5 s.
+      return query.has('carrySlow') ? new Promise((r) => setTimeout(() => r(done), 1500)) : Promise.resolve(done)
+    },
+    takeBack: (releaseId, key) => {
+      takes += 1
+      if (takes === Number(query.get('takeBackFails'))) return Promise.reject(new TypeError('Failed to fetch'))
+      // `takenElsewhere=1`: Work (or another tab) took it back first, under its own key.
+      if (query.has('takenElsewhere')) takeKeys.set(releaseId, 'elsewhere')
+      if (takeKeys.has(releaseId)) {
+        // Asked again: under the same key, the answer it had; under another, the release is gone.
+        if (key !== undefined && takeKeys.get(releaseId) === key) return Promise.resolve(receipt('take_back'))
+        return Promise.reject(new ApiError(404, 'not_found', 'That isn’t there any more.', 'never'))
+      }
+      takenBack.push(releaseId)
+      takeKeys.set(releaseId, key)
+      if (takes === Number(query.get('takeBackLost'))) {
+        return Promise.reject(new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key'))
+      }
+      return Promise.resolve(receipt('take_back'))
+    },
+  }
+}
 
 /** What a live talk said, written as turns; a note kept from her look back. */
 function writtenBy(setSpace: (next: (s: Space) => Space) => void) {
@@ -208,6 +288,7 @@ function useSimulated() {
   const answer = useRef(0)
   const add = (t: PersonalTurn) => setSpace((s) => ({ ...s, revision: s.revision + 1, turns: [...s.turns, t] }))
   const writes: PersonalWrites = {
+    here: () => account.present,
     sending,
     busy,
     welcoming: false,
@@ -255,8 +336,7 @@ function useSimulated() {
       setSpace((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }))
       return Promise.resolve(receipt('forget_note'))
     },
-    carry: () => Promise.resolve(receipt('carry_note')),
-    takeBack: () => Promise.resolve(receipt('take_back')),
+    ...carryWritesFor(setSpace),
     erase: () => Promise.resolve(receipt('erase')),
   }
   return { space, writes, wrote: writtenBy(setSpace) }
@@ -311,12 +391,34 @@ function useHanded() {
   return [handed, setHanded] as const
 }
 
+/**
+ * Personal as Places holds it: Escape closes the notes, unless a layer holds it above them (the package mid-step);
+ * `window.personalFixture.away/back` leave Personal and come back (its notes' layer goes, then opens again), and
+ * `signOut` takes the account away. Whether the account is still signed in.
+ */
+function useFixturePlace(notes: boolean, setNotes: (open: boolean) => void): boolean {
+  const [here, setHere] = useState(true)
+  useEscape(notes && here, () => setNotes(false))
+  const [signedIn, setSignedIn] = useState(true)
+  useEffect(() => {
+    if (!window.personalFixture) return
+    window.personalFixture.signOut = () => {
+      account.present = false
+      setSignedIn(false)
+    }
+    window.personalFixture.away = () => setHere(false)
+    window.personalFixture.back = () => setHere(true)
+  }, [])
+  return signedIn
+}
+
 function Personal() {
   const { space, writes, wrote } = useSimulated()
   const readBack = useReadBack()
   const extras = useExtras(query, pressed, ago, wrote)
   const projects = useMemo(() => projectsFor(query, ahead), [])
   const [notes, setNotes] = useState(query.get('notes') === 'open')
+  const signedIn = useFixturePlace(notes, setNotes)
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
   const epochKnown = useLater('epochAfter')
@@ -333,31 +435,33 @@ function Personal() {
       <button className="fixture-lock" type="button" onClick={() => setLocked((was) => !was)}>
         {locked ? 'Unlock (fixture)' : 'Lock (fixture)'}
       </button>
-      <PersonalSpace
-        hidden={locked}
-        handed={handed}
-        onHanded={() => setHanded(null)}
-        locked={locked}
-        now={NOW}
-        account="fixture"
-        name="Luis"
-        space={spaceRead ? space : undefined}
-        // As Places knows it: from the space once read, or earlier from the projects (epochAfter).
-        epoch={spaceRead || epochKnown ? space.epoch : undefined}
-        readBack={readBack}
-        read={idle}
-        projects={projects}
-        projectsRead={idle}
-        writes={writes}
-        notes={{ open: notes, set: setNotes }}
-        earlier={{ open: earlier, set: setEarlier }}
-        edge={{ badge: 0, pulse: 0 }}
-        toast={() => undefined}
-        onCarried={() => undefined}
-        onCross={() => undefined}
-        onStartProject={() => undefined}
-        extras={extras}
-      />
+      {signedIn && (
+        <PersonalSpace
+          hidden={locked}
+          handed={handed}
+          onHanded={() => setHanded(null)}
+          locked={locked}
+          now={NOW}
+          account="fixture"
+          name="Luis"
+          space={spaceRead ? space : undefined}
+          // As Places knows it: from the space once read, or earlier from the projects (epochAfter).
+          epoch={spaceRead || epochKnown ? space.epoch : undefined}
+          readBack={readBack}
+          read={idle}
+          projects={projects}
+          projectsRead={idle}
+          writes={writes}
+          notes={{ open: notes, set: setNotes }}
+          earlier={{ open: earlier, set: setEarlier }}
+          edge={{ badge: 0, pulse: 0 }}
+          toast={() => undefined}
+          onCarried={() => undefined}
+          onCross={() => undefined}
+          onStartProject={() => undefined}
+          extras={extras}
+        />
+      )}
     </div>
   )
 }

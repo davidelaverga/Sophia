@@ -228,8 +228,9 @@ test('LFE-02.1 · the report’s tabs are a tab row: one stop for Tab, arrow key
   await expect(tab(/^Sources/)).toBeFocused()
   await expect(tab(/^Sources/)).toHaveAttribute('aria-selected', 'true')
   await expect(pane(page).getByRole('tabpanel', { name: /^Sources/ })).toBeVisible()
+  // The fixture pages set the vision flag, so the row ends with Tasks (A17).
   await page.keyboard.press('End')
-  await expect(tab(/^History/)).toBeFocused()
+  await expect(tab(/^Tasks/)).toBeFocused()
   await page.keyboard.press('Home')
   await expect(tab(/^Document/)).toBeFocused()
 })

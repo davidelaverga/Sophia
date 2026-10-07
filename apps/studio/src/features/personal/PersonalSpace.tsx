@@ -2,6 +2,7 @@
 // Everything here is the person's alone; the only way out of it is carrying a note, one at a time. Until the space has
 // loaded nothing is offered (no introduction, no ways to start, no field): a first conversation offered over one that
 // is still loading would read as the old one gone.
+import { VISION } from '../../app/vision.ts'
 import {
   useCallback,
   useEffect,
@@ -583,6 +584,17 @@ function Notes({ props, actions, under }: { props: Props; actions: ReturnType<ty
       carrying={actions.waits}
       memory={props.extras?.memory}
       under={under}
+      away={props.hidden}
+      pack={
+        VISION
+          ? {
+              carry: props.writes.carry,
+              takeBack: props.writes.takeBack,
+              onCarried: props.onCarried,
+              here: props.writes.here,
+            }
+          : undefined
+      }
     />
   )
 }
