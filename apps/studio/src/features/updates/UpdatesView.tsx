@@ -11,7 +11,7 @@ import { canInvite } from '../access/useAccess.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { RecapPart, RecapSheet } from '../voice/MeetingRecap.tsx'
 import { namers, recapSections } from '../voice/recap-view.ts'
-import { digestLead, meetingRow, type DateWords } from './updates-view.ts'
+import { digestLead, lengthShares, meetingRow, type DateWords } from './updates-view.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 
 interface Props {
@@ -152,6 +152,7 @@ function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
     retry: false,
   })
   const meetings = list.data?.meetings ?? []
+  const shares = lengthShares(meetings)
   return (
     <section className="updates-part" aria-labelledby="meetings-title">
       <h3 id="meetings-title">Meetings</h3>
@@ -171,8 +172,15 @@ function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
       <ul className="meeting-rows">
         {meetings.map((m) => (
           <li key={m.id}>
-            <button type="button" className="meeting-row" onClick={() => setOpen(m.id)}>
+            <button
+              type="button"
+              className="meeting-row"
+              data-running={m.endedAt === null || undefined}
+              onClick={() => setOpen(m.id)}
+            >
               {meetingRow(m, DATE_WORDS)}
+              {/* How long it lasted, against the longest: a bar the eye compares; the running one a live dot. */}
+              <span className="meeting-bar" aria-hidden style={{ '--share': String(shares.get(m.id) ?? 0) }} />
             </button>
           </li>
         ))}
