@@ -1220,6 +1220,44 @@ describe('bounds and recovery', () => {
     assert.equal((await itemOf(w)).lifecycle, 'failed')
   })
 
+  it('a blocker sent again after its answer was lost is answered as recorded; nothing publishes after it (Codex on #107)', async () => {
+    const w = await world()
+    const { attemptId } = await running(w)
+    const at = { attemptId, nativeSessionId: `sophia-${attemptId}` }
+    const blocker = {
+      ...at,
+      callId: 'b1',
+      blocker: { reason: 'The CI log is not among the sources.', missing: 'CI log' },
+    }
+    const first = await w.runtime('/v1/runtime/source-review/submit', blocker)
+    assert.equal(first.status, 200, JSON.stringify(first.json))
+    assert.equal(first.json.outcome, 'blocked')
+    const again = await w.runtime('/v1/runtime/source-review/submit', blocker)
+    assert.equal(again.status, 200, JSON.stringify(again.json))
+    assert.deepEqual(again.json, { ...first.json, replayed: true }, 'the blocker recorded, once')
+    const failed = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM sophia.jobs WHERE project_id=$1 AND kind='source_review' AND state='failed'`,
+            [w.projectId],
+          )
+        ).rows[0]?.n,
+    )
+    assert.equal(failed, 1, 'one ending')
+    const late = await w.runtime('/v1/runtime/source-review/submit', {
+      ...at,
+      callId: 's1',
+      result: {
+        verdict: 'supported',
+        report: REPORT,
+        findings: [{ status: 'supported', statement: 'x', sourceIds: [w.sourceA] }],
+        receipts: [UNSERVED],
+      },
+    })
+    assert.equal(late.status, 409, 'the review ended blocked: nothing publishes after it')
+  })
+
   it('withdrawing an input stops the work, and withdraws a published result (INT-13)', async () => {
     const w = await world()
     const { proposal, run, attemptId } = await running(w)

@@ -9,17 +9,19 @@
  * a receipt; the submission presents the receipts of the pages it rests on, and a finding may cite only the sources
  * they are of, so a page whose reply never reached the model cannot be cited (Codex on #107). There is no web, shell, file or connector tool; the review's
  * model calls are metered by the bridge, not by a tool. Source text reaches the model only inside the
- * untrusted-data envelope.
+ * untrusted-data envelope. A submit or a blocker waits a bounded time for each answer, and one whose answer is lost is
+ * sent again under the same callId, never past a Hold or Stop; the service answers it with what it recorded.
  * @module @sophia/dsh-bundle/review-tools
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
+import type { Patience } from './design-tools.js'
 import { callKeyOf, type ResearchSession } from './research-tools.js'
 import { envelope } from './source-containment.js'
 import { TransportError } from './transport.js'
 import type { ServiceTransport } from './transport.js'
-import type { SourceReviewFinding } from './runtime-wire-types.generated.js'
+import type { SourceReviewFinding, SourceReviewSubmitRequest } from './runtime-wire-types.generated.js'
 
 /** The service operations the tools use (the bridge's transport). */
 export type ReviewClient = Pick<ServiceTransport, 'sourceReviewContext' | 'sourceReviewSubmit'>
@@ -29,7 +31,12 @@ export interface ReviewToolDeps {
   /** The review attempt that owns the calling agent, or null outside one. */
   readonly sessionOf: (exec: ToolRunContext) => ResearchSession | null
   readonly log: (line: string) => void
+  /** How a submit or a blocker is sent until its outcome is known (default: REVIEW_SUBMIT_PATIENCE). */
+  readonly patience?: Patience
 }
+
+/** A submit or a blocker is sent up to four times within 60 s, as the design tools' submit (SUBMIT_PATIENCE). */
+export const REVIEW_SUBMIT_PATIENCE: Patience = { tries: 4, pauseMs: 1_000, maxMs: 60_000 }
 
 /** A JSON value as the tool output schema declares it. */
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json }
@@ -60,10 +67,65 @@ const contractRefusal = (error: unknown): { code: string; message: string } | nu
     ? { code: 'invalid_request', message: MESSAGES.invalid_request ?? 'Check each field.' }
     : null
 
+/** What a submit or a blocker answers when its own outcome stays unknown. */
+const SUBMIT_UNKNOWN = {
+  code: 'service_unavailable',
+  message: 'The Sophia service\'s answer was lost: the review may have been published, or the blocker recorded. Call ' +
+    'the same tool again after a pause: Sophia answers with what it recorded, and records nothing twice.',
+} as const
+
+/** The service's answer that it recorded nothing (a refusal), or a request that broke the contract and was never sent. */
+function definite(error: unknown): boolean {
+  if (!(error instanceof TransportError)) return false
+  if (error.status === undefined) return /request does not match the runtime contract/.test(error.message)
+  return error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429
+}
+
+/** Wait `ms`, or less if `stop` fires. */
+const pause = (ms: number, stop: AbortSignal): Promise<void> => new Promise((resolve) => {
+  const timer = setTimeout(resolve, ms)
+  stop.addEventListener('abort', () => { clearTimeout(timer); resolve() }, { once: true })
+})
+
+/**
+ * Send one submit until its outcome is known (Codex on #107): an answer, or a definite refusal. No answer within the
+ * time left (each request is given it), an unreadable one or one off the contract, a 5xx, 408 or 429 is unknown, and
+ * the same request is sent again, at most `tries` times within `maxMs`. The first is always sent (the service fences
+ * a held or stopped review itself); none is sent again once `stop` fires (a Hold or Stop of the review), and one in
+ * flight runs to its answer or its deadline, as the design tools' submit. Null when the outcome stays unknown.
+ */
+async function untilAnswered<T>(send: (signal: AbortSignal) => Promise<T>, patience: Patience, stop: AbortSignal): Promise<{ value: T } | { error: unknown } | null> {
+  const deadline = Date.now() + patience.maxMs
+  let wait = patience.pauseMs
+  for (let tried = 1; ; tried += 1) {
+    try {
+      return { value: await send(AbortSignal.timeout(Math.max(1, deadline - Date.now()))) }
+    } catch (error) {
+      if (definite(error)) return { error }
+    }
+    if (stop.aborted || tried >= patience.tries || Date.now() + wait >= deadline) return null
+    await pause(wait, stop)
+    if (stop.aborted) return null
+    wait *= 2
+  }
+}
+
+/** A submit or a blocker, sent until its outcome is known; a refusal becomes one sentence for the model. */
+async function submitted(client: ReviewClient, body: SourceReviewSubmitRequest, patience: Patience, stop: AbortSignal, note: string): Promise<Json> {
+  const sent = await untilAnswered((signal) => client.sourceReviewSubmit(body, signal), patience, stop)
+  if (sent === null) return { ...SUBMIT_UNKNOWN }
+  if ('value' in sent) return asJson({ ...sent.value, note })
+  const refusal = contractRefusal(sent.error)
+  if (refusal) return refusal
+  if (sent.error instanceof TransportError) return serviceProblem(sent.error)
+  throw sent.error
+}
+
 const VERDICTS = ['supported', 'changes_required', 'insufficient_evidence'] as const
 const STATUSES = ['supported', 'contradicted', 'not_established'] as const
 
 export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
+  const patience = deps.patience ?? REVIEW_SUBMIT_PATIENCE
   const sessionOf = (exec: ToolRunContext): ResearchSession => {
     const session = deps.sessionOf(exec)
     if (!session) throw new Error('This tool runs only inside a Sophia source review.')
@@ -155,15 +217,8 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
         sourceIds: f.sourceIds,
         ...(f.criterionId ? { criterionId: f.criterionId } : {}),
       }))
-      try {
-        const done = await deps.client.sourceReviewSubmit({ ...ids(session), callId: callKeyOf(exec.callId), result: { verdict: args.verdict, report: args.report, findings, receipts: args.receipts } })
-        return asJson({ ...done, note: 'Published. The review has ended; Sophia tells the team, and the team decides what it means.' })
-      } catch (error) {
-        if (error instanceof TransportError) return serviceProblem(error)
-        const refusal = contractRefusal(error)
-        if (refusal) return refusal
-        throw error
-      }
+      const body = { ...ids(session), callId: callKeyOf(exec.callId), result: { verdict: args.verdict, report: args.report, findings, receipts: args.receipts } }
+      return submitted(deps.client, body, patience, exec.signal, 'Published. The review has ended; Sophia tells the team, and the team decides what it means.')
     },
   })
 
@@ -182,19 +237,12 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
     },
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
-      try {
-        const done = await deps.client.sourceReviewSubmit({
-          ...ids(session),
-          callId: callKeyOf(exec.callId),
-          blocker: { reason: args.reason, ...(args.missing ? { missing: args.missing } : {}) },
-        })
-        return asJson({ ...done, note: 'Recorded. The review has ended.' })
-      } catch (error) {
-        if (error instanceof TransportError) return serviceProblem(error)
-        const refusal = contractRefusal(error)
-        if (refusal) return refusal
-        throw error
+      const body = {
+        ...ids(session),
+        callId: callKeyOf(exec.callId),
+        blocker: { reason: args.reason, ...(args.missing ? { missing: args.missing } : {}) },
       }
+      return submitted(deps.client, body, patience, exec.signal, 'Recorded. The review has ended.')
     },
   })
 

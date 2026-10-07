@@ -329,9 +329,12 @@ export class ServiceTransport {
     return checked('review settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/source-review/settle', body))
   }
 
-  /** Never takes a signal: publishing a review is one transaction that must come back with its outcome. */
-  async sourceReviewSubmit(body: SourceReviewSubmitRequest): Promise<SourceReviewSubmission> {
+  /**
+   * `signal` bounds the wait for an answer, as designSubmit's: the review tools then send the same call (same callId)
+   * again, and the service answers what it recorded (Codex on #107).
+   */
+  async sourceReviewSubmit(body: SourceReviewSubmitRequest, signal?: AbortSignal): Promise<SourceReviewSubmission> {
     checked('review submit request', wire.SourceReviewSubmitRequest, body)
-    return checked('review submission', wire.SourceReviewSubmission, await this.request('POST', '/v1/runtime/source-review/submit', body))
+    return checked('review submission', wire.SourceReviewSubmission, await this.request('POST', '/v1/runtime/source-review/submit', body, signal))
   }
 }

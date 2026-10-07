@@ -31,9 +31,9 @@ function fakeService(overrides = {}) {
       }
       return { sourceId: body.sourceId, offset: body.offset ?? 0, nextOffset: null, totalChars: TEXT.length, truncated: false, text: TEXT, receipt: RECEIPT }
     },
-    async sourceReviewSubmit(body) {
-      calls.push(['submit', body])
-      if (overrides.submit) return overrides.submit(body)
+    async sourceReviewSubmit(body, signal) {
+      calls.push(['submit', body, signal])
+      if (overrides.submit) return overrides.submit(body, signal)
       return body.result
         ? { outcome: 'published', resultId: 'r', sourceId: 's', sha256: 'b'.repeat(64), verdict: body.result.verdict, replayed: false }
         : { outcome: 'blocked', sourceId: 's', reason: body.blocker.reason }
@@ -44,10 +44,19 @@ function fakeService(overrides = {}) {
 
 const exec = (callId = 'call_1') => ({ callId, name: 'x', arguments: {}, signal: new AbortController().signal })
 
-function tools(service, session = SESSION) {
-  const list = reviewTools({ client: service.client, sessionOf: () => session, log: () => {} })
+/** Resends within a test's time: up to four requests, 1, 2 and 4 ms apart, within `maxMs`. */
+const QUICK = { tries: 4, pauseMs: 1, maxMs: 2_000 }
+
+function tools(service, session = SESSION, patience = QUICK) {
+  const list = reviewTools({ client: service.client, sessionOf: () => session, log: () => {}, patience })
   return Object.fromEntries(list.map((t) => [t.name, t]))
 }
+
+const RESULT = { verdict: 'supported', report: 'r', findings: [{ status: 'supported', statement: 's', sourceIds: [SOURCE] }], receipts: [RECEIPT] }
+
+/** A request the service never answers: it ends only when its signal does. */
+const unanswered = (_body, signal) =>
+  new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
 
 test('it defines exactly the three review tools, and nothing that reaches the web, a shell or a file', () => {
   const names = reviewTools({ client: fakeService().client, sessionOf: () => SESSION, log: () => {} }).map((t) => t.name)
@@ -107,4 +116,76 @@ test('report_review_blocker: the reason and what is missing', async () => {
 test('a tool outside a review attempt refuses to run', async () => {
   const byName = tools(fakeService(), null)
   await assert.rejects(byName.read_review_source.execute({}, exec()), /only inside a Sophia source review/)
+})
+
+test('a submit whose answer is lost is sent again under the same callId, and answered with what Sophia recorded (Codex on #107)', async () => {
+  let first = true
+  const service = fakeService({
+    submit: (body) => {
+      if (first) { first = false; throw new TransportError('POST answered 503', 503) }
+      return { outcome: 'published', resultId: 'r', sourceId: 's', sha256: 'b'.repeat(64), verdict: body.result.verdict, replayed: true }
+    },
+  })
+  const out = await tools(service).submit_source_review.execute(RESULT, exec('call_9'))
+  assert.equal(out.outcome, 'published')
+  assert.equal(out.replayed, true)
+  assert.equal(service.calls.length, 2)
+  assert.deepEqual(service.calls[1][1], service.calls[0][1], 'the same request, the same callId')
+  assert.equal(service.calls[0][1].callId, 'call_9')
+  assert.ok(service.calls.every(([, , signal]) => signal instanceof AbortSignal), 'each request has a deadline')
+})
+
+test('a submit or a blocker Sophia never answers ends within its deadline, unknown, never as a refusal', async () => {
+  // A deadline's timer does not hold the process open by itself; the bridge's own work does, and this timer here.
+  const alive = setTimeout(() => {}, 10_000)
+  for (const [name, args] of [['submit_source_review', RESULT], ['report_review_blocker', { reason: 'No CI log.' }]]) {
+    const service = fakeService({ submit: unanswered })
+    const started = Date.now()
+    const out = await tools(service, SESSION, { tries: 4, pauseMs: 1, maxMs: 100 })[name].execute(args, exec())
+    assert.ok(Date.now() - started < 2_000, `${name} ended within its deadline`)
+    assert.equal(out.code, 'service_unavailable')
+    assert.match(out.message, /may have been published, or the blocker recorded/)
+    assert.equal(service.calls.length, 1, 'the deadline was the whole patience: nothing sent past it')
+    assert.equal(service.calls[0][2].aborted, true, 'the request was cut at its deadline')
+  }
+  clearTimeout(alive)
+})
+
+test('after a Hold or Stop, a submit whose answer was lost is not sent again', async () => {
+  const held = new AbortController()
+  const service = fakeService({
+    submit: () => {
+      held.abort()
+      throw new TransportError('POST answered 503', 503)
+    },
+  })
+  const out = await tools(service).submit_source_review.execute(RESULT, { ...exec(), signal: held.signal })
+  assert.equal(out.code, 'service_unavailable')
+  assert.equal(service.calls.length, 1)
+})
+
+test("a refusal, or a request that breaks the contract, is Sophia's answer: never sent again", async () => {
+  const refused = fakeService({ submit: () => { throw new TransportError('held', 409, 'invalid_state') } })
+  assert.equal((await tools(refused).submit_source_review.execute(RESULT, exec())).code, 'invalid_state')
+  assert.equal(refused.calls.length, 1)
+  const unsendable = fakeService({
+    submit: () => { throw new TransportError('review submit request does not match the runtime contract: /result/report') },
+  })
+  const out = await tools(unsendable).report_review_blocker.execute({ reason: 'x' }, exec())
+  assert.equal(out.code, 'invalid_request')
+  assert.equal(unsendable.calls.length, 1)
+})
+
+test('a blocker whose answer is lost is sent again under the same callId', async () => {
+  let first = true
+  const service = fakeService({
+    submit: (body) => {
+      if (first) { first = false; throw new TypeError('fetch failed') }
+      return { outcome: 'blocked', sourceId: 's', reason: body.blocker.reason, replayed: true }
+    },
+  })
+  const out = await tools(service).report_review_blocker.execute({ reason: 'The test log is not among the sources.' }, exec('call_3'))
+  assert.deepEqual([out.outcome, out.replayed], ['blocked', true])
+  assert.equal(service.calls.length, 2)
+  assert.deepEqual(service.calls[1][1], service.calls[0][1])
 })

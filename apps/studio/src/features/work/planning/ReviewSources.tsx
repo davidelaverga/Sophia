@@ -8,7 +8,7 @@ import type { Goal, SourceReviewAvailability, SourceReviewProposalRequest } from
 import { proposeReview, reviewAvailability } from '../../../api/work.ts'
 import { ApiError } from '../../../api/client.ts'
 import type { Identity } from '../../../app/dev-identity.ts'
-import { kib, selectionOf } from './review-sources.ts'
+import { ALLOWANCE_STEP, allowanceOk, kib, selectionOf } from './review-sources.ts'
 
 interface Props {
   projectId: string
@@ -123,7 +123,7 @@ function ReviewForm(props: FormProps) {
   const { sent, propose } = useProposal(props)
   const max = availability.maxAllowanceUsd ?? 0
   const selection = selectionOf(availability.sources, chosen, availability.limits.maxInputBytes)
-  const valid = chosen.length > 0 && !selection.over && allowance > 0 && allowance <= max
+  const valid = chosen.length > 0 && !selection.over && allowanceOk(allowance, max)
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!valid) return
@@ -142,11 +142,11 @@ function ReviewForm(props: FormProps) {
         <input
           id={`review-allowance-${goal.id}`}
           type="number"
-          min={0.01}
+          min={ALLOWANCE_STEP}
           max={max}
-          step={0.01}
+          step={ALLOWANCE_STEP}
           value={allowance}
-          aria-invalid={allowance > max || allowance <= 0}
+          aria-invalid={!allowanceOk(allowance, max)}
           onChange={(e) => setAllowance(Number(e.target.value))}
         />
       </TextField>

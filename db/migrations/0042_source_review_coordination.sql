@@ -1461,11 +1461,18 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophi
 DECLARE s sophia.review_scope; j sophia.jobs; w sophia.work_items; manifest jsonb; res sophia.work_results; checks jsonb;
  src sophia.source_objects; key text; inspected uuid[]; blocker text; g sophia.goals; coverage jsonb;
 BEGIN
- -- Unfenced first: a submit retried after its answer was lost finds the published result even if the goal moved on.
+ -- Unfenced first: a submit retried after its answer was lost finds the published result even if the goal moved on,
+ -- and a blocker sent again finds the blocker recorded (the bridge sends either again under its callId, Codex on #107).
  s:=sophia.review_scope_of(p_token_sha256,p_unit,p_bridge,p_request,false);
  SELECT * INTO res FROM sophia.work_results WHERE project_id=s.project_id AND attempt_id=s.attempt_id;
  IF FOUND THEN
   RETURN jsonb_build_object('outcome','published','resultId',res.id,'sourceId',res.source_id,'sha256',res.sha256,'verdict',res.verdict,'replayed',true);
+ END IF;
+ IF p_request ? 'blocker' THEN
+  SELECT * INTO j FROM sophia.jobs WHERE project_id=s.project_id AND id=s.job_id;
+  IF j.state='failed' AND j.reason LIKE 'blocked: %' AND j.result_source_id IS NOT NULL THEN
+   RETURN jsonb_build_object('outcome','blocked','reason',substr(j.reason,10),'sourceId',j.result_source_id,'replayed',true);
+  END IF;
  END IF;
  s:=sophia.review_scope_of(p_token_sha256,p_unit,p_bridge,p_request,true);
  IF coalesce(p_request->>'callId','') !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$' THEN RAISE EXCEPTION 'Invalid call id' USING ERRCODE='22023'; END IF;

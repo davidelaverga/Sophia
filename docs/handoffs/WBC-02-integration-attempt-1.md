@@ -4,7 +4,7 @@ Goal and attempt: WBC-02 (SCM-01), the combined integration of #107 with the acc
 Human owner / executor resource: Davide (decisions); Codex (coordination, independent review, two pushes, local checks); Claude Code in a cloud container (linux-x64), the only tracked-source writer
 Native session: this Claude Code session (https://claude.ai/code/session_0155SjcXhv87RErnWEBWxfBM); no Sophia native session was created
 Starting worktree/commit: the held #107 branch `scm-01/workboard-source-review` at `29371f5a3703f4358563886407bc360df7c38603`, in a fresh worktree with no ignored build outputs
-Ending commit/tree: «WBC-02 #107: delivery order, in its controls», this commit, on «WBC-02 #107: a work item's deliveries in the order they were written» (`a82e3db2b7ba9937f23366451a9512c819d68d04`, tree `b6638b447c7bf94caecc1a1c3c2302d0b63e3098`), on «WBC-02 #107: a start permit not yet used is decided again» (`2e618a07c177a09d3f51c0768e28359c0cef59d5`, tree `1abb716ad06fe2ff78b33af51b3c116814f7a38c`), on «WBC-02 #107: the end of a source and the size limit, in their controls» (`7d9c940993478f45f411ffa8ace32e25d70aced4`, tree `8f1f02c11ea477be9d93e3bd60e7f2e211bf9574`), itself on the content commit «WBC-02 #107: an empty page proves no read; Review sources keeps to the size limit» (`d165c6520c9b229e52724f73096619ff14f6a911`, tree `3f6c0bf7634a0c2496569d4ba0acd3c8f2c51802`) and its handoff `7ae5a177`. Before them: the bundle records `d0eba67a`; the receipt, principal and CI fixes `8241e9d0`; the wakeup fix `e93b0c51`; the first fix `df183a5f`; each with its handoff commit. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
+Ending commit/tree: «WBC-02 #107: a review's submit waits a bounded time; a sub-cent cap may be proposed», this commit, with the artifact records pending (below), on «WBC-02 #107: delivery order, in its controls» (`c0de7724c112b64117decd74ba381e16fad39ff7`, tree `50899da55838004adb28731b6e7f8c7730b6584a`), on «WBC-02 #107: a work item's deliveries in the order they were written» (`a82e3db2b7ba9937f23366451a9512c819d68d04`, tree `b6638b447c7bf94caecc1a1c3c2302d0b63e3098`), on «WBC-02 #107: a start permit not yet used is decided again» (`2e618a07c177a09d3f51c0768e28359c0cef59d5`, tree `1abb716ad06fe2ff78b33af51b3c116814f7a38c`), on «WBC-02 #107: the end of a source and the size limit, in their controls» (`7d9c940993478f45f411ffa8ace32e25d70aced4`, tree `8f1f02c11ea477be9d93e3bd60e7f2e211bf9574`), itself on the content commit «WBC-02 #107: an empty page proves no read; Review sources keeps to the size limit» (`d165c6520c9b229e52724f73096619ff14f6a911`, tree `3f6c0bf7634a0c2496569d4ba0acd3c8f2c51802`) and its handoff `7ae5a177`. Before them: the bundle records `d0eba67a`; the receipt, principal and CI fixes `8241e9d0`; the wakeup fix `e93b0c51`; the first fix `df183a5f`; each with its handoff commit. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
 
 | Commit | Tree | Merges | Changes beyond its parents |
 | --- | --- | --- | --- |
@@ -98,7 +98,14 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 **Codex's review of `7d9c9409`** (review 5442265537) found one more; Codex verified finding 9 fixed on that head (r4206833190):
 
-11. **A work item's deliveries go in the order they were written** (r4206869533, P1, fixed in `a82e3db2`; its controls extended in this commit under handback 6038061799; Codex reproduced it on `2e618a07`, r4206974770). `claim_coordination_outbox` held back a delivery while an earlier one of its work item was unsettled, but "earlier" was `created_at`, which is a transaction's start. A Stop whose transaction began before a Hold's, and wrote after it, was stamped before the Hold. While the Hold was in flight, a second worker could send the Stop alongside it, and the Hold reaching the plugin last took the larger plugin sequence and undid the Stop. `coordination_outbox` now has `seq` (a unique identity), and the claim compares and orders by it. Every row is written under its commission's lock (`work_mirror`; the commission itself with the work), so a later control always has the larger `seq`.
+11. **A work item's deliveries go in the order they were written** (r4206869533, P1, fixed in `a82e3db2`; its controls extended in `c0de7724` under handback 6038061799; Codex reproduced it on `2e618a07`, r4206974770). `claim_coordination_outbox` held back a delivery while an earlier one of its work item was unsettled, but "earlier" was `created_at`, which is a transaction's start. A Stop whose transaction began before a Hold's, and wrote after it, was stamped before the Hold. While the Hold was in flight, a second worker could send the Stop alongside it, and the Hold reaching the plugin last took the larger plugin sequence and undid the Stop. `coordination_outbox` now has `seq` (a unique identity), and the claim compares and orders by it. Every row is written under its commission's lock (`work_mirror`; the commission itself with the work), so a later control always has the larger `seq`.
+
+**Codex's review of `c0de7724`** (review 5442531855) found two more; Codex verified finding 11 fixed on that head (r4207036584):
+
+12. **A review's submit waits a bounded time** (r4207084075, P1, this commit). `submit_source_review` and `report_review_blocker` sent their request with no deadline. A service that took the connection and never answered held the tool call for ever, past a Hold or Stop.
+    - **The bundle** (`review-tools.ts`, `transport.ts`): each request now has a deadline (the time left of 60 s). A lost answer (no answer, an unreadable one, a 5xx, 408 or 429) is sent again with the same body and `callId`, up to four times within the 60 s, as the design tools' submit (`SUBMIT_PATIENCE`). The first request is always sent, since the service fences a held review itself; none is sent again once the review is held or stopped. A refusal, or a request that breaks the contract, is never sent again. An outcome still unknown is said to the model as unknown, never as a refusal.
+    - **The service** (`0042`, `runtime_source_review_submit`): a blocker sent again finds the blocker recorded, as a submit finds its published review (`replayed`). Nothing publishes after a review ended blocked.
+13. **A cap below a cent, or between cents, may be proposed** (r4207084084, P2, this commit). The allowance field's `min` and `step` of 0.01 made the browser refuse a valid sub-cent cap while Propose review looked enabled. The field and the form now share one rule (`allowanceOk`): positive, within the cap, in millionths of a dollar, as Sophia keeps it.
 
 ## Evidence
 
@@ -178,6 +185,22 @@ With the claim on `created_at`:
 
 Run here: `prettier`, `oxlint --type-aware` and `tsc` on the touched files. The two controls did not run here (no PostgreSQL); CI's `test:db` runs them. Unchanged: commission before controls, the supersession of a pending control by a newer one, effect leases, idempotency, and Stop.
 
+**Findings 12 and 13, in this commit:**
+- **The bundle's units** (`tests/unit/review-tools.test.mjs`, five new):
+  - a lost answer is sent again with the same request and `callId`, each with a deadline;
+  - a submit and a blocker never answered end at their deadline, unknown;
+  - after a Hold, nothing is sent again;
+  - a refusal, or a request that breaks the contract, is sent once;
+  - a lost blocker is sent again.
+
+  Run here: 11 of 11, on the bundle compiled with `tsc` into this session's scratch directory, outside the worktree. Neither `pnpm build` nor `pnpm artifacts` was run. Two mutants were caught: without resends, 2 tests fail; without the deadline, the deadline test hangs and is cancelled at its timeout.
+- **The service's control** (`coordination.db.test.ts`, «a blocker sent again after its answer was lost is answered as recorded»): one ending; the second answer equals the first, with `replayed`; a submit after it is refused 409. It did not run here (no PostgreSQL); CI's `test:db` runs it.
+- **The allowance:**
+  - Units: `review-sources.test.ts` covers sub-cent, between-cent, least and finest amounts. Studio's units pass 920 of 920.
+  - Browser: `work.spec.ts`, «a cap below a cent, or between cents…», with the fixture switch `work.html?served=1&cap=<usd>`. At 0.005 and 0.015 the field starts at the cap, Propose review is on, and the form passes the browser's own validation (`checkValidity`). A value finer than a millionth is refused by both. The whole `work.spec.ts` passes here, 163 of 163 (desktop and phone). A mutant with the old `min`/`step` of 0.01 fails it at `checkValidity`.
+- **Static:** `prettier --check .`, `oxlint --type-aware .`, and Studio's, the API's and the bundle's `tsc`.
+- **Records pending.** The bundle's source changes, so `config/runtime-unit.json` (`sophia_bundle`'s `archive_sha256`, `archive_integrity`, `artifact_digest`) and the profile lock's integrity line move. As for `8241e9d0`, they come from the normal artifact builder, derived independently and applied here as a generated-only commit. Until then, CI's `runtime-unit` stops at `pnpm artifacts` with exactly those mismatches and the values it built, and its integration tests do not run.
+
 **Source-register IDs consulted:** none.
 
 ## Decisions and changes
@@ -204,6 +227,7 @@ Run here: `prettier`, `oxlint --type-aware` and `tsc` on the touched files. The 
   - the full Studio suite, run serially, with `room-tiles` (8 tests), `room-chat-replies` (13), `project-conversation-follow-ups` (13), the source-review (`work.spec.ts`), and the Room following and Leave checks;
   - SQL/API, report and image-delivery crossings;
   - artifact, contract and runtime-installation reproduction.
+- **The records of this commit's bundle:** derived by the normal artifact builder and applied as a generated-only commit; then `runtime-unit` with the artifact check and the integration tests (the reviewer through the real pinned dsh).
 - **The hover-fade failure** (`personal.spec.ts:382`) goes to its owner, with the evidence above. It is never counted as a green full-suite run.
 - **Records:** `docs/coordination/WBC-02/` stops at CC-0009. CC-0043 to CC-0048 are on the PR only.
 - **Not affected by this source:** the legacy #104 closures wait for actual fixes in main, and no native G6, perception or production acceptance follows from it.

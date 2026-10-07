@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { kib, selectionOf } from './review-sources.ts'
+import { allowanceOk, kib, selectionOf } from './review-sources.ts'
 
 const sources = [
   { sourceId: 'a', byteLength: 20_000 },
@@ -21,5 +21,16 @@ describe('a source review selection', () => {
     assert.equal(kib(32_769), '32.1 KiB', 'one byte over never reads as the limit')
     assert.equal(kib(33_894), '33.1 KiB')
     assert.equal(kib(36_000), '35.2 KiB')
+  })
+
+  it('takes an allowance within the cap in millionths of a dollar, a sub-cent cap included', () => {
+    assert.equal(allowanceOk(0.5, 0.5), true)
+    assert.equal(allowanceOk(0.005, 0.005), true, 'a cap below one cent')
+    assert.equal(allowanceOk(0.015, 0.015), true, 'a cap between cents')
+    assert.equal(allowanceOk(0.000001, 0.005), true, 'the least amount')
+    assert.equal(allowanceOk(999.999999, 1000), true)
+    assert.equal(allowanceOk(0.0000015, 0.005), false, 'finer than Sophia keeps')
+    assert.equal(allowanceOk(0, 0.5), false)
+    assert.equal(allowanceOk(0.51, 0.5), false, 'above the cap')
   })
 })

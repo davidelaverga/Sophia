@@ -3100,3 +3100,28 @@ test('codex · #107 · sources over a review’s limit together are said so and 
   await expect(over).toHaveCount(0)
   await expect(propose).toBeEnabled()
 })
+
+test('codex · #107 · a cap below a cent, or between cents, starts the allowance there and the form may be sent', async ({
+  page,
+}) => {
+  for (const cap of ['0.005', '0.015']) {
+    await page.goto(`${PAGE}?served=1&cap=${cap}`)
+    await page.getByRole('button', { name: 'Review sources' }).first().click()
+    const form = page.getByRole('form', { name: 'Review sources' })
+    const allowance = form.getByLabel(`Allowance, USD (at most ${cap})`)
+    const propose = form.getByRole('button', { name: 'Propose review' })
+    await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+    await expect(allowance).toHaveValue(cap)
+    await expect(propose).toBeEnabled()
+    // The browser's own validation takes it too, so Propose review is not a button that sends nothing.
+    expect(await form.evaluate((f) => f instanceof HTMLFormElement && f.checkValidity())).toBe(true)
+    // Finer than Sophia keeps: the field and the form agree that it may not be sent.
+    await allowance.fill('0.0000015')
+    await expect(propose).toBeDisabled()
+    await expect(allowance).toHaveAttribute('aria-invalid', 'true')
+    expect(await form.evaluate((f) => f instanceof HTMLFormElement && f.checkValidity())).toBe(false)
+    await allowance.fill('0.000001')
+    await expect(propose).toBeEnabled()
+    expect(await form.evaluate((f) => f instanceof HTMLFormElement && f.checkValidity())).toBe(true)
+  }
+})

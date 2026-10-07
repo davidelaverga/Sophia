@@ -159,6 +159,8 @@ const six = query.get('goals') === '6'
 const two = six || query.get('two') === '1'
 /** `served=1`: Tasks reads the board Sophia serves, as the Studio does without the page's plans, the pilot enabled. */
 const served = query.get('served') === '1'
+/** `cap=<usd>`: the project's cap for one review, in place of the pilot's half a dollar (a sub-cent one, Codex on #107). */
+const cap = query.get('cap')
 /** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
 let onGoalCommand: ((command: GoalCommand, key: string) => void) | null = null
 installFixtureApi({
@@ -182,7 +184,7 @@ installFixtureApi({
   textHeld: false,
   textTampered: false,
   work: false,
-  ...(served && { review: SOURCE_REVIEW }),
+  ...(served && { review: cap === null ? SOURCE_REVIEW : { ...SOURCE_REVIEW, maxAllowanceUsd: Number(cap) } }),
   // A12: a call left from here has a meeting that left nothing (MeetingRecap's empty recap).
   meeting: newMeeting(
     () => ({
