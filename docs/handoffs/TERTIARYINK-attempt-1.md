@@ -4,6 +4,10 @@ Goal and attempt: the third ink reads at 4.5:1, attempt 1. From a measured audit
 («Sigue con lo siguiente de la cola»).
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: the files this PR changes (its diff against `main`), and nothing outside `apps/studio` and `docs/`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `polish/tertiary-ink` from `main`, 2026-10-07
 Ending commit/tree: `c474ad1754c6b945a2dc57217ca026264d53f172` (tree `c137268e74b8f753cf3eda836114c66c68642bf8`). The commit after it adds only this handoff.
 
