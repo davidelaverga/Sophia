@@ -1948,6 +1948,88 @@ button.contribution-quote:hover {
 .dock .pill {
   height: 36px;
 }
+/* A control's icon shows on a phone only (DockWord); on a computer the words say it, and a tip kept for a phone's held
+   press never shows. */
+.dock-icon,
+.dock-tip {
+  display: none;
+}
+/* On a phone the dock is a row of icons in 42 px squares, its box hugging them; the words stay the controls' names,
+   and who holds the floor is said in the room beside them (docs/plans/phone-dock.md). */
+@media (max-width: 600px) {
+  /* 42 px squares 4 px apart: seven fit one row at 390 px (Sophia in, speaking, the floor yours). */
+  .dock {
+    gap: 4px;
+    padding: 6px;
+    border-radius: var(--r-4);
+  }
+  .dock :is(.floor, .sophia-controls) {
+    gap: 4px;
+    padding-left: 0;
+  }
+  .dock :is(.round, .pill:has(.dock-icon)) {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 10px;
+  }
+  .dock .dock-icon {
+    position: relative;
+    display: grid;
+  }
+  /* Whose the floor becomes, on the arrow that hands it on. */
+  .dock .dock-badge {
+    position: absolute;
+    top: -9px;
+    right: -11px;
+    display: grid;
+    place-items: center;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border-radius: 4px;
+    background: var(--warm);
+    color: var(--void);
+    font-size: 9.5px;
+    font-weight: 600;
+  }
+  /* Join, before the call, as tall as the squares beside it. */
+  .dock .pill.primary {
+    height: 42px;
+  }
+  /* A refusal opens over the dock's middle, not over one square near the edge. */
+  .dock :is(.floor, .sophia-controls) {
+    position: static;
+  }
+  /* Pressed and held, a control says what it does (there is no hover to wait for). */
+  .dock button:active > .tip {
+    display: inline-flex;
+    opacity: 1;
+  }
+  .dock .dock-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .dock :is(.floor-label, .dock-sep) {
+    display: none;
+  }
+  /* Who holds the floor stays said to a screen reader; the eye finds it in the room. */
+  .dock .floor-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
 .dock-sep {
   width: 1px;
   height: 20px;
