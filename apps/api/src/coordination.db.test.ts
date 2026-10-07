@@ -2176,14 +2176,21 @@ describe('a control Paperclip refuses, and a revoked credential (Codex on #107)'
     await revoking.query(`SELECT sophia.revoke_coordination_integration($1)`, [cred.id])
     let open = true
     try {
-      const starting = sophia(cred.token).start(run)
-      const asking = sophia(cred.token).permit({ companyId: COMPANY, runId: runId('late'), issueId })
+      // Both answers are taken as they come, in whichever order: neither refusal is left unhandled.
+      const answers = Promise.allSettled([
+        sophia(cred.token).start(run),
+        sophia(cred.token).permit({ companyId: COMPANY, runId: runId('late'), issueId }),
+      ])
       // Without the credential's lock, both read it active and went on while the revocation committed.
       await untilWaiting(2)
       await revoking.query('COMMIT')
       open = false
-      await assert.rejects(starting, refusedAs('forbidden'))
-      await assert.rejects(asking, refusedAs('forbidden'))
+      const [started, asked] = await answers
+      for (const reply of [started, asked])
+        assert.ok(
+          reply.status === 'rejected' && refusedAs('forbidden')(reply.reason),
+          reply.status === 'rejected' ? String(reply.reason) : 'answered, not refused',
+        )
     } finally {
       if (open) await revoking.query('ROLLBACK')
       await revoking.end()
