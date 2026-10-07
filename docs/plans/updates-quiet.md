@@ -16,8 +16,8 @@
 
 - **Two panes on a wide screen:** what changed on the left (the reading column), the meetings on the right, as the
   Conversations context sits. Under 900 px, one column, the meetings after.
-- **Labels, not headings:** the parts and the digest's sections are mono labels in the second ink, as in the
-  Conversations context.
+- **Labels, not headings:** the parts are mono labels in the second ink, the digest's sections in the halo's, as in the
+  Conversations context. Scoped to the page's own parts: a meeting's recap opened from here keeps its look.
 - **Each line marked by its kind:** decided, a teal tick; still open, an amber dot; made, a small page; kept, a warm
   dot; work, a quiet square. The words stay the same.
 - **Meetings you can compare:** each row is its day and time, and a thin bar for how long it lasted, the longest the

@@ -57,6 +57,10 @@ test('updates · each section says its kind, and each line wears its mark', asyn
       })
   const tick = await mark('decided')
   expect(parseFloat(tick.border)).toBeGreaterThan(0)
+  // Still open: an amber dot, no border.
+  const dot = await mark('still-open')
+  expect(dot.background).toBe('rgb(239, 191, 134)')
+  expect(parseFloat(dot.border)).toBe(0)
   const kinds = await since(page)
     .locator('[data-kind]')
     .evaluateAll((all) => all.map((el) => el.getAttribute('data-kind')))
@@ -78,6 +82,17 @@ test('updates · a longer meeting has a wider bar; the running one a live dot, n
   expect(widths[0] ?? 0).toBeGreaterThan(widths[1] ?? 0)
   // The row's words stay what they were.
   await expect(rows.nth(1)).toHaveText('Oct 4, 15:00 · 38 min')
+})
+
+test('updates · a meeting’s recap opened from here keeps its own look: no marks, its rule kept', async ({ page }) => {
+  await page.goto('/room.html?place=updates')
+  await meetings(page).getByRole('button').first().click()
+  const sheet = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(sheet.locator('.recap-section li').first()).toBeVisible()
+  const marks = await sheet
+    .locator('.recap-section li')
+    .evaluateAll((all) => all.map((li) => getComputedStyle(li, '::before').content))
+  for (const m of marks) expect(m).toBe('none')
 })
 
 test('updates · every label and line reads at 4.5:1, on the app’s type sizes', async ({ page }) => {

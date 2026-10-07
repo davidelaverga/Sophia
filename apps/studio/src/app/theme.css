@@ -4286,20 +4286,20 @@ div.empty {
   gap: 16px;
 }
 .updates-part > h3,
-.updates .recap-section h4 {
+.updates-part > .recap-section h4 {
   margin: 0;
   color: var(--text-2);
   font: 500 var(--type-label) / 1.2 var(--mono);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
-.updates .recap-section h4 {
+.updates-part > .recap-section h4 {
   color: var(--halo-text);
 }
-.updates .recap-section li {
+.updates-part > .recap-section li {
   grid-template-columns: 14px minmax(0, 1fr) auto;
 }
-.updates .recap-section li::before {
+.updates-part > .recap-section li::before {
   content: '';
   grid-row: 1 / span 2;
   justify-self: start;
@@ -4309,14 +4309,13 @@ div.empty {
   border-radius: 50%;
   background: var(--text-2);
 }
-.updates .recap-line,
-.updates .recap-by {
+.updates-part > .recap-section :is(.recap-line, .recap-by) {
   grid-column: 2;
 }
-.updates .recap-section li > .text-button {
+.updates-part > .recap-section li > .text-button {
   grid-column: 3;
 }
-.updates [data-kind='decided'] li::before {
+.updates-part > [data-kind='decided'] li::before {
   width: 8px;
   height: 4px;
   margin-top: 6px;
@@ -4326,27 +4325,28 @@ div.empty {
   background: none;
   transform: rotate(-45deg);
 }
-.updates [data-kind='still-open'] li::before {
+.updates-part > [data-kind='still-open'] li::before {
   background: var(--amber);
 }
-.updates [data-kind='kept'] li::before {
+.updates-part > [data-kind='kept'] li::before {
   background: var(--warm);
 }
-.updates [data-kind='made'] li::before {
+.updates-part > [data-kind='made'] li::before {
   width: 7px;
   height: 9px;
   margin-top: 6px;
   border-radius: 1.5px;
   background: var(--core);
 }
-.updates [data-kind='work'] li::before {
+.updates-part > [data-kind='work'] li::before {
   border-radius: 1.5px;
   background: var(--text-2);
 }
-.updates .recap-by {
+.updates-part > .recap-section .recap-by {
   color: var(--text-2);
+  font-size: var(--type-small);
 }
-.updates .recap-acts {
+.updates-part > .recap-acts {
   padding-top: 0;
   border-top: 0;
 }

@@ -329,7 +329,11 @@ export function RecapPart({ section, records, onOpen, level = 3 }: PartProps) {
     viewer?.open({ artifactId: made.artifactId, versionId: made.artifactVersionId })
   }
   return (
-    <section className="recap-section" aria-labelledby={id} data-kind={section.title.toLowerCase().replace(' ', '-')}>
+    <section
+      className="recap-section"
+      aria-labelledby={id}
+      data-kind={section.title.toLowerCase().replaceAll(' ', '-')}
+    >
       <Heading id={id}>{section.title}</Heading>
       <ul>
         {section.lines.map((line) => {
