@@ -44,7 +44,10 @@ Ending commit/tree: the final change is commit `6a4383befbaf0139f4a9461c0e3650dc
 
 ## Remaining obligations
 
-- The count beside another project's name has its style but no check: the fixture's reader is in one project only.
+- The count beside another project's name had its style but no check. Fixed after Codex's P2 on #153: the count is in
+  `--text-2` (it read at 3.84:1 in `--text-3`), and the fixture's `reports=elsewhere` lists another project, so a
+  check measures the button and its count at 4.5:1, pressed or not (21 passed with K1's checks; the `--text-3` mutant
+  is killed).
 - From the captures, for the next pass:
   - each tile repeats «Description by Sophia» and «History and changes», which is noise across six tiles;
   - More reports is a full-width bar.

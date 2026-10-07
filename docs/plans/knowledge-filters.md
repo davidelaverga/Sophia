@@ -15,7 +15,7 @@
 
 - **One kind of filter:** the project filter becomes the app's `.segmented` group, as the format filter is. Both show
   the pressed choice on a quiet plane like the group's thumb; a choice not pressed reads at 4.5:1 or more. The counts
-  stay, in mono.
+  stay, in mono, in the buttons' own ink (4.5:1 too).
 - **The reports first:** the tiles come right under the filters. What was carried in follows them, before Connections,
   with its heading as before. It is only shown with this project's reports, as now.
 - **The demo's library (fixtures only):** seven reports, six on the first page (two full rows at 1440 px), one behind
@@ -37,6 +37,7 @@
 - The project and format filters are `.segmented` groups. Their buttons share a height and a corner of at most 8 px. The
   pressed one has a plane under it.
 - In the filters, only the app's type sizes (13 px for the buttons, 12 px for the counts).
+- Another project's button and its count read at 4.5:1, pressed or not (the fixture's `reports=elsewhere`).
 - With what was carried in, the first tile is above the carried-in heading.
 - In the demo, the first page shows six tiles, two of them with a designed cover; More reports brings the pilot's plan.
 - The existing Knowledge checks pass unchanged (filters, More reports and its focus, carried in, the HTML card).
