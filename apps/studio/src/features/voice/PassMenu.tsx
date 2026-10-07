@@ -3,6 +3,7 @@
 // closes and gives focus back to the button.
 import { useEffect, useRef, useState } from 'react'
 import { shortName, type RoomParticipant } from './room-view.ts'
+import { DockWord } from './DockWord.tsx'
 
 interface Props {
   targets: readonly RoomParticipant[]
@@ -35,7 +36,7 @@ export function PassMenu({ targets, busy, onPass }: Props) {
         disabled={busy}
         onClick={() => setOpen((o) => !o)}
       >
-        Pass to…
+        <DockWord icon="pass">Pass to…</DockWord>
       </button>
       {open && (
         <PassList

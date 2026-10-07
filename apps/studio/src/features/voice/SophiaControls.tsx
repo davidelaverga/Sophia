@@ -12,6 +12,7 @@ import { controlExchange, showSophia, startExchange, type ExchangeControl } from
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import type { RoomParticipant } from './room-view.ts'
 import type { SophiaView } from './sophia-view.ts'
+import { DockWord } from './DockWord.tsx'
 
 interface Props {
   view: SophiaView
@@ -61,7 +62,7 @@ function AskIn({ snapshot, identity, busy, run }: { snapshot: Snapshot; identity
     )
   return (
     <button type="button" className="pill warm has-tip" disabled={busy} onClick={() => void ask()}>
-      Speak with Sophia
+      <DockWord icon="sophia">Speak with Sophia</DockWord>
       <Tip label="Sophia joins the conversation and hears whoever holds the floor" />
     </button>
   )
@@ -83,7 +84,7 @@ function ShowSophia({ exchangeId, source, identity, busy, run }: ShowProps) {
       disabled={busy}
       onClick={() => void run(() => showSophia(identity.token, exchangeId, source))}
     >
-      Show Sophia your {source}
+      <DockWord icon="eye">Show Sophia your {source}</DockWord>
       <Tip label="She sees at most one still a second, until anyone presses Stop looking" />
     </button>
   )
@@ -106,23 +107,23 @@ function Conversation({ view, snapshot, identity, me, exchangeId, busy, run }: C
     <>
       {view.speaking && (
         <button type="button" className="pill has-tip" disabled={busy} onClick={control('stop-speaking')}>
-          Stop speaking
+          <DockWord icon="speakerOff">Stop speaking</DockWord>
           <Tip label="Sophia stops talking; her work carries on" />
         </button>
       )}
       {canShow && <ShowSophia exchangeId={exchangeId} source={source} identity={identity} busy={busy} run={run} />}
       {presence.looking && (
         <button type="button" className="pill" disabled={busy} onClick={control('stop-looking')}>
-          Stop looking
+          <DockWord icon="eyeOff">Stop looking</DockWord>
         </button>
       )}
       {view.exchange === 'paused' && (
         <button type="button" className="pill warm" disabled={busy} onClick={control('resume')}>
-          Resume
+          <DockWord icon="play">Resume</DockWord>
         </button>
       )}
       <button type="button" className="pill has-tip" disabled={busy} onClick={control('end')}>
-        End
+        <DockWord icon="stop">End</DockWord>
         <Tip label="Sophia leaves the conversation; her work carries on" />
       </button>
     </>
@@ -140,7 +141,7 @@ export function SophiaControls(props: Props) {
       {view.exchange === 'none' && <AskIn snapshot={snapshot} identity={identity} busy={busy} run={run} />}
       {view.needsAudio && (
         <button type="button" className="pill warm" onClick={onAllowAudio}>
-          Allow audio
+          <DockWord icon="speaker">Allow audio</DockWord>
         </button>
       )}
       {view.exchange !== 'none' && exchangeId && (
