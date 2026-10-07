@@ -7,7 +7,7 @@ Human owner / executor resource: Luis / Claude Code in the Claude desktop app on
 Native session: a local Claude Code session; its identity is unknown (not exported)
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/thread` on `main` `7f51b01`,
 2026-10-07
-Ending commit/tree: `7a00d858bd9ffec81a6711ccf9c8bc5454436087` (tree `f393edcc9167eae61235094d88bb7d2f7d8dc893`), four commits on `main` `7f51b01`. The commit after it adds only this handoff.
+Ending commit/tree: `069938131f5eef4fe51445ee2d12327ee5c0dcee` (tree `177c43f4cb31e70055b23dafbf64435be2bbd3df`), five commits on `main` `7f51b01`. The commit after it adds only this handoff.
 
 ## Outcome
 
@@ -30,6 +30,9 @@ An independent review (a separate agent, read-only) found one P1 and three P2s, 
 it made, opened beside the conversation, crushed it to about 90 px (the panes now answer to the page's width, a
 container query); the messages sat off the field's centre; Tab could leave the panel for the dock hidden under it;
 the «Ask Sophia» ring read at about 1.9:1. Its P3s stay as follow-ups (below).
+
+Codex on #155 (two P2s), fixed with their checks and mutants: Send shows a turning arc while a note is on its way;
+with no conversation open, «Context» sits in the list's head under 1180 px.
 
 ## Evidence
 
@@ -56,7 +59,6 @@ the «Ask Sophia» ring read at about 1.9:1. Its P3s stay as follow-ups (below).
 - The review's P3s: the panel's effect no longer reruns on every render (fixed); so a conversation remounted while the
   panel is open (it leaves the list on a refetch) would not be made inert. Not done: widening past 1180 px
   with the panel open leaves the focus on the page; times show under the pointer but not from the keyboard;
-  a row's time is not in its description; the field grows only where `field-sizing` exists (not yet Firefox); under
-  1180 px the project context cannot be opened with no conversation open.
+  a row's time is not in its description; the field grows only where `field-sizing` exists (not yet Firefox).
 - Rows show the summary, not the last message: A18 has no `lastMessage` yet (a proposal for Davide).
 - Next slice: the last message in rows, Open/Mine filters, quick asks.
