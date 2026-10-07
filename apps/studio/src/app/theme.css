@@ -2246,6 +2246,13 @@ button.contribution-quote:hover {
 .tile-strip .tile {
   max-height: 100%;
 }
+/* A strip's tile is short: the initial is smaller and sits above the name, never under it. */
+.tile-strip .tile-initial {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 30px;
+  font-size: 14px;
+}
 /* «+N»: the people past the tiles, a tile of its own that opens everyone in the call. */
 .tile-more {
   padding: 0;
@@ -2339,10 +2346,13 @@ button.contribution-quote:hover {
   font-size: 12px;
   font-weight: 500;
 }
-/* The tile's name is a flex row, which trims a child's leading space: keep the one before "· floor". */
+/* The tile's name is a flex row, which trims a child's leading space: keep the one before "· you", "· floor". */
+.tile-mark,
+.tile-floor {
+  white-space: pre;
+}
 .tile-floor {
   color: var(--warm);
-  white-space: pre;
 }
 .video {
   position: absolute;
@@ -3250,6 +3260,58 @@ div.empty {
   }
   .tile-strip .tile {
     aspect-ratio: 16 / 10;
+  }
+}
+
+/* On a phone, the strip is one row that fits: Sophia's, up to three people's and «+N» share the width, so «+N» is in
+   sight and nothing scrolls sideways. A name too long for its tile ends in an ellipsis. */
+@media (max-width: 600px) {
+  .tile-strip {
+    /* Five columns whatever the count: a strip of two keeps its tiles a fifth of the width, not half the screen. */
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-auto-flow: row;
+  }
+  .tile-strip .tile {
+    aspect-ratio: 1;
+  }
+  /* Small enough to stand above the name in a fifth of the narrowest phone (320 px: 51 px tiles). */
+  .tile-strip .tile-initial {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 24px;
+    font-size: 12px;
+  }
+  .tile-strip .tile-name {
+    left: 4px;
+    bottom: 4px;
+    max-width: calc(100% - 8px);
+    height: 20px;
+    padding: 0 5px;
+    font-size: 11px;
+  }
+  /* The name gives way (its overflow lets it shrink to nothing); what follows it, kept whole by its own white-space,
+     never does. */
+  .tile-strip .tile-who {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* A fifth of a phone holds a name and one short word. A guest says so («guest», warm: it tells a visitor from a
+     member); « · you» and « · floor» stay said to a screen reader, and the floor's holder has the warm edge. The
+     separator is hidden from sight only: a screen reader still hears «Noor · guest», never «Noor guest». */
+  .tile-strip .tile-mark[data-mark='guest'] {
+    margin-left: 4px;
+    color: var(--warm);
+  }
+  .tile-strip :is(.tile-sep, .tile-mark[data-mark='you'], .tile-floor) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .tile-strip .tile[data-floor] {
+    border-color: var(--warm);
   }
 }
 

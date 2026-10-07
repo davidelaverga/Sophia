@@ -35,6 +35,16 @@ interface TileProps {
   holds: boolean
 }
 
+/** What sets someone apart, after their name: « · you», « · guest», « · floor» (on a phone, theme.css). */
+function TileMark({ mark }: { mark: 'you' | 'guest' | 'floor' }) {
+  return (
+    <span className={mark === 'floor' ? 'tile-floor' : 'tile-mark'} data-mark={mark}>
+      <span className="tile-sep">{' · '}</span>
+      {mark}
+    </span>
+  )
+}
+
 function PersonTile({ person, camera, holds }: TileProps) {
   return (
     <li
@@ -48,11 +58,12 @@ function PersonTile({ person, camera, holds }: TileProps) {
       ) : (
         <span className="tile-initial">{shortName(person.name).charAt(0)}</span>
       )}
+      {/* The name, then what sets them apart: on a short tile the name is cut, never what follows it. */}
       <span className="tile-name" data-anchor>
-        {shortName(person.name)}
-        {person.local && ' · you'}
-        {person.standing === 'guest' && ' · guest'}
-        {holds && <span className="tile-floor"> · floor</span>}
+        <span className="tile-who">{shortName(person.name)}</span>
+        {person.local && <TileMark mark="you" />}
+        {person.standing === 'guest' && <TileMark mark="guest" />}
+        {holds && <TileMark mark="floor" />}
       </span>
     </li>
   )
