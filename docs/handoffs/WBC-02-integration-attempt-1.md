@@ -116,6 +116,10 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 **On `8241e9d0`, in this session:** `prettier --check .`, `oxlint --type-aware .`, `pnpm typecheck` and `pnpm contracts:check` pass; every plugin statement passes the pinned host's rules; `pnpm test` 1840 of 1853, 1 skipped, the 12 failing files each failing only to import `packages/dsh-bundle/dist/*`, which only the build makes. Not run here: the bundle's own tests (`tests/unit/review-tools.test.mjs`, the end-to-end `tests/integration/review-tools.test.mjs`), every `.db` control (the receipt, foreign-receipt, reread and coverage controls; the principal controls; the two barriered Hold controls), and the artifact check. CI runs the `.db` controls; the bundle's tests and the artifact check run there once the records are in.
 
+**CI on `84530867`** (the same source as `0661a6f8`):
+- `runtime-unit` (run 37616446014): units 1938, 1872 passed, 0 failed, 66 skipped, the bundle's receipt tests among them. `pnpm artifacts` then reported exactly the four expected mismatches and nothing else (the linux runtime digest matches). Built: `sophia_bundle.archive_sha256` `e5e107417a974fd2887407243394be44efc28230d32e7f9e90cf005e0d5f6fb4`, `archive_integrity` `sha512-Us9oeGgyOPGHWSywC+oMBGN1nwI8RXE2Nx/yTwinrzSDX1suQ0qeCpDgCmoN7D8bLTbkVcvhJnikfataIOv1gw==`, `artifact_digest` `sha256:e5e1…6fb4`, and the profile lock. The integration tests did not run.
+- `test:db` (run 37616437946, job 112775782401): 528 of 529, none skipped. Every new control passed: the receipt, foreign-receipt, reread and coverage control; the principal control; both barriered Hold controls; the wakeup and fence controls. The one failure was the test order this commit fixes: the receipt control published its review, whose completion was still queued in the shared outbox, and the next test's pass claimed it as well (`['unknown','unknown']` for `['unknown']`). The reconcile helpers now count only their own world's deliveries, and the receipt control delivers its completion.
+
 **Source-register IDs consulted:** none.
 
 ## Decisions and changes

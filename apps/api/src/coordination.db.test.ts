@@ -660,13 +660,15 @@ describe('one Paperclip-managed source review', () => {
     ].toSorted((a, b) => a.sourceId.localeCompare(b.sourceId))
     assert.deepEqual(stored?.coverage, expected, 'one page of a source is not the whole source')
     assert.deepEqual(stored?.inspected.toSorted(), [w.sourceA, w.sourceB].toSorted())
+    // The published review's completion is mirrored to its issue: delivered here, so no later test's pass claims it.
+    assert.deepEqual(await mine(w, await deliver(w)), [['complete', 'delivered']])
   })
 
   /** The plugin stopped after its create landed: its reply lost, the issue's wakeup never asked (Codex on #107). */
   async function crashedAfterCreate(w: World) {
     await accepted(w)
     assert.deepEqual(
-      (await deliver(w, () => true)).outcomes.map((o) => o.outcome),
+      (await mine(w, await deliver(w, () => true))).map(([, outcome]) => outcome),
       ['unknown'],
     )
     const issue = issueOf(w)
@@ -681,7 +683,24 @@ describe('one Paperclip-managed source review', () => {
     await asOwner((o) =>
       o.query(`UPDATE sophia.coordination_outbox SET available_at=now() WHERE project_id=$1`, [w.projectId]),
     )
-    return (await deliver(w)).outcomes.map((o) => [o.op, o.outcome])
+    return mine(w, await deliver(w))
+  }
+
+  /**
+   * A pass's outcomes for this world's deliveries only: a pass claims every due delivery in the database, and an
+   * earlier test's work may still have one queued (its completion's mirrored control).
+   */
+  async function mine(w: World, pass: Awaited<ReturnType<typeof deliver>>) {
+    const ids = new Set(
+      await asOwner(async (o) =>
+        (
+          await o.query<{ id: string }>(`SELECT id::text AS id FROM sophia.coordination_outbox WHERE project_id=$1`, [
+            w.projectId,
+          ])
+        ).rows.map((r) => r.id),
+      ),
+    )
+    return pass.outcomes.filter((o) => ids.has(o.id)).map((o) => [o.op, o.outcome])
   }
 
   const commissionRow = async (w: World) =>
