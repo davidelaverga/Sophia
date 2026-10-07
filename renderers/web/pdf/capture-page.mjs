@@ -2729,7 +2729,20 @@ function misplacedTables(blocks) {
  * @returns {string[]}
  */
 function reorderedBlocks(blocks, base) {
-  return blocks.filter((el) => misdirected(el, base) || outOfOrder(el)).map((el) => el.getAttribute('data-block') ?? '')
+  return blocks
+    .filter((el) => misdirected(el, base) || outOfOrder(el) || cellsOutOfOrder(el))
+    .map((el) => el.getAttribute('data-block') ?? '')
+}
+
+/**
+ * Whether a cell of a research table the block holds draws its own text out of its order, run together or off its line
+ * (#117): a block's runs leave its table out, whose cells' places misplacedTables reads, so each cell's runs are read
+ * as a block's are (outOfOrder), and a flex wrapper in a cell that draws "Not free" as "free Not", or a figure raised
+ * in one, fails.
+ * @param {Element} block
+ */
+function cellsOutOfOrder(block) {
+  return [...block.querySelectorAll('th, td')].some((cell) => outOfOrder(cell))
 }
 
 /**
@@ -3106,6 +3119,7 @@ const IN_PAGE = [
   adjoinedBlocks,
   misplacedTables,
   reorderedBlocks,
+  cellsOutOfOrder,
   misdirected,
   startsDirection,
   ownText,
@@ -3329,6 +3343,7 @@ export function orderScript(base) {
     within,
     textBoxOf,
     reorderedBlocks,
+    cellsOutOfOrder,
     misdirected,
     startsDirection,
     ownText,

@@ -16,6 +16,8 @@ const isCite = (el: Element): boolean => attr(el, 'data-cite') !== null
 const isBlock = (el: Element): boolean => attr(el, 'data-block') !== null
 /** What a block's own text leaves out: its citations, and any block nested in it (an item's sub-list). */
 const notOwnText = (el: Element): boolean => isCite(el) || isBlock(el)
+/** A text without its white space. */
+const bare = (text: string): string => text.replaceAll(/\s/gu, '')
 
 /** The elements inside a block that are its own, not a nested block's. */
 function ownElements(block: Element): Element[] {
@@ -124,6 +126,16 @@ function tableOf(el: Element): Element | null {
 }
 
 /** What is wrong with a research table: its cells, its one table (tableOf), its rows (shapeIssue), or its header cells (headerIssue). */
+/**
+ * Whether a table block holds text of its own beyond its cells' (#117): a caption, a heading beside the table, or any
+ * text a wrapper carrying the block adds is research no cell of the package gives ("Free" over a price table), shown
+ * as part of the block. Citation markers and blocks nested in it are their own.
+ */
+function textBeyondCells(el: Element): boolean {
+  const cells = ownElements(el).filter((c) => c.tagName === 'th' || c.tagName === 'td')
+  return bare(textOf(el, notOwnText)) !== bare(cells.map((c) => textOf(c, notOwnText)).join(''))
+}
+
 function tableFindings(block: ContentBlock, el: Element, at: { line: number; block: string }): Finding[] {
   const out: Finding[] = []
   const cells = cellsOf(el)
@@ -133,6 +145,16 @@ function tableFindings(block: ContentBlock, el: Element, at: { line: number; blo
         'block_altered',
         'index.html',
         `table ${block.id}'s cells differ from the research (${cells.length} cells, ${block.cells.length} expected)`,
+        at,
+      ),
+    )
+  if (textBeyondCells(el))
+    out.push(
+      error(
+        'block_altered',
+        'index.html',
+        `table ${block.id} holds text beyond its cells (a caption, a heading or other text in the block): ` +
+          'a research table holds its cells only; write a heading outside the block',
         at,
       ),
     )
@@ -463,9 +485,6 @@ function hiddenResearch(all: Element[], html: string): Finding[] {
 
 /** The elements a browser draws raised or lowered, smaller, and announces as a superscript or a subscript. */
 const SCRIPTS = new Set(['sup', 'sub'])
-
-/** A text without its white space. */
-const bare = (text: string): string => text.replaceAll(/\s/gu, '')
 
 /** Whether an element holds no text but its citation markers' (`<sup><a data-cite="s1">[1]</a></sup>`). */
 function marksOnly(el: Element): boolean {

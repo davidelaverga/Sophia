@@ -270,14 +270,48 @@ const CAPS = new Set(['small-caps', 'all-small-caps', 'petite-caps', 'all-petite
 const CAPS_FEATURES = new Set(['smcp', 'c2sc', 'pcap', 'c2pc', 'unic', 'titl'])
 const CAPS_CARRIERS = /^(?:font|font-variant|(?:-webkit-)?font-feature-settings|--.*)$/
 
-/** Whether a value names capitals for lower case: a CAPS keyword, or a CAPS_FEATURES feature, on or off. */
-function namesCaps(value: CssNode): boolean {
+/**
+ * Glyphs a font draws for superscripts, subscripts, ordinals and fractions (#117): `font-variant-position: super` or
+ * the `sups` feature draws frozen "102" as 10² in the font's own positional glyphs, which CSS sets on the line's
+ * baseline at its size, so no render check sees the change; an ordinal draws "2a" as 2ª, and a fraction "12/31" as
+ * ¹²⁄₃₁. So `font-variant-position` may only be normal or a keyword that resets it; no `font-variant-numeric` or
+ * `font-variant` keyword, and no `font-feature-settings` feature, may name one; nor may a custom property carry one, so
+ * none arrives through var(). Lining, old-style, proportional, tabular and slashed-zero figures stay.
+ */
+const POSITIONAL = new Set(['super', 'sub', 'ordinal', 'diagonal-fractions', 'stacked-fractions'])
+const POSITIONAL_FEATURES = new Set(['sups', 'subs', 'sinf', 'ordn', 'frac', 'afrc', 'numr', 'dnom'])
+const POSITIONAL_CARRIERS =
+  /^(?:font|font-variant|font-variant-position|font-variant-numeric|(?:-webkit-)?font-feature-settings|--.*)$/
+
+/** Whether a value names a keyword of `keywords`, or a feature of `features`, on or off. */
+function namesGlyphs(value: CssNode, keywords: ReadonlySet<string>, features: ReadonlySet<string>): boolean {
   let named = false
   walk(value, (part) => {
-    if (part.type === 'Identifier' && CAPS.has(part.name.toLowerCase())) named = true
-    if (part.type === 'String' && CAPS_FEATURES.has(part.value.trim().toLowerCase())) named = true
+    if (part.type === 'Identifier' && keywords.has(part.name.toLowerCase())) named = true
+    if (part.type === 'String' && features.has(part.value.trim().toLowerCase())) named = true
   })
   return named
+}
+
+/** Whether a value names capitals for lower case: a CAPS keyword, or a CAPS_FEATURES feature, on or off. */
+function namesCaps(value: CssNode): boolean {
+  return namesGlyphs(value, CAPS, CAPS_FEATURES)
+}
+
+/** Why a declaration draws the research's figures as superscripts, subscripts, ordinals or fractions, or null. */
+function positionIssue(property: string, node: CssNode & { type: 'Declaration' }): string | null {
+  const positioned =
+    property === 'font-variant-position'
+      ? !isOneOf(node.value, UNCAPPED)
+      : POSITIONAL_CARRIERS.test(property) && namesGlyphs(node.value, POSITIONAL, POSITIONAL_FEATURES)
+  return positioned
+    ? `${node.property} may not draw figures as superscripts, subscripts, ordinals or fractions (super, sups and their kin): "102" would read 10², which no check reads`
+    : null
+}
+
+/** Why a declaration draws the research's letters or figures as other glyphs than its own (caseIssue, positionIssue). */
+function glyphIssue(property: string, node: CssNode & { type: 'Declaration' }): string | null {
+  return caseIssue(property, node) ?? positionIssue(property, node)
 }
 
 /** Why a declaration draws the research's letters other than they are (a case transform, capitals), or null. */
@@ -351,7 +385,7 @@ function keywordIssue(property: string, node: CssNode & { type: 'Declaration' })
     return `${node.property} may ask for the light scheme only: the captures are taken in it, and a dark one is drawn where no capture shows it`
   if (property === 'position' && !isPlacedOnPage(node.value))
     return `${node.property} may be static, relative or absolute: a fixed or sticky element moves over the text as a reader scrolls, where no capture shows it`
-  return caseIssue(property, node) ?? paintModeIssue(property, node)
+  return glyphIssue(property, node) ?? paintModeIssue(property, node)
 }
 
 /**

@@ -15,7 +15,7 @@ importers:
 packages:
 
   '@sophia/dsh-bundle@file:sophia-dsh-bundle-0.1.0.tgz':
-    resolution: {integrity: sha512-PFEO1EX73JYJZHD2TBR+Ioj2PB+B8nI2hYtNDpnb7S3kABky6ATABY5Q2At1e09M6SASVyg5tvFHANRcTfIqew==, tarball: file:sophia-dsh-bundle-0.1.0.tgz}
+    resolution: {integrity: sha512-Og63QSbd4cVYWqbdemrFRNvpB9YB5KQXbozpLs0zDYK2I6Xa4l68YIdNrgzX00git2APvFiarOnAy4B+Ii3KPw==, tarball: file:sophia-dsh-bundle-0.1.0.tgz}
     version: 0.1.0
     peerDependencies:
       '@deepseek-ai/cordis': 4.0.4

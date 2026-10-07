@@ -1007,6 +1007,25 @@ describe('a tooltip or an accessible name carries no text the page does not show
     ] as const)
       assert.deepEqual(scripted(from, to), [], to)
   })
+  // #117 (4201816879): a table block holds its cells only: a caption or a heading in it adds a claim no cell gives.
+  it('refuses text in a table block beyond its cells, and keeps a wrapper or an empty caption that adds none', () => {
+    const page = html(good)
+    const id = /<table data-block="([^"]+)">/u.exec(page)?.[1] ?? ''
+    const open = `<table data-block="${id}">`
+    const wrapped = (inside: string) =>
+      page.replace(open, `<div data-block="${id}">${inside}<table>`).replace('</table>', '</table></div>')
+    for (const next of [
+      page.replace(open, `${open}<caption>Free</caption>`),
+      wrapped('<h2>Free</h2>'),
+      wrapped('<p>Every host is free.</p>'),
+    ])
+      assert.ok(
+        codes(withHtml(good, next)).includes('block_altered'),
+        next.slice(page.indexOf('<table') - 40, page.indexOf('<table') + 120),
+      )
+    for (const next of [wrapped(''), page.replace(open, `${open}<caption> </caption>`)])
+      assert.deepEqual(codes(withHtml(good, next)), [])
+  })
   // #117: a bidi override draws a text's characters in another order than the one every check reads.
   it('refuses a bidi override in markup, in CSS and as a character, and keeps directions and isolation', () => {
     const page = html(good)
@@ -1544,6 +1563,44 @@ describe('a pseudo-element styles only generated content (#117)', () => {
       'p{font-feature-settings:"liga" 0, "kern" 1}',
       ':root{--accent:#334} p{color:var(--accent)}',
       'h2{letter-spacing:.02em}',
+    ])
+      assert.deepEqual(css(ok), [], ok)
+  })
+  // #117 (4201831083): a font's positional glyphs draw "102" as 10² on the baseline, at the text's size.
+  it('refuses superscript, subscript, ordinal and fraction glyphs in every form, and keeps other figure styles', () => {
+    for (const bad of [
+      'p{font-variant-position:super}',
+      'p{font-variant-position:sub}',
+      'p{FONT-VARIANT-POSITION:SUPER}',
+      'p{font-variant-position:var(--p)}',
+      'p{font-variant:super}',
+      'p{font-variant:tabular-nums ordinal}',
+      'p{font-variant-numeric:ordinal}',
+      'p{font-variant-numeric:diagonal-fractions}',
+      'p{font-variant-numeric:stacked-fractions lining-nums}',
+      'p{font-feature-settings:"sups"}',
+      'p{font-feature-settings:"liga" 1, "subs" 1}',
+      "p{font-feature-settings:'sinf' on}",
+      'p{-webkit-font-feature-settings:"ordn"}',
+      'p{font-feature-settings:"frac"}',
+      'p{font-feature-settings:"numr", "dnom"}',
+      ':root{--v:super} p{font-variant:var(--v)}',
+      ':root{--f:"sups"} p{font-feature-settings:var(--f)}',
+      '@media (min-width: 720px){p{font-variant-position:super}}',
+    ])
+      assert.deepEqual([...new Set(css(bad))], ['css_unsafe'], bad)
+    for (const style of ['font-variant-position:super', "font-feature-settings:'sups'", '--n:ordinal']) {
+      const inline = html(good).replace('<p data-block="b1">', `<p data-block="b1" style="${style}">`)
+      assert.deepEqual(codes(withHtml(good, inline)), ['css_unsafe'], style)
+    }
+    for (const ok of [
+      'p{font-variant-position:normal}',
+      'p{font-variant-position:inherit}',
+      'p{font-variant-numeric:tabular-nums lining-nums slashed-zero}',
+      'p{font-variant-numeric:oldstyle-nums proportional-nums}',
+      'p{font-variant:normal}',
+      'p{font-feature-settings:"tnum", "lnum" 1}',
+      'p{font-feature-settings:normal}',
     ])
       assert.deepEqual(css(ok), [], ok)
   })

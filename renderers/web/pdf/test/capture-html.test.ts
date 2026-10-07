@@ -1845,6 +1845,19 @@ describe('the confined capture kernel', () => {
           '.o18 span{display:inline-block;transform:translateY(-.4em)}',
           '<p data-block="o18" class="o18">It costs 1<span>.</span>2 USD.</p>',
         ],
+        // The review of c6e9e81 (4201816898): a cell's own text drawn out of its order, or a figure raised in it.
+        [
+          'o19',
+          '.o19 .f{display:flex} .o19 .f span:first-child{order:2;margin-left:.3em}',
+          '<table data-block="o19" class="o19"><thead><tr><th>Plan</th><th>Price</th></tr></thead>' +
+            '<tbody><tr><td><div class="f"><span>Not</span> <span>free</span></div></td><td>$10</td></tr></tbody></table>',
+        ],
+        [
+          'o20',
+          '.o20 td span{vertical-align:super;font-size:.75em}',
+          '<table data-block="o20" class="o20"><thead><tr><th>Plan</th><th>Price</th></tr></thead>' +
+            '<tbody><tr><td>Basic</td><td>10<span>2</span> USD</td></tr></tbody></table>',
+        ],
         // The security review of 014b03f (4201488127): frozen "12 - 34" set right to left is drawn "34 - 12".
         ['o14', '', '<p data-block="o14" dir="rtl">12 - 34</p>'],
         ['o15', '.o15{direction:rtl}', '<p data-block="o15" class="o15">12 - 34</p>'],
@@ -1906,14 +1919,14 @@ describe('the confined capture kernel', () => {
         const detail = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === t)?.detail
         assert.equal(
           detail,
-          `${RUN_TOGETHER}o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11, o12, o13, o18, o14, o15, o16, o17`,
+          `${RUN_TOGETHER}o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11, o12, o13, o18, o19, o20, o14, o15, o16, o17`,
           t,
         )
       }
       const sweep = String(receipt.checks.find((c) => c.name === 'widths_visible')?.detail)
       assert.ok(
         sweep.startsWith(
-          `at 320px: ${RUN_TOGETHER}o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11, o12, o13, o18, o14, o15, o16, o17;`,
+          `at 320px: ${RUN_TOGETHER}o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11, o12, o13, o18, o19, o20, o14, o15, o16, o17;`,
         ),
         sweep,
       )
