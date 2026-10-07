@@ -2004,10 +2004,17 @@ button.contribution-quote:hover {
   .dock :is(.floor, .sophia-controls) {
     position: static;
   }
-  /* Pressed and held, a control says what it does (there is no hover to wait for). */
-  .dock button:active > .tip {
+  /* Pressed and held, a control says what it does (there is no hover to wait for); from the keyboard, or under a
+     pointer that hovers (a narrow window), it says so as on a computer. */
+  .dock button:is(:active, :focus-visible) > .tip {
     display: inline-flex;
     opacity: 1;
+  }
+  @media (hover: hover) {
+    .dock button:hover > .tip {
+      display: inline-flex;
+      opacity: 1;
+    }
   }
   .dock .dock-word {
     position: absolute;

@@ -978,6 +978,20 @@ test('HTML · leaving while the page is designed and coming back shows the recor
   await expect(page.locator('.work-card')).not.toContainText('Designing')
 })
 
+test('demo · an explicit design=designing is the state shown, over the demo’s published page', async ({ page }) => {
+  await enter(page, '/room.html?demo=1&place=work&design=designing')
+  await expect(page.locator('.work-card .output-row[data-design="designing"]')).toContainText('HTML page · Designing')
+  await expect(page.getByRole('button', { name: /HTML page/ })).toHaveCount(0)
+})
+
+test('demo · both versions are published by default: the report opens on v2, its history holds v1', async ({
+  page,
+}) => {
+  await enter(page, `/room.html?demo=1&report=${REPORT}`)
+  await expect(pane(page)).toContainText('v2')
+  await expect(pane(page).getByRole('tab', { name: /History 2/ })).toBeVisible()
+})
+
 test('HTML · a Knowledge card opens its current version’s designed page; a card without one offers none', async ({
   page,
 }) => {
