@@ -76,3 +76,12 @@ test('demo · the first page is a library: two full rows of tiles, two of them w
   await expect(page.locator('.report-card')).toHaveCount(7) // the pilot's plan
   await expect(page.locator('.report-cover[data-cover="mark"]')).toHaveCount(0) // every cover read and matched
 })
+
+test('demo · a library report opens from its tile, its sources read', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=knowledge')
+  await page.getByRole('button', { name: 'Setup checklist: five steps, one owner', exact: true }).click()
+  const pane = page.getByRole('complementary', { name: 'Setup checklist: five steps, one owner' })
+  await expect(pane.getByText(/one person who answers setup questions/)).toBeVisible()
+  await pane.getByRole('tab', { name: /Sources/ }).click()
+  await expect(pane.getByText('This version cites no source you can read.')).toBeVisible()
+})

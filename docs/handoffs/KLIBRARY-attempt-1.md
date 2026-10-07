@@ -4,7 +4,7 @@ Goal and attempt: Knowledge as a library, each report a tile with its cover (`do
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `knowledge/library` on `demo/video-data` (#151) `700d624`, 2026-10-07 (#151's later commits merged in since)
-Ending commit/tree: the final implementation is commit `7dfbab4b9c7a023630dca7cfd3615c2b48e14696` (tree `dab5f448adb4238777785b96106750ea47dd5ccf`), after `4c2da6f`. Against `demo/video-data` it changes `apps/studio/src/features/artifacts/` (`KnowledgeReports.tsx`, `SummaryEditor.tsx`, `artifacts.css`, and the new `ReportCover.tsx`, `report-cover.ts`, `report-cover.test.ts`), `apps/studio/fixtures/` (`report-data.ts`, `fixture-api.ts`, `demo-page.ts`), the new `apps/studio/e2e/knowledge-library.spec.ts` and `docs/plans/knowledge-library.md`. The commit after it adds only this handoff.
+Ending commit/tree: the final implementation is commit `68dadea81b9c2003035b23d6b3a7b4cf50de37c5` (tree `cc2835cd15a0570e73a3421d0f89fe3ce3dfec11`), after `7dfbab4`, `4c2da6f` and a merge of `main` (#151's squash). Against `main` it changes `apps/studio/src/features/artifacts/` (`KnowledgeReports.tsx`, `SummaryEditor.tsx`, `artifacts.css`, and the new `ReportCover.tsx`, `report-cover.ts`, `report-cover.test.ts`), `apps/studio/fixtures/` (`report-data.ts`, `fixture-api.ts`, `demo-page.ts`), the new `apps/studio/e2e/knowledge-library.spec.ts` and `docs/plans/knowledge-library.md`. The commit after it changes only this file.
 
 ## Outcome
 
@@ -52,6 +52,11 @@ Ending commit/tree: the final implementation is commit `7dfbab4b9c7a023630dca7cf
 - **Independent review** (a separate agent, read-only, before the review round): no P1, one P2 and six P3s.
   - **Fixed:** the P2 (links inside the frame could take the focus outside Chromium: now `inert`). Also the P3s on the re-read, the comment's claim about the cache, the Markdown cases, the CSS leftovers, the design note's meta size and the unit test's timezone.
   - **Left:** see below.
+- **Codex on #152 (two P2s), fixed:**
+  - A cover's versions were read again whenever the window came back, for every tile ever shown. They are now read once. A new check counts the versions reads after the window comes back: 2 before, 0 after.
+  - With the versions already cached (the viewer's), an off-screen tile read its page or text. Both reads now wait for the tile's reach. No check covers this: the fixture's tiles all sit within reach.
+  - Found on the way: opening the older report asked for its sources, which the fixture didn't serve. A new check opens it; it now reads an empty list.
+  - `knowledge-library` and the Knowledge checks of `report`: 19 of 19.
 - **Gates:** `tsc --noEmit`, `oxlint --type-aware` (sizes and complexity), Prettier.
 
 **Source-register IDs consulted:** none.
