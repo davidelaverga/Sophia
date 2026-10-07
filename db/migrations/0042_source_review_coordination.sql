@@ -155,8 +155,12 @@ CREATE TABLE sophia.work_commissions (
 
 -- Deliveries to the Paperclip plugin: the commission and the controls mirrored from the work's execution goal.
 -- delivery_key is the plugin's idempotency key; a lost reply leaves outcome_unknown, which the worker reconciles.
+-- seq orders a work item's deliveries as they were written. Each is written under its commission's lock (work_mirror;
+-- the commission itself with the work), so a later control has a larger seq even when its transaction began first.
+-- created_at is a transaction's start, and orders nothing (Codex on #107).
 CREATE TABLE sophia.coordination_outbox (
- project_id uuid NOT NULL, id uuid NOT NULL DEFAULT gen_random_uuid(), work_id uuid NOT NULL,
+ project_id uuid NOT NULL, id uuid NOT NULL DEFAULT gen_random_uuid(), seq bigint GENERATED ALWAYS AS IDENTITY,
+ work_id uuid NOT NULL,
  op text NOT NULL CHECK(op IN ('commission','hold','resume','stop','complete','fail')),
  delivery_key text NOT NULL CHECK(delivery_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$'),
  state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','delivering','delivered','outcome_unknown','failed','superseded')),
@@ -168,7 +172,7 @@ CREATE TABLE sophia.coordination_outbox (
  PRIMARY KEY(project_id,id), UNIQUE(project_id,delivery_key),
  FOREIGN KEY(project_id,work_id) REFERENCES sophia.work_items(project_id,id)
 );
-CREATE INDEX coordination_outbox_due ON sophia.coordination_outbox(available_at,created_at) WHERE state IN ('pending','outcome_unknown');
+CREATE INDEX coordination_outbox_due ON sophia.coordination_outbox(available_at,seq) WHERE state IN ('pending','outcome_unknown');
 
 -- One Paperclip run's effect permit and what it led to: a new attempt (start), an existing one (attach), or nothing.
 CREATE TABLE sophia.work_runs (
@@ -1172,8 +1176,8 @@ END $$;
 -- --- the worker's deliveries to the plugin ----------------------------------------------------------------------------
 
 -- Claim due deliveries, oldest first: a work item's commission before its controls, a control only once its issue
--- exists, and nothing of a work item while an earlier delivery of it is still unsettled. Each row carries what the
--- worker signs and sends; an outcome_unknown row is claimed to be reconciled.
+-- exists, and nothing of a work item while an earlier delivery of it (by seq) is still unsettled. Each row carries
+-- what the worker signs and sends; an outcome_unknown row is claimed to be reconciled.
 CREATE FUNCTION sophia.claim_coordination_outbox(p_worker text, p_limit integer, p_lease_secs integer) RETURNS SETOF jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE o sophia.coordination_outbox; cm sophia.work_commissions; w sophia.work_items; g sophia.goals; p sophia.work_plans;
@@ -1184,8 +1188,8 @@ BEGIN
    WHERE x.state IN ('pending','outcome_unknown') AND x.available_at<=now()
     AND (x.op='commission' OR c.state='created')
     AND NOT EXISTS(SELECT 1 FROM sophia.coordination_outbox e WHERE e.project_id=x.project_id AND e.work_id=x.work_id
-     AND e.created_at<x.created_at AND e.state IN ('pending','delivering','outcome_unknown'))
-   ORDER BY x.available_at, x.created_at LIMIT p_limit FOR UPDATE OF x SKIP LOCKED LOOP
+     AND e.seq<x.seq AND e.state IN ('pending','delivering','outcome_unknown'))
+   ORDER BY x.available_at, x.seq LIMIT p_limit FOR UPDATE OF x SKIP LOCKED LOOP
   token:=gen_random_uuid(); reconcile:=o.state='outcome_unknown';
   UPDATE sophia.coordination_outbox SET state='delivering', lease_owner=left(p_worker,100), lease_token=token,
    lease_until=now()+make_interval(secs=>p_lease_secs), attempts=attempts+1, updated_at=now()

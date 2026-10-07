@@ -876,6 +876,94 @@ describe('control', () => {
     )
   })
 
+  // Codex on #107 (r4206869533): a delivery's created_at is its transaction's start. A Stop whose transaction began
+  // before a Hold's, and committed after it, was stamped earlier than the Hold; while the Hold was in flight, a second
+  // worker sent the Stop alongside it, and the Hold reaching the plugin last undid the Stop.
+  it('a control whose transaction began before the one it follows is sent after it, never alongside it', async () => {
+    const w = await world()
+    const proposal = await accepted(w)
+    await deliver(w)
+    const issue = issueOf(w)
+    const passWith = (f: typeof fetch) =>
+      coordinateOnce(worker, {
+        workerId: 'test-coordinator',
+        client: httpPaperclipClient({ origin: 'http://paperclip.test', token: 'board-api-key', fetch: f }),
+        signingKey: signing.privateKey,
+      })
+    const ours = async (pass: Awaited<ReturnType<typeof deliver>>) => {
+      const ids = new Set(
+        await asOwner(async (o) =>
+          (
+            await o.query<{ id: string }>(`SELECT id::text AS id FROM sophia.coordination_outbox WHERE project_id=$1`, [
+              w.projectId,
+            ])
+          ).rows.map((r) => r.id),
+        ),
+      )
+      return pass.outcomes.filter((o) => ids.has(o.id)).map((o) => [o.op, o.outcome])
+    }
+
+    // The Hold is sent, and held at the plugin's door until released.
+    let atHost!: () => void
+    const arrived = new Promise<void>((resolve) => (atHost = resolve))
+    let release!: () => void
+    const released = new Promise<void>((resolve) => (release = resolve))
+    const plugin = pluginFetch(w.paperclip)
+    const gated: typeof fetch = async (input, init) => {
+      const body: ResponseBody = JSON.parse(typeof init?.body === 'string' ? init.body : 'null')
+      if (body?.control?.op === 'hold' && body.control.workId === proposal.workId) {
+        atHost()
+        await released
+      }
+      return plugin(input, init)
+    }
+
+    const early = new pg.Client({ connectionString: db.ownerUrl })
+    await early.connect()
+    let first: ReturnType<typeof passWith> | null = null
+    try {
+      await early.query('BEGIN')
+      await early.query('SELECT now()')
+      const hold = await command(w, proposal, 'hold', null)
+      assert.equal(hold.status, 202, JSON.stringify(hold.json))
+      first = passWith(gated)
+      await Promise.race([arrived, first.then(() => assert.fail('the pass ended without sending the Hold'))])
+
+      // The Stop's transaction, begun before the Hold's, writes and commits now.
+      await early.query(
+        `SELECT sophia.work_control($1, w, 'stop', sophia.integration_actor(), 'early-stop', 'studio')
+           FROM sophia.work_items w WHERE w.project_id=$1 AND w.id=$2`,
+        [w.projectId, proposal.workId],
+      )
+      await early.query('COMMIT')
+      const stamped = await asOwner(
+        async (o) =>
+          (
+            await o.query<{ earlier: boolean; after: boolean }>(
+              `SELECT s.created_at<h.created_at AS earlier, s.seq>h.seq AS after
+                 FROM sophia.coordination_outbox s JOIN sophia.coordination_outbox h ON h.project_id=s.project_id
+                  AND h.work_id=s.work_id AND h.op='hold'
+                WHERE s.project_id=$1 AND s.op='stop'`,
+              [w.projectId],
+            )
+          ).rows[0],
+      )
+      assert.deepEqual(stamped, { earlier: true, after: true }, 'stamped before the Hold, written after it')
+
+      // A second worker passes while the Hold is in flight: the Stop waits for it.
+      assert.deepEqual(await ours(await passWith(pluginFetch(w.paperclip))), [])
+      release()
+      assert.deepEqual(await ours(await first), [['hold', 'delivered']])
+      assert.equal(w.paperclip.issues.get(issue.id)?.status, 'blocked')
+      assert.deepEqual(await ours(await passWith(pluginFetch(w.paperclip))), [['stop', 'delivered']])
+      assert.equal(w.paperclip.issues.get(issue.id)?.status, 'cancelled', 'the Stop, sent last, stands')
+    } finally {
+      release()
+      await first?.catch(() => undefined)
+      await early.end()
+    }
+  })
+
   it('a cancelled Paperclip run holds the work and says held only once Sophia settled it', async () => {
     const w = await world()
     await accepted(w)

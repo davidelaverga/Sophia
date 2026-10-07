@@ -4,7 +4,7 @@ Goal and attempt: WBC-02 (SCM-01), the combined integration of #107 with the acc
 Human owner / executor resource: Davide (decisions); Codex (coordination, independent review, two pushes, local checks); Claude Code in a cloud container (linux-x64), the only tracked-source writer
 Native session: this Claude Code session (https://claude.ai/code/session_0155SjcXhv87RErnWEBWxfBM); no Sophia native session was created
 Starting worktree/commit: the held #107 branch `scm-01/workboard-source-review` at `29371f5a3703f4358563886407bc360df7c38603`, in a fresh worktree with no ignored build outputs
-Ending commit/tree: «WBC-02 #107: a start permit not yet used is decided again», this commit, on «WBC-02 #107: the end of a source and the size limit, in their controls» (`7d9c940993478f45f411ffa8ace32e25d70aced4`, tree `8f1f02c11ea477be9d93e3bd60e7f2e211bf9574`), itself on the content commit «WBC-02 #107: an empty page proves no read; Review sources keeps to the size limit» (`d165c6520c9b229e52724f73096619ff14f6a911`, tree `3f6c0bf7634a0c2496569d4ba0acd3c8f2c51802`) and its handoff `7ae5a177`. Before them: the bundle records `d0eba67a`; the receipt, principal and CI fixes `8241e9d0`; the wakeup fix `e93b0c51`; the first fix `df183a5f`; each with its handoff commit. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
+Ending commit/tree: «WBC-02 #107: a work item's deliveries in the order they were written», this commit, on «WBC-02 #107: a start permit not yet used is decided again» (`2e618a07c177a09d3f51c0768e28359c0cef59d5`, tree `1abb716ad06fe2ff78b33af51b3c116814f7a38c`), on «WBC-02 #107: the end of a source and the size limit, in their controls» (`7d9c940993478f45f411ffa8ace32e25d70aced4`, tree `8f1f02c11ea477be9d93e3bd60e7f2e211bf9574`), itself on the content commit «WBC-02 #107: an empty page proves no read; Review sources keeps to the size limit» (`d165c6520c9b229e52724f73096619ff14f6a911`, tree `3f6c0bf7634a0c2496569d4ba0acd3c8f2c51802`) and its handoff `7ae5a177`. Before them: the bundle records `d0eba67a`; the receipt, principal and CI fixes `8241e9d0`; the wakeup fix `e93b0c51`; the first fix `df183a5f`; each with its handoff commit. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
 
 | Commit | Tree | Merges | Changes beyond its parents |
 | --- | --- | --- | --- |
@@ -88,13 +88,17 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 **Codex's review of `7ae5a177`** (review 5442052835) found one more; Codex verified finding 8 fixed on that head (r4206671036) and reproduced this one over real HTTP and PostgreSQL (r4206740161):
 
-10. **A start permit not yet used is decided again** (r4206690881, P1, this commit; handback 6037677126). A run that paused for more than five minutes between its permit and its start was answered the same expired permit for every retry, and every start was refused 409 «ask for a permit again», so the accepted review could not start through that run. `coordination_permit` now answers a run that started, attached or ended as recorded, with its attempt (and its native session, as the first answer had it). An unused start permit is decided again, under the same lock and the same checks as a new run's:
+10. **A start permit not yet used is decided again** (r4206690881, P1, fixed in `2e618a07`; handback 6037677126). A run that paused for more than five minutes between its permit and its start was answered the same expired permit for every retry, and every start was refused 409 «ask for a permit again», so the accepted review could not start through that run. `coordination_permit` now answers a run that started, attached or ended as recorded, with its attempt (and its native session, as the first answer had it). An unused start permit is decided again, under the same lock and the same checks as a new run's:
     - the enrollment, the plan, Hold, Stop and completion, the work's own ending, every input still readable (`work_denial`);
     - the assignment and its generation, which must still be the run's;
     - the work's attempts: another run's live or uncertain attempt is attached to, never duplicated; an attempt that ended starts nothing (`attempt_ended`);
     - a runtime that carries the reviewer, and the allowance.
 
     Still startable, the permit is kept as it is while valid and renewed for five minutes once expired; nothing is extended without this decision. Denied, the run's record is left as it was, so a later ask decides again. Only the run's own credential may ask: another credential of the same company is refused, as a revoked one is. `coordination_start` gives a run that started its own attempt even after the run ended, and starts nothing for a run that ended without one.
+
+**Codex's review of `7d9c9409`** (review 5442265537) found one more; Codex verified finding 9 fixed on that head (r4206833190):
+
+11. **A work item's deliveries go in the order they were written** (r4206869533, P1, this commit). `claim_coordination_outbox` held back a delivery while an earlier one of its work item was unsettled, but "earlier" was `created_at`, which is a transaction's start. A Stop whose transaction began before a Hold's, and wrote after it, was stamped before the Hold. While the Hold was in flight, a second worker could send the Stop alongside it, and the Hold reaching the plugin last took the larger plugin sequence and undid the Stop. `coordination_outbox` now has `seq` (an identity), and the claim compares and orders by it. Every row is written under its commission's lock (`work_mirror`; the commission itself with the work), so a later control always has the larger `seq`.
 
 ## Evidence
 
@@ -148,7 +152,7 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
   - deselected, the selection is back within the limit.
 - Run here: the whole `work.spec.ts` locally, 162 of 162 (desktop and phone; the container's Chromium through a local-only config). A mutant restoring the old check (Propose review on with any choice) fails it at `toBeDisabled`. The handler's own guard can't be told apart in a browser, since a disabled default button submits nothing. Also `prettier`, `oxlint`, the typechecks, and Studio's units 919 of 919. The `.db` controls run in CI.
 
-**Codex's handback 6037677126, in this commit:**
+**Codex's handback 6037677126, in `2e618a07`:**
 - `coordination.db.test.ts`, «a start permit asked for again before it was used», four controls. Each ages only the run's durable expiry, as Codex's reproduction does:
   - **Renewed and started once.** Expired, the start is refused and nothing starts. Two asks at once give one renewal and the same answer. A third keeps the valid permit unextended. Two starts at once give one attempt; one says it started. The started run is answered with its attempt and native session. After the run's final observation, a start still answers its own attempt.
   - **Denied, effect-free, recovered.** Held (a Hold before any attempt, settled), the allowance spent, no runtime carrying the reviewer: each is denied with its code. The run's record is unchanged, the start still refused, no attempt made. After Resume and with the allowance and runtime back, the permit is renewed and starts one attempt.
@@ -156,6 +160,14 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
   - **Competing runs.** One run starts. An expired run asked again attaches to that exact attempt and session, and answers the same when asked again; its start is refused as an attach. A still-valid permit that lost the race is told by start to ask again, and asking again attaches it. Once that attempt has ended, with the work neither held, stopped nor finished, a third expired run is denied `attempt_ended`, its record unchanged and still one attempt.
 - Run here: `prettier --check`, `oxlint --type-aware` and `tsc` on the touched files; the adapter's units 28 of 28 (its comment only changes). Not run here: the four `.db` controls, since there is no PostgreSQL in this container. CI's `test:db` runs them. The contract, the bundle and the recorded artifact bytes are unchanged.
 - The form and browser coverage of 6037532214 are in `7d9c9409`, unchanged here, as are the EOF and paging controls.
+
+**Finding 11, in this commit:** `coordination.db.test.ts`, «a control whose transaction began before the one it follows is sent after it, never alongside it». A transaction begins and fixes its start. A Hold is then made through the API, and a worker's pass sends it, held at the plugin's door. The early transaction now Stops the work (`work_control`, so the goal's mirror writes the row) and commits. The control asserts:
+- the Stop is stamped before the Hold, and its `seq` is after it;
+- a second worker's pass sends nothing of the work while the Hold is in flight;
+- released, the Hold is delivered (`blocked`);
+- the next pass delivers the Stop, and the issue ends `cancelled`.
+
+With the claim on `created_at`, the second pass sends the Stop. Run here: `prettier`, `oxlint --type-aware` and `tsc` on the touched files. The control itself did not run here (no PostgreSQL); CI's `test:db` runs it.
 
 **Source-register IDs consulted:** none.
 
