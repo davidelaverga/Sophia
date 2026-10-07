@@ -466,7 +466,7 @@ function ProjectBody(props: BodyProps) {
   return withViewer(
     <>
       {lobby}
-      <main className={pageClass(work, props.plans)}>
+      <main className={pageClass(work, props.plans, view === 'conversations' && VISION)}>
         {resources ?? <PageBody {...props} />}
         {work && pulse}
       </main>
@@ -536,7 +536,9 @@ function WithViewer({ projectId, identity, view, room, panel, looking, snapshot,
 }
 
 /** Tasks beside its pulse; with a plan, Tasks takes the page's width and its pulse goes under. */
-function pageClass(work: boolean, plans: BodyProps['plans']): string {
+function pageClass(work: boolean, plans: BodyProps['plans'], panes = false): string {
+  // Conversations fill the window under the bar, in panes that scroll on their own (docs/plans/conversations-panes.md).
+  if (panes) return 'page panes'
   if (!work) return 'page'
   return Object.keys(plans ?? {}).length > 0 ? 'page planned' : 'page split'
 }
