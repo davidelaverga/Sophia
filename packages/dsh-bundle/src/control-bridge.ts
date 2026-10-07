@@ -44,7 +44,7 @@ import { FINALIZE_NOTICE, FINALIZE_TOOL_NAMES, researchTools, type ResearchSourc
 import { loadDesignAssets, type AssetsOutcome, type LoadedAssets } from './design-assets.js'
 import { designTools, type ImageStore } from './design-tools.js'
 import { REVIEW_PROMPT } from './review-prompt.js'
-import { reviewTools } from './review-tools.js'
+import { reviewAccounts, reviewTools } from './review-tools.js'
 import { DESIGN_ROLES, roleOf } from './role-registry.js'
 import type { DesignRole, RolePreset } from './role-registry.js'
 import { foldLog, Journal, strongestFence } from './session-events.js'
@@ -477,15 +477,17 @@ export class ControlBridge {
       this.journal.append(attempt.sessionId, 'sophia/spend-overrun', { ...who, reservationId, reservedUsd, costUsd })
     const finalize = () => this.enterFinalize(attempt, options.sessionId)
     // A source review (WBC-02) meters through its own operations, under its work's allowance and its eight-request
-    // cap, and has no finalize step: a refused reservation refuses the call, and the model is told why.
+    // cap, and has no finalize step: a refused reservation refuses the call, and the model is told why. Each of its
+    // reservations and settlements waits a bounded time and is sent again under the same id (Codex on #107).
     const review = attempt.role?.taskKind === 'source_review'
     const accounts = review
-      ? { reserve: transport.sourceReviewReserve.bind(transport), settle: transport.sourceReviewSettle.bind(transport), what: 'review' }
+      ? { ...reviewAccounts(transport), what: 'review' }
       : { reserve: transport.researchReserve.bind(transport), settle: transport.researchSettle.bind(transport), what: 'research' }
     return (async function* () {
       let reservationId: string
       const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
       // No abort signal: a reservation the service made must come back to be settled, never be orphaned by a cancel.
+      // A review's waits for its deadline only, and is sent again under the same callId.
       const reserve = (purpose: 'call' | 'partial_result') =>
         accounts.reserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose })
       try {

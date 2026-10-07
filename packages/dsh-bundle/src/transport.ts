@@ -317,16 +317,19 @@ export class ServiceTransport {
     return checked('review context', wire.SourceReviewContextReply, await this.request('POST', '/v1/runtime/source-review/context', body, signal))
   }
 
-  /** Never takes a signal, as researchReserve. */
-  async sourceReviewReserve(body: ResearchReserveRequest): Promise<ResearchReservation> {
+  /**
+   * `signal` ends the wait for an answer (its deadline): the bridge then sends the same reservation (same callId) again,
+   * and the service answers it with the reservation it made (Codex on #107).
+   */
+  async sourceReviewReserve(body: ResearchReserveRequest, signal?: AbortSignal): Promise<ResearchReservation> {
     checked('review reservation request', wire.ResearchReserveRequest, body)
-    return checked('review reservation', wire.ResearchReservation, await this.request('POST', '/v1/runtime/source-review/reserve', body))
+    return checked('review reservation', wire.ResearchReservation, await this.request('POST', '/v1/runtime/source-review/reserve', body, signal))
   }
 
-  /** Never takes a signal, as researchSettle. */
-  async sourceReviewSettle(body: ResearchSettleRequest): Promise<ResearchSettlement> {
+  /** `signal` ends the wait for an answer, as sourceReviewReserve's: the same settlement (same reservationId) is sent again. */
+  async sourceReviewSettle(body: ResearchSettleRequest, signal?: AbortSignal): Promise<ResearchSettlement> {
     checked('review settlement request', wire.ResearchSettleRequest, body)
-    return checked('review settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/source-review/settle', body))
+    return checked('review settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/source-review/settle', body, signal))
   }
 
   /**

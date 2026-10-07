@@ -21,7 +21,7 @@ import { callKeyOf, type ResearchSession } from './research-tools.js'
 import { envelope } from './source-containment.js'
 import { TransportError } from './transport.js'
 import type { ServiceTransport } from './transport.js'
-import type { SourceReviewFinding, SourceReviewSubmitRequest } from './runtime-wire-types.generated.js'
+import type { ResearchReserveRequest, ResearchSettleRequest, SourceReviewFinding, SourceReviewSubmitRequest } from './runtime-wire-types.generated.js'
 
 /** The service operations the tools use (the bridge's transport). */
 export type ReviewClient = Pick<ServiceTransport, 'sourceReviewContext' | 'sourceReviewSubmit'>
@@ -31,12 +31,15 @@ export interface ReviewToolDeps {
   /** The review attempt that owns the calling agent, or null outside one. */
   readonly sessionOf: (exec: ToolRunContext) => ResearchSession | null
   readonly log: (line: string) => void
-  /** How a submit or a blocker is sent until its outcome is known (default: REVIEW_SUBMIT_PATIENCE). */
+  /** How a submit or a blocker is sent until its outcome is known (default: REVIEW_PATIENCE). */
   readonly patience?: Patience
 }
 
-/** A submit or a blocker is sent up to four times within 60 s, as the design tools' submit (SUBMIT_PATIENCE). */
-export const REVIEW_SUBMIT_PATIENCE: Patience = { tries: 4, pauseMs: 1_000, maxMs: 60_000 }
+/**
+ * A submit or a blocker, and a model call's reservation or settlement, is sent up to four times within 60 s, as the
+ * design tools' submit (SUBMIT_PATIENCE).
+ */
+export const REVIEW_PATIENCE: Patience = { tries: 4, pauseMs: 1_000, maxMs: 60_000 }
 
 /** A JSON value as the tool output schema declares it. */
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json }
@@ -110,6 +113,30 @@ async function untilAnswered<T>(send: (signal: AbortSignal) => Promise<T>, patie
   }
 }
 
+/** The service operations the bridge meters a review's model calls through. */
+export type ReviewAccountsClient = Pick<ServiceTransport, 'sourceReviewReserve' | 'sourceReviewSettle'>
+
+/**
+ * A review's model-call accounting, as the bridge meters it (Codex on #107): each reservation and settlement request
+ * has a deadline, and one whose answer is lost is sent again with the same body, the same callId or reservationId, so
+ * the service answers it with the reservation it made or the settlement it recorded. A refusal is thrown at once, and
+ * an answer still unknown after `patience` is thrown as unknown: the bridge then refuses the model call, or leaves the
+ * settlement to the service, which counts a reservation never settled against the allowance until the turn ends.
+ */
+export function reviewAccounts(client: ReviewAccountsClient, patience: Patience = REVIEW_PATIENCE) {
+  const never = new AbortController().signal
+  const answered = async <T>(what: string, send: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+    const sent = await untilAnswered(send, patience, never)
+    if (typeof sent === 'string') throw new TransportError(`no answer to the ${what} within ${String(patience.maxMs)} ms; its outcome is unknown`)
+    if ('error' in sent) throw sent.error
+    return sent.value
+  }
+  return {
+    reserve: (body: ResearchReserveRequest) => answered('reservation', (signal) => client.sourceReviewReserve(body, signal)),
+    settle: (body: ResearchSettleRequest) => answered('settlement', (signal) => client.sourceReviewSettle(body, signal)),
+  }
+}
+
 /** A submit or a blocker, sent until its outcome is known; a refusal becomes one sentence for the model. */
 async function submitted(client: ReviewClient, body: SourceReviewSubmitRequest, patience: Patience, stop: AbortSignal, note: string): Promise<Json> {
   const sent = await untilAnswered((signal) => client.sourceReviewSubmit(body, signal), patience, stop)
@@ -126,7 +153,7 @@ const VERDICTS = ['supported', 'changes_required', 'insufficient_evidence'] as c
 const STATUSES = ['supported', 'contradicted', 'not_established'] as const
 
 export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
-  const patience = deps.patience ?? REVIEW_SUBMIT_PATIENCE
+  const patience = deps.patience ?? REVIEW_PATIENCE
   const sessionOf = (exec: ToolRunContext): ResearchSession => {
     const session = deps.sessionOf(exec)
     if (!session) throw new Error('This tool runs only inside a Sophia source review.')

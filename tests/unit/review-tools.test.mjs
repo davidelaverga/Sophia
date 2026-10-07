@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { REVIEW_TOOL_NAMES, reviewTools } from '../../packages/dsh-bundle/dist/review-tools.js'
+import { REVIEW_TOOL_NAMES, reviewAccounts, reviewTools } from '../../packages/dsh-bundle/dist/review-tools.js'
 import { TransportError } from '../../packages/dsh-bundle/dist/transport.js'
 
 const SESSION = { attemptId: '11111111-1111-4111-8111-111111111111', nativeSessionId: 'sophia-11111111-1111-4111-8111-111111111111' }
@@ -213,4 +213,55 @@ test('a blocker whose answer is lost is sent again under the same callId', async
   assert.deepEqual([out.outcome, out.replayed], ['blocked', true])
   assert.equal(service.calls.length, 2)
   assert.deepEqual(service.calls[1][1], service.calls[0][1])
+})
+
+/** The bridge's accounting client, its calls recorded with the signal each was given. */
+function fakeAccounts({ reserve, settle }) {
+  const calls = []
+  return {
+    calls,
+    client: {
+      async sourceReviewReserve(body, signal) { calls.push(['reserve', body, signal]); return reserve(body, signal) },
+      async sourceReviewSettle(body, signal) { calls.push(['settle', body, signal]); return settle(body, signal) },
+    },
+  }
+}
+
+const RESERVE = { ...SESSION, callId: 'llm-1', kind: 'model', provider: 'openai-review', amountUsd: 0.01, purpose: 'call' }
+const RESERVATION = { reservationId: '33333333-3333-4333-8333-333333333333', state: 'reserved', kind: 'model', purpose: 'call', amountUsd: 0.01, target: null }
+
+test("a model call's reservation and settlement whose answers are lost are sent again under the same ids (Codex on #107)", async () => {
+  let reserveLost = 2
+  let settleLost = 1
+  const service = fakeAccounts({
+    reserve: () => { if (reserveLost-- > 0) throw new TransportError('POST answered 502', 502); return RESERVATION },
+    settle: (body) => { if (settleLost-- > 0) throw new TypeError('fetch failed'); return { reservationId: body.reservationId, state: 'settled', settledUsd: 0.002 } },
+  })
+  const accounts = reviewAccounts(service.client, QUICK)
+  assert.deepEqual(await accounts.reserve(RESERVE), RESERVATION)
+  const settled = await accounts.settle({ ...SESSION, reservationId: RESERVATION.reservationId, outcome: 'settled', costUsd: 0.002 })
+  assert.equal(settled.state, 'settled')
+  const reserves = service.calls.filter(([op]) => op === 'reserve')
+  const settles = service.calls.filter(([op]) => op === 'settle')
+  assert.equal(reserves.length, 3)
+  assert.ok(reserves.every(([, body]) => body.callId === 'llm-1'), 'the same callId each time')
+  assert.equal(settles.length, 2)
+  assert.deepEqual(settles[1][1], settles[0][1], 'the same settlement each time')
+  assert.ok(service.calls.every(([, , signal]) => signal instanceof AbortSignal), 'each request has a deadline')
+})
+
+test('a reservation Sophia never answers ends at its deadline as unknown; a refusal is thrown at once', async () => {
+  const alive = setTimeout(() => {}, 10_000)
+  const hung = fakeAccounts({ reserve: unanswered, settle: unanswered })
+  const accounts = reviewAccounts(hung.client, { tries: 4, pauseMs: 1, maxMs: 100 })
+  const started = Date.now()
+  await assert.rejects(accounts.reserve(RESERVE), (error) => error instanceof TransportError && /no answer to the reservation/.test(error.message))
+  await assert.rejects(accounts.settle({ ...SESSION, reservationId: RESERVATION.reservationId, outcome: 'uncertain' }), /no answer to the settlement/)
+  assert.ok(Date.now() - started < 2_000, 'both ended within their deadlines')
+  assert.equal(hung.calls.length, 2)
+  assert.ok(hung.calls.every(([, , signal]) => signal.aborted), 'each request was cut at its deadline')
+  clearTimeout(alive)
+  const refused = fakeAccounts({ reserve: () => { throw new TransportError('limit', 409, 'research_limit_reached') }, settle: () => null })
+  await assert.rejects(reviewAccounts(refused.client, QUICK).reserve(RESERVE), (error) => error.code === 'research_limit_reached')
+  assert.equal(refused.calls.length, 1, 'a refusal is never sent again')
 })
