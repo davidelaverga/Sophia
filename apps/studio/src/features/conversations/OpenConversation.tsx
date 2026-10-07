@@ -98,7 +98,15 @@ export function OpenConversation(props: Props) {
   return (
     <section className="conv-open" aria-label="Open conversation">
       <Head conversation={c} me={me} head={head} onBack={props.onBack} context={props.context} />
-      <div ref={follow.scroll} className="conv-scroll" onScroll={follow.onScroll}>
+      {/* A scrolled region the keyboard reaches (arrows scroll it); from the keyboard, every time shows there. */}
+      <div
+        ref={follow.scroll}
+        className="conv-scroll"
+        role="region"
+        aria-label="Messages"
+        tabIndex={0}
+        onScroll={follow.onScroll}
+      >
         <Messages read={read} me={me} awaiting={awaiting} onAnswered={props.onAnswered} onGrown={follow.grown} />
       </div>
       {props.writer === true && (

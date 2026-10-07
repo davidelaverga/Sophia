@@ -231,7 +231,16 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
       ...document.querySelectorAll<HTMLElement>('.mini-dock'),
     ]
     for (const el of behind) el.inert = true
-    const width = new ResizeObserver(([entry]) => entry && entry.contentRect.width > PANEL && drop())
+    const width = new ResizeObserver(([entry]) => {
+      if (!entry || entry.contentRect.width <= PANEL) return
+      const at = document.activeElement
+      const panel = document.getElementById('conv-context')
+      const closer = panel?.querySelector('.conv-context-close')
+      drop()
+      // Its Close is gone with the panel: the context, a pane now, takes the focus that was on it. A control that
+      // stays in sight keeps it.
+      if (panel && (at === document.body || at === closer)) requestAnimationFrame(() => panel.focus())
+    })
     if (view.current) width.observe(view.current)
     document.addEventListener('keydown', onKey)
     return () => {

@@ -93,7 +93,7 @@ function Frame(props: {
     if (props.opened) close.current?.focus()
   }, [props.opened])
   return (
-    <aside id="conv-context" className="conv-context" aria-label="Project context">
+    <aside id="conv-context" className="conv-context" aria-label="Project context" tabIndex={-1}>
       <div className="conv-context-head">
         <button
           ref={close}

@@ -6,7 +6,7 @@
 // with her mark (docs/plans/conversation-thread.md). While the field is empty, quick asks ask her in one press, their
 // words the message (docs/plans/conversations-find.md).
 import { useQueryClient } from '@tanstack/react-query'
-import { useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import type { ApiError } from '../../api/client.ts'
 import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -89,6 +89,7 @@ export function ConversationComposer(props: Props) {
   const asks = held?.askSophia ?? props.askSophia
   const slow = useSlow(busy)
   const form = useRef<HTMLFormElement>(null)
+  const grows = useGrowing(draft)
   const ask = async (said: string) => {
     if ((await quick(said)) !== false) return
     // Unanswered, the row steps aside with the press in it: Send, which sends it again, takes the focus. Only then, and
@@ -114,6 +115,7 @@ export function ConversationComposer(props: Props) {
         <textarea
           aria-label="Continue this question with the team"
           placeholder="Continue this question with the team"
+          ref={grows}
           rows={1}
           value={draft}
           onChange={(e) => onDraft(e.target.value)}
@@ -140,6 +142,18 @@ export function ConversationComposer(props: Props) {
       )}
     </form>
   )
+}
+
+/** Grows a field with its words where the browser has no `field-sizing: content` (up to its CSS max-height). */
+function useGrowing(words: string) {
+  const field = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = field.current
+    if (!el || CSS.supports('field-sizing', 'content')) return
+    el.style.height = 'auto'
+    el.style.height = `${String(el.scrollHeight)}px`
+  }, [words])
+  return field
 }
 
 /** What everyone asks: Sophia, in one press. */

@@ -537,8 +537,17 @@
   right: auto;
   left: 0;
 }
-.conv-msg:is(:hover, :focus-within) .conv-msg-at {
+.conv-msg:is(:hover, :focus-within) .conv-msg-at,
+.conv-scroll:focus-visible .conv-msg-at {
   opacity: 1;
+}
+/* Reached from the keyboard: a ring inside its edge; programmatic focus (a card's, the context's) shows none. */
+.conv-scroll:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: -2px;
+}
+.conv-context:focus:not(:focus-visible) {
+  outline: none;
 }
 .conv-msg.sophia {
   flex-flow: row wrap;
