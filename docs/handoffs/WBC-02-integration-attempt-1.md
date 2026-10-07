@@ -4,7 +4,7 @@ Goal and attempt: WBC-02 (SCM-01), the combined integration of #107 with the acc
 Human owner / executor resource: Davide (decisions); Codex (coordination, independent review, two pushes, local checks); Claude Code in a cloud container (linux-x64), the only tracked-source writer
 Native session: this Claude Code session (https://claude.ai/code/session_0155SjcXhv87RErnWEBWxfBM); no Sophia native session was created
 Starting worktree/commit: the held #107 branch `scm-01/workboard-source-review` at `29371f5a3703f4358563886407bc360df7c38603`, in a fresh worktree with no ignored build outputs
-Ending commit/tree: the content commit «WBC-02 #107: a source review cites only pages that reached its model; the plugin names its principal» (`8241e9d0d3f32154320d4a9eda237620b4f72441`, tree `f71162ec15f3c2f904abba0aaba5250922974c9d`), the parent of this handoff's commit. Its runtime records follow in «WBC-02 #107: record the bundle identities of the receipt fix», a generated-only commit (Decisions), with the Studio job's budget and a test-order fix between. Before it: the wakeup fix `e93b0c51` and its handoff `5c3b50ee`; the first fix `df183a5f` and its handoff `10510fcd`. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
+Ending commit/tree: the content commit «WBC-02 #107: an empty page proves no read; Review sources keeps to the size limit» (`d165c6520c9b229e52724f73096619ff14f6a911`, tree `3f6c0bf7634a0c2496569d4ba0acd3c8f2c51802`), the parent of this handoff's commit. Before it: the bundle records `d0eba67a`; the receipt, principal and CI fixes `8241e9d0`; the wakeup fix `e93b0c51`; the first fix `df183a5f`; each with its handoff commit. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
 
 | Commit | Tree | Merges | Changes beyond its parents |
 | --- | --- | --- | --- |
@@ -81,6 +81,11 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 6. **The plugin names its principal** (r4206242556, fixed in `8241e9d0`). A configuration without a non-blank string `integrationUserId` refuses every route as 503 `not_configured`, before any nonce or effect; the configured board user alone may call; agents and other users stay refused.
 7. **CI job 112764079889** (Codex, 6036970693): the delayed-Hold control at `coordination.db.test.ts:833`, and `lateFailingHold`, removed their gate once the original held the lease, before its write reached the host; the original could then land first, and the resend answered `already`. Both now wait for the original's write to enter the host (`beforeUpdate` resolves a barrier). Their assertions are unchanged.
 
+**Codex's review of `a91cd88b`** (review 5441931074) found two more; Codex verified findings 5 and 6 fixed on that head (r4206590841, r4206591597):
+
+8. **An empty page proves no read** (r4206591756, P1, fixed in `d165c652`). A page asked at or past the end of a source that has text came back empty, with a receipt that recorded a read. Such a receipt now proves no read and adds no coverage, so citing the source on it alone is refused. A page of an empty source still counts: it is the whole source.
+9. **Review sources keeps to the size limit** (r4206591778, P2, fixed in `d165c652`). The form adds up the chosen sources' text (`review-sources.ts`, `selectionOf`); over `maxInputBytes` it says so where they are chosen and keeps Propose review off. Sophia refused such a proposal anyway.
+
 ## Evidence
 
 **Before the fix, on `5bbd59b1`:**
@@ -119,6 +124,8 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 **CI on `84530867`** (the same source as `0661a6f8`):
 - `runtime-unit` (run 37616446014): units 1938, 1872 passed, 0 failed, 66 skipped, the bundle's receipt tests among them. `pnpm artifacts` then reported exactly the four expected mismatches and nothing else (the linux runtime digest matches). Built: `sophia_bundle.archive_sha256` `e5e107417a974fd2887407243394be44efc28230d32e7f9e90cf005e0d5f6fb4`, `archive_integrity` `sha512-Us9oeGgyOPGHWSywC+oMBGN1nwI8RXE2Nx/yTwinrzSDX1suQ0qeCpDgCmoN7D8bLTbkVcvhJnikfataIOv1gw==`, `artifact_digest` `sha256:e5e1…6fb4`, and the profile lock. The integration tests did not run.
 - `test:db` (run 37616437946, job 112775782401): 528 of 529, none skipped. Every new control passed: the receipt, foreign-receipt, reread and coverage control; the principal control; both barriered Hold controls; the wakeup and fence controls. The one failure was the test order this commit fixes: the receipt control published its review, whose completion was still queued in the shared outbox, and the next test's pass claimed it as well (`['unknown','unknown']` for `['unknown']`). The reconcile helpers now count only their own world's deliveries, and the receipt control delivers its completion.
+
+**On `d165c652`, in this session:** `prettier --check .`, `oxlint --type-aware .` and the typechecks pass; Studio's units 919 of 919, with `review-sources.test.ts` (at, over and below the limit; sizes as stated). Not run here: the new `.db` control (a page asked past the end, its receipt refused as a read); CI runs it. The Studio form itself has no browser control: the fixture page serves the review as not enabled.
 
 **Source-register IDs consulted:** none.
 
