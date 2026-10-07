@@ -103,7 +103,7 @@ test('demo · newest first across the pages: More reports brings only older ones
   // Each tile's day ends its meta line («… · Sep 29»).
   const days = await page
     .locator('.report-meta')
-    .evaluateAll((all) => all.map((p) => Date.parse(`${(p.textContent ?? '').split(' · ').at(-1) ?? ''} 2026`)))
+    .evaluateAll((all) => all.map((p) => Date.parse(`${p.textContent.split(' · ').at(-1) ?? ''} 2026`)))
   for (const d of days) expect(d, 'a day the check can read').not.toBeNaN()
   expect(days).toEqual(days.toSorted((a, b) => b - a))
 })

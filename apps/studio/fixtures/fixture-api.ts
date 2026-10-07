@@ -630,6 +630,19 @@ function answerReports(project: Project, method: string, url: URL, init: Request
 /** Another project the reader has reports in (`reports=elsewhere`), as the report list names it. */
 const ELSEWHERE = { projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', count: 1 }
 
+/** Knowledge's list of reports, as the reader asked for it (words, a format, a page, a project). */
+function reportsAnswer(project: Project, url: URL) {
+  const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
+  const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
+  const list = reportList(published, project.description, url.searchParams.get('cursor'), filter)
+  if (!project.reportsElsewhere) return json(list)
+  const projects = [...list.projects, ELSEWHERE]
+  // The other project's own reports when it is the one asked for: its one report, not this project's.
+  if (url.searchParams.get('project') === ELSEWHERE.projectId)
+    return json({ reports: [elsewhereCard(ELSEWHERE.projectId, ELSEWHERE.title)], projects, nextCursor: null })
+  return json({ ...list, projects })
+}
+
 /**
  * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
  * task, its card, and an edit of its description.
@@ -638,17 +651,7 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   const path = url.pathname
   if (method === 'PATCH') return edited(project, path, init)
   if (method !== 'GET') return null
-  if (path === '/api/v1/knowledge/reports') {
-    const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
-    const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
-    const list = reportList(published, project.description, url.searchParams.get('cursor'), filter)
-    if (!project.reportsElsewhere) return json(list)
-    const projects = [...list.projects, ELSEWHERE]
-    // The other project's own reports when it is the one asked for: its one report, not this project's.
-    if (url.searchParams.get('project') === ELSEWHERE.projectId)
-      return json({ reports: [elsewhereCard(ELSEWHERE.projectId, ELSEWHERE.title)], projects, nextCursor: null })
-    return json({ ...list, projects })
-  }
+  if (path === '/api/v1/knowledge/reports') return reportsAnswer(project, url)
   const listed = versionsOf(project, path)
   if (listed) return listed
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
