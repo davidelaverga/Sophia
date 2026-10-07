@@ -119,8 +119,10 @@
 .conv-show button:hover {
   background: var(--raise);
 }
+/* Pressed: a ring that reads at 3:1, not only a tone a hover shares. */
 .conv-show button[aria-pressed='true'] {
   background: var(--raise-2);
+  box-shadow: inset 0 0 0 1px var(--text-3);
   color: var(--text);
 }
 .conv-count {
@@ -136,6 +138,11 @@
   overflow-x: auto;
   scrollbar-width: none;
   padding: 0 4px;
+  /* A chip past the edge fades out: the row goes on. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.conv-quick[data-away] {
+  visibility: hidden;
 }
 .conv-quick button {
   flex: none;

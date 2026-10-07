@@ -12,7 +12,7 @@ const PAGE = '/room.html?place=conversations&conversations=1'
 const list = (page: Page) => page.getByRole('region', { name: 'All conversations' })
 const rows = (page: Page) => list(page).getByRole('listitem').getByRole('button')
 const titles = (page: Page) => rows(page).locator('.conv-title')
-const show = (page: Page) => list(page).getByRole('group', { name: 'Show' })
+const show = (page: Page) => list(page).getByRole('group', { name: 'Show only' })
 const openOnly = (page: Page) => show(page).getByRole('button', { name: 'Open', exact: true })
 const mine = (page: Page) => show(page).getByRole('button', { name: 'Mine', exact: true })
 const open = (page: Page) => page.getByRole('region', { name: 'Open conversation' })
@@ -38,17 +38,21 @@ test('find · «Open» keeps the conversations with an open question; «Mine» t
   await openOnly(page).click()
   await mine(page).click()
   // Marco and Lucía's, the briefs, is not yours.
-  await expect(titles(page)).not.toContainText(['Short or long briefs?'])
-  await expect(titles(page)).toHaveCount(2)
+  await expect(titles(page)).toHaveText(['What makes a report worth reading?', 'Test data for the first release'])
+  // What a press left is said: the count is a status.
+  await expect(list(page).getByRole('status')).toHaveText('2 of 3')
 })
 
 test('find · nothing left says so, and Clear brings every conversation back', async ({ page }) => {
   await page.goto(PAGE)
   await openOnly(page).click()
   await list(page).getByRole('searchbox', { name: 'Filter conversations' }).fill('briefs')
-  await expect(list(page).getByText('No conversation matches.')).toBeVisible()
+  await expect(list(page).locator('.conv-note')).toContainText('No conversation matches.')
+  await expect(list(page).getByRole('status')).toHaveText('No conversation matches.')
   await list(page).getByRole('button', { name: 'Clear' }).click()
   await expect(titles(page)).toHaveCount(3)
+  // Clear went with its note: the filter has the focus.
+  await expect(list(page).getByRole('searchbox', { name: 'Filter conversations' })).toBeFocused()
   await expect(openOnly(page)).toHaveAttribute('aria-pressed', 'false')
   await expect(list(page).getByRole('searchbox', { name: 'Filter conversations' })).toHaveValue('')
 })
@@ -71,8 +75,14 @@ test('find · a quick ask asks Sophia in one press: its words are yours in the t
   await rows(page).nth(1).click() // Marco and Lucía's: Sophia isn't there yet
   await expect(messages(page)).toHaveCount(2)
   await expect(asks(page).getByRole('button')).toHaveText(['Sum it up', 'What’s still open?', 'What did we decide?'])
+  const ask = open(page).getByRole('checkbox', { name: 'Ask Sophia' })
+  await ask.uncheck() // the next note was to go to the team only: a quick ask leaves that as it is
   await asks(page).getByRole('button', { name: 'Sum it up' }).click()
-  await expect(messages(page).filter({ hasText: 'Sum it up' })).toHaveCount(1)
+  const asked = messages(page).filter({ hasText: 'Sum it up' })
+  await expect(asked).toHaveCount(1)
+  await expect(asked).toHaveClass(/\bmine\b/)
+  await expect(field(page)).toHaveValue('')
+  await expect(ask).not.toBeChecked()
   await expect.poll(async () => (await served(page)).includes('conversation-message:Sum it up:yes')).toBe(true)
   await expect(messages(page)).toHaveCount(4) // hers follows
   await expect(messages(page).last()).toContainText('Sophia')
@@ -81,10 +91,24 @@ test('find · a quick ask asks Sophia in one press: its words are yours in the t
 test('find · the quick asks step aside once you write, and come back when the field is empty', async ({ page }) => {
   await page.goto(PAGE)
   await expect(asks(page)).toBeVisible()
+  const thread = open(page).locator('.conv-scroll')
+  const height = await thread.evaluate((el) => el.clientHeight)
   await field(page).fill('My own words')
-  await expect(asks(page)).toHaveCount(0)
+  await expect(asks(page)).toBeHidden()
+  // Its place is kept: the thread above doesn't jump.
+  expect(await thread.evaluate((el) => el.clientHeight)).toBe(height)
   await field(page).fill('')
   await expect(asks(page)).toBeVisible()
+})
+
+test('find · a quick ask with no reply steps aside for Send, which sends it again', async ({ page }) => {
+  await page.goto(`${PAGE}&send=lost`)
+  await rows(page).nth(1).click()
+  await expect(messages(page)).toHaveCount(2)
+  await asks(page).getByRole('button', { name: 'What did we decide?' }).click()
+  await expect(open(page)).toContainText('Not confirmed: “What did we decide?”')
+  await expect(asks(page)).toBeHidden()
+  await expect(open(page).getByRole('button', { name: 'Send' })).toBeFocused()
 })
 
 test('find · the filters and the quick asks read at 4.5:1, on the app’s type sizes', async ({ page }) => {
@@ -110,4 +134,8 @@ test('find @phone · the quick asks fit one row that scrolls, at a finger’s 40
     .evaluateAll((all) => all.map((b) => Math.round(b.getBoundingClientRect().top)))
   expect(new Set(tops).size).toBe(1)
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0)
+  // The last is reached by scrolling the row, and shows whole.
+  const last = row.getByRole('button').last()
+  await last.scrollIntoViewIfNeeded()
+  await expect(last).toBeInViewport({ ratio: 1 })
 })

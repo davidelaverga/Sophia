@@ -1,13 +1,13 @@
 // The list's rows (docs/plans/conversations-find.md, C4): the title filter, then «Open» and «Mine», kept for the
 // project while the page lives; how many show when narrowed; nothing left says so, with Clear. Each row opens its
 // conversation.
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { ConversationSummary } from '../../api/vision.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { pageMemory, useMemory } from '../work/planning/page-memory.ts'
 import { contributorsLine, narrowed, openWords } from './conversation-list.ts'
 
-/** «Open» and «Mine», per project, while the page lives: another view and back finds them as left. */
+/** «Open» and «Mine», per project and reader, while the page lives: another view and back finds them as left. */
 const shownBy = pageMemory<{ open: boolean; mine: boolean }>()
 const NONE = { open: false, mine: false }
 
@@ -19,17 +19,24 @@ export function Rows(props: {
   onOpen: (id: string) => void
 }) {
   const [typed, setTyped] = useState('')
-  const by = useMemory(shownBy, props.projectId) ?? NONE
-  const set = (next: Partial<typeof NONE>) => shownBy.set(props.projectId, { ...by, ...next })
-  const shown = narrowed(props.all, { typed, ...by }, props.me)
+  const search = useRef<HTMLInputElement>(null)
+  const key = `${props.projectId}:${props.me}`
+  const by = useMemory(shownBy, key) ?? NONE
+  const set = (next: Partial<typeof NONE>) => shownBy.set(key, { ...by, ...next })
+  // «Mine» waits for who the reader is: until then it narrows nothing.
+  const shown = narrowed(props.all, { typed, open: by.open, mine: by.mine && props.me !== '' }, props.me)
   const narrowing = typed.trim() !== '' || by.open || by.mine
+  const none = by.open || by.mine ? 'No conversation matches.' : `No conversation’s title has «${typed.trim()}».`
   const clear = () => {
     setTyped('')
-    shownBy.set(props.projectId, NONE)
+    shownBy.set(key, NONE)
+    // Clear goes with the note it was in: the filter takes the focus.
+    search.current?.focus()
   }
   return (
     <>
       <input
+        ref={search}
         type="search"
         className="conv-filter"
         aria-label="Filter conversations"
@@ -37,20 +44,21 @@ export function Rows(props: {
         value={typed}
         onChange={(e) => setTyped(e.target.value)}
       />
-      <div className="conv-show" role="group" aria-label="Show">
+      <div className="conv-show" role="group" aria-label="Show only">
         <button type="button" aria-pressed={by.open} onClick={() => set({ open: !by.open })}>
           Open
         </button>
         <button type="button" aria-pressed={by.mine} onClick={() => set({ mine: !by.mine })}>
           Mine
         </button>
-        {narrowing && shown.length > 0 && (
-          <span className="conv-count">{`${String(shown.length)} of ${String(props.all.length)}`}</span>
-        )}
+        {/* Always in the page, so a screen reader hears what a press left: how many, or none. */}
+        <span className={shown.length > 0 ? 'conv-count' : 'sr-only'} role="status">
+          {!narrowing ? '' : shown.length > 0 ? `${String(shown.length)} of ${String(props.all.length)}` : none}
+        </span>
       </div>
       {shown.length === 0 ? (
         <p className="conv-note">
-          {by.open || by.mine ? 'No conversation matches.' : `No conversation’s title has «${typed.trim()}».`}{' '}
+          {none}{' '}
           <button type="button" className="text-button" onClick={clear}>
             Clear
           </button>
