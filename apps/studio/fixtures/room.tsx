@@ -149,6 +149,8 @@ interface Fixture {
   failProjects: (on: boolean) => void
   /** While on, the project list's reads wait; off, the waiting ones are answered (chapter 1). */
   holdProjects: (on: boolean) => void
+  /** Lets the held membership reads through, and every later one (`membership=hold`). */
+  releaseMembership: () => void
   /** Marco carries a note to this project, and the feed moves (chapter 1). */
   carryIn: () => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
@@ -348,6 +350,7 @@ const project = {
   reportsElsewhere: query.get('reports') === 'elsewhere',
   cardAhead: query.get('card') === 'ahead',
   projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
+  membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
   missionFails: false,
@@ -523,6 +526,11 @@ window.fixture = {
     const held = project.projectsHeld ?? []
     project.projectsHeld = on ? held : null
     if (!on) for (const answer of held) answer()
+  },
+  releaseMembership: () => {
+    const held = project.membershipHeld ?? []
+    project.membershipHeld = null
+    for (const answer of held) answer()
   },
   carryIn: () => {
     project.carriedIn = [

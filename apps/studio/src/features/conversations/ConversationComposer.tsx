@@ -3,8 +3,10 @@
 // so, and Send sends that message again under its key, never a second one, even after the person went elsewhere and
 // came back. A message the API accepted goes into the page at once. The field clears only if it still holds what was
 // sent. Enter sends; Shift+Enter starts a line. On its way, Send says so. «Ask Sophia» is a checkbox shown as a chip
-// with her mark (docs/plans/conversation-thread.md).
+// with her mark (docs/plans/conversation-thread.md). While the field is empty, quick asks ask her in one press, their
+// words the message (docs/plans/conversations-find.md).
 import { useQueryClient } from '@tanstack/react-query'
+import { useRef } from 'react'
 import type { ApiError } from '../../api/client.ts'
 import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -52,11 +54,11 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     refusal,
   )
   const ready = props.canSend && (write.unknown?.text ?? draft).trim() !== ''
-  const go = async () => {
-    if (write.busy || !ready) return
+  /** The draft, or a quick ask's words (Sophia asked, the draft left as it is). */
+  const send = async (text: string, asking: boolean, fromDraft: boolean) => {
     // Undefined too for an account forgotten meanwhile: its receipt never comes back into the cache.
-    const sent = await write.run({ text: draft.trim(), askSophia })
-    if (!sent) return
+    const sent = await write.run({ text, askSophia: asking })
+    if (!sent) return false
     // The receipt's message shows at once, and stays should reading the conversation again fail; then the list moves
     // too (its order, who wrote there).
     const pages = messagesKey(conversationId, identity.name)
@@ -65,22 +67,42 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     void queryClient.invalidateQueries({ queryKey: ['vision', 'conversations'] })
     onSent(sent)
     // Asked of the view: this field may be gone by now, and the words written since are the view's.
-    onClearIf(sent.message.text)
+    if (fromDraft) onClearIf(sent.message.text)
+    return true
   }
+  const go = async () => {
+    if (!write.busy && ready) await send(draft.trim(), askSophia, true)
+  }
+  /** A quick ask: whether it is in, or went unanswered or refused (null when it wasn't sent at all). */
+  const quick = async (words: string) =>
+    !write.busy && props.canSend && !write.unknown ? await send(words, true, false) : null
   const words = write.unknown
     ? `Not confirmed: “${firstWords(write.unknown.text)}”. Send sends it again; it won’t be written twice.`
     : write.refused
-  return { busy: write.busy, ready, go, words, held: write.unknown }
+  return { busy: write.busy, ready, go, quick, words, held: write.unknown }
 }
 
 export function ConversationComposer(props: Props) {
   const { draft, onDraft } = props
-  const { busy, ready, go, words, held } = useMessageWrite(props, props.askSophia)
+  const { busy, ready, go, quick, words, held } = useMessageWrite(props, props.askSophia)
   // With no reply, the box says what the held message asked, and stays so until it is answered.
   const asks = held?.askSophia ?? props.askSophia
   const slow = useSlow(busy)
+  const form = useRef<HTMLFormElement>(null)
+  const ask = async (said: string) => {
+    if ((await quick(said)) !== false) return
+    // Unanswered, the row steps aside with the press in it: Send, which sends it again, takes the focus. Only then, and
+    // only from the row: a refusal leaves the row where it was, and a focus moved meanwhile (the field) stays.
+    requestAnimationFrame(() => {
+      const row = form.current?.querySelector('.conv-quick[data-away]')
+      const at = document.activeElement
+      if (row && (at === document.body || (at && row.contains(at))))
+        form.current?.querySelector<HTMLElement>('.conv-send')?.focus()
+    })
+  }
   return (
     <form
+      ref={form}
       className="conv-compose"
       aria-label="Continue this conversation"
       onSubmit={(e) => {
@@ -104,6 +126,9 @@ export function ConversationComposer(props: Props) {
         <AskSophia on={asks} held={held !== null} onChange={props.onAskSophia} />
         <SendButton ready={ready} busy={busy} />
       </div>
+      {props.canSend && (
+        <QuickAsks away={draft.trim() !== '' || held !== null} busy={busy} onAsk={(w) => void ask(w)} />
+      )}
       <p className="conv-compose-hint">
         <span data-asked={asks || undefined}>{asks ? 'Sophia will answer' : 'To the team only'}</span>
         <span>Enter sends · Shift+Enter, a new line</span>
@@ -114,6 +139,25 @@ export function ConversationComposer(props: Props) {
         </p>
       )}
     </form>
+  )
+}
+
+/** What everyone asks: Sophia, in one press. */
+const QUICK_ASKS = ['Sum it up', 'What’s still open?', 'What did we decide?']
+
+/**
+ * The quick asks, under the empty field: each sends its words with Sophia asked. Away (words written, a message
+ * waiting), the row keeps its height unseen, so the thread above never jumps.
+ */
+function QuickAsks(props: { away: boolean; busy: boolean; onAsk: (words: string) => void }) {
+  return (
+    <div className="conv-quick" role="group" aria-label="Ask Sophia in one press" data-away={props.away || undefined}>
+      {QUICK_ASKS.map((words) => (
+        <button key={words} type="button" aria-disabled={props.busy || undefined} onClick={() => props.onAsk(words)}>
+          {words}
+        </button>
+      ))}
+    </div>
   )
 }
 

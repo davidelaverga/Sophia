@@ -14,6 +14,7 @@ import {
   contributorsLine,
   matching,
   messageBy,
+  narrowed,
   openWords,
 } from './conversation-list.ts'
 
@@ -90,6 +91,29 @@ describe('matching', () => {
       ['a'],
     )
     assert.equal(matching(all, 'short data').length, 0)
+  })
+})
+
+describe('narrowed', () => {
+  const lucia = { actorId: 'lucia', name: 'Lucía' }
+  const me = { actorId: ME, name: 'You' }
+  const all = [
+    conversation({ id: 'open-mine', title: 'Briefs', openQuestions: 2, contributors: [me, lucia] }),
+    conversation({ id: 'open-theirs', title: 'Data', openQuestions: 1, contributors: [lucia] }),
+    conversation({ id: 'closed-mine', title: 'Briefs again', contributors: [me] }),
+    conversation({ id: 'closed-theirs', title: 'Setup', contributors: [lucia] }),
+  ]
+  const ids = (typed: string, open: boolean, mine: boolean) => narrowed(all, { typed, open, mine }, ME).map((c) => c.id)
+  it('Open keeps those with an open question; Mine those I wrote in; both, those that are both', () => {
+    assert.deepEqual(ids('', false, false), ['open-mine', 'open-theirs', 'closed-mine', 'closed-theirs'])
+    assert.deepEqual(ids('', true, false), ['open-mine', 'open-theirs'])
+    assert.deepEqual(ids('', false, true), ['open-mine', 'closed-mine'])
+    assert.deepEqual(ids('', true, true), ['open-mine'])
+  })
+  it('the title words narrow with them', () => {
+    assert.deepEqual(ids('briefs', false, true), ['open-mine', 'closed-mine'])
+    assert.deepEqual(ids('briefs', true, false), ['open-mine'])
+    assert.deepEqual(ids('setup', true, false), [])
   })
 })
 
