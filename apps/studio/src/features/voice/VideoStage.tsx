@@ -48,10 +48,11 @@ function PersonTile({ person, camera, holds }: TileProps) {
       ) : (
         <span className="tile-initial">{shortName(person.name).charAt(0)}</span>
       )}
+      {/* The name, then what sets them apart: on a short tile the name is cut, never what follows it. */}
       <span className="tile-name" data-anchor>
-        {shortName(person.name)}
-        {person.local && ' · you'}
-        {person.standing === 'guest' && ' · guest'}
+        <span className="tile-who">{shortName(person.name)}</span>
+        {person.local && <span className="tile-mark"> · you</span>}
+        {person.standing === 'guest' && <span className="tile-mark"> · guest</span>}
         {holds && <span className="tile-floor"> · floor</span>}
       </span>
     </li>

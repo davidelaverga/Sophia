@@ -2164,6 +2164,13 @@ button.contribution-quote:hover {
 .tile-strip .tile {
   max-height: 100%;
 }
+/* A strip's tile is short: the initial is smaller and sits above the name, never under it. */
+.tile-strip .tile-initial {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 30px;
+  font-size: 14px;
+}
 /* «+N»: the people past the tiles, a tile of its own that opens everyone in the call. */
 .tile-more {
   padding: 0;
@@ -2257,7 +2264,10 @@ button.contribution-quote:hover {
   font-size: 12px;
   font-weight: 500;
 }
-/* The tile's name is a flex row, which trims a child's leading space: keep the one before "· floor". */
+/* The tile's name is a flex row, which trims a child's leading space: keep the one before "· you", "· floor". */
+.tile-mark {
+  white-space: pre;
+}
 .tile-floor {
   color: var(--warm);
   white-space: pre;
@@ -3168,6 +3178,41 @@ div.empty {
   }
   .tile-strip .tile {
     aspect-ratio: 16 / 10;
+  }
+}
+
+/* On a phone, the strip is one row that fits: Sophia's, up to three people's and «+N» share the width, so «+N» is in
+   sight and nothing scrolls sideways. A name too long for its tile ends in an ellipsis. */
+@media (max-width: 600px) {
+  .tile-strip {
+    /* Five columns whatever the count: a strip of two keeps its tiles a fifth of the width, not half the screen. */
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-auto-flow: row;
+  }
+  .tile-strip .tile {
+    aspect-ratio: 1;
+  }
+  .tile-strip .tile-initial {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+  .tile-strip .tile-name {
+    left: 4px;
+    bottom: 4px;
+    max-width: calc(100% - 8px);
+    height: 20px;
+    padding: 0 5px;
+    font-size: 11px;
+  }
+  .tile-strip .tile-who {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tile-strip :is(.tile-mark, .tile-floor) {
+    flex: none;
   }
 }
 

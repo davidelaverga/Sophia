@@ -108,3 +108,62 @@ test('tiles · with three others, every tile and no «+N»', async ({ page }) =>
   await expect(tiles(page)).toHaveCount(5)
   await expect(more(page)).toHaveCount(0)
 })
+
+test('tiles · on a phone, beside a shown screen: every tile and «+N» in sight, one row, nothing to scroll', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=9&video=screen')
+  await expect(tiles(page)).toHaveCount(5)
+  await expect(more(page)).toBeInViewport({ ratio: 1 })
+  const rects = await tiles(page).evaluateAll((all) =>
+    all.map((el) => {
+      const r = el.getBoundingClientRect()
+      return { left: r.left, right: r.right, top: r.top }
+    }),
+  )
+  for (const r of rects) {
+    expect(r.left).toBeGreaterThanOrEqual(0)
+    expect(r.right).toBeLessThanOrEqual(390)
+  }
+  // One row: every tile on the same line.
+  expect(new Set(rects.map((r) => Math.round(r.top))).size).toBe(1)
+})
+
+for (const width of [390, 820]) {
+  test(`tiles · a tile’s name never lies over its initial (${String(width)} px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 })
+    await enter(page, 'people=9&video=screen')
+    const clashes = await room(page)
+      .locator('.tile:has(.tile-initial)')
+      .evaluateAll((all) =>
+        all.flatMap((tile) => {
+          const a = tile.querySelector('.tile-initial')?.getBoundingClientRect()
+          const b = tile.querySelector('.tile-name')?.getBoundingClientRect()
+          if (!a || !b) return []
+          const apart = a.bottom <= b.top || b.bottom <= a.top || a.right <= b.left || b.right <= a.left
+          return apart ? [] : [tile.textContent]
+        }),
+      )
+    expect(clashes).toEqual([])
+  })
+}
+
+test('tiles · on a phone, a short tile cuts the name, never what follows it: « · floor» stays whole', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=9&video=screen&floor=9')
+  const floor = room(page).locator('.tile-floor')
+  await expect(floor).toHaveText(' · floor')
+  const [mark, label] = await Promise.all([floor.boundingBox(), floor.locator('..').boundingBox()])
+  expect(mark && label && mark.x + mark.width <= label.x + label.width + 0.5).toBe(true)
+})
+
+test('tiles · on a phone, a strip of a few keeps each tile a fifth of the width', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=1&video=screen')
+  const widths = await tiles(page).evaluateAll((all) => all.map((el) => el.getBoundingClientRect().width))
+  expect(widths.length).toBeGreaterThan(1)
+  for (const w of widths) expect(w).toBeLessThan(80)
+})
