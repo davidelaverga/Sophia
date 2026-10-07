@@ -1,0 +1,14 @@
+#!/run/busybox sh
+set -eu
+echo 2 > /proc/sys/kernel/io_uring_disabled
+# The pinned kernel has CONFIG_MODULES=n; there is no module-loading syscall.
+echo UML_GUEST_MODULE_LOADING_DISABLED_AT_BUILD
+/run/abi-probe
+# This loopback endpoint belongs only to the synthetic guest probe. No external
+# interface exists. Chromium's original wrapper creates another empty netns.
+/run/busybox ip link set lo up
+set +e
+/usr/bin/env -i PATH=/opt/node/bin:/usr/bin:/bin HOME=/tmp LANG=C.UTF-8 SOPHIA_RENDER_UID=10001 SOPHIA_RENDER_GID=10001 PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers /opt/node/bin/node /run/uml/diagnostic.mjs
+code=$?
+echo UML_GUEST_DIAGNOSTIC_EXIT:$code
+/run/busybox poweroff -f

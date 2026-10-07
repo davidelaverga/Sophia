@@ -1,0 +1,15 @@
+--- a/arch/um/include/asm/syscall-generic.h
++++ b/arch/um/include/asm/syscall-generic.h
+@@ -27 +27,2 @@
+-	/* do nothing */
++	/* Restore original syscall number for seccomp signal context. */
++	PT_REGS_SET_SYSCALL_RETURN(regs, PT_REGS_SYSCALL_NR(regs));
+--- a/kernel/signal.c
++++ b/kernel/signal.c
+@@ -1857,0 +1858,4 @@
++#ifdef CONFIG_UML
++	/* UML switch_buf describes the kernel continuation, not userspace. */
++	info.si_call_addr = (void __user *)instruction_pointer(current_pt_regs());
++#else
+@@ -1858,0 +1863 @@
++#endif
