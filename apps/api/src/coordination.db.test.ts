@@ -2455,5 +2455,42 @@ describe('a control after the work closed (Codex on #107)', () => {
       ],
       'as the board says',
     )
+
+    // The execution goal is hidden from the goal list, but the generic goal command still reaches it by its id: its
+    // change is Sophia's own, and none is mirrored to the closed work's issue.
+    const goalRow = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ id: string; revision: number; epoch: number }>(
+            `SELECT g.id, g.revision::int AS revision, g.authority_epoch::int AS epoch FROM sophia.goals g
+              JOIN sophia.work_items wi ON wi.project_id=g.project_id AND wi.execution_goal_id=g.id WHERE wi.project_id=$1`,
+            [w.projectId],
+          )
+        ).rows[0],
+    )
+    assert.ok(goalRow)
+    const generic = await member(
+      E,
+      `/api/v1/projects/${w.projectId}/commands`,
+      {
+        kind: 'stop',
+        goalId: goalRow.id,
+        expectedGoalRevision: goalRow.revision,
+        expectedAuthorityEpoch: goalRow.epoch,
+        bodySourceId: null,
+      },
+      randomUUID(),
+    )
+    assert.equal(generic.status, 202, JSON.stringify(generic.json))
+    const ops = await asOwner(async (o) =>
+      (
+        await o.query<{ op: string }>(`SELECT op FROM sophia.coordination_outbox WHERE project_id=$1 ORDER BY seq`, [
+          w.projectId,
+        ])
+      ).rows.map((r) => r.op),
+    )
+    assert.deepEqual(ops, ['commission', 'fail'], 'no control is mirrored after the failure')
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [])
+    assert.equal(w.paperclip.issues.get(issue.id)?.status, 'cancelled')
   })
 })

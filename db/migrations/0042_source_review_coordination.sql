@@ -490,12 +490,15 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.work_control(uuid,sophia.work_items,text,uuid,text,text) FROM PUBLIC;
 
--- Every change of an execution goal's status that Paperclip must know of is mirrored, whichever path made it.
+-- Every change of an execution goal's status that Paperclip must know of is mirrored, whichever path made it. Once
+-- its work is closed (failed, its commission refused, an input withdrawn), its issue has been told how it ended, and no
+-- later change of the goal is mirrored, whichever path made it: a generic goal command on the execution goal no more
+-- reopens a cancelled issue than a member's Hold or Resume of the work (work_command refuses those; Codex on #107).
 CREATE FUNCTION sophia.work_goal_mirror() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE w sophia.work_items; op text;
 BEGIN
  SELECT * INTO w FROM sophia.work_items WHERE project_id=NEW.project_id AND execution_goal_id=NEW.id;
- IF NOT FOUND THEN RETURN NULL; END IF;
+ IF NOT FOUND OR w.closed_reason IS NOT NULL THEN RETURN NULL; END IF;
  op:=CASE WHEN NEW.status='holding' THEN 'hold' WHEN NEW.status='stopping' THEN 'stop'
   WHEN NEW.status='running' AND OLD.status IN ('holding','held') THEN 'resume' WHEN NEW.status='completed' THEN 'complete' END;
  IF op IS NOT NULL THEN PERFORM sophia.work_mirror(NEW.project_id,w.id,op,NEW.authority_epoch); END IF;
