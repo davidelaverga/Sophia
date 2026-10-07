@@ -118,7 +118,9 @@ function Row(props: { conversation: ConversationSummary; open: boolean; me: stri
         </span>
         <span id={`${id}-d`} className="conv-about">
           {c.summary && <span className="conv-gist">{c.summary}</span>}
-          <span className="sr-only">{`${contributorsLine(c, props.me)}. ${openWords(c.openQuestions)}.`}</span>
+          <span className="sr-only">
+            {`${contributorsLine(c, props.me)}. ${openWords(c.openQuestions)}. Last moved ${movedAt(c.lastAt, Date.now())}.`}
+          </span>
           {c.openQuestions > 0 && (
             <span className="conv-open-flag" aria-hidden>
               {c.openQuestions}
