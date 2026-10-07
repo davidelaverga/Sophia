@@ -1248,6 +1248,17 @@ BEGIN
     WHERE project_id=p_project AND id=o.work_id;
    PERFORM sophia.emit_service_event(p_project,'assignment.changed','work_item',o.work_id,1,'work.commission_failed');
   END IF;
+ ELSIF p_outcome='absent' AND o.op='commission' AND EXISTS(SELECT 1 FROM sophia.work_items w JOIN sophia.goals g
+   ON g.project_id=w.project_id AND g.id=w.execution_goal_id WHERE w.project_id=p_project AND w.id=o.work_id
+   AND g.status IN ('stopping','stopped')) THEN
+  -- Proved never created, and the work was stopped since: withdrawn with its controls, as a Stop before delivery
+  -- withdraws it (work_mirror), never created only to be cancelled (Codex on #107).
+  UPDATE sophia.coordination_outbox SET state='superseded', lease_until=NULL, result=p_result,
+   reason='no issue holds the commission key, and the work was stopped: withdrawn', updated_at=now()
+   WHERE project_id=p_project AND id=p_id;
+  UPDATE sophia.coordination_outbox SET state='superseded', updated_at=now() WHERE project_id=p_project AND work_id=o.work_id AND state='pending';
+  UPDATE sophia.work_commissions SET state='superseded', reason='stopped before it was commissioned', updated_at=now()
+   WHERE project_id=p_project AND work_id=o.work_id;
  ELSIF p_outcome IN ('unknown','absent') THEN
   IF p_outcome='absent' AND o.op<>'commission' THEN RAISE EXCEPTION 'Only a commission is reconciled as absent' USING ERRCODE='22023'; END IF;
   UPDATE sophia.coordination_outbox SET state=CASE p_outcome WHEN 'absent' THEN 'pending' ELSE 'outcome_unknown' END,

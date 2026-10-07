@@ -648,6 +648,51 @@ describe('one Paperclip-managed source review', () => {
     )
   })
 
+  it('a commission proved absent after its work was stopped is withdrawn, never created only to be cancelled (Codex on #107)', async () => {
+    const w = await world()
+    const proposal = await accepted(w)
+    // The commission's send fails before it reaches Paperclip: its outcome is unknown, and nothing was created.
+    const unreachable: typeof fetch = async (input, init) => {
+      if ((typeof init?.body === 'string' ? init.body : '').includes(w.projectId)) {
+        throw new TypeError('fetch failed: connection refused')
+      }
+      return routed(w)(input, init)
+    }
+    assert.deepEqual(await outcomesOf(w, await passWith(unreachable)), [['commission', 'unknown']])
+    assert.equal(w.paperclip.issues.size, 0)
+    const stop = await command(w, proposal, 'stop', null)
+    assert.equal(stop.status, 202, JSON.stringify(stop.json))
+
+    // Reconciled: the key holds no issue. The work was stopped meanwhile, so nothing is created to be cancelled.
+    await dueNow(w)
+    assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [['commission', 'absent']])
+    const rows = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ op: string; state: string }>(
+            `SELECT op, state FROM sophia.coordination_outbox WHERE project_id=$1 ORDER BY seq`,
+            [w.projectId],
+          )
+        ).rows,
+    )
+    assert.deepEqual(rows, [
+      { op: 'commission', state: 'superseded' },
+      { op: 'stop', state: 'superseded' },
+    ])
+    const commission = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ state: string }>(`SELECT state FROM sophia.work_commissions WHERE project_id=$1`, [
+            w.projectId,
+          ])
+        ).rows[0]?.state,
+    )
+    assert.equal(commission, 'superseded')
+    await dueNow(w)
+    assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [], 'nothing more is sent')
+    assert.equal(w.paperclip.issues.size, 0, 'no issue was created, cancelled or otherwise')
+  })
+
   it('a review cites a source only with a receipt its own pages carried; a page is partial coverage (Codex on #107)', async () => {
     const w = await world()
     const { attemptId } = await running(w)
