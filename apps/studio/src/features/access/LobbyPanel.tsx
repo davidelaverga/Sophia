@@ -9,6 +9,7 @@ import { ConfirmButton } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { knockNote } from './access-view.ts'
 import { useLobbyDecision } from './useAccess.ts'
+import { lasted } from '../../app/time-words.ts'
 
 interface Props {
   projectId: string
@@ -20,9 +21,10 @@ interface Props {
 /** How long "Let in instead" stays after a decline. */
 const UNDO_MS = 8000
 
+/** How long they have waited: "just now", then "5 min" (app/time-words.ts). */
 function waitedFor(requestedAt: string, now: number): string {
-  const minutes = Math.max(0, Math.round((now - Date.parse(requestedAt)) / 60_000))
-  return minutes < 1 ? 'just now' : `${minutes} min`
+  const waited = now - Date.parse(requestedAt)
+  return waited < 60_000 ? 'just now' : lasted(waited)
 }
 
 function useMinuteClock(): number {

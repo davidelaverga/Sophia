@@ -5,6 +5,7 @@
 // reports each window's own duration, which must be kept rather than assumed (04_OWNER_RESOURCES §7), and the
 // observation can't carry it yet: no pace for Codex until it does.
 import type { QuotaObservation, QuotaWindow } from './resource.ts'
+import { about } from '../../app/time-words.ts'
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -31,12 +32,8 @@ export interface Pace {
   outIn: number | null
 }
 
-/** A stretch of time in the fewest words: "~20 min", "~3 h", "~2 d". */
-function span(ms: number): string {
-  if (ms < HOUR) return `~${Math.round(ms / MINUTE)} min`
-  if (ms < 2 * DAY) return `~${Math.round(ms / HOUR)} h`
-  return `~${Math.round(ms / DAY)} d`
-}
+/** A stretch of time, as an estimate: "~20 min", "~3 h", "~2 days" (app/time-words.ts). */
+const span = (ms: number): string => `~${about(ms)}`
 
 /** When the window fills at the rate it has filled so far, as a time; null when it won't, or it's too early to say. */
 function runsOutAt(used: number, passed: number, length: number, readAt: number): number | null {

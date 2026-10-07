@@ -7,14 +7,10 @@ import { isCursorAdvance } from '@sophia/contracts/validate'
 import type { Feed } from '../../projectors/projection.ts'
 import type { Connection } from '../studio/useProjectFeed.ts'
 import { pulseRows } from './pulse.ts'
+import { ago as agoWords } from '../../app/time-words.ts'
 
-function ago(iso: string, now: number): string {
-  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000))
-  if (s < 10) return 'just now'
-  if (s < 60) return `${s}s ago`
-  if (s < 3600) return `${Math.round(s / 60)} min ago`
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
+/** When it happened, to the second while fresh (app/time-words.ts). */
+const ago = (iso: string, now: number) => agoWords(iso, now, { seconds: true })
 
 /** Nothing to show yet: say why, in the connection's own terms. */
 const QUIET: Record<Connection, string> = {

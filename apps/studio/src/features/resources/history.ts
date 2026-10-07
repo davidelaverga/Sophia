@@ -1,7 +1,8 @@
 // A window's history: the readings of one window, from its earlier observations and the latest, oldest first. One
 // window means the same id and the same reset: after a reset the window starts over, and its old readings aren't its
 // history. Only values the collector observed for a window known to apply are drawn; nothing is filled in between.
-import { ago, type QuotaObservation, type QuotaWindow } from './resource.ts'
+import { roughly } from '../../app/time-words.ts'
+import type { QuotaObservation, QuotaWindow } from './resource.ts'
 
 export interface Point {
   at: number
@@ -25,7 +26,7 @@ export function spanOf(points: readonly Point[]): string {
   const first = points[0]
   const last = points.at(-1)
   if (!first || !last || last.at <= first.at) return ''
-  return ago(new Date(first.at).toISOString(), new Date(last.at)).replace(/ ago$/, '')
+  return roughly(last.at - first.at)
 }
 
 export function windowHistory(window: QuotaWindow, readings: readonly QuotaObservation[]): Point[] {

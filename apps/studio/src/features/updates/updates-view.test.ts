@@ -43,8 +43,8 @@ describe('a meeting’s row', () => {
 
   it('says when a closed one was and how long it lasted', () => {
     const at = '2026-10-04T15:00:00.000Z'
-    assert.equal(meetingRow({ startedAt: at, endedAt: '2026-10-04T15:38:30.000Z' }, fmt), 'Oct 4, 15:00 · 38 minutes')
-    assert.equal(meetingRow({ startedAt: at, endedAt: '2026-10-04T15:01:10.000Z' }, fmt), 'Oct 4, 15:00 · 1 minute')
+    assert.equal(meetingRow({ startedAt: at, endedAt: '2026-10-04T15:38:30.000Z' }, fmt), 'Oct 4, 15:00 · 38 min')
+    assert.equal(meetingRow({ startedAt: at, endedAt: '2026-10-04T15:01:10.000Z' }, fmt), 'Oct 4, 15:00 · 1 min')
     assert.equal(
       meetingRow({ startedAt: at, endedAt: '2026-10-04T15:00:20.000Z' }, fmt),
       'Oct 4, 15:00 · under a minute',

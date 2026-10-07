@@ -24,7 +24,7 @@ test('so far · joining 12 minutes in: Catch up shows what was decided, by whom;
   page,
 }) => {
   await page.goto('/room.html?call=on&people=2&floor=1&sophia=listening&meeting=earlier')
-  await expect(card(page)).toContainText('You joined 12 minutes in.')
+  await expect(card(page)).toContainText('You joined 12 min in.')
   await card(page).getByRole('button', { name: 'Catch up' }).click()
   const decided = sheet(page).getByRole('region', { name: 'Decided' })
   await expect(decided).toContainText('Pilot the fixture with fourteen teams')
@@ -51,7 +51,7 @@ test('so far · joined from another view, the card counts from the join, not fro
   await expect(page.locator('.mini-dock').getByRole('button', { name: 'Leave the room' })).toBeVisible()
   await page.clock.fastForward(8 * 60_000)
   await page.getByRole('navigation', { name: 'Project views' }).getByRole('link', { name: 'Studio' }).click()
-  await expect(card(page)).toContainText('You joined 12 minutes in.')
+  await expect(card(page)).toContainText('You joined 12 min in.')
 })
 
 test('so far · in the meeting from its start, dropping out and joining again 25 minutes on offers nothing', async ({
