@@ -4261,22 +4261,98 @@ div.empty {
   font-size: 12.5px;
   resize: vertical;
 }
-/* Updates (UpdatesView): what changed since the person last looked, then the meetings, in the reading column. */
+/* Updates (UpdatesView, docs/plans/updates-quiet.md): what changed since the person last looked in the reading column,
+   the meetings beside it on a wide screen, below it on a narrow one. Labels, not headings; each line marked by its
+   kind; each meeting with a bar for how long it lasted. */
 .updates {
   display: grid;
-  gap: 32px;
-  max-width: 680px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: 28px 56px;
+  align-items: start;
+  max-width: 1040px;
 }
 .updates > h2 {
+  grid-column: 1 / -1;
   font-size: 18px;
+}
+@media (max-width: 900px) {
+  .updates {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .updates-part {
   display: grid;
+  align-content: start;
   gap: 16px;
 }
-.updates-part > h3 {
-  font-size: 14px;
-  font-weight: 600;
+.updates-part > h3,
+.updates-part > .recap-section h4 {
+  margin: 0;
+  color: var(--text-2);
+  font: 500 var(--type-label) / 1.2 var(--mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.updates-part > .recap-section h4 {
+  color: var(--halo-text);
+}
+.updates-part > .recap-section li {
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+}
+.updates-part > .recap-section li::before {
+  content: '';
+  grid-row: 1 / span 2;
+  justify-self: start;
+  width: 6px;
+  height: 6px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: var(--text-2);
+}
+.updates-part > .recap-section :is(.recap-line, .recap-by) {
+  grid-column: 2;
+}
+.updates-part > .recap-section li > .text-button {
+  grid-column: 3;
+}
+.updates-part > [data-kind='decided'] li::before {
+  width: 8px;
+  height: 4px;
+  margin-top: 6px;
+  border-bottom: 1.5px solid var(--teal);
+  border-left: 1.5px solid var(--teal);
+  border-radius: 0;
+  background: none;
+  transform: rotate(-45deg);
+}
+.updates-part > [data-kind='still-open'] li::before {
+  background: var(--amber);
+}
+.updates-part > [data-kind='kept'] li::before {
+  background: var(--warm);
+}
+.updates-part > [data-kind='made'] li::before {
+  width: 7px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 1.5px;
+  background: var(--core);
+}
+.updates-part > [data-kind='work'] li::before {
+  border-radius: 1.5px;
+  background: var(--text-2);
+}
+.updates-part > .recap-section .recap-by {
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.updates-part > .recap-acts {
+  padding-top: 0;
+  border-top: 0;
+}
+/* The rows' words start on the label's edge; their hover plane reaches past it. */
+.updates .meeting-rows {
+  margin-inline: -12px;
 }
 .meeting-rows {
   display: grid;
@@ -4286,18 +4362,52 @@ div.empty {
   list-style: none;
 }
 .meeting-row {
+  display: grid;
+  gap: 8px;
   width: 100%;
   padding: 10px 12px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: none;
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--type-body);
   font-variant-numeric: tabular-nums;
   text-align: left;
+  transition: background var(--fast) var(--ease);
 }
 .meeting-row:hover {
   background: var(--line);
+}
+/* How long it lasted, against the longest listed: a thin bar on a quieter track. */
+.meeting-bar {
+  position: relative;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.meeting-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--share, 0) * 100%);
+  border-radius: inherit;
+  background: var(--halo);
+}
+/* Running: a live dot before its words, no bar (its length isn't known yet). */
+.meeting-row[data-running] {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+.meeting-row[data-running]::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.18);
+}
+.meeting-row[data-running] .meeting-bar {
+  display: none;
 }
 /* Search (SearchSheet): the field, then each hit's title, its record's words and where it is from. */
 .search-field {

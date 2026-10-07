@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Digest } from '../../api/vision.ts'
-import { digestLead, meetingRow } from './updates-view.ts'
+import { digestLead, lengthShares, meetingRow } from './updates-view.ts'
 
 const digest = (over: Partial<Digest> = {}): Digest => ({
   fromSequence: '12',
@@ -22,6 +22,21 @@ describe('the digest’s lead', () => {
     const one = digest({ open: [{ proposalId: 'p', statement: 'Try the pilot' }] })
     assert.equal(digestLead(one), null)
     assert.equal(digestLead({ ...one, fromSequence: null }), 'You haven’t looked before: this is everything so far.')
+  })
+})
+
+describe('a meeting’s bar', () => {
+  it('is its length against the longest closed one; the running one has none; a very short one still shows', () => {
+    const shares = lengthShares([
+      { id: 'now', startedAt: '2026-10-05T10:00:00.000Z', endedAt: null },
+      { id: 'long', startedAt: '2026-10-04T15:00:00.000Z', endedAt: '2026-10-04T15:40:00.000Z' },
+      { id: 'half', startedAt: '2026-10-03T15:00:00.000Z', endedAt: '2026-10-03T15:20:00.000Z' },
+      { id: 'blip', startedAt: '2026-10-02T15:00:00.000Z', endedAt: '2026-10-02T15:00:10.000Z' },
+    ])
+    assert.equal(shares.get('now'), undefined)
+    assert.equal(shares.get('long'), 1)
+    assert.equal(shares.get('half'), 0.5)
+    assert.equal(shares.get('blip'), 0.04)
   })
 })
 
