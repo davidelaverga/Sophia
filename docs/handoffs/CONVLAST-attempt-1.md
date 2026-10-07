@@ -1,0 +1,28 @@
+# Implementation-session handoff
+
+Goal and attempt: Conversations' rows by their last message (C5), attempt 1. The next slice after C4 in Luis's queue,
+behind the vision flag (the field is an A18 proposal for Davide).
+Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
+Native session: a local Claude Code session; its identity is unknown (not exported)
+Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/last-message` from `main`, 2026-10-08
+Ending commit/tree: `3054ee8f695218978c527d1cd6f24b02876a86e4` (tree `9c024711163753a7dec7c01210c5c4a154250406`). The commit after it adds only this handoff.
+
+## Outcome
+
+- `api/vision.ts`: `ConversationSummary.lastMessage` (optional; null when none), checked when present.
+- `conversation-list.ts`: `gistOf` — the last message, who said it first, else the summary.
+- `ConversationRows.tsx`: the row's line is `gistOf`, part of its description.
+- Fixtures: the list answers `lastMessage` from the messages as they are now, with `last=1` and in the demo.
+- Note: `docs/plans/conversations-last.md`. The proposal for Davide is a draft in the session's scratchpad, not sent.
+
+## Evidence
+
+- `e2e/conversations-last.spec.ts` 3 passed; with the rows ignoring the last message, 2 fail (the mutant).
+- `conversation-list.test.ts` 21 passed (`gistOf`: you, Sophia, a member, someone gone, the fallbacks).
+- `project-conversations`, `conversations-find`, `project-conversation-writes`: pass.
+- Prettier, `oxlint --type-aware` (clean but `brand-assets.mjs`), `tsc`.
+
+## Limitations and next action
+
+- Unread (a read marker) is proposed with it, not built.
+- Next: merge on green CI with no Codex P1; Luis decides whether to send Davide the proposal.
