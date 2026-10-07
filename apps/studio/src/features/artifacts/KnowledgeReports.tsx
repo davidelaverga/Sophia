@@ -135,7 +135,6 @@ export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = nul
           onChange={(e) => f.setTyped(e.target.value)}
         />
       </div>
-      {f.project === projectId && carriedIn}
       <ReportCards
         cards={cards}
         state={reports.isPending ? 'loading' : reports.isError ? 'failed' : 'ready'}
@@ -146,6 +145,7 @@ export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = nul
         onClear={f.clear}
       />
       {reports.hasNextPage && <MoreReports loading={reports.isFetchingNextPage} onMore={more} />}
+      {f.project === projectId && carriedIn}
     </section>
   )
 }
@@ -182,23 +182,17 @@ interface FilterProps {
 function ProjectFilter({ projectId, project, counts, onProject }: FilterProps) {
   const others = project === 'all' || project !== projectId ? counts.filter((c) => c.projectId !== projectId) : []
   return (
-    <div className="knowledge-projects" role="group" aria-label="Project">
-      <button
-        type="button"
-        className="filter-chip"
-        aria-pressed={project === projectId}
-        onClick={() => onProject(projectId)}
-      >
+    <div className="segmented" role="group" aria-label="Project">
+      <button type="button" aria-pressed={project === projectId} onClick={() => onProject(projectId)}>
         This project
       </button>
-      <button type="button" className="filter-chip" aria-pressed={project === 'all'} onClick={() => onProject('all')}>
+      <button type="button" aria-pressed={project === 'all'} onClick={() => onProject('all')}>
         All projects
       </button>
       {others.map((c) => (
         <button
           key={c.projectId}
           type="button"
-          className="filter-chip"
           aria-pressed={project === c.projectId}
           onClick={() => onProject(c.projectId)}
         >

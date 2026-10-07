@@ -2,9 +2,9 @@
 // version's `html` rendition. Static: inline CSS and SVG charts, no script (the viewer's frame allows none). Every
 // number is invented, and the same as the Markdown's.
 
-const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
+export const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
 
-const STYLE = `
+export const STYLE = `
 :root{--ink:#1d1b22;--soft:#5d5966;--line:#e4dfd6;--paper:#fbf8f3;--card:#fff;--accent:#6d5bd0;--accent-2:#b4a6f0;--warm:#c8794a;--good:#2f8f6b;--bad:#b4525c}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}

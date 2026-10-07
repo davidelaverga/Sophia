@@ -25,6 +25,7 @@ import {
   DEMO_V1,
   DEMO_V2,
 } from './demo.ts'
+import { LIBRARY, libraryContent } from './demo-library.ts'
 import { DEMO_PAGE_SHA, demoPage } from './demo-page.ts'
 
 export const REPORT = '00000000-0000-4000-8000-0000000000b1'
@@ -403,6 +404,8 @@ export function content(sourceId: string, tampered = false, pageTampered = false
   if (sourceId === DESIGNED.sourceId) return designedContent(pageTampered)
   const demoPageAt = DEMO ? DEMO_PAGES.findIndex((p) => p.sourceId === sourceId) : -1
   if (demoPageAt >= 0) return demoPageContent(demoPageAt, pageTampered)
+  const shelved = DEMO ? libraryContent(sourceId) : null
+  if (shelved) return shelved
   const text = [...TEXTS, ...PILOT_TEXTS, OLDER_TEXT].find((t) => t.sourceId === sourceId)
   if (!text) return null
   const served = tampered ? `${text.text} ` : text.text
@@ -678,7 +681,8 @@ const OLDER: ReportList['reports'][number] = {
   currentVersionId: '00000000-0000-4000-8000-0000000000e2',
   currentVersionNumber: 1,
   versionCount: 1,
-  updatedAt: AT,
+  // In the demo, older than its library's shelf (Sep 20 to 29): the list stays newest first across its pages.
+  updatedAt: DEMO ? '2026-09-15T10:00:00.000Z' : AT,
   // Printed before PDFs were turned off: Knowledge offers its format filter once such a report is in the list.
   formats: ['markdown', 'pdf'],
   latestChange: { note: null, retained: null },
@@ -699,13 +703,20 @@ export const olderVersions = (): ArtifactVersion[] => [
     exportEditability: 'source_editable',
     title: OLDER.title,
     versionNumber: 1,
-    createdAt: AT,
+    createdAt: OLDER.updatedAt,
     renditions: [],
     limitations: [],
   },
 ]
 
 export const OLDER_REPORT = OLDER.artifactId
+
+/** The older report as filed in another project the reader is in (`reports=elsewhere`). */
+export const elsewhereCard = (projectId: string, projectTitle: string): ReportList['reports'][number] => ({
+  ...OLDER,
+  projectId,
+  projectTitle,
+})
 
 /** A text's searchable words: letters and digits only, lower case. */
 const wordsOf = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
@@ -749,7 +760,7 @@ export function reportList(
   const words = wordsOf(filter.q ?? '').slice(0, 8)
   const format = filter.format ?? 'any'
   if (words.length > 0 || format !== 'any') {
-    const kept = [current, OLDER].filter((r) => {
+    const kept = [current, OLDER, ...(DEMO ? LIBRARY : [])].filter((r) => {
       const text = wordsOf(
         `${r.title} ${r.summary ?? ''} ${r.latestChange.note ?? ''} ${r.latestChange.retained ?? ''}`,
       )
@@ -760,9 +771,11 @@ export function reportList(
     const projects = kept.length > 0 ? [{ projectId: PROJECT, title: PROJECT_TITLE, count: kept.length }] : []
     return { reports: kept, projects, nextCursor: null }
   }
-  const projects = [{ projectId: PROJECT, title: PROJECT_TITLE, count: 2 }]
+  // The demo's library (demo-library.ts): five more on the first page.
+  const first = DEMO ? LIBRARY : []
+  const projects = [{ projectId: PROJECT, title: PROJECT_TITLE, count: 2 + first.length }]
   if (cursor === 'page-2') return { reports: [OLDER], projects, nextCursor: null }
-  return { reports: [current], projects, nextCursor: 'page-2' }
+  return { reports: [current, ...first], projects, nextCursor: 'page-2' }
 }
 
 /** The edit a request's body carries, or null when it carries none. */

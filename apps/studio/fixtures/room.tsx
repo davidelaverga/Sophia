@@ -345,6 +345,7 @@ const project = {
   projectsFail: query.get('projects') === 'fail',
   missionHeld: query.get('mission') === 'hold' ? waiting() : null,
   carriedElsewhere: query.get('carried') === 'elsewhere',
+  reportsElsewhere: query.get('reports') === 'elsewhere',
   projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,

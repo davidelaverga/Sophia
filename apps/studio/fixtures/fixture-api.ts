@@ -27,6 +27,8 @@ import {
   entryIdOf,
   idOf,
 } from './data.ts'
+import { DEMO } from './demo.ts'
+import { libraryVersions } from './demo-library.ts'
 import {
   content,
   editDescription,
@@ -34,6 +36,7 @@ import {
   DESIGN_TASK,
   designingTask,
   OLDER_REPORT,
+  elsewhereCard,
   olderVersions,
   REPORT,
   reportList,
@@ -137,6 +140,8 @@ interface Project {
   carriedIn?: ProjectRelease[]
   /** The project list holds other projects only (`carried=elsewhere`): this one is past its first ones. */
   carriedElsewhere?: boolean
+  /** The reader's reports are in another project too (`reports=elsewhere`): its count is under the filters. */
+  reportsElsewhere?: boolean
   /** While set, the project list's reads wait for these (`window.fixture.holdProjects`). */
   projectsHeld?: (() => void)[] | null
   /** The project list's reads fail (`projects=fail`). */
@@ -622,6 +627,22 @@ function answerReports(project: Project, method: string, url: URL, init: Request
   return reading ? json(reading) : answerReport(project, method, url, init)
 }
 
+/** Another project the reader has reports in (`reports=elsewhere`), as the report list names it. */
+const ELSEWHERE = { projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', count: 1 }
+
+/** Knowledge's list of reports, as the reader asked for it (words, a format, a page, a project). */
+function reportsAnswer(project: Project, url: URL) {
+  const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
+  const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
+  const list = reportList(published, project.description, url.searchParams.get('cursor'), filter)
+  if (!project.reportsElsewhere) return json(list)
+  const projects = [...list.projects, ELSEWHERE]
+  // The other project's own reports when it is the one asked for: its one report, not this project's.
+  if (url.searchParams.get('project') === ELSEWHERE.projectId)
+    return json({ reports: [elsewhereCard(ELSEWHERE.projectId, ELSEWHERE.title)], projects, nextCursor: null })
+  return json({ ...list, projects })
+}
+
 /**
  * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
  * task, its card, and an edit of its description.
@@ -630,11 +651,7 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   const path = url.pathname
   if (method === 'PATCH') return edited(project, path, init)
   if (method !== 'GET') return null
-  if (path === '/api/v1/knowledge/reports') {
-    const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
-    const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
-    return json(reportList(published, project.description, url.searchParams.get('cursor'), filter))
-  }
+  if (path === '/api/v1/knowledge/reports') return reportsAnswer(project, url)
   const listed = versionsOf(project, path)
   if (listed) return listed
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
@@ -656,8 +673,18 @@ function versionsOf(project: Project, path: string): Response | Promise<Response
   if (path.startsWith(`/api/v1/artifacts/${OLDER_REPORT}/versions/`) && path.endsWith('/sources')) {
     return json({ sources: [] })
   }
+  const shelved = DEMO ? shelvedRead(path) : null
+  if (shelved) return shelved
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   return null
+}
+
+/** The demo library's reports (demo-library.ts): their one version, and their sources, none. */
+function shelvedRead(path: string): Response | null {
+  const listed = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions(\/[0-9a-f-]{36}\/sources)?$/.exec(path)
+  const shelf = listed ? libraryVersions(listed[1] ?? '') : null
+  if (!listed || !shelf) return null
+  return json(listed[2] ? { sources: [] } : shelf)
 }
 
 /** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
