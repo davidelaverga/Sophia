@@ -51,7 +51,7 @@ import { foldLog, Journal, strongestFence } from './session-events.js'
 import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport, TransportError } from './transport.js'
 import type { HelloReply, Observation, ServiceBinding, UnrecoveredBinding } from './transport.js'
-import type { RuntimeCommandBatch } from './runtime-wire-types.generated.js'
+import type { ResearchReserveRequest, RuntimeCommandBatch } from './runtime-wire-types.generated.js'
 
 /** One model route: the provider route, the model and the reasoning effort (null: the model's default). */
 export type RouteSpec = ExecutionIdentity['route']
@@ -478,10 +478,12 @@ export class ControlBridge {
     const finalize = () => this.enterFinalize(attempt, options.sessionId)
     // A source review (WBC-02) meters through its own operations, under its work's allowance and its eight-request
     // cap, and has no finalize step: a refused reservation refuses the call, and the model is told why. Each of its
-    // reservations and settlements waits a bounded time and is sent again under the same id (Codex on #107).
+    // reservations and settlements waits a bounded time and is sent again under the same id; a cancelled call sends
+    // no reservation and cuts one in flight, and its settlement is still sent (Codex on #107).
     const review = attempt.role?.taskKind === 'source_review'
-    const accounts = review
-      ? { ...reviewAccounts(transport), what: 'review' }
+    const reviewing = review ? reviewAccounts(transport) : null
+    const accounts = reviewing
+      ? { reserve: (body: ResearchReserveRequest) => reviewing.reserve(body, options.signal), settle: reviewing.settle, what: 'review' }
       : { reserve: transport.researchReserve.bind(transport), settle: transport.researchSettle.bind(transport), what: 'research' }
     return (async function* () {
       let reservationId: string

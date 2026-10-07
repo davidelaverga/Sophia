@@ -120,20 +120,24 @@ export type ReviewAccountsClient = Pick<ServiceTransport, 'sourceReviewReserve' 
  * A review's model-call accounting, as the bridge meters it (Codex on #107): each reservation and settlement request
  * has a deadline, and one whose answer is lost is sent again with the same body, the same callId or reservationId, so
  * the service answers it with the reservation it made or the settlement it recorded. A refusal is thrown at once, and
- * an answer still unknown after `patience` is thrown as unknown: the bridge then refuses the model call, or leaves the
- * settlement to the service, which counts a reservation never settled against the allowance until the turn ends.
+ * an answer still unknown is thrown as unknown: the bridge then refuses the model call, so an unknown reservation never
+ * lets a paid call leave, and is never released without proof; the service counts it against the allowance until it
+ * is settled or the turn ends. A cancelled model call (`stop`) sends no reservation, and cuts one in flight. A
+ * settlement is never cut: it is owed even after a Hold or Stop, and the service takes it then (it is not fenced).
  */
 export function reviewAccounts(client: ReviewAccountsClient, patience: Patience = REVIEW_PATIENCE) {
   const never = new AbortController().signal
-  const answered = async <T>(what: string, send: (signal: AbortSignal) => Promise<T>): Promise<T> => {
-    const sent = await untilAnswered(send, patience, never)
-    if (typeof sent === 'string') throw new TransportError(`no answer to the ${what} within ${String(patience.maxMs)} ms; its outcome is unknown`)
+  const answered = async <T>(what: string, send: (signal: AbortSignal) => Promise<T>, stop: AbortSignal): Promise<T> => {
+    const sent = await untilAnswered(send, patience, stop)
+    if (sent === 'stopped') throw new TransportError(`the model call was cancelled before its ${what} was sent; nothing was sent`)
+    if (sent === 'unknown') throw new TransportError(`no answer to the ${what}; its outcome is unknown`)
     if ('error' in sent) throw sent.error
     return sent.value
   }
   return {
-    reserve: (body: ResearchReserveRequest) => answered('reservation', (signal) => client.sourceReviewReserve(body, signal)),
-    settle: (body: ResearchSettleRequest) => answered('settlement', (signal) => client.sourceReviewSettle(body, signal)),
+    reserve: (body: ResearchReserveRequest, stop: AbortSignal = never) =>
+      answered('reservation', (signal) => client.sourceReviewReserve(body, signal), stop),
+    settle: (body: ResearchSettleRequest) => answered('settlement', (signal) => client.sourceReviewSettle(body, signal), never),
   }
 }
 

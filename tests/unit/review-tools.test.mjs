@@ -265,3 +265,28 @@ test('a reservation Sophia never answers ends at its deadline as unknown; a refu
   await assert.rejects(reviewAccounts(refused.client, QUICK).reserve(RESERVE), (error) => error.code === 'research_limit_reached')
   assert.equal(refused.calls.length, 1, 'a refusal is never sent again')
 })
+
+test('a cancelled model call sends no reservation, and cuts one in flight: unknown, never permission to call', async () => {
+  const cancelled = new AbortController()
+  cancelled.abort()
+  const none = fakeAccounts({ reserve: () => RESERVATION, settle: () => null })
+  await assert.rejects(reviewAccounts(none.client, QUICK).reserve(RESERVE, cancelled.signal), /nothing was sent/)
+  assert.equal(none.calls.length, 0)
+
+  const cancelling = new AbortController()
+  const pending = fakeAccounts({
+    reserve: (body, signal) => {
+      setTimeout(() => cancelling.abort(), 20)
+      return unanswered(body, signal)
+    },
+    settle: () => null,
+  })
+  const started = Date.now()
+  await assert.rejects(
+    reviewAccounts(pending.client, { tries: 4, pauseMs: 1, maxMs: 60_000 }).reserve(RESERVE, cancelling.signal),
+    /no answer to the reservation; its outcome is unknown/,
+  )
+  assert.ok(Date.now() - started < 2_000, 'cut by the cancellation, not by its 60 s deadline')
+  assert.equal(pending.calls.length, 1, 'not sent again after the cancellation')
+  assert.equal(pending.calls[0][2].aborted, true)
+})
