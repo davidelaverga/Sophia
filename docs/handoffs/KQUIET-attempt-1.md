@@ -19,7 +19,7 @@ The commit after it adds only this handoff.
 - Before, each tile ended in three lines: «Description by Sophia», «Edit» and «History and changes», two of them underlined.
 
 **Sophia's credit as her mark:** a description Sophia wrote opens with her Umbral mark, at 16 px.
-- A screen reader hears «Description by Sophia:»; the pointer shows it as the mark's title.
+- A screen reader hears «Description by Sophia:». (First it had a tooltip, raised over the tile's press; see below.)
 - A member's edit is still said in words: «Edited by a member · Oct 3».
 
 **More reports** is a button as wide as its words, in the middle under the tiles.
@@ -48,7 +48,10 @@ The commit after it adds only this handoff.
 
 ## Remaining obligations
 
-- A `title` shows on a pointer only: touch and keyboard users get the mark's meaning from its screen-reader text, not a tooltip.
+- Codex's P2 on #154: raised for its tooltip, the mark took the press from the tile, so a press on it opened nothing.
+  Fixed: no tooltip, no raise; the screen-reader text stays. The check now presses the mark and finds the report open
+  (27 passed with K1's and K2's checks; the raised-mark mutant is killed). A sighted reader learns the mark from the
+  description it opens, as across the Studio.
 
 ## Next bounded action
 

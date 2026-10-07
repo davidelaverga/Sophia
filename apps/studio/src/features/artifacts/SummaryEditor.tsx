@@ -76,7 +76,7 @@ function useDraft() {
 /** Sophia's mark before her own description: «Description by Sophia» to a screen reader and under the pointer. */
 function SophiasMark() {
   return (
-    <span className="report-by" title="Description by Sophia">
+    <span className="report-by">
       <Mark />
       <span className="sr-only">Description by Sophia: </span>
     </span>

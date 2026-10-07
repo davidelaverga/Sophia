@@ -756,7 +756,7 @@
 .report-card > :not(.report-card-cover) {
   margin-inline: 6px;
 }
-.report-card :is(.text-button, form, textarea, .report-problem, .report-by) {
+.report-card :is(.text-button, form, textarea, .report-problem) {
   position: relative;
   z-index: 1;
 }
