@@ -1232,6 +1232,11 @@ BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'Delivery not found' USING ERRCODE='22023'; END IF;
  IF o.state<>'delivering' OR o.lease_token IS DISTINCT FROM p_lease_token THEN RAISE EXCEPTION 'Lease lost; reconcile before recording' USING ERRCODE='40001'; END IF;
  backoff:=make_interval(secs=>least(300,5*power(2,least(o.attempts,6))::integer));
+ -- A commission proved absent is decided under its commission's lock, the one a control's mirror takes (work_mirror):
+ -- a Stop committed first is seen below; one after finds the commission pending and withdraws it itself.
+ IF p_outcome='absent' AND o.op='commission' THEN
+  PERFORM 1 FROM sophia.work_commissions WHERE project_id=p_project AND work_id=o.work_id FOR UPDATE;
+ END IF;
  IF p_outcome='delivered' THEN
   IF o.op='commission' AND coalesce(issue,'') !~ '^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$' THEN
    RAISE EXCEPTION 'A delivered commission names its issue' USING ERRCODE='22023'; END IF;

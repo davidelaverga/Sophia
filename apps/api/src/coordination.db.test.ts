@@ -648,10 +648,10 @@ describe('one Paperclip-managed source review', () => {
     )
   })
 
-  it('a commission proved absent after its work was stopped is withdrawn, never created only to be cancelled (Codex on #107)', async () => {
+  /** A world whose commission's first send never reached Paperclip: its outcome is unknown, and nothing was created. */
+  async function unsent() {
     const w = await world()
     const proposal = await accepted(w)
-    // The commission's send fails before it reaches Paperclip: its outcome is unknown, and nothing was created.
     const unreachable: typeof fetch = async (input, init) => {
       if ((typeof init?.body === 'string' ? init.body : '').includes(w.projectId)) {
         throw new TypeError('fetch failed: connection refused')
@@ -660,13 +660,11 @@ describe('one Paperclip-managed source review', () => {
     }
     assert.deepEqual(await outcomesOf(w, await passWith(unreachable)), [['commission', 'unknown']])
     assert.equal(w.paperclip.issues.size, 0)
-    const stop = await command(w, proposal, 'stop', null)
-    assert.equal(stop.status, 202, JSON.stringify(stop.json))
+    return { w, proposal }
+  }
 
-    // Reconciled: the key holds no issue. The work was stopped meanwhile, so nothing is created to be cancelled.
-    await dueNow(w)
-    assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [['commission', 'absent']])
-    const rows = await asOwner(
+  const outboxOf = (w: World) =>
+    asOwner(
       async (o) =>
         (
           await o.query<{ op: string; state: string }>(
@@ -675,11 +673,9 @@ describe('one Paperclip-managed source review', () => {
           )
         ).rows,
     )
-    assert.deepEqual(rows, [
-      { op: 'commission', state: 'superseded' },
-      { op: 'stop', state: 'superseded' },
-    ])
-    const commission = await asOwner(
+
+  const commissionStateOf = (w: World) =>
+    asOwner(
       async (o) =>
         (
           await o.query<{ state: string }>(`SELECT state FROM sophia.work_commissions WHERE project_id=$1`, [
@@ -687,10 +683,92 @@ describe('one Paperclip-managed source review', () => {
           ])
         ).rows[0]?.state,
     )
-    assert.equal(commission, 'superseded')
+
+  /** Withdrawn with its Stop: nothing more is sent, and Paperclip holds no issue. */
+  async function withdrawn(w: World) {
+    assert.deepEqual(await outboxOf(w), [
+      { op: 'commission', state: 'superseded' },
+      { op: 'stop', state: 'superseded' },
+    ])
+    assert.equal(await commissionStateOf(w), 'superseded')
     await dueNow(w)
     assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [], 'nothing more is sent')
     assert.equal(w.paperclip.issues.size, 0, 'no issue was created, cancelled or otherwise')
+  }
+
+  it('a commission proved absent after its work was stopped is withdrawn, never created only to be cancelled (Codex on #107)', async () => {
+    const { w, proposal } = await unsent()
+    const stop = await command(w, proposal, 'stop', null)
+    assert.equal(stop.status, 202, JSON.stringify(stop.json))
+    await dueNow(w)
+    assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [['commission', 'absent']])
+    await withdrawn(w)
+  })
+
+  it('a Stop committing while a commission is proved absent is seen under the commission lock (Codex on #107)', async () => {
+    const { w, proposal } = await unsent()
+    // The Stop's transaction takes the goal, then the commission (its mirror), and holds them while the pass reconciles.
+    const stopping = new pg.Client({ connectionString: db.ownerUrl })
+    await stopping.connect()
+    let pass: ReturnType<typeof passWith> | null = null
+    try {
+      await stopping.query('BEGIN')
+      await stopping.query(
+        `SELECT sophia.work_control($1, w, 'stop', sophia.integration_actor(), 'concurrent-stop', 'studio')
+           FROM sophia.work_items w WHERE w.project_id=$1 AND w.id=$2`,
+        [w.projectId, proposal.workId],
+      )
+      await dueNow(w)
+      pass = passWith(routed(w))
+      // The pass records the absence only once it holds the commission: it waits for the Stop's transaction.
+      const waiting = async () =>
+        asOwner(
+          async (o) =>
+            (
+              await o.query<{ n: number }>(
+                `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
+                  WHERE NOT l.granted AND a.datname=current_database()`,
+              )
+            ).rows[0]?.n ?? 0,
+        )
+      for (let looked = 0; (await waiting()) === 0; looked += 1) {
+        assert.ok(looked < 500, 'the pass reached the commission lock')
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      await stopping.query('COMMIT')
+      assert.deepEqual(await outcomesOf(w, await pass), [['commission', 'absent']])
+      await withdrawn(w)
+    } finally {
+      await pass?.catch(() => undefined)
+      await stopping.end()
+    }
+  })
+
+  it('a commission found after its work was stopped is delivered, and its Stop cancels that one issue', async () => {
+    const w = await world()
+    const proposal = await accepted(w)
+    assert.deepEqual(await outcomesOf(w, await passWith(pluginFetch(w.paperclip, () => true))), [
+      ['commission', 'unknown'],
+    ])
+    assert.equal(w.paperclip.issues.size, 1, 'the effect happened; its reply was lost')
+    const stop = await command(w, proposal, 'stop', null)
+    assert.equal(stop.status, 202, JSON.stringify(stop.json))
+    await dueNow(w)
+    assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [['commission', 'delivered']])
+    assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [['stop', 'delivered']])
+    assert.equal(w.paperclip.issues.size, 1, 'never a second issue')
+    assert.equal(issueOf(w).status, 'cancelled')
+  })
+
+  it('a commission proved absent while its work is active is sent again, and creates its one issue', async () => {
+    const { w } = await unsent()
+    await dueNow(w)
+    assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [['commission', 'absent']])
+    assert.deepEqual(await outboxOf(w), [{ op: 'commission', state: 'pending' }])
+    await dueNow(w)
+    assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [['commission', 'delivered']])
+    assert.equal(w.paperclip.issues.size, 1)
+    assert.equal(issueOf(w).status, 'todo')
   })
 
   it('a review cites a source only with a receipt its own pages carried; a page is partial coverage (Codex on #107)', async () => {
