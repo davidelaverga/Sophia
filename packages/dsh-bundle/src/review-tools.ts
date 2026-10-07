@@ -22,7 +22,14 @@ import { callKeyOf, type ResearchSession } from './research-tools.js'
 import { envelope } from './source-containment.js'
 import { TransportError } from './transport.js'
 import type { ServiceTransport } from './transport.js'
-import type { ResearchReserveRequest, ResearchSettleRequest, SourceReviewFinding, SourceReviewSubmitRequest } from './runtime-wire-types.generated.js'
+import type {
+  ResearchReservation,
+  ResearchReserveRequest,
+  ResearchSettleRequest,
+  ResearchSettlement,
+  SourceReviewFinding,
+  SourceReviewSubmitRequest,
+} from './runtime-wire-types.generated.js'
 
 /** The service operations the tools use (the bridge's transport). */
 export type ReviewClient = Pick<ServiceTransport, 'sourceReviewContext' | 'sourceReviewSubmit'>
@@ -39,8 +46,8 @@ export interface ReviewToolDeps {
 }
 
 /**
- * A submit or a blocker, and a model call's reservation or settlement, is sent up to four times within 60 s, as the
- * design tools' submit (SUBMIT_PATIENCE).
+ * A submit or a blocker, and a model call's reservation or settlement (a review's, a design's or a visual review's), is
+ * sent up to four times within 60 s, as the design tools' submit (SUBMIT_PATIENCE).
  */
 export const REVIEW_PATIENCE: Patience = { tries: 4, pauseMs: 1_000, maxMs: 60_000 }
 
@@ -99,8 +106,9 @@ function definite(error: unknown): boolean {
   return error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429
 }
 
-/** Wait `ms`, or less if `stop` fires. */
+/** Wait `ms`, or less if `stop` fires; not at all once it has (a cancel that cut a request ends its wait at once). */
 const pause = (ms: number, stop: AbortSignal): Promise<void> => new Promise((resolve) => {
+  if (stop.aborted) return resolve()
   const timer = setTimeout(resolve, ms)
   stop.addEventListener('abort', () => { clearTimeout(timer); resolve() }, { once: true })
 })
@@ -131,16 +139,23 @@ async function untilAnswered<T>(send: (signal: AbortSignal) => Promise<T>, patie
 /** The service operations the bridge meters a review's model calls through. */
 export type ReviewAccountsClient = Pick<ServiceTransport, 'sourceReviewReserve' | 'sourceReviewSettle'>
 
+/** A model call's reservation and its settlement, as one service's operations send them, each with its signal. */
+export interface AccountOperations {
+  readonly reserve: (body: ResearchReserveRequest, signal: AbortSignal) => Promise<ResearchReservation>
+  readonly settle: (body: ResearchSettleRequest, signal: AbortSignal) => Promise<ResearchSettlement>
+}
+
 /**
- * A review's model-call accounting, as the bridge meters it (Codex on #107): each reservation and settlement request
- * has a deadline, and one whose answer is lost is sent again with the same body, the same callId or reservationId, so
- * the service answers it with the reservation it made or the settlement it recorded. A refusal is thrown at once, and
- * an answer still unknown is thrown as unknown: the bridge then refuses the model call, so an unknown reservation never
- * lets a paid call leave, and is never released without proof; the service counts it against the allowance until it
- * is settled or the turn ends. A cancelled model call (`stop`) sends no reservation, and cuts one in flight. A
- * settlement is never cut: it is owed even after a Hold or Stop, and the service takes it then (it is not fenced).
+ * A model call's accounting, as the bridge meters a source review's (Codex on #107) and a design's or a visual
+ * review's (Davide on #107): each reservation and settlement request has a deadline, and one whose answer is lost is
+ * sent again with the same body, the same callId or reservationId, so the service answers it with the reservation it
+ * made or the settlement it recorded. A refusal is thrown at once, and an answer still unknown is thrown as unknown:
+ * the bridge then refuses the model call, so an unknown reservation never lets a paid call leave, and is never released
+ * without proof; the service counts it against the allowance until it is settled or the turn ends. A cancelled model
+ * call (`stop`) sends no reservation, and cuts one in flight. A settlement is never cut: it is owed even after a Hold
+ * or Stop, and the service takes it then (it is not fenced).
  */
-export function reviewAccounts(client: ReviewAccountsClient, patience: Patience = REVIEW_PATIENCE) {
+export function boundedAccounts(operations: AccountOperations, patience: Patience = REVIEW_PATIENCE) {
   const never = new AbortController().signal
   const answered = async <T>(what: string, send: (signal: AbortSignal) => Promise<T>, stop: AbortSignal): Promise<T> => {
     const sent = await untilAnswered(send, patience, stop)
@@ -151,10 +166,17 @@ export function reviewAccounts(client: ReviewAccountsClient, patience: Patience 
   }
   return {
     reserve: (body: ResearchReserveRequest, stop: AbortSignal = never) =>
-      answered('reservation', (signal) => client.sourceReviewReserve(body, signal), stop),
-    settle: (body: ResearchSettleRequest) => answered('settlement', (signal) => client.sourceReviewSettle(body, signal), never),
+      answered('reservation', (signal) => operations.reserve(body, signal), stop),
+    settle: (body: ResearchSettleRequest) => answered('settlement', (signal) => operations.settle(body, signal), never),
   }
 }
+
+/** A source review's model-call accounting: `boundedAccounts` over its own operations. */
+export const reviewAccounts = (client: ReviewAccountsClient, patience: Patience = REVIEW_PATIENCE) =>
+  boundedAccounts(
+    { reserve: (body, signal) => client.sourceReviewReserve(body, signal), settle: (body, signal) => client.sourceReviewSettle(body, signal) },
+    patience,
+  )
 
 /** A submit or a blocker, sent until its outcome is known; a refusal becomes one sentence for the model. */
 async function submitted(client: ReviewClient, body: SourceReviewSubmitRequest, patience: Patience, stop: AbortSignal, note: string): Promise<Json> {

@@ -44,7 +44,7 @@ import { FINALIZE_NOTICE, FINALIZE_TOOL_NAMES, researchTools, type ResearchSourc
 import { loadDesignAssets, type AssetsOutcome, type LoadedAssets } from './design-assets.js'
 import { designTools, type ImageStore } from './design-tools.js'
 import { REVIEW_PROMPT } from './review-prompt.js'
-import { reviewAccounts, reviewTools } from './review-tools.js'
+import { boundedAccounts, reviewAccounts, reviewTools } from './review-tools.js'
 import { DESIGN_ROLES, roleOf } from './role-registry.js'
 import type { DesignRole, RolePreset } from './role-registry.js'
 import { foldLog, Journal, strongestFence } from './session-events.js'
@@ -535,7 +535,10 @@ export class ControlBridge {
   /**
    * One model call of a designer or a reviewer (SDD-01), metered against the research lineage's allowance through the
    * design operations: reserved before it leaves, settled from its usage. A design has no finalize step: a spent
-   * allowance refuses the call, and the design ends on the service's limits.
+   * allowance refuses the call, and the design ends on the service's limits. Each reservation and settlement waits a
+   * bounded time and is sent again under the same callId or reservationId; a cancelled call sends no reservation and
+   * cuts one in flight, an unknown or refused one refuses the call, and its settlement is still sent, within its own
+   * bound, after a Hold or Stop (Davide on #107, as a source review's).
    */
   private meteredDesign(attempt: AttemptState, options: GenerateOptions, route: RouteConfig, prices: RoutePrices, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk> {
     const transport = this.transport!
@@ -545,12 +548,16 @@ export class ControlBridge {
       this.journal.append(attempt.sessionId, 'sophia/spend-refused', { attemptId: attempt.attemptId, sessionId: String(options.sessionId), reason })
       return refuse(reason)
     }
+    const accounts = boundedAccounts({
+      reserve: (body, signal) => transport.designReserve(body, signal),
+      settle: (body, signal) => transport.designSettle(body, signal),
+    })
     return (async function* () {
       const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
       let reservationId: string
       try {
-        // No abort signal, as for research: a reservation the service made must come back to be settled.
-        reservationId = (await transport.designReserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose: 'call' })).reservationId
+        const body = { ...ids, callId: `llm-${randomUUID()}`, kind: 'model' as const, provider: route.provider, amountUsd, purpose: 'call' as const }
+        reservationId = (await accounts.reserve(body, options.signal)).reservationId
       } catch (error) {
         const why = error instanceof TransportError && error.code ? error.code : (error as Error).message
         yield* refused(`this design's allowance could not reserve the model call (${why})`)
@@ -565,7 +572,7 @@ export class ControlBridge {
       } finally {
         const costUsd = usage ? costOfUsage(usage, prices) : null
         try {
-          await transport.designSettle({
+          await accounts.settle({
             ...ids,
             reservationId,
             outcome: usage ? 'settled' : 'uncertain',

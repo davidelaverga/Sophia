@@ -23,7 +23,8 @@
  * acknowledgement, and each submit, is sent unchanged until its outcome is known, within a deadline; an acknowledgement
  * still unknown submits nothing. A submit's call key is derived from what it ends the task with, not remembered, so a
  * submit whose answer was lost is the same call when it is sent again, after a restart too (#117): the service records
- * it at most once and answers what it recorded.
+ * it at most once and answers what it recorded. A context read waits a bounded time for its answer, and the model reads
+ * again (a read records nothing); a Hold or Stop cuts it at once (Davide on #107).
  * @module @sophia/dsh-bundle/design-tools
  */
 
@@ -92,6 +93,8 @@ export interface DesignToolDeps {
   readonly renderWait?: { readonly maxMs: number; readonly pollMs: number }
   /** How an acknowledgement and a submit are sent until their outcome is known (defaults: ACK_PATIENCE, SUBMIT_PATIENCE). */
   readonly patience?: { readonly ack: Patience; readonly submit: Patience }
+  /** How long a context read waits for its answer (default: READ_MS). */
+  readonly readMs?: number
 }
 
 /** How often, and for how long, the same request is sent before its outcome counts as unknown. */
@@ -110,6 +113,11 @@ export const CAPTURE_WAIT = { maxMs: 240_000, pollMs: 2_000 } as const
 export const ACK_PATIENCE: Patience = { tries: 4, pauseMs: 500, maxMs: 15_000 }
 /** A submit is sent up to four times within 60 s: a candidate's gate and publication take longer than an acknowledgement. */
 export const SUBMIT_PATIENCE: Patience = { tries: 4, pauseMs: 1_000, maxMs: 60_000 }
+/**
+ * How long design_read_context and review_read_context wait for their answer (Davide on #107): one the service never
+ * finishes is cut then, and the model is told to read again, as a read records nothing.
+ */
+export const READ_MS = 30_000
 /** The bridge remembers at most this many looks; the oldest is forgotten first, and its receipt is then refused. */
 const MAX_LOOKS = 4_096
 /** A submit names at most this many receipts. */
@@ -141,6 +149,12 @@ function serviceProblem(error: unknown): { code: string; message: string } {
     message: 'The Sophia service could not be reached, or its answer could not be read: the call may or may not have taken effect. Read your context before you repeat it.',
   }
 }
+
+/** What a context read answers when the service did not answer it in time. */
+const READ_UNANSWERED = {
+  code: 'service_unavailable',
+  message: 'The Sophia service did not answer in time; nothing was read. Read again after a pause.',
+} as const
 
 /** What a submit answers when an acknowledgement it rests on stays unknown: it sent nothing. */
 const UNCONFIRMED = {
@@ -243,6 +257,22 @@ async function guarded(run: () => Promise<Json>): Promise<Json> {
   }
 }
 
+/**
+ * A context read within its deadline (Davide on #107): the answer, the service's refusal as one sentence, or "read
+ * again" when the deadline cut it. A Hold or Stop (the tool's signal) still cuts it at once and the tool fails, and an
+ * already cancelled read sends nothing.
+ */
+async function readWithin(readMs: number, exec: ToolRunContext, read: (signal: AbortSignal) => Promise<unknown>): Promise<Json> {
+  const deadline = AbortSignal.timeout(readMs)
+  try {
+    return asJson(await read(AbortSignal.any([exec.signal, deadline])))
+  } catch (error) {
+    if (deadline.aborted && !exec.signal.aborted) return { ...READ_UNANSWERED }
+    if (error instanceof TransportError) return serviceProblem(error)
+    throw error
+  }
+}
+
 /** What a capture's state asks of the designer next. */
 function renderNote(render: DesignRender): string {
   if (render.state === 'queued' || render.state === 'rendering') {
@@ -302,6 +332,7 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
   const ids = (s: DesignSession) => ({ attemptId: s.attemptId, nativeSessionId: s.nativeSessionId })
   const wait = deps.renderWait ?? CAPTURE_WAIT
   const patience = deps.patience ?? { ack: ACK_PATIENCE, submit: SUBMIT_PATIENCE }
+  const readMs = deps.readMs ?? READ_MS
   const ownerOf = (role: Role, s: DesignSession) => `${role} ${s.attemptId} ${s.nativeSessionId}`
 
   /** The looks handed to the models, by receipt, oldest first. */
@@ -405,8 +436,8 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     output: { schema: { type: 'json' }, render: plain },
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
-      return guarded(async () => asJson(await deps.client.designContext(
-        args.sourceId === undefined ? ids(session) : { ...ids(session), sourceId: args.sourceId, offset: args.offset ?? 0 }, exec.signal)))
+      return readWithin(readMs, exec, (signal) => deps.client.designContext(
+        args.sourceId === undefined ? ids(session) : { ...ids(session), sourceId: args.sourceId, offset: args.offset ?? 0 }, signal))
     },
   })
 
@@ -632,8 +663,8 @@ export function designTools(deps: DesignToolDeps): ToolDefinition[] {
     output: { schema: { type: 'json' }, render: plain },
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
-      return guarded(async () => asJson(await deps.client.reviewContext(
-        args.sourceId === undefined ? ids(session) : { ...ids(session), sourceId: args.sourceId, offset: args.offset ?? 0 }, exec.signal)))
+      return readWithin(readMs, exec, (signal) => deps.client.reviewContext(
+        args.sourceId === undefined ? ids(session) : { ...ids(session), sourceId: args.sourceId, offset: args.offset ?? 0 }, signal))
     },
   })
 

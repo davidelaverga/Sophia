@@ -281,15 +281,20 @@ export class ServiceTransport {
     return checked('delivery', wire.DesignDeliveryReceipt, await this.request('POST', `/v1/runtime/${role}/delivered`, body, signal))
   }
 
-  /** A model call of the designer or the reviewer, reserved against the research lineage's allowance. */
-  async designReserve(body: ResearchReserveRequest): Promise<ResearchReservation> {
+  /**
+   * A model call of the designer or the reviewer, reserved against the research lineage's allowance. `signal` ends the
+   * wait for an answer, as sourceReviewReserve's: the bridge sends the same reservation (same callId) again (Davide on
+   * #107).
+   */
+  async designReserve(body: ResearchReserveRequest, signal?: AbortSignal): Promise<ResearchReservation> {
     checked('reservation request', wire.ResearchReserveRequest, body)
-    return checked('reservation', wire.ResearchReservation, await this.request('POST', '/v1/runtime/design/reserve', body))
+    return checked('reservation', wire.ResearchReservation, await this.request('POST', '/v1/runtime/design/reserve', body, signal))
   }
 
-  async designSettle(body: ResearchSettleRequest): Promise<ResearchSettlement> {
+  /** `signal` ends the wait for an answer: the same settlement (same reservationId) is sent again. */
+  async designSettle(body: ResearchSettleRequest, signal?: AbortSignal): Promise<ResearchSettlement> {
     checked('settlement request', wire.ResearchSettleRequest, body)
-    return checked('settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/design/settle', body))
+    return checked('settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/design/settle', body, signal))
   }
 
   /** `signal` bounds the wait for an answer; the design tools then send the same call (same key) again, never a new one. */

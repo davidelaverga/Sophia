@@ -1782,3 +1782,36 @@ describe('readiness (0043)', () => {
     assert.deepEqual(await ready(), [200, { ready: true }])
   })
 })
+
+describe('a design’s model-call accounting answers a resend as recorded (Davide on #107)', () => {
+  it('a reservation sent again under its callId is the same one, counted once; a settlement sent again is the same', async () => {
+    const { w, at } = await designing()
+    // The bridge sends a reservation whose reply was lost again, unchanged: the same callId.
+    const reserve = { ...at, callId: 'llm-resent', kind: 'model', provider: 'openai', amountUsd: 0.01 }
+    const first = await w.runtime('/v1/runtime/design/reserve', reserve)
+    const again = await w.runtime('/v1/runtime/design/reserve', reserve)
+    assert.deepEqual([first.status, again.status], [200, 200], JSON.stringify([first.json, again.json]))
+    assert.equal(again.json.reservationId, first.json.reservationId, 'the reservation it made')
+    const rows = async () =>
+      owner(async (c) => {
+        const r = await c.query<{ state: string; settled: number | null }>(
+          `SELECT state, settled_usd::float8 AS settled FROM sophia.research_reservations WHERE reservation_key=$1`,
+          [`${at.nativeSessionId}:llm-resent`],
+        )
+        return r.rows.map((x) => [x.state, x.settled])
+      })
+    assert.deepEqual(await rows(), [['reserved', null]], 'counted once')
+    // And a settlement whose reply was lost: the same reservationId and outcome, recorded once.
+    const settle = { ...at, reservationId: first.json.reservationId, outcome: 'settled', costUsd: 0.004 }
+    const settled = await w.runtime('/v1/runtime/design/settle', settle)
+    const resent = await w.runtime('/v1/runtime/design/settle', settle)
+    assert.deepEqual(
+      [settled.status, resent.status, resent.json.state, resent.json.settledUsd],
+      [200, 200, 'settled', settled.json.settledUsd],
+      JSON.stringify([settled.json, resent.json]),
+    )
+    const other = await w.runtime('/v1/runtime/design/settle', { ...settle, costUsd: 0.005 })
+    assert.notEqual(other.status, 200, 'another cost for a settled call is refused')
+    assert.deepEqual(await rows(), [['settled', 0.004]], 'settled once, at its first cost')
+  })
+})

@@ -59,7 +59,7 @@ Levels (binding map §10): L0 source and fixtures; L1 pinned dsh, confined Chrom
 | B-23 open/download parity | L1 | `e2e/report.spec.ts`: the frame's `srcdoc` and both downloads are the stored bytes; a mismatch is not shown |
 | B-24 viewer freshness | L1 | The viewer's version pinning is unchanged (`e2e/report.spec.ts` ART-02) and applies to the HTML view; a work card reads its research again once the design ends (B-19 test) |
 | B-25 format not ready | L1 | `html_unavailable` at admission; a page not designed is "Partly delivered" with its reason, never a template (`report-view.test.ts`) |
-| B-26 billing and limits | L1 | Every designer and reviewer model call reserved and settled through `design/reserve` and `design/settle` against the lineage allowance (`tests/integration/design-tools.test.mjs`) |
+| B-26 billing and limits | L1 | Every designer and reviewer model call reserved and settled through `design/reserve` and `design/settle` against the lineage allowance (`tests/integration/design-tools.test.mjs`); each request bounded and sent again under the same callId or reservationId, a cancelled call sending none, a settlement owed after Hold or Stop (`tests/unit/design-meter.test.mjs`, `design.db.test.ts`; Davide on #107) |
 | B-27 legacy compatibility | L1 | MD/PDF readers and ids unchanged; `renderReportPage` kept for G6 only |
 | B-28 versioned recovery | L1 | Presets recorded by digest (unchanged mechanism); assets re-verified at every create and resume |
 | B-29 private/shared context | L1 | Reference reads limited to each role's registry scope, exactly (`design-roles.test.mjs`, RF-0002); runtime operations authenticated by capability and binding |

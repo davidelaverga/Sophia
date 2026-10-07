@@ -12,13 +12,14 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { createServer as createNetServer } from 'node:net'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { test } from 'node:test'
 import { loadDesignAssets } from '../../packages/dsh-bundle/dist/design-assets.js'
 import { designTools } from '../../packages/dsh-bundle/dist/design-tools.js'
 import { DESIGN_ROLES, roleOf } from '../../packages/dsh-bundle/dist/role-registry.js'
-import { TransportError } from '../../packages/dsh-bundle/dist/transport.js'
+import { ServiceTransport, TransportError } from '../../packages/dsh-bundle/dist/transport.js'
 import { REPO_ROOT } from '../../scripts/lib/common.mjs'
 
 const SKILLS = join(REPO_ROOT, 'packages', 'dsh-bundle', 'skills')
@@ -98,7 +99,7 @@ function fakeImages({ fail = false, alter = false } = {}) {
 
 const QUICK = { tries: 4, pauseMs: 1, maxMs: 5000 }
 
-function tools(service, { role = designer, images = fakeImages(), route = async () => null, ack = QUICK, submit = QUICK } = {}) {
+function tools(service, { role = designer, images = fakeImages(), route = async () => null, ack = QUICK, submit = QUICK, readMs } = {}) {
   const assets = loadDesignAssets(role)
   assert.equal(assets.ok, true, assets.reason)
   const lines = []
@@ -111,6 +112,7 @@ function tools(service, { role = designer, images = fakeImages(), route = async 
     log: (l) => lines.push(l),
     renderWait: { maxMs: 5000, pollMs: 1 },
     patience: { ack, submit },
+    ...(readMs === undefined ? {} : { readMs }),
   })
   return { byName: Object.fromEntries(list.map((t) => [t.name, t])), images, lines }
 }
@@ -160,6 +162,113 @@ test('a changed byte, a missing file or a path leaving the bundle makes the role
     assert.match(loadDesignAssets({ ...reviewer, references: ['web/missing/*'] }).reason, /web\/missing\/\* names no reference/)
   } finally {
     rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+/** A request the service never answers: it ends only when its signal does. */
+const unanswered = (_body, signal) =>
+  new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
+
+/** What `promise` settles to within `ms`, or 'still waiting'. */
+async function within(ms, promise) {
+  let timer
+  const late = new Promise((resolve) => { timer = setTimeout(() => resolve('still waiting'), ms) })
+  try {
+    return await Promise.race([promise, late])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const READ_AGAIN = { code: 'service_unavailable', message: 'The Sophia service did not answer in time; nothing was read. Read again after a pause.' }
+const CONTEXT_READS = [
+  { tool: 'design_read_context', op: 'designContext', role: designer, path: '/v1/runtime/design/context' },
+  { tool: 'review_read_context', op: 'reviewContext', role: reviewer, path: '/v1/runtime/review/context' },
+]
+
+test('a context read Sophia never answers ends at its deadline: nothing was read, and the model reads again (Davide on #107)', async () => {
+  for (const { tool, op, role } of CONTEXT_READS) {
+    const service = fakeService({ [op]: unanswered })
+    const { byName } = tools(service, { role, readMs: 50 })
+    assert.deepEqual(await within(2_000, byName[tool].execute({}, exec())), READ_AGAIN, tool)
+    assert.deepEqual(await within(2_000, byName[tool].execute({ sourceId: 's', offset: 6000 }, exec())), READ_AGAIN, tool)
+    assert.equal(service.calls.length, 2, `${tool}: each read sent once; the model decides to read again`)
+    // A Hold or Stop still cuts a read at once, and the tool fails, never "read again".
+    const hold = new AbortController()
+    const reading = byName[tool].execute({}, { ...exec(), signal: hold.signal })
+    hold.abort()
+    await assert.rejects(within(2_000, reading).then((v) => { if (v === 'still waiting') throw new Error('the read outlived its Hold'); return v }), { name: 'AbortError' })
+    // A read answered in time is its answer, as ever; a refusal is one sentence.
+    const answered = tools(fakeService(), { role, readMs: 50 }).byName[tool]
+    assert.deepEqual(await answered.execute({}, exec()), { ok: op })
+    const held = tools(fakeService({ [op]: () => { throw new TransportError('held', 409, 'invalid_state') } }), { role, readMs: 50 }).byName[tool]
+    assert.equal((await held.execute({}, exec())).code, 'invalid_state')
+  }
+})
+
+test('over a real connection, a context read answered is its page; one whose headers or body never finish ends at its deadline (Davide on #107)', async () => {
+  const ATTEMPT = '77777777-7777-4777-8777-777777777777'
+  const SOURCE = '88888888-8888-4888-8888-888888888888'
+  const session = { attemptId: ATTEMPT, nativeSessionId: `sophia-${ATTEMPT}` }
+  const PAGE = JSON.stringify({ sourceId: SOURCE, offset: 0, nextOffset: null, totalChars: 11, truncated: false, text: 'Hello page.' })
+  const head = (length) => `HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: ${length}\r\n`
+  const replies = {
+    page: `${head(Buffer.byteLength(PAGE))}connection: close\r\n\r\n${PAGE}`,
+    headers: 'HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n',
+    body: `${head(Buffer.byteLength(PAGE))}\r\n${PAGE.slice(0, PAGE.indexOf('Hello'))}`,
+    nothing: '',
+  }
+  let mode = 'page'
+  const paths = []
+  const sockets = new Set()
+  const server = createNetServer((socket) => {
+    sockets.add(socket)
+    let request = ''
+    socket.on('data', (chunk) => {
+      request += chunk.toString('latin1')
+      const end = request.indexOf('\r\n\r\n')
+      const length = Number(/content-length: *(\d+)/i.exec(request)?.[1] ?? 0)
+      if (end < 0 || request.length < end + 4 + length) return
+      paths.push(request.split(' ')[1])
+      if (mode === 'page') socket.end(replies.page)
+      else socket.write(replies[mode])
+    })
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const transport = new ServiceTransport({ baseUrl: `http://127.0.0.1:${server.address().port}`, token: 't', runtimeUnitId: 'u', bridgeInstanceId: 'b' })
+    for (const { tool, role, path } of CONTEXT_READS) {
+      const list = designTools({
+        client: transport, sessionOf: () => session, assetsOf: () => null, images: () => undefined, imageRoute: async () => null,
+        log: () => {}, readMs: 200,
+      })
+      const read = list.find((t) => t.name === tool)
+      assert.ok(read, `${tool} for ${role.id}`)
+      const asked = (signal = new AbortController().signal) => read.execute({ sourceId: SOURCE }, { ...exec(), signal })
+      mode = 'page'
+      assert.deepEqual(await within(5_000, asked()), JSON.parse(PAGE), `${tool}: the page, as the service sent it`)
+      for (mode of ['headers', 'body', 'nothing']) {
+        assert.deepEqual(await within(5_000, asked()), READ_AGAIN, `${tool}: ${mode}`)
+      }
+      // A Hold or Stop cuts a read in flight at once; one already cancelled sends nothing.
+      mode = 'nothing'
+      const hold = new AbortController()
+      const before = paths.length
+      const reading = asked(hold.signal)
+      while (paths.length === before) await new Promise((resolve) => setTimeout(resolve, 5))
+      hold.abort()
+      await assert.rejects(within(2_000, reading).then((v) => { if (v === 'still waiting') throw new Error('the read outlived its Hold'); return v }), { name: 'AbortError' })
+      const sent = paths.length
+      await assert.rejects(asked(AbortSignal.abort()), { name: 'AbortError' })
+      assert.equal(paths.length, sent, `${tool}: a read cancelled before it left sends nothing`)
+      mode = 'page'
+      assert.deepEqual(await within(5_000, asked()), JSON.parse(PAGE), `${tool}: read again, the page`)
+      assert.ok(paths.every((p) => p === '/v1/runtime/design/context' || p === '/v1/runtime/review/context'))
+      assert.equal(paths.at(-1), path)
+    }
+  } finally {
+    for (const socket of sockets) socket.destroy()
+    await new Promise((resolve) => server.close(resolve))
   }
 })
 
