@@ -88,39 +88,72 @@ export function ConversationComposer(props: Props) {
         void go()
       }}
     >
-      <textarea
-        aria-label="Continue this question with the team"
-        placeholder="Continue this question with the team"
-        rows={2}
-        value={draft}
-        onChange={(e) => onDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
-          e.preventDefault()
-          void go()
-        }}
-      />
-      <div className="conv-compose-acts">
-        <label className="conv-ask">
-          <input
-            type="checkbox"
-            checked={asks}
-            disabled={held !== null}
-            onChange={(e) => props.onAskSophia(e.target.checked)}
-          />
-          <span className="conv-ask-box" aria-hidden />
-          <Mark />
-          Ask Sophia
-        </label>
-        <button type="submit" className="pill" aria-disabled={!ready || busy || undefined}>
-          {busy ? 'Sending…' : 'Send'}
-        </button>
+      <div className="conv-field-box">
+        <textarea
+          aria-label="Continue this question with the team"
+          placeholder="Continue this question with the team"
+          rows={1}
+          value={draft}
+          onChange={(e) => onDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
+            e.preventDefault()
+            void go()
+          }}
+        />
+        <AskSophia on={asks} held={held !== null} onChange={props.onAskSophia} />
+        <SendButton ready={ready} busy={busy} />
       </div>
+      <p className="conv-compose-hint">
+        <span data-asked={asks || undefined}>{asks ? 'Sophia will answer' : 'To the team only'}</span>
+        <span>Enter sends · Shift+Enter, a new line</span>
+      </p>
       {(words ?? slow) && (
         <p className="conv-note" role="alert">
           {words ?? SLOW_NOTE}
         </p>
       )}
     </form>
+  )
+}
+
+/** «Ask Sophia» in the field: her mark, lit when on; a checkbox under it, named so; still while a message waits. */
+function AskSophia(props: { on: boolean; held: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="conv-ask" title="Ask Sophia">
+      <input
+        type="checkbox"
+        checked={props.on}
+        disabled={props.held}
+        onChange={(e) => props.onChange(e.target.checked)}
+      />
+      <span className="conv-ask-box" aria-hidden />
+      <Mark />
+      <span className="sr-only">Ask Sophia</span>
+    </label>
+  )
+}
+
+/** Send: an arrow, lit once there is something to send; its name says when it is on its way. */
+function SendButton({ ready, busy }: { ready: boolean; busy: boolean }) {
+  return (
+    <button
+      type="submit"
+      className="conv-send"
+      data-ready={(ready && !busy) || undefined}
+      aria-disabled={!ready || busy || undefined}
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+        <path
+          d="M7 12V2M2.5 6.5L7 2l4.5 4.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span className="sr-only">{busy ? 'Sending…' : 'Send'}</span>
+    </button>
   )
 }

@@ -1,6 +1,8 @@
 /* Several conversations, one project (ConversationsView, Davide's chapter 2), in three panes
-   (docs/plans/conversations-panes.md): the list, the one open, and what it rests on. Each pane scrolls on its own and the
-   page never does. Under 1180 px the context is a panel over the right edge; on a phone one pane shows at a time. */
+   (docs/plans/conversations-panes.md) and quiet (docs/plans/conversations-quiet.md): the list, the one open, and what it
+   rests on, told apart by tone, never by lines. People speak in bubbles; Sophia speaks in light. Each pane scrolls on
+   its own and the page never does. Under 1180 px the context is a panel over the right edge; on a phone one pane shows
+   at a time. */
 .page.panes {
   max-width: none;
   height: calc(100dvh - var(--topbar));
@@ -8,10 +10,13 @@
 }
 /* Clipped: the context panel waiting off its edge never makes the page scroll. */
 .conversations {
+  --raise: rgba(236, 235, 241, 0.045);
+  --raise-2: rgba(236, 235, 241, 0.075);
+  --warm-raise: rgba(241, 220, 199, 0.085);
   position: relative;
   overflow: clip;
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 320px;
+  grid-template-columns: 300px minmax(0, 1fr) 300px;
   height: 100%;
   min-height: 0;
 }
@@ -21,18 +26,21 @@
   width: 30px;
   height: 30px;
   flex: none;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-2);
+  border: 0;
+  border-radius: 7px;
   background: none;
   color: var(--text-2);
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
 }
 .conversations .icon-button:hover {
-  border-color: var(--line-3);
+  background: var(--raise-2);
   color: var(--text);
 }
-.conversations .icon-button[aria-pressed='true'] {
-  border-color: rgba(156, 130, 245, 0.35);
-  background: rgba(156, 130, 245, 0.12);
+.conversations .icon-button[aria-pressed='true'],
+.conversations .icon-button[aria-expanded='true'] {
+  background: rgba(156, 130, 245, 0.14);
   color: var(--text);
 }
 .conv-who,
@@ -43,23 +51,38 @@
   font-size: var(--type-small);
   overflow-wrap: anywhere;
 }
-.conv-state {
-  font-size: var(--type-label);
-}
 .conv-note .text-button,
 .conv-earlier .text-button {
   min-height: 24px;
 }
+/* Her mark, lit: a soft halo behind it, as her light is the one soft thing on the screen. */
+.conv-glyph {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+.conv-glyph::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(156, 130, 245, 0.32), transparent 65%);
+}
+.conv-glyph .umbral {
+  position: relative;
+}
 
-/* ---- the list ---- */
+/* ---- the list: a quiet plane, rows without boxes ---- */
 .conv-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   min-height: 0;
-  padding: 18px 12px 0;
-  border-right: 1px solid var(--line);
+  padding: 18px 10px 0;
   background: var(--plane);
 }
 .conv-list-head {
@@ -67,18 +90,26 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 4px;
+  padding: 0 6px 4px 8px;
 }
 .conv-list-head h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--type-title);
   font-weight: 600;
-  letter-spacing: -0.01em;
 }
 .conv-filter {
   width: 100%;
-  min-height: 32px;
+  min-height: 34px;
+  padding-left: 32px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: var(--raise)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 14 14'%3E%3Ccircle cx='6' cy='6' r='4.5' fill='none' stroke='rgba(236,235,241,0.46)' stroke-width='1.4'/%3E%3Cpath d='M9.5 9.5L13 13' stroke='rgba(236,235,241,0.46)' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E")
+    no-repeat 11px center;
   font-size: var(--type-body);
+}
+.conv-filter:focus {
+  background-color: var(--raise-2);
 }
 .conv-rows {
   display: grid;
@@ -86,83 +117,109 @@
   gap: 2px;
   flex: 1;
   min-height: 0;
-  margin: 0 -12px;
-  padding: 0 8px 24px;
+  margin: 0 -10px;
+  padding: 2px 8px 24px;
   overflow: auto;
   list-style: none;
 }
 .conv-row {
-  position: relative;
   display: grid;
-  gap: 3px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
   width: 100%;
   padding: 10px 12px;
   border: 0;
-  border-radius: var(--r-3);
+  border-radius: 10px;
   background: none;
   color: var(--text);
   text-align: left;
+  transition: background var(--fast) var(--ease);
 }
 .conv-row:hover {
-  background: rgba(236, 235, 241, 0.035);
+  background: var(--raise);
 }
 .conv-row[aria-pressed='true'] {
-  background: var(--plane-2);
-  box-shadow: inset 2px 0 0 var(--halo);
+  background: var(--raise-2);
 }
 .conv-title {
-  font-size: var(--type-title);
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--type-body);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conv-row[aria-pressed='true'] .conv-title {
   font-weight: 600;
-  overflow-wrap: anywhere;
+}
+.conv-row-at {
+  color: var(--text-2);
+  font: var(--type-label) / 20px var(--mono);
 }
 .conv-about {
-  display: grid;
-  gap: 3px;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 .conv-gist {
-  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   color: var(--text-2);
   font-size: var(--type-small);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* What is open, as an amber dot and its count; its words are said, not shown. */
+.conv-open-flag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--amber);
+  font: var(--type-label) / 1 var(--mono);
+}
+.conv-open-flag::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber);
 }
 
-/* ---- the open conversation: its head, what it made, the thread in its own scroll, the field at its foot ---- */
+/* ---- the open conversation: its head, the thread in its own scroll, the field floating at its foot ---- */
 .conv-open,
 .conv-new {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
+/* Sophia's light, faint, from above the thread. */
+.conv-open::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 240px;
+  pointer-events: none;
+  background: radial-gradient(ellipse 60% 100% at 50% -30%, rgba(156, 130, 245, 0.08), transparent 70%);
+}
 .conv-head {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
   gap: 12px;
-  padding: 14px 24px;
-  border-bottom: 1px solid var(--line);
+  padding: 16px 28px 8px;
 }
 .conv-back,
 .conv-context-toggle,
 .conv-context-close {
   display: none !important;
-}
-.conv-faces {
-  display: flex;
-  flex: none;
-}
-.conv-faces .conv-face {
-  width: 26px;
-  height: 26px;
-  margin-left: -7px;
-  background: var(--void);
-  font-size: var(--type-label);
-  box-shadow: 0 0 0 2px var(--void);
-}
-.conv-faces .conv-face:first-child {
-  margin-left: 0;
 }
 .conv-head-words {
   min-width: 0;
@@ -171,9 +228,10 @@
 .conv-head h3 {
   margin: 0;
   overflow: hidden;
-  font-size: var(--type-title);
+  font-size: 18px;
   font-weight: 600;
-  line-height: 1.35;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -181,143 +239,181 @@
   outline: 2px solid var(--halo);
   outline-offset: 2px;
 }
-.conv-output {
+.conv-head .conv-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+}
+.conv-faces {
+  display: flex;
+  flex: none;
+}
+.conv-face {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: #1a1714;
+  color: var(--warm);
+  font-size: var(--type-label);
+  font-weight: 600;
+  box-shadow: 0 0 0 2px var(--void);
+}
+.conv-face:first-child {
+  margin-left: 0;
+}
+.conv-face.sophia {
+  background: #16131f;
+}
+.conv-face .umbral {
+  width: 11px;
+  height: 11px;
+}
+.conv-head-acts {
   display: flex;
   flex: none;
   align-items: center;
+  gap: 6px;
+}
+/* What it made: the report's page in small, its name beside it. */
+.conv-output {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  width: 100%;
-  padding: 9px 24px;
+  max-width: 260px;
+  height: 40px;
+  padding: 0 12px 0 7px;
   border: 0;
-  border-bottom: 1px solid var(--line);
-  background: linear-gradient(90deg, rgba(156, 130, 245, 0.1), transparent 70%);
+  border-radius: 10px;
+  background: var(--raise);
   color: var(--text);
-  font-size: var(--type-small);
   text-align: left;
+  transition: background var(--fast) var(--ease);
 }
 .conv-output:hover {
-  background: linear-gradient(90deg, rgba(156, 130, 245, 0.16), transparent 75%);
+  background: var(--raise-2);
+}
+.conv-output-page {
+  display: grid;
+  flex: none;
+  align-content: start;
+  gap: 2px;
+  width: 22px;
+  height: 28px;
+  padding: 4px 3px;
+  border-radius: 3px;
+  background: #fbf8f3;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.conv-output-page i {
+  display: block;
+  height: 2px;
+  border-radius: 1px;
+  background: #d9d3c8;
+}
+.conv-output-page i:first-child {
+  width: 80%;
+  height: 3px;
+  background: #1d1b22;
+}
+.conv-output-page i:nth-child(3) {
+  width: 55%;
+  background: #6d5bd0;
 }
 .conv-output-words {
+  display: grid;
   min-width: 0;
-  flex: 1;
+}
+.conv-output-title {
   overflow: hidden;
+  font-size: var(--type-small);
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.conv-output .eyebrow {
-  margin-right: 6px;
-}
 .conv-output-v {
   color: var(--text-2);
-}
-.conv-output-go {
-  flex: none;
-  color: var(--halo-text);
-  font-weight: 500;
+  font: var(--type-label) / 1.3 var(--mono);
 }
 .conv-scroll {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 12px;
   min-height: 0;
-  padding: 18px 24px 12px;
+  padding: 8px 28px 20px;
   overflow: auto;
+  mask-image: linear-gradient(to bottom, transparent 0, #000 20px);
 }
 /* A short thread rests on the field, as a conversation does: what is newest is nearest. */
 .conv-scroll > :first-child {
   margin-top: auto;
 }
+.conv-scroll > * {
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
+}
 .conv-earlier {
-  margin: 0;
-  font-size: var(--type-small);
+  margin: 4px auto 14px;
+  text-align: center;
+}
+.conv-earlier .text-button {
+  padding: 0 10px;
+  color: var(--text-2);
+  font: var(--type-label) / 24px var(--mono);
+  text-decoration: none;
 }
 .conv-messages {
   display: flex;
   flex-direction: column;
-  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* A message: its author's face, then its bubble (docs/plans/conversation-thread.md). Yours on the right, warm; the
-   team's on the left; Sophia's on her plane. A message that goes on from the one before keeps its byline for a screen
-   reader only, and leaves its face's place empty. */
+/* A message (docs/plans/conversation-thread.md): a person's in a bubble, yours on the right and warm, the team's on the
+   left, named once a run; Sophia's with no bubble, her mark lit and her words in light. Each time waits under the
+   pointer (or the focus); a screen reader hears who and when on every message. */
 .conv-msg {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: end;
-  gap: 10px;
-  max-width: min(78%, 620px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 16px;
+}
+.conv-msg[data-run] {
+  margin-top: 4px;
+}
+.conv-msg.mine {
+  align-items: flex-end;
 }
 .conv-msg:focus-visible {
   outline: 2px solid var(--halo);
   outline-offset: 4px;
-  border-radius: var(--r-1);
+  border-radius: var(--r-2);
 }
-.conv-msg[data-run] {
-  margin-top: -10px;
-}
-.conv-msg.mine {
-  align-self: flex-end;
-  grid-template-columns: minmax(0, 1fr);
-}
-.conv-msg.mine .conv-face {
-  display: none;
-}
-.conv-face {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid rgba(241, 220, 199, 0.22);
-  border-radius: 50%;
-  background: rgba(241, 220, 199, 0.06);
-  color: var(--warm);
-  font-size: var(--type-small);
-  font-weight: 600;
-}
-.conv-face.sophia,
-.conv-msg.sophia .conv-face {
-  border-color: rgba(156, 130, 245, 0.3);
-  background: rgba(156, 130, 245, 0.1);
-}
-.conv-msg[data-run] .conv-face {
-  visibility: hidden;
-}
-.conv-msg-body {
-  display: grid;
-  gap: 3px;
-  width: fit-content;
-  max-width: 100%;
-  min-width: 0;
-  padding: 8px 13px 9px;
-  border: 1px solid var(--line);
-  border-radius: 14px 14px 14px 4px;
-  background: var(--plane-2);
-}
-.conv-msg.mine .conv-msg-body {
-  justify-self: end;
-  border-color: rgba(241, 220, 199, 0.18);
-  border-radius: 14px 14px 4px 14px;
-  background: rgba(241, 220, 199, 0.07);
-}
-/* Sophia's words on her plane: a glance tells hers from the team's. */
-.conv-msg.sophia .conv-msg-body {
-  border-color: rgba(156, 130, 245, 0.3);
-  background: rgba(156, 130, 245, 0.1);
+.conv-day {
+  align-self: center;
+  width: 100%;
+  text-align: center;
+  margin: 10px 0 16px;
+  color: var(--text-2);
+  font: var(--type-label) / 1.2 var(--mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 .conv-msg-by {
+  margin: 0 4px 5px;
   color: var(--text-2);
   font-size: var(--type-small);
-  font-variant-numeric: tabular-nums;
 }
+.conv-msg-by .sr-only,
+.conv-msg.mine .conv-msg-by,
+.conv-msg[data-run] .conv-msg-by,
 .conv-msg.sophia .conv-msg-by {
-  color: var(--halo-text);
-}
-.conv-msg[data-run] .conv-msg-by {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -325,47 +421,117 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+.conv-msg-body {
+  max-width: min(76%, 560px);
+  min-width: 0;
+  padding: 9px 14px;
+  border-radius: 16px;
+  background: var(--raise);
+}
+.conv-msg:not([data-run]) .conv-msg-body {
+  border-top-left-radius: 6px;
+}
+.conv-msg.mine .conv-msg-body {
+  background: var(--warm-raise);
+  border-top-left-radius: 16px;
+}
+.conv-msg.mine:not([data-run]) .conv-msg-body {
+  border-top-right-radius: 6px;
+}
 .conv-msg p {
   margin: 0;
   white-space: pre-wrap;
   font-size: var(--type-body);
+  line-height: 1.55;
   overflow-wrap: anywhere;
 }
+.conv-msg-at {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  color: var(--text-2);
+  font: var(--type-label) / 1 var(--mono);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity var(--fast) var(--ease);
+}
+.conv-msg.mine .conv-msg-at {
+  right: auto;
+  left: 0;
+}
+.conv-msg:is(:hover, :focus-within) .conv-msg-at {
+  opacity: 1;
+}
+.conv-msg.sophia {
+  flex-flow: row wrap;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 22px;
+  margin-bottom: 4px;
+}
+.conv-msg.sophia .conv-msg-body {
+  max-width: min(84%, 620px);
+  padding: 2px 0 0;
+  background: none;
+}
+.conv-msg.sophia p {
+  color: var(--core);
+  font-size: var(--type-title);
+  line-height: 1.6;
+}
+.conv-msg.sophia .conv-msg-at {
+  position: static;
+  display: inline-block;
+  margin-top: 6px;
+  transform: none;
+}
+.conv-answering {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+  color: var(--halo-text);
+}
+.conv-answering .conv-glyph::before {
+  animation: conv-breathe 1.6s ease-in-out infinite alternate;
+}
+@keyframes conv-breathe {
+  from {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
 
-/* ---- the context: this conversation first, the project's context, how it works ---- */
+/* ---- the context: this conversation first, then the project's context, unboxed ---- */
 .conv-context {
+  grid-column: 3;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
   min-width: 0;
   min-height: 0;
   /* The room's dock floats over this pane's foot: its last line stays clear of it. */
-  padding: 18px 16px calc(var(--floor) + 72px);
+  padding: 22px 22px calc(var(--floor) + 72px);
   overflow: auto;
-  border-left: 1px solid var(--line);
   background: var(--plane);
 }
 .conv-context-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.conv-context-head h3 {
-  margin: 0;
+  justify-content: flex-end;
+  margin-bottom: -16px;
 }
 .conv-context section {
   display: grid;
-  gap: 6px;
-}
-.conv-this {
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background: var(--plane-2);
+  gap: 9px;
 }
 .conv-this-summary {
   margin: 0;
   font-size: var(--type-body);
+  line-height: 1.65;
 }
 .conv-mission {
   display: grid;
@@ -380,17 +546,38 @@
   color: var(--text);
   font-size: var(--type-title);
   font-weight: 600;
+  line-height: 1.45;
+  text-wrap: balance;
 }
 .conv-decisions {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   margin: 0;
-  padding: 0 0 0 14px;
-  font-size: var(--type-body);
+  padding: 0;
+  list-style: none;
+  font-size: var(--type-small);
 }
-.conv-decisions.open {
-  list-style: circle;
-  color: var(--text-2);
+.conv-decisions li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.conv-decisions li::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 4px;
+  border-bottom: 1.5px solid var(--teal);
+  border-left: 1.5px solid var(--teal);
+  transform: rotate(-45deg) translateY(-3px);
+}
+.conv-decisions.open li::before {
+  width: 5px;
+  height: 5px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--amber);
+  transform: translateY(-2px);
 }
 .conv-help summary {
   min-height: 24px;
@@ -405,45 +592,107 @@
   font-size: var(--type-small);
 }
 
-/* ---- the writes (docs/plans/project-conversation-writes.md): the field at the pane's foot, the form in its place ---- */
+/* ---- the writes (docs/plans/project-conversation-writes.md): one floating field, Sophia and Send inside it ---- */
 .conv-compose {
+  position: relative;
   display: grid;
   flex: none;
   gap: 8px;
-  padding: 10px 24px 16px;
-  border-top: 1px solid var(--line);
+  padding: 4px 28px 20px;
+}
+.conv-compose > * {
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
+}
+.conv-field-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 14px;
+  background: var(--plane-2);
+  box-shadow:
+    0 0 0 1px var(--line-2),
+    0 18px 50px rgba(0, 0, 0, 0.55);
+  transition: box-shadow var(--fast) var(--ease);
+}
+.conv-field-box:focus-within {
+  box-shadow:
+    0 0 0 1px rgba(156, 130, 245, 0.45),
+    0 18px 50px rgba(0, 0, 0, 0.55),
+    0 0 30px rgba(156, 130, 245, 0.08);
+}
+.conv-compose textarea {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  min-height: 36px;
+  max-height: 30vh;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  font-size: var(--type-body);
+  line-height: 1.5;
+  resize: none;
+  field-sizing: content;
+}
+.conv-compose textarea:focus {
+  outline: none;
+}
+.conv-send {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border: 0;
+  border-radius: 9px;
+  background: var(--raise-2);
+  color: var(--text-2);
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+.conv-send[data-ready] {
+  background: var(--core);
+  color: #0c0a16;
+}
+.conv-compose-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 0 4px;
+  color: var(--text-2);
+  font: var(--type-label) / 1.3 var(--mono);
+}
+.conv-compose-hint [data-asked] {
+  color: var(--halo-text);
 }
 .conv-new {
-  gap: 10px;
-  padding: 18px 24px;
+  gap: 12px;
+  padding: 18px 28px;
   overflow: auto;
 }
-.conv-compose textarea,
 .conv-new textarea,
 .conv-new input:not([type='checkbox']) {
   width: 100%;
   font: inherit;
   font-size: var(--type-body);
 }
-.conv-compose textarea,
 .conv-new textarea {
   height: auto;
   min-height: 56px;
   padding: 8px 11px;
 }
-.conv-compose textarea {
-  max-height: 30vh;
-  resize: vertical;
-}
 .conv-compose-acts {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 8px 12px;
-}
-.conv-new .conv-compose-acts {
-  justify-content: flex-start;
 }
 .conv-compose-acts .text-button {
   min-height: 24px;
@@ -457,45 +706,56 @@
   display: grid;
   gap: 4px;
 }
-/* «Ask Sophia»: a checkbox shown as a chip with her mark and a box that holds a tick when it is on, so on and off differ
-   by a shape, not a colour alone (forced colours keep borders). Its native box stays in the page, unseen, for its state,
-   its name and the keyboard; the chip draws its focus. */
+/* «Ask Sophia»: a checkbox shown with her mark; on, her light. Its box is a ring that fills when it is on, so on and off
+   differ by a shape (forced colours keep it). The native box stays in the page, unseen, for its state, its name and
+   the keyboard; the chip draws its focus. In the field it is her mark alone; in the new form, with its words. */
 .conv-ask {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 0 10px 0 8px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-2);
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 9px;
   color: var(--text-2);
   font-size: var(--type-small);
   cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+.conv-ask:hover {
+  background: var(--raise-2);
+}
+.conv-ask .umbral {
+  opacity: 0.5;
+  transition:
+    opacity var(--fast) var(--ease),
+    filter var(--fast) var(--ease);
 }
 .conv-ask-box {
   display: grid;
   place-items: center;
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
   border: 1px solid var(--line-3);
-  border-radius: 3px;
+  border-radius: 50%;
 }
 .conv-ask:has(input:checked) {
-  border-color: rgba(156, 130, 245, 0.35);
-  background: rgba(156, 130, 245, 0.12);
+  background: rgba(156, 130, 245, 0.14);
   color: var(--text);
 }
+.conv-ask:has(input:checked) .umbral {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px rgba(156, 130, 245, 0.8));
+}
 .conv-ask:has(input:checked) .conv-ask-box {
-  border-color: var(--halo-text);
+  border-color: var(--halo);
 }
 .conv-ask:has(input:checked) .conv-ask-box::after {
   content: '';
-  width: 6px;
-  height: 3px;
-  border-bottom: 1.5px solid var(--halo-text);
-  border-left: 1.5px solid var(--halo-text);
-  transform: rotate(-45deg) translate(1px, -1px);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--halo);
 }
 .conv-ask:has(input:focus-visible) {
   outline: 2px solid var(--halo);
@@ -505,13 +765,34 @@
   opacity: 0.5;
   cursor: default;
 }
+/* The native box covers the whole chip, unseen: a press anywhere on it is the box's own. */
 .conv-ask input {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
   opacity: 0;
+  cursor: pointer;
+}
+.conv-ask input:disabled {
+  cursor: default;
+}
+.conv-field-box .conv-ask {
+  width: 36px;
+  min-height: 36px;
+  justify-content: center;
+  padding: 0;
+}
+.conv-field-box .conv-ask-box {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+}
+.conv-scrim {
+  display: none;
 }
 
 /* ---- under 1180 px: the list and the conversation; the context a panel that «Context» opens ---- */
@@ -521,33 +802,37 @@
   }
   .conv-context-toggle,
   .conv-context-close {
-    display: inline-flex !important;
+    display: inline-grid !important;
   }
+  /* Under the bar (z 20) and its menus: a panel of this view, not of the app. Out of the third column (gone here), it
+     measures against the whole view. */
   .conv-context {
     position: absolute;
-    z-index: 30;
+    z-index: 19;
+    grid-column: auto;
     top: 0;
     right: 0;
     bottom: 0;
-    width: min(380px, 92%);
+    width: min(360px, 92%);
     padding-bottom: 24px;
     visibility: hidden;
     transform: translateX(100%);
     transition:
       transform var(--base) var(--ease),
       visibility 0s var(--base);
-    box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+    box-shadow: -30px 0 80px rgba(0, 0, 0, 0.6);
   }
   .conversations[data-context] .conv-context {
     visibility: visible;
     transform: none;
     transition: transform var(--base) var(--ease);
   }
-  .conv-scrim {
+  .conversations[data-context] .conv-scrim {
     position: absolute;
-    z-index: 29;
+    z-index: 18;
     inset: 0;
-    background: rgba(5, 4, 8, 0.6);
+    display: block;
+    background: rgba(5, 4, 8, 0.55);
   }
   /* The room's dock floats over the conversation's foot: the field leaves room under it. */
   .conv-compose {
@@ -564,42 +849,43 @@
   .conversations[data-screen='list'] :is(.conv-open, .conv-new) {
     display: none;
   }
-  .conv-list {
-    padding-inline: 10px;
-    border-right: 0;
-  }
   .conv-rows {
-    margin-inline: -10px;
     padding-bottom: calc(var(--floor) + 72px);
   }
   .conv-back {
     display: inline-grid !important;
+    margin-left: -8px;
   }
   .conv-head {
-    gap: 10px;
-    padding: 10px 14px;
+    gap: 8px;
+    padding: 10px 14px 6px;
   }
-  .conv-head .conv-faces {
+  .conv-head h3 {
+    font-size: var(--type-title);
+  }
+  .conv-head .conv-faces,
+  .conv-output-words {
     display: none;
   }
   .conv-output {
-    padding-inline: 14px;
+    justify-content: center;
+    width: 40px;
+    padding: 0;
   }
   .conv-scroll {
-    padding: 14px 14px 10px;
+    padding: 6px 14px 16px;
   }
-  .conv-msg {
-    grid-template-columns: 24px minmax(0, 1fr);
-    gap: 8px;
-    max-width: 90%;
+  .conv-msg-body {
+    max-width: 86%;
   }
-  .conv-face {
-    width: 24px;
-    height: 24px;
-    font-size: var(--type-label);
+  .conv-msg.sophia .conv-msg-body {
+    max-width: 88%;
   }
   .conv-compose {
-    padding: 8px 12px 12px;
+    padding: 4px 10px 12px;
+  }
+  .conv-compose-hint {
+    display: none;
   }
   .conv-new {
     padding: 16px 14px;
@@ -609,9 +895,7 @@
     left: 0;
     width: 100%;
     height: 82%;
-    border-top: 1px solid var(--line-2);
-    border-left: 0;
-    border-radius: 16px 16px 0 0;
+    border-radius: 18px 18px 0 0;
     transform: translateY(100%);
   }
   /* In a conversation the room's dock steps aside, unless a call is on: then the field leaves room under it. */
@@ -625,5 +909,8 @@
 @media (prefers-reduced-motion: reduce) {
   .conv-context {
     transition: none !important;
+  }
+  .conv-answering .conv-glyph::before {
+    animation: none;
   }
 }

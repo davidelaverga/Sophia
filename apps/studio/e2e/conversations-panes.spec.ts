@@ -152,3 +152,73 @@ test('panes · the summary is the context’s first card, «This conversation»'
   await expect(card).toContainText('Compared a short brief')
   await expect(open(page).getByText('Compared a short brief')).toHaveCount(0)
 })
+
+test('panes @phone · the first conversation opens at its newest message', async ({ page }) => {
+  // A short phone: the thread is longer than its pane.
+  await page.setViewportSize({ width: 390, height: 560 })
+  await page.goto(PAGE)
+  await rows(page).first().click()
+  const thread = open(page).locator('.conv-scroll')
+  expect(await thread.evaluate((el) => el.scrollHeight > el.clientHeight + 100)).toBe(true)
+  await expect(messages(page).last()).toBeInViewport()
+})
+
+test('panes · at 1000 px the account menu opens over the context', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await page.goto(PAGE)
+  await toggle(page).click()
+  await expect(context(page)).toBeVisible()
+  await page.getByRole('button', { name: 'Account' }).click()
+  const menu = page.getByRole('menu', { name: 'Account' })
+  await expect(menu).toBeVisible()
+  const item = menu.getByRole('menuitem').first()
+  // Once the panel has slid in.
+  await expect.poll(async () => (await context(page).boundingBox())?.x).toBeLessThan(760)
+  const [m, c] = await Promise.all([item.boundingBox(), context(page).boundingBox()])
+  if (!m || !c) throw new Error('the menu or the panel is missing')
+  // The item's middle lies on the panel: one of them has to be over the other there.
+  expect(m.x + m.width / 2).toBeGreaterThan(c.x)
+  expect(m.y + m.height / 2).toBeGreaterThan(c.y)
+  expect(await onTop(item), 'the menu over the panel').toBe(true)
+})
+
+test('panes · Esc in a modal over the context leaves the context open', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await page.goto(PAGE)
+  await toggle(page).click()
+  await expect(context(page)).toBeVisible()
+  // A modal over the panel (a sheet, a confirmation) owns its Esc.
+  await page.evaluate(() => {
+    const box = document.createElement('div')
+    box.setAttribute('role', 'dialog')
+    box.setAttribute('aria-modal', 'true')
+    box.innerHTML = '<button type="button">Inside a sheet</button>'
+    document.body.append(box)
+  })
+  await page.getByRole('button', { name: 'Inside a sheet' }).focus()
+  await page.keyboard.press('Escape')
+  // Still open (a closing panel stays visible while it slides out).
+  await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true')
+})
+
+test('panes · the context open as a panel holds the focus: what is behind it is inert', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await page.goto(PAGE)
+  await toggle(page).click()
+  expect(await page.locator('.conv-open').evaluate((el) => el.hasAttribute('inert'))).toBe(true)
+  expect(await page.locator('.conv-list').evaluate((el) => el.hasAttribute('inert'))).toBe(true)
+  await page.keyboard.press('Escape')
+  expect(await page.locator('.conv-open').evaluate((el) => el.hasAttribute('inert'))).toBe(false)
+})
+
+test('panes · a panel left open closes when the window grows past 1180 px', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await page.goto(PAGE)
+  await toggle(page).click()
+  await page.setViewportSize({ width: 1440, height: 800 })
+  await expect(page.locator('.conversations')).not.toHaveAttribute('data-context')
+  expect(await page.locator('.conv-open').evaluate((el) => el.hasAttribute('inert'))).toBe(false)
+  // Three panes again, filling the height: nothing pushed into a row of its own.
+  const [o, c] = await Promise.all([open(page).boundingBox(), context(page).boundingBox()])
+  expect(o && c && Math.abs(o.y - c.y) <= 1).toBe(true)
+})

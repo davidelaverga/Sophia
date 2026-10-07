@@ -95,7 +95,6 @@ function Frame(props: {
   return (
     <aside id="conv-context" className="conv-context" aria-label="Project context">
       <div className="conv-context-head">
-        <h3 className="eyebrow">Project context</h3>
         <button
           ref={close}
           type="button"
@@ -109,6 +108,7 @@ function Frame(props: {
         </button>
       </div>
       {props.conversation && <ThisConversation conversation={props.conversation} />}
+      <h3 className="eyebrow">Project context</h3>
       {props.children}
       <details className="conv-help">
         <summary>How conversation context works</summary>

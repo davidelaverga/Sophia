@@ -30,7 +30,7 @@ import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
 import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { when } from '../../app/time-words.ts'
+import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 
 interface Props {
   conversation: ConversationSummary
@@ -98,7 +98,6 @@ export function OpenConversation(props: Props) {
   return (
     <section className="conv-open" aria-label="Open conversation">
       <Head conversation={c} me={me} head={head} onBack={props.onBack} context={props.context} />
-      <Output output={c.output} />
       <div ref={follow.scroll} className="conv-scroll" onScroll={follow.onScroll}>
         <Messages read={read} me={me} awaiting={awaiting} onAnswered={props.onAnswered} onGrown={follow.grown} />
       </div>
@@ -127,7 +126,10 @@ export function OpenConversation(props: Props) {
   )
 }
 
-/** The head: the way back (a phone), who wrote there, the title, and «Context» where the context is a panel. */
+/**
+ * The head: the way back (a phone), the title, who wrote there with their faces, what the conversation made, and
+ * «Context» where the context is a panel.
+ */
 function Head(props: {
   conversation: ConversationSummary
   me: string
@@ -143,38 +145,53 @@ function Head(props: {
           <path d="M9 2L4 7l5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       </button>
-      <span className="conv-faces" aria-hidden>
-        {c.contributors.slice(0, 3).map((p) => (
-          <span key={p.actorId} className="conv-face">
-            {initialOf(p.name)}
-          </span>
-        ))}
-        {c.sophia && (
-          <span className="conv-face sophia">
-            <Mark />
-          </span>
-        )}
-      </span>
       <div className="conv-head-words">
         <h3 ref={props.head} tabIndex={-1}>
           {c.title}
         </h3>
         <p className="conv-who">
+          <Faces conversation={c} />
           <span className="sr-only">Contributors: </span>
           {contributorsLine(c, props.me)}
         </p>
       </div>
-      <button
-        ref={context.ref}
-        type="button"
-        className="pill conv-context-toggle"
-        aria-expanded={context.open}
-        aria-controls="conv-context"
-        onClick={context.toggle}
-      >
-        Context
-      </button>
+      <div className="conv-head-acts">
+        <Output output={c.output} />
+        <button
+          ref={context.ref}
+          type="button"
+          className="icon-button conv-context-toggle"
+          aria-label="Context"
+          title="Context"
+          aria-expanded={context.open}
+          aria-controls="conv-context"
+          onClick={context.toggle}
+        >
+          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
+            <rect x="1.5" y="2.5" width="13" height="11" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.3" />
+          </svg>
+        </button>
+      </div>
     </header>
+  )
+}
+
+/** Who wrote there, as faces: up to three people, then Sophia's mark when she answered. */
+function Faces({ conversation: c }: { conversation: ConversationSummary }) {
+  return (
+    <span className="conv-faces" aria-hidden>
+      {c.contributors.slice(0, 3).map((p) => (
+        <span key={p.actorId} className="conv-face">
+          {initialOf(p.name)}
+        </span>
+      ))}
+      {c.sophia && (
+        <span className="conv-face sophia">
+          <Mark />
+        </span>
+      )}
+    </span>
   )
 }
 
@@ -199,7 +216,7 @@ function useFollow() {
   return { scroll, onScroll, grown, sent }
 }
 
-/** What the conversation made: a strip under the head, the report opening in the document viewer. */
+/** What the conversation made: its page in small and its name, in the head; it opens in the document viewer. */
 function Output({ output }: { output: ConversationSummary['output'] }) {
   const viewer = useDocumentViewer()
   if (!output || !viewer) return null
@@ -207,15 +224,19 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
     <button
       type="button"
       className="conv-output"
+      title={output.title}
       onClick={() => viewer.open({ artifactId: output.artifactId, versionId: output.versionId })}
     >
-      <Mark />
-      <span className="conv-output-words">
-        <span className="eyebrow">What it made</span> {output.title}
-        <span className="conv-output-v">{` · v${String(output.versionNumber)}`}</span>
+      <span className="conv-output-page" aria-hidden>
+        <i />
+        <i />
+        <i />
+        <i />
+        <i />
       </span>
-      <span className="conv-output-go" aria-hidden>
-        Open →
+      <span className="conv-output-words">
+        <span className="conv-output-title">{output.title}</span>
+        <span className="conv-output-v">{`What it made · v${String(output.versionNumber)}`}</span>
       </span>
     </button>
   )
@@ -253,7 +274,9 @@ function Messages(props: {
     if (answered) onAnswered(since)
   }, [answered, since, onAnswered])
   const waiting = since !== null && !answered
-  useEffect(() => onGrown(), [messages.length, waiting, onGrown])
+  // Grown at its end (a message, or the wait): an earlier page read above leaves where the reader is.
+  const newest = messages.at(-1)?.id
+  useEffect(() => onGrown(), [newest, waiting, onGrown])
   const first = useRef<HTMLLIElement>(null)
   const asked = useRef(false)
   // Earlier messages goes with the last page: the focus goes to the first message, never to the page.
@@ -277,7 +300,10 @@ function Messages(props: {
       )}
       {messages.length > 0 && <MessageList messages={messages} me={me} first={first} />}
       {waiting && (
-        <p className="conv-note" role="status">
+        <p className="conv-note conv-answering" role="status">
+          <span className="conv-glyph" aria-hidden>
+            <Mark />
+          </span>
           {props.awaiting.late
             ? 'Sophia hasn’t answered yet. Her answer will show here when it comes.'
             : 'Sophia is answering…'}
@@ -315,27 +341,51 @@ function MessageList(props: {
   first: RefObject<HTMLLIElement | null>
 }) {
   const { messages, me, first } = props
+  const now = Date.now()
   return (
     <ol className="conv-messages">
-      {messages.map((m, i) => (
-        <li
-          key={m.id}
-          ref={i === 0 ? first : undefined}
-          tabIndex={i === 0 ? -1 : undefined}
-          className={classOf(m, me)}
-          data-run={continuesRun(messages[i - 1], m) ? 'on' : undefined}
-        >
-          <span className="conv-face" aria-hidden>
-            {m.author === 'sophia' ? <Mark /> : initialOf(m.name)}
+      {messages.map((m, i) => {
+        const before = messages[i - 1]
+        const sophia = m.author === 'sophia'
+        // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
+        const at = (
+          <span className="conv-msg-at" aria-hidden>
+            {clock(m.at)}
           </span>
-          <div className="conv-msg-body">
+        )
+        return (
+          <li
+            key={m.id}
+            ref={i === 0 ? first : undefined}
+            tabIndex={i === 0 ? -1 : undefined}
+            className={classOf(m, me)}
+            data-run={continuesRun(before, m) ? 'on' : undefined}
+          >
+            {(!before || !sameDay(before.at, m.at)) && (
+              <span className="conv-day" aria-hidden>
+                {dayOf(m.at, now)}
+              </span>
+            )}
+            {sophia && (
+              <span className="conv-glyph" aria-hidden>
+                <Mark />
+              </span>
+            )}
             <span className="conv-msg-by">
-              {messageBy(m, me)} · <time dateTime={m.at}>{when(m.at, Date.now())}</time>
+              {messageBy(m, me)}
+              <span className="sr-only">
+                {' · '}
+                <time dateTime={m.at}>{when(m.at, now)}</time>
+              </span>
             </span>
-            <p>{m.text}</p>
-          </div>
-        </li>
-      ))}
+            <div className="conv-msg-body">
+              <p>{m.text}</p>
+              {sophia && at}
+            </div>
+            {!sophia && at}
+          </li>
+        )
+      })}
     </ol>
   )
 }

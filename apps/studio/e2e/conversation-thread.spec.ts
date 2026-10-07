@@ -26,39 +26,53 @@ async function note(page: Page, text: string) {
   await expect(messages(page).filter({ hasText: text })).toHaveCount(1)
 }
 
-test('thread · a person’s message shows their initial; Sophia’s shows her mark', async ({ page }) => {
+test('thread · a person is named once a run, in a bubble; Sophia has no bubble, her mark lit', async ({ page }) => {
   await page.goto(PAGE)
   const lucia = messages(page).filter({ hasText: 'And every claim keeps its source' })
-  await expect(lucia.locator('.conv-face')).toHaveText('L')
+  await expect(lucia.locator('.conv-msg-by')).toBeVisible()
+  await expect(lucia.locator('.conv-msg-by')).toContainText('Lucía')
   const sophia = messages(page).filter({ hasText: 'I can keep both versions apart' })
-  await expect(sophia.locator('.conv-face .umbral')).toBeVisible()
-})
-
-test('thread · a message that continues a run hides its face and its byline from sight, not from a reader', async ({
-  page,
-}) => {
-  await page.goto(PAGE)
-  // Your last message starts a run (Sophia wrote before it); a note a minute later goes on from it.
-  await note(page, 'Goes on from mine.')
-  const first = messages(page).filter({ hasText: 'Let’s look at it together tomorrow.' })
-  const second = messages(page).filter({ hasText: 'Goes on from mine.' })
-  // Yours have no face (they sit on the right); the run's first still says who and when.
-  await expect(first.locator('.conv-msg-by')).toBeVisible()
-  // The note continues it: no face, no byline in sight; its author still said.
-  await expect(second.locator('.conv-face')).toBeHidden()
-  expect(await second.locator('.conv-msg-by').evaluate((el) => el.getBoundingClientRect().width)).toBeLessThanOrEqual(1)
-  expect(await second.ariaSnapshot()).toContain('You')
-})
-
-test('thread · Sophia’s words sit on her own plane, not a person’s', async ({ page }) => {
-  await page.goto(PAGE)
-  const plane = (text: string) =>
+  await expect(sophia.locator('.conv-glyph .umbral')).toBeVisible()
+  const ground = (text: string) =>
     messages(page)
       .filter({ hasText: text })
       .locator('.conv-msg-body')
       .evaluate((el) => getComputedStyle(el).backgroundColor)
-  // Every message is a bubble; hers is on her plane, unlike a person's.
-  expect(await plane('I can keep both versions apart')).not.toBe(await plane('And every claim keeps its source'))
+  // People speak in bubbles; Sophia speaks in light: no bubble at all.
+  expect(await ground('I can keep both versions apart')).toBe('rgba(0, 0, 0, 0)')
+  expect(await ground('And every claim keeps its source')).not.toBe('rgba(0, 0, 0, 0)')
+})
+
+test('thread · a message that continues a run hides its byline from sight, not from a reader', async ({ page }) => {
+  await page.goto(PAGE)
+  // Your last message starts a run (Sophia wrote before it); a note a minute later goes on from it.
+  await note(page, 'Goes on from mine.')
+  const second = messages(page).filter({ hasText: 'Goes on from mine.' })
+  await expect(second).toHaveAttribute('data-run', 'on')
+  expect(await second.locator('.conv-msg-by').evaluate((el) => el.getBoundingClientRect().width)).toBeLessThanOrEqual(1)
+  expect(await second.ariaSnapshot()).toContain('You')
+})
+
+test('thread · each time waits under the pointer; the day is said once', async ({ page }) => {
+  await page.goto(PAGE)
+  const lucia = messages(page).filter({ hasText: 'And every claim keeps its source' })
+  const at = lucia.locator('.conv-msg-at')
+  expect(await at.evaluate((el) => getComputedStyle(el).opacity)).toBe('0')
+  await lucia.locator('.conv-msg-body').hover()
+  await expect.poll(() => at.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
+  // Every message in sight is of one day: one line names it, before the first.
+  await expect(open(page).locator('.conv-day')).toHaveCount(1)
+  await expect(messages(page).first().locator('.conv-day')).toHaveCount(1)
+})
+
+test('thread · the panes are told apart by tone, not lines; the field takes no handle', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 800 })
+  await page.goto(PAGE)
+  const width = (selector: string, side: string) =>
+    page.locator(selector).evaluate((el, s) => getComputedStyle(el).getPropertyValue(`border-${s}-width`), side)
+  expect(await width('.conv-list', 'right')).toBe('0px')
+  expect(await width('.conv-context', 'left')).toBe('0px')
+  expect(await field(page).evaluate((el) => getComputedStyle(el).resize)).toBe('none')
 })
 
 test('thread · «Ask Sophia» is a checkbox shown as a chip with her mark, pressed by its label', async ({ page }) => {

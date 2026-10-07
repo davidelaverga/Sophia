@@ -75,8 +75,10 @@ export function continuesRun(before: Said | undefined, m: Said): boolean {
 }
 
 /** A face's letter: the name's first character (whole, an emoji too), upper case; no name is «A member». */
+const letters = new Intl.Segmenter()
+
 export function initialOf(name: string | null): string {
-  const [first] = new Intl.Segmenter().segment((name ?? '').trim())
+  const [first] = letters.segment((name ?? '').trim())
   return (first?.segment ?? 'A').toLocaleUpperCase()
 }
 

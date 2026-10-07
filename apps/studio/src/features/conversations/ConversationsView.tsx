@@ -5,7 +5,7 @@
 // In three panes (docs/plans/conversations-panes.md): the list, the open one, its context. Under 1180 px the context is
 // a panel «Context» opens; on a phone one screen shows at a time, the list or the conversation.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react'
 import type { Membership } from '@sophia/contracts'
 import {
   listConversations,
@@ -15,6 +15,8 @@ import {
   type MessageAsk,
 } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { modalOnScreen } from '../../app/shortcuts.ts'
+import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { byActivity, contributorsLine, listKey, matching, messagesKey, openWords } from './conversation-list.ts'
 import type { Held } from './held-write.ts'
@@ -70,7 +72,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     <section
       ref={panes.view}
       className="conversations"
-      data-screen={start.starting ? 'thread' : panes.screen}
+      data-screen={shown || start.starting ? (start.starting ? 'thread' : panes.screen) : 'list'}
       data-context={panes.context || undefined}
       aria-labelledby="conversations-title"
     >
@@ -152,30 +154,67 @@ function usePanes() {
   const [context, setContext] = useState(false)
   const closeContext = useCallback(() => {
     setContext(false)
-    toggle.current?.focus()
+    // Once what was behind it is no longer inert: then «Context» can take the focus.
+    requestAnimationFrame(() => toggle.current?.focus())
   }, [])
-  useEffect(() => {
-    if (!context) return undefined
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeContext()
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [context, closeContext])
+  useContextPanel(view, context, closeContext, () => setContext(false))
+  const show = () => {
+    setScreen('thread')
+    // Shown now (a phone kept it hidden): it opens at its newest message.
+    requestAnimationFrame(() => {
+      const thread = view.current?.querySelector('.conv-scroll')
+      if (thread) thread.scrollTop = thread.scrollHeight
+    })
+  }
   const back = () => {
     setContext(false)
     setScreen('list')
-    // After the list shows again: the row of the conversation left.
-    requestAnimationFrame(() => view.current?.querySelector<HTMLElement>('.conv-row[aria-pressed="true"]')?.focus())
+    // After the list shows again: the row of the conversation left, else the filter (that row may be filtered out).
+    requestAnimationFrame(() => {
+      const at = view.current?.querySelector<HTMLElement>('.conv-row[aria-pressed="true"]')
+      ;(at ?? view.current?.querySelector<HTMLElement>('.conv-filter, .conv-start'))?.focus()
+    })
   }
   return {
     view,
     toggle,
     screen,
-    show: () => setScreen('thread'),
+    show,
     back,
     context,
     toggleContext: () => setContext((on) => !on),
     closeContext,
   }
+}
+
+/** Over 1180 px the context is a pane, not a panel: a panel left open there closes. */
+const PANEL = '(max-width: 1180px)'
+
+/**
+ * The context as a panel, while it is open: Esc closes it (unless a dialog or another view's key owns the Esc), the
+ * list and the conversation behind it are inert (the focus stays in it), and the window grown past a panel's width
+ * closes it.
+ */
+function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, close: () => void, drop: () => void) {
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target instanceof HTMLElement ? e.target : null
+      if (e.key !== 'Escape' || e.defaultPrevented || modalOnScreen() || t?.closest('[role="dialog"]')) return
+      close()
+    }
+    const behind = [...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? [])]
+    for (const el of behind) el.inert = true
+    const wide = window.matchMedia(PANEL)
+    const onWidth = () => !wide.matches && drop()
+    document.addEventListener('keydown', onKey)
+    wide.addEventListener('change', onWidth)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      wide.removeEventListener('change', onWidth)
+      for (const el of behind) el.inert = false
+    }
+  }, [view, open, close, drop])
 }
 
 /** The open conversation, with what is under way in it kept by the view (talk-store.ts). */
@@ -355,7 +394,10 @@ function Rows(props: {
   )
 }
 
-/** A conversation as listed: named by its title, described by the rest. */
+/**
+ * A conversation as listed: named by its title, then when it last moved and Sophia's summary in a line, what is open as
+ * an amber count. Who wrote there and what is open are said in words to a screen reader.
+ */
 function Row(props: { conversation: ConversationSummary; open: boolean; me: string; onOpen: (id: string) => void }) {
   const { conversation: c } = props
   const id = useId()
@@ -372,15 +414,25 @@ function Row(props: { conversation: ConversationSummary; open: boolean; me: stri
         <span id={`${id}-t`} className="conv-title">
           {c.title}
         </span>
+        <span className="conv-row-at" aria-hidden>
+          {movedAt(c.lastAt, Date.now())}
+        </span>
         <span id={`${id}-d`} className="conv-about">
           {c.summary && <span className="conv-gist">{c.summary}</span>}
-          <span className="conv-who">{contributorsLine(c, props.me)}</span>
-          <span className="conv-state">{openWords(c.openQuestions)}</span>
+          <span className="sr-only">{`${contributorsLine(c, props.me)}. ${openWords(c.openQuestions)}.`}</span>
+          {c.openQuestions > 0 && (
+            <span className="conv-open-flag" aria-hidden>
+              {c.openQuestions}
+            </span>
+          )}
         </span>
       </button>
     </li>
   )
 }
+
+/** When a conversation last moved: the clock today, the day before. */
+const movedAt = (at: string, now: number) => (sameDay(at, new Date(now)) ? clock(at) : dayOf(at, now))
 
 /** What the list's read says: waiting, failed (out of date when some were read), or none yet. */
 function ListState(props: {
