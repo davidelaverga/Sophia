@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Experimental, fixture-only Render worker. Not a production renderer.
 # Build from repository root; ordinary Chromium confinement files are unchanged.
-ARG BUILDPLATFORM
 ARG NODE_IMAGE=node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 FROM ${NODE_IMAGE} AS deploy
 WORKDIR /src
