@@ -73,13 +73,18 @@ import {
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
   update: () => void
-  /** Another member writes in the room's discussion, and the event saying so goes out. */
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
   forgetDiscussion: () => void
   /** The account is forgotten, as signing out or switching identity forgets it (App): reads cleared, nothing kept. */
   forgetAccount: () => void
   /** The oldest message leaves the recent discussion (past what the snapshot holds); a reply to it keeps its quote. */
   dropOldest: () => void
+  /** While on, the viewer's messages land but their replies wait for `releaseMessages`. */
+  holdMessages: (on: boolean) => void
+  releaseMessages: () => void
+  /** While on, the read of which messages answer which fails (A20). */
+  failReplies: (on: boolean) => void
+  /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
   /** The call's connection is lost. */
   drop: (why?: CallEnd) => void
@@ -204,8 +209,8 @@ interface Fixture {
   back: () => void
   /** Sophia's participant says this now (fake-people.ts). */
   sophia: (state: SophiaState) => void
-  /** Who speaks now: 0 the viewer, `n` the `n`th other person, null no one. */
-  speaking: (who: number | null) => void
+  /** Who speak now: 0 the viewer, `n` the `n`th other person, several at once as a list; null no one. */
+  speaking: (who: number | readonly number[] | null) => void
   /** Another member's change reaches the API just before the page's next pass: that pass is refused as stale. */
   moveRoom: () => void
   /** Whom the floor was passed to, by name, in order. */
@@ -282,6 +287,8 @@ const project = {
   messages: [] as (string | Said)[],
   contributions: new Map(),
   loseContributionReply: false,
+  messagesHeld: null as (() => void)[] | null,
+  failReplies: false,
   reportVersions: Math.max(1, Number(query.get('versions')) || 1),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
   pilot: query.get('history') === 'pilot',
@@ -390,6 +397,18 @@ window.fixture = {
   dropOldest: () => {
     project.messages.shift()
     publish(project)
+  },
+  holdMessages: (on) => {
+    if (!on) for (const reply of project.messagesHeld ?? []) reply()
+    project.messagesHeld = on ? [] : null
+  },
+  releaseMessages: () => {
+    const held = project.messagesHeld ?? []
+    project.messagesHeld = null
+    for (const reply of held) reply()
+  },
+  failReplies: (on) => {
+    project.failReplies = on
   },
   drop: dropCall,
   publishReport: () => {

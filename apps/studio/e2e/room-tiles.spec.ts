@@ -58,6 +58,30 @@ test('tiles · someone who starts speaking gets a tile', async ({ page }) => {
   await expect(tiles(page)).toHaveCount(5)
 })
 
+test('tiles · past the cap with nobody speaking, the first to come keep their tiles, not the first by name', async ({
+  page,
+}) => {
+  await enter(page, 'people=11&video=camera')
+  // They came as Marco, Lucía, Noor, Tomás, Inés, Ana, Diego…; by name, Ana, Diego and Elena come first.
+  for (const name of ['Marco', 'Lucía', 'Noor', 'Tomás', 'Inés', 'Ana']) {
+    await expect(names(page).filter({ hasText: name })).toHaveCount(1)
+  }
+  for (const name of ['Diego', 'Elena']) await expect(names(page).filter({ hasText: name })).toHaveCount(0)
+})
+
+test('tiles · of two who spoke together, whoever stopped last keeps the tile', async ({ page }) => {
+  await enter(page, 'people=9&video=screen')
+  await page.evaluate(() => window.fixture?.speaking([8, 9]))
+  await expect(room(page).locator('.tile[data-speaking]')).toHaveCount(2)
+  // Sara (who came first) stops first, then Iván: Iván spoke last.
+  await page.evaluate(() => window.fixture?.speaking([9]))
+  await expect(room(page).locator('.tile[data-speaking]')).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.speaking(null))
+  await expect(room(page).locator('.tile[data-speaking]')).toHaveCount(0)
+  await expect(names(page).filter({ hasText: 'Iván' })).toHaveCount(1)
+  await expect(names(page).filter({ hasText: 'Sara' })).toHaveCount(0)
+})
+
 test('tiles · «+N» opens everyone in the call, and Close gives the focus back', async ({ page }) => {
   await enter(page, 'people=9&video=screen&floor=2')
   await more(page).click()

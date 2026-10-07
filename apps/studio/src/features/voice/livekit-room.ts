@@ -101,6 +101,7 @@ const toView = (p: Participant, local: boolean): RoomParticipant => ({
   screenOn: p.isScreenShareEnabled,
   local,
   standing: standingOf(p.metadata),
+  ...(p.joinedAt ? { joinedAt: p.joinedAt.getTime() } : {}),
 })
 
 function sophiaSignal(p: Participant | undefined): SophiaSignal | null {

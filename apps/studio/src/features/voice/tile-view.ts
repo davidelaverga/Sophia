@@ -21,6 +21,18 @@ export interface TileOrder {
   showing: string | null
   /** When each spoke last (any clock, as long as it is the same one). */
   spokeAt: ReadonlyMap<string, number>
+  /** Identities in the order they came (`arrivalOrder`); absent, the order of the list. */
+  arrived?: readonly string[]
+}
+
+/**
+ * Identities in the order people came: by when they joined, as LiveKit says, since its list's order isn't the same for
+ * every viewer or after a reconnect. Unknown last; ties by identity, so every viewer keeps the same tiles.
+ */
+export function arrivalOrder(people: readonly { identity: string; joinedAt?: number }[]): string[] {
+  return people
+    .toSorted((a, b) => (a.joinedAt ?? Infinity) - (b.joinedAt ?? Infinity) || a.identity.localeCompare(b.identity))
+    .map((p) => p.identity)
 }
 
 /** What keeps a tile first: lower goes first. */
@@ -34,9 +46,15 @@ function standing(p: Person, order: TileOrder): number {
 /** The people with a tile (in the order they came) and the rest, «+N»; past `cap`, one tile goes to «+N». */
 export function tilesFor<P extends Person>(people: readonly P[], order: TileOrder, cap: number) {
   if (people.length <= cap) return { shown: [...people], more: [] as P[] }
+  const came = new Map((order.arrived ?? people.map((p) => p.identity)).map((identity, i) => [identity, i]))
   const ranked = people
-    .map((p, i) => ({ p, i, standing: standing(p, order), spoke: order.spokeAt.get(p.identity) ?? -1 }))
-    .toSorted((a, b) => a.standing - b.standing || b.spoke - a.spoke || a.i - b.i)
+    .map((p) => ({
+      p,
+      came: came.get(p.identity) ?? Infinity,
+      standing: standing(p, order),
+      spoke: order.spokeAt.get(p.identity) ?? -1,
+    }))
+    .toSorted((a, b) => a.standing - b.standing || b.spoke - a.spoke || a.came - b.came)
   const kept = new Set(ranked.slice(0, cap - 1).map((r) => r.p.identity))
   return {
     shown: people.filter((p) => kept.has(p.identity)),
