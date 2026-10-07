@@ -696,6 +696,24 @@ describe('one Paperclip-managed source review', () => {
     assert.equal(w.paperclip.issues.size, 0, 'no issue was created, cancelled or otherwise')
   }
 
+  /** Until `n` backends of this database wait for a lock: a barrier on observed state, never a timed wait. */
+  async function untilWaiting(n: number) {
+    const waiting = async () =>
+      asOwner(
+        async (o) =>
+          (
+            await o.query<{ n: number }>(
+              `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
+                WHERE NOT l.granted AND a.datname=current_database()`,
+            )
+          ).rows[0]?.n ?? 0,
+      )
+    for (let looked = 0; (await waiting()) < n; looked += 1) {
+      assert.ok(looked < 500, `${String(n)} backend(s) waiting on a lock`)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+  }
+
   it('a commission proved absent after its work was stopped is withdrawn, never created only to be cancelled (Codex on #107)', async () => {
     const { w, proposal } = await unsent()
     const stop = await command(w, proposal, 'stop', null)
@@ -721,26 +739,52 @@ describe('one Paperclip-managed source review', () => {
       await dueNow(w)
       pass = passWith(routed(w))
       // The pass records the absence only once it holds the commission: it waits for the Stop's transaction.
-      const waiting = async () =>
-        asOwner(
-          async (o) =>
-            (
-              await o.query<{ n: number }>(
-                `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
-                  WHERE NOT l.granted AND a.datname=current_database()`,
-              )
-            ).rows[0]?.n ?? 0,
-        )
-      for (let looked = 0; (await waiting()) === 0; looked += 1) {
-        assert.ok(looked < 500, 'the pass reached the commission lock')
-        await new Promise((resolve) => setTimeout(resolve, 10))
-      }
+      await untilWaiting(1)
       await stopping.query('COMMIT')
       assert.deepEqual(await outcomesOf(w, await pass), [['commission', 'absent']])
       await withdrawn(w)
     } finally {
-      await pass?.catch(() => undefined)
       await stopping.end()
+      await pass?.catch(() => undefined)
+    }
+  })
+
+  // Codex's probe on b39ebb66 (r4207737097): the commission held elsewhere, a Stop queued on it first, then the pass that
+  // records the absence. Both wait for the same row; the Stop, released first, commits first.
+  it('a Stop and a proved absence queued on the commission, the Stop first: the commission is withdrawn (Codex on #107)', async () => {
+    const { w, proposal } = await unsent()
+    await dueNow(w)
+    const holder = new pg.Client({ connectionString: db.ownerUrl })
+    const stopping = new pg.Client({ connectionString: db.ownerUrl })
+    await holder.connect()
+    await stopping.connect()
+    let stopped: Promise<unknown> | null = null
+    let pass: ReturnType<typeof passWith> | null = null
+    try {
+      await holder.query('BEGIN')
+      await holder.query(`SELECT 1 FROM sophia.work_commissions WHERE project_id=$1 FOR UPDATE`, [w.projectId])
+      await stopping.query('BEGIN')
+      // The Stop moves the goal, then its mirror waits for the commission.
+      stopped = stopping.query(
+        `SELECT sophia.work_control($1, w, 'stop', sophia.integration_actor(), 'queued-stop', 'studio')
+           FROM sophia.work_items w WHERE w.project_id=$1 AND w.id=$2`,
+        [w.projectId, proposal.workId],
+      )
+      await untilWaiting(1)
+      // The pass proves the absence, then waits for the commission behind the Stop.
+      pass = passWith(routed(w))
+      await untilWaiting(2)
+      await holder.query('COMMIT')
+      await stopped
+      await stopping.query('COMMIT')
+      assert.deepEqual(await outcomesOf(w, await pass), [['commission', 'absent']])
+      await withdrawn(w)
+    } finally {
+      // Each lock is released before what waits on it is awaited: a failed assertion never leaves the test hanging.
+      await holder.end()
+      await stopped?.catch(() => undefined)
+      await stopping.end()
+      await pass?.catch(() => undefined)
     }
   })
 
