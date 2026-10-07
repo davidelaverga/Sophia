@@ -4,7 +4,7 @@ Goal and attempt: the room on a phone, the strip beside a shown screen (`docs/pl
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `polish/phone-strip` on `main` `15b40ff`, 2026-10-07 (main merged since)
-Ending commit/tree: the commits on `polish/phone-strip`, read one by one (a squash folds them into one).
+Ending commit/tree: on `polish/phone-strip`, `16516cd` (the first take) and `20f3ffe` (the strip as reviewed twice), then the commit after them (Codex on #148: the initial on the narrowest phones, and these IDs); a squash folds them into one.
 
 ## Outcome
 
@@ -16,7 +16,7 @@ Ending commit/tree: the commits on `polish/phone-strip`, read one by one (a squa
 - square tiles, nothing to scroll;
 - «+N» in sight.
 
-**Every strip:** the initial is smaller and sits above the name.
+**Every strip:** the initial is smaller and sits above the name; on a phone 24 px, so it stands above the name down to 320 px (Codex on #148, P2).
 
 **A fifth of a phone holds a name and one short word:** a guest's tile says «guest», warm and whole; « · you» and « · floor» stay said to a screen reader; the floor's holder has the warm edge.
 

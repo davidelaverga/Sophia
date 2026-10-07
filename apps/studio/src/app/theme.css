@@ -3192,10 +3192,12 @@ div.empty {
   .tile-strip .tile {
     aspect-ratio: 1;
   }
+  /* Small enough to stand above the name in a fifth of the narrowest phone (320 px: 51 px tiles). */
   .tile-strip .tile-initial {
-    width: 28px;
-    height: 28px;
-    font-size: 13px;
+    width: 24px;
+    height: 24px;
+    margin-bottom: 24px;
+    font-size: 12px;
   }
   .tile-strip .tile-name {
     left: 4px;

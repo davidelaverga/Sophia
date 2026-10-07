@@ -130,7 +130,7 @@ test('tiles · on a phone, beside a shown screen: every tile and «+N» in sight
   expect(new Set(rects.map((r) => Math.round(r.top))).size).toBe(1)
 })
 
-for (const width of [390, 820]) {
+for (const width of [320, 390, 820]) {
   test(`tiles · a tile’s name never lies over its initial (${String(width)} px)`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 })
     await enter(page, 'people=9&video=screen')
@@ -142,7 +142,10 @@ for (const width of [390, 820]) {
           const b = tile.querySelector('.tile-name')?.getBoundingClientRect()
           if (!a || !b) return []
           const apart = a.bottom <= b.top || b.bottom <= a.top || a.right <= b.left || b.right <= a.left
-          return apart ? [] : [tile.textContent]
+          // And the initial whole inside its tile.
+          const t = tile.getBoundingClientRect()
+          const inside = a.top >= t.top && a.bottom <= t.bottom
+          return apart && inside ? [] : [tile.textContent]
         }),
       )
     expect(clashes).toEqual([])
