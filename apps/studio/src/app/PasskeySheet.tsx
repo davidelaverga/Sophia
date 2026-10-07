@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ConfirmButton } from '@sophia/ui'
 import { addPasskey, listPasskeys, removePasskey, type SavedPasskey } from './auth.ts'
-import { openedLabel } from './days-ago.ts'
+import { dayInSentence } from './time-words.ts'
 import { Sheet } from './Sheet.tsx'
 
 type Load = { status: 'loading' } | { status: 'ready'; passkeys: SavedPasskey[] } | { status: 'error'; message: string }
@@ -27,15 +27,13 @@ function usePasskeys() {
 
 function PasskeyRow({ passkey, onRemove }: { passkey: SavedPasskey; onRemove: () => void }) {
   const now = Date.now()
-  const used = passkey.lastUsedAt
-    ? `used ${openedLabel(Date.parse(passkey.lastUsedAt), now).toLowerCase()}`
-    : 'not used yet'
+  const used = passkey.lastUsedAt ? `used ${dayInSentence(passkey.lastUsedAt, now, { past: true })}` : 'not used yet'
   return (
     <li className="passkey-row">
       <span className="passkey-text">
         <strong>{passkey.name}</strong>
         <span className="muted">
-          Added {openedLabel(Date.parse(passkey.createdAt), now).toLowerCase()} · {used}
+          Added {dayInSentence(passkey.createdAt, now, { past: true })} · {used}
         </span>
       </span>
       <ConfirmButton label="Remove" warning="It won’t sign you in anymore." confirm="Remove" onConfirm={onRemove} />

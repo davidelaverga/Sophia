@@ -8,6 +8,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { closeEveryDialog } from '../../app/useDialog.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { afterLine, pollAfter } from './recap-view.ts'
+import { clock, sameDay, when } from '../../app/time-words.ts'
 
 interface Props {
   projectId: string
@@ -22,15 +23,8 @@ interface Props {
   onOpen: () => void
 }
 
-const TIME = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-const DAY = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
-
-/** When it came: its time, and its day too when that isn't the meeting's. */
-const whenOf = (at: string, endedAt: string) => {
-  const when = new Date(at)
-  const sameDay = DAY.format(when) === DAY.format(new Date(endedAt))
-  return sameDay ? TIME.format(when) : `${DAY.format(when)}, ${TIME.format(when)}`
-}
+/** When it came: its time, and its day too when that isn't the meeting's (app/time-words.ts). */
+const whenOf = (at: string, endedAt: string) => (sameDay(at, endedAt) ? clock(at) : when(at, Date.now()))
 
 export function AfterMeeting({ projectId, identity, meetingId, endedAt, running, anchor, onOpen }: Props) {
   const id = useId()

@@ -227,7 +227,7 @@ function RoomLink({ token, link, onChange }: { token: string; link: Invitation; 
       <p className="link-text" title={link.url}>
         {link.url}
       </p>
-      <p className="link-limits">{linkLimits(link)}</p>
+      <p className="link-limits">{linkLimits(link, Date.now())}</p>
       <div className="control-row">
         <CopyButton text={link.url} />
         <ConfirmButton

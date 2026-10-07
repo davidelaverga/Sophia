@@ -4,6 +4,7 @@
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { ARRIVALS, arriving, type Way } from './arrive.ts'
 import { clip, lengthOf } from './characters.ts'
+import { clock, dayLabel as dayLabelWords } from '../../app/time-words.ts'
 
 /** Three quiet ways into a first conversation, gone after the first message. */
 export const STARTERS = ['Something’s on my mind', 'Help me get ready for something', 'Just talk'] as const
@@ -55,19 +56,11 @@ const DAY_MS = 86_400_000
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 
-/** "Today", "Yesterday", a weekday within the week, then the date ("Sep 21", with the year when it isn't this one). */
-export function dayLabel(date: Date, now: Date): string {
-  const days = Math.round((startOfDay(now) - startOfDay(date)) / DAY_MS)
-  if (days <= 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return date.toLocaleDateString('en-US', { weekday: 'long' })
-  const sameYear = date.getFullYear() === now.getFullYear()
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) })
-}
+/** "Today", "Yesterday", a weekday within the week, then the date (app/time-words.ts); never ahead. */
+export const dayLabel = (date: Date, now: Date): string => dayLabelWords(date, now.getTime(), { past: true })
 
 /** A time the way the conversation shows it: 22:40. */
-export const clockOf = (date: Date) =>
-  date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+export const clockOf = (date: Date) => clock(date)
 
 /** What a message is about, in two or three words, the way Sophia would name it back. */
 const TOPICS: ReadonlyArray<readonly [RegExp, string]> = [

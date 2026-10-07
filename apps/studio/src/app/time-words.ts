@@ -57,3 +57,55 @@ export function inTime(at: string, now: number): string {
   const left = Date.parse(at) - now
   return left < MINUTE ? 'in a moment' : `in ${about(left)}`
 }
+
+// Dates and clocks: the viewer's own zone, in English, a 24-hour clock.
+const DAY_MONTH = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+const DAY_MONTH_YEAR = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+const CLOCK = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+const WEEKDAY = new Intl.DateTimeFormat('en-US', { weekday: 'long' })
+
+const dateOf = (at: string | Date) => (typeof at === 'string' ? new Date(at) : at)
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+/** A time that isn't one (a malformed record) says nothing, rather than breaking the page. */
+const invalid = (d: Date) => Number.isNaN(d.getTime())
+
+/** Its date: «Oct 6», with the year when it isn't this one («Dec 31, 2025»). */
+export function dayOf(at: string | Date, now: number): string {
+  const date = dateOf(at)
+  if (invalid(date)) return ''
+  return (date.getFullYear() === new Date(now).getFullYear() ? DAY_MONTH : DAY_MONTH_YEAR).format(date)
+}
+
+/** Its time on a 24-hour clock: «09:05», «21:40». */
+export function clock(at: string | Date): string {
+  const date = dateOf(at)
+  return invalid(date) ? '' : CLOCK.format(date)
+}
+
+/** Whether two times fall on the same day, in the viewer's zone. */
+export const sameDay = (a: string | Date, b: string | Date): boolean => startOfDay(dateOf(a)) === startOfDay(dateOf(b))
+
+/** Its date and time: «Oct 6, 09:12». */
+export const when = (at: string | Date, now: number): string => `${dayOf(at, now)}, ${clock(at)}`
+
+/**
+ * A day in a list, either way from today: «Today», «Yesterday», «Tomorrow», a weekday within the week, then the date.
+ * With `past`, for what has happened: a time a little past now (another device's clock) is today, never ahead.
+ */
+export function dayLabel(at: string | Date, now: number, options: { past?: boolean } = {}): string {
+  const given = dateOf(at)
+  if (invalid(given)) return ''
+  const date = options.past === true && given.getTime() > now ? new Date(now) : given
+  const away = Math.round((startOfDay(date) - startOfDay(new Date(now))) / DAY)
+  if (away === 0) return 'Today'
+  if (away === -1) return 'Yesterday'
+  if (away === 1) return 'Tomorrow'
+  if (Math.abs(away) < 7) return WEEKDAY.format(date)
+  return dayOf(date, now)
+}
+
+/** The same inside a sentence: «used yesterday», «today at 16:00», «Friday at 16:00». */
+export function dayInSentence(at: string | Date, now: number, options: { past?: boolean } = {}): string {
+  const label = dayLabel(at, now, options)
+  return label === 'Today' || label === 'Yesterday' || label === 'Tomorrow' ? label.toLowerCase() : label
+}

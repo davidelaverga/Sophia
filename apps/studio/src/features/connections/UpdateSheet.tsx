@@ -8,6 +8,7 @@ import { routePath } from '../../app/route.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { Waiting } from '../../app/Waiting.tsx'
 import { updateLines, updateText } from './update-text.ts'
+import { dayOf } from '../../app/time-words.ts'
 
 interface Props {
   projectId: string
@@ -18,8 +19,8 @@ interface Props {
   onClose: () => void
 }
 
-const DAY = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
-const dayOf = (iso: string) => DAY.format(new Date(iso))
+/** The update's day (app/time-words.ts). */
+const dayOfUpdate = (iso: string) => dayOf(iso, Date.now())
 
 /** Read again each time the feed moves on from a position already seen; the first one learned isn't a move. */
 function useReadAgain(cursor: string | undefined, refetch: () => Promise<unknown>) {
@@ -87,7 +88,7 @@ function Compose({ recap, title, projectId }: { recap: MeetingRecap; title: stri
   if (lines.length === 0) return <p className="sheet-lead">That meeting’s recap has nothing to share.</p>
   const chosen = new Set(lines.filter((l) => changed[l.key] ?? l.chosen).map((l) => l.key))
   const link = `${window.location.origin}${routePath({ projectId, view: 'studio' })}`
-  const text = updateText({ title, recap, lines, chosen, link, day: dayOf })
+  const text = updateText({ title, recap, lines, chosen, link, day: dayOfUpdate })
   return (
     <>
       <fieldset className="update-lines">

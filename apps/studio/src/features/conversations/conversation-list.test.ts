@@ -12,7 +12,6 @@ import {
   contributorsLine,
   matching,
   messageBy,
-  messageWhen,
   openWords,
 } from './conversation-list.ts'
 
@@ -113,14 +112,6 @@ describe('acceptedOf', () => {
       ['b'],
     )
     assert.equal(more, 0)
-  })
-})
-
-describe('messageWhen', () => {
-  it('says the day and time, with the year only when it isn’t this one', () => {
-    const now = new Date('2026-10-06T12:00:00.000Z')
-    assert.doesNotMatch(messageWhen('2026-10-06T09:12:00.000Z', now), /2026/)
-    assert.match(messageWhen('2025-12-30T09:12:00.000Z', now), /2025/)
   })
 })
 
