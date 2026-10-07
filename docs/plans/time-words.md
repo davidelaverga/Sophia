@@ -46,6 +46,27 @@ Units are always short and spaced (`s`, `min`, `h`) except days, which are spell
 3. **One clock:** a single `useNow` for the views that say relative time, in place of the six hooks and the reads
    while rendering.
 
+## Part 2, as built
+
+- `dayOf`, `clock`, `when`, `dayLabel` (both ways from today: «Yesterday», «Tomorrow», a weekday within the week) and
+  `dayInSentence` (only «today», «yesterday», «tomorrow» lose the capital: the passkeys said «used monday»).
+- **Moved onto them:**
+  - Knowledge: a card's date, its description's edit, carried in;
+  - a report's history (the year only when it isn't this year, no longer always);
+  - the Slack update's day;
+  - a link's last day;
+  - Conversations' «Oct 6, 09:12»;
+  - Updates and search;
+  - what came after a meeting;
+  - Personal's day labels, clock and «today at 16:00»;
+  - the passkeys (`app/days-ago.ts` goes: «3 days ago» becomes the weekday);
+  - a research card's «asked 09:12» (no longer «09:12 AM»).
+- **Left as they are:** a session's range («Today · 10:00 – 11:00», «Thu, Oct 1 · …») and Personal's long date line
+  («Tuesday, October 6») already follow these rules.
+- **`now` is passed in.** Where a view has no ticking clock yet, it passes `Date.now()` at the call, for part 3 to
+  replace.
+- **Personal never says a past day is ahead:** a time a little past now (another device's clock) is today.
+
 ## Checks (written first)
 
 - **Unit** (`time-words.test.ts`): each rule above at its edges (59 s, 60 s, 59 min, 23 h 59 min, 24 h; 1 s with

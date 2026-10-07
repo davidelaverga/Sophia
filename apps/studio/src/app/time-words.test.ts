@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { about, ago, inTime, lasted, roughly } from './time-words.ts'
+import {
+  about,
+  ago,
+  clock,
+  dayInSentence,
+  dayLabel,
+  dayOf,
+  inTime,
+  lasted,
+  roughly,
+  sameDay,
+  when,
+} from './time-words.ts'
 
 const NOW = Date.parse('2026-10-07T12:00:00Z')
 const S = 1000
@@ -85,5 +97,75 @@ describe('inTime', () => {
 
   it('a time already past is in a moment, never a negative', () => {
     assert.equal(inTime(before(5 * MIN), NOW), 'in a moment')
+  })
+})
+
+// Dates in the viewer's own zone: built from local parts, so the checks hold in any zone they run in.
+const local = (y: number, m: number, d: number, h = 12, min = 0) => new Date(y, m - 1, d, h, min)
+const TODAY = local(2026, 10, 7, 12).getTime()
+
+describe('dayOf · clock · when', () => {
+  it('the date, the year only when it isn’t this one; a 24-hour clock', () => {
+    assert.equal(dayOf(local(2026, 10, 6), TODAY), 'Oct 6')
+    assert.equal(dayOf(local(2025, 12, 31), TODAY), 'Dec 31, 2025')
+    assert.equal(clock(local(2026, 10, 6, 9, 5)), '09:05')
+    assert.equal(clock(local(2026, 10, 6, 21, 40)), '21:40')
+    assert.equal(when(local(2026, 10, 6, 9, 12), TODAY), 'Oct 6, 09:12')
+    assert.equal(when(local(2025, 3, 2, 0, 0), TODAY), 'Mar 2, 2025, 00:00')
+  })
+
+  it('takes a timestamp as the API sends it', () => {
+    assert.equal(dayOf(local(2026, 10, 6).toISOString(), TODAY), 'Oct 6')
+  })
+})
+
+describe('dayLabel', () => {
+  it('today, yesterday, tomorrow, a weekday within the week either way, then the date', () => {
+    const words = [
+      local(2026, 10, 7, 0, 1),
+      local(2026, 10, 6, 23, 59),
+      local(2026, 10, 8, 0, 1),
+      local(2026, 10, 2),
+      local(2026, 10, 12),
+      local(2026, 9, 30),
+      local(2026, 10, 14),
+      local(2025, 10, 7),
+    ].map((at) => dayLabel(at, TODAY))
+    assert.deepEqual(words, ['Today', 'Yesterday', 'Tomorrow', 'Friday', 'Monday', 'Sep 30', 'Oct 14', 'Oct 7, 2025'])
+  })
+
+  it('within six days either way a weekday; seven, the date', () => {
+    assert.deepEqual(
+      [local(2026, 10, 1), local(2026, 10, 13), local(2026, 9, 30), local(2026, 10, 14)].map((at) =>
+        dayLabel(at, TODAY),
+      ),
+      ['Thursday', 'Tuesday', 'Sep 30', 'Oct 14'],
+    )
+  })
+
+  it('for what has happened, a time a little past now is today, never tomorrow', () => {
+    const late = local(2026, 10, 7, 23, 59)
+    const ahead = new Date(late.getTime() + 2 * MIN)
+    assert.equal(dayLabel(ahead, late.getTime()), 'Tomorrow')
+    assert.equal(dayLabel(ahead, late.getTime(), { past: true }), 'Today')
+    assert.equal(dayInSentence(ahead, late.getTime(), { past: true }), 'today')
+  })
+
+  it('a time that isn’t one says nothing, rather than breaking the page', () => {
+    assert.deepEqual([dayOf('not a time', TODAY), clock('not a time'), dayLabel('not a time', TODAY)], ['', '', ''])
+  })
+
+  it('same day, in the viewer’s zone', () => {
+    assert.equal(sameDay(local(2026, 10, 7, 0, 1), local(2026, 10, 7, 23, 59)), true)
+    assert.equal(sameDay(local(2026, 10, 7, 23, 59), local(2026, 10, 8, 0, 1)), false)
+  })
+
+  it('inside a sentence, only today, yesterday and tomorrow drop their capital', () => {
+    assert.deepEqual(
+      [local(2026, 10, 7), local(2026, 10, 6), local(2026, 10, 8), local(2026, 10, 2)].map((at) =>
+        dayInSentence(at, TODAY),
+      ),
+      ['today', 'yesterday', 'tomorrow', 'Friday'],
+    )
   })
 })

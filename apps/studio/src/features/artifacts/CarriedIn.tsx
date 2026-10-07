@@ -8,6 +8,7 @@ import type { ProjectRelease } from '@sophia/contracts'
 import { listProjects } from '../../api/personal.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
+import { dayOf } from '../../app/time-words.ts'
 
 interface Props {
   projectId: string
@@ -16,15 +17,9 @@ interface Props {
   cursor: string | undefined
 }
 
-const DAY = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
-const DAY_YEAR = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-
-/** Its day, with the year when it isn't this one. */
-const dayOf = (at: Date) => (at.getFullYear() === new Date().getFullYear() ? DAY : DAY_YEAR).format(at)
-
-/** Who carried it in, and when: mine is «you». */
-export const carriedBy = (r: Pick<ProjectRelease, 'mine' | 'ownerName' | 'createdAt'>): string =>
-  `${r.mine ? 'You, from your Personal' : `${r.ownerName}, from their Personal`} · ${dayOf(new Date(r.createdAt))}`
+/** Who carried it in, and when (app/time-words.ts): mine is «you». */
+export const carriedBy = (r: Pick<ProjectRelease, 'mine' | 'ownerName' | 'createdAt'>, now: number): string =>
+  `${r.mine ? 'You, from your Personal' : `${r.ownerName}, from their Personal`} · ${dayOf(r.createdAt, now)}`
 
 /** The project's releases, newest first; null when the list doesn't hold this project (it lists the first ones). */
 const releasesOf = (projects: readonly { projectId: string; releases: readonly ProjectRelease[] }[], id: string) => {
@@ -88,7 +83,7 @@ export function CarriedIn({ projectId, identity, cursor }: Props) {
           {releases.map((r) => (
             <li key={r.id}>
               <p className="carried-in-text">{r.text}</p>
-              <span className="carried-in-by">{carriedBy(r)}</span>
+              <span className="carried-in-by">{carriedBy(r, Date.now())}</span>
             </li>
           ))}
         </ul>

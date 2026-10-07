@@ -2,7 +2,7 @@
 // Pure, so they are unit-tested; the components only render them.
 import type { Invitation, LobbyEntry, RoomSession, SessionCreate } from '@sophia/contracts'
 import type { AdmissionState } from '../../api/useAdmission.ts'
-import { ago, inTime } from '../../app/time-words.ts'
+import { ago, dayOf, inTime } from '../../app/time-words.ts'
 
 /** Invitation links are `/join#<token>`: the token rides in the fragment and never reaches a server log. */
 const TOKEN = /^[A-Za-z0-9_-]{20,100}$/
@@ -71,8 +71,8 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 
 /** What a link still allows: "Works until Oct 2 · 3 of 50 uses". */
-export function linkLimits(i: Pick<Invitation, 'expiresAt' | 'uses' | 'maxUses'>): string {
-  const until = new Date(i.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+export function linkLimits(i: Pick<Invitation, 'expiresAt' | 'uses' | 'maxUses'>, now: number): string {
+  const until = dayOf(i.expiresAt, now)
   return `Works until ${until} · ${i.uses} of ${i.maxUses} ${i.maxUses === 1 ? 'use' : 'uses'}`
 }
 

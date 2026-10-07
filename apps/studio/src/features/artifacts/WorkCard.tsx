@@ -29,6 +29,7 @@ import {
 import { useTransientStatus } from './useTransientStatus.ts'
 import './artifacts.css'
 import { WORKING_PHASES } from '../voice/room-view.ts'
+import { clock } from '../../app/time-words.ts'
 
 type Output = NonNullable<NonNullable<NativeTaskDetail['result']>['outputs']>[number]
 
@@ -234,7 +235,7 @@ function CardHead({
   research: ResearchProgress | undefined
   now: number
 }) {
-  const asked = new Date(task.createdAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const asked = clock(task.createdAt)
   return (
     <div className="goal-meta work-card-head">
       <Tag tone={words.tone}>{words.label}</Tag>

@@ -13,11 +13,12 @@ import {
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
-import { answeredAfter, contributorsLine, messageBy, messagesKey, messageWhen } from './conversation-list.ts'
+import { answeredAfter, contributorsLine, messageBy, messagesKey } from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
 import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { when } from '../../app/time-words.ts'
 
 interface Props {
   conversation: ConversationSummary
@@ -224,7 +225,7 @@ function MessageList(props: {
           className={m.author === 'sophia' ? 'conv-msg sophia' : 'conv-msg'}
         >
           <span className="conv-msg-by">
-            {messageBy(m, me)} · <time dateTime={m.at}>{messageWhen(m.at)}</time>
+            {messageBy(m, me)} · <time dateTime={m.at}>{when(m.at, Date.now())}</time>
           </span>
           <p>{m.text}</p>
         </li>

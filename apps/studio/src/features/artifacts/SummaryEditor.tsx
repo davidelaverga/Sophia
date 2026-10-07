@@ -9,6 +9,7 @@ import { editReportSummary } from '../../api/artifacts.ts'
 import { ApiError } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { summaryEdit, type SummaryDraft } from './report-view.ts'
+import { dayOf } from '../../app/time-words.ts'
 
 const LIMIT = 240
 
@@ -22,9 +23,7 @@ interface Props {
 
 function attribution(card: ReportCard): string {
   if (card.summaryAuthorId === null) return 'Description by Sophia'
-  const when = card.summaryUpdatedAt
-    ? new Date(card.summaryUpdatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-    : null
+  const when = card.summaryUpdatedAt ? dayOf(card.summaryUpdatedAt, Date.now()) : null
   return when ? `Edited by a member · ${when}` : 'Edited by a member'
 }
 

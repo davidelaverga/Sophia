@@ -14,6 +14,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { loadReportText } from './download.ts'
 import { compareSections, type SectionChange } from './markdown.ts'
 import { conclusionTopic, factChips, factsLine, notesShown, quotedHeadings } from './report-view.ts'
+import { dayOf } from '../../app/time-words.ts'
 
 interface Props {
   identity: Identity
@@ -22,9 +23,6 @@ interface Props {
   shown: string | null
   onShow: (versionId: string) => void
 }
-
-const dateOf = (iso: string | undefined) =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''
 
 export function ReportHistory({ identity, versions, shown, onShow }: Props) {
   const [compare, setCompare] = useState<{ older: ArtifactVersion; newer: ArtifactVersion } | null>(null)
@@ -78,7 +76,7 @@ function VersionRow({ version, before, own, shown, onShow, onCompare }: RowProps
     <li className="report-version" data-shown={shown || undefined}>
       <div className="report-version-head">
         <strong>v{version.versionNumber ?? '?'}</strong>
-        <span className="muted">{dateOf(version.createdAt)}</span>
+        <span className="muted">{version.createdAt ? dayOf(version.createdAt, Date.now()) : ''}</span>
         {version.state === 'stable' && <Tag tone="teal">Current</Tag>}
       </div>
       {facts && <p className="report-facts">{facts}</p>}

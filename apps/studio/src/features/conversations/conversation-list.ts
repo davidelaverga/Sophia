@@ -54,16 +54,6 @@ function firstOf(all: MissionDecision[]) {
   return { shown: all.slice(0, SHOWN_DECISIONS), more: Math.max(0, all.length - SHOWN_DECISIONS) }
 }
 
-const AT = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } as const
-const DAY_TIME = new Intl.DateTimeFormat(undefined, AT)
-const YEAR_DAY_TIME = new Intl.DateTimeFormat(undefined, { ...AT, year: 'numeric' })
-
-/** When a message was written: its day and time, with the year when it isn't this one. */
-export function messageWhen(at: string, now = new Date()): string {
-  const when = new Date(at)
-  return (when.getFullYear() === now.getFullYear() ? DAY_TIME : YEAR_DAY_TIME).format(when)
-}
-
 /** Who wrote a message: Sophia, «You», or the member's name. */
 export const messageBy = (
   m: { author: 'member' | 'sophia'; actorId: string | null; name: string | null },

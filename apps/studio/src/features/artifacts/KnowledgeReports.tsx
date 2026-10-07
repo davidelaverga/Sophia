@@ -15,6 +15,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
 import { formatsOffered } from './report-view.ts'
 import { SummaryEditor } from './SummaryEditor.tsx'
+import { dayOf } from '../../app/time-words.ts'
 import './artifacts.css'
 
 type Format = NonNullable<ReportFilter['format']>
@@ -250,8 +251,6 @@ function ReportCards({ cards, state, showProject, editable, identity, filtered, 
   )
 }
 
-const dateOf = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-
 interface CardProps {
   card: ReportCard
   showProject: boolean
@@ -265,7 +264,7 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
   const meta = [
     card.currentVersionNumber ? `v${card.currentVersionNumber}` : null,
     `${card.versionCount} ${card.versionCount === 1 ? 'version' : 'versions'}`,
-    `updated ${dateOf(card.updatedAt)}`,
+    `updated ${dayOf(card.updatedAt, Date.now())}`,
   ]
   return (
     <li className="report-card">

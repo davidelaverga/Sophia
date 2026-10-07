@@ -12,6 +12,7 @@ import { Waiting } from '../../app/Waiting.tsx'
 import { RecapPart, RecapSheet } from '../voice/MeetingRecap.tsx'
 import { namers, recapSections } from '../voice/recap-view.ts'
 import { digestLead, meetingRow, type DateWords } from './updates-view.ts'
+import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 
 interface Props {
   projectId: string
@@ -127,14 +128,11 @@ function useMarkSeen(projectId: string, identity: Identity) {
   })
 }
 
-const DAY = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
-const DAY_YEAR = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-const TIME = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-/** How the Studio says a date: in the reader's locale, the year only when it isn't this one. */
+/** How the Studio says a date (app/time-words.ts): «Oct 4», «15:00», the year only when it isn't this one. */
 export const DATE_WORDS: DateWords = {
-  day: (at) => (at.getFullYear() === new Date().getFullYear() ? DAY : DAY_YEAR).format(at),
-  time: (at) => TIME.format(at),
-  today: (at) => at.toDateString() === new Date().toDateString(),
+  day: (at) => dayOf(at, Date.now()),
+  time: clock,
+  today: (at) => sameDay(at, new Date()),
 }
 
 interface MeetingsProps {
