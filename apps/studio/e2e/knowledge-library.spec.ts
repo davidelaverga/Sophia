@@ -189,5 +189,5 @@ test('library · the older report opens from its tile, its sources read', async 
   const pane = page.getByRole('complementary', { name: 'An older fixture report' })
   await expect(pane.getByText('A labelled fixture report from before PDFs were turned off.')).toBeVisible()
   await pane.getByRole('tab', { name: /Sources/ }).click()
-  await expect(pane.getByRole('tabpanel')).toBeVisible()
+  await expect(pane.getByText('This version cites no source you can read.')).toBeVisible()
 })
