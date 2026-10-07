@@ -4,7 +4,7 @@ Goal and attempt: the fixture pages as one project at work, behind `?demo=1` (`d
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `demo/video-data` on `main` `95c375c`, 2026-10-07
-Ending commit/tree: the change is commit `f14b1850d893271e86f08a78d7d6b75e3cb2dafe` (tree `793fab259070d8af8813ea9cb6a410c66af579c2`), after `6c95092`; it touches only `apps/studio/fixtures/` (15 files) and `docs/plans/demo-data.md`. The commit after it adds only this handoff.
+Ending commit/tree: the final change is commit `04dac8af3246da4af0de912a43c680643200807a` (tree `aeb8b8c051b7f13e910d8578c8f3a6675a99dfd6`): `tamper=html` now alters the demo's designed page as it does the fixture's (Codex on #151, P2), with its check in `apps/studio/e2e/report.spec.ts`. Before it: `6c95092` and `f14b1850d893271e86f08a78d7d6b75e3cb2dafe` (tree `793fab259070d8af8813ea9cb6a410c66af579c2`), which touch only `apps/studio/fixtures/` (15 files) and `docs/plans/demo-data.md`. The commit after it changes only this file.
 
 ## Outcome
 
@@ -24,6 +24,7 @@ Ending commit/tree: the change is commit `f14b1850d893271e86f08a78d7d6b75e3cb2da
 - **Hashes:** each version's Markdown and designed page match their SHA-256 (a one-off script over `demo.ts` and `demo-page.ts`: v1 `4403c3ff…fc6d` / `7bd1bc66…7a92`, v2 `58e28210…970d` / `4b579aa4…074c`). The viewer refuses a mismatch on screen, and it shows both.
 - **On screen:** every demo page was scanned for «fixture», «synthetic», «labelled» or «test data»; none left. The walkthrough video Luis received (3 min 40 s) was recorded on these pages.
 - **Gates:** `tsc --noEmit`, `oxlint --type-aware` on the 15 files, Prettier.
+- **Codex on #151 (P2):** `?demo=1&tamper=html` served the demo page unaltered. A new check failed first, then passes; the eight `HTML ·` checks pass.
 - **Browser checks:** not run locally on this branch; CI runs the full suite without `demo`, which must pass as on `main`.
 
 ## Remaining obligations
