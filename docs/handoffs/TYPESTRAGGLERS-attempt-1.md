@@ -8,8 +8,8 @@ Ending commit/tree: `8fd1dccd7d8202e35b14c6bd2a8b49dd0d58aa95` (tree `0c3cb29342
 
 ## Outcome
 
-In `theme.css` and `artifacts.css`: 12.5 px → `--type-small` (28 + 4 places), 13.5 px → `--type-body` (the base, the
-bar's crumbs and the project's name, 6 + 3 more), 11 px → `--type-label` (the avatar letter, mono lines; 8), the 10 px
+In `theme.css` and `artifacts.css`: 12.5 px → `--type-small` (28 + 4 places), 13.5 px → `--type-body` (the bar's crumbs
+and the project's name, 5 + 3 more; the page's base stays 13.5 px, which the personal space, Home and sign-in inherit), 11 px → `--type-label` (the avatar letter, mono lines; 8), the 10 px
 key → label; Updates' title at 20 px like the other views. The personal space's CSS is untouched (its own editorial
 scale, pinned by `personal.spec.ts`). Note: `docs/plans/type-stragglers.md`.
 
@@ -21,6 +21,10 @@ scale, pinned by `personal.spec.ts`). Note: `docs/plans/type-stragglers.md`.
 - Type-heavy suites: resources, work, room-dock, the three Knowledge specs, updates-quiet, project-conversations,
   conversation-thread: 319 passed, one failed and was right to (Updates' check allowed 18 px; now 20).
 - Prettier, `oxlint --type-aware` (clean but `brand-assets.mjs`, already on `main`), `tsc`. The full suite in CI.
+
+Independent review: no P1; one P2, fixed: the page's base had moved to 13 px, reaching the personal space, Home and
+sign-in through inheritance; it stays 13.5 px (personal.spec and type-scale.spec, 102 passed). The checks now wait
+for the view's heading and fail on a request the fixture didn't answer.
 
 ## Limitations and next action
 

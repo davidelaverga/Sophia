@@ -13,9 +13,15 @@ const VIEWS = [
 ] as const
 const SCALE = ['10.5px', '12px', '13px', '14px', '15px', '16px', '18px', '20px']
 
+test.afterEach(async ({ page }) => {
+  expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
+})
+
 for (const [name, url] of VIEWS) {
   test(`type · ${name} keeps to the app's scale, its bar too`, async ({ page }) => {
     await page.goto(url)
+    // The view has drawn: the project bar and the view's own heading.
+    await expect(page.getByRole('heading').first()).toBeVisible()
     await page.waitForLoadState('networkidle')
     await page.evaluate(() => document.querySelector('.fixture-label')?.remove())
     const sizes = await typeSizes(page, 'body')

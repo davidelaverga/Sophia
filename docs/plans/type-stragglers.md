@@ -5,14 +5,14 @@
 
 ## The finding
 
-Sizes from before the scale were left in the shared CSS: the page's base 13.5 px (the bar's crumbs and the project's
-name), 12.5 px notes («Sophia joins when asked.», «Nothing carried in yet»), an 11 px avatar letter and mono lines, a
+Sizes from before the scale were left in the shared CSS: 13.5 px on the bar's crumbs and the project's name, 12.5 px notes («Sophia joins when asked.», «Nothing carried in yet»), an 11 px avatar letter and mono lines, a
 10 px key. Updates' title was 18 px where the other views say theirs at 20.
 
 ## What changes
 
 - In `theme.css` and `artifacts.css` (not the personal space, which keeps its own editorial scale): 12.5 → small,
-  13.5 → body, 11 and 10 → label, as tokens; Updates' title at 20 px like the other views.
+  13.5 → body, 11 and 10 → label, as tokens; the page's base stays at 13.5 px (the personal space, Home and sign-in
+  inherit it); Updates' title at 20 px like the other views.
 
 ## Checks
 
