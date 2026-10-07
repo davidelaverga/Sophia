@@ -305,7 +305,7 @@ const project = {
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
   researchFinished: false,
   textTampered: query.get('tamper') === 'text',
-  designed: query.get('designed') === 'on',
+  designed: query.get('designed') === 'on' || DEMO,
   designing: query.get('design') === 'designing',
   pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',

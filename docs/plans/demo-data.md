@@ -21,6 +21,10 @@ screen that reads «Marco’s screen (synthetic)». Hundreds of checks assert on
   - Version 2: adds «The second region» and revises the recommendations; its notes say so.
   - Its four sources are the project's own records (survey, tickets, call notes, dashboard), read in full.
   - Each version's SHA-256 is checked by the viewer as for any report.
+  - Each version also carries a designed HTML page (`fixtures/demo-page.ts`), as Sophia's designer publishes one:
+    four key figures, charts drawn in inline SVG (active teams by week, days to a first shared report, week-four
+    sessions, the two regions in v2), the findings as cards, a timeline of why two teams left, the comparison
+    table, recommendations with their reason, and the sources. Static, as the viewer's sandbox requires.
 - **Around it:** the decision and open line of the last meeting, the brief's accepted decision, a conversation
   about who owns setup, Sophia's description, Home's live room (Marco, Lucía and Sophia), the viewer «Luis», and a
   shared screen that draws the pilot's weekly active teams.

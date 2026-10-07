@@ -25,6 +25,7 @@ import {
   DEMO_V1,
   DEMO_V2,
 } from './demo.ts'
+import { DEMO_PAGE_SHA, demoPage } from './demo-page.ts'
 
 export const REPORT = '00000000-0000-4000-8000-0000000000b1'
 export const TASK = '00000000-0000-4000-8000-0000000000b2'
@@ -303,12 +304,21 @@ export const DESIGNED = {
   ].join('\n')}\n`,
 }
 
-/** Version 1's designed page as the version lists it. */
-const designedRendition = () => ({
+/** The demo's designed pages (`demo`), one for each version: charts, figures and the findings, as a page. */
+const DEMO_PAGES = [
+  { sourceId: '00000000-0000-4000-8000-0000000000e5', sha256: DEMO_PAGE_SHA.v1, text: demoPage(1) },
+  { sourceId: '00000000-0000-4000-8000-0000000000e6', sha256: DEMO_PAGE_SHA.v2, text: demoPage(2) },
+]
+
+/** The designed page version `n` carries: the fixture's on version 1, the demo's on each. */
+const pageOf = (n: number) => (DEMO ? (DEMO_PAGES[n - 1] ?? DEMO_PAGES[0]) : DESIGNED)
+
+/** Version `n`'s designed page as the version lists it. */
+const designedRendition = (n = 1) => ({
   format: 'html' as const,
-  sourceId: DESIGNED.sourceId,
-  sha256: DESIGNED.sha256,
-  byteLength: new TextEncoder().encode(DESIGNED.text).byteLength,
+  sourceId: pageOf(n)?.sourceId ?? DESIGNED.sourceId,
+  sha256: pageOf(n)?.sha256 ?? DESIGNED.sha256,
+  byteLength: new TextEncoder().encode(pageOf(n)?.text ?? DESIGNED.text).byteLength,
   mime: 'text/html',
   pageCount: null,
   reviewState: 'reviewed' as const,
@@ -345,7 +355,8 @@ function version(n: number, title: string, pilot: boolean): ArtifactVersion {
 export const versions = (published: number, title = TITLE, pilot = false, designed = false): ArtifactVersion[] =>
   Array.from({ length: published }, (_, i) => {
     const v = version(published - i, title, pilot)
-    return designed && v.versionNumber === 1 ? { ...v, renditions: [designedRendition()] } : v
+    const paged = designed && (DEMO || v.versionNumber === 1)
+    return paged ? { ...v, renditions: [designedRendition(v.versionNumber)] } : v
   })
 
 /** What a version cites, as `GET …/versions/{id}/sources` answers it: the one page, read in full. */
@@ -390,6 +401,8 @@ export const citedSources: ReportSourceList = DEMO ? demoSources : fixtureSource
  */
 export function content(sourceId: string, tampered = false, pageTampered = false): SourceContent | null {
   if (sourceId === DESIGNED.sourceId) return designedContent(pageTampered)
+  const demoPageAt = DEMO ? DEMO_PAGES.findIndex((p) => p.sourceId === sourceId) : -1
+  if (demoPageAt >= 0) return demoPageContent(demoPageAt)
   const text = [...TEXTS, ...PILOT_TEXTS].find((t) => t.sourceId === sourceId)
   if (!text) return null
   const served = tampered ? `${text.text} ` : text.text
@@ -401,6 +414,23 @@ export function content(sourceId: string, tampered = false, pageTampered = false
     filename: DEMO ? `${DEMO_FILE}.md` : 'fixture-report.md',
     disposition: 'inline',
     text: served,
+    downloadUrl: null,
+    expiresAt: null,
+  }
+}
+
+/** The demo's designed page of version `i + 1`, as the content read answers it. */
+function demoPageContent(i: number): SourceContent | null {
+  const page = DEMO_PAGES[i]
+  if (!page) return null
+  return {
+    sourceId: page.sourceId,
+    sha256: page.sha256,
+    mime: 'text/html',
+    byteLength: byteLengthOf(page.text),
+    filename: `${DEMO_FILE}-v${String(i + 1)}.html`,
+    disposition: 'inline',
+    text: page.text,
     downloadUrl: null,
     expiresAt: null,
   }
@@ -500,12 +530,12 @@ export function researchTaskAt(n: 1 | 2, designed = false, designing = false): N
   }
   const result = { ...researchTask.result, sourceId: text.sourceId, sha256: text.sha256, markdown: text.text }
   // With `designed=on` the HTML page asked for is published on version 1, as the API lists it after the Markdown.
-  const page = { ...designedRendition(), artifactVersionId: versionId(1) }
+  const page = { ...designedRendition(n), artifactVersionId: versionId(DEMO ? n : 1) }
   const html = { format: 'html' as const, ...pick(page) }
   return {
     ...researchTask,
     task: { ...researchTask.task, resultSourceId: text.sourceId },
-    result: { ...result, outputs: designed && n === 1 ? [file, html] : [file] },
+    result: { ...result, outputs: designed && (DEMO || n === 1) ? [file, html] : [file] },
     ...(designed ? { research: designedResearch } : designing ? { research: designingResearch } : {}),
   }
 }
