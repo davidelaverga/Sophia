@@ -3064,3 +3064,39 @@ test('codex · F-049 · a task waiting twice on one kind and reference is refuse
   ])
   expect(keyWarnings).toEqual([])
 })
+
+// ---- WBC-02 (Codex on #107, r4206591778): Review sources keeps a selection within what a review reads. ----
+
+test('codex · #107 · sources over a review’s limit together are said so and propose nothing; within it, they may', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?served=1`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  const pick = (label: string) => form.getByRole('checkbox', { name: label })
+  const propose = form.getByRole('button', { name: 'Propose review' })
+  const over = form.getByRole('status').filter({ hasText: 'a review reads at most' })
+  // Two report versions, each within the limit, hold more than it together.
+  await pick('Launch brief v3').check()
+  await pick('Risk register v5').check()
+  await expect(over).toHaveText(
+    'These sources hold 35.2 KiB of text; a review reads at most 32 KiB. Choose fewer or shorter sources.',
+  )
+  await expect(propose).toBeDisabled()
+  // Enter in a field sends nothing either: a proposal would be a request this page doesn't answer (afterEach).
+  await form.getByLabel('Purpose (optional)').press('Enter')
+  await expect(form.getByRole('alert')).toHaveCount(0)
+  // One deselected, another chosen: exactly at the limit, it may be proposed.
+  await pick('Risk register v5').uncheck()
+  await pick('Press plan v2').check()
+  await expect(over).toHaveCount(0)
+  await expect(propose).toBeEnabled()
+  // A third, of one byte: over by one, said as more than the limit.
+  await pick('Budget note v1').check()
+  await expect(over).toContainText('These sources hold 32.1 KiB of text')
+  await expect(propose).toBeDisabled()
+  // Deselected again: back within it.
+  await pick('Budget note v1').uncheck()
+  await expect(over).toHaveCount(0)
+  await expect(propose).toBeEnabled()
+})

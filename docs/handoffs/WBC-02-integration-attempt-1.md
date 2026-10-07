@@ -4,7 +4,7 @@ Goal and attempt: WBC-02 (SCM-01), the combined integration of #107 with the acc
 Human owner / executor resource: Davide (decisions); Codex (coordination, independent review, two pushes, local checks); Claude Code in a cloud container (linux-x64), the only tracked-source writer
 Native session: this Claude Code session (https://claude.ai/code/session_0155SjcXhv87RErnWEBWxfBM); no Sophia native session was created
 Starting worktree/commit: the held #107 branch `scm-01/workboard-source-review` at `29371f5a3703f4358563886407bc360df7c38603`, in a fresh worktree with no ignored build outputs
-Ending commit/tree: the content commit «WBC-02 #107: an empty page proves no read; Review sources keeps to the size limit» (`d165c6520c9b229e52724f73096619ff14f6a911`, tree `3f6c0bf7634a0c2496569d4ba0acd3c8f2c51802`), the parent of this handoff's commit. Before it: the bundle records `d0eba67a`; the receipt, principal and CI fixes `8241e9d0`; the wakeup fix `e93b0c51`; the first fix `df183a5f`; each with its handoff commit. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
+Ending commit/tree: «WBC-02 #107: the end of a source and the size limit, in their controls», this commit, on the content commit «WBC-02 #107: an empty page proves no read; Review sources keeps to the size limit» (`d165c6520c9b229e52724f73096619ff14f6a911`, tree `3f6c0bf7634a0c2496569d4ba0acd3c8f2c51802`) and its handoff `7ae5a177`. Before them: the bundle records `d0eba67a`; the receipt, principal and CI fixes `8241e9d0`; the wakeup fix `e93b0c51`; the first fix `df183a5f`; each with its handoff commit. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
 
 | Commit | Tree | Merges | Changes beyond its parents |
 | --- | --- | --- | --- |
@@ -126,6 +126,17 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 - `test:db` (run 37616437946, job 112775782401): 528 of 529, none skipped. Every new control passed: the receipt, foreign-receipt, reread and coverage control; the principal control; both barriered Hold controls; the wakeup and fence controls. The one failure was the test order this commit fixes: the receipt control published its review, whose completion was still queued in the shared outbox, and the next test's pass claimed it as well (`['unknown','unknown']` for `['unknown']`). The reconcile helpers now count only their own world's deliveries, and the receipt control delivers its completion.
 
 **On `d165c652`, in this session:** `prettier --check .`, `oxlint --type-aware .` and the typechecks pass; Studio's units 919 of 919, with `review-sources.test.ts` (at, over and below the limit; sizes as stated). Not run here: the new `.db` control (a page asked past the end, its receipt refused as a read); CI runs it. The Studio form itself has no browser control: the fixture page serves the review as not enabled.
+
+**Codex's handback 6037451217, in this commit:**
+- The empty-page control now reads A at its end exactly as well as B past it, and both receipts are refused as reads. It pages on from A's first page (`offset` 10, `limit` 10): both receipts count, and coverage says 20 characters. The final submit also presents both empty pages' receipts, which change nothing.
+- `ReviewSources` refuses a submit over the limit in its handler too, not only by its disabled button. Size wording rounds up (`kib`), so one byte over reads 32.1 KiB, never the limit.
+- Browser coverage: `work.html?served=1` leaves the page's own plans out, so the real ProjectShell reads the board Sophia serves. `fixture-api.ts`'s `workRead` (#107's own) then answers the enabled availability of the new `fixtures/source-review-data.ts`. `work.spec.ts`, «sources over a review’s limit together…», covers:
+  - two versions over the limit together are said so, with Propose review off;
+  - Enter in a field sends nothing (the page's unexpected-request check);
+  - at the limit exactly, Propose review is on;
+  - a third version of one byte is over again;
+  - deselected, the selection is back within the limit.
+- Run here: the whole `work.spec.ts` locally, 162 of 162 (desktop and phone; the container's Chromium through a local-only config). A mutant restoring the old check (Propose review on with any choice) fails it at `toBeDisabled`. The handler's own guard can't be told apart in a browser, since a disabled default button submits nothing. Also `prettier`, `oxlint`, the typechecks, and Studio's units 919 of 919. The `.db` controls run in CI.
 
 **Source-register IDs consulted:** none.
 

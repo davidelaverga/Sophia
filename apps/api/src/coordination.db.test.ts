@@ -645,11 +645,24 @@ describe('one Paperclip-managed source review', () => {
     assert.match(String(empty.json.message), /did not read/)
     // A page lost on its way, then read again: the reread's receipt, which did arrive, lets the source be cited.
     await pageOf(w, at, w.sourceA)
-    const partial = await w.runtime('/v1/runtime/source-review/context', { ...at, sourceId: w.sourceA, limit: 10 })
+    const page = (sourceId: string, from: Record<string, number> = {}) =>
+      w.runtime('/v1/runtime/source-review/context', { ...at, sourceId, ...from })
+    const partial = await page(w.sourceA, { limit: 10 })
     assert.equal(partial.status, 200, JSON.stringify(partial.json))
-    const whole = await w.runtime('/v1/runtime/source-review/context', { ...at, sourceId: w.sourceB })
+    // Asked at the source's end exactly: no text, so its receipt proves no read either.
+    const atEnd = await page(w.sourceA, { offset: Number(partial.json.totalChars) })
+    assert.deepEqual([atEnd.json.text, atEnd.json.nextOffset], ['', null], JSON.stringify(atEnd.json))
+    const end = await submit('s-end', [atEnd.json.receipt], [w.sourceA])
+    assert.equal(end.status, 422, JSON.stringify(end.json))
+    assert.match(String(end.json.message), /did not read/)
+    // Paging on from the first page: the next page's receipt counts with the first's.
+    const next = await page(w.sourceA, { offset: Number(partial.json.nextOffset), limit: 10 })
+    assert.deepEqual([next.json.offset, next.json.nextOffset], [10, 20], JSON.stringify(next.json))
+    const whole = await page(w.sourceB)
     assert.equal(whole.json.truncated, false)
-    const published = await submit('s-ok', [partial.json.receipt, whole.json.receipt], [w.sourceA, w.sourceB])
+    // The empty pages' receipts, presented too, change nothing: served to this review, they prove no read.
+    const receipts = [partial, next, whole, atEnd, past].map((p) => String(p.json.receipt))
+    const published = await submit('s-ok', receipts, [w.sourceA, w.sourceB])
     assert.equal(published.json.outcome, 'published', JSON.stringify(published.json))
     const stored = await asOwner(
       async (o) =>
@@ -661,7 +674,7 @@ describe('one Paperclip-managed source review', () => {
         ).rows[0],
     )
     const expected = [
-      { sourceId: w.sourceA, deliveredChars: 10, totalChars: partial.json.totalChars, complete: false },
+      { sourceId: w.sourceA, deliveredChars: 20, totalChars: partial.json.totalChars, complete: false },
       { sourceId: w.sourceB, deliveredChars: whole.json.totalChars, totalChars: whole.json.totalChars, complete: true },
     ].toSorted((a, b) => a.sourceId.localeCompare(b.sourceId))
     assert.deepEqual(stored?.coverage, expected, 'one page of a source is not the whole source')

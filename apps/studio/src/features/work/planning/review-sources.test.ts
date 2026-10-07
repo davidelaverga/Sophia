@@ -18,6 +18,8 @@ describe('a source review selection', () => {
 
   it('says sizes as the limit is stated', () => {
     assert.equal(kib(32_768), '32 KiB')
+    assert.equal(kib(32_769), '32.1 KiB', 'one byte over never reads as the limit')
     assert.equal(kib(33_894), '33.1 KiB')
+    assert.equal(kib(36_000), '35.2 KiB')
   })
 })

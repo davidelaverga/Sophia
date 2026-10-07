@@ -12,5 +12,5 @@ export function selectionOf(sources: readonly Sized[], chosen: readonly string[]
   return { bytes, over: bytes > maxInputBytes }
 }
 
-/** "32 KiB", "33.1 KiB": the size as the limit is stated. */
-export const kib = (bytes: number): string => `${String(Number((bytes / 1024).toFixed(1)))} KiB`
+/** "32 KiB", "33.1 KiB": the size as the limit is stated, rounded up, so a total one byte over never reads as the limit. */
+export const kib = (bytes: number): string => `${String(Math.ceil(bytes / 102.4) / 10)} KiB`

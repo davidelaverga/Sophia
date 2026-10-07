@@ -117,6 +117,8 @@ interface Project {
   work: boolean
   /** The project's goals (the work fixture's one, LFE-07). */
   goals?: Snapshot['goals']
+  /** What Sophia offers for a source review (WBC-02); absent, the pilot is not enabled. */
+  review?: SourceReviewAvailability
   /** A goal's command (Request review, Hold, Stop), with its idempotency key; absent, a command is unexpected. */
   onCommand?: (command: GoalCommand, key: string) => void
   /** The floor and Sophia's presence as the page asked for them (data.ts, room-people checks). */
@@ -652,8 +654,9 @@ function designRead(project: Project): Response | null {
 }
 
 /**
- * Tasks' reads from the board Sophia serves (WBC-02), answered as the API answers a project with no plan yet and the
- * source-review pilot not enabled: the goals show alone and no goal offers Review sources.
+ * Tasks' reads from the board Sophia serves (WBC-02), answered as the API answers a project with no plan yet: the goals
+ * show alone. The source-review pilot is not enabled unless the page offers it (`review`): then each goal offers
+ * Review sources.
  */
 function workRead(project: Project, path: string) {
   if (path === `/api/v1/projects/${PROJECT}/plans`) {
@@ -667,7 +670,7 @@ function workRead(project: Project, path: string) {
     }
     return json(board)
   }
-  if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) return json(REVIEW_NOT_ENABLED)
+  if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) return json(project.review ?? REVIEW_NOT_ENABLED)
   return null
 }
 

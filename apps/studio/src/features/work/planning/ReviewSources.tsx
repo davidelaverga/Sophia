@@ -126,6 +126,7 @@ function ReviewForm(props: FormProps) {
   const valid = chosen.length > 0 && !selection.over && allowance > 0 && allowance <= max
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!valid) return
     void propose({ sourceIds: chosen, allowanceUsd: allowance, ...(purpose.trim() ? { purpose: purpose.trim() } : {}) })
   }
   if (sent.state === 'proposed') return <Proposed onClose={onClose} />

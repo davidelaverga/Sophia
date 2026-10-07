@@ -57,6 +57,7 @@ import { newMeeting } from './meeting-data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { actions as requests, NOW, observations, resources as owned, tightClaude } from './resources-data.ts'
+import { SOURCE_REVIEW } from './source-review-data.ts'
 import { inCase } from './work-cases.ts'
 import {
   CASES,
@@ -156,6 +157,8 @@ const query = new URLSearchParams(window.location.search)
 /** `two=1`: a second goal with its own plan; `goals=6`: four more, to see the goals' rail scroll. */
 const six = query.get('goals') === '6'
 const two = six || query.get('two') === '1'
+/** `served=1`: Tasks reads the board Sophia serves, as the Studio does without the page's plans, the pilot enabled. */
+const served = query.get('served') === '1'
 /** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
 let onGoalCommand: ((command: GoalCommand, key: string) => void) | null = null
 installFixtureApi({
@@ -179,6 +182,7 @@ installFixtureApi({
   textHeld: false,
   textTampered: false,
   work: false,
+  ...(served && { review: SOURCE_REVIEW }),
   // A12: a call left from here has a meeting that left nothing (MeetingRecap's empty recap).
   meeting: newMeeting(
     () => ({
@@ -736,13 +740,14 @@ function Tasks() {
         Simulated — no lead, tool, host or conversation read · viewing as {people[viewer].name}
         {scenario ? ` · ${scenario}` : ''}
       </p>
-      <Shell plans={plans} viewer={viewer} now={now} onCommand={ported ? onCommand : undefined} />
+      <Shell plans={served ? undefined : plans} viewer={viewer} now={now} onCommand={ported ? onCommand : undefined} />
     </>
   )
 }
 
 interface ShellProps {
-  plans: Readonly<Record<string, ReturnType<typeof slot>>>
+  /** Absent (`served=1`): Tasks reads the board Sophia serves. */
+  plans: Readonly<Record<string, ReturnType<typeof slot>>> | undefined
   viewer: Viewer
   now: Date
   onCommand: SendCommand | undefined
@@ -765,7 +770,7 @@ function Shell({ plans, viewer, now, onCommand }: ShellProps) {
       onLeave={nothing}
       onWork={nothing}
       onSignOut={nothing}
-      plans={plans}
+      {...(plans && { plans })}
       resources={
         <ResourcePanel
           resources={withActivity(owned)}
