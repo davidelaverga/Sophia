@@ -402,7 +402,7 @@ export const citedSources: ReportSourceList = DEMO ? demoSources : fixtureSource
 export function content(sourceId: string, tampered = false, pageTampered = false): SourceContent | null {
   if (sourceId === DESIGNED.sourceId) return designedContent(pageTampered)
   const demoPageAt = DEMO ? DEMO_PAGES.findIndex((p) => p.sourceId === sourceId) : -1
-  if (demoPageAt >= 0) return demoPageContent(demoPageAt)
+  if (demoPageAt >= 0) return demoPageContent(demoPageAt, pageTampered)
   const text = [...TEXTS, ...PILOT_TEXTS, OLDER_TEXT].find((t) => t.sourceId === sourceId)
   if (!text) return null
   const served = tampered ? `${text.text} ` : text.text
@@ -419,18 +419,19 @@ export function content(sourceId: string, tampered = false, pageTampered = false
   }
 }
 
-/** The demo's designed page of version `i + 1`, as the content read answers it. */
-function demoPageContent(i: number): SourceContent | null {
+/** The demo's designed page of version `i + 1`, as the content read answers it; `tamper=html`: one byte more. */
+function demoPageContent(i: number, tampered: boolean): SourceContent | null {
   const page = DEMO_PAGES[i]
   if (!page) return null
+  const served = tampered ? `${page.text} ` : page.text
   return {
     sourceId: page.sourceId,
     sha256: page.sha256,
     mime: 'text/html',
-    byteLength: byteLengthOf(page.text),
+    byteLength: byteLengthOf(served),
     filename: `${DEMO_FILE}-v${String(i + 1)}.html`,
     disposition: 'inline',
-    text: page.text,
+    text: served,
     downloadUrl: null,
     expiresAt: null,
   }
