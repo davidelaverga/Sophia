@@ -2410,3 +2410,50 @@ describe('a run turned away for a reason that passes, woken again (Codex on #107
     assert.deepEqual(await outcomesOf(w, await deliver(w)), [['resume', 'delivered']])
   })
 })
+
+describe('a control after the work closed (Codex on #107)', () => {
+  it('a closed work takes no Hold, Resume or Stop: each is refused unavailable, and its issue stays cancelled', async () => {
+    const w = await world()
+    const { proposal, issue, attemptId } = await running(w)
+    const at = { attemptId, nativeSessionId: `sophia-${attemptId}` }
+    const blocked = await w.runtime('/v1/runtime/source-review/submit', {
+      ...at,
+      callId: 'b1',
+      blocker: { reason: 'The CI log is not among the sources.', missing: 'CI log' },
+    })
+    assert.equal(blocked.json.outcome, 'blocked', JSON.stringify(blocked.json))
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['fail', 'delivered']])
+    assert.equal(w.paperclip.issues.get(issue.id)?.status, 'cancelled')
+    const goal = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ status: string }>(
+            `SELECT g.status FROM sophia.goals g JOIN sophia.work_items wi ON wi.project_id=g.project_id AND wi.execution_goal_id=g.id
+              WHERE wi.project_id=$1`,
+            [w.projectId],
+          )
+        ).rows[0]?.status,
+    )
+    assert.ok(goal === 'ready' || goal === 'running', `the goal still reads ${String(goal)}: only the work is closed`)
+    for (const kind of ['hold', 'stop', 'resume']) {
+      const refused = await command(w, proposal, kind, attemptId)
+      assert.deepEqual([refused.json.admission, refused.json.rejection], ['rejected', 'unavailable'], kind)
+    }
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [], 'nothing follows the failure')
+    assert.equal(w.paperclip.issues.get(issue.id)?.status, 'cancelled')
+    const item = await itemOf(w)
+    assert.equal(item.lifecycle, 'failed')
+    const offered = (item.available_actions as Array<{ kind: string; availability: string }>)
+      .filter((a) => ['hold', 'resume', 'stop'].includes(a.kind))
+      .map((a) => [a.kind, a.availability])
+    assert.deepEqual(
+      offered,
+      [
+        ['hold', 'unavailable'],
+        ['resume', 'unavailable'],
+        ['stop', 'unavailable'],
+      ],
+      'as the board says',
+    )
+  })
+})

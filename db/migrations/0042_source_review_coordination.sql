@@ -819,9 +819,13 @@ BEGIN
  SELECT * INTO asg FROM sophia.work_assignments WHERE project_id=p_project AND id=p_assignment FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Assignment not found' USING ERRCODE='22023'; END IF;
  SELECT * INTO w FROM sophia.work_items WHERE project_id=p_project AND id=asg.work_id FOR UPDATE;
+ -- A closed work (failed, its commission refused, an input withdrawn) takes no Hold, Resume or Stop, as the board offers
+ -- none: its goal may still read ready or running, and a control mirrored after its failure would move its issue in
+ -- Paperclip from cancelled back to blocked or todo (Codex on #107).
  refusal:=CASE
   WHEN kind='guidance' THEN 'unavailable'
   WHEN asg.work_id::text<>p_command->>'work_id' OR asg.state<>'active' OR asg.generation<>generation THEN 'conflict'
+  WHEN w.closed_reason IS NOT NULL THEN 'unavailable'
   WHEN NOT sophia.can_edit(p_project) THEN 'denied' END;
  IF refusal IS NULL THEN
   BEGIN
