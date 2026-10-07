@@ -403,7 +403,7 @@ export function content(sourceId: string, tampered = false, pageTampered = false
   if (sourceId === DESIGNED.sourceId) return designedContent(pageTampered)
   const demoPageAt = DEMO ? DEMO_PAGES.findIndex((p) => p.sourceId === sourceId) : -1
   if (demoPageAt >= 0) return demoPageContent(demoPageAt, pageTampered)
-  const text = [...TEXTS, ...PILOT_TEXTS].find((t) => t.sourceId === sourceId)
+  const text = [...TEXTS, ...PILOT_TEXTS, OLDER_TEXT].find((t) => t.sourceId === sourceId)
   if (!text) return null
   const served = tampered ? `${text.text} ` : text.text
   return {
@@ -652,6 +652,19 @@ const summaryOf = (d: Description): ReportSummary => ({
   summaryUpdatedAt: d.author ? AT : null,
 })
 
+/** The older report's one version, its Markdown kept inline (its cover on Knowledge reads it); `demo`: the pilot's plan. */
+const OLDER_TEXT = DEMO
+  ? {
+      sourceId: '00000000-0000-4000-8000-0000000000e7',
+      sha256: '8b82929553227202235c6e4a7fbbd680de9ed3201ab4e018334d3ce45b59c090',
+      text: '# Pilot plan: fourteen teams, two regions\n\nHow the pilot runs: fourteen customer teams in two regions, four weeks each, and one measure that matters, a first shared report inside the first week.\n\n## Who takes part\n\nNine teams in the first region and five in the second, chosen by the size of their setup.\n\n## What we measure\n\nActive teams each week, days to a first shared report, and setup tickets per team.\n',
+    }
+  : {
+      sourceId: '00000000-0000-4000-8000-0000000000e7',
+      sha256: '339cb171b4a537d415d8859b142ace55d92952cd01b31518cce98de9dd60917d',
+      text: '# An older fixture report\n\nA labelled fixture report from before PDFs were turned off.\n\n## Conclusion\n\nThe older fixture holds.\n',
+    }
+
 /** An older report on Knowledge's second page (`cursor=page-2`): More reports brings it. */
 const OLDER: ReportList['reports'][number] = {
   artifactId: '00000000-0000-4000-8000-0000000000e1',
@@ -670,6 +683,29 @@ const OLDER: ReportList['reports'][number] = {
   formats: ['markdown', 'pdf'],
   latestChange: { note: null, retained: null },
 }
+
+/** The older report's versions as the API lists them: its one version, Markdown only. */
+export const olderVersions = (): ArtifactVersion[] => [
+  {
+    id: OLDER.currentVersionId,
+    artifactId: OLDER.artifactId,
+    projectId: PROJECT,
+    parentId: null,
+    sourceId: OLDER_TEXT.sourceId,
+    sourceHash: OLDER_TEXT.sha256,
+    state: 'stable',
+    previewId: null,
+    format: 'markdown',
+    exportEditability: 'source_editable',
+    title: OLDER.title,
+    versionNumber: 1,
+    createdAt: AT,
+    renditions: [],
+    limitations: [],
+  },
+]
+
+export const OLDER_REPORT = OLDER.artifactId
 
 /** A text's searchable words: letters and digits only, lower case. */
 const wordsOf = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []

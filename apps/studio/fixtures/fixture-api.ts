@@ -33,6 +33,8 @@ import {
   citedSources,
   DESIGN_TASK,
   designingTask,
+  OLDER_REPORT,
+  olderVersions,
   REPORT,
   reportList,
   researchRunning,
@@ -633,13 +635,28 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
     const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
     return json(reportList(published, project.description, url.searchParams.get('cursor'), filter))
   }
-  if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
-  if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
+  const listed = versionsOf(project, path)
+  if (listed) return listed
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
   const text = source ? content(source, project.textTampered, project.pageTampered) : null
-  if (text) return textRead(project, text)
+  if (text) {
+    served.push(`content:${source ?? ''}`)
+    return textRead(project, text)
+  }
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${DESIGN_TASK}`) return designRead(project)
+  return null
+}
+
+/** A report's versions (the fixture report's, or the older one's, which Knowledge's cover reads) and its sources. */
+function versionsOf(project: Project, path: string): Response | Promise<Response> | null {
+  if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
+  if (path === `/api/v1/artifacts/${OLDER_REPORT}/versions`) return json(olderVersions())
+  // The older report cites nothing: its Sources tab reads an empty list.
+  if (path.startsWith(`/api/v1/artifacts/${OLDER_REPORT}/versions/`) && path.endsWith('/sources')) {
+    return json({ sources: [] })
+  }
+  if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   return null
 }
 

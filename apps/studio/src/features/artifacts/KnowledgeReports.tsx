@@ -9,13 +9,13 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
-import { Tag } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
 import { formatsOffered } from './report-view.ts'
+import { metaOf } from './report-cover.ts'
+import { ReportCover } from './ReportCover.tsx'
 import { SummaryEditor } from './SummaryEditor.tsx'
-import { dayOf } from '../../app/time-words.ts'
 import './artifacts.css'
 
 type Format = NonNullable<ReportFilter['format']>
@@ -258,45 +258,34 @@ interface CardProps {
   identity: Identity
 }
 
+/**
+ * A report as a tile: its cover, then its title, one meta line and its description. The title's press takes the whole
+ * tile; over the cover of a designed page, a press of its own opens that page. Edit and History keep their own.
+ */
 function ReportCardView({ card, showProject, editable, identity }: CardProps) {
   const viewer = useDocumentViewer()
   const client = useQueryClient()
-  const meta = [
-    card.currentVersionNumber ? `v${card.currentVersionNumber}` : null,
-    `${card.versionCount} ${card.versionCount === 1 ? 'version' : 'versions'}`,
-    `updated ${dayOf(card.updatedAt, Date.now())}`,
-  ]
   return (
     <li className="report-card">
-      <div className="report-card-head">
-        <span className="report-tile" data-format="markdown" aria-hidden>
-          MD
-        </span>
-        <button
-          type="button"
-          className="report-card-title"
-          onClick={() => viewer?.open({ artifactId: card.artifactId })}
-        >
-          {card.title}
-        </button>
-        {card.formats.includes('pdf') && <Tag tone="rose">PDF</Tag>}
+      <div className="report-card-cover">
+        <ReportCover card={card} identity={identity} />
         {card.formats.includes('html') && (
           <button
             type="button"
-            className="text-button report-card-html"
+            className="report-cover-open"
             aria-label={`Open ${card.title}, HTML page`}
             onClick={() =>
               viewer?.open({ artifactId: card.artifactId, versionId: card.currentVersionId, format: 'html' })
             }
           >
-            <Tag tone="teal">HTML</Tag>
+            <span className="report-cover-tag">HTML</span>
           </button>
         )}
       </div>
-      <p className="report-meta">
-        {showProject && <span>{card.projectTitle} · </span>}
-        {meta.filter(Boolean).join(' · ')}
-      </p>
+      <button type="button" className="report-card-title" onClick={() => viewer?.open({ artifactId: card.artifactId })}>
+        {card.title}
+      </button>
+      <p className="report-meta">{metaOf(card, showProject, Date.now())}</p>
       <SummaryEditor
         card={card}
         identity={identity}

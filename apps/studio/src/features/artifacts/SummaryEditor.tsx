@@ -91,7 +91,8 @@ export function SummaryEditor({ card, identity, editable, onSaved }: Props) {
       <div className="report-summary">
         <p>{card.summary ?? 'No description yet.'}</p>
         <p className="report-attribution">
-          {attribution(card)}
+          {/* No description is no one's: only one that exists is credited. */}
+          {card.summary !== null && attribution(card)}
           {editable && (
             <button
               ref={edit}
