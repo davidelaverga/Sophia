@@ -1,0 +1,321 @@
+# WBC-02 (WBC-02-CC-0013, accepted with WBC-02-CX-0032; isolated by CX-0035): qualifies the private Paperclip
+# service's image on this repository's existing GitHub-hosted runner. It builds the pin's own build stage and Sophia's
+# wrapper (deploy/paperclip/Dockerfile) for linux/amd64 from the exact candidate head, checks the image's identity and
+# packaged files, runs it under a 2 GiB memory cgroup without swap with a disposable database and home and synthetic
+# credentials, drives the installed plugin's flow through the service probe's --url mode, restarts and recreates it,
+# and writes a credential-free receipt to the run summary; the curated, scrubbed evidence (per-phase records, the
+# receipt, bounded redacted diagnostics) is uploaded as an artifact whatever the outcome (WBC-02-CX-0036). No secret,
+# no registry, no push, no deployment: this is development CI, not Render's platform fit, not a registry digest and
+# not a real Sophia (its address is closed).
+name: paperclip-image
+
+on:
+  workflow_dispatch:
+  pull_request:
+    # Every input of the image: the workflow, the recipe, the scripts, the bundled packages and every workspace package
+    # they depend on, and the toolchain and lock the build installs and typechecks with (WBC-02, Codex review of
+    # 3f92959). The unit tests walk the packages' dependencies and hold this list to them.
+    paths:
+      - .github/workflows/paperclip-image.yml
+      - .node-version
+      - deploy/paperclip/**
+      - package.json
+      - packages/contracts/**
+      - packages/coordination/**
+      - packages/paperclip-adapters/**
+      - packages/paperclip-plugin/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - scripts/paperclip-*.mjs
+
+permissions:
+  contents: read
+
+# One image build at a time per pull request. A running qualification is never cancelled (WBC-02-CX-0038): a newer run
+# waits as the group's one pending run, and replaces an older pending one.
+concurrency:
+  group: paperclip-image-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+env:
+  PAPERCLIP_PIN: 5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb
+  # The candidate itself, never the pull request's merge commit.
+  CANDIDATE: ${{ github.event.pull_request.head.sha || github.sha }}
+  IMAGE: sophia-paperclip:candidate
+
+jobs:
+  image:
+    name: Paperclip image under a 2 GiB cgroup
+    runs-on: ubuntu-24.04
+    # Above the sum of every step's own budget (312 minutes), so a slow step that stays within its budget fails as
+    # that step, and the receipt, scrub, upload and clean-up still run after it; the job's limit never ends the job
+    # first (WBC-02, Codex review of 5446719). The unit tests hold this sum.
+    timeout-minutes: 330
+    services:
+      # For scripts/paperclip-verify.mjs (the built worker under the pin's harness), as the database job has it.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Runner, disk and the space the build needs
+        timeout-minutes: 10
+        run: |
+          E="$RUNNER_TEMP/evidence"; mkdir -p "$E"; echo "EVIDENCE=$E" >> "$GITHUB_ENV"
+          # The credentials the probe makes or is given, one a line, for the evidence scrub; never uploaded.
+          install -m 600 /dev/null "$RUNNER_TEMP/probe-secrets.txt"
+          disk() { df -B1 --output=avail,size / | tail -1 | awk -v l="$1" '{printf "{\"label\":\"%s\",\"availBytes\":%s,\"sizeBytes\":%s}\n", l, $1, $2}' >> "$E/disk.jsonl"; }
+          disk start
+          # Toolchains this job never uses; the build stage, the wrapper and the pin's install need the room.
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          disk freed
+          jq -n --arg candidate "$CANDIDATE" --arg pin "$PAPERCLIP_PIN" --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg attempt "$GITHUB_RUN_ATTEMPT" --arg os "$(. /etc/os-release && echo "$PRETTY_NAME")" --arg kernel "$(uname -r)" \
+            --arg arch "$(uname -m)" --argjson cpus "$(nproc)" --argjson memKiB "$(awk '/MemTotal/ {print $2}' /proc/meminfo)" \
+            --arg cgroup "$(stat -fc %T /sys/fs/cgroup)" --arg docker "$(docker version --format '{{.Server.Version}}')" \
+            '{candidate: $candidate, pin: $pin, run: $run, attempt: $attempt, runner: {os: $os, kernel: $kernel, arch: $arch, cpus: $cpus, memKiB: $memKiB, cgroupFs: $cgroup, docker: $docker}}' \
+            > "$E/context.json"
+          avail=$(df -B1 --output=avail / | tail -1 | tr -d " ")
+          if [ "$avail" -lt $((25 * 1024 * 1024 * 1024)) ]; then echo "::error::only $avail bytes free; the build needs 25 GB to start"; exit 1; fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 10
+        with:
+          ref: ${{ env.CANDIDATE }}
+          path: sophia
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 10
+        with:
+          repository: paperclipai/paperclip
+          ref: ${{ env.PAPERCLIP_PIN }}
+          path: paperclip
+          persist-credentials: false
+
+      - name: The exact candidate, a clean tree, and the pin
+        timeout-minutes: 2
+        run: |
+          test "$(git -C sophia rev-parse HEAD)" = "$CANDIDATE"
+          test -z "$(git -C sophia status --porcelain)"
+          test "$(git -C paperclip rev-parse HEAD)" = "$PAPERCLIP_PIN"
+
+      # From the pristine checkout, before anything is installed or built in it.
+      - name: The pin's own build stage
+        timeout-minutes: 75
+        run: |
+          docker buildx build --platform linux/amd64 --target build --build-arg "PAPERCLIP_BUILD_COMMIT=$PAPERCLIP_PIN" \
+            --load -t paperclip-build:5edf55d paperclip
+          df -B1 --output=avail,size / | tail -1 | awk '{printf "{\"label\":\"after build stage\",\"availBytes\":%s,\"sizeBytes\":%s}\n", $1, $2}' >> "$EVIDENCE/disk.jsonl"
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0 (reads packageManager)
+        timeout-minutes: 5
+        with:
+          package_json_file: sophia/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        timeout-minutes: 5
+        with:
+          node-version-file: sophia/.node-version
+
+      - name: Install Sophia, and the pin for the packages' build
+        timeout-minutes: 20
+        run: |
+          (cd sophia && pnpm install --frozen-lockfile)
+          # The pin's own package manager; its SDK and db packages, whose types and validators the build and verify read.
+          (cd paperclip && npx --yes pnpm@9.15.4 install --frozen-lockfile \
+            && npx --yes pnpm@9.15.4 --filter @paperclipai/plugin-sdk build \
+            && npx --yes pnpm@9.15.4 --filter @paperclipai/db build)
+
+      - name: Sophia's build context, verified under the pin's harness
+        timeout-minutes: 15
+        env:
+          SOPHIA_DISPOSABLE_DATABASE_URL: postgres://postgres:ci@localhost:5432/postgres
+        run: |
+          node sophia/scripts/paperclip-build.mjs --paperclip "$GITHUB_WORKSPACE/paperclip" --out "$RUNNER_TEMP/sophia-paperclip"
+          jq -e --arg c "$CANDIDATE" --arg p "$PAPERCLIP_PIN" '.sophiaTreeDirty == false and .sophiaCommit == $c and .paperclipPin == $p' \
+            "$RUNNER_TEMP/sophia-paperclip/MANIFEST.json"
+          node sophia/scripts/paperclip-verify.mjs --paperclip "$GITHUB_WORKSPACE/paperclip" --dist "$RUNNER_TEMP/sophia-paperclip"
+
+      - name: The image
+        timeout-minutes: 20
+        run: |
+          docker buildx build --platform linux/amd64 --build-arg PAPERCLIP_BUILD_IMAGE=paperclip-build:5edf55d \
+            --provenance=false --load -t "$IMAGE" "$RUNNER_TEMP/sophia-paperclip"
+          df -B1 --output=avail,size / | tail -1 | awk '{printf "{\"label\":\"after image\",\"availBytes\":%s,\"sizeBytes\":%s}\n", $1, $2}' >> "$EVIDENCE/disk.jsonl"
+
+      - name: The image's identity and packaged files
+        timeout-minutes: 5
+        run: |
+          inspect() { docker image inspect "$1" --format '{{json .}}' | jq '{id: .Id, size: .Size, os: .Os, architecture: .Architecture}'; }
+          M="$RUNNER_TEMP/sophia-paperclip/MANIFEST.json"
+          # The receipt recomputes the packaged files from the bytes, not from the flags below (review of 896a92d): the
+          # build's manifest, the image's copy of it, and every file under /opt/sophia read once inside the image by the
+          # home scanner, confined (no network, read-only, no capability). Paths, digests, the pin and the commit only.
+          cp "$M" "$EVIDENCE/manifest.json"
+          docker run --rm --network none --entrypoint node "$IMAGE" /opt/sophia/verify-manifest.mjs /opt/sophia "$PAPERCLIP_PIN" && vm=true || vm=false
+          docker run --rm --network none --entrypoint cat "$IMAGE" /opt/sophia/MANIFEST.json > "$EVIDENCE/image-manifest.json"
+          cmp -s "$EVIDENCE/image-manifest.json" "$M" && mm=true || mm=false
+          docker run --rm --network none --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+            --volume "$GITHUB_WORKSPACE/sophia/scripts/paperclip-image-home.mjs:/opt/check/scan.mjs:ro" \
+            --entrypoint node "$IMAGE" /opt/check/scan.mjs scan /opt/sophia > "$EVIDENCE/image-files.json"
+          jq -n --argjson build "$(inspect paperclip-build:5edf55d)" --argjson image "$(inspect "$IMAGE")" \
+            --argjson vm "$vm" --argjson mm "$mm" --arg sha "$(sha256sum "$M" | cut -c1-64)" --slurpfile m "$M" \
+            --arg c "$CANDIDATE" --arg p "$PAPERCLIP_PIN" \
+            '{pin: $m[0].paperclipPin, pinMatches: ($m[0].paperclipPin == $p), sophiaCommit: $m[0].sophiaCommit,
+              sophiaCommitMatches: ($m[0].sophiaCommit == $c), sophiaTreeDirty: $m[0].sophiaTreeDirty,
+              manifestSha256: $sha, manifestMatches: $mm, verifyManifestInImage: $vm, buildImage: $build, image: $image}' \
+            > "$EVIDENCE/identity.json"
+          jq -e '.pinMatches and .sophiaCommitMatches and .sophiaTreeDirty == false and .manifestMatches and .verifyManifestInImage
+            and .image.os == "linux" and .image.architecture == "amd64"' "$EVIDENCE/identity.json"
+
+      - name: Synthetic credentials, a disposable database and home
+        timeout-minutes: 3
+        run: |
+          # Each value is generated here, masked before any use, and handed to later steps through GITHUB_ENV only.
+          for name in PCDB_PASSWORD BETTER_AUTH_SECRET PAPERCLIP_SECRETS_MASTER_KEY PAPERCLIP_TOOL_ACTION_SIGNING_SECRET \
+            PAPERCLIP_DECISION_SIGNING_SECRET SOPHIA_COORDINATION_TOKEN; do
+            v="$(openssl rand -hex 32)"; echo "::add-mask::$v"; echo "$name=$v" >> "$GITHUB_ENV"
+            if [ "$name" = PCDB_PASSWORD ]; then pw="$v"; fi
+          done
+          url="postgres://paperclip:$pw@pcdb:5432/paperclip"; echo "::add-mask::$url"; echo "DATABASE_URL=$url" >> "$GITHUB_ENV"
+          docker network create pcnet
+          docker volume create pchome
+          POSTGRES_PASSWORD="$pw" docker run --detach --name pcdb --network pcnet --memory=1g \
+            --env POSTGRES_USER=paperclip --env POSTGRES_DB=paperclip --env POSTGRES_PASSWORD postgres:16
+          for _ in $(seq 1 30); do docker exec pcdb pg_isready -U paperclip -d paperclip -q && exit 0; sleep 2; done
+          echo "::error::the disposable database was not ready within 60 s"; exit 1
+
+      # Each command runs under an explicit bound above its own worst case, and each step's budget is their sum and a
+      # minute more, so no step ends before what it runs could finish (WBC-02, Codex review of 4c63217; the unit tests
+      # hold the sums):
+      #   container start or restart  450 s  (health window 300, one last read and check 27, log 60, inspects 20)
+      #   container stop              150 s  (docker stop: 30 s of grace, then the kill; 90)
+      #   container remove            150 s  (docker rm 120)
+      #   cgroup sample               150 s  (two inspects 40, five files at most 50, stats 20)
+      #   service probe, first phase  960 s  (its own deadline 900: the health wait 300, the plugin ready 60, a settle
+      #                                         run 150, sixteen requests of 20, and 30 over; Codex review of 63a929a)
+      #   service probe, later phases 660 s  (its own deadline 600, above the 490 and 510 they permit)
+      #   home snapshot               240 s  (two inspects 40, pause 20, scan 120, unpause 20)
+      #   home compare                 60 s  (two local files)
+      # Last, the container is stopped and its home snapshotted, immediately before the restart (review of cc0ffbb): what
+      # the flow and the idle period wrote is in home-first.json and held across the restart, and nothing writes between
+      # that scan and the restart.
+      - name: First start, the installed plugin's flow, idle
+        timeout-minutes: 40
+        run: |
+          timeout 450 node sophia/scripts/paperclip-image-container.mjs start first
+          timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:healthy "$EVIDENCE/cgroup.jsonl"
+          timeout 960 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase first \
+            --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-first.json" --wait-ms 300000 --deadline-ms 900000
+          timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:after-flow "$EVIDENCE/cgroup.jsonl"
+          sleep 60
+          timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc first:idle "$EVIDENCE/cgroup.jsonl"
+          timeout 150 node sophia/scripts/paperclip-image-container.mjs stop
+          timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-first.json"
+
+      # After the restart, what persists is probed before the recreation, and memory read after it as after the other
+      # probes (review of 9ee7754, CX-0045): sign-up is still open, so the probe does not try it. The restart starts the
+      # container stopped for the snapshot before it. Last, the container is stopped and its home snapshotted again, at
+      # the recreation boundary: what the restart and its probe wrote is in home-before.json, nothing writes between that
+      # scan and the removal, and it is held across the recreation; from the snapshot before the restart, so the restart
+      # is held to the same (reviews of 2bad104 and cc0ffbb).
+      - name: Restart
+        timeout-minutes: 31
+        run: |
+          timeout 450 node sophia/scripts/paperclip-image-container.mjs restart restart
+          timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc restart:healthy "$EVIDENCE/cgroup.jsonl"
+          timeout 660 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase restart \
+            --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-restart.json" --wait-ms 300000 --deadline-ms 600000
+          timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc restart:after-flow "$EVIDENCE/cgroup.jsonl"
+          timeout 150 node sophia/scripts/paperclip-image-container.mjs stop
+          timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-before.json" "$EVIDENCE/home-first.json"
+
+      - name: Recreate on the same volume and database, sign-up closed
+        timeout-minutes: 37
+        run: |
+          timeout 150 node sophia/scripts/paperclip-image-container.mjs remove
+          timeout 450 node sophia/scripts/paperclip-image-container.mjs start recreated signup-closed
+          timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc recreated:healthy "$EVIDENCE/cgroup.jsonl"
+          timeout 660 node sophia/scripts/paperclip-service-probe.mjs --url http://127.0.0.1:3100 --phase restarted \
+            --state "$RUNNER_TEMP/probe-state.json" --secrets "$RUNNER_TEMP/probe-secrets.txt" --out "$EVIDENCE/probe-restarted.json" --wait-ms 300000 --deadline-ms 600000
+          timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc recreated:after-flow "$EVIDENCE/cgroup.jsonl"
+          timeout 240 node sophia/scripts/paperclip-image-home.mjs snapshot pc "$EVIDENCE/home-after.json" "$EVIDENCE/home-before.json"
+          timeout 60 node sophia/scripts/paperclip-image-home.mjs compare "$EVIDENCE/home-before.json" "$EVIDENCE/home-after.json" "$EVIDENCE/home-compare.json"
+          timeout 60 node sophia/scripts/paperclip-image-home.mjs compare "$EVIDENCE/home-first.json" "$EVIDENCE/home-before.json" "$EVIDENCE/home-restart-compare.json"
+          sleep 60
+          timeout 150 node sophia/scripts/paperclip-image-cgroup.mjs pc recreated:idle "$EVIDENCE/cgroup.jsonl"
+
+      - name: Redacted diagnostics
+        if: always()
+        timeout-minutes: 5
+        run: |
+          [ -f sophia/scripts/paperclip-image-container.mjs ] && [ -n "${EVIDENCE:-}" ] || exit 0
+          node sophia/scripts/paperclip-image-container.mjs diagnostics "$EVIDENCE/diagnostics" || true
+          tail -n 60 "$EVIDENCE/diagnostics/pc-logs.txt" 2>/dev/null || true
+
+      - name: Receipt
+        if: always()
+        timeout-minutes: 3
+        run: |
+          [ -f sophia/scripts/paperclip-image-receipt.mjs ] && [ -n "${EVIDENCE:-}" ] || exit 0
+          node sophia/scripts/paperclip-image-receipt.mjs "$EVIDENCE" "$EVIDENCE/receipt.json" "$EVIDENCE/summary.md"
+          cat "$EVIDENCE/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          { echo; echo '<details><summary>receipt.json</summary>'; echo; echo '```json'; cat "$EVIDENCE/receipt.json"; echo '```'; echo '</details>'; } >> "$GITHUB_STEP_SUMMARY"
+          cat "$EVIDENCE/receipt.json"
+          jq -e '.verdict == "qualified"' "$EVIDENCE/receipt.json"
+
+      # The evidence directory holds only what the steps above wrote there: the probe's state file and the image's
+      # manifest copy live outside it, and nothing from `docker inspect` but the container's state. Every file is
+      # scrubbed of the job's generated values and of credential-shaped strings before it is uploaded.
+      # The evidence is uploaded only once this step has scrubbed and verified all of it: the redactor exits non-zero on
+      # any entry it cannot read or rewrite, or any value it finds left after rewriting, and `scrubbed` is set only after
+      # it succeeds (WBC-02, review of 34bdf76). Earlier failures still reach both steps (always()).
+      - name: Scrub the evidence
+        id: scrub
+        if: always()
+        timeout-minutes: 2
+        env:
+          REDACT_VARS: PCDB_PASSWORD,DATABASE_URL,BETTER_AUTH_SECRET,PAPERCLIP_SECRETS_MASTER_KEY,PAPERCLIP_TOOL_ACTION_SIGNING_SECRET,PAPERCLIP_DECISION_SIGNING_SECRET,SOPHIA_COORDINATION_TOKEN
+          REDACT_FILES: ${{ runner.temp }}/probe-secrets.txt
+        run: |
+          if [ ! -f sophia/scripts/paperclip-image-redact.mjs ] || [ ! -d "${EVIDENCE:-/nonexistent}" ]; then
+            echo "nothing scrubbed: the redactor or the evidence directory is missing, so nothing is uploaded"
+            exit 0
+          fi
+          node sophia/scripts/paperclip-image-redact.mjs --scrub-dir "$EVIDENCE"
+          echo "scrubbed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the evidence
+        id: evidence
+        if: always() && steps.scrub.outputs.scrubbed == 'true'
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: paperclip-image-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: The evidence artifact's identity
+        if: always() && steps.evidence.outputs.artifact-id != ''
+        timeout-minutes: 1
+        env:
+          ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.evidence.outputs.artifact-digest }}
+          ARTIFACT_URL: ${{ steps.evidence.outputs.artifact-url }}
+        run: |
+          echo "evidence artifact $ARTIFACT_ID, sha256 $ARTIFACT_DIGEST, $ARTIFACT_URL"
+          printf '\nEvidence artifact `%s`, sha256 `%s`: %s\n' "$ARTIFACT_ID" "$ARTIFACT_DIGEST" "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up
+        if: always()
+        timeout-minutes: 3
+        run: |
+          docker rm --force pc pcdb 2>/dev/null || true
+          docker volume rm pchome 2>/dev/null || true
+          docker network rm pcnet 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/probe-state.json" "$RUNNER_TEMP/probe-secrets.txt"
