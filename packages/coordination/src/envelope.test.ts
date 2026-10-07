@@ -2,7 +2,14 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateKeyPairSync } from 'node:crypto'
 import { canonicalJson } from './canonical.ts'
-import { bodyDigest, EnvelopeError, signEnvelope, verifyEnvelope, type EnvelopeClaims } from './envelope.ts'
+import {
+  bodyDigest,
+  ENVELOPE_SKEW_SECONDS,
+  EnvelopeError,
+  signEnvelope,
+  verifyEnvelope,
+  type EnvelopeClaims,
+} from './envelope.ts'
 
 const sophia = generateKeyPairSync('ed25519')
 const forger = generateKeyPairSync('ed25519')
@@ -106,6 +113,17 @@ describe('signed envelopes', () => {
     assert.equal(
       refusal(() => verifyEnvelope(signed, body, { ...options, now: NOW - 31 })),
       'not_yet_valid',
+    )
+  })
+
+  it('takes an envelope until exp + ENVELOPE_SKEW_SECONDS, the boundary the plugin keeps nonces past (Codex on #107)', () => {
+    const signed = signEnvelope(claims(), body, sophia.privateKey)
+    const last = NOW + 120 + ENVELOPE_SKEW_SECONDS
+    assert.equal(ENVELOPE_SKEW_SECONDS, 30)
+    assert.equal(verifyEnvelope(signed, body, { ...options, now: last }).nonce, 'n-1')
+    assert.equal(
+      refusal(() => verifyEnvelope(signed, body, { ...options, now: last + 1 })),
+      'expired',
     )
   })
 

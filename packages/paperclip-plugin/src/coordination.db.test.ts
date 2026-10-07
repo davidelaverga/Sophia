@@ -7,7 +7,7 @@ import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import pg from 'pg'
-import { signEnvelope, type EnvelopeOp } from '@sophia/coordination/envelope'
+import { ENVELOPE_SKEW_SECONDS, signEnvelope, type EnvelopeOp } from '@sophia/coordination/envelope'
 import {
   COMMISSION_ORIGIN_KIND,
   ROUTES,
@@ -711,31 +711,59 @@ describe('refusals change nothing (INT-02)', () => {
 })
 
 describe('spent nonces (Codex on #107)', () => {
-  const nonces = async (): Promise<number> =>
+  const nonces = async (company?: string): Promise<number> =>
     Number(
-      (await client.query<{ n: string }>(`SELECT count(*)::text AS n FROM ${NAMESPACE}.envelope_nonces`)).rows[0]?.n,
+      (
+        await client.query<{ n: string }>(
+          `SELECT count(*)::text AS n FROM ${NAMESPACE}.envelope_nonces WHERE $1::text IS NULL OR company_id = $1`,
+          [company ?? null],
+        )
+      ).rows[0]?.n,
     )
   const at = (now: number) => paperclip({ now: () => now })
   const refusal = (res: { status: number; body: unknown }) => [res.status, (code(res.body) as { code: string }).code]
 
-  it('are forgotten only once admission refuses their envelope as expired, an hour past it; a replay stays refused', async () => {
+  it('are kept while the verifier takes their envelope, and an hour past it; a replay stays refused', async () => {
     const first = commissionRequest(commissionOf()) // exp NOW + 120
     const second = commissionRequest(commissionOf(), { iat: NOW + 3_600 }) // exp NOW + 3_720
+    const last = NOW + 120 + ENVELOPE_SKEW_SECONDS // the last second the verifier takes the first envelope
     assert.equal((await at(NOW).request(first)).status, 200)
     assert.equal((await at(NOW + 3_600).request(second)).status, 200)
     assert.equal(await nonces(), 2)
-    // Up to an hour past its envelope's expiry a nonce is kept, and while its envelope could be admitted, it refuses it.
-    assert.equal(await forgetSpentNonces(at(NOW + 120 + NONCE_GRACE_SECONDS).host), 0)
+    // At the verifier's boundary the first envelope is still taken: its nonce is kept, and refuses its replay.
+    assert.equal(await forgetSpentNonces(at(last).host), 0)
+    assert.deepEqual(refusal(await at(last).request(first)), [409, 'replayed'])
+    // A second later the verifier refuses it as expired; its nonce is still kept, for an hour past the boundary.
+    assert.deepEqual(refusal(await at(last + 1).request(first)), [401, 'envelope_expired'])
+    assert.equal(await forgetSpentNonces(at(last + NONCE_GRACE_SECONDS).host), 0)
     assert.equal(await nonces(), 2)
-    assert.deepEqual(refusal(await at(NOW + 120).request(first)), [409, 'replayed'])
-    // Then it is forgotten (the later one is kept), and its envelope is refused as expired: forgetting admits nothing.
-    const later = at(NOW + 121 + NONCE_GRACE_SECONDS)
+    // Then it is forgotten (the later one is kept), and its envelope is still refused as expired: nothing is admitted.
+    const later = at(last + NONCE_GRACE_SECONDS + 1)
     assert.equal(await forgetSpentNonces(later.host), 1)
     assert.equal(await nonces(), 1)
     assert.deepEqual(refusal(await later.request(first)), [401, 'envelope_expired'])
     assert.equal(later.issues.size, 0)
     assert.equal(await nonces(), 1, 'the refused replay kept no nonce')
     assert.deepEqual(refusal(await at(NOW + 3_600).request(second)), [409, 'replayed'])
+  })
+
+  it('go by their expiry alone, whatever company kept them', async () => {
+    const keep = (company: string, exp: number) =>
+      client.query(
+        `INSERT INTO ${NAMESPACE}.envelope_nonces (nonce, company_id, delivery_key, expires_at)
+         VALUES ($1, $2, $3, to_timestamp($4))`,
+        [randomUUID(), company, `delivery-${randomUUID()}`, exp],
+      )
+    const now = NOW + 10_000
+    const spent = now - ENVELOPE_SKEW_SECONDS - NONCE_GRACE_SECONDS - 1
+    const kept = now - ENVELOPE_SKEW_SECONDS - NONCE_GRACE_SECONDS
+    for (const company of [COMPANY, OTHER_COMPANY]) {
+      await keep(company, spent)
+      await keep(company, kept)
+      await keep(company, now + 120)
+    }
+    assert.equal(await forgetSpentNonces(at(now).host), 2)
+    assert.deepEqual([await nonces(COMPANY), await nonces(OTHER_COMPANY)], [2, 2])
   })
 })
 

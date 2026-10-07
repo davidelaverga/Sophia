@@ -17,6 +17,8 @@ export const ENVELOPE_AUDIENCE = 'sophia.coordination'
 export const ENVELOPE_ISSUER = 'sophia'
 /** The longest an envelope may live: a delivery is signed when it is claimed, and sent at once. */
 export const ENVELOPE_MAX_SECONDS = 300
+/** The clock skew verification allows on iat and exp unless told otherwise: an envelope is taken until exp + this. */
+export const ENVELOPE_SKEW_SECONDS = 30
 
 export type EnvelopeOp = 'commission' | 'lookup' | 'hold' | 'resume' | 'stop' | 'complete' | 'fail'
 
@@ -149,7 +151,7 @@ export interface VerifyOptions {
   readonly ops: ReadonlySet<EnvelopeOp>
   /** Seconds since the epoch. */
   readonly now: number
-  /** Clock skew allowed on iat and exp, in seconds. */
+  /** Clock skew allowed on iat and exp, in seconds (default ENVELOPE_SKEW_SECONDS). */
   readonly skewSeconds?: number
 }
 
@@ -163,7 +165,7 @@ export function verifyEnvelope(envelope: SignedEnvelope, body: unknown, options:
     throw new EnvelopeError('bad_signature', 'The envelope signature does not verify')
   }
   const claims = parseClaims(envelope.claims)
-  const skew = options.skewSeconds ?? 30
+  const skew = options.skewSeconds ?? ENVELOPE_SKEW_SECONDS
   if (claims.companyId !== options.companyId)
     throw new EnvelopeError('wrong_company', 'The envelope names another company')
   if (!options.ops.has(claims.op)) throw new EnvelopeError('wrong_operation', `The envelope is for ${claims.op}`)

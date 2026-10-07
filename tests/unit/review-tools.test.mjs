@@ -4,7 +4,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { createServer } from 'node:http'
+import { createServer as createNetServer } from 'node:net'
 import { test } from 'node:test'
 import { REVIEW_TOOL_NAMES, reviewAccounts, reviewTools } from '../../packages/dsh-bundle/dist/review-tools.js'
 import { ServiceTransport, TransportError } from '../../packages/dsh-bundle/dist/transport.js'
@@ -110,26 +110,43 @@ test('a read Sophia never answers ends at its deadline: nothing was read, and th
   assert.match(await later.read_review_source.execute({ sourceId: SOURCE }, exec()), /receipt="abcdef0123456789abcdef0123456789"/)
 })
 
-test('a read the service accepts but never finishes, over a real connection, ends at its deadline (Codex on #107)', async () => {
+test('over a real connection, a read answered is the page; one whose headers or body never finish ends at its deadline (Codex on #107)', async () => {
+  const PAGE = JSON.stringify({ sourceId: SOURCE, offset: 0, nextOffset: null, totalChars: TEXT.length, truncated: false, text: TEXT, receipt: RECEIPT })
+  const head = (length) => `HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: ${length}\r\n`
+  /** What the service sends once it has the whole request: all of it, or a prefix it never finishes. */
+  const replies = {
+    page: `${head(Buffer.byteLength(PAGE))}connection: close\r\n\r\n${PAGE}`,
+    headers: 'HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n',
+    body: `${head(Buffer.byteLength(PAGE))}\r\n${PAGE.slice(0, PAGE.indexOf(RECEIPT) + 8)}`,
+    nothing: '',
+  }
+  let mode = 'page'
   const sockets = new Set()
-  const server = createServer((req, res) => {
-    req.resume()
-    if (req.url !== '/v1/runtime/source-review/context') return res.writeHead(404).end()
-    // Half-open: the status and the start of the body arrive, the rest never does.
-    res.writeHead(200, { 'content-type': 'application/json' })
-    res.write('{"sourceId":"')
+  const server = createNetServer((socket) => {
+    sockets.add(socket)
+    let request = ''
+    socket.on('data', (chunk) => {
+      request += chunk.toString('latin1')
+      const end = request.indexOf('\r\n\r\n')
+      const length = Number(/content-length: *(\d+)/i.exec(request)?.[1] ?? 0)
+      if (end < 0 || request.length < end + 4 + length) return
+      if (mode === 'page') socket.end(replies.page)
+      else socket.write(replies[mode])
+    })
   })
-  server.on('connection', (socket) => { sockets.add(socket) })
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   try {
     const transport = new ServiceTransport({ baseUrl: `http://127.0.0.1:${server.address().port}`, token: 't', runtimeUnitId: 'u', bridgeInstanceId: 'b' })
-    const list = reviewTools({ client: transport, sessionOf: () => SESSION, log: () => {}, patience: QUICK, readMs: 100 })
+    const list = reviewTools({ client: transport, sessionOf: () => SESSION, log: () => {}, patience: QUICK, readMs: 200 })
     const read = list.find((t) => t.name === 'read_review_source')
-    assert.deepEqual(await within(5_000, read.execute({ sourceId: SOURCE }, exec())), READ_AGAIN)
-    // Nothing answers at all: the same.
-    server.removeAllListeners('request')
-    server.on('request', (req) => { req.resume() })
-    assert.deepEqual(await within(5_000, read.execute({}, exec())), READ_AGAIN)
+    const page = await within(5_000, read.execute({ sourceId: SOURCE }, exec()))
+    assert.match(page, /^<sophia-source id="22222222-[^"]*" kind="admitted_input" trust="untrusted" offset="0" next_offset="none" receipt="abcdef0123456789abcdef0123456789">/)
+    for (mode of ['headers', 'body', 'nothing']) {
+      // Exactly "read again": nothing of a page, nor of its receipt, reaches the model.
+      assert.deepEqual(await within(5_000, read.execute({ sourceId: SOURCE }, exec())), READ_AGAIN, mode)
+    }
+    mode = 'page'
+    assert.match(await within(5_000, read.execute({ sourceId: SOURCE }, exec())), /receipt="abcdef0123456789abcdef0123456789"/)
   } finally {
     for (const socket of sockets) socket.destroy()
     await new Promise((resolve) => server.close(resolve))

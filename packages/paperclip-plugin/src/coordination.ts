@@ -16,6 +16,7 @@
  */
 import { createPublicKey, randomUUID, type KeyObject } from 'node:crypto'
 import {
+  ENVELOPE_SKEW_SECONDS,
   EnvelopeError,
   verifyEnvelope,
   type EnvelopeClaims,
@@ -724,21 +725,22 @@ export async function settleOpenWrites(host: CoordinationHost): Promise<number> 
 }
 
 /**
- * How long past its envelope's expiry a nonce is kept: far beyond the skew admission allows on `exp` (30 s), so a nonce
- * is forgotten only once admission refuses its envelope as expired, on any worker whose clock is within an hour of
- * this one's.
+ * How long a nonce is kept past the last second admission takes its envelope (exp + ENVELOPE_SKEW_SECONDS, the
+ * verifier's own boundary, as `verified` passes it no other): an hour, so that no worker whose clock is within an hour
+ * of this one's could still admit an envelope whose nonce was forgotten.
  */
 export const NONCE_GRACE_SECONDS = 3_600
 
 /**
  * The plugin's job forgets spent nonces (Codex on #107): a nonce refuses a replay only while its envelope could still
- * be admitted, and every admitted request keeps one, so the namespace would otherwise grow with every request.
- * Admission's own clock decides, as it decides expiry. Returns how many it forgot.
+ * be admitted, and every admitted request keeps one, so the namespace would otherwise grow with every request. A nonce
+ * goes by its envelope's expiry alone, whatever company kept it, by admission's own clock (`host.now()`), as it decides
+ * expiry. Returns how many it forgot.
  */
 export async function forgetSpentNonces(host: CoordinationHost): Promise<number> {
   const forgotten = await host.execute(
     `DELETE FROM ${host.namespace}.envelope_nonces WHERE expires_at < to_timestamp($1)`,
-    [host.now() - NONCE_GRACE_SECONDS],
+    [host.now() - ENVELOPE_SKEW_SECONDS - NONCE_GRACE_SECONDS],
   )
   return forgotten.rowCount
 }
