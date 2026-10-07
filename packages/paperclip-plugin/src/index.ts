@@ -14,6 +14,8 @@ export {
   handleControl,
   handleLookup,
   readConfig,
+  forgetSpentNonces,
+  NONCE_GRACE_SECONDS,
   settleOpenWrites,
   type CoordinationConfig,
   type ProjectMapping,

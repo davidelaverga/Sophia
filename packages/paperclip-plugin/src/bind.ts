@@ -8,7 +8,7 @@
  */
 import { readFileSync, readlinkSync } from 'node:fs'
 import type { IssueStatus } from '@sophia/coordination/plugin-wire'
-import { handleApiRequest, settleOpenWrites } from './coordination.ts'
+import { forgetSpentNonces, handleApiRequest, settleOpenWrites } from './coordination.ts'
 import {
   UnansweredHostCall,
   type ApiResponse,
@@ -167,7 +167,10 @@ const NOT_READY: ApiResponse = {
   body: { error: { code: 'not_ready', message: 'The plugin is starting' } },
 }
 
-/** The plugin's `setup` (which registers the settle job) and `onApiRequest`; one instance per worker. */
+/**
+ * The plugin's `setup` (which registers the settle job: it settles open status writes, then forgets spent nonces, each
+ * whatever the other did, and fails with the first failure) and `onApiRequest`; one instance per worker.
+ */
 export function pluginHandlers(): {
   setup(ctx: SdkContext): Promise<void>
   onApiRequest(input: SdkApiRequest): Promise<ApiResponse>
@@ -178,7 +181,15 @@ export function pluginHandlers(): {
       const bound = hostOf(ctx)
       host = bound
       ctx.jobs.register(SETTLE_JOB_KEY, async () => {
-        await settleOpenWrites(bound)
+        const failures: unknown[] = []
+        for (const step of [settleOpenWrites, forgetSpentNonces]) {
+          try {
+            await step(bound)
+          } catch (err: unknown) {
+            failures.push(err)
+          }
+        }
+        if (failures.length > 0) throw failures[0]
       })
       return Promise.resolve()
     },

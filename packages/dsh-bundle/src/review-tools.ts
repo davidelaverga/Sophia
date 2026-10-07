@@ -9,8 +9,9 @@
  * a receipt; the submission presents the receipts of the pages it rests on, and a finding may cite only the sources
  * they are of, so a page whose reply never reached the model cannot be cited (Codex on #107). There is no web, shell, file or connector tool; the review's
  * model calls are metered by the bridge, not by a tool. Source text reaches the model only inside the
- * untrusted-data envelope. A submit or a blocker waits a bounded time for each answer, and one whose answer is lost is
- * sent again under the same callId; a Hold or Stop cuts it, and the service answers a resend with what it recorded.
+ * untrusted-data envelope. A read waits a bounded time for its answer, and the model reads again (a read records
+ * nothing). A submit or a blocker waits a bounded time for each answer, and one whose answer is lost is sent again under
+ * the same callId; a Hold or Stop cuts it, and the service answers a resend with what it recorded.
  * @module @sophia/dsh-bundle/review-tools
  */
 
@@ -33,6 +34,8 @@ export interface ReviewToolDeps {
   readonly log: (line: string) => void
   /** How a submit or a blocker is sent until its outcome is known (default: REVIEW_PATIENCE). */
   readonly patience?: Patience
+  /** How long a read waits for its answer (default: REVIEW_READ_MS). */
+  readonly readMs?: number
 }
 
 /**
@@ -40,6 +43,12 @@ export interface ReviewToolDeps {
  * design tools' submit (SUBMIT_PATIENCE).
  */
 export const REVIEW_PATIENCE: Patience = { tries: 4, pauseMs: 1_000, maxMs: 60_000 }
+
+/**
+ * How long a read_review_source request waits for its answer (Codex on #107): one the service never finishes is cut
+ * then, and the model is told to read again, as a read records nothing.
+ */
+export const REVIEW_READ_MS = 30_000
 
 /** A JSON value as the tool output schema declares it. */
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json }
@@ -69,6 +78,12 @@ const contractRefusal = (error: unknown): { code: string; message: string } | nu
   error instanceof Error && /does not match the runtime contract/.test(error.message)
     ? { code: 'invalid_request', message: MESSAGES.invalid_request ?? 'Check each field.' }
     : null
+
+/** What a read answers when the service did not answer it in time. */
+const READ_UNANSWERED = {
+  code: 'service_unavailable',
+  message: 'The Sophia service did not answer in time; nothing was read. Read again after a pause.',
+} as const
 
 /** What a submit or a blocker answers when its own outcome stays unknown. */
 const SUBMIT_UNKNOWN = {
@@ -158,6 +173,7 @@ const STATUSES = ['supported', 'contradicted', 'not_established'] as const
 
 export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
   const patience = deps.patience ?? REVIEW_PATIENCE
+  const readMs = deps.readMs ?? REVIEW_READ_MS
   const sessionOf = (exec: ToolRunContext): ResearchSession => {
     const session = deps.sessionOf(exec)
     if (!session) throw new Error('This tool runs only inside a Sophia source review.')
@@ -183,10 +199,11 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
     },
     async execute(args, exec): Promise<Json> {
       const session = sessionOf(exec)
+      const deadline = AbortSignal.timeout(readMs)
       try {
         const reply = await deps.client.sourceReviewContext(
           { ...ids(session), ...(args.sourceId === undefined ? {} : { sourceId: args.sourceId, offset: args.offset ?? 0 }) },
-          exec.signal,
+          AbortSignal.any([exec.signal, deadline]),
         )
         if (!('text' in reply)) return asJson(reply)
         return envelope({
@@ -198,6 +215,7 @@ export function reviewTools(deps: ReviewToolDeps): ToolDefinition[] {
           text: reply.text,
         })
       } catch (error) {
+        if (deadline.aborted && !exec.signal.aborted) return { ...READ_UNANSWERED }
         if (error instanceof TransportError) return serviceProblem(error)
         throw error
       }

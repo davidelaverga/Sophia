@@ -16,7 +16,7 @@ import {
   type Lookup,
 } from '@sophia/coordination/plugin-wire'
 import { createEmptyDatabase, type EmptyDatabase } from '@sophia/test-support'
-import { settleOpenWrites } from './coordination.ts'
+import { forgetSpentNonces, NONCE_GRACE_SECONDS, settleOpenWrites } from './coordination.ts'
 import type { HostProcess } from './host.ts'
 import {
   installNamespace,
@@ -707,6 +707,35 @@ describe('refusals change nothing (INT-02)', () => {
       422,
       'invalid_request',
     )
+  })
+})
+
+describe('spent nonces (Codex on #107)', () => {
+  const nonces = async (): Promise<number> =>
+    Number(
+      (await client.query<{ n: string }>(`SELECT count(*)::text AS n FROM ${NAMESPACE}.envelope_nonces`)).rows[0]?.n,
+    )
+  const at = (now: number) => paperclip({ now: () => now })
+  const refusal = (res: { status: number; body: unknown }) => [res.status, (code(res.body) as { code: string }).code]
+
+  it('are forgotten only once admission refuses their envelope as expired, an hour past it; a replay stays refused', async () => {
+    const first = commissionRequest(commissionOf()) // exp NOW + 120
+    const second = commissionRequest(commissionOf(), { iat: NOW + 3_600 }) // exp NOW + 3_720
+    assert.equal((await at(NOW).request(first)).status, 200)
+    assert.equal((await at(NOW + 3_600).request(second)).status, 200)
+    assert.equal(await nonces(), 2)
+    // Up to an hour past its envelope's expiry a nonce is kept, and while its envelope could be admitted, it refuses it.
+    assert.equal(await forgetSpentNonces(at(NOW + 120 + NONCE_GRACE_SECONDS).host), 0)
+    assert.equal(await nonces(), 2)
+    assert.deepEqual(refusal(await at(NOW + 120).request(first)), [409, 'replayed'])
+    // Then it is forgotten (the later one is kept), and its envelope is refused as expired: forgetting admits nothing.
+    const later = at(NOW + 121 + NONCE_GRACE_SECONDS)
+    assert.equal(await forgetSpentNonces(later.host), 1)
+    assert.equal(await nonces(), 1)
+    assert.deepEqual(refusal(await later.request(first)), [401, 'envelope_expired'])
+    assert.equal(later.issues.size, 0)
+    assert.equal(await nonces(), 1, 'the refused replay kept no nonce')
+    assert.deepEqual(refusal(await at(NOW + 3_600).request(second)), [409, 'replayed'])
   })
 })
 

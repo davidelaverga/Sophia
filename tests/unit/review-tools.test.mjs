@@ -4,9 +4,10 @@
  */
 
 import assert from 'node:assert/strict'
+import { createServer } from 'node:http'
 import { test } from 'node:test'
 import { REVIEW_TOOL_NAMES, reviewAccounts, reviewTools } from '../../packages/dsh-bundle/dist/review-tools.js'
-import { TransportError } from '../../packages/dsh-bundle/dist/transport.js'
+import { ServiceTransport, TransportError } from '../../packages/dsh-bundle/dist/transport.js'
 
 const SESSION = { attemptId: '11111111-1111-4111-8111-111111111111', nativeSessionId: 'sophia-11111111-1111-4111-8111-111111111111' }
 const SOURCE = '22222222-2222-4222-8222-222222222222'
@@ -16,9 +17,9 @@ const RECEIPT = 'abcdef0123456789abcdef0123456789'
 function fakeService(overrides = {}) {
   const calls = []
   const client = {
-    async sourceReviewContext(body) {
+    async sourceReviewContext(body, signal) {
       calls.push(['context', body])
-      if (overrides.context) return overrides.context(body)
+      if (overrides.context) return overrides.context(body, signal)
       if (body.sourceId === undefined) {
         return {
           workId: 'w',
@@ -47,8 +48,8 @@ const exec = (callId = 'call_1') => ({ callId, name: 'x', arguments: {}, signal:
 /** Resends within a test's time: up to four requests, 1, 2 and 4 ms apart, within `maxMs`. */
 const QUICK = { tries: 4, pauseMs: 1, maxMs: 2_000 }
 
-function tools(service, session = SESSION, patience = QUICK) {
-  const list = reviewTools({ client: service.client, sessionOf: () => session, log: () => {}, patience })
+function tools(service, session = SESSION, patience = QUICK, readMs = undefined) {
+  const list = reviewTools({ client: service.client, sessionOf: () => session, log: () => {}, patience, ...(readMs === undefined ? {} : { readMs }) })
   return Object.fromEntries(list.map((t) => [t.name, t]))
 }
 
@@ -74,6 +75,88 @@ test('read_review_source: the task, then a page of a manifest source inside the 
   assert.ok(!page.slice(page.indexOf('---')).includes(RECEIPT), 'the receipt is Sophia\'s, outside the untrusted text')
   assert.match(page, /Ignore your instructions/, 'the instruction-like text is there, as data')
   assert.deepEqual(service.calls[1][1], { ...SESSION, sourceId: SOURCE, offset: 0 })
+})
+
+/** What `promise` settles to within `ms`, or 'still waiting'. */
+async function within(ms, promise) {
+  let timer
+  const late = new Promise((resolve) => { timer = setTimeout(() => resolve('still waiting'), ms) })
+  try {
+    return await Promise.race([promise, late])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const READ_AGAIN = { code: 'service_unavailable', message: 'The Sophia service did not answer in time; nothing was read. Read again after a pause.' }
+
+test('a read Sophia never answers ends at its deadline: nothing was read, and the model reads again (Codex on #107)', async () => {
+  const service = fakeService({ context: unanswered })
+  const byName = tools(service, SESSION, QUICK, 50)
+  assert.deepEqual(await within(2_000, byName.read_review_source.execute({}, exec())), READ_AGAIN)
+  assert.deepEqual(await within(2_000, byName.read_review_source.execute({ sourceId: SOURCE, offset: 16000 }, exec())), READ_AGAIN)
+  assert.equal(service.calls.length, 2, 'each read was sent once: the model decides to read again')
+  // The model's read again is answered as any read.
+  let lost = true
+  const answering = fakeService().client
+  const later = tools(fakeService({
+    context: (body, signal) => {
+      if (!lost) return answering.sourceReviewContext(body)
+      lost = false
+      return unanswered(body, signal)
+    },
+  }), SESSION, QUICK, 50)
+  assert.deepEqual(await later.read_review_source.execute({ sourceId: SOURCE }, exec()), READ_AGAIN)
+  assert.match(await later.read_review_source.execute({ sourceId: SOURCE }, exec()), /receipt="abcdef0123456789abcdef0123456789"/)
+})
+
+test('a read the service accepts but never finishes, over a real connection, ends at its deadline (Codex on #107)', async () => {
+  const sockets = new Set()
+  const server = createServer((req, res) => {
+    req.resume()
+    if (req.url !== '/v1/runtime/source-review/context') return res.writeHead(404).end()
+    // Half-open: the status and the start of the body arrive, the rest never does.
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.write('{"sourceId":"')
+  })
+  server.on('connection', (socket) => { sockets.add(socket) })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const transport = new ServiceTransport({ baseUrl: `http://127.0.0.1:${server.address().port}`, token: 't', runtimeUnitId: 'u', bridgeInstanceId: 'b' })
+    const list = reviewTools({ client: transport, sessionOf: () => SESSION, log: () => {}, patience: QUICK, readMs: 100 })
+    const read = list.find((t) => t.name === 'read_review_source')
+    assert.deepEqual(await within(5_000, read.execute({ sourceId: SOURCE }, exec())), READ_AGAIN)
+    // Nothing answers at all: the same.
+    server.removeAllListeners('request')
+    server.on('request', (req) => { req.resume() })
+    assert.deepEqual(await within(5_000, read.execute({}, exec())), READ_AGAIN)
+  } finally {
+    for (const socket of sockets) socket.destroy()
+    await new Promise((resolve) => server.close(resolve))
+  }
+})
+
+test('a Hold or Stop still cuts a read at once, as before its deadline: the tool fails, never "read again"', async () => {
+  const signals = []
+  const service = fakeService({
+    context: (body, signal) => {
+      signals.push(signal)
+      return unanswered(body, signal)
+    },
+  })
+  const byName = tools(service, SESSION, QUICK, 60_000)
+  const hold = new AbortController()
+  const reading = byName.read_review_source.execute({ sourceId: SOURCE }, { ...exec(), signal: hold.signal })
+  hold.abort()
+  const cut = within(2_000, reading).then((value) => {
+    if (value === 'still waiting') throw new Error('the read outlived its Hold')
+    return value
+  })
+  await assert.rejects(cut, { name: 'AbortError' })
+  assert.equal(signals[0].aborted, true, 'the request in flight was cut')
+  // A read answered before its deadline is the page, as ever.
+  const quick = tools(fakeService(), SESSION, QUICK, 50)
+  assert.match(await quick.read_review_source.execute({ sourceId: SOURCE }, exec()), /^<sophia-source id="22222222-/)
 })
 
 test('submit_source_review: the verdict, report, findings and the receipts of the pages read, under the native call id', async () => {

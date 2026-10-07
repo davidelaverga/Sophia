@@ -3,7 +3,7 @@
  * routes of 03_PAPERCLIP_INTEGRATION §4, declared through the manifest's `apiRoutes` contract: board callers only (the
  * integration board principal), the company resolved by the host from the body or from the issue, never from a
  * free field. Capabilities are the issue, wakeup, managed-agent and namespace ones the handlers use, and the schedule
- * of the one job that settles status writes, nothing broader.
+ * of the one job that settles status writes and forgets spent nonces, nothing broader.
  * @module @sophia/paperclip-plugin/manifest
  */
 import { PLUGIN_ID, ROUTES } from '@sophia/coordination/plugin-wire'
@@ -42,7 +42,7 @@ export const manifest = {
       jobKey: SETTLE_JOB_KEY,
       displayName: 'Settle status writes',
       description:
-        'Settles any status write on a Sophia issue that its own delivery could not settle, so a late write never undoes a later control.',
+        'Settles any status write on a Sophia issue that its own delivery could not settle, so a late write never undoes a later control, and forgets the replay nonces of envelopes that expired over an hour ago.',
       schedule: '* * * * *',
     },
   ],

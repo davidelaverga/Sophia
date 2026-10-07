@@ -11,7 +11,7 @@ authorizes and Codex performs, through an `OPS_REQUEST` bound to an exact commit
 |---|---|---|
 | Sophia API, worker, database (migration `0042`) | Sophia's existing services | the plan, the human decision, the allowance, eligibility, the effect permit, the fence, the result |
 | Paperclip (`paperclipai/paperclip@5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb`) | one private service with **its own** PostgreSQL | the core issue and its runs, nothing else of Sophia's |
-| `sophia.coordination` plugin | inside that Paperclip | the commission's binding to its issue, its controls, envelope nonces, wakeup asks and its status writes until settled (its namespace only); one scheduled job, `settle-status-writes`, every minute (capability `jobs.schedule`) |
+| `sophia.coordination` plugin | inside that Paperclip | the commission's binding to its issue, its controls, envelope nonces (forgotten an hour after their envelope expires), wakeup asks and its status writes until settled (its namespace only); one scheduled job, `settle-status-writes`, every minute, which settles open status writes and forgets spent nonces (capability `jobs.schedule`) |
 | `sophia_dsh` external adapter | inside that Paperclip | Sophia's coordination capability (env), never a provider credential |
 | The source reviewer | Sophia's runtime unit `sophia-runtime-wbc02-dev` | the review's model calls, metered through Sophia |
 

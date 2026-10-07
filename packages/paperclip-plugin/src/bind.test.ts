@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { hostOf, hostProcessOf, pluginHandlers, type ProcFs, type SdkContext } from './bind.ts'
 import { UnansweredHostCall } from './host.ts'
+import { checkExecute } from './host-sql.ts'
 import { manifest, REVIEWER_AGENT_KEY, SETTLE_JOB_KEY } from './manifest.ts'
 
 /** A `/proc/<pid>/stat` line: the command name may hold spaces and parentheses; field 22 is the start time. */
@@ -27,7 +28,17 @@ function noted<T>(calls: string[], call: string, answer: T): Promise<T> {
   return Promise.resolve(answer)
 }
 
-function fakeContext(calls: string[], jobs = new Map<string, (job: unknown) => Promise<void>>()): SdkContext {
+/** Faults of the job's two steps: its read of the open status writes, and its delete of spent nonces. */
+interface JobFaults {
+  readonly settle?: Error
+  readonly forget?: Error
+}
+
+function fakeContext(
+  calls: string[],
+  jobs = new Map<string, (job: unknown) => Promise<void>>(),
+  fail: JobFaults = {},
+): SdkContext {
   const issue = {
     id: 'i1',
     companyId: 'c1',
@@ -47,8 +58,20 @@ function fakeContext(calls: string[], jobs = new Map<string, (job: unknown) => P
     agents: { managed: { reconcile: (key, company) => noted(calls, `agent:${key}:${company}`, { agentId: 'a1' }) } },
     db: {
       namespace: 'ns',
-      query: (sql) => noted(calls, `query:${sql.includes('ns.effects') ? 'effects' : 'other'}`, []),
-      execute: () => Promise.resolve({ rowCount: 1 }),
+      query: (sql) => {
+        const effects = sql.includes('ns.effects')
+        if (effects && fail.settle) {
+          calls.push('query:effects')
+          return Promise.reject(fail.settle)
+        }
+        return noted(calls, `query:${effects ? 'effects' : 'other'}`, [])
+      },
+      execute: (sql) => {
+        checkExecute(sql, 'ns')
+        if (!sql.startsWith('DELETE FROM ns.envelope_nonces ')) return Promise.resolve({ rowCount: 1 })
+        calls.push('execute:forget-nonces')
+        return fail.forget ? Promise.reject(fail.forget) : Promise.resolve({ rowCount: 1 })
+      },
     },
     config: { get: (company) => noted(calls, `config:${company ?? ''}`, {}) },
     jobs: { register: (key, fn) => jobs.set(key, fn) },
@@ -128,7 +151,7 @@ describe('SDK binding', () => {
     assert.equal(hostProcessOf(0, fs), null)
   })
 
-  it('registers the settle job the manifest schedules, which reads the open status writes', async () => {
+  it('registers the settle job the manifest schedules, which reads the open status writes and forgets spent nonces', async () => {
     const calls: string[] = []
     const jobs = new Map<string, (job: unknown) => Promise<void>>()
     await pluginHandlers().setup(fakeContext(calls, jobs))
@@ -139,6 +162,25 @@ describe('SDK binding', () => {
     )
     assert.ok(manifest.capabilities.includes('jobs.schedule'))
     await jobs.get(SETTLE_JOB_KEY)?.({})
-    assert.deepEqual(calls, ['query:effects'])
+    assert.deepEqual(calls, ['query:effects', 'execute:forget-nonces'])
+  })
+
+  it('the job forgets spent nonces whatever settling did, and fails with the first failure (Codex on #107)', async () => {
+    const settling = new Error('settle failed')
+    const forgetting = new Error('forget failed')
+    const cases: ReadonlyArray<readonly [JobFaults, Error]> = [
+      [{ settle: settling }, settling],
+      [{ forget: forgetting }, forgetting],
+      [{ settle: settling, forget: forgetting }, settling],
+    ]
+    for (const [fail, first] of cases) {
+      const calls: string[] = []
+      const jobs = new Map<string, (job: unknown) => Promise<void>>()
+      await pluginHandlers().setup(fakeContext(calls, jobs, fail))
+      const job = jobs.get(SETTLE_JOB_KEY)
+      assert.ok(job)
+      await assert.rejects(job({}), (err: unknown) => err === first)
+      assert.deepEqual(calls, ['query:effects', 'execute:forget-nonces'], 'both steps ran')
+    }
   })
 })

@@ -5,7 +5,7 @@
 // kind rules, wakeup rules, managed agents and capability checks), with the plugin's namespace migration applied to a
 // throwaway database on the given server (the harness keeps no tables). A signed commission creates one issue; a
 // resend finds it; a forged envelope changes nothing; Hold, Resume and Stop reach it; the settle job the manifest
-// schedules runs through the harness and settles a write an operator fenced. Every statement the worker sends
+// schedules runs through the harness, settles a write an operator fenced and forgets a spent nonce. Every statement the worker sends
 // to ctx.db passes the pin's own runtime validators first (server/src/services/plugin-database.ts:
 // validatePluginRuntimeQuery/Execute, with the built manifest's coreReadTables), as the real host would apply them. The
 // migration's install check runs in scripts/paperclip-host-probe.mjs, through the pin's own loader.
@@ -206,17 +206,29 @@ try {
     [randomUUID(), key],
   )
   await harness.ctx.issues.update(first.body.issueId, { status: 'blocked' }, COMPANY)
+  // The same job forgets spent nonces (Codex on #107): one whose envelope expired two hours ago; this run's stay.
+  await db.query(
+    `INSERT INTO ${NAMESPACE}.envelope_nonces (nonce, company_id, delivery_key, expires_at)
+     VALUES ($1, $2, 'spent', now() - interval '2 hours')`,
+    [randomUUID(), COMPANY],
+  )
+  const live = `SELECT count(*)::int AS n FROM ${NAMESPACE}.envelope_nonces WHERE delivery_key <> 'spent'`
+  const kept = (await db.query(live)).rows[0].n
+  assert.ok(kept > 0, 'this run kept its nonces')
   await harness.runJob(manifest.jobs[0].jobKey)
   assert.equal((await harness.ctx.issues.get(first.body.issueId, COMPANY)).status, 'cancelled', 'the Stop stands')
   const open = await db.query(`SELECT 1 FROM ${NAMESPACE}.effects WHERE settled_at IS NULL`)
   assert.equal(open.rowCount, 0, 'every write settled')
+  const spent = await db.query(`SELECT 1 FROM ${NAMESPACE}.envelope_nonces WHERE delivery_key = 'spent'`)
+  assert.equal(spent.rowCount, 0, 'the spent nonce was forgotten')
+  assert.equal((await db.query(live)).rows[0].n, kept, "this run's nonces stay")
 
   const adapter = createServerAdapter()
   assert.equal(adapter.type, 'sophia_dsh')
   const env = await adapter.testEnvironment({ companyId: COMPANY, adapterType: 'sophia_dsh', config: {} })
   if (!process.env.SOPHIA_COORDINATION_URL) assert.equal(env.status, 'fail', 'no endpoint, no pass')
   console.log(
-    `verified against the pinned plugin harness: commission, resend, forged refusal, hold/resume/stop, the settle job; ${statements.query} queries and ${statements.execute} executes passed the pin's ctx.db validators; adapter loads`,
+    `verified against the pinned plugin harness: commission, resend, forged refusal, hold/resume/stop, the settle job (writes settled, a spent nonce forgotten); ${statements.query} queries and ${statements.execute} executes passed the pin's ctx.db validators; adapter loads`,
   )
 } finally {
   await db.end()
