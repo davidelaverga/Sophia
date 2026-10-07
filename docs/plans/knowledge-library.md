@@ -19,12 +19,12 @@
 
 - **A report with a designed page:** the cover is that page's first screen, scaled down. It is the same checked bytes
   the viewer shows, in the same frame with no permission: no scripts, no same origin, nothing it can load or send. It
-  is hidden from screen readers and takes no focus, because the press over it says what it is: «Open {title}, HTML
-  page».
+  is hidden from screen readers and inert (no focus inside it, not even on its links), because the press over it says
+  what it is: «Open {title}, HTML page».
 - **A Markdown report:** the cover is its first lines, typeset as a page: its first heading, then its opening words,
   without citation ids or emphasis marks. They are drawn as text, never as HTML.
 - **Lazy:** a cover reads its report only once its tile comes near the screen. It uses the viewer's own reads (the same
-  query keys), so opening the report after needs no second read.
+  query keys), so opening the report after reads its page and text from what the cover read.
 - **Until it arrives,** the cover is a quiet plane of the same size. A read that fails or does not match its hash leaves
   the format's monogram (HTML, PDF or MD), never a broken frame.
 
@@ -37,7 +37,7 @@
 **One meta line,** in mono: the formats, the version, the count of versions when there is more than one, and the day.
 For example «HTML · v2 · 2 versions · Oct 1»; with all projects shown, the project first.
 
-**Four type sizes,** the app's tokens: title 14, description 13, attribution and History 12, meta 10.5 mono.
+**Four type sizes,** the app's tokens: title 14, description 13, attribution, History and the meta line 12 (the meta in mono), and the cover's labels 10.5 mono.
 
 ## Not in K1
 

@@ -1,12 +1,13 @@
 // A report's cover on its Knowledge tile (docs/plans/knowledge-library.md): the first screen of its designed page, or its
 // Markdown's first lines as words. Read only once the tile nears the screen, through the viewer's own reads (the same
-// query keys, so opening the report after reads nothing again), and checked against the version's hashes as the viewer
-// checks them. The page is shown as the viewer shows it, in a frame with no permission at all (no scripts, no same
-// origin, no forms, no popups), and as a picture: hidden from screen readers and out of the Tab order, since the press
-// over it names it. Until it arrives the cover is a quiet plane; a read that fails or doesn't match leaves the monogram.
+// query keys: opening the report after reads its versions again, never its page or its text), and checked against the
+// version's hashes as the viewer checks them. The page is shown as the viewer shows it, in a frame with no permission
+// at all (no scripts, no same origin, no forms, no popups), and as a picture: hidden from screen readers and inert, out
+// of the Tab order with every link inside it, since the press over it names it. Until it arrives the cover is a quiet
+// plane; a read that fails or doesn't match leaves the monogram.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import type { ReportCard } from '@sophia/contracts'
+import type { ArtifactVersion, ReportCard } from '@sophia/contracts'
 import { listArtifactVersions } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { HashMismatch, loadReportText } from './download.ts'
@@ -37,14 +38,32 @@ type Cover =
   | { kind: 'lines'; heading: string | null; lines: CoverLine[] }
   | { kind: 'mark' }
 
-/** The cover's reads: the versions (for the current one), then its designed page, or its Markdown when it has none. */
-function useCover(card: ReportCard, identity: Identity, near: boolean): Cover {
+/**
+ * The card's current version in the versions read. One the read doesn't hold (published since it was read) reads the
+ * list again, once per version, before the cover gives up on it: as the viewer does (rereadFor).
+ */
+function useCurrent(card: ReportCard, identity: Identity, near: boolean) {
   const versions = useQuery({
     queryKey: ['report-versions', card.artifactId, identity.name],
     queryFn: () => listArtifactVersions(identity.token, card.artifactId),
     enabled: near,
   })
-  const version = versions.data?.find((v) => v.id === card.currentVersionId)
+  const id = card.currentVersionId
+  const version: ArtifactVersion | undefined = versions.data?.find((v) => v.id === id)
+  const absent = versions.isSuccess && versions.fetchStatus === 'idle' && version === undefined
+  const [reread, setReread] = useState<string | null>(null)
+  const { refetch } = versions
+  useEffect(() => {
+    if (!absent || reread === id) return
+    setReread(id)
+    void refetch()
+  }, [absent, reread, id, refetch])
+  return { version, failed: versions.isError || (absent && reread === id) }
+}
+
+/** The cover's reads: the current version, then its designed page, or its Markdown when it has none. */
+function useCover(card: ReportCard, identity: Identity, near: boolean): Cover {
+  const { version, failed } = useCurrent(card, identity, near)
   const page = renditionOf(version, 'html')
   const html = useQuery({
     queryKey: ['report-html', page?.sourceId, identity.name],
@@ -62,8 +81,7 @@ function useCover(card: ReportCard, identity: Identity, near: boolean): Cover {
   })
   if (html.data) return { kind: 'page', html: html.data.text }
   if (text.data) return { kind: 'lines', ...coverOf(text.data.text) }
-  const settled = versions.isError || (versions.isSuccess && version === undefined) || html.isError || text.isError
-  return settled ? { kind: 'mark' } : { kind: 'waiting' }
+  return failed || html.isError || text.isError ? { kind: 'mark' } : { kind: 'waiting' }
 }
 
 export function ReportCover({ card, identity }: { card: ReportCard; identity: Identity }) {
@@ -79,6 +97,7 @@ export function ReportCover({ card, identity }: { card: ReportCard; identity: Id
           referrerPolicy="no-referrer"
           srcDoc={cover.html}
           aria-hidden
+          inert
           tabIndex={-1}
         />
       )}

@@ -8,13 +8,22 @@ const LINES = 6
 
 const ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 
-/** A line's words: no citation (bare `[id]`, or a link to an id), no emphasis, no list or heading mark. */
+/**
+ * A line's words: no citation (bare `[id]`, or a link to an id), no image, a link's words without its address, no
+ * emphasis (an underscore only around words, so snake_case names stay whole), no heading, list or quote mark. A rule
+ * says nothing.
+ */
 function wordsOf(line: string): string {
+  if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(line)) return ''
   return line
     .replace(new RegExp(`\\s?\\[[^\\]]*\\]\\(<?${ID}>?\\)`, 'g'), '')
     .replace(new RegExp(`\\s?\\[${ID}\\]`, 'g'), '')
-    .replace(/(\*\*|__|\*|_)(.+?)\1/g, '$2')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|\*)(.+?)\1/g, '$2')
+    .replace(/(?<!\w)(__|_)(.+?)\1(?!\w)/g, '$2')
     .replace(/^#{1,6}\s+/, '')
+    .replace(/^>\s?/, '')
     .replace(/^\s*(?:[-*+]|\d+\.)\s+/, '')
     .trim()
 }

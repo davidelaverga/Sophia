@@ -85,6 +85,8 @@ test('library · a designed page that does not match its record leaves its monog
   const cover = tile(page, 'Fixture report').locator('.report-cover')
   await expect(cover.locator('.report-cover-mark')).toHaveText('HTML')
   await expect(cover.locator('iframe')).toHaveCount(0)
+  // The monogram names the format already: the tag over the cover does not say it twice.
+  await expect(tile(page, 'Fixture report').locator('.report-cover-tag')).toBeHidden()
 })
 
 test('library · one meta line: the version, the count only when there are several, the day; never «updated»', async ({
@@ -146,4 +148,16 @@ test('library · a report with no description says so, and credits no one for it
   await expect(older.getByText('No description yet.')).toBeVisible()
   await expect(older).not.toContainText('Description by Sophia')
   await expect(older.getByRole('button', { name: 'Edit', exact: true })).toBeVisible()
+})
+
+test('library · Tab never stops inside a cover: from the cover’s press it goes to the title, past the page’s links', async ({
+  page,
+}) => {
+  // The demo's designed page cites its sources with links, as a compiled page does.
+  await page.goto('/room.html?demo=1&place=knowledge')
+  const card = tile(page, 'Pilot readout: what kept 12 of 14 teams')
+  await expect(page.frameLocator('.report-cover iframe').first().locator('a.cite').first()).toBeAttached()
+  await card.getByRole('button', { name: /HTML page$/ }).focus()
+  await page.keyboard.press('Tab')
+  await expect(card.getByRole('button', { name: 'Pilot readout: what kept 12 of 14 teams', exact: true })).toBeFocused()
 })

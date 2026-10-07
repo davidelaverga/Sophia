@@ -131,7 +131,6 @@
 .report-problem {
   color: var(--rose);
 }
-/* A Knowledge card's HTML tag opens the designed page: a tag that is a button, nothing more. */
 .work-card-foot {
   display: flex;
   gap: 16px;
@@ -765,7 +764,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r-4);
   background: var(--plane-2);
-  transition: border-color 140ms var(--ease);
+  transition: border-color var(--fast) var(--ease);
 }
 .report-card:hover {
   border-color: var(--line-3);
@@ -886,6 +885,10 @@
 .report-cover-open:focus-visible {
   outline: 2px solid var(--halo);
   outline-offset: -2px;
+}
+/* A cover that could not be shown already names its format: the tag would say it twice. */
+.report-card-cover:has(.report-cover[data-cover='mark']) .report-cover-tag {
+  display: none;
 }
 .report-cover-tag {
   padding: 3px 6px;

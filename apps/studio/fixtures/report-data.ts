@@ -655,12 +655,12 @@ const summaryOf = (d: Description): ReportSummary => ({
 /** The older report's one version, its Markdown kept inline (its cover on Knowledge reads it); `demo`: the pilot's plan. */
 const OLDER_TEXT = DEMO
   ? {
-      sourceId: '00000000-0000-4000-8000-0000000000e3',
+      sourceId: '00000000-0000-4000-8000-0000000000e7',
       sha256: '8b82929553227202235c6e4a7fbbd680de9ed3201ab4e018334d3ce45b59c090',
       text: '# Pilot plan: fourteen teams, two regions\n\nHow the pilot runs: fourteen customer teams in two regions, four weeks each, and one measure that matters, a first shared report inside the first week.\n\n## Who takes part\n\nNine teams in the first region and five in the second, chosen by the size of their setup.\n\n## What we measure\n\nActive teams each week, days to a first shared report, and setup tickets per team.\n',
     }
   : {
-      sourceId: '00000000-0000-4000-8000-0000000000e3',
+      sourceId: '00000000-0000-4000-8000-0000000000e7',
       sha256: '339cb171b4a537d415d8859b142ace55d92952cd01b31518cce98de9dd60917d',
       text: '# An older fixture report\n\nA labelled fixture report from before PDFs were turned off.\n\n## Conclusion\n\nThe older fixture holds.\n',
     }

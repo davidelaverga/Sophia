@@ -36,6 +36,18 @@ describe('coverOf: a Markdown report’s first lines, as words', () => {
     ])
   })
 
+  it('reads a link as its words, drops an image, a quote’s mark and a rule, and keeps snake_case names whole', () => {
+    const markdown = [
+      '# A',
+      'See [the plan](https://example.com/plan).',
+      '![chart](data:image/png;base64,AAAA)',
+      '> Quoted.',
+      '---',
+      'The setup_owner and file_name_x fields.',
+    ].join('\n\n')
+    assert.deepEqual(words(markdown), ['See the plan.', 'Quoted.', 'The setup_owner and file_name_x fields.'])
+  })
+
   it('has no heading when the text starts without one, and keeps at most six lines', () => {
     const cover = coverOf(Array.from({ length: 9 }, (_, i) => `Line ${String(i + 1)}.`).join('\n\n'))
     assert.equal(cover.heading, null)
@@ -63,7 +75,7 @@ const CARD: ReportCard = {
   currentVersionId: '00000000-0000-4000-8000-0000000000d2',
   currentVersionNumber: 2,
   versionCount: 2,
-  updatedAt: '2026-10-01T09:00:00.000Z',
+  updatedAt: '2026-10-01T12:00:00.000Z',
   formats: ['markdown', 'html'],
   latestChange: { note: null, retained: null },
 }
