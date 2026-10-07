@@ -34,7 +34,8 @@ export const conversations = (): ConversationSummary[] => [
     ],
     sophia: true,
     openQuestions: 1,
-    output: { artifactId: REPORT, versionId: versionId(1), versionNumber: 1, title: TITLE },
+    // What it made, at the version the report opens on: the demo's second.
+    output: { artifactId: REPORT, versionId: versionId(DEMO ? 2 : 1), versionNumber: DEMO ? 2 : 1, title: TITLE },
   },
   {
     id: CONVERSATION.briefs,

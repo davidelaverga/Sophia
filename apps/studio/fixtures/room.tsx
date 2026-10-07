@@ -303,7 +303,8 @@ const project = {
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
-  taskRevision: 1 as 1 | 2,
+  // The demo's research is on its second version, as its report (both published by default).
+  taskRevision: DEMO ? 2 : 1,
   taskHeld: query.get('hold') === 'task',
   taskFails: false,
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
