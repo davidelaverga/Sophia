@@ -3,8 +3,12 @@
 Goal and attempt: Knowledge's second pass: one kind of filter, the reports first, a library in the demo (`docs/plans/knowledge-filters.md`, K2), attempt 1. Luis, after K1: «itera sobre esa nueva versión».
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: `apps/studio/e2e/knowledge-filters.spec.ts`, `apps/studio/fixtures/demo-library.ts`, `apps/studio/fixtures/demo-page.ts`, `apps/studio/fixtures/fixture-api.ts`, `apps/studio/fixtures/report-data.ts`, `apps/studio/fixtures/room.tsx`, `apps/studio/src/features/artifacts/KnowledgeReports.tsx`, `apps/studio/src/features/artifacts/artifacts.css`, `apps/studio/src/features/artifacts/demo-library-hashes.test.ts`, `docs/handoffs/KFILTERS-attempt-1.md`, `docs/plans/knowledge-filters.md`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `knowledge/filters` on `knowledge/library` (#152) `322d3bb`, 2026-10-07
-Ending commit/tree: the final change is commit `6a4383befbaf0139f4a9461c0e3650dcacf5102d` (tree `db0791b49ee2676928439593cd26907d8d96a4df`), after `ca15bc2`. Against `knowledge/library` they change `apps/studio/src/features/artifacts/KnowledgeReports.tsx`, `artifacts.css` and the new `demo-library-hashes.test.ts`, `apps/studio/fixtures/` (the new `demo-library.ts`, `report-data.ts`, `fixture-api.ts`, `demo-page.ts`), the new `apps/studio/e2e/knowledge-filters.spec.ts` and `docs/plans/knowledge-filters.md`. The commit after it adds only this handoff.
+Ending commit/tree: the final change is commit `6a4383befbaf0139f4a9461c0e3650dcacf5102d` (tree `db0791b49ee2676928439593cd26907d8d96a4df`), after `ca15bc2`. Against `knowledge/library` they change `apps/studio/src/features/artifacts/KnowledgeReports.tsx`, `artifacts.css` and the new `demo-library-hashes.test.ts`, `apps/studio/fixtures/` (the new `demo-library.ts`, `report-data.ts`, `fixture-api.ts`, `demo-page.ts`), the new `apps/studio/e2e/knowledge-filters.spec.ts` and `docs/plans/knowledge-filters.md`. The commit after it adds only this handoff. In `main` as `1aac0ff` (the squash of #153), with the review's fixes after the commit named here.
 
 ## Outcome
 

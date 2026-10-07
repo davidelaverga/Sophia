@@ -4,9 +4,13 @@ Goal and attempt: the Codex P2s left on #151 (demo data) and #147 (the phone doc
 «Continúa con lo demás».
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: `apps/studio/e2e/report.spec.ts`, `apps/studio/e2e/room-dock.spec.ts`, `apps/studio/fixtures/report-data.ts`, `apps/studio/fixtures/room.tsx`, `apps/studio/src/app/theme.css`, `docs/handoffs/DEMODOCK-attempt-1.md`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `follow-ups/demo-and-dock` from `main`
 `9a40e42`, 2026-10-07
-Ending commit/tree: `aef0b47f90ec14c633f8f77c5c6f4d17ef239e9e` (tree `9dc3e72abc8d4f33c39a04e60aee9cb1ae4f3adc`). The commit after it adds only this handoff.
+Ending commit/tree: `aef0b47f90ec14c633f8f77c5c6f4d17ef239e9e` (tree `9dc3e72abc8d4f33c39a04e60aee9cb1ae4f3adc`). The commit after it adds only this handoff. In `main` as `c629358` (the squash of #159), with the review's fixes after the commit named here.
 
 ## Outcome
 
