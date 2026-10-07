@@ -4,6 +4,10 @@ Goal and attempt: Conversations' rows by their last message (C5), attempt 1. The
 behind the vision flag (the field is an A18 proposal for Davide).
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: the files this PR changes (its diff against `main`), and nothing outside `apps/studio` and `docs/`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/last-message` from `main`, 2026-10-08
 Ending commit/tree: `3054ee8f695218978c527d1cd6f24b02876a86e4` (tree `9c024711163753a7dec7c01210c5c4a154250406`). The commit after it adds only this handoff.
 
