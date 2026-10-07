@@ -3,7 +3,7 @@
 // lock, and is killed. Its session lives on, and commits after it died: a dead process is no fence. The operator's
 // procedure (deploy/paperclip/fence-previous-instance.sql, its statements exactly as written) refuses to fence while
 // such a session remains, ends it, and only then fences; the waiting UPDATE is rolled back and never commits.
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -39,7 +39,9 @@ before(async () => {
   await owner.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}'`)
   await owner.query(`GRANT CONNECT ON DATABASE ${new URL(db.ownerUrl).pathname.slice(1)} TO ${role}`)
   await owner.query(`GRANT USAGE ON SCHEMA ${NAMESPACE} TO ${role}`)
-  await owner.query(`GRANT SELECT, UPDATE ON ${NAMESPACE}.effects, ${NAMESPACE}.commissions TO ${role}`)
+  await owner.query(
+    `GRANT SELECT, UPDATE ON ${NAMESPACE}.effects, ${NAMESPACE}.commissions, ${NAMESPACE}.wakes TO ${role}`,
+  )
   // An issue row whose UPDATE waits, before it takes the row lock, until the test opens the gate.
   await owner.query('CREATE TABLE public.boundary (id int PRIMARY KEY, status text NOT NULL)')
   await owner.query(`GRANT SELECT, UPDATE ON public.boundary TO ${role}`)
@@ -65,7 +67,9 @@ after(async () => {
 })
 
 beforeEach(async () => {
-  await owner.query(`TRUNCATE ${NAMESPACE}.controls, ${NAMESPACE}.effects, ${NAMESPACE}.commissions`)
+  await owner.query(
+    `TRUNCATE ${NAMESPACE}.controls, ${NAMESPACE}.effects, ${NAMESPACE}.wakes, ${NAMESPACE}.commissions`,
+  )
   await owner.query('DELETE FROM public.boundary')
   await owner.query(`INSERT INTO public.boundary VALUES (1, 'cancelled')`)
 })
@@ -136,6 +140,13 @@ describe('the operator fence and the database boundary (WBC-02-CX-0024)', () => 
       `INSERT INTO ${NAMESPACE}.effects (effect_id, commission_key, status, host_namespace, host_process)
        VALUES ('e1', 'sophia-wbc02-k', 'blocked', 'boot-1/pid:[1]', '2201:90101')`,
     )
+    const issue = randomUUID()
+    await owner.query('INSERT INTO public.issues (id) VALUES ($1)', [issue])
+    await owner.query(
+      `INSERT INTO ${NAMESPACE}.wakes (wake_key, issue_id, host_namespace, host_process)
+       VALUES ('sophia-wbc02-k', $1, 'boot-1/pid:[1]', '2201:90101')`,
+      [issue],
+    )
     const T = (await owner.query<{ t: string }>('SELECT now()::text AS t')).rows[0]?.t ?? ''
     const operator = new pg.Client({ connectionString: appUrl })
     await operator.connect()
@@ -147,14 +158,18 @@ describe('the operator fence and the database boundary (WBC-02-CX-0024)', () => 
       }
       assert.equal((await run('open')).rowCount, 1)
       assert.equal((await run('open-creates')).rowCount, 1)
+      assert.equal((await run('open-wakes')).rowCount, 1)
       assert.equal((await run('fence')).rowCount, 0, 'never while a previous session remains')
       assert.equal((await run('fence-creates')).rowCount, 0, 'nor a create')
+      assert.equal((await run('fence-wakes')).rowCount, 0, 'nor a wakeup ask')
       assert.equal((await run('end-sessions')).rowCount, 1)
       await until('the previous session to end', async () => (await sessions()).length === 1) // the operator's own
       assert.equal((await run('fence')).rowCount, 1)
       assert.equal((await run('fence-creates')).rowCount, 1)
+      assert.equal((await run('fence-wakes')).rowCount, 1)
       assert.equal((await run('fence')).rowCount, 0, 'again: nothing left to fence')
       assert.equal((await run('fence-creates')).rowCount, 0, 'again: no create left to fence')
+      assert.equal((await run('fence-wakes')).rowCount, 0, 'again: no wakeup ask left to fence')
     } finally {
       await operator.end()
     }
@@ -168,6 +183,11 @@ describe('the operator fence and the database boundary (WBC-02-CX-0024)', () => 
     const create = await owner.query<{ fence: string }>(`SELECT create_fence AS fence FROM ${NAMESPACE}.commissions`)
     assert.match(
       create.rows[0]?.fence ?? '',
+      /^operator test operator: previous instance stopped before .+; its database sessions ended$/,
+    )
+    const wake = await owner.query<{ fence: string }>(`SELECT fence FROM ${NAMESPACE}.wakes`)
+    assert.match(
+      wake.rows[0]?.fence ?? '',
       /^operator test operator: previous instance stopped before .+; its database sessions ended$/,
     )
   })

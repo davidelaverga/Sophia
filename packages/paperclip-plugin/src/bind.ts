@@ -149,7 +149,7 @@ export function hostOf(
       update: async (issueId, patch, companyId) =>
         issueOf(await answered(ctx.issues.update(issueId, patch, companyId))),
       requestWakeup: async (issueId, companyId, options) => ({
-        queued: (await ctx.issues.requestWakeup(issueId, companyId, options)).queued,
+        queued: (await answered(ctx.issues.requestWakeup(issueId, companyId, options))).queued,
       }),
     },
     reviewerAgent: async (companyId) => (await ctx.agents.managed.reconcile(REVIEWER_AGENT_KEY, companyId)).agentId,

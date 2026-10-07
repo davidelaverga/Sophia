@@ -62,6 +62,8 @@ export interface MemoryPaperclipOptions {
   readonly hostProcess?: () => HostProcess | null
   /** Runs inside create before the issue exists, e.g. to hold a create in flight. */
   readonly beforeCreate?: () => Promise<void>
+  /** Runs inside a wakeup before it is durable, e.g. to hold one in flight. */
+  readonly beforeWake?: () => Promise<void>
   /** Runs inside an issue read before it answers, e.g. to hold one in flight. */
   readonly beforeGet?: (issueId: string) => Promise<void> | undefined
   /** Runs inside a status update before it lands, e.g. to hold one in flight (a delayed host call). */
@@ -69,6 +71,7 @@ export interface MemoryPaperclipOptions {
   /**
    * Fault injection while its check says so: a create fails `before` the issue exists, or `after` it does (the host
    * answers an error), or is `unanswered` (the worker stops waiting, nothing landed yet: a test lands it later by hand);
+   * a wakeup may also be `unanswered` (the worker stops waiting, no run yet: a test queues it later by hand);
    * a status update fails `before` it lands (`true` alike), changing nothing, or `after` it landed (the status changed, then the host answers an error, as when its activity log fails
    * after `issues.update`, plugin-host-services.ts), or is `unanswered` (the worker stops waiting, nothing landed yet:
    * a test lands it later by hand); a wakeup fails `before` it is durable (no run), or `after` (its run is queued,
@@ -78,7 +81,7 @@ export interface MemoryPaperclipOptions {
   readonly fails?: {
     readonly create?: () => 'before' | 'after' | 'unanswered' | null
     readonly update?: (status: string) => boolean | 'before' | 'after' | 'unanswered' | null
-    readonly wake?: () => 'before' | 'after' | 'not_queued' | null
+    readonly wake?: () => 'before' | 'after' | 'not_queued' | 'unanswered' | null
   }
 }
 
@@ -163,6 +166,8 @@ function issueService(
     requestWakeup: async (issueId, companyId, wake) => {
       const fault = options.fails?.wake?.() ?? null
       if (fault === 'before') throw new Error('injected: wakeup failed before it was durable')
+      if (fault === 'unanswered') throw new UnansweredHostCall('injected: the host did not answer the wakeup')
+      await options.beforeWake?.()
       owned(issueId, companyId)
       if (fault === 'not_queued') return { queued: false }
       await db.query(`INSERT INTO public.heartbeat_runs (company_id, context_snapshot) VALUES ($1, $2)`, [

@@ -163,9 +163,40 @@ const runsOf = async (issueId: string): Promise<number> =>
     ).rows[0]?.n,
   )
 
-/** Ages a wakeup ask past the window in which it may still be in flight (its first ask, which runs count from, stays). */
+/**
+ * Ages a wakeup ask, and the host's answer to it, past the window in which a run may still appear (its first ask, which
+ * runs count from, stays).
+ */
 const ageAsk = async (key: string) =>
-  client.query(`UPDATE ${NAMESPACE}.wakes SET asked_at = asked_at - interval '2 minutes' WHERE wake_key = $1`, [key])
+  client.query(
+    `UPDATE ${NAMESPACE}.wakes SET asked_at = asked_at - interval '2 minutes', answered_at = answered_at - interval '2 minutes'
+      WHERE wake_key = $1`,
+    [key],
+  )
+
+/** Ages an ask by an hour, answered or not: time alone must finish no ask the host never answered. */
+const ageAskAnHour = async (key: string) =>
+  client.query(
+    `UPDATE ${NAMESPACE}.wakes SET asked_at = asked_at - interval '1 hour', first_asked_at = first_asked_at - interval '1 hour'
+      WHERE wake_key = $1`,
+    [key],
+  )
+
+/** A wakeup ask: the host process that serves it, and whether the host answered it. */
+const askOf = async (key: string) =>
+  (
+    await client.query<{ process: string | null; answered: boolean }>(
+      `SELECT host_process AS process, answered_at IS NOT NULL AS answered FROM ${NAMESPACE}.wakes WHERE wake_key = $1`,
+      [key],
+    )
+  ).rows[0]
+
+/** A run of the issue, queued by the host for an ask it never answered, landing late. */
+const landRun = async (issueId: string) =>
+  client.query(`INSERT INTO public.heartbeat_runs (company_id, context_snapshot) VALUES ($1, $2)`, [
+    COMPANY,
+    { issueId, wakeReason: 'sophia:commission', source: 'sophia.coordination' },
+  ])
 
 /** The holder of a commission's effect lease, or null. */
 const leaseOf = async (key: string): Promise<string | null> =>
@@ -315,6 +346,69 @@ describe('commission', () => {
     const again = await p.request(commissionRequest(c))
     assert.deepEqual(again.body, { outcome: 'existing', issueId, status: 'todo', wakeQueued: false })
     assert.equal(await runsOf(issueId), 1, 'the run since the ask confirms it: no second run')
+  })
+
+  it('a wakeup held in flight past 60 s, across a restart, is waited for and asked once (Codex on #107)', async () => {
+    const gate = Promise.withResolvers<void>()
+    let held = true
+    let serving: HostProcess = { namespace: 'boot-1/pid:[1]', process: 'host-1:100' }
+    const p = paperclip({ beforeWake: () => (held ? gate.promise : Promise.resolve()), hostProcess: () => serving })
+    const c = commissionOf()
+    const original = p.request(commissionRequest(c))
+    await waitUntil(async () => (await askOf(c.key)) !== undefined)
+    await ageAskAnHour(c.key)
+    serving = { namespace: 'boot-2/pid:[1]', process: 'host-2:200' }
+    const resends = await Promise.all([p.request(commissionRequest(c)), p.request(commissionRequest(c))])
+    for (const r of resends)
+      assert.deepEqual([r.status, (code(r.body) as { code: string }).code], [503, 'wake_in_progress'])
+    assert.deepEqual(
+      await askOf(c.key),
+      { process: 'host-1:100', answered: false },
+      'the ask names the process serving it',
+    )
+    held = false
+    gate.resolve()
+    assert.equal(outcome((await original).body).wakeQueued, true, 'the original ask completes late')
+    const issueId = [...p.issues.keys()][0] ?? ''
+    const again = await p.request(commissionRequest(c))
+    assert.deepEqual(again.body, { outcome: 'existing', issueId, status: 'todo', wakeQueued: false })
+    assert.equal(await runsOf(issueId), 1)
+    assert.equal(p.wakeups.length, 1)
+  })
+
+  it('a wakeup the host never answered is waited for however long; a run landing late confirms it', async () => {
+    let fault: 'unanswered' | null = 'unanswered'
+    const p = paperclip({ fails: { wake: () => fault } })
+    const c = commissionOf()
+    await assert.rejects(p.request(commissionRequest(c)), { name: 'UnansweredHostCall' })
+    const issueId = [...p.issues.keys()][0] ?? ''
+    fault = null
+    await ageAskAnHour(c.key)
+    const waiting = await p.request(commissionRequest(c))
+    assert.deepEqual([waiting.status, (code(waiting.body) as { code: string }).code], [503, 'wake_in_progress'])
+    assert.equal(await runsOf(issueId), 0, 'never asked again')
+    await landRun(issueId)
+    const again = await p.request(commissionRequest(c))
+    assert.deepEqual(again.body, { outcome: 'existing', issueId, status: 'todo', wakeQueued: false })
+    assert.equal(await runsOf(issueId), 1, 'the late run confirms it: no second')
+  })
+
+  it('an operator fence ends a wakeup ask the host never answered: it is then asked again, once', async () => {
+    let fault: 'unanswered' | null = 'unanswered'
+    const p = paperclip({ fails: { wake: () => fault } })
+    const c = commissionOf()
+    await assert.rejects(p.request(commissionRequest(c)), { name: 'UnansweredHostCall' })
+    const issueId = [...p.issues.keys()][0] ?? ''
+    fault = null
+    await client.query(`UPDATE ${NAMESPACE}.wakes SET fenced_at = now(), fence = 'test operator' WHERE wake_key = $1`, [
+      c.key,
+    ])
+    const replies = await Promise.all([p.request(commissionRequest(c)), p.request(commissionRequest(c))])
+    for (const r of replies) assert.ok([200, 503].includes(r.status), `answered ${r.status}`)
+    assert.equal(await runsOf(issueId), 1, 'one resend claimed the fenced ask')
+    const third = await p.request(commissionRequest(c))
+    assert.equal(outcome(third.body).wakeQueued, false)
+    assert.equal(await runsOf(issueId), 1)
   })
 
   it('concurrent resends of a stale commission wake ask the host once', async () => {

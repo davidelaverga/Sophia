@@ -82,12 +82,21 @@ CREATE TABLE plugin_sophia_coordination_00c896da3d.effects (
 -- One row per wakeup the plugin asks the host for (for a commission, for a Resume), keyed by the delivery that asks it.
 -- The pinned host does not deduplicate a wakeup by its idempotency key, and can fail after the wakeup is durable, so
 -- an ask is recorded before it is made and a resend never asks blindly: a run of the issue since the first ask
--- confirms it (public.heartbeat_runs, read only); an ask that may still be in flight is waited for; only a stale,
--- unconfirmed ask with no run since is asked again, by the one resend that claims it.
+-- confirms it (public.heartbeat_runs, read only). An ask is recorded with the host process that serves it and that
+-- process namespace; answered_at is set when the host answered it, with a run queued or not or an error. An ask the
+-- host never answered may still land, however late: it is waited for until a run confirms it or an operator fences it
+-- (fence names who and why), never by time alone. Only an ask answered a while ago, or fenced, unconfirmed and with no
+-- run since, is asked again, by the one resend that claims it.
 CREATE TABLE plugin_sophia_coordination_00c896da3d.wakes (
   wake_key text PRIMARY KEY,
   issue_id uuid NOT NULL REFERENCES public.issues(id),
   first_asked_at timestamptz NOT NULL DEFAULT now(),
   asked_at timestamptz NOT NULL DEFAULT now(),
-  confirmed_at timestamptz
+  host_namespace text,
+  host_process text,
+  answered_at timestamptz,
+  fenced_at timestamptz,
+  fence text,
+  confirmed_at timestamptz,
+  CHECK ((fenced_at IS NULL) = (fence IS NULL))
 );

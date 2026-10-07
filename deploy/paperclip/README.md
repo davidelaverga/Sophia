@@ -183,7 +183,8 @@ Sophia's signing private key and the integration board key never enter Paperclip
 it ([WBC-02-CC-0009](../../docs/coordination/WBC-02/WBC-02-CC-0009.md)). Meanwhile no delivery of its commission is
 confirmed, and every settlement still restores Sophia's latest control if the write lands. An issue create the host
 never answered likewise keeps its commission key claimed until it is fenced: Sophia's lookup answers 503 and no second
-create begins, however long it takes. The plugin never fences either itself. A statement the instance had sent can wait in its database session and commit after the instance died
+create begins, however long it takes. A wakeup ask the host never answered is not asked again until a run confirms it
+or it is fenced. The plugin never fences any of them itself. A statement the instance had sent can wait in its database session and commit after the instance died
 (Codex's WBC-02-CX-0024; `packages/paperclip-plugin/src/operator-fence.db.test.ts` reproduces it with a killed
 client). So the fence is [`fence-previous-instance.sql`](fence-previous-instance.sql), run by an operator:
 
@@ -196,8 +197,8 @@ client). So the fence is [`fence-previous-instance.sql`](fence-previous-instance
    psql "$PAPERCLIP_DATABASE_URL" -v before='<T>' -v operator='<who, which deploy>' -f fence-previous-instance.sql
    ```
 
-   The script lists the open writes and creates begun before T, then ends every session of that role begun before T.
-   Ending a session rolls back what it had not committed. It fences the writes and creates only while none of those
+   The script lists the open writes, creates and wakeup asks begun before T, then ends every session of that role
+   begun before T. Ending a session rolls back what it had not committed. It fences them only while none of those
    sessions remains: if it reports `UPDATE 0` with any still listed, run it again.
 
 The settle job then settles the fenced writes within a minute. Never fence while the instance that served them may

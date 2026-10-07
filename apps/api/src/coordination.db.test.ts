@@ -645,12 +645,14 @@ describe('one Paperclip-managed source review', () => {
     assert.equal(w.paperclip.wakeups.length, 0)
     assert.equal((await commissionRow(w))?.state, 'outcome_unknown')
     wake = null
-    // The ask the host did not queue is asked again only once it is stale, never while it may be in flight.
+    // The ask the host answered without a run is asked again only once a run had time to appear.
     assert.deepEqual(await nextPass(w), [['commission', 'unknown']])
     assert.equal(w.paperclip.wakeups.length, 0)
-    await pc.query(`UPDATE ${NAMESPACE}.wakes SET asked_at = asked_at - interval '2 minutes' WHERE issue_id = $1`, [
-      issue.id,
-    ])
+    await pc.query(
+      `UPDATE ${NAMESPACE}.wakes SET asked_at = asked_at - interval '2 minutes', answered_at = answered_at - interval '2 minutes'
+        WHERE issue_id = $1`,
+      [issue.id],
+    )
     assert.deepEqual(await nextPass(w), [['commission', 'delivered']])
     assert.equal(w.paperclip.wakeups.length, 1)
     assert.equal(w.paperclip.issues.size, 1)

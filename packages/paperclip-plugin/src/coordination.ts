@@ -259,27 +259,48 @@ async function wake(host: CoordinationHost, issue: HostIssue, key: string): Prom
   return woken.queued
 }
 
-/** How long an unconfirmed wakeup ask may still be in flight before a resend may ask again. */
+/**
+ * How long after the host answered an unconfirmed ask (an error, or no run queued) a resend waits for a run before it
+ * may ask again. An ask the host never answered is not counted from at all: it is waited for until a run confirms it
+ * or an operator fences it (Codex on #107).
+ */
 const WAKE_STALE_SECONDS = 60
 
 /**
  * One wakeup of the issue for this delivery key, made at most once as far as the plugin can know. The pinned host
  * does not deduplicate a wakeup by its idempotency key and can fail after the wakeup is durable, so the ask is
- * recorded first and a resend reconciles before it asks: see `reask`. A second run would still only attach to Sophia's
- * one attempt; this keeps the host from being asked for one.
+ * recorded first, with the host process that serves it, and a resend reconciles before it asks: see `reask`. The ask
+ * ends when the host answered it; one it never answered (UnansweredHostCall) may still land, however late. A second
+ * run would still only attach to Sophia's one attempt; this keeps the host from being asked for one.
  */
 async function wakeOnce(host: CoordinationHost, issue: HostIssue, key: string): Promise<boolean> {
   const first = await host.execute(
-    `INSERT INTO ${host.namespace}.wakes (wake_key, issue_id) VALUES ($1, $2) ON CONFLICT (wake_key) DO NOTHING`,
-    [key, issue.id],
+    `INSERT INTO ${host.namespace}.wakes (wake_key, issue_id, host_namespace, host_process) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (wake_key) DO NOTHING`,
+    [key, issue.id, host.hostProcess?.namespace ?? null, host.hostProcess?.process ?? null],
   )
   if (first.rowCount === 0 && !(await reask(host, issue, key))) return false
-  if (!(await wake(host, issue, key)))
+  let queued: boolean
+  try {
+    queued = await wake(host, issue, key)
+  } catch (err: unknown) {
+    if (!(err instanceof UnansweredHostCall)) await answeredWake(host, key)
+    throw err
+  }
+  await answeredWake(host, key)
+  if (!queued)
     // The host queued no run (`{queued: false}`: the agent cannot be woken now, or the wakeup was deferred). Not
     // confirmed and not delivered: the worker asks again, and a run since the first ask confirms it then.
     refuse(503, 'wake_not_queued', 'Paperclip queued no run of the source reviewer for this wakeup; ask again later')
   await confirmWake(host, key)
   return true
+}
+
+async function answeredWake(host: CoordinationHost, key: string) {
+  await host.execute(
+    `UPDATE ${host.namespace}.wakes SET answered_at = now() WHERE wake_key = $1 AND answered_at IS NULL`,
+    [key],
+  )
 }
 
 async function confirmWake(host: CoordinationHost, key: string) {
@@ -292,12 +313,13 @@ async function confirmWake(host: CoordinationHost, key: string) {
 /**
  * Whether a resend asks again for a wakeup asked before and not confirmed. A run of the issue since the first ask
  * means the host took it (its reply was lost, or its activity log failed after it): confirmed, not asked again. An
- * ask that may still be in flight is waited for (503). A stale ask with no run since is claimed by one resend.
+ * ask the host has not answered, however old, may still land and is waited for (503), as is one answered within
+ * WAKE_STALE_SECONDS. One answered before that, or fenced by an operator, with no run since, is claimed by one resend.
  */
 async function reask(host: CoordinationHost, issue: HostIssue, key: string): Promise<boolean> {
   const rows = await host.query<{ confirmed: boolean; ran: boolean; stale: boolean; asked: string }>(
     `SELECT w.confirmed_at IS NOT NULL AS confirmed, w.asked_at::text AS asked,
-            w.asked_at < now() - make_interval(secs => $3) AS stale,
+            (coalesce(w.answered_at < now() - make_interval(secs => $3), false) OR w.fenced_at IS NOT NULL) AS stale,
             EXISTS (SELECT 1 FROM public.heartbeat_runs r
                      WHERE r.company_id::text = $2 AND r.context_snapshot->>'issueId' = w.issue_id::text
                        AND r.created_at >= w.first_asked_at) AS ran
@@ -312,9 +334,10 @@ async function reask(host: CoordinationHost, issue: HostIssue, key: string): Pro
   }
   const claimed = asked.stale
     ? await host.execute(
-        `UPDATE ${host.namespace}.wakes SET asked_at = now()
+        `UPDATE ${host.namespace}.wakes
+            SET asked_at = now(), host_namespace = $3, host_process = $4, answered_at = NULL, fenced_at = NULL, fence = NULL
           WHERE wake_key = $1 AND confirmed_at IS NULL AND asked_at::text = $2`,
-        [key, asked.asked],
+        [key, asked.asked, host.hostProcess?.namespace ?? null, host.hostProcess?.process ?? null],
       )
     : { rowCount: 0 }
   if (claimed.rowCount === 0)
