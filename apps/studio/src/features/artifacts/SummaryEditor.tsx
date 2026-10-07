@@ -77,7 +77,7 @@ function useDraft() {
 function SophiasMark() {
   return (
     <span className="report-by" title="Description by Sophia">
-      <Mark size={12} />
+      <Mark />
       <span className="sr-only">Description by Sophia: </span>
     </span>
   )
@@ -112,7 +112,8 @@ export function SummaryEditor({ card, identity, editable, onSaved, children = nu
         </p>
         {card.summary !== null && !sophias && <p className="report-attribution">{attribution(card)}</p>}
         <Problem text={problem} />
-        <div className="report-foot">
+        {/* One key in both forms: the foot, and History in it, stay as the form comes and goes (its focus too). */}
+        <div key="foot" className="report-foot">
           {children}
           {editable && (
             <button
@@ -137,7 +138,9 @@ export function SummaryEditor({ card, identity, editable, onSaved, children = nu
         onDraft={(text) => (text === null ? stop() : write(text))}
         onSave={() => void save(draft)}
       />
-      <div className="report-foot">{children}</div>
+      <div key="foot" className="report-foot">
+        {children}
+      </div>
     </div>
   )
 }

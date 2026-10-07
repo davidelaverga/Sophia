@@ -10,7 +10,7 @@
 
 ## What changes
 
-- **One foot per tile:** History on the left, Edit on the right, on one quiet line in the third ink, underlined only
+- **One foot per tile:** History on the left, Edit on the right, on one quiet line in the second ink (4.5:1 or more), underlined only
   under the pointer or the focus. History is still named «History and changes» for a screen reader (its visible word
   is in its name).
 - **Sophia's credit as her mark:** a description Sophia wrote opens with her mark, which says «Description by Sophia»

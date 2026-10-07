@@ -37,6 +37,15 @@ test('quiet · Sophia’s description opens with her mark, which says so; no lin
   await expect(card.getByText('Description by Sophia', { exact: true })).toBeHidden()
   await expect(card.getByText(/Edited by a member/)).toHaveCount(0) // hers is never said to be a member's
   await expect(card.locator('.report-summary .umbral')).toBeVisible()
+  // Her mark is under the pointer, not the tile's press: its «Description by Sophia» shows there.
+  const mark = card.locator('.report-by')
+  expect(
+    await mark.evaluate((el) => {
+      const r = el.getBoundingClientRect()
+      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
+    }),
+  ).toBe(true)
+  await expect(mark).toHaveAttribute('title', 'Description by Sophia')
   expect(await card.locator('.report-summary').first().ariaSnapshot()).toContain('Description by Sophia')
 })
 

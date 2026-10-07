@@ -756,7 +756,7 @@
 .report-card > :not(.report-card-cover) {
   margin-inline: 6px;
 }
-.report-card :is(.text-button, form, textarea, .report-problem) {
+.report-card :is(.text-button, form, textarea, .report-problem, .report-by) {
   position: relative;
   z-index: 1;
 }
@@ -921,9 +921,6 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
-.report-card .report-attribution {
-  font-size: var(--type-small);
-}
 /* The tile's words fill it, so every foot sits on the tile's last line (docs/plans/knowledge-quiet.md). */
 .report-card .report-summary {
   display: flex;
@@ -934,7 +931,7 @@
 .report-by {
   display: inline-flex;
   margin-right: 6px;
-  vertical-align: -1px;
+  vertical-align: -3px;
 }
 /* One quiet foot: History, then Edit, in the second ink (it reads at 4.5:1), underlined only under the pointer or the
    focus. */
@@ -956,16 +953,10 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.report-summary {
-  display: grid;
-  gap: 2px;
-}
 .report-attribution {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  margin: 0;
   color: var(--text-2);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .report-summary-edit {
   display: grid;
