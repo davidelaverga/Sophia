@@ -36,6 +36,7 @@ import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stag
 import type { ProjectRoom } from './useProjectRoom.ts'
 import { useWorkWords } from './useWorkWords.ts'
 import { VideoStage } from './VideoStage.tsx'
+import { useNow } from '../../app/use-now.ts'
 
 interface Props {
   room: ProjectRoom
@@ -54,16 +55,6 @@ interface Props {
   presented?: ReactNode
   /** Who shows what to everyone, when this stage doesn't present it: under her line, or over the video. */
   showing?: ReactNode
-}
-
-/** The time, again every half minute: enough for "starts in 12 min". */
-function useNow(): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30_000)
-    return () => clearInterval(t)
-  }, [])
-  return now
 }
 
 /** The next session on the room's calendar, in a few words, or null. */
@@ -232,7 +223,8 @@ function useStageModel({ room, snapshot, projectId, identity, presented }: Props
 export function RoomStage(props: Props) {
   const { room, snapshot, projectId, identity, lensBar, lensBody, line, corner, captions, presented, showing } = props
   const stage = useRef<HTMLElement>(null)
-  const now = useNow()
+  // The time, again every half minute: enough for "starts in 12 min".
+  const now = useNow(30_000)
   const light = useRef<SophiaLightHandle>(null)
   const { people, holder, floor, mode, running, sophia, doing } = useStageModel(props)
   const live = room.status === 'live' || room.status === 'reconnecting'

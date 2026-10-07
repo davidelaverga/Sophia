@@ -152,7 +152,10 @@ describe('dayLabel', () => {
   })
 
   it('a time that isn’t one says nothing, rather than breaking the page', () => {
-    assert.deepEqual([dayOf('not a time', TODAY), clock('not a time'), dayLabel('not a time', TODAY)], ['', '', ''])
+    assert.deepEqual(
+      [dayOf('not a time', TODAY), clock('not a time'), when('not a time', TODAY), dayLabel('not a time', TODAY)],
+      ['', '', '', ''],
+    )
   })
 
   it('same day, in the viewer’s zone', () => {
