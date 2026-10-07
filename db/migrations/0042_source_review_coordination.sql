@@ -764,6 +764,7 @@ BEGIN
   PERFORM sophia.emit_service_event(p_project,'decision.resolved','work_decision',d.id,d.revision,'decision.expired',jsonb_build_array(p.id));
  END IF;
  IF refusal IS NULL AND choice='accept' THEN
+  PERFORM 1 FROM sophia.research_grants WHERE project_id=p_project FOR SHARE;
   SELECT * INTO cg FROM sophia.coordination_grants WHERE project_id=p_project;
   refusal:=sophia.work_admission_refusal(p_project,p,cg);
  END IF;
@@ -941,6 +942,13 @@ SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
   FROM sophia.research_allowances a WHERE a.project_id=p_project AND a.id=w.allowance_id $$;
 REVOKE ALL ON FUNCTION sophia.work_allowance_left(uuid,sophia.work_items) FROM PUBLIC;
 
+-- Whether the project's spend gate (its research grant) is open: a closed one refuses every reservation, so no attempt
+-- starts under it (Codex on #107). Read after the grant's row is share-locked, as a disable takes it for update.
+CREATE FUNCTION sophia.work_spend_open(p_project uuid) RETURNS boolean LANGUAGE sql STABLE
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT EXISTS(SELECT 1 FROM sophia.research_grants r WHERE r.project_id=p_project AND r.state='enabled') $$;
+REVOKE ALL ON FUNCTION sophia.work_spend_open(uuid) FROM PUBLIC;
+
 -- Why this run may not act on the work now, or null. A held, stopped or finished work, a withdrawn input, an ended
 -- attempt or a spent allowance each stop it before any effect.
 CREATE FUNCTION sophia.work_denial(p_project uuid, w sophia.work_items, g sophia.goals, cg sophia.coordination_grants, p_company text)
@@ -971,6 +979,7 @@ CREATE FUNCTION sophia.work_denial_text(p_code text) RETURNS text LANGUAGE sql I
   WHEN 'attempt_ended' THEN 'This work''s attempt ended; a new attempt needs a new decision.'
   WHEN 'runtime_unavailable' THEN 'No Sophia runtime carries the source reviewer.'
   WHEN 'allowance_spent' THEN 'The work''s allowance is spent.'
+  WHEN 'spend_closed' THEN 'Spending is closed for this work''s project in Sophia: no model call could be paid for.'
   WHEN 'stale_assignment' THEN 'The run belongs to an earlier assignment of this work.'
   ELSE p_code END $$;
 REVOKE ALL ON FUNCTION sophia.work_denial_text(text) FROM PUBLIC;
@@ -1007,6 +1016,8 @@ BEGIN
   END IF;
  END IF;
  SELECT * INTO g FROM sophia.goals WHERE project_id=cm.project_id AND id=w.execution_goal_id FOR UPDATE;
+ -- The research grant's row, shared: a disable of the project's spend in flight is waited for (Codex on #107).
+ PERFORM 1 FROM sophia.research_grants WHERE project_id=cm.project_id FOR SHARE;
  SELECT * INTO cg FROM sophia.coordination_grants WHERE project_id=cm.project_id;
  SELECT * INTO asg FROM sophia.work_assignments WHERE project_id=cm.project_id AND work_id=w.id AND state='active';
  code:=sophia.work_denial(cm.project_id,w,g,cg,company);
@@ -1018,6 +1029,8 @@ BEGIN
   ELSIF EXISTS(SELECT 1 FROM sophia.work_attempts wa WHERE wa.project_id=cm.project_id AND wa.goal_id=w.execution_goal_id) THEN code:='attempt_ended';
   ELSIF (sophia.work_runtime(cm.project_id,asg.role,asg.route)).id IS NULL THEN code:='runtime_unavailable';
   ELSIF NOT sophia.work_allowance_left(cm.project_id,w) THEN code:='allowance_spent';
+  -- No attempt starts that no model call could be paid for: the project's spend gate is open (Codex on #107).
+  ELSIF NOT sophia.work_spend_open(cm.project_id) THEN code:='spend_closed';
   ELSE chosen:='start';
   END IF;
  END IF;
@@ -1063,6 +1076,7 @@ BEGIN
  IF r.permit_expires_at<now() THEN RAISE EXCEPTION 'Stale permit: ask for a permit again' USING ERRCODE='40001'; END IF;
  SELECT * INTO w FROM sophia.work_items WHERE project_id=r.project_id AND id=r.work_id FOR UPDATE;
  SELECT * INTO g FROM sophia.goals WHERE project_id=r.project_id AND id=w.execution_goal_id FOR UPDATE;
+ PERFORM 1 FROM sophia.research_grants WHERE project_id=r.project_id FOR SHARE;
  SELECT * INTO cg FROM sophia.coordination_grants WHERE project_id=r.project_id;
  SELECT * INTO asg FROM sophia.work_assignments WHERE project_id=r.project_id AND work_id=w.id AND state='active';
  code:=sophia.work_denial(r.project_id,w,g,cg,company);
@@ -1070,6 +1084,7 @@ BEGIN
  IF code IS NULL AND EXISTS(SELECT 1 FROM sophia.work_attempts wa WHERE wa.project_id=r.project_id AND wa.goal_id=w.execution_goal_id) THEN
   RAISE EXCEPTION 'Stale permit: another run started this work; ask for a permit again' USING ERRCODE='40001'; END IF;
  IF code IS NULL AND NOT sophia.work_allowance_left(r.project_id,w) THEN code:='allowance_spent'; END IF;
+ IF code IS NULL AND NOT sophia.work_spend_open(r.project_id) THEN code:='spend_closed'; END IF;
  rt:=sophia.work_runtime(r.project_id,asg.role,asg.route);
  IF code IS NULL AND rt.id IS NULL THEN code:='runtime_unavailable'; END IF;
  IF code IS NOT NULL THEN

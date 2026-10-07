@@ -347,10 +347,34 @@ async function reask(host: CoordinationHost, issue: HostIssue, key: string): Pro
   return true
 }
 
-/** The commission's wakeup, while the issue is still in the status the commission set (a Hold since is not undone). */
+/**
+ * The commission's wakeup. While the issue is in `todo`, the status the commission set, it is asked once (wakeOnce).
+ * An issue that left `todo` is not woken against the status it was given, and is answered by what moved it (Codex on
+ * #107): a run of it (the wakeup reached the reviewer) confirms the wakeup; a control of the commission (a Hold since)
+ * is not undone. Anything else moved it before Sophia learned the issue (Sophia's controls follow its commission), so
+ * no wakeup is known to have reached the reviewer: the commission is not delivered (503 `wake_unconfirmed`), and
+ * Sophia asks again until the issue is back in `todo` or a run of it confirms the wakeup.
+ */
 async function wakeCommission(host: CoordinationHost, c: Commission, issue: HostIssue): Promise<boolean> {
-  if (!c.wake || c.initialStatus !== 'todo' || issue.status !== 'todo') return false
-  return wakeOnce(host, issue, c.key)
+  if (!c.wake || c.initialStatus !== 'todo') return false
+  if (issue.status === 'todo') return wakeOnce(host, issue, c.key)
+  const rows = await host.query<{ ran: boolean; controlled: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM public.heartbeat_runs r
+                     WHERE r.company_id::text = $2 AND r.context_snapshot->>'issueId' = $3) AS ran,
+            EXISTS (SELECT 1 FROM ${host.namespace}.controls WHERE commission_key = $1) AS controlled`,
+    [c.key, issue.companyId, issue.id],
+  )
+  const moved = rows[0]
+  if (moved?.ran === true) {
+    await confirmWake(host, c.key)
+    return false
+  }
+  if (moved?.controlled === true) return false
+  return refuse(
+    503,
+    'wake_unconfirmed',
+    'The issue left todo before its source reviewer was known to be woken; Sophia asks again once it is back in todo',
+  )
 }
 
 export async function handleCommission(host: CoordinationHost, input: ApiRequest): Promise<CommissionReply> {

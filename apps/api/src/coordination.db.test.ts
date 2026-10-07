@@ -1763,16 +1763,25 @@ describe('a start permit asked for again before it was used (Codex on #107)', ()
 })
 
 describe('the coordination grant, and the runs of one attempt (Codex on #107)', () => {
-  /** The owner's disable of the world's grant, made in a transaction left open: it holds what the setter locks. */
-  async function disabling(w: World) {
+  /**
+   * The owner's disable of the world's coordination grant, or of its spend gate (the research grant), made in a
+   * transaction left open: it holds what the setter locks.
+   */
+  async function disabling(w: World, grant: 'coordination' | 'spend' = 'coordination') {
     const owner = new pg.Client({ connectionString: db.ownerUrl })
     await owner.connect()
     await owner.query('BEGIN')
-    await owner.query(`SELECT sophia.set_coordination_grant($1, 'disabled', 2, $2, $3, 'approval:test-off')`, [
-      w.projectId,
-      COMPANY,
-      PC_PROJECT,
-    ])
+    if (grant === 'spend')
+      await owner.query(
+        `SELECT sophia.set_research_grant($1, 'disabled', 5, 40, 'web-pilot-v1', 'approval:test-off')`,
+        [w.projectId],
+      )
+    else
+      await owner.query(`SELECT sophia.set_coordination_grant($1, 'disabled', 2, $2, $3, 'approval:test-off')`, [
+        w.projectId,
+        COMPANY,
+        PC_PROJECT,
+      ])
     let open = true
     const finish = async (how: 'COMMIT' | 'ROLLBACK') => {
       if (!open) return
@@ -1880,6 +1889,69 @@ describe('the coordination grant, and the runs of one attempt (Codex on #107)', 
         ).rows[0]?.state,
     )
     assert.equal(grant, 'disabled', 'and the disable after it')
+  })
+
+  const spendGate = (w: World, state: 'enabled' | 'disabled') =>
+    asOwner((o) =>
+      o.query(`SELECT sophia.set_research_grant($1, $2, 5, 40, 'web-pilot-v1', 'approval:test')`, [w.projectId, state]),
+    )
+
+  it('a closed spend gate starts nothing: a permit is denied, a permitted run starts nothing; reopened, one starts', async () => {
+    const w = await world()
+    await accepted(w)
+    await deliver(w)
+    const issueId = issueOf(w).id
+    const permitted = { companyId: COMPANY, runId: runId('permitted') }
+    const first = await sophia().permit({ ...permitted, issueId, agentId: 'agent-source-reviewer' })
+    assert.equal(first.decision, 'start', JSON.stringify(first))
+    await spendGate(w, 'disabled')
+    const started = await sophia().start(permitted)
+    assert.deepEqual([started.denied, started.code], [true, 'spend_closed'], JSON.stringify(started))
+    const asked = await sophia().permit({ companyId: COMPANY, runId: runId('asked'), issueId })
+    assert.deepEqual([asked.decision, asked.code], ['deny', 'spend_closed'], JSON.stringify(asked))
+    assert.equal(await countOf(w, 'work_attempts'), 0, 'no attempt, native session or job')
+    await spendGate(w, 'enabled')
+    const reopened = { companyId: COMPANY, runId: runId('reopened') }
+    assert.equal((await sophia().permit({ ...reopened, issueId })).decision, 'start')
+    assert.equal((await sophia().start(reopened)).started, true)
+  })
+
+  it('an acceptance and a start asked while a spend disable is in flight wait for it, and once it committed are refused', async () => {
+    const w = await world()
+    const proposal = await propose(w)
+    assert.equal(proposal.status, 201, JSON.stringify(proposal.json))
+    const closing = await disabling(w, 'spend')
+    try {
+      const answering = answer(w, proposal.json, 'accept')
+      await untilWaiting(1)
+      await closing.commit()
+      const answered = await answering
+      assert.deepEqual(
+        [answered.json.admission, answered.json.rejection],
+        ['rejected', 'unavailable'],
+        JSON.stringify(answered.json),
+      )
+    } finally {
+      await closing.abandon()
+    }
+    assert.equal(await countOf(w, 'work_items'), 0)
+
+    const v = await world()
+    await accepted(v)
+    await deliver(v)
+    const run = { companyId: COMPANY, runId: runId('run') }
+    assert.equal((await sophia().permit({ ...run, issueId: issueOf(v).id })).decision, 'start')
+    const off = await disabling(v, 'spend')
+    try {
+      const starting = sophia().start(run)
+      await untilWaiting(1)
+      await off.commit()
+      const started = await starting
+      assert.deepEqual([started.denied, started.code], [true, 'spend_closed'], JSON.stringify(started))
+    } finally {
+      await off.abandon()
+    }
+    assert.equal(await countOf(v, 'work_attempts'), 0)
   })
 
   it("a run that attached and ends first claims none of the starting run's spend; the starting run claims it", async () => {

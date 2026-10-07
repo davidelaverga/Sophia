@@ -455,6 +455,51 @@ describe('commission', () => {
     assert.equal(await runsOf(issueId), 0)
   })
 
+  it('a commission whose issue someone moved out of todo before its wake was confirmed is not delivered; back in todo, it is woken (Codex on #107)', async () => {
+    let fault: 'before' | null = 'before'
+    const p = paperclip({ fails: { wake: () => fault } })
+    const c = commissionOf()
+    await assert.rejects(p.request(commissionRequest(c)), /before it was durable/)
+    const issueId = [...p.issues.keys()][0] ?? ''
+    const issue = p.issues.get(issueId)
+    assert.ok(issue)
+    fault = null
+    // A board user moves the issue before Sophia learned it: no control of Sophia's did, and nobody was woken.
+    issue.status = 'backlog'
+    await ageAsk(c.key)
+    const unconfirmed = await p.request(commissionRequest(c))
+    assert.deepEqual(
+      [unconfirmed.status, (code(unconfirmed.body) as { code: string }).code],
+      [503, 'wake_unconfirmed'],
+      'not delivered: Sophia asks again',
+    )
+    assert.equal(await runsOf(issueId), 0, 'not woken against the status someone set')
+    issue.status = 'todo'
+    const woken = await p.request(commissionRequest(c))
+    assert.deepEqual(woken.body, { outcome: 'existing', issueId, status: 'todo', wakeQueued: true })
+    assert.equal(await runsOf(issueId), 1)
+  })
+
+  it('a commission whose wake reached the reviewer, its run having moved the issue, is delivered and not woken again', async () => {
+    let fault: 'after' | null = 'after'
+    const p = paperclip({ fails: { wake: () => fault } })
+    const c = commissionOf()
+    await assert.rejects(p.request(commissionRequest(c)), /durable, then the call failed/)
+    const issueId = [...p.issues.keys()][0] ?? ''
+    const issue = p.issues.get(issueId)
+    assert.ok(issue)
+    fault = null
+    issue.status = 'in_progress'
+    const again = await p.request(commissionRequest(c))
+    assert.deepEqual(again.body, { outcome: 'existing', issueId, status: 'in_progress', wakeQueued: false })
+    assert.equal(await runsOf(issueId), 1, 'no second run')
+    const confirmed = await client.query(
+      `SELECT 1 FROM ${NAMESPACE}.wakes WHERE wake_key = $1 AND confirmed_at IS NOT NULL`,
+      [c.key],
+    )
+    assert.equal(confirmed.rowCount, 1, 'its run confirms the wakeup')
+  })
+
   it('serializes concurrent creates of one key: one creates, the other is told to reconcile (503)', async () => {
     const gate = Promise.withResolvers<void>()
     const p = paperclip({ beforeCreate: () => gate.promise })
