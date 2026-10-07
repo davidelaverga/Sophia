@@ -78,7 +78,10 @@ export interface AppDeps {
 
 /**
  * Functions the API requires in the database; /ready fails if any is missing, so an instance on a database that a
- * migration hasn't reached takes no traffic. The personal space (0021) lists every function its routes call.
+ * migration hasn't reached takes no traffic. The personal space (0021) lists every function its routes call. 0043
+ * (#117) is required by the two functions the capture routes call, the only ones this API calls that main's doesn't:
+ * the migration is one transaction, and its other changes replace functions under their own signatures. The previous
+ * API requires nothing of 0043 and stays ready on either database (Codex on #107; readiness.db.test.ts).
  */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
@@ -142,7 +145,9 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.work_command(uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.read_work_result(uuid,uuid,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.coordination_permit(bytea,jsonb)') IS NOT NULL
-  AND to_regprocedure('sophia.runtime_source_review_submit(bytea,text,text,jsonb)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.runtime_source_review_submit(bytea,text,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.runtime_capture_issue(bytea,text,text,jsonb,text)') IS NOT NULL
+  AND to_regprocedure('sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)') IS NOT NULL AS ok`
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({

@@ -67,14 +67,16 @@ export interface MemoryPaperclipOptions {
   /** Runs inside a status update before it lands, e.g. to hold one in flight (a delayed host call). */
   readonly beforeUpdate?: (issueId: string, status: string) => Promise<void> | undefined
   /**
-   * Fault injection while its check says so: a status update fails `before` it lands (`true` alike), changing
-   * nothing, or `after` it landed (the status changed, then the host answers an error, as when its activity log fails
+   * Fault injection while its check says so: a create fails `before` the issue exists, or `after` it does (the host
+   * answers an error), or is `unanswered` (the worker stops waiting, nothing landed yet: a test lands it later by hand);
+   * a status update fails `before` it lands (`true` alike), changing nothing, or `after` it landed (the status changed, then the host answers an error, as when its activity log fails
    * after `issues.update`, plugin-host-services.ts), or is `unanswered` (the worker stops waiting, nothing landed yet:
    * a test lands it later by hand); a wakeup fails `before` it is durable (no run), or `after` (its run is queued,
    * then the call fails), or is `not_queued` (the host answers `{queued: false, runId: null}`, as for an agent left
    * in error).
    */
   readonly fails?: {
+    readonly create?: () => 'before' | 'after' | 'unanswered' | null
     readonly update?: (status: string) => boolean | 'before' | 'after' | 'unanswered' | null
     readonly wake?: () => 'before' | 'after' | 'not_queued' | null
   }
@@ -100,6 +102,24 @@ const view = (issue: MemoryIssue): HostIssue => ({
 export const INTEGRATION_USER = 'user-sophia-integration'
 
 type Wakeup = { issueId: string; idempotencyKey: string }
+
+/** The pinned host's issue create, over the map, with its faults. */
+async function create(
+  db: Queryable,
+  options: MemoryPaperclipOptions,
+  issues: Map<string, MemoryIssue>,
+  input: HostIssueCreate,
+): Promise<HostIssue> {
+  const fault = options.fails?.create?.() ?? null
+  if (fault === 'before') throw new Error('injected: issue create failed')
+  if (fault === 'unanswered') throw new UnansweredHostCall('injected: the host did not answer the create')
+  await options.beforeCreate?.()
+  const issue: MemoryIssue = { ...input, id: randomUUID() }
+  await db.query('INSERT INTO public.issues (id) VALUES ($1)', [issue.id])
+  issues.set(issue.id, issue)
+  if (fault === 'after') throw new Error('injected: issue create durable, then the call failed')
+  return view(issue)
+}
 
 /** The pinned host's issue service, as far as CoordinationHost declares it, over a map. */
 function issueService(
@@ -129,13 +149,7 @@ function issueService(
       const issue = issues.get(issueId)
       return issue?.companyId === companyId ? view(issue) : null
     },
-    create: async (input) => {
-      await options.beforeCreate?.()
-      const issue: MemoryIssue = { ...input, id: randomUUID() }
-      await db.query('INSERT INTO public.issues (id) VALUES ($1)', [issue.id])
-      issues.set(issue.id, issue)
-      return view(issue)
-    },
+    create: (input) => create(db, options, issues, input),
     update: async (issueId, patch: { status: IssueStatus }, companyId) => {
       const fault = options.fails?.update?.(patch.status) ?? null
       if (fault === true || fault === 'before') throw new Error('injected: issue update failed')

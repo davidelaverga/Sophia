@@ -1756,3 +1756,29 @@ describe('SDD-01-CX-0019: a capture counts as seen only once it reached the mode
     assert.equal(passed.json.decision?.outcome, 'published', JSON.stringify(passed.json))
   })
 })
+
+// Last: it takes a function of 0043 away for a moment.
+describe('readiness (0043)', () => {
+  it('fails while a capture cannot be issued or delivered', async () => {
+    const dbOwner = new pg.Client({ connectionString: db.ownerUrl })
+    await dbOwner.connect()
+    const ready = async (): Promise<unknown[]> => {
+      const res = await call('/ready')
+      return [res.status, res.json as unknown]
+    }
+    assert.deepEqual(await ready(), [200, { ready: true }])
+    try {
+      for (const fn of ['runtime_capture_issue', 'runtime_capture_delivered']) {
+        await dbOwner.query(`ALTER FUNCTION sophia.${fn}(bytea,text,text,jsonb,text) RENAME TO away`)
+        try {
+          assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], `a schema without ${fn}`)
+        } finally {
+          await dbOwner.query(`ALTER FUNCTION sophia.away(bytea,text,text,jsonb,text) RENAME TO ${fn}`)
+        }
+      }
+    } finally {
+      await dbOwner.end()
+    }
+    assert.deepEqual(await ready(), [200, { ready: true }])
+  })
+})

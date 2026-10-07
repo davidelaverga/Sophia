@@ -13,7 +13,13 @@ import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { CoordinationObservation, RuntimeCommand } from '@sophia/contracts'
 import { execute, httpSophiaClient, SophiaRefusal, type ExecuteDeps } from '@sophia/paperclip-adapters/sophia-dsh'
-import { installNamespace, memoryPaperclip, type MemoryPaperclip } from '@sophia/paperclip-plugin/memory-host'
+import {
+  installNamespace,
+  memoryPaperclip,
+  NAMESPACE,
+  type MemoryPaperclip,
+  type MemoryPaperclipOptions,
+} from '@sophia/paperclip-plugin/memory-host'
 import { createPool, readSnapshot, withActor } from '@sophia/persistence'
 import {
   createEmptyDatabase,
@@ -134,7 +140,7 @@ const SOURCE_A =
 const SOURCE_B = '# Press plan\n\nPress outreach starts 1 March. The budget is 25,000 EUR.\n'
 
 /** A project enrolled for source review (both grants), two text sources, a ready runtime carrying the reviewer. */
-async function world() {
+async function world(plugin: Pick<MemoryPaperclipOptions, 'fails'> = {}) {
   const { projectId, goalId } = await seedProject(db.ownerUrl, { admin: A, editors: [E], viewers: [V] })
   const [sourceA, sourceB] = await asOwner(async (owner) => {
     await owner.query(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [
@@ -176,6 +182,7 @@ async function world() {
       integrationUserId: 'user-sophia-integration',
       projects: [{ sophiaProjectId: projectId, companyId: COMPANY, paperclipProjectId: PC_PROJECT }],
     },
+    ...plugin,
   })
   return { projectId, goalId, sourceA, sourceB, rt, runtime, paperclip }
 }
@@ -578,6 +585,95 @@ describe('one Paperclip-managed source review', () => {
       (await sophia().permit({ companyId: COMPANY, runId: runId('r1'), issueId: issue.id })).decision,
       'start',
     )
+  })
+
+  /** The plugin stopped after its create landed: its reply lost, the issue's wakeup never asked (Codex on #107). */
+  async function crashedAfterCreate(w: World) {
+    await accepted(w)
+    assert.deepEqual(
+      (await deliver(w, () => true)).outcomes.map((o) => o.outcome),
+      ['unknown'],
+    )
+    const issue = issueOf(w)
+    await pc.query(`DELETE FROM ${NAMESPACE}.wakes WHERE issue_id = $1`, [issue.id])
+    await pc.query(`DELETE FROM public.heartbeat_runs WHERE context_snapshot->>'issueId' = $1`, [issue.id])
+    w.paperclip.wakeups.length = 0
+    return issue
+  }
+
+  /** The next pass, now: the outbox's backoff is skipped. */
+  async function nextPass(w: World) {
+    await asOwner((o) =>
+      o.query(`UPDATE sophia.coordination_outbox SET available_at=now() WHERE project_id=$1`, [w.projectId]),
+    )
+    return (await deliver(w)).outcomes.map((o) => [o.op, o.outcome])
+  }
+
+  const commissionRow = async (w: World) =>
+    asOwner(
+      async (o) =>
+        (
+          await o.query<{ state: string; result: Record<string, unknown> | null }>(
+            `SELECT state, result FROM sophia.coordination_outbox WHERE project_id=$1 AND op='commission'`,
+            [w.projectId],
+          )
+        ).rows[0],
+    )
+
+  it('reconciles a found issue whose wakeup was never asked: woken first, then delivered (Codex on #107)', async () => {
+    const w = await world()
+    const issue = await crashedAfterCreate(w)
+    assert.deepEqual(await nextPass(w), [['commission', 'delivered']])
+    assert.equal(w.paperclip.wakeups.length, 1, 'the found issue was woken before the delivery was recorded')
+    assert.equal(w.paperclip.issues.size, 1)
+    assert.deepEqual(await commissionRow(w), {
+      state: 'delivered',
+      result: { issueId: issue.id, status: 'todo', outcome: 'existing', wakeQueued: true, reconciled: true },
+    })
+    assert.equal(
+      (await sophia().permit({ companyId: COMPANY, runId: runId('r1'), issueId: issue.id })).decision,
+      'start',
+    )
+  })
+
+  it('a found issue whose wakeup the host does not queue stays unknown, never delivered; later it is woken once', async () => {
+    let wake: 'not_queued' | null = null
+    const w = await world({ fails: { wake: () => wake } })
+    const issue = await crashedAfterCreate(w)
+    wake = 'not_queued'
+    assert.deepEqual(await nextPass(w), [['commission', 'unknown']])
+    assert.equal(w.paperclip.wakeups.length, 0)
+    assert.equal((await commissionRow(w))?.state, 'outcome_unknown')
+    wake = null
+    // The ask the host did not queue is asked again only once it is stale, never while it may be in flight.
+    assert.deepEqual(await nextPass(w), [['commission', 'unknown']])
+    assert.equal(w.paperclip.wakeups.length, 0)
+    await pc.query(`UPDATE ${NAMESPACE}.wakes SET asked_at = asked_at - interval '2 minutes' WHERE issue_id = $1`, [
+      issue.id,
+    ])
+    assert.deepEqual(await nextPass(w), [['commission', 'delivered']])
+    assert.equal(w.paperclip.wakeups.length, 1)
+    assert.equal(w.paperclip.issues.size, 1)
+  })
+
+  it('a found issue whose wakeup was durable but whose reply was lost is delivered by its run, never woken twice', async () => {
+    let wake: 'after' | null = null
+    const w = await world({ fails: { wake: () => wake } })
+    const issue = await crashedAfterCreate(w)
+    wake = 'after'
+    assert.deepEqual(await nextPass(w), [['commission', 'unknown']])
+    assert.equal(w.paperclip.wakeups.length, 1, 'the wakeup is durable; its reply is lost')
+    wake = null
+    assert.deepEqual(await nextPass(w), [['commission', 'delivered']])
+    assert.equal(w.paperclip.wakeups.length, 1, 'confirmed by its run, not asked again')
+    assert.deepEqual((await commissionRow(w))?.result, {
+      issueId: issue.id,
+      status: 'todo',
+      outcome: 'existing',
+      wakeQueued: false,
+      reconciled: true,
+    })
+    assert.equal(w.paperclip.issues.size, 1)
   })
 
   it('an expired decision is refused as expired and commissions nothing (INT-03)', async () => {

@@ -20,9 +20,21 @@ CREATE TABLE plugin_sophia_coordination_00c896da3d.commissions (
   -- renewed before each write so that a write is only begun with more lease left than the host call can take.
   effect_holder text,
   effect_until timestamptz,
+  -- The create a creating row claims, recorded before it is asked with the host process that serves it and that process
+  -- namespace. It ends when the host answered it, with the issue or an error (it answers once it finished with it); from
+  -- then the issue found by its origin is the whole truth, and a create that left none may be claimed again. A create
+  -- the host never answered may still land, however late: the key stays claimed until an operator fences it, after
+  -- verifying that the instance that served it stopped (create_fence names who and why). Time alone never ends a claim.
+  create_started_at timestamptz,
+  create_host_namespace text,
+  create_host_process text,
+  create_ended_at timestamptz,
+  create_fenced_at timestamptz,
+  create_fence text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CHECK ((state = 'created') = (issue_id IS NOT NULL))
+  CHECK ((state = 'created') = (issue_id IS NOT NULL)),
+  CHECK ((create_fenced_at IS NULL) = (create_fence IS NULL))
 );
 
 -- One row per delivered control. A key is recorded pending before its effect and becomes applied only once the

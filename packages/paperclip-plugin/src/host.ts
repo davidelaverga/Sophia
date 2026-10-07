@@ -7,7 +7,7 @@
  * - issues.list/get/create/update/requestWakeup: PluginIssuesClient (packages/plugins/sdk/src/types.ts), served by
  *   server/src/services/plugin-host-services.ts. `list` filters originKind and originId by exact equality within
  *   the company (server/src/services/issues.ts); a plugin may only use origin kinds under `plugin:<its key>`.
- *   `update` rejects with UnansweredHostCall when the host never answered it.
+ *   `create` and `update` reject with UnansweredHostCall when the host never answered them.
  * - reviewerAgent: `ctx.agents.managed.reconcile(agentKey, companyId)` (PluginManagedAgentResolution.agentId).
  * - query/execute: PluginDatabaseClient on the host-derived namespace (SELECT; namespace INSERT/UPDATE/DELETE).
  * - config: PluginConfigClient.get(companyId).

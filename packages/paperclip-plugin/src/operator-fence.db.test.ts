@@ -39,7 +39,7 @@ before(async () => {
   await owner.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}'`)
   await owner.query(`GRANT CONNECT ON DATABASE ${new URL(db.ownerUrl).pathname.slice(1)} TO ${role}`)
   await owner.query(`GRANT USAGE ON SCHEMA ${NAMESPACE} TO ${role}`)
-  await owner.query(`GRANT SELECT, UPDATE ON ${NAMESPACE}.effects TO ${role}`)
+  await owner.query(`GRANT SELECT, UPDATE ON ${NAMESPACE}.effects, ${NAMESPACE}.commissions TO ${role}`)
   // An issue row whose UPDATE waits, before it takes the row lock, until the test opens the gate.
   await owner.query('CREATE TABLE public.boundary (id int PRIMARY KEY, status text NOT NULL)')
   await owner.query(`GRANT SELECT, UPDATE ON public.boundary TO ${role}`)
@@ -128,8 +128,9 @@ describe('the operator fence and the database boundary (WBC-02-CX-0024)', () => 
     await owner.query('SELECT pg_advisory_lock($1)', [GATE])
     await previousInstanceDiesMidStatement()
     await owner.query(
-      `INSERT INTO ${NAMESPACE}.commissions (commission_key, company_id, sophia_project_id, paperclip_project_id, work_id, state)
-       VALUES ('sophia-wbc02-k', 'c', 's', 'p', 'w', 'creating')`,
+      `INSERT INTO ${NAMESPACE}.commissions (commission_key, company_id, sophia_project_id, paperclip_project_id, work_id, state,
+         create_started_at, create_host_namespace, create_host_process)
+       VALUES ('sophia-wbc02-k', 'c', 's', 'p', 'w', 'creating', now(), 'boot-1/pid:[1]', '2201:90101')`,
     )
     await owner.query(
       `INSERT INTO ${NAMESPACE}.effects (effect_id, commission_key, status, host_namespace, host_process)
@@ -145,11 +146,15 @@ describe('the operator fence and the database boundary (WBC-02-CX-0024)', () => 
         return operator.query(sql, sql.includes('$2') ? [T, 'test operator'] : [T])
       }
       assert.equal((await run('open')).rowCount, 1)
+      assert.equal((await run('open-creates')).rowCount, 1)
       assert.equal((await run('fence')).rowCount, 0, 'never while a previous session remains')
+      assert.equal((await run('fence-creates')).rowCount, 0, 'nor a create')
       assert.equal((await run('end-sessions')).rowCount, 1)
       await until('the previous session to end', async () => (await sessions()).length === 1) // the operator's own
       assert.equal((await run('fence')).rowCount, 1)
+      assert.equal((await run('fence-creates')).rowCount, 1)
       assert.equal((await run('fence')).rowCount, 0, 'again: nothing left to fence')
+      assert.equal((await run('fence-creates')).rowCount, 0, 'again: no create left to fence')
     } finally {
       await operator.end()
     }
@@ -158,6 +163,11 @@ describe('the operator fence and the database boundary (WBC-02-CX-0024)', () => 
     const fenced = await owner.query<{ fence: string }>(`SELECT fence FROM ${NAMESPACE}.effects`)
     assert.match(
       fenced.rows[0]?.fence ?? '',
+      /^operator test operator: previous instance stopped before .+; its database sessions ended$/,
+    )
+    const create = await owner.query<{ fence: string }>(`SELECT create_fence AS fence FROM ${NAMESPACE}.commissions`)
+    assert.match(
+      create.rows[0]?.fence ?? '',
       /^operator test operator: previous instance stopped before .+; its database sessions ended$/,
     )
   })

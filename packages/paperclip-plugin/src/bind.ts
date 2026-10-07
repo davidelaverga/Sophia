@@ -145,7 +145,7 @@ export function hostOf(
         const issue = await ctx.issues.get(issueId, companyId)
         return issue ? issueOf(issue) : null
       },
-      create: async (input) => issueOf(await ctx.issues.create(input)),
+      create: async (input) => issueOf(await answered(ctx.issues.create(input))),
       update: async (issueId, patch, companyId) =>
         issueOf(await answered(ctx.issues.update(issueId, patch, companyId))),
       requestWakeup: async (issueId, companyId, options) => ({

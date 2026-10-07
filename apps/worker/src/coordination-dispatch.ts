@@ -4,8 +4,10 @@
 //   1. marks deliveries whose lease ran out outcome_unknown (they may have reached the plugin),
 //   2. claims due deliveries (a work item's commission before its controls, one unsettled delivery per item at a time),
 //   3. sends each and records what the plugin answered: delivered, a definite refusal, or unknown. A commission whose
-//      outcome is unknown is never sent again as is: it is reconciled by its key first (lookup), and created again only
-//      when the lookup proves no issue holds the key. A control is idempotent at the plugin by its delivery key.
+//      outcome is unknown is never sent again blind: it is reconciled by its key first (lookup). An issue found is
+//      bound and woken by sending the commission again, which the plugin answers from that issue; the commission is
+//      created again only when the lookup proves no issue holds the key. A control is idempotent at the plugin by its
+//      delivery key.
 import { randomUUID, type KeyObject } from 'node:crypto'
 import type pg from 'pg'
 import {
@@ -109,24 +111,32 @@ function settled<T extends object>(answer: PluginAnswer<T>, delivered: (body: T)
 
 async function commission(delivery: CoordinationDelivery, options: CoordinationOptions): Promise<Recorded> {
   const c = delivery.commission
-  if (delivery.reconcile) {
-    // Never create again on an unknown outcome: find the issue the key may already hold, or prove there is none.
-    const lookup = { key: c.key, sophiaProjectId: delivery.projectId, workId: delivery.workId }
-    const answer = await options.client.lookup({
-      companyId: c.companyId,
-      envelope: sign(delivery, 'lookup', lookup, options),
-      lookup,
-    })
-    return settled(answer, (body) =>
-      body.outcome === 'found'
-        ? {
-            outcome: 'delivered',
-            result: { issueId: body.issueId, status: body.status, reconciled: true },
-            reason: null,
-          }
-        : { outcome: 'absent', result: null, reason: 'no issue holds the commission key; it is sent again' },
-    )
-  }
+  if (!delivery.reconcile) return sendCommission(delivery, options, false)
+  // Never create again on an unknown outcome: find the issue the key may already hold, or prove there is none.
+  const lookup = { key: c.key, sophiaProjectId: delivery.projectId, workId: delivery.workId }
+  const answer = await options.client.lookup({
+    companyId: c.companyId,
+    envelope: sign(delivery, 'lookup', lookup, options),
+    lookup,
+  })
+  // Found, the issue may still lack its binding and its wakeup (the plugin stopped after the create): the commission
+  // is sent again, and the plugin binds that issue and asks its wakeup unless one is confirmed. Delivered only on that
+  // answer (Codex on #107).
+  if (answer.kind === 'ok' && answer.body.outcome === 'found') return sendCommission(delivery, options, true)
+  return settled(answer, () => ({
+    outcome: 'absent',
+    result: null,
+    reason: 'no issue holds the commission key; it is sent again',
+  }))
+}
+
+/** The commission itself; `reconciled` when a lookup found its issue first. */
+async function sendCommission(
+  delivery: CoordinationDelivery,
+  options: CoordinationOptions,
+  reconciled: boolean,
+): Promise<Recorded> {
+  const c = delivery.commission
   const payload = {
     key: c.key,
     sophiaProjectId: delivery.projectId,
@@ -144,7 +154,13 @@ async function commission(delivery: CoordinationDelivery, options: CoordinationO
   })
   return settled(answer, (body) => ({
     outcome: 'delivered',
-    result: { issueId: body.issueId, status: body.status, outcome: body.outcome, wakeQueued: body.wakeQueued },
+    result: {
+      issueId: body.issueId,
+      status: body.status,
+      outcome: body.outcome,
+      wakeQueued: body.wakeQueued,
+      ...(reconciled ? { reconciled: true } : {}),
+    },
     reason: null,
   }))
 }

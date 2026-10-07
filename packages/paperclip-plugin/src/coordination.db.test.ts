@@ -211,6 +211,38 @@ async function waitUntil(check: () => Promise<boolean>) {
 
 const outcome = (body: unknown) => (body as { outcome?: string; wakeQueued?: boolean } | undefined) ?? {}
 
+/** A create the host never answered, landing late: the issue the host makes for it, as the plugin would have asked. */
+const landCreate = async (p: MemoryPaperclip, c: Commission): Promise<string> =>
+  (
+    await p.host.issues.create({
+      companyId: COMPANY,
+      projectId: PROJECT,
+      title: c.title,
+      description: c.description,
+      status: c.initialStatus,
+      priority: 'medium',
+      assigneeAgentId: 'agent-source-reviewer',
+      originKind: COMMISSION_ORIGIN_KIND,
+      originId: c.key,
+      billingCode: `sophia:${c.workId}`,
+    })
+  ).id
+
+/** The claim of a key: the host process that serves its create, and whether the host answered it. */
+const claimOf = async (key: string) =>
+  (
+    await client.query<{ process: string | null; ended: boolean }>(
+      `SELECT create_host_process AS process, create_ended_at IS NOT NULL AS ended
+         FROM ${NAMESPACE}.commissions WHERE commission_key = $1`,
+      [key],
+    )
+  ).rows[0]
+
+const IN_PROGRESS = {
+  code: 'commission_in_progress',
+  message: 'Another request is creating this commission; reconcile by its key',
+}
+
 describe('commission', () => {
   it('creates one core issue assigned to the source reviewer, with the commission origin, and wakes it', async () => {
     const p = paperclip()
@@ -339,15 +371,115 @@ describe('commission', () => {
     const pending = await p.request(lookupRequest(c))
     gate.resolve()
     assert.equal(second.status, 503)
-    assert.deepEqual(code(second.body), {
-      code: 'commission_in_progress',
-      message: 'Another request is creating this commission; reconcile by its key',
-    })
+    assert.deepEqual(code(second.body), IN_PROGRESS)
     assert.equal(pending.status, 503, 'a create in flight is not proof of absence')
     assert.equal((await first).status, 200)
     assert.equal(p.issues.size, 1)
     const found = await p.request(lookupRequest(c))
     assert.deepEqual(found.body, { outcome: 'found', issueId: [...p.issues.keys()][0], status: 'todo' })
+  })
+
+  it('keeps the key claimed while a create the host never answered may land, however long ago (Codex on #107)', async () => {
+    let fault: 'unanswered' | null = 'unanswered'
+    const p = paperclip({ fails: { create: () => fault } })
+    const c = commissionOf()
+    await assert.rejects(p.request(commissionRequest(c)), { name: 'UnansweredHostCall' })
+    fault = null
+    await client.query(
+      `UPDATE ${NAMESPACE}.commissions SET create_started_at = create_started_at - interval '1 day',
+              updated_at = updated_at - interval '1 day' WHERE commission_key = $1`,
+      [c.key],
+    )
+    const lookup = await p.request(lookupRequest(c))
+    assert.equal(lookup.status, 503, 'a day on, still no proof of absence')
+    const again = await p.request(commissionRequest(c))
+    assert.deepEqual([again.status, code(again.body)], [503, IN_PROGRESS])
+    assert.equal(p.issues.size, 0, 'no second create was begun')
+    // The create lands after all: it is the commission's issue, bound and woken by the next delivery.
+    const late = await landCreate(p, c)
+    assert.deepEqual((await p.request(lookupRequest(c))).body, { outcome: 'found', issueId: late, status: 'todo' })
+    const bound = await p.request(commissionRequest(c))
+    assert.deepEqual(bound.body, { outcome: 'existing', issueId: late, status: 'todo', wakeQueued: true })
+    assert.equal(p.issues.size, 1)
+  })
+
+  it('an original create held past 120 s, across a restart, is never proved absent nor created again (Codex on #107)', async () => {
+    const gate = Promise.withResolvers<void>()
+    let serving: HostProcess = { namespace: 'boot-1/pid:[1]', process: 'host-1:100' }
+    const p = paperclip({ beforeCreate: () => gate.promise, hostProcess: () => serving })
+    const c = commissionOf()
+    const original = p.request(commissionRequest(c))
+    await waitUntil(async () => (await claimOf(c.key)) !== undefined)
+    // Held at the host for an hour by its row's age (no sleep), within the worker's wait or past it: the host may still
+    // commit. Then Paperclip restarts and another process serves: that proves nothing about the create either.
+    await client.query(
+      `UPDATE ${NAMESPACE}.commissions SET create_started_at = create_started_at - interval '1 hour',
+              updated_at = updated_at - interval '1 hour', created_at = created_at - interval '1 hour'
+        WHERE commission_key = $1`,
+      [c.key],
+    )
+    serving = { namespace: 'boot-2/pid:[1]', process: 'host-2:200' }
+    const [lookup, again] = await Promise.all([p.request(lookupRequest(c)), p.request(commissionRequest(c))])
+    assert.deepEqual(
+      [lookup.status, code(lookup.body)],
+      [503, { code: 'commission_in_progress', message: 'A create of this commission may still be in flight' }],
+    )
+    assert.deepEqual([again.status, code(again.body)], [503, IN_PROGRESS])
+    assert.deepEqual(
+      await claimOf(c.key),
+      { process: 'host-1:100', ended: false },
+      'the claim names the process serving it',
+    )
+    gate.resolve()
+    const late = await original
+    assert.equal(outcome(late.body).outcome, 'created', 'the original create completes late')
+    const issueId = [...p.issues.keys()][0]
+    assert.deepEqual((await p.request(lookupRequest(c))).body, { outcome: 'found', issueId, status: 'todo' })
+    const resent = await p.request(commissionRequest(c))
+    assert.deepEqual(resent.body, { outcome: 'existing', issueId, status: 'todo', wakeQueued: false })
+    assert.equal(p.issues.size, 1, 'one core issue')
+    assert.equal(p.wakeups.length, 1, 'one wakeup')
+    assert.equal(await runsOf(issueId ?? ''), 1)
+  })
+
+  it('an operator fence ends the claim of a create that never landed: the key is then created once', async () => {
+    let fault: 'unanswered' | null = 'unanswered'
+    const p = paperclip({ fails: { create: () => fault } })
+    const c = commissionOf()
+    await assert.rejects(p.request(commissionRequest(c)), { name: 'UnansweredHostCall' })
+    fault = null
+    await client.query(
+      `UPDATE ${NAMESPACE}.commissions SET create_fenced_at = now(), create_fence = 'test operator' WHERE commission_key = $1`,
+      [c.key],
+    )
+    assert.deepEqual((await p.request(lookupRequest(c))).body, { outcome: 'absent' })
+    const created = await p.request(commissionRequest(c))
+    assert.equal(outcome(created.body).outcome, 'created')
+    assert.equal(p.issues.size, 1)
+    const again = await p.request(commissionRequest(c))
+    assert.equal(outcome(again.body).outcome, 'existing')
+    assert.equal(p.issues.size, 1)
+  })
+
+  it('a create the host answered with an error ends its claim: the issue its origin finds is the whole truth', async () => {
+    for (const failure of ['before', 'after'] as const) {
+      let fault: 'before' | 'after' | null = failure
+      const p = paperclip({ fails: { create: () => fault } })
+      const c = commissionOf()
+      await assert.rejects(p.request(commissionRequest(c)), /injected: issue create/)
+      fault = null
+      const lookup = await p.request(lookupRequest(c))
+      const resent = await p.request(commissionRequest(c))
+      assert.equal(p.issues.size, 1, `${failure}: one issue`)
+      const issueId = [...p.issues.keys()][0]
+      if (failure === 'before') {
+        assert.deepEqual(lookup.body, { outcome: 'absent' })
+        assert.equal(outcome(resent.body).outcome, 'created')
+      } else {
+        assert.deepEqual(lookup.body, { outcome: 'found', issueId, status: 'todo' })
+        assert.equal(outcome(resent.body).outcome, 'existing')
+      }
+    }
   })
 
   it('proves absence of a key no create ever claimed', async () => {

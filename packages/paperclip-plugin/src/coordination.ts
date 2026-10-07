@@ -7,9 +7,10 @@
  * the commission's binding, the controls, the nonces, the wakeups asked and the status writes until they settle.
  *
  * Creating is serialized per commission key: a namespace row claims the key, the core issue is looked up by its
- * exact origin (`plugin:sophia.coordination:commission`, the key) before anything is created, and a create whose
- * outcome Sophia did not see is answered by the same issue. While another request is creating, the answer is 503:
- * Sophia treats it as unknown and reconciles, never as a refusal.
+ * exact origin (`plugin:sophia.coordination:commission`, the key) before anything is created and again once the key is
+ * claimed, and a create whose outcome Sophia did not see is answered by the same issue. While another create of the key
+ * may still land, the answer is 503: Sophia treats it as unknown and reconciles, never as a refusal. A claim ends only
+ * when the host answered its create, or once an operator fenced it; never by time (Codex on #107).
  * @module @sophia/paperclip-plugin/coordination
  */
 import { createPublicKey, randomUUID, type KeyObject } from 'node:crypto'
@@ -35,9 +36,6 @@ import {
   type LookupReply,
 } from '@sophia/coordination/plugin-wire'
 import { UnansweredHostCall, type ApiRequest, type ApiResponse, type CoordinationHost, type HostIssue } from './host.ts'
-
-/** How long a claimed but unfinished create blocks another (a worker that died mid-create releases it after this). */
-const CREATING_STALE_SECONDS = 120
 
 /** One Sophia project's binding to a Paperclip company and project, as the operator configured it. */
 export interface ProjectMapping {
@@ -187,20 +185,69 @@ async function bind(
   )
 }
 
-/** Claim the key for this request's create: a new row, or one another create left behind long enough ago. */
+/**
+ * Claim the key for this request's create, recorded with the host process that serves it (`host.hostProcess`, for the
+ * operator who may fence it): a new row, or one whose create ended (the host answered it) or was fenced. A create the
+ * host never answered may still land, however late, even after the worker stopped waiting (HOST_CALL_TIMEOUT_MS): its
+ * claim is never taken over by time (Codex on #107).
+ */
 async function claim(host: CoordinationHost, companyId: string, c: Commission): Promise<boolean> {
+  const at = [host.hostProcess?.namespace ?? null, host.hostProcess?.process ?? null]
   const fresh = await host.execute(
-    `INSERT INTO ${host.namespace}.commissions (commission_key, company_id, sophia_project_id, paperclip_project_id, work_id, state)
-     VALUES ($1, $2, $3, $4, $5, 'creating') ON CONFLICT (commission_key) DO NOTHING`,
-    [c.key, companyId, c.sophiaProjectId, c.paperclipProjectId, c.workId],
+    `INSERT INTO ${host.namespace}.commissions (commission_key, company_id, sophia_project_id, paperclip_project_id, work_id, state,
+       create_started_at, create_host_namespace, create_host_process)
+     VALUES ($1, $2, $3, $4, $5, 'creating', now(), $6, $7) ON CONFLICT (commission_key) DO NOTHING`,
+    [c.key, companyId, c.sophiaProjectId, c.paperclipProjectId, c.workId, ...at],
   )
   if (fresh.rowCount === 1) return true
-  const stale = await host.execute(
-    `UPDATE ${host.namespace}.commissions SET updated_at = now()
-      WHERE commission_key = $1 AND state = 'creating' AND updated_at < now() - make_interval(secs => $2)`,
-    [c.key, CREATING_STALE_SECONDS],
+  const ended = await host.execute(
+    `UPDATE ${host.namespace}.commissions
+        SET create_started_at = now(), create_host_namespace = $2, create_host_process = $3, create_ended_at = NULL,
+            create_fenced_at = NULL, create_fence = NULL, updated_at = now()
+      WHERE commission_key = $1 AND state = 'creating' AND (create_ended_at IS NOT NULL OR create_fenced_at IS NOT NULL)`,
+    [c.key, ...at],
   )
-  return stale.rowCount === 1
+  return ended.rowCount === 1
+}
+
+/**
+ * The claimed create, or the issue found once the key is claimed: the create this claim follows may have ended with its
+ * issue after the lookup before the claim. A create the host answered with an error ends the claim, as does any failure
+ * before it is asked: the host answers once it finished with the call, so from then the issue found by its origin (one
+ * may have landed before the error) is the whole truth. One it never answered (UnansweredHostCall) keeps the claim
+ * until an operator fences it. The issue is bound next, which ends the claim.
+ */
+async function createIssue(
+  host: CoordinationHost,
+  c: Commission,
+  companyId: string,
+  agent: string,
+): Promise<{ readonly issue: HostIssue; readonly landed: boolean }> {
+  try {
+    const landed = await issueOf(host, companyId, c.key)
+    if (landed !== null) return { issue: landed, landed: true }
+    const issue = await host.issues.create({
+      companyId,
+      projectId: c.paperclipProjectId,
+      title: c.title,
+      description: c.description,
+      status: c.initialStatus,
+      priority: 'medium',
+      assigneeAgentId: agent,
+      originKind: COMMISSION_ORIGIN_KIND,
+      originId: c.key,
+      billingCode: `sophia:${c.workId}`,
+    })
+    return { issue, landed: false }
+  } catch (err: unknown) {
+    if (!(err instanceof UnansweredHostCall))
+      await host.execute(
+        `UPDATE ${host.namespace}.commissions SET create_ended_at = now(), updated_at = now()
+          WHERE commission_key = $1 AND state = 'creating' AND create_ended_at IS NULL`,
+        [c.key],
+      )
+    throw err
+  }
 }
 
 async function wake(host: CoordinationHost, issue: HostIssue, key: string): Promise<boolean> {
@@ -298,30 +345,28 @@ export async function handleCommission(host: CoordinationHost, input: ApiRequest
   })
   const bound = { ...c, companyId: input.companyId }
   const existing = await issueOf(host, input.companyId, c.key)
-  if (existing !== null) {
-    await bind(host, bound, existing.id)
-    const queued = await wakeCommission(host, c, existing)
-    return { outcome: 'existing', issueId: existing.id, status: existing.status, wakeQueued: queued }
-  }
+  if (existing !== null) return existingCommission(host, c, bound, existing)
   const agent = await host.reviewerAgent(input.companyId)
   if (agent === null) refuse(409, 'reviewer_missing', 'The source-reviewer agent is not provisioned in this company')
   if (!(await claim(host, input.companyId, c)))
     refuse(503, 'commission_in_progress', 'Another request is creating this commission; reconcile by its key')
-  const issue = await host.issues.create({
-    companyId: input.companyId,
-    projectId: c.paperclipProjectId,
-    title: c.title,
-    description: c.description,
-    status: c.initialStatus,
-    priority: 'medium',
-    assigneeAgentId: agent,
-    originKind: COMMISSION_ORIGIN_KIND,
-    originId: c.key,
-    billingCode: `sophia:${c.workId}`,
-  })
+  const { issue, landed } = await createIssue(host, c, input.companyId, agent)
+  if (landed) return existingCommission(host, c, bound, issue)
   await bind(host, bound, issue.id)
   const queued = await wakeCommission(host, c, issue)
   return { outcome: 'created', issueId: issue.id, status: issue.status, wakeQueued: queued }
+}
+
+/** A commission whose issue exists: bound to it, and woken if its wakeup is not yet confirmed. */
+async function existingCommission(
+  host: CoordinationHost,
+  c: Commission,
+  bound: Commission & { companyId: string },
+  issue: HostIssue,
+): Promise<CommissionReply> {
+  await bind(host, bound, issue.id)
+  const queued = await wakeCommission(host, c, issue)
+  return { outcome: 'existing', issueId: issue.id, status: issue.status, wakeQueued: queued }
 }
 
 export async function handleLookup(host: CoordinationHost, input: ApiRequest): Promise<LookupReply> {
@@ -334,14 +379,15 @@ export async function handleLookup(host: CoordinationHost, input: ApiRequest): P
     ops: new Set(['lookup']),
     binding: { sophiaProjectId: lookup.sophiaProjectId, workId: lookup.workId, commissionKey: lookup.key },
   })
+  // The claim is read before the issue: a create that ended before this read has its issue, if any, found below.
+  const rows = await host.query<{ creating: boolean }>(
+    `SELECT state = 'creating' AND create_ended_at IS NULL AND create_fenced_at IS NULL AS creating
+       FROM ${host.namespace}.commissions WHERE commission_key = $1`,
+    [lookup.key],
+  )
   const issue = await issueOf(host, input.companyId, lookup.key)
   if (issue !== null) return { outcome: 'found', issueId: issue.id, status: issue.status }
-  // A create still in flight could yet produce the issue: that is not proof of absence.
-  const rows = await host.query<{ creating: boolean }>(
-    `SELECT state = 'creating' AND updated_at >= now() - make_interval(secs => $2) AS creating
-       FROM ${host.namespace}.commissions WHERE commission_key = $1`,
-    [lookup.key, CREATING_STALE_SECONDS],
-  )
+  // A create the host has not answered, nor an operator fenced, could yet produce the issue: not proof of absence.
   if (rows[0]?.creating === true)
     refuse(503, 'commission_in_progress', 'A create of this commission may still be in flight')
   return { outcome: 'absent' }

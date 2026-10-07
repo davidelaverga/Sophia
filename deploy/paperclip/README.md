@@ -181,8 +181,9 @@ Sophia's signing private key and the integration board key never enter Paperclip
 
 **Fencing a previous instance.** A status write that the host never answered stays open until an operator fences
 it ([WBC-02-CC-0009](../../docs/coordination/WBC-02/WBC-02-CC-0009.md)). Meanwhile no delivery of its commission is
-confirmed, and every settlement still restores Sophia's latest control if the write lands. The plugin never fences one
-itself. A statement the instance had sent can wait in its database session and commit after the instance died
+confirmed, and every settlement still restores Sophia's latest control if the write lands. An issue create the host
+never answered likewise keeps its commission key claimed until it is fenced: Sophia's lookup answers 503 and no second
+create begins, however long it takes. The plugin never fences either itself. A statement the instance had sent can wait in its database session and commit after the instance died
 (Codex's WBC-02-CX-0024; `packages/paperclip-plugin/src/operator-fence.db.test.ts` reproduces it with a killed
 client). So the fence is [`fence-previous-instance.sql`](fence-previous-instance.sql), run by an operator:
 
@@ -195,9 +196,9 @@ client). So the fence is [`fence-previous-instance.sql`](fence-previous-instance
    psql "$PAPERCLIP_DATABASE_URL" -v before='<T>' -v operator='<who, which deploy>' -f fence-previous-instance.sql
    ```
 
-   The script lists the open writes begun before T, then ends every session of that role begun before T. Ending a
-   session rolls back what it had not committed. It fences the writes only while none of those sessions remains:
-   if it reports `UPDATE 0` with writes still listed, run it again.
+   The script lists the open writes and creates begun before T, then ends every session of that role begun before T.
+   Ending a session rolls back what it had not committed. It fences the writes and creates only while none of those
+   sessions remains: if it reports `UPDATE 0` with any still listed, run it again.
 
 The settle job then settles the fenced writes within a minute. Never fence while the instance that served them may
 still run.
