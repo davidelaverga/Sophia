@@ -46,8 +46,8 @@ Design note: `docs/plans/conversations-find.md`. No API change: A18 lists what e
 
 ## Limitations and next action
 
-- **Mutants not yet run:** the rule is no mutation loops beside a game. To run when AION2 is closed: `narrowed`
-  ignoring «Mine», the count not a status, Clear without focus, the quick ask not asking Sophia, the row not kept while
-  away, Send's focus from anywhere.
+- Mutants (run beside AION2 under `safe-run.ps1 -Gentle -AllowApps AION2` at Luis's word, RAM floors untouched),
+  each killed with the control surviving: «Mine» narrowing nothing, the count not a status, Clear without focus, the
+  quick ask not asking Sophia, the row gone (not kept) while away, Send taking the focus from anywhere.
 - The last message in each row waits on A18's `lastMessage` (a proposal for Davide); unread needs a read marker.
 - Next: the PR, stacked on the follow-ups PR.
