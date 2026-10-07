@@ -5,6 +5,7 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { writeFailure } from './ConversationComposer.tsx'
 import { firstWords } from './conversation-list.ts'
@@ -130,6 +131,8 @@ function Fields(props: {
           disabled={fixed}
           onChange={(e) => onChange({ askSophia: e.target.checked })}
         />
+        <span className="conv-ask-box" aria-hidden />
+        <Mark />
         Ask Sophia
       </label>
     </>

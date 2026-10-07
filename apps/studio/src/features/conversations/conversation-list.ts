@@ -68,12 +68,17 @@ type Said = { author: 'member' | 'sophia'; actorId: string | null; at: string }
 /** Whether `m` goes on from `before`: the same author (Sophia, or the same person) within five minutes. */
 export function continuesRun(before: Said | undefined, m: Said): boolean {
   if (!before || before.author !== m.author || before.actorId !== m.actorId) return false
+  // Two members known by no id may be two people: never one run.
+  if (m.author === 'member' && m.actorId === null) return false
   const gap = Date.parse(m.at) - Date.parse(before.at)
   return gap >= 0 && gap < RUN_MS
 }
 
-/** A face's letter: the name's first, upper case; a member with no name is «A member». */
-export const initialOf = (name: string | null) => (name ?? 'A member').trim().charAt(0).toLocaleUpperCase()
+/** A face's letter: the name's first character (whole, an emoji too), upper case; no name is «A member». */
+export function initialOf(name: string | null): string {
+  const [first] = new Intl.Segmenter().segment((name ?? '').trim())
+  return (first?.segment ?? 'A').toLocaleUpperCase()
+}
 
 /** Whether Sophia answered since she was asked: a message of hers written after then (wherever the page holds it). */
 export function answeredAfter(

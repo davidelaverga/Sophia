@@ -1,0 +1,154 @@
+import { expect, test, type Locator, type Page } from '@playwright/test'
+
+// Conversations in three panes (docs/plans/conversations-panes.md): the list, the open conversation and its context
+// side by side on a wide screen; the context as a panel under 1180 px; one screen at a time on a phone. On the fixture
+// page; only the API is faked, and each check ends by asking the page whether anything reached for it unanswered.
+
+test.use({ timezoneId: 'UTC', locale: 'en-US' })
+
+const PAGE = '/room.html?place=conversations&conversations=1'
+const list = (page: Page) => page.getByRole('region', { name: 'All conversations' })
+const rows = (page: Page) => list(page).getByRole('listitem').getByRole('button')
+const open = (page: Page) => page.getByRole('region', { name: 'Open conversation' })
+const context = (page: Page) => page.getByRole('complementary', { name: 'Project context' })
+const messages = (page: Page) => open(page).getByRole('listitem')
+const field = (page: Page) => open(page).getByRole('textbox', { name: 'Continue this question with the team' })
+const send = (page: Page) => open(page).getByRole('button', { name: 'Send' })
+const toggle = (page: Page) => open(page).getByRole('button', { name: 'Context' })
+const dock = (page: Page) => page.getByRole('group', { name: 'Project room' })
+
+test.afterEach(async ({ page }) => {
+  expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
+})
+
+/** Whether nothing covers the middle of what `locator` names: a press there reaches it. */
+const onTop = (locator: Locator) =>
+  locator.evaluate((el) => {
+    const r = el.getBoundingClientRect()
+    return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2))
+  })
+
+test('panes · over 1180 px: the list, the conversation and its context side by side; the page does not scroll', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 800 })
+  await page.goto(PAGE)
+  await expect(messages(page).first()).toBeVisible()
+  const [l, o, c] = await Promise.all([list(page).boundingBox(), open(page).boundingBox(), context(page).boundingBox()])
+  if (!l || !o || !c) throw new Error('a pane is missing')
+  expect(l.x + l.width).toBeLessThanOrEqual(o.x + 1)
+  expect(o.x + o.width).toBeLessThanOrEqual(c.x + 1)
+  expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeLessThanOrEqual(0)
+  await expect(toggle(page)).toBeHidden()
+  // The field rests at the window's foot while the thread's first message is read.
+  await messages(page).first().scrollIntoViewIfNeeded()
+  await expect(field(page)).toBeInViewport()
+  await expect(messages(page).first()).toBeInViewport()
+})
+
+for (const width of [1440, 1000, 900]) {
+  test(`panes · at ${String(width)} px the room’s dock never covers Send`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto(PAGE)
+    await field(page).fill('Ready to go.')
+    expect(await onTop(send(page)), 'Send').toBe(true)
+    if (width > 1180) {
+      // A short window: the context scrolls, and read to its end, its last line stays clear of the dock.
+      await page.setViewportSize({ width, height: 520 })
+      await context(page).evaluate((el) => (el.scrollTop = el.scrollHeight))
+      const last = context(page).locator('p:visible, li:visible, summary:visible').last()
+      expect(await onTop(last), 'the context’s last line').toBe(true)
+    }
+  })
+}
+
+test('panes · at 1000 px the context opens from «Context» and Esc gives the focus back', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await page.goto(PAGE)
+  await expect(context(page)).toBeHidden()
+  await expect(toggle(page)).toHaveAttribute('aria-expanded', 'false')
+  await toggle(page).click()
+  await expect(context(page)).toBeVisible()
+  await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true')
+  await expect(context(page).getByRole('button', { name: 'Close the context' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(context(page)).toBeHidden()
+  await expect(toggle(page)).toBeFocused()
+})
+
+test('panes @phone · one screen at a time: the list, then the conversation alone, and back', async ({ page }) => {
+  await page.goto(PAGE)
+  await expect(rows(page).first()).toBeVisible()
+  await expect(open(page)).toBeHidden()
+  // The room's dock waits on the list.
+  await expect(dock(page)).toBeVisible()
+  await rows(page).nth(1).click()
+  await expect(open(page)).toBeVisible()
+  await expect(list(page)).toBeHidden()
+  await expect(dock(page)).toBeHidden()
+  await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('Short or long briefs?')
+  await open(page).getByRole('button', { name: 'All conversations' }).click()
+  await expect(list(page)).toBeVisible()
+  await expect(rows(page).nth(1)).toBeFocused()
+  const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(wide).toBeLessThanOrEqual(0)
+})
+
+test('panes @phone · a conversation’s context rises from the foot', async ({ page }) => {
+  await page.goto(PAGE)
+  await rows(page).first().click()
+  await toggle(page).click()
+  await expect(context(page)).toBeVisible()
+  // It rises over 220 ms: once risen, it rests on the window's foot.
+  const gap = async () => {
+    const box = await context(page).boundingBox()
+    const viewport = page.viewportSize()
+    return box && viewport ? Math.round(Math.abs(box.y + box.height - viewport.height)) : Infinity
+  }
+  await expect.poll(gap).toBeLessThanOrEqual(1)
+})
+
+test('panes · a note sent while the thread is scrolled up comes into sight', async ({ page }) => {
+  // A short window, so the thread scrolls; read from its top, away from its end.
+  await page.setViewportSize({ width: 1440, height: 480 })
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  const thread = open(page).locator('.conv-scroll')
+  expect(await thread.evaluate((el) => el.scrollHeight > el.clientHeight + 100)).toBe(true)
+  await thread.evaluate((el) => {
+    el.scrollTop = 0
+    el.dispatchEvent(new Event('scroll'))
+  })
+  await expect(messages(page).first()).toBeInViewport()
+  const ask = open(page).getByRole('checkbox', { name: 'Ask Sophia' })
+  if (await ask.isChecked()) await ask.uncheck()
+  await field(page).fill('Sent from up here.')
+  await field(page).press('Enter')
+  await expect(messages(page).filter({ hasText: 'Sent from up here.' })).toBeInViewport({ ratio: 1 })
+})
+
+test('panes · your words on the right, the team’s on the left', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 800 })
+  await page.goto(PAGE)
+  const edge = (text: string) =>
+    messages(page)
+      .filter({ hasText: text })
+      .locator('.conv-msg-body')
+      .evaluate((el) => {
+        const r = el.getBoundingClientRect()
+        const pane = el.closest('.conv-open')?.getBoundingClientRect()
+        return pane ? { left: r.left - pane.left, right: pane.right - r.right } : null
+      })
+  const mine = await edge('Let’s look at it together tomorrow.')
+  const theirs = await edge('And every claim keeps its source')
+  expect(mine && mine.right < mine.left, 'yours nearer the right').toBe(true)
+  expect(theirs && theirs.left < theirs.right, 'theirs nearer the left').toBe(true)
+})
+
+test('panes · the summary is the context’s first card, «This conversation»', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 800 })
+  await page.goto(PAGE)
+  const card = context(page).getByRole('region', { name: 'This conversation' })
+  await expect(card).toContainText('Compared a short brief')
+  await expect(open(page).getByText('Compared a short brief')).toHaveCount(0)
+})

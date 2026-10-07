@@ -42,7 +42,7 @@ test('thread · a message that continues a run hides its face and its byline fro
   await note(page, 'Goes on from mine.')
   const first = messages(page).filter({ hasText: 'Let’s look at it together tomorrow.' })
   const second = messages(page).filter({ hasText: 'Goes on from mine.' })
-  await expect(first.locator('.conv-face')).toBeVisible()
+  // Yours have no face (they sit on the right); the run's first still says who and when.
   await expect(first.locator('.conv-msg-by')).toBeVisible()
   // The note continues it: no face, no byline in sight; its author still said.
   await expect(second.locator('.conv-face')).toBeHidden()
@@ -50,23 +50,15 @@ test('thread · a message that continues a run hides its face and its byline fro
   expect(await second.ariaSnapshot()).toContain('You')
 })
 
-test('thread · Sophia’s words sit on a quiet plane; a person’s on none', async ({ page }) => {
+test('thread · Sophia’s words sit on her own plane, not a person’s', async ({ page }) => {
   await page.goto(PAGE)
   const plane = (text: string) =>
     messages(page)
       .filter({ hasText: text })
       .locator('.conv-msg-body')
       .evaluate((el) => getComputedStyle(el).backgroundColor)
-  expect(await plane('I can keep both versions apart')).not.toBe('rgba(0, 0, 0, 0)')
-  expect(await plane('And every claim keeps its source')).toBe('rgba(0, 0, 0, 0)')
-})
-
-test('thread · on a wide screen the field stays in reach while the thread is read', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 700 })
-  await page.goto(PAGE)
-  await messages(page).first().scrollIntoViewIfNeeded()
-  await expect(messages(page).first()).toBeInViewport()
-  await expect(field(page)).toBeInViewport()
+  // Every message is a bubble; hers is on her plane, unlike a person's.
+  expect(await plane('I can keep both versions apart')).not.toBe(await plane('And every claim keeps its source'))
 })
 
 test('thread · «Ask Sophia» is a checkbox shown as a chip with her mark, pressed by its label', async ({ page }) => {
@@ -76,8 +68,21 @@ test('thread · «Ask Sophia» is a checkbox shown as a chip with her mark, pres
   const box = await chip.boundingBox()
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(28)
   await expect(ask(page)).toBeChecked()
+  // On is said by more than a colour: a tick in its box (forced colours keep a border's shape).
+  const tick = () => chip.locator('.conv-ask-box').evaluate((el) => getComputedStyle(el, '::after').content)
+  expect(await tick()).not.toBe('none')
   await chip.click()
   await expect(ask(page)).not.toBeChecked()
+  expect(await tick()).toBe('none')
+})
+
+test('thread · a new conversation’s «Ask Sophia» is the same chip, with her mark and its box', async ({ page }) => {
+  await page.goto(PAGE)
+  await page.getByRole('button', { name: 'New conversation' }).click()
+  const chip = page.getByRole('form', { name: 'New conversation' }).locator('label.conv-ask')
+  await expect(chip.locator('.umbral')).toBeVisible()
+  await expect(chip.locator('.conv-ask-box')).toBeVisible()
+  await expect(chip.getByRole('checkbox', { name: 'Ask Sophia' })).toBeChecked()
 })
 
 test('thread · what the conversation made opens from its head, before the messages', async ({ page }) => {

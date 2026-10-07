@@ -2,6 +2,8 @@
 // conversations, newest activity first, each with its own history; the one open beside them; and the project's
 // context, the same for all of them. Members start one (New conversation) and continue one; viewers read
 // (docs/plans/project-conversation-writes.md). Under the vision flag, where the fixture pages answer (A18, proposed).
+// In three panes (docs/plans/conversations-panes.md): the list, the open one, its context. Under 1180 px the context is
+// a panel «Context» opens; on a phone one screen shows at a time, the list or the conversation.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { Membership } from '@sophia/contracts'
@@ -34,10 +36,14 @@ interface Props {
   cursor: string | undefined
 }
 
-export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
-  const me = membership?.actorId ?? ''
-  // Unknown until the membership is read: neither a field nor the viewer's line meanwhile.
-  const writer = membership && membership.role !== 'viewer'
+/** Who reads here: their id, and whether they write (unknown until the membership is read: neither, meanwhile). */
+const readerOf = (membership: Membership | undefined) => ({
+  me: membership?.actorId ?? '',
+  writer: membership && membership.role !== 'viewer',
+})
+
+/** The project's conversations, newest activity first, read again as the feed moves. */
+function useList(projectId: string, identity: Identity, cursor: string | undefined) {
   const list = useQuery({
     queryKey: listKey(projectId, identity.name),
     queryFn: ({ signal }) => listConversations(identity.token, projectId, signal),
@@ -45,48 +51,131 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     retry: 1,
   })
   useReadAgain(cursor, list.refetch)
-  const all = list.data ?? []
+  return { list, all: list.data ?? [] }
+}
+
+export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
+  const { me, writer } = readerOf(membership)
+  const { list, all } = useList(projectId, identity, cursor)
   const { open, choose } = useChosen(all)
+  const panes = usePanes()
   const talk = useTalk(projectId, identity.name)
-  const start = useStart(projectId, identity, talk, choose)
+  const start = useStart(projectId, identity, talk, (id) => {
+    choose(id)
+    panes.show()
+  })
+  // The one open, unless the form for a new one is in its place.
+  const shown = start.starting ? undefined : open
   return (
-    <section className="conversations" aria-labelledby="conversations-title">
-      <h2 id="conversations-title">Conversations</h2>
-      <div className="conversations-grid">
-        <section className="conv-list" aria-label="All conversations">
-          {writer && (
-            <button
-              ref={start.button}
-              type="button"
-              className="pill conv-start"
-              aria-pressed={start.starting}
-              onClick={start.toggle}
-            >
-              New conversation
-            </button>
-          )}
-          <ListState read={list} count={all.length} />
-          {all.length > 0 && (
-            <Rows
-              all={all}
-              openId={start.starting ? undefined : open?.id}
-              me={me}
-              onOpen={(id) => {
-                start.close()
-                choose(id)
-              }}
-            />
-          )}
-        </section>
-        {start.starting ? (
-          <NewConversation projectId={projectId} identity={identity} {...start.form} />
-        ) : (
-          open && <Open conversation={open} {...{ identity, me, cursor, writer, talk, start }} />
-        )}
-        <ProjectContext projectId={projectId} identity={identity} cursor={cursor} />
-      </div>
+    <section
+      ref={panes.view}
+      className="conversations"
+      data-screen={start.starting ? 'thread' : panes.screen}
+      data-context={panes.context || undefined}
+      aria-labelledby="conversations-title"
+    >
+      <ListPane
+        read={list}
+        all={all}
+        openId={shown?.id}
+        me={me}
+        start={writer ? start : null}
+        onOpen={(id) => {
+          start.close()
+          choose(id)
+          panes.show()
+        }}
+      />
+      {start.starting && <NewConversation projectId={projectId} identity={identity} {...start.form} />}
+      {shown && <Open conversation={shown} {...{ identity, me, cursor, writer, talk, start, panes }} />}
+      <ProjectContext
+        {...{ projectId, identity, cursor }}
+        conversation={shown}
+        opened={panes.context}
+        onClose={panes.closeContext}
+      />
+      {panes.context && <div className="conv-scrim" aria-hidden onClick={panes.closeContext} />}
     </section>
   )
+}
+
+/** The left pane: the list's name and New conversation (for members), the list's state, and its rows. */
+function ListPane(props: {
+  read: Parameters<typeof ListState>[0]['read']
+  all: readonly ConversationSummary[]
+  openId: string | undefined
+  me: string
+  start: ReturnType<typeof useStart> | null
+  onOpen: (id: string) => void
+}) {
+  const { all } = props
+  return (
+    <section className="conv-list" aria-label="All conversations">
+      <div className="conv-list-head">
+        <h2 id="conversations-title">Conversations</h2>
+        {props.start && <StartButton start={props.start} />}
+      </div>
+      <ListState read={props.read} count={all.length} />
+      {all.length > 0 && <Rows all={all} openId={props.openId} me={props.me} onOpen={props.onOpen} />}
+    </section>
+  )
+}
+
+/** New conversation: a + press beside the list's name, its words in its name and its tip. */
+function StartButton({ start }: { start: ReturnType<typeof useStart> }) {
+  return (
+    <button
+      ref={start.button}
+      type="button"
+      className="icon-button conv-start"
+      aria-label="New conversation"
+      title="New conversation"
+      aria-pressed={start.starting}
+      onClick={start.toggle}
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+        <path d="M7 1.5v11M1.5 7h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </button>
+  )
+}
+
+/**
+ * What the panes show where they can't all show: on a phone, the list or the conversation (back to the list puts the
+ * focus on the row pressed); under 1180 px, whether the context is open (Esc, Close or a press outside closes it, and the
+ * focus goes back to «Context»). Over those widths the panes all show, and these change nothing.
+ */
+function usePanes() {
+  const view = useRef<HTMLElement>(null)
+  const toggle = useRef<HTMLButtonElement>(null)
+  const [screen, setScreen] = useState<'list' | 'thread'>('list')
+  const [context, setContext] = useState(false)
+  const closeContext = useCallback(() => {
+    setContext(false)
+    toggle.current?.focus()
+  }, [])
+  useEffect(() => {
+    if (!context) return undefined
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeContext()
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [context, closeContext])
+  const back = () => {
+    setContext(false)
+    setScreen('list')
+    // After the list shows again: the row of the conversation left.
+    requestAnimationFrame(() => view.current?.querySelector<HTMLElement>('.conv-row[aria-pressed="true"]')?.focus())
+  }
+  return {
+    view,
+    toggle,
+    screen,
+    show: () => setScreen('thread'),
+    back,
+    context,
+    toggleContext: () => setContext((on) => !on),
+    closeContext,
+  }
 }
 
 /** The open conversation, with what is under way in it kept by the view (talk-store.ts). */
@@ -98,8 +187,9 @@ function Open(props: {
   writer: boolean | undefined
   talk: ReturnType<typeof useTalk>
   start: ReturnType<typeof useStart>
+  panes: ReturnType<typeof usePanes>
 }) {
-  const { conversation: c, talk, start } = props
+  const { conversation: c, talk, start, panes } = props
   return (
     <OpenConversation
       key={c.id}
@@ -111,6 +201,8 @@ function Open(props: {
       {...talk.of(c.id)}
       arrived={start.arrived === c.id}
       onArrived={start.clearArrived}
+      onBack={panes.back}
+      context={{ open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
     />
   )
 }

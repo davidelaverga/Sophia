@@ -108,6 +108,7 @@ export function ConversationComposer(props: Props) {
             disabled={held !== null}
             onChange={(e) => props.onAskSophia(e.target.checked)}
           />
+          <span className="conv-ask-box" aria-hidden />
           <Mark />
           Ask Sophia
         </label>

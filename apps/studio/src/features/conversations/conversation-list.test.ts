@@ -214,6 +214,12 @@ describe('continuesRun: a message that goes on from the one before it', () => {
     )
     assert.equal(continuesRun(undefined, said('member', 'a', '2026-10-06T09:00:00Z')), false)
   })
+  it('never joins two members known by no id: they may be two people', () => {
+    assert.equal(
+      continuesRun(said('member', null, '2026-10-06T09:00:00Z'), said('member', null, '2026-10-06T09:01:00Z')),
+      false,
+    )
+  })
 })
 
 describe('initialOf: a face’s letter', () => {
@@ -221,5 +227,7 @@ describe('initialOf: a face’s letter', () => {
     assert.equal(initialOf('lucía'), 'L')
     assert.equal(initialOf(' Ángel'), 'Á')
     assert.equal(initialOf(null), 'A')
+    assert.equal(initialOf(''), 'A')
+    assert.equal(initialOf('🙂 Ana'), '🙂')
   })
 })
