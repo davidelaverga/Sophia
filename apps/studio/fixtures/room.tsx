@@ -273,6 +273,9 @@ const room: RoomAsked = {
 }
 const floorTo: string[] = []
 
+/** The research task's revision at the start: the demo's second, the plain fixture's first. */
+const RESEARCH_REVISION: 1 | 2 = DEMO ? 2 : 1
+
 const project = {
   revision: 1,
   exchange: query.get('exchange') === 'open' || sophiaAsked,
@@ -304,7 +307,7 @@ const project = {
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
   // The demo's research is on its second version, as its report (both published by default).
-  taskRevision: DEMO ? 2 : 1,
+  taskRevision: RESEARCH_REVISION,
   taskHeld: query.get('hold') === 'task',
   taskFails: false,
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
