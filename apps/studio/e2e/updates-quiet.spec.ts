@@ -100,5 +100,5 @@ test('updates · every label and line reads at 4.5:1, on the app’s type sizes'
   await expect(meetings(page).getByRole('button').first()).toBeVisible()
   expect(await lowContrast(page, '.updates')).toEqual([])
   const sizes = await typeSizes(page, '.updates')
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '18px'], sizes.join(' ')).toContain(s)
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '20px'], sizes.join(' ')).toContain(s)
 })

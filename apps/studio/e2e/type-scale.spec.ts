@@ -1,0 +1,30 @@
+import { expect, test } from '@playwright/test'
+import { typeSizes } from './type-sizes.ts'
+
+// The work views keep to the app's type scale (docs/plans/type-stragglers.md): the four text sizes (label 10.5, small 12,
+// body 13, title 14) and the headings' (15, 16, 18, 20); no 11, 12.5 or 13.5 left from before the scale. The fixture's
+// own «Demo» label is the page's, not the app's.
+
+const VIEWS = [
+  ['the room', '/room.html?demo=1'],
+  ['Knowledge', '/room.html?demo=1&place=knowledge'],
+  ['Updates', '/room.html?demo=1&place=updates'],
+  ['Conversations', '/room.html?demo=1&conversations=1&place=conversations'],
+] as const
+const SCALE = ['10.5px', '12px', '13px', '14px', '15px', '16px', '18px', '20px']
+
+test.afterEach(async ({ page }) => {
+  expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
+})
+
+for (const [name, url] of VIEWS) {
+  test(`type · ${name} keeps to the app's scale, its bar too`, async ({ page }) => {
+    await page.goto(url)
+    // The view has drawn: the project bar and the view's own heading.
+    await expect(page.getByRole('heading').first()).toBeVisible()
+    await page.waitForLoadState('networkidle')
+    await page.evaluate(() => document.querySelector('.fixture-label')?.remove())
+    const sizes = await typeSizes(page, 'body')
+    for (const s of sizes) expect(SCALE, sizes.join(' ')).toContain(s)
+  })
+}

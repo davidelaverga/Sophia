@@ -316,7 +316,7 @@ button:disabled,
   margin-right: -4px;
   height: 17px;
   min-width: 17px;
-  font-size: 10px;
+  font-size: var(--type-label);
 }
 .pill.primary:not(:disabled) kbd {
   border-color: rgba(5, 4, 8, 0.16);
@@ -404,7 +404,7 @@ textarea {
   border: 1px solid var(--line-2);
   background: rgba(236, 235, 241, 0.03);
   color: var(--text);
-  font-size: 13.5px;
+  font-size: var(--type-body);
   transition:
     border-color var(--fast) var(--ease),
     background var(--fast) var(--ease);
@@ -596,7 +596,7 @@ button.mark:hover {
   border-radius: var(--r-2);
   background: none;
   color: var(--text-3);
-  font-size: 13.5px;
+  font-size: var(--type-body);
   font-weight: 500;
   white-space: nowrap;
   transition:
@@ -610,7 +610,7 @@ button.mark:hover {
 .project-name {
   min-width: 0;
   max-width: 24ch;
-  font-size: 13.5px;
+  font-size: var(--type-body);
   font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -762,7 +762,7 @@ button.mark:hover {
   border-radius: var(--r-2);
   background: none;
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   text-align: left;
 }
 .account-menu [role='menuitem']:hover,
@@ -788,7 +788,7 @@ button.mark:hover {
   border-radius: 50%;
   border: 1px solid rgba(241, 220, 199, 0.4);
   color: var(--warm);
-  font-size: 11px;
+  font-size: var(--type-label);
   font-weight: 600;
 }
 /* A provider picture keeps the same round frame as the initial. */
@@ -1124,7 +1124,7 @@ img.avatar {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
-  font-size: 12.5px;
+  font-size: var(--type-small);
   color: var(--text-2);
 }
 .outcome:empty {
@@ -1325,7 +1325,7 @@ img.avatar {
   gap: 0;
 }
 .who .name {
-  font-size: 13.5px;
+  font-size: var(--type-body);
   font-weight: 500;
 }
 .who .you {
@@ -1413,7 +1413,7 @@ img.avatar {
 }
 .line-note {
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .line-session,
 .join-session {
@@ -1480,7 +1480,7 @@ img.avatar {
 }
 .made-title {
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: var(--type-body);
   font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -2053,7 +2053,7 @@ button.contribution-quote:hover {
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   text-align: center;
 }
 /* The same note from other views, above the mini dock. */
@@ -2134,7 +2134,7 @@ button.contribution-quote:hover {
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   color: var(--warm);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   font-weight: 500;
 }
 .sophia-looking-dot {
@@ -2436,7 +2436,7 @@ button.contribution-quote:hover {
 /* Room access: the lobby over the stage and the Invite panel. */
 .guest-tag {
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 /* A project that is slow to open says so where the lobby would float (it has no one waiting yet). */
 .wait-note {
@@ -2452,7 +2452,7 @@ button.contribution-quote:hover {
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   line-height: 1.45;
 }
 /* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
@@ -2557,7 +2557,7 @@ button.contribution-quote:hover {
   padding: 8px 0 4px;
   border-top: 1px solid var(--line);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .lobby-undo:first-child {
   padding-top: 0;
@@ -2569,7 +2569,7 @@ button.contribution-quote:hover {
   display: none;
 }
 .lobby-undo .text-button {
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .lobby ul {
   margin: 0;
@@ -2594,7 +2594,7 @@ button.contribution-quote:hover {
 .lobby-wait {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-label);
 }
 .lobby-actions {
   grid-column: 1 / -1;
@@ -2757,7 +2757,7 @@ button.contribution-quote:hover {
   max-width: 100%;
   overflow: hidden;
   color: var(--text-3);
-  font: 11px/1.5 var(--mono);
+  font: var(--type-label) / 1.5 var(--mono);
   white-space: nowrap;
   text-overflow: ellipsis;
   -webkit-user-select: all;
@@ -2793,7 +2793,7 @@ button.contribution-quote:hover {
 .sheet-status {
   min-height: 1.3em;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 /* Date, time and length on one row where they fit whole (about 377 px); narrower, the date takes its own row. */
 .calendar-form {
@@ -2855,7 +2855,7 @@ button.contribution-quote:hover {
   width: fit-content;
   padding: 8px 0;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   cursor: pointer;
   transition: color var(--fast) var(--ease);
 }
@@ -2878,7 +2878,7 @@ button.contribution-quote:hover {
   grid-column: 1;
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-label);
 }
 .invitation-actions {
   grid-column: 2;
@@ -3022,7 +3022,7 @@ button.contribution-quote:hover {
 }
 .confirm-note {
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 /* A refusal in the mission view is a sentence: it wraps inside the panel instead of running past its edge. */
 .mission .tag.rose {
@@ -3074,7 +3074,7 @@ div.empty {
 .view-note {
   padding: 10px 0 2px;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .pulse {
   position: sticky;
@@ -3123,13 +3123,13 @@ div.empty {
   gap: 8px;
   align-items: baseline;
   padding: 7px 0;
-  font-size: 12.5px;
+  font-size: var(--type-small);
   color: var(--text-2);
   animation: arrive 0.4s var(--ease) both;
 }
 .event .muted {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-label);
 }
 .event .dot {
   position: absolute;
@@ -3145,7 +3145,7 @@ div.empty {
 .event-count {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-label);
 }
 .event.hidden-event {
   color: var(--text-3);
@@ -3294,7 +3294,7 @@ div.empty {
     max-width: calc(100% - 8px);
     height: 20px;
     padding: 0 5px;
-    font-size: 11px;
+    font-size: var(--type-label);
   }
   /* The name gives way (its overflow lets it shrink to nothing); what follows it, kept whole by its own white-space,
      never does. */
@@ -3720,7 +3720,7 @@ div.empty {
   border: 1px solid var(--line);
   background: var(--glass);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 /* Touch: finger-sized tabs and Close, still the lens bar's height (44 px there) and still on the gutter. */
 @media (pointer: coarse) {
@@ -3762,7 +3762,7 @@ div.empty {
   align-items: center;
   gap: 4px 8px;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 /* Above the message bar: the step under way or what the chat waits for, with its one action. */
 .chat-line {
@@ -3772,12 +3772,12 @@ div.empty {
   gap: 4px 10px;
   min-height: 28px;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .chat-empty {
   padding: 24px 8px;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   text-align: center;
 }
 .chat-messages {
@@ -4245,7 +4245,7 @@ div.empty {
 .recap-by {
   grid-column: 1;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .recap-section li > .text-button {
   grid-row: 1;
@@ -4261,11 +4261,11 @@ div.empty {
 }
 .recap-said {
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .recap-text {
   width: 100%;
-  font-size: 12.5px;
+  font-size: var(--type-small);
   resize: vertical;
 }
 /* Updates (UpdatesView, docs/plans/updates-quiet.md): what changed since the person last looked in the reading column,
@@ -4280,7 +4280,7 @@ div.empty {
 }
 .updates > h2 {
   grid-column: 1 / -1;
-  font-size: 18px;
+  font-size: 20px;
 }
 @media (max-width: 900px) {
   .updates {
@@ -4462,7 +4462,7 @@ div.empty {
   margin: 0;
   padding: 6px 24px 0;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .report-walk:empty {
   height: 0;
@@ -4482,7 +4482,7 @@ div.empty {
   flex: 1 1 14rem;
   min-width: 0;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   overflow-wrap: anywhere;
 }
 .review-acts {
@@ -4503,7 +4503,7 @@ div.empty {
 }
 .review-empty {
   color: var(--warn, var(--text-2));
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 /* A passage made a task (PassageTask, A17): the form in the pane's foot, the line it leaves, and the Tasks tab. */
 .task-form {
@@ -4520,7 +4520,7 @@ div.empty {
   padding-left: 8px;
   border-left: 2px solid var(--halo);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   overflow-wrap: anywhere;
 }
 .task-foot {
@@ -4534,7 +4534,7 @@ div.empty {
   align-items: center;
   gap: 6px;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .task-for select {
   height: 28px;
@@ -4545,7 +4545,7 @@ div.empty {
   flex: 1 1 8rem;
   min-width: 0;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .task-added {
   display: flex;
@@ -4583,14 +4583,14 @@ div.empty {
   text-decoration: line-through;
 }
 .task-text {
-  font-size: 13.5px;
+  font-size: var(--type-body);
   overflow-wrap: anywhere;
 }
 .task-meta,
 .task-row .task-said,
 .task-none {
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   overflow-wrap: anywhere;
 }
 .task-row .task-said:empty {

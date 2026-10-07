@@ -9,7 +9,7 @@
   height: 40px;
   flex: none;
   border-radius: var(--r-2);
-  font: 600 11px/1 var(--mono);
+  font: 600 var(--type-label) / 1 var(--mono);
   letter-spacing: 0.04em;
   color: var(--void);
   background: var(--teal);
@@ -44,7 +44,7 @@
 .work-card-progress {
   display: grid;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .work-card-bar {
   height: 3px;
@@ -98,7 +98,7 @@
 }
 .output-name {
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: var(--type-body);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -223,7 +223,7 @@
   border: 1px solid var(--line);
   background: var(--glass);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .report-pane[data-size='full'] .report-pane-call:not(:empty) {
   display: flex;
@@ -413,12 +413,12 @@
   padding: 1px 4px;
   border-radius: var(--r-1);
   background: rgba(236, 235, 241, 0.06);
-  font: 13.5px var(--mono);
+  font: var(--type-body) var(--mono);
 }
 .md pre {
   padding: 10px 0;
   border-block: 1px solid var(--line-2);
-  font-size: 13.5px;
+  font-size: var(--type-body);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -509,7 +509,7 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font: 13.5px/1.4 var(--sans);
+  font: var(--type-body) / 1.4 var(--sans);
   font-variant-numeric: lining-nums tabular-nums;
 }
 .md-table th,
@@ -608,7 +608,7 @@
   margin: 0;
   padding-left: 18px;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 
 /* The History tab. */
@@ -1510,7 +1510,7 @@
 }
 .carried-in-text {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--type-body);
   overflow-wrap: anywhere;
 }
 .carried-in-by,
@@ -1518,5 +1518,5 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
