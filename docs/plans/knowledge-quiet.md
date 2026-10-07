@@ -14,8 +14,8 @@
   under the pointer or the focus. History is still named «History and changes» for a screen reader (its visible word
   is in its name).
 - **Sophia's credit as her mark:** a description Sophia wrote opens with her mark, which says «Description by Sophia»
-  to a screen reader. The tile's press lies over it as over the rest of the tile: no tooltip of its own. A member's edit still says so in words, «Edited by a member · Oct 3»: it
-  is the exception, so it is written.
+  to a screen reader. The tile's press lies over it as over the rest of the tile: no tooltip of its own. A member's
+  edit still says so in words, «Edited by a member · Oct 3»: it is the exception, so it is written.
 - **More reports, a button:** as wide as its words, in the middle under the tiles.
 
 Nothing else moves: the cover, the meta line, the four type sizes, the presses over the tile.
