@@ -68,6 +68,7 @@ import {
   TITLE,
   TASK,
   versionId,
+  VERSIONS_HELD,
 } from './report-data.ts'
 import { DEMO, DEMO_LABEL, VIEWER_NAME } from './demo.ts'
 
@@ -292,7 +293,8 @@ const project = {
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
-  reportVersions: Math.max(1, Number(query.get('versions')) || 1),
+  // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
+  reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
   pilot: query.get('history') === 'pilot',
   waiting: query.get('lobby') === 'waiting',
@@ -307,7 +309,8 @@ const project = {
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
   researchFinished: false,
   textTampered: query.get('tamper') === 'text',
-  designed: query.get('designed') === 'on' || DEMO,
+  // The demo's page is published, unless `design=designing` asks for it still being designed.
+  designed: query.get('designed') === 'on' || (DEMO && query.get('design') !== 'designing'),
   designing: query.get('design') === 'designing',
   pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',
@@ -417,11 +420,12 @@ window.fixture = {
     project.failReplies = on
   },
   drop: dropCall,
+  // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.
   publishReport: () => {
-    project.reportVersions += 1
+    project.reportVersions = Math.min(VERSIONS_HELD, project.reportVersions + 1)
   },
   reviseLive: () => {
-    project.reportVersions += 1
+    project.reportVersions = Math.min(VERSIONS_HELD, project.reportVersions + 1)
     publish(project)
   },
   notice: () => {
