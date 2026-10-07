@@ -187,7 +187,21 @@ CREATE TABLE sophia.work_runs (
  CHECK((state IN ('started','attached'))<=(attempt_id IS NOT NULL))
 );
 
--- Which manifest sources an attempt read (a finding may cite only these).
+-- The receipts of the pages an attempt was served: each page carries a fresh one, kept here only as its hash, with the
+-- page it was served with (its offset, length and text hash, and the source's length). A page whose reply was lost
+-- never reached the model, so neither did its receipt (Codex on #107).
+CREATE TABLE sophia.work_review_receipts (
+ project_id uuid NOT NULL, attempt_id uuid NOT NULL, source_id uuid NOT NULL, receipt_sha256 bytea NOT NULL,
+ page_offset integer NOT NULL CHECK(page_offset>=0), page_chars integer NOT NULL CHECK(page_chars>=0),
+ total_chars integer NOT NULL CHECK(total_chars>=page_offset+page_chars), page_sha256 bytea NOT NULL,
+ issued_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(project_id,receipt_sha256),
+ FOREIGN KEY(project_id,attempt_id) REFERENCES sophia.work_attempts(project_id,id),
+ FOREIGN KEY(project_id,source_id) REFERENCES sophia.source_objects(project_id,id)
+);
+
+-- Which manifest sources an attempt read (a finding may cite only these): recorded at the submit, from the receipts it
+-- presents, so only a page that reached the model counts as read.
 CREATE TABLE sophia.work_review_reads (
  project_id uuid NOT NULL, attempt_id uuid NOT NULL, source_id uuid NOT NULL,
  first_read_at timestamptz NOT NULL DEFAULT now(),
@@ -260,6 +274,7 @@ ALTER TABLE sophia.work_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.work_commissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.coordination_outbox ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.work_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sophia.work_review_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.work_review_reads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.work_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.work_operations ENABLE ROW LEVEL SECURITY;
@@ -1267,11 +1282,13 @@ END $$;
 REVOKE ALL ON FUNCTION sophia.review_scope_of(bytea,text,text,jsonb,boolean) FROM PUBLIC;
 
 -- POST /v1/runtime/source-review/context: without a source, the task (goal, criteria, sources, limits, allowance); with one, a
--- page of that manifest source, while it can still be read. A source read here may be cited.
+-- page of that manifest source, while it can still be read, with its receipt. A source may be cited once the submit
+-- presents a receipt of it: serving a page records nothing as read (Codex on #107).
 CREATE FUNCTION sophia.runtime_source_review_context(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE s sophia.review_scope:=sophia.review_scope_of(p_token_sha256,p_unit,p_bridge,p_request,true); manifest jsonb;
  al sophia.research_allowances; body text; src uuid; off integer; size integer; total integer; calls integer;
+ receipt text:=replace(gen_random_uuid()::text,'-',''); page text;
 BEGIN
  SELECT t.body::jsonb INTO manifest FROM sophia.source_texts t WHERE t.project_id=s.project_id AND t.source_id=s.manifest_source_id;
  IF p_request ? 'sourceId' THEN
@@ -1286,9 +1303,11 @@ BEGIN
   off:=coalesce((p_request->>'offset')::integer,0); size:=least(coalesce((p_request->>'limit')::integer,16000),16000);
   IF off<0 OR size<1 THEN RAISE EXCEPTION 'Invalid page' USING ERRCODE='22023'; END IF;
   total:=char_length(body); off:=least(off,total);
-  INSERT INTO sophia.work_review_reads(project_id,attempt_id,source_id) VALUES(s.project_id,s.attempt_id,src) ON CONFLICT DO NOTHING;
+  page:=substr(body,off+1,size);
+  INSERT INTO sophia.work_review_receipts(project_id,attempt_id,source_id,receipt_sha256,page_offset,page_chars,total_chars,page_sha256)
+   VALUES(s.project_id,s.attempt_id,src,sha256(convert_to(receipt,'UTF8')),off,char_length(page),total,sha256(convert_to(page,'UTF8')));
   RETURN jsonb_build_object('sourceId',src,'offset',off,'nextOffset',CASE WHEN off+size<total THEN to_jsonb(off+size) ELSE 'null'::jsonb END,
-   'totalChars',total,'truncated',off+size<total,'text',substr(body,off+1,size));
+   'totalChars',total,'truncated',off+size<total,'text',page,'receipt',receipt);
  END IF;
  SELECT * INTO al FROM sophia.research_allowances WHERE project_id=s.project_id AND id=s.allowance_id;
  SELECT count(*) INTO calls FROM sophia.research_reservations WHERE project_id=s.project_id AND allowance_id=s.allowance_id
@@ -1382,13 +1401,41 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.review_checks(sophia.review_scope,jsonb,jsonb) FROM PUBLIC;
 
+-- The reads a submit's receipts prove: each must be a receipt served to this attempt (a page that reached the model);
+-- the sources they are of are recorded as read, and only those may be cited (review_checks). Returns what the pages
+-- cover of each source, in characters: one page is not the whole source, and the result says which were read whole.
+CREATE FUNCTION sophia.review_receipts_read(s sophia.review_scope, p_receipts jsonb) RETURNS jsonb LANGUAGE plpgsql
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE r text; x sophia.work_review_receipts; seen bytea[]:='{}'; coverage jsonb;
+BEGIN
+ IF jsonb_typeof(p_receipts) IS DISTINCT FROM 'array' OR jsonb_array_length(p_receipts) NOT BETWEEN 1 AND 400 THEN
+  RAISE EXCEPTION 'A review presents the receipts of the pages it read: 1 to 400' USING ERRCODE='22023'; END IF;
+ FOR r IN SELECT jsonb_array_elements_text(p_receipts) LOOP
+  IF r !~ '^[0-9a-f]{32}$' THEN RAISE EXCEPTION 'A receipt is the 32 characters a page carried' USING ERRCODE='22023'; END IF;
+  SELECT * INTO x FROM sophia.work_review_receipts
+   WHERE project_id=s.project_id AND receipt_sha256=sha256(convert_to(r,'UTF8')) AND attempt_id=s.attempt_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'A receipt was not served to this review' USING ERRCODE='22023'; END IF;
+  seen:=seen||x.receipt_sha256;
+  INSERT INTO sophia.work_review_reads(project_id,attempt_id,source_id,first_read_at) VALUES(s.project_id,s.attempt_id,x.source_id,x.issued_at)
+   ON CONFLICT(project_id,attempt_id,source_id) DO UPDATE SET first_read_at=least(work_review_reads.first_read_at,EXCLUDED.first_read_at);
+ END LOOP;
+ SELECT jsonb_agg(jsonb_build_object('sourceId',t.source_id,'deliveredChars',d.delivered,'totalChars',t.total,'complete',d.delivered>=t.total)
+   ORDER BY t.source_id) INTO coverage
+  FROM (SELECT source_id, max(total_chars) AS total, range_agg(int4range(page_offset,page_offset+page_chars)) AS pages
+         FROM sophia.work_review_receipts WHERE project_id=s.project_id AND attempt_id=s.attempt_id AND receipt_sha256=ANY(seen)
+         GROUP BY source_id) t
+  CROSS JOIN LATERAL (SELECT coalesce(sum(upper(g)-lower(g)),0)::integer AS delivered FROM unnest(t.pages) g) d;
+ RETURN coalesce(coverage,'[]'::jsonb);
+END $$;
+REVOKE ALL ON FUNCTION sophia.review_receipts_read(sophia.review_scope,jsonb) FROM PUBLIC;
+
 -- POST /v1/runtime/source-review/submit: publish the review (result) or record what blocks it (blocker). Fenced: a review
 -- held or stopped publishes nothing. The result is stored as an immutable source before result-ready, and an attempt
 -- publishes once: a repeated or retried submit answers with the result already published.
 CREATE FUNCTION sophia.runtime_source_review_submit(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE s sophia.review_scope; j sophia.jobs; w sophia.work_items; manifest jsonb; res sophia.work_results; checks jsonb;
- src sophia.source_objects; key text; inspected uuid[]; blocker text; g sophia.goals;
+ src sophia.source_objects; key text; inspected uuid[]; blocker text; g sophia.goals; coverage jsonb;
 BEGIN
  -- Unfenced first: a submit retried after its answer was lost finds the published result even if the goal moved on.
  s:=sophia.review_scope_of(p_token_sha256,p_unit,p_bridge,p_request,false);
@@ -1414,8 +1461,9 @@ BEGIN
   RETURN jsonb_build_object('outcome','blocked','reason',blocker,'sourceId',src.id);
  END IF;
  manifest:=sophia.work_manifest(s.project_id,s.work_id);
- checks:=sophia.review_checks(s,manifest,p_request->'result');
- SELECT coalesce(array_agg(source_id ORDER BY first_read_at),'{}') INTO inspected FROM sophia.work_review_reads
+ coverage:=sophia.review_receipts_read(s,p_request->'result'->'receipts');
+ checks:=sophia.review_checks(s,manifest,p_request->'result')||jsonb_build_object('coverage',coverage);
+ SELECT coalesce(array_agg(source_id ORDER BY first_read_at,source_id),'{}') INTO inspected FROM sophia.work_review_reads
   WHERE project_id=s.project_id AND attempt_id=s.attempt_id;
  src:=sophia.put_text_source(s.project_id,w.accepted_by,'text/markdown; charset=utf-8',p_request->'result'->>'report');
  INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) VALUES(s.project_id,s.manifest_source_id,src.id);

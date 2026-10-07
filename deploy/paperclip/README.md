@@ -68,7 +68,8 @@ Sophia worker:
 | `SOPHIA_COORDINATION_SIGNING_KEY` | Ed25519 private key (PKCS#8 PEM) that signs every commission and control |
 
 Plugin configuration, per company (`ctx.config`): `signingPublicKey` (the matching public key, SPKI PEM),
-`integrationUserId` (that board user's id: no other board user may call the routes), and `projects`: one
+`integrationUserId` (that board user's id, required: no other board user may call the routes, and a configuration
+without it refuses every route as `not_configured`), and `projects`: one
 `{ sophiaProjectId, companyId, paperclipProjectId }` for the pilot.
 
 Sophia database (migration owner, after `0042`):

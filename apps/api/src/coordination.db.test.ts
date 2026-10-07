@@ -320,6 +320,17 @@ const REPORT = [
   'Ask the owner which budget stands.',
 ].join('\n')
 
+/** A receipt no page was served with: what a reviewer whose page was lost could only guess. */
+const UNSERVED = '0123456789abcdef0123456789abcdef'
+
+/** One page of a source, and the receipt it carries. */
+async function pageOf(w: World, at: { attemptId: string; nativeSessionId: string }, sourceId: string) {
+  const page = await w.runtime('/v1/runtime/source-review/context', { ...at, sourceId })
+  assert.equal(page.status, 200, JSON.stringify(page.json))
+  assert.match(String(page.json.receipt), /^[0-9a-f]{32}$/)
+  return String(page.json.receipt)
+}
+
 /** What the bridge does for one review: the task, one metered model call, each source read, then a submit. */
 async function reviewed(w: World, attemptId: string, cost = 0.000275) {
   const at = { attemptId, nativeSessionId: `sophia-${attemptId}` }
@@ -348,10 +359,7 @@ async function reviewed(w: World, attemptId: string, cost = 0.000275) {
     usage,
   })
   assert.equal(settle.status, 200, JSON.stringify(settle.json))
-  for (const sourceId of [w.sourceA, w.sourceB]) {
-    const page = await w.runtime('/v1/runtime/source-review/context', { ...at, sourceId })
-    assert.equal(page.status, 200, JSON.stringify(page.json))
-  }
+  const receipts = [await pageOf(w, at, w.sourceA), await pageOf(w, at, w.sourceB)]
   const findings = [
     {
       status: 'contradicted',
@@ -363,7 +371,7 @@ async function reviewed(w: World, attemptId: string, cost = 0.000275) {
   return w.runtime('/v1/runtime/source-review/submit', {
     ...at,
     callId: 's1',
-    result: { verdict: 'changes_required', report: REPORT, findings },
+    result: { verdict: 'changes_required', report: REPORT, findings, receipts },
   })
 }
 
@@ -489,16 +497,32 @@ describe('one Paperclip-managed source review', () => {
     assert.equal((await itemOf(w)).lifecycle, 'running')
 
     const at = { attemptId: started.attemptId, nativeSessionId: `sophia-${started.attemptId}` }
-    const unread = await w.runtime('/v1/runtime/source-review/submit', {
-      ...at,
-      callId: 's0',
-      result: {
-        verdict: 'supported',
-        report: REPORT,
-        findings: [{ status: 'supported', statement: 'x', sourceIds: [w.sourceA] }],
-      },
-    })
+    const cite = (sourceIds: string[], receipts: string[]) =>
+      w.runtime('/v1/runtime/source-review/submit', {
+        ...at,
+        callId: 's0',
+        result: {
+          verdict: 'supported',
+          report: REPORT,
+          findings: [{ status: 'supported', statement: 'x', sourceIds }],
+          receipts,
+        },
+      })
+    const unread = await cite([w.sourceA], [UNSERVED])
     assert.equal(unread.status, 422, 'a finding may cite only a source the review read')
+    assert.match(String(unread.json.message), /not served to this review/)
+    // Codex on #107: a page served but whose reply was lost never reached the model, nor its receipt. Serving it
+    // records nothing as read: citing the source with only another source's receipt is refused.
+    await pageOf(w, at, w.sourceA)
+    const otherReceipt = await pageOf(w, at, w.sourceB)
+    const lost = await cite([w.sourceA], [otherReceipt])
+    assert.equal(lost.status, 422, JSON.stringify(lost.json))
+    assert.match(String(lost.json.message), /did not read/)
+    const reads = await asOwner(
+      async (o) =>
+        (await o.query(`SELECT 1 FROM sophia.work_review_reads WHERE project_id=$1`, [w.projectId])).rowCount,
+    )
+    assert.equal(reads, 0, 'a refused submit records no read')
     const published = await reviewed(w, started.attemptId)
     assert.equal(published.json.outcome, 'published', JSON.stringify(published.json))
     // INT-09: a submit whose answer was lost is answered with the same immutable result; nothing runs again.
@@ -506,7 +530,7 @@ describe('one Paperclip-managed source review', () => {
     const replay = await w.runtime('/v1/runtime/source-review/submit', {
       ...at,
       callId: 's1',
-      result: { verdict: 'supported', report: REPORT, findings: again },
+      result: { verdict: 'supported', report: REPORT, findings: again, receipts: [UNSERVED] },
     })
     assert.deepEqual(
       [replay.json.replayed, replay.json.resultId, replay.json.sourceId],
@@ -585,6 +609,57 @@ describe('one Paperclip-managed source review', () => {
       (await sophia().permit({ companyId: COMPANY, runId: runId('r1'), issueId: issue.id })).decision,
       'start',
     )
+  })
+
+  it('a review cites a source only with a receipt its own pages carried; a page is partial coverage (Codex on #107)', async () => {
+    const w = await world()
+    const { attemptId } = await running(w)
+    const at = { attemptId, nativeSessionId: `sophia-${attemptId}` }
+    const submit = (callId: string, receipts: string[], sourceIds: string[]) =>
+      w.runtime('/v1/runtime/source-review/submit', {
+        ...at,
+        callId,
+        result: {
+          verdict: 'changes_required',
+          report: REPORT,
+          findings: [{ status: 'contradicted', statement: 'The two budgets differ.', sourceIds }],
+          receipts,
+        },
+      })
+    // Another review's page, and its receipt, grant nothing in this one.
+    const v = await world()
+    const theirs = await running(v)
+    const foreign = await pageOf(
+      v,
+      { attemptId: theirs.attemptId, nativeSessionId: `sophia-${theirs.attemptId}` },
+      v.sourceA,
+    )
+    const refused = await submit('s-foreign', [foreign], [w.sourceA])
+    assert.equal(refused.status, 422, JSON.stringify(refused.json))
+    assert.match(String(refused.json.message), /not served to this review/)
+    // A page lost on its way, then read again: the reread's receipt, which did arrive, lets the source be cited.
+    await pageOf(w, at, w.sourceA)
+    const partial = await w.runtime('/v1/runtime/source-review/context', { ...at, sourceId: w.sourceA, limit: 10 })
+    assert.equal(partial.status, 200, JSON.stringify(partial.json))
+    const whole = await w.runtime('/v1/runtime/source-review/context', { ...at, sourceId: w.sourceB })
+    assert.equal(whole.json.truncated, false)
+    const published = await submit('s-ok', [partial.json.receipt, whole.json.receipt], [w.sourceA, w.sourceB])
+    assert.equal(published.json.outcome, 'published', JSON.stringify(published.json))
+    const stored = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ coverage: unknown; inspected: string[] }>(
+            `SELECT checks->'coverage' AS coverage, inspected_source_ids::text[] AS inspected FROM sophia.work_results WHERE project_id=$1`,
+            [w.projectId],
+          )
+        ).rows[0],
+    )
+    const expected = [
+      { sourceId: w.sourceA, deliveredChars: 10, totalChars: partial.json.totalChars, complete: false },
+      { sourceId: w.sourceB, deliveredChars: whole.json.totalChars, totalChars: whole.json.totalChars, complete: true },
+    ].toSorted((a, b) => a.sourceId.localeCompare(b.sourceId))
+    assert.deepEqual(stored?.coverage, expected, 'one page of a source is not the whole source')
+    assert.deepEqual(stored?.inspected.toSorted(), [w.sourceA, w.sourceB].toSorted())
   })
 
   /** The plugin stopped after its create landed: its reply lost, the issue's wakeup never asked (Codex on #107). */

@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
 import { REPO_ROOT } from '../../scripts/lib/common.mjs'
+import { REVIEW_RECEIPT } from '../support/fixture-service.mjs'
 import { suite, unit } from '../support/harness.mjs'
 import { reviewRouteOverlay, startMockResponses } from '../support/mock-responses.mjs'
 
@@ -47,7 +48,12 @@ test('a review attempt reads its task and source, publishes, and pays for each m
     {
       toolCall: {
         name: 'submit_source_review',
-        arguments: { verdict: 'supported', report: REPORT, findings: [{ status: 'supported', statement: 'The date is stated.', sourceIds: [SOURCE], criterionId: 'c1' }] },
+        arguments: {
+          verdict: 'supported',
+          report: REPORT,
+          findings: [{ status: 'supported', statement: 'The date is stated.', sourceIds: [SOURCE], criterionId: 'c1' }],
+          receipts: [REVIEW_RECEIPT],
+        },
       },
     },
     { text: 'Published.' },
@@ -63,6 +69,7 @@ test('a review attempt reads its task and source, publishes, and pays for each m
   assert.equal(ops[0].body.sourceId, undefined)
   const submitted = ops.find((o) => o.op === 'submit').body
   assert.deepEqual([submitted.result.verdict, submitted.result.findings[0].sourceIds], ['supported', [SOURCE]])
+  assert.deepEqual(submitted.result.receipts, [REVIEW_RECEIPT], 'the receipt the page carried went back with the submission')
   assert.equal(w.service.research.length, 0, 'nothing went through the research operations')
 
   const [first] = w.llm.requests
@@ -75,6 +82,7 @@ test('a review attempt reads its task and source, publishes, and pays for each m
   }
   assert.equal(new Set(w.llm.requests.map(system)).size, 1, 'a stable cached prefix')
   assert.match(JSON.stringify(w.llm.requests[2].body.input), /trust=\\"untrusted\\"/, 'the source reached the model inside its envelope')
+  assert.ok(JSON.stringify(w.llm.requests[2].body.input).includes(`receipt=\\"${REVIEW_RECEIPT}\\"`), 'and its receipt with it')
 
   const meter = ops.filter((o) => o.op === 'reserve' || o.op === 'settle')
   assert.deepEqual(meter.map((o) => o.op), ['reserve', 'settle', 'reserve', 'settle', 'reserve', 'settle', 'reserve', 'settle'])

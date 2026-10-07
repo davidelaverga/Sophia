@@ -11,6 +11,9 @@
 import { createServer } from 'node:http'
 import { createHash, randomUUID } from 'node:crypto'
 
+/** The receipt of the fixture's review page (WBC-02, Codex on #107): a review cites a source with it. */
+export const REVIEW_RECEIPT = 'fedcba9876543210fedcba9876543210'
+
 export async function startFixtureService({ token = randomUUID(), runtimeUnitId, bindings = [] } = {}) {
   const outbox = [] // { seq, command }
   const receipts = []
@@ -65,7 +68,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   designDefaults['review/capture'] = designDefaults['design/capture']
   designDefaults['review/delivered'] = designDefaults['design/delivered']
   // The source reviewer's operations (WBC-02, A13), recorded and answered the same way: a one-source task, a page of
-  // fixture text, a reservation and its settlement, and a published review.
+  // fixture text with its receipt (REVIEW_RECEIPT), a reservation and its settlement, and a published review.
   const review = []
   const reviewDefaults = {
     context: (body) => body.sourceId === undefined
@@ -73,7 +76,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
           purpose: null, sources: [{ ref: 'S1', sourceId: uuid(7002), sha256: 'a'.repeat(64), mime: 'text/markdown', byteLength: 26, readable: true }],
           limits: { maxSources: 3, maxInputBytes: 32768, maxModelRequests: 8, maxReportBytes: 16384, web: false, shell: false, connectors: false },
           allowance: { capUsd: 0.5, committedUsd: 0, modelCallsLeft: 8 } }
-      : { sourceId: body.sourceId, offset: 0, nextOffset: null, totalChars: 26, truncated: false, text: 'The launch is on 3 March.' },
+      : { sourceId: body.sourceId, offset: 0, nextOffset: null, totalChars: 26, truncated: false, text: 'The launch is on 3 March.', receipt: REVIEW_RECEIPT },
     reserve: (body) => ({ reservationId: uuid(8000 + ++researchSeq), state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null }),
     settle: (body) => ({ reservationId: body.reservationId, state: body.outcome, settledUsd: body.costUsd ?? null }),
     submit: (body) => body.result

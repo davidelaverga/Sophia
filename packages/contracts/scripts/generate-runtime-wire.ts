@@ -90,6 +90,7 @@ const SCHEMAS = [
   'SourceReviewContextRequest',
   'SourceReviewCriterion',
   'SourceReviewTaskContext',
+  'SourceReviewPage',
   'SourceReviewContextReply',
   'SourceReviewFinding',
   'SourceReviewSubmitRequest',

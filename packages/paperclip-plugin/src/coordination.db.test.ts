@@ -676,6 +676,30 @@ describe('refusals change nothing (INT-02)', () => {
     await refused(paperclip({ config: {} }), commissionRequest(commissionOf()), 503, 'not_configured')
   })
 
+  it('a configuration without its integration principal, before any nonce or effect (Codex on #107)', async () => {
+    const { integrationUserId: _principal, ...unnamed } = config
+    const other = { actorType: 'user', actorId: 'user-other', userId: 'user-other' } as const
+    for (const named of [
+      {},
+      { integrationUserId: '' },
+      { integrationUserId: '  ' },
+      { integrationUserId: null },
+      { integrationUserId: 7 },
+    ]) {
+      const p = paperclip({ config: { ...unnamed, ...named } })
+      const c = commissionOf()
+      for (const actor of [undefined, other]) {
+        await refused(p, { ...commissionRequest(c), ...(actor ? { actor } : {}) }, 503, 'not_configured')
+        const lookup = await p.request({ ...lookupRequest(c), ...(actor ? { actor } : {}) })
+        assert.deepEqual([lookup.status, (code(lookup.body) as { code: string }).code], [503, 'not_configured'])
+      }
+    }
+    const nonces = await client.query(`SELECT 1 FROM ${NAMESPACE}.envelope_nonces`)
+    assert.equal(nonces.rowCount, 0, 'no nonce was kept')
+    const bound = await client.query(`SELECT 1 FROM ${NAMESPACE}.commissions`)
+    assert.equal(bound.rowCount, 0, 'nothing was claimed or bound')
+  })
+
   it('a malformed body', async () => {
     await refused(
       paperclip(),
@@ -835,15 +859,22 @@ describe('control', () => {
     { timeout: 20_000 },
     async () => {
       let gate: PromiseWithResolvers<void> | null = Promise.withResolvers<void>()
+      // The original's write is at the host, held there: not only its lease taken (Codex on 5c3b50ee, CI job
+      // 112764079889: the gate removed before the original reached it let the original land first).
+      const entered = Promise.withResolvers<void>()
       const p = paperclip({
-        beforeUpdate: (_id, status) => (status === 'blocked' && gate ? gate.promise : undefined),
+        beforeUpdate: (_id, status) => {
+          if (status !== 'blocked' || !gate) return undefined
+          entered.resolve()
+          return gate.promise
+        },
       })
       const c = commissionOf()
       await p.request(commissionRequest(c))
       const issueId = [...p.issues.keys()][0] ?? ''
       const held = gate
       const original = p.request(controlRequest(c, issueId, 'hold', 'hold-late'))
-      await waitUntil(async () => (await leaseOf(c.key)) !== null)
+      await entered.promise
       gate = null // the resend's update lands at once
       await expireLease(c.key)
       const resend = await p.request(controlRequest(c, issueId, 'hold', 'hold-late'))
@@ -868,8 +899,14 @@ describe('control', () => {
   async function lateFailingHold(settleFails = { now: false }) {
     let late = true
     const gate = Promise.withResolvers<void>()
+    // The original's write is at the host, held there, before `late` is cleared for the resend (as above).
+    const entered = Promise.withResolvers<void>()
     const p = paperclip({
-      beforeUpdate: (_id, status) => (status === 'blocked' && late ? gate.promise : undefined),
+      beforeUpdate: (_id, status) => {
+        if (status !== 'blocked' || !late) return undefined
+        entered.resolve()
+        return gate.promise
+      },
       fails: {
         update: (status) => {
           if (status === 'blocked' && late) return 'after'
@@ -881,7 +918,7 @@ describe('control', () => {
     await p.request(commissionRequest(c))
     const issueId = [...p.issues.keys()][0] ?? ''
     const original = p.request(controlRequest(c, issueId, 'hold', 'hold-x'))
-    await waitUntil(async () => (await leaseOf(c.key)) !== null)
+    await entered.promise
     late = false
     await expireLease(c.key)
     assert.equal(outcome((await p.request(controlRequest(c, issueId, 'hold', 'hold-x'))).body).outcome, 'applied')

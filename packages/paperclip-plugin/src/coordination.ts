@@ -1,7 +1,7 @@
 /**
  * The plugin's three routes (WBC-02 G1/G2), as plain handlers over a CoordinationHost. Before any effect each request
- * passes, in order: its body shape; the caller (a board user, and the configured integration principal when one is
- * configured); Sophia's signed envelope for exactly this body, operation, company and time; the configured mapping of
+ * passes, in order: its body shape; the caller (the configured integration board principal, which every configuration
+ * names); Sophia's signed envelope for exactly this body, operation, company and time; the configured mapping of
  * the Sophia project to this company and Paperclip project; and its nonce, kept so a replay is refused. A refusal
  * changes nothing. The issue is a core record changed only through the host's issue APIs; the namespace keeps only
  * the commission's binding, the controls, the nonces, the wakeups asked and the status writes until they settle.
@@ -46,8 +46,11 @@ export interface ProjectMapping {
 
 export interface CoordinationConfig {
   readonly publicKey: KeyObject
-  /** The integration board principal's user id; when set, no other board user may call these routes. */
-  readonly integrationUserId: string | null
+  /**
+   * The integration board principal's user id: no other board user may call these routes. A configuration without one
+   * refuses everything, as one without a key does (Codex on #107).
+   */
+  readonly integrationUserId: string
   readonly projects: readonly ProjectMapping[]
 }
 
@@ -73,11 +76,9 @@ export function readConfig(raw: Readonly<Record<string, unknown>>): Coordination
   const projects = Array.isArray(raw.projects) ? raw.projects.filter(isMapping) : []
   if (projects.length === 0) refuse(503, 'not_configured', 'The plugin maps no Sophia project')
   const user = raw.integrationUserId
-  return {
-    publicKey: createPublicKey(pem),
-    integrationUserId: typeof user === 'string' && user !== '' ? user : null,
-    projects,
-  }
+  if (typeof user !== 'string' || user.trim() === '')
+    refuse(503, 'not_configured', 'The plugin names no Sophia integration principal')
+  return { publicKey: createPublicKey(pem), integrationUserId: user, projects }
 }
 
 function isMapping(value: unknown): value is ProjectMapping {
@@ -109,9 +110,8 @@ const NOT_PRINCIPAL = 'Only the Sophia integration principal may call this route
 
 function checkCaller(config: CoordinationConfig, actor: ApiRequest['actor']): void {
   if (actor.actorType !== 'user') refuse(403, 'not_integration_principal', NOT_PRINCIPAL)
-  if (config.integrationUserId !== null && (actor.userId ?? actor.actorId) !== config.integrationUserId) {
+  if ((actor.userId ?? actor.actorId) !== config.integrationUserId)
     refuse(403, 'not_integration_principal', NOT_PRINCIPAL)
-  }
 }
 
 function verified(config: CoordinationConfig, companyId: string, signed: Signed, now: number): EnvelopeClaims {
