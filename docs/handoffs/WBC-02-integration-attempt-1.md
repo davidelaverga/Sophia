@@ -4,7 +4,7 @@ Goal and attempt: WBC-02 (SCM-01), the combined integration of #107 with the acc
 Human owner / executor resource: Davide (decisions); Codex (coordination, independent review, two pushes, local checks); Claude Code in a cloud container (linux-x64), the only tracked-source writer
 Native session: this Claude Code session (https://claude.ai/code/session_0155SjcXhv87RErnWEBWxfBM); no Sophia native session was created
 Starting worktree/commit: the held #107 branch `scm-01/workboard-source-review` at `29371f5a3703f4358563886407bc360df7c38603`, in a fresh worktree with no ignored build outputs
-Ending commit/tree: the content commit «WBC-02 #107: a wakeup ask is in flight until the host answers it» (`e93b0c51123577602016a4a199203e6a07c6ece2`, tree `74ddecefec55b1395310fc876ed10f8ff48f7332`), the parent of this handoff's commit. It follows the first version of this handoff (`10510fcd`), on the content commit «WBC-02 #107: Codex's three findings on the combined head 5bbd59b1» (`df183a5f645adcca3dfe18964e627687253b51bd`, tree `8b5d6fda1a19b8009633fcbc5b6aa20655fcf905`). Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
+Ending commit/tree: the content commit «WBC-02 #107: a source review cites only pages that reached its model; the plugin names its principal» (`8241e9d0d3f32154320d4a9eda237620b4f72441`, tree `f71162ec15f3c2f904abba0aaba5250922974c9d`), the parent of this handoff's commit. Its runtime records are pending (Decisions). Before it: the wakeup fix `e93b0c51` and its handoff `5c3b50ee`; the first fix `df183a5f` and its handoff `10510fcd`. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
 
 | Commit | Tree | Merges | Changes beyond its parents |
 | --- | --- | --- | --- |
@@ -71,7 +71,15 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
    - The 60 s a resend waits for a run now counts from the host's answer, not from the ask.
    - A run since the first ask still confirms an ask, answered or not.
    - `fence-previous-instance.sql` gains `open-wakes` and `fence-wakes`; `001`'s `wakes` table gains the ask's host, answer and fence.
-5. **A source read is recorded before its text reaches the model** (r4206134000, `0042`'s `runtime_source_review_context`). **Open, not fixed here.** The path is real: the read is inserted in the same transaction that returns the page. If that reply is lost, `review_checks` still accepts a finding that cites the source, so a review could cite a source its model never received. The fix that matches #117's capture delivery is a receipt that only the delivered page carries and the submission must present. It changes the bundle's review tools, the wire contracts and `0042`, and so the recorded runtime identities, which only `pnpm build`/`artifacts:record` can regenerate. That was denied in this session. The proposal and the decision it needs are on the thread.
+5. **A source review cites only pages that reached its model** (r4206134000, fixed in `8241e9d0` under decision 6036790901). Codex reproduced it: a page requested and cancelled still let a submission cite the source and publish.
+   - Serving a page no longer records a read. Each page carries a fresh receipt (32 hex characters from `gen_random_uuid`), kept only as its SHA-256, with the page it was served with: offset, length, text hash, the source's length (`work_review_receipts`). The task listing carries none.
+   - A submitted result presents `receipts` (A13: `result.receipts`, required). Each must be a receipt served to this attempt; the sources they are of become the reads `review_checks` cites against. A page whose reply was lost carries nothing usable; another attempt's receipt is refused; a reread that arrives recovers the citation. A refused submit records no read.
+   - Paging stays honest: the result records each source's coverage (`checks.coverage`: delivered characters, total, complete), so one page is not the whole source. Citation still needs one delivered page, as before.
+   - The receipts are rows, not memory: they survive a restart of the API or the runtime, and Hold and Stop fence both the page and the submit as before.
+   - Contracts: A13 adds `SourceReviewPage` (the page with its receipt; `text` up to the 16000 characters `0042` serves, where the research page it replaced allowed 6000) and `result.receipts`; `pnpm --filter @sophia/contracts run generate` regenerated OpenAPI, the types and the runtime wire.
+   - Bundle: the read tool puts `receipt="…"` on the page's envelope (outside the untrusted text); the submit tool sends `receipts`. The versioned review prompt (`sophia-source-review-instruction-v1`, hash-pinned) is unchanged: the two tool descriptions carry the instruction.
+6. **The plugin names its principal** (r4206242556, fixed in `8241e9d0`). A configuration without a non-blank string `integrationUserId` refuses every route as 503 `not_configured`, before any nonce or effect; the configured board user alone may call; agents and other users stay refused.
+7. **CI job 112764079889** (Codex, 6036970693): the delayed-Hold control at `coordination.db.test.ts:833`, and `lateFailingHold`, removed their gate once the original held the lease, before its write reached the host; the original could then land first, and the resend answered `already`. Both now wait for the original's write to enter the host (`beforeUpdate` resolves a barrier). Their assertions are unchanged.
 
 ## Evidence
 
@@ -106,6 +114,8 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 **On `e93b0c51`, in this session:** `prettier --check .`, `oxlint --type-aware .` and `pnpm typecheck` pass; the touched packages' units 101 of 101; every plugin statement passes the pinned host's rules. Its new `.db` controls (a wakeup held at the host for an hour across a restart; an unanswered ask confirmed by a late run; a fenced ask asked again once; the wakeup fence steps) did not run here, for the same reason.
 
+**On `8241e9d0`, in this session:** `prettier --check .`, `oxlint --type-aware .`, `pnpm typecheck` and `pnpm contracts:check` pass; every plugin statement passes the pinned host's rules; `pnpm test` 1840 of 1853, 1 skipped, the 12 failing files each failing only to import `packages/dsh-bundle/dist/*`, which only the build makes. Not run here: the bundle's own tests (`tests/unit/review-tools.test.mjs`, the end-to-end `tests/integration/review-tools.test.mjs`), every `.db` control (the receipt, foreign-receipt, reread and coverage controls; the principal controls; the two barriered Hold controls), and the artifact check. CI runs the `.db` controls; the bundle's tests and the artifact check run there once the records are in.
+
 **Source-register IDs consulted:** none.
 
 ## Decisions and changes
@@ -113,7 +123,7 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 - **Order:** #119, then #117, then main, as merge commits; the fix as a commit on the merge. History is never rewritten.
 - **Records:** none needed regenerating. The runtime artifact covers `dsh-bundle` and `execution-host` only, and neither the merge nor the fix changes them. Codex's clean `pnpm check` on `5bbd59b1` reproduced every recorded identity.
 - **The plugin fixes follow the plugin's own rule rather than a longer timeout.** The worker stops waiting after `HOST_CALL_TIMEOUT_MS`, but the host still runs the call and may still commit (CX-0017). No time, nor another process serving now, proves a create or a wakeup will not land. The cost is an operator fence for one whose worker died or that the host never answered, the same cost as for status writes. The 60 s wait for a wakeup's run after the host answered is kept from CX-0004: the pin can defer a wakeup behind an active run.
-- **Finding 5 is not fixed in this session.** Its fix changes the runtime bundle, so the recorded identities must be regenerated, and the build that does it was denied here. Pushing the source without its records would turn `pnpm check` red.
+- **The records of `8241e9d0` are pending** (decision 6036790901). The bundle change moves `sophia_bundle.archive_sha256`, `archive_integrity` and `artifact_digest` in `config/runtime-unit.json` and the bundle's integrity in `config/dsh/profile/pnpm-lock.yaml`, nothing per platform (as each #117 bundle change did). Codex derives them from this exact source where the build is allowed; this writer applies that generated-only delta after inspecting it. Until then `pnpm artifacts` reports those identities as mismatched: in CI, `runtime-unit` stops there (before the integration tests), and the database job's `pnpm build && pnpm artifacts` step fails after `test:db`.
 - **Permission denials in this session,** each reported, neither worked around:
   - `git merge --no-ff --no-commit 771f22489b53cd431bfc9989cf309333dfcc4c42` in the worktree was denied as «Modify Shared Resources». Davide then directed the commits pushed, and the work continued. The same merge, with main at `95c375ce`, ran.
   - `pnpm toolchain:check && pnpm build && pnpm contracts:check; pnpm artifacts` on the uncommitted merge was denied as «Modify Shared Resources». So no build, contract or artifact check ran in this session, on either head.
@@ -122,7 +132,7 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 ## Remaining obligations
 
-- **Finding 5** (r4206134000): a decision on the receipt design and on who regenerates the runtime records, then its fix.
+- **The records of `8241e9d0`**: Codex's generated delta, applied by this writer, then CI and the bundle's tests on the completed head.
 - **On the fix head:**
   - CI, including `test:db` with the new controls, and the Paperclip image job;
   - Codex's independent review and local checks;
@@ -137,4 +147,4 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 ## Next bounded action
 
-Codex reviews `df183a5f`, `e93b0c51` and this handoff against CI on the published head, decides finding 5's route, then hands back an exact finding or failure, or proceeds to the final gates. This writer answers any finding on #107. Merging is Davide's decision.
+Codex derives the runtime records of `8241e9d0` and hands back the generated delta; this writer inspects and applies it, and CI runs complete on that head. Codex then reviews it against CI, and hands back an exact finding or failure, or proceeds to the final gates. Merging is Davide's decision.
