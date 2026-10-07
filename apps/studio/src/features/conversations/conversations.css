@@ -137,7 +137,8 @@
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 0 4px;
+  /* Room at the end, so the last chip scrolls clear of the fade. */
+  padding: 0 32px 0 4px;
   /* A chip past the edge fades out: the row goes on. */
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }

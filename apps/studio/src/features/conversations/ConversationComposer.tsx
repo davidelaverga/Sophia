@@ -90,8 +90,15 @@ export function ConversationComposer(props: Props) {
   const slow = useSlow(busy)
   const form = useRef<HTMLFormElement>(null)
   const ask = async (said: string) => {
-    // Unanswered or refused, the row steps aside with the press in it: Send, which sends it again, takes the focus.
-    if ((await quick(said)) === false) form.current?.querySelector<HTMLElement>('.conv-send')?.focus()
+    if ((await quick(said)) !== false) return
+    // Unanswered, the row steps aside with the press in it: Send, which sends it again, takes the focus. Only then, and
+    // only from the row: a refusal leaves the row where it was, and a focus moved meanwhile (the field) stays.
+    requestAnimationFrame(() => {
+      const row = form.current?.querySelector('.conv-quick[data-away]')
+      const at = document.activeElement
+      if (row && (at === document.body || (at && row.contains(at))))
+        form.current?.querySelector<HTMLElement>('.conv-send')?.focus()
+    })
   }
   return (
     <form

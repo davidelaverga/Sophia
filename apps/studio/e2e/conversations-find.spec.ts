@@ -111,6 +111,17 @@ test('find · a quick ask with no reply steps aside for Send, which sends it aga
   await expect(open(page).getByRole('button', { name: 'Send' })).toBeFocused()
 })
 
+test('find · a refused quick ask says why and leaves the focus on its chip', async ({ page }) => {
+  await page.goto(`${PAGE}&send=refused`)
+  await rows(page).nth(1).click()
+  await expect(messages(page)).toHaveCount(2)
+  const chip = asks(page).getByRole('button', { name: 'Sum it up' })
+  await chip.click()
+  await expect(open(page)).toContainText('That isn’t yours to write here.')
+  await expect(asks(page)).toBeVisible()
+  await expect(chip).toBeFocused()
+})
+
 test('find · the filters and the quick asks read at 4.5:1, on the app’s type sizes', async ({ page }) => {
   await page.goto(PAGE)
   await openOnly(page).click()
@@ -138,4 +149,9 @@ test('find @phone · the quick asks fit one row that scrolls, at a finger’s 40
   const last = row.getByRole('button').last()
   await last.scrollIntoViewIfNeeded()
   await expect(last).toBeInViewport({ ratio: 1 })
+  // Scrolled to its end, the last chip stands clear of the fade (the row's last 28 px).
+  await row.evaluate((el) => el.scrollTo({ left: el.scrollWidth }))
+  const [chip, edge] = await Promise.all([last.boundingBox(), row.boundingBox()])
+  if (!chip || !edge) throw new Error('the row or its chip is missing')
+  expect(chip.x + chip.width).toBeLessThanOrEqual(edge.x + edge.width - 28)
 })
