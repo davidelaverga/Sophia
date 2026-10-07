@@ -162,6 +162,33 @@ test('library · Tab never stops inside a cover: from the cover’s press it goe
   await expect(card.getByRole('button', { name: 'Pilot readout: what kept 12 of 14 teams', exact: true })).toBeFocused()
 })
 
+test('library · a cover scrolled far away keeps no frame, and comes back without a new read', async ({ page }) => {
+  await page.goto('/room.html?place=knowledge&designed=on')
+  const frame = tile(page, 'Fixture report').locator('.report-cover iframe')
+  await expect(frame).toHaveCount(1)
+  // Count the page's reads from here; then a long shelf below the tiles carries this one far out of reach.
+  await page.evaluate(() => {
+    const read = window.fetch
+    const count = document.documentElement.dataset
+    count.pagesRead = '0'
+    window.fetch = (input, init) => {
+      const url = input instanceof Request ? input.url : String(input)
+      if (!url.includes('/versions')) count.pagesRead = String(Number(count.pagesRead) + 1)
+      return read(input, init)
+    }
+    const shelf = document.createElement('div')
+    shelf.style.height = '4000px'
+    document.querySelector('main')?.append(shelf)
+    window.scrollTo(0, document.documentElement.scrollHeight)
+  })
+  await expect(frame).toHaveCount(0)
+  await expect(tile(page, 'Fixture report').locator('.report-cover')).toHaveAttribute('data-cover', 'page')
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect(frame).toHaveCount(1)
+  expect(await frame.getAttribute('srcdoc')).toBe(DESIGNED.text)
+  expect(await page.evaluate(() => document.documentElement.dataset.pagesRead)).toBe('0')
+})
+
 test('library · covers once read are not read again when the window comes back', async ({ page }) => {
   await page.goto('/room.html?place=knowledge&designed=on')
   await page.getByRole('button', { name: 'More reports' }).click()

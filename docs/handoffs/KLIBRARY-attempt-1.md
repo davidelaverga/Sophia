@@ -67,7 +67,10 @@ Ending commit/tree: the final implementation is commit `68dadea81b9c2003035b23d6
 - **The re-read of a missing version is not covered by a check:** the fixture has no card that names a version its list lacks.
 - **The review's P3s left:**
   - no check that a tile off screen reads nothing (two tiles fit in the 240 px margin);
-  - a cover's frame stays mounted once read, so a long list keeps every page it showed.
+  - a cover's frame stays mounted once read, so a long list keeps every page it showed. Fixed after Codex's P2 on #152:
+    the frame is mounted only while the tile is within reach, the page kept in the cache; checked by «a cover scrolled
+    far away keeps no frame, and comes back without a new read» (14 passed; the mutant that keeps the frame is
+    killed).
 - **K2 next:** the filters and `/`, the reports before what was carried in, and the demo's fuller library.
 
 ## Next bounded action
