@@ -27,6 +27,8 @@ import {
   entryIdOf,
   idOf,
 } from './data.ts'
+import { DEMO } from './demo.ts'
+import { libraryVersions } from './demo-library.ts'
 import {
   content,
   editDescription,
@@ -649,6 +651,10 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
 function versionsOf(project: Project, path: string): Response | Promise<Response> | null {
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path === `/api/v1/artifacts/${OLDER_REPORT}/versions`) return json(olderVersions())
+  const shelved = DEMO
+    ? libraryVersions(/^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions$/.exec(path)?.[1] ?? '')
+    : null
+  if (shelved) return json(shelved)
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   return null
 }
