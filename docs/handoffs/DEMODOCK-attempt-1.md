@@ -26,9 +26,15 @@ Ending commit/tree: `aef0b47f90ec14c633f8f77c5c6f4d17ef239e9e` (tree `9dc3e72abc
   published by default»; `room-dock.spec.ts` «at 390 px, from the keyboard or under a hovering pointer, an icon says
   what it does».
 - Prettier, `oxlint --type-aware` (clean but `brand-assets.mjs`, already on `main`), `tsc`.
-- **Not run locally:** the machine was short of RAM (a game open, 4–6 GB free; the guard needs 8). The browser checks
-  run in CI on the push; mutants wait for a local run.
+- Run locally once the game was closed: `room-dock`, `report`, `knowledge-filters` and `knowledge-library` specs, 89
+  passed.
+- Mutants, each killed with the control surviving: the demo on one version, `design=designing` ignored in the demo,
+  no tip from the keyboard, no tip under a hovering pointer.
+- Independent review: one P1 (the demo check read the pane by the plain fixture's title) and one P2 (a publish in the
+  demo asked for a third version the fixture doesn't hold), fixed: the check reads the pane by the demo's title; a
+  publish stops at the versions held (`VERSIONS_HELD`). Left (P3): the demo's work card and conversation still name
+  v1 while its report opens on v2; tips near the edge at 360 px; tips show at once on hover at 600 px.
 
 ## Limitations and next action
 
-- Next: CI on the PR; the local run and mutants when the guard allows.
+- Next: merge on green CI with no Codex P1.
