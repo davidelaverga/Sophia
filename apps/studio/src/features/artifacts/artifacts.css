@@ -1107,8 +1107,11 @@
   flex-direction: column;
   padding-bottom: 20px;
 }
-.report-pane[data-size='full'] .report-pane-body[data-html] > * {
+/* The designed page only (the body keeps `data-html` on the other tabs, which keep the full page's centred measure). No
+   auto margins either: in this flex column they would shrink the page to its frame's default 300 px. */
+.report-pane[data-size='full'] .report-pane-body[data-html] > .report-html {
   max-width: none;
+  margin-inline: 0;
 }
 .report-html {
   display: flex;
