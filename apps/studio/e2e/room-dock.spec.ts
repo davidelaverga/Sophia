@@ -90,6 +90,22 @@ test('dock · at 390 px, from the keyboard or under a hovering pointer, an icon 
   await expect(tip).toHaveCSS('opacity', '1')
 })
 
+test('dock · at 360 px, the tips of the outer squares stay on the screen', async ({ page }) => {
+  await enter(page, 'people=2', 360)
+  const squares = dock(page).locator('button:visible')
+  for (const square of [squares.first(), squares.last()]) {
+    await square.hover()
+    const tip = square.locator('.tip')
+    await expect(tip).toBeVisible()
+    await expect(tip).toHaveCSS('opacity', '1')
+    const box = await tip.boundingBox()
+    if (!box) throw new Error('no tip')
+    expect(box.x, 'its left edge on the screen').toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width, 'its right edge on the screen').toBeLessThanOrEqual(360)
+    await page.mouse.move(0, 0)
+  }
+})
+
 test('dock · on a phone, passing the floor to one person shows whose it becomes: their initial', async ({ page }) => {
   await enter(page, 'people=1&floor=me', 390)
   const pass = dock(page).getByRole('button', { name: 'Pass to Marco', exact: true })

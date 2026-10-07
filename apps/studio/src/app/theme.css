@@ -1967,8 +1967,9 @@ button.contribution-quote:hover {
     gap: 4px;
     padding-left: 0;
   }
+  /* Not a tip's frame: a square's tip opens over the dock's middle, so the outer squares' stay on the screen. */
   .dock :is(.round, .pill:has(.dock-icon)) {
-    position: relative;
+    position: static;
     display: grid;
     place-items: center;
     width: 42px;
