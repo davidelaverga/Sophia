@@ -18,13 +18,20 @@ Home.
 
 ## What changes
 
-- **On a phone (≤ 600 px)** the strip is one row that fits: Sophia's tile, up to three people's and «+N» share the
-  width, square, nothing to scroll. A name too long for its tile ends in an ellipsis.
+- **On a phone (≤ 600 px)** the strip is one row that fits: five columns whatever the count (a strip of two keeps its
+  tiles a fifth, not half the screen), square tiles, nothing to scroll.
+- **A fifth of a phone holds a name and one short word:**
+  - a guest says so, «guest», warm and whole (it tells a visitor from a member), the name before it giving way;
+  - « · you» and « · floor» stay said to a screen reader; the floor's holder has the warm edge, and your own tile
+    gives your name the label.
 - **In every strip** the initial is smaller (32 px; 28 px on a phone) and sits above the name, never under it.
 
 ## Checks (written first)
 
 - **Browser** (`e2e/room-tiles.spec.ts`):
   - at 390 px beside a shown screen, every tile and «+N» are in sight, on one row;
-  - at 390 and 820 px, no tile's name lies over its initial.
+  - at 390 and 820 px, no tile's name lies over its initial;
+  - at 390 px: a guest's «guest» whole with some of the name; the floor's holder with the warm edge and « · floor»
+    said, not shown; your own tile with the name and « · you» said, not shown;
+  - at 390 px, a strip of a few keeps each tile under 80 px.
 - **Mutants** with a control.

@@ -149,15 +149,64 @@ for (const width of [390, 820]) {
   })
 }
 
-test('tiles · on a phone, a short tile cuts the name, never what follows it: « · floor» stays whole', async ({
-  page,
-}) => {
+/** A tile's label at a phone's width: the width each part takes on screen, and its words. */
+const label = (page: Page, name: string) =>
+  room(page)
+    .locator('.tile-name')
+    .filter({ hasText: name })
+    .evaluate((el) => {
+      const width = (selector: string) => {
+        const part = el.querySelector(selector)
+        return part ? Math.round(part.getBoundingClientRect().width) : null
+      }
+      const box = el.getBoundingClientRect()
+      const guest = el.querySelector('.tile-mark[data-mark="guest"]')?.getBoundingClientRect()
+      return {
+        text: el.textContent,
+        who: width('.tile-who'),
+        you: width('.tile-mark[data-mark="you"]'),
+        floor: width('.tile-floor'),
+        guest: guest ? Math.round(guest.width) : null,
+        guestWhole: !!guest && guest.right <= box.right + 0.5,
+      }
+    })
+
+test('tiles · on a phone, a guest’s tile says «guest» whole, and still some of the name', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=3&video=screen&guest=1')
+  const guest = await label(page, 'Noor')
+  expect(guest.guestWhole).toBe(true)
+  expect(guest.guest).toBeGreaterThan(20)
+  expect(guest.who).toBeGreaterThanOrEqual(10)
+})
+
+test('tiles · on a phone, the floor’s holder has the warm edge; « · floor» is said, not shown', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await enter(page, 'people=9&video=screen&floor=9')
-  const floor = room(page).locator('.tile-floor')
-  await expect(floor).toHaveText(' · floor')
-  const [mark, label] = await Promise.all([floor.boundingBox(), floor.locator('..').boundingBox()])
-  expect(mark && label && mark.x + mark.width <= label.x + label.width + 0.5).toBe(true)
+  const holder = room(page).locator('.tile[data-floor]')
+  await expect(holder).toHaveCount(1)
+  // Its edge is the warm colour itself (resolved as the page resolves it).
+  const [edge, warm] = await holder.evaluate((el) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--warm)'
+    el.append(probe)
+    const resolved = getComputedStyle(probe).color
+    probe.remove()
+    return [getComputedStyle(el).borderTopColor, resolved]
+  })
+  expect(edge).toBe(warm)
+  const iv = await label(page, 'Iván')
+  expect(iv.text).toBe('Iván · floor')
+  expect(iv.floor).toBeLessThanOrEqual(1)
+})
+
+test('tiles · on a phone, your own tile gives the name the label; « · you» is said, not shown', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=9&video=screen')
+  const you = await label(page, 'Fixture')
+  expect(you.text).toBe('Fixture · you')
+  expect(you.you).toBeLessThanOrEqual(1)
+  expect(you.who).toBeGreaterThanOrEqual(30)
 })
 
 test('tiles · on a phone, a strip of a few keeps each tile a fifth of the width', async ({ page }) => {

@@ -2265,12 +2265,12 @@ button.contribution-quote:hover {
   font-weight: 500;
 }
 /* The tile's name is a flex row, which trims a child's leading space: keep the one before "· you", "· floor". */
-.tile-mark {
+.tile-mark,
+.tile-floor {
   white-space: pre;
 }
 .tile-floor {
   color: var(--warm);
-  white-space: pre;
 }
 .video {
   position: absolute;
@@ -3205,14 +3205,31 @@ div.empty {
     padding: 0 5px;
     font-size: 11px;
   }
+  /* The name gives way (its overflow lets it shrink to nothing); what follows it, kept whole by its own white-space,
+     never does. */
   .tile-strip .tile-who {
-    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .tile-strip :is(.tile-mark, .tile-floor) {
-    flex: none;
+  /* A fifth of a phone holds a name and one short word. A guest says so («guest», warm: it tells a visitor from a
+     member); « · you» and « · floor» stay said to a screen reader, and the floor's holder has the warm edge. */
+  .tile-strip .tile-sep {
+    display: none;
+  }
+  .tile-strip .tile-mark[data-mark='guest'] {
+    margin-left: 4px;
+    color: var(--warm);
+  }
+  .tile-strip :is(.tile-mark[data-mark='you'], .tile-floor) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .tile-strip .tile[data-floor] {
+    border-color: var(--warm);
   }
 }
 
