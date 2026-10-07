@@ -14,7 +14,8 @@
 ## What changes
 
 - **One kind of filter:** the project filter becomes the app's `.segmented` group, as the format filter is. Both show
-  the pressed choice by a thumb, a quiet plane under its words. The counts stay, in mono.
+  the pressed choice on a quiet plane like the group's thumb; a choice not pressed reads at 4.5:1 or more. The counts
+  stay, in mono.
 - **The reports first:** the tiles come right under the filters. What was carried in follows them, before Connections,
   with its heading as before. It is only shown with this project's reports, as now.
 - **The demo's library (fixtures only):** seven reports, six on the first page (two full rows at 1440 px), one behind

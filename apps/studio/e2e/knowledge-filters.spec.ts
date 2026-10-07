@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { lowContrast } from './contrast.ts'
 import { typeSizes } from './type-sizes.ts'
 
 // Knowledge's second pass (docs/plans/knowledge-filters.md, K2): one kind of filter, the reports first, and in the demo
@@ -47,6 +48,13 @@ test('filters · only the app’s type sizes in the filters', async ({ page }) =
   await page.getByRole('button', { name: 'All projects' }).click()
   const sizes = await typeSizes(page, '.knowledge-filters')
   for (const s of sizes) expect(['10.5px', '12px', '13px', '14px'], sizes.join(' ')).toContain(s)
+})
+
+test('filters · every word in the filters reads: no contrast under 4.5:1, pressed or not', async ({ page }) => {
+  await page.goto('/room.html?place=knowledge')
+  await page.getByRole('button', { name: 'More reports' }).click() // Format is offered
+  await expect(page.getByRole('group', { name: 'Format' })).toBeVisible()
+  expect(await lowContrast(page, '.knowledge-filters')).toEqual([])
 })
 
 test('order · the reports come first; what was carried in follows them', async ({ page }) => {

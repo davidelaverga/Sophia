@@ -1260,11 +1260,15 @@
   cursor: default;
   opacity: 0.45;
 }
-/* Knowledge's format filter: pressed buttons, drawn as the segmented control's selected one. */
 /* Both filters are the app's segmented group (docs/plans/knowledge-filters.md): the pressed choice on a quiet plane,
-   as the group's thumb draws it, and a count in mono beside a project's name. */
+   as the group's thumb draws it, and a count in mono beside a project's name. A choice not pressed is in the second
+   ink, not the group's third: it reads at 4.5:1 or more. */
 .knowledge-filters .segmented {
   flex-wrap: wrap;
+  row-gap: 2px;
+}
+.knowledge-filters .segmented button {
+  color: var(--text-2);
 }
 .knowledge-filters .segmented button[aria-pressed='true'] {
   color: var(--text);
