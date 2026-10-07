@@ -260,6 +260,43 @@ async function deliver(w: World, lose?: () => boolean) {
   return coordinateOnce(worker, { workerId: 'test-coordinator', client, signingKey: signing.privateKey })
 }
 
+/** One worker pass whose plugin calls go through `f`. */
+const passWith = (f: typeof fetch) =>
+  coordinateOnce(worker, {
+    workerId: 'test-coordinator',
+    client: httpPaperclipClient({ origin: 'http://paperclip.test', token: 'board-api-key', fetch: f }),
+    signingKey: signing.privateKey,
+  })
+
+/** Each world's deliveries to its own plugin (any other to the first's, as `deliver` does). */
+function routed(...worlds: World[]): typeof fetch {
+  return async (input, init) => {
+    const raw = typeof init?.body === 'string' ? init.body : ''
+    const [first, ...rest] = worlds
+    assert.ok(first)
+    const target = rest.find((x) => raw.includes(x.projectId)) ?? first
+    return pluginFetch(target.paperclip)(input, init)
+  }
+}
+
+/** A pass's outcomes for one world's deliveries only: a pass claims every due delivery in the database. */
+async function outcomesOf(w: World, pass: Awaited<ReturnType<typeof deliver>>) {
+  const ids = new Set(
+    await asOwner(async (o) =>
+      (
+        await o.query<{ id: string }>(`SELECT id::text AS id FROM sophia.coordination_outbox WHERE project_id=$1`, [
+          w.projectId,
+        ])
+      ).rows.map((r) => r.id),
+    ),
+  )
+  return pass.outcomes.filter((o) => ids.has(o.id)).map((o) => [o.op, o.outcome])
+}
+
+/** Due now: a world's deliveries waiting out a backoff are made due. */
+const dueNow = (w: World) =>
+  asOwner((o) => o.query(`UPDATE sophia.coordination_outbox SET available_at=now() WHERE project_id=$1`, [w.projectId]))
+
 /** A Paperclip run id: unique, as Paperclip's are, since Sophia keys runs by company and run. */
 const runId = (name: string) => `${name}-${randomUUID()}`
 
@@ -879,43 +916,26 @@ describe('control', () => {
   // Codex on #107 (r4206869533): a delivery's created_at is its transaction's start. A Stop whose transaction began
   // before a Hold's, and committed after it, was stamped earlier than the Hold; while the Hold was in flight, a second
   // worker sent the Stop alongside it, and the Hold reaching the plugin last undid the Stop.
-  it('a control whose transaction began before the one it follows is sent after it, never alongside it', async () => {
+  it('a control whose transaction began before the one it follows waits for it, even unanswered; other work goes on', async () => {
     const w = await world()
+    const other = await world()
     const proposal = await accepted(w)
-    await deliver(w)
+    const otherProposal = await accepted(other)
+    await passWith(routed(w, other))
     const issue = issueOf(w)
-    const passWith = (f: typeof fetch) =>
-      coordinateOnce(worker, {
-        workerId: 'test-coordinator',
-        client: httpPaperclipClient({ origin: 'http://paperclip.test', token: 'board-api-key', fetch: f }),
-        signingKey: signing.privateKey,
-      })
-    const ours = async (pass: Awaited<ReturnType<typeof deliver>>) => {
-      const ids = new Set(
-        await asOwner(async (o) =>
-          (
-            await o.query<{ id: string }>(`SELECT id::text AS id FROM sophia.coordination_outbox WHERE project_id=$1`, [
-              w.projectId,
-            ])
-          ).rows.map((r) => r.id),
-        ),
-      )
-      return pass.outcomes.filter((o) => ids.has(o.id)).map((o) => [o.op, o.outcome])
-    }
+    const otherIssue = issueOf(other)
 
-    // The Hold is sent, and held at the plugin's door until released.
+    // w's Hold is sent and held at the plugin's door; released, it lands and its reply is lost.
     let atHost!: () => void
     const arrived = new Promise<void>((resolve) => (atHost = resolve))
     let release!: () => void
     const released = new Promise<void>((resolve) => (release = resolve))
-    const plugin = pluginFetch(w.paperclip)
     const gated: typeof fetch = async (input, init) => {
       const body: ResponseBody = JSON.parse(typeof init?.body === 'string' ? init.body : 'null')
-      if (body?.control?.op === 'hold' && body.control.workId === proposal.workId) {
-        atHost()
-        await released
-      }
-      return plugin(input, init)
+      if (body?.control?.op !== 'hold' || body.control.workId !== proposal.workId) return routed(w, other)(input, init)
+      atHost()
+      await released
+      return pluginFetch(w.paperclip, () => true)(input, init)
     }
 
     const early = new pg.Client({ connectionString: db.ownerUrl })
@@ -929,7 +949,9 @@ describe('control', () => {
       first = passWith(gated)
       await Promise.race([arrived, first.then(() => assert.fail('the pass ended without sending the Hold'))])
 
-      // The Stop's transaction, begun before the Hold's, writes and commits now.
+      // Meanwhile another work item is held, and w's Stop, from the transaction begun before its Hold, commits.
+      const otherHold = await command(other, otherProposal, 'hold', null)
+      assert.equal(otherHold.status, 202, JSON.stringify(otherHold.json))
       await early.query(
         `SELECT sophia.work_control($1, w, 'stop', sophia.integration_actor(), 'early-stop', 'studio')
            FROM sophia.work_items w WHERE w.project_id=$1 AND w.id=$2`,
@@ -950,18 +972,58 @@ describe('control', () => {
       )
       assert.deepEqual(stamped, { earlier: true, after: true }, 'stamped before the Hold, written after it')
 
-      // A second worker passes while the Hold is in flight: the Stop waits for it.
-      assert.deepEqual(await ours(await passWith(pluginFetch(w.paperclip))), [])
+      // A second worker passes while w's Hold is in flight: w's Stop waits; the other work's Hold is delivered.
+      const second = await passWith(routed(w, other))
+      assert.deepEqual(await outcomesOf(w, second), [])
+      assert.deepEqual(await outcomesOf(other, second), [['hold', 'delivered']])
+      assert.equal(other.paperclip.issues.get(otherIssue.id)?.status, 'blocked')
+
       release()
-      assert.deepEqual(await ours(await first), [['hold', 'delivered']])
-      assert.equal(w.paperclip.issues.get(issue.id)?.status, 'blocked')
-      assert.deepEqual(await ours(await passWith(pluginFetch(w.paperclip))), [['stop', 'delivered']])
+      assert.deepEqual(await outcomesOf(w, await first), [['hold', 'unknown']])
+      assert.equal(w.paperclip.issues.get(issue.id)?.status, 'blocked', 'the Hold landed; its reply was lost')
+      // Its reconciliation comes first; the Stop is not sent alongside it.
+      await dueNow(w)
+      assert.deepEqual(await outcomesOf(w, await passWith(routed(w, other))), [['hold', 'delivered']])
+      assert.deepEqual(await outcomesOf(w, await passWith(routed(w, other))), [['stop', 'delivered']])
       assert.equal(w.paperclip.issues.get(issue.id)?.status, 'cancelled', 'the Stop, sent last, stands')
     } finally {
       release()
       await first?.catch(() => undefined)
       await early.end()
     }
+  })
+
+  it('controls written in one transaction, stamped alike, are sent one at a time in the order written', async () => {
+    const w = await world()
+    const proposal = await accepted(w)
+    await passWith(routed(w))
+    const issue = issueOf(w)
+    await asOwner(async (o) => {
+      await o.query('BEGIN')
+      await o.query(
+        `SELECT sophia.work_control($1, w, 'hold', sophia.integration_actor(), 'batched-hold', 'studio')
+           FROM sophia.work_items w WHERE w.project_id=$1 AND w.id=$2`,
+        [w.projectId, proposal.workId],
+      )
+      await o.query(`SELECT sophia.work_fail($1, $2, 'batched with a Hold')`, [w.projectId, proposal.workId])
+      await o.query('COMMIT')
+    })
+    const stamps = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ alike: boolean; ordered: boolean }>(
+            `SELECT h.created_at=f.created_at AS alike, h.seq<f.seq AS ordered
+               FROM sophia.coordination_outbox h JOIN sophia.coordination_outbox f ON f.project_id=h.project_id
+                AND f.work_id=h.work_id AND f.op='fail'
+              WHERE h.project_id=$1 AND h.op='hold'`,
+            [w.projectId],
+          )
+        ).rows[0],
+    )
+    assert.deepEqual(stamps, { alike: true, ordered: true })
+    assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [['hold', 'delivered']])
+    assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [['fail', 'delivered']])
+    assert.equal(w.paperclip.issues.get(issue.id)?.status, 'cancelled', 'the failure, written last, stands')
   })
 
   it('a cancelled Paperclip run holds the work and says held only once Sophia settled it', async () => {

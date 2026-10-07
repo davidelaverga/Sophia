@@ -159,7 +159,7 @@ CREATE TABLE sophia.work_commissions (
 -- the commission itself with the work), so a later control has a larger seq even when its transaction began first.
 -- created_at is a transaction's start, and orders nothing (Codex on #107).
 CREATE TABLE sophia.coordination_outbox (
- project_id uuid NOT NULL, id uuid NOT NULL DEFAULT gen_random_uuid(), seq bigint GENERATED ALWAYS AS IDENTITY,
+ project_id uuid NOT NULL, id uuid NOT NULL DEFAULT gen_random_uuid(), seq bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
  work_id uuid NOT NULL,
  op text NOT NULL CHECK(op IN ('commission','hold','resume','stop','complete','fail')),
  delivery_key text NOT NULL CHECK(delivery_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$'),

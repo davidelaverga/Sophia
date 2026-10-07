@@ -4,7 +4,7 @@ Goal and attempt: WBC-02 (SCM-01), the combined integration of #107 with the acc
 Human owner / executor resource: Davide (decisions); Codex (coordination, independent review, two pushes, local checks); Claude Code in a cloud container (linux-x64), the only tracked-source writer
 Native session: this Claude Code session (https://claude.ai/code/session_0155SjcXhv87RErnWEBWxfBM); no Sophia native session was created
 Starting worktree/commit: the held #107 branch `scm-01/workboard-source-review` at `29371f5a3703f4358563886407bc360df7c38603`, in a fresh worktree with no ignored build outputs
-Ending commit/tree: «WBC-02 #107: a work item's deliveries in the order they were written», this commit, on «WBC-02 #107: a start permit not yet used is decided again» (`2e618a07c177a09d3f51c0768e28359c0cef59d5`, tree `1abb716ad06fe2ff78b33af51b3c116814f7a38c`), on «WBC-02 #107: the end of a source and the size limit, in their controls» (`7d9c940993478f45f411ffa8ace32e25d70aced4`, tree `8f1f02c11ea477be9d93e3bd60e7f2e211bf9574`), itself on the content commit «WBC-02 #107: an empty page proves no read; Review sources keeps to the size limit» (`d165c6520c9b229e52724f73096619ff14f6a911`, tree `3f6c0bf7634a0c2496569d4ba0acd3c8f2c51802`) and its handoff `7ae5a177`. Before them: the bundle records `d0eba67a`; the receipt, principal and CI fixes `8241e9d0`; the wakeup fix `e93b0c51`; the first fix `df183a5f`; each with its handoff commit. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
+Ending commit/tree: «WBC-02 #107: delivery order, in its controls», this commit, on «WBC-02 #107: a work item's deliveries in the order they were written» (`a82e3db2b7ba9937f23366451a9512c819d68d04`, tree `b6638b447c7bf94caecc1a1c3c2302d0b63e3098`), on «WBC-02 #107: a start permit not yet used is decided again» (`2e618a07c177a09d3f51c0768e28359c0cef59d5`, tree `1abb716ad06fe2ff78b33af51b3c116814f7a38c`), on «WBC-02 #107: the end of a source and the size limit, in their controls» (`7d9c940993478f45f411ffa8ace32e25d70aced4`, tree `8f1f02c11ea477be9d93e3bd60e7f2e211bf9574`), itself on the content commit «WBC-02 #107: an empty page proves no read; Review sources keeps to the size limit» (`d165c6520c9b229e52724f73096619ff14f6a911`, tree `3f6c0bf7634a0c2496569d4ba0acd3c8f2c51802`) and its handoff `7ae5a177`. Before them: the bundle records `d0eba67a`; the receipt, principal and CI fixes `8241e9d0`; the wakeup fix `e93b0c51`; the first fix `df183a5f`; each with its handoff commit. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
 
 | Commit | Tree | Merges | Changes beyond its parents |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 **Codex's review of `7d9c9409`** (review 5442265537) found one more; Codex verified finding 9 fixed on that head (r4206833190):
 
-11. **A work item's deliveries go in the order they were written** (r4206869533, P1, this commit). `claim_coordination_outbox` held back a delivery while an earlier one of its work item was unsettled, but "earlier" was `created_at`, which is a transaction's start. A Stop whose transaction began before a Hold's, and wrote after it, was stamped before the Hold. While the Hold was in flight, a second worker could send the Stop alongside it, and the Hold reaching the plugin last took the larger plugin sequence and undid the Stop. `coordination_outbox` now has `seq` (an identity), and the claim compares and orders by it. Every row is written under its commission's lock (`work_mirror`; the commission itself with the work), so a later control always has the larger `seq`.
+11. **A work item's deliveries go in the order they were written** (r4206869533, P1, fixed in `a82e3db2`; its controls extended in this commit under handback 6038061799; Codex reproduced it on `2e618a07`, r4206974770). `claim_coordination_outbox` held back a delivery while an earlier one of its work item was unsettled, but "earlier" was `created_at`, which is a transaction's start. A Stop whose transaction began before a Hold's, and wrote after it, was stamped before the Hold. While the Hold was in flight, a second worker could send the Stop alongside it, and the Hold reaching the plugin last took the larger plugin sequence and undid the Stop. `coordination_outbox` now has `seq` (a unique identity), and the claim compares and orders by it. Every row is written under its commission's lock (`work_mirror`; the commission itself with the work), so a later control always has the larger `seq`.
 
 ## Evidence
 
@@ -161,13 +161,22 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 - Run here: `prettier --check`, `oxlint --type-aware` and `tsc` on the touched files; the adapter's units 28 of 28 (its comment only changes). Not run here: the four `.db` controls, since there is no PostgreSQL in this container. CI's `test:db` runs them. The contract, the bundle and the recorded artifact bytes are unchanged.
 - The form and browser coverage of 6037532214 are in `7d9c9409`, unchanged here, as are the EOF and paging controls.
 
-**Finding 11, in this commit:** `coordination.db.test.ts`, «a control whose transaction began before the one it follows is sent after it, never alongside it». A transaction begins and fixes its start. A Hold is then made through the API, and a worker's pass sends it, held at the plugin's door. The early transaction now Stops the work (`work_control`, so the goal's mirror writes the row) and commits. The control asserts:
-- the Stop is stamped before the Hold, and its `seq` is after it;
-- a second worker's pass sends nothing of the work while the Hold is in flight;
-- released, the Hold is delivered (`blocked`);
-- the next pass delivers the Stop, and the issue ends `cancelled`.
+**Finding 11, in `a82e3db2` and this commit** (`coordination.db.test.ts`, `control`):
+- «a control whose transaction began before the one it follows waits for it, even unanswered; other work goes on». Two work items, each with its own plugin. In order:
+  1. A transaction begins.
+  2. A Hold of the first work is made through the API, and a worker's pass sends it, held at the plugin's door.
+  3. The second work is held.
+  4. The early transaction Stops the first work (`work_control`, so the goal's mirror writes the row) and commits. Asserted: the Stop is stamped before the Hold, and its `seq` is after it.
+  5. A second worker's pass sends nothing of the first work, and delivers the second work's Hold: work items still go in parallel.
+  6. Released, the first Hold lands (`blocked`), and its reply is lost: `unknown`.
+  7. The next pass reconciles the Hold alone (`delivered`). The pass after delivers the Stop, and the issue ends `cancelled`.
+- «controls written in one transaction, stamped alike, are sent one at a time in the order written». One transaction holds the work and fails it (`work_control`, `work_fail`). Asserted: equal `created_at`, ordered `seq`; one pass sends the Hold alone, the next the failure, and the issue ends `cancelled`.
 
-With the claim on `created_at`, the second pass sends the Stop. Run here: `prettier`, `oxlint --type-aware` and `tsc` on the touched files. The control itself did not run here (no PostgreSQL); CI's `test:db` runs it.
+With the claim on `created_at`:
+- in the first control, the second pass sends the Stop alongside the Hold;
+- in the second, one pass sends both.
+
+Run here: `prettier`, `oxlint --type-aware` and `tsc` on the touched files. The two controls did not run here (no PostgreSQL); CI's `test:db` runs them. Unchanged: commission before controls, the supersession of a pending control by a newer one, effect leases, idempotency, and Stop.
 
 **Source-register IDs consulted:** none.
 
