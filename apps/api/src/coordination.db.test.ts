@@ -412,6 +412,28 @@ async function reviewed(w: World, attemptId: string, cost = 0.000275) {
   })
 }
 
+/** One model call of the attempt, reserved and settled at `cost`. */
+async function modelCall(w: World, attemptId: string, callId: string, cost: number) {
+  const at = { attemptId, nativeSessionId: `sophia-${attemptId}` }
+  const reserve = await w.runtime('/v1/runtime/source-review/reserve', {
+    ...at,
+    callId,
+    kind: 'model',
+    provider: 'openai-review',
+    amountUsd: 0.01,
+  })
+  assert.equal(reserve.status, 200, JSON.stringify(reserve.json))
+  const usage = { inputTokens: 10, outputTokens: 5, provider: 'openai-review', model: 'gpt-6-luna' }
+  const settle = await w.runtime('/v1/runtime/source-review/settle', {
+    ...at,
+    reservationId: reserve.json.reservationId,
+    outcome: 'settled',
+    costUsd: cost,
+    usage,
+  })
+  assert.equal(settle.status, 200, JSON.stringify(settle.json))
+}
+
 const board = async (w: World, actor = E) => member(actor, `/api/v1/projects/${w.projectId}/plans`)
 
 /** The work item of the board's one review. */
@@ -465,6 +487,24 @@ async function command(
 }
 
 const refusedAs = (code: string) => (err: unknown) => err instanceof SophiaRefusal && err.code === code
+
+/** Until `n` backends of this database wait for a lock: a barrier on observed state, never a timed wait. */
+async function untilWaiting(n: number) {
+  const waiting = async () =>
+    asOwner(
+      async (o) =>
+        (
+          await o.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
+              WHERE NOT l.granted AND a.datname=current_database()`,
+          )
+        ).rows[0]?.n ?? 0,
+    )
+  for (let looked = 0; (await waiting()) < n; looked += 1) {
+    assert.ok(looked < 500, `${String(n)} backend(s) waiting on a lock`)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
 
 describe('one Paperclip-managed source review', () => {
   it('is proposed, accepted, commissioned once, started once, reviewed, and shown on the board (INT-03/04/06/09/15/16/17)', async () => {
@@ -694,24 +734,6 @@ describe('one Paperclip-managed source review', () => {
     await dueNow(w)
     assert.deepEqual(await outcomesOf(w, await passWith(routed(w))), [], 'nothing more is sent')
     assert.equal(w.paperclip.issues.size, 0, 'no issue was created, cancelled or otherwise')
-  }
-
-  /** Until `n` backends of this database wait for a lock: a barrier on observed state, never a timed wait. */
-  async function untilWaiting(n: number) {
-    const waiting = async () =>
-      asOwner(
-        async (o) =>
-          (
-            await o.query<{ n: number }>(
-              `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
-                WHERE NOT l.granted AND a.datname=current_database()`,
-            )
-          ).rows[0]?.n ?? 0,
-      )
-    for (let looked = 0; (await waiting()) < n; looked += 1) {
-      assert.ok(looked < 500, `${String(n)} backend(s) waiting on a lock`)
-      await new Promise((resolve) => setTimeout(resolve, 10))
-    }
   }
 
   it('a commission proved absent after its work was stopped is withdrawn, never created only to be cancelled (Codex on #107)', async () => {
@@ -1737,5 +1759,165 @@ describe('a start permit asked for again before it was used (Codex on #107)', ()
     assert.deepEqual(await recordOf(waiting), kept)
     await assert.rejects(sophia().start(waiting), /ask for a permit again/)
     assert.equal(await attempts(w), 1)
+  })
+})
+
+describe('the coordination grant, and the runs of one attempt (Codex on #107)', () => {
+  /** The owner's disable of the world's grant, made in a transaction left open: it holds what the setter locks. */
+  async function disabling(w: World) {
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    await owner.query('BEGIN')
+    await owner.query(`SELECT sophia.set_coordination_grant($1, 'disabled', 2, $2, $3, 'approval:test-off')`, [
+      w.projectId,
+      COMPANY,
+      PC_PROJECT,
+    ])
+    let open = true
+    const finish = async (how: 'COMMIT' | 'ROLLBACK') => {
+      if (!open) return
+      open = false
+      await owner.query(how)
+      await owner.end()
+    }
+    return { commit: () => finish('COMMIT'), abandon: () => finish('ROLLBACK') }
+  }
+
+  const countOf = (w: World, table: 'work_items' | 'coordination_outbox' | 'work_attempts') =>
+    asOwner(
+      async (o) =>
+        (
+          await o.query<{ n: number }>(`SELECT count(*)::int AS n FROM sophia.${table} WHERE project_id=$1`, [
+            w.projectId,
+          ])
+        ).rows[0]?.n,
+    )
+
+  it('an acceptance asked while a disable is in flight waits for it, and once it committed admits nothing', async () => {
+    const w = await world()
+    const proposal = await propose(w)
+    assert.equal(proposal.status, 201, JSON.stringify(proposal.json))
+    const off = await disabling(w)
+    try {
+      const answering = answer(w, proposal.json, 'accept')
+      // Without the grant's lock order, the acceptance read the grant the disable was replacing and admitted at once.
+      await untilWaiting(1)
+      await off.commit()
+      const answered = await answering
+      assert.deepEqual(
+        [answered.json.admission, answered.json.rejection],
+        ['rejected', 'unavailable'],
+        JSON.stringify(answered.json),
+      )
+    } finally {
+      await off.abandon()
+    }
+    assert.equal(await countOf(w, 'work_items'), 0, 'no work was admitted')
+    assert.equal(await countOf(w, 'coordination_outbox'), 0, 'nothing is to be commissioned')
+    assert.equal((await deliver(w)).outcomes.length, 0)
+    assert.equal(w.paperclip.issues.size, 0)
+  })
+
+  it('a start asked while a disable is in flight waits for it, and once it committed starts nothing', async () => {
+    const w = await world()
+    await accepted(w)
+    await deliver(w)
+    const run = { companyId: COMPANY, runId: runId('run') }
+    const permit = await sophia().permit({ ...run, issueId: issueOf(w).id, agentId: 'agent-source-reviewer' })
+    assert.equal(permit.decision, 'start', JSON.stringify(permit))
+    const off = await disabling(w)
+    try {
+      const starting = sophia().start(run)
+      await untilWaiting(1)
+      await off.commit()
+      const started = await starting
+      assert.deepEqual([started.denied, started.code], [true, 'not_enrolled'], JSON.stringify(started))
+    } finally {
+      await off.abandon()
+    }
+    assert.equal(await countOf(w, 'work_attempts'), 0, 'no attempt, so no model call')
+    const again = await sophia().permit({ companyId: COMPANY, runId: runId('later'), issueId: issueOf(w).id })
+    assert.deepEqual([again.decision, again.code], ['deny', 'not_enrolled'], JSON.stringify(again))
+  })
+
+  it('an acceptance queued on the project before a disable is admitted under the grant it read; the disable follows', async () => {
+    const w = await world()
+    const proposal = await propose(w)
+    assert.equal(proposal.status, 201, JSON.stringify(proposal.json))
+    // A third transaction holds the project; the acceptance queues on it, then the disable (each wait observed).
+    const holder = new pg.Client({ connectionString: db.ownerUrl })
+    await holder.connect()
+    await holder.query('BEGIN')
+    await holder.query(`SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE`, [w.projectId])
+    let answering: ReturnType<typeof answer> | undefined
+    let disabled: Promise<unknown> | undefined
+    try {
+      answering = answer(w, proposal.json, 'accept')
+      await untilWaiting(1)
+      disabled = asOwner((o) =>
+        o.query(`SELECT sophia.set_coordination_grant($1, 'disabled', 2, $2, $3, 'approval:test-off')`, [
+          w.projectId,
+          COMPANY,
+          PC_PROJECT,
+        ]),
+      )
+      // Without the grant's lock order, the disable did not queue: it committed while the acceptance waited.
+      await untilWaiting(2)
+    } finally {
+      await holder.query('COMMIT')
+      await holder.end()
+    }
+    const answered = await answering
+    assert.equal(answered?.json.admission, 'recorded', JSON.stringify(answered?.json))
+    await disabled
+    assert.equal(await countOf(w, 'work_items'), 1, 'admitted under the grant it read')
+    const grant = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ state: string }>(`SELECT state FROM sophia.coordination_grants WHERE project_id=$1`, [
+            w.projectId,
+          ])
+        ).rows[0]?.state,
+    )
+    assert.equal(grant, 'disabled', 'and the disable after it')
+  })
+
+  it("a run that attached and ends first claims none of the starting run's spend; the starting run claims it", async () => {
+    const w = await world()
+    const { run, attemptId } = await running(w)
+    const duplicate = { companyId: COMPANY, runId: runId('duplicate') }
+    const attach = await sophia().permit({ ...duplicate, issueId: issueOf(w).id })
+    assert.deepEqual([attach.decision, attach.attemptId], ['attach', attemptId], JSON.stringify(attach))
+    assert.equal((await reviewed(w, attemptId)).json.outcome, 'published')
+
+    const first = await sophia().observe({ ...duplicate, final: true })
+    assert.deepEqual([first.usage?.calls, first.usage?.costUsd], [0, 0], JSON.stringify(first.usage))
+    assert.deepEqual(
+      (await sophia().observe({ ...duplicate, final: true })).usage,
+      first.usage,
+      'asked again, the same',
+    )
+    const starter = await sophia().observe({ ...run, final: true })
+    assert.deepEqual([starter.usage?.calls, starter.usage?.costUsd], [1, 0.000275], JSON.stringify(starter.usage))
+  })
+
+  it('once the starting run let go, the run that attached after it claims the spend made since, and only that', async () => {
+    const w = await world()
+    const { run, attemptId } = await running(w)
+    await modelCall(w, attemptId, 'm1', 0.0001)
+    // The starting run lets go while the attempt continues (its observer's bound): it claims what was spent so far.
+    const released = await sophia().observe({ ...run, final: true })
+    assert.deepEqual([released.usage?.calls, released.usage?.costUsd], [1, 0.0001], JSON.stringify(released.usage))
+    const next = { companyId: COMPANY, runId: runId('next') }
+    const attach = await sophia().permit({ ...next, issueId: issueOf(w).id })
+    assert.deepEqual([attach.decision, attach.attemptId], ['attach', attemptId], JSON.stringify(attach))
+    await modelCall(w, attemptId, 'm2', 0.0002)
+    const later = await sophia().observe({ ...next, final: true })
+    assert.deepEqual([later.usage?.calls, later.usage?.costUsd], [1, 0.0002], JSON.stringify(later.usage))
+    assert.deepEqual(
+      (await sophia().observe({ ...run, final: true })).usage,
+      released.usage,
+      'the first run answers as it did',
+    )
   })
 })

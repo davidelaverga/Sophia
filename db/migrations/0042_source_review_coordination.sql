@@ -302,11 +302,15 @@ ALTER TABLE sophia.work_items ADD COLUMN nudge_command_id uuid,
 
 -- --- the owner's operations (no grant: run by the migration owner, under Davide's approval) ------------------------
 
+-- The grant is written under the project's lock, the lock every proposal, admission, permit and start takes before it
+-- reads the grant (Codex on #107): one in flight finishes under the grant it read, and once a disable has committed,
+-- none admits or starts under the grant it replaced.
 CREATE FUNCTION sophia.set_coordination_grant(p_project uuid, p_state text, p_review_cap numeric, p_company text,
   p_paperclip_project text, p_approval_ref text) RETURNS sophia.coordination_grants
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE g sophia.coordination_grants;
 BEGIN
+ PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
  INSERT INTO sophia.coordination_grants(project_id,state,review_cap_usd,paperclip_company_id,paperclip_project_id,approval_ref)
  VALUES(p_project,p_state,p_review_cap,p_company,p_paperclip_project,p_approval_ref)
  ON CONFLICT (project_id) DO UPDATE SET state=EXCLUDED.state, review_cap_usd=EXCLUDED.review_cap_usd,
@@ -1120,19 +1124,32 @@ BEGIN
  SELECT * INTO r FROM sophia.work_runs WHERE paperclip_company_id=company AND paperclip_run_id=p_request->>'runId';
  IF NOT FOUND THEN RAISE EXCEPTION 'Permit not found' USING ERRCODE='22023'; END IF;
  IF r.integration_id<>ci.id THEN RAISE EXCEPTION 'Integration run belongs to another credential' USING ERRCODE='42501'; END IF;
- IF final THEN SELECT * INTO r FROM sophia.work_runs WHERE paperclip_company_id=company AND paperclip_run_id=r.paperclip_run_id FOR UPDATE; END IF;
+ IF final THEN
+  -- The project first, as every coordination write takes it: two runs' final looks are decided one after the other.
+  PERFORM 1 FROM sophia.projects WHERE id=r.project_id FOR UPDATE;
+  SELECT * INTO r FROM sophia.work_runs WHERE paperclip_company_id=company AND paperclip_run_id=r.paperclip_run_id FOR UPDATE;
+ END IF;
  SELECT * INTO w FROM sophia.work_items WHERE project_id=r.project_id AND id=r.work_id;
  SELECT * INTO g FROM sophia.goals WHERE project_id=r.project_id AND id=w.execution_goal_id;
  SELECT * INTO b FROM sophia.execution_bindings WHERE project_id=r.project_id AND attempt_id=r.attempt_id;
  SELECT * INTO j FROM sophia.jobs WHERE project_id=r.project_id AND attempt_id=r.attempt_id AND kind='source_review';
  phase:=sophia.work_phase(r.project_id,w,g,r.attempt_id);
  SELECT * INTO res FROM sophia.work_results WHERE project_id=r.project_id AND work_id=w.id ORDER BY created_at DESC LIMIT 1;
- IF final AND r.attempt_id IS NOT NULL THEN
+ -- An attempt's spend is claimed by its earliest run still open: the run that started it, while it runs; once it ended
+ -- (it let go, or the work was held), the run that attached after it (Codex on #107). A run that ends while an earlier
+ -- run of its attempt is open claims nothing, so a duplicate or recovered observer never takes the starting run's
+ -- spend; claims are made once, when the run ends, so a final look asked again answers the same usage.
+ IF final AND r.attempt_id IS NOT NULL AND r.state<>'ended' AND NOT EXISTS(SELECT 1 FROM sophia.work_runs o
+   WHERE o.project_id=r.project_id AND o.attempt_id=r.attempt_id AND o.state IN ('started','attached')
+    AND (o.paperclip_company_id,o.paperclip_run_id)<>(r.paperclip_company_id,r.paperclip_run_id)
+    AND (o.decision='start' OR (r.decision<>'start' AND (o.created_at,o.paperclip_run_id)<(r.created_at,r.paperclip_run_id)))) THEN
   INSERT INTO sophia.work_usage_claims(project_id,reservation_id,paperclip_company_id,paperclip_run_id)
   SELECT x.project_id,x.id,company,r.paperclip_run_id FROM sophia.research_reservations x
    WHERE x.project_id=r.project_id AND x.allowance_id=w.allowance_id AND x.state IN ('settled','uncertain')
     AND starts_with(x.reservation_key,b.native_session_id||':')
   ON CONFLICT (project_id,reservation_id) DO NOTHING;
+ END IF;
+ IF final AND r.attempt_id IS NOT NULL THEN
   SELECT jsonb_build_object('calls',count(*),'uncertainCalls',count(*) FILTER (WHERE x.state='uncertain'),
    'inputTokens',coalesce(sum((x.usage->>'inputTokens')::bigint),0),'outputTokens',coalesce(sum((x.usage->>'outputTokens')::bigint),0),
    'cachedInputTokens',coalesce(sum((x.usage->>'cacheReadTokens')::bigint),0),
