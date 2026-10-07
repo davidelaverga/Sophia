@@ -13,6 +13,7 @@ const NONE = { open: false, mine: false }
 
 export function Rows(props: {
   projectId: string
+  reader: string
   all: readonly ConversationSummary[]
   openId: string | undefined
   me: string
@@ -20,7 +21,8 @@ export function Rows(props: {
 }) {
   const [typed, setTyped] = useState('')
   const search = useRef<HTMLInputElement>(null)
-  const key = `${props.projectId}:${props.me}`
+  // Keyed by who reads, known at once: a press made before the membership arrives is still there after it.
+  const key = `${props.projectId}:${props.reader}`
   const by = useMemory(shownBy, key) ?? NONE
   const set = (next: Partial<typeof NONE>) => shownBy.set(key, { ...by, ...next })
   // «Mine» waits for who the reader is: until then it narrows nothing.
@@ -44,18 +46,12 @@ export function Rows(props: {
         value={typed}
         onChange={(e) => setTyped(e.target.value)}
       />
-      <div className="conv-show" role="group" aria-label="Show only">
-        <button type="button" aria-pressed={by.open} onClick={() => set({ open: !by.open })}>
-          Open
-        </button>
-        <button type="button" aria-pressed={by.mine} onClick={() => set({ mine: !by.mine })}>
-          Mine
-        </button>
-        {/* Always in the page, so a screen reader hears what a press left: how many, or none. */}
-        <span className={shown.length > 0 ? 'conv-count' : 'sr-only'} role="status">
-          {!narrowing ? '' : shown.length > 0 ? `${String(shown.length)} of ${String(props.all.length)}` : none}
-        </span>
-      </div>
+      <ShowOnly
+        by={by}
+        onSet={set}
+        said={!narrowing ? '' : shown.length > 0 ? `${String(shown.length)} of ${String(props.all.length)}` : none}
+        counted={shown.length > 0}
+      />
       {shown.length === 0 ? (
         <p className="conv-note">
           {none}{' '}
@@ -71,6 +67,29 @@ export function Rows(props: {
         </ul>
       )}
     </>
+  )
+}
+
+/** «Open» and «Mine», and what a press left (how many, or none): a status, always in the page, so it is heard. */
+function ShowOnly(props: {
+  by: typeof NONE
+  onSet: (next: Partial<typeof NONE>) => void
+  said: string
+  counted: boolean
+}) {
+  const { by, onSet } = props
+  return (
+    <div className="conv-show" role="group" aria-label="Show only">
+      <button type="button" aria-pressed={by.open} onClick={() => onSet({ open: !by.open })}>
+        Open
+      </button>
+      <button type="button" aria-pressed={by.mine} onClick={() => onSet({ mine: !by.mine })}>
+        Mine
+      </button>
+      <span className={props.counted ? 'conv-count' : 'sr-only'} role="status">
+        {props.said}
+      </span>
+    </div>
   )
 }
 

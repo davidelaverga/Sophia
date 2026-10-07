@@ -149,6 +149,8 @@ interface Project {
   cardAhead?: boolean
   /** While set, the project list's reads wait for these (`window.fixture.holdProjects`). */
   projectsHeld?: (() => void)[] | null
+  /** While set, the membership's reads wait for these (`membership=hold`, `window.fixture.releaseMembership`). */
+  membershipHeld?: (() => void)[] | null
   /** The project list's reads fail (`projects=fail`). */
   projectsFail?: boolean
   /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
@@ -276,7 +278,7 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   }
   const records = recordsAnswer(project, method, url, init)
   if (records !== undefined) return records
-  if (method === 'GET' && path === `${base}/membership`) return json(membershipOf(project))
+  if (method === 'GET' && path === `${base}/membership`) return membershipRead(project)
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
@@ -346,6 +348,13 @@ function searchAnswer(project: Project, url: URL): Response | Promise<Response> 
 
 /** This viewer's membership: the fixture's own, in the role the page asked for. */
 const membershipOf = (project: Project) => ({ ...membership, role: project.role ?? membership.role })
+
+/** The reader's membership; while held, a read that waits until it is let through. */
+function membershipRead(project: Project): Response | Promise<Response> {
+  const held = project.membershipHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(json(membershipOf(project)))))
+  return json(membershipOf(project))
+}
 
 /** What a closed meeting's work made after it (the proposed `after` route): the running one's, once closed; none else. */
 function afterAnswer(meeting: Meeting, path: string): Response | null {

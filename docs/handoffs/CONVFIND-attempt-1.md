@@ -44,6 +44,10 @@ Design note: `docs/plans/conversations-find.md`. No API change: A18 lists what e
   the edge fade, the group's name («Show only»).
 - Prettier, `oxlint --type-aware` (clean but `brand-assets.mjs`, already on `main`), `tsc`.
 
+Codex on #157 (one P2), fixed: a filter pressed before the membership arrived was keyed under an empty reader and lost
+once it came. The key is the reader's identity, known at once; the fixture's `membership=hold` and
+`window.fixture.releaseMembership()` check it (10 passed; the mutant keyed by `me` is killed).
+
 ## Limitations and next action
 
 - Mutants (run beside AION2 under `safe-run.ps1 -Gentle -AllowApps AION2` at Luis's word, RAM floors untouched),

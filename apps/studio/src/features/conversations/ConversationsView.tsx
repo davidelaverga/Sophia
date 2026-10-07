@@ -78,6 +78,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     >
       <ListPane
         projectId={projectId}
+        reader={identity.name}
         read={list}
         all={all}
         openId={shown?.id}
@@ -107,6 +108,8 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
 /** The left pane: the list's name and New conversation (for members), the list's state, and its rows. */
 function ListPane(props: {
   projectId: string
+  /** Who reads, known at once (the membership, and so `me`, may come later). */
+  reader: string
   read: Parameters<typeof ListState>[0]['read']
   all: readonly ConversationSummary[]
   openId: string | undefined
@@ -127,7 +130,12 @@ function ListPane(props: {
       </div>
       <ListState read={props.read} count={all.length} />
       {all.length > 0 && (
-        <Rows projectId={props.projectId} all={all} openId={props.openId} me={props.me} onOpen={props.onOpen} />
+        <Rows
+          {...{ all, me: props.me, reader: props.reader }}
+          projectId={props.projectId}
+          openId={props.openId}
+          onOpen={props.onOpen}
+        />
       )}
     </section>
   )

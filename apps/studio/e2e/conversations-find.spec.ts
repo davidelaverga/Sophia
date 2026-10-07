@@ -68,6 +68,18 @@ test('find · the filters wait while you are in another view, and are as left wh
   await expect(titles(page)).toHaveCount(2)
 })
 
+test('find · a filter pressed before the membership arrives is still on after it', async ({ page }) => {
+  await page.goto(`${PAGE}&membership=hold`)
+  await expect(titles(page)).toHaveCount(3)
+  await openOnly(page).click()
+  await expect(openOnly(page)).toHaveAttribute('aria-pressed', 'true')
+  await page.evaluate(() => window.fixture?.releaseMembership())
+  // Once the reader is known (the field arrives with it), the press holds.
+  await expect(field(page)).toBeVisible()
+  await expect(openOnly(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect(titles(page)).toHaveCount(2)
+})
+
 test('find · a quick ask asks Sophia in one press: its words are yours in the thread, and she answers', async ({
   page,
 }) => {
