@@ -896,6 +896,14 @@ test('HTML · a designed page that does not match its record is not shown', asyn
   )
 })
 
+test('HTML · in the demo too, a designed page that does not match its record is not shown', async ({ page }) => {
+  await enter(page, `/room.html?demo=1&report=${REPORT}&format=html&tamper=html`)
+  await expect(page.getByRole('alert').filter({ hasText: 'did not match' })).toHaveText(
+    'This page did not match its record, so it is not shown.',
+  )
+  await expect(page.locator('iframe.report-html-frame')).toHaveCount(0)
+})
+
 test('HTML · a version without a designed page shows its Markdown and says so', async ({ page }) => {
   await enter(page, `/room.html?report=${REPORT}&format=html`)
   await expect(pane(page).getByText(FIRST)).toBeVisible()
