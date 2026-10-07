@@ -4,6 +4,7 @@
 import type { SearchHit, SearchPage } from '../src/api/vision.ts'
 import { anchorOf } from '../src/features/artifacts/markdown.ts'
 import { allRecaps, type Meeting } from './meeting-data.ts'
+import { DEMO } from './demo.ts'
 import { content, REPORT, versions } from './report-data.ts'
 
 export const SEARCH_PAGE = 3
@@ -15,6 +16,15 @@ interface Searched {
 }
 
 const has = (text: string, q: string) => text.toLowerCase().includes(q.toLowerCase())
+
+/** A report's words as a snippet says them (the demo's): no citation ids, no emphasis or list marks. */
+const words = (text: string) =>
+  DEMO
+    ? text
+        .replace(/\s?\[[0-9a-f-]{36}\]/g, '')
+        .replace(/\*\*/g, '')
+        .replace(/(^|\s)- /g, '$1')
+    : text
 
 /**
  * The report's sections, `## ` headings with the paragraph under each, in its current version; a repeated heading's
@@ -46,7 +56,7 @@ function reportHits(s: Searched, q: string): SearchHit[] {
           kind: 'report',
           id: REPORT,
           title: s.report.title,
-          snippet: text.split('\n\n')[1] ?? '',
+          snippet: words(text.split('\n\n')[1] ?? ''),
           meetingId: null,
           at,
           cite,
@@ -59,7 +69,7 @@ function reportHits(s: Searched, q: string): SearchHit[] {
       kind: 'report_section',
       id: REPORT,
       title: x.heading,
-      snippet: x.body,
+      snippet: words(x.body),
       meetingId: null,
       at,
       cite: { ...cite, anchor: x.anchor },

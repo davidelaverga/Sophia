@@ -4,6 +4,7 @@
 import type { ConversationMessage, ConversationSummary } from '../src/api/vision.ts'
 import { membership } from './data.ts'
 import { PROJECT } from './data.ts'
+import { VIEWER_NAME } from './demo.ts'
 
 /** What the writes keep: the conversations themselves, and the receipts by key. */
 export interface TalkWrites {
@@ -97,7 +98,7 @@ function started(talk: TalkWrites, key: string, body: Record<string, unknown>, c
     id: `${id}-1`,
     author: 'member',
     actorId: ME,
-    name: 'Fixture viewer',
+    name: VIEWER_NAME,
     text: String(body.text),
     at,
   }
@@ -106,7 +107,7 @@ function started(talk: TalkWrites, key: string, body: Record<string, unknown>, c
     title: body.title,
     summary: null,
     lastAt: at,
-    contributors: [{ actorId: ME, name: 'Fixture viewer' }],
+    contributors: [{ actorId: ME, name: VIEWER_NAME }],
     sophia: false,
     openQuestions: 0,
     output: null,
@@ -135,14 +136,14 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
     id: `${id}-m${String(sent)}`,
     author: 'member',
     actorId: ME,
-    name: 'Fixture viewer',
+    name: VIEWER_NAME,
     text: String(body.text),
     at,
   }
   all.push(message)
   conversation.lastAt = at
   if (!conversation.contributors.some((p) => p.actorId === ME)) {
-    conversation.contributors = [...conversation.contributors, { actorId: ME, name: 'Fixture viewer' }]
+    conversation.contributors = [...conversation.contributors, { actorId: ME, name: VIEWER_NAME }]
   }
   const receipt = { message, sophia: body.askSophia ? 'asked' : 'not_asked' }
   talk.receipts.set(key, { body: JSON.stringify(body), receipt })

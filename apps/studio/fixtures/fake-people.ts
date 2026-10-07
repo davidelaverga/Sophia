@@ -5,6 +5,7 @@
 import type { VideoFeed } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
 import type { SophiaSignal } from '../src/features/voice/sophia-view.ts'
+import { DEMO } from './demo.ts'
 
 const query = new URLSearchParams(window.location.search)
 
@@ -154,12 +155,42 @@ function stream(label: string, wide: boolean): MediaStream {
     g.font = `600 ${wide ? 28 : 56}px system-ui, sans-serif`
     g.textAlign = 'center'
     g.textBaseline = 'middle'
+    if (wide && DEMO) {
+      drawChart(g, canvas.width, canvas.height)
+      return
+    }
     g.fillText(wide ? `${label}’s screen (synthetic)` : label.charAt(0), canvas.width / 2, canvas.height / 2)
   }
   draw()
   // Kept for the page's life: one per person and source (at most thirteen), as `kept` holds them.
   window.setInterval(draw, 500)
   return canvas.captureStream(2)
+}
+
+/** The demo's shared screen: the pilot's weekly active teams, as Marco shows them (invented numbers). */
+function drawChart(g: CanvasRenderingContext2D, width: number, height: number): void {
+  const weeks = [14, 14, 12, 12]
+  g.textAlign = 'left'
+  g.font = '600 22px system-ui, sans-serif'
+  g.fillText('Onboarding pilot · active teams by week', 40, 48)
+  g.font = '15px system-ui, sans-serif'
+  g.fillStyle = '#5b5866'
+  g.fillText('14 teams · two regions · Sep 1–28', 40, 76)
+  const base = height - 56
+  const bar = 70
+  weeks.forEach((n, i) => {
+    const x = 70 + i * 140
+    const h = (n / 14) * (base - 120)
+    g.fillStyle = i < 2 ? '#8d79e8' : '#b9a8ff'
+    g.fillRect(x, base - h, bar, h)
+    g.fillStyle = '#17151f'
+    g.font = '600 18px system-ui, sans-serif'
+    g.textAlign = 'center'
+    g.fillText(String(n), x + bar / 2, base - h - 14)
+    g.font = '14px system-ui, sans-serif'
+    g.fillStyle = '#5b5866'
+    g.fillText(`Week ${String(i + 1)}`, x + bar / 2, base + 24)
+  })
 }
 
 /** One feed per person and source, kept: the stage attaches each once, as it does a LiveKit track. */

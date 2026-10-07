@@ -20,6 +20,7 @@ import {
   soundBlocked,
   viewerSpeaks,
 } from './fake-people.ts'
+import { VIEWER_NAME } from './demo.ts'
 
 /** What the room's connection was asked, in order: `connect`, `microphone:on`, `text:off`, `leave`… */
 export const asked: string[] = []
@@ -75,7 +76,7 @@ const blocked = () => new DOMException('Permission denied', 'NotAllowedError')
 /** The viewer as LiveKit lists the local participant, devices off until the call turns them on. */
 const viewer = (): RoomParticipant => ({
   identity: '00000000-0000-4000-8000-0000000000a1',
-  name: 'Fixture viewer',
+  name: VIEWER_NAME,
   speaking: false,
   micOn: false,
   cameraOn: false,

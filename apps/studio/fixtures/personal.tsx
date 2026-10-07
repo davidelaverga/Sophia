@@ -20,6 +20,7 @@ import { PersonalSpace } from '../src/features/personal/PersonalSpace.tsx'
 import type { PersonalWrites } from '../src/features/personal/usePersonal.ts'
 import { projectsFor, useExtras } from './personal-extras.ts'
 import { useEscape } from '../src/features/personal/useEscape.ts'
+import { DEMO, DEMO_LABEL } from './demo.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 
@@ -432,9 +433,12 @@ function Personal() {
           Home
         </button>
       </header>
-      <button className="fixture-lock" type="button" onClick={() => setLocked((was) => !was)}>
-        {locked ? 'Unlock (fixture)' : 'Lock (fixture)'}
-      </button>
+      {/* The check's own control: not part of a demo's recording. */}
+      {!DEMO && (
+        <button className="fixture-lock" type="button" onClick={() => setLocked((was) => !was)}>
+          {locked ? 'Unlock (fixture)' : 'Lock (fixture)'}
+        </button>
+      )}
       {signedIn && (
         <PersonalSpace
           hidden={locked}
@@ -472,7 +476,7 @@ if (!root) throw new Error('personal.html must contain #root')
 createRoot(root).render(
   <StrictMode>
     <p className="fixture-label" role="note">
-      Simulated — a conversation with Sophia, no account
+      {DEMO ? DEMO_LABEL : 'Simulated — a conversation with Sophia, no account'}
     </p>
     <Personal />
   </StrictMode>,

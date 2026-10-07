@@ -13,6 +13,7 @@ import type {
   SophiaPresence,
 } from '@sophia/contracts'
 import type { Identity } from '../src/app/dev-identity.ts'
+import { DEMO, DEMO_STATEMENT, PROJECT_NAME } from './demo.ts'
 
 export const PROJECT = '00000000-0000-4000-8000-0000000000aa'
 const ME = '00000000-0000-4000-8000-0000000000a1'
@@ -23,7 +24,11 @@ export const EXCHANGE = '00000000-0000-4000-8000-0000000000ae'
 const AT = '2026-10-02T00:00:00.000Z'
 
 /** A dev identity: the fixture page never signs in, and no request carries this token anywhere. */
-export const identity: Identity = { name: 'fixture@sophia.test', role: 'admin', token: 'fixture-no-api' }
+export const identity: Identity = {
+  name: DEMO ? 'luis@sophia.test' : 'fixture@sophia.test',
+  role: 'admin',
+  token: 'fixture-no-api',
+}
 
 export const membership: Membership = { actorId: ME, role: 'admin' }
 
@@ -134,7 +139,7 @@ export function snapshot(
   const holder = holderOf(exchange, room)
   return {
     projectId: PROJECT,
-    title: 'Fixture project',
+    title: PROJECT_NAME,
     cursor: String(revision),
     missionRevision: revision,
     audienceRevision: 1,
@@ -174,14 +179,14 @@ const can = { available: true, reason: null }
 export function mission(revision: number, entries: readonly MissionEntry[] = [], noted = true): MissionContext {
   return {
     projectId: PROJECT,
-    title: 'Fixture project',
+    title: PROJECT_NAME,
     readState: 'present',
     missionRevision: revision,
     ledgerRevision: revision,
     eligibilityRevision: 1,
     mission: {
       revision,
-      statement: `Fixture direction, revision ${revision}`,
+      statement: DEMO ? DEMO_STATEMENT : `Fixture direction, revision ${revision}`,
       purpose: null,
       destination: null,
       origin: null,

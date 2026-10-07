@@ -5,6 +5,7 @@
 import type { AfterUpdate, Digest, MeetingRecap, MeetingReceipt } from '../src/api/vision.ts'
 import { membership } from './data.ts'
 import { personId } from './fake-people.ts'
+import { DEMO, DEMO_DECIDED, DEMO_OPEN, VIEWER_NAME } from './demo.ts'
 
 export const MEETING = '00000000-0000-4000-8000-0000000000e1'
 
@@ -66,7 +67,7 @@ const PAST: readonly MeetingRecap[] = [
     decided: [
       {
         decisionId: '00000000-0000-4000-8000-0000000000d2',
-        statement: 'Keep the room checks on fixtures',
+        statement: DEMO ? DEMO_DECIDED : 'Keep the room checks on fixtures',
         proposedBy: personId(2),
         decidedBy: ME,
         at: '2026-10-04T15:21:00.000Z',
@@ -75,9 +76,14 @@ const PAST: readonly MeetingRecap[] = [
     ],
     made: [],
     noted: [],
-    open: [{ proposalId: '00000000-0000-4000-8000-0000000000f2', statement: 'Record a short demo of the room' }],
+    open: [
+      {
+        proposalId: '00000000-0000-4000-8000-0000000000f2',
+        statement: DEMO ? DEMO_OPEN : 'Record a short demo of the room',
+      },
+    ],
     work: [],
-    names: { [ME]: 'Fixture viewer', [personId(2)]: 'Lucía' },
+    names: { [ME]: VIEWER_NAME, [personId(2)]: 'Lucía' },
   },
   {
     meetingId: '00000000-0000-4000-8000-0000000000e3',
@@ -91,7 +97,7 @@ const PAST: readonly MeetingRecap[] = [
     noted: [],
     open: [],
     work: [],
-    names: { [ME]: 'Fixture viewer', [personId(3)]: 'Noor' },
+    names: { [ME]: VIEWER_NAME, [personId(3)]: 'Noor' },
   },
 ]
 
