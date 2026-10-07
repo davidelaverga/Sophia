@@ -1913,7 +1913,43 @@ describe('the coordination grant, and the runs of one attempt (Codex on #107)', 
     await spendGate(w, 'enabled')
     const reopened = { companyId: COMPANY, runId: runId('reopened') }
     assert.equal((await sophia().permit({ ...reopened, issueId })).decision, 'start')
-    assert.equal((await sophia().start(reopened)).started, true)
+    const begun = await sophia().start(reopened)
+    assert.equal(begun.started, true)
+    assert.ok(begun.attemptId)
+    await created(w, begun.attemptId)
+    const at = { attemptId: begun.attemptId, nativeSessionId: `sophia-${begun.attemptId}` }
+    const reserve = (callId: string) =>
+      w.runtime('/v1/runtime/source-review/reserve', {
+        ...at,
+        callId,
+        kind: 'model',
+        provider: 'openai-review',
+        amountUsd: 0.01,
+      })
+    const paid = await reserve('m1')
+    assert.equal(paid.status, 200, JSON.stringify(paid.json))
+
+    // Closed again once it started: what started is answered as recorded, and what it spent is still accounted.
+    await spendGate(w, 'disabled')
+    const replayed = await sophia().start(reopened)
+    assert.deepEqual(
+      [replayed.attemptId, replayed.started],
+      [begun.attemptId, false],
+      'the same attempt, not started again',
+    )
+    const recorded = await sophia().permit({ ...reopened, issueId })
+    assert.deepEqual([recorded.decision, recorded.state, recorded.attemptId], ['start', 'started', begun.attemptId])
+    const settled = await w.runtime('/v1/runtime/source-review/settle', {
+      ...at,
+      reservationId: paid.json.reservationId,
+      outcome: 'settled',
+      costUsd: 0.0002,
+      usage: { inputTokens: 10, outputTokens: 5, provider: 'openai-review', model: 'gpt-6-luna' },
+    })
+    assert.deepEqual([settled.status, settled.json.state], [200, 'settled'], JSON.stringify(settled.json))
+    const refused = await reserve('m2')
+    assert.notEqual(refused.status, 200, 'a new call is refused by the closed gate')
+    assert.equal(await countOf(w, 'work_attempts'), 1)
   })
 
   it('an acceptance and a start asked while a spend disable is in flight wait for it, and once it committed are refused', async () => {

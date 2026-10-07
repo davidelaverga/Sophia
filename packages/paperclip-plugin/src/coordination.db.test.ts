@@ -480,6 +480,60 @@ describe('commission', () => {
     assert.equal(await runsOf(issueId), 1)
   })
 
+  it('a commission whose wakeup the host never answered, its issue then moved, is neither delivered nor asked again (Codex on #107)', async () => {
+    for (const moved of ['in_progress', 'blocked', 'cancelled']) {
+      let fault: 'unanswered' | null = 'unanswered'
+      const p = paperclip({ fails: { wake: () => fault } })
+      const c = commissionOf()
+      await assert.rejects(p.request(commissionRequest(c)), { name: 'UnansweredHostCall' })
+      const issueId = [...p.issues.keys()][0] ?? ''
+      const issue = p.issues.get(issueId)
+      assert.ok(issue)
+      fault = null
+      const asked = p.wakeups.length
+      // A visible status is no proof of a run, nor is someone's Hold or Stop in Paperclip undone.
+      issue.status = moved
+      const unconfirmed = await p.request(commissionRequest(c))
+      assert.deepEqual(
+        [unconfirmed.status, (code(unconfirmed.body) as { code: string }).code],
+        [503, 'wake_unconfirmed'],
+        moved,
+      )
+      assert.deepEqual(
+        [p.wakeups.length, await runsOf(issueId), issue.status],
+        [asked, 0, moved],
+        `${moved}: nothing asked`,
+      )
+      // Back in todo, the ask the host never answered is still waited for, never asked again without its proof.
+      issue.status = 'todo'
+      await ageAskAnHour(c.key)
+      const waiting = await p.request(commissionRequest(c))
+      assert.deepEqual(
+        [waiting.status, (code(waiting.body) as { code: string }).code],
+        [503, 'wake_in_progress'],
+        moved,
+      )
+      assert.equal(p.wakeups.length, asked, `${moved}: never asked again`)
+      // Its run landing late confirms it, whatever the status then.
+      await landRun(issueId)
+      issue.status = moved
+      const confirmed = await p.request(commissionRequest(c))
+      assert.deepEqual(confirmed.body, { outcome: 'existing', issueId, status: moved, wakeQueued: false }, moved)
+      assert.equal(await runsOf(issueId), 1, `${moved}: no second run`)
+    }
+  })
+
+  it('a commission held from its create is delivered on its resend, never woken', async () => {
+    const p = paperclip()
+    const c = { ...commissionOf(), initialStatus: 'blocked' as const, wake: false }
+    const created = await p.request(commissionRequest(c))
+    assert.equal(outcome(created.body).outcome, 'created')
+    const issueId = [...p.issues.keys()][0] ?? ''
+    const again = await p.request(commissionRequest(c))
+    assert.deepEqual(again.body, { outcome: 'existing', issueId, status: 'blocked', wakeQueued: false })
+    assert.deepEqual([p.wakeups.length, await runsOf(issueId)], [0, 0])
+  })
+
   it('a commission whose wake reached the reviewer, its run having moved the issue, is delivered and not woken again', async () => {
     let fault: 'after' | null = 'after'
     const p = paperclip({ fails: { wake: () => fault } })
