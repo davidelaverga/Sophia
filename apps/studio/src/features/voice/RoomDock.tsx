@@ -17,6 +17,7 @@ import { shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
 import type { SophiaView } from './sophia-view.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
+import { DockWord } from './DockWord.tsx'
 
 interface Props {
   room: ProjectRoom
@@ -149,7 +150,7 @@ export function TextMode({ on, onVoice }: { on: boolean; onVoice: () => void }) 
   }
   return (
     <button type="button" className="pill has-tip" aria-pressed onClick={toVoice}>
-      Text mode
+      <DockWord icon="keyboard">Text mode</DockWord>
       <Tip label="Sophia answers in the chat and is not heard. Press for voice" />
     </button>
   )
@@ -294,14 +295,18 @@ function FloorAction({ floor, me, busy, onPass }: ActionProps) {
   if (floor.canTake) {
     return (
       <button type="button" className="pill warm" disabled={busy} onClick={() => onPass(me)}>
-        Take the floor
+        <DockWord icon="hand" said="Take the floor">
+          Take the floor
+        </DockWord>
       </button>
     )
   }
   if (floor.passTargets.length === 1 && only) {
     return (
       <button type="button" className="pill warm" disabled={busy} onClick={() => onPass(only.identity)}>
-        Pass to {shortName(only.name)}
+        <DockWord icon="pass" badge={shortName(only.name).charAt(0)} said={`Pass to ${shortName(only.name)}`}>
+          Pass to {shortName(only.name)}
+        </DockWord>
       </button>
     )
   }

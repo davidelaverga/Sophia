@@ -23,6 +23,7 @@ import {
 } from '../src/features/personal/places-view.ts'
 import { homeRowFor } from '../src/features/personal/focus.ts'
 import { Welcome } from '../src/features/personal/Welcome.tsx'
+import { DEMO, DEMO_LABEL, HOME_PROJECT } from './demo.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 
@@ -63,17 +64,26 @@ const SETS: Record<string, ProjectSummary[] | undefined> = {
     project(1, 'Launch plan'),
     project(2, 'Research notes', { members: 2 }),
     project(3, 'Design review'),
-    project(4, 'Product launch', { nextSession: standup }),
+    project(4, HOME_PROJECT, { nextSession: standup }),
   ],
   live: [
     project(1, 'Launch plan'),
     project(5, 'Pitch deck', { room: { people: ['davide@sophia.test'], sophia: true } }),
   ],
+  // The demo's (`demo`): its project's room is live, with Marco, Lucía and Sophia in it.
+  demo: [
+    project(4, HOME_PROJECT, {
+      room: { people: ['Marco', 'Lucía'], sophia: true },
+    }),
+    project(1, 'Launch plan'),
+    project(2, 'Research notes', { members: 2 }),
+    project(3, 'Design review'),
+  ],
   none: [],
   loading: undefined,
   failed: undefined,
 }
-const set = query.get('projects') ?? 'four'
+const set = query.get('projects') ?? (DEMO ? 'demo' : 'four')
 const projects = SETS[set]
 const inCall = query.get('call')
 const call = inCall ? { title: projects?.find((p) => p.projectId === inCall)?.title ?? '' } : null
@@ -134,9 +144,12 @@ function Home() {
   const [away, setAway] = useState(query.has('away'))
   return (
     <div className="places" data-place="home">
-      <button className="fixture-away" type="button" onClick={() => setAway((was) => !was)}>
-        {away ? 'Back to Home' : 'Leave Home'}
-      </button>
+      {/* The check's own control: not part of a demo's recording. */}
+      {!DEMO && (
+        <button className="fixture-away" type="button" onClick={() => setAway((was) => !was)}>
+          {away ? 'Back to Home' : 'Leave Home'}
+        </button>
+      )}
       <div className="c-home" data-place-view="home" hidden={away}>
         <Welcome
           hello={greeting(NOW.getHours(), null, false)}
@@ -173,7 +186,7 @@ if (!root) throw new Error('home.html must contain #root')
 createRoot(root).render(
   <StrictMode>
     <p className="fixture-label" role="note">
-      Simulated — Home over labelled projects, no account
+      {DEMO ? DEMO_LABEL : 'Simulated — Home over labelled projects, no account'}
     </p>
     <Home />
   </StrictMode>,

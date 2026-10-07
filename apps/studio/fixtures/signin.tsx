@@ -8,6 +8,7 @@ import '@fontsource-variable/geist-mono/wght.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { EmailSignIn } from '../src/app/SignIn.tsx'
+import { DEMO, DEMO_LABEL } from './demo.ts'
 import '../src/app/theme.css'
 
 declare global {
@@ -42,7 +43,7 @@ if (!root) throw new Error('signin.html must contain #root')
 createRoot(root).render(
   <StrictMode>
     <p className="fixture-label" role="note">
-      Simulated — no Auth service, no email sent
+      {DEMO ? DEMO_LABEL : 'Simulated — no Auth service, no email sent'}
     </p>
     <EmailSignIn notice={undefined} send={send} verify={verify} />
   </StrictMode>,

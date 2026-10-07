@@ -29,6 +29,15 @@ export type IconName =
   | 'back'
   | 'stop'
   | 'search'
+  | 'hand'
+  | 'sophia'
+  | 'eye'
+  | 'eyeOff'
+  | 'speaker'
+  | 'speakerOff'
+  | 'play'
+  | 'keyboard'
+  | 'pass'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -45,6 +54,13 @@ const camera = (
 )
 
 const padlock = <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+const eye = (
+  <>
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </>
+)
+const speaker = <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
 
 const PATHS: Record<IconName, ReactNode> = {
   mic,
@@ -118,6 +134,49 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="10.5" cy="10.5" r="6" />
       <path d="m15 15 5 5" />
+    </>
+  ),
+  hand: (
+    <path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4a1.5 1.5 0 0 1 3 0v6M14 10V5.5a1.5 1.5 0 0 1 3 0V13c0 4-2.5 7-6 7s-5-2-6.5-5l-1.6-3a1.4 1.4 0 0 1 2.4-1.4L8 13" />
+  ),
+  // Sophia's light: a point that shines.
+  sophia: (
+    <>
+      <circle cx="12" cy="12" r="3.5" fill="currentColor" />
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+    </>
+  ),
+  eye,
+  eyeOff: (
+    <>
+      {eye}
+      {slash}
+    </>
+  ),
+  speaker: (
+    <>
+      {speaker}
+      <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+    </>
+  ),
+  speakerOff: (
+    <>
+      {speaker}
+      <path d="M16 9.5l5 5M21 9.5l-5 5" />
+    </>
+  ),
+  play: <path d="M8 5.5v13l10-6.5z" fill="currentColor" />,
+  // The floor handed on: an arrow from one to the next.
+  pass: (
+    <>
+      <circle cx="5.5" cy="12" r="2" />
+      <path d="M9.5 12h10M15 7.5l4.5 4.5-4.5 4.5" />
+    </>
+  ),
+  keyboard: (
+    <>
+      <rect x="3" y="6" width="18" height="12" rx="2" />
+      <path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10" />
     </>
   ),
 }

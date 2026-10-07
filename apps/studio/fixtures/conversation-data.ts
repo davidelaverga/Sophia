@@ -5,6 +5,7 @@ import type { ConversationMessage, ConversationSummary } from '../src/api/vision
 import { membership } from './data.ts'
 import { personId } from './fake-people.ts'
 import { REPORT, TITLE, versionId } from './report-data.ts'
+import { DEMO, VIEWER_NAME } from './demo.ts'
 
 const ME = membership.actorId
 const MARCO = personId(1)
@@ -29,7 +30,7 @@ export const conversations = (): ConversationSummary[] => [
     lastAt: '2026-10-06T09:40:00.000Z',
     contributors: [
       { actorId: LUCIA, name: 'Lucía' },
-      { actorId: ME, name: 'Fixture viewer' },
+      { actorId: ME, name: VIEWER_NAME },
     ],
     sophia: true,
     openQuestions: 1,
@@ -50,10 +51,10 @@ export const conversations = (): ConversationSummary[] => [
   },
   {
     id: CONVERSATION.data,
-    title: 'Test data for the first release',
+    title: DEMO ? 'Who owns setup when an admin changes?' : 'Test data for the first release',
     summary: null,
     lastAt: '2026-10-04T11:00:00.000Z',
-    contributors: [{ actorId: ME, name: 'Fixture viewer' }],
+    contributors: [{ actorId: ME, name: VIEWER_NAME }],
     sophia: true,
     openQuestions: 2,
     output: null,
@@ -94,7 +95,7 @@ export const messagesOf = (): Record<string, ConversationMessage[]> => ({
     },
     {
       id: 'm3',
-      ...member(ME, 'Fixture viewer'),
+      ...member(ME, VIEWER_NAME),
       text: 'Then the first screen should say the answer.',
       at: at(6, 9, 5),
     },
@@ -105,7 +106,7 @@ export const messagesOf = (): Record<string, ConversationMessage[]> => ({
       text: 'I can keep both versions apart so we compare them on the same question.',
       at: at(6, 9, 12),
     },
-    { id: 'm6', ...member(ME, 'Fixture viewer'), text: 'Please do. Short first.', at: at(6, 9, 20) },
+    { id: 'm6', ...member(ME, VIEWER_NAME), text: 'Please do. Short first.', at: at(6, 9, 20) },
     { id: 'm7', ...member(LUCIA, 'Lucía'), text: 'The short one still needs the March figures.', at: at(6, 9, 28) },
     {
       id: 'm8',
@@ -113,18 +114,27 @@ export const messagesOf = (): Record<string, ConversationMessage[]> => ({
       text: 'Added them, cited. The open question is how long the evidence section may be.',
       at: at(6, 9, 35),
     },
-    { id: 'm9', ...member(ME, 'Fixture viewer'), text: 'Let’s look at it together tomorrow.', at: at(6, 9, 40) },
+    { id: 'm9', ...member(ME, VIEWER_NAME), text: 'Let’s look at it together tomorrow.', at: at(6, 9, 40) },
   ],
   [CONVERSATION.briefs]: [
     { id: 'b1', ...member(MARCO, 'Marco'), text: 'One page. Anything longer, nobody reads.', at: at(5, 15, 50) },
     { id: 'b2', ...member(LUCIA, 'Lucía'), text: 'One page, with the sources inline, then.', at: at(5, 16, 10) },
   ],
   [CONVERSATION.data]: [
-    { id: 'd1', ...member(ME, 'Fixture viewer'), text: 'Which records can we copy for the tests?', at: at(4, 10, 50) },
+    {
+      id: 'd1',
+      ...member(ME, VIEWER_NAME),
+      text: DEMO
+        ? 'Two teams left right after their admin changed. Who picks up setup then?'
+        : 'Which records can we copy for the tests?',
+      at: at(4, 10, 50),
+    },
     {
       id: 'd2',
       ...sophia,
-      text: 'The synthetic ones only. Two questions are open: how many, and who checks them.',
+      text: DEMO
+        ? 'The owner named at signup, handed on with the admin role. Two questions are open: who tells the new admin, and when.'
+        : 'The synthetic ones only. Two questions are open: how many, and who checks them.',
       at: at(4, 11, 0),
     },
   ],
@@ -158,7 +168,7 @@ const decision = (n: number, statement: string, state: 'accepted' | 'proposed', 
 export const conversationMission = () => ({
   purpose: 'Reports the team can act on in one read.',
   constraints: [
-    decision(1, 'Only synthetic data in tests', 'accepted', 1),
+    decision(1, DEMO ? 'Every new team names a setup owner' : 'Only synthetic data in tests', 'accepted', 1),
     decision(2, 'Every claim cites its source', 'accepted', 2),
     decision(3, 'No payments in the first release', 'accepted', 3),
     decision(4, 'Reports open on the answer', 'accepted', 4),
