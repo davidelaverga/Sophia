@@ -100,6 +100,7 @@ function ShowOnly(props: {
 function Row(props: { conversation: ConversationSummary; open: boolean; me: string; onOpen: (id: string) => void }) {
   const { conversation: c } = props
   const id = useId()
+  const moved = movedAt(c.lastAt, Date.now())
   return (
     <li>
       <button
@@ -114,12 +115,12 @@ function Row(props: { conversation: ConversationSummary; open: boolean; me: stri
           {c.title}
         </span>
         <span className="conv-row-at" aria-hidden>
-          {movedAt(c.lastAt, Date.now())}
+          {moved}
         </span>
         <span id={`${id}-d`} className="conv-about">
           {c.summary && <span className="conv-gist">{c.summary}</span>}
           <span className="sr-only">
-            {`${contributorsLine(c, props.me)}. ${openWords(c.openQuestions)}. Last moved ${movedAt(c.lastAt, Date.now())}.`}
+            {`${contributorsLine(c, props.me)}. ${openWords(c.openQuestions)}.${moved ? ` Last moved ${moved}.` : ''}`}
           </span>
           {c.openQuestions > 0 && (
             <span className="conv-open-flag" aria-hidden>

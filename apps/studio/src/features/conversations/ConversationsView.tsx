@@ -235,9 +235,11 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
       if (!entry || entry.contentRect.width <= PANEL) return
       const at = document.activeElement
       const panel = document.getElementById('conv-context')
+      const closer = panel?.querySelector('.conv-context-close')
       drop()
-      // Its Close is gone with the panel: the context, a pane now, keeps the focus that was in it.
-      if (panel && (at === document.body || (at && panel.contains(at)))) requestAnimationFrame(() => panel.focus())
+      // Its Close is gone with the panel: the context, a pane now, takes the focus that was on it. A control that
+      // stays in sight keeps it.
+      if (panel && (at === document.body || at === closer)) requestAnimationFrame(() => panel.focus())
     })
     if (view.current) width.observe(view.current)
     document.addEventListener('keydown', onKey)

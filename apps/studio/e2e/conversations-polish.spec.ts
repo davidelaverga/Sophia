@@ -57,8 +57,9 @@ test('polish · where the browser has no field-sizing, the field still grows wit
   // As in a browser without it (Firefox, Safari today).
   await page.addInitScript(() => {
     const supports = CSS.supports.bind(CSS)
-    CSS.supports = ((...args: [string, string?]) =>
-      args[0] === 'field-sizing' ? false : supports(...(args as [string, string]))) as typeof CSS.supports
+    Object.defineProperty(CSS, 'supports', {
+      value: (property: string, value: string) => property !== 'field-sizing' && supports(property, value),
+    })
     document.addEventListener('DOMContentLoaded', () => {
       const style = document.createElement('style')
       style.textContent = '.conv-compose textarea { field-sizing: fixed !important }'

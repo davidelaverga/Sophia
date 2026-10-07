@@ -546,7 +546,7 @@
   outline: 2px solid var(--halo);
   outline-offset: -2px;
 }
-.conv-context:focus {
+.conv-context:focus:not(:focus-visible) {
   outline: none;
 }
 .conv-msg.sophia {
