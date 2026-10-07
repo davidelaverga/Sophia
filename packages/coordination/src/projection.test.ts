@@ -87,6 +87,7 @@ const work = (over: Partial<WorkFact> = {}): WorkFact => ({
   results: [],
   deliveryUnknown: false,
   controlRefused: null,
+  wakeOwed: null,
   updatedAt: '2026-10-05T11:30:00.000Z',
   ...over,
 })
@@ -271,6 +272,31 @@ describe('the work board projection', () => {
       "Paperclip's answer is shown only when it is a plain code",
     )
     assert.equal(only(projectBoard(facts())).waiting_on.length, 0, 'none refused: no wait')
+  })
+
+  it('shows a run turned away for a passing reason as a wait until Sophia wakes the reviewer again (Codex on #107)', () => {
+    const queued = (over: Partial<WorkFact>) =>
+      only(projectBoard(facts({ work: [work({ attempt: null, ...over })] }))).waiting_on
+    assert.deepEqual(queued({ wakeOwed: 'runtime_unavailable' }), [
+      {
+        kind: 'connection',
+        reference_id: `wake:${WORK}`,
+        respondent_id: null,
+        detail:
+          "Paperclip's run could not start the review: no Sophia runtime carries the source reviewer. Sophia wakes the reviewer again once one does.",
+        state: 'pending',
+      },
+    ])
+    assert.deepEqual(
+      [queued({ wakeOwed: 'spend_closed' })[0]?.kind, queued({ wakeOwed: 'not_enrolled' })[0]?.kind],
+      ['capacity', 'product_decision'],
+    )
+    parseWorkBoardView(projectBoard(facts({ work: [work({ attempt: null, wakeOwed: 'spend_closed' })] })))
+    // Shown only while the work could still start: held, closed or started, nothing is waited for.
+    assert.deepEqual(queued({ wakeOwed: 'runtime_unavailable', goal: { status: 'held', stateRevision: 4 } }), [])
+    assert.deepEqual(queued({ wakeOwed: 'runtime_unavailable', closedReason: 'An input was withdrawn' }), [])
+    assert.deepEqual(only(projectBoard(facts({ work: [work({ wakeOwed: 'spend_closed' })] }))).waiting_on, [])
+    assert.deepEqual(queued({ wakeOwed: null }), [])
   })
 
   it("closes failed work with its reason and a refused commission with Paperclip's", () => {

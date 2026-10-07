@@ -66,6 +66,7 @@ const work = (over: Partial<WorkFact>): WorkFact => ({
   results: [],
   deliveryUnknown: false,
   controlRefused: null,
+  wakeOwed: null,
   updatedAt: '2026-10-05T11:30:00.000Z',
   ...over,
 })

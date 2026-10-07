@@ -177,7 +177,7 @@ async function readDecisions(c: pg.PoolClient, projectId: string): Promise<Decis
 
 async function readWork(c: pg.PoolClient, projectId: string): Promise<WorkFact[]> {
   const { rows } = await c.query<WorkRow>(
-    `SELECT w.id AS "workId", w.plan_id AS "planId", w.closed_reason AS "closedReason",
+    `SELECT w.id AS "workId", w.plan_id AS "planId", w.closed_reason AS "closedReason", w.wake_owed AS "wakeOwed",
             jsonb_build_object('status', g.status, 'stateRevision', g.state_revision) AS goal,
             (SELECT jsonb_build_object('id', a.id, 'generation', a.generation) FROM sophia.work_assignments a
               WHERE a.project_id = w.project_id AND a.work_id = w.id AND a.state = 'active') AS assignment,

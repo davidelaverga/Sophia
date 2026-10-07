@@ -87,6 +87,12 @@ export interface WorkFact {
    * taken or a later control supersedes it; null when none is refused (Codex on #107).
    */
   readonly controlRefused: { readonly op: string; readonly code: string | null } | null
+  /**
+   * Why a run of the work was turned away for a reason that passes without any control (source review disabled, no
+   * runtime carrying the reviewer, spending closed): Sophia wakes the reviewer again once it has. Null when nothing is
+   * owed (Codex on #107).
+   */
+  readonly wakeOwed: 'not_enrolled' | 'runtime_unavailable' | 'spend_closed' | null
   /** When anything about the work last changed. */
   readonly updatedAt: string
 }
@@ -186,40 +192,75 @@ const CONTROL_SAID: Readonly<Record<string, string>> = {
 }
 const REFUSAL_CODE = /^[a-z][a-z0-9_]{0,63}$/
 
+const OWED: Readonly<
+  Record<
+    NonNullable<WorkFact['wakeOwed']>,
+    { readonly kind: WorkWait['kind']; readonly why: string; readonly until: string }
+  >
+> = {
+  not_enrolled: {
+    kind: 'product_decision',
+    why: 'source review is not enabled for this project',
+    until: 'it is enabled again',
+  },
+  runtime_unavailable: {
+    kind: 'connection',
+    why: 'no Sophia runtime carries the source reviewer',
+    until: 'one does',
+  },
+  spend_closed: { kind: 'capacity', why: 'spending is closed for this project', until: 'it is open again' },
+}
+const STARTABLE: ReadonlySet<GoalStatus> = new Set<GoalStatus>(['ready', 'running'])
+
 function waitsOf(work: WorkFact): WorkWait[] {
-  const waits: WorkWait[] = []
-  if (
-    work.attempt === null &&
-    work.closedReason === null &&
-    (work.commission.state === 'pending' || work.commission.state === 'outcome_unknown')
-  ) {
-    const unknown = work.commission.state === 'outcome_unknown'
-    waits.push({
-      kind: 'external',
-      reference_id: `commission:${work.workId}`,
-      respondent_id: null,
-      detail: unknown
-        ? 'Checking whether Paperclip took the commission.'
-        : 'Waiting for Paperclip to take the commission.',
-      state: unknown ? 'unknown' : 'pending',
-    })
+  return [commissionWait(work), owedWait(work), refusedWait(work)].filter((w): w is WorkWait => w !== null)
+}
+
+function commissionWait(work: WorkFact): WorkWait | null {
+  if (work.attempt !== null || work.closedReason !== null) return null
+  if (work.commission.state !== 'pending' && work.commission.state !== 'outcome_unknown') return null
+  const unknown = work.commission.state === 'outcome_unknown'
+  return {
+    kind: 'external',
+    reference_id: `commission:${work.workId}`,
+    respondent_id: null,
+    detail: unknown
+      ? 'Checking whether Paperclip took the commission.'
+      : 'Waiting for Paperclip to take the commission.',
+    state: unknown ? 'unknown' : 'pending',
   }
-  // A control Paperclip refused changed nothing there: its issue does not show it yet, and Sophia sends it again until
-  // Paperclip takes it (Codex on #107). Sophia's own state of the work is as the rest of the item says.
-  // The code is Paperclip's answer, shown only when it is a plain code.
-  if (work.controlRefused !== null) {
-    const what = CONTROL_SAID[work.controlRefused.op] ?? 'control'
-    const { code } = work.controlRefused
-    const named = code !== null && REFUSAL_CODE.test(code) ? ` (${code})` : ''
-    waits.push({
-      kind: 'external',
-      reference_id: `control:${work.workId}`,
-      respondent_id: null,
-      detail: `Paperclip refused the ${what}${named}; its issue does not show it yet. Sophia sends it again until Paperclip takes it.`,
-      state: 'pending',
-    })
+}
+
+// A run turned away for a reason that passes: nothing in Paperclip asks again, so Sophia wakes the reviewer once the
+// reason is gone (Codex on #107). Shown while the work could still start.
+function owedWait(work: WorkFact): WorkWait | null {
+  if (work.wakeOwed === null || work.attempt !== null || work.closedReason !== null) return null
+  if (!STARTABLE.has(work.goal.status)) return null
+  const owed = OWED[work.wakeOwed]
+  return {
+    kind: owed.kind,
+    reference_id: `wake:${work.workId}`,
+    respondent_id: null,
+    detail: `Paperclip's run could not start the review: ${owed.why}. Sophia wakes the reviewer again once ${owed.until}.`,
+    state: 'pending',
   }
-  return waits
+}
+
+// A control Paperclip refused changed nothing there: its issue does not show it yet, and Sophia sends it again until
+// Paperclip takes it (Codex on #107). Sophia's own state of the work is as the rest of the item says. The code is
+// Paperclip's answer, shown only when it is a plain code.
+function refusedWait(work: WorkFact): WorkWait | null {
+  if (work.controlRefused === null) return null
+  const what = CONTROL_SAID[work.controlRefused.op] ?? 'control'
+  const { code } = work.controlRefused
+  const named = code !== null && REFUSAL_CODE.test(code) ? ` (${code})` : ''
+  return {
+    kind: 'external',
+    reference_id: `control:${work.workId}`,
+    respondent_id: null,
+    detail: `Paperclip refused the ${what}${named}; its issue does not show it yet. Sophia sends it again until Paperclip takes it.`,
+    state: 'pending',
+  }
 }
 
 const SAID: Partial<Readonly<Record<Lifecycle, string>>> = {

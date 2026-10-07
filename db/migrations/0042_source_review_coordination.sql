@@ -111,19 +111,25 @@ CREATE TABLE sophia.work_decisions (
 -- --- admitted work -------------------------------------------------------------------------------------------------
 
 -- The accepted plan's item: the stable obligation (its id is the plan item's id). Its control runs through its own
--- execution goal; its spend through one allowance under the project's research grant.
+-- execution goal; its spend through one allowance under the project's research grant. wake_owed: a run of it was
+-- turned away for a reason that passes without any control, so its reviewer is woken again once it has (work_rewake);
+-- rewakes counts those wakeups, each under its own delivery key.
 CREATE TABLE sophia.work_items (
  project_id uuid NOT NULL, id uuid NOT NULL,
  plan_id uuid NOT NULL, plan_revision integer NOT NULL,
  execution_goal_id uuid NOT NULL, allowance_id uuid NOT NULL,
  accepted_by uuid NOT NULL,
  closed_reason text CHECK(closed_reason IS NULL OR length(closed_reason) BETWEEN 1 AND 500),
+ wake_owed text CHECK(wake_owed IS NULL OR wake_owed IN ('not_enrolled','runtime_unavailable','spend_closed')),
+ rewakes integer NOT NULL DEFAULT 0 CHECK(rewakes>=0),
  created_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(project_id,id), UNIQUE(project_id,execution_goal_id), UNIQUE(project_id,plan_id),
  FOREIGN KEY(project_id,plan_id) REFERENCES sophia.work_plans(project_id,id),
  FOREIGN KEY(project_id,execution_goal_id) REFERENCES sophia.goals(project_id,id),
  FOREIGN KEY(project_id,allowance_id) REFERENCES sophia.research_allowances(project_id,id)
 );
+
+CREATE INDEX work_items_wake_owed ON sophia.work_items(created_at) WHERE wake_owed IS NOT NULL;
 
 -- Who is responsible for the work now, and its control generation. One active assignment per work item.
 CREATE TABLE sophia.work_assignments (
@@ -1040,6 +1046,11 @@ BEGIN
   END IF;
  END IF;
  IF code IS NOT NULL THEN
+  -- Paperclip ends a turned-away run as done and asks nothing again: a reason that passes without any control leaves
+  -- the work owed a wakeup (work_rewake; Codex on #107).
+  IF code IN ('not_enrolled','runtime_unavailable','spend_closed') THEN
+   UPDATE sophia.work_items SET wake_owed=code WHERE project_id=cm.project_id AND id=w.id;
+  END IF;
   PERFORM sophia.emit_service_event(cm.project_id,'work.permit_denied','work_item',w.id,g.state_revision,'work.permit_denied.'||code);
   RETURN jsonb_build_object('decision','deny','code',code,'reason',sophia.work_denial_text(code),'workId',w.id);
  END IF;
@@ -1094,8 +1105,12 @@ BEGIN
  IF code IS NULL AND rt.id IS NULL THEN code:='runtime_unavailable'; END IF;
  IF code IS NOT NULL THEN
   UPDATE sophia.work_runs SET state='ended', ended_at=now() WHERE paperclip_company_id=company AND paperclip_run_id=r.paperclip_run_id;
+  IF code IN ('not_enrolled','runtime_unavailable','spend_closed') THEN
+   UPDATE sophia.work_items SET wake_owed=code WHERE project_id=r.project_id AND id=w.id;
+  END IF;
   RETURN jsonb_build_object('denied',true,'code',code,'reason',sophia.work_denial_text(code),'workId',w.id);
  END IF;
+ UPDATE sophia.work_items SET wake_owed=NULL WHERE project_id=r.project_id AND id=w.id AND wake_owed IS NOT NULL;
  SELECT * INTO p FROM sophia.work_plans WHERE project_id=r.project_id AND id=w.plan_id;
  INSERT INTO sophia.work_attempts(project_id,id,goal_id,goal_revision,authority_epoch,context_source_id,state)
  VALUES(r.project_id,att,g.id,g.revision,g.authority_epoch,p.manifest_source_id,'admitted');
@@ -1212,15 +1227,69 @@ END $$;
 
 -- --- the worker's deliveries to the plugin ----------------------------------------------------------------------------
 
+-- A run turned away for a reason that passes without any control (source review disabled for the project, no runtime
+-- carrying the reviewer, spending closed) leaves its work owed a wakeup: Paperclip ends the run as done and asks
+-- nothing again (Codex on #107). Each claim first looks at the owed work whose reason looks gone, and decides it again
+-- as a permit would, under the project's lock and in the permit's lock order. Still startable, the reviewer is woken
+-- again by a Resume under a key of its own, which Sophia initiates and a later Hold, Resume or Stop supersedes as it
+-- does any control; denied for another reason (held, stopped, closed, started, spent), nothing is owed any more; still
+-- turned away, it stays owed. No lock is waited for: a row another transaction holds is skipped, and looked at by the
+-- next claim. So a claim never waits on a wakeup, nor deadlocks with a writer that took a row first and then emits the
+-- project's event.
+CREATE FUNCTION sophia.work_rewake(p_limit integer) RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE x record; w sophia.work_items; g sophia.goals; cg sophia.coordination_grants; cm sophia.work_commissions;
+ asg sophia.work_assignments; code text; n integer:=0;
+BEGIN
+ FOR x IN SELECT wi.project_id, wi.id FROM sophia.work_items wi
+   JOIN sophia.work_commissions k ON k.project_id=wi.project_id AND k.work_id=wi.id AND k.state='created'
+   JOIN sophia.work_assignments a ON a.project_id=wi.project_id AND a.work_id=wi.id AND a.state='active'
+   JOIN sophia.coordination_grants q ON q.project_id=wi.project_id AND q.state='enabled' AND q.paperclip_company_id=k.paperclip_company_id
+   WHERE wi.wake_owed IS NOT NULL AND sophia.work_spend_open(wi.project_id)
+    AND (sophia.work_runtime(wi.project_id,a.role,a.route)).id IS NOT NULL
+   ORDER BY wi.created_at, wi.id LIMIT p_limit LOOP
+  PERFORM 1 FROM sophia.projects WHERE id=x.project_id FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
+  SELECT * INTO w FROM sophia.work_items WHERE project_id=x.project_id AND id=x.id FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND OR w.wake_owed IS NULL;
+  SELECT * INTO g FROM sophia.goals WHERE project_id=w.project_id AND id=w.execution_goal_id FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
+  PERFORM 1 FROM sophia.research_grants WHERE project_id=w.project_id FOR SHARE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
+  SELECT * INTO cg FROM sophia.coordination_grants WHERE project_id=w.project_id;
+  -- The commission's lock, as every delivery of the work is written under it (work_mirror).
+  SELECT * INTO cm FROM sophia.work_commissions WHERE project_id=w.project_id AND work_id=w.id FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
+  SELECT * INTO asg FROM sophia.work_assignments WHERE project_id=w.project_id AND work_id=w.id AND state='active';
+  code:=sophia.work_denial(w.project_id,w,g,cg,cm.paperclip_company_id);
+  IF code IS NULL AND EXISTS(SELECT 1 FROM sophia.work_attempts wa WHERE wa.project_id=w.project_id AND wa.goal_id=w.execution_goal_id) THEN
+   code:='attempt_ended'; END IF;
+  IF code IS NULL AND (sophia.work_runtime(w.project_id,asg.role,asg.route)).id IS NULL THEN code:='runtime_unavailable'; END IF;
+  IF code IS NULL AND NOT sophia.work_allowance_left(w.project_id,w) THEN code:='allowance_spent'; END IF;
+  IF code IS NULL AND NOT sophia.work_spend_open(w.project_id) THEN code:='spend_closed'; END IF;
+  CONTINUE WHEN code IN ('not_enrolled','runtime_unavailable','spend_closed');
+  UPDATE sophia.work_items SET wake_owed=NULL, rewakes=rewakes+CASE WHEN code IS NULL THEN 1 ELSE 0 END
+   WHERE project_id=w.project_id AND id=w.id RETURNING * INTO w;
+  IF code IS NULL AND cm.state='created' THEN
+   INSERT INTO sophia.coordination_outbox(project_id,work_id,op,delivery_key)
+   VALUES(w.project_id,w.id,'resume','work-'||w.id||':rewake:'||w.rewakes) ON CONFLICT (project_id,delivery_key) DO NOTHING;
+   n:=n+1;
+  END IF;
+ END LOOP;
+ RETURN n;
+END $$;
+REVOKE ALL ON FUNCTION sophia.work_rewake(integer) FROM PUBLIC;
+
 -- Claim due deliveries, oldest first: a work item's commission before its controls, a control only once its issue
 -- exists, and nothing of a work item while an earlier delivery of it (by seq) is still unsettled. Each row carries
--- what the worker signs and sends; an outcome_unknown row is claimed to be reconciled.
+-- what the worker signs and sends; an outcome_unknown row is claimed to be reconciled. The wakeups owed are written
+-- first (work_rewake), so a claim sends them.
 CREATE FUNCTION sophia.claim_coordination_outbox(p_worker text, p_limit integer, p_lease_secs integer) RETURNS SETOF jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE o sophia.coordination_outbox; cm sophia.work_commissions; w sophia.work_items; g sophia.goals; p sophia.work_plans;
  reviewed sophia.goals; token uuid; reconcile boolean; initiator jsonb;
 BEGIN
  IF p_limit NOT BETWEEN 1 AND 50 OR p_lease_secs NOT BETWEEN 5 AND 300 THEN RAISE EXCEPTION 'Invalid claim bounds' USING ERRCODE='22023'; END IF;
+ PERFORM sophia.work_rewake(p_limit);
  FOR o IN SELECT x.* FROM sophia.coordination_outbox x JOIN sophia.work_commissions c ON c.project_id=x.project_id AND c.work_id=x.work_id
    WHERE x.state IN ('pending','outcome_unknown','refused') AND x.available_at<=now()
     AND (x.op='commission' OR c.state='created')
@@ -1237,8 +1306,9 @@ BEGIN
   SELECT * INTO p FROM sophia.work_plans WHERE project_id=o.project_id AND id=w.plan_id;
   SELECT * INTO reviewed FROM sophia.goals WHERE project_id=o.project_id AND id=p.goal_id;
   -- Who initiated it: the member who accepted the plan for a commission; for a mirrored control the actor of the
-  -- execution goal's latest control (a member, or Sophia itself); Sophia for a completion or a failure.
+  -- execution goal's latest control (a member, or Sophia itself); Sophia for a wakeup owed, a completion or a failure.
   SELECT CASE WHEN o.op='commission' THEN jsonb_build_object('kind','member','id',w.accepted_by)
+    WHEN o.delivery_key LIKE 'work-%:rewake:%' THEN NULL
     WHEN o.op IN ('hold','resume','stop') THEN (SELECT jsonb_build_object('kind',CASE WHEN c.actor_id=sophia.integration_actor() THEN 'sophia' ELSE 'member' END,
       'id',c.actor_id) FROM sophia.commands c WHERE c.project_id=o.project_id AND c.goal_id=w.execution_goal_id AND c.kind=o.op
       ORDER BY c.created_at DESC, c.id LIMIT 1)

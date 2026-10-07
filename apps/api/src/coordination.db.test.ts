@@ -2231,3 +2231,175 @@ describe('a control Paperclip refuses, and a revoked credential (Codex on #107)'
     await assert.rejects(sophia(cred.token).start(run), refusedAs('forbidden'), 'after the revocation, nothing')
   })
 })
+
+describe('a run turned away for a reason that passes, woken again (Codex on #107)', () => {
+  const rolesOf = (w: World) =>
+    asOwner(
+      async (o) =>
+        (
+          await o.query<{ roles: unknown }>(`SELECT roles FROM sophia.runtime_instances WHERE project_id=$1`, [
+            w.projectId,
+          ])
+        ).rows[0]?.roles,
+    )
+  const carry = (w: World, roles: unknown) =>
+    asOwner((o) =>
+      o.query(`UPDATE sophia.runtime_instances SET roles=$2::jsonb WHERE project_id=$1`, [
+        w.projectId,
+        JSON.stringify(roles),
+      ]),
+    )
+  const spendGate = (w: World, state: 'enabled' | 'disabled') =>
+    asOwner((o) =>
+      o.query(`SELECT sophia.set_research_grant($1, $2, 5, 40, 'web-pilot-v1', 'approval:test')`, [w.projectId, state]),
+    )
+  const enrolled = (w: World, state: 'enabled' | 'disabled') =>
+    asOwner((o) =>
+      o.query(`SELECT sophia.set_coordination_grant($1, $2, 2, $3, $4, 'approval:test')`, [
+        w.projectId,
+        state,
+        COMPANY,
+        PC_PROJECT,
+      ]),
+    )
+  const owedOf = (w: World) =>
+    asOwner(
+      async (o) =>
+        (
+          await o.query<{ owed: string | null; rewakes: number }>(
+            `SELECT wake_owed AS owed, rewakes FROM sophia.work_items WHERE project_id=$1`,
+            [w.projectId],
+          )
+        ).rows[0],
+    )
+  const waitsOf = async (w: World) =>
+    ((await itemOf(w)).waiting_on as Array<{ kind: string; reference_id: string }>).map((x) => [x.kind, x.reference_id])
+
+  it('a run turned away while no runtime carries the reviewer is woken again once one does, once, and then starts', async () => {
+    const w = await world()
+    const proposal = await accepted(w)
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['commission', 'delivered']])
+    const issueId = issueOf(w).id
+    const woken = w.paperclip.wakeups.length
+    const roles = await rolesOf(w)
+    await carry(w, [])
+    const turned = await sophia().permit({ companyId: COMPANY, runId: runId('early'), issueId })
+    assert.deepEqual([turned.decision, turned.code], ['deny', 'runtime_unavailable'], JSON.stringify(turned))
+    assert.deepEqual(await owedOf(w), { owed: 'runtime_unavailable', rewakes: 0 })
+    assert.deepEqual(await waitsOf(w), [['connection', `wake:${String(proposal.workId)}`]])
+    // Adverse: while no runtime carries it, nothing is woken.
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [])
+    assert.equal(w.paperclip.wakeups.length, woken)
+
+    await carry(w, roles)
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['resume', 'delivered']], 'woken again')
+    assert.equal(w.paperclip.wakeups.length, woken + 1)
+    assert.equal(issueOf(w).status, 'todo')
+    assert.deepEqual(await owedOf(w), { owed: null, rewakes: 1 })
+    assert.deepEqual(await waitsOf(w), [])
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [], 'once')
+    const run = { companyId: COMPANY, runId: runId('woken') }
+    assert.equal((await sophia().permit({ ...run, issueId })).decision, 'start')
+    assert.equal((await sophia().start(run)).started, true)
+  })
+
+  it('a start turned away while spending is closed, or a permit while source review is disabled, is woken again once reopened', async () => {
+    const w = await world()
+    await accepted(w)
+    await deliver(w)
+    const issueId = issueOf(w).id
+    const permitted = { companyId: COMPANY, runId: runId('permitted') }
+    assert.equal((await sophia().permit({ ...permitted, issueId })).decision, 'start')
+    await spendGate(w, 'disabled')
+    const started = await sophia().start(permitted)
+    assert.deepEqual([started.denied, started.code], [true, 'spend_closed'], JSON.stringify(started))
+    assert.equal((await owedOf(w))?.owed, 'spend_closed')
+    assert.equal((await waitsOf(w))[0]?.[0], 'capacity')
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [])
+    await spendGate(w, 'enabled')
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['resume', 'delivered']])
+    assert.deepEqual(await owedOf(w), { owed: null, rewakes: 1 })
+
+    await enrolled(w, 'disabled')
+    const turned = await sophia().permit({ companyId: COMPANY, runId: runId('disabled'), issueId })
+    assert.deepEqual([turned.decision, turned.code], ['deny', 'not_enrolled'], JSON.stringify(turned))
+    assert.equal((await waitsOf(w))[0]?.[0], 'product_decision')
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [])
+    await enrolled(w, 'enabled')
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['resume', 'delivered']], 'under a key of its own')
+    assert.deepEqual(await owedOf(w), { owed: null, rewakes: 2 })
+    const run = { companyId: COMPANY, runId: runId('reopened') }
+    assert.equal((await sophia().permit({ ...run, issueId })).decision, 'start')
+  })
+
+  it('a work held since it was turned away is not woken; nothing is owed once it started', async () => {
+    const w = await world()
+    const proposal = await accepted(w)
+    await deliver(w)
+    const issueId = issueOf(w).id
+    const roles = await rolesOf(w)
+    await carry(w, [])
+    assert.equal(
+      (await sophia().permit({ companyId: COMPANY, runId: runId('early'), issueId })).code,
+      'runtime_unavailable',
+    )
+    const hold = await command(w, proposal, 'hold', null)
+    assert.equal(hold.status, 202, JSON.stringify(hold.json))
+    await carry(w, roles)
+    const woken = w.paperclip.wakeups.length
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['hold', 'delivered']], 'the Hold, and no wakeup')
+    assert.equal(issueOf(w).status, 'blocked')
+    assert.equal(w.paperclip.wakeups.length, woken)
+    assert.deepEqual(await owedOf(w), { owed: null, rewakes: 0 }, 'a Resume wakes it, not this')
+
+    // Turned away, then a run starts before any claim: nothing is owed, nothing woken.
+    const v = await world()
+    await accepted(v)
+    await deliver(v)
+    const vRoles = await rolesOf(v)
+    await carry(v, [])
+    const vIssue = issueOf(v).id
+    assert.equal(
+      (await sophia().permit({ companyId: COMPANY, runId: runId('early'), issueId: vIssue })).code,
+      'runtime_unavailable',
+    )
+    await carry(v, vRoles)
+    const run = { companyId: COMPANY, runId: runId('late') }
+    assert.equal((await sophia().permit({ ...run, issueId: vIssue })).decision, 'start')
+    assert.equal((await sophia().start(run)).started, true)
+    assert.deepEqual(await owedOf(v), { owed: null, rewakes: 0 })
+    assert.deepEqual(await outcomesOf(v, await deliver(v)), [])
+  })
+
+  it('a project or a goal another transaction holds is skipped, never waited for, and woken by a later claim', async () => {
+    const w = await world()
+    await accepted(w)
+    await deliver(w)
+    const roles = await rolesOf(w)
+    await carry(w, [])
+    assert.equal(
+      (await sophia().permit({ companyId: COMPANY, runId: runId('early'), issueId: issueOf(w).id })).code,
+      'runtime_unavailable',
+    )
+    await carry(w, roles)
+    // A runtime's write holds the goal; a member's operation holds the project. Neither is waited for.
+    for (const held of [
+      `SELECT 1 FROM sophia.goals g JOIN sophia.work_items wi ON wi.project_id=g.project_id AND wi.execution_goal_id=g.id
+        WHERE g.project_id=$1 FOR UPDATE OF g`,
+      `SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE`,
+    ]) {
+      const holder = new pg.Client({ connectionString: db.ownerUrl })
+      await holder.connect()
+      await holder.query('BEGIN')
+      await holder.query(held, [w.projectId])
+      try {
+        assert.deepEqual(await outcomesOf(w, await deliver(w)), [], 'the claim goes on without it')
+        assert.equal((await owedOf(w))?.owed, 'runtime_unavailable')
+      } finally {
+        await holder.query('COMMIT')
+        await holder.end()
+      }
+    }
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['resume', 'delivered']])
+  })
+})
