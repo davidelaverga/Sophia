@@ -14,6 +14,7 @@ import {
   CAPTURE_KERNEL_FILES,
   CAPTURE_LIMITS,
   bandEnds,
+  baseDirection,
   breakpointsOf,
   CAPTURE_TARGETS,
   captureHtml,
@@ -176,7 +177,7 @@ const flexFlow = (height: string, size: string) => flow(`display:flex;flex-wrap:
 const inlineFlow = (height: string, size: string) =>
   flow(`font-size:0;${height}`, `display:inline-block;vertical-align:top;width:${size}`)
 /** How blocks_visible and widths_visible name blocks whose text is drawn out of its order or run together (#117). */
-const RUN_TOGETHER = 'blocks whose text is drawn out of its order or with its words run together: '
+const RUN_TOGETHER = 'blocks whose text is drawn out of its order or with its words run together or off its line: '
 /** How widths_visible names a band end laid out otherwise in a window of another height (#117, 4201008903). */
 const otherHeights = (width: number) =>
   new RegExp(`at ${width}px: laid out otherwise in a window 320, 640, 1080, 2160px high than 800px`, 'u')
@@ -1820,10 +1821,39 @@ describe('the confined capture kernel', () => {
           '.o8{position:relative;padding-top:1.5em} .o8 span:last-child{position:absolute;top:0;left:5em}',
           '<p data-block="o8" class="o8"><span>Not</span> <span>free</span></p>',
         ],
+        // The review of 014b03f (4201465986) and the owner's CSS routes: "102" raised or lowered reads 10² or 10₂.
+        ['o9', '', '<p data-block="o9">It costs 10<sup>2</sup> USD.</p>'],
+        ['o10', '', '<p data-block="o10">It costs 10<sub>2</sub> USD.</p>'],
+        [
+          'o11',
+          '.o11 span{vertical-align:super;font-size:.75em}',
+          '<p data-block="o11" class="o11">It costs 10<span>2</span> USD.</p>',
+        ],
+        [
+          'o12',
+          '.o12 span{position:relative;top:-.5em;font-size:.75em}',
+          '<p data-block="o12" class="o12">It costs 10<span>2</span> USD.</p>',
+        ],
+        [
+          'o13',
+          '.o13 span{display:inline-block;transform:translateY(-.4em);font-size:.75em}',
+          '<p data-block="o13" class="o13">It costs 10<span>2</span> USD.</p>',
+        ],
+        // The owner's 4201665365: "1.2" with its point raised reads 1·2, a product.
+        [
+          'o18',
+          '.o18 span{display:inline-block;transform:translateY(-.4em)}',
+          '<p data-block="o18" class="o18">It costs 1<span>.</span>2 USD.</p>',
+        ],
+        // The security review of 014b03f (4201488127): frozen "12 - 34" set right to left is drawn "34 - 12".
+        ['o14', '', '<p data-block="o14" dir="rtl">12 - 34</p>'],
+        ['o15', '.o15{direction:rtl}', '<p data-block="o15" class="o15">12 - 34</p>'],
+        ['o16', '', '<p data-block="o16">The range <span dir="rtl">12 - 34</span> holds.</p>'],
+        ['o17', '', '<p data-block="o17" dir="rtl">Not free.</p>'],
         [
           'k1',
           '',
-          '<p data-block="k1">A finding that wraps over lines, with <a href="#s1">a link</a>, <em>emphasis</em> and a mark<sup>[1]</sup>, then more words after it.</p>',
+          '<p data-block="k1">A finding that wraps over lines, with <a href="#s1">a link</a>, <em>emphasis</em> and a mark<sup data-cite="s1"><a href="#s1">[1]</a></sup>, then more words after it.</p>',
         ],
         [
           'k2',
@@ -1844,6 +1874,22 @@ describe('the confined capture kernel', () => {
         ],
         ['k7', '.k7{display:flex;gap:.3em}', '<p data-block="k7" class="k7"><span>Now</span> <span>here.</span></p>'],
         ['k8', '.k8{display:flex}', '<p data-block="k8" class="k8"><span>Now</span><span>here.</span></p>'],
+        // Hebrew set right to left with its numbers, a direction found from the text, and an isolate of its own.
+        ['k10', '', '<p data-block="k10" dir="rtl">המחיר 12 - 34 לחודש</p>'],
+        ['k11', '', '<p data-block="k11" dir="auto">12 - 34</p>'],
+        ['k12', '', '<p data-block="k12">The name <bdi>שלום</bdi> came 12 - 34.</p>'],
+        ['k13', '.k13{direction:rtl;unicode-bidi:plaintext}', '<p data-block="k13" class="k13">Not free.</p>'],
+        ['k14', '', '<p data-block="k14" dir="rtl"><bdi>Sophia</bdi> אמרה 12 - 34</p>'],
+        [
+          'k15',
+          '.k15 span{position:relative;top:-.4em;font-size:.75em}',
+          '<p data-block="k15" class="k15">Not free<span>†</span> today, and 1.2 as written.</p>',
+        ],
+        [
+          'k9',
+          '.k9 code{font-size:.8em} .k9 b{font-size:1.4em}',
+          '<p data-block="k9" class="k9">It costs 10<span>2</span> USD, <small>small</small>, <code>code</code> and <b>large</b>.</p>',
+        ],
       ]
       const receipt = await captureHtml(
         job(
@@ -1858,26 +1904,76 @@ describe('the confined capture kernel', () => {
       assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
       for (const t of ['w390-light', 'w1280-light']) {
         const detail = receipt.checks.find((c) => c.name === 'blocks_visible' && c.target === t)?.detail
-        assert.equal(detail, `${RUN_TOGETHER}o1, o2, o3, o4, o5, o6, o7, o8`, t)
+        assert.equal(
+          detail,
+          `${RUN_TOGETHER}o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11, o12, o13, o18, o14, o15, o16, o17`,
+          t,
+        )
       }
       const sweep = String(receipt.checks.find((c) => c.name === 'widths_visible')?.detail)
-      assert.ok(sweep.startsWith(`at 320px: ${RUN_TOGETHER}o1, o2, o3, o4, o5, o6, o7, o8;`), sweep)
+      assert.ok(
+        sweep.startsWith(
+          `at 320px: ${RUN_TOGETHER}o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11, o12, o13, o18, o14, o15, o16, o17;`,
+        ),
+        sweep,
+      )
       // Readable at both targets, reversed and run together only in windows 960 to 1100px wide: the band's ends fail.
+      // So are "102" raised to 10² and "12 - 34" set right to left there (the owner's 4201543227, 4201543372).
       const banded = await sweepOf(
-        `.m1,.m2{display:flex;margin:0 0 16px} .m1 span:first-child{margin-right:.3em} .m2 span:first-child{white-space:pre}
-         @media (min-width: 960px) and (max-width: 1100px){.m1 span:first-child{order:2} .m2 span:first-child{white-space:normal}}`,
-        '<p data-block="m1" class="m1"><span>Not</span><span>free</span></p><p data-block="m2" class="m2"><span>Now </span><span>here.</span></p>',
+        `.m1,.m2,.m3,.m4{margin:0 0 16px} .m1,.m2{display:flex} .m1 span:first-child{margin-right:.3em}
+         .m2 span:first-child{white-space:pre}
+         @media (min-width: 960px) and (max-width: 1100px){.m1 span:first-child{order:2} .m2 span:first-child{white-space:normal}
+           .m3 span{vertical-align:super;font-size:.75em} .m4{direction:rtl}}`,
+        '<p data-block="m1" class="m1"><span>Not</span><span>free</span></p><p data-block="m2" class="m2"><span>Now </span><span>here.</span></p>' +
+          '<p data-block="m3" class="m3">It costs 10<span>2</span> USD.</p><p data-block="m4" class="m4">12 - 34</p>',
       )
       assert.deepEqual(
         [banded?.outcome, banded?.detail],
-        ['failed', `at 960px: ${RUN_TOGETHER}m1, m2; at 1100px: ${RUN_TOGETHER}m1, m2`],
+        ['failed', `at 960px: ${RUN_TOGETHER}m1, m2, m3, m4; at 1100px: ${RUN_TOGETHER}m1, m2, m3, m4`],
       )
       // A reversed wrap draws the second run above the first only where the runs no longer share a line.
       const wrapped = await sweepOf(
         `.w1{display:flex;flex-wrap:wrap-reverse} .w1 span{flex:0 0 ${RESPONSIVE}}`,
         '<p data-block="w1" class="w1"><span>Not</span><span>free</span></p>',
       )
-      failsAt(wrapped, /at 801px: blocks whose text is drawn out of its order or with its words run together: w1(;|$)/u)
+      failsAt(wrapped, new RegExp(`at 801px: ${RUN_TOGETHER}w1(;|$)`, 'u'))
+    },
+  )
+
+  // The security review of 014b03f (4201488127): a text with no letter has no direction of its own, so it takes the
+  // job's language's, which the page cannot change: "12 - 34" set right to left reads as written in a Hebrew report,
+  // where English set left to right reads too, and is drawn "34 - 12" in an English one.
+  it(
+    "holds a block with no letter to the direction of the job's language, never to one the page sets (#117)",
+    { skip },
+    async () => {
+      assert.deepEqual(
+        ['en', 'he', 'ar', 'fa', 'az-Arab', 'zh'].map((l) => baseDirection(l)),
+        ['ltr', 'rtl', 'rtl', 'rtl', 'rtl', 'ltr'],
+      )
+      const rtlBlocks =
+        '<p data-block="h1" dir="rtl">12 - 34</p><p data-block="h2" dir="rtl">המחיר 12 - 34</p><p data-block="h3">Not free.</p>'
+      for (const [language, outcomeThere] of [
+        ['he', 'passed'],
+        ['en', 'failed'],
+      ] as const) {
+        const read = await captureHtml(
+          job(page(`${BASE} p{margin:0 0 16px}`, `<main><section data-section="s1">${rtlBlocks}</section></main>`), {
+            language,
+          }),
+          { env },
+        )
+        assert.equal(read.status, 'succeeded', JSON.stringify(read.error))
+        for (const t of ['w390-light', 'w1280-light'])
+          assert.deepEqual(
+            [
+              outcome(read, 'blocks_visible', t),
+              read.checks.find((c) => c.name === 'blocks_visible' && c.target === t)?.detail ?? null,
+            ],
+            [outcomeThere, outcomeThere === 'passed' ? null : `${RUN_TOGETHER}h1`],
+            `${language} ${t}`,
+          )
+      }
       const straight = await sweepOf(
         `.w1{display:flex;flex-wrap:wrap} .w1 span{flex:0 0 ${RESPONSIVE}}`,
         '<p data-block="w1" class="w1"><span>Not</span><span>free</span></p>',
@@ -2425,7 +2521,8 @@ describe('the confined capture kernel', () => {
           ${researchTable('n1')}
           <table data-block="n2" class="styled"><thead><tr><th>Plan</th><th>Price</th></tr></thead>
           <tbody><tr><th>Basic</th><td>$10</td></tr><tr><th>Pro</th><td>$20</td></tr></tbody></table>
-          ${researchTable('n3', '', ' dir="rtl"')}
+          <table data-block="n3" dir="rtl"><thead><tr><th><span>תוכנית</span></th><th><span>מחיר</span></th></tr></thead>
+          <tbody><tr><td>בסיסי</td><td><span>10 ש״ח</span></td></tr><tr><td>מקצועי</td><td><span>20 ש״ח</span></td></tr></tbody></table>
           ${researchTable('m1', 'm1')}
           ${researchTable('m2', 'm2')}
           ${researchTable('m3', 'm3')}

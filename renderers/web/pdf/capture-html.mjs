@@ -553,13 +553,14 @@ function movedCells(misplaced) {
 }
 
 /**
- * The blocks whose text the page draws out of the order its markup gives it, or with two of its words run into one, as
- * blocks_visible names them: "Not free" drawn "free Not", or "Now here." drawn "Nowhere.", says another thing (#117).
+ * The blocks whose text the page draws out of the order its markup gives it, with two of its words run into one, or
+ * raised or lowered off its line, as blocks_visible names them: "Not free" drawn "free Not", "Now here." drawn
+ * "Nowhere.", or "102" drawn 10², says another thing (#117).
  * @param {string[]} reordered
  */
 function outOfOrder(reordered) {
   return reordered.length > 0
-    ? `blocks whose text is drawn out of its order or with its words run together: ${listed(reordered)}`
+    ? `blocks whose text is drawn out of its order or with its words run together or off its line: ${listed(reordered)}`
     : ''
 }
 
@@ -618,20 +619,42 @@ function isMeasure(value) {
 }
 
 /**
+ * The direction of the job's language (`Intl.Locale`'s text info: right to left for Hebrew, Arabic, Persian or Urdu, or
+ * a language written in such a script), in which a block, a paragraph or an isolate holding no letter is set
+ * (capture-page.mjs misdirected, #117): the page cannot change it. Left to right where it cannot be read.
+ * @param {string} language a BCP 47 tag
+ * @returns {'ltr' | 'rtl'}
+ */
+export function baseDirection(language) {
+  try {
+    const locale = new Intl.Locale(language)
+    /** @type {unknown} */
+    const read = Reflect.get(locale, 'getTextInfo')
+    /** @type {unknown} */
+    const info = typeof read === 'function' ? Reflect.apply(read, locale, []) : null
+    return typeof info === 'object' && info !== null && Reflect.get(info, 'direction') === 'rtl' ? 'rtl' : 'ltr'
+  } catch {
+    return 'ltr'
+  }
+}
+
+/**
  * The page's measure at the current target, or band end, within a look budget. Where the page's generated boxes lie is
  * read first through the protocol, within the same budget, for the measure to read the paint beneath a text by
  * (placement.mjs generatedAt, #117); unread, the paint beneath any text whose element or an element around it draws
- * one is unread, and that text's contrast unknown.
+ * one is unread, and that text's contrast unknown. A text with no letter is held to the direction of the job's language
+ * (baseDirection).
  * @param {import('playwright-core').Page} page
- * @param {import('playwright-core').CDPSession} cdp
+ * @param {Shot} shot
  * @param {number} [maxLookMs]
  */
-async function measure(page, cdp, maxLookMs = MAX_LOOK_MS) {
+async function measure(page, shot, maxLookMs = MAX_LOOK_MS) {
   const until = Date.now() + maxLookMs
-  const generated = await generatedAt(cdp, until)
+  const generated = await generatedAt(shot.cdp, until)
   const left = Math.max(0, until - Date.now())
+  const base = baseDirection(shot.job.language)
   /** @type {unknown} */
-  const value = await page.evaluate(pageScript({ maxListed: MAX_LISTED, maxLookMs: left, generated }))
+  const value = await page.evaluate(pageScript({ maxListed: MAX_LISTED, maxLookMs: left, base, generated }))
   if (!isMeasure(value)) throw new CaptureFailure('measure_failed', 'the page could not be measured')
   return value
 }
@@ -875,7 +898,7 @@ async function measureEnds(page, shot, sweep, wrong) {
     // The probe sets the band end's width through the protocol, as it set every width of the bands, before the page is
     // measured there: Playwright keeps the width it last set as its own, and does not set it again (crPage.js).
     const [lie] = await sweep.probe([width])
-    const { unmeasured, misplaced, reordered, unscrollable, ...answer } = await measure(page, shot.cdp, left)
+    const { unmeasured, misplaced, reordered, unscrollable, ...answer } = await measure(page, shot, left)
     const { measured, unsampled } = await generatedCover(shot, page, answer, sweep.until)
     const drawn = { misplaced, reordered, unscrollable }
     const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null, drawn)
@@ -943,7 +966,7 @@ async function sweepWidths(page, shot, sweepMs) {
     await page.setViewportSize({ width, height: SWEEP.height })
     return String(await page.evaluate(holding))
   })
-  const probe = probeOf(shot.cdp)
+  const probe = probeOf(shot.cdp, baseDirection(shot.job.language))
   const { ends, issue } = await layoutChanges(probe, bands, until)
   /** @type {string[]} */
   const wrong = issue ? [issue] : []
@@ -980,10 +1003,11 @@ function metricsAt(width, height = SWEEP.height) {
  * (capture-page.mjs orderScript), and the layout (meetingsOf), sent together, so the browser works through a batch without waiting on the kernel; it reads the
  * commands of one session in order. A width the window did not take is not read.
  * @param {import('playwright-core').CDPSession} cdp
+ * @param {'ltr' | 'rtl'} base the direction of the job's language (baseDirection)
  * @returns {import('./placement.mjs').Probe}
  */
-function probeOf(cdp) {
-  const order = orderScript()
+function probeOf(cdp, base) {
+  const order = orderScript(base)
   return async (widths) => {
     const sent = widths.map((width) =>
       Promise.all([
@@ -1017,7 +1041,7 @@ async function captureAll(page, shot, entry) {
     const target = CAPTURE_TARGETS[id]
     if (!target) throw new CaptureFailure('invalid_target', id)
     await loadAt(page, target, entry.url, entry.timeoutMs)
-    const { unmeasured, misplaced, reordered, unscrollable, ...answer } = await measure(page, shot.cdp)
+    const { unmeasured, misplaced, reordered, unscrollable, ...answer } = await measure(page, shot)
     const { measured, unsampled } = await generatedCover(shot, page, answer)
     if (shot.receipt.fonts.length === 0) shot.receipt.fonts = await fontsUsed(shot.cdp)
     const coverage = await captureTarget(shot, target, measured)

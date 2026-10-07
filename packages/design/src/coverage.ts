@@ -461,11 +461,47 @@ function hiddenResearch(all: Element[], html: string): Finding[] {
     )
 }
 
+/** The elements a browser draws raised or lowered, smaller, and announces as a superscript or a subscript. */
+const SCRIPTS = new Set(['sup', 'sub'])
+
+/** A text without its white space. */
+const bare = (text: string): string => text.replaceAll(/\s/gu, '')
+
+/** Whether an element holds no text but its citation markers' (`<sup><a data-cite="s1">[1]</a></sup>`). */
+function marksOnly(el: Element): boolean {
+  const marks = elements(el).filter(isCite)
+  return marks.length > 0 && bare(textOf(el)) === bare(marks.map((m) => textOf(m)).join(''))
+}
+
+/**
+ * Research set as a superscript or a subscript (#117): `<sup>` and `<sub>` draw text raised or lowered and smaller, and
+ * the browser announces it so whatever CSS draws, while the text is unchanged. Frozen "102" written `10<sup>2</sup>`
+ * reads 10², a hundred. Only a citation marker (`data-cite`), whose text is not the research's, may be one, or be in
+ * one.
+ */
+function scriptedResearch(all: Element[], html: string): Finding[] {
+  const { around, inside } = researchBoundary(all)
+  return all
+    .filter((el) => SCRIPTS.has(el.tagName) && (inside.has(el) || around.has(el)))
+    .filter((el) => !isCite(el) && !hasAncestor(el, isCite) && !marksOnly(el))
+    .map((el) =>
+      error(
+        'block_altered',
+        'index.html',
+        `<${el.tagName}> draws research raised or lowered and announces it as a ${el.tagName === 'sup' ? 'superscript' : 'subscript'} ` +
+          '("10<sup>2</sup>" reads 10², not 102); write the research as the package gives it, and only a citation ' +
+          'marker (data-cite) as a <sup>',
+        { line: lineOf(html, el) },
+      ),
+    )
+}
+
 /** Every way the page departs from its frozen content. Empty when every block and source is in place. */
 export function checkCoverage(doc: Document, html: string, content: ContentPackage): Finding[] {
   const all = elements(doc)
   return [
     ...placeBlocks(all, content, html),
+    ...scriptedResearch(all, html),
     ...hiddenResearch(all, html),
     ...sourceFindings(all, content),
     ...citationFindings(all, html, content.citations),

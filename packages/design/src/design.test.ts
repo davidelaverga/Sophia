@@ -980,6 +980,33 @@ describe('a tooltip or an accessible name carries no text the page does not show
     ] as const)
       assert.deepEqual(marked(from, to), [], to)
   })
+  // #117 (4201465986): <sup> and <sub> draw research raised or lowered and smaller, and are announced so: frozen "102"
+  // written 10<sup>2</sup> reads 10². Only a citation marker, whose text is not the research's, may be one.
+  it('refuses research set as a superscript or a subscript, and keeps citation markers and scripts outside research', () => {
+    const page = html(good)
+    const scripted = (from: string, to: string) => {
+      const next = page.replace(from, to)
+      assert.notEqual(next, page, from)
+      return codes(withHtml(good, next))
+    }
+    const marker = `<a data-cite="${A}" href="#src-${A}">[1]</a>`
+    for (const [from, to] of [
+      ['Host one costs 12.50', 'Host one costs 12.5<sup>0</sup>'],
+      ['Host one costs 12.50', 'Host one costs 12.5<sub>0</sub>'],
+      ['needs a dedicated VM', 'needs a <SUP class="n">dedicated</SUP> VM'],
+      ['<p data-block="b1">', '<sup><p data-block="b1">'],
+      [marker, `<sup>${marker} and more</sup>`],
+      [`data-source="${A}">Source ${A}`, `data-source="${A}">Source <sub>${A}</sub>`],
+    ] as const)
+      assert.ok(scripted(from, to).includes('block_altered'), to)
+    for (const [from, to] of [
+      [marker, `<sup>${marker}</sup>`],
+      [marker, `<sup data-cite="${A}"><a href="#src-${A}">[1]</a></sup>`],
+      ['<h2>Sources</h2>', '<h2>Sources: areas in m<sup>2</sup>, water as H<sub>2</sub>O</h2>'],
+      ['Host one costs 12.50', 'Host one costs <small>12.50</small>'],
+    ] as const)
+      assert.deepEqual(scripted(from, to), [], to)
+  })
   // #117: a bidi override draws a text's characters in another order than the one every check reads.
   it('refuses a bidi override in markup, in CSS and as a character, and keeps directions and isolation', () => {
     const page = html(good)

@@ -2621,7 +2621,8 @@ function budgetOf(opts) {
  * so each element is placed, and the page captured, as it starts; the view ends at the top, where the captures begin.
  * @param {{ maxListed: number, maxMeasured: number, marks: string, maxPoints: number, maxLookMs: number,
  *   maxLines: number, readable: { linePx: number, advancePx: number }, maxTextRects: number, besideEm: number,
- *   maxGrounds: number, maxOverlaps: number, generated?: Parameters<typeof generatedIndex>[0] }} opts
+ *   maxGrounds: number, maxOverlaps: number, base: 'ltr' | 'rtl', generated?: Parameters<typeof generatedIndex>[0] }}
+ *   opts `base`: the direction of the report's language (misdirected)
  * @returns {PageAnswer}
  */
 function measurePage(opts) {
@@ -2673,7 +2674,7 @@ function measurePage(opts) {
     framing,
     unmeasured: labels.length - shown.length + texts.length - framing.length + runs.over,
     misplaced: misplacedTables(elements),
-    reordered: reorderedBlocks(elements),
+    reordered: reorderedBlocks(elements, opts.base),
     unscrollable: !windowScrolls(),
   }
 }
@@ -2719,12 +2720,70 @@ function misplacedTables(blocks) {
  * otherwise while every text stays shown and readable: `display: flex` with
  * `order`, a float, a placed or transformed run, or a reversed flex or grid draws "Not free" as "free Not". A run in
  * the direction opposite its block's (a Hebrew name in English) is held to its lines only, since the bidi algorithm
- * orders it on its line; a table's cells are held by misplacedTables. Within one text node the browser keeps the order.
+ * orders it on its line; a table's cells are held by misplacedTables. Within one text node the browser keeps the order
+ * its direction gives, which must be the one its text gives (misdirected).
+ * Nor is a run drawn off its line: raised or lowered as `<sup>`, `vertical-align: super` or an offset draw it, "102"
+ * reads 10² (#117); a citation marker may be raised.
  * @param {Element[]} blocks
+ * @param {'ltr' | 'rtl'} base the direction of the report's language, a text with no letter's (misdirected)
  * @returns {string[]}
  */
-function reorderedBlocks(blocks) {
-  return blocks.filter((el) => outOfOrder(el)).map((el) => el.getAttribute('data-block') ?? '')
+function reorderedBlocks(blocks, base) {
+  return blocks.filter((el) => misdirected(el, base) || outOfOrder(el)).map((el) => el.getAttribute('data-block') ?? '')
+}
+
+/**
+ * Whether a block, or a paragraph or an isolate inside it, is set in another direction than its own text gives it
+ * (#117): the bidi algorithm draws a text's characters in the order its direction gives, so frozen "12 - 34" set right
+ * to left (`dir="rtl"`, `direction: rtl`) is drawn "34 - 12" within one run of text. Each takes the direction
+ * its own first letter gives it, as `dir="auto"` does: right to left where that letter is of a right-to-left script
+ * (Hebrew, Arabic), else left to right; a text with no letter takes the direction of the report's language, which the
+ * job names and the page cannot change. One set to find its direction paragraph by paragraph
+ * (`unicode-bidi: plaintext`) does. Its own text (ownText) leaves out what a paragraph or an isolate inside it holds,
+ * and one with none, a table around its cells, has nothing to set.
+ * @param {Element} block
+ * @param {'ltr' | 'rtl'} base the direction of the report's language
+ */
+function misdirected(block, base) {
+  return [block, ...block.querySelectorAll('*')].some((el) => {
+    const s = getComputedStyle(el)
+    if (s.display === 'none' || s.unicodeBidi === 'plaintext' || (el !== block && !startsDirection(el))) return false
+    const own = ownText(el)
+    const letter = /\p{L}/u.exec(own)?.[0]
+    const rtl =
+      letter === undefined
+        ? base === 'rtl'
+        : /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u.test(letter)
+    // One holding no text of its own (a table around its cells) has none to draw out of order.
+    return /\S/u.test(own) && (s.direction === 'rtl') !== rtl
+  })
+}
+
+/**
+ * Whether an element sets the direction of the text it holds: a paragraph of its own (any box but an inline one), or
+ * an isolate or an embedding (`unicode-bidi` other than normal: `dir` and `<bdi>` isolate).
+ * @param {Element} el
+ */
+function startsDirection(el) {
+  const s = getComputedStyle(el)
+  return (s.display !== 'inline' && s.display !== 'contents') || s.unicodeBidi !== 'normal'
+}
+
+/**
+ * An element's own text: what `dir="auto"` reads, leaving out the text of a paragraph or an isolate inside it
+ * (startsDirection).
+ * @param {Element} el
+ * @returns {string}
+ */
+function ownText(el) {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  let text = ''
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    let own = true
+    for (let a = node.parentElement; a && a !== el; a = a.parentElement) own &&= !startsDirection(a)
+    if (own) text += node.textContent ?? ''
+  }
+  return text
 }
 
 /**
@@ -2738,9 +2797,11 @@ function outOfOrder(block) {
     ? /(?![\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF])\p{L}/u
     : /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u
   const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
-  const look = { block, range: document.createRange(), opposite }
+  const look = { block, range: document.createRange(), opposite, ctx: new OffscreenCanvas(1, 1).getContext('2d') }
   /** @type {Run | null} */
   let before = null
+  /** @type {Run[]} */
+  const runs = []
   // Whether the text between the last run and the next holds a space: a node of spaces, or one not drawn.
   let spaced = false
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -2751,24 +2812,56 @@ function outOfOrder(block) {
     }
     const flow = before && { ...flowOf(before, run, rtl), spaced: spaced || before.spacedEnd || run.spacedStart }
     if (before && flow && drawnBefore(run.first, before.last, flow)) return true
+    runs.push(run)
     before = run
     spaced = false
+  }
+  return offLine(runs)
+}
+
+/**
+ * Whether a run of a block's text is drawn off its line (#117): on one line with the last run before it, its baseline
+ * more than a tenth of an em from that one's, raised or lowered as a superscript or a subscript (`<sup>`,
+ * `vertical-align: super`, an offset or a transform): "102" drawn 10² reads a hundred, and "1.2" with its point raised
+ * reads 1·2, a product. A footnote mark (`*`, `†`, `‡`, `§`, `¶`) and a citation marker are neither held nor held to,
+ * since raising them says nothing else. A baseline that cannot be read (NaN) is off its line.
+ * @param {Run[]} runs in the order the block's markup gives them
+ */
+function offLine(runs) {
+  /** @type {Run | null} */
+  let held = null
+  for (const run of runs) {
+    if (run.cite || run.footnote) continue
+    const shift = held ? Math.abs(run.firstBase - held.lastBase) : 0
+    if (held && onOneLine(held.last, run.first) && !(shift <= 0.1 * Math.min(held.em, run.em))) return true
+    held = run
   }
   return false
 }
 
 /**
+ * Whether two line boxes are on one line: they overlap by at least three tenths of the smaller one's height.
+ * @param {DOMRect} a
+ * @param {DOMRect} b
+ */
+function onOneLine(a, b) {
+  return Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) >= 0.3 * Math.min(a.height, b.height)
+}
+
+/**
  * @typedef {{ first: DOMRect, last: DOMRect, opposite: boolean, columns: Element | null, spacedStart: boolean,
- *   spacedEnd: boolean, em: number }} Run a run of a block's text: its first and last line boxes, whether it is in the
- *   direction opposite the block's, the multi-column box it is set in (columnsOf), whether its text starts or ends with
- *   a space, and its font's size
+ *   spacedEnd: boolean, em: number, firstBase: number, lastBase: number, cite: boolean, footnote: boolean }} Run a run of
+ *   a block's text: its first and last line boxes, whether it is in the direction opposite the block's, the
+ *   multi-column box it is set in (columnsOf), whether its text starts or ends with a space, its font's size, the
+ *   baselines of its first and last line boxes (each box's top and its font's ascent; NaN where the font cannot be
+ *   read), whether it is in a citation marker (`data-cite`), and whether it is only footnote marks (`*`, `†`...)
  */
 
 /**
  * One text node of a block as a run (outOfOrder), or null: blank, in a table the block holds, or not drawn where its
  * boxes inside the block let it show (a run a box clips away is reported as cut, not read for its order).
  * @param {Node} node
- * @param {{ block: Element, range: Range, opposite: RegExp }} look
+ * @param {{ block: Element, range: Range, opposite: RegExp, ctx: OffscreenCanvasRenderingContext2D | null }} look
  * @returns {Run | null}
  */
 function runOf(node, look) {
@@ -2793,6 +2886,30 @@ function runOf(node, look) {
     spacedStart: /^\s/u.test(text),
     spacedEnd: /\s$/u.test(text),
     em: node.parentElement ? Number.parseFloat(getComputedStyle(node.parentElement).fontSize) : 16,
+    ...baselinesOf(node, { first, last }, look.ctx),
+    footnote: /^[\s*†‡§¶⁂]+$/u.test(text),
+  }
+}
+
+/**
+ * Where a run's first and last line boxes put its baseline, and whether it is in a citation marker (#117): a text's
+ * line box spans its font's ascent above the baseline and its descent below, so the baseline is the box's top and the
+ * ascent, alike for every font and size on one line; a run raised or lowered (`<sup>`, `vertical-align: super`, a
+ * relative offset) has its own. NaN where the font's ascent cannot be read.
+ * @param {Node} node
+ * @param {{ first: DOMRect, last: DOMRect }} boxes
+ * @param {OffscreenCanvasRenderingContext2D | null} ctx
+ * @returns {{ firstBase: number, lastBase: number, cite: boolean }}
+ */
+function baselinesOf(node, boxes, ctx) {
+  const el = node.parentElement
+  const s = el ? getComputedStyle(el) : null
+  if (ctx && s) ctx.font = `${s.fontStyle} ${s.fontWeight} ${s.fontSize} ${s.fontFamily}`
+  const ascent = ctx && s ? ctx.measureText(node.textContent ?? '').fontBoundingBoxAscent : Number.NaN
+  return {
+    firstBase: boxes.first.top + ascent,
+    lastBase: boxes.last.top + ascent,
+    cite: !!el?.closest('[data-cite]'),
   }
 }
 
@@ -2989,8 +3106,14 @@ const IN_PAGE = [
   adjoinedBlocks,
   misplacedTables,
   reorderedBlocks,
+  misdirected,
+  startsDirection,
+  ownText,
   outOfOrder,
+  offLine,
+  onOneLine,
   runOf,
+  baselinesOf,
   clipsOf,
   meets,
   flowOf,
@@ -3134,11 +3257,14 @@ const IN_PAGE = [
  * An expression that measures the page with these options, the receipt's bound and the marks, and returns the measure.
  * The look budget is the kernel's own, or less where a sweep has less time left (capture-html.mjs). `generated` is
  * where the page's generated boxes lie, as the protocol's snapshot gives them (placement.mjs generatedAt).
- * @param {{ maxListed: number, maxLookMs?: number, generated?: Parameters<typeof generatedIndex>[0] }} opts
+ * @param {{ maxListed: number, maxLookMs?: number, base?: 'ltr' | 'rtl',
+ *   generated?: Parameters<typeof generatedIndex>[0] }} opts `base`: the direction of the report's language, left to
+ *   right unless given
  */
 export function pageScript(opts) {
   const all = {
     ...opts,
+    base: opts.base ?? 'ltr',
     maxMeasured: MAX_MEASURED,
     marks: MARK_CLASS,
     maxPoints: MAX_POINTS,
@@ -3193,8 +3319,9 @@ export function conditionsScript() {
  * An expression that returns the window's width, the research tables whose cells are drawn elsewhere
  * (misplacedTables) and the blocks whose text is drawn out of its order (reorderedBlocks), which the width sweep reads
  * at every width (capture-html.mjs, #117).
+ * @param {'ltr' | 'rtl'} base the direction of the report's language (misdirected)
  */
-export function orderScript() {
+export function orderScript(base) {
   const source = [
     misplacedTables,
     cellsMoved,
@@ -3202,8 +3329,14 @@ export function orderScript() {
     within,
     textBoxOf,
     reorderedBlocks,
+    misdirected,
+    startsDirection,
+    ownText,
     outOfOrder,
+    offLine,
+    onOneLine,
     runOf,
+    baselinesOf,
     clipsOf,
     meets,
     flowOf,
@@ -3213,5 +3346,6 @@ export function orderScript() {
     .map((f) => f.toString())
     .join('\n')
   const blocks = "[...document.querySelectorAll('[data-block]')]"
-  return `(() => {\n${source}\nreturn [innerWidth, misplacedTables(${blocks}).join(), reorderedBlocks(${blocks}).join()]\n})()`
+  const order = `reorderedBlocks(${blocks}, ${JSON.stringify(base)})`
+  return `(() => {\n${source}\nreturn [innerWidth, misplacedTables(${blocks}).join(), ${order}.join()]\n})()`
 }
