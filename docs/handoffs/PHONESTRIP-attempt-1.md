@@ -4,7 +4,7 @@ Goal and attempt: the room on a phone, the strip beside a shown screen (`docs/pl
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `polish/phone-strip` on `main` `15b40ff`, 2026-10-07 (main merged since)
-Ending commit/tree: on `polish/phone-strip`, `16516cd` (the first take) and `20f3ffe` (the strip as reviewed twice), then the commit after them (Codex on #148: the initial on the narrowest phones, and these IDs); a squash folds them into one.
+Ending commit/tree: the final implementation is commit `8253d03b2024ca67b2087635afc71f78899aba4e` (tree `e95eb25687a8c0de385b2dc4deba35d8610a7012`) on `polish/phone-strip`. Against `main` it changes `apps/studio/src/app/theme.css`, `apps/studio/src/features/voice/VideoStage.tsx`, `apps/studio/e2e/room-tiles.spec.ts`, `docs/plans/phone-strip.md` and this handoff. Before it: `16516cd` (the first take), `20f3ffe` (the strip as reviewed twice), `b7d684e` (tree `fa1a818…`, the initial on the narrowest phones). The commit after it changes only this file. A squash folds them into one.
 
 ## Outcome
 
@@ -18,7 +18,7 @@ Ending commit/tree: on `polish/phone-strip`, `16516cd` (the first take) and `20f
 
 **Every strip:** the initial is smaller and sits above the name; on a phone 24 px, so it stands above the name down to 320 px (Codex on #148, P2).
 
-**A fifth of a phone holds a name and one short word:** a guest's tile says «guest», warm and whole; « · you» and « · floor» stay said to a screen reader; the floor's holder has the warm edge.
+**A fifth of a phone holds a name and one short word:** a guest's tile says «guest», warm and whole; « · you» and « · floor» stay said to a screen reader; the floor's holder has the warm edge. The separator is hidden from sight only, so a screen reader hears «Noor · guest», never «Noor guest» (Codex on #148, P2: it was `display: none`).
 
 **Independent review, two passes, no P1:**
 
@@ -30,9 +30,9 @@ P3s fixed: a guest's own tile; a fragile `{' '}`; checks with a guest.
 ## Evidence
 
 - **Browser** (under the guard):
-  - `room-tiles.spec.ts` 15 of 15, and with `room-people` and `room` 36 of 36 after the last change;
+  - `room-tiles.spec.ts` 15 of 15, and with `room-people` and `room` 36 of 36; after the separator fix, 16 of 16;
   - with `room`, `room-people`, `room-present`, `room-made`: 71 of 71.
-- **Tests first:** the first three phone checks failed before the change («+7» out of sight; the name over the initial at 390 and 820 px).
+- **Tests first:** the first three phone checks failed before the change («+7» out of sight; the name over the initial at 390 and 820 px). The label checks now read the accessibility tree (`ariaSnapshot`): with the separator `display: none` they failed three of three («Noor guest», «Iván floor», «Fixture you»), the control for the fix.
 - **Mutations,** killed, and the control survives:
   - the fixed tiles that scroll;
   - the initial under the name;
