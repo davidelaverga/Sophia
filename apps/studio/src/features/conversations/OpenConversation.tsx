@@ -157,23 +157,30 @@ function Head(props: {
       </div>
       <div className="conv-head-acts">
         <Output output={c.output} />
-        <button
-          ref={context.ref}
-          type="button"
-          className="icon-button conv-context-toggle"
-          aria-label="Context"
-          title="Context"
-          aria-expanded={context.open}
-          aria-controls="conv-context"
-          onClick={context.toggle}
-        >
-          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
-            <rect x="1.5" y="2.5" width="13" height="11" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
-            <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.3" />
-          </svg>
-        </button>
+        <ContextToggle context={context} />
       </div>
     </header>
+  )
+}
+
+/** «Context»: opens the project's context where it is a panel (under 1180 px); over that it is a pane, and this hides. */
+export function ContextToggle({ context }: { context: Props['context'] }) {
+  return (
+    <button
+      ref={context.ref}
+      type="button"
+      className="icon-button conv-context-toggle"
+      aria-label="Context"
+      title="Context"
+      aria-expanded={context.open}
+      aria-controls="conv-context"
+      onClick={context.toggle}
+    >
+      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
+        <rect x="1.5" y="2.5" width="13" height="11" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.3" />
+      </svg>
+    </button>
   )
 }
 

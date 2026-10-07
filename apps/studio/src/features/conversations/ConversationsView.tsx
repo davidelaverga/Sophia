@@ -21,7 +21,7 @@ import { Waiting } from '../../app/Waiting.tsx'
 import { byActivity, contributorsLine, listKey, matching, messagesKey, openWords } from './conversation-list.ts'
 import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
-import { OpenConversation } from './OpenConversation.tsx'
+import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
 import { NO_WORDS, START, useKept, withEntry } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
@@ -82,6 +82,8 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         openId={shown?.id}
         me={me}
         start={writer ? start : null}
+        // With no conversation open (none yet, or the form for a new one), «Context» is the list's.
+        context={shown ? null : { open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
         onOpen={(id) => {
           start.close()
           choose(id)
@@ -108,6 +110,7 @@ function ListPane(props: {
   openId: string | undefined
   me: string
   start: ReturnType<typeof useStart> | null
+  context: Parameters<typeof ContextToggle>[0]['context'] | null
   onOpen: (id: string) => void
 }) {
   const { all } = props
@@ -115,7 +118,10 @@ function ListPane(props: {
     <section className="conv-list" aria-label="All conversations">
       <div className="conv-list-head">
         <h2 id="conversations-title">Conversations</h2>
-        {props.start && <StartButton start={props.start} />}
+        <div className="conv-list-acts">
+          {props.context && <ContextToggle context={props.context} />}
+          {props.start && <StartButton start={props.start} />}
+        </div>
       </div>
       <ListState read={props.read} count={all.length} />
       {all.length > 0 && <Rows all={all} openId={props.openId} me={props.me} onOpen={props.onOpen} />}

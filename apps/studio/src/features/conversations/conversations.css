@@ -97,6 +97,10 @@
   gap: 12px;
   padding: 0 6px 4px 8px;
 }
+.conv-list-acts {
+  display: flex;
+  gap: 4px;
+}
 .conv-list-head h2 {
   margin: 0;
   font-size: var(--type-title);
@@ -665,6 +669,18 @@
   background: var(--core);
   color: #0c0a16;
 }
+/* While it sends: the arrow gives way to a turning arc, in the light's ink. */
+.conv-send[data-busy] {
+  color: var(--core);
+}
+.conv-send-arc {
+  animation: conv-turn 0.9s linear infinite;
+}
+@keyframes conv-turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
 .conv-compose-hint {
   display: flex;
   justify-content: space-between;
@@ -922,6 +938,10 @@
     transition: none !important;
   }
   .conv-answering .conv-glyph::before {
+    animation: none;
+  }
+  /* Still, the arc stands apart from the arrow. */
+  .conv-send-arc {
     animation: none;
   }
 }

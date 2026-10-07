@@ -275,3 +275,40 @@ test('panes · «Ask Sophia» off is a ring that reads at 3:1', async ({ page })
   expect(contrastOf(seen)).toBeGreaterThanOrEqual(3)
   expect(seen.box).toBeGreaterThanOrEqual(10)
 })
+
+test('panes · while a note is on its way, Send shows it: a turning arc in the arrow’s place', async ({ page }) => {
+  await page.goto(`${PAGE}&send=slow`)
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('On its way')
+  await send(page).click()
+  const sending = open(page).getByRole('button', { name: 'Sending…' })
+  await expect(sending.locator('.conv-send-arc')).toBeVisible()
+  await expect(sending).toHaveAttribute('data-busy', 'true')
+  // Landed: the arrow again.
+  await expect(send(page).locator('.conv-send-arc')).toHaveCount(0)
+})
+
+for (const where of ['none', 'new'] as const) {
+  test(`panes · at 1000 px with no conversation open (${where === 'none' ? 'none yet' : 'a new one being written'}), the context opens from the list`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1000, height: 800 })
+    await page.goto(where === 'none' ? PAGE.replace('conversations=1', 'conversations=none') : PAGE)
+    if (where === 'new') await page.getByRole('button', { name: 'New conversation' }).click()
+    await expect(open(page)).toHaveCount(0)
+    const opener = list(page).getByRole('button', { name: 'Context' })
+    await opener.click()
+    await expect(context(page)).toBeVisible()
+    await expect(opener).toHaveAttribute('aria-expanded', 'true')
+    await page.keyboard.press('Escape')
+    await expect(opener).toHaveAttribute('aria-expanded', 'false')
+    await expect(opener).toBeFocused()
+  })
+}
+
+test('panes · over 1180 px the list keeps no «Context»: the context is a pane there', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 800 })
+  await page.goto(PAGE.replace('conversations=1', 'conversations=none'))
+  await expect(list(page).getByRole('button', { name: 'Context' })).toBeHidden()
+  await expect(context(page)).toBeVisible()
+})

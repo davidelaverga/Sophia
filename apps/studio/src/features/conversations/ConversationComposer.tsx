@@ -141,18 +141,31 @@ function SendButton({ ready, busy }: { ready: boolean; busy: boolean }) {
       type="submit"
       className="conv-send"
       data-ready={(ready && !busy) || undefined}
+      data-busy={busy || undefined}
       aria-disabled={!ready || busy || undefined}
     >
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
-        <path
-          d="M7 12V2M2.5 6.5L7 2l4.5 4.5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      {busy ? (
+        <svg className="conv-send-arc" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+          <path
+            d="M7 1.5a5.5 5.5 0 1 1-5.5 5.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+          <path
+            d="M7 12V2M2.5 6.5L7 2l4.5 4.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
       <span className="sr-only">{busy ? 'Sending…' : 'Send'}</span>
     </button>
   )

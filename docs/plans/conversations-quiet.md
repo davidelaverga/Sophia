@@ -50,6 +50,13 @@
 - Behind the open panel the room's dock is inert too: Tab never lands on it, unseen.
 - «Ask Sophia» off is a 10 px ring that reads at 3:1.
 
+## From Codex on #155, fixed here
+
+- While a note is on its way, Send shows it: a turning arc in the arrow's place (still under reduced motion), and
+  «Sending…» to a screen reader.
+- With no conversation open (none yet, or a new one being written), «Context» sits in the list's head under 1180 px:
+  the project's context is never out of reach. Over 1180 px it is a pane, and the list has none.
+
 ## Checks
 
 - Sophia's message has no bubble and her mark is lit; a person's has a bubble and is named once a run.
