@@ -3101,9 +3101,12 @@ test('codex · #107 · sources over a review’s limit together are said so and 
   await expect(propose).toBeEnabled()
 })
 
-/** A proposal whose reply was lost (`proposed=lost`): kept as sent, across closing the form, and proposed again so. */
-async function lostProposal(page: Page) {
-  await page.goto(`${PAGE}?served=1&proposed=lost`)
+/**
+ * A proposal whose outcome is unknown (`proposed=lost`: no reply; `unreadable`: a 200 whose body cannot be read): kept
+ * as sent, across closing the form, and proposed again so.
+ */
+async function lostProposal(page: Page, how: 'lost' | 'unreadable') {
+  await page.goto(`${PAGE}?served=1&proposed=${how}`)
   await page.getByRole('button', { name: 'Review sources' }).first().click()
   const form = page.getByRole('form', { name: 'Review sources' })
   const purpose = form.getByLabel('Purpose (optional)')
@@ -3111,7 +3114,7 @@ async function lostProposal(page: Page) {
   await purpose.fill('Check the budgets agree')
   await form.getByRole('button', { name: 'Propose review' }).click()
   await expect(form.getByRole('alert')).toHaveText(
-    'No reply from Sophia. Propose again to check; it is the same proposal.',
+    `${how === 'lost' ? 'No reply from Sophia.' : 'Sophia’s reply was unclear.'} Propose again to check; it is the same proposal.`,
   )
   // Kept as it was sent until Sophia answers: nothing in it can be changed, so no other body goes under its key.
   await expect(form.getByRole('checkbox', { name: 'Launch brief v3' })).toBeDisabled()
@@ -3139,13 +3142,25 @@ async function lostProposal(page: Page) {
 test('codex · #107 · a proposal whose reply was lost is proposed again as it was sent, under its key, never edited', async ({
   page,
 }) => {
-  await lostProposal(page)
+  await lostProposal(page, 'lost')
 })
 
 test('@phone · codex · #107 · on a phone too, a proposal whose reply was lost is proposed again as it was sent', async ({
   page,
 }) => {
-  await lostProposal(page)
+  await lostProposal(page, 'lost')
+})
+
+test('codex · #107 · a proposal answered with a body that cannot be read is kept as sent, as one never answered', async ({
+  page,
+}) => {
+  await lostProposal(page, 'unreadable')
+})
+
+test('@phone · codex · #107 · on a phone too, a proposal answered unreadably is kept as sent and proposed again', async ({
+  page,
+}) => {
+  await lostProposal(page, 'unreadable')
 })
 
 test('codex · #107 · a cap below a cent, or between cents, starts the allowance there and the form may be sent', async ({

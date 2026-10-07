@@ -35,16 +35,21 @@ type Sent =
   | ({ state: 'unanswered'; said: string } & Asked)
 
 /**
- * What a failed proposal says. A reply that never came keeps its key and the request as it was sent: asking again sends
- * exactly that, so Sophia answers it as the same proposal, never as a different body under its key (Codex on #107).
+ * Sophia's definite refusal: a 4xx it answered, unless it says to ask again under the same key. Anything else (no
+ * reply, a 5xx, a success whose body cannot be read) leaves the proposal's outcome unknown: it may have been recorded.
+ */
+const refusal = (err: unknown): err is ApiError =>
+  err instanceof ApiError && err.status >= 400 && err.status < 500 && err.retry !== 'same_admission_key'
+
+/**
+ * What a failed proposal says. One whose outcome is unknown keeps its key and the request as it was sent: asking again
+ * sends exactly that, so Sophia answers it as the same proposal, never as a different body under its key; only a
+ * definite refusal lets the form start afresh (Codex on #107).
  */
 function outcomeOf(err: unknown, asked: Asked): Sent {
-  if (err instanceof ApiError && err.status > 0 && err.status < 500) return { state: 'refused', said: err.message }
-  return {
-    state: 'unanswered',
-    said: 'No reply from Sophia. Propose again to check; it is the same proposal.',
-    ...asked,
-  }
+  if (refusal(err)) return { state: 'refused', said: err.message }
+  const said = err instanceof ApiError && err.status === 0 ? 'No reply from Sophia.' : 'Sophia’s reply was unclear.'
+  return { state: 'unanswered', said: `${said} Propose again to check; it is the same proposal.`, ...asked }
 }
 
 /** Whether a proposal is in flight or unanswered: its fields are kept as it was sent until Sophia answers it. */

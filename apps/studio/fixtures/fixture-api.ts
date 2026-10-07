@@ -121,10 +121,11 @@ interface Project {
   /** What Sophia offers for a source review (WBC-02); absent, the pilot is not enabled. */
   review?: SourceReviewAvailability
   /**
-   * Each source review proposed, with its key and its body (`proposed=lost`): the first `lose` replies are lost, the
-   * request having arrived; the next is answered. Absent, a proposal is unexpected.
+   * Each source review proposed, with its key and its body (`proposed=lost|unreadable`): the first `lose` replies are
+   * lost (the request having arrived) or a success whose body cannot be read; the next is answered. Absent, a proposal is
+   * unexpected.
    */
-  proposals?: { lose: number; sent: { key: string; body: unknown }[] }
+  proposals?: { lose: number; how: 'lost' | 'unreadable'; sent: { key: string; body: unknown }[] }
   /** A goal's command (Request review, Hold, Stop), with its idempotency key; absent, a command is unexpected. */
   onCommand?: (command: GoalCommand, key: string) => void
   /** The floor and Sophia's presence as the page asked for them (data.ts, room-people checks). */
@@ -1000,11 +1001,15 @@ function versionsRead(project: Project): Response {
 
 const proposalId = (n: number) => `00000000-0000-4000-8000-0000000072${String(n).padStart(2, '0')}`
 
-/** A source review proposed: recorded, its reply lost while `lose` lasts (a connection cut), then answered. */
+/**
+ * A source review proposed: recorded; while `lose` lasts, its reply is lost (a connection cut) or a 200 whose body
+ * cannot be read; then answered.
+ */
 function proposed(p: NonNullable<Project['proposals']>, init: RequestInit | undefined): Promise<Response> {
   const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
   p.sent.push({ key: new Headers(init?.headers).get('idempotency-key') ?? '', body })
-  if (p.sent.length <= p.lose) return Promise.reject(new TypeError('Failed to fetch'))
+  if (p.sent.length <= p.lose && p.how === 'lost') return Promise.reject(new TypeError('Failed to fetch'))
+  if (p.sent.length <= p.lose) return Promise.resolve(new Response('{"plan":', { status: 200 }))
   return Promise.resolve(
     new Response(
       JSON.stringify({

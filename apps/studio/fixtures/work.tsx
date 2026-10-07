@@ -125,7 +125,7 @@ declare global {
       reconnect?: () => void
       /** Each goal command sent (Request review, Hold, Stop), with its key (LFE-07.2). */
       goalCommands?: readonly { kind: string; key: string }[]
-      /** Each source review proposed (`proposed=lost`), with its key and its body. */
+      /** Each source review proposed (`proposed=lost|unreadable`), with its key and its body. */
       proposals?: readonly { key: string; body: unknown }[]
       replay?: (operationId: string) => void
       /** A newer receipt for an operation saying less of its delivery (Codex F-014). */
@@ -163,9 +163,13 @@ const two = six || query.get('two') === '1'
 const served = query.get('served') === '1'
 /** `cap=<usd>`: the project's cap for one review, in place of the pilot's half a dollar (a sub-cent one, Codex on #107). */
 const cap = query.get('cap')
-/** `proposed=lost`: the first proposal's reply is lost, the next answered; `workFixture.proposals` lists each sent. */
-const proposals =
-  query.get('proposed') === 'lost' ? { lose: 1, sent: [] as { key: string; body: unknown }[] } : undefined
+/**
+ * `proposed=lost|unreadable`: the first proposal's reply is lost, or a success that cannot be read; the next is answered.
+ * `workFixture.proposals` lists each sent.
+ */
+const proposing = query.get('proposed')
+const proposals: { lose: number; how: 'lost' | 'unreadable'; sent: { key: string; body: unknown }[] } | undefined =
+  proposing === 'lost' || proposing === 'unreadable' ? { lose: 1, how: proposing, sent: [] } : undefined
 /** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
 let onGoalCommand: ((command: GoalCommand, key: string) => void) | null = null
 installFixtureApi({
