@@ -69,6 +69,7 @@ import {
   TASK,
   versionId,
 } from './report-data.ts'
+import { DEMO, DEMO_LABEL, VIEWER_NAME } from './demo.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -328,7 +329,7 @@ const project = {
         {
           id: '00000000-0000-4000-8000-0000000007f1',
           text: 'Start the deck from one number I trust',
-          ownerName: 'Fixture viewer',
+          ownerName: VIEWER_NAME,
           mine: true,
           createdAt: '2026-10-05T16:00:00.000Z',
         },
@@ -564,7 +565,7 @@ window.fixture = {
       artifactId: REPORT,
       versionId: versionId(project.reportVersions),
       passage: '0.0.3',
-      quote: 'The fixture holds.',
+      quote: DEMO ? 'The shorter checklist is the change most tied to teams that stayed.' : 'The fixture holds.',
     }
     project.tasks.list.unshift(taskOf(project.tasks, personId(1), { text: 'Check the figures', owner, from }))
     publish(project)
@@ -697,7 +698,7 @@ function meetingRecords(): ReturnType<Meeting['records']> {
     decided: [
       {
         decisionId: '00000000-0000-4000-8000-0000000000ad',
-        statement: 'Pilot the fixture with fourteen teams',
+        statement: DEMO ? 'Run the pilot with fourteen teams' : 'Pilot the fixture with fourteen teams',
         proposedBy: personId(1),
         decidedBy: membership.actorId,
         at,
@@ -730,7 +731,7 @@ function meetingRecords(): ReturnType<Meeting['records']> {
     names: Object.fromEntries(
       [1, 2, 3, 4, 5]
         .map((n): [string, string] => [personId(n), nameOf(personId(n))])
-        .concat([[membership.actorId, 'Fixture viewer']]),
+        .concat([[membership.actorId, VIEWER_NAME]]),
     ),
   }
 }
@@ -832,7 +833,7 @@ createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <p className="fixture-label" role="note">
-        Fixture — no API, no call
+        {DEMO ? DEMO_LABEL : 'Fixture — no API, no call'}
       </p>
       <Kept>{(background) => <Project background={background} />}</Kept>
     </QueryClientProvider>

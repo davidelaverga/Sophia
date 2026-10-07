@@ -12,6 +12,19 @@ import type {
   SourceContent,
 } from '@sophia/contracts'
 import { PROJECT } from './data.ts'
+import {
+  DEMO,
+  DEMO_DESCRIPTION,
+  DEMO_FILE,
+  DEMO_HEADINGS,
+  DEMO_PROJECT,
+  DEMO_QUESTION,
+  DEMO_SHA,
+  DEMO_SOURCES,
+  DEMO_TITLE,
+  DEMO_V1,
+  DEMO_V2,
+} from './demo.ts'
 
 export const REPORT = '00000000-0000-4000-8000-0000000000b1'
 export const TASK = '00000000-0000-4000-8000-0000000000b2'
@@ -20,13 +33,19 @@ export const DESIGN_TASK = '00000000-0000-4000-8000-0000000000e2'
 const EXCHANGE = '00000000-0000-4000-8000-0000000000ae'
 const AT = '2026-10-02T00:00:00.000Z'
 
+/** What the research was asked (the demo's question, with `demo`). */
+const QUESTION = DEMO ? DEMO_QUESTION : 'A labelled fixture question.'
+
+/** The project's title on Knowledge's cards. */
+const PROJECT_TITLE = DEMO ? DEMO_PROJECT : 'Fixture project'
+
 /** The one page every version cites. */
 const CITED = '00000000-0000-4000-8000-0000000000c9'
 /** An id that is none of a version's sources, which version 3 names in a link (CX-0019). */
 const STRAY = '00000000-0000-4000-8000-0000000000ca'
 
-/** The fixture report's title. */
-export const TITLE = 'Fixture report'
+/** The fixture report's title (the demo's, with `demo`). */
+export const TITLE = DEMO ? DEMO_TITLE : 'Fixture report'
 /**
  * A title far wider than the side pane at every width (`title=long`): the head must cut it, never widen the pane
  * (CX-0019).
@@ -45,7 +64,7 @@ interface Text {
  * recommendations and keeps its conclusion; the third writes its citation as a link, as the pilot's model did, and
  * links an id that is none of its sources (CX-0019).
  */
-const TEXTS: readonly Text[] = [
+const FIXTURE_TEXTS: readonly Text[] = [
   {
     sourceId: '00000000-0000-4000-8000-0000000000c1',
     sha256: 'd0c34bb26c92f59495bc2ae33604e871cdb98c31febf5b54b09fcc233cced80b',
@@ -62,6 +81,14 @@ const TEXTS: readonly Text[] = [
     text: `# Fixture report\n\nThe third version of a labelled fixture report, its citation written as a link.\n\nIt cites one page [1](<${CITED}>) and names an id that is none of its sources [2](${STRAY}).\n`,
   },
 ]
+
+/** The demo's two versions (`demo`), in place of the fixture's, under the same sources. */
+const DEMO_TEXTS: readonly Text[] = [
+  { sourceId: '00000000-0000-4000-8000-0000000000c1', sha256: DEMO_SHA.v1, text: DEMO_V1 },
+  { sourceId: '00000000-0000-4000-8000-0000000000c2', sha256: DEMO_SHA.v2, text: DEMO_V2 },
+]
+
+const TEXTS = DEMO ? DEMO_TEXTS : FIXTURE_TEXTS
 
 /** The pilot-shaped first version's own source, which its second cites in place of the five sources it dropped. */
 const PILOT_V1_SOURCE = '00000000-0000-4000-8000-0000000000c4'
@@ -202,8 +229,35 @@ const PILOT_V3: VersionNotes = {
   },
 }
 
+/** The demo's second version: the second region added, the recommendations revised, the conclusion kept. */
+const DEMO_V2_NOTES: VersionNotes = {
+  changeNote: 'Added the second region’s five teams and revised the recommendations with them.',
+  retainedNote: 'The measures, what kept teams and the conclusion are unchanged.',
+  changeFacts: {
+    cited: DEMO_SOURCES.length,
+    added: [],
+    dropped: [],
+    notesFromFacts: false,
+    sections: {
+      added: ['The second region'],
+      revised: ['Recommendations'],
+      removed: [],
+      unchanged: DEMO_HEADINGS.filter((h) => h !== 'Recommendations'),
+      conclusionChanged: false,
+    },
+  },
+}
+
 /** Each version's notes and facts, by number: the fixture report's, and the pilot-shaped ones (`history=pilot`). */
-const NOTES: readonly VersionNotes[] = [firstVersion([CITED], ['Fixture report', 'Conclusion', 'Recommendations']), V2]
+const NOTES: readonly VersionNotes[] = DEMO
+  ? [
+      firstVersion(
+        DEMO_SOURCES.map((s) => s.id),
+        DEMO_HEADINGS,
+      ),
+      DEMO_V2_NOTES,
+    ]
+  : [firstVersion([CITED], ['Fixture report', 'Conclusion', 'Recommendations']), V2]
 const PILOT_NOTES: readonly VersionNotes[] = [
   firstVersion(PILOT_CITED, [
     'Fixture report',
@@ -295,7 +349,7 @@ export const versions = (published: number, title = TITLE, pilot = false, design
   })
 
 /** What a version cites, as `GET …/versions/{id}/sources` answers it: the one page, read in full. */
-export const citedSources: ReportSourceList = {
+const fixtureSources: ReportSourceList = {
   sources: [
     {
       sourceId: CITED,
@@ -312,6 +366,24 @@ export const citedSources: ReportSourceList = {
   ],
 }
 
+/** The demo's (`demo`): the project's own records, read in full. */
+const demoSources: ReportSourceList = {
+  sources: DEMO_SOURCES.map((s) => ({
+    sourceId: s.id,
+    kind: 'input' as const,
+    provider: null,
+    title: s.title,
+    url: null,
+    coverage: 'complete' as const,
+    originHttpStatus: null,
+    limitations: [],
+    mime: 'text/markdown',
+    retrievedAt: AT,
+  })),
+}
+
+export const citedSources: ReportSourceList = DEMO ? demoSources : fixtureSources
+
 /**
  * A version's Markdown, inline, as `GET /sources/{id}/content` answers it; null for a source it does not hold.
  * `tampered` (`tamper=text`): the text with one space more and the record's sha256 kept, bytes no record names.
@@ -326,7 +398,7 @@ export function content(sourceId: string, tampered = false, pageTampered = false
     sha256: text.sha256,
     mime: 'text/markdown',
     byteLength: byteLengthOf(served),
-    filename: 'fixture-report.md',
+    filename: DEMO ? `${DEMO_FILE}.md` : 'fixture-report.md',
     disposition: 'inline',
     text: served,
     downloadUrl: null,
@@ -368,7 +440,7 @@ export const researchTask: NativeTaskDetail = {
     reason: null,
     artifactId: REPORT,
   },
-  instruction: 'A labelled fixture question.',
+  instruction: QUESTION,
   result: {
     sourceId: TEXTS[0]?.sourceId ?? '',
     sha256: TEXTS[0]?.sha256 ?? '',
@@ -398,7 +470,7 @@ export function researchRunning(reads: number): NativeTaskDetail {
     task: { ...researchTask.task, state: 'running', phase: 'running', resultSourceId: null },
     result: null,
     research: {
-      question: 'A labelled fixture question.',
+      question: QUESTION,
       specialist: 'sophia-researcher-v1',
       outputs: ['markdown', 'pdf'],
       rootTaskId: TASK,
@@ -450,7 +522,7 @@ const pick = (r: ReturnType<typeof designedRendition> & { artifactVersionId: str
 
 /** The research's request and progress once its HTML page is published (`designed=on`). */
 const designedResearch: NonNullable<NativeTaskDetail['research']> = {
-  question: 'A labelled fixture question.',
+  question: QUESTION,
   specialist: 'sophia-research-md-v1',
   outputs: ['markdown', 'html'],
   rootTaskId: TASK,
@@ -517,7 +589,7 @@ export const briefNotice = { ...researchNotice, id: '00000000-0000-4000-8000-000
 /** Someone at the door while a report is open (`lobby=waiting`): the lobby card must stay in reach over the pane. */
 export const waitingAtTheDoor: LobbyEntry = {
   id: '00000000-0000-4000-8000-0000000000b8',
-  displayName: 'Fixture guest',
+  displayName: DEMO ? 'Ana Ruiz' : 'Fixture guest',
   status: 'waiting',
   requestedAt: AT,
   decidedAt: null,
@@ -533,7 +605,7 @@ export interface Description {
 }
 
 export const SOPHIAS_DESCRIPTION: Description = {
-  text: 'A labelled fixture report, as Sophia described it.',
+  text: DEMO ? DEMO_DESCRIPTION : 'A labelled fixture report, as Sophia described it.',
   revision: 1,
   author: null,
 }
@@ -553,8 +625,8 @@ const summaryOf = (d: Description): ReportSummary => ({
 const OLDER: ReportList['reports'][number] = {
   artifactId: '00000000-0000-4000-8000-0000000000e1',
   projectId: PROJECT,
-  projectTitle: 'Fixture project',
-  title: 'An older fixture report',
+  projectTitle: PROJECT_TITLE,
+  title: DEMO ? 'Pilot plan: fourteen teams, two regions' : 'An older fixture report',
   summary: null,
   summaryAuthorId: null,
   summaryRevision: 1,
@@ -579,8 +651,8 @@ function fixtureCard(published: readonly ArtifactVersion[], d: Description): Rep
   return {
     artifactId: REPORT,
     projectId: PROJECT,
-    projectTitle: 'Fixture project',
-    title: 'Fixture report',
+    projectTitle: PROJECT_TITLE,
+    title: TITLE,
     summary: s.summary,
     summaryAuthorId: s.summaryAuthorId,
     summaryRevision: s.summaryRevision,
@@ -618,10 +690,10 @@ export function reportList(
       const found = words.every((w) => text.some((t) => t.startsWith(w)))
       return found && (format === 'any' || (format === 'pdf') === pdf)
     })
-    const projects = kept.length > 0 ? [{ projectId: PROJECT, title: 'Fixture project', count: kept.length }] : []
+    const projects = kept.length > 0 ? [{ projectId: PROJECT, title: PROJECT_TITLE, count: kept.length }] : []
     return { reports: kept, projects, nextCursor: null }
   }
-  const projects = [{ projectId: PROJECT, title: 'Fixture project', count: 2 }]
+  const projects = [{ projectId: PROJECT, title: PROJECT_TITLE, count: 2 }]
   if (cursor === 'page-2') return { reports: [OLDER], projects, nextCursor: null }
   return { reports: [current], projects, nextCursor: 'page-2' }
 }

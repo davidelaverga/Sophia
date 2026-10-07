@@ -13,6 +13,7 @@ import type {
   Week,
   WeekLook,
 } from '../src/features/personal/extras.ts'
+import { HOME_PROJECT } from './demo.ts'
 
 const SAID: readonly TalkLine[] = [
   { who: 'sophia', text: 'I’m here. How did the meeting land, now that it’s over?' },
@@ -123,7 +124,7 @@ export function projectsFor(query: URLSearchParams, ahead: (minutes: number) => 
   return [
     {
       projectId: '00000000-0000-4000-8000-000000000004',
-      title: 'Product launch',
+      title: HOME_PROJECT,
       role: 'editor',
       members: 3,
       room: null,
