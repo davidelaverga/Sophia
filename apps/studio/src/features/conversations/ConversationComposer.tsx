@@ -46,23 +46,21 @@ function useMessageWrite(props: Props, askSophia: boolean) {
   const write = useHeldWrite<MessageAsk, MessageSent>(
     props.held,
     props.onHeld,
-    async (key, ask) => {
-      const sent = await sendConversationMessage(identity.token, conversationId, key, ask)
-      // The receipt's message shows at once, and stays should reading the conversation again fail; then the list
-      // moves too (its order, who wrote there).
-      const pages = messagesKey(conversationId, identity.name)
-      queryClient.setQueryData<ReadPages<MessageSent['message']>>(pages, (read) => withMessage(read, sent.message))
-      void queryClient.invalidateQueries({ queryKey: pages })
-      void queryClient.invalidateQueries({ queryKey: ['vision', 'conversations'] })
-      return sent
-    },
+    (key, ask) => sendConversationMessage(identity.token, conversationId, key, ask),
     refusal,
   )
   const ready = props.canSend && (write.unknown?.text ?? draft).trim() !== ''
   const go = async () => {
     if (write.busy || !ready) return
+    // Undefined too for an account forgotten meanwhile: its receipt never comes back into the cache.
     const sent = await write.run({ text: draft.trim(), askSophia })
     if (!sent) return
+    // The receipt's message shows at once, and stays should reading the conversation again fail; then the list moves
+    // too (its order, who wrote there).
+    const pages = messagesKey(conversationId, identity.name)
+    queryClient.setQueryData<ReadPages<MessageSent['message']>>(pages, (read) => withMessage(read, sent.message))
+    void queryClient.invalidateQueries({ queryKey: pages })
+    void queryClient.invalidateQueries({ queryKey: ['vision', 'conversations'] })
     onSent(sent)
     // Asked of the view: this field may be gone by now, and the words written since are the view's.
     onClearIf(sent.message.text)

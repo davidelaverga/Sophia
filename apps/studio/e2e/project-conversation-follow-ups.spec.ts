@@ -109,6 +109,52 @@ test('follow · Sophia is still awaited after another conversation was opened, a
   await expect(open(page)).not.toContainText('Sophia is answering…')
 })
 
+test('follow · once Sophia’s answer is seen the wait is over, even after newer messages push it off the page', async ({
+  page,
+}) => {
+  await openBriefs(page)
+  await field(page).fill('Sophia, which do readers finish?')
+  await open(page).getByRole('button', { name: 'Send' }).click()
+  await expect(open(page)).toContainText('Sophia is answering…')
+  await expect(open(page)).not.toContainText('Sophia is answering…')
+  // A page's worth of plain messages: her answer is no longer in the newest page read.
+  await ask(page).uncheck()
+  for (const n of [1, 2, 3, 4, 5, 6]) {
+    await field(page).fill(`Plain note ${String(n)}`)
+    await open(page).getByRole('button', { name: 'Send' }).click()
+    await expect(messages(page).last()).toContainText(`Plain note ${String(n)}`)
+  }
+  await row(page, READING).click()
+  await row(page, BRIEFS).click()
+  await expect(messages(page).last()).toContainText('Plain note 6')
+  await expect(open(page)).not.toContainText('Sophia is answering…')
+  await expect(open(page)).not.toContainText('Sophia hasn’t answered yet')
+})
+
+test('follow · a receipt that lands after the account was forgotten writes nothing and reads nothing', async ({
+  page,
+}) => {
+  await openBriefs(page, '&send=slow')
+  await ask(page).uncheck()
+  await field(page).fill('Sent as the account goes')
+  await open(page).getByRole('button', { name: 'Send' }).click()
+  await expect.poll(async () => (await written(page, 'conversation-message')).length).toBe(1)
+  // Signed out (or another identity) while it is on its way: the page reads afresh, then the receipt lands.
+  const reads = async () =>
+    (await served(page)).filter((s) => s.startsWith('messages:') || s === 'conversations:read').length
+  const before = await reads()
+  await page.evaluate(() => window.fixture?.forgetAccount())
+  await expect.poll(reads).toBeGreaterThan(before)
+  // The fresh reads done (the receipt comes 1.5 s after Send), counted before it lands.
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 300)))
+  expect(await served(page)).not.toContain('reply:message')
+  const settled = await reads()
+  await expect.poll(async () => (await served(page)).includes('reply:message'), { timeout: 5000 }).toBe(true)
+  // Time for whatever the receipt would set off to be asked for.
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 400)))
+  expect(await reads()).toBe(settled)
+})
+
 test('follow · an accepted message shows even when reading the conversation again fails', async ({ page }) => {
   await openBriefs(page, '&send=thenFail')
   await ask(page).uncheck()

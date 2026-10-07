@@ -41,6 +41,8 @@ interface Props {
   /** When Sophia was asked here (kept by the view): a message that doesn't ask her leaves it. */
   asked: Asked | null
   onAsked: (at: string) => void
+  /** Her answer to the ask made at `at` was seen: that wait is over (kept by the view). */
+  onAnswered: (at: string) => void
   /** Just started here: the focus goes to its title, once. */
   arrived: boolean
   onArrived: () => void
@@ -88,7 +90,7 @@ export function OpenConversation(props: Props) {
         </h4>
         <p>{c.summary ?? 'No summary yet.'}</p>
       </section>
-      <Messages read={read} me={me} awaiting={awaiting} />
+      <Messages read={read} me={me} awaiting={awaiting} onAnswered={props.onAnswered} />
       {props.writer === true && (
         <ConversationComposer
           conversationId={c.id}
@@ -153,10 +155,17 @@ function Messages(props: {
   read: ReturnType<typeof useTranscript>
   me: string
   awaiting: { since: string | null; late: boolean }
+  onAnswered: (at: string) => void
 }) {
-  const { read, me } = props
+  const { read, me, onAnswered } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
   const messages = read.data?.pages.toReversed().flatMap((p) => p.messages) ?? []
+  const since = props.awaiting.since
+  const answered = since !== null && answeredAfter(messages, since)
+  // Seen once, the wait is over for good: newer messages may later push her answer out of the page read.
+  useEffect(() => {
+    if (answered) onAnswered(since)
+  }, [answered, since, onAnswered])
   const first = useRef<HTMLLIElement>(null)
   const asked = useRef(false)
   // Earlier messages goes with the last page: the focus goes to the first message, never to the page.
@@ -179,7 +188,7 @@ function Messages(props: {
         />
       )}
       {messages.length > 0 && <MessageList messages={messages} me={me} first={first} />}
-      {props.awaiting.since !== null && !answeredAfter(messages, props.awaiting.since) && (
+      {since !== null && !answered && (
         <p className="conv-note" role="status">
           {props.awaiting.late
             ? 'Sophia hasn’t answered yet. Her answer will show here when it comes.'

@@ -3,6 +3,7 @@
 // away) and coming back finds the same intent. On its way, nothing goes again; with no reply, the press sends it again
 // under its key, never a second record; answered either way, it is let go.
 import { ApiError } from '../../api/client.ts'
+import { currentGeneration } from './talk-store.ts'
 
 /** An intent on its way, or sent with no reply: its key and the words it was sent with. */
 export interface Held<A> {
@@ -27,17 +28,21 @@ export function useHeldWrite<A, R>(
   send: (key: string, ask: A) => Promise<R>,
   refusal: Refusal,
 ) {
-  /** Sends the held intent again, or this new one under a new key; undefined unless it was recorded. */
+  /**
+   * Sends the held intent again, or this new one under a new key; undefined unless it was recorded, and undefined too
+   * when the account was forgotten meanwhile (signed out, another identity): nothing on the page follows from it.
+   */
   const run = async (fresh: A): Promise<R | undefined> => {
     if (held?.sending) return undefined
     const ask = held?.ask ?? fresh
     const key = held?.key ?? crypto.randomUUID()
+    const born = currentGeneration()
     onHeld({ key, ask, sending: true })
     refusal.onWords(null)
     try {
       const result = await send(key, ask)
       onHeld(null)
-      return result
+      return born === currentGeneration() ? result : undefined
     } catch (err: unknown) {
       const failure = err instanceof ApiError ? err : noReply()
       if (failure.retry === 'same_admission_key') {
