@@ -285,16 +285,17 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
         identity={identity}
         editable={editable}
         onSaved={() => void client.invalidateQueries({ queryKey: ['reports'] })}
-      />
-      <div className="control-row">
+      >
+        {/* Its visible word is in its name: «History and changes» to a screen reader. */}
         <button
           type="button"
           className="text-button"
+          aria-label="History and changes"
           onClick={() => viewer?.open({ artifactId: card.artifactId, tab: 'history' })}
         >
-          History and changes
+          History
         </button>
-      </div>
+      </SummaryEditor>
     </li>
   )
 }

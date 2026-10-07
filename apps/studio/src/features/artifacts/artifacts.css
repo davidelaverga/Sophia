@@ -713,6 +713,11 @@
   display: grid;
   gap: 16px;
 }
+/* More reports: a button as wide as its words, in the middle under the tiles. */
+.knowledge-more {
+  justify-self: center;
+  padding-inline: 18px;
+}
 .knowledge-filters {
   display: flex;
   flex-wrap: wrap;
@@ -919,8 +924,37 @@
 .report-card .report-attribution {
   font-size: var(--type-small);
 }
-.report-card .control-row {
+/* The tile's words fill it, so every foot sits on the tile's last line (docs/plans/knowledge-quiet.md). */
+.report-card .report-summary {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+.report-by {
+  display: inline-flex;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+/* One quiet foot: History, then Edit, in the second ink (it reads at 4.5:1), underlined only under the pointer or the
+   focus. */
+.report-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   margin-top: auto;
+  padding-top: 6px;
+}
+.report-foot .text-button {
+  color: var(--text-2);
+  font-size: var(--type-small);
+  text-decoration: none;
+}
+.report-foot .text-button:is(:hover, :focus-visible) {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .report-summary {
   display: grid;
