@@ -1,18 +1,23 @@
 // Whether an authored page keeps its frozen content (SDD-01, pack 05 §3, B-06). Each content block appears exactly once,
 // as the element marked `data-block="<id>"`, holding its exact text (citations left out), every source it cites as an
-// element marked `data-cite="<sourceId>"` inside it, and its links. Every cited source is listed once, as an element
-// marked `data-source="<sourceId>"`. Whether each block is also visible and readable is the render's measurement
-// (the capture kernel), not this check: markup alone cannot prove what a reader sees.
+// element marked `data-cite="<sourceId>"` inside it (a bare mark, or a link to that source's entry: citations.ts), and
+// its links. Every cited source is listed once, as an element marked `data-source="<sourceId>"`. Outside the blocks a
+// page adds only the words that frame them (framing.ts). Whether each block is also visible and readable is the render's measurement (the capture kernel), not this check: markup alone cannot
+// prove what a reader sees.
 
 import { safeHref } from '@sophia/report/markdown'
 import { comparable, type ContentBlock, type ContentPackage } from './blocks.ts'
-import { attr, elements, hasAncestor, lineAt, textOf, type Document, type Element } from './dom.ts'
+import { citationFindings } from './citations.ts'
+import { byId, framingFindings, referencedIds } from './framing.ts'
+import { attr, elements, hasAncestor, isElement, lineAt, textOf, type Document, type Element } from './dom.ts'
 import { error, type Finding } from './findings.ts'
 
 const isCite = (el: Element): boolean => attr(el, 'data-cite') !== null
 const isBlock = (el: Element): boolean => attr(el, 'data-block') !== null
 /** What a block's own text leaves out: its citations, and any block nested in it (an item's sub-list). */
 const notOwnText = (el: Element): boolean => isCite(el) || isBlock(el)
+/** A text without its white space. */
+const bare = (text: string): string => text.replaceAll(/\s/gu, '')
 
 /** The elements inside a block that are its own, not a nested block's. */
 function ownElements(block: Element): Element[] {
@@ -57,21 +62,132 @@ function linksIn(el: Element): string[] {
 const same = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((x, i) => x === b[i])
 
+/**
+ * Why a research table's header cells could be heard over other cells than the captures show them over, or null. A
+ * screen reader announces each cell with its headers; the captures show a header over the cells of its column, or
+ * beside those of its row. So a header cell sits in the table's first row (a column's) or first in a later row (a
+ * row's), its `scope` says the same or nothing, and no cell names its headers (`headers`): `headers="price"` on a
+ * "Basic" cell is heard as a price while every capture shows it under "Plan" (#117).
+ */
+function headerIssue(table: Element): string | null {
+  const rows = ownElements(table).filter((r) => r.tagName === 'tr')
+  for (const [i, row] of rows.entries()) {
+    const cells = row.childNodes.filter(isElement).filter((c) => c.tagName === 'th' || c.tagName === 'td')
+    for (const [j, cell] of cells.entries()) {
+      if (attr(cell, 'headers') !== null) return `a cell names its headers (headers), which no capture shows`
+      if (cell.tagName !== 'th') continue
+      const place = i === 0 ? 'col' : j === 0 ? 'row' : null
+      if (place === null)
+        return `a header cell (row ${String(i + 1)}, cell ${String(j + 1)}) heads cells beside it no capture shows it heading`
+      const scope = (attr(cell, 'scope') ?? '').trim().toLowerCase()
+      if (scope !== '' && scope !== place)
+        return `a header cell in the ${place === 'col' ? 'first row' : 'first column'} has scope="${scope}", not ${place}`
+    }
+  }
+  return null
+}
+
+/** A table row's cells. */
+const rowCells = (row: Element): Element[] =>
+  row.childNodes.filter(isElement).filter((c) => c.tagName === 'th' || c.tagName === 'td')
+
+/**
+ * Why a research table's rows are not the research's, or null: the rows the package froze (`rows`: how many cells
+ * each holds, the head first, which holds header cells), and no cell spanning rows or columns (a footer row placed
+ * before the body already reorders its cells). One row of four cells laid out as two by CSS shows the same and is announced as one row, its
+ * values under no header (#117). A package frozen before tables kept their shape holds none, and fails.
+ */
+function shapeIssue(table: Element, rows: readonly number[] | undefined): string | null {
+  if (!Array.isArray(rows) || rows.length === 0) return 'the frozen package holds no shape for it'
+  const native = ownElements(table).filter((r) => r.tagName === 'tr')
+  const counts = native.map((r) => rowCells(r).length)
+  if (counts.length !== rows.length || counts.some((n, i) => n !== rows[i]))
+    return `its rows hold ${counts.join(', ') || 'no'} cells, where the research's hold ${rows.join(', ')}`
+  const spans = native.flatMap(rowCells).some((c) =>
+    ['colspan', 'rowspan'].some((a) => {
+      const v = attr(c, a)
+      return v !== null && v.trim() !== '1'
+    }),
+  )
+  if (spans) return 'a cell spans rows or columns the research does not'
+  return rowCells(native[0] ?? table).every((c) => c.tagName === 'th')
+    ? null
+    : "its head row's cells are not header cells (th)"
+}
+
+/**
+ * The one table a research table's block is, or holds: its head and body rows in one `<table>`, the block itself or the
+ * one table inside it, which the render checks the placement of. Null when the block holds none or more than one: a
+ * head in one table and the body in another keep every row's shape while no header sits over the body's values (#117).
+ */
+function tableOf(el: Element): Element | null {
+  const tables = [el, ...elements(el)].filter((e) => e.tagName === 'table')
+  return tables.length === 1 ? (tables[0] ?? null) : null
+}
+
+/** What is wrong with a research table: its cells, its one table (tableOf), its rows (shapeIssue), or its header cells (headerIssue). */
+/**
+ * Whether a table block holds text of its own beyond its cells' (#117): a caption, a heading beside the table, or any
+ * text a wrapper carrying the block adds is research no cell of the package gives ("Free" over a price table), shown
+ * as part of the block. Citation markers and blocks nested in it are their own.
+ */
+function textBeyondCells(el: Element): boolean {
+  const cells = ownElements(el).filter((c) => c.tagName === 'th' || c.tagName === 'td')
+  return bare(textOf(el, notOwnText)) !== bare(cells.map((c) => textOf(c, notOwnText)).join(''))
+}
+
+function tableFindings(block: ContentBlock, el: Element, at: { line: number; block: string }): Finding[] {
+  const out: Finding[] = []
+  const cells = cellsOf(el)
+  if (!same(cells, block.cells))
+    out.push(
+      error(
+        'block_altered',
+        'index.html',
+        `table ${block.id}'s cells differ from the research (${cells.length} cells, ${block.cells.length} expected)`,
+        at,
+      ),
+    )
+  if (textBeyondCells(el))
+    out.push(
+      error(
+        'block_altered',
+        'index.html',
+        `table ${block.id} holds text beyond its cells (a caption, a heading or other text in the block): ` +
+          'a research table holds its cells only; write a heading outside the block',
+        at,
+      ),
+    )
+  const table = tableOf(el)
+  const shape = table ? shapeIssue(table, block.rows) : 'its rows are not in one table (<table>)'
+  if (shape)
+    out.push(
+      error(
+        'block_altered',
+        'index.html',
+        `table ${block.id}: ${shape}; a research table keeps the research's rows, its head row of header cells first`,
+        at,
+      ),
+    )
+  const headers = shape || !table ? null : headerIssue(table)
+  if (headers)
+    out.push(
+      error(
+        'table_headers',
+        'index.html',
+        `table ${block.id}: ${headers}; a header cell sits in the first row or first in a row, and scope, if any, ` +
+          'says which (col or row)',
+        at,
+      ),
+    )
+  return out
+}
+
 function blockFindings(block: ContentBlock, el: Element, line: number): Finding[] {
   const at = { line, block: block.id }
   const out: Finding[] = []
-  if (block.kind === 'table') {
-    const cells = cellsOf(el)
-    if (!same(cells, block.cells))
-      out.push(
-        error(
-          'block_altered',
-          'index.html',
-          `table ${block.id}'s cells differ from the research (${cells.length} cells, ${block.cells.length} expected)`,
-          at,
-        ),
-      )
-  } else if (blockText(el) !== block.text) {
+  if (block.kind === 'table') out.push(...tableFindings(block, el, at))
+  else if (blockText(el) !== block.text) {
     out.push(
       error(
         'block_altered',
@@ -153,6 +269,24 @@ function listedSources(all: Element[]): Map<string, number> {
   return listed
 }
 
+/**
+ * Source entries on, around or inside a content block. A source entry is listed apart from the blocks: one that is a
+ * block, holds one or sits inside one would make the research its own bibliography, a table announced as an entry and
+ * linked to as a source (#117).
+ */
+function misplacedSources(all: readonly Element[]): Finding[] {
+  return all
+    .filter((el) => attr(el, 'data-source') !== null)
+    .filter((el) => isBlock(el) || hasAncestor(el, isBlock) || elements(el).some(isBlock))
+    .map((el) =>
+      error(
+        'source_misplaced',
+        'index.html',
+        `data-source ${attr(el, 'data-source') ?? ''} is on, around or inside a content block; list a source apart from the blocks`,
+      ),
+    )
+}
+
 function sourceFindings(all: Element[], content: ContentPackage): Finding[] {
   const out: Finding[] = []
   const cited = new Set(content.citations)
@@ -171,6 +305,7 @@ function sourceFindings(all: Element[], content: ContentPackage): Finding[] {
   for (const id of listed.keys())
     if (!cited.has(id))
       out.push(error('source_unknown', 'index.html', `data-source ${id} is not a source the research cites`))
+  out.push(...misplacedSources(all))
   for (const el of all.filter((c) => isCite(c) && !hasAncestor(c, isBlock))) {
     out.push(
       error(
@@ -183,8 +318,212 @@ function sourceFindings(all: Element[], content: ContentPackage): Finding[] {
   return out
 }
 
+/** Research: a content block or a source entry. */
+const isResearch = (el: Element): boolean => isBlock(el) || attr(el, 'data-source') !== null
+
+/**
+ * Roles that take an element's meaning away, or its children's: research under one is given to a screen reader as text
+ * without its table, list or heading (`none`, `presentation`, `generic`), or as one image announced by its name alone
+ * (`img`). On research, inside it or around it (#117).
+ */
+const STRIPPING = new Set(['none', 'presentation', 'generic', 'img'])
+/**
+ * The roles research and what is inside it may carry: they mark a citation or a source entry as one, and replace no
+ * meaning, where they sit on that marker or that entry (the profile holds each to it: policy.ts). Any other role on
+ * research or inside it replaces what the research is announced as, a header cell as a paragraph (#117).
+ */
+const ANNOTATING = new Set(['doc-noteref', 'doc-biblioentry'])
+
+/**
+ * Why an element changes what a screen reader is given of research, or null: `aria-hidden="true"` takes it out of the
+ * accessibility tree, a stripping role takes its meaning away, and on research or inside it any role but one that
+ * annotates replaces its meaning (#117). None changes a pixel, so no capture shows it.
+ * @param inside - whether the element is research or inside it (not only around it)
+ */
+function concealment(el: Element, inside: boolean): string | null {
+  if (attr(el, 'aria-hidden')?.trim().toLowerCase() === 'true')
+    return `<${el.tagName} aria-hidden="true"> takes research out of what a screen reader is given`
+  const roles = (attr(el, 'role') ?? '').trim().toLowerCase().split(/\s+/u).filter(Boolean)
+  const stripping = roles.find((r) => STRIPPING.has(r))
+  if (stripping !== undefined)
+    return stripping === 'img'
+      ? `<${el.tagName} role="img"> gives what it holds as one image, announced by its name alone, not by its text`
+      : `<${el.tagName} role="${stripping}"> takes away the meaning of what it holds: its table, list or heading`
+  const replacing = inside ? roles.find((r) => !ANNOTATING.has(r)) : undefined
+  return replacing === undefined
+    ? null
+    : `<${el.tagName} role="${replacing}"> replaces what the research is announced as`
+}
+
+/** The research on a page, and every element around (holding) or inside one: the boundary the checks below keep. */
+interface Boundary {
+  readonly around: ReadonlySet<Element>
+  readonly inside: ReadonlySet<Element>
+}
+
+function researchBoundary(all: readonly Element[]): Boundary {
+  const around = new Set<Element>()
+  const inside = new Set<Element>()
+  for (const el of all.filter(isResearch)) {
+    for (const d of [el, ...elements(el)]) inside.add(d)
+    for (
+      let a: Element | null = el;
+      a && !around.has(a);
+      a = a.parentNode && isElement(a.parentNode) ? a.parentNode : null
+    )
+      around.add(a)
+  }
+  return { around, inside }
+}
+
+/**
+ * Why an element's `aria-owns` moves research in what a screen reader is given, or null. Ownership gives each element
+ * it names as the owner's child, wherever the markup puts it: research it names, or what holds or is inside research,
+ * would be given beneath an element whose role and hiding the checks here never read (an image's children are
+ * presentational), and an owner on or inside research takes other elements into it. Chromium kept such a table in
+ * place in a probe on #117, but the specification moves it, and no capture shows either. A reference that only names
+ * (`aria-labelledby`, `aria-describedby`) moves nothing and stays.
+ */
+function ownershipIssue(el: Element, ids: ReadonlyMap<string, Element>, boundary: Boundary): string | null {
+  const owned = referencedIds(el, 'aria-owns')
+  if (owned.length === 0) return null
+  if (boundary.inside.has(el)) return `<${el.tagName} aria-owns> on research or inside it takes other elements into it`
+  const moved = owned.find((id) => {
+    const target = ids.get(id)
+    return target !== undefined && (boundary.around.has(target) || boundary.inside.has(target))
+  })
+  return moved === undefined
+    ? null
+    : `<${el.tagName} aria-owns="${moved.slice(0, 64)}"> gives research, or what holds it, as its own child`
+}
+
+/** The attributes that give an element its accessible name (WAI-ARIA 1.3), before what it holds. */
+const NAMING = ['aria-label', 'aria-labelledby', 'aria-braillelabel']
+/**
+ * The roles a screen reader names by what they hold (WAI-ARIA 1.3, name from content), and the elements that take one
+ * natively: a name written on one is read in place of what it holds, a link, a disclosure's summary, a heading or a
+ * table cell (#117).
+ */
+const FROM_CONTENT = new Set([
+  'button',
+  'cell',
+  'checkbox',
+  'columnheader',
+  'comment',
+  'gridcell',
+  'heading',
+  'link',
+  'menuitem',
+  'menuitemcheckbox',
+  'menuitemradio',
+  'option',
+  'radio',
+  'row',
+  'rowheader',
+  'sectionhead',
+  'switch',
+  'tab',
+  'tooltip',
+  'treeitem',
+  'doc-backlink',
+  'doc-biblioref',
+  'doc-glossref',
+  'doc-noteref',
+])
+const FROM_CONTENT_TAGS = new Set(['summary', 'button', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'td', 'th', 'tr'])
+
+/** Whether a screen reader names an element by what it holds: by its role, or natively when it has none. */
+function namedByContent(el: Element): boolean {
+  const [role] = (attr(el, 'role') ?? '').trim().toLowerCase().split(/\s+/u)
+  if (role) return FROM_CONTENT.has(role)
+  return FROM_CONTENT_TAGS.has(el.tagName) || (el.tagName === 'a' && attr(el, 'href') !== null)
+}
+
+/**
+ * Why an element's accessible name stands in a screen reader for research it holds, or null. On research or inside it,
+ * any name does: `<summary data-block="b1" aria-label="Contents">Not free</summary>` is announced "Contents", and
+ * `aria-labelledby` names it by another element's text. Around research, a name does on an element named by what it
+ * holds (a link, a summary, a heading, a cell), while a landmark's or a table region's name only labels what it holds.
+ * A citation marker's name is citations.ts's (#117).
+ */
+function namingIssue(el: Element, boundary: Boundary): string | null {
+  const name = NAMING.find((n) => (attr(el, n) ?? '').trim() !== '')
+  if (name === undefined || isCite(el) || hasAncestor(el, isCite)) return null
+  if (boundary.inside.has(el))
+    return `<${el.tagName} ${name}> names research, or text inside it, in place of what it says`
+  return boundary.around.has(el) && namedByContent(el)
+    ? `<${el.tagName} ${name}> is read in place of the research it holds, which names it`
+    : null
+}
+
+/**
+ * Research a screen reader would not be given as it is: a block or a source entry, or an element around or inside one,
+ * that concealment changes, or research that ownership moves. None changes a pixel, so no capture shows it (#117).
+ */
+function hiddenResearch(all: Element[], html: string): Finding[] {
+  const boundary = researchBoundary(all)
+  const ids = byId(all)
+  const issueOf = (el: Element): string | null =>
+    ownershipIssue(el, ids, boundary) ??
+    namingIssue(el, boundary) ??
+    (boundary.around.has(el) || boundary.inside.has(el) ? concealment(el, boundary.inside.has(el)) : null)
+  return all
+    .filter((el) => ['aria-hidden', 'role', 'aria-owns', ...NAMING].some((name) => attr(el, name) !== null))
+    .map((el) => ({ el, how: issueOf(el) }))
+    .filter(({ how }) => how !== null)
+    .map(({ el, how }) =>
+      error(
+        'research_hidden',
+        'index.html',
+        `${how ?? ''}, where no capture shows it; a block, a source entry and what holds or is inside one are never ` +
+          'aria-hidden, an image, stripped of their meaning, owned by another element (aria-owns) or named in place ' +
+          'of what they say, and keep their own roles',
+        { line: lineOf(html, el) },
+      ),
+    )
+}
+
+/** The elements a browser draws raised or lowered, smaller, and announces as a superscript or a subscript. */
+const SCRIPTS = new Set(['sup', 'sub'])
+
+/** Whether an element holds no text but its citation markers' (`<sup><a data-cite="s1">[1]</a></sup>`). */
+function marksOnly(el: Element): boolean {
+  const marks = elements(el).filter(isCite)
+  return marks.length > 0 && bare(textOf(el)) === bare(marks.map((m) => textOf(m)).join(''))
+}
+
+/**
+ * Research set as a superscript or a subscript (#117): `<sup>` and `<sub>` draw text raised or lowered and smaller, and
+ * the browser announces it so whatever CSS draws, while the text is unchanged. Frozen "102" written `10<sup>2</sup>`
+ * reads 10², a hundred. Only a citation marker (`data-cite`), whose text is not the research's, may be one, or be in
+ * one.
+ */
+function scriptedResearch(all: Element[], html: string): Finding[] {
+  const { around, inside } = researchBoundary(all)
+  return all
+    .filter((el) => SCRIPTS.has(el.tagName) && (inside.has(el) || around.has(el)))
+    .filter((el) => !isCite(el) && !hasAncestor(el, isCite) && !marksOnly(el))
+    .map((el) =>
+      error(
+        'block_altered',
+        'index.html',
+        `<${el.tagName}> draws research raised or lowered and announces it as a ${el.tagName === 'sup' ? 'superscript' : 'subscript'} ` +
+          '("10<sup>2</sup>" reads 10², not 102); write the research as the package gives it, and only a citation ' +
+          'marker (data-cite) as a <sup>',
+        { line: lineOf(html, el) },
+      ),
+    )
+}
+
 /** Every way the page departs from its frozen content. Empty when every block and source is in place. */
 export function checkCoverage(doc: Document, html: string, content: ContentPackage): Finding[] {
   const all = elements(doc)
-  return [...placeBlocks(all, content, html), ...sourceFindings(all, content)]
+  return [
+    ...placeBlocks(all, content, html),
+    ...scriptedResearch(all, html),
+    ...hiddenResearch(all, html),
+    ...sourceFindings(all, content),
+    ...citationFindings(all, html, content.citations),
+    ...framingFindings(doc, html),
+  ]
 }

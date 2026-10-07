@@ -7,6 +7,7 @@
 import { createHash } from 'node:crypto'
 import { defaultTreeAdapter, serialize } from 'parse5'
 import { attr, elements, first, lineAt, parseDocument, setAttr, type Document, type Element } from './dom.ts'
+import { shownLabels } from './framing.ts'
 
 export const SOURCE_PATHS = ['index.html', 'styles.css'] as const
 export type SourcePath = (typeof SOURCE_PATHS)[number]
@@ -104,6 +105,14 @@ function metaFirst(head: Element, attrs: Record<string, string>): void {
  * policy and a generator line naming the profile and source come first in `<head>`, and `styles.css` becomes the last
  * `<style>` of `<head>`. `lang` is set to the admitted language when the page names none.
  */
+/** Mark the labels a tooltip, a name or a reference rests on: the capture kernel measures each as it measures a block. */
+function markShown(doc: Document): void {
+  for (const [i, label] of shownLabels(doc).entries()) {
+    const id = attr(label, 'id')
+    setAttr(label, 'data-sophia-shown', `${label.tagName}${id === null ? `:${i + 1}` : `#${id}`}`.slice(0, 80))
+  }
+}
+
 export function compile(files: readonly SourceFile[], language: string): string {
   const html = fileOf(files, 'index.html')?.text ?? ''
   const css = fileOf(files, 'styles.css')?.text
@@ -112,6 +121,7 @@ export function compile(files: readonly SourceFile[], language: string): string 
   const head = first(doc, 'head')
   if (!root || !head) return ''
   if (attr(root, 'lang') === null) setAttr(root, 'lang', language)
+  markShown(doc)
   for (const meta of elements(head).filter((el) => el.tagName === 'meta' && attr(el, 'charset') !== null)) {
     defaultTreeAdapter.detachNode(meta)
   }

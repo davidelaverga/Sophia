@@ -1,0 +1,511 @@
+{
+  "id": "A14",
+  "goal": "SDD-01",
+  "title": "A capture counts as seen once it reached the model (SDD-01-CX-0019)",
+  "why": [
+    "SDD-01-CX-0019 F1 and F3 (CX-0020, CX-0022): handing captures over is not seeing them. The capture routes now name the delivery the service issued once every capture's bytes matched its record (deliveryId), and the runtime acknowledges it once it saved every image, unchanged, as an attachment for the model's next request: each attachment is sha256:<that capture's hash>. Only acknowledged deliveries count, for the job, attempt and render they were issued to: a review's pass and a designer's candidate need every overview tile at every target and each section (migration 0043). An acknowledgement is fenced like every runtime operation, and a replay answers the same and counts nothing twice. A delivery counts only for the submission that names it (#117, CX-0033 to CX-0036): a candidate and a review's result carry seen, the acknowledged deliveries they rest on, so an acknowledgement no submission names, because its submit was never sent or the runtime restarted in between, counts for nothing. The capture receipt also carries, per target, the measures of the labels a tooltip, an accessible name or an ID reference rests on (shown), held to what a block is (#117, CX-0037). It carries the measures of every other element outside the blocks that holds text (framing), held to what a block is at every captured target: text a target hides (kept for print, for another width, or for assistive technology, or shown at one width of two so that pieces seen apart compose a claim) fails that target's blocks_visible, and text a target shows is held to its contrast (#117). A block's measure also names text outside it that sits on one of its lines, near enough to read as part of it (adjoined): a mark, a label or another block beside a block's 10% can make it read -10% while the page's text still holds the block whole (#117)."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignBlockMeasure/properties/issues/items/enum/-",
+      "value": "adjoined"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignCaptureReply/properties/deliveryId",
+      "value": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        "description": "The delivery these captures are, issued once their bytes matched their records. They count as seen only when the runtime acknowledges it (DesignDeliveryAck)."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignCaptureReply/required/-",
+      "value": "deliveryId"
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignDeliveryAck",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+            "description": "As on every runtime call (RuntimeObservation); the service requires the attempt it bound."
+          },
+          "nativeSessionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          },
+          "deliveryId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "attachments": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "description": "Each capture of the delivery once, as the attachment the runtime saved for the model.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160,
+                  "pattern": "^[a-z0-9][a-z0-9.-]{0,150}\\.png$"
+                },
+                "attachmentId": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "description": "The content-addressed attachment: sha256 of the capture's own bytes, saved unchanged."
+                }
+              },
+              "required": ["name", "attachmentId"]
+            }
+          }
+        },
+        "required": ["attemptId", "nativeSessionId", "deliveryId", "attachments"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignDeliveryReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "deliveryId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "renderJobId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["delivered"]
+          },
+          "captures": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[a-z0-9][a-z0-9.-]{0,150}\\.png$"
+            }
+          }
+        },
+        "required": ["deliveryId", "renderJobId", "state", "captures"]
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/paths/~1v1~1runtime~1review~1capture/post/summary",
+      "value": "The actual pixels of up to four captures of the candidate's render, checked against their hashes; they count as seen once the runtime acknowledges their delivery. Fenced."
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1design~1delivered",
+      "value": {
+        "post": {
+          "operationId": "runtimeDesignDelivered",
+          "summary": "The designer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. It counts for a submission that names it. Fenced; idempotent.",
+          "tags": ["runtime"],
+          "security": [
+            {
+              "runtimeCapability": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 160
+              }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "enum": ["1"]
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignDeliveryAck"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "The captures now count as seen",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/DesignDeliveryReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown runtime capability"
+            },
+            "403": {
+              "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The work is not active, or the delivery was already acknowledged with other attachments",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a delivery of another job, attempt or render, or attachments that are not exactly its captures' own bytes",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "SDD-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1runtime~1review~1delivered",
+      "value": {
+        "post": {
+          "operationId": "runtimeReviewDelivered",
+          "summary": "The reviewer's model has the captures of a delivery: the runtime saved each, unchanged, as an attachment. It counts for a submission that names it. Fenced; idempotent.",
+          "tags": ["runtime"],
+          "security": [
+            {
+              "runtimeCapability": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "x-sophia-runtime-unit",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 160
+              }
+            },
+            {
+              "name": "x-sophia-bridge-instance",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            {
+              "name": "x-sophia-bridge-protocol",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "enum": ["1"]
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignDeliveryAck"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "The captures now count as seen",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/DesignDeliveryReceipt"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown runtime capability"
+            },
+            "403": {
+              "description": "The operation names an attempt or native session this runtime does not own, or one whose job is not of this role",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The work is not active, or the delivery was already acknowledged with other attachments",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or names a delivery of another job, attempt or render, or attachments that are not exactly its captures' own bytes",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "SDD-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignCandidate/properties/seen",
+      "value": {
+        "type": "array",
+        "maxItems": 64,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "description": "The deliveries this submission rests on, acknowledged in this attempt: only these count as seen (the runtime names a delivery only when its model named the receipt the images came with). Absent, none."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ReviewResult/properties/seen",
+      "value": {
+        "type": "array",
+        "maxItems": 64,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "description": "The deliveries this submission rests on, acknowledged in this attempt: only these count as seen (the runtime names a delivery only when its model named the receipt the images came with). Absent, none."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/DesignShownMeasure",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "box": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "x": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              },
+              "y": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              },
+              "width": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              },
+              "height": {
+                "type": "integer",
+                "minimum": -10000000,
+                "maximum": 10000000
+              }
+            },
+            "required": ["x", "y", "width", "height"]
+          },
+          "fontPx": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "issues": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "enum": [
+                "not_rendered",
+                "hidden",
+                "transparent",
+                "no_visible_text",
+                "off_page",
+                "text_cut",
+                "clipped",
+                "scrolls",
+                "covered",
+                "low_contrast"
+              ]
+            }
+          },
+          "contrast": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ratio": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "floor": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "large": {
+                "type": "boolean"
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["ratio", "floor", "large", "detail"]
+          }
+        },
+        "required": ["id", "section", "box", "fontPx", "issues", "contrast"],
+        "description": "One label a tooltip, an accessible name or an ID reference rests on (data-sophia-shown), or an element inside one that holds text, measured as a block is (#117, CX-0037)."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/CaptureReceipt/properties/targets/items/properties/page/properties/shown",
+      "value": {
+        "type": "array",
+        "maxItems": 4000,
+        "items": {
+          "$ref": "#/components/schemas/DesignShownMeasure"
+        },
+        "description": "The labels a name or a reference rests on, and each element inside one that holds text, measured as blocks are, at most 4000 (the kernel fails the target on more); absent from a kernel that measures none."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/CaptureReceipt/properties/targets/items/properties/page/properties/framing",
+      "value": {
+        "type": "array",
+        "maxItems": 4000,
+        "items": {
+          "$ref": "#/components/schemas/DesignShownMeasure"
+        },
+        "description": "Every other element outside the blocks that holds text beyond the marks that say nothing, measured as blocks are, numbered in document order, at most 4000 (the kernel fails the target on more); absent from a kernel that measures none."
+      }
+    }
+  ]
+}

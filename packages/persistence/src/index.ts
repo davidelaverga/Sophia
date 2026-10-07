@@ -231,6 +231,8 @@ export {
 export { readHtmlPages, type HtmlPage } from './design-progress.ts'
 export {
   designCaptureRefs,
+  designDelivered,
+  issueDesignDelivery,
   freezeDesignPackage,
   htmlDesignReady,
   requestDesignEdit,
@@ -246,6 +248,7 @@ export {
   runtimeReviewContext,
   runtimeReviewSubmit,
   type DesignCaptureLocation,
+  type DesignDelivery,
   type DesignCaptureRefs,
   type DesignRoles,
 } from './design.ts'
