@@ -3,10 +3,15 @@
    rests on, told apart by tone, never by lines. People speak in bubbles; Sophia speaks in light. Each pane scrolls on
    its own and the page never does. Under 1180 px the context is a panel over the right edge; on a phone one pane shows
    at a time. */
+/* The panes answer to the page's width, not the window's: a report open beside them narrows the page. */
 .page.panes {
+  container: panes / inline-size;
   max-width: none;
   height: calc(100dvh - var(--topbar));
   padding: 0;
+}
+.shell:has(> .report-pane[data-size='side']) > main.page.panes {
+  padding-inline: 0;
 }
 /* Clipped: the context panel waiting off its edge never makes the page scroll. */
 .conversations {
@@ -369,7 +374,7 @@
 .conv-messages {
   display: flex;
   flex-direction: column;
-  margin: 0;
+  margin-block: 0;
   padding: 0;
   list-style: none;
 }
@@ -731,12 +736,13 @@
     opacity var(--fast) var(--ease),
     filter var(--fast) var(--ease);
 }
+/* Off, a ring that reads at 3:1; on, filled. */
 .conv-ask-box {
   display: grid;
   place-items: center;
-  width: 8px;
-  height: 8px;
-  border: 1px solid var(--line-3);
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--text-3);
   border-radius: 50%;
 }
 .conv-ask:has(input:checked) {
@@ -752,8 +758,8 @@
 }
 .conv-ask:has(input:checked) .conv-ask-box::after {
   content: '';
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--halo);
 }
@@ -796,7 +802,7 @@
 }
 
 /* ---- under 1180 px: the list and the conversation; the context a panel that «Context» opens ---- */
-@media (max-width: 1180px) {
+@container panes (max-width: 1180px) {
   .conversations {
     grid-template-columns: 280px minmax(0, 1fr);
   }
@@ -840,8 +846,8 @@
   }
 }
 
-/* ---- a phone: one pane at a time; the context rises from the foot ---- */
-@media (max-width: 720px) {
+/* ---- a phone (or a page a report has narrowed as far): one pane at a time; the context rises from the foot ---- */
+@container panes (max-width: 720px) {
   .conversations {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -882,7 +888,7 @@
     max-width: 88%;
   }
   .conv-compose {
-    padding: 4px 10px 12px;
+    padding: 4px 10px calc(var(--floor) + 58px);
   }
   .conv-compose-hint {
     display: none;
@@ -898,9 +904,14 @@
     border-radius: 18px 18px 0 0;
     transform: translateY(100%);
   }
-  /* In a conversation the room's dock steps aside, unless a call is on: then the field leaves room under it. */
+}
+/* On a phone, in a conversation the room's dock steps aside, unless a call is on: then the field leaves room under it. */
+@media (max-width: 720px) {
   .shell:has(.conversations[data-screen='thread']) .mini-dock:not([data-live]) {
     display: none;
+  }
+  .conversations[data-screen='thread'] .conv-compose {
+    padding-bottom: 12px;
   }
   .shell:has(.mini-dock[data-live]) .conversations[data-screen='thread'] .conv-compose {
     padding-bottom: calc(var(--floor) + 58px);

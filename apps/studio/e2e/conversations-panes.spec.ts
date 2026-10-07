@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+import { contrastOf } from './contrast'
+
 // Conversations in three panes (docs/plans/conversations-panes.md): the list, the open conversation and its context
 // side by side on a wide screen; the context as a panel under 1180 px; one screen at a time on a phone. On the fixture
 // page; only the API is faked, and each check ends by asking the page whether anything reached for it unanswered.
@@ -207,6 +209,11 @@ test('panes · the context open as a panel holds the focus: what is behind it is
   await toggle(page).click()
   expect(await page.locator('.conv-open').evaluate((el) => el.hasAttribute('inert'))).toBe(true)
   expect(await page.locator('.conv-list').evaluate((el) => el.hasAttribute('inert'))).toBe(true)
+  // The room's dock lies under the panel: Tab from the panel's last control never lands there, unseen.
+  await context(page).getByText('How conversation context works').focus()
+  await page.keyboard.press('Tab')
+  expect(await page.evaluate(() => !!document.activeElement?.closest('.mini-dock'))).toBe(false)
+  await page.keyboard.press('Shift+Tab')
   await page.keyboard.press('Escape')
   expect(await page.locator('.conv-open').evaluate((el) => el.hasAttribute('inert'))).toBe(false)
 })
@@ -221,4 +228,50 @@ test('panes · a panel left open closes when the window grows past 1180 px', asy
   // Three panes again, filling the height: nothing pushed into a row of its own.
   const [o, c] = await Promise.all([open(page).boundingBox(), context(page).boundingBox()])
   expect(o && c && Math.abs(o.y - c.y) <= 1).toBe(true)
+})
+
+for (const width of [1440, 1280, 1000]) {
+  test(`panes · at ${width} px, what it made opened beside the conversation leaves it room to write`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto(PAGE)
+    await open(page).locator('.conv-output').click()
+    await expect(page.locator('.report-pane')).toBeVisible()
+    await expect.poll(async () => (await open(page).boundingBox())?.width).toBeGreaterThanOrEqual(400)
+    await field(page).fill('Beside the report')
+    // Once the pane and the dock have moved aside.
+    await expect.poll(() => onTop(send(page)), { message: 'Send in reach' }).toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0)
+  })
+}
+
+test('panes · on a wide screen the messages line up with the field under them', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await page.goto(PAGE)
+  const [m, f] = await Promise.all([
+    open(page).locator('.conv-messages').boundingBox(),
+    open(page).locator('.conv-field-box').boundingBox(),
+  ])
+  if (!m || !f) throw new Error('the messages or the field is missing')
+  expect(Math.abs(m.x - f.x)).toBeLessThanOrEqual(1)
+  expect(Math.abs(m.x + m.width - (f.x + f.width))).toBeLessThanOrEqual(1)
+})
+
+test('panes · «Ask Sophia» off is a ring that reads at 3:1', async ({ page }) => {
+  await page.goto(PAGE)
+  const ring = open(page).locator('.conv-ask-box')
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  const seen = await ring.evaluate((el) => {
+    let opacity = 1
+    const grounds: string[] = []
+    for (let up: Element | null = el; up; up = up.parentElement) {
+      opacity *= parseFloat(getComputedStyle(up).opacity)
+      grounds.push(getComputedStyle(up).backgroundColor)
+    }
+    const s = getComputedStyle(el)
+    return { words: '', ink: s.borderTopColor, opacity, grounds, size: 0, box: el.getBoundingClientRect().width }
+  })
+  expect(contrastOf(seen)).toBeGreaterThanOrEqual(3)
+  expect(seen.box).toBeGreaterThanOrEqual(10)
 })

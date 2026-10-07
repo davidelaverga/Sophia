@@ -150,14 +150,19 @@ function StartButton({ start }: { start: ReturnType<typeof useStart> }) {
 function usePanes() {
   const view = useRef<HTMLElement>(null)
   const toggle = useRef<HTMLButtonElement>(null)
-  const [screen, setScreen] = useState<'list' | 'thread'>('list')
+  // A phone opens on the list; a wider screen on the conversation, which stays when a report beside it leaves room for
+  // one pane only.
+  const [screen, setScreen] = useState<'list' | 'thread'>(() =>
+    window.matchMedia('(max-width: 720px)').matches ? 'list' : 'thread',
+  )
   const [context, setContext] = useState(false)
   const closeContext = useCallback(() => {
     setContext(false)
     // Once what was behind it is no longer inert: then «Context» can take the focus.
     requestAnimationFrame(() => toggle.current?.focus())
   }, [])
-  useContextPanel(view, context, closeContext, () => setContext(false))
+  const dropContext = useCallback(() => setContext(false), [])
+  useContextPanel(view, context, closeContext, dropContext)
   const show = () => {
     setScreen('thread')
     // Shown now (a phone kept it hidden): it opens at its newest message.
@@ -187,13 +192,13 @@ function usePanes() {
   }
 }
 
-/** Over 1180 px the context is a pane, not a panel: a panel left open there closes. */
-const PANEL = '(max-width: 1180px)'
+/** Over 1180 px of the view (not of the window: a report beside it narrows it) the context is a pane, not a panel. */
+const PANEL = 1180
 
 /**
  * The context as a panel, while it is open: Esc closes it (unless a dialog or another view's key owns the Esc), the
- * list and the conversation behind it are inert (the focus stays in it), and the window grown past a panel's width
- * closes it.
+ * list and the conversation behind it are inert, and the room's dock under it (the focus stays in it), and the view
+ * grown past a panel's width closes it.
  */
 function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, close: () => void, drop: () => void) {
   useEffect(() => {
@@ -203,15 +208,17 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
       if (e.key !== 'Escape' || e.defaultPrevented || modalOnScreen() || t?.closest('[role="dialog"]')) return
       close()
     }
-    const behind = [...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? [])]
+    const behind = [
+      ...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? []),
+      ...document.querySelectorAll<HTMLElement>('.mini-dock'),
+    ]
     for (const el of behind) el.inert = true
-    const wide = window.matchMedia(PANEL)
-    const onWidth = () => !wide.matches && drop()
+    const width = new ResizeObserver(([entry]) => entry && entry.contentRect.width > PANEL && drop())
+    if (view.current) width.observe(view.current)
     document.addEventListener('keydown', onKey)
-    wide.addEventListener('change', onWidth)
     return () => {
       document.removeEventListener('keydown', onKey)
-      wide.removeEventListener('change', onWidth)
+      width.disconnect()
       for (const el of behind) el.inert = false
     }
   }, [view, open, close, drop])

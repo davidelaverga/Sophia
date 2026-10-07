@@ -22,7 +22,7 @@
 
 **The widths:**
 
-- **Over 1180 px:** three panes, 300 · the rest · 320.
+- **Over 1180 px:** three panes, 300 · the rest · 300.
 - **721 to 1180 px:** the list and the conversation. The context opens from «Context» in the conversation's head, as a
   panel over the right edge. Close, Esc or a press outside closes it, and the focus goes back to «Context».
 - **A phone (720 px and under):** one screen at a time.

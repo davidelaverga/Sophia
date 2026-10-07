@@ -40,6 +40,16 @@
 - A panel left open closes when the window grows past 1180 px.
 - Behind an open panel, the list and the conversation are inert.
 
+## From the independent review, fixed here
+
+- **What it made, opened beside the conversation, left it about 90 px** (P1): the side report narrows the page, but
+  the panes went by the window's width. They now go by the page's (a container query): beside a report at 1440 px,
+  the list and the conversation, the context a panel; at 1280 or 1000 px, the conversation alone. A wide screen opens
+  on the conversation, so one pane is the one being read.
+- The messages line up with the field under them.
+- Behind the open panel the room's dock is inert too: Tab never lands on it, unseen.
+- «Ask Sophia» off is a 10 px ring that reads at 3:1.
+
 ## Checks
 
 - Sophia's message has no bubble and her mark is lit; a person's has a bubble and is named once a run.
@@ -48,4 +58,6 @@
 - Each review P2 has its own check: the phone at the newest message (on a phone short enough for the thread to
   overflow), the account menu over the panel where they overlap, a modal's Esc leaving the panel open, inert behind
   it, closing on growth.
+- The report opened beside the conversation at 1440, 1280 and 1000 px: at least 400 px to write, Send in reach.
+- The messages and the field share their edges at 1920 px; the ring reads at 3:1.
 - Contrast 4.5:1 and the work views' type sizes in the open conversation; every conversation check still passes.

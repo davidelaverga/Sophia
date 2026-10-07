@@ -51,6 +51,12 @@ test('thread · a message that continues a run hides its byline from sight, not 
   await expect(second).toHaveAttribute('data-run', 'on')
   expect(await second.locator('.conv-msg-by').evaluate((el) => el.getBoundingClientRect().width)).toBeLessThanOrEqual(1)
   expect(await second.ariaSnapshot()).toContain('You')
+  // Your byline is never drawn, so a teammate's shows what a run does: named at rest, unnamed once it goes on a run.
+  const lucia = messages(page).filter({ hasText: 'The short one still needs the March figures.' })
+  const by = lucia.locator('.conv-msg-by')
+  expect(await by.evaluate((el) => el.getBoundingClientRect().width)).toBeGreaterThan(1)
+  await lucia.evaluate((el) => el.setAttribute('data-run', 'on'))
+  expect(await by.evaluate((el) => el.getBoundingClientRect().width)).toBeLessThanOrEqual(1)
 })
 
 test('thread · each time waits under the pointer; the day is said once', async ({ page }) => {
