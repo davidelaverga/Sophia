@@ -334,7 +334,7 @@ test('by attention, what needs someone comes first; a waiting tile stands out, a
     'Davide · Grok', // offline
   ])
   const grok = tile(page, 'Davide · Grok')
-  await expect(grok).toContainText('Offline · 26 h')
+  await expect(grok).toContainText('Offline · 1 day')
   await expect(grok.locator('.tool-logo')).toHaveCSS('filter', 'grayscale(1)')
   await expect(tile(page, 'Davide · Codex').locator('.tool-logo')).toHaveCSS('filter', 'none')
   const edge = (name: string) => tile(page, name).evaluate((t) => getComputedStyle(t).borderTopColor)

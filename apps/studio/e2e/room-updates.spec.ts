@@ -32,7 +32,7 @@ test('updates · what changed since the person last looked, with who, and the me
   await expect(decided).toContainText('proposed by Lucía, decided by you')
   // Nobody has joined the call on this page: no meeting runs.
   const rows = meetings(page).getByRole('button')
-  await expect(rows).toHaveText(['Oct 4, 15:00 · 38 minutes', 'Oct 2, 09:30 · 25 minutes'])
+  await expect(rows).toHaveText(['Oct 4, 15:00 · 38 min', 'Oct 2, 09:30 · 25 min'])
 })
 
 test('updates · Mark as seen writes the digest’s sequence once, and then nothing is new', async ({ page }) => {
@@ -63,21 +63,21 @@ test('updates · with no reply, Mark as seen says so, and a second press marks i
 })
 
 test('updates · a past meeting opens its recap, closed: nothing to close', async ({ page }) => {
-  await meetings(page).getByRole('button', { name: 'Oct 4, 15:00 · 38 minutes' }).click()
-  await expect(recap(page).locator('.recap-head')).toHaveText('38 minutes · 2 members · 1 guest')
+  await meetings(page).getByRole('button', { name: 'Oct 4, 15:00 · 38 min' }).click()
+  await expect(recap(page).locator('.recap-head')).toHaveText('38 min · 2 members · 1 guest')
   await expect(recap(page).getByRole('region', { name: 'Decided' })).toContainText('Keep the room checks on fixtures')
   await expect(recap(page).locator('.recap-said')).toHaveText('This meeting is closed.')
   await expect(recap(page).getByRole('button', { name: 'Close the meeting' })).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(recap(page)).toHaveCount(0)
-  await expect(meetings(page).getByRole('button', { name: 'Oct 4, 15:00 · 38 minutes' })).toBeFocused()
+  await expect(meetings(page).getByRole('button', { name: 'Oct 4, 15:00 · 38 min' })).toBeFocused()
 })
 
 test('updates · an older meeting opens its own recap, not the latest: one that left nothing says so', async ({
   page,
 }) => {
-  await meetings(page).getByRole('button', { name: 'Oct 2, 09:30 · 25 minutes' }).click()
-  await expect(recap(page).locator('.recap-head')).toHaveText('25 minutes · 2 members')
+  await meetings(page).getByRole('button', { name: 'Oct 2, 09:30 · 25 min' }).click()
+  await expect(recap(page).locator('.recap-head')).toHaveText('25 min · 2 members')
   await expect(recap(page)).toContainText('Nothing was decided, made or kept in this meeting.')
   await expect(recap(page).getByRole('region', { name: 'Decided' })).toHaveCount(0)
 })
@@ -104,7 +104,7 @@ test('updates · leaving from an older meeting’s sheet opens the recap of the 
   await expect(meetings(page).getByRole('button').first()).toHaveText(/^Now/)
   // Held, so Leave comes before its recap: the list said it ended, so leaving from it opens the one left, on top.
   await page.evaluate(() => window.fixture?.holdRecaps())
-  await meetings(page).getByRole('button', { name: 'Oct 4, 15:00 · 38 minutes' }).click()
+  await meetings(page).getByRole('button', { name: 'Oct 4, 15:00 · 38 min' }).click()
   await expect(recap(page)).toHaveCount(1)
   await recap(page).getByRole('group', { name: 'Your call' }).getByRole('button', { name: 'Leave the room' }).click()
   await expect(recap(page)).toHaveCount(2)

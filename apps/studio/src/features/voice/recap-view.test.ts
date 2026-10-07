@@ -36,10 +36,10 @@ const recap = (over: Partial<MeetingRecap> = {}): MeetingRecap => ({
 
 describe('the recap’s head', () => {
   it('says how long it lasted and who was there; guests only counted', () => {
-    assert.equal(recapHead(recap()), '42 minutes · 2 members')
+    assert.equal(recapHead(recap()), '42 min · 2 members')
     assert.equal(
       recapHead(recap({ minutes: 1, people: [{ actorId: 'me' }], guests: 2 })),
-      '1 minute · 1 member · 2 guests',
+      '1 min · 1 member · 2 guests',
     )
     assert.equal(recapHead(recap({ minutes: 0 })), 'Under a minute · 2 members')
   })
@@ -80,12 +80,12 @@ describe('the recap’s sections', () => {
 
   it('copies as plain text: the head, then each section’s lines; nothing kept says so', () => {
     const text = recapText('Fixture project', full, nameOf)
-    assert.ok(text.startsWith('Fixture project\n42 minutes · 2 members\n'))
+    assert.ok(text.startsWith('Fixture project\n42 min · 2 members\n'))
     assert.ok(text.includes('\nDecided\n- Pilot with 14 teams (proposed by Marco, decided by you)'))
     assert.ok(text.includes('- Two teams left (kept by Marco)'))
     assert.equal(
       recapText('Fixture project', recap(), nameOf),
-      'Fixture project\n42 minutes · 2 members\nNothing was decided, made or kept in this meeting.',
+      'Fixture project\n42 min · 2 members\nNothing was decided, made or kept in this meeting.',
     )
   })
 })

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { ago } from '../../app/time-words.ts'
 import {
   admissionLabel,
-  ago,
   askAgainIn,
   clashWith,
   clock,

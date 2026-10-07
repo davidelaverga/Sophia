@@ -6,6 +6,7 @@ import type { Place } from '../../app/route.ts'
 import { shortName } from '../voice/room-view.ts'
 import type { Way } from './arrive.ts'
 import { dayLabel, topicOf } from './conversation-view.ts'
+import { inTime } from '../../app/time-words.ts'
 
 const MINUTE = 60_000
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -230,7 +231,7 @@ export function sessionWhen(project: ProjectSummary, now: Date): string | null {
   const mins = minutesToSession(project, now)
   if (mins === null || !project.nextSession) return null
   if (mins <= 0) return 'started'
-  if (mins < 60) return `starts in ${mins} min`
+  if (mins < 60) return `starts ${inTime(project.nextSession.startsAt, now.getTime())}`
   const start = new Date(project.nextSession.startsAt)
   const clock = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
   return `${dayAhead(start, now)} at ${clock}`

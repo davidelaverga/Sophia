@@ -1324,10 +1324,10 @@ test('review · asked, the goal’s line says the lead is reviewing; a routine e
   await requestReview(page).click()
   // Its own receipt is Request review's: sent, never done.
   await expect(page.locator('.controls .outcome')).toContainText('Sent')
-  await expect(reviewLine(page)).toHaveText(/^The lead is reviewing · asked by you \d+ s ago$/)
+  await expect(reviewLine(page)).toHaveText(/^The lead is reviewing · asked by you (just now|\d+ s ago)$/)
   await expect(reviewLine(page).locator('.activity-dot')).toBeVisible()
   await page.clock.runFor(2100)
-  await expect(reviewLine(page)).toHaveText(/^Reviewed \d+ s ago · no change$/)
+  await expect(reviewLine(page)).toHaveText(/^Reviewed (just now|\d+ s ago) · no change$/)
   // PLAN-04: nothing announced, beyond the request's own receipt.
   await expect(page.getByRole('status').filter({ hasText: /Reviewed|no change|reviewing/ })).toHaveCount(0)
   expect(await commandsOf(page)).toEqual([{ kind: 'request_review', key: expect.any(String) }])

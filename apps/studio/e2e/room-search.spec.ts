@@ -63,7 +63,7 @@ test('search · a meeting’s recap opens that meeting', async ({ page }) => {
   await field(page).fill('demo')
   await hits(page).filter({ hasText: 'Meeting recap · Oct 4, 15:00' }).getByRole('button').click()
   const recap = page.getByRole('dialog', { name: 'This meeting' })
-  await expect(recap.locator('.recap-head')).toHaveText('38 minutes · 2 members · 1 guest')
+  await expect(recap.locator('.recap-head')).toHaveText('38 min · 2 members · 1 guest')
 })
 
 test('search · a decision opens the room with the brief', async ({ page }) => {

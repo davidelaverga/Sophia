@@ -1,6 +1,7 @@
 // Updates' words (docs/plans/room-updates.md): the digest's lead, and a meeting's row. Pure, so they are unit-tested;
 // the dates' own formats come from the page (Intl), as the reader's locale says them.
 import type { Digest, MeetingSummary } from '../../api/vision.ts'
+import { lasted } from '../../app/time-words.ts'
 
 /** The lead over the digest's sections: never looked, or nothing new; null when the sections say it all. */
 export function digestLead(digest: Digest): string | null {
@@ -14,12 +15,6 @@ export interface DateWords {
   day: (at: Date) => string
   time: (at: Date) => string
   today: (at: Date) => boolean
-}
-
-const lasted = (ms: number) => {
-  const minutes = Math.floor(ms / 60_000)
-  if (minutes < 1) return 'under a minute'
-  return minutes === 1 ? '1 minute' : `${String(minutes)} minutes`
 }
 
 /** A meeting's row: the running one is now; a closed one is when it was, and how long it lasted. */

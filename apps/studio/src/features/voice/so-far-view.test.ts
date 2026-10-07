@@ -14,8 +14,8 @@ describe('how late the person joined', () => {
   })
 
   it('says it in one line', () => {
-    assert.equal(joinedWords(12), 'You joined 12 minutes in.')
-    assert.equal(joinedWords(90), 'You joined 1 hour 30 minutes in.')
-    assert.equal(joinedWords(60), 'You joined 1 hour in.')
+    assert.equal(joinedWords(12), 'You joined 12 min in.')
+    assert.equal(joinedWords(90), 'You joined 1 h 30 min in.')
+    assert.equal(joinedWords(60), 'You joined 1 h in.')
   })
 })

@@ -3,6 +3,7 @@
 // action shapes are the Studio's proposal for SCM-01/02; the capacity observation follows the continuation's
 // `sophia.capacity.observation.v1` schema (docs/execution/2026-10-01-unified/contracts/coordination).
 import { pace, type Pace } from './pace.ts'
+import { ago as agoWords, inTime } from '../../app/time-words.ts'
 
 /** The native coding tools a resource can enroll; each shows as itself (ToolLogo). */
 export type Tool = 'claude-code' | 'codex' | 'grok' | 'gemini-cli' | 'github-copilot' | 'cursor'
@@ -145,23 +146,13 @@ export interface RequiredAction {
   openTarget: string | null
 }
 
-const MINUTE = 60_000
-
-/** How long ago, in the fewest words: "just now", "4 min ago", "3 h ago", "2 d ago". */
+/** How long ago (app/time-words.ts): "just now", "4 min ago", "3 h ago", "2 days ago"; or never observed. */
 export function ago(at: string | null, now: Date): string {
-  if (!at) return 'never observed'
-  const minutes = Math.max(0, Math.round((now.getTime() - Date.parse(at)) / MINUTE))
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes} min ago`
-  if (minutes < 48 * 60) return `${Math.round(minutes / 60)} h ago`
-  return `${Math.round(minutes / (24 * 60))} d ago`
+  return at ? agoWords(at, now.getTime()) : 'never observed'
 }
 
 /** How long ago a session's activity was observed, to the second while it is fresh: "40 s ago", then "3 min ago". */
-export function observedAgo(observed: string, now: Date): string {
-  const seconds = Math.max(0, Math.round((now.getTime() - Date.parse(observed)) / 1000))
-  return seconds < 60 ? `${String(seconds)} s ago` : ago(observed, now)
-}
+export const observedAgo = (observed: string, now: Date): string => agoWords(observed, now.getTime(), { seconds: true })
 
 /** How long a session's report stays live, in seconds: its ring empties over this span. */
 export const LIVE_S = 120
@@ -170,13 +161,8 @@ export const LIVE_S = 120
 export const freshness = (observed: string, now: Date, span = LIVE_S) =>
   Math.min(1, Math.max(0, 1 - (now.getTime() - Date.parse(observed)) / 1000 / span))
 
-/** How long until, in the same words: "in 40 min", "in 2 h", "in 4 d". */
-function until(at: string, now: Date): string {
-  const minutes = Math.round((Date.parse(at) - now.getTime()) / MINUTE)
-  if (minutes < 60) return `in ${minutes} min`
-  if (minutes < 48 * 60) return `in ${Math.round(minutes / 60)} h`
-  return `in ${Math.round(minutes / (24 * 60))} d`
-}
+/** How long until, in the same words: "in 40 min", "in 2 h", "in 4 days". */
+const until = (at: string, now: Date): string => inTime(at, now.getTime())
 
 const WINDOW_NAME: Record<string, string> = {
   daily_requests: 'Daily requests',

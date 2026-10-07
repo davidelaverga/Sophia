@@ -2,6 +2,7 @@
 // Pure, so they are unit-tested; the components only render them.
 import type { Invitation, LobbyEntry, RoomSession, SessionCreate } from '@sophia/contracts'
 import type { AdmissionState } from '../../api/useAdmission.ts'
+import { ago, inTime } from '../../app/time-words.ts'
 
 /** Invitation links are `/join#<token>`: the token rides in the fragment and never reaches a server log. */
 const TOKEN = /^[A-Za-z0-9_-]{20,100}$/
@@ -93,16 +94,6 @@ export function invitationState(
   return i.role ? `${i.role} · ${EMAIL_WORD[i.emailStatus]}` : EMAIL_WORD[i.emailStatus]
 }
 
-/** How long ago, in the room's short words: "just now", "12 min ago", "3 h ago", "2 days ago". */
-export function ago(at: string, now: number): string {
-  const elapsed = Math.max(0, now - Date.parse(at))
-  if (elapsed < MINUTE) return 'just now'
-  if (elapsed < HOUR) return `${Math.floor(elapsed / MINUTE)} min ago`
-  if (elapsed < 24 * HOUR) return `${Math.floor(elapsed / HOUR)} h ago`
-  const days = Math.floor(elapsed / (24 * HOUR))
-  return `${days} ${days === 1 ? 'day' : 'days'} ago`
-}
-
 /**
  * A guest in the Invite sheet's door record (let in, declined or blocked): what still matters about them (a removal
  * under way, asking again), then when it was decided. The list's title already says what was decided.
@@ -126,12 +117,7 @@ export function countdown(session: Pick<RoomSession, 'startsAt' | 'endsAt'>, now
   const start = Date.parse(session.startsAt)
   if (now >= Date.parse(session.endsAt)) return 'ended'
   if (now >= start) return 'under way'
-  const left = start - now
-  if (left < MINUTE) return 'starts in a moment'
-  if (left < HOUR) return `starts in ${Math.round(left / MINUTE)} min`
-  if (left < 24 * HOUR) return `starts in ${Math.round(left / HOUR)} h`
-  const days = Math.round(left / (24 * HOUR))
-  return `starts in ${days} ${days === 1 ? 'day' : 'days'}`
+  return `starts ${inTime(session.startsAt, now)}`
 }
 
 /** "Today · 10:00 – 11:00", "Tomorrow · 09:30 – 10:30" or "Thu, Oct 1 · 10:00 – 11:00", in the viewer's zone. */

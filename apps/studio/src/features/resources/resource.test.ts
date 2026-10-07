@@ -49,7 +49,7 @@ describe('a resource’s capacity', () => {
     assert.equal(ago(at(-0.2), now), 'just now')
     assert.equal(ago(at(-4), now), '4 min ago')
     assert.equal(ago(at(-180), now), '3 h ago')
-    assert.equal(ago(at(-3 * 24 * 60), now), '3 d ago')
+    assert.equal(ago(at(-3 * 24 * 60), now), '3 days ago')
     assert.equal(ago(null, now), 'never observed')
   })
 
@@ -77,7 +77,7 @@ describe('a resource’s capacity', () => {
       window({ value: 40 }),
       window({ window_id: 'seven_day', value: 72, resets_at: at(4 * 1440) }),
     ])
-    assert.equal(capacityLine(two, now), '7-day window: 72% used, resets in 4 d')
+    assert.equal(capacityLine(two, now), '7-day window: 72% used, resets in 4 days')
     assert.equal(capacityLine(undefined, now), 'Capacity unknown')
     assert.equal(capacityLine(observation([], 'unavailable'), now), 'Capacity unknown')
     assert.equal(capacityLine(observation([window({ resets_at: at(-5) })]), now), 'Refresh pending')

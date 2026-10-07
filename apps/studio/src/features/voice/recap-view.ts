@@ -1,6 +1,7 @@
 // What a meeting left (docs/plans/room-recap.md): the recap's head, its sections with something in them, and the text
 // «Copy recap» puts on the clipboard, all from the A12 recap's records. Pure, so the words are unit-tested.
 import type { AfterUpdate, MeetingRecap } from '../../api/vision.ts'
+import { lasted } from '../../app/time-words.ts'
 
 /** A member named in a sentence: "you", their name, or "a member" when the room never knew them. */
 export type NameOf = (actorId: string) => string
@@ -19,7 +20,7 @@ const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1
 
 /** The head: how long it lasted, and who was there (guests only counted). */
 export function recapHead(recap: Pick<MeetingRecap, 'minutes' | 'people' | 'guests'>): string {
-  const length = recap.minutes < 1 ? 'Under a minute' : plural(recap.minutes, 'minute', 'minutes')
+  const length = recap.minutes < 1 ? 'Under a minute' : lasted(recap.minutes * 60_000)
   const people = plural(recap.people.length, 'member', 'members')
   return recap.guests > 0
     ? `${length} · ${people} · ${plural(recap.guests, 'guest', 'guests')}`
