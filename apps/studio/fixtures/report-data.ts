@@ -712,11 +712,28 @@ export const olderVersions = (): ArtifactVersion[] => [
 export const OLDER_REPORT = OLDER.artifactId
 
 /** The older report as filed in another project the reader is in (`reports=elsewhere`). */
+export const ELSEWHERE_REPORT = '00000000-0000-4000-8000-0000000000a8'
+const ELSEWHERE_VERSION = '00000000-0000-4000-8000-0000000000a7'
+
+/** A report filed in another project the reader is in (`reports=elsewhere`): the older report's words, its own ids. */
 export const elsewhereCard = (projectId: string, projectTitle: string): ReportList['reports'][number] => ({
   ...OLDER,
+  artifactId: ELSEWHERE_REPORT,
+  currentVersionId: ELSEWHERE_VERSION,
   projectId,
   projectTitle,
+  title: 'Rollout notes from another team',
 })
+
+/** That report's one version, as the API lists it. */
+export const elsewhereVersions = (projectId: string): ArtifactVersion[] =>
+  olderVersions().map((v) => ({
+    ...v,
+    id: ELSEWHERE_VERSION,
+    artifactId: ELSEWHERE_REPORT,
+    projectId,
+    title: 'Rollout notes from another team',
+  }))
 
 /** A text's searchable words: letters and digits only, lower case. */
 const wordsOf = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
@@ -744,6 +761,15 @@ function fixtureCard(published: readonly ArtifactVersion[], d: Description): Rep
   }
 }
 
+/** Whether a card passes the words and the format asked for, as the API reads them. */
+export function matchesFilter(r: ReportList['reports'][number], filter: { q: string | null; format: string | null }) {
+  const words = wordsOf(filter.q ?? '').slice(0, 8)
+  const format = filter.format ?? 'any'
+  const text = wordsOf(`${r.title} ${r.summary ?? ''} ${r.latestChange.note ?? ''} ${r.latestChange.retained ?? ''}`)
+  const found = words.every((w) => text.some((t) => t.startsWith(w)))
+  return found && (format === 'any' || (format === 'pdf') === r.formats.includes('pdf'))
+}
+
 /**
  * Knowledge's Reports, as `GET /knowledge/reports` answers it: the fixture report's card (fixtureCard) on the first
  * page, and an older report, with a PDF, on the second. Words and a format filter as the API does (each word a prefix,
@@ -760,14 +786,7 @@ export function reportList(
   const words = wordsOf(filter.q ?? '').slice(0, 8)
   const format = filter.format ?? 'any'
   if (words.length > 0 || format !== 'any') {
-    const kept = [current, OLDER, ...(DEMO ? LIBRARY : [])].filter((r) => {
-      const text = wordsOf(
-        `${r.title} ${r.summary ?? ''} ${r.latestChange.note ?? ''} ${r.latestChange.retained ?? ''}`,
-      )
-      const pdf = r.formats.includes('pdf')
-      const found = words.every((w) => text.some((t) => t.startsWith(w)))
-      return found && (format === 'any' || (format === 'pdf') === pdf)
-    })
+    const kept = [current, OLDER, ...(DEMO ? LIBRARY : [])].filter((r) => matchesFilter(r, filter))
     const projects = kept.length > 0 ? [{ projectId: PROJECT, title: PROJECT_TITLE, count: kept.length }] : []
     return { reports: kept, projects, nextCursor: null }
   }

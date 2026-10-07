@@ -36,7 +36,10 @@ import {
   DESIGN_TASK,
   designingTask,
   OLDER_REPORT,
+  ELSEWHERE_REPORT,
   elsewhereCard,
+  elsewhereVersions,
+  matchesFilter,
   olderVersions,
   REPORT,
   reportList,
@@ -55,7 +58,7 @@ import { created, finished, type Tasks } from './task-data.ts'
 import type { ConversationMessage, ConversationSummary, ProjectTask, VersionReview } from '../src/api/vision.ts'
 import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
 import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
-import type { ProjectRelease } from '@sophia/contracts'
+import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
@@ -142,6 +145,8 @@ interface Project {
   carriedElsewhere?: boolean
   /** The reader's reports are in another project too (`reports=elsewhere`): its count is under the filters. */
   reportsElsewhere?: boolean
+  /** The report's card names a version its versions list doesn't hold yet (`card=ahead`): just published. */
+  cardAhead?: boolean
   /** While set, the project list's reads wait for these (`window.fixture.holdProjects`). */
   projectsHeld?: (() => void)[] | null
   /** The project list's reads fail (`projects=fail`). */
@@ -628,18 +633,27 @@ function answerReports(project: Project, method: string, url: URL, init: Request
 }
 
 /** Another project the reader has reports in (`reports=elsewhere`), as the report list names it. */
-const ELSEWHERE = { projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', count: 1 }
+const ELSEWHERE = { projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project' }
+
+/** The fixture report's card, naming a version published since its versions were read. */
+const ahead = (card: ReportList['reports'][number]): ReportList['reports'][number] =>
+  card.artifactId === REPORT ? { ...card, currentVersionId: '00000000-0000-4000-8000-0000000000dd' } : card
 
 /** Knowledge's list of reports, as the reader asked for it (words, a format, a page, a project). */
 function reportsAnswer(project: Project, url: URL) {
   const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
   const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
-  const list = reportList(published, project.description, url.searchParams.get('cursor'), filter)
+  const listed = reportList(published, project.description, url.searchParams.get('cursor'), filter)
+  const list = project.cardAhead ? { ...listed, reports: listed.reports.map(ahead) } : listed
   if (!project.reportsElsewhere) return json(list)
-  const projects = [...list.projects, ELSEWHERE]
-  // The other project's own reports when it is the one asked for: its one report, not this project's.
-  if (url.searchParams.get('project') === ELSEWHERE.projectId)
-    return json({ reports: [elsewhereCard(ELSEWHERE.projectId, ELSEWHERE.title)], projects, nextCursor: null })
+  // The other project's report, under the same words and format; listed only when one is left.
+  const theirs = [elsewhereCard(ELSEWHERE.projectId, ELSEWHERE.title)].filter((c) => matchesFilter(c, filter))
+  const projects = theirs.length > 0 ? [...list.projects, { ...ELSEWHERE, count: theirs.length }] : list.projects
+  const asked = url.searchParams.get('project')
+  if (asked === ELSEWHERE.projectId) return json({ reports: theirs, projects, nextCursor: null })
+  // Every project: theirs after this project's, on the last page (it is the oldest).
+  if (asked === 'all' && list.nextCursor === null)
+    return json({ ...list, reports: [...list.reports, ...theirs], projects })
   return json({ ...list, projects })
 }
 
@@ -669,8 +683,12 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
 function versionsOf(project: Project, path: string): Response | Promise<Response> | null {
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path === `/api/v1/artifacts/${OLDER_REPORT}/versions`) return json(olderVersions())
-  // The older report cites nothing: its Sources tab reads an empty list.
-  if (path.startsWith(`/api/v1/artifacts/${OLDER_REPORT}/versions/`) && path.endsWith('/sources')) {
+  if (path === `/api/v1/artifacts/${ELSEWHERE_REPORT}/versions`) return json(elsewhereVersions(ELSEWHERE.projectId))
+  // The older report and the other project's cite nothing: their Sources tab reads an empty list.
+  const citesNothing = [OLDER_REPORT, ELSEWHERE_REPORT].some((id) =>
+    path.startsWith(`/api/v1/artifacts/${id}/versions/`),
+  )
+  if (citesNothing && path.endsWith('/sources')) {
     return json({ sources: [] })
   }
   const shelved = DEMO ? shelvedRead(path) : null

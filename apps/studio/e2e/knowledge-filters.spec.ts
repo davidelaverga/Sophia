@@ -73,7 +73,39 @@ test('filters · another project’s button and its count read at 4.5:1, pressed
   // Its one report, filed there; none of this project's.
   const cards = page.locator('.report-card')
   await expect(cards).toHaveCount(1)
-  await expect(cards).toContainText('An older fixture report')
+  await expect(cards).toContainText('Rollout notes from another team')
+})
+
+test('filters · every project: this project’s reports, then the other’s, the words and the format kept for both', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=knowledge&reports=elsewhere')
+  await page.getByRole('button', { name: 'All projects' }).click()
+  await page.getByRole('button', { name: 'More reports' }).click()
+  const theirs = page.getByRole('button', { name: 'Rollout notes from another team' })
+  await expect(theirs).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Fixture report', exact: true })).toBeVisible()
+  // Words that only theirs has: theirs alone, and its project still offered.
+  const search = page.getByRole('searchbox', { name: 'Search reports' })
+  await search.fill('rollout')
+  await expect(page.locator('.report-card')).toHaveCount(1)
+  await expect(theirs).toBeVisible()
+  // Words no report has: none, and no other project offered with nothing in it.
+  await search.fill('nothing like this')
+  await expect(page.getByText('No reports match these filters.')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Another project/ })).toHaveCount(0)
+})
+
+test('filters · the other project pressed keeps the format: «Without PDF» leaves its PDF report out', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=knowledge&reports=elsewhere')
+  await page.getByRole('button', { name: 'All projects' }).click()
+  await page.getByRole('button', { name: /Another project/ }).click()
+  await expect(page.getByRole('button', { name: 'Rollout notes from another team' })).toBeVisible()
+  await page.getByRole('group', { name: 'Format' }).getByRole('button', { name: 'Without PDF' }).click()
+  await expect(page.getByText('No reports match these filters.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Rollout notes from another team' })).toHaveCount(0)
 })
 
 test('order · the reports come first; what was carried in follows them', async ({ page }) => {

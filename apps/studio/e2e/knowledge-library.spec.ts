@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { DESIGNED } from '../fixtures/report-data.ts'
+import { DESIGNED, REPORT } from '../fixtures/report-data.ts'
 import { typeSizes } from './type-sizes.ts'
 
 // Knowledge as a library (docs/plans/knowledge-library.md, K1): each report a tile that opens with its cover, the
@@ -187,6 +187,33 @@ test('library · a cover scrolled far away keeps no frame, and comes back withou
   expect(await frame.getAttribute('srcdoc')).toBe(DESIGNED.text)
   await page.waitForTimeout(600) // a late read would have come by now
   expect(await reads(), 'no new read of the page').toBe(before)
+})
+
+test('library · a tile out of reach whose card names a newer version reads nothing, until it comes near', async ({
+  page,
+}) => {
+  // The viewer reads the report's versions; its card names one published since; the tiles start far below.
+  await page.addInitScript(() => {
+    new MutationObserver((_, watch) => {
+      const cards = document.querySelector('.report-cards')
+      if (!cards) return
+      watch.disconnect()
+      const shelf = document.createElement('div')
+      shelf.style.height = '4000px'
+      cards.before(shelf)
+    }).observe(document, { childList: true, subtree: true })
+  })
+  await page.goto(`/room.html?place=knowledge&card=ahead&report=${REPORT}`)
+  await expect(page.getByRole('complementary', { name: 'Fixture report' })).toBeVisible()
+  const reads = () =>
+    page.evaluate(() => (window.fixture?.served ?? []).filter((s) => s.startsWith('versions:')).length)
+  await expect.poll(reads).toBeGreaterThan(0)
+  const before = await reads()
+  await page.waitForTimeout(600) // a read for the tile would have come by now
+  expect(await reads(), 'no read for a tile out of sight').toBe(before)
+  // Near, the tile reads the list again, once, for the version its card names.
+  await tile(page, 'Fixture report').scrollIntoViewIfNeeded()
+  await expect.poll(reads).toBe(before + 1)
 })
 
 test('library · covers once read are not read again when the window comes back', async ({ page }) => {
