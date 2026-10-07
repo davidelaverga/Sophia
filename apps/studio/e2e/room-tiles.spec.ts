@@ -108,3 +108,117 @@ test('tiles · with three others, every tile and no «+N»', async ({ page }) =>
   await expect(tiles(page)).toHaveCount(5)
   await expect(more(page)).toHaveCount(0)
 })
+
+test('tiles · on a phone, beside a shown screen: every tile and «+N» in sight, one row, nothing to scroll', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=9&video=screen')
+  await expect(tiles(page)).toHaveCount(5)
+  await expect(more(page)).toBeInViewport({ ratio: 1 })
+  const rects = await tiles(page).evaluateAll((all) =>
+    all.map((el) => {
+      const r = el.getBoundingClientRect()
+      return { left: r.left, right: r.right, top: r.top }
+    }),
+  )
+  for (const r of rects) {
+    expect(r.left).toBeGreaterThanOrEqual(0)
+    expect(r.right).toBeLessThanOrEqual(390)
+  }
+  // One row: every tile on the same line.
+  expect(new Set(rects.map((r) => Math.round(r.top))).size).toBe(1)
+})
+
+for (const width of [320, 390, 820]) {
+  test(`tiles · a tile’s name never lies over its initial (${String(width)} px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 })
+    await enter(page, 'people=9&video=screen')
+    const clashes = await room(page)
+      .locator('.tile:has(.tile-initial)')
+      .evaluateAll((all) =>
+        all.flatMap((tile) => {
+          const a = tile.querySelector('.tile-initial')?.getBoundingClientRect()
+          const b = tile.querySelector('.tile-name')?.getBoundingClientRect()
+          if (!a || !b) return []
+          const apart = a.bottom <= b.top || b.bottom <= a.top || a.right <= b.left || b.right <= a.left
+          // And the initial whole inside its tile.
+          const t = tile.getBoundingClientRect()
+          const inside = a.top >= t.top && a.bottom <= t.bottom
+          return apart && inside ? [] : [tile.textContent]
+        }),
+      )
+    expect(clashes).toEqual([])
+  })
+}
+
+/** What a screen reader is given for a tile's label (its accessibility tree, not its text nodes). */
+const said = (page: Page, name: string) => room(page).locator('.tile-name').filter({ hasText: name }).ariaSnapshot()
+
+/** A tile's label at a phone's width: the width each part takes on screen, and its words. */
+const label = (page: Page, name: string) =>
+  room(page)
+    .locator('.tile-name')
+    .filter({ hasText: name })
+    .evaluate((el) => {
+      const width = (selector: string) => {
+        const part = el.querySelector(selector)
+        return part ? Math.round(part.getBoundingClientRect().width) : null
+      }
+      const box = el.getBoundingClientRect()
+      const guest = el.querySelector('.tile-mark[data-mark="guest"]')?.getBoundingClientRect()
+      return {
+        who: width('.tile-who'),
+        you: width('.tile-mark[data-mark="you"]'),
+        floor: width('.tile-floor'),
+        guest: guest ? Math.round(guest.width) : null,
+        guestWhole: !!guest && guest.right <= box.right + 0.5,
+      }
+    })
+
+test('tiles · on a phone, a guest’s tile says «guest» whole, and still some of the name', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=3&video=screen&guest=1')
+  const guest = await label(page, 'Noor')
+  expect(guest.guestWhole).toBe(true)
+  expect(guest.guest).toBeGreaterThan(20)
+  expect(guest.who).toBeGreaterThanOrEqual(10)
+  expect(await said(page, 'Noor')).toBe('- text: Noor · guest')
+})
+
+test('tiles · on a phone, the floor’s holder has the warm edge; « · floor» is said, not shown', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=9&video=screen&floor=9')
+  const holder = room(page).locator('.tile[data-floor]')
+  await expect(holder).toHaveCount(1)
+  // Its edge is the warm colour itself (resolved as the page resolves it).
+  const [edge, warm] = await holder.evaluate((el) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--warm)'
+    el.append(probe)
+    const resolved = getComputedStyle(probe).color
+    probe.remove()
+    return [getComputedStyle(el).borderTopColor, resolved]
+  })
+  expect(edge).toBe(warm)
+  const iv = await label(page, 'Iván')
+  expect(await said(page, 'Iván')).toBe('- text: Iván · floor')
+  expect(iv.floor).toBeLessThanOrEqual(1)
+})
+
+test('tiles · on a phone, your own tile gives the name the label; « · you» is said, not shown', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=9&video=screen')
+  const you = await label(page, 'Fixture')
+  expect(await said(page, 'Fixture')).toBe('- text: Fixture · you')
+  expect(you.you).toBeLessThanOrEqual(1)
+  expect(you.who).toBeGreaterThanOrEqual(30)
+})
+
+test('tiles · on a phone, a strip of a few keeps each tile a fifth of the width', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await enter(page, 'people=1&video=screen')
+  const widths = await tiles(page).evaluateAll((all) => all.map((el) => el.getBoundingClientRect().width))
+  expect(widths.length).toBeGreaterThan(1)
+  for (const w of widths) expect(w).toBeLessThan(80)
+})
