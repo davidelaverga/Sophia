@@ -416,6 +416,11 @@ export interface ConversationSummary {
   openQuestions: number
   /** The report it made, if any. */
   output: { artifactId: string; versionId: string; versionNumber: number; title: string } | null
+  /**
+   * A18 (proposed, for Davide): its newest message, a line of it; absent where the API doesn't say it yet, null when
+   * there is none. Behind the vision flag, the fixture pages answer it.
+   */
+  lastMessage?: { author: 'member' | 'sophia'; actorId: string | null; text: string; at: string } | null
 }
 
 /** A18: a message in a conversation, a member's or Sophia's. */
@@ -445,6 +450,15 @@ const SUMMARY = {
   sophia: (v: unknown) => typeof v === 'boolean',
   openQuestions: isNum,
   output: isOutput,
+  lastMessage: (v: unknown) =>
+    v === undefined ||
+    v === null ||
+    fields(v, {
+      author: (a: unknown) => a === 'member' || a === 'sophia',
+      actorId: isStrOrNull,
+      text: isStr,
+      at: isStr,
+    }),
 }
 const MESSAGE = {
   id: isStr,

@@ -800,6 +800,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       list: which === 'none' ? [] : which === 'quiet' ? [...conversations(), quietConversation()] : conversations(),
       messages: { ...messagesOf(), [CONVERSATION.quiet]: [] },
       failList: which === 'fail',
+      lastShown: DEMO || query.get('last') === '1',
       failMessagesOf: failMessages ? CONVERSATION.briefs : null,
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),

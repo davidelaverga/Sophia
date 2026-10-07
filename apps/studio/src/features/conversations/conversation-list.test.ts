@@ -9,6 +9,7 @@ import {
   withMessage,
   answeredAfter,
   firstWords,
+  gistOf,
   pendingOf,
   byActivity,
   contributorsLine,
@@ -91,6 +92,22 @@ describe('matching', () => {
       ['a'],
     )
     assert.equal(matching(all, 'short data').length, 0)
+  })
+})
+
+describe('gistOf', () => {
+  const lucia = { actorId: 'lucia', name: 'Lucía' }
+  const at = '2026-10-06T09:40:00.000Z'
+  it('says the last message, who said it first; else the summary', () => {
+    const withSummary = conversation({ summary: 'Short or long.', contributors: [lucia] })
+    assert.equal(gistOf(withSummary, ME), 'Short or long.')
+    assert.equal(gistOf({ ...withSummary, lastMessage: null }, ME), 'Short or long.')
+    const said = (author: 'member' | 'sophia', actorId: string | null) =>
+      gistOf({ ...withSummary, lastMessage: { author, actorId, text: 'One page.', at } }, ME)
+    assert.equal(said('member', ME), 'You: One page.')
+    assert.equal(said('sophia', null), 'Sophia: One page.')
+    assert.equal(said('member', 'lucia'), 'Lucía: One page.')
+    assert.equal(said('member', 'gone'), 'Someone: One page.')
   })
 })
 

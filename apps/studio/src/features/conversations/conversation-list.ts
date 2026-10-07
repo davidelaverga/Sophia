@@ -126,3 +126,19 @@ export function withMessage<M extends { id: string }>(
   if (!read || !newest || read.pages.some((p) => p.messages.some((m) => m.id === message.id))) return read
   return { ...read, pages: [{ ...newest, messages: [...newest.messages, message] }, ...rest] }
 }
+
+/**
+ * The row's line: its last message, who said it first («You», «Sophia», a name), where the list says it (A18 proposed);
+ * else Sophia's summary.
+ */
+export function gistOf(c: ConversationSummary, me: string): string | null {
+  const last = c.lastMessage
+  if (!last) return c.summary
+  const who =
+    last.author === 'sophia'
+      ? 'Sophia'
+      : last.actorId === me
+        ? 'You'
+        : (c.contributors.find((p) => p.actorId === last.actorId)?.name ?? 'Someone')
+  return `${who}: ${last.text}`
+}
