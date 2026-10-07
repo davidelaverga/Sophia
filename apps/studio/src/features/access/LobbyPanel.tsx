@@ -10,6 +10,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { knockNote } from './access-view.ts'
 import { useLobbyDecision } from './useAccess.ts'
 import { lasted } from '../../app/time-words.ts'
+import { useNow } from '../../app/use-now.ts'
 
 interface Props {
   projectId: string
@@ -27,15 +28,6 @@ function waitedFor(requestedAt: string, now: number): string {
   return waited < 60_000 ? 'just now' : lasted(waited)
 }
 
-function useMinuteClock(): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30_000)
-    return () => clearInterval(t)
-  }, [])
-  return now
-}
-
 /** The people just declined, for a few seconds: a slip is one click from undone. */
 function useJustDeclined(): [readonly LobbyEntry[], (entries: readonly LobbyEntry[]) => void] {
   const [declined, setDeclined] = useState<readonly LobbyEntry[]>([])
@@ -48,7 +40,7 @@ function useJustDeclined(): [readonly LobbyEntry[], (entries: readonly LobbyEntr
 }
 
 export function LobbyPanel({ projectId, identity, lobby, canDecide }: Props) {
-  const now = useMinuteClock()
+  const now = useNow(30_000)
   const { busy, error, decide } = useLobbyDecision(projectId, identity)
   const [declined, setDeclined] = useJustDeclined()
   const waiting = lobby.filter((e) => e.status === 'waiting')

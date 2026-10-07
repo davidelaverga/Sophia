@@ -305,6 +305,18 @@ for (const [width, height] of [
   })
 }
 
+test('made · a session’s «starts in» counts down while the room is open (one clock, app/use-now.ts)', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await enter(page, 'people=2&floor=1&sophia=here&session=soon')
+  const session = page.locator('.line-session')
+  await expect(session).toHaveText(/ · starts in 10 min$/)
+  // A minute on, at once (the room animates every frame: running each one through would take the page with it).
+  await page.clock.fastForward(60_000)
+  await expect(session).toHaveText(/ · starts in 9 min$/)
+})
+
 test('made · O’s hint shows only while O works', async ({ page }) => {
   await enter(page)
   await notice(page)

@@ -85,8 +85,11 @@ export function clock(at: string | Date): string {
 /** Whether two times fall on the same day, in the viewer's zone. */
 export const sameDay = (a: string | Date, b: string | Date): boolean => startOfDay(dateOf(a)) === startOfDay(dateOf(b))
 
-/** Its date and time: «Oct 6, 09:12». */
-export const when = (at: string | Date, now: number): string => `${dayOf(at, now)}, ${clock(at)}`
+/** Its date and time: «Oct 6, 09:12»; nothing for a time that isn't one. */
+export function when(at: string | Date, now: number): string {
+  const day = dayOf(at, now)
+  return day ? `${day}, ${clock(at)}` : ''
+}
 
 /**
  * A day in a list, either way from today: «Today», «Yesterday», «Tomorrow», a weekday within the week, then the date.

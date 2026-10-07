@@ -15,6 +15,7 @@ import { AdmissionNote } from './AdmissionNote.tsx'
 import { CalendarTab } from './CalendarTab.tsx'
 import { QrCode } from './QrCode.tsx'
 import { useInvitations, useLobbyDecision, useRefreshInvitations, type SheetContext } from './useAccess.ts'
+import { useNow } from '../../app/use-now.ts'
 
 type Tab = 'guests' | 'members' | 'calendar'
 const TABS: ReadonlyArray<[Tab, string]> = [
@@ -24,10 +25,11 @@ const TABS: ReadonlyArray<[Tab, string]> = [
 ]
 const TAB_ROW = TABS.map(([t]) => t)
 
-const isOpen = (i: Invitation) => !i.revokedAt && Date.parse(i.expiresAt) > Date.now() && i.uses < i.maxUses
+const isOpen = (i: Invitation, now: number) => !i.revokedAt && Date.parse(i.expiresAt) > now && i.uses < i.maxUses
 
 /** The room link: the newest open guest invitation that was not sent to one person. */
-const roomLink = (list: readonly Invitation[]) => list.find((i) => i.kind === 'guest' && !i.email && isOpen(i)) ?? null
+const roomLink = (list: readonly Invitation[], now: number) =>
+  list.find((i) => i.kind === 'guest' && !i.email && isOpen(i, now)) ?? null
 
 /** What happened to the email, and what to do when it did not go out. */
 const EMAIL: Record<Invitation['emailStatus'], string> = {
@@ -164,13 +166,14 @@ function GuestsTab({ context }: { context: SheetContext }) {
   const { query, refresh } = useInviteList(context)
   const invitations = query.data?.invitations ?? []
   const emailed = invitations.filter((i) => i.kind === 'guest' && !!i.email)
+  const now = useNow()
   return (
     <section className="sheet-body" aria-label="Guests">
       <p className="sheet-lead">
         A link to the room. Guests say their name and wait in the lobby until someone here lets them in. They reach the
         call only, never the project.
       </p>
-      <RoomLinkSlot context={context} loading={query.isPending} link={roomLink(invitations)} onChange={refresh} />
+      <RoomLinkSlot context={context} loading={query.isPending} link={roomLink(invitations, now)} onChange={refresh} />
       <EmailGuest context={context} onSent={refresh} />
       {emailed.length > 0 && (
         <div className="sheet-form">
@@ -329,8 +332,8 @@ interface DoorListProps {
 }
 
 function DoorList({ title, entries, note, children }: DoorListProps) {
+  const now = useNow()
   if (entries.length === 0) return null
-  const now = Date.now()
   return (
     <div className="sheet-form">
       <p className="field-label">{title}</p>
@@ -496,10 +499,10 @@ function useFlash(): [string | null, (id: string) => void] {
 function InvitationList({ invitations, token, onChange }: ListProps) {
   const action = useAction(onChange)
   const [resent, flashResent] = useFlash()
+  const now = useNow()
   if (invitations.length === 0) return null
-  const now = Date.now()
-  const open = invitations.filter(isOpen)
-  const closed = invitations.filter((i) => !isOpen(i))
+  const open = invitations.filter((i) => isOpen(i, now))
+  const closed = invitations.filter((i) => !isOpen(i, now))
   const row = (i: Invitation) => (
     <InvitationRow
       key={i.id}
@@ -547,10 +550,10 @@ interface RowProps {
 
 function InvitationRow({ invitation: i, now, busy, resent, onResend, onCancel }: RowProps) {
   return (
-    <li data-closed={!isOpen(i) || undefined}>
+    <li data-closed={!isOpen(i, now) || undefined}>
       <span className="invitation-who">{i.email}</span>
       <span className="invitation-state">{invitationState(i, now)}</span>
-      {isOpen(i) && (
+      {isOpen(i, now) && (
         <span className="invitation-actions">
           <CopyButton text={i.url} quiet />
           <button type="button" className="ghost" disabled={busy} onClick={onResend}>

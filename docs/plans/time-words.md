@@ -67,6 +67,20 @@ Units are always short and spaced (`s`, `min`, `h`) except days, which are spell
   replace.
 - **Personal never says a past day is ahead:** a time a little past now (another device's clock) is today.
 
+## Part 3, as built
+
+- `app/use-now.ts`: `useNow(every = 60 s)` on `useSyncExternalStore`. One interval a pace, shared by every view that
+  reads it, running only while one does; read again after a pause, it starts from the time it is read. A view that
+  joins a running clock reads its last tick (at most one pace old).
+- **The six clocks of their own go:** Work's pulse (15 s), Places (20 s), the lobby, the join page and the room (30 s),
+  a research card (a minute, now whether or not it runs). Their paces are kept.
+- **Views whose relative words never moved now do:** the calendar's «starts in» and its lines, the invitation lists'
+  «ago», the passkeys, Personal's memory, Work's cards and order.
+- **Left as they are:**
+  - one-second countdowns with their own logic (sign-in's «Send again in 30 s», the join page's);
+  - resources' `useClock`, which moves a time it was given;
+  - `Date.now()` for absolute dates, which only decides whether to show the year.
+
 ## Checks (written first)
 
 - **Unit** (`time-words.test.ts`): each rule above at its edges (59 s, 60 s, 59 min, 23 h 59 min, 24 h; 1 s with

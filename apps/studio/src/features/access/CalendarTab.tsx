@@ -20,6 +20,7 @@ import {
 } from './access-view.ts'
 import { AdmissionNote } from './AdmissionNote.tsx'
 import { canInvite, type SheetContext } from './useAccess.ts'
+import { useNow } from '../../app/use-now.ts'
 
 const DURATIONS = [30, 45, 60, 90] as const
 const zone = () => Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -165,9 +166,10 @@ interface NoteProps {
  * before it happens, both when both are true (scheduleLines).
  */
 function ScheduleNote({ state, clash, onRetry }: NoteProps) {
+  const now = useNow()
   if (state.status === 'rejected' || state.status === 'unknown')
     return <AdmissionNote state={state} onRetry={onRetry} />
-  return scheduleLines(state.status === 'done' ? state.result : null, clash, Date.now()).join(' ') || null
+  return scheduleLines(state.status === 'done' ? state.result : null, clash, now).join(' ') || null
 }
 
 interface ListProps {
@@ -179,7 +181,7 @@ interface ListProps {
 
 function SessionList({ sessions, token, editable, onChange }: ListProps) {
   const [failed, setFailed] = useState<string | null>(null)
-  const now = Date.now()
+  const now = useNow()
   if (sessions.length === 0) return <p className="sheet-status">Nothing on the calendar yet.</p>
   const cancel = (s: RoomSession) => {
     setFailed(null)

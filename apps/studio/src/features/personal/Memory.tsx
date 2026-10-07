@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { dayLabel } from './conversation-view.ts'
 import type { Memory as Props, PersonalMemory } from './extras.ts'
 import { useCapped } from './useCapped.ts'
+import { useNow } from '../../app/use-now.ts'
 
 /** The most characters a corrected memory holds. */
 const MEMORY_MOST = 140
@@ -65,7 +66,7 @@ function focusMemory(id: string | null) {
 
 export function Memory({ items, forget, correct }: Props) {
   const [editing, setEditing] = useState<string | null>(null)
-  const now = new Date()
+  const now = new Date(useNow())
   if (items.length === 0) return null
   const after = (id: string) => items[items.findIndex((m) => m.id === id) + 1]?.id ?? null
   return (

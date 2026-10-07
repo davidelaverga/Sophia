@@ -3,7 +3,7 @@
 // the hairline with the lock is always at the edge you crossed. This component owns what is open over the places (the
 // notes, the sheets, the small menus) and wires the keys; the places render; the words come from the view modules. The
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -54,6 +54,7 @@ import type { Handed } from './handed.ts'
 import { Welcome } from './Welcome.tsx'
 import { WorkSpace } from './WorkSpace.tsx'
 import { personalFailure } from './write-words.ts'
+import { useNow } from '../../app/use-now.ts'
 import './personal.css'
 
 /** A sheet asked for from outside the places (a project's account menu): it opens once the person is home. */
@@ -101,13 +102,9 @@ function writeFlag(identity: string, flag: string, value: string): void {
 }
 
 /** A clock that moves every 20 s: "starts in 12 min" counts down, and a session about to start becomes the verb. */
-function useNow(): Date {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 20_000)
-    return () => clearInterval(timer)
-  }, [])
-  return now
+function useNowDate(): Date {
+  const now = useNow(20_000)
+  return useMemo(() => new Date(now), [now])
 }
 
 interface Unlock {
@@ -551,7 +548,7 @@ export function Places(props: PlacesProps) {
   const hand = useHand()
   const v: View = {
     props,
-    now: useNow(),
+    now: useNowDate(),
     layers,
     space,
     personal: lock.locked ? undefined : space.data,
