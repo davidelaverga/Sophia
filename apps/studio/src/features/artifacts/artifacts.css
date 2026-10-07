@@ -1277,7 +1277,7 @@
 }
 .knowledge-filters .count {
   margin-left: 6px;
-  color: var(--text-3);
+  color: var(--text-2);
   font: 500 var(--type-small) / 1 var(--mono);
 }
 /* A card takes the focus when a control inside it goes (Try PDF again): no ring for a focus the reader didn't move. */

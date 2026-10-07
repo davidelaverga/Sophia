@@ -139,6 +139,8 @@ interface Project {
   carriedIn?: ProjectRelease[]
   /** The project list holds other projects only (`carried=elsewhere`): this one is past its first ones. */
   carriedElsewhere?: boolean
+  /** The reader's reports are in another project too (`reports=elsewhere`): its count is under the filters. */
+  reportsElsewhere?: boolean
   /** While set, the project list's reads wait for these (`window.fixture.holdProjects`). */
   projectsHeld?: (() => void)[] | null
   /** The project list's reads fail (`projects=fail`). */
@@ -624,6 +626,9 @@ function answerReports(project: Project, method: string, url: URL, init: Request
   return reading ? json(reading) : answerReport(project, method, url, init)
 }
 
+/** Another project the reader has reports in (`reports=elsewhere`), as the report list names it. */
+const ELSEWHERE = { projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', count: 3 }
+
 /**
  * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
  * task, its card, and an edit of its description.
@@ -635,7 +640,8 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   if (path === '/api/v1/knowledge/reports') {
     const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
     const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
-    return json(reportList(published, project.description, url.searchParams.get('cursor'), filter))
+    const list = reportList(published, project.description, url.searchParams.get('cursor'), filter)
+    return json(project.reportsElsewhere ? { ...list, projects: [...list.projects, ELSEWHERE] } : list)
   }
   const listed = versionsOf(project, path)
   if (listed) return listed

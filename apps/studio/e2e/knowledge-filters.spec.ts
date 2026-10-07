@@ -57,6 +57,19 @@ test('filters · every word in the filters reads: no contrast under 4.5:1, press
   expect(await lowContrast(page, '.knowledge-filters')).toEqual([])
 })
 
+test('filters · another project’s button and its count read at 4.5:1, pressed or not', async ({ page }) => {
+  await page.goto('/room.html?place=knowledge&reports=elsewhere')
+  await page.getByRole('button', { name: 'All projects' }).click()
+  const other = page
+    .getByRole('group', { name: 'Project', exact: true })
+    .getByRole('button', { name: /Another project/ })
+  await expect(other.locator('.count')).toHaveText('3')
+  expect(await lowContrast(page, '.knowledge-filters')).toEqual([])
+  await other.click()
+  await expect(other).toHaveAttribute('aria-pressed', 'true')
+  expect(await lowContrast(page, '.knowledge-filters')).toEqual([])
+})
+
 test('order · the reports come first; what was carried in follows them', async ({ page }) => {
   await page.goto('/room.html?place=knowledge&carried=1')
   const carried = page.getByRole('region', { name: 'Carried in from Personal' })
