@@ -92,6 +92,9 @@ const DEMO_TEXTS: readonly Text[] = [
 
 const TEXTS = DEMO ? DEMO_TEXTS : FIXTURE_TEXTS
 
+/** How many versions the fixture can publish: one text each. */
+export const VERSIONS_HELD = TEXTS.length
+
 /** The pilot-shaped first version's own source, which its second cites in place of the five sources it dropped. */
 const PILOT_V1_SOURCE = '00000000-0000-4000-8000-0000000000c4'
 /** The pilot-shaped second version's own source, which its third cites, as its base, in place of the first's. */

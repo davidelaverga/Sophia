@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Download, type Locator, type Page } from '@playwright/test'
+import { DEMO_TITLE } from '../fixtures/demo.ts'
 import { DESIGNED, LONG_HEADING } from '../fixtures/report-data.ts'
 import { reaches } from './reach.ts'
 import { typeSizes } from './type-sizes.ts'
@@ -988,8 +989,10 @@ test('demo · both versions are published by default: the report opens on v2, it
   page,
 }) => {
   await enter(page, `/room.html?demo=1&report=${REPORT}`)
-  await expect(pane(page)).toContainText('v2')
-  await expect(pane(page).getByRole('tab', { name: /History 2/ })).toBeVisible()
+  // The demo's pane is named by the demo's title.
+  const demo = page.getByRole('complementary', { name: DEMO_TITLE })
+  await expect(demo.locator('.report-meta').first()).toContainText('v2')
+  await expect(demo.getByRole('tab', { name: /History 2/ })).toBeVisible()
 })
 
 test('HTML · a Knowledge card opens its current version’s designed page; a card without one offers none', async ({

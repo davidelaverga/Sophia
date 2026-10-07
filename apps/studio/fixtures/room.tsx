@@ -68,6 +68,7 @@ import {
   TITLE,
   TASK,
   versionId,
+  VERSIONS_HELD,
 } from './report-data.ts'
 import { DEMO, DEMO_LABEL, VIEWER_NAME } from './demo.ts'
 
@@ -291,7 +292,7 @@ const project = {
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
-  reportVersions: Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1)),
+  reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
   pilot: query.get('history') === 'pilot',
   waiting: query.get('lobby') === 'waiting',
@@ -416,11 +417,12 @@ window.fixture = {
     project.failReplies = on
   },
   drop: dropCall,
+  // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.
   publishReport: () => {
-    project.reportVersions += 1
+    project.reportVersions = Math.min(VERSIONS_HELD, project.reportVersions + 1)
   },
   reviseLive: () => {
-    project.reportVersions += 1
+    project.reportVersions = Math.min(VERSIONS_HELD, project.reportVersions + 1)
     publish(project)
   },
   notice: () => {

@@ -77,6 +77,7 @@ test('dock · at 390 px, from the keyboard or under a hovering pointer, an icon 
   // A narrow window on a computer: the pointer hovers.
   await take.hover()
   await expect(tip).toBeVisible()
+  await expect(tip).toHaveCSS('opacity', '1')
   await expect(tip).toHaveText('Take the floor')
   await page.mouse.move(0, 0)
   await expect(tip).toBeHidden()
@@ -86,6 +87,7 @@ test('dock · at 390 px, from the keyboard or under a hovering pointer, an icon 
   await page.keyboard.press('Tab')
   await expect(take).toBeFocused()
   await expect(tip).toBeVisible()
+  await expect(tip).toHaveCSS('opacity', '1')
 })
 
 test('dock · on a phone, passing the floor to one person shows whose it becomes: their initial', async ({ page }) => {
