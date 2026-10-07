@@ -1,10 +1,10 @@
 # Implementation-session handoff
 
-Goal and attempt: WBC-02 (SCM-01), the combined integration of #107 with the accepted #117 (SDD-01 Design) and #119 (the Paperclip image's CI), and with main; then the three findings of Codex's automatic review of the combined head. Attempt 1: plan WBC-02-CC-0043 to CC-0046, transfers CC-0047 and CC-0048, handback 6036077438
+Goal and attempt: WBC-02 (SCM-01), the combined integration of #107 with the accepted #117 (SDD-01 Design) and #119 (the Paperclip image's CI), and with main; then the findings of Codex's automatic reviews of the combined head and of the fix. Attempt 1: plan WBC-02-CC-0043 to CC-0046, transfers CC-0047 and CC-0048, handback 6036077438
 Human owner / executor resource: Davide (decisions); Codex (coordination, independent review, two pushes, local checks); Claude Code in a cloud container (linux-x64), the only tracked-source writer
 Native session: this Claude Code session (https://claude.ai/code/session_0155SjcXhv87RErnWEBWxfBM); no Sophia native session was created
 Starting worktree/commit: the held #107 branch `scm-01/workboard-source-review` at `29371f5a3703f4358563886407bc360df7c38603`, in a fresh worktree with no ignored build outputs
-Ending commit/tree: the content commit «WBC-02 #107: Codex's three findings on the combined head 5bbd59b1» (`df183a5f645adcca3dfe18964e627687253b51bd`, tree `8b5d6fda1a19b8009633fcbc5b6aa20655fcf905`), the parent of this handoff's commit. Before it, three merge commits, each on the one before; nothing is rebased or force-pushed:
+Ending commit/tree: the content commit «WBC-02 #107: a wakeup ask is in flight until the host answers it» (`e93b0c51123577602016a4a199203e6a07c6ece2`, tree `74ddecefec55b1395310fc876ed10f8ff48f7332`), the parent of this handoff's commit. It follows the first version of this handoff (`10510fcd`), on the content commit «WBC-02 #107: Codex's three findings on the combined head 5bbd59b1» (`df183a5f645adcca3dfe18964e627687253b51bd`, tree `8b5d6fda1a19b8009633fcbc5b6aa20655fcf905`). Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
 
 | Commit | Tree | Merges | Changes beyond its parents |
 | --- | --- | --- | --- |
@@ -63,6 +63,16 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
    - **Why they prove the rest:** 0043 is one transaction, and its other changes replace functions under their own signatures (its header says so).
    - **Compatibility:** the previous API requires nothing of 0043, so it stays ready on either database during a rolling deployment.
 
+**Codex's review of `10510fcd`** (review 5441387417) found two more:
+
+4. **A wakeup ask is in flight until the host answers it** (r4206134009, fixed in `e93b0c51`). This is the create claim's case, for wakeups: an unconfirmed ask was asked again 60 s after it was made, while the host may still queue it, and the pin does not deduplicate the key.
+   - An ask is recorded with the host process that serves it.
+   - It is in flight until the host answers it (a run queued or not, or an error), or an operator fences it. `requestWakeup` is bound through `answered`, so an unanswered ask raises `UnansweredHostCall` and stays open.
+   - The 60 s a resend waits for a run now counts from the host's answer, not from the ask.
+   - A run since the first ask still confirms an ask, answered or not.
+   - `fence-previous-instance.sql` gains `open-wakes` and `fence-wakes`; `001`'s `wakes` table gains the ask's host, answer and fence.
+5. **A source read is recorded before its text reaches the model** (r4206134000, `0042`'s `runtime_source_review_context`). **Open, not fixed here.** The path is real: the read is inserted in the same transaction that returns the page. If that reply is lost, `review_checks` still accepts a finding that cites the source, so a review could cite a source its model never received. The fix that matches #117's capture delivery is a receipt that only the delivered page carries and the submission must present. It changes the bundle's review tools, the wire contracts and `0042`, and so the recorded runtime identities, which only `pnpm build`/`artifacts:record` can regenerate. That was denied in this session. The proposal and the decision it needs are on the thread.
+
 ## Evidence
 
 **Before the fix, on `5bbd59b1`:**
@@ -89,13 +99,21 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
   - the API crossings (the reconcile crash window; wakeup not queued; lost wakeup reply; 0042 then 0043 readiness; each 0043 function).
   CI's `test:db` runs them on the pushed head, and the image job runs the plugin's migration through the pin's loader.
 
+**CI on `10510fcd`** (the first fix, `df183a5f`):
+- `test:db` on PostgreSQL 16, run 37611400770 (job 112759240130): 524 of 524, none skipped. Every new control ran and passed: the held, unanswered, fenced and answered-error creates; the fence procedure; the reconcile crash window, wakeup not queued and lost wakeup reply; readiness through 0042 then 0043; each 0043 function.
+- `runtime-unit` (`pnpm check`, with the artifact reproduction) passed in both runs, 37611391951 and 37611400770.
+- The room in Chromium and the Paperclip image job (37611400748) were still running at this writing.
+
+**On `e93b0c51`, in this session:** `prettier --check .`, `oxlint --type-aware .` and `pnpm typecheck` pass; the touched packages' units 101 of 101; every plugin statement passes the pinned host's rules. Its new `.db` controls (a wakeup held at the host for an hour across a restart; an unanswered ask confirmed by a late run; a fenced ask asked again once; the wakeup fence steps) did not run here, for the same reason.
+
 **Source-register IDs consulted:** none.
 
 ## Decisions and changes
 
 - **Order:** #119, then #117, then main, as merge commits; the fix as a commit on the merge. History is never rewritten.
 - **Records:** none needed regenerating. The runtime artifact covers `dsh-bundle` and `execution-host` only, and neither the merge nor the fix changes them. Codex's clean `pnpm check` on `5bbd59b1` reproduced every recorded identity.
-- **The plugin fix follows the plugin's own rule rather than a longer timeout.** The worker stops waiting after `HOST_CALL_TIMEOUT_MS`, but the host still runs the call and may still commit (CX-0017). No time, nor another process serving now, proves a create will not land. The cost is an operator fence for a create whose worker died or that the host never answered, the same cost as for status writes.
+- **The plugin fixes follow the plugin's own rule rather than a longer timeout.** The worker stops waiting after `HOST_CALL_TIMEOUT_MS`, but the host still runs the call and may still commit (CX-0017). No time, nor another process serving now, proves a create or a wakeup will not land. The cost is an operator fence for one whose worker died or that the host never answered, the same cost as for status writes. The 60 s wait for a wakeup's run after the host answered is kept from CX-0004: the pin can defer a wakeup behind an active run.
+- **Finding 5 is not fixed in this session.** Its fix changes the runtime bundle, so the recorded identities must be regenerated, and the build that does it was denied here. Pushing the source without its records would turn `pnpm check` red.
 - **Permission denials in this session,** each reported, neither worked around:
   - `git merge --no-ff --no-commit 771f22489b53cd431bfc9989cf309333dfcc4c42` in the worktree was denied as «Modify Shared Resources». Davide then directed the commits pushed, and the work continued. The same merge, with main at `95c375ce`, ran.
   - `pnpm toolchain:check && pnpm build && pnpm contracts:check; pnpm artifacts` on the uncommitted merge was denied as «Modify Shared Resources». So no build, contract or artifact check ran in this session, on either head.
@@ -104,6 +122,7 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 ## Remaining obligations
 
+- **Finding 5** (r4206134000): a decision on the receipt design and on who regenerates the runtime records, then its fix.
 - **On the fix head:**
   - CI, including `test:db` with the new controls, and the Paperclip image job;
   - Codex's independent review and local checks;
@@ -118,4 +137,4 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 ## Next bounded action
 
-Codex reviews `df183a5f` and this handoff against CI on the published head, then hands back an exact finding or failure, or proceeds to the final gates. This writer answers any finding on #107. Merging is Davide's decision.
+Codex reviews `df183a5f`, `e93b0c51` and this handoff against CI on the published head, decides finding 5's route, then hands back an exact finding or failure, or proceeds to the final gates. This writer answers any finding on #107. Merging is Davide's decision.
