@@ -48,6 +48,10 @@ Ending commit/tree: the final change is commit `6a4383befbaf0139f4a9461c0e3650dc
   `--text-2` (it read at 3.84:1 in `--text-3`), and the fixture's `reports=elsewhere` lists another project, so a
   check measures the button and its count at 4.5:1, pressed or not (21 passed with K1's checks; the `--text-3` mutant
   is killed).
+- Codex's next two P2s on #153, fixed: the fixture answers a request for the other project with that project's
+  report (its one, not this project's), and the check presses it and finds that report alone; in the demo the
+  pilot's plan is dated Sep 15, older than the shelf, so More reports keeps the list newest first (a check reads each
+  tile's day). Both mutants killed.
 - From the captures, for the next pass:
   - each tile repeats «Description by Sophia» and «History and changes», which is noise across six tiles;
   - More reports is a full-width bar.

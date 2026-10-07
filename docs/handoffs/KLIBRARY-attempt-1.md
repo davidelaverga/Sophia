@@ -70,7 +70,8 @@ Ending commit/tree: the final implementation is commit `68dadea81b9c2003035b23d6
   - a cover's frame stays mounted once read, so a long list keeps every page it showed. Fixed after Codex's P2 on #152:
     the frame is mounted only while the tile is within reach, the page kept in the cache; checked by «a cover scrolled
     far away keeps no frame, and comes back without a new read» (14 passed; the mutant that keeps the frame is
-    killed).
+    killed). Its «no new read» counts the fixture's reads of that page's source (`content:<id>` in `served`); a
+    mutant that reads the page again every 300 ms is killed.
 - **K2 next:** the filters and `/`, the reports before what was carried in, and the demo's fuller library.
 
 ## Next bounded action

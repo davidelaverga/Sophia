@@ -36,6 +36,7 @@ import {
   DESIGN_TASK,
   designingTask,
   OLDER_REPORT,
+  elsewhereCard,
   olderVersions,
   REPORT,
   reportList,
@@ -627,7 +628,7 @@ function answerReports(project: Project, method: string, url: URL, init: Request
 }
 
 /** Another project the reader has reports in (`reports=elsewhere`), as the report list names it. */
-const ELSEWHERE = { projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', count: 3 }
+const ELSEWHERE = { projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', count: 1 }
 
 /**
  * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
@@ -641,13 +642,21 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
     const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
     const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
     const list = reportList(published, project.description, url.searchParams.get('cursor'), filter)
-    return json(project.reportsElsewhere ? { ...list, projects: [...list.projects, ELSEWHERE] } : list)
+    if (!project.reportsElsewhere) return json(list)
+    const projects = [...list.projects, ELSEWHERE]
+    // The other project's own reports when it is the one asked for: its one report, not this project's.
+    if (url.searchParams.get('project') === ELSEWHERE.projectId)
+      return json({ reports: [elsewhereCard(ELSEWHERE.projectId, ELSEWHERE.title)], projects, nextCursor: null })
+    return json({ ...list, projects })
   }
   const listed = versionsOf(project, path)
   if (listed) return listed
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
   const text = source ? content(source, project.textTampered, project.pageTampered) : null
-  if (text) return textRead(project, text)
+  if (text) {
+    served.push(`content:${source ?? ''}`)
+    return textRead(project, text)
+  }
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${DESIGN_TASK}`) return designRead(project)
   return null
