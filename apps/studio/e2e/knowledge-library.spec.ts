@@ -161,3 +161,33 @@ test('library · Tab never stops inside a cover: from the cover’s press it goe
   await page.keyboard.press('Tab')
   await expect(card.getByRole('button', { name: 'Pilot readout: what kept 12 of 14 teams', exact: true })).toBeFocused()
 })
+
+test('library · covers once read are not read again when the window comes back', async ({ page }) => {
+  await page.goto('/room.html?place=knowledge&designed=on')
+  await page.getByRole('button', { name: 'More reports' }).click()
+  await expect(page.locator('.report-cover[data-cover="page"], .report-cover[data-cover="lines"]')).toHaveCount(2)
+  // Count the versions reads from here (the fixture's fetch, wrapped), on the document's data.
+  await page.evaluate(() => {
+    const read = window.fetch
+    const count = document.documentElement.dataset
+    count.versionsRead = '0'
+    window.fetch = (input, init) => {
+      const url = input instanceof Request ? input.url : String(input)
+      if (url.includes('/versions')) count.versionsRead = String(Number(count.versionsRead) + 1)
+      return read(input, init)
+    }
+  })
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await page.waitForTimeout(600)
+  expect(await page.evaluate(() => document.documentElement.dataset.versionsRead)).toBe('0')
+})
+
+test('library · the older report opens from its tile, its sources read', async ({ page }) => {
+  await page.goto('/room.html?place=knowledge')
+  await page.getByRole('button', { name: 'More reports' }).click()
+  await page.getByRole('button', { name: 'An older fixture report', exact: true }).click()
+  const pane = page.getByRole('complementary', { name: 'An older fixture report' })
+  await expect(pane.getByText('A labelled fixture report from before PDFs were turned off.')).toBeVisible()
+  await pane.getByRole('tab', { name: /Sources/ }).click()
+  await expect(pane.getByRole('tabpanel')).toBeVisible()
+})

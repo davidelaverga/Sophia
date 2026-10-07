@@ -649,6 +649,10 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
 function versionsOf(project: Project, path: string): Response | Promise<Response> | null {
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path === `/api/v1/artifacts/${OLDER_REPORT}/versions`) return json(olderVersions())
+  // The older report cites nothing: its Sources tab reads an empty list.
+  if (path.startsWith(`/api/v1/artifacts/${OLDER_REPORT}/versions/`) && path.endsWith('/sources')) {
+    return json({ sources: [] })
+  }
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   return null
 }

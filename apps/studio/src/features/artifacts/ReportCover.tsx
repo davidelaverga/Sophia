@@ -47,6 +47,10 @@ function useCurrent(card: ReportCard, identity: Identity, near: boolean) {
     queryKey: ['report-versions', card.artifactId, identity.name],
     queryFn: () => listArtifactVersions(identity.token, card.artifactId),
     enabled: near,
+    // A cover is read once: never again by itself (the window coming back, a reconnect), for every tile ever seen.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
   const id = card.currentVersionId
   const version: ArtifactVersion | undefined = versions.data?.find((v) => v.id === id)
@@ -68,14 +72,15 @@ function useCover(card: ReportCard, identity: Identity, near: boolean): Cover {
   const html = useQuery({
     queryKey: ['report-html', page?.sourceId, identity.name],
     queryFn: () => loadReportText(identity.token, page?.sourceId ?? '', page?.sha256 ?? ''),
-    enabled: page !== undefined,
+    // Behind the tile's reach too: versions already in the cache (the viewer's) never read an off-screen page.
+    enabled: near && page !== undefined,
     staleTime: Infinity,
     retry: retryRead,
   })
   const text = useQuery({
     queryKey: ['report-text', version?.sourceId, identity.name],
     queryFn: () => loadReportText(identity.token, version?.sourceId ?? '', version?.sourceHash ?? ''),
-    enabled: version !== undefined && page === undefined,
+    enabled: near && version !== undefined && page === undefined,
     staleTime: Infinity,
     retry: retryRead,
   })
