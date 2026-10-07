@@ -166,16 +166,15 @@ test('library · a cover scrolled far away keeps no frame, and comes back withou
   await page.goto('/room.html?place=knowledge&designed=on')
   const frame = tile(page, 'Fixture report').locator('.report-cover iframe')
   await expect(frame).toHaveCount(1)
-  // Count the page's reads from here; then a long shelf below the tiles carries this one far out of reach.
+  // A long shelf below the tiles carries this one far out of reach.
+  const reads = () =>
+    page.evaluate(
+      (source) => (window.fixture?.served ?? []).filter((s) => s === `content:${source}`).length,
+      DESIGNED.sourceId,
+    )
+  const before = await reads()
+  expect(before).toBeGreaterThan(0)
   await page.evaluate(() => {
-    const read = window.fetch
-    const count = document.documentElement.dataset
-    count.pagesRead = '0'
-    window.fetch = (input, init) => {
-      const url = input instanceof Request ? input.url : String(input)
-      if (!url.includes('/versions')) count.pagesRead = String(Number(count.pagesRead) + 1)
-      return read(input, init)
-    }
     const shelf = document.createElement('div')
     shelf.style.height = '4000px'
     document.querySelector('main')?.append(shelf)
@@ -186,7 +185,8 @@ test('library · a cover scrolled far away keeps no frame, and comes back withou
   await page.evaluate(() => window.scrollTo(0, 0))
   await expect(frame).toHaveCount(1)
   expect(await frame.getAttribute('srcdoc')).toBe(DESIGNED.text)
-  expect(await page.evaluate(() => document.documentElement.dataset.pagesRead)).toBe('0')
+  await page.waitForTimeout(600) // a late read would have come by now
+  expect(await reads(), 'no new read of the page').toBe(before)
 })
 
 test('library · covers once read are not read again when the window comes back', async ({ page }) => {

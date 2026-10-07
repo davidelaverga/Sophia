@@ -639,7 +639,10 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   if (listed) return listed
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
   const text = source ? content(source, project.textTampered, project.pageTampered) : null
-  if (text) return textRead(project, text)
+  if (text) {
+    served.push(`content:${source ?? ''}`)
+    return textRead(project, text)
+  }
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${DESIGN_TASK}`) return designRead(project)
   return null
