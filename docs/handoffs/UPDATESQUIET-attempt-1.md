@@ -28,9 +28,15 @@ Design note: `docs/plans/updates-quiet.md`. No API change.
   tick, the bars and the live dot, contrast and type sizes); `room-updates.spec.ts` unchanged.
 - Captures at 1440 (in a call: the running row) and 390 px.
 - Prettier, `oxlint --type-aware` (clean but `brand-assets.mjs`, already on `main`), `tsc`.
-- **Not run locally:** the browser checks, the machine short of RAM (a game open; the guard needs 8 GB). CI runs them.
+- Run locally once the game was closed: `updates-quiet.spec.ts` and `room-updates.spec.ts` 16 passed.
+- Mutants, each killed with the control surviving: one column everywhere, the marks leaking into the recap sheet,
+  every bar full, the running row with a bar, the rows off their label's edge, the open mark a plain dot. Two first
+  «survived» in the batch: Vite hadn't taken `theme.css` in (a large file) before the run; run by hand after a pause,
+  both are killed.
+- Independent review: one P1 (the by-lines at 12.5 px, off the app's sizes) and one P2 (the marks reaching the recap
+  sheet opened from Updates, which renders inside it), fixed with checks.
 
 ## Limitations and next action
 
 - Meetings carry only when and how long (A12's list): who was there would need the list to say it.
-- Next: CI, an independent review, the local run and mutants when the guard allows.
+- Next: merge on green CI with no Codex P1.
