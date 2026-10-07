@@ -1,7 +1,9 @@
 // The open conversation (docs/plans/project-conversations.md): its title, who wrote there, Sophia's summary of it, its
 // messages oldest first (a page at a time: Earlier messages reads the one before), and the report it made, which opens
-// in the document viewer. How its context works is one disclosure away. Members continue it below its messages
-// (docs/plans/project-conversation-writes.md); Sophia's answer is read as the feed moves.
+// in the document viewer, from its head. How its context works is one disclosure away. Members continue it below its
+// messages (docs/plans/project-conversation-writes.md); Sophia's answer is read as the feed moves. Each message has a
+// face, a person's initial or Sophia's mark; messages by one author within minutes read as one run, its byline said
+// once in sight and every time to a screen reader (docs/plans/conversation-thread.md).
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type RefObject } from 'react'
 import {
@@ -13,7 +15,15 @@ import {
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
-import { answeredAfter, contributorsLine, messageBy, messagesKey } from './conversation-list.ts'
+import { Mark } from '../../app/Mark.tsx'
+import {
+  answeredAfter,
+  continuesRun,
+  contributorsLine,
+  initialOf,
+  messageBy,
+  messagesKey,
+} from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
 import type { Asked } from './talk-store.ts'
@@ -85,6 +95,7 @@ export function OpenConversation(props: Props) {
         {c.title}
       </h3>
       <p className="conv-who">{`Contributors: ${contributorsLine(c, me)}`}</p>
+      <Output output={c.output} />
       <section className="conv-summary" aria-labelledby={summaryId}>
         <h4 id={summaryId} className="eyebrow">
           Summary
@@ -110,7 +121,6 @@ export function OpenConversation(props: Props) {
         />
       )}
       {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
-      <Output output={c.output} />
       <details className="conv-help">
         <summary>How conversation context works</summary>
         <p>
@@ -232,11 +242,17 @@ function MessageList(props: {
           ref={i === 0 ? first : undefined}
           tabIndex={i === 0 ? -1 : undefined}
           className={m.author === 'sophia' ? 'conv-msg sophia' : 'conv-msg'}
+          data-run={continuesRun(messages[i - 1], m) ? 'on' : undefined}
         >
-          <span className="conv-msg-by">
-            {messageBy(m, me)} · <time dateTime={m.at}>{when(m.at, Date.now())}</time>
+          <span className="conv-face" aria-hidden>
+            {m.author === 'sophia' ? <Mark /> : initialOf(m.name)}
           </span>
-          <p>{m.text}</p>
+          <div className="conv-msg-body">
+            <span className="conv-msg-by">
+              {messageBy(m, me)} · <time dateTime={m.at}>{when(m.at, Date.now())}</time>
+            </span>
+            <p>{m.text}</p>
+          </div>
         </li>
       ))}
     </ol>

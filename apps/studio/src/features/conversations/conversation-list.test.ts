@@ -4,6 +4,8 @@ import type { MissionDecision } from '@sophia/contracts'
 import type { ConversationSummary } from '../../api/vision.ts'
 import {
   acceptedOf,
+  continuesRun,
+  initialOf,
   withMessage,
   answeredAfter,
   firstWords,
@@ -178,5 +180,46 @@ describe('withMessage', () => {
 
   it('leaves a conversation not read yet as it is', () => {
     assert.equal(withMessage(undefined, { id: 'e' }), undefined)
+  })
+})
+
+/** A message as a run sees it. */
+const said = (author: 'member' | 'sophia', actorId: string | null, at: string) => ({ author, actorId, at })
+
+describe('continuesRun: a message that goes on from the one before it', () => {
+  it('goes on: the same person within five minutes', () => {
+    assert.equal(
+      continuesRun(said('member', 'a', '2026-10-06T09:00:00Z'), said('member', 'a', '2026-10-06T09:04:59Z')),
+      true,
+    )
+  })
+  it('starts a run: five minutes or more, another person, or Sophia after a person', () => {
+    assert.equal(
+      continuesRun(said('member', 'a', '2026-10-06T09:00:00Z'), said('member', 'a', '2026-10-06T09:05:00Z')),
+      false,
+    )
+    assert.equal(
+      continuesRun(said('member', 'a', '2026-10-06T09:00:00Z'), said('member', 'b', '2026-10-06T09:01:00Z')),
+      false,
+    )
+    assert.equal(
+      continuesRun(said('member', null, '2026-10-06T09:00:00Z'), said('sophia', null, '2026-10-06T09:01:00Z')),
+      false,
+    )
+  })
+  it('goes on for Sophia after Sophia, and never from nothing', () => {
+    assert.equal(
+      continuesRun(said('sophia', null, '2026-10-06T09:00:00Z'), said('sophia', null, '2026-10-06T09:02:00Z')),
+      true,
+    )
+    assert.equal(continuesRun(undefined, said('member', 'a', '2026-10-06T09:00:00Z')), false)
+  })
+})
+
+describe('initialOf: a face’s letter', () => {
+  it('is the name’s first letter, upper case; «A member» without a name', () => {
+    assert.equal(initialOf('lucía'), 'L')
+    assert.equal(initialOf(' Ángel'), 'Á')
+    assert.equal(initialOf(null), 'A')
   })
 })

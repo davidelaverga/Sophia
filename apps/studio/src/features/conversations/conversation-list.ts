@@ -60,6 +60,21 @@ export const messageBy = (
   me: string,
 ) => (m.author === 'sophia' ? 'Sophia' : m.actorId === me ? 'You' : (m.name ?? 'A member'))
 
+/** How close in time two messages by the same author are to read as one run (docs/plans/conversation-thread.md). */
+const RUN_MS = 5 * 60_000
+
+type Said = { author: 'member' | 'sophia'; actorId: string | null; at: string }
+
+/** Whether `m` goes on from `before`: the same author (Sophia, or the same person) within five minutes. */
+export function continuesRun(before: Said | undefined, m: Said): boolean {
+  if (!before || before.author !== m.author || before.actorId !== m.actorId) return false
+  const gap = Date.parse(m.at) - Date.parse(before.at)
+  return gap >= 0 && gap < RUN_MS
+}
+
+/** A face's letter: the name's first, upper case; a member with no name is «A member». */
+export const initialOf = (name: string | null) => (name ?? 'A member').trim().charAt(0).toLocaleUpperCase()
+
 /** Whether Sophia answered since she was asked: a message of hers written after then (wherever the page holds it). */
 export function answeredAfter(
   messages: readonly { author: 'member' | 'sophia'; at: string }[],

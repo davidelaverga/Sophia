@@ -2,11 +2,13 @@
 // is one intent with one key, held by the view (talk-store.ts), as is a refusal that answers it: with no reply it says
 // so, and Send sends that message again under its key, never a second one, even after the person went elsewhere and
 // came back. A message the API accepted goes into the page at once. The field clears only if it still holds what was
-// sent. Enter sends; Shift+Enter starts a line. On its way, Send says so.
+// sent. Enter sends; Shift+Enter starts a line. On its way, Send says so. «Ask Sophia» is a checkbox shown as a chip
+// with her mark (docs/plans/conversation-thread.md).
 import { useQueryClient } from '@tanstack/react-query'
 import type { ApiError } from '../../api/client.ts'
 import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { firstWords, messagesKey, withMessage, type ReadPages } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
@@ -106,6 +108,7 @@ export function ConversationComposer(props: Props) {
             disabled={held !== null}
             onChange={(e) => props.onAskSophia(e.target.checked)}
           />
+          <Mark />
           Ask Sophia
         </label>
         <button type="submit" className="pill" aria-disabled={!ready || busy || undefined}>

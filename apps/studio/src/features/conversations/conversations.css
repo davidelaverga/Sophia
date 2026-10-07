@@ -134,17 +134,60 @@
   padding: 0;
   list-style: none;
 }
+/* A message: its author's face, then its byline and words (docs/plans/conversation-thread.md). A message that goes
+   on from the one before keeps its byline for a screen reader only, and leaves its face's place empty. */
 .conv-msg {
   display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+.conv-msg[data-run] {
+  margin-top: -10px;
+}
+.conv-face {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  font-weight: 600;
+}
+.conv-msg.sophia .conv-face {
+  border-color: transparent;
+}
+.conv-msg[data-run] .conv-face {
+  visibility: hidden;
+}
+.conv-msg-body {
+  display: grid;
   gap: 3px;
+  min-width: 0;
+  padding: 4px 12px 6px;
+  border-radius: var(--r-3);
+}
+/* Sophia's words on a quiet plane: a glance tells hers from the team's. */
+.conv-msg.sophia .conv-msg-body {
+  background: rgba(156, 130, 245, 0.07);
 }
 .conv-msg-by {
-  color: var(--text-3);
+  color: var(--text-2);
   font-size: var(--type-small);
   font-variant-numeric: tabular-nums;
 }
 .conv-msg.sophia .conv-msg-by {
   color: var(--halo-text);
+}
+.conv-msg[data-run] .conv-msg-by {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 .conv-msg p {
   margin: 0;
@@ -254,22 +297,40 @@
 .conv-new .conv-compose-acts {
   justify-content: flex-start;
 }
+/* «Ask Sophia»: a checkbox shown as a chip with her mark; on, it takes her halo's tint. Its box stays in the page,
+   unseen, for its state, its name and the keyboard; the chip draws its focus. */
 .conv-ask {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 24px;
+  min-height: 28px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
   color: var(--text-2);
   font-size: var(--type-small);
+  cursor: pointer;
 }
-/* The app's fields are 36 px boxes (theme.css): a checkbox is a box of its own size. */
+.conv-ask:has(input:checked) {
+  border-color: rgba(156, 130, 245, 0.35);
+  background: rgba(156, 130, 245, 0.12);
+  color: var(--text);
+}
+.conv-ask:has(input:focus-visible) {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+.conv-ask:has(input:disabled) {
+  cursor: default;
+}
 .conv-ask input {
-  flex: none;
-  width: 16px;
-  height: 16px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
   margin: 0;
   padding: 0;
-  accent-color: var(--halo);
+  opacity: 0;
 }
 .conv-compose-acts .text-button {
   min-height: 24px;
@@ -282,4 +343,16 @@
 .conv-field {
   display: grid;
   gap: 4px;
+}
+
+/* On a wide screen the field stays in reach while the conversation is read: pinned to the window's foot, on the
+   page's ground. A phone keeps it in the flow (C3). */
+@media (min-width: 721px) {
+  .conv-open .conv-compose {
+    position: sticky;
+    z-index: 1;
+    bottom: 0;
+    padding-block: 12px 14px;
+    background: linear-gradient(to bottom, transparent, var(--void) 12px);
+  }
 }
