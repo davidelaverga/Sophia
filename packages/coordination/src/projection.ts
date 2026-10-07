@@ -82,6 +82,11 @@ export interface WorkFact {
   readonly results: readonly ResultFact[]
   /** A delivery to Paperclip whose outcome is not known yet (it is being reconciled). */
   readonly deliveryUnknown: boolean
+  /**
+   * The latest control Paperclip definitely refused (its operation and the plugin's code), sent again until it is
+   * taken or a later control supersedes it; null when none is refused (Codex on #107).
+   */
+  readonly controlRefused: { readonly op: string; readonly code: string | null } | null
   /** When anything about the work last changed. */
   readonly updatedAt: string
 }
@@ -172,12 +177,24 @@ function assignmentOf(work: WorkFact): WorkAssignment | null {
   }
 }
 
+const CONTROL_SAID: Readonly<Record<string, string>> = {
+  hold: 'Hold',
+  resume: 'Resume',
+  stop: 'Stop',
+  complete: 'completion',
+  fail: 'failure',
+}
+const REFUSAL_CODE = /^[a-z][a-z0-9_]{0,63}$/
+
 function waitsOf(work: WorkFact): WorkWait[] {
-  if (work.attempt !== null || work.closedReason !== null) return []
-  if (work.commission.state !== 'pending' && work.commission.state !== 'outcome_unknown') return []
-  const unknown = work.commission.state === 'outcome_unknown'
-  return [
-    {
+  const waits: WorkWait[] = []
+  if (
+    work.attempt === null &&
+    work.closedReason === null &&
+    (work.commission.state === 'pending' || work.commission.state === 'outcome_unknown')
+  ) {
+    const unknown = work.commission.state === 'outcome_unknown'
+    waits.push({
       kind: 'external',
       reference_id: `commission:${work.workId}`,
       respondent_id: null,
@@ -185,8 +202,24 @@ function waitsOf(work: WorkFact): WorkWait[] {
         ? 'Checking whether Paperclip took the commission.'
         : 'Waiting for Paperclip to take the commission.',
       state: unknown ? 'unknown' : 'pending',
-    },
-  ]
+    })
+  }
+  // A control Paperclip refused changed nothing there: its issue does not show it yet, and Sophia sends it again until
+  // Paperclip takes it (Codex on #107). Sophia's own state of the work is as the rest of the item says.
+  // The code is Paperclip's answer, shown only when it is a plain code.
+  if (work.controlRefused !== null) {
+    const what = CONTROL_SAID[work.controlRefused.op] ?? 'control'
+    const { code } = work.controlRefused
+    const named = code !== null && REFUSAL_CODE.test(code) ? ` (${code})` : ''
+    waits.push({
+      kind: 'external',
+      reference_id: `control:${work.workId}`,
+      respondent_id: null,
+      detail: `Paperclip refused the ${what}${named}; its issue does not show it yet. Sophia sends it again until Paperclip takes it.`,
+      state: 'pending',
+    })
+  }
+  return waits
 }
 
 const SAID: Partial<Readonly<Record<Lifecycle, string>>> = {

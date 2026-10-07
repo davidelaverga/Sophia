@@ -2029,3 +2029,205 @@ describe('the coordination grant, and the runs of one attempt (Codex on #107)', 
     )
   })
 })
+
+describe('a control Paperclip refuses, and a revoked credential (Codex on #107)', () => {
+  const outboxRow = (w: World, op: string) =>
+    asOwner(
+      async (o) =>
+        (
+          await o.query<{ state: string; code: string | null }>(
+            `SELECT state, result->>'code' AS code FROM sophia.coordination_outbox WHERE project_id=$1 AND op=$2
+              ORDER BY seq DESC LIMIT 1`,
+            [w.projectId, op],
+          )
+        ).rows[0],
+    )
+
+  /**
+   * The plugin's mapping of this Sophia project is replaced by another project's, so the plugin still has a valid
+   * configuration (none at all is 503 not_configured, unknown) and refuses this project's requests (403 not_mapped).
+   * Returns the repair.
+   */
+  async function unmapped(w: World): Promise<() => void> {
+    const config = (await w.paperclip.host.config(COMPANY)) as { projects: unknown[] }
+    const other = { sophiaProjectId: randomUUID(), companyId: COMPANY, paperclipProjectId: PC_PROJECT }
+    const mapping = config.projects.splice(0, config.projects.length, other)
+    return () => void config.projects.splice(0, config.projects.length, ...mapping)
+  }
+
+  it('a Hold Paperclip refuses is kept refused and shown; sent again once its mapping is repaired; an unknown one stays unknown', async () => {
+    const w = await world()
+    const { proposal, issue, attemptId } = await running(w)
+    const repair = await unmapped(w)
+    const hold = await command(w, proposal, 'hold', attemptId)
+    assert.equal(hold.status, 202, JSON.stringify(hold.json))
+    const holdCommand = (await commandsFor(w, attemptId)).find((c) => c.kind === 'hold')
+    assert.ok(holdCommand)
+    await receipt(w, holdCommand, 'checked')
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['hold', 'rejected']])
+    assert.deepEqual(await outboxRow(w, 'hold'), { state: 'refused', code: 'not_mapped' }, 'a definite refusal, kept')
+    assert.equal(w.paperclip.issues.get(issue.id)?.status, 'todo', 'nothing changed in Paperclip')
+    const item = await itemOf(w)
+    assert.equal(item.lifecycle, 'held', "Sophia's own state of the work")
+    const settled = await member(E, `/api/v1/projects/${w.projectId}/work/operations/${String(hold.json.operation_id)}`)
+    assert.equal(settled.json.effect, 'held', "the Hold's own receipt: Sophia held the work")
+    const waits = item.waiting_on as Array<{ reference_id: string; state: string; detail: string }>
+    assert.deepEqual(
+      waits.map((x) => [x.reference_id, x.state]),
+      [[`control:${String(proposal.workId)}`, 'pending']],
+    )
+    assert.match(String(waits[0]?.detail), /Paperclip refused the Hold \(not_mapped\)/)
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [], 'not before its backoff')
+
+    // The mapping repaired: the same Hold, under its own key, goes through once due; the wait is gone.
+    repair()
+    await dueNow(w)
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['hold', 'delivered']])
+    assert.equal(w.paperclip.issues.get(issue.id)?.status, 'blocked')
+    assert.equal((await outboxRow(w, 'hold'))?.state, 'delivered')
+    assert.deepEqual((await itemOf(w)).waiting_on, [])
+
+    // A Resume whose delivery is lost in transit is unknown and reconciled, never taken for a refusal.
+    const resume = await command(w, proposal, 'resume', attemptId)
+    assert.equal(resume.status, 202, JSON.stringify(resume.json))
+    await dispatchDue()
+    const unreachable: typeof fetch = async (input, init) => {
+      if ((typeof init?.body === 'string' ? init.body : '').includes(w.projectId)) throw new TypeError('fetch failed')
+      return routed(w)(input, init)
+    }
+    assert.deepEqual(await outcomesOf(w, await passWith(unreachable)), [['resume', 'unknown']])
+    assert.equal((await outboxRow(w, 'resume'))?.state, 'outcome_unknown')
+    assert.deepEqual((await itemOf(w)).waiting_on, [], 'an unknown delivery is not shown as a refusal')
+  })
+
+  it('a later control supersedes a refused one, and is the one sent', async () => {
+    const w = await world()
+    const { proposal, attemptId } = await running(w)
+    const repair = await unmapped(w)
+    const hold = await command(w, proposal, 'hold', attemptId)
+    const holdCommand = (await commandsFor(w, attemptId)).find((c) => c.kind === 'hold')
+    assert.ok(holdCommand && hold.status === 202)
+    await receipt(w, holdCommand, 'checked')
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['hold', 'rejected']])
+    repair()
+    const stop = await command(w, proposal, 'stop', null)
+    assert.equal(stop.status, 202, JSON.stringify(stop.json))
+    await dueNow(w)
+    const delivered = await outcomesOf(w, await deliver(w))
+    assert.deepEqual(
+      delivered,
+      [['stop', 'delivered']],
+      'the refused Hold is superseded by the Stop, never sent after it',
+    )
+    assert.equal((await outboxRow(w, 'hold'))?.state, 'superseded')
+    assert.equal(issueOf(w).status, 'cancelled')
+  })
+
+  it('a refused control holds back the later deliveries of its work, in order, until it is taken', async () => {
+    const w = await world()
+    const { proposal, issue, attemptId } = await running(w)
+    const repair = await unmapped(w)
+    const hold = await command(w, proposal, 'hold', attemptId)
+    const holdCommand = (await commandsFor(w, attemptId)).find((c) => c.kind === 'hold')
+    assert.ok(holdCommand && hold.status === 202)
+    await receipt(w, holdCommand, 'checked')
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['hold', 'rejected']])
+    // A later delivery that no control supersedes, written by the work's own mirror.
+    await asOwner((o) =>
+      o.query(`SELECT sophia.work_mirror($1, $2, 'complete', 0)`, [w.projectId, String(proposal.workId)]),
+    )
+    await dueNow(w)
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['hold', 'rejected']], 'the Hold is sent again, alone')
+    assert.equal((await outboxRow(w, 'complete'))?.state, 'pending', 'held back behind the refused Hold')
+    repair()
+    await dueNow(w)
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['hold', 'delivered']])
+    assert.equal(w.paperclip.issues.get(issue.id)?.status, 'blocked')
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [['complete', 'delivered']], 'then the later one')
+    assert.equal(w.paperclip.issues.get(issue.id)?.status, 'done')
+  })
+
+  /** A new adapter credential of the company, by its token. */
+  async function credential(): Promise<{ id: string; token: string }> {
+    const secret = `sophia-dsh-adapter-capability-${randomUUID()}`
+    const id = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ id: string }>(
+            `SELECT sophia.register_coordination_integration($1, $2, 'revoked in a test') AS id`,
+            [COMPANY, sha256(secret)],
+          )
+        ).rows[0]?.id ?? '',
+    )
+    return { id, token: secret }
+  }
+
+  it('a permit and a start asked while a revocation commits wait for it, then are refused, with no effect', async () => {
+    const w = await world()
+    await accepted(w)
+    await deliver(w)
+    const issueId = issueOf(w).id
+    const cred = await credential()
+    const run = { companyId: COMPANY, runId: runId('revoked') }
+    assert.equal((await sophia(cred.token).permit({ ...run, issueId })).decision, 'start')
+    const revoking = new pg.Client({ connectionString: db.ownerUrl })
+    await revoking.connect()
+    await revoking.query('BEGIN')
+    await revoking.query(`SELECT sophia.revoke_coordination_integration($1)`, [cred.id])
+    let open = true
+    try {
+      const starting = sophia(cred.token).start(run)
+      const asking = sophia(cred.token).permit({ companyId: COMPANY, runId: runId('late'), issueId })
+      // Without the credential's lock, both read it active and went on while the revocation committed.
+      await untilWaiting(2)
+      await revoking.query('COMMIT')
+      open = false
+      await assert.rejects(starting, refusedAs('forbidden'))
+      await assert.rejects(asking, refusedAs('forbidden'))
+    } finally {
+      if (open) await revoking.query('ROLLBACK')
+      await revoking.end()
+    }
+    const effects = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ attempts: number; runs: number }>(
+            `SELECT (SELECT count(*)::int FROM sophia.work_attempts WHERE project_id=$1) AS attempts,
+                    (SELECT count(*)::int FROM sophia.work_runs WHERE project_id=$1) AS runs`,
+            [w.projectId],
+          )
+        ).rows[0],
+    )
+    assert.deepEqual(effects, { attempts: 0, runs: 1 }, 'no attempt, and no permit recorded after the revocation')
+  })
+
+  it('a revocation asked while a start is under way waits for it: the start finishes under the credential it began with', async () => {
+    const w = await world()
+    await accepted(w)
+    await deliver(w)
+    const cred = await credential()
+    const run = { companyId: COMPANY, runId: runId('valid') }
+    assert.equal((await sophia(cred.token).permit({ ...run, issueId: issueOf(w).id })).decision, 'start')
+    // A third transaction holds the project: the start authenticates, then queues on it; the revocation queues on the
+    // credential the start holds.
+    const holder = new pg.Client({ connectionString: db.ownerUrl })
+    await holder.connect()
+    await holder.query('BEGIN')
+    await holder.query(`SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE`, [w.projectId])
+    let starting: ReturnType<ReturnType<typeof sophia>['start']> | undefined
+    let revoked: Promise<unknown> | undefined
+    try {
+      starting = sophia(cred.token).start(run)
+      await untilWaiting(1)
+      revoked = asOwner((o) => o.query(`SELECT sophia.revoke_coordination_integration($1)`, [cred.id]))
+      await untilWaiting(2)
+    } finally {
+      await holder.query('COMMIT')
+      await holder.end()
+    }
+    const started = await starting
+    assert.equal(started?.started, true, 'begun under a valid credential, it finishes')
+    await revoked
+    await assert.rejects(sophia(cred.token).start(run), refusedAs('forbidden'), 'after the revocation, nothing')
+  })
+})

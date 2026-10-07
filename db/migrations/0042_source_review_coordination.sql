@@ -157,13 +157,15 @@ CREATE TABLE sophia.work_commissions (
 -- delivery_key is the plugin's idempotency key; a lost reply leaves outcome_unknown, which the worker reconciles.
 -- seq orders a work item's deliveries as they were written. Each is written under its commission's lock (work_mirror;
 -- the commission itself with the work), so a later control has a larger seq even when its transaction began first.
--- created_at is a transaction's start, and orders nothing (Codex on #107).
+-- created_at is a transaction's start, and orders nothing (Codex on #107). A control the plugin definitely refused is
+-- refused: it changed nothing in Paperclip, so it is sent again after a capped backoff (a mapping repaired, it goes
+-- through), still ahead of the work's later deliveries, and a later control supersedes it (Codex on #107).
 CREATE TABLE sophia.coordination_outbox (
  project_id uuid NOT NULL, id uuid NOT NULL DEFAULT gen_random_uuid(), seq bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
  work_id uuid NOT NULL,
  op text NOT NULL CHECK(op IN ('commission','hold','resume','stop','complete','fail')),
  delivery_key text NOT NULL CHECK(delivery_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$'),
- state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','delivering','delivered','outcome_unknown','failed','superseded')),
+ state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','delivering','delivered','outcome_unknown','refused','failed','superseded')),
  lease_owner text, lease_token uuid, lease_until timestamptz,
  attempts integer NOT NULL DEFAULT 0 CHECK(attempts>=0),
  available_at timestamptz NOT NULL DEFAULT now(),
@@ -172,7 +174,7 @@ CREATE TABLE sophia.coordination_outbox (
  PRIMARY KEY(project_id,id), UNIQUE(project_id,delivery_key),
  FOREIGN KEY(project_id,work_id) REFERENCES sophia.work_items(project_id,id)
 );
-CREATE INDEX coordination_outbox_due ON sophia.coordination_outbox(available_at,seq) WHERE state IN ('pending','outcome_unknown');
+CREATE INDEX coordination_outbox_due ON sophia.coordination_outbox(available_at,seq) WHERE state IN ('pending','outcome_unknown','refused');
 
 -- One Paperclip run's effect permit and what it led to: a new attempt (start), an existing one (attach), or nothing.
 CREATE TABLE sophia.work_runs (
@@ -415,7 +417,7 @@ BEGIN
  END IF;
  IF p_op IN ('hold','resume','stop') THEN
   UPDATE sophia.coordination_outbox SET state='superseded', updated_at=now() WHERE project_id=p_project AND work_id=p_work
-   AND op IN ('hold','resume','stop') AND state='pending';
+   AND op IN ('hold','resume','stop') AND state IN ('pending','refused');
  END IF;
  INSERT INTO sophia.coordination_outbox(project_id,work_id,op,delivery_key) VALUES(p_project,p_work,p_op,key)
  ON CONFLICT (project_id,delivery_key) DO NOTHING;
@@ -901,12 +903,15 @@ END $$;
 -- --- the Paperclip adapter's effect permit ---------------------------------------------------------------------------
 
 -- Authenticate the adapter's credential for one Paperclip company. Never a member identity.
+-- The credential is read under a share lock, held to the end of the call, the first lock every call takes (Codex on
+-- #107): a revocation (an update of the row) waits for the calls already authenticated, and a call that arrives while
+-- one commits waits for it, then reads the credential revoked. Nothing is permitted or started once a revocation ends.
 CREATE FUNCTION sophia.coordination_caller(p_token_sha256 bytea, p_company text) RETURNS sophia.coordination_integrations
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE ci sophia.coordination_integrations;
 BEGIN
  IF sophia.actor_id() IS NOT NULL THEN RAISE EXCEPTION 'Integration calls cannot carry a member identity' USING ERRCODE='42501'; END IF;
- SELECT * INTO ci FROM sophia.coordination_integrations WHERE token_sha256=p_token_sha256;
+ SELECT * INTO ci FROM sophia.coordination_integrations WHERE token_sha256=p_token_sha256 FOR SHARE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Integration credential not recognized' USING ERRCODE='28000'; END IF;
  IF ci.state<>'active' THEN RAISE EXCEPTION 'Integration credential revoked' USING ERRCODE='42501'; END IF;
  IF p_company IS DISTINCT FROM ci.paperclip_company_id THEN
@@ -1217,10 +1222,10 @@ DECLARE o sophia.coordination_outbox; cm sophia.work_commissions; w sophia.work_
 BEGIN
  IF p_limit NOT BETWEEN 1 AND 50 OR p_lease_secs NOT BETWEEN 5 AND 300 THEN RAISE EXCEPTION 'Invalid claim bounds' USING ERRCODE='22023'; END IF;
  FOR o IN SELECT x.* FROM sophia.coordination_outbox x JOIN sophia.work_commissions c ON c.project_id=x.project_id AND c.work_id=x.work_id
-   WHERE x.state IN ('pending','outcome_unknown') AND x.available_at<=now()
+   WHERE x.state IN ('pending','outcome_unknown','refused') AND x.available_at<=now()
     AND (x.op='commission' OR c.state='created')
     AND NOT EXISTS(SELECT 1 FROM sophia.coordination_outbox e WHERE e.project_id=x.project_id AND e.work_id=x.work_id
-     AND e.seq<x.seq AND e.state IN ('pending','delivering','outcome_unknown'))
+     AND e.seq<x.seq AND e.state IN ('pending','delivering','outcome_unknown','refused'))
    ORDER BY x.available_at, x.seq LIMIT p_limit FOR UPDATE OF x SKIP LOCKED LOOP
   token:=gen_random_uuid(); reconcile:=o.state='outcome_unknown';
   UPDATE sophia.coordination_outbox SET state='delivering', lease_owner=left(p_worker,100), lease_token=token,
@@ -1277,6 +1282,12 @@ BEGIN
    UPDATE sophia.work_commissions SET state='created', paperclip_issue_id=issue, reason=NULL, updated_at=now() WHERE project_id=p_project AND work_id=o.work_id;
    PERFORM sophia.emit_service_event(p_project,'assignment.changed','work_item',o.work_id,1,'work.commissioned');
   END IF;
+ ELSIF p_outcome='rejected' AND o.op<>'commission' THEN
+  -- The plugin's definite refusal of a control changed nothing (Codex on #107): kept as refused, with its answer, and
+  -- sent again after the backoff, so a refusal that is corrected (a mapping restored) is not lost, and one that is not
+  -- stays visible on the board. Never outcome_unknown: nothing reached the issue.
+  UPDATE sophia.coordination_outbox SET state='refused', lease_until=NULL, result=p_result, reason=left(p_reason,500),
+   available_at=now()+backoff, updated_at=now() WHERE project_id=p_project AND id=p_id;
  ELSIF p_outcome='rejected' THEN
   UPDATE sophia.coordination_outbox SET state='failed', lease_until=NULL, result=p_result, reason=left(p_reason,500), updated_at=now() WHERE project_id=p_project AND id=p_id;
   IF o.op='commission' THEN
@@ -1837,7 +1848,7 @@ CREATE TRIGGER source_objects_withdraw_work AFTER UPDATE OF scope, eligible, sta
 CREATE FUNCTION sophia.work_commission_failed() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 BEGIN
  UPDATE sophia.coordination_outbox SET state='superseded', updated_at=now()
-  WHERE project_id=NEW.project_id AND work_id=NEW.work_id AND state='pending';
+  WHERE project_id=NEW.project_id AND work_id=NEW.work_id AND state IN ('pending','refused');
  RETURN NULL;
 END $$;
 REVOKE ALL ON FUNCTION sophia.work_commission_failed() FROM PUBLIC;

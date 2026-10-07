@@ -194,6 +194,9 @@ async function readWork(c: pg.PoolClient, projectId: string): Promise<WorkFact[]
                        FROM sophia.work_results r WHERE r.project_id = w.project_id AND r.work_id = w.id), '[]') AS results,
             EXISTS(SELECT 1 FROM sophia.coordination_outbox o WHERE o.project_id = w.project_id AND o.work_id = w.id
                     AND (o.state = 'outcome_unknown' OR (o.state = 'delivering' AND o.attempts > 1))) AS delivery_unknown,
+            (SELECT jsonb_build_object('op', o.op, 'code', o.result->>'code')
+               FROM sophia.coordination_outbox o WHERE o.project_id = w.project_id AND o.work_id = w.id AND o.state = 'refused'
+              ORDER BY o.seq DESC LIMIT 1) AS "controlRefused",
             ${iso(`greatest(w.created_at, cm.updated_at, (SELECT max(e.occurred_at) FROM sophia.project_events e
                      WHERE e.project_id = w.project_id AND e.entity_id IN (w.id, w.execution_goal_id)))`)} AS "updatedAt"
        FROM sophia.work_items w

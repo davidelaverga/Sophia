@@ -86,6 +86,7 @@ const work = (over: Partial<WorkFact> = {}): WorkFact => ({
   attempt: { id: ATT, nativeSessionId: `sophia-${ATT}`, bindingState: 'running', jobState: 'running', jobReason: null },
   results: [],
   deliveryUnknown: false,
+  controlRefused: null,
   updatedAt: '2026-10-05T11:30:00.000Z',
   ...over,
 })
@@ -225,6 +226,51 @@ describe('the work board projection', () => {
     assert.equal(only(lost).lifecycle, 'queued')
     assert.equal(only(lost).waiting_on[0]?.state, 'unknown')
     assert.equal(lost.coverage, 'partial')
+  })
+
+  it('shows a control Paperclip refused as a wait on Paperclip, beside the work as Sophia holds it (Codex on #107)', () => {
+    const view = projectBoard(
+      facts({
+        work: [
+          work({ goal: { status: 'held', stateRevision: 4 }, controlRefused: { op: 'hold', code: 'not_mapped' } }),
+        ],
+      }),
+    )
+    assert.equal(parseWorkBoardView(view), view)
+    assert.equal(only(view).lifecycle, 'held', "Sophia's own state of the work")
+    assert.deepEqual(only(view).waiting_on, [
+      {
+        kind: 'external',
+        reference_id: `control:${WORK}`,
+        respondent_id: null,
+        detail:
+          'Paperclip refused the Hold (not_mapped); its issue does not show it yet. Sophia sends it again until Paperclip takes it.',
+        state: 'pending',
+      },
+    ])
+    const commissioning = projectBoard(
+      facts({
+        work: [
+          work({
+            attempt: null,
+            commission: { state: 'pending', reason: null },
+            controlRefused: { op: 'stop', code: '<b>not a code</b>'.repeat(60) },
+          }),
+        ],
+      }),
+    )
+    parseWorkBoardView(commissioning)
+    assert.deepEqual(
+      only(commissioning).waiting_on.map((w) => w.reference_id),
+      [`commission:${WORK}`, `control:${WORK}`],
+      'each wait once, by its own reference',
+    )
+    assert.equal(
+      only(commissioning).waiting_on[1]?.detail,
+      'Paperclip refused the Stop; its issue does not show it yet. Sophia sends it again until Paperclip takes it.',
+      "Paperclip's answer is shown only when it is a plain code",
+    )
+    assert.equal(only(projectBoard(facts())).waiting_on.length, 0, 'none refused: no wait')
   })
 
   it("closes failed work with its reason and a refused commission with Paperclip's", () => {

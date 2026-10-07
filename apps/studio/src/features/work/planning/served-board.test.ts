@@ -65,6 +65,7 @@ const work = (over: Partial<WorkFact>): WorkFact => ({
   attempt: { id: ATT, nativeSessionId: `sophia-${ATT}`, bindingState: 'running', jobState: 'running', jobReason: null },
   results: [],
   deliveryUnknown: false,
+  controlRefused: null,
   updatedAt: '2026-10-05T11:30:00.000Z',
   ...over,
 })
