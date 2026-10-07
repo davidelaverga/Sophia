@@ -933,6 +933,14 @@
     padding-bottom: calc(var(--floor) + 58px);
   }
 }
+/* A finger's reach: the icon controls and Send at 40 px. */
+@media (pointer: coarse) {
+  .conversations .icon-button,
+  .conv-send {
+    width: 40px;
+    height: 40px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .conv-context {
     transition: none !important;

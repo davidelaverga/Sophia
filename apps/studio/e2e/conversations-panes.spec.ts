@@ -312,3 +312,28 @@ test('panes · over 1180 px the list keeps no «Context»: the context is a pane
   await expect(list(page).getByRole('button', { name: 'Context' })).toBeHidden()
   await expect(context(page)).toBeVisible()
 })
+
+/** The controls narrower or shorter than a finger's 40 px. */
+const small = (controls: { w: number; h: number }[]) => controls.filter((b) => b.w < 40 || b.h < 40)
+
+test('panes @phone · on touch, every icon control and Send are at least 40 px', async ({ page }) => {
+  await page.goto(PAGE)
+  const sizes = async () =>
+    page
+      .locator('.conversations')
+      .locator('.icon-button:visible, .conv-send:visible')
+      .evaluateAll((all) =>
+        all.map((b) => {
+          const r = b.getBoundingClientRect()
+          return { name: b.getAttribute('aria-label') ?? b.textContent, w: r.width, h: r.height }
+        }),
+      )
+  // The list (New conversation), then a conversation (back, Context, Send), then its context (Close).
+  expect(small(await sizes())).toEqual([])
+  await rows(page).first().click()
+  await field(page).fill('Reach')
+  expect(small(await sizes())).toEqual([])
+  await toggle(page).click()
+  await expect(context(page)).toBeVisible()
+  expect(small(await sizes())).toEqual([])
+})

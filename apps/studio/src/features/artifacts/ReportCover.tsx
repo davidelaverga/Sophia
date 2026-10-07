@@ -64,7 +64,8 @@ function useCurrent(card: ReportCard, identity: Identity, near: boolean) {
   })
   const id = card.currentVersionId
   const version: ArtifactVersion | undefined = versions.data?.find((v) => v.id === id)
-  const absent = versions.isSuccess && versions.fetchStatus === 'idle' && version === undefined
+  // Only within reach: versions already in the cache (the viewer's) never read again for a tile out of sight.
+  const absent = near && versions.isSuccess && versions.fetchStatus === 'idle' && version === undefined
   const [reread, setReread] = useState<string | null>(null)
   const { refetch } = versions
   useEffect(() => {
