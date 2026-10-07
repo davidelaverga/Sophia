@@ -2,11 +2,13 @@
 // is one intent with one key, held by the view (talk-store.ts), as is a refusal that answers it: with no reply it says
 // so, and Send sends that message again under its key, never a second one, even after the person went elsewhere and
 // came back. A message the API accepted goes into the page at once. The field clears only if it still holds what was
-// sent. Enter sends; Shift+Enter starts a line. On its way, Send says so.
+// sent. Enter sends; Shift+Enter starts a line. On its way, Send says so. «Ask Sophia» is a checkbox shown as a chip
+// with her mark (docs/plans/conversation-thread.md).
 import { useQueryClient } from '@tanstack/react-query'
 import type { ApiError } from '../../api/client.ts'
 import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { firstWords, messagesKey, withMessage, type ReadPages } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
@@ -86,37 +88,85 @@ export function ConversationComposer(props: Props) {
         void go()
       }}
     >
-      <textarea
-        aria-label="Continue this question with the team"
-        placeholder="Continue this question with the team"
-        rows={2}
-        value={draft}
-        onChange={(e) => onDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
-          e.preventDefault()
-          void go()
-        }}
-      />
-      <div className="conv-compose-acts">
-        <label className="conv-ask">
-          <input
-            type="checkbox"
-            checked={asks}
-            disabled={held !== null}
-            onChange={(e) => props.onAskSophia(e.target.checked)}
-          />
-          Ask Sophia
-        </label>
-        <button type="submit" className="pill" aria-disabled={!ready || busy || undefined}>
-          {busy ? 'Sending…' : 'Send'}
-        </button>
+      <div className="conv-field-box">
+        <textarea
+          aria-label="Continue this question with the team"
+          placeholder="Continue this question with the team"
+          rows={1}
+          value={draft}
+          onChange={(e) => onDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
+            e.preventDefault()
+            void go()
+          }}
+        />
+        <AskSophia on={asks} held={held !== null} onChange={props.onAskSophia} />
+        <SendButton ready={ready} busy={busy} />
       </div>
+      <p className="conv-compose-hint">
+        <span data-asked={asks || undefined}>{asks ? 'Sophia will answer' : 'To the team only'}</span>
+        <span>Enter sends · Shift+Enter, a new line</span>
+      </p>
       {(words ?? slow) && (
         <p className="conv-note" role="alert">
           {words ?? SLOW_NOTE}
         </p>
       )}
     </form>
+  )
+}
+
+/** «Ask Sophia» in the field: her mark, lit when on; a checkbox under it, named so; still while a message waits. */
+function AskSophia(props: { on: boolean; held: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="conv-ask" title="Ask Sophia">
+      <input
+        type="checkbox"
+        checked={props.on}
+        disabled={props.held}
+        onChange={(e) => props.onChange(e.target.checked)}
+      />
+      <span className="conv-ask-box" aria-hidden />
+      <Mark />
+      <span className="sr-only">Ask Sophia</span>
+    </label>
+  )
+}
+
+/** Send: an arrow, lit once there is something to send; its name says when it is on its way. */
+function SendButton({ ready, busy }: { ready: boolean; busy: boolean }) {
+  return (
+    <button
+      type="submit"
+      className="conv-send"
+      data-ready={(ready && !busy) || undefined}
+      data-busy={busy || undefined}
+      aria-disabled={!ready || busy || undefined}
+    >
+      {busy ? (
+        <svg className="conv-send-arc" width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+          <path
+            d="M7 1.5a5.5 5.5 0 1 1-5.5 5.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+          <path
+            d="M7 12V2M2.5 6.5L7 2l4.5 4.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+      <span className="sr-only">{busy ? 'Sending…' : 'Send'}</span>
+    </button>
   )
 }

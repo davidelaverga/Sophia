@@ -49,7 +49,7 @@ export function MiniDock({ room, looking, onOpen }: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const note = room.mediaError ?? room.error
   return (
-    <div className="mini-dock" role="group" aria-label="Project room">
+    <div className="mini-dock" role="group" aria-label="Project room" data-live={live || undefined}>
       <LookingIndicator text={looking} />
       {note && (
         <p className="dock-note mini-note" role="alert">
