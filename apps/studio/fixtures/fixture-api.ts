@@ -651,12 +651,22 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
 function versionsOf(project: Project, path: string): Response | Promise<Response> | null {
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path === `/api/v1/artifacts/${OLDER_REPORT}/versions`) return json(olderVersions())
-  const shelved = DEMO
-    ? libraryVersions(/^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions$/.exec(path)?.[1] ?? '')
-    : null
-  if (shelved) return json(shelved)
+  // The older report cites nothing: its Sources tab reads an empty list.
+  if (path.startsWith(`/api/v1/artifacts/${OLDER_REPORT}/versions/`) && path.endsWith('/sources')) {
+    return json({ sources: [] })
+  }
+  const shelved = DEMO ? shelvedRead(path) : null
+  if (shelved) return shelved
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   return null
+}
+
+/** The demo library's reports (demo-library.ts): their one version, and their sources, none. */
+function shelvedRead(path: string): Response | null {
+  const listed = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions(\/[0-9a-f-]{36}\/sources)?$/.exec(path)
+  const shelf = listed ? libraryVersions(listed[1] ?? '') : null
+  if (!listed || !shelf) return null
+  return json(listed[2] ? { sources: [] } : shelf)
 }
 
 /** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
