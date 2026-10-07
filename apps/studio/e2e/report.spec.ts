@@ -886,6 +886,23 @@ test('HTML · the viewer shows the designed page in a frame with no permission, 
   expect(await savedText(download)).toBe(DESIGNED.text) // what is shown is what downloads
 })
 
+test('HTML · enlarged, the designed page takes the pane’s width, not a frame’s default 300 px', async ({ page }) => {
+  await enter(page, '/room.html?place=work&designed=on')
+  await page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' }).click()
+  await pane(page).getByRole('button', { name: 'Enlarge' }).click()
+  await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'full')
+  // What the frame lacks of the pane's inner width, once the pane has grown (it grows over 220 ms).
+  const short = () =>
+    frame(page).evaluate((el) => {
+      const body = el.closest('.report-pane-body')
+      if (!body) return Infinity
+      const style = getComputedStyle(body)
+      const inner = body.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+      return inner < 700 ? Infinity : Math.round(inner - el.getBoundingClientRect().width)
+    })
+  await expect.poll(short).toBeLessThanOrEqual(1)
+})
+
 test('HTML · a designed page that does not match its record is not shown', async ({ page }) => {
   await enter(page, `/room.html?report=${REPORT}&format=html&designed=on&tamper=html`)
   await expect(pane(page).getByRole('alert')).toHaveText('This page did not match its record, so it is not shown.')
