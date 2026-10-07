@@ -968,14 +968,17 @@ CREATE FUNCTION sophia.work_denial_text(p_code text) RETURNS text LANGUAGE sql I
 REVOKE ALL ON FUNCTION sophia.work_denial_text(text) FROM PUBLIC;
 
 -- POST /v1/coordination/permit: may this Paperclip run act on its issue's work, and how. A live or uncertain attempt
--- is attached to; only a work item with no attempt yet is started; anything else is denied before any effect. Asking
--- again for the same run answers the same way.
+-- is attached to; only a work item with no attempt yet is started; anything else is denied before any effect. A run
+-- that started, attached or ended is answered as recorded, with its attempt. A start permit the run has not used is
+-- decided again under current authority (Codex on #107: an expired one was otherwise replayed forever): still
+-- startable, it is kept, renewed once expired; attached to the attempt another run started meanwhile; or denied, with
+-- the run's record left as it was. Only the run's own credential asks for it again.
 CREATE FUNCTION sophia.coordination_permit(p_token_sha256 bytea, p_request jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE company text:=p_request->>'companyId'; issue text:=p_request->>'issueId'; run_id text:=p_request->>'runId';
  ci sophia.coordination_integrations:=sophia.coordination_caller(p_token_sha256,company); cm sophia.work_commissions;
  w sophia.work_items; g sophia.goals; cg sophia.coordination_grants; asg sophia.work_assignments; r sophia.work_runs;
- code text; live uuid; decision text; b sophia.execution_bindings;
+ code text; live uuid; chosen text; b sophia.execution_bindings;
 BEGIN
  IF coalesce(issue,'') !~ '^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$' OR coalesce(run_id,'') !~ '^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$' THEN
   RAISE EXCEPTION 'A permit names its issue and its run' USING ERRCODE='22023'; END IF;
@@ -985,40 +988,53 @@ BEGIN
  END IF;
  PERFORM 1 FROM sophia.projects WHERE id=cm.project_id FOR UPDATE;
  SELECT * INTO w FROM sophia.work_items WHERE project_id=cm.project_id AND id=cm.work_id FOR UPDATE;
- SELECT * INTO r FROM sophia.work_runs WHERE paperclip_company_id=company AND paperclip_run_id=run_id;
+ SELECT * INTO r FROM sophia.work_runs WHERE paperclip_company_id=company AND paperclip_run_id=run_id FOR UPDATE;
  IF FOUND THEN
   IF r.work_id<>w.id OR r.paperclip_issue_id<>issue THEN RAISE EXCEPTION 'Integration run names another issue' USING ERRCODE='42501'; END IF;
-  RETURN jsonb_build_object('decision',r.decision,'workId',w.id,'assignmentId',r.assignment_id,'generation',r.assignment_generation,
-   'attemptId',r.attempt_id,'permitExpiresAt',r.permit_expires_at,'state',r.state);
+  IF r.integration_id<>ci.id THEN RAISE EXCEPTION 'Integration run belongs to another credential' USING ERRCODE='42501'; END IF;
+  IF r.state<>'permitted' THEN
+   SELECT * INTO b FROM sophia.execution_bindings WHERE project_id=r.project_id AND attempt_id=r.attempt_id;
+   RETURN jsonb_build_object('decision',r.decision,'workId',w.id,'assignmentId',r.assignment_id,'generation',r.assignment_generation,
+    'attemptId',r.attempt_id,'nativeSessionId',b.native_session_id,'permitExpiresAt',r.permit_expires_at,'state',r.state);
+  END IF;
  END IF;
  SELECT * INTO g FROM sophia.goals WHERE project_id=cm.project_id AND id=w.execution_goal_id FOR UPDATE;
  SELECT * INTO cg FROM sophia.coordination_grants WHERE project_id=cm.project_id;
  SELECT * INTO asg FROM sophia.work_assignments WHERE project_id=cm.project_id AND work_id=w.id AND state='active';
  code:=sophia.work_denial(cm.project_id,w,g,cg,company);
+ IF code IS NULL AND r.paperclip_run_id IS NOT NULL
+  AND (asg.id IS DISTINCT FROM r.assignment_id OR asg.generation<>r.assignment_generation) THEN code:='stale_assignment'; END IF;
  IF code IS NULL THEN
   live:=sophia.work_live_attempt(cm.project_id,w);
-  IF live IS NOT NULL THEN decision:='attach';
+  IF live IS NOT NULL THEN chosen:='attach';
   ELSIF EXISTS(SELECT 1 FROM sophia.work_attempts wa WHERE wa.project_id=cm.project_id AND wa.goal_id=w.execution_goal_id) THEN code:='attempt_ended';
   ELSIF (sophia.work_runtime(cm.project_id,asg.role,asg.route)).id IS NULL THEN code:='runtime_unavailable';
   ELSIF NOT sophia.work_allowance_left(cm.project_id,w) THEN code:='allowance_spent';
-  ELSE decision:='start';
+  ELSE chosen:='start';
   END IF;
  END IF;
  IF code IS NOT NULL THEN
   PERFORM sophia.emit_service_event(cm.project_id,'work.permit_denied','work_item',w.id,g.state_revision,'work.permit_denied.'||code);
   RETURN jsonb_build_object('decision','deny','code',code,'reason',sophia.work_denial_text(code),'workId',w.id);
  END IF;
- INSERT INTO sophia.work_runs(paperclip_company_id,paperclip_run_id,project_id,work_id,integration_id,paperclip_issue_id,paperclip_agent_id,
-  assignment_id,assignment_generation,decision,permit_expires_at,attempt_id,state)
- VALUES(company,run_id,cm.project_id,w.id,ci.id,issue,left(p_request->>'agentId',128),asg.id,asg.generation,decision,
-  now()+interval '5 minutes',live,CASE decision WHEN 'attach' THEN 'attached' ELSE 'permitted' END) RETURNING * INTO r;
+ IF r.paperclip_run_id IS NULL THEN
+  INSERT INTO sophia.work_runs(paperclip_company_id,paperclip_run_id,project_id,work_id,integration_id,paperclip_issue_id,paperclip_agent_id,
+   assignment_id,assignment_generation,decision,permit_expires_at,attempt_id,state)
+  VALUES(company,run_id,cm.project_id,w.id,ci.id,issue,left(p_request->>'agentId',128),asg.id,asg.generation,chosen,
+   now()+interval '5 minutes',live,CASE chosen WHEN 'attach' THEN 'attached' ELSE 'permitted' END) RETURNING * INTO r;
+ ELSE
+  UPDATE sophia.work_runs SET decision=chosen, attempt_id=live, state=CASE chosen WHEN 'attach' THEN 'attached' ELSE 'permitted' END,
+   permit_expires_at=CASE WHEN chosen='start' AND permit_expires_at>=now() THEN permit_expires_at ELSE now()+interval '5 minutes' END
+   WHERE paperclip_company_id=company AND paperclip_run_id=run_id RETURNING * INTO r;
+ END IF;
  SELECT * INTO b FROM sophia.execution_bindings WHERE project_id=cm.project_id AND attempt_id=live;
- RETURN jsonb_build_object('decision',decision,'workId',w.id,'assignmentId',asg.id,'generation',asg.generation,'attemptId',live,
+ RETURN jsonb_build_object('decision',chosen,'workId',w.id,'assignmentId',asg.id,'generation',asg.generation,'attemptId',live,
   'nativeSessionId',b.native_session_id,'permitExpiresAt',r.permit_expires_at,'state',r.state);
 END $$;
 
 -- POST /v1/coordination/start: the permitted run starts the work's one attempt through the ordinary native path. Called
--- immediately after the adapter's onDispatch; the same run asking again gets the same attempt.
+-- immediately after the adapter's onDispatch; the same run asking again gets the same attempt, even once the run ended.
+-- A run that ended without starting one starts nothing: a new run asks for its own permit.
 CREATE FUNCTION sophia.coordination_start(p_token_sha256 bytea, p_request jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE company text:=p_request->>'companyId'; ci sophia.coordination_integrations:=sophia.coordination_caller(p_token_sha256,company);
@@ -1031,10 +1047,11 @@ BEGIN
  IF r.integration_id<>ci.id THEN RAISE EXCEPTION 'Integration run belongs to another credential' USING ERRCODE='42501'; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=r.project_id FOR UPDATE;
  SELECT * INTO r FROM sophia.work_runs WHERE paperclip_company_id=company AND paperclip_run_id=p_request->>'runId' FOR UPDATE;
- IF r.state='started' THEN
+ IF r.decision='start' AND r.attempt_id IS NOT NULL THEN
   RETURN jsonb_build_object('attemptId',r.attempt_id,'nativeSessionId','sophia-'||r.attempt_id,'workId',r.work_id,'started',false);
  END IF;
  IF r.decision<>'start' THEN RAISE EXCEPTION 'This run attaches to an attempt; it starts none' USING ERRCODE='40001'; END IF;
+ IF r.state='ended' THEN RAISE EXCEPTION 'This run ended without starting the work; a new run asks for its own permit' USING ERRCODE='40001'; END IF;
  IF r.permit_expires_at<now() THEN RAISE EXCEPTION 'Stale permit: ask for a permit again' USING ERRCODE='40001'; END IF;
  SELECT * INTO w FROM sophia.work_items WHERE project_id=r.project_id AND id=r.work_id FOR UPDATE;
  SELECT * INTO g FROM sophia.goals WHERE project_id=r.project_id AND id=w.execution_goal_id FOR UPDATE;

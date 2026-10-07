@@ -1121,3 +1121,266 @@ describe('bounds and recovery', () => {
     assert.notEqual(asMember.status, 200)
   })
 })
+
+// Codex on #107 (r4206690881): a run that paused past its permit's five minutes before starting was answered the same
+// expired permit for ever, and every start was refused. A start permit not yet used is decided again under current
+// authority: kept or renewed, attached to another run's attempt, or denied with the run's record as it was.
+describe('a start permit asked for again before it was used (Codex on #107)', () => {
+  type Run = { companyId: string; runId: string }
+
+  const ask = (w: World, run: Run, bearer = INTEGRATION_TOKEN) =>
+    sophia(bearer).permit({ ...run, issueId: issueOf(w).id, agentId: 'agent-source-reviewer' })
+
+  /** A new run of the world's one issue, permitted to start and not started yet. */
+  async function permitted(w: World, name: string, bearer = INTEGRATION_TOKEN): Promise<Run> {
+    const run = { companyId: COMPANY, runId: runId(name) }
+    const permit = await ask(w, run, bearer)
+    assert.deepEqual(
+      [permit.decision, permit.state, permit.attemptId],
+      ['start', 'permitted', null],
+      JSON.stringify(permit),
+    )
+    return run
+  }
+
+  /** Its expiry passed before any start, as Codex reproduced it: only the durable expiry is aged. */
+  const expire = (run: Run) =>
+    asOwner((o) =>
+      o.query(`UPDATE sophia.work_runs SET permit_expires_at=now()-interval '6 minutes' WHERE paperclip_run_id=$1`, [
+        run.runId,
+      ]),
+    )
+
+  /** The run's record, as Sophia keeps it. */
+  const recordOf = (run: Run) =>
+    asOwner(
+      async (o) =>
+        (
+          await o.query<{
+            decision: string
+            state: string
+            attempt_id: string | null
+            generation: number
+            expires: string
+          }>(
+            `SELECT decision, state, attempt_id, assignment_generation AS generation, permit_expires_at::text AS expires
+               FROM sophia.work_runs WHERE paperclip_run_id=$1`,
+            [run.runId],
+          )
+        ).rows[0],
+    )
+
+  const attempts = (w: World) =>
+    asOwner(
+      async (o) =>
+        (
+          await o.query<{ n: number }>(`SELECT count(*)::int AS n FROM sophia.work_attempts WHERE project_id=$1`, [
+            w.projectId,
+          ])
+        ).rows[0]?.n,
+    )
+
+  /** Accepted and commissioned: the issue's runs may ask for permits. */
+  async function commissioned() {
+    const w = await world()
+    const proposal = await accepted(w)
+    await deliver(w)
+    return { w, proposal }
+  }
+
+  it('an expired one is renewed for its own run, and starts one attempt however often and concurrently asked', async () => {
+    const { w } = await commissioned()
+    const run = await permitted(w, 'paused')
+    await expire(run)
+    await assert.rejects(sophia().start(run), /ask for a permit again/)
+    assert.equal(await attempts(w), 0)
+
+    const [a, b] = await Promise.all([ask(w, run), ask(w, run)])
+    assert.deepEqual(a, b, 'asked twice at once: renewed once, answered the same')
+    assert.deepEqual([a.decision, a.state, a.attemptId, a.generation], ['start', 'permitted', null, 1])
+    assert.ok(Date.parse(String(a.permitExpiresAt)) > Date.now() + 60_000, JSON.stringify(a))
+    assert.deepEqual(await ask(w, run), a, 'a valid permit asked again is kept as it is, not extended')
+
+    const [s1, s2] = await Promise.all([sophia().start(run), sophia().start(run)])
+    assert.equal(s1.attemptId, s2.attemptId)
+    assert.equal([s1.started, s2.started].filter((s) => s === true).length, 1, 'one of the two started it')
+    assert.equal(await attempts(w), 1)
+    const started = await ask(w, run)
+    assert.deepEqual(
+      [started.decision, started.state, started.attemptId, started.nativeSessionId],
+      ['start', 'started', s1.attemptId, `sophia-${String(s1.attemptId)}`],
+      'a started run is answered as recorded, with its attempt',
+    )
+    await sophia().observe({ ...run, final: true })
+    assert.equal((await recordOf(run))?.state, 'ended')
+    const ended = await sophia().start(run)
+    assert.deepEqual(
+      [ended.attemptId, ended.started],
+      [s1.attemptId, false],
+      'its own attempt, even once the run ended',
+    )
+    assert.equal(await attempts(w), 1)
+  })
+
+  it('one asked again while the work is held, its allowance spent or no runtime carries it is denied, and kept as it was', async () => {
+    const { w, proposal } = await commissioned()
+    const run = await permitted(w, 'paused')
+    await expire(run)
+    const kept = await recordOf(run)
+    const deniedAs = async (code: string) => {
+      const reply = await ask(w, run)
+      assert.deepEqual([reply.decision, reply.code], ['deny', code], JSON.stringify(reply))
+      assert.deepEqual(await recordOf(run), kept, `${code}: the run's record is as it was`)
+      await assert.rejects(sophia().start(run), /ask for a permit again/, `${code}: still nothing to start with`)
+      assert.equal(await attempts(w), 0, code)
+    }
+
+    const hold = await command(w, proposal, 'hold', null)
+    assert.equal(hold.status, 202, JSON.stringify(hold.json))
+    await dispatchDue()
+    const held = await member(E, `/api/v1/projects/${w.projectId}/work/operations/${String(hold.json.operation_id)}`)
+    assert.equal(held.json.effect, 'held', JSON.stringify(held.json))
+    await deniedAs('held')
+    const resume = await command(w, proposal, 'resume', null)
+    assert.equal(resume.status, 202, JSON.stringify(resume.json))
+
+    const spend = (to: 'cap_usd' | '0') =>
+      asOwner((o) =>
+        o.query(
+          `UPDATE sophia.research_allowances a SET spent_usd=${to} FROM sophia.work_items wi
+            WHERE wi.project_id=a.project_id AND wi.allowance_id=a.id AND wi.project_id=$1`,
+          [w.projectId],
+        ),
+      )
+    await spend('cap_usd')
+    await deniedAs('allowance_spent')
+    await spend('0')
+
+    const roles = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ roles: unknown }>(`SELECT roles FROM sophia.runtime_instances WHERE project_id=$1`, [
+            w.projectId,
+          ])
+        ).rows[0]?.roles,
+    )
+    const carry = (value: unknown) =>
+      asOwner((o) =>
+        o.query(`UPDATE sophia.runtime_instances SET roles=$2::jsonb WHERE project_id=$1`, [
+          w.projectId,
+          JSON.stringify(value),
+        ]),
+      )
+    await carry([])
+    await deniedAs('runtime_unavailable')
+    await carry(roles)
+
+    // Authority whole again: renewed, and started once.
+    const renewed = await ask(w, run)
+    assert.deepEqual([renewed.decision, renewed.state], ['start', 'permitted'], JSON.stringify(renewed))
+    assert.notEqual((await recordOf(run))?.expires, kept?.expires)
+    const started = await sophia().start(run)
+    assert.equal(started.started, true, JSON.stringify(started))
+    assert.equal(await attempts(w), 1)
+  })
+
+  it("only the run's own credential asks again; a revoked one, an earlier assignment or a withdrawn input renew nothing", async () => {
+    const { w } = await commissioned()
+    const SECOND = 'sophia-dsh-adapter-capability-for-tests-0003'
+    const second = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ id: string }>(
+            `SELECT sophia.register_coordination_integration($1, $2, 'a second adapter') AS id`,
+            [COMPANY, sha256(SECOND)],
+          )
+        ).rows[0]?.id,
+    )
+    const theirs = await permitted(w, 'theirs', SECOND)
+    const ours = await permitted(w, 'ours')
+    await expire(theirs)
+    await expire(ours)
+    const keptTheirs = await recordOf(theirs)
+    const keptOurs = await recordOf(ours)
+
+    await assert.rejects(
+      ask(w, theirs),
+      refusedAs('forbidden'),
+      "another credential of the same company: not this run's",
+    )
+    await assert.rejects(ask(w, ours, SECOND), refusedAs('forbidden'))
+    await assert.rejects(sophia(SECOND).start(ours), refusedAs('forbidden'))
+    await asOwner((o) => o.query(`SELECT sophia.revoke_coordination_integration($1)`, [second]))
+    await assert.rejects(ask(w, theirs, SECOND), refusedAs('forbidden'), 'a revoked credential')
+    await assert.rejects(sophia(SECOND).start(theirs), refusedAs('forbidden'))
+    assert.deepEqual(await recordOf(theirs), keptTheirs)
+
+    // The work's assignment changed since the run was permitted: the run belongs to the earlier one.
+    await asOwner(async (o) => {
+      await o.query(`UPDATE sophia.work_assignments SET state='ended' WHERE project_id=$1 AND state='active'`, [
+        w.projectId,
+      ])
+      await o.query(
+        `INSERT INTO sophia.work_assignments(project_id,id,work_id,generation,executor_kind,role,route)
+         SELECT project_id,gen_random_uuid(),work_id,generation+1,executor_kind,role,route FROM sophia.work_assignments
+          WHERE project_id=$1`,
+        [w.projectId],
+      )
+    })
+    const stale = await ask(w, ours)
+    assert.deepEqual([stale.decision, stale.code], ['deny', 'stale_assignment'], JSON.stringify(stale))
+    assert.deepEqual(await recordOf(ours), keptOurs)
+    const current = await ask(w, { companyId: COMPANY, runId: runId('current') })
+    assert.deepEqual([current.decision, current.generation], ['start', 2], 'a run of the current assignment may start')
+
+    // An input withdrawn stops the work: nothing is renewed.
+    await asOwner((o) =>
+      o.query(`UPDATE sophia.source_objects SET eligible=false WHERE project_id=$1 AND id=$2`, [
+        w.projectId,
+        w.sourceA,
+      ]),
+    )
+    const withdrawn = await ask(w, ours)
+    assert.deepEqual([withdrawn.decision, withdrawn.code], ['deny', 'stopped'], JSON.stringify(withdrawn))
+    assert.deepEqual(await recordOf(ours), keptOurs)
+    assert.equal(await attempts(w), 0)
+  })
+
+  it('one asked again after another run started the work attaches to that attempt; once it ended, nothing starts', async () => {
+    const { w } = await commissioned()
+    const late = await permitted(w, 'late')
+    const waiting = await permitted(w, 'waiting')
+    const raced = await permitted(w, 'raced')
+    await expire(late)
+    await expire(waiting)
+    const other = await permitted(w, 'other')
+    const started = await sophia().start(other)
+    assert.equal(started.started, true, JSON.stringify(started))
+
+    const attach = await ask(w, late)
+    assert.deepEqual(
+      [attach.decision, attach.state, attach.attemptId, attach.nativeSessionId],
+      ['attach', 'attached', started.attemptId, `sophia-${String(started.attemptId)}`],
+    )
+    assert.deepEqual(await ask(w, late), attach, 'asked again, the same attempt')
+    await assert.rejects(sophia().start(late), /attaches/)
+    // A permit still valid that lost the race is told to ask again, and asking again attaches it.
+    await assert.rejects(sophia().start(raced), /another run started this work/)
+    assert.equal((await ask(w, raced)).attemptId, started.attemptId)
+    assert.equal(await attempts(w), 1)
+
+    // The attempt ends while the work is neither held, stopped nor finished: a new decision is needed, not a restart.
+    await asOwner((o) =>
+      o.query(`UPDATE sophia.execution_bindings SET state='settled' WHERE project_id=$1 AND attempt_id=$2`, [
+        w.projectId,
+        started.attemptId,
+      ]),
+    )
+    const kept = await recordOf(waiting)
+    const ended = await ask(w, waiting)
+    assert.deepEqual([ended.decision, ended.code], ['deny', 'attempt_ended'], JSON.stringify(ended))
+    assert.deepEqual(await recordOf(waiting), kept)
+    await assert.rejects(sophia().start(waiting), /ask for a permit again/)
+    assert.equal(await attempts(w), 1)
+  })
+})

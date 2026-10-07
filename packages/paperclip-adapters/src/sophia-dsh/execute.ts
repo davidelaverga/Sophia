@@ -247,7 +247,8 @@ async function start(
  * How long a run keeps asking for its permit while Sophia does not answer, and the waits between asks. Sophia's API may
  * be waking from sleep (a free instance answers its first request after a sleep in more than one 15 s call), and a run
  * that fails for it leaves its issue under the host's recovery hold. Asking again is safe: Sophia answers a run's
- * second permit with the decision it recorded for the first (`coordination_permit`, keyed by the run).
+ * second permit as it recorded the first, or, for a start not yet made, decides it again under current authority, and
+ * never with a second attempt (`coordination_permit`, keyed by the run).
  */
 const PERMIT_PATIENCE_MS = 120_000
 const PERMIT_WAITS_MS: readonly number[] = [5000, 10_000, 20_000]
