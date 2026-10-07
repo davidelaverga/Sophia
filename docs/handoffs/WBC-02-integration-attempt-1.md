@@ -1,0 +1,121 @@
+# Implementation-session handoff
+
+Goal and attempt: WBC-02 (SCM-01), the combined integration of #107 with the accepted #117 (SDD-01 Design) and #119 (the Paperclip image's CI), and with main; then the three findings of Codex's automatic review of the combined head. Attempt 1: plan WBC-02-CC-0043 to CC-0046, transfers CC-0047 and CC-0048, handback 6036077438
+Human owner / executor resource: Davide (decisions); Codex (coordination, independent review, two pushes, local checks); Claude Code in a cloud container (linux-x64), the only tracked-source writer
+Native session: this Claude Code session (https://claude.ai/code/session_0155SjcXhv87RErnWEBWxfBM); no Sophia native session was created
+Starting worktree/commit: the held #107 branch `scm-01/workboard-source-review` at `29371f5a3703f4358563886407bc360df7c38603`, in a fresh worktree with no ignored build outputs
+Ending commit/tree: the content commit «WBC-02 #107: Codex's three findings on the combined head 5bbd59b1» (`df183a5f645adcca3dfe18964e627687253b51bd`, tree `8b5d6fda1a19b8009633fcbc5b6aa20655fcf905`), the parent of this handoff's commit. Before it, three merge commits, each on the one before; nothing is rebased or force-pushed:
+
+| Commit | Tree | Merges | Changes beyond its parents |
+| --- | --- | --- | --- |
+| `53059b2dfd8183d4c66acc0e45075c6d0b9f0546` | `e6eef57877a4a08cb55bb9695a5cc35e17da29b7` | #119 at `ad749f1b527fdbc11af2e21abe35a52bccb173b2` | none: a clean merge |
+| `b4cd29e54b3a51de3da6b5ed3e418f32e4957ce0` | `522c3e3c4ac04197eb8040a48fde6819f6ab06fc` | #117 at `59f9881b0db9813d6a7155ccd87164d7e2ebb903` | none: a clean merge |
+| `5bbd59b193b52288f199b3109fc5aa65c222d9b0` | `9ae6622c0d2b123c4504122e6dc30e474b049c7a` | main at `95c375ce74e6bc1f512fa54415c4c8cc0ed7d21f` (through #146) | `ProjectShell.tsx`, resolved (blob `980b0c78`); `fixture-api.ts`, merged automatically (blob `178e2729`) |
+
+This session made the three merges. Codex pushed them as the original signed objects, with fast-forward pushes: `b4cd29e5` (from CC-0047), then `5bbd59b1` (from CC-0048).
+
+## Outcome
+
+**The combined candidate `5bbd59b1`** holds:
+- #107's source review: Tasks' served board, the door, the pilot entry, and the API, worker, plugin, adapter and runtime;
+- #117's Design as accepted at `59f9881b`;
+- #119's image qualification as accepted at `ad749f1`;
+- main through #146.
+
+**The only conflict** was `apps/studio/src/features/studio/ProjectShell.tsx`, in five chunks. All five are unions, so neither side's behavior is dropped:
+1. **Imports:** main's `useKnownNames`, `UpdatesView`, `Connections` and `ConversationsView`, plus #107's `readsServedBoard`.
+2. **`ProjectShell` body:** main's `searching`/`search`, then #107's `doorOf(snapshot)` and `useTasksWork(...)`. These replace main's inline door, which computes the same thing.
+3. **`ProjectBody` call:** `{...work}`, which carries `plans` and `entry`, beside main's `search={…}`.
+4. **`BodyProps`:** #107's `entry?` and main's `search`.
+5. **`PageBody`:** main's form, with `Knowledge`, Conversations and Updates.
+
+The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, against 12. So the Goals and Work branch moves into a `Goals` component, as main already moved `Knowledge`. Against main's file, the resolution adds only #107's lines.
+
+**The automatic `fixture-api.ts` merge** keeps every main route, including #142's replies and #143's. #107's `workRead` still answers GET `/plans` and `/plans/source-review` through `answerReports` → `answerReport`, and no main route reaches those paths first.
+
+**Preserved from main** (CC-0043 to CC-0046), with no #107-side change to their files:
+- #138: following per call, `newCall`, the reconnect sequence, the Leave recovery, «After the meeting».
+- #140 and #142: tile overflow, the in-call sheet, `joinedAt`/`arrivalOrder`, replies, the failed-replies status, Stop replying.
+- #139 and #143: `forgetKept`/account generation, drafts, held intent and read-before-send; the generation captured before an awaited held write; cache effects only after the guard; the matching `onAnswered` timestamp; the fixture's `endMeeting`, `forgetAccount` and late-receipt markers.
+- #133, #134, #136 and #137: Conversations, Knowledge `CarriedIn`, Connections, the snapshot cursor.
+- #144 to #146: the time words.
+
+**The Personal spacing test** (`personal.spec.ts:616`, CC-0046) needed nothing here. Main's #144–#146 already pins its navigation to `${PAGE}?at=12:00`, with every assertion unchanged.
+
+**The hover-fade failure** (`personal.spec.ts:382`) is not addressed here, by Codex's direction. Its evidence: 7 of 15 failures on #138's head `1f8f94cc` and 4 of 15 on main `580aee4c`; a pointer-away patch passed 30 of 30 on a scratch worktree.
+
+**Codex's three findings on `5bbd59b1`**, each reproduced by Codex (r4205877266, r4205877521, r4205877853) and fixed in `df183a5f`:
+
+1. **A reconciled commission is delivered only once its issue is bound and woken** (r4205800906, `apps/worker/src/coordination-dispatch.ts`). The lookup's `found` alone no longer settles the delivery. The commission is sent again. The plugin answers it from the issue it finds, binds it, and asks its wakeup unless one is confirmed (`wakeOnce`/`reask`, unchanged). Only that answer is recorded:
+   - a wakeup the host does not queue is 503 `wake_not_queued`: unknown, never delivered;
+   - one asked and maybe in flight is 503 `wake_in_progress`: unknown;
+   - a durable one whose reply was lost is confirmed by its run, never asked again.
+   The result keeps `reconciled: true`.
+2. **A create claim is never taken over by time** (r4205800915, `packages/paperclip-plugin`). `CREATING_STALE_SECONDS` is gone. The claim follows the plugin's rules for status writes (CX-0017, CX-0020, CX-0024):
+   - The claim is recorded with the host process that serves its create (`create_host_namespace`, `create_host_process`).
+   - It ends when the host answered the create, with the issue (then bound) or with an error (then the issue its origin finds, if any, is the whole truth).
+   - A create the host never answered (`issues.create` is now bound through `answered`, like `update`, so it raises `UnansweredHostCall`) keeps the claim until an operator fences it. `fence-previous-instance.sql` gains `open-creates` and `fence-creates`, under the same session check as the writes' fence.
+   - Until then, lookup and resend answer 503 `commission_in_progress`, however old the row, and whichever process serves now.
+   - Once the key is claimed, its origin is looked up again: a create that ended with its issue just before is bound, not repeated. Any failure before the create is asked ends the claim.
+   - `001_sophia_coordination.sql` gains the claim's columns. The deploy README's rule is that it never changes once a service installed it; none has, since no deployment is authorized.
+3. **`/ready` requires 0043** (r4205800927, `apps/api/src/app.ts`). It requires `sophia.runtime_capture_issue(bytea,text,text,jsonb,text)` and `sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)`.
+   - **Why these two:** they are the only SQL functions this API calls that main's doesn't. That is the difference between main's and this head's `packages/persistence/src/design.ts`.
+   - **Why they prove the rest:** 0043 is one transaction, and its other changes replace functions under their own signatures (its header says so).
+   - **Compatibility:** the previous API requires nothing of 0043, so it stays ready on either database during a rolling deployment.
+
+## Evidence
+
+**Before the fix, on `5bbd59b1`:**
+- **Static checks on a preview tree,** not on these commits. The preview was #107 + #119 + #117 at `1317562f` + main `6cf6f634`, with the same resolution blob `980b0c78`. Results: `tsc`, `oxlint --type-aware .` and `prettier --check .` pass; Studio units 895 of 895.
+- **CI on `b4cd29e5`,** run 37603917072: all six jobs succeeded.
+- **The transfer of `5bbd59b1`,** rebuilt in a clean clone of published objects: `fixture-api.ts` `178e2729`, `ProjectShell.tsx` `980b0c78` from the posted patch (SHA-256 `fca15470…`), tree `9ae6622c`, raw commit (1,036 bytes, SHA-256 `ecdf8b42…`) `5bbd59b1`.
+- **Codex's checks on `5bbd59b1`** (reported, not rerun here):
+  - `pnpm check` passed: 1924 unit tests (1856 passed, 68 environment skips); 88 integration tests (86 passed, 2 skips); recorded runtime identities reproduce.
+  - The full Studio suite: 850 passed.
+  - 16 real SQL/HTTP/built-bridge recovery controls: passed.
+- **CI on `5bbd59b1`:**
+  - run 37606506613: all six jobs succeeded;
+  - Paperclip image run 37606506646: succeeded;
+  - run 37606502010: five jobs succeeded. The room in Chromium was cancelled at its 30-minute limit (`timeout-minutes: 30`, 30 min 21 s). The same job on the same commit passed in run 37606506613 in about 26 minutes, so the suite runs close to its limit.
+- **Codex's code and security reviews of `5bbd59b1`:** both terminal. The three code findings above; no security finding.
+
+**On the fix, in this session** (a scratch worktree at `5bbd59b1`, then `df183a5f`):
+- `prettier --check .`, `oxlint --type-aware .` and `pnpm typecheck` pass.
+- **Units of the touched packages** (plugin, coordination, persistence, worker, API): 101 of 101.
+- **`pnpm test`:** 1840 of 1853 pass, 1 skipped. The 12 failing files each fail to import `packages/dsh-bundle/dist/*`, which only `pnpm build` makes. It was not run here (see Decisions), and the fix does not touch the bundle.
+- **The plugin's statements** under the pinned host's runtime rules (`checkQuery`/`checkExecute`): every one passes, the four new ones included.
+- **No database test ran here:** there is no PostgreSQL in this container, and its restart was denied earlier. Not run here, so not claimed:
+  - the plugin tests (a create held at the host for an hour across a restart; unanswered, fenced and answered-error creates; both fence steps);
+  - the API crossings (the reconcile crash window; wakeup not queued; lost wakeup reply; 0042 then 0043 readiness; each 0043 function).
+  CI's `test:db` runs them on the pushed head, and the image job runs the plugin's migration through the pin's loader.
+
+**Source-register IDs consulted:** none.
+
+## Decisions and changes
+
+- **Order:** #119, then #117, then main, as merge commits; the fix as a commit on the merge. History is never rewritten.
+- **Records:** none needed regenerating. The runtime artifact covers `dsh-bundle` and `execution-host` only, and neither the merge nor the fix changes them. Codex's clean `pnpm check` on `5bbd59b1` reproduced every recorded identity.
+- **The plugin fix follows the plugin's own rule rather than a longer timeout.** The worker stops waiting after `HOST_CALL_TIMEOUT_MS`, but the host still runs the call and may still commit (CX-0017). No time, nor another process serving now, proves a create will not land. The cost is an operator fence for a create whose worker died or that the host never answered, the same cost as for status writes.
+- **Permission denials in this session,** each reported, neither worked around:
+  - `git merge --no-ff --no-commit 771f22489b53cd431bfc9989cf309333dfcc4c42` in the worktree was denied as «Modify Shared Resources». Davide then directed the commits pushed, and the work continued. The same merge, with main at `95c375ce`, ran.
+  - `pnpm toolchain:check && pnpm build && pnpm contracts:check; pnpm artifacts` on the uncommitted merge was denied as «Modify Shared Resources». So no build, contract or artifact check ran in this session, on either head.
+  - The PostgreSQL restart was denied earlier. No private database was started instead.
+- No native, paid, production, registry, storage or rights choices. No acceptance, merge or deployment follows from this source.
+
+## Remaining obligations
+
+- **On the fix head:**
+  - CI, including `test:db` with the new controls, and the Paperclip image job;
+  - Codex's independent review and local checks;
+  - automatic re-review of the corrected head.
+- **The final gates, before any merge to main or deployment:**
+  - the full Studio suite, run serially, with `room-tiles` (8 tests), `room-chat-replies` (13), `project-conversation-follow-ups` (13), the source-review (`work.spec.ts`), and the Room following and Leave checks;
+  - SQL/API, report and image-delivery crossings;
+  - artifact, contract and runtime-installation reproduction.
+- **The hover-fade failure** (`personal.spec.ts:382`) goes to its owner, with the evidence above. It is never counted as a green full-suite run.
+- **Records:** `docs/coordination/WBC-02/` stops at CC-0009. CC-0043 to CC-0048 are on the PR only.
+- **Not affected by this source:** the legacy #104 closures wait for actual fixes in main, and no native G6, perception or production acceptance follows from it.
+
+## Next bounded action
+
+Codex reviews `df183a5f` and this handoff against CI on the published head, then hands back an exact finding or failure, or proceeds to the final gates. This writer answers any finding on #107. Merging is Davide's decision.
