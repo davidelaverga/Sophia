@@ -330,8 +330,8 @@ export class ServiceTransport {
   }
 
   /**
-   * `signal` bounds the wait for an answer, as designSubmit's: the review tools then send the same call (same callId)
-   * again, and the service answers what it recorded (Codex on #107).
+   * `signal` ends the wait for an answer (its deadline, or a Hold or Stop of the review): the review tools then send the
+   * same call (same callId) again while the review is active, and the service answers what it recorded (Codex on #107).
    */
   async sourceReviewSubmit(body: SourceReviewSubmitRequest, signal?: AbortSignal): Promise<SourceReviewSubmission> {
     checked('review submit request', wire.SourceReviewSubmitRequest, body)

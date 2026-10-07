@@ -10,7 +10,7 @@
  * they are of, so a page whose reply never reached the model cannot be cited (Codex on #107). There is no web, shell, file or connector tool; the review's
  * model calls are metered by the bridge, not by a tool. Source text reaches the model only inside the
  * untrusted-data envelope. A submit or a blocker waits a bounded time for each answer, and one whose answer is lost is
- * sent again under the same callId, never past a Hold or Stop; the service answers it with what it recorded.
+ * sent again under the same callId; a Hold or Stop cuts it, and the service answers a resend with what it recorded.
  * @module @sophia/dsh-bundle/review-tools
  */
 
@@ -90,22 +90,22 @@ const pause = (ms: number, stop: AbortSignal): Promise<void> => new Promise((res
 /**
  * Send one submit until its outcome is known (Codex on #107): an answer, or a definite refusal. No answer within the
  * time left (each request is given it), an unreadable one or one off the contract, a 5xx, 408 or 429 is unknown, and
- * the same request is sent again, at most `tries` times within `maxMs`. The first is always sent (the service fences
- * a held or stopped review itself); none is sent again once `stop` fires (a Hold or Stop of the review), and one in
- * flight runs to its answer or its deadline, as the design tools' submit. Null when the outcome stays unknown.
+ * the same request is sent again, at most `tries` times within `maxMs`. A Hold or Stop of the review (`stop`) cuts a
+ * request in flight and sends none after it: 'stopped' when nothing was sent, 'unknown' when one was and its outcome
+ * stays unknown. A resend is safe: the service answers it with what it recorded.
  */
-async function untilAnswered<T>(send: (signal: AbortSignal) => Promise<T>, patience: Patience, stop: AbortSignal): Promise<{ value: T } | { error: unknown } | null> {
+async function untilAnswered<T>(send: (signal: AbortSignal) => Promise<T>, patience: Patience, stop: AbortSignal): Promise<{ value: T } | { error: unknown } | 'unknown' | 'stopped'> {
   const deadline = Date.now() + patience.maxMs
   let wait = patience.pauseMs
   for (let tried = 1; ; tried += 1) {
+    if (stop.aborted) return tried === 1 ? 'stopped' : 'unknown'
     try {
-      return { value: await send(AbortSignal.timeout(Math.max(1, deadline - Date.now()))) }
+      return { value: await send(AbortSignal.any([stop, AbortSignal.timeout(Math.max(1, deadline - Date.now()))])) }
     } catch (error) {
       if (definite(error)) return { error }
     }
-    if (stop.aborted || tried >= patience.tries || Date.now() + wait >= deadline) return null
+    if (tried >= patience.tries || Date.now() + wait >= deadline) return 'unknown'
     await pause(wait, stop)
-    if (stop.aborted) return null
     wait *= 2
   }
 }
@@ -113,7 +113,8 @@ async function untilAnswered<T>(send: (signal: AbortSignal) => Promise<T>, patie
 /** A submit or a blocker, sent until its outcome is known; a refusal becomes one sentence for the model. */
 async function submitted(client: ReviewClient, body: SourceReviewSubmitRequest, patience: Patience, stop: AbortSignal, note: string): Promise<Json> {
   const sent = await untilAnswered((signal) => client.sourceReviewSubmit(body, signal), patience, stop)
-  if (sent === null) return { ...SUBMIT_UNKNOWN }
+  if (sent === 'stopped') return { code: 'invalid_state', message: MESSAGES.invalid_state ?? 'This review is not active.' }
+  if (sent === 'unknown') return { ...SUBMIT_UNKNOWN }
   if ('value' in sent) return asJson({ ...sent.value, note })
   const refusal = contractRefusal(sent.error)
   if (refusal) return refusal

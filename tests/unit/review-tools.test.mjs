@@ -151,6 +151,31 @@ test('a submit or a blocker Sophia never answers ends within its deadline, unkno
   clearTimeout(alive)
 })
 
+test('a Hold or Stop cuts a submit Sophia has not answered, at once; its outcome is unknown, never a refusal', async () => {
+  const held = new AbortController()
+  const service = fakeService({
+    submit: (body, signal) => {
+      setTimeout(() => held.abort(), 20)
+      return unanswered(body, signal)
+    },
+  })
+  const started = Date.now()
+  const out = await tools(service, SESSION, { tries: 4, pauseMs: 1, maxMs: 60_000 }).report_review_blocker.execute({ reason: 'No CI log.' }, { ...exec(), signal: held.signal })
+  assert.ok(Date.now() - started < 2_000, 'ended by the Hold, not by its 60 s deadline')
+  assert.equal(out.code, 'service_unavailable')
+  assert.equal(service.calls.length, 1)
+  assert.equal(service.calls[0][2].aborted, true)
+})
+
+test('a review already held or stopped sends nothing', async () => {
+  const held = new AbortController()
+  held.abort()
+  const service = fakeService()
+  const out = await tools(service).submit_source_review.execute(RESULT, { ...exec(), signal: held.signal })
+  assert.equal(out.code, 'invalid_state')
+  assert.equal(service.calls.length, 0)
+})
+
 test('after a Hold or Stop, a submit whose answer was lost is not sent again', async () => {
   const held = new AbortController()
   const service = fakeService({
