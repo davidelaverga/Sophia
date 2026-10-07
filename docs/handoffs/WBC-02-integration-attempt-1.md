@@ -4,7 +4,7 @@ Goal and attempt: WBC-02 (SCM-01), the combined integration of #107 with the acc
 Human owner / executor resource: Davide (decisions); Codex (coordination, independent review, two pushes, local checks); Claude Code in a cloud container (linux-x64), the only tracked-source writer
 Native session: this Claude Code session (https://claude.ai/code/session_0155SjcXhv87RErnWEBWxfBM); no Sophia native session was created
 Starting worktree/commit: the held #107 branch `scm-01/workboard-source-review` at `29371f5a3703f4358563886407bc360df7c38603`, in a fresh worktree with no ignored build outputs
-Ending commit/tree: the content commit «WBC-02 #107: a source review cites only pages that reached its model; the plugin names its principal» (`8241e9d0d3f32154320d4a9eda237620b4f72441`, tree `f71162ec15f3c2f904abba0aaba5250922974c9d`), the parent of this handoff's commit. Its runtime records are pending (Decisions). Before it: the wakeup fix `e93b0c51` and its handoff `5c3b50ee`; the first fix `df183a5f` and its handoff `10510fcd`. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
+Ending commit/tree: the content commit «WBC-02 #107: a source review cites only pages that reached its model; the plugin names its principal» (`8241e9d0d3f32154320d4a9eda237620b4f72441`, tree `f71162ec15f3c2f904abba0aaba5250922974c9d`), the parent of this handoff's commit. Its runtime records follow in «WBC-02 #107: record the bundle identities of the receipt fix», a generated-only commit (Decisions), with the Studio job's budget and a test-order fix between. Before it: the wakeup fix `e93b0c51` and its handoff `5c3b50ee`; the first fix `df183a5f` and its handoff `10510fcd`. Before those, three merge commits, each on the one before; nothing is rebased or force-pushed:
 
 | Commit | Tree | Merges | Changes beyond its parents |
 | --- | --- | --- | --- |
@@ -128,7 +128,7 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 - **Records:** none needed regenerating. The runtime artifact covers `dsh-bundle` and `execution-host` only, and neither the merge nor the fix changes them. Codex's clean `pnpm check` on `5bbd59b1` reproduced every recorded identity.
 - **The plugin fixes follow the plugin's own rule rather than a longer timeout.** The worker stops waiting after `HOST_CALL_TIMEOUT_MS`, but the host still runs the call and may still commit (CX-0017). No time, nor another process serving now, proves a create or a wakeup will not land. The cost is an operator fence for one whose worker died or that the host never answered, the same cost as for status writes. The 60 s wait for a wakeup's run after the host answered is kept from CX-0004: the pin can defer a wakeup behind an active run.
 - **The Studio browser job's budget is 40 minutes** (Codex, 6037063010; this handoff's commit): the full 850-test suite took 24.9 min on `5c3b50ee`, and both runs on `10510fcd` were cut off at 30 min while still passing. Only `timeout-minutes` changes.
-- **The records of `8241e9d0` are pending** (decision 6036790901). The bundle change moves `sophia_bundle.archive_sha256`, `archive_integrity` and `artifact_digest` in `config/runtime-unit.json` and the bundle's integrity in `config/dsh/profile/pnpm-lock.yaml`, nothing per platform (as each #117 bundle change did). Codex derives them from this exact source where the build is allowed; this writer applies that generated-only delta after inspecting it. Until then `pnpm artifacts` reports those identities as mismatched: in CI, `runtime-unit` stops there (before the integration tests), and the database job's `pnpm build && pnpm artifacts` step fails after `test:db`.
+- **The records of `8241e9d0` are applied** (decision 6036790901). Codex derived them from `0661a6f8` with the normal artifact builder (6037319212); they equal what CI's `runtime-unit` built on `84530867`. Applied byte for byte as a generated-only commit: `config/runtime-unit.json` `8bd4051c…` → `01888e6e…`, `config/dsh/profile/pnpm-lock.yaml` `c0079d54…` → `cb9c93c9…`; only `sophia_bundle`'s three fields and the bundle's integrity line change.
 - **Permission denials in this session,** each reported, neither worked around:
   - `git merge --no-ff --no-commit 771f22489b53cd431bfc9989cf309333dfcc4c42` in the worktree was denied as «Modify Shared Resources». Davide then directed the commits pushed, and the work continued. The same merge, with main at `95c375ce`, ran.
   - `pnpm toolchain:check && pnpm build && pnpm contracts:check; pnpm artifacts` on the uncommitted merge was denied as «Modify Shared Resources». So no build, contract or artifact check ran in this session, on either head.
@@ -137,7 +137,7 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 ## Remaining obligations
 
-- **The records of `8241e9d0`**: Codex's generated delta, applied by this writer, then CI and the bundle's tests on the completed head.
+- **On the completed head:** CI in full (`runtime-unit` with the artifact check and the integration tests, `test:db`, Studio within its new budget, live auth, the image), and Codex's review and checks.
 - **On the fix head:**
   - CI, including `test:db` with the new controls, and the Paperclip image job;
   - Codex's independent review and local checks;
@@ -152,4 +152,4 @@ The plain union fails `oxlint`'s complexity limit: `PageBody` reaches 13, agains
 
 ## Next bounded action
 
-Codex derives the runtime records of `8241e9d0` and hands back the generated delta; this writer inspects and applies it, and CI runs complete on that head. Codex then reviews it against CI, and hands back an exact finding or failure, or proceeds to the final gates. Merging is Davide's decision.
+CI runs in full on the completed head; Codex reviews it against CI and its own checks, then hands back an exact finding or failure, or proceeds to the final gates. Merging is Davide's decision.
