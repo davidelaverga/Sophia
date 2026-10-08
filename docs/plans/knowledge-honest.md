@@ -18,19 +18,24 @@
 
 - **The head names the design check:** «design checked», «design findings open», «software-checked only»; the team's
   «Not reviewed yet.» keeps its words. Cards say the same.
-- **One «Current»:** the newest stable version; an older stable one is history.
-- **A designed report opens as its page** from its title and its History, as from its cover.
-- **The demo's label in the bottom-left corner**, clear of the bars, the views and the room's controls; it already
-  lets every press through.
-- **The demo holds its conversations** (`conversations=1` unless the address says otherwise).
+- **One «Current»:** the fixture lists versions as the API keeps them (`packages/persistence/src/artifacts.ts`): the
+  newest stable, each before it superseded. The product already tagged only stable versions; only the fixture lied.
+- **A designed report opens as its page** from its title and its History, as from its cover: the version the card
+  names, in HTML.
+- **The demo's label in the bottom-left corner**, clear of the bars, the views and the room's controls (on a phone,
+  above the room's dock and Personal's composer); it already lets every press through.
+- **The demo holds its conversations** (`conversations=1` unless the address says otherwise), and its views bar
+  opens them.
 - **The tab bar wraps:** where the format switch doesn't fit beside the tabs, it takes its own line; the bar keeps its
-  38 px on a wide screen.
+  38 px on a wide screen, and its 50 px on touch.
 
 ## Checks (written first)
 
 - The designed page's head ends «design checked» and never says «reviewed»; «Not reviewed yet.» is shown.
 - History: two versions, only the newest «Current».
 - Title and History each open the HTML format (History on its tab).
-- At 1440 and 390 px the label meets none of the bars, views, dock or «Join the room», and takes no press.
-- `place=conversations&demo=1` lists conversations, no failure line, no unexpected request.
+- On Knowledge, the room and Personal, at 1440 and 390 px, the label meets none of the bars, views, dock, «Join the
+  room» or composer, and takes no press.
+- `place=conversations&demo=1` lists conversations, no failure line, no unexpected request; from Knowledge, the
+  views bar's Conversations opens them.
 - At 390 px each tab's words keep one line and the format switch ends inside the screen.

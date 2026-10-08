@@ -758,9 +758,10 @@ const viewOf = (place: string | null) =>
   place === 'knowledge' || place === 'work' || place === 'updates' || place === 'conversations' ? place : 'studio'
 
 /** The views this fixture's API serves: the room, Conversations (when the page asks for them), Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
-const SERVED: readonly View[] = query.has('conversations')
-  ? ['studio', 'conversations', 'knowledge', 'work', 'updates']
-  : ['studio', 'knowledge', 'work', 'updates']
+const SERVED: readonly View[] =
+  query.has('conversations') || DEMO
+    ? ['studio', 'conversations', 'knowledge', 'work', 'updates']
+    : ['studio', 'knowledge', 'work', 'updates']
 
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }

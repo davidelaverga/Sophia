@@ -1102,6 +1102,12 @@
   background: rgba(236, 235, 241, 0.08);
   color: var(--text);
 }
+/* On touch the switch's buttons take the tabs' 44 px (above): no margin beside them, so the bar is no taller than it was. */
+@media (pointer: coarse) {
+  .report-format {
+    margin-block: 0;
+  }
+}
 
 /* A designed HTML page (HtmlView): its review line and limitations, then the page in its isolated frame, which takes
    the rest of the pane. The frame's own page sets its own colours; Studio's are never inherited. */

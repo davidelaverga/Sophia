@@ -358,7 +358,8 @@ function version(n: number, title: string, pilot: boolean): ArtifactVersion {
  */
 export const versions = (published: number, title = TITLE, pilot = false, designed = false): ArtifactVersion[] =>
   Array.from({ length: published }, (_, i) => {
-    const v = version(published - i, title, pilot)
+    // As the API keeps them: the newest is the stable one, each before it superseded.
+    const v = { ...version(published - i, title, pilot), ...(i > 0 && { state: 'superseded' as const }) }
     const paged = designed && (DEMO || v.versionNumber === 1)
     return paged ? { ...v, renditions: [designedRendition(v.versionNumber)] } : v
   })

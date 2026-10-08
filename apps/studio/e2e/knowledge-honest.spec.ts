@@ -62,30 +62,42 @@ test('honest · a designed report opens as its page from its History too', async
   await expect(html(page)).toHaveAttribute('aria-pressed', 'true')
 })
 
+// The demo's pages with the most at the bottom: Knowledge's tiles, the room's dock and door, Personal's composer.
+const DEMO_PAGES = [
+  ['Knowledge', KNOWLEDGE],
+  ['the room', '/room.html?demo=1'],
+  ['Personal', '/personal.html?demo=1'],
+] as const
+
 for (const [width, height] of [
   [1440, 900],
   [390, 844],
 ] as const) {
-  test(`honest · the demo’s label sits clear of the app’s bars and lets every press through at ${String(width)} px`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height })
-    await page.goto(KNOWLEDGE)
-    await expect(page.locator('.report-card').first()).toBeVisible()
-    const label = page.locator('.fixture-label')
-    const box = await label.boundingBox()
-    if (!box) throw new Error('the demo’s label is not on screen')
-    // The bars, the views, the room's controls and its door: never under it.
-    const chrome = await boxesOf(
-      page
-        .locator('.topbar, nav[aria-label="Project views"], .dock, .topbar button, .topbar a')
-        .or(page.getByRole('button', { name: 'Join the room' })),
-    )
-    expect(chrome.length).toBeGreaterThan(0)
-    for (const b of chrome) expect(meets(box, b), JSON.stringify(b)).toBe(false)
-    // Over the page's content (a phone's tiles are presses edge to edge) it takes no press.
-    await expect(label).toHaveCSS('pointer-events', 'none')
-  })
+  for (const [name, url] of DEMO_PAGES) {
+    test(`honest · on ${name}, the demo’s label sits clear of the app’s bars and lets every press through at ${String(width)} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height })
+      await page.goto(url)
+      const label = page.locator('.fixture-label')
+      await expect(label).toBeVisible()
+      await page.waitForTimeout(800) // the page's own bars settle
+      const box = await label.boundingBox()
+      if (!box) throw new Error('the demo’s label is not on screen')
+      // The bars, the views, the room's controls and its door, Personal's composer: never under it.
+      const chrome = await boxesOf(
+        page
+          .locator(
+            '.topbar, nav[aria-label="Project views"], .dock, .dock button, .topbar button, .topbar a, .ps-composer',
+          )
+          .or(page.getByRole('button', { name: 'Join the room' })),
+      )
+      expect(chrome.length).toBeGreaterThan(0)
+      for (const b of chrome) expect(meets(box, b), JSON.stringify(b)).toBe(false)
+      // Over the page's content (a phone's tiles are presses edge to edge) it takes no press.
+      await expect(label).toHaveCSS('pointer-events', 'none')
+    })
+  }
 }
 
 test('honest · the demo’s Conversations read, with no flag of their own', async ({ page }) => {
@@ -93,6 +105,12 @@ test('honest · the demo’s Conversations read, with no flag of their own', asy
   const list = page.getByRole('region', { name: 'All conversations' })
   await expect(list.getByRole('listitem').first()).toBeVisible()
   await expect(page.getByText(/can’t be read now|can't be read now/)).toHaveCount(0)
+})
+
+test('honest · in the demo, Conversations open from the views bar', async ({ page }) => {
+  await page.goto(KNOWLEDGE)
+  await page.getByRole('navigation', { name: 'Project views' }).getByRole('link', { name: 'Conversations' }).click()
+  await expect(page.getByRole('region', { name: 'All conversations' }).getByRole('listitem').first()).toBeVisible()
 })
 
 test('honest · on a phone the pane’s tabs keep one line each and the format switch stays on screen', async ({
