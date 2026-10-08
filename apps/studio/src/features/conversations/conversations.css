@@ -949,6 +949,7 @@
 }
 .conv-more {
   justify-self: start;
+  min-height: 24px;
   color: var(--text-2);
   font-size: var(--type-small);
 }

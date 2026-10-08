@@ -28,12 +28,17 @@ test('details · «and 2 more» shows every accepted decision, says it is open, 
   await expect(accepted).toHaveCount(3)
   const more = context(page).getByRole('button', { name: 'and 2 more' })
   await expect(more).toHaveAttribute('aria-expanded', 'false')
-  await more.click()
+  expect((await more.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24)
+  await more.focus()
+  await page.keyboard.press('Enter')
   await expect(accepted).toHaveCount(5)
+  // The same press, its name and state changed, the focus still on it.
   const fewer = context(page).getByRole('button', { name: 'Show fewer' })
   await expect(fewer).toHaveAttribute('aria-expanded', 'true')
-  await fewer.click()
+  await expect(fewer).toBeFocused()
+  await page.keyboard.press('Enter')
   await expect(accepted).toHaveCount(3)
+  await expect(more).toBeFocused()
 })
 
 test('details · on a phone, the demo’s label steps away from a conversation’s field, and stays on Knowledge', async ({
@@ -41,6 +46,8 @@ test('details · on a phone, the demo’s label steps away from a conversation�
 }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(PAGE)
+  // The list: nothing at the phone's foot, the label in its corner.
+  await expect(page.locator('.fixture-label')).toBeVisible()
   await page
     .getByRole('region', { name: 'All conversations' })
     .getByRole('button', { name: /Short or long briefs/ })

@@ -139,19 +139,26 @@ function ThisConversation({ conversation: c }: { conversation: ConversationSumma
 
 /** The accepted decisions, newest first, and what is proposed and not decided, kept apart. */
 function Decisions({ ctx, projectId, identity }: { ctx: MissionContext; projectId: string; identity: Identity }) {
-  // «and 2 more» opens (C9): every accepted decision and every proposal waiting, until folded again.
+  // «and 2 more» opens its own list (C9), until folded again by the same press.
   const [every, setEvery] = useState(false)
-  const { shown, more } = acceptedOf(ctx.constraints, every)
+  const { shown } = acceptedOf(ctx.constraints, every)
+  const { more } = acceptedOf(ctx.constraints)
   return (
     <>
-      <Accepted shown={shown} more={more} onEvery={setEvery} />
-      <StillOpen ctx={ctx} projectId={projectId} identity={identity} every={every} onEvery={setEvery} />
+      <Accepted shown={shown} more={more} every={every} onEvery={setEvery} />
+      <StillOpen ctx={ctx} projectId={projectId} identity={identity} />
     </>
   )
 }
 
 /** The accepted decisions, newest first: three, or all once «and 2 more» is pressed. */
-function Accepted(props: { shown: readonly MissionDecision[]; more: number; onEvery: (every: boolean) => void }) {
+function Accepted(props: {
+  shown: readonly MissionDecision[]
+  /** How many the folded list leaves out. */
+  more: number
+  every: boolean
+  onEvery: (every: boolean) => void
+}) {
   const id = useId()
   return (
     <section aria-labelledby={id}>
@@ -167,12 +174,15 @@ function Accepted(props: { shown: readonly MissionDecision[]; more: number; onEv
           ))}
         </ul>
       )}
-      {props.more > 0 && <More every={false} more={props.more} onEvery={props.onEvery} />}
+      {props.more > 0 && <More every={props.every} more={props.more} onEvery={props.onEvery} />}
     </section>
   )
 }
 
-/** «and 2 more», a press that shows them all; open, «Show fewer» folds them again. */
+/**
+ * «and 2 more», a press that shows its list whole; open, the same press says «Show fewer» and folds it again, so the
+ * focus stays where it was pressed and `aria-expanded` changes on it.
+ */
 function More({ every, more, onEvery }: { every: boolean; more: number; onEvery: (every: boolean) => void }) {
   return (
     <button type="button" className="text-button conv-more" aria-expanded={every} onClick={() => onEvery(!every)}>
@@ -189,21 +199,15 @@ const answeredWords = (args: DecideArgs, statement: string) =>
  * What waits for a decision, decided here where it can be (C7): one decision at a time; with no reply, the presses wait
  * and «Try again» sends that same decision under its key, never another. Answered, the focus goes to what it says.
  */
-function StillOpen(props: {
-  ctx: MissionContext
-  projectId: string
-  identity: Identity
-  every: boolean
-  onEvery: (every: boolean) => void
-}) {
-  const { ctx, projectId, identity, every } = props
+function StillOpen({ ctx, projectId, identity }: { ctx: MissionContext; projectId: string; identity: Identity }) {
+  const [every, setEvery] = useState(false)
   const openId = useId()
   const decide = useDecide(projectId, identity)
   const [asked, setAsked] = useState<{ args: DecideArgs; statement: string } | null>(null)
   const [said, setSaid] = useState('')
   const status = useRef<HTMLParagraphElement>(null)
   const open = pendingOf(ctx.pending, every)
-  const folded = acceptedOf(ctx.constraints).more + pendingOf(ctx.pending).more
+  const { more } = pendingOf(ctx.pending)
   const busy = decide.state.status === 'sending' || decide.state.status === 'unknown'
   const answered = (receipt: unknown, words: string) => {
     if (!receipt) return
@@ -236,12 +240,11 @@ function StillOpen(props: {
               </li>
             ))}
           </ul>
-          {open.more > 0 && <More every={false} more={open.more} onEvery={props.onEvery} />}
+          {more > 0 && <More every={every} more={more} onEvery={setEvery} />}
           <p className="conv-note">Proposed, not decided.</p>
         </>
       )}
       <DecideSaid status={status} state={decide.state} asked={asked} said={said} onRetry={retry} />
-      {every && folded > 0 && <More every more={folded} onEvery={props.onEvery} />}
     </section>
   )
 }

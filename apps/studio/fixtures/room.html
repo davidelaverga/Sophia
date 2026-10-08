@@ -35,8 +35,8 @@
         .fixture-label[data-demo] {
           bottom: 84px;
         }
-        /* A conversation's field fills a phone's foot: there, the label steps away (C9). */
-        body:has(.conv-compose) .fixture-label[data-demo] {
+        /* A conversation's field fills a phone's foot: there, and only there, the label steps away (C9). */
+        body:has(.conversations[data-screen='thread'] .conv-compose) .fixture-label[data-demo] {
           display: none;
         }
       }

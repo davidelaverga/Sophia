@@ -15,8 +15,8 @@
 
 - **Labels in words:** the context's labels in the app's sans, sentence case, in the second ink; the hint under the
   field the same, at the small size.
-- **«and 2 more» opens:** a press that shows every accepted decision (and every proposal waiting), «Show fewer» to fold
-  them again; it says whether it is open (`aria-expanded`).
+- **«and 2 more» opens:** a press under each list that shows it whole and, open, says «Show fewer» to fold it again:
+  the same press, so the focus stays and `aria-expanded` changes on it; 24 px tall, as every press.
 - **The demo's label steps away on a phone's conversations:** their field fills the phone's foot, where the label sat;
   there it hides, and everywhere else it keeps its corner. (Under the page's surfaces instead, it vanished everywhere:
   the panes are opaque.)
@@ -24,6 +24,7 @@
 ## Checks (written first)
 
 - `conversation-list.ts`: every accepted decision, newest first, when all are asked for.
-- The context's labels are not mono nor capitals; «and 2 more» shows five decisions and says it is open; «Show
-  fewer» folds back to three.
-- On a phone, with a conversation open, the demo's label is not shown; on Knowledge it still is.
+- The context's labels are not mono nor capitals; «and 2 more» shows five decisions, says it is open, keeps the focus
+  and is 24 px tall; «Show fewer» folds back to three.
+- On a phone, the demo's label shows on the conversations' list, hides with a conversation open, and shows on
+  Knowledge.
