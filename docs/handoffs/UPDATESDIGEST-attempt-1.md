@@ -23,10 +23,12 @@ Design note: `docs/plans/updates-digest.md`. The critique was given to Luis in t
 ## Evidence
 
 - Browser checks: `e2e/updates-digest.spec.ts` (3) new; `knowledge-origins.spec.ts` names the Oct 4 decision as the
-  brief has it. Not run locally (RAM beside AION2 under the guard's floor, never lowered); CI runs them. Checked by
-  hand in the in-app browser: the digest's Decided, Made (opening the readout), Kept and Still open; the Oct 2 recap
-  with Noor's note; a meeting left with no Made; no request unanswered.
-- Prettier, `oxlint --type-aware` on the whole repo, `tsc`. Mutants: not run, for the same reason.
+  brief has it. Run locally under the guard (`pw-safe.ps1`, one worker): 9 passed. Checked by hand in the in-app
+  browser: the digest's Decided, Made (opening the readout), Kept and Still open; the Oct 2 recap with Noor's note; a
+  meeting left with no Made; no request unanswered.
+- Control mutants, each failing its check: the readout not published (Made missing from the digest); the readout
+  back in the running meeting's records (the meeting left says Made).
+- Prettier, `oxlint --type-aware` on the whole repo, `tsc`.
 - Independent review, two rounds: the first's P2 taken (the meeting left said it made the readout), with its P3 on
   an id shared by a decision and a version; the second's P2 taken as it proposed it (the leave check could pass
   before the recap was read back: it now waits for the recap's decision first), with its P3 on a doc comment.
