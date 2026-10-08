@@ -4,8 +4,12 @@ Goal and attempt: Updates gets the «$20» pass Conversations and Knowledge had,
 view by view («Encólalo todo», «Continúa con lo demás»).
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: `apps/studio/e2e/updates-quiet.spec.ts`, `apps/studio/src/app/theme.css`, `apps/studio/src/features/updates/UpdatesView.tsx`, `apps/studio/src/features/updates/updates-view.test.ts`, `apps/studio/src/features/updates/updates-view.ts`, `apps/studio/src/features/voice/MeetingRecap.tsx`, `docs/handoffs/UPDATESQUIET-attempt-1.md`, `docs/plans/updates-quiet.md`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `updates/quiet` from `main`, 2026-10-07
-Ending commit/tree: `fd45d9b025e8b399b8e1470e98c522a21362a661` (tree `ea713c86f3a2327a7a207d80778125b4c60f9871`). The commit after it adds only this handoff.
+Ending commit/tree: `fd45d9b025e8b399b8e1470e98c522a21362a661` (tree `ea713c86f3a2327a7a207d80778125b4c60f9871`). The commit after it adds only this handoff. In `main` as `a304792` (the squash of #160), with the review's fixes after the commit named here.
 
 ## Outcome
 

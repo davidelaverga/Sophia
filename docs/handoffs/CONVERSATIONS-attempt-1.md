@@ -5,9 +5,13 @@ mirar»), chose three panes optimised for the phone, then asked for premium and 
 prototype («Me convence»): https://claude.ai/artifact/7A2RBBS49uXnMiyw5kmrHk (v3).
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: `apps/studio/e2e/conversation-thread.spec.ts`, `apps/studio/e2e/conversations-panes.spec.ts`, `apps/studio/e2e/project-conversations.spec.ts`, `apps/studio/src/features/conversations/ConversationComposer.tsx`, `apps/studio/src/features/conversations/ConversationsView.tsx`, `apps/studio/src/features/conversations/NewConversation.tsx`, `apps/studio/src/features/conversations/OpenConversation.tsx`, `apps/studio/src/features/conversations/ProjectContext.tsx`, `apps/studio/src/features/conversations/conversation-list.test.ts`, `apps/studio/src/features/conversations/conversation-list.ts`, `apps/studio/src/features/conversations/conversations.css`, `apps/studio/src/features/studio/ProjectShell.tsx`, `apps/studio/src/features/voice/MiniDock.tsx`, `docs/handoffs/CONVERSATIONS-attempt-1.md`, `docs/plans/conversation-thread.md`, `docs/plans/conversations-panes.md`, `docs/plans/conversations-quiet.md`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/thread` on `main` `7f51b01`,
 2026-10-07
-Ending commit/tree: `069938131f5eef4fe51445ee2d12327ee5c0dcee` (tree `177c43f4cb31e70055b23dafbf64435be2bbd3df`), five commits on `main` `7f51b01`. The commit after it adds only this handoff.
+Ending commit/tree: `069938131f5eef4fe51445ee2d12327ee5c0dcee` (tree `177c43f4cb31e70055b23dafbf64435be2bbd3df`), five commits on `main` `7f51b01`. The commit after it adds only this handoff. In `main` as `f24a402` (the squash of #155), with the review's fixes after the commit named here.
 
 ## Outcome
 

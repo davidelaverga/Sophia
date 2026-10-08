@@ -3,8 +3,12 @@
 Goal and attempt: Knowledge's third pass, a quieter tile (`docs/plans/knowledge-quiet.md`, K3), attempt 1. Luis: «Sigue».
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: `apps/studio/e2e/knowledge-quiet.spec.ts`, `apps/studio/src/features/artifacts/KnowledgeReports.tsx`, `apps/studio/src/features/artifacts/SummaryEditor.tsx`, `apps/studio/src/features/artifacts/artifacts.css`, `docs/handoffs/KQUIET-attempt-1.md`, `docs/plans/knowledge-quiet.md`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `knowledge/quiet` on `knowledge/filters` (#153) `9abe0ec`, 2026-10-07 (#153's later commits merged in since)
-Ending commit/tree: the final change is commit `fa73708349c20f85fd333a0e1987b54f649f74c7` (tree `b17db7bfdc57b7359f7933e355d65121ebbdebb9`), after `17e31ce`. Against `knowledge/filters` they change:
+Ending commit/tree: the final change is commit `fa73708349c20f85fd333a0e1987b54f649f74c7` (tree `b17db7bfdc57b7359f7933e355d65121ebbdebb9`), after `17e31ce`. Against `knowledge/filters` they change: In `main` as `6436659` (the squash of #154), with the review's fixes after the commit named here.
 - `apps/studio/src/features/artifacts/`: `SummaryEditor.tsx`, `KnowledgeReports.tsx`, `artifacts.css`;
 - the new `apps/studio/e2e/knowledge-quiet.spec.ts`;
 - `docs/plans/knowledge-quiet.md`.

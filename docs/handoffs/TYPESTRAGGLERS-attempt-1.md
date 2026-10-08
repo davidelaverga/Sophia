@@ -3,8 +3,12 @@
 Goal and attempt: the work views keep to the type scale, attempt 1. From the measured audit for Luis's «$20» queue.
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: `apps/studio/e2e/type-scale.spec.ts`, `apps/studio/e2e/updates-quiet.spec.ts`, `apps/studio/src/app/theme.css`, `apps/studio/src/features/artifacts/artifacts.css`, `docs/handoffs/TYPESTRAGGLERS-attempt-1.md`, `docs/plans/type-stragglers.md`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `polish/type-stragglers` from `main`, 2026-10-07
-Ending commit/tree: `8fd1dccd7d8202e35b14c6bd2a8b49dd0d58aa95` (tree `0c3cb293420461ea21e56aeb49c83c108542a883`). The commit after it adds only this handoff.
+Ending commit/tree: `8fd1dccd7d8202e35b14c6bd2a8b49dd0d58aa95` (tree `0c3cb293420461ea21e56aeb49c83c108542a883`). The commit after it adds only this handoff. In `main` as `c645af1` (the squash of #162), with the review's fixes after the commit named here.
 
 ## Outcome
 

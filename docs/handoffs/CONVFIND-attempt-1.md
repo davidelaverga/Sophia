@@ -4,9 +4,13 @@ Goal and attempt: Conversations, found (C4): «Open» and «Mine», and quick as
 («Me parece bien el c4, procede»).
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: `apps/studio/e2e/conversations-find.spec.ts`, `apps/studio/fixtures/fixture-api.ts`, `apps/studio/fixtures/room.tsx`, `apps/studio/src/features/conversations/ConversationComposer.tsx`, `apps/studio/src/features/conversations/ConversationRows.tsx`, `apps/studio/src/features/conversations/ConversationsView.tsx`, `apps/studio/src/features/conversations/conversation-list.test.ts`, `apps/studio/src/features/conversations/conversation-list.ts`, `apps/studio/src/features/conversations/conversations.css`, `docs/handoffs/CONVFIND-attempt-1.md`, `docs/plans/conversations-find.md`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/find` on
 `follow-ups/knowledge-conv-p2s` (#156), 2026-10-07
-Ending commit/tree: `f36b998b30dfd150a52216d3e33186b6009b281b` (tree `fc8e2c7fe4b7c070a73842569230a6ce04b4b221`). The commit after it adds only this handoff.
+Ending commit/tree: `f36b998b30dfd150a52216d3e33186b6009b281b` (tree `fc8e2c7fe4b7c070a73842569230a6ce04b4b221`). The commit after it adds only this handoff. In `main` as `3959668` (the squash of #157), with the review's fixes after the commit named here.
 
 ## Outcome
 

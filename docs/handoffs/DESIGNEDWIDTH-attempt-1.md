@@ -3,8 +3,12 @@
 Goal and attempt: an enlarged designed page uses the pane's width, attempt 1. Found while recording the walkthrough for Luis: the readout's designed page showed as a narrow column in the full pane.
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: `apps/studio/e2e/report.spec.ts`, `apps/studio/src/features/artifacts/artifacts.css`, `docs/handoffs/DESIGNEDWIDTH-attempt-1.md`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `fix/designed-page-width` on `main` `95c375c`, 2026-10-07
-Ending commit/tree: the final change is commit `e8b9e246c75623a2eb6cb1ee6a04df339d74d94b` (tree `577c7f0ff5d131bc56d1b11e9fd0b224fec69724`), after `30f82f2` and a merge of `main`: `apps/studio/src/features/artifacts/artifacts.css` and `apps/studio/e2e/report.spec.ts`. The commit after it changes only this file.
+Ending commit/tree: the final change is commit `e8b9e246c75623a2eb6cb1ee6a04df339d74d94b` (tree `577c7f0ff5d131bc56d1b11e9fd0b224fec69724`), after `30f82f2` and a merge of `main`: `apps/studio/src/features/artifacts/artifacts.css` and `apps/studio/e2e/report.spec.ts`. The commit after it changes only this file. In `main` as `cd97f6c` (the squash of #150), with the review's fixes after the commit named here.
 
 ## Outcome
 

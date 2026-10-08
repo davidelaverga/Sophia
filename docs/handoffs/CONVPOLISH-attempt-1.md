@@ -4,9 +4,13 @@ Goal and attempt: the Conversations review's P3s (listed in `CONVERSATIONS-attem
 todo», «Continúa con lo demás».
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
+Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
+Writable scope: `apps/studio/e2e/conversations-polish.spec.ts`, `apps/studio/src/features/conversations/ConversationComposer.tsx`, `apps/studio/src/features/conversations/ConversationRows.tsx`, `apps/studio/src/features/conversations/ConversationsView.tsx`, `apps/studio/src/features/conversations/OpenConversation.tsx`, `apps/studio/src/features/conversations/ProjectContext.tsx`, `apps/studio/src/features/conversations/conversations.css`, `docs/handoffs/CONVPOLISH-attempt-1.md`.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `polish/conversations-p3` on
 `conversations/find` (#157), 2026-10-07
-Ending commit/tree: `50a73c1a45902c0edfbf2edebdf0f9519666b565` (tree `94db196ecab617e7fa82f580bc4c0a4d0d39d1e6`). The commit after it adds only this handoff.
+Ending commit/tree: `50a73c1a45902c0edfbf2edebdf0f9519666b565` (tree `94db196ecab617e7fa82f580bc4c0a4d0d39d1e6`). The commit after it adds only this handoff. In `main` as `24cc6ee` (the squash of #158), with the review's fixes after the commit named here.
 
 ## Outcome
 
