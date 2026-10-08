@@ -70,7 +70,7 @@ import {
   versionId,
   VERSIONS_HELD,
 } from './report-data.ts'
-import { DEMO, DEMO_LABEL, VIEWER_NAME } from './demo.ts'
+import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -273,6 +273,9 @@ const room: RoomAsked = {
 }
 const floorTo: string[] = []
 
+/** The research task's revision at the start: the demo's second, the plain fixture's first. */
+const RESEARCH_REVISION: 1 | 2 = DEMO_VERSION
+
 const project = {
   revision: 1,
   exchange: query.get('exchange') === 'open' || sophiaAsked,
@@ -303,7 +306,8 @@ const project = {
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
-  taskRevision: 1 as 1 | 2,
+  // The demo's research is on its second version, as its report (both published by default).
+  taskRevision: RESEARCH_REVISION,
   taskHeld: query.get('hold') === 'task',
   taskFails: false,
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
