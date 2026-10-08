@@ -13,7 +13,8 @@ const rows = (page: Page) => list(page).getByRole('listitem').getByRole('button'
 const titles = (page: Page) => rows(page).locator('.conv-title')
 const open = (page: Page) => page.getByRole('region', { name: 'Open conversation' })
 const context = (page: Page) => page.getByRole('complementary', { name: 'Project context' })
-const messages = (page: Page) => open(page).getByRole('listitem')
+// The thread's messages: its own items, not those of a list inside one of Sophia's answers (C6).
+const messages = (page: Page) => open(page).locator('.conv-messages > li')
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -54,7 +55,8 @@ test('conversations · the first is open; pressing another opens it, its summary
   await expect(rows(page).nth(0)).toHaveAttribute('aria-pressed', 'true')
   await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('What makes a report worth reading?')
   await expect(open(page)).toContainText('Contributors: Lucía, You · Sophia')
-  await expect(open(page).getByRole('region', { name: 'Summary' })).toContainText('Compared a short brief')
+  // Sophia's summary is the context's first card (docs/plans/conversations-panes.md).
+  await expect(context(page).getByRole('region', { name: 'This conversation' })).toContainText('Compared a short brief')
   // A page: the newest six, oldest first.
   await expect(messages(page)).toHaveCount(6)
   await expect(messages(page).first()).toContainText('And every claim keeps its source, one click away.')
@@ -70,7 +72,7 @@ test('conversations · the first is open; pressing another opens it, its summary
   await expect(messages(page).nth(0)).toContainText('One page. Anything longer, nobody reads.')
   // With no summary yet, it says so.
   await rows(page).nth(2).click()
-  await expect(open(page).getByRole('region', { name: 'Summary' })).toContainText('No summary yet.')
+  await expect(context(page).getByRole('region', { name: 'This conversation' })).toContainText('No summary yet.')
   await expect(messages(page).nth(1)).toContainText('Sophia')
 })
 
@@ -200,6 +202,8 @@ test('conversations · controls are at least 24 px tall, and the text keeps to t
 test('conversations · on a phone, nothing scrolls sideways', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(PAGE)
+  // One screen at a time: the list, then the conversation pressed.
+  await rows(page).first().click()
   await expect(messages(page)).toHaveCount(6)
   const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(wide).toBeLessThanOrEqual(0)

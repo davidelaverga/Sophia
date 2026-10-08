@@ -69,6 +69,59 @@ test('dock · on a phone: one row of 42 px squares, icons only, still named for 
   expect(new Set(buttons.map((b) => b.top)).size).toBe(1)
 })
 
+test('dock · at 390 px, from the keyboard or under a hovering pointer, an icon says what it does', async ({ page }) => {
+  await enter(page, 'people=2', 390)
+  const take = dock(page).getByRole('button', { name: 'Take the floor', exact: true })
+  const tip = take.locator('.tip')
+  await expect(tip).toBeHidden()
+  // A narrow window on a computer: the pointer hovers.
+  await take.hover()
+  await expect(tip).toBeVisible()
+  await expect(tip).toHaveCSS('opacity', '1')
+  await expect(tip).toHaveText('Take the floor')
+  await page.mouse.move(0, 0)
+  await expect(tip).toBeHidden()
+  // From the keyboard: back a stop, and Tab to it again.
+  await take.focus()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  await expect(take).toBeFocused()
+  await expect(tip).toBeVisible()
+  await expect(tip).toHaveCSS('opacity', '1')
+})
+
+test('dock · at 360 px, the tips of the outer squares stay on the screen', async ({ page }) => {
+  await enter(page, 'people=2', 360)
+  const squares = dock(page).locator('button:visible')
+  for (const square of [squares.first(), squares.last()]) {
+    await square.hover()
+    const tip = square.locator('.tip')
+    await expect(tip).toBeVisible()
+    await expect(tip).toHaveCSS('opacity', '1')
+    const box = await tip.boundingBox()
+    if (!box) throw new Error('no tip')
+    expect(box.x, 'its left edge on the screen').toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width, 'its right edge on the screen').toBeLessThanOrEqual(360)
+    await page.mouse.move(0, 0)
+  }
+})
+
+test('dock · at 390 px, one tip at a time: the pointer on one square, the keyboard on another, the keyboard’s shows', async ({
+  page,
+}) => {
+  await enter(page, 'people=2', 390)
+  const squares = dock(page).locator('button:visible')
+  await squares.first().hover()
+  await expect(squares.first().locator('.tip')).toHaveCSS('opacity', '1')
+  // The keyboard reaches the last square while the pointer stays on the first.
+  await squares.last().focus()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  await expect(squares.last()).toBeFocused()
+  await expect(squares.last().locator('.tip')).toHaveCSS('opacity', '1')
+  await expect(squares.first().locator('.tip')).toBeHidden()
+})
+
 test('dock · on a phone, passing the floor to one person shows whose it becomes: their initial', async ({ page }) => {
   await enter(page, 'people=1&floor=me', 390)
   const pass = dock(page).getByRole('button', { name: 'Pass to Marco', exact: true })

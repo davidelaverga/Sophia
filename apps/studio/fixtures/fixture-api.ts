@@ -29,12 +29,21 @@ import {
   entryIdOf,
   idOf,
 } from './data.ts'
+import { DEMO, DEMO_ORIGINS } from './demo.ts'
+import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
+import { libraryVersions } from './demo-library.ts'
 import {
   content,
   editDescription,
   citedSources,
   DESIGN_TASK,
   designingTask,
+  OLDER_REPORT,
+  ELSEWHERE_REPORT,
+  elsewhereCard,
+  elsewhereVersions,
+  matchesFilter,
+  olderVersions,
   REPORT,
   reportList,
   researchRunning,
@@ -52,7 +61,7 @@ import { created, finished, type Tasks } from './task-data.ts'
 import type { ConversationMessage, ConversationSummary, ProjectTask, VersionReview } from '../src/api/vision.ts'
 import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
 import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
-import type { ProjectRelease } from '@sophia/contracts'
+import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
@@ -85,6 +94,8 @@ interface Project {
   pilot?: boolean
   /** Someone is waiting at the door (report-data.ts). */
   waiting: boolean
+  /** `lobby=again` (knocked twice) or `lobby=two` (two waiting); anything else, one first knock. */
+  lobbyAsked?: string | null
   /** This viewer's role in the project (`role=viewer`); the fixture's own, admin, otherwise. */
   role?: Membership['role']
   /** The report's description on Knowledge (report-data.ts). */
@@ -130,6 +141,10 @@ interface Project {
   onCommand?: (command: GoalCommand, key: string) => void
   /** The floor and Sophia's presence as the page asked for them (data.ts, room-people checks). */
   room?: RoomAsked
+  /** Sophia's conversation moved (exchange-writes.ts); absent, a press on it is unexpected. */
+  onExchange?: (action: ExchangeAction) => void
+  /** A guest is in the room, as the LiveKit server lists them (exchange-writes.ts). */
+  guestHere?: () => boolean
   /** The floor passed on to this actor; absent, passing it is unexpected. */
   onFloor?: (actorId: string) => void
   /** The room moves (another member's change) just before the next pass reaches the API. */
@@ -146,8 +161,14 @@ interface Project {
   carriedIn?: ProjectRelease[]
   /** The project list holds other projects only (`carried=elsewhere`): this one is past its first ones. */
   carriedElsewhere?: boolean
+  /** The reader's reports are in another project too (`reports=elsewhere`): its count is under the filters. */
+  reportsElsewhere?: boolean
+  /** The report's card names a version its versions list doesn't hold yet (`card=ahead`): just published. */
+  cardAhead?: boolean
   /** While set, the project list's reads wait for these (`window.fixture.holdProjects`). */
   projectsHeld?: (() => void)[] | null
+  /** While set, the membership's reads wait for these (`membership=hold`, `window.fixture.releaseMembership`). */
+  membershipHeld?: (() => void)[] | null
   /** The project list's reads fail (`projects=fail`). */
   projectsFail?: boolean
   /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
@@ -170,6 +191,8 @@ export interface Conversations extends TalkWrites {
   messages: Record<string, ConversationMessage[]>
   /** The list's reads fail (`conversations=fail`, `window.fixture.failConversations`). */
   failList: boolean
+  /** The list says each one's last message (A18 proposed; `last=1`, and the demo). */
+  lastShown?: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -223,7 +246,7 @@ function snapshotOf(project: Project) {
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
-  return withFocus(project, project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work)
+  return withFocus(project, project.waiting ? { ...work, lobby: lobbyOf(project.lobbyAsked) } : work)
 }
 
 /** What the room shows, as the snapshot carries it, with the report's current version among its artifacts. */
@@ -275,7 +298,7 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   }
   const records = recordsAnswer(project, method, url, init)
   if (records !== undefined) return records
-  if (method === 'GET' && path === `${base}/membership`) return json(membershipOf(project))
+  if (method === 'GET' && path === `${base}/membership`) return membershipRead(project)
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
@@ -346,6 +369,13 @@ function searchAnswer(project: Project, url: URL): Response | Promise<Response> 
 /** This viewer's membership: the fixture's own, in the role the page asked for. */
 const membershipOf = (project: Project) => ({ ...membership, role: project.role ?? membership.role })
 
+/** The reader's membership; while held, a read that waits until it is let through. */
+function membershipRead(project: Project): Response | Promise<Response> {
+  const held = project.membershipHeld
+  if (held) return new Promise<Response>((resolve) => held.push(() => resolve(json(membershipOf(project)))))
+  return json(membershipOf(project))
+}
+
 /** What a closed meeting's work made after it (the proposed `after` route): the running one's, once closed; none else. */
 function afterAnswer(meeting: Meeting, path: string): Response | null {
   const afterOf = /\/meetings\/([^/]+)\/after$/.exec(path)?.[1]
@@ -403,7 +433,22 @@ function conversationRead(talk: Conversations, url: URL) {
 function conversationsRead(talk: Conversations) {
   if (talk.failList) return unavailable()
   served.push('conversations:read')
-  return json({ conversations: talk.list })
+  if (!talk.lastShown) return json({ conversations: talk.list })
+  // A18 (proposed): each one's newest message, a line of it, as its messages say it now.
+  const lastOf = (id: string) => {
+    const m = talk.messages[id]?.at(-1)
+    return m
+      ? {
+          author: m.author,
+          actorId: m.actorId,
+          name: m.name,
+          // Its opening as written, line breaks kept: the Studio says it in one line (C6, sophia-text.ts plainOf).
+          text: m.text.slice(0, 140),
+          at: m.at,
+        }
+      : null
+  }
+  return json({ conversations: talk.list.map((c) => ({ ...c, lastMessage: lastOf(c.id) })) })
 }
 
 /** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
@@ -418,6 +463,18 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   const start = Math.max(0, end - MESSAGE_PAGE)
   served.push(`messages:${conversationId.slice(-2)}:${String(start)}`)
   return json({ messages: all.slice(start, end), before: start > 0 ? String(start) : null })
+}
+
+/** Who waits at the door: one first knock, one knocking again (`lobby=again`), or two (`lobby=two`). */
+function lobbyOf(asked: string | null | undefined) {
+  if (asked === 'again') return [{ ...waitingAtTheDoor, knocks: 2 }]
+  if (asked === 'two') {
+    return [
+      waitingAtTheDoor,
+      { ...waitingAtTheDoor, id: '00000000-0000-4000-8000-0000000000b7', displayName: 'Bea Soto' },
+    ]
+  }
+  return [waitingAtTheDoor]
 }
 
 /** The person's projects (`GET /api/v1/projects`): this one, with what members carried in from Personal. */
@@ -633,6 +690,31 @@ function answerReports(project: Project, method: string, url: URL, init: Request
   return reading ? json(reading) : answerReport(project, method, url, init)
 }
 
+/** Another project the reader has reports in (`reports=elsewhere`), as the report list names it. */
+const ELSEWHERE = { projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project' }
+
+/** The fixture report's card, naming a version published since its versions were read. */
+const ahead = (card: ReportList['reports'][number]): ReportList['reports'][number] =>
+  card.artifactId === REPORT ? { ...card, currentVersionId: '00000000-0000-4000-8000-0000000000dd' } : card
+
+/** Knowledge's list of reports, as the reader asked for it (words, a format, a page, a project). */
+function reportsAnswer(project: Project, url: URL) {
+  const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
+  const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
+  const listed = reportList(published, project.description, url.searchParams.get('cursor'), filter)
+  const list = project.cardAhead ? { ...listed, reports: listed.reports.map(ahead) } : listed
+  if (!project.reportsElsewhere) return json(list)
+  // The other project's report, under the same words and format; listed only when one is left.
+  const theirs = [elsewhereCard(ELSEWHERE.projectId, ELSEWHERE.title)].filter((c) => matchesFilter(c, filter))
+  const projects = theirs.length > 0 ? [...list.projects, { ...ELSEWHERE, count: theirs.length }] : list.projects
+  const asked = url.searchParams.get('project')
+  if (asked === ELSEWHERE.projectId) return json({ reports: theirs, projects, nextCursor: null })
+  // Every project: theirs after this project's, on the last page (it is the oldest).
+  if (asked === 'all' && list.nextCursor === null)
+    return json({ ...list, reports: [...list.reports, ...theirs], projects })
+  return json({ ...list, projects })
+}
+
 /**
  * The report viewer's and Knowledge's requests (SMC-M03): the fixture report's versions, their sources and text, its
  * task, its card, and an edit of its description.
@@ -641,19 +723,46 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   const path = url.pathname
   if (method === 'PATCH') return edited(project, path, init)
   if (method !== 'GET') return null
-  if (path === '/api/v1/knowledge/reports') {
-    const filter = { q: url.searchParams.get('q'), format: url.searchParams.get('format') }
-    const published = versions(project.reportVersions, project.reportTitle, project.pilot, project.designed)
-    return json(reportList(published, project.description, url.searchParams.get('cursor'), filter))
-  }
-  if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
-  if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
+  if (path === '/api/v1/knowledge/reports') return reportsAnswer(project, url)
+  const listed = versionsOf(project, path)
+  if (listed) return listed
   const source = /^\/api\/v1\/sources\/([0-9a-f-]{36})\/content$/.exec(path)?.[1]
   const text = source ? content(source, project.textTampered, project.pageTampered) : null
-  if (text) return textRead(project, text)
+  if (text) {
+    served.push(`content:${source ?? ''}`)
+    return textRead(project, text)
+  }
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${DESIGN_TASK}`) return designRead(project)
   return workRead(project, path)
+}
+
+/** A report's versions (the fixture report's, or the older one's, which Knowledge's cover reads) and its sources. */
+function versionsOf(project: Project, path: string): Response | Promise<Response> | null {
+  if (/^\/api\/v1\/artifacts\/[0-9a-f-]{36}\/versions\/[0-9a-f-]{36}\/source-origins$/.test(path))
+    return originsRead(path)
+  if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
+  if (path === `/api/v1/artifacts/${OLDER_REPORT}/versions`) return json(olderVersions())
+  if (path === `/api/v1/artifacts/${ELSEWHERE_REPORT}/versions`) return json(elsewhereVersions(ELSEWHERE.projectId))
+  // The older report and the other project's cite nothing: their Sources tab reads an empty list.
+  const citesNothing = [OLDER_REPORT, ELSEWHERE_REPORT].some((id) =>
+    path.startsWith(`/api/v1/artifacts/${id}/versions/`),
+  )
+  if (citesNothing && path.endsWith('/sources')) {
+    return json({ sources: [] })
+  }
+  const shelved = DEMO ? shelvedRead(path) : null
+  if (shelved) return shelved
+  if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
+  return null
+}
+
+/** The demo library's reports (demo-library.ts): their one version, and their sources, none. */
+function shelvedRead(path: string): Response | null {
+  const listed = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions(\/[0-9a-f-]{36}\/sources)?$/.exec(path)
+  const shelf = listed ? libraryVersions(listed[1] ?? '') : null
+  if (!listed || !shelf) return null
+  return json(listed[2] ? { sources: [] } : shelf)
 }
 
 /** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
@@ -825,7 +934,7 @@ const isContribution = (value: unknown): value is { text: string; intent: Contri
   'intent' in value &&
   typeof value.intent === 'string'
 
-/** What the page posts: a room token, a goal's command, the floor passed on, or a message to the room. */
+/** What the page posts: a room token, a goal's command, the floor passed on, a message to the room, or Sophia asked in. */
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/contributions`) return contributed(project, init)
@@ -838,7 +947,7 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   if (path === `${base}/room-token`) return json(roomToken)
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
-  return null
+  return exchangeWritten(project, path, init, () => publish(project))
 }
 
 const isFloorRequest = (value: unknown): value is FloorRequest =>
@@ -1035,6 +1144,21 @@ function proposed(p: NonNullable<Project['proposals']>, init: RequestInit | unde
 
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */
 const heldSources: (() => void)[] = []
+
+/**
+ * A19 (proposed): where a version's sources came from. The demo's report says it for its four; any other version knows
+ * none. `origins=fail`: the read fails, and every project source says «From the project». `origins=missing`: the
+ * conversation named is one the list doesn't hold (gone, or not this reader's).
+ */
+function originsRead(path: string): Response {
+  const asked = new URLSearchParams(window.location.search).get('origins')
+  if (asked === 'fail') return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  const origins = DEMO && path.startsWith(`/api/v1/artifacts/${REPORT}/`) ? DEMO_ORIGINS : []
+  const gone = '00000000-0000-4000-8000-0000000000c9'
+  return json({
+    origins: asked === 'missing' ? origins.map((o) => (o.kind === 'conversation' ? { ...o, id: gone } : o)) : origins,
+  })
+}
 
 /** What a version cites; while the page holds them, a read that answers once let through. */
 function sourcesRead(project: Project): Response | Promise<Response> {

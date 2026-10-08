@@ -2,6 +2,7 @@
 // open, the filter by title, and the brief's accepted decisions beside them.
 import type { MissionDecision } from '@sophia/contracts'
 import type { ConversationSummary } from '../../api/vision.ts'
+import { plainOf } from './sophia-text.ts'
 
 /** The project's conversations, as read for this person. */
 export const listKey = (projectId: string, name: string) => ['vision', 'conversations', projectId, name] as const
@@ -33,6 +34,20 @@ export function matching(all: readonly ConversationSummary[], typed: string): re
   return words.length > 0 ? all.filter((c) => words.every((w) => folded(c.title).includes(w))) : all
 }
 
+/** What the list is narrowed to: title words, those with an open question, those the reader wrote in. */
+export interface Narrowing {
+  typed: string
+  open: boolean
+  mine: boolean
+}
+
+/** The conversations that pass every narrowing asked for, in the list's order. */
+export function narrowed(all: readonly ConversationSummary[], by: Narrowing, me: string) {
+  return matching(all, by.typed).filter(
+    (c) => (!by.open || c.openQuestions > 0) && (!by.mine || c.contributors.some((p) => p.actorId === me)),
+  )
+}
+
 /** How many accepted decisions show before «and N more». */
 export const SHOWN_DECISIONS = 3
 
@@ -59,6 +74,28 @@ export const messageBy = (
   m: { author: 'member' | 'sophia'; actorId: string | null; name: string | null },
   me: string,
 ) => (m.author === 'sophia' ? 'Sophia' : m.actorId === me ? 'You' : (m.name ?? 'A member'))
+
+/** How close in time two messages by the same author are to read as one run (docs/plans/conversation-thread.md). */
+const RUN_MS = 5 * 60_000
+
+type Said = { author: 'member' | 'sophia'; actorId: string | null; at: string }
+
+/** Whether `m` goes on from `before`: the same author (Sophia, or the same person) within five minutes. */
+export function continuesRun(before: Said | undefined, m: Said): boolean {
+  if (!before || before.author !== m.author || before.actorId !== m.actorId) return false
+  // Two members known by no id may be two people: never one run.
+  if (m.author === 'member' && m.actorId === null) return false
+  const gap = Date.parse(m.at) - Date.parse(before.at)
+  return gap >= 0 && gap < RUN_MS
+}
+
+/** A face's letter: the name's first character (whole, an emoji too), upper case; no name is «A member». */
+const letters = new Intl.Segmenter()
+
+export function initialOf(name: string | null): string {
+  const [first] = letters.segment((name ?? '').trim())
+  return (first?.segment ?? 'A').toLocaleUpperCase()
+}
 
 /** Whether Sophia answered since she was asked: a message of hers written after then (wherever the page holds it). */
 export function answeredAfter(
@@ -89,4 +126,37 @@ export function withMessage<M extends { id: string }>(
   const [newest, ...rest] = read?.pages ?? []
   if (!read || !newest || read.pages.some((p) => p.messages.some((m) => m.id === message.id))) return read
   return { ...read, pages: [{ ...newest, messages: [...newest.messages, message] }, ...rest] }
+}
+
+/**
+ * The row's line: its last message, who said it first («You», «Sophia», a name), where the list says it (A18 proposed);
+ * else Sophia's summary.
+ */
+export function gistOf(c: ConversationSummary, me: string): string | null {
+  const last = c.lastMessage
+  if (!last) return c.summary
+  const who =
+    last.author === 'sophia'
+      ? 'Sophia'
+      : last.actorId === me
+        ? 'You'
+        : (c.contributors.find((p) => p.actorId === last.actorId)?.name ?? last.name ?? 'Someone')
+  // Hers in one line: the row never shows the marks her words are drawn with (sophia-text.ts).
+  return `${who}: ${last.author === 'sophia' ? plainOf(last.text) : last.text}`
+}
+
+/**
+ * The list as a confirmed message leaves it: that conversation's last message is the message, where the list says last
+ * messages at all (A18 proposed). The rest, and a list that doesn't say them, as they were.
+ */
+export function withLastMessage(
+  list: readonly ConversationSummary[],
+  conversationId: string,
+  m: { author: 'member' | 'sophia'; actorId: string | null; name: string | null; text: string; at: string },
+): readonly ConversationSummary[] {
+  return list.map((c) =>
+    c.id === conversationId && c.lastMessage !== undefined
+      ? { ...c, lastMessage: { author: m.author, actorId: m.actorId, name: m.name, text: m.text, at: m.at } }
+      : c,
+  )
 }

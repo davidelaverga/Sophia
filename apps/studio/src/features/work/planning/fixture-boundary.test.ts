@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -8,6 +8,9 @@ import { fileURLToPath } from 'node:url'
 // plans. Since WBC-02 the shell reads them itself from the board Sophia serves (ServedWork.tsx, api/work.ts): the only
 // plans production Tasks shows are those, read by the board's reader, and none comes from a fixture.
 const src = fileURLToPath(new URL('../../../', import.meta.url))
+
+/** A source file's path under `src`, with `/` between its parts on any system (Windows' own is `\`). */
+const underSrc = (path: string) => relative(src, path).split(sep).join('/')
 
 /** Every source file the Studio builds from: tests and test builders excluded. */
 function production(dir: string): string[] {
@@ -24,10 +27,7 @@ describe('the fixtures’ boundary', () => {
     const reaching = production(src).filter((path) =>
       /['"][^'"]*(\/fixtures\/|board-samples)/.test(readFileSync(path, 'utf8')),
     )
-    assert.deepEqual(
-      reaching.map((p) => relative(src, p)),
-      [],
-    )
+    assert.deepEqual(reaching.map(underSrc), [])
   })
 
   it('never hands the app’s own shell a plan: production Tasks shows only the board Sophia serves', () => {
@@ -36,9 +36,10 @@ describe('the fixtures’ boundary', () => {
     assert.doesNotMatch(app, /\bplans=/)
     const boardUsers = production(src).filter(
       (path) =>
-        !path.includes('/features/work/planning/') && /PlanBoard|readBoardView/.test(readFileSync(path, 'utf8')),
+        !underSrc(path).startsWith('features/work/planning/') &&
+        /PlanBoard|readBoardView/.test(readFileSync(path, 'utf8')),
     )
-    assert.deepEqual(boardUsers, [])
+    assert.deepEqual(boardUsers.map(underSrc), [])
     const shell = readFileSync(join(src, 'features/studio/ProjectShell.tsx'), 'utf8')
     assert.match(shell, /useServedWork/, 'the shell reads its plans from the served board')
     const served = readFileSync(join(src, 'features/work/planning/ServedWork.tsx'), 'utf8')

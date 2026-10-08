@@ -9,13 +9,13 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
-import { Tag } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
 import { formatsOffered } from './report-view.ts'
+import { metaOf } from './report-cover.ts'
+import { ReportCover } from './ReportCover.tsx'
 import { SummaryEditor } from './SummaryEditor.tsx'
-import { dayOf } from '../../app/time-words.ts'
 import './artifacts.css'
 
 type Format = NonNullable<ReportFilter['format']>
@@ -119,7 +119,6 @@ export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = nul
     <section ref={list} className="knowledge" aria-labelledby="knowledge-title">
       <header className="view-head">
         <h2 id="knowledge-title">Knowledge</h2>
-        <span className="eyebrow">Reports</span>
       </header>
       <div className="knowledge-filters">
         <ProjectFilter projectId={projectId} project={f.project} counts={counts} onProject={f.setProject} />
@@ -135,7 +134,6 @@ export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = nul
           onChange={(e) => f.setTyped(e.target.value)}
         />
       </div>
-      {f.project === projectId && carriedIn}
       <ReportCards
         cards={cards}
         state={reports.isPending ? 'loading' : reports.isError ? 'failed' : 'ready'}
@@ -146,6 +144,7 @@ export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = nul
         onClear={f.clear}
       />
       {reports.hasNextPage && <MoreReports loading={reports.isFetchingNextPage} onMore={more} />}
+      {f.project === projectId && carriedIn}
     </section>
   )
 }
@@ -182,23 +181,17 @@ interface FilterProps {
 function ProjectFilter({ projectId, project, counts, onProject }: FilterProps) {
   const others = project === 'all' || project !== projectId ? counts.filter((c) => c.projectId !== projectId) : []
   return (
-    <div className="knowledge-projects" role="group" aria-label="Project">
-      <button
-        type="button"
-        className="filter-chip"
-        aria-pressed={project === projectId}
-        onClick={() => onProject(projectId)}
-      >
+    <div className="segmented" role="group" aria-label="Project">
+      <button type="button" aria-pressed={project === projectId} onClick={() => onProject(projectId)}>
         This project
       </button>
-      <button type="button" className="filter-chip" aria-pressed={project === 'all'} onClick={() => onProject('all')}>
+      <button type="button" aria-pressed={project === 'all'} onClick={() => onProject('all')}>
         All projects
       </button>
       {others.map((c) => (
         <button
           key={c.projectId}
           type="button"
-          className="filter-chip"
           aria-pressed={project === c.projectId}
           onClick={() => onProject(c.projectId)}
         >
@@ -258,60 +251,57 @@ interface CardProps {
   identity: Identity
 }
 
+/**
+ * A report as a tile: its cover, then its title, one meta line and its description. The title's press takes the whole
+ * tile; over the cover of a designed page, a press of its own opens that page. Edit and History keep their own.
+ */
 function ReportCardView({ card, showProject, editable, identity }: CardProps) {
   const viewer = useDocumentViewer()
   const client = useQueryClient()
-  const meta = [
-    card.currentVersionNumber ? `v${card.currentVersionNumber}` : null,
-    `${card.versionCount} ${card.versionCount === 1 ? 'version' : 'versions'}`,
-    `updated ${dayOf(card.updatedAt, Date.now())}`,
-  ]
+  // A designed report opens as the page its card shows, from its title and its History as from its cover: the version
+  // the card names, in HTML.
+  const as = card.formats.includes('html') ? { versionId: card.currentVersionId, format: 'html' as const } : {}
   return (
     <li className="report-card">
-      <div className="report-card-head">
-        <span className="report-tile" data-format="markdown" aria-hidden>
-          MD
-        </span>
-        <button
-          type="button"
-          className="report-card-title"
-          onClick={() => viewer?.open({ artifactId: card.artifactId })}
-        >
-          {card.title}
-        </button>
-        {card.formats.includes('pdf') && <Tag tone="rose">PDF</Tag>}
+      <div className="report-card-cover">
+        <ReportCover card={card} identity={identity} />
         {card.formats.includes('html') && (
           <button
             type="button"
-            className="text-button report-card-html"
+            className="report-cover-open"
             aria-label={`Open ${card.title}, HTML page`}
             onClick={() =>
               viewer?.open({ artifactId: card.artifactId, versionId: card.currentVersionId, format: 'html' })
             }
           >
-            <Tag tone="teal">HTML</Tag>
+            <span className="report-cover-tag">HTML</span>
           </button>
         )}
       </div>
-      <p className="report-meta">
-        {showProject && <span>{card.projectTitle} · </span>}
-        {meta.filter(Boolean).join(' · ')}
-      </p>
+      <button
+        type="button"
+        className="report-card-title"
+        onClick={() => viewer?.open({ artifactId: card.artifactId, ...as })}
+      >
+        {card.title}
+      </button>
+      <p className="report-meta">{metaOf(card, showProject, Date.now())}</p>
       <SummaryEditor
         card={card}
         identity={identity}
         editable={editable}
         onSaved={() => void client.invalidateQueries({ queryKey: ['reports'] })}
-      />
-      <div className="control-row">
+      >
+        {/* Its visible word is in its name: «History and changes» to a screen reader. */}
         <button
           type="button"
           className="text-button"
-          onClick={() => viewer?.open({ artifactId: card.artifactId, tab: 'history' })}
+          aria-label="History and changes"
+          onClick={() => viewer?.open({ artifactId: card.artifactId, tab: 'history', ...as })}
         >
-          History and changes
+          History
         </button>
-      </div>
+      </SummaryEditor>
     </li>
   )
 }

@@ -48,8 +48,8 @@ const asked = query.get('sophia')
 const video = query.get('video')
 /** Who shows their screen (`video=screen`): the `screenBy`th other person, the first unless the page says. */
 const screenBy = Math.max(1, Number(query.get('screenBy')) || 1)
-/** How many others are in the room (`people`, at most twelve). */
-export const count = Math.min(NAMES.length, Math.max(0, Number(query.get('people')) || 0))
+/** How many others are in the room (`people`, at most twelve); in the demo, its team (Marco and Lucía) unless asked. */
+export const count = Math.min(NAMES.length, Math.max(0, Number(query.get('people') ?? (DEMO ? 2 : 0)) || 0))
 
 /** The `n` the page named, if it is one of the others (1…count), or the viewer too (0) when `viewer` allows it. */
 export function oneOfUs(value: string | null, viewer: boolean): number | null {

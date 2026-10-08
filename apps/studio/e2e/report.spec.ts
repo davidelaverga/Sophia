@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Download, type Locator, type Page } from '@playwright/test'
+import { DEMO_TITLE } from '../fixtures/demo.ts'
 import { DESIGNED, LONG_HEADING } from '../fixtures/report-data.ts'
 import { reaches } from './reach.ts'
 import { typeSizes } from './type-sizes.ts'
@@ -346,7 +347,7 @@ test('LFE-02.1 · a description edit never overwrites a teammate’s newer one, 
   await enter(page, '/room.html?place=knowledge')
   const card = page.getByRole('listitem').filter({ hasText: 'Fixture report' })
   await expect(card.getByText('A labelled fixture report, as Sophia described it.')).toBeVisible()
-  const edit = card.getByRole('button', { name: 'Edit', exact: true })
+  const edit = card.getByRole('button', { name: 'Edit description', exact: true })
   await edit.click()
   const field = card.getByRole('textbox', { name: 'Description' })
   await expect(field).toBeFocused() // Edit moves the focus to the text
@@ -853,7 +854,7 @@ test('HTML · the work card lists the stored designed page with its review, and 
   await enter(page, '/room.html?place=work&designed=on')
   const open = page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' })
   await expect(open).toContainText('HTML page · ')
-  await expect(open).toContainText('reviewed')
+  await expect(open).toContainText('design checked')
   const saved = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Download fixture-report-v1.html, HTML page' }).click()
   const download = await saved
@@ -877,13 +878,61 @@ test('HTML · the viewer shows the designed page in a frame with no permission, 
     page.frameLocator('iframe.report-html-frame').getByText('A labelled fixture designed page'),
   ).toBeVisible()
   await expect(pane(page).getByRole('note')).toHaveText(/checked by a separate visual reviewer/)
-  await expect(pane(page).locator('.report-meta')).toHaveText(/^HTML · v1 · .* · 315a02d3 · reviewed$/)
+  await expect(pane(page).locator('.report-meta')).toHaveText('HTML · v1 · design checked')
+  // Its bytes and their hash, exactly, at Download.
+  await expect(pane(page).getByRole('button', { name: 'Download', exact: true })).toHaveAccessibleDescription(
+    /^[\d.]+ (B|KB) · 315a02d3$/,
+  )
   await expect(pane(page).locator('.md')).toHaveCount(0) // never read through MarkdownView
   const saved = page.waitForEvent('download')
   await pane(page).getByRole('button', { name: 'Download', exact: true }).click()
   const download = await saved
   expect(download.suggestedFilename()).toBe('fixture-report-v1.html')
   expect(await savedText(download)).toBe(DESIGNED.text) // what is shown is what downloads
+})
+
+test('HTML · enlarged, the designed page takes the pane’s width, not a frame’s default 300 px', async ({ page }) => {
+  await enter(page, '/room.html?place=work&designed=on')
+  await page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' }).click()
+  await pane(page).getByRole('button', { name: 'Enlarge' }).click()
+  await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'full')
+  // What the frame lacks of the pane's inner width, once the pane has grown (it grows over 220 ms).
+  const short = () =>
+    frame(page).evaluate((el) => {
+      const body = el.closest('.report-pane-body')
+      if (!body) return Infinity
+      const style = getComputedStyle(body)
+      const inner = body.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+      return inner < 700 ? Infinity : Math.round(inner - el.getBoundingClientRect().width)
+    })
+  await expect.poll(short).toBeLessThanOrEqual(1)
+})
+
+test('HTML · enlarged, the other tabs keep the full page’s centred measure', async ({ page }) => {
+  await enter(page, '/room.html?place=work&designed=on')
+  await page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' }).click()
+  await pane(page).getByRole('button', { name: 'Enlarge' }).click()
+  await expect(page.locator('.report-pane')).toHaveAttribute('data-size', 'full')
+  await pane(page)
+    .getByRole('tab', { name: /History/ })
+    .click()
+  // Each part narrower than the pane sits in its middle: as far from the left edge as from the right.
+  const offCentre = () =>
+    page.locator('.report-pane-body').evaluate((body) => {
+      const box = body.getBoundingClientRect()
+      const style = getComputedStyle(body)
+      const left = box.left + parseFloat(style.paddingLeft)
+      const right = box.right - parseFloat(style.paddingRight)
+      const narrow = [...body.children].filter((c) => c.getBoundingClientRect().width < right - left - 4)
+      if (narrow.length === 0) return Infinity
+      return Math.max(
+        ...narrow.map((c) => {
+          const r = c.getBoundingClientRect()
+          return Math.round(Math.abs(r.left - left - (right - r.right)))
+        }),
+      )
+    })
+  await expect.poll(offCentre).toBeLessThanOrEqual(2)
 })
 
 test('HTML · a designed page that does not match its record is not shown', async ({ page }) => {
@@ -929,9 +978,37 @@ test('HTML · leaving while the page is designed and coming back shows the recor
   // The card reads the design again on its own clock (every 15 s) and, the design ended, the research's record: the
   // page as published, with its review; the design row is gone, and nothing it said before is played again.
   const opened = page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' })
-  await expect(opened).toContainText('reviewed', { timeout: 25_000 })
+  await expect(opened).toContainText('design checked', { timeout: 25_000 })
   await expect(page.locator('.work-card .output-row[data-design]')).toHaveCount(0)
   await expect(page.locator('.work-card')).not.toContainText('Designing')
+})
+
+test('demo · an explicit design=designing is the state shown, over the demo’s published page', async ({ page }) => {
+  await enter(page, '/room.html?demo=1&place=work&design=designing')
+  await expect(page.locator('.work-card .output-row[data-design="designing"]')).toContainText('HTML page · Designing')
+  await expect(page.getByRole('button', { name: /HTML page/ })).toHaveCount(0)
+})
+
+test('demo · both versions are published by default: the report opens on v2, its history holds v1', async ({
+  page,
+}) => {
+  await enter(page, `/room.html?demo=1&report=${REPORT}`)
+  // The demo's pane is named by the demo's title.
+  const demo = page.getByRole('complementary', { name: DEMO_TITLE })
+  await expect(demo.locator('.report-meta').first()).toContainText('v2')
+  await expect(demo.getByRole('tab', { name: /History 2/ })).toBeVisible()
+})
+
+test('demo · the work card and the conversation name the version the report opens on: v2', async ({ page }) => {
+  await enter(page, '/room.html?demo=1&place=work')
+  await expect(page.getByRole('button', { name: /^Open .*-v2\.html, HTML page$/ })).toBeVisible()
+  await enter(page, '/room.html?demo=1&conversations=1&place=conversations')
+  await expect(page.locator('.conv-output')).toContainText('v2')
+  // With only v1 published (`versions=1`), both name v1.
+  await enter(page, '/room.html?demo=1&versions=1&place=work')
+  await expect(page.getByRole('button', { name: /^Open .*-v1\.html, HTML page$/ })).toBeVisible()
+  await enter(page, '/room.html?demo=1&versions=1&conversations=1&place=conversations')
+  await expect(page.locator('.conv-output')).toContainText('v1')
 })
 
 test('HTML · a Knowledge card opens its current version’s designed page; a card without one offers none', async ({

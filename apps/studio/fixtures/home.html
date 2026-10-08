@@ -29,6 +29,29 @@
         border-radius: 0 0 4px 4px;
         pointer-events: none;
       }
+      /* The demo's label sits in the corner, clear of the app's bar and its controls. */
+      .fixture-label[data-demo] {
+        top: auto;
+        bottom: 12px;
+        left: 12px;
+        transform: none;
+        border-radius: 4px;
+      }
+      /* On a phone no corner is free (a row, a message, the dock, a field): the label is a thin line along the top
+         edge instead, its words kept for a screen reader. */
+      @media (max-width: 600px) {
+        .fixture-label[data-demo] {
+          top: 0;
+          right: 0;
+          bottom: auto;
+          left: 0;
+          height: 3px;
+          padding: 0;
+          overflow: hidden;
+          border-radius: 0;
+          color: transparent;
+        }
+      }
     </style>
   </head>
   <body>

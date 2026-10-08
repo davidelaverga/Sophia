@@ -5,7 +5,7 @@ import type { ConversationMessage, ConversationSummary } from '../src/api/vision
 import { membership } from './data.ts'
 import { personId } from './fake-people.ts'
 import { REPORT, TITLE, versionId } from './report-data.ts'
-import { DEMO, VIEWER_NAME } from './demo.ts'
+import { DEMO, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
 
 const ME = membership.actorId
 const MARCO = personId(1)
@@ -34,7 +34,8 @@ export const conversations = (): ConversationSummary[] => [
     ],
     sophia: true,
     openQuestions: 1,
-    output: { artifactId: REPORT, versionId: versionId(1), versionNumber: 1, title: TITLE },
+    // What it made, at the version the report opens on: the demo's second.
+    output: { artifactId: REPORT, versionId: versionId(DEMO_VERSION), versionNumber: DEMO_VERSION, title: TITLE },
   },
   {
     id: CONVERSATION.briefs,

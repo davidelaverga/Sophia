@@ -184,6 +184,47 @@ export const getRecap = (token: string, projectId: string, meetingId: string, si
     parseRecap,
   )
 
+/**
+ * A19 (proposed, for Davide; docs/plans/knowledge-origins.md): where each of a version's project sources came from, a
+ * conversation, a meeting, a decision or a file. A source with no known origin is absent; one the reader may not see is
+ * left out, as in the sources' own read.
+ */
+export interface SourceOrigin {
+  sourceId: string
+  kind: 'conversation' | 'meeting' | 'decision' | 'file'
+  /** The conversation's, meeting's, decision's or file's own id. */
+  id: string
+  /** The conversation's or decision's title, the file's name; null for a meeting. */
+  title: string | null
+  /** Who added a file, as the member list names them; null otherwise. */
+  by: string | null
+  /** When it was said, held or added. */
+  at: string
+}
+
+const ORIGIN_KINDS: ReadonlySet<unknown> = new Set(['conversation', 'meeting', 'decision', 'file'])
+const parseOrigins = checked<{ origins: readonly SourceOrigin[] }>(
+  {
+    origins: listOf({
+      sourceId: isStr,
+      kind: (v) => ORIGIN_KINDS.has(v),
+      id: isStr,
+      title: isStrOrNull,
+      by: isStrOrNull,
+      at: isStr,
+    }),
+  },
+  'source origin list',
+)
+
+/** A19: a version's source origins. */
+export const listSourceOrigins = (token: string, artifactId: string, versionId: string, signal?: AbortSignal) =>
+  callApi(
+    `/api/v1/artifacts/${artifactId}/versions/${versionId}/source-origins`,
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parseOrigins,
+  )
+
 /** A12: close the meeting for everyone (editors and admins), idempotent per key. */
 export const closeMeeting = (token: string, roomId: string, meetingId: string, key: string): Promise<MeetingReceipt> =>
   callApi(`/api/v1/rooms/${roomId}/meetings/${meetingId}/close`, { token, method: 'POST', key }, parseMeetingReceipt)
@@ -416,6 +457,19 @@ export interface ConversationSummary {
   openQuestions: number
   /** The report it made, if any. */
   output: { artifactId: string; versionId: string; versionNumber: number; title: string } | null
+  /**
+   * A18 (proposed, for Davide): its newest message, its opening (up to 140 characters, as written, line breaks kept:
+   * the row says it in one line, sophia-text.ts plainOf); absent where the API doesn't say it yet, null when there is
+   * none. Behind the vision flag, the fixture pages answer it.
+   */
+  lastMessage?: {
+    author: 'member' | 'sophia'
+    actorId: string | null
+    /** The author's name, as a message carries it: a member no longer listed is still named. */
+    name: string | null
+    text: string
+    at: string
+  } | null
 }
 
 /** A18: a message in a conversation, a member's or Sophia's. */
@@ -445,6 +499,16 @@ const SUMMARY = {
   sophia: (v: unknown) => typeof v === 'boolean',
   openQuestions: isNum,
   output: isOutput,
+  lastMessage: (v: unknown) =>
+    v === undefined ||
+    v === null ||
+    fields(v, {
+      author: (a: unknown) => a === 'member' || a === 'sophia',
+      actorId: isStrOrNull,
+      name: isStrOrNull,
+      text: isStr,
+      at: isStr,
+    }),
 }
 const MESSAGE = {
   id: isStr,

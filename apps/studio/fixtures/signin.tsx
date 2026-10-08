@@ -42,7 +42,7 @@ if (!root) throw new Error('signin.html must contain #root')
 
 createRoot(root).render(
   <StrictMode>
-    <p className="fixture-label" role="note">
+    <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
       {DEMO ? DEMO_LABEL : 'Simulated — no Auth service, no email sent'}
     </p>
     <EmailSignIn notice={undefined} send={send} verify={verify} />

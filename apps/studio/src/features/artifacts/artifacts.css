@@ -9,7 +9,7 @@
   height: 40px;
   flex: none;
   border-radius: var(--r-2);
-  font: 600 11px/1 var(--mono);
+  font: 600 var(--type-label) / 1 var(--mono);
   letter-spacing: 0.04em;
   color: var(--void);
   background: var(--teal);
@@ -22,7 +22,7 @@
 }
 .report-meta {
   color: var(--text-2);
-  font: 12px/1.4 var(--mono);
+  font: var(--type-small) / 1.4 var(--sans);
 }
 
 /* --- the research card ---------------------------------------------------------------------------------------- */
@@ -44,7 +44,7 @@
 .work-card-progress {
   display: grid;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .work-card-bar {
   height: 3px;
@@ -98,7 +98,7 @@
 }
 .output-name {
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: var(--type-body);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -130,10 +130,6 @@
 .report-status[data-error],
 .report-problem {
   color: var(--rose);
-}
-/* A Knowledge card's HTML tag opens the designed page: a tag that is a button, nothing more. */
-.report-card-html {
-  padding: 0;
 }
 .work-card-foot {
   display: flex;
@@ -227,7 +223,7 @@
   border: 1px solid var(--line);
   background: var(--glass);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 .report-pane[data-size='full'] .report-pane-call:not(:empty) {
   display: flex;
@@ -260,9 +256,11 @@
   color: var(--text-2);
   font-size: 12px;
 }
+/* The tabs keep one line each; where the format switch doesn't fit beside them (a phone), it takes its own line. */
 .report-tabs {
   display: flex;
-  gap: 18px;
+  flex-wrap: wrap;
+  column-gap: 18px;
   padding: 0 16px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -417,12 +415,12 @@
   padding: 1px 4px;
   border-radius: var(--r-1);
   background: rgba(236, 235, 241, 0.06);
-  font: 13.5px var(--mono);
+  font: var(--type-body) var(--mono);
 }
 .md pre {
   padding: 10px 0;
   border-block: 1px solid var(--line-2);
-  font-size: 13.5px;
+  font-size: var(--type-body);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -513,7 +511,7 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font: 13.5px/1.4 var(--sans);
+  font: var(--type-body) / 1.4 var(--sans);
   font-variant-numeric: lining-nums tabular-nums;
 }
 .md-table th,
@@ -591,6 +589,8 @@
   min-width: 0;
 }
 .source-title {
+  /* On the app's scale: the body's 13.5 px is not on it. */
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 .source-title a {
@@ -608,11 +608,20 @@
   gap: 10px;
   font-size: 12px;
 }
+/* Where a project source came from (A19): words in the second ink; a conversation or a meeting, a press to go there. */
+.source-origin {
+  color: var(--text-2);
+  font-size: var(--type-small);
+  text-align: start;
+}
+.source-origin.text-button {
+  color: var(--halo-text);
+}
 .source-limits {
   margin: 0;
   padding-left: 18px;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 
 /* The History tab. */
@@ -640,7 +649,7 @@
   font-size: var(--type-small);
 }
 /* Sophia's notes, under the facts: who wrote them in small grey, or the line that unfolds them when they are folded.
-   A grey that reads at this size: --text-3 falls under 4.5:1 on the pane, and the folded line is the only way in. */
+   The second grey: the folded line is the only way in, so it reads above the third ink's floor. */
 .report-notes {
   display: grid;
   gap: 4px;
@@ -717,82 +726,256 @@
   display: grid;
   gap: 16px;
 }
+/* More reports: a button as wide as its words, in the middle under the tiles. */
+.knowledge-more {
+  justify-self: center;
+  padding-inline: 18px;
+}
 .knowledge-filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
-.knowledge-projects {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line-2);
-  border-radius: 14px;
-  background: none;
-  color: var(--text-2);
-  font-size: 12.5px;
-}
-.filter-chip[aria-pressed='true'] {
-  border-color: transparent;
-  background: rgba(236, 235, 241, 0.1);
-  color: var(--text);
-}
 .knowledge-search {
   flex: 1 1 220px;
   max-width: 360px;
+  font-size: var(--type-body);
 }
 .report-cards {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
+/* A report as a tile (KnowledgeReports, docs/plans/knowledge-library.md): its cover, then its words. The title's press
+   takes the whole tile (its ::after); the cover's own press and Edit, History and the form sit above it. */
 .report-card {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  border-radius: var(--r-3);
-  background: var(--glass);
-}
-.report-card-head {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background: var(--plane-2);
+  transition: border-color var(--fast) var(--ease);
+}
+.report-card:hover {
+  border-color: var(--line-3);
+}
+.report-card > :not(.report-card-cover) {
+  margin-inline: 6px;
+}
+.report-card :is(.text-button, form, textarea, .report-problem) {
+  position: relative;
+  z-index: 1;
+}
+.report-card-cover {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  max-width: 100%;
+  margin-bottom: 6px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--plane);
+}
+.report-cover {
+  position: absolute;
+  inset: 0;
+}
+/* The page laid out three times wider than the cover, then drawn at a third: its first screen, as a desktop sees it. */
+.report-cover-frame {
+  width: 300%;
+  height: 300%;
+  border: 0;
+  background: #fff;
+  transform: scale(calc(1 / 3));
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.report-cover[data-cover='lines'] {
+  padding: 16px 20px 0;
+}
+/* A Markdown report's opening as a sheet of paper rising from the cover's foot, as a designed page's cover is paper:
+   its heading, its first words, its sections, in dark ink. The paper and its inks are the page's, not the app's. */
+/* A column, not a grid: grid rows of clipped lines shrink to nothing past the sheet's height and cut them mid-line. */
+.report-cover-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  padding: 14px 16px;
+  overflow: hidden;
+  border-radius: var(--r-2) var(--r-2) 0 0;
+  background: #f8f6f1;
+  box-shadow: 0 -1px 12px rgba(0, 0, 0, 0.35);
+}
+/* Its words run on past the cover's foot, as a page does: they fade into the paper, never cut through a line. */
+.report-cover-page::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 36px;
+  background: linear-gradient(to bottom, rgba(248, 246, 241, 0), #f8f6f1);
+}
+.report-cover-page p {
+  display: -webkit-box;
+  flex: none;
+  margin: 0;
+  overflow: hidden;
+  color: #55525c;
+  font-size: var(--type-small);
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.report-cover-page .report-cover-heading {
+  margin-bottom: 2px;
+  color: #1c1a21;
+  font-size: var(--type-body);
+  font-weight: 600;
+}
+.report-cover-page .report-cover-section {
+  margin-top: 4px;
+  color: #3b3842;
+  font-weight: 600;
+}
+.report-cover[data-cover='waiting'],
+.report-cover[data-cover='mark'] {
+  display: grid;
+  place-items: center;
+}
+.report-cover[data-cover='waiting'] {
+  background: linear-gradient(90deg, transparent, rgba(236, 235, 241, 0.03), transparent);
+}
+.report-cover-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-2);
+  color: var(--void);
+  background: var(--teal);
+  font: 600 var(--type-label) / 1 var(--mono);
+  letter-spacing: 0.04em;
+}
+.report-cover-mark[data-format='pdf'] {
+  background: var(--rose);
+}
+.report-cover-mark[data-format='html'] {
+  background: var(--amber);
+}
+.report-cover-open {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 8px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  cursor: pointer;
+}
+.report-cover-open:hover {
+  background: rgba(8, 7, 12, 0.08);
+}
+.report-cover-open:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: -2px;
+}
+/* A cover that could not be shown already names its format: the tag would say it twice. */
+.report-card-cover:has(.report-cover[data-cover='mark']) .report-cover-tag {
+  display: none;
+}
+.report-cover-tag {
+  padding: 3px 6px;
+  border-radius: var(--r-1);
+  color: var(--void);
+  background: var(--amber);
+  font: 600 var(--type-label) / 1 var(--mono);
+  letter-spacing: 0.04em;
 }
 .report-card-title {
-  flex: 1;
-  min-width: 0;
+  display: -webkit-box;
+  min-height: 24px;
+  overflow: hidden;
   padding: 0;
   border: 0;
   background: none;
   color: var(--text);
-  font-size: 15px;
+  font-size: var(--type-title);
   font-weight: 600;
+  line-height: 1.4;
   text-align: left;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
-.report-card-title:hover {
+.report-card-title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-4);
+}
+.report-card-title:focus-visible {
+  outline: none;
+}
+.report-card-title:focus-visible::after {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+.report-card .report-summary p {
+  margin: 0;
+  font-size: var(--type-body);
+}
+.report-card .report-summary > p:first-child {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-2);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+/* The tile's words fill it, so every foot sits on the tile's last line (docs/plans/knowledge-quiet.md). */
+.report-card .report-summary {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+.report-by {
+  display: inline-flex;
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+/* One quiet foot: History, then Edit, in the second ink (it reads at 4.5:1), underlined only under the pointer or the
+   focus. */
+.report-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+.report-foot .text-button {
+  color: var(--text-2);
+  font-size: var(--type-small);
+  text-decoration: none;
+}
+.report-foot .text-button:is(:hover, :focus-visible) {
+  color: var(--text);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.report-summary {
-  display: grid;
-  gap: 2px;
-}
 .report-attribution {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  margin: 0;
   color: var(--text-2);
-  font-size: 12px;
+  font-size: var(--type-small);
 }
 .report-summary-edit {
   display: grid;
@@ -861,7 +1044,7 @@
 @media (pointer: coarse) {
   .report-tabs button,
   .output-open,
-  .filter-chip,
+  .knowledge-filters .segmented button,
   .report-pane-head .round {
     min-height: 44px;
   }
@@ -916,6 +1099,7 @@
 .report-format {
   display: inline-flex;
   align-self: center;
+  margin-block: 3px; /* 32 + 6: the tabs' 38, so the bar keeps its height beside them */
   margin-left: auto;
   padding: 2px;
   border: 1px solid var(--line);
@@ -935,6 +1119,12 @@
   background: rgba(236, 235, 241, 0.08);
   color: var(--text);
 }
+/* On touch the switch's buttons take the tabs' 44 px (above): no margin beside them, so the bar is no taller than it was. */
+@media (pointer: coarse) {
+  .report-format {
+    margin-block: 0;
+  }
+}
 
 /* A designed HTML page (HtmlView): its review line and limitations, then the page in its isolated frame, which takes
    the rest of the pane. The frame's own page sets its own colours; Studio's are never inherited. */
@@ -943,8 +1133,11 @@
   flex-direction: column;
   padding-bottom: 20px;
 }
-.report-pane[data-size='full'] .report-pane-body[data-html] > * {
+/* The designed page only (the body keeps `data-html` on the other tabs, which keep the full page's centred measure). No
+   auto margins either: in this flex column they would shrink the page to its frame's default 300 px. */
+.report-pane[data-size='full'] .report-pane-body[data-html] > .report-html {
   max-width: none;
+  margin-inline: 0;
 }
 .report-html {
   display: flex;
@@ -1121,9 +1314,25 @@
   cursor: default;
   opacity: 0.45;
 }
-/* Knowledge's format filter: pressed buttons, drawn as the segmented control's selected one. */
+/* Both filters are the app's segmented group (docs/plans/knowledge-filters.md): the pressed choice on a quiet plane,
+   as the group's thumb draws it, and a count in mono beside a project's name. A choice not pressed is in the second
+   ink, not the group's third: it reads at 4.5:1 or more. */
+.knowledge-filters .segmented {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.knowledge-filters .segmented button {
+  color: var(--text-2);
+}
 .knowledge-filters .segmented button[aria-pressed='true'] {
   color: var(--text);
+  background: rgba(236, 235, 241, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(236, 235, 241, 0.08);
+}
+.knowledge-filters .count {
+  margin-left: 6px;
+  color: var(--text-2);
+  font: 500 var(--type-small) / 1 var(--mono);
 }
 /* A card takes the focus when a control inside it goes (Try PDF again): no ring for a focus the reader didn't move. */
 .work-card:focus {
@@ -1327,7 +1536,7 @@
 }
 .carried-in-text {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--type-body);
   overflow-wrap: anywhere;
 }
 .carried-in-by,
@@ -1335,5 +1544,5 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }

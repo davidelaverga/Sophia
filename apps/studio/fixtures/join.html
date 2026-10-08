@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Join fixture · Sophia Studio</title>
+    <style>
+      .fixture-label {
+        position: fixed;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        margin: 0;
+        padding: 2px 8px;
+        z-index: 1000;
+        font:
+          11px/1.4 system-ui,
+          sans-serif;
+        color: #000;
+        background: #ffd400;
+        border-radius: 0 0 4px 4px;
+        pointer-events: none;
+      }
+      /* The demo's label sits in the corner, clear of the page's own words and presses. */
+      .fixture-label[data-demo] {
+        top: auto;
+        bottom: 12px;
+        left: 12px;
+        transform: none;
+        border-radius: 4px;
+      }
+      /* On a phone no corner is free: a thin line along the top edge, its words kept for a screen reader. */
+      @media (max-width: 600px) {
+        .fixture-label[data-demo] {
+          top: 0;
+          right: 0;
+          bottom: auto;
+          left: 0;
+          height: 3px;
+          padding: 0;
+          overflow: hidden;
+          border-radius: 0;
+          color: transparent;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./join.tsx"></script>
+  </body>
+</html>

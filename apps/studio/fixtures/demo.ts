@@ -5,6 +5,12 @@
 /** Whether the page asked for the demo. Pages only: the checks import these modules under Node, with no `location`. */
 export const DEMO = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
 
+/**
+ * The version the demo's report is on: its second, both published, unless `versions=1` publishes only the first. The
+ * research and what the conversation made name the same one.
+ */
+export const DEMO_VERSION: 1 | 2 = DEMO && new URLSearchParams(window.location.search).get('versions') !== '1' ? 2 : 1
+
 /** The project. */
 export const DEMO_PROJECT = 'Onboarding pilot'
 
@@ -39,6 +45,45 @@ export const DEMO_SOURCES = [
 ] as const
 
 const [SURVEY, TICKETS, CALLS, DASHBOARD] = DEMO_SOURCES.map((s) => s.id)
+
+/**
+ * Where the report's sources came from (A19, proposed; docs/plans/knowledge-origins.md): the survey a file Lucía added,
+ * the tickets a conversation about setup, the call notes the Oct 4 meeting, the dashboard a decision.
+ */
+export const DEMO_ORIGINS = [
+  {
+    sourceId: SURVEY ?? '',
+    kind: 'file',
+    id: '00000000-0000-4000-8000-0000000007a1',
+    title: 'week-3-survey.csv',
+    by: 'Lucía',
+    at: '2026-09-29T10:00:00.000Z',
+  },
+  {
+    sourceId: TICKETS ?? '',
+    kind: 'conversation',
+    id: '00000000-0000-4000-8000-0000000000c3',
+    title: 'Who owns setup when an admin changes?',
+    by: null,
+    at: '2026-10-04T09:00:00.000Z',
+  },
+  {
+    sourceId: CALLS ?? '',
+    kind: 'meeting',
+    id: '00000000-0000-4000-8000-0000000000e2',
+    title: null,
+    by: null,
+    at: '2026-10-04T15:00:00.000Z',
+  },
+  {
+    sourceId: DASHBOARD ?? '',
+    kind: 'decision',
+    id: '00000000-0000-4000-8000-0000000007a2',
+    title: 'Read activation from the September snapshot',
+    by: null,
+    at: '2026-09-30T12:00:00.000Z',
+  },
+] as const
 
 const MEASURED = `## What we measured
 
@@ -129,8 +174,9 @@ export const DEMO_DESCRIPTION =
 export const DEMO_FILE = 'pilot-readout'
 
 /** The meeting before this one: what was decided, and what was still open. */
-export const DEMO_DECIDED = 'Keep the readout to one page, with its sources inline'
-export const DEMO_OPEN = 'Translate the checklist for the second region'
+// The brief's own, as Conversations shows it (conversation-data.ts): accepted on Oct 4, and still open.
+export const DEMO_DECIDED = 'Reports open on the answer'
+export const DEMO_OPEN = 'Map first, list second'
 
 /** The earlier meeting this project's room held. */
 export const DEMO_MEETING = 'Pilot review'

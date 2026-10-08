@@ -17,6 +17,19 @@ export interface DateWords {
   today: (at: Date) => boolean
 }
 
+/**
+ * How long each closed meeting lasted against the longest of them (0–1], for the row's bar; the running one has none.
+ */
+export function lengthShares(
+  meetings: readonly Pick<MeetingSummary, 'id' | 'startedAt' | 'endedAt'>[],
+): ReadonlyMap<string, number> {
+  const lengths = meetings.flatMap((m) =>
+    m.endedAt === null ? [] : [[m.id, Math.max(0, Date.parse(m.endedAt) - Date.parse(m.startedAt))] as const],
+  )
+  const longest = Math.max(1, ...lengths.map(([, ms]) => ms))
+  return new Map(lengths.map(([id, ms]) => [id, Math.max(0.04, ms / longest)]))
+}
+
 /** A meeting's row: the running one is now; a closed one is when it was, and how long it lasted. */
 export function meetingRow(meeting: Pick<MeetingSummary, 'startedAt' | 'endedAt'>, words: DateWords): string {
   const start = new Date(meeting.startedAt)

@@ -2,9 +2,9 @@
 // version's `html` rendition. Static: inline CSS and SVG charts, no script (the viewer's frame allows none). Every
 // number is invented, and the same as the Markdown's.
 
-const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
+export const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
 
-const STYLE = `
+export const STYLE = `
 :root{--ink:#1d1b22;--soft:#5d5966;--line:#e4dfd6;--paper:#fbf8f3;--card:#fff;--accent:#6d5bd0;--accent-2:#b4a6f0;--warm:#c8794a;--good:#2f8f6b;--bad:#b4525c}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
@@ -47,6 +47,7 @@ ol.recs li::before{content:counter(r);position:absolute;left:16px;top:13px;width
 ol.recs .why{display:block;color:var(--soft);font-size:13px;margin-top:3px}
 .tag{display:inline-block;font-size:11px;font-weight:600;border-radius:6px;padding:2px 7px;margin-left:6px;background:#eef7f2;color:var(--good)}
 .sources{font-size:13px;color:var(--soft);padding-left:18px}
+.cite{font-size:11px;vertical-align:super;margin-left:2px;color:var(--accent);text-decoration:none}
 .foot{margin-top:34px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--soft)}
 .new{display:inline-block;font:600 10.5px/1 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--warm);border-radius:5px;padding:4px 6px;margin-left:8px;vertical-align:middle}
 `
@@ -121,9 +122,9 @@ ${ACTIVE}
 ${DAYS}
 <h2>What kept teams</h2>
 <div class="cards">
-<div class="card"><div class="big">9 of 9</div><h4>The shorter checklist</h4><p>Every team that finished its five steps in the first session was still active in week four.</p></div>
-<div class="card"><div class="big">12 of 12</div><h4>A named owner</h4><p>Every team that stayed had one person who answered setup questions inside a day.</p></div>
-<div class="card"><div class="big">3×</div><h4>A first report early</h4><p>Teams that shared a report in their first week had three times the sessions of the rest in week four.</p></div>
+<div class="card"><div class="big">9 of 9</div><h4>The shorter checklist</h4><p>Every team that finished its five steps in the first session was still active in week four.<a class="cite" href="#source-4">4</a></p></div>
+<div class="card"><div class="big">12 of 12</div><h4>A named owner</h4><p>Every team that stayed had one person who answered setup questions inside a day.<a class="cite" href="#source-3">3</a></p></div>
+<div class="card"><div class="big">3×</div><h4>A first report early</h4><p>Teams that shared a report in their first week had three times the sessions of the rest in week four.<a class="cite" href="#source-4">4</a></p></div>
 </div>
 ${SESSIONS}
 <h2>Why two teams left</h2>
@@ -150,10 +151,10 @@ ${REGIONS}`
 ${recommendations(second)}
 <h2>Sources</h2>
 <ol class="sources">
-<li>Week-3 pilot survey · 11 of 14 teams answered</li>
-<li>Support tickets raised in the pilot · Sep 1–28</li>
-<li>Onboarding call notes · 14 first sessions</li>
-<li>Activation dashboard · September snapshot</li>
+<li id="source-1">Week-3 pilot survey · 11 of 14 teams answered</li>
+<li id="source-2">Support tickets raised in the pilot · Sep 1–28</li>
+<li id="source-3">Onboarding call notes · 14 first sessions</li>
+<li id="source-4">Activation dashboard · September snapshot</li>
 </ol>
 <p class="foot">Made by Sophia for the Onboarding pilot · its numbers come from the four records above, each read in full · version ${String(version)}${second ? ' adds the second region and revises the recommendations' : ''}.</p>
 </main>`
@@ -180,6 +181,6 @@ export function demoPage(version: 1 | 2): string {
 
 /** Each page's SHA-256 (the viewer shows nothing that does not match it). */
 export const DEMO_PAGE_SHA = {
-  v1: '7bd1bc665f22b733a4786f462a5213409f9f0229db32771b4e40ca6602867a92',
-  v2: '4b579aa47191550c1b2b935bfba92738dafc7c2d0fdf367a153526128e04074c',
+  v1: '130653012f45246487672aa971e38f965c6e1830ef5600f26953d1067d0a717d',
+  v2: '8f0f5f731838f1e898c95a645c44e12a96c0159ac2f088e33df8c2d89f109a60',
 }

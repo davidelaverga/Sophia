@@ -1,24 +1,33 @@
-// The project's context beside its conversations (docs/plans/project-conversations.md): the accepted mission, the
-// newest accepted decisions, and what is proposed and not decided, kept apart. It is the brief Sophia reads
+// The project's context beside its conversations (docs/plans/project-conversations.md), the right pane
+// (docs/plans/conversations-panes.md): first the open conversation, Sophia's summary of it and how many questions are
+// open; then the accepted mission, the newest accepted decisions, and what is proposed and not decided, kept apart;
+// then how the context works. Under 1180 px it is a panel that «Context» opens, with its own Close, which takes the
+// focus as it opens. It is the brief Sophia reads
 // (MissionContext, the same read as the room's mission panel), the same for every conversation. One query, read again
 // as the feed moves: a later read that fails keeps what was read, and says it may be out of date.
 import { useQuery } from '@tanstack/react-query'
-import { useId } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { getMission } from '../../api/mission.ts'
+import type { ConversationSummary } from '../../api/vision.ts'
 import type { MissionContext } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { missionKey } from '../mission/mission-view.ts'
-import { acceptedOf, pendingOf } from './conversation-list.ts'
+import { acceptedOf, openWords, pendingOf } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
 
 interface Props {
   projectId: string
   identity: Identity
   cursor: string | undefined
+  /** The conversation open beside it, whose summary comes first. */
+  conversation: ConversationSummary | undefined
+  /** Opened as a panel (under 1180 px): its Close takes the focus. */
+  opened: boolean
+  onClose: () => void
 }
 
-export function ProjectContext({ projectId, identity, cursor }: Props) {
+export function ProjectContext({ projectId, identity, cursor, conversation, opened, onClose }: Props) {
   const read = useQuery({
     queryKey: [...missionKey(projectId), identity.name, 'conversations'],
     queryFn: () => getMission(identity.token, projectId),
@@ -26,10 +35,14 @@ export function ProjectContext({ projectId, identity, cursor }: Props) {
   })
   useReadAgain(cursor, read.refetch)
   const ctx = read.data
+  const frame = (body: ReactNode) => (
+    <Frame opened={opened} onClose={onClose} conversation={conversation}>
+      {body}
+    </Frame>
+  )
   if (!ctx) {
-    return (
-      <aside className="conv-context" aria-label="Project context">
-        <h3 className="eyebrow">Project context</h3>
+    return frame(
+      <>
         <Waiting words="Reading the project’s context…" waiting={read.isPending} />
         {read.isError && (
           <p className="conv-note" role="alert">
@@ -39,12 +52,11 @@ export function ProjectContext({ projectId, identity, cursor }: Props) {
             </button>
           </p>
         )}
-      </aside>
+      </>,
     )
   }
-  return (
-    <aside className="conv-context" aria-label="Project context">
-      <h3 className="eyebrow">Project context</h3>
+  return frame(
+    <>
       {read.isError && (
         <p className="conv-note" role="alert">
           This may be out of date.{' '}
@@ -62,8 +74,65 @@ export function ProjectContext({ projectId, identity, cursor }: Props) {
         <p className="conv-note">No mission accepted yet.</p>
       )}
       <Decisions ctx={ctx} />
-      <p className="conv-note">The same for every conversation here.</p>
+    </>,
+  )
+}
+
+/**
+ * The pane around the context: its name and Close (a panel's), this conversation first, the project's context, then how
+ * it works. Close takes the focus as the panel opens.
+ */
+function Frame(props: {
+  opened: boolean
+  onClose: () => void
+  conversation: ConversationSummary | undefined
+  children: ReactNode
+}) {
+  const close = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (props.opened) close.current?.focus()
+  }, [props.opened])
+  return (
+    <aside id="conv-context" className="conv-context" aria-label="Project context" tabIndex={-1}>
+      <div className="conv-context-head">
+        <button
+          ref={close}
+          type="button"
+          className="icon-button conv-context-close"
+          aria-label="Close the context"
+          onClick={props.onClose}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+            <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+      {props.conversation && <ThisConversation conversation={props.conversation} />}
+      <h3 className="eyebrow">Project context</h3>
+      {props.children}
+      <details className="conv-help">
+        <summary>How conversation context works</summary>
+        <p>
+          A conversation keeps its own messages and summary. Sophia’s next answer here can also read the project’s
+          current mission, decisions and eligible sources. Other conversations are read only when asked, never merged.
+          This context is the same for every conversation here.
+        </p>
+      </details>
     </aside>
+  )
+}
+
+/** The open conversation, first: Sophia's summary of it, and how many questions are open there. */
+function ThisConversation({ conversation: c }: { conversation: ConversationSummary }) {
+  const id = useId()
+  return (
+    <section className="conv-this" aria-labelledby={id}>
+      <h4 id={id} className="eyebrow">
+        This conversation
+      </h4>
+      <p className="conv-this-summary">{c.summary ?? 'No summary yet.'}</p>
+      <p className="conv-note">{openWords(c.openQuestions)}</p>
+    </section>
   )
 }
 

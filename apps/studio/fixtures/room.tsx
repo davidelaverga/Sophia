@@ -16,6 +16,7 @@
 // `looking=screen`; docs/plans/room-fixture-people.md).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
+import type { Goal, GoalCommand } from '@sophia/contracts'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept } from '../src/features/conversations/talk-store.ts'
@@ -68,8 +69,12 @@ import {
   TITLE,
   TASK,
   versionId,
+  VERSIONS_HELD,
 } from './report-data.ts'
-import { DEMO, DEMO_LABEL, VIEWER_NAME } from './demo.ts'
+import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
+import type { ExchangeAction } from './exchange-writes.ts'
+import { sophiaArrives, stopScene } from './room-scene.ts'
+import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -149,6 +154,8 @@ interface Fixture {
   failProjects: (on: boolean) => void
   /** While on, the project list's reads wait; off, the waiting ones are answered (chapter 1). */
   holdProjects: (on: boolean) => void
+  /** Lets the held membership reads through, and every later one (`membership=hold`). */
+  releaseMembership: () => void
   /** Marco carries a note to this project, and the feed moves (chapter 1). */
   carryIn: () => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
@@ -270,42 +277,102 @@ const room: RoomAsked = {
 }
 const floorTo: string[] = []
 
+/** The research task's revision at the start: the demo's second, the plain fixture's first. */
+const RESEARCH_REVISION: 1 | 2 = DEMO_VERSION
+
+/** The floor moves as the API moves it: a new holder, one more pass, and a pause because the holder left is over. */
+function floorMoves(actorId: string): void {
+  room.holder = actorId
+  room.inputEpoch = (room.inputEpoch ?? 1) + 1
+  if (room.pauseReason === 'holder_left') {
+    room.pauseReason = undefined
+    endPause()
+  }
+  floorTo.push(nameOf(actorId))
+}
+
 const project = {
   revision: 1,
   exchange: query.get('exchange') === 'open' || sophiaAsked,
   room,
   roomMoves: false,
-  // As the API passes it: a new holder, one more pass, and a pause because the holder left is over.
+  // As the API passes it. In the demo a pass made from the page ends the scene: the bridge ends the old holder's words.
   onFloor: (actorId: string) => {
-    room.holder = actorId
-    room.inputEpoch = (room.inputEpoch ?? 1) + 1
-    if (room.pauseReason === 'holder_left') {
+    if (DEMO) stopScene()
+    floorMoves(actorId)
+  },
+  // The demo's goals (demo-goals.ts): Goals reads them; Tasks acts on them. A command moves its goal as the API admits
+  // it, and a moment later the runtime confirms where it settles.
+  goals: DEMO ? [...DEMO_GOALS] : ([] as Goal[]),
+  ...(DEMO
+    ? {
+        onCommand: (command: GoalCommand) => {
+          project.goals = goalsAdmitted(project.goals, command)
+          publish(project)
+          window.setTimeout(() => {
+            project.goals = goalsSettled(project.goals, command.goalId)
+            publish(project)
+          }, 600)
+        },
+      }
+    : {}),
+  // The API reads who is in the room from the LiveKit server: a guest among them keeps her out.
+  guestHere: () => others().some((p) => p.standing === 'guest'),
+  // As the API and her bridge answer her presses (exchange-writes.ts): in, she listens; quieted, she listens; ended,
+  // she leaves the room; a pause lifted, she listens to the holder.
+  onExchange: (action: ExchangeAction) => {
+    // In the demo, her presses cut the scene short (room-scene.ts).
+    if (DEMO) stopScene()
+    if (action === 'end') {
+      // Ended, nothing of it stays: no pause, nothing she looked at.
+      project.exchange = false
+      room.pauseReason = undefined
+      room.looking = null
+      endPause()
+      sophiaLeaves()
+      return
+    }
+    if (action === 'resume') {
       room.pauseReason = undefined
       endPause()
+      return
     }
-    floorTo.push(nameOf(actorId))
+    project.exchange = true
+    setSophia('listening')
+    // In the demo, asked in, she says where the project stands (room-alive.md).
+    if (DEMO && action === 'start') {
+      sophiaArrives((actorId) => {
+        floorMoves(actorId)
+        publish(project)
+      })
+    }
   },
   messages: [] as (string | Said)[],
   contributions: new Map(),
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
-  reportVersions: Math.max(1, Number(query.get('versions')) || 1),
+  // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
+  reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
   pilot: query.get('history') === 'pilot',
-  waiting: query.get('lobby') === 'waiting',
+  // `lobby=again`: the one waiting has knocked twice, so Block is offered; `lobby=two`: two people wait.
+  waiting: query.get('lobby') === 'waiting' || query.get('lobby') === 'again' || query.get('lobby') === 'two',
+  lobbyAsked: query.get('lobby'),
   ...(query.get('role') === 'viewer' ? { role: 'viewer' as const } : {}),
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
   textHeld: query.get('hold') === 'text',
-  taskRevision: 1 as 1 | 2,
+  // The demo's research is on its second version, as its report (both published by default).
+  taskRevision: RESEARCH_REVISION,
   taskHeld: query.get('hold') === 'task',
   taskFails: false,
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
   researchFinished: false,
   textTampered: query.get('tamper') === 'text',
-  designed: query.get('designed') === 'on' || DEMO,
+  // The demo's page is published, unless `design=designing` asks for it still being designed.
+  designed: query.get('designed') === 'on' || (DEMO && query.get('design') !== 'designing'),
   designing: query.get('design') === 'designing',
   pageTampered: query.get('tamper') === 'html',
   work: query.get('place') === 'work',
@@ -313,7 +380,8 @@ const project = {
   showing: noShowing(),
   // A18: the project's conversations (`conversations=1`; `=none`, none; `=fail`, the list fails; `messages=fail`, the
   // second one's messages fail), and the brief's context beside them.
-  ...conversationsAsked(query.get('conversations'), query.get('messages') === 'fail'),
+  // The demo holds the conversations too: none of its views reads as broken.
+  ...conversationsAsked(query.get('conversations') ?? (DEMO ? '1' : null), query.get('messages') === 'fail'),
   // A16: the versions' reviews (review-data.ts).
   // Chapter 1: what members carried in from Personal (`carried=1`), and the project list failing (`projects=fail`).
   carriedIn: query.has('carried')
@@ -345,7 +413,10 @@ const project = {
   projectsFail: query.get('projects') === 'fail',
   missionHeld: query.get('mission') === 'hold' ? waiting() : null,
   carriedElsewhere: query.get('carried') === 'elsewhere',
+  reportsElsewhere: query.get('reports') === 'elsewhere',
+  cardAhead: query.get('card') === 'ahead',
   projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
+  membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
   missionFails: false,
@@ -368,6 +439,8 @@ const project = {
       query.get('meeting') === 'earlier' ? Date.now() - 12 * 60_000 - 5_000 : Date.now(),
     ),
     noPast: query.get('meetings') === 'none',
+    // The demo's readout, published before any meeting here: among what changed, never what a meeting made.
+    ...(DEMO ? { published: () => [readoutMade()] } : {}),
   },
   notes: {
     kept: [],
@@ -412,11 +485,12 @@ window.fixture = {
     project.failReplies = on
   },
   drop: dropCall,
+  // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.
   publishReport: () => {
-    project.reportVersions += 1
+    project.reportVersions = Math.min(VERSIONS_HELD, project.reportVersions + 1)
   },
   reviseLive: () => {
-    project.reportVersions += 1
+    project.reportVersions = Math.min(VERSIONS_HELD, project.reportVersions + 1)
     publish(project)
   },
   notice: () => {
@@ -521,6 +595,11 @@ window.fixture = {
     const held = project.projectsHeld ?? []
     project.projectsHeld = on ? held : null
     if (!on) for (const answer of held) answer()
+  },
+  releaseMembership: () => {
+    const held = project.membershipHeld ?? []
+    project.membershipHeld = null
+    for (const answer of held) answer()
   },
   carryIn: () => {
     project.carriedIn = [
@@ -684,6 +763,15 @@ function researchWork(p: typeof project): { taskId: string; kind: string; state:
   return p.researchFinished ? [{ taskId: TASK, kind: 'research', state: 'succeeded' }] : []
 }
 
+/** The project's report at its current version, as a recap or the digest names it. */
+const readoutMade = (): ReturnType<Meeting['records']>['made'][number] => ({
+  artifactId: REPORT,
+  artifactVersionId: versionId(project.reportVersions),
+  title: project.reportTitle,
+  versionNumber: project.reportVersions,
+  askedBy: membership.actorId,
+})
+
 /** The meeting's records as the page holds them now: who is in it, the decision, the report made, the notes kept. */
 function meetingRecords(): ReturnType<Meeting['records']> {
   const people = others()
@@ -705,17 +793,7 @@ function meetingRecords(): ReturnType<Meeting['records']> {
         undoable: false,
       },
     ],
-    made: project.meeting.made
-      ? [
-          {
-            artifactId: REPORT,
-            artifactVersionId: versionId(project.reportVersions),
-            title: project.reportTitle,
-            versionNumber: project.reportVersions,
-            askedBy: membership.actorId,
-          },
-        ]
-      : [],
+    made: project.meeting.made ? [readoutMade()] : [],
     noted: project.notes.kept.map((e) => ({
       entryId: e.id,
       kind: e.kind,
@@ -738,14 +816,18 @@ function meetingRecords(): ReturnType<Meeting['records']> {
 
 const nothing = () => undefined
 
-/** The page `place=` names: Knowledge, Work (with the research task's card), Updates, else the room. */
-const viewOf = (place: string | null) =>
-  place === 'knowledge' || place === 'work' || place === 'updates' || place === 'conversations' ? place : 'studio'
+/** The page `place=` names: one of the views it serves (Work with the research task's card), else the room. */
+const PLACES = ['knowledge', 'work', 'updates', 'conversations', 'goals', 'resources'] as const
+const viewOf = (place: string | null): View => PLACES.find((p) => p === place) ?? 'studio'
 
-/** The views this fixture's API serves: the room, Conversations (when the page asks for them), Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
-const SERVED: readonly View[] = query.has('conversations')
-  ? ['studio', 'conversations', 'knowledge', 'work', 'updates']
-  : ['studio', 'knowledge', 'work', 'updates']
+/**
+ * The views this page shows: every one (Conversations when the page asks for them). Goals reads the snapshot's goals;
+ * Resources, with nothing serving it here, says what it will hold, as the product does until it is served.
+ */
+const SERVED: readonly View[] =
+  query.has('conversations') || DEMO
+    ? ['studio', 'conversations', 'goals', 'knowledge', 'work', 'updates', 'resources']
+    : ['studio', 'goals', 'knowledge', 'work', 'updates', 'resources']
 
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }
@@ -786,6 +868,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       list: which === 'none' ? [] : which === 'quiet' ? [...conversations(), quietConversation()] : conversations(),
       messages: { ...messagesOf(), [CONVERSATION.quiet]: [] },
       failList: which === 'fail',
+      lastShown: DEMO || query.get('last') === '1',
       failMessagesOf: failMessages ? CONVERSATION.briefs : null,
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
@@ -832,7 +915,7 @@ const queryClient = new QueryClient()
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <p className="fixture-label" role="note">
+      <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
         {DEMO ? DEMO_LABEL : 'Fixture — no API, no call'}
       </p>
       <Kept>{(background) => <Project background={background} />}</Kept>

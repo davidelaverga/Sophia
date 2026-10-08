@@ -11,8 +11,9 @@ import { canInvite } from '../access/useAccess.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { RecapPart, RecapSheet } from '../voice/MeetingRecap.tsx'
 import { namers, recapSections } from '../voice/recap-view.ts'
-import { digestLead, meetingRow, type DateWords } from './updates-view.ts'
+import { digestLead, lengthShares, meetingRow, type DateWords } from './updates-view.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
+import { useArrival } from '../studio/project-go.tsx'
 
 interface Props {
   projectId: string
@@ -115,9 +116,10 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
   )
 }
 
-/** What a Mark as seen that didn't go through says: no reply, or the API's words. */
+/** What a Mark as seen that didn't go through says: the API's own words, else (no reply, or none it wrote) ours. */
 const seenWords = (error: Error) =>
-  (error instanceof ApiError && error.status > 0 && error.message) || 'Not marked. Try again.'
+  (error instanceof ApiError && error.status > 0 && !error.code.startsWith('http_') && error.message) ||
+  'Not marked. Try again.'
 
 /** Writes what was seen (never lowered, so a second press is harmless), then reads the digest again. */
 function useMarkSeen(projectId: string, identity: Identity) {
@@ -145,6 +147,8 @@ interface MeetingsProps {
 /** The project's meetings, newest first; a row opens its recap. */
 function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
   const [open, setOpen] = useState<string | null>(null)
+  // A meeting asked for from elsewhere (a report's source, project-go.tsx): its recap opens.
+  useArrival('updates', (to) => setOpen(to.meetingId))
   const list = useQuery({
     queryKey: ['vision', 'meetings', projectId, cursor],
     queryFn: ({ signal }) => listMeetings(identity.token, projectId, 10, signal),
@@ -152,6 +156,7 @@ function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
     retry: false,
   })
   const meetings = list.data?.meetings ?? []
+  const shares = lengthShares(meetings)
   return (
     <section className="updates-part" aria-labelledby="meetings-title">
       <h3 id="meetings-title">Meetings</h3>
@@ -171,8 +176,15 @@ function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
       <ul className="meeting-rows">
         {meetings.map((m) => (
           <li key={m.id}>
-            <button type="button" className="meeting-row" onClick={() => setOpen(m.id)}>
+            <button
+              type="button"
+              className="meeting-row"
+              data-running={m.endedAt === null || undefined}
+              onClick={() => setOpen(m.id)}
+            >
               {meetingRow(m, DATE_WORDS)}
+              {/* How long it lasted, against the longest: a bar the eye compares; the running one a live dot. */}
+              <span className="meeting-bar" aria-hidden style={{ '--share': String(shares.get(m.id) ?? 0) }} />
             </button>
           </li>
         ))}

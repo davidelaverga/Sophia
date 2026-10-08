@@ -53,7 +53,7 @@ export function contrastOf({ ink, opacity, grounds }: Seen): number {
 
 /**
  * Every readable text under `selector` below its floor (4.5:1; 3:1 from 24 px), as "words (ratio)". Left out: text
- * not drawn (screen-reader only, zero size, invisible), inert parts, `skip`'s matches, and lone glyphs a person sees
+ * not drawn (screen-reader only, zero size, invisible, its ink or its tree all but transparent), inert parts, `skip`'s matches, and lone glyphs a person sees
  * as marks (an arrow, aria-hidden). Aria-hidden words are still measured: they are read by the eye.
  */
 export async function lowContrast(page: Page, selector: string, skip = ''): Promise<string[]> {
@@ -90,7 +90,7 @@ export async function lowContrast(page: Page, selector: string, skip = ''): Prom
     [selector, away] as const,
   )
   return seen
-    .filter((t) => t.drawn && t.words && !(t.mark && t.words.length <= 1) && t.opacity >= 0.05)
+    .filter((t) => t.drawn && t.words && !(t.mark && t.words.length <= 1) && t.opacity * colourOf(t.ink).a >= 0.05)
     .map((t) => ({ t, ratio: contrastOf(t) }))
     .filter(({ t, ratio }) => ratio < (t.size >= 24 ? 3 : 4.5))
     .map(({ t, ratio }) => `${t.words.slice(0, 30)} (${ratio.toFixed(2)})`)

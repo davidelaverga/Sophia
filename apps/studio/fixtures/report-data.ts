@@ -25,6 +25,7 @@ import {
   DEMO_V1,
   DEMO_V2,
 } from './demo.ts'
+import { LIBRARY, libraryContent } from './demo-library.ts'
 import { DEMO_PAGE_SHA, demoPage } from './demo-page.ts'
 
 export const REPORT = '00000000-0000-4000-8000-0000000000b1'
@@ -90,6 +91,9 @@ const DEMO_TEXTS: readonly Text[] = [
 ]
 
 const TEXTS = DEMO ? DEMO_TEXTS : FIXTURE_TEXTS
+
+/** How many versions the fixture can publish: one text each. */
+export const VERSIONS_HELD = TEXTS.length
 
 /** The pilot-shaped first version's own source, which its second cites in place of the five sources it dropped. */
 const PILOT_V1_SOURCE = '00000000-0000-4000-8000-0000000000c4'
@@ -354,7 +358,8 @@ function version(n: number, title: string, pilot: boolean): ArtifactVersion {
  */
 export const versions = (published: number, title = TITLE, pilot = false, designed = false): ArtifactVersion[] =>
   Array.from({ length: published }, (_, i) => {
-    const v = version(published - i, title, pilot)
+    // As the API keeps them: the newest is the stable one, each before it superseded.
+    const v = { ...version(published - i, title, pilot), ...(i > 0 && { state: 'superseded' as const }) }
     const paged = designed && (DEMO || v.versionNumber === 1)
     return paged ? { ...v, renditions: [designedRendition(v.versionNumber)] } : v
   })
@@ -403,7 +408,9 @@ export function content(sourceId: string, tampered = false, pageTampered = false
   if (sourceId === DESIGNED.sourceId) return designedContent(pageTampered)
   const demoPageAt = DEMO ? DEMO_PAGES.findIndex((p) => p.sourceId === sourceId) : -1
   if (demoPageAt >= 0) return demoPageContent(demoPageAt, pageTampered)
-  const text = [...TEXTS, ...PILOT_TEXTS].find((t) => t.sourceId === sourceId)
+  const shelved = DEMO ? libraryContent(sourceId) : null
+  if (shelved) return shelved
+  const text = [...TEXTS, ...PILOT_TEXTS, OLDER_TEXT].find((t) => t.sourceId === sourceId)
   if (!text) return null
   const served = tampered ? `${text.text} ` : text.text
   return {
@@ -622,7 +629,8 @@ export const waitingAtTheDoor: LobbyEntry = {
   id: '00000000-0000-4000-8000-0000000000b8',
   displayName: DEMO ? 'Ana Ruiz' : 'Fixture guest',
   status: 'waiting',
-  requestedAt: AT,
+  // In the demo the knock is a minute old (a fixed date read «6 days»); the checks keep their date.
+  requestedAt: DEMO ? new Date(Date.now() - 50_000).toISOString() : AT,
   decidedAt: null,
   knocks: 1,
 }
@@ -652,6 +660,19 @@ const summaryOf = (d: Description): ReportSummary => ({
   summaryUpdatedAt: d.author ? AT : null,
 })
 
+/** The older report's one version, its Markdown kept inline (its cover on Knowledge reads it); `demo`: the pilot's plan. */
+const OLDER_TEXT = DEMO
+  ? {
+      sourceId: '00000000-0000-4000-8000-0000000000e7',
+      sha256: '8b82929553227202235c6e4a7fbbd680de9ed3201ab4e018334d3ce45b59c090',
+      text: '# Pilot plan: fourteen teams, two regions\n\nHow the pilot runs: fourteen customer teams in two regions, four weeks each, and one measure that matters, a first shared report inside the first week.\n\n## Who takes part\n\nNine teams in the first region and five in the second, chosen by the size of their setup.\n\n## What we measure\n\nActive teams each week, days to a first shared report, and setup tickets per team.\n',
+    }
+  : {
+      sourceId: '00000000-0000-4000-8000-0000000000e7',
+      sha256: '339cb171b4a537d415d8859b142ace55d92952cd01b31518cce98de9dd60917d',
+      text: '# An older fixture report\n\nA labelled fixture report from before PDFs were turned off.\n\n## Conclusion\n\nThe older fixture holds.\n',
+    }
+
 /** An older report on Knowledge's second page (`cursor=page-2`): More reports brings it. */
 const OLDER: ReportList['reports'][number] = {
   artifactId: '00000000-0000-4000-8000-0000000000e1',
@@ -665,11 +686,59 @@ const OLDER: ReportList['reports'][number] = {
   currentVersionId: '00000000-0000-4000-8000-0000000000e2',
   currentVersionNumber: 1,
   versionCount: 1,
-  updatedAt: AT,
+  // In the demo, older than its library's shelf (Sep 20 to 29): the list stays newest first across its pages.
+  updatedAt: DEMO ? '2026-09-15T10:00:00.000Z' : AT,
   // Printed before PDFs were turned off: Knowledge offers its format filter once such a report is in the list.
   formats: ['markdown', 'pdf'],
   latestChange: { note: null, retained: null },
 }
+
+/** The older report's versions as the API lists them: its one version, Markdown only. */
+export const olderVersions = (): ArtifactVersion[] => [
+  {
+    id: OLDER.currentVersionId,
+    artifactId: OLDER.artifactId,
+    projectId: PROJECT,
+    parentId: null,
+    sourceId: OLDER_TEXT.sourceId,
+    sourceHash: OLDER_TEXT.sha256,
+    state: 'stable',
+    previewId: null,
+    format: 'markdown',
+    exportEditability: 'source_editable',
+    title: OLDER.title,
+    versionNumber: 1,
+    createdAt: OLDER.updatedAt,
+    renditions: [],
+    limitations: [],
+  },
+]
+
+export const OLDER_REPORT = OLDER.artifactId
+
+/** The older report as filed in another project the reader is in (`reports=elsewhere`). */
+export const ELSEWHERE_REPORT = '00000000-0000-4000-8000-0000000000a8'
+const ELSEWHERE_VERSION = '00000000-0000-4000-8000-0000000000a7'
+
+/** A report filed in another project the reader is in (`reports=elsewhere`): the older report's words, its own ids. */
+export const elsewhereCard = (projectId: string, projectTitle: string): ReportList['reports'][number] => ({
+  ...OLDER,
+  artifactId: ELSEWHERE_REPORT,
+  currentVersionId: ELSEWHERE_VERSION,
+  projectId,
+  projectTitle,
+  title: 'Rollout notes from another team',
+})
+
+/** That report's one version, as the API lists it. */
+export const elsewhereVersions = (projectId: string): ArtifactVersion[] =>
+  olderVersions().map((v) => ({
+    ...v,
+    id: ELSEWHERE_VERSION,
+    artifactId: ELSEWHERE_REPORT,
+    projectId,
+    title: 'Rollout notes from another team',
+  }))
 
 /** A text's searchable words: letters and digits only, lower case. */
 const wordsOf = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
@@ -697,6 +766,15 @@ function fixtureCard(published: readonly ArtifactVersion[], d: Description): Rep
   }
 }
 
+/** Whether a card passes the words and the format asked for, as the API reads them. */
+export function matchesFilter(r: ReportList['reports'][number], filter: { q: string | null; format: string | null }) {
+  const words = wordsOf(filter.q ?? '').slice(0, 8)
+  const format = filter.format ?? 'any'
+  const text = wordsOf(`${r.title} ${r.summary ?? ''} ${r.latestChange.note ?? ''} ${r.latestChange.retained ?? ''}`)
+  const found = words.every((w) => text.some((t) => t.startsWith(w)))
+  return found && (format === 'any' || (format === 'pdf') === r.formats.includes('pdf'))
+}
+
 /**
  * Knowledge's Reports, as `GET /knowledge/reports` answers it: the fixture report's card (fixtureCard) on the first
  * page, and an older report, with a PDF, on the second. Words and a format filter as the API does (each word a prefix,
@@ -713,20 +791,15 @@ export function reportList(
   const words = wordsOf(filter.q ?? '').slice(0, 8)
   const format = filter.format ?? 'any'
   if (words.length > 0 || format !== 'any') {
-    const kept = [current, OLDER].filter((r) => {
-      const text = wordsOf(
-        `${r.title} ${r.summary ?? ''} ${r.latestChange.note ?? ''} ${r.latestChange.retained ?? ''}`,
-      )
-      const pdf = r.formats.includes('pdf')
-      const found = words.every((w) => text.some((t) => t.startsWith(w)))
-      return found && (format === 'any' || (format === 'pdf') === pdf)
-    })
+    const kept = [current, OLDER, ...(DEMO ? LIBRARY : [])].filter((r) => matchesFilter(r, filter))
     const projects = kept.length > 0 ? [{ projectId: PROJECT, title: PROJECT_TITLE, count: kept.length }] : []
     return { reports: kept, projects, nextCursor: null }
   }
-  const projects = [{ projectId: PROJECT, title: PROJECT_TITLE, count: 2 }]
+  // The demo's library (demo-library.ts): five more on the first page.
+  const first = DEMO ? LIBRARY : []
+  const projects = [{ projectId: PROJECT, title: PROJECT_TITLE, count: 2 + first.length }]
   if (cursor === 'page-2') return { reports: [OLDER], projects, nextCursor: null }
-  return { reports: [current], projects, nextCursor: 'page-2' }
+  return { reports: [current, ...first], projects, nextCursor: 'page-2' }
 }
 
 /** The edit a request's body carries, or null when it carries none. */
