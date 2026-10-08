@@ -8,13 +8,13 @@ Writable scope: `apps/studio/fixtures/join.html`, `apps/studio/fixtures/join.tsx
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `lobby/guest-fixture` from `main`, 2026-10-08
-Ending commit/tree: `831c347971a9fa4261712da868dd752eb0495ac5` (tree `691087d6202933e4455340502ff2df5fdeda2972`). The commit after it adds only this handoff.
+Ending commit/tree: `ca8db6268bf00f88dd13848500f62876151d76f4` (tree `b694546847e63b6e07b57b1090c340b1d463d6f3`), after the review's fixes (the room's session line kept, no member option, stronger checks). The commit after it adds only this handoff.
 
 ## Outcome
 
 - `fixtures/join.html` + `join.tsx`: `JoinFlow` as it ships, signed in as a guest, the link's token in the fragment;
   its preview, knock, entry and room-token requests answered by the page; the call over `fake-livekit.ts`. Options:
-  `invite=member`, `state=`, `session=1`, `answer=`, `window.joinFixture.answer(…)` and `.asked`.
+  `state=`, `session=1`, `answer=`, `window.joinFixture.answer(…)` and `.asked`.
 - `.join-session`: a sentence in the small sans, on one line where it fits.
 - Note: `docs/plans/lobby-guest.md`.
 
@@ -29,4 +29,7 @@ Ending commit/tree: `831c347971a9fa4261712da868dd752eb0495ac5` (tree `691087d620
 
 - With the page in place, the guest side's own «$20» critique can be measured; it already reads as the Studio's
   (the light, one centred column), so only the session line changed here.
-- Next: an independent review; merge on green CI with no Codex P1.
+- Independent review: no P1; two P2s, fixed: the session rule was shared with the room's own session line (split, the
+  room's line unchanged); the member option couldn't work without sign-in (dropped). Checks now reach the room's token,
+  Ask again, and no way back when blocked: 31 passed with \`room-made.spec.ts\`.
+- Next: merge on green CI with no Codex P1.

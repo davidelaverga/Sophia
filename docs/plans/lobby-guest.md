@@ -7,7 +7,7 @@
 
 - **A fixture page, `join.html`:** the Studio's own `/join` flow, its four requests answered by the page (the
   invitation's preview, the knock, the guest's lobby entry, the room's token) and the call over the fake LiveKit every
-  fixture page uses. `invite=member`, `state=expired|revoked|used_up`, `session=1`, `answer=admit|deny|block`, and
+  fixture page uses. `state=expired|revoked|used_up`, `session=1`, `answer=admit|deny|block`, and
   `window.joinFixture.answer(…)` for a room that answers later.
 - **The session an invitation names** reads as a quiet sentence on one line, not a mono line in capitals that broke in
   two at 1440 px.
