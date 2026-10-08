@@ -24,7 +24,10 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
-if (!window.location.hash) window.location.hash = 'fixture-invitation'
+const STATES: readonly InvitationPreview['state'][] = ['open', 'expired', 'revoked', 'used_up']
+const ANSWERS: readonly Answer[] = ['admit', 'deny', 'block']
+// A link's token as access-view.ts reads one: 20 to 100 url-safe characters.
+if (!window.location.hash) window.location.hash = 'fixtureInvitationTokenAbcdefghijklmnopqrstu'
 
 const asked: string[] = []
 const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString()
@@ -46,7 +49,7 @@ const preview: InvitationPreview = {
           timeZone: 'UTC',
         }
       : null,
-  state: (query.get('state') as InvitationPreview['state'] | null) ?? 'open',
+  state: STATES.find((st) => st === query.get('state')) ?? 'open',
 }
 
 let entry: LobbyEntry | null = null
@@ -61,25 +64,28 @@ window.joinFixture = { asked, answer }
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
+/** The knock: a waiting entry, one knock more; answered at once with `answer=`. */
+function knocked(init: RequestInit | undefined): Response {
+  const body: unknown = JSON.parse(typeof init?.body === 'string' ? init.body : '{}')
+  const said = typeof body === 'object' && body && 'displayName' in body ? body.displayName : null
+  entry = {
+    id: '00000000-0000-4000-8000-0000000000c8',
+    displayName: typeof said === 'string' ? said : 'Guest',
+    status: 'waiting',
+    requestedAt: at(0),
+    decidedAt: null,
+    knocks: (entry?.knocks ?? 0) + 1,
+  }
+  const now = ANSWERS.find((a) => a === query.get('answer'))
+  if (now) answer(now)
+  return json(entry)
+}
+
 /** The four requests the door makes; anything else is a fixture's mistake and says so. */
 function answerOf(path: string, init: RequestInit | undefined): Response {
   asked.push(path)
   if (path === '/api/v1/join/preview') return json(preview)
-  if (path === '/api/v1/join/knock') {
-    const body = JSON.parse(String(init?.body ?? '{}')) as { displayName?: string }
-    const knocks = (entry?.knocks ?? 0) + 1
-    entry = {
-      id: '00000000-0000-4000-8000-0000000000c8',
-      displayName: body.displayName ?? 'Guest',
-      status: 'waiting',
-      requestedAt: at(0),
-      decidedAt: null,
-      knocks,
-    }
-    const now = query.get('answer') as Answer | null
-    if (now) answer(now)
-    return json(entry)
-  }
+  if (path === '/api/v1/join/knock') return knocked(init)
   if (entry && path === `/api/v1/lobby/${entry.id}`) return json(entry)
   if (entry && path === `/api/v1/lobby/${entry.id}/room-token`) {
     return json({

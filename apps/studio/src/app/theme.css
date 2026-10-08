@@ -1416,13 +1416,11 @@ img.avatar {
   font-size: var(--type-small);
 }
 .line-session,
+/* The session an invitation names: a quiet sentence, on one line where it fits (it was a mono line in capitals that
+   broke in two at 1440 px). */
 .join-session {
   color: var(--halo-text);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: var(--type-small);
   text-wrap: balance;
 }
 /*
