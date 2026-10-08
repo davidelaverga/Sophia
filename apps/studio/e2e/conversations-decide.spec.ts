@@ -17,6 +17,13 @@ test.afterEach(async ({ page }) => {
   expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
 })
 
+/** The bodies of the writes that reached the brief at a path ending so: the page's fetch is faked, none leaves it. */
+const writes = (page: Page, ending: string) =>
+  page.evaluate(
+    (end) => (window.fixture?.missionWrites ?? []).filter((w) => w.path.endsWith(end)).map((w) => w.body),
+    ending,
+  )
+
 async function enter(page: Page, url = PAGE) {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(url)
@@ -25,9 +32,8 @@ async function enter(page: Page, url = PAGE) {
 
 test('decide · «Accept» in Still open makes it an accepted decision, at the revision read', async ({ page }) => {
   await enter(page)
-  const asked = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith('/decision'))
   await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
-  expect((await asked).postDataJSON()).toEqual({ decision: 'accept', expectedRevision: 1 })
+  await expect.poll(() => writes(page, '/decision')).toEqual([{ decision: 'accept', expectedRevision: 1 }])
   await expect(context(page).locator('.conv-decisions:not(.open) li').first()).toHaveText('Map first, list second')
   await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
   await expect(context(page).getByRole('status')).toHaveText('Accepted: Map first, list second')
@@ -68,9 +74,10 @@ test('decide · a message proposed as a decision: its words in, sent as a constr
   await expect(field).toBeFocused()
   await expect(field).toHaveValue('One page. Anything longer, nobody reads.')
   await field.fill('Briefs stay on one page')
-  const sent = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith('/mission/proposals'))
   await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
-  expect((await sent).postDataJSON()).toEqual({ kind: 'constraint', statement: 'Briefs stay on one page' })
+  await expect
+    .poll(() => writes(page, '/mission/proposals'))
+    .toEqual([{ kind: 'constraint', statement: 'Briefs stay on one page' }])
   await expect(stillOpen(page)).toContainText('Briefs stay on one page')
   await expect(marco.getByRole('status')).toHaveText('Proposed · it’s in Still open')
   // Back on its press, the focus where the form was opened from.
