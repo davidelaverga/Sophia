@@ -1,6 +1,7 @@
 // #117, SDD-CX45: where placed boxes and texts may meet between the ends of a band (placement.mjs). The capture kernel's
 // browser tests read real pages; these read layouts written out, for the pair rule and every bound.
 import assert from 'node:assert/strict'
+import { channel } from 'node:diagnostics_channel'
 import { describe, it } from 'node:test'
 import {
   generatedAt,
@@ -387,6 +388,70 @@ describe('how the texts lie inside a band (#117, placement.mjs)', () => {
     )
     const time = await layoutChanges(stepped([640]).probe, [320, 2560], Date.now() - 1)
     assert.match(time.issue ?? '', /not read at every width within the sweep's time$/u)
+  })
+
+  it('observes the actual batches without changing pace rejection or completed width coverage', async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: 100_000 })
+    const trace = channel('sophia.renderer.width-sweep')
+    const records: unknown[] = []
+    const collect = (record: unknown): void => {
+      records.push(record)
+    }
+    const steady = (widths: number[]): Promise<Lie[]> => {
+      t.mock.timers.tick(10)
+      return Promise.resolve(widths.map(() => ({ state: 'a' })))
+    }
+    trace.subscribe(collect)
+    try {
+      assert.equal(
+        (await layoutChanges(steady, [320, 2560], Date.now() + 200)).issue,
+        "how the texts lie inside the bands was not read at every width within the sweep's time",
+      )
+      assert.deepEqual(records, [
+        {
+          phase: 'layout-batch',
+          first: 320,
+          count: 32,
+          read: 32,
+          total: 2241,
+          elapsedMs: 10,
+          remainingMs: 190,
+          late: true,
+          timedOut: false,
+        },
+      ])
+      records.length = 0
+      assert.deepEqual(await layoutChanges(steady, [320, 380], Date.now() + 1000), {
+        ends: [320, 380],
+        issue: null,
+      })
+      assert.deepEqual(records, [
+        {
+          phase: 'layout-batch',
+          first: 320,
+          count: 32,
+          read: 32,
+          total: 61,
+          elapsedMs: 10,
+          remainingMs: 990,
+          late: false,
+          timedOut: false,
+        },
+        {
+          phase: 'layout-batch',
+          first: 352,
+          count: 29,
+          read: 61,
+          total: 61,
+          elapsedMs: 20,
+          remainingMs: 980,
+          late: false,
+          timedOut: false,
+        },
+      ])
+    } finally {
+      trace.unsubscribe(collect)
+    }
   })
 
   it("races every batch against the sweep's time: a late or silent one fails, a timely one passes", async () => {

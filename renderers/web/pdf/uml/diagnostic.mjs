@@ -2,11 +2,37 @@
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 import net from 'node:net'
+import { channel } from 'node:diagnostics_channel'
 import { probeHost } from '../host-probe.mjs'
 import { launchConfined } from '../confine.mjs'
 import { captureHtml } from '../capture-html.mjs'
 import { orderScript } from '../capture-page.mjs'
 import { meetingsOf, STYLES, withinTime } from '../placement.mjs'
+// Only trusted fixture code subscribes. Collect bounded numeric timing records
+// in memory; flush after the original capture returns, outside its sweep budget.
+// No DOM, source text, paths, screenshots or capability values enter this trace.
+const widthTrace = channel('sophia.renderer.width-sweep')
+/** @type {unknown[]} */
+const widthTimings = []
+let droppedWidthTimings = 0
+const collectWidthTiming = (/** @type {unknown} */ message) => {
+  if (widthTimings.length < 256) widthTimings.push(message)
+  else droppedWidthTimings += 1
+}
+widthTrace.subscribe(collectWidthTiming)
+const flushWidthTimings = (/** @type {string} */ capture) => {
+  console.log(
+    JSON.stringify({
+      event: 'UML_WIDTH_SWEEP_TRACE',
+      qualification: false,
+      diagnosticOnly: true,
+      capture,
+      measurements: widthTimings.splice(0),
+      dropped: droppedWidthTimings,
+    }),
+  )
+  droppedWidthTimings = 0
+}
 const input = '/tmp/uml-fixture.html'
 fs.writeFileSync(
   input,
@@ -117,6 +143,7 @@ try {
       SOPHIA_RENDER_RUNNER_TOKEN_FILE: '/run/uml-private/token',
     },
   })
+  flushWidthTimings('original-suite')
   console.log(
     JSON.stringify({
       event: 'UML_ORIGINAL_KERNEL_SUITE',
@@ -160,6 +187,7 @@ if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
       },
       { env: process.env },
     )
+    flushWidthTimings('failure-detail')
     console.log(
       JSON.stringify({
         event: 'UML_CAPTURE_FAILURE_DETAIL',
@@ -179,6 +207,7 @@ if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
     fs.rmSync(output, { recursive: true, force: true })
   }
 }
+widthTrace.unsubscribe(collectWidthTiming)
 process.exitCode = result.functionalPass && result.releaseLaunchBudgetPass && suite.every((check) => check.ok) ? 0 : 1
 
 /** @param {string} source trusted fixture source */
@@ -206,7 +235,7 @@ async function timeWidthProbe(source) {
     await profileWidthComponents(cdp, objectId, until)
     /** @type {string[] | null} */
     let baseline = null
-    for (const mode of ['evaluate-cold', 'evaluate-warm', 'compiled-cold', 'compiled-warm']) {
+    for (const mode of ['evaluate-sample-1', 'evaluate-sample-2', 'compiled-sample-1', 'compiled-sample-2']) {
       if (Date.now() >= until) throw new Error('timing diagnostic exceeded 60 seconds')
       const began = performance.now()
       const answers = await timedWidthBatch(cdp, widths, { mode, objectId, expression, until })
@@ -218,6 +247,8 @@ async function timeWidthProbe(source) {
           event: 'UML_WIDTH_TIMING',
           qualification: false,
           diagnosticOnly: true,
+          prewarmed: true,
+          visibleSurfaceResized: true,
           mode,
           widths: widths.length,
           ms,

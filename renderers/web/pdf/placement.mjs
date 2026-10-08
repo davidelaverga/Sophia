@@ -34,7 +34,10 @@
 // of its own paragraph and is compared with the texts of other blocks only. Every bound fails closed: a page with more
 // boxes or pairs than are compared, or a box or text drawn at one end of a band only, fails the band.
 
+import { channel } from 'node:diagnostics_channel'
 import { MARK_CLASS } from './capture-page.mjs'
+
+const WIDTH_TRACE = channel('sophia.renderer.width-sweep')
 
 /**
  * The most boxes one band end's layout may hold to be compared, the most pairs of a placed box and a text compared
@@ -1247,7 +1250,20 @@ async function readBand(probe, band, at) {
   for (let from = a; from <= b; from += BATCH) {
     const batch = Array.from({ length: Math.min(BATCH, b - from + 1) }, (_, k) => from + k)
     const got = await withinTime(probe(batch), at.until)
-    if ('late' in got || Date.now() > at.until || pastPace(at, batch.length)) return LATE
+    const late = 'late' in got || Date.now() > at.until || pastPace(at, batch.length)
+    if (WIDTH_TRACE.hasSubscribers)
+      WIDTH_TRACE.publish({
+        phase: 'layout-batch',
+        first: from,
+        count: batch.length,
+        read: at.read,
+        total: at.widths,
+        elapsedMs: Date.now() - at.started,
+        remainingMs: at.until - Date.now(),
+        late,
+        timedOut: 'late' in got,
+      })
+    if (late) return LATE
     const issue = takeBatch(batch, got.value, at, last)
     if (issue) return issue
   }

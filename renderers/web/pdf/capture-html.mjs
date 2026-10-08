@@ -16,6 +16,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { channel } from 'node:diagnostics_channel'
 import { fileURLToPath } from 'node:url'
 import {
   conditionsScript,
@@ -39,6 +40,8 @@ import {
   withinTime,
 } from './placement.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
+
+const WIDTH_TRACE = channel('sophia.renderer.width-sweep')
 
 export const CAPTURE_RECEIPT_SCHEMA = 'sophia.html-capture-receipt.v1'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -957,8 +960,13 @@ async function heightIssue(cdp, width, until) {
  */
 async function sweepWidths(page, shot, sweepMs) {
   const until = Date.now() + sweepMs
+  const trace = (/** @type {string} */ phase) => {
+    if (WIDTH_TRACE.hasSubscribers) WIDTH_TRACE.publish({ phase, remainingMs: until - Date.now(), budgetMs: sweepMs })
+  }
+  trace('sweep-start')
   /** @type {{ conditions: string[], unreadable: string[] }} */
   const media = await page.evaluate(conditionsScript())
+  trace('media-read')
   const plan = sweepPlan(media)
   if ('issue' in plan) return check('widths_visible', 'failed', plan.issue)
   const holding = `(${JSON.stringify(media.conditions)}).map((q) => matchMedia(q).matches).join()`
@@ -966,11 +974,14 @@ async function sweepWidths(page, shot, sweepMs) {
     await page.setViewportSize({ width, height: SWEEP.height })
     return String(await page.evaluate(holding))
   })
+  trace('bands-read')
   const probe = probeOf(shot.cdp, baseDirection(shot.job.language))
   const { ends, issue } = await layoutChanges(probe, bands, until)
+  trace('layout-read')
   /** @type {string[]} */
   const wrong = issue ? [issue] : []
   await measureEnds(page, shot, { ends, conditions: media.conditions, until, sweepMs, probe }, wrong)
+  trace('sweep-end')
   return wrong.length > 0
     ? check('widths_visible', 'failed', wrong.join('; ').slice(0, 2000))
     : check('widths_visible', 'passed', `measured at ${ends.join(', ')}px`.slice(0, 2000))
@@ -1008,15 +1019,22 @@ function metricsAt(width, height = SWEEP.height) {
  */
 export function probeOf(cdp, base) {
   const order = orderScript(base)
+  const compileStarted = performance.now()
   // Keep the identical, trusted expression as a function in this session. Sending
   // and parsing its full source for every width needlessly slows the bounded
   // sweep on the UML worker. The function holds no cached layout or page data:
   // each call reads the current viewport and DOM again.
-  const reader = cdp.send('Runtime.evaluate', {
-    expression: `(() => ${order})`,
-    returnByValue: false,
-    objectGroup: 'sophia-width-reader',
-  })
+  const reader = cdp
+    .send('Runtime.evaluate', {
+      expression: `(() => ${order})`,
+      returnByValue: false,
+      objectGroup: 'sophia-width-reader',
+    })
+    .then((reply) => {
+      if (WIDTH_TRACE.hasSubscribers)
+        WIDTH_TRACE.publish({ phase: 'reader-compiled', elapsedMs: performance.now() - compileStarted })
+      return reply
+    })
   return async (widths) => {
     const compiled = await reader
     if (compiled.exceptionDetails || compiled.result.type !== 'function' || !compiled.result.objectId)

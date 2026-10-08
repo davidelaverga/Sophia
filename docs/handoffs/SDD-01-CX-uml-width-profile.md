@@ -78,3 +78,27 @@ width, batch, deadline or pace test changes. The new real Linux browser regressi
 order answers across responsive/container-query boundaries, fixed/sticky boxes, flex/grid wrapping, RTL and tables.
 An isolated macOS prototype returned identical full snapshots/order/viewport results on those cases. This establishes
 local equivalence, not native Linux or Render acceptance; new CI results remain pending at preparation.
+
+## Visible-surface result and actual sweep tracing
+
+Candidate `77597f30cbbc9fffc9d1968a096a3cbd0e4c9f46` passed the complete original Linux CI fixture
+([run 37774839703](https://github.com/davidelaverga/Sophia/actions/runs/37774839703)), the new confined-browser complete
+snapshot comparison, and all six ordinary jobs in both push and PR CI runs. The approved exact-source native Render
+fixture nevertheless failed the original width pace gate. All other suite checks passed. Chromium launch took
+5218.198 ms; the entire fixture took69.540 seconds, which is not the width-sweep duration. This host used
+kernel6.8.0-1050-aws and Landlock ABI4, so it is not a controlled timing comparison with the preceding host.
+
+The complete756880-byte native log matched SHA-256
+`cb80932a767f754458ac0876e4057f9eafbb587f12531e5c0b316ba7be45f409`. The guest exited0; owned children, scratch and synthetic
+sentinels settled. The verified idle supervisor exited after pidfd termination and remained an unreaped zombie until
+container suspension. The original worker was suspended/not billed at14:32:59 UTC, before its14:41:19 UTC deadline.
+That batch is closed with no further paid attempt authorized. No Claude handover, merge or deployment acceptance.
+
+The failure-only samples labeled “cold” had already read32 component-profile widths. They also resized the visible
+surface, unlike the exact current probe. Those projections cannot identify the real sweep's first-batch or later
+bottleneck. The labels now explicitly describe prewarmed samples. A trusted fixture subscriber collects bounded
+numeric timings from the actual original sweep: media/band setup, reader compilation, each original batch's observed
+pace and remaining budget, and completion. It flushes after capture returns. No DOM/source/path/capability data is
+recorded; no subscriber is installed by production entry points. Width coverage, batches, pace rejection, deadlines,
+layout judgments and confinement remain unchanged. Fake-clock controls verify unchanged early pace failure and full
+coverage of a timely band with tracing enabled. New Linux CI evidence remains pending at preparation.
