@@ -422,6 +422,8 @@ const project = {
       query.get('meeting') === 'earlier' ? Date.now() - 12 * 60_000 - 5_000 : Date.now(),
     ),
     noPast: query.get('meetings') === 'none',
+    // The demo's readout, published before any meeting here: among what changed, never what a meeting made.
+    ...(DEMO ? { published: () => [readoutMade()] } : {}),
   },
   notes: {
     kept: [],
@@ -744,6 +746,15 @@ function researchWork(p: typeof project): { taskId: string; kind: string; state:
   return p.researchFinished ? [{ taskId: TASK, kind: 'research', state: 'succeeded' }] : []
 }
 
+/** The project's report at its current version, as a recap or the digest names it. */
+const readoutMade = (): ReturnType<Meeting['records']>['made'][number] => ({
+  artifactId: REPORT,
+  artifactVersionId: versionId(project.reportVersions),
+  title: project.reportTitle,
+  versionNumber: project.reportVersions,
+  askedBy: membership.actorId,
+})
+
 /** The meeting's records as the page holds them now: who is in it, the decision, the report made, the notes kept. */
 function meetingRecords(): ReturnType<Meeting['records']> {
   const people = others()
@@ -765,17 +776,7 @@ function meetingRecords(): ReturnType<Meeting['records']> {
         undoable: false,
       },
     ],
-    made: project.meeting.made
-      ? [
-          {
-            artifactId: REPORT,
-            artifactVersionId: versionId(project.reportVersions),
-            title: project.reportTitle,
-            versionNumber: project.reportVersions,
-            askedBy: membership.actorId,
-          },
-        ]
-      : [],
+    made: project.meeting.made ? [readoutMade()] : [],
     noted: project.notes.kept.map((e) => ({
       entryId: e.id,
       kind: e.kind,
