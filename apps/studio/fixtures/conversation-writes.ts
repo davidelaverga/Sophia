@@ -1,10 +1,12 @@
 // A18's writes as the proposed API would answer them (docs/plans/project-conversation-writes.md): a conversation
 // started, a message sent, each once per Idempotency-Key (the same key replays its receipt); viewers refused; Sophia's
-// answer a later message, 900 ms on, with the project's feed moving as it lands. Every word is synthetic.
+// answer a later message, 900 ms on, with the project's feed moving as it lands; what she says, sophia-answers.ts.
+// Every word is synthetic.
 import type { ConversationMessage, ConversationSummary } from '../src/api/vision.ts'
 import { membership } from './data.ts'
 import { PROJECT } from './data.ts'
 import { VIEWER_NAME } from './demo.ts'
+import { answerFor } from './sophia-answers.ts'
 
 /** What the writes keep: the conversations themselves, and the receipts by key. */
 export interface TalkWrites {
@@ -35,7 +37,6 @@ interface Context {
 
 const MESSAGES_TO = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
 const ME = membership.actorId
-const ANSWER = 'I’ll keep that with the question, and say what the project already decided about it.'
 let made = 0
 let sent = 0
 
@@ -117,7 +118,7 @@ function started(talk: TalkWrites, key: string, body: Record<string, unknown>, c
   const receipt = { conversation, message }
   talk.receipts.set(key, { body: JSON.stringify(body), receipt })
   ctx.record(`conversation-start:${body.title}:${body.askSophia ? 'yes' : 'no'}`)
-  if (body.askSophia) answerLater(talk, id, ctx)
+  if (body.askSophia) answerLater(talk, id, String(body.text), ctx)
   // It landed; the page never hears so, and only starting again under the same key can tell it.
   if (talk.start === 'lost' && made === 1) return Promise.reject(new TypeError('Failed to fetch'))
   if (talk.start === 'slow') return later(1500, () => json(receipt, 201))
@@ -148,7 +149,7 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
   const receipt = { message, sophia: body.askSophia ? 'asked' : 'not_asked' }
   talk.receipts.set(key, { body: JSON.stringify(body), receipt })
   ctx.record(`conversation-message:${String(body.text)}:${body.askSophia ? 'yes' : 'no'}`)
-  if (body.askSophia) answerLater(talk, id, ctx)
+  if (body.askSophia) answerLater(talk, id, String(body.text), ctx)
   return replied(talk, id, receipt, ctx)
 }
 
@@ -166,14 +167,15 @@ function replied(talk: TalkWrites, id: string, receipt: unknown, ctx: Context) {
   return json(receipt, 201)
 }
 
-/** Sophia's answer, a later message: the conversation counts her in, and the feed moves. */
-function answerLater(talk: TalkWrites, id: string, ctx: Context) {
+/** Sophia's answer to what was asked, a later message: the conversation counts her in, and the feed moves. */
+function answerLater(talk: TalkWrites, id: string, asked: string, ctx: Context) {
   setTimeout(() => {
     const conversation = talk.list.find((c) => c.id === id)
     const all = talk.messages[id]
     if (!conversation || !all) return
     const at = next(talk.list)
-    all.push({ id: `${id}-s${String(all.length)}`, author: 'sophia', actorId: null, name: null, text: ANSWER, at })
+    const text = answerFor(asked, all)
+    all.push({ id: `${id}-s${String(all.length)}`, author: 'sophia', actorId: null, name: null, text, at })
     conversation.lastAt = at
     conversation.sophia = true
     ctx.moved()

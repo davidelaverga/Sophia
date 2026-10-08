@@ -2,6 +2,7 @@
 // open, the filter by title, and the brief's accepted decisions beside them.
 import type { MissionDecision } from '@sophia/contracts'
 import type { ConversationSummary } from '../../api/vision.ts'
+import { plainOf } from './sophia-text.ts'
 
 /** The project's conversations, as read for this person. */
 export const listKey = (projectId: string, name: string) => ['vision', 'conversations', projectId, name] as const
@@ -140,7 +141,8 @@ export function gistOf(c: ConversationSummary, me: string): string | null {
       : last.actorId === me
         ? 'You'
         : (c.contributors.find((p) => p.actorId === last.actorId)?.name ?? last.name ?? 'Someone')
-  return `${who}: ${last.text}`
+  // Hers in one line: the row never shows the marks her words are drawn with (sophia-text.ts).
+  return `${who}: ${last.author === 'sophia' ? plainOf(last.text) : last.text}`
 }
 
 /**

@@ -566,6 +566,44 @@
   font-size: var(--type-title);
   line-height: 1.6;
 }
+/* Her words with their shape (sophia-text.ts): a lead in the second ink, a list with a quiet mark, the speaker named
+   first in her own weight, a paragraph after a list a little apart. */
+.conv-msg.sophia .conv-msg-body > * + * {
+  margin-top: 8px;
+}
+.conv-msg.sophia .sophia-lead {
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+.sophia-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sophia-list li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--core);
+  font-size: var(--type-title);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.sophia-list li::before {
+  content: '';
+  position: absolute;
+  top: 0.7em;
+  left: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--halo);
+}
+.sophia-who {
+  color: var(--text);
+  font-weight: 600;
+}
 .conv-msg.sophia .conv-msg-at {
   position: static;
   display: inline-block;
