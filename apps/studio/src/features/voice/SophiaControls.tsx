@@ -23,6 +23,12 @@ interface Props {
   onAllowAudio: () => void
 }
 
+/** What a press that didn't go through says: no reply; the room moved on meanwhile; or the API's own words. */
+function refusalWords(err: unknown): string {
+  if (!(err instanceof ApiError) || err.status === 0) return 'No reply from Sophia. Try again.'
+  return err.code === 'stale_revision' ? 'The room changed meanwhile. Try again.' : err.message
+}
+
 /** One control call at a time, the snapshot refreshed after it, a refusal kept until the next try. */
 function useControl(projectId: string, identity: Identity) {
   const queryClient = useQueryClient()
@@ -34,7 +40,7 @@ function useControl(projectId: string, identity: Identity) {
     try {
       await action()
     } catch (err: unknown) {
-      setError(err instanceof ApiError && err.status > 0 ? err.message : 'No reply from Sophia. Try again.')
+      setError(refusalWords(err))
     } finally {
       setBusy(false)
       void queryClient.invalidateQueries({ queryKey: snapshotKey(projectId, identity.name) })
