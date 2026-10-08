@@ -53,5 +53,8 @@ test('start · quiet labels in the app’s sans, on its sizes, reading at 4.5:1'
   await expect(form(page).locator('.field-label').first()).toHaveCSS('text-transform', 'none')
   expect(await lowContrast(page, '.conv-new')).toEqual([])
   const sizes = await typeSizes(page, '.conv-new')
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px'], sizes.join(' ')).toContain(s)
+  // The form's own heading is the view's 18 px, as the other conversation checks allow.
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '18px'], sizes.join(' ')).toContain(s)
+  // The question is set at the title size, larger than the context under it.
+  await expect(question(page)).toHaveCSS('font-size', '14px')
 })

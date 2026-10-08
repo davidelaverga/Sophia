@@ -67,7 +67,7 @@ function useStarters(props: Props): string[] {
     queryFn: () => getMission(identity.token, projectId),
     retry: 1,
   })
-  return startersOf(brief.data?.pending, props.fields.title)
+  return startersOf(brief.data?.pending, props.fields.title, QUESTION_MAX)
 }
 
 export function NewConversation(props: Props) {

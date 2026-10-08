@@ -16,11 +16,15 @@ export const startable = (fields: ConversationAsk): boolean => fields.title.trim
 /** How many of the proposals waiting are offered to start from. */
 const STARTERS = 3
 
-/** The proposals waiting to start a conversation from, three at most, leaving out the one already the question. */
-export function startersOf(pending: readonly MissionDecision[] | undefined, question: string): string[] {
+/**
+ * The proposals waiting to start a conversation from, newest first, three at most: only those that fit a question
+ * (`most` characters, A18's limit), leaving out the one already the question.
+ */
+export function startersOf(pending: readonly MissionDecision[] | undefined, question: string, most: number): string[] {
   const asked = question.trim()
   return (pending ?? [])
+    .toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     .map((d) => d.statement)
-    .filter((s) => s !== asked)
+    .filter((s) => s !== asked && s.length <= most)
     .slice(0, STARTERS)
 }
