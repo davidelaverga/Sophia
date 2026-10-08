@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/conversations-decide.spec.ts`, `apps/studio/fix
 Runtime unit: the Studio (`apps/studio`) and one shared icon (`packages/ui`), on the fixture pages; no API, database, worker or deployment touched. The writes are A08's, already in the API.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/decide` stacked on `conversations/answers` (`99e27488`, #173), 2026-10-08
-Ending commit/tree: `ed2ddbb4ba205982eab2e46658fdef24eb677f04` (tree `ff7c34f5fcdf18284061729472666c1f5382a931`), after Decline at 24 px, the checks reading the brief's writes from the fixture and a name no longer shadowed, as CI found, after main merged in once C6 landed, after its base's changes merged in, after the answer's line taking the focus at once (a requestAnimationFrame never fires in a tab out of sight). The commits after it change only this handoff.
+Ending commit/tree: `ec393d1002684e564d8982a9705ca876920d030a` (tree `cf568542e6e30791c842fec99ee82183287c8c4f`), after main merged in once Knowledge origins landed, after Decline at 24 px, the checks reading the brief's writes from the fixture and a name no longer shadowed, as CI found, after main merged in once C6 landed, after its base's changes merged in, after the answer's line taking the focus at once (a requestAnimationFrame never fires in a tab out of sight). The commits after it change only this handoff.
 
 ## Outcome
 
