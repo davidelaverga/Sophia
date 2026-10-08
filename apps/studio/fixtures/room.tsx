@@ -72,6 +72,7 @@ import {
 } from './report-data.ts'
 import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
 import type { ExchangeAction } from './exchange-writes.ts'
+import { sophiaArrives, stopScene } from './room-scene.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -297,6 +298,8 @@ const project = {
   // As the API and her bridge answer her presses (exchange-writes.ts): in, she listens; quieted, she listens; ended,
   // she leaves the room; a pause lifted, she listens to the holder.
   onExchange: (action: ExchangeAction) => {
+    // In the demo, her presses cut the scene short (room-scene.ts).
+    if (DEMO) stopScene()
     if (action === 'end') {
       // Ended, nothing of it stays: no pause, nothing she looked at.
       project.exchange = false
@@ -313,6 +316,8 @@ const project = {
     }
     project.exchange = true
     setSophia('listening')
+    // In the demo, asked in, she says where the project stands (room-alive.md).
+    if (DEMO && action === 'start') sophiaArrives()
   },
   messages: [] as (string | Said)[],
   contributions: new Map(),
