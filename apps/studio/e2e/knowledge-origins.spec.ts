@@ -86,7 +86,11 @@ test('origins · a conversation the list doesn’t hold is said so, never anothe
   await page.setViewportSize({ width: 1440, height: 900 })
   await openSources(page, `${KNOWLEDGE}&origins=missing`)
   await rows(page).nth(1).getByRole('button').click()
-  await expect(page.getByRole('region', { name: 'All conversations' }).getByRole('status')).toHaveText(
-    'The conversation asked for isn’t here: the newest is open.',
-  )
+  // The list says how many it holds in a status of its own: this is the other one.
+  await expect(
+    page
+      .getByRole('region', { name: 'All conversations' })
+      .getByRole('status')
+      .filter({ hasText: 'The conversation asked for' }),
+  ).toHaveText('The conversation asked for isn’t here: the newest is open.')
 })

@@ -589,6 +589,8 @@
   min-width: 0;
 }
 .source-title {
+  /* On the app's scale: the body's 13.5 px is not on it. */
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 .source-title a {
