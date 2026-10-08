@@ -21,6 +21,8 @@ export interface Kept {
   proposals: Readonly<Record<string, Held<string> | null>>
   /** The words of a refusal that answered a message's proposal, until its next press. */
   proposalRefusals: Readonly<Record<string, string | null>>
+  /** A message whose proposal was recorded, until its form is opened again: whatever part is on screen says so. */
+  proposed: Readonly<Record<string, boolean>>
 }
 
 /**
@@ -46,6 +48,7 @@ const EMPTY: Kept = {
   start: { fields: NO_WORDS, held: null },
   proposals: {},
   proposalRefusals: {},
+  proposed: {},
 }
 
 const kept = new Map<string, Kept>()

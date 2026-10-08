@@ -30,6 +30,15 @@ async function enter(page: Page, url = PAGE) {
   await expect(stillOpen(page)).toContainText('Map first, list second')
 }
 
+/** Another conversation opened, then the one titled `back` again: its messages are mounted anew. */
+async function away(page: Page, back: string) {
+  const rows = page.getByRole('region', { name: 'All conversations' }).getByRole('button')
+  await rows.filter({ hasText: 'Short or long briefs?' }).click()
+  await expect(open(page).getByRole('heading').first()).toHaveText('Short or long briefs?')
+  await rows.filter({ hasText: back }).click()
+  await expect(open(page).getByRole('heading').first()).toHaveText(back)
+}
+
 test('decide · «Accept» in Still open makes it an accepted decision, at the revision read', async ({ page }) => {
   await enter(page)
   await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
@@ -109,8 +118,7 @@ test('decide · with no reply, another conversation and back: the proposal is st
   page,
 }) => {
   await enter(page, `${PAGE}&propose=lost`)
-  const list = page.getByRole('region', { name: 'All conversations' })
-  const first = await open(page).getByRole('heading').first().textContent()
+  const first = (await open(page).getByRole('heading').first().textContent()) ?? ''
   const mine = open(page).locator('.conv-messages > li').last()
   await mine.hover()
   await mine.getByRole('button', { name: 'Propose as decision' }).click()
@@ -118,17 +126,36 @@ test('decide · with no reply, another conversation and back: the proposal is st
   await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
   await expect(open(page).getByRole('alert')).toContainText('No reply yet')
   // Away to another conversation, and back to this one: the message is mounted anew.
-  await list.getByRole('button', { name: /Short or long briefs/ }).click()
-  await list
-    .getByRole('button', { name: new RegExp(first ?? '') })
-    .first()
-    .click()
+  await away(page, first)
   const again = open(page).locator('.conv-messages > li').last()
   await again.hover()
   await again.getByRole('button', { name: 'Propose as decision' }).click()
   await expect(open(page).getByRole('textbox', { name: 'Decision to propose' })).toHaveValue('Briefs stay on one page')
   await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
   await expect(again.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  await expect(stillOpen(page).locator('li').filter({ hasText: 'Briefs stay on one page' })).toHaveCount(1)
+})
+
+test('decide · on its way, another conversation and back: the words sent are shown, and its landing closes the form', async ({
+  page,
+}) => {
+  await enter(page, `${PAGE}&propose=slow`)
+  const first = (await open(page).getByRole('heading').first().textContent()) ?? ''
+  const mine = open(page).locator('.conv-messages > li').last()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await away(page, first)
+  const again = open(page).locator('.conv-messages > li').last()
+  await again.hover()
+  await again.getByRole('button', { name: 'Propose as decision' }).click()
+  // Still on its way: the words it was sent with, which can't change, and no second press.
+  await expect(open(page).getByRole('textbox', { name: 'Decision to propose' })).toHaveValue('Briefs stay on one page')
+  await expect(open(page).getByRole('button', { name: 'Proposing…' })).toBeVisible()
+  // It lands: the form goes, the press says so, and Still open holds it once.
+  await expect(again.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  await expect(open(page).getByRole('textbox', { name: 'Decision to propose' })).toHaveCount(0)
   await expect(stillOpen(page).locator('li').filter({ hasText: 'Briefs stay on one page' })).toHaveCount(1)
 })
 

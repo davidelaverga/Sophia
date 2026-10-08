@@ -61,10 +61,6 @@ export function useDecide(projectId: string, identity: Identity) {
 }
 
 /**
- * A statement proposed as one of the project's constraints; the brief read again once it lands. No identity (someone
- * who can't write here): nothing is ever sent.
- */
-/**
  * A message's proposal sent under `key`: a constraint with these words (A08). Its receipt comes back once the brief has
  * been read again, so «it's in Still open» is never said before Still open can show it.
  */

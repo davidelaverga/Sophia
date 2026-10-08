@@ -24,20 +24,32 @@ export interface ProposeArgs {
 /** Where nobody can propose: the hooks still run, as hooks must, over nothing. */
 const NOBODY = { projectId: '', identity: null, messageId: '' }
 
-/** One message's proposal as the view holds it: its write (held under the message), and its refusal's words. */
+/**
+ * One message's proposal as the view holds it: its write (held under the message, its words and key with it), its
+ * refusal's words, and whether it was recorded. Whatever part is on screen reads them: a form opened after another
+ * conversation, or a reply that landed while the message was out of sight, finds the same proposal.
+ */
 function useHeldProposal(args: ProposeArgs | null) {
   const { projectId, identity, messageId: id } = args ?? NOBODY
   const { kept, change } = useKept(projectId, identity?.name ?? '')
-  return useHeldWrite<string, unknown>(
-    kept.proposals[id] ?? null,
+  const send = useProposeSend(projectId, identity)
+  const held = kept.proposals[id] ?? null
+  const marked = (on: boolean) => change((was) => ({ ...was, proposed: withEntry(was.proposed, id, on) }))
+  const write = useHeldWrite<string, unknown>(
+    held,
     (next: Held<string> | null) => change((was) => ({ ...was, proposals: withEntry(was.proposals, id, next) })),
-    useProposeSend(projectId, identity),
+    async (key, statement) => {
+      const receipt = await send(key, statement)
+      marked(true)
+      return receipt
+    },
     {
       words: kept.proposalRefusals[id] ?? null,
       onWords: (words) => change((was) => ({ ...was, proposalRefusals: withEntry(was.proposalRefusals, id, words) })),
       say: (err) => refusalWords(err, 'propose'),
     },
   )
+  return { ...write, sent: held?.ask ?? null, done: kept.proposed[id] === true, marked }
 }
 
 type Proposal = ReturnType<typeof useHeldProposal>
@@ -48,7 +60,6 @@ type Proposal = ReturnType<typeof useHeldProposal>
  */
 export function useProposeHere(args: ProposeArgs | null): { press: ReactNode; form: ReactNode } {
   const [words, setWords] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
   const press = useRef<HTMLButtonElement>(null)
   /** Whether the form is open now: a reply that lands after it closed takes no focus from where the person went. */
   const isOpen = useRef(false)
@@ -61,21 +72,18 @@ export function useProposeHere(args: ProposeArgs | null): { press: ReactNode; fo
     if (wasOpen) requestAnimationFrame(() => press.current?.focus())
   }
   const open = () => {
-    setDone(false)
+    proposal.marked(false)
     isOpen.current = true
     // What was sent with no definitive answer comes back as it went: it may already have landed.
-    setWords(proposal.unknown ?? statementFrom(args.text, args.sophia))
+    setWords(proposal.sent ?? statementFrom(args.text, args.sophia))
   }
-  const proposed = () => {
-    setDone(true)
-    away()
-  }
+  // Recorded, here or on a part since gone: the form is put away and the press says so.
+  const shown = words !== null && !proposal.done
   return {
-    press: words === null ? <ProposePress press={press} done={done} onOpen={open} /> : null,
-    form:
-      words === null ? null : (
-        <ProposeForm words={words} onWords={setWords} proposal={proposal} onClose={away} onDone={proposed} />
-      ),
+    press: shown ? null : <ProposePress press={press} done={proposal.done} onOpen={open} />,
+    form: shown ? (
+      <ProposeForm words={proposal.sent ?? words} onWords={setWords} proposal={proposal} onClose={away} onDone={away} />
+    ) : null,
   }
 }
 
