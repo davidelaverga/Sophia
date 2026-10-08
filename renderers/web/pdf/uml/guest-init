@@ -19,6 +19,7 @@ mkdir -p /target/run/uml
 cp /diagnostic.mjs /target/run/uml/diagnostic.mjs
 ln -s /opt/renderer/confine.mjs /target/run/confine.mjs
 ln -s /opt/renderer/host-probe.mjs /target/run/host-probe.mjs
+ln -s /opt/renderer/capture-html.mjs /target/run/capture-html.mjs
 cp /abi-probe /target/run/abi-probe
 umount /sys
 umount /proc

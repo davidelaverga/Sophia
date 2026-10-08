@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 import net from 'node:net'
 import { probeHost } from '../host-probe.mjs'
 import { launchConfined } from '../confine.mjs'
+import { captureHtml } from '../capture-html.mjs'
 const input = '/tmp/uml-fixture.html'
 fs.writeFileSync(
   input,
@@ -128,5 +129,51 @@ try {
 } finally {
   await new Promise((resolve) => server.close(() => resolve(undefined)))
   fs.rmSync('/run/uml-private', { recursive: true, force: true })
+}
+// Preserve the original suite's failure. Its summary omits a check's detailed
+// reason, so a failed capture gets one bounded diagnostic receipt with the same
+// source fixture, targets, original kernel and normal deadlines.
+if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
+  const source = fs.mkdtempSync('/tmp/uml-width-source-')
+  const output = fs.mkdtempSync('/tmp/uml-width-output-')
+  const fixture = `<!doctype html><html lang="it"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>Probe</title>
+<style>body{margin:0;font:18px/1.5 Georgia,serif;color:#222;background:#fafafa} section{padding:1rem 2rem;max-width:60rem;margin:auto}</style>
+</head><body><main><h1>Verifica dell'host di cattura</h1>
+<section data-section="s1"><p data-block="b1">${'Città, señal, naïve façade: àèéìòù. '.repeat(8)}</p></section>
+<section data-section="s2"><ul><li data-block="b2">Uno.</li><li data-block="b3">Due.</li></ul></section></main></body></html>
+`
+  try {
+    fs.chmodSync(source, 0o755)
+    fs.chmodSync(output, 0o777)
+    fs.writeFileSync(`${source}/index.html`, fixture, { mode: 0o644 })
+    const sha256 = crypto.createHash('sha256').update(fixture).digest('hex')
+    const receipt = await captureHtml(
+      {
+        sourceRoot: source,
+        outputDir: output,
+        entry: { path: 'index.html', sha256 },
+        language: 'it',
+        targets: ['w390-light', 'w1280-light'],
+      },
+      { env: process.env },
+    )
+    console.log(
+      JSON.stringify({
+        event: 'UML_CAPTURE_FAILURE_DETAIL',
+        qualification: false,
+        diagnosticOnly: true,
+        fixtureSha256: sha256,
+        status: receipt.status,
+        error: receipt.error,
+        checks: receipt.checks,
+        sandbox: receipt.sandbox,
+        captureCount: receipt.captures.length,
+      }),
+    )
+  } finally {
+    fs.rmSync(source, { recursive: true, force: true })
+    fs.rmSync(output, { recursive: true, force: true })
+  }
 }
 process.exitCode = result.functionalPass && result.releaseLaunchBudgetPass && suite.every((check) => check.ok) ? 0 : 1

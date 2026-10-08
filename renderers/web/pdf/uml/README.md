@@ -58,8 +58,11 @@ Linux passed. The repaired kernel passed the same probe, produced two verified
 PNGs and a PDF, and the original sandbox judge was active before and after. That
 Mac experiment used nested x86 CPU emulation and a 120-second diagnostic launch
 allowance: its 37.355-second launch **failed** the release timing budget. This
-Docker candidate uses the normal 30 seconds. Its Docker build and actual Render
-performance are not yet verified. No source handover to Claude has occurred.
+Docker candidate uses the normal 30 seconds. At `b44651c`, both the complete local
+Docker build and the native Render build/deploy passed. On Render, Chromium
+launched in 7.509 seconds, produced two hash-verified PNGs and a PDF, and retained
+the original active sandbox before and after. No source handover to Claude has
+occurred.
 
 Primary references:
 [official UML guide](https://www.kernel.org/doc/html/latest/virt/uml/user_mode_linux_howto_v2.html),
@@ -73,7 +76,20 @@ normal 60-second budget. The separate direct cold-launch diagnostic timed out at
 not permission-denial evidence and is not counted here as host qualification.
 The local donor artifact also warned about a missing optional native canvas
 binding. The Docker recipe performs a clean Linux dependency deployment; its
-build and runtime still need actual verification.
+clean Linux build passed. Native Render's unchanged PDF kernel passed every
+check, and capture produced 10 verified images. The `widths_visible` check failed
+within a 45.178-second total fixture, so the detailed native cause is still
+unknown. The full fixture correctly reports failure; no production acceptance
+is claimed. Host adverse controls passed with Landlock ABI4, UID10001 and
+seccomp2, including permission denial of excluded host files and inheritance by
+a descendant. The worker was suspended after collecting its complete log.
+
+If the original suite reports a failed capture check, the diagnostic now runs
+one additional capture of its exact fixture through the unchanged kernel and
+prints each receipt check's detail. The original suite still determines failure;
+this diagnostic receipt never promotes it to success. The launch, width sweep,
+host wall time and output limits stay unchanged. This logging extension has not
+been run on Render and needs a fresh bounded test authorization.
 
 The namespace supervisor's cancellation path was exercised separately in the
 private Linux lab with an owned init and descendant. Both `SIGTERM` and
