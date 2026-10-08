@@ -105,6 +105,33 @@ test('decide · with no reply, Cancel keeps the proposal’s words and key: reop
   await expect(stillOpen(page).locator('li').filter({ hasText: 'Briefs stay on one page' })).toHaveCount(1)
 })
 
+test('decide · with no reply, another conversation and back: the proposal is still held, sent again under its key', async ({
+  page,
+}) => {
+  await enter(page, `${PAGE}&propose=lost`)
+  const list = page.getByRole('region', { name: 'All conversations' })
+  const first = await open(page).getByRole('heading').first().textContent()
+  const mine = open(page).locator('.conv-messages > li').last()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(open(page).getByRole('alert')).toContainText('No reply yet')
+  // Away to another conversation, and back to this one: the message is mounted anew.
+  await list.getByRole('button', { name: /Short or long briefs/ }).click()
+  await list
+    .getByRole('button', { name: new RegExp(first ?? '') })
+    .first()
+    .click()
+  const again = open(page).locator('.conv-messages > li').last()
+  await again.hover()
+  await again.getByRole('button', { name: 'Propose as decision' }).click()
+  await expect(open(page).getByRole('textbox', { name: 'Decision to propose' })).toHaveValue('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(again.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  await expect(stillOpen(page).locator('li').filter({ hasText: 'Briefs stay on one page' })).toHaveCount(1)
+})
+
 test('decide @phone · on a touch screen the press is a finger’s 40 px, and a keyboard reaches it unpressed', async ({
   page,
 }) => {

@@ -17,6 +17,10 @@ export interface Kept {
   /** When Sophia was asked to answer there, by conversation. */
   asked: Readonly<Record<string, Asked | null>>
   start: { fields: ConversationAsk; held: Held<ConversationAsk> | null }
+  /** A message's proposal on its way, or sent with no reply (its key and words), by message: never sent twice. */
+  proposals: Readonly<Record<string, Held<string> | null>>
+  /** The words of a refusal that answered a message's proposal, until its next press. */
+  proposalRefusals: Readonly<Record<string, string | null>>
 }
 
 /**
@@ -40,6 +44,8 @@ const EMPTY: Kept = {
   refusals: {},
   asked: {},
   start: { fields: NO_WORDS, held: null },
+  proposals: {},
+  proposalRefusals: {},
 }
 
 const kept = new Map<string, Kept>()

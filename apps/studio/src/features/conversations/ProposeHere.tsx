@@ -1,18 +1,46 @@
 // «Propose as decision» on a message (docs/plans/conversations-decide.md, C7): a short form under it, its words already
 // in, sent as one of the project's constraints (A08). Shown to those who can write here: a small press at the corner of
 // the message itself, under the pointer or the focus on a wide screen, on the message pressed on a phone, so the thread
-// never spreads or jumps. Esc closes the form and gives the focus back to its press.
+// never spreads or jumps. Esc closes the form and gives the focus back to its press. A proposal on its way, or sent
+// with no reply, is held by the view (talk-store.ts), its key and words with it: closing the form, opening another
+// conversation or leaving for another view and coming back finds the same one, sent again under its key, never twice.
 import { useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
-import { refusalWords, statementFrom, usePropose } from './decide.ts'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
+import { refusalWords, statementFrom, useProposeSend } from './decide.ts'
+import { useHeldWrite, type Held } from './held-write.ts'
+import { useKept, withEntry } from './talk-store.ts'
 
 export interface ProposeArgs {
   projectId: string
   identity: Identity
+  /** The message proposed from: its proposal is held under it. */
+  messageId: string
   text: string
   sophia: boolean
 }
+
+/** Where nobody can propose: the hooks still run, as hooks must, over nothing. */
+const NOBODY = { projectId: '', identity: null, messageId: '' }
+
+/** One message's proposal as the view holds it: its write (held under the message), and its refusal's words. */
+function useHeldProposal(args: ProposeArgs | null) {
+  const { projectId, identity, messageId: id } = args ?? NOBODY
+  const { kept, change } = useKept(projectId, identity?.name ?? '')
+  return useHeldWrite<string, unknown>(
+    kept.proposals[id] ?? null,
+    (next: Held<string> | null) => change((was) => ({ ...was, proposals: withEntry(was.proposals, id, next) })),
+    useProposeSend(projectId, identity),
+    {
+      words: kept.proposalRefusals[id] ?? null,
+      onWords: (words) => change((was) => ({ ...was, proposalRefusals: withEntry(was.proposalRefusals, id, words) })),
+      say: (err) => refusalWords(err, 'propose'),
+    },
+  )
+}
+
+type Proposal = ReturnType<typeof useHeldProposal>
 
 /**
  * One message's proposing: its press (drawn at the message's corner) and, once pressed, its form (drawn under the
@@ -22,27 +50,23 @@ export function useProposeHere(args: ProposeArgs | null): { press: ReactNode; fo
   const [words, setWords] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const press = useRef<HTMLButtonElement>(null)
-  const propose = usePropose(args?.projectId ?? '', args?.identity ?? null)
+  /** Whether the form is open now: a reply that lands after it closed takes no focus from where the person went. */
+  const isOpen = useRef(false)
+  const proposal = useHeldProposal(args)
   if (!args) return { press: null, form: null }
-  const state = propose.state
-  /** What was sent with no definitive answer yet (on its way, or no reply): it may already have landed. */
-  const unsettled = state.status === 'sending' || state.status === 'unknown' ? state.args : null
   const away = () => {
+    const wasOpen = isOpen.current
+    isOpen.current = false
     setWords(null)
-    requestAnimationFrame(() => press.current?.focus())
-  }
-  // Closed with a proposal unsettled, its key stays: reopened, Propose sends that same one, never a second.
-  const close = () => {
-    if (unsettled === null) propose.reset()
-    away()
+    if (wasOpen) requestAnimationFrame(() => press.current?.focus())
   }
   const open = () => {
     setDone(false)
-    setWords(unsettled ?? statementFrom(args.text, args.sophia))
+    isOpen.current = true
+    // What was sent with no definitive answer comes back as it went: it may already have landed.
+    setWords(proposal.unknown ?? statementFrom(args.text, args.sophia))
   }
-  // Proposed: settled for good, whichever press sent it.
   const proposed = () => {
-    propose.reset()
     setDone(true)
     away()
   }
@@ -50,7 +74,7 @@ export function useProposeHere(args: ProposeArgs | null): { press: ReactNode; fo
     press: words === null ? <ProposePress press={press} done={done} onOpen={open} /> : null,
     form:
       words === null ? null : (
-        <ProposeForm words={words} onWords={setWords} propose={propose} onClose={close} onDone={proposed} />
+        <ProposeForm words={words} onWords={setWords} proposal={proposal} onClose={away} onDone={proposed} />
       ),
   }
 }
@@ -86,12 +110,14 @@ function ProposePress(props: { press: RefObject<HTMLButtonElement | null>; done:
 function ProposeForm(props: {
   words: string
   onWords: (words: string) => void
-  propose: ReturnType<typeof usePropose>
+  proposal: Proposal
   onClose: () => void
   onDone: () => void
 }) {
-  const { words, propose } = props
-  const sending = propose.state.status === 'sending'
+  const { words, proposal } = props
+  const sending = proposal.busy
+  const held = sending || proposal.unknown !== null
+  const slow = useSlow(sending)
   const empty = words.trim().length === 0
   return (
     <form
@@ -99,7 +125,7 @@ function ProposeForm(props: {
       onSubmit={(e) => {
         e.preventDefault()
         if (sending || empty) return
-        void propose.send(words.trim()).then((receipt) => {
+        void proposal.run(words.trim()).then((receipt) => {
           if (receipt) props.onDone()
         })
       }}
@@ -114,7 +140,7 @@ function ProposeForm(props: {
         aria-label="Decision to propose"
         value={words}
         // On their way, or with no reply (Propose sends these same words again under the same key): they can't change.
-        readOnly={sending || propose.state.status === 'unknown'}
+        readOnly={held}
         maxLength={280}
         onChange={(e) => props.onWords(e.target.value)}
       />
@@ -125,12 +151,11 @@ function ProposeForm(props: {
         <button type="button" className="text-button" onClick={props.onClose}>
           Cancel
         </button>
-        {propose.state.status === 'unknown' && (
+        {slow && <span role="status">{SLOW_NOTE}</span>}
+        {!sending && proposal.unknown !== null && (
           <span role="alert">No reply yet. Press Propose again: it sends the same proposal, never a second.</span>
         )}
-        {propose.state.status === 'rejected' && (
-          <span role="alert">{refusalWords(propose.state.error, 'propose')}</span>
-        )}
+        {proposal.refused && <span role="alert">{proposal.refused}</span>}
       </div>
     </form>
   )

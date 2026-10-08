@@ -64,12 +64,16 @@ export function useDecide(projectId: string, identity: Identity) {
  * A statement proposed as one of the project's constraints; the brief read again once it lands. No identity (someone
  * who can't write here): nothing is ever sent.
  */
-export function usePropose(projectId: string, identity: Identity | null) {
+/**
+ * A message's proposal sent under `key`: a constraint with these words (A08). Its receipt comes back once the brief has
+ * been read again, so «it's in Still open» is never said before Still open can show it.
+ */
+export function useProposeSend(projectId: string, identity: Identity | null) {
   const client = useQueryClient()
-  return useAdmission<string, MissionReceipt>(async (key, statement) => {
+  return async (key: string, statement: string): Promise<MissionReceipt> => {
     if (!identity) throw new Error('Nobody to propose as')
     const receipt = await proposeMissionChange(identity.token, projectId, key, { kind: 'constraint', statement })
-    void client.invalidateQueries({ queryKey: missionKey(projectId) })
+    await client.invalidateQueries({ queryKey: missionKey(projectId) })
     return receipt
-  })
+  }
 }
