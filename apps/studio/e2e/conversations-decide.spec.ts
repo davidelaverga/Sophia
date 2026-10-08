@@ -172,6 +172,28 @@ test('decide · words already waiting in Still open are not sent again: it says 
   await expect(stillOpen(page).locator('li').filter({ hasText: 'Map first, list second' })).toHaveCount(1)
 })
 
+test('decide · when the brief can’t be read first, nothing is sent: it says so, and the next press reads again', async ({
+  page,
+}) => {
+  await enter(page)
+  const mine = open(page).locator('.conv-messages > li').last()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('Briefs stay on one page')
+  await page.evaluate(() => window.fixture?.failMission(true))
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(open(page).getByRole('alert')).toHaveText(
+    'Couldn’t check the brief first, so nothing was sent. Try again.',
+  )
+  expect(await writes(page, '/mission/proposals')).toEqual([])
+  await page.evaluate(() => window.fixture?.failMission(false))
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(mine.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  expect(await writes(page, '/mission/proposals')).toEqual([
+    { kind: 'constraint', statement: 'Briefs stay on one page' },
+  ])
+})
+
 test('decide @phone · on a touch screen the press is a finger’s 40 px, and a keyboard reaches it unpressed', async ({
   page,
 }) => {

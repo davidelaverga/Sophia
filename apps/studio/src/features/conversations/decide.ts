@@ -3,7 +3,7 @@
 // and wherever it shows (the room's brief, Updates).
 import { useQueryClient } from '@tanstack/react-query'
 import type { MissionDecision, MissionReceipt } from '@sophia/contracts'
-import type { ApiError } from '../../api/client.ts'
+import { ApiError } from '../../api/client.ts'
 import { decideMissionChange, getMission, proposeMissionChange } from '../../api/mission.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -24,6 +24,7 @@ export function statementFrom(text: string, sophia: boolean): string {
 
 /** What a refused write says, by what it was: no longer allowed, decided first, or not to be done now. */
 export function refusalWords(error: ApiError, write: 'decide' | 'propose'): string {
+  if (error.code === BRIEF_UNREAD) return 'Couldn’t check the brief first, so nothing was sent. Try again.'
   if (error.status === 403) return write === 'decide' ? 'You can’t decide this here.' : 'You can’t propose here.'
   if (error.status === 409) {
     return write === 'decide'
@@ -68,9 +69,13 @@ const sameWords = (a: string, b: string) =>
 export const alreadyOpen = (pending: readonly Pick<MissionDecision, 'kind' | 'statement'>[], statement: string) =>
   pending.some((d) => d.kind === 'constraint' && sameWords(d.statement, statement))
 
+/** A fresh proposal not sent because the brief couldn't be read first: a refusal, so the next press reads again. */
+const BRIEF_UNREAD = 'brief_unread'
+
 /**
  * Whether a fresh proposal's words already wait in the brief, read now: a proposal whose reply was lost, then the page
- * reloaded (its key gone with it), is found there rather than sent a second time. A read that fails finds nothing.
+ * reloaded (its key gone with it), is found there rather than sent a second time. A read that fails sends nothing: it
+ * is refused, to be pressed again, never taken for «not there».
  */
 export function useAlreadyOpen(projectId: string, identity: Identity | null) {
   const client = useQueryClient()
@@ -83,7 +88,8 @@ export function useAlreadyOpen(projectId: string, identity: Identity | null) {
         staleTime: 0,
       })
       .catch(() => null)
-    return brief !== null && alreadyOpen(brief.pending, statement)
+    if (brief === null) throw new ApiError(503, BRIEF_UNREAD, 'The brief could not be read', 'never')
+    return alreadyOpen(brief.pending, statement)
   }
 }
 

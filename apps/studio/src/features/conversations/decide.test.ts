@@ -80,3 +80,10 @@ describe('a proposal already waiting (reconciled before a fresh one goes)', () =
     assert.equal(alreadyOpen(waiting, 'Reports for every team'), false)
   })
 })
+
+describe('a proposal not sent because the brief could not be read first', () => {
+  it('says nothing was sent, and to try again', () => {
+    const unread = new ApiError(503, 'brief_unread', 'The brief could not be read', 'never')
+    assert.equal(refusalWords(unread, 'propose'), 'Couldn’t check the brief first, so nothing was sent. Try again.')
+  })
+})
