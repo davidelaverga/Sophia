@@ -23,7 +23,7 @@ const underLabel = (page: Page) =>
       .map((el) => el.textContent.trim().slice(0, 30))
   })
 
-for (const url of [HOME, PERSONAL, '/room.html?place=conversations&demo=1']) {
+for (const url of [HOME, PERSONAL, '/room.html?place=conversations&demo=1', '/join.html?demo=1']) {
   test(`spaces · on a phone the demo’s label is a line along the top edge, over nothing to read: ${url}`, async ({
     page,
   }) => {
@@ -50,6 +50,8 @@ test.describe('on a touch screen', () => {
 
   test('spaces · no key is shown where there are no keys', async ({ page }) => {
     await page.goto(HOME)
+    // There, and not shown: not a key missing from the page.
+    await expect(page.locator('.hw-say kbd')).toHaveCount(1)
     await expect(page.locator('.hw-say kbd')).toBeHidden()
   })
 })
@@ -63,7 +65,7 @@ test('spaces · open, the notes’ press keeps no tip over the panel', async ({ 
   await page.goto(PERSONAL)
   const notes = page.locator('.c3-notes-toggle')
   await notes.hover()
-  await expect(notes.locator('.tip')).toBeVisible()
+  await expect(notes.locator('.tip')).toHaveCSS('opacity', '1')
   await notes.click()
   await expect(notes).toHaveAttribute('aria-pressed', 'true')
   await expect(notes.locator('.tip')).toBeHidden()
