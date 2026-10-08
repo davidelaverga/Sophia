@@ -2016,7 +2016,8 @@ button.contribution-quote:hover {
     opacity: 1;
   }
   @media (hover: hover) {
-    .dock button:hover > .tip {
+    /* One tip at a time over the dock's middle: the keyboard's, when it is on a square, wins over the pointer's. */
+    .dock:not(:has(button:focus-visible)) button:hover > .tip {
       display: inline-flex;
       opacity: 1;
     }

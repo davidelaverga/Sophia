@@ -106,6 +106,22 @@ test('dock · at 360 px, the tips of the outer squares stay on the screen', asyn
   }
 })
 
+test('dock · at 390 px, one tip at a time: the pointer on one square, the keyboard on another, the keyboard’s shows', async ({
+  page,
+}) => {
+  await enter(page, 'people=2', 390)
+  const squares = dock(page).locator('button:visible')
+  await squares.first().hover()
+  await expect(squares.first().locator('.tip')).toHaveCSS('opacity', '1')
+  // The keyboard reaches the last square while the pointer stays on the first.
+  await squares.last().focus()
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  await expect(squares.last()).toBeFocused()
+  await expect(squares.last().locator('.tip')).toHaveCSS('opacity', '1')
+  await expect(squares.first().locator('.tip')).toBeHidden()
+})
+
 test('dock · on a phone, passing the floor to one person shows whose it becomes: their initial', async ({ page }) => {
   await enter(page, 'people=1&floor=me', 390)
   const pass = dock(page).getByRole('button', { name: 'Pass to Marco', exact: true })
