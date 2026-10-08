@@ -14,17 +14,19 @@
 - **Someone you work with, named again** (the demo project's people, Davide, Marco and Lucía: she knows them, she
   never guesses names from capitals), brings back what you said about them, in your words: «You told me “I promised
   a date I couldn’t keep, and Davide was quiet the whole time.” … What would you apologise for: the promise itself, or
-  how it landed on Davide?». Your apology is met as one («I wish Davide would apologise» is not yours); any other
-  mention asks what you want them to understand. A name inside another word, or a possessive, is read as it is.
+  how it landed on Davide?». Your apology is met as one, to whom it is made; «I wish Davide would apologise», «I’m
+  not going to apologise» and «Why should I apologise?» are not, and in doubt she asks rather than assumes. Any other
+  mention asks what you want them to understand. A name is read in any case and as a possessive, never inside another
+  word («Davidek»).
 - **A weight you named before** (the deck, the pitch, the numbers, the meeting, the launch) is asked about again,
   quoting a thought of yours about it (five words or more): «It comes back to the deck again. Last time you said “…”
   Is it the same weight, or a new one?». A quote is closed and cut past 140 characters.
-- **Anything else:** an open question about what you just said, whatever it carries; a word or two, «What’s on your
-  mind?». Without the demo, the checks keep their one line.
+- **Anything else:** an open question about your first thought of three words or more, as you put it (a question
+  stays one); a word or two, «What’s on your mind?». Without the demo, the checks keep their one line.
 
 ## Checks (written first)
 
-- In the demo, the apology to Davide quotes the earlier sentence about him; «I wish Davide would apologise» is no
-  apology of yours; «Marketing» is not Marco; the deck for Friday names the deck again and quotes the first day's
+- In the demo, the apology to Davide quotes the earlier sentence about him; «I wish Davide would apologise» and «Why
+  should I apologise to Davide?» are no apology of yours; «Davidek» is not Davide; the deck for Friday names the deck again and quotes the first day's
   words.
 - Without the demo, her answer is the checks' one line (`personal.spec.ts`, unchanged).

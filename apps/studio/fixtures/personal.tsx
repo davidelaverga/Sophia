@@ -252,19 +252,15 @@ function carryWritesFor(setSpace: (next: (s: Space) => Space) => void): Pick<Per
 /** What a live talk said, written as turns; a note kept from her look back. */
 function writtenBy(setSpace: (next: (s: Space) => Space) => void) {
   return {
-    talk: (lines: readonly TalkLine[]) =>
-      setSpace((s) => ({
-        ...s,
-        // Her lines in a talk answer what was said before them: never read as a greeting.
-        turns: [
-          ...s.turns,
-          ...lines.map((l, i) =>
-            turn(l.who === 'you' ? 'person' : 'sophia', l.text, new Date().toISOString(), {
-              replyTo: l.who === 'sophia' && i > 0 ? `talk-${String(i - 1)}` : null,
-            }),
-          ),
-        ],
-      })),
+    talk: (lines: readonly TalkLine[]) => {
+      // Her lines in a talk answer what was said before them: never read as a greeting. Made once, outside the update.
+      const said = lines.map((l, i) =>
+        turn(l.who === 'you' ? 'person' : 'sophia', l.text, new Date().toISOString(), {
+          replyTo: l.who === 'sophia' && i > 0 ? `talk-${String(i - 1)}` : null,
+        }),
+      )
+      setSpace((s) => ({ ...s, turns: [...s.turns, ...said] }))
+    },
     keep: (text: string) =>
       setSpace((s) => ({
         ...s,

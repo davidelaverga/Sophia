@@ -37,45 +37,59 @@ function quoted(sentence: string): string {
   return `“${closed.slice(0, closed.lastIndexOf(' ', QUOTE)).trimEnd()}…”`
 }
 
-/** Whether `name` is said in `text` as a word (possessives too: «Davide’s»), never inside another word. */
-const names = (text: string, name: string) => new RegExp(`(^|[^\\p{L}])${name}(?![\\p{L}])`, 'u').test(text)
+/** Where `name` is said in `text` as a word (possessives too: «Davide’s»; any case), never inside another word; -1. */
+const whereNamed = (text: string, name: string) => text.search(new RegExp(`(?<![\\p{L}])${name}(?![\\p{L}])`, 'iu'))
+const names = (text: string, name: string) => whereNamed(text, name) >= 0
+
+/** «I», then at most a modal and a softener, then the apology: «I should apologise», «I’ll really apologise». */
+const YOU_APOLOGISE =
+  /\bI(?:\s+(?:should|will|must|could|might|want to|need to|have to|ought to|am going to)|['’](?:ll|d|m going to))?(?:\s+(?:really|maybe|probably|just))?\s+apologi[sz]e/iu
 
 /**
- * «I should apologise to Davide»: you, apologising. Not «I won’t apologise», nor «I wish Davide would apologise» (someone
- * between your «I» and the apology is the one apologising).
+ * «I should apologise to Davide»: you, apologising. Not «I’m not going to apologise», «Why should I apologise», nor
+ * «I wish Davide would apologise» (someone else is the one apologising). In doubt, it is no apology of yours.
  */
-function yourApology(text: string): boolean {
-  const at = text.search(/apologi[sz]e/iu)
-  if (at < 0 || /\b(won’t|won't|will not|don’t|don't|wouldn’t|wouldn't|never)\b/iu.test(text)) return false
-  const before = text.slice(0, at)
-  const you = [...before.matchAll(/\bI\b/gu)].at(-1)
-  if (you === undefined) return false
-  const between = before.slice(you.index + 1)
-  return !PEOPLE.some((name) => names(between, name)) && !/\b(he|she|they)\b/iu.test(between)
-}
+const yourApology = (text: string) => YOU_APOLOGISE.test(text) && !/\b(?:not|never|why|refuse)\b|n['’]t\b/iu.test(text)
+
+const wordCount = (s: string) => s.split(/\s+/u).filter(Boolean).length
 
 /** The words of a line, lower case. */
 const wordsOf = (s: string) => new Set(s.toLowerCase().split(/[^\p{L}]+/u))
 
+/**
+ * Whom she answers about, with words of yours about them: with an apology, only the one it is made to (the first named
+ * after it, or the first named), never someone else in their place; otherwise the first named she has words about.
+ */
+function whoIsMeant(text: string, yours: readonly string[], apology: boolean) {
+  const named = PEOPLE.map((name) => ({
+    name,
+    at: whereNamed(text, name),
+    earlier: yours.findLast((s) => names(s, name)),
+  }))
+    .filter((p) => p.at >= 0)
+    .toSorted((a, b) => a.at - b.at)
+  if (!apology) return named.find((p) => p.earlier !== undefined)
+  const apologisedAt = text.search(/apologi[sz]e/iu)
+  return named.find((p) => p.at > apologisedAt) ?? named[0]
+}
+
 function aboutSomeone(text: string, yours: readonly string[]): string | null {
-  for (const name of PEOPLE) {
-    if (!names(text, name)) continue
-    const earlier = yours.findLast((s) => names(s, name))
-    if (!earlier) continue
-    if (yourApology(text)) {
-      const what = /\b(promise|promised|date)\b/iu.test(earlier) ? 'the promise itself' : 'what happened'
-      return `You told me ${quoted(earlier)} Starting with an apology can make it easier for ${name} to speak. What would you apologise for: ${what}, or how it landed on ${name}?`
-    }
-    return `You mentioned ${name} before: ${quoted(earlier)} What do you most want ${name} to understand?`
+  const apology = yourApology(text)
+  const who = whoIsMeant(text, yours, apology)
+  if (who?.earlier === undefined) return null
+  const { name, earlier } = who
+  if (apology) {
+    const what = /\b(promise|promised|date)\b/iu.test(earlier) ? 'the promise itself' : 'what happened'
+    return `You told me ${quoted(earlier)} Starting with an apology can make it easier for ${name} to speak. What would you apologise for: ${what}, or how it landed on ${name}?`
   }
-  return null
+  return `You mentioned ${name} before: ${quoted(earlier)} What do you most want ${name} to understand?`
 }
 
 function aboutAWeight(text: string, yours: readonly string[]): string | null {
   for (const [word, said] of Object.entries(WEIGHTS)) {
     if (!wordsOf(text).has(word)) continue
     // A thought of yours about it, not a fragment: five words or more.
-    const earlier = yours.findLast((s) => wordsOf(s).has(word) && s.split(/\s+/u).length >= 5)
+    const earlier = yours.findLast((s) => wordsOf(s).has(word) && wordCount(s) >= 5)
     if (earlier) {
       return `It comes back to ${said} again. Last time you said ${quoted(earlier)} Is it the same weight, or a new one?`
     }
@@ -85,10 +99,12 @@ function aboutAWeight(text: string, yours: readonly string[]): string | null {
 
 /** Her answer to `text`, after `before` (oldest first, `text` not among them). */
 export function companionReply(text: string, before: readonly Said[]): string {
-  const yours = before.filter((s) => s.author === 'person').flatMap((s) => sentencesOf(s.text))
-  const answer = aboutSomeone(text, yours) ?? aboutAWeight(text, yours)
+  const said = text.normalize('NFC').trim()
+  const yours = before.filter((s) => s.author === 'person').flatMap((s) => sentencesOf(s.text.normalize('NFC')))
+  const answer = aboutSomeone(said, yours) ?? aboutAWeight(said, yours)
   if (answer) return answer
-  const clause = (sentencesOf(text)[0] ?? text).replace(/[.!?]+$/u, '').trim()
-  if (clause.split(/\s+/u).length < 3) return 'I’m here. What’s on your mind?'
-  return `Tell me more about ${quoted(clause)} What stands out most, now?`
+  // The first thought of three words or more («Honestly?» is no thought), as you put it, a question kept a question.
+  const thought = sentencesOf(said).find((s) => wordCount(s) >= 3)
+  if (thought === undefined) return 'I’m here. What’s on your mind?'
+  return `Tell me more about ${quoted(thought)} What stands out most, now?`
 }
