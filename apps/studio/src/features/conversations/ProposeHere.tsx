@@ -4,7 +4,7 @@
 // never spreads or jumps. Esc closes the form and gives the focus back to its press. A proposal on its way, or sent
 // with no reply, is held by the view (talk-store.ts), its key and words with it: closing the form, opening another
 // conversation or leaving for another view and coming back finds the same one, sent again under its key, never twice.
-import { useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -64,6 +64,12 @@ export function useProposeHere(args: ProposeArgs | null): { press: ReactNode; fo
   /** Whether the form is open now: a reply that lands after it closed takes no focus from where the person went. */
   const isOpen = useRef(false)
   const proposal = useHeldProposal(args)
+  // Landed while this form was open (sent from a part since gone): the form goes, and the focus with it to its press.
+  useEffect(() => {
+    if (!proposal.done || !isOpen.current) return
+    isOpen.current = false
+    press.current?.focus()
+  }, [proposal.done])
   if (!args) return { press: null, form: null }
   const away = () => {
     const wasOpen = isOpen.current
