@@ -16,12 +16,12 @@ RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linu
 COPY renderers/web/pdf/uml/kernel.config /build/linux-6.12.101/.config
 COPY renderers/web/pdf/uml/kernel-abi.patch /build/kernel-abi.patch
 COPY renderers/web/pdf/uml/seccomp-abi-probe.c /build/seccomp-abi-probe.c
+RUN x86_64-linux-gnu-gcc -static -O2 /build/seccomp-abi-probe.c -o /build/abi-probe
 WORKDIR /build/linux-6.12.101
 RUN patch --fuzz=0 -p1 < /build/kernel-abi.patch \
  && scripts/config --disable DEBUG_INFO --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT --enable DEBUG_INFO_NONE --disable DEBUG_INFO_BTF --disable MODULES --disable MODULE_SIG --set-str SYSTEM_TRUSTED_KEYS '' --set-str SYSTEM_REVOCATION_KEYS '' \
  && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- olddefconfig \
- && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- -j2 linux \
- && x86_64-linux-gnu-gcc -static -O2 /build/seccomp-abi-probe.c -o /build/abi-probe
+ && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- -j2 linux
 
 FROM ${NODE_IMAGE} AS guest
 COPY --from=deploy /out /opt/sophia-renderer

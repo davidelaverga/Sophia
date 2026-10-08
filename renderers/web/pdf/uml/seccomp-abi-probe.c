@@ -10,6 +10,10 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+/* Linux UAPI asm-generic/siginfo.h: SYS_SECCOMP is 1. glibc 2.36 omits the name. */
+#ifndef SYS_SECCOMP
+#define SYS_SECCOMP 1
+#endif
 static volatile sig_atomic_t checked=0, passed=0;
 static void handle(int sig,siginfo_t *si,void *vp){
  ucontext_t *uc=vp;
