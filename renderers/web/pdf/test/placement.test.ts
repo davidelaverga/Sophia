@@ -390,7 +390,7 @@ describe('how the texts lie inside a band (#117, placement.mjs)', () => {
     assert.match(time.issue ?? '', /not read at every width within the sweep's time$/u)
   })
 
-  it('observes the actual batches without changing pace rejection or completed width coverage', async (t) => {
+  it('observes the actual batches; the time, never a forecast, ends a sweep still reading', async (t) => {
     t.mock.timers.enable({ apis: ['Date'], now: 100_000 })
     const trace = channel('sophia.renderer.width-sweep')
     const records: unknown[] = []
@@ -403,23 +403,39 @@ describe('how the texts lie inside a band (#117, placement.mjs)', () => {
     }
     trace.subscribe(collect)
     try {
+      // 10ms a batch against a 200ms time: the band's 2241 widths would take 710ms. The sweep reads on, batch after
+      // batch, and fails when its time runs out (the 21st batch ends at 210ms), never on the first batch's forecast.
       assert.equal(
         (await layoutChanges(steady, [320, 2560], Date.now() + 200)).issue,
         "how the texts lie inside the bands was not read at every width within the sweep's time",
       )
-      assert.deepEqual(records, [
-        {
-          phase: 'layout-batch',
-          first: 320,
-          count: 32,
-          read: 32,
-          total: 2241,
-          elapsedMs: 10,
-          remainingMs: 190,
-          late: true,
-          timedOut: false,
-        },
-      ])
+      assert.equal(records.length, 21)
+      assert.deepEqual(records[0], {
+        phase: 'layout-batch',
+        first: 320,
+        count: 32,
+        read: 32,
+        total: 2241,
+        elapsedMs: 10,
+        remainingMs: 190,
+        late: false,
+        timedOut: false,
+      })
+      assert.deepEqual(records[20], {
+        phase: 'layout-batch',
+        first: 960,
+        count: 32,
+        read: 672,
+        total: 2241,
+        elapsedMs: 210,
+        remainingMs: -10,
+        late: true,
+        timedOut: false,
+      })
+      assert.ok(
+        records.slice(0, 20).every((r) => (r as { late: boolean }).late === false),
+        'no batch before the time ran out is late',
+      )
       records.length = 0
       assert.deepEqual(await layoutChanges(steady, [320, 380], Date.now() + 1000), {
         ends: [320, 380],
@@ -454,6 +470,42 @@ describe('how the texts lie inside a band (#117, placement.mjs)', () => {
     }
   })
 
+  it('passes a sweep with a cold first batch that reads every width before its time runs out (SDD-01)', async () => {
+    // A cold browser: the first batch takes 150ms, the rest answer at once. A forecast from the first batch (150ms per
+    // 32 widths, about 10s for 2241) would have failed it against 2s; it reads all 2241 widths, each once, in time.
+    const asked: number[] = []
+    let calls = 0
+    const cold = (ws: number[]): Promise<Lie[]> => {
+      calls += 1
+      asked.push(...ws)
+      const answer = ws.map((w) => ({ state: `lies ${String(w >= 1200 ? 1 : 0)}` }))
+      return calls === 1 ? new Promise<Lie[]>((r) => setTimeout(() => r(answer), 150)) : Promise.resolve(answer)
+    }
+    assert.deepEqual(await layoutChanges(cold, [320, 2560], Date.now() + 2000), {
+      ends: [320, 1199, 1200, 2560],
+      issue: null,
+    })
+    assert.equal(calls, 71)
+    assert.deepEqual(
+      asked,
+      Array.from({ length: 2241 }, (_, k) => 320 + k),
+      'every whole width is read once, in order',
+    )
+    // The same cold start against a time it cannot meet still fails, and a change found before then is not passed.
+    calls = 0
+    asked.length = 0
+    const slowAfter = (ws: number[]): Promise<Lie[]> => {
+      calls += 1
+      const answer = ws.map(() => ({ state: 'a' }))
+      return new Promise<Lie[]>((r) => setTimeout(() => r(answer), calls === 1 ? 150 : 20))
+    }
+    assert.equal(
+      (await layoutChanges(slowAfter, [320, 2560], Date.now() + 300)).issue,
+      "how the texts lie inside the bands was not read at every width within the sweep's time",
+    )
+    assert.ok(calls < 71, 'it stops reading when its time runs out')
+  })
+
   it("races every batch against the sweep's time: a late or silent one fails, a timely one passes", async () => {
     const LATE_ISSUE = "how the texts lie inside the bands was not read at every width within the sweep's time"
     // The batches after the first answer 200ms late, past a 60ms budget.
@@ -466,13 +518,14 @@ describe('how the texts lie inside a band (#117, placement.mjs)', () => {
     const started = Date.now()
     assert.deepEqual(await layoutChanges(slow, [320, 2560], Date.now() + 60), { ends: [320, 2560], issue: LATE_ISSUE })
     assert.ok(Date.now() - started < 190, 'it returns when the time runs out, not when the probe answers')
-    // Batches that each take 10ms, at a pace that would read the band's 2241 widths past a 200ms budget: it fails after
-    // the first, not when the time runs out.
+    // Batches that each take 10ms, too slow to read the band's 2241 widths in a 200ms budget: it reads on until the time
+    // runs out, then fails, its unread widths never passed (no forecast fails it after the first batch).
     const steady = (ws: number[]): Promise<Lie[]> =>
       new Promise<Lie[]>((r) => setTimeout(() => r(ws.map(() => ({ state: 'a' }))), 10))
     const paced = Date.now()
     assert.equal((await layoutChanges(steady, [320, 2560], Date.now() + 200)).issue, LATE_ISSUE)
-    assert.ok(Date.now() - paced < 100, 'it fails once the pace shows the rest will not be read in time')
+    const ran = Date.now() - paced
+    assert.ok(ran >= 190 && ran < 1000, `it fails when its time runs out (${String(ran)}ms)`)
     // The same pace over a band it can read in time passes.
     assert.deepEqual(await layoutChanges(steady, [320, 380], Date.now() + 1000), { ends: [320, 380], issue: null })
     // A batch that never answers.

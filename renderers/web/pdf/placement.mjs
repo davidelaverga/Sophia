@@ -1211,8 +1211,10 @@ const BATCH = 32
  * - 200px)))` in a parent 100px high wrap between about 800 and 1200px, all in the flow, onto the text that follows
  * (#117). The window's width is a whole number of pixels, so this reads how the texts lie at every width the band
  * holds. Bounded: more widths than PLACEMENT.maxProbes, more changes than PLACEMENT.maxChanges, a width that cannot be
- * read, or the sweep's time running out fails the sweep, never a width left out; so does a pace that would run it out
- * (the widths read so far, at their rate, leaving the rest past it), as soon as it shows.
+ * read, or the sweep's time running out fails the sweep, never a width left out. The time decides, never a forecast:
+ * a sweep whose first batches are slow (a cold browser) but which reads every width before its time runs out passes,
+ * and one still reading when its time runs out fails then, its unread widths never passed (SDD-01, the owner accepts
+ * the latency; the 60 s deadline stays).
  * @param {Probe} probe
  * @param {number[]} ends the band ends the media conditions make (bandEnds)
  * @param {number} until Date.now() by which to stop
@@ -1233,8 +1235,7 @@ export async function layoutChanges(probe, ends, until, limits = PLACEMENT) {
     return done(
       `how the texts lie inside the bands was not read: ${widths} widths, more than the ${limits.maxProbes} read`,
     )
-  // The widths read so far, and when the first was asked for: once the rate they were read at shows the rest will not
-  // be read in time, the sweep fails then, not when its time runs out.
+  // The widths read so far, and when the first was asked for (the width trace reports them).
   const at = { out, until, limits, widths, changes: 0, read: 0, started: Date.now() }
   for (const band of bands) {
     const issue = await readBand(probe, band, at)
@@ -1264,7 +1265,8 @@ async function readBand(probe, band, at) {
   for (let from = a; from <= b; from += BATCH) {
     const batch = Array.from({ length: Math.min(BATCH, b - from + 1) }, (_, k) => from + k)
     const got = await withinTime(probe(batch), at.until)
-    const late = 'late' in got || Date.now() > at.until || pastPace(at, batch.length)
+    at.read += batch.length
+    const late = 'late' in got || Date.now() > at.until
     if (WIDTH_TRACE.hasSubscribers)
       WIDTH_TRACE.publish({
         phase: 'layout-batch',
@@ -1302,17 +1304,6 @@ function takeBatch(batch, answers, at, last) {
     last.before = answer.state
   }
   return null
-}
-
-/**
- * Whether, with `read` more widths read, the rate they were read at leaves the rest past the sweep's time.
- * @param {Reading} at
- * @param {number} read
- */
-function pastPace(at, read) {
-  at.read += read
-  const perWidth = (Date.now() - at.started) / at.read
-  return Date.now() + perWidth * (at.widths - at.read) > at.until
 }
 
 /**
