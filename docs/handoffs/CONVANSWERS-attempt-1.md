@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/conversations-answers.spec.ts`, `apps/studio/fi
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/answers` from `main` (`eab67ae3`), 2026-10-08
-Ending commit/tree: `0642a4d5790918effdb7a1d38180c53c4223bf30` (tree `7b79aa8fea61f1521c32a94c8ecf81547e13c69a`). The commit after it adds only this handoff.
+Ending commit/tree: `cbd407381ffdf3a64797978300dec9b5d8a99b4f` (tree `10b843b5064dc424fa396ac57d5e4278dfc791f2`), after the specs counting the thread's own messages (CI: a list inside her answer was counted as messages). The commits after it change only this handoff.
 
 ## Outcome
 
