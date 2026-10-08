@@ -104,7 +104,8 @@ const locked = query.get('locked') === '1'
 const you = youDoor({
   locked: locked ? 'you' : null,
   turns: fresh ? [] : [turn('The launch pressure is getting to me')],
-  notes: fresh ? 0 : 3,
+  // The demo's Personal keeps one note: Home says the same.
+  notes: fresh ? 0 : DEMO ? 1 : 3,
   now: NOW,
 })
 
