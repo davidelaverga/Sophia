@@ -195,13 +195,12 @@ async function timeWidthProbe(source) {
     const cdp = await timedBrowser.context.newCDPSession(page)
     await cdp.send('Runtime.enable')
     const expression = orderScript('ltr')
-    const compiled = await cdp.send('Runtime.compileScript', {
-      expression,
-      sourceURL: 'sophia-width-diagnostic',
-      persistScript: true,
+    const compiled = await cdp.send('Runtime.evaluate', {
+      expression: `(() => ${expression})`,
+      returnByValue: false,
     })
-    if (!compiled.scriptId || compiled.exceptionDetails) throw new Error('order compilation failed')
-    const scriptId = compiled.scriptId
+    if (!compiled.result.objectId || compiled.exceptionDetails) throw new Error('order compilation failed')
+    const objectId = compiled.result.objectId
     const widths = Array.from({ length: 32 }, (_, k) => 320 + k)
     const until = Date.now() + 60000
     /** @type {string[] | null} */
@@ -209,7 +208,7 @@ async function timeWidthProbe(source) {
     for (const mode of ['evaluate-cold', 'evaluate-warm', 'compiled-cold', 'compiled-warm']) {
       if (Date.now() >= until) throw new Error('timing diagnostic exceeded 60 seconds')
       const began = performance.now()
-      const answers = await timedWidthBatch(cdp, widths, { mode, scriptId, expression, until })
+      const answers = await timedWidthBatch(cdp, widths, { mode, objectId, expression, until })
       const ms = performance.now() - began
       if (Date.now() >= until) throw new Error('timing diagnostic exceeded 60 seconds')
       baseline ??= answers
@@ -243,9 +242,9 @@ async function timeWidthProbe(source) {
 /**
  * @param {import('playwright-core').CDPSession} cdp
  * @param {number[]} widths
- * @param {{ mode: string, scriptId: string, expression: string, until: number }} options
+ * @param {{ mode: string, objectId: string, expression: string, until: number }} options
  */
-async function timedWidthBatch(cdp, widths, { mode, scriptId, expression, until }) {
+async function timedWidthBatch(cdp, widths, { mode, objectId, expression, until }) {
   const sent = widths.map((width) =>
     Promise.all([
       cdp.send('Emulation.setDeviceMetricsOverride', {
@@ -258,7 +257,11 @@ async function timedWidthBatch(cdp, widths, { mode, scriptId, expression, until 
         screenOrientation: { angle: 0, type: 'landscapePrimary' },
       }),
       mode.startsWith('compiled')
-        ? cdp.send('Runtime.runScript', { scriptId, returnByValue: true })
+        ? cdp.send('Runtime.callFunctionOn', {
+            objectId,
+            functionDeclaration: 'function () { return this() }',
+            returnByValue: true,
+          })
         : cdp.send('Runtime.evaluate', { expression, returnByValue: true }),
       cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLES }),
     ]),

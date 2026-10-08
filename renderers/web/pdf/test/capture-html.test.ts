@@ -9,6 +9,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { runInNewContext } from 'node:vm'
+import type { CDPSession } from 'playwright-core'
 import {
   asCaptureJob,
   CAPTURE_KERNEL_FILES,
@@ -26,6 +28,7 @@ import {
   RECEIPT_BYTES,
   SWEEP,
   sweepPlan,
+  probeOf,
   targetChecks,
   tilesOf,
 } from '../capture-html.mjs'
@@ -132,6 +135,81 @@ const movedAt = (width: number, ids: string) =>
   `at ${width}px: m4, m5, tables whose cells are drawn under other headers or off their rows: ${ids};`
 
 const CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">`
+
+/** A protocol double executes the actual trusted expression and tracks every viewport/snapshot read. */
+function widthSession(fault = '') {
+  const calls: { method: string; width: number }[] = []
+  const world = { innerWidth: 0, document: { querySelectorAll: () => [] } }
+  let reader: (() => unknown) | undefined
+  const send = (method: string, params: Record<string, unknown>) => {
+    if (method === 'Emulation.setDeviceMetricsOverride') world.innerWidth = Number(params.width)
+    calls.push({ method, width: world.innerWidth })
+    if (method === 'Emulation.setDeviceMetricsOverride') return {}
+    if (method === 'Runtime.evaluate') {
+      reader = runInNewContext(String(params.expression), world) as () => unknown
+      return { result: { type: 'function', objectId: fault === 'no-handle' ? undefined : 'owned-reader' } }
+    }
+    if (method === 'Runtime.callFunctionOn') {
+      assert.equal(params.objectId, 'owned-reader')
+      const value = reader?.()
+      return {
+        result: { value: fault === 'wrong-width' ? [-1, '', ''] : value },
+        exceptionDetails: fault === 'exception' ? {} : undefined,
+      }
+    }
+    if (method === 'DOMSnapshot.captureSnapshot')
+      return {
+        strings: [],
+        documents:
+          fault === 'no-document'
+            ? []
+            : [{ nodes: {}, layout: { nodeIndex: [], styles: [], bounds: [] }, contentWidth: world.innerWidth }],
+      }
+    throw new Error(`unexpected protocol method ${method}`)
+  }
+  return {
+    cdp: {
+      send: (method: string, params: Record<string, unknown>) => Promise.resolve(send(method, params)),
+    } as unknown as CDPSession,
+    calls,
+  }
+}
+
+describe('the retained width reader', () => {
+  it('executes the trusted function again and snapshots every requested width across batches', async () => {
+    const { cdp, calls } = widthSession()
+    const probe = probeOf(cdp, 'ltr')
+    const widths = Array.from({ length: 32 }, (_, k) => 320 + k)
+    for (const batch of [widths, widths.toReversed()]) {
+      assert.deepEqual(
+        await probe(batch),
+        batch.map(() => ({ state: '||' })),
+      )
+    }
+    assert.equal(calls.filter((c) => c.method === 'Runtime.evaluate').length, 1)
+    for (const method of [
+      'Emulation.setDeviceMetricsOverride',
+      'Runtime.callFunctionOn',
+      'DOMSnapshot.captureSnapshot',
+    ])
+      assert.deepEqual(
+        calls.filter((c) => c.method === method).map((c) => c.width),
+        [...widths, ...widths.toReversed()],
+      )
+  })
+  it('fails closed on missing handles, evaluation errors, wrong widths and unreadable snapshots', async () => {
+    for (const fault of ['no-handle', 'exception', 'wrong-width', 'no-document']) {
+      const { cdp } = widthSession(fault)
+      const answers = await probeOf(cdp, 'ltr')([320, 321])
+      assert.equal(answers.length, 2)
+      assert.ok(
+        answers.every((answer) => 'issue' in answer),
+        fault,
+      )
+    }
+  })
+})
+
 const page = (style: string, body: string) =>
   `<!doctype html><html lang="en"><head><meta charset="utf-8">${CSP}<title>Report</title><style>${style}</style></head><body>${body}</body></html>`
 

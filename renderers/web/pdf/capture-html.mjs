@@ -1006,13 +1006,30 @@ function metricsAt(width, height = SWEEP.height) {
  * @param {'ltr' | 'rtl'} base the direction of the job's language (baseDirection)
  * @returns {import('./placement.mjs').Probe}
  */
-function probeOf(cdp, base) {
+export function probeOf(cdp, base) {
   const order = orderScript(base)
+  // Keep the identical, trusted expression as a function in this session. Sending
+  // and parsing its full source for every width needlessly slows the bounded
+  // sweep on the UML worker. The function holds no cached layout or page data:
+  // each call reads the current viewport and DOM again.
+  const reader = cdp.send('Runtime.evaluate', {
+    expression: `(() => ${order})`,
+    returnByValue: false,
+    objectGroup: 'sophia-width-reader',
+  })
   return async (widths) => {
+    const compiled = await reader
+    if (compiled.exceptionDetails || compiled.result.type !== 'function' || !compiled.result.objectId)
+      return widths.map(() => ({ issue: 'the width order reader could not be compiled' }))
+    const objectId = compiled.result.objectId
     const sent = widths.map((width) =>
       Promise.all([
         cdp.send('Emulation.setDeviceMetricsOverride', metricsAt(width)),
-        cdp.send('Runtime.evaluate', { expression: order, returnByValue: true }),
+        cdp.send('Runtime.callFunctionOn', {
+          objectId,
+          functionDeclaration: 'function () { return this() }',
+          returnByValue: true,
+        }),
         cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLES }),
       ]),
     )
