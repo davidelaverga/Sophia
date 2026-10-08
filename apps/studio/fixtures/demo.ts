@@ -5,6 +5,12 @@
 /** Whether the page asked for the demo. Pages only: the checks import these modules under Node, with no `location`. */
 export const DEMO = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
 
+/**
+ * The version the demo's report is on: its second, both published, unless `versions=1` publishes only the first. The
+ * research and what the conversation made name the same one.
+ */
+export const DEMO_VERSION: 1 | 2 = DEMO && new URLSearchParams(window.location.search).get('versions') !== '1' ? 2 : 1
+
 /** The project. */
 export const DEMO_PROJECT = 'Onboarding pilot'
 
