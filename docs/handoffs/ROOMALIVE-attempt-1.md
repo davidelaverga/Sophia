@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/room-alive.spec.ts`, `apps/studio/fixtures/fake
 Runtime unit: the Studio (`apps/studio`) on its room fixture page, in the demo only; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `room/alive` from `room/honest` (`20a5e89f`), 2026-10-08
-Ending commit/tree: `119d698acee71ce9e121e8c431ee1e5df578fbf8` (tree `bcb5808957e77e6d4fbff837597cf2f0364ba0e7`), after the stop check made to hold the floor, as a control mutant (the scene's timers never cleared) survived it, after its base merged in once main moved, after its base's CI fix merged in. The commits after it change only this handoff.
+Ending commit/tree: `e8b4b1d771e74ed5896a58b7217e6279e2bdf7df` (tree `838774c55d0d0334d300f4b9fc2fcddb69f1d589`), after main merged in once R1 landed (the floor's move kept as floorMoves, R1's own copy of the presses taken out), after the stop check made to hold the floor, as a control mutant (the scene's timers never cleared) survived it, after its base merged in once main moved, after its base's CI fix merged in. The commits after it change only this handoff.
 
 ## Outcome
 
