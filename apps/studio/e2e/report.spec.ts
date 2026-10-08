@@ -1000,6 +1000,11 @@ test('demo · the work card and the conversation name the version the report ope
   await expect(page.getByRole('button', { name: /^Open .*-v2\.html, HTML page$/ })).toBeVisible()
   await enter(page, '/room.html?demo=1&conversations=1&place=conversations')
   await expect(page.locator('.conv-output')).toContainText('v2')
+  // With only v1 published (`versions=1`), both name v1.
+  await enter(page, '/room.html?demo=1&versions=1&place=work')
+  await expect(page.getByRole('button', { name: /^Open .*-v1\.html, HTML page$/ })).toBeVisible()
+  await enter(page, '/room.html?demo=1&versions=1&conversations=1&place=conversations')
+  await expect(page.locator('.conv-output')).toContainText('v1')
 })
 
 test('HTML · a Knowledge card opens its current version’s designed page; a card without one offers none', async ({
