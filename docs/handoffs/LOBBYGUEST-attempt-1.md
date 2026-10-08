@@ -31,5 +31,5 @@ Ending commit/tree: `ca8db6268bf00f88dd13848500f62876151d76f4` (tree `b694546847
   (the light, one centred column), so only the session line changed here.
 - Independent review: no P1; two P2s, fixed: the session rule was shared with the room's own session line (split, the
   room's line unchanged); the member option couldn't work without sign-in (dropped). Checks now reach the room's token,
-  Ask again, and no way back when blocked: 31 passed with \`room-made.spec.ts\`.
+  Ask again, and no way back when blocked: 31 passed with `room-made.spec.ts`.
 - Next: merge on green CI with no Codex P1.
