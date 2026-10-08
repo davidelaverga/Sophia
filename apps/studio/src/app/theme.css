@@ -1416,14 +1416,20 @@ img.avatar {
   color: var(--text-3);
   font-size: var(--type-small);
 }
-.line-session,
-.join-session {
+.line-session {
   color: var(--halo-text);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-label);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  text-wrap: balance;
+}
+/* The session an invitation names: a quiet sentence, on one line where it fits (it was a mono line in capitals that
+   broke in two at 1440 px). The room's own session line keeps its label. */
+.join-session {
+  color: var(--halo-text);
+  font-size: var(--type-small);
   text-wrap: balance;
 }
 /*
