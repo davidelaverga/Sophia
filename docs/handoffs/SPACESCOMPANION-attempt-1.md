@@ -26,9 +26,9 @@ Design note: `docs/plans/spaces-companion.md`. Fixture only: the companion's wor
 ## Evidence
 
 - Browser checks: `e2e/spaces-companion.spec.ts` new (the apology to Davide, someone else's apology and «Why should I», «Davidek» is not
-  Davide, the deck again). Not run locally (RAM beside AION2 under the guard's floor, never lowered); CI runs them.
+  Davide, the deck again). Run locally under the guard (`safe-run.ps1`, two workers) with Personal's, Home's, ink and the spaces' checks: 182 passed.
   The replies were probed by hand against the fixture's history.
-- Prettier, `oxlint --type-aware`, `tsc`. Mutants: not run, for the same reason.
+- Prettier, `oxlint --type-aware`, `tsc`. Control mutant: the apology's veto dropped («Why should I apologise» taken for yours); the check fails.
 - Independent review, three rounds: the first's P2s taken (guessed names, the apology's direction, the weights'
   wording, a pure state updater, a turn not found); the second's too (negated and third-party apologies, a short
   opener taken for the whole thought) with its P3s (the one apologised to, any case and NFC, a question kept, the talk's
