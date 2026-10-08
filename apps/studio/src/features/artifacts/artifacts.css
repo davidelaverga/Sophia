@@ -606,6 +606,15 @@
   gap: 10px;
   font-size: 12px;
 }
+/* Where a project source came from (A19): words in the second ink; a conversation or a meeting, a press to go there. */
+.source-origin {
+  color: var(--text-2);
+  font-size: var(--type-small);
+  text-align: start;
+}
+.source-origin.text-button {
+  color: var(--halo-text);
+}
 .source-limits {
   margin: 0;
   padding-left: 18px;

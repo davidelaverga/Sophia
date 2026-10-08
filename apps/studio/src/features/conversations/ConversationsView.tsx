@@ -25,6 +25,7 @@ import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
 import { NO_WORDS, START, useKept, withEntry } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { useArrival } from '../studio/project-go.tsx'
 import './conversations.css'
 
 /** Newest activity first: sorted once per answer. */
@@ -61,6 +62,11 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   const { list, all } = useList(projectId, identity, cursor)
   const { open, choose } = useChosen(all)
   const panes = usePanes()
+  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too.
+  useArrival('conversations', (to) => {
+    choose(to.conversationId)
+    panes.show()
+  })
   const talk = useTalk(projectId, identity.name)
   const start = useStart(projectId, identity, talk, (id) => {
     choose(id)
@@ -282,7 +288,8 @@ function Open(props: {
 
 /**
  * The open conversation: the newest at first, then kept, so one that moves to the top meanwhile never takes its place.
- * One that leaves the list gives its place to the newest, which is kept in turn.
+ * One that leaves the list gives its place to the newest, which is kept in turn. One chosen while the list is still
+ * coming (asked for from elsewhere) waits for it.
  */
 function useChosen(all: readonly ConversationSummary[]) {
   const [chosen, setChosen] = useState<string | null>(null)
