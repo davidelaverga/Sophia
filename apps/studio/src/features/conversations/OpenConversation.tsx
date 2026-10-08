@@ -406,7 +406,7 @@ function MessageItem(props: {
 }) {
   const { message: m, before, me, now } = props
   const sophia = m.author === 'sophia'
-  const here = useProposeHere(props.propose && { ...props.propose, text: m.text, sophia })
+  const here = useProposeHere(props.propose && { ...props.propose, messageId: m.id, text: m.text, sophia })
   // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
   const at = (
     <span className="conv-msg-at" aria-hidden>

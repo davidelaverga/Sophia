@@ -30,6 +30,15 @@ async function enter(page: Page, url = PAGE) {
   await expect(stillOpen(page)).toContainText('Map first, list second')
 }
 
+/** Another conversation opened, then the one titled `back` again: its messages are mounted anew. */
+async function away(page: Page, back: string) {
+  const rows = page.getByRole('region', { name: 'All conversations' }).getByRole('button')
+  await rows.filter({ hasText: 'Short or long briefs?' }).click()
+  await expect(open(page).getByRole('heading').first()).toHaveText('Short or long briefs?')
+  await rows.filter({ hasText: back }).click()
+  await expect(open(page).getByRole('heading').first()).toHaveText(back)
+}
+
 test('decide · «Accept» in Still open makes it an accepted decision, at the revision read', async ({ page }) => {
   await enter(page)
   await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
@@ -82,6 +91,130 @@ test('decide · a message proposed as a decision: its words in, sent as a constr
   await expect(marco.getByRole('status')).toHaveText('Proposed · it’s in Still open')
   // Back on its press, the focus where the form was opened from.
   await expect(marco.getByRole('button', { name: 'Propose as decision' })).toBeFocused()
+})
+
+test('decide · with no reply, Cancel keeps the proposal’s words and key: reopened, Propose sends the same one, never a second', async ({
+  page,
+}) => {
+  await enter(page, `${PAGE}&propose=lost`)
+  const mine = open(page).locator('.conv-messages > li').last()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  const field = open(page).getByRole('textbox', { name: 'Decision to propose' })
+  await field.fill('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(open(page).getByRole('alert')).toContainText('No reply yet')
+  await open(page).getByRole('button', { name: 'Cancel' }).click()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  await expect(field).toHaveValue('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(mine.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  // The first one had landed: the same key answers it, and Still open holds it once.
+  await expect(stillOpen(page).locator('li').filter({ hasText: 'Briefs stay on one page' })).toHaveCount(1)
+})
+
+test('decide · with no reply, another conversation and back: the proposal is still held, sent again under its key', async ({
+  page,
+}) => {
+  await enter(page, `${PAGE}&propose=lost`)
+  const first = (await open(page).getByRole('heading').first().textContent()) ?? ''
+  const mine = open(page).locator('.conv-messages > li').last()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(open(page).getByRole('alert')).toContainText('No reply yet')
+  // Away to another conversation, and back to this one: the message is mounted anew.
+  await away(page, first)
+  const again = open(page).locator('.conv-messages > li').last()
+  await again.hover()
+  await again.getByRole('button', { name: 'Propose as decision' }).click()
+  await expect(open(page).getByRole('textbox', { name: 'Decision to propose' })).toHaveValue('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(again.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  await expect(stillOpen(page).locator('li').filter({ hasText: 'Briefs stay on one page' })).toHaveCount(1)
+})
+
+test('decide · on its way, another conversation and back: the words sent are shown, and its landing closes the form', async ({
+  page,
+}) => {
+  await enter(page, `${PAGE}&propose=slow`)
+  const first = (await open(page).getByRole('heading').first().textContent()) ?? ''
+  const mine = open(page).locator('.conv-messages > li').last()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await away(page, first)
+  const again = open(page).locator('.conv-messages > li').last()
+  await again.hover()
+  await again.getByRole('button', { name: 'Propose as decision' }).click()
+  // Still on its way: the words it was sent with, which can't change, and no second press.
+  await expect(open(page).getByRole('textbox', { name: 'Decision to propose' })).toHaveValue('Briefs stay on one page')
+  await expect(open(page).getByRole('button', { name: 'Proposing…' })).toBeVisible()
+  // It lands: the form goes, the press says so, and Still open holds it once.
+  await expect(again.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  await expect(open(page).getByRole('textbox', { name: 'Decision to propose' })).toHaveCount(0)
+  await expect(stillOpen(page).locator('li').filter({ hasText: 'Briefs stay on one page' })).toHaveCount(1)
+})
+
+test('decide · words already waiting in Still open are not sent again: it says they are there', async ({ page }) => {
+  await enter(page)
+  const mine = open(page).locator('.conv-messages > li').last()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  // As after a lost reply and a reload: the key is gone, but the brief, read now, already has these words.
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('  map first, LIST second ')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(mine.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  expect(await writes(page, '/mission/proposals')).toEqual([])
+  await expect(stillOpen(page).locator('li').filter({ hasText: 'Map first, list second' })).toHaveCount(1)
+})
+
+test('decide · when the brief can’t be read first, nothing is sent: it says so, and the next press reads again', async ({
+  page,
+}) => {
+  await enter(page)
+  const mine = open(page).locator('.conv-messages > li').last()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('Briefs stay on one page')
+  await page.evaluate(() => window.fixture?.failMission(true))
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(open(page).getByRole('alert')).toHaveText(
+    'Couldn’t check the brief first, so nothing was sent. Try again.',
+  )
+  expect(await writes(page, '/mission/proposals')).toEqual([])
+  await page.evaluate(() => window.fixture?.failMission(false))
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(mine.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  expect(await writes(page, '/mission/proposals')).toEqual([
+    { kind: 'constraint', statement: 'Briefs stay on one page' },
+  ])
+})
+
+test('decide @phone · on a touch screen the press is a finger’s 40 px, and a keyboard reaches it unpressed', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  // A phone shows the list first: the first conversation, opened.
+  await page
+    .getByRole('region', { name: 'All conversations' })
+    .getByRole('listitem')
+    .getByRole('button')
+    .first()
+    .click()
+  const mine = open(page).locator('.conv-messages > li').last()
+  const press = mine.getByRole('button', { name: 'Propose as decision' })
+  // Out of sight until the message is pressed, it is still in reach of a keyboard and a screen reader.
+  await expect(press).toHaveCSS('opacity', '0')
+  await press.focus()
+  await expect(press).toBeFocused()
+  await expect(press).toHaveCSS('opacity', '1')
+  const box = await press.boundingBox()
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(40)
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(40)
 })
 
 test('decide · Esc closes the form and gives the focus back to its press; nothing is sent', async ({ page }) => {

@@ -174,8 +174,9 @@ export const DEMO_DESCRIPTION =
 export const DEMO_FILE = 'pilot-readout'
 
 /** The meeting before this one: what was decided, and what was still open. */
-export const DEMO_DECIDED = 'Keep the readout to one page, with its sources inline'
-export const DEMO_OPEN = 'Translate the checklist for the second region'
+// The brief's own, as Conversations shows it (conversation-data.ts): accepted on Oct 4, and still open.
+export const DEMO_DECIDED = 'Reports open on the answer'
+export const DEMO_OPEN = 'Map first, list second'
 
 /** The earlier meeting this project's room held. */
 export const DEMO_MEETING = 'Pilot review'

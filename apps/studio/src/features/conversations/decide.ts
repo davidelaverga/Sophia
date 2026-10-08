@@ -3,8 +3,8 @@
 // and wherever it shows (the room's brief, Updates).
 import { useQueryClient } from '@tanstack/react-query'
 import type { MissionDecision, MissionReceipt } from '@sophia/contracts'
-import type { ApiError } from '../../api/client.ts'
-import { decideMissionChange, proposeMissionChange } from '../../api/mission.ts'
+import { ApiError } from '../../api/client.ts'
+import { decideMissionChange, getMission, proposeMissionChange } from '../../api/mission.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { missionKey } from '../mission/mission-view.ts'
@@ -24,6 +24,7 @@ export function statementFrom(text: string, sophia: boolean): string {
 
 /** What a refused write says, by what it was: no longer allowed, decided first, or not to be done now. */
 export function refusalWords(error: ApiError, write: 'decide' | 'propose'): string {
+  if (error.code === BRIEF_UNREAD) return 'Couldn’t check the brief first, so nothing was sent. Try again.'
   if (error.status === 403) return write === 'decide' ? 'You can’t decide this here.' : 'You can’t propose here.'
   if (error.status === 409) {
     return write === 'decide'
@@ -60,16 +61,50 @@ export function useDecide(projectId: string, identity: Identity) {
   })
 }
 
+/** The same words, whatever the spaces or the case. */
+const sameWords = (a: string, b: string) =>
+  a.trim().replace(/\s+/gu, ' ').toLowerCase() === b.trim().replace(/\s+/gu, ' ').toLowerCase()
+
+/** Whether these words already wait for a decision as a constraint: proposing them again would add nothing. */
+export const alreadyOpen = (pending: readonly Pick<MissionDecision, 'kind' | 'statement'>[], statement: string) =>
+  pending.some((d) => d.kind === 'constraint' && sameWords(d.statement, statement))
+
+/** A fresh proposal not sent because the brief couldn't be read first: a refusal, so the next press reads again. */
+const BRIEF_UNREAD = 'brief_unread'
+
 /**
- * A statement proposed as one of the project's constraints; the brief read again once it lands. No identity (someone
- * who can't write here): nothing is ever sent.
+ * Whether a fresh proposal's words already wait in the brief, read now: a proposal whose reply was lost, then the page
+ * reloaded (its key gone with it), is found there rather than sent a second time. A read that fails sends nothing: it
+ * is refused, to be pressed again, never taken for «not there».
  */
-export function usePropose(projectId: string, identity: Identity | null) {
+export function useAlreadyOpen(projectId: string, identity: Identity | null) {
   const client = useQueryClient()
-  return useAdmission<string, MissionReceipt>(async (key, statement) => {
+  return async (statement: string): Promise<boolean> => {
+    if (!identity) return false
+    const brief = await client
+      .fetchQuery({
+        queryKey: [...missionKey(projectId), identity.name, 'conversations'],
+        queryFn: () => getMission(identity.token, projectId),
+        staleTime: 0,
+      })
+      // Access lost is said as such; any other failure is the brief unread.
+      .catch((err: unknown) => (err instanceof ApiError && err.status === 403 ? err : null))
+    if (brief instanceof ApiError) throw brief
+    if (brief === null) throw new ApiError(503, BRIEF_UNREAD, 'The brief could not be read', 'never')
+    return alreadyOpen(brief.pending, statement)
+  }
+}
+
+/**
+ * A message's proposal sent under `key`: a constraint with these words (A08). Its receipt comes back once the brief has
+ * been read again, so «it's in Still open» is never said before Still open can show it.
+ */
+export function useProposeSend(projectId: string, identity: Identity | null) {
+  const client = useQueryClient()
+  return async (key: string, statement: string): Promise<MissionReceipt> => {
     if (!identity) throw new Error('Nobody to propose as')
     const receipt = await proposeMissionChange(identity.token, projectId, key, { kind: 'constraint', statement })
-    void client.invalidateQueries({ queryKey: missionKey(projectId) })
+    await client.invalidateQueries({ queryKey: missionKey(projectId) })
     return receipt
-  })
+  }
 }

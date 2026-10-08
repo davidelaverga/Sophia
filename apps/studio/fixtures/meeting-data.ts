@@ -37,6 +37,8 @@ export interface Meeting {
   begun: () => boolean
   /** `meetings=none`: no meeting before this one (none closed yet). */
   noPast?: boolean
+  /** What the project published outside any meeting (the demo's readout): among what changed, never a meeting's. */
+  published?: () => Records['made']
 }
 
 export const newMeeting = (records: Meeting['records'], begun: Meeting['begun'], startedAt = Date.now()): Meeting => ({
@@ -55,6 +57,16 @@ export const newMeeting = (records: Meeting['records'], begun: Meeting['begun'],
 
 const ME = membership.actorId
 
+/** A note kept in an earlier meeting, in its member's words (the demo's): its entry, when, what and who. */
+const said = (entry: string, at: string, text: string, actorId: string): MeetingRecap['noted'][number] => ({
+  entryId: `00000000-0000-4000-8000-000000000${entry}`,
+  kind: 'observation',
+  text,
+  authoredBy: 'member',
+  actorId,
+  at,
+})
+
 /** The two meetings before this one, closed, as the API keeps them. */
 const PAST: readonly MeetingRecap[] = [
   {
@@ -66,7 +78,7 @@ const PAST: readonly MeetingRecap[] = [
     guests: 1,
     decided: [
       {
-        decisionId: '00000000-0000-4000-8000-0000000000d2',
+        decisionId: '00000000-0000-4000-8000-0000000000da',
         statement: DEMO ? DEMO_DECIDED : 'Keep the room checks on fixtures',
         proposedBy: personId(2),
         decidedBy: ME,
@@ -75,7 +87,16 @@ const PAST: readonly MeetingRecap[] = [
       },
     ],
     made: [],
-    noted: [],
+    noted: DEMO
+      ? [
+          said(
+            '5f4',
+            '2026-10-04T15:12:00.000Z',
+            'Both teams that left changed their admin in week three.',
+            personId(2),
+          ),
+        ]
+      : [],
     open: [
       {
         proposalId: '00000000-0000-4000-8000-0000000000f2',
@@ -94,7 +115,9 @@ const PAST: readonly MeetingRecap[] = [
     guests: 0,
     decided: [],
     made: [],
-    noted: [],
+    noted: DEMO
+      ? [said('5f3', '2026-10-02T09:41:00.000Z', 'The second region starts on the translated checklist.', personId(3))]
+      : [],
     open: [],
     work: [],
     names: { [ME]: VIEWER_NAME, [personId(3)]: 'Noor' },
@@ -146,9 +169,11 @@ function everything(m: Meeting) {
   // The project as it is now: since you last looked is not the record at close, so later work shows here.
   const now = { ...current(m), ...m.records() }
   const all = [...PAST.toReversed(), m.begun() ? now : { ...now, decided: [] }]
+  const made = all.flatMap((r) => r.made)
+  const apart = (m.published?.() ?? []).filter((p) => !made.some((d) => d.artifactVersionId === p.artifactVersionId))
   return {
     decided: all.flatMap((r) => r.decided),
-    made: all.flatMap((r) => r.made),
+    made: [...apart, ...made],
     noted: all.flatMap((r) => r.noted),
     open: all.flatMap((r) => r.open),
     work: all.flatMap((r) => r.work),

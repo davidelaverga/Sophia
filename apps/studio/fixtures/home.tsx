@@ -89,12 +89,14 @@ const inCall = query.get('call')
 const call = inCall ? { title: projects?.find((p) => p.projectId === inCall)?.title ?? '' } : null
 
 const yesterday = new Date(NOW.getTime() - 26 * 3_600_000).toISOString()
+// The demo's Personal: its last words minutes ago, as Home's «Continue» says them.
+const lastWords = DEMO ? new Date(NOW.getTime() - 8 * 60_000).toISOString() : yesterday
 const turn = (text: string): PersonalTurn => ({
   id: 't1',
   seq: 1,
   author: 'person',
   text,
-  createdAt: yesterday,
+  createdAt: lastWords,
   replyTo: null,
   reply: 'answered',
   suggestion: null,
@@ -103,8 +105,15 @@ const fresh = query.get('you') === 'new'
 const locked = query.get('locked') === '1'
 const you = youDoor({
   locked: locked ? 'you' : null,
-  turns: fresh ? [] : [turn('The launch pressure is getting to me')],
-  notes: fresh ? 0 : 3,
+  turns: fresh
+    ? []
+    : [
+        turn(
+          DEMO ? 'Keep it here for now. I promised a date I couldn’t keep.' : 'The launch pressure is getting to me',
+        ),
+      ],
+  // The demo's Personal keeps one note: Home says the same.
+  notes: fresh ? 0 : DEMO ? 1 : 3,
   now: NOW,
 })
 

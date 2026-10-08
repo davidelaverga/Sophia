@@ -137,7 +137,12 @@ test('signin · a send again that never answers ends, says so, and waits Auth’
   await page.clock.runFor(1000)
   await again(page).click()
   await expect(againSaid(page)).toHaveText('Sending…')
+  // A send is a write: past a read's 30 s it is still on its way, and says the wait is long (CONTRIBUTING, «No wait is
+  // endless»).
   await page.clock.fastForward(30_000)
+  await page.clock.runFor(1000)
+  await expect(againSaid(page)).toHaveText(/^Sending… Taking longer than usual\./)
+  await page.clock.fastForward(60_000)
   await page.clock.runFor(1000)
   await expect(againSaid(page)).toHaveText('Not confirmed: the email may still arrive. Wait for it, then send again.')
   await expect(againSaid(page)).toHaveAttribute('data-state', 'failed')

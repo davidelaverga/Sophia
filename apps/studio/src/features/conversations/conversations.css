@@ -770,9 +770,27 @@
     opacity: 0;
   }
 }
+/* On a touch screen it shows on the message pressed, or when the keyboard reaches it: out of sight, it stays in reach of
+   a keyboard and a screen reader, taking no tap meant for the message. */
 @media (hover: none) {
-  .conv-msg:not([data-pressed]) .conv-propose-press {
-    display: none;
+  .conv-msg:not([data-pressed], :focus-within) .conv-propose,
+  .conv-msg:not([data-pressed], :focus-within) .conv-propose-press {
+    pointer-events: none;
+  }
+  .conv-msg:not([data-pressed], :focus-within) .conv-propose-press {
+    opacity: 0;
+  }
+}
+/* A finger's target: 40 px, as every icon control on a touch screen. */
+@media (pointer: coarse) {
+  /* Within the thread's 14 px gutter on a phone: nothing past it to scroll sideways to. */
+  .conv-propose {
+    top: -20px;
+    right: -12px;
+  }
+  .conv-propose-press {
+    width: 40px;
+    height: 40px;
   }
 }
 /* Starting a conversation (C8): the labels in the app's sans, sentence case; the question set larger; the proposals

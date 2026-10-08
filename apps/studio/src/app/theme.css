@@ -2195,6 +2195,10 @@ button.contribution-quote:hover {
   white-space: normal;
   text-align: center;
 }
+/* While a refusal is said, the tips of its own presses keep out of its way: the pointer is still on the one pressed. */
+.floor:has(> .floor-error) .tip {
+  visibility: hidden;
+}
 
 /* Video: a gallery of tiles, or a shared screen with the tiles beside it. Sophia's tile is her light. */
 .gallery,
