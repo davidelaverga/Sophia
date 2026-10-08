@@ -90,6 +90,8 @@ interface Project {
   pilot?: boolean
   /** Someone is waiting at the door (report-data.ts). */
   waiting: boolean
+  /** `lobby=again` (knocked twice) or `lobby=two` (two waiting); anything else, one first knock. */
+  lobbyAsked?: string | null
   /** This viewer's role in the project (`role=viewer`); the fixture's own, admin, otherwise. */
   role?: Membership['role']
   /** The report's description on Knowledge (report-data.ts). */
@@ -228,7 +230,7 @@ function snapshotOf(project: Project) {
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
-  return withFocus(project, project.waiting ? { ...work, lobby: [waitingAtTheDoor] } : work)
+  return withFocus(project, project.waiting ? { ...work, lobby: lobbyOf(project.lobbyAsked) } : work)
 }
 
 /** What the room shows, as the snapshot carries it, with the report's current version among its artifacts. */
@@ -444,6 +446,18 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   const start = Math.max(0, end - MESSAGE_PAGE)
   served.push(`messages:${conversationId.slice(-2)}:${String(start)}`)
   return json({ messages: all.slice(start, end), before: start > 0 ? String(start) : null })
+}
+
+/** Who waits at the door: one first knock, one knocking again (`lobby=again`), or two (`lobby=two`). */
+function lobbyOf(asked: string | null | undefined) {
+  if (asked === 'again') return [{ ...waitingAtTheDoor, knocks: 2 }]
+  if (asked === 'two') {
+    return [
+      waitingAtTheDoor,
+      { ...waitingAtTheDoor, id: '00000000-0000-4000-8000-0000000000b7', displayName: 'Bea Soto' },
+    ]
+  }
+  return [waitingAtTheDoor]
 }
 
 /** The person's projects (`GET /api/v1/projects`): this one, with what members carried in from Personal. */
