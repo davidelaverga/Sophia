@@ -79,6 +79,8 @@ export interface RoomAsked {
   voice?: SophiaPresence['voice'] | undefined
   pauseReason?: SophiaPresence['pauseReason'] | undefined
   looking?: SophiaPresence['looking'] | undefined
+  /** Asked in with vision allowed (exchange-writes.ts); unset, allowed only while she already looks. */
+  allowVision?: boolean | undefined
   /** Sessions on the room's calendar (`session=soon`). */
   sessions?: Snapshot['sessions'] | undefined
 }
@@ -118,7 +120,7 @@ function presenceOf(exchange: boolean, holder: string | null, room: RoomAsked): 
     inputActorId: holder,
     inputEpoch: room.inputEpoch ?? 1,
     observationEpoch: looking ? 1 : null,
-    allowVision: !!looking,
+    allowVision: room.allowVision ?? !!looking,
     looking,
   }
 }

@@ -113,7 +113,9 @@ const root = document.getElementById('root')
 if (!root) throw new Error('no #root')
 createRoot(root).render(
   <StrictMode>
-    <p className="fixture-label">{DEMO ? DEMO_LABEL : 'Fixture · the guest’s side of the door'}</p>
+    <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
+      {DEMO ? DEMO_LABEL : 'Fixture · the guest’s side of the door'}
+    </p>
     <QueryClientProvider client={queryClient}>
       <JoinFlow
         auth={{ status: 'signed_in', identity: guest }}

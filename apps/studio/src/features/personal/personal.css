@@ -517,6 +517,12 @@
   font: 500 11px var(--mono);
   color: var(--text-3);
 }
+/* A key only where there are keys: a touch screen has none to press. */
+@media (pointer: coarse) {
+  .places .hw-say kbd {
+    display: none;
+  }
+}
 
 /* Sophia's light, alone on the right, about level with the greeting; her glow fades out before her box does. */
 .places .hw-light {
@@ -661,6 +667,11 @@
 .places .c3-notes-toggle:hover,
 .places .c3-notes-toggle[aria-pressed='true'] {
   color: var(--text);
+}
+/* Open, the notes are beside it: its tip, which says what they are, has nothing left to say (and the panel would cut
+   it). */
+.places .c3-notes-toggle[aria-pressed='true'] .tip {
+  display: none;
 }
 .places .c3-go {
   color: var(--text-3);

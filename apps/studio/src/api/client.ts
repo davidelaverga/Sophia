@@ -36,12 +36,19 @@ export class ApiError extends Error {
   }
 }
 
-/** The reply's error body when it matches the contract; otherwise the HTTP status speaks. */
+/**
+ * A refusal with no words of its own, the same over any protocol (HTTP/2 carries no status text, and an empty refusal
+ * shows as nothing): what happened, and «Try again» only where trying again can help.
+ */
+const unreadRefusal = (status: number) =>
+  `That didn’t go through (HTTP ${String(status)}).${status >= 500 || status === 429 ? ' Try again.' : ''}`
+
+/** The reply's error body when it matches the contract; otherwise the HTTP status speaks, in words. */
 export async function toError(res: Response, retry: ApiErrorBody['retry'] = 'never'): Promise<ApiError> {
   const body = asErrorBody(await res.json().catch(() => null))
   return body
     ? new ApiError(res.status, body.code, body.message, body.retry)
-    : new ApiError(res.status, `http_${res.status}`, res.statusText, retry)
+    : new ApiError(res.status, `http_${res.status}`, unreadRefusal(res.status), retry)
 }
 
 /**
