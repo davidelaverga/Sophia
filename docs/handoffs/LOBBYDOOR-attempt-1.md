@@ -35,5 +35,5 @@ Note: `docs/plans/lobby-door.md` (the measured gap, the change, the checks).
   slice is a fixture for it, then its pass.
 - Independent review: no P1; one P2, fixed with a check and a killed mutant: confirming a Block shrank the name to
   nothing (the question now takes the row's width under it). P3s taken: several waiting are named in the status,
-  Let in's hover shows, the initial from \`app/profile.ts\`, the wait on one line.
+  Let in's hover shows, the initial from `app/profile.ts`, the wait on one line.
 - Next: merge on green CI with no Codex P1.
