@@ -39,20 +39,23 @@ export function personName(nameOrEmail: string | null): string {
   return word.charAt(0).toUpperCase() + word.slice(1)
 }
 
-/** "Thursday, September 25 · 10:00 – 11:00 (America/Bogota)", in the session's own time zone. */
+/** "Thursday, September 25 · 10:00 – 11:00 Colombia Time", in the session's own time zone, named the way people say it. */
 export function sessionWhen(s: SessionTimes): string {
   const day = new Intl.DateTimeFormat('en-US', { timeZone: s.timeZone, weekday: 'long', month: 'long', day: 'numeric' })
-  const time = new Intl.DateTimeFormat('en-US', {
-    timeZone: s.timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  })
-  return `${day.format(new Date(s.startsAt))} · ${time.format(new Date(s.startsAt))} – ${time.format(new Date(s.endsAt))} (${s.timeZone})`
+  const time = (iso: string, zone?: 'shortGeneric') =>
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: s.timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+      timeZoneName: zone,
+    }).format(new Date(iso))
+  return `${day.format(new Date(s.startsAt))} · ${time(s.startsAt)} – ${time(s.endsAt, 'shortGeneric')}`
 }
 
 interface Words {
   subject: string
+  /** The sentence for the text version and the calendar entry. */
   headline: string
   lead: string
   action: string
@@ -67,42 +70,84 @@ function wordsFor(input: InviteEmailInput): Words {
     return {
       subject: `${who} invited you to ${project} on Sophia`,
       headline: `${who} invited you to ${project}`,
-      lead: `You would join as ${role}: the room, its goals and the work, with Sophia. Sign in with ${input.email}; the invitation is only for that address.`,
+      lead: `Join as ${role}, with Sophia. Sign in with ${input.email}, the address this invitation is for.`,
       action: 'Accept the invitation',
-      note: 'You will get a sign-in code at this address. Nothing changes until you accept.',
+      note: 'We send a sign-in code to that address. Nothing changes until you accept.',
     }
   }
   return {
     subject: `${who} invited you to a room in Sophia`,
-    headline: `${who} invited you to the room`,
-    lead: `${project} is a room where people and Sophia think together. You can come in without an account: say your name, and someone in the room lets you in.`,
+    headline: `${who} invited you to the room ${project}`,
+    lead: 'A room where people and Sophia think together. No account needed: say your name, and someone lets you in.',
     action: 'Join the room',
-    note: 'The link opens the room’s lobby. You reach the call only, never the project’s records.',
+    note: 'You join the call only; the project’s work stays with its members.',
   }
 }
 
 const SANS = `'Geist',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif`
 const MONO = `'Geist Mono',ui-monospace,Menlo,Consolas,monospace`
+// Solid inks over the void (#050408), so clients that drop rgba (Outlook's Word engine) keep the same greys.
+const INK = { text: '#edeaf2', bright: '#f4f0ff', two: '#acaab0', three: '#7e7c82', four: '#626066', warm: '#f1dcc7' }
+
+/** Where the link goes, when it is a web address: its origin (for the mark) and what the reader sees of it. */
+export function siteOf(url: string): { origin: string; shown: string } | null {
+  try {
+    const u = new URL(url)
+    return u.protocol === 'https:' || u.protocol === 'http:'
+      ? { origin: u.origin, shown: `${u.host}${u.pathname}` }
+      : null
+  } catch {
+    return null
+  }
+}
+
+/** The Umbral mark, served by the Studio the link points at (mail clients do not draw SVG); null off the web. */
+export const markUrl = (url: string): string | null => {
+  const site = siteOf(url)
+  return site && `${site.origin}/brand/umbral-mark.png`
+}
+
+function brandRow(url: string): string {
+  const mark = markUrl(url)
+  const img = mark
+    ? `<td style="padding:0 10px 0 0;vertical-align:middle"><img src="${escapeHtml(mark)}" width="24" height="24" alt="" style="display:block;border:0"></td>`
+    : ''
+  return `<tr><td style="padding:0 0 40px"><table role="presentation" cellpadding="0" cellspacing="0"><tr>${img}<td style="vertical-align:middle;font:600 15px/1 ${SANS};color:${INK.text};letter-spacing:0.01em">Sophia</td></tr></table></td></tr>`
+}
+
+/** Who invites, as the Studio shows a person at the door: their initial in a warm ring, then their name. */
+function inviterRow(name: string): string {
+  return `<tr><td style="padding:0 0 18px"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td width="30" height="30" align="center" style="width:30px;height:30px;border:1px solid #6e655e;border-radius:50%;font:600 13px/30px ${SANS};color:${INK.warm}">${escapeHtml(name.charAt(0))}</td><td style="padding:0 0 0 12px;font:400 14px/1.4 ${SANS};color:${INK.two}"><span style="font-weight:500;color:${INK.text}">${escapeHtml(name)}</span> invited you</td></tr></table></td></tr>`
+}
 
 function sessionBlock(session: SessionTimes | null): string {
   if (!session) return ''
-  return `<tr><td style="padding:0 0 28px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid rgba(236,235,241,0.14);border-radius:8px"><tr><td style="padding:16px 18px;font:400 15px/1.5 ${SANS};color:#edeaf2"><div style="font:500 10.5px/1 ${MONO};letter-spacing:0.06em;text-transform:uppercase;color:#b9a8ff;padding-bottom:8px">When</div>${escapeHtml(session.title)}<br><span style="color:rgba(237,234,242,0.68)">${escapeHtml(sessionWhen(session))}</span></td></tr></table></td></tr>`
+  // A soft plane with a warm rule at its edge, not a boxed card: the time is the one fact to keep.
+  return `<tr><td style="padding:0 0 32px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0f0e12;border-left:2px solid ${INK.warm};border-radius:0 8px 8px 0"><tr><td style="padding:14px 18px;font:500 15px/1.5 ${SANS};color:${INK.text}">${escapeHtml(session.title)}<br><span style="font-weight:400;font-size:14px;color:${INK.two}">${escapeHtml(sessionWhen(session))}</span><br><span style="font-weight:400;font-size:12px;color:${INK.three}">The calendar invitation is attached.</span></td></tr></table></td></tr>`
+}
+
+/** The address under the button: its site and path, linked; the whole link when it is not a web one. */
+function linkRow(url: string): string {
+  const site = siteOf(url)
+  const shown = escapeHtml(site ? site.shown : url)
+  return `<tr><td style="padding:0 0 40px;font:400 12px/1.6 ${SANS};color:${INK.four};word-break:break-all">Or open <a href="${escapeHtml(url)}" style="font:400 12px/1.6 ${MONO};color:${INK.three};text-decoration:none;word-break:break-all">${shown}</a></td></tr>`
 }
 
 function renderHtml(input: InviteEmailInput, w: Words): string {
   const url = escapeHtml(input.url)
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><title>${escapeHtml(w.subject)}</title><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap" rel="stylesheet"></head>
 <body style="margin:0;padding:0;background:#050408">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#050408;background-image:radial-gradient(ellipse at 50% 0%,rgba(156,130,245,0.24),rgba(5,4,8,0) 62%)"><tr><td align="center" style="padding:48px 20px 40px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#050408" style="background:#050408;background-image:radial-gradient(ellipse at 50% 0%,rgba(156,130,245,0.24),rgba(5,4,8,0) 62%)"><tr><td align="center" style="padding:48px 20px 40px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
-<tr><td style="padding:0 0 44px;font:600 15px/1 ${SANS};color:#edeaf2;letter-spacing:0.01em"><span style="color:#f4f0ff;text-shadow:0 0 12px #9c82f5">&#9679;</span>&nbsp;&nbsp;Sophia</td></tr>
-<tr><td style="padding:0 0 14px;font:600 26px/1.25 ${SANS};letter-spacing:-0.02em;color:#f4f0ff">${escapeHtml(w.headline)}</td></tr>
-<tr><td style="padding:0 0 28px;font:400 15px/1.6 ${SANS};color:rgba(237,234,242,0.72)">${escapeHtml(w.lead)}</td></tr>
+${brandRow(input.url)}
+${inviterRow(personName(input.inviterName))}
+<tr><td style="padding:0 0 12px;font:600 28px/1.2 ${SANS};letter-spacing:-0.02em;color:${INK.bright}">${escapeHtml(input.projectTitle)}</td></tr>
+<tr><td style="padding:0 0 28px;font:400 15px/1.6 ${SANS};color:${INK.two}">${escapeHtml(w.lead)}</td></tr>
 ${sessionBlock(input.session)}
-<tr><td style="padding:0 0 26px"><a href="${url}" style="display:inline-block;background:#f4f0ff;color:#050408;font:600 14px/1 ${SANS};text-decoration:none;padding:13px 20px;border-radius:6px">${escapeHtml(w.action)}</a></td></tr>
-<tr><td style="padding:0 0 10px;font:400 13px/1.55 ${SANS};color:rgba(237,234,242,0.52)">${escapeHtml(w.note)}</td></tr>
-<tr><td style="padding:0 0 40px;font:400 12px/1.5 ${MONO};color:rgba(236,235,241,0.4);word-break:break-all">${url}</td></tr>
-<tr><td style="border-top:1px solid rgba(237,234,242,0.1);padding:18px 0 0;font:400 12px/1.55 ${SANS};color:rgba(237,234,242,0.4)">Sent by Sophia for ${escapeHtml(personName(input.inviterName))}. If you were not expecting this invitation, you can ignore it: nothing happens unless the link is opened.</td></tr>
+<tr><td style="padding:0 0 24px"><a href="${url}" style="display:inline-block;background:${INK.bright};color:#050408;font:600 14px/1 ${SANS};text-decoration:none;padding:13px 20px;border-radius:6px">${escapeHtml(w.action)}</a></td></tr>
+<tr><td style="padding:0 0 8px;font:400 13px/1.55 ${SANS};color:${INK.three}">${escapeHtml(w.note)}</td></tr>
+${linkRow(input.url)}
+<tr><td style="border-top:1px solid #1d1c21;padding:18px 0 0;font:400 12px/1.55 ${SANS};color:${INK.four}">Sent by Sophia for ${escapeHtml(personName(input.inviterName))}. If you were not expecting this invitation, you can ignore it: nothing happens unless the link is opened.</td></tr>
 </table></td></tr></table></body></html>`
 }
 
