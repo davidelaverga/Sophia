@@ -43,11 +43,17 @@ function blockOf(lines: readonly string[]): Block[] {
 const partsOf = (b: Block): string[] =>
   b.kind === 'list' ? b.items.map((i) => (i.who ? `${i.who}: ${i.text}` : i.text)) : [b.text.replaceAll('\n', ' ')]
 
+/**
+ * Her words with their line breaks back, where a reader folded them (a row's line, A18's `lastMessage`): a « - » before
+ * a capital starts an item again. Text with its breaks is left as it is.
+ */
+const unfolded = (text: string) => (text.includes('\n') ? text : text.replace(/ - (?=\p{Lu})/gu, '\n- '))
+
 /** Her message as one line, for a row: a lead opens what follows it, the rest apart by « · ». */
 export function plainOf(text: string): string {
   const parts: string[] = []
   let lead = ''
-  for (const block of blocksOf(text)) {
+  for (const block of blocksOf(unfolded(text))) {
     if (block.kind === 'lead') {
       lead = `${lead}${block.text} `
       continue

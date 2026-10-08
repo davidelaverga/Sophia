@@ -418,10 +418,11 @@ function SophiaText({ text }: { text: string }) {
     }
     if (block.kind === 'p') return <p key={i}>{block.text}</p>
     return (
-      <ul key={i} className="sophia-list">
+      // A list styled without marks keeps its role (Safari drops it otherwise).
+      <ul key={i} className="sophia-list" role="list">
         {block.items.map((item, j) => (
           <li key={j}>
-            {item.who && <span className="sophia-who">{item.who}</span>}
+            {item.who && <span className="sophia-who">{`${item.who}: `}</span>}
             {item.text}
           </li>
         ))}
