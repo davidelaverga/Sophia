@@ -27,6 +27,7 @@ import {
   entryIdOf,
   idOf,
 } from './data.ts'
+import { missionWritten } from './mission-writes.ts'
 import { DEMO } from './demo.ts'
 import { libraryVersions } from './demo-library.ts'
 import {
@@ -767,6 +768,9 @@ function missionAnswer(project: Project, method: string, path: string, init: Req
     if (held) return new Promise<Response>((resolve) => held.push(() => resolve(missionRead(project))))
     return missionRead(project)
   }
+  // A08's proposal and decision, from a conversation's context (C7, mission-writes.ts).
+  const written = project.missionPlus ? missionWritten(project.missionPlus, method, path, init) : null
+  if (written) return written
   return project.notes ? notesAnswer(project.revision, project.notes, method, path, init) : null
 }
 

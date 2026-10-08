@@ -6,15 +6,16 @@
 // (MissionContext, the same read as the room's mission panel), the same for every conversation. One query, read again
 // as the feed moves: a later read that fails keeps what was read, and says it may be out of date.
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { getMission } from '../../api/mission.ts'
 import type { ConversationSummary } from '../../api/vision.ts'
-import type { MissionContext } from '@sophia/contracts'
+import type { MissionContext, MissionDecision } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { missionKey } from '../mission/mission-view.ts'
 import { acceptedOf, openWords, pendingOf } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { refusalWords, useDecide, type DecideArgs } from './decide.ts'
 
 interface Props {
   projectId: string
@@ -73,7 +74,7 @@ export function ProjectContext({ projectId, identity, cursor, conversation, open
       ) : (
         <p className="conv-note">No mission accepted yet.</p>
       )}
-      <Decisions ctx={ctx} />
+      <Decisions ctx={ctx} projectId={projectId} identity={identity} />
     </>,
   )
 }
@@ -137,9 +138,18 @@ function ThisConversation({ conversation: c }: { conversation: ConversationSumma
 }
 
 /** The accepted decisions, newest first, and what is proposed and not decided, kept apart. */
-function Decisions({ ctx }: { ctx: MissionContext }) {
+function Decisions({ ctx, projectId, identity }: { ctx: MissionContext; projectId: string; identity: Identity }) {
   const acceptedId = useId()
   const openId = useId()
+  const decide = useDecide(projectId, identity)
+  const [said, setSaid] = useState('')
+  const canDecide = ctx.capabilities.decide.available
+  const answer = (args: DecideArgs, statement: string) => {
+    setSaid('')
+    void decide.send(args).then((receipt) => {
+      if (receipt) setSaid(args.decision === 'accept' ? `Accepted: ${statement}` : `Not now: ${statement}`)
+    })
+  }
   const { shown, more } = acceptedOf(ctx.constraints)
   const open = pendingOf(ctx.pending)
   return (
@@ -169,14 +179,44 @@ function Decisions({ ctx }: { ctx: MissionContext }) {
           <>
             <ul className="conv-decisions open">
               {open.shown.map((d) => (
-                <li key={d.id}>{d.statement}</li>
+                <li key={d.id}>
+                  {d.statement}
+                  {canDecide && (
+                    <DecideHere decision={d} busy={decide.state.status === 'sending'} onAnswer={answer} />
+                  )}
+                </li>
               ))}
             </ul>
             {open.more > 0 && <p className="conv-note">{`and ${String(open.more)} more`}</p>}
             <p className="conv-note">Proposed, not decided.</p>
           </>
         )}
+        <p className="conv-note" role="status">
+          {decide.state.status === 'rejected' ? refusalWords(decide.state.error) : said}
+        </p>
       </section>
     </>
+  )
+}
+
+/** Accept or «Not now» for one proposal, at the revision read (A08); for those the brief lets decide. */
+function DecideHere(props: {
+  decision: MissionDecision
+  busy: boolean
+  onAnswer: (args: DecideArgs, statement: string) => void
+}) {
+  const { decision: d, busy, onAnswer } = props
+  const answer = (decision: DecideArgs['decision']) => {
+    if (!busy) onAnswer({ decisionId: d.id, revision: d.revision, decision }, d.statement)
+  }
+  return (
+    <span className="conv-decide">
+      <button type="button" className="pill" aria-disabled={busy || undefined} onClick={() => answer('accept')}>
+        Accept
+      </button>
+      <button type="button" className="text-button" aria-disabled={busy || undefined} onClick={() => answer('reject')}>
+        Not now
+      </button>
+    </span>
   )
 }
