@@ -1,6 +1,7 @@
 // The demo's room, alive (docs/plans/room-alive.md): asked in, Sophia says where the project stands, from its own
-// report, her words captioned as she says them; then Marco answers aloud, and she listens. Her presses cut it short:
-// Stop speaking ends her line, End the whole scene. Every word is synthetic; the runtime writes the real ones.
+// report, her words captioned as she says them; then Marco takes the floor and asks aloud, and she listens to him.
+// Only the floor's holder is captioned (CX-0019), so he takes it before he speaks. Her presses cut the scene short: a
+// line under way ends cut off, and nothing more is said. Every word is synthetic; the runtime writes the real ones.
 import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { EXCHANGE } from './data.ts'
 import { deliverCaption } from './fake-livekit.ts'
@@ -24,8 +25,8 @@ const BETWEEN_MS = 900
 
 const timers: number[] = []
 let said = 0
-/** Her line while she is saying it: its caption id and the pieces sent so far. */
-let saying: { id: string; sent: number } | null = null
+/** The lines being said now, by caption id: whose, and the pieces sent so far. */
+const open = new Map<string, { who: string | null; sent: number }>()
 /** Marco is speaking because the scene said so: only then does stopping it quiet him. */
 let marcoSays = false
 
@@ -61,27 +62,29 @@ function line(pieces: readonly string[], who: string | null, at: number, done: (
   const id = nextId()
   pieces.forEach((text, i) => {
     later(at + i * PIECE_MS, () => {
-      if (who === null) saying = { id, sent: i + 1 }
+      open.set(id, { who, sent: i + 1 })
       deliverCaption(packet(id, who, i + 1, 'partial', text))
     })
   })
   const end = at + pieces.length * PIECE_MS
   later(end, () => {
+    open.delete(id)
     deliverCaption(packet(id, who, pieces.length + 1, 'final', ''))
     done()
   })
   return end
 }
 
-/** Asked in, in the demo: she speaks her first words, then Marco answers aloud. */
-export function sophiaArrives(): void {
+/**
+ * Asked in, in the demo: she speaks her first words; then Marco takes the floor (`takeFloor`, as the API passes it)
+ * and asks aloud.
+ */
+export function sophiaArrives(takeFloor: (actorId: string) => void): void {
   stopScene()
   const marco = personId(1)
   later(BEFORE_MS, () => setSophia('speaking'))
-  const hersEnd = line(HERS, null, BEFORE_MS, () => {
-    saying = null
-    setSophia('listening')
-  })
+  const hersEnd = line(HERS, null, BEFORE_MS, () => setSophia('listening'))
+  later(hersEnd + BETWEEN_MS / 2, () => takeFloor(marco))
   later(hersEnd + BETWEEN_MS, () => {
     marcoSays = true
     setSpeaking(1)
@@ -92,11 +95,11 @@ export function sophiaArrives(): void {
   })
 }
 
-/** Her presses: nothing more of the scene is said, and her line, if she was saying it, is cut where it was. */
+/** Her presses: nothing more of the scene is said, and a line under way ends cut off where it was. */
 export function stopScene(): void {
   for (const t of timers.splice(0)) window.clearTimeout(t)
-  if (saying) deliverCaption(packet(saying.id, null, saying.sent + 1, 'interrupted', ''))
-  saying = null
+  for (const [id, { who, sent }] of open) deliverCaption(packet(id, who, sent + 1, 'interrupted', ''))
+  open.clear()
   if (marcoSays) setSpeaking(null)
   marcoSays = false
 }

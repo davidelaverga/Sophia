@@ -317,7 +317,12 @@ const project = {
     project.exchange = true
     setSophia('listening')
     // In the demo, asked in, she says where the project stands (room-alive.md).
-    if (DEMO && action === 'start') sophiaArrives()
+    if (DEMO && action === 'start') {
+      sophiaArrives((actorId) => {
+        project.onFloor(actorId)
+        publish(project)
+      })
+    }
   },
   messages: [] as (string | Said)[],
   contributions: new Map(),
