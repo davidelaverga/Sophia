@@ -26,10 +26,7 @@ describe('the fixtures’ boundary', () => {
     const reaching = production(src).filter((path) =>
       /['"][^'"]*(\/fixtures\/|board-samples)/.test(readFileSync(path, 'utf8')),
     )
-    assert.deepEqual(
-      reaching.map((p) => underSrc(p)),
-      [],
-    )
+    assert.deepEqual(reaching.map(underSrc), [])
   })
 
   it('never hands the app’s own shell a plan: production Tasks shows the goals alone', () => {
