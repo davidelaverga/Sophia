@@ -87,7 +87,9 @@ export function useAlreadyOpen(projectId: string, identity: Identity | null) {
         queryFn: () => getMission(identity.token, projectId),
         staleTime: 0,
       })
-      .catch(() => null)
+      // Access lost is said as such; any other failure is the brief unread.
+      .catch((err: unknown) => (err instanceof ApiError && err.status === 403 ? err : null))
+    if (brief instanceof ApiError) throw brief
     if (brief === null) throw new ApiError(503, BRIEF_UNREAD, 'The brief could not be read', 'never')
     return alreadyOpen(brief.pending, statement)
   }
