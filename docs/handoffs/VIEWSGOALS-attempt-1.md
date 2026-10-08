@@ -9,7 +9,7 @@ Writable scope: `apps/studio/e2e/views-goals.spec.ts`, `apps/studio/fixtures/dem
 Runtime unit: the Studio (`apps/studio`) on its room fixture page; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `views/goals` from `room/alive` (`6bbdc944`), 2026-10-08
-Ending commit/tree: `3c0cbec42611d8890a2df66572ca3edeab1a1448` (tree `6ffe1bc7bfddd606cf10dd55e5d762413799f214`), after its base merged in once main moved, after its base's stronger stop check merged in, after its base merged in once main moved. The commit after it adds only this handoff.
+Ending commit/tree: `889c73744f24ccd341f3539d02c855fa2201cdd9` (tree `b576c38ff6b20fb0919f26dd1f70c01b7789c877`), after main merged in once R2 landed, after its base merged in once main moved, after its base's stronger stop check merged in, after its base merged in once main moved. The commit after it adds only this handoff.
 
 ## Outcome
 
