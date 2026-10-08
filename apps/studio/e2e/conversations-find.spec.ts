@@ -16,7 +16,8 @@ const show = (page: Page) => list(page).getByRole('group', { name: 'Show only' }
 const openOnly = (page: Page) => show(page).getByRole('button', { name: 'Open', exact: true })
 const mine = (page: Page) => show(page).getByRole('button', { name: 'Mine', exact: true })
 const open = (page: Page) => page.getByRole('region', { name: 'Open conversation' })
-const messages = (page: Page) => open(page).getByRole('listitem')
+// The thread's messages: its own items, not those of a list inside one of Sophia's answers (C6).
+const messages = (page: Page) => open(page).locator('.conv-messages > li')
 const field = (page: Page) => open(page).getByRole('textbox', { name: 'Continue this question with the team' })
 const asks = (page: Page) => open(page).getByRole('group', { name: 'Ask Sophia in one press' })
 const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?? [])])
