@@ -1968,8 +1968,13 @@ button.contribution-quote:hover {
     gap: 4px;
     padding-left: 0;
   }
-  .dock :is(.round, .pill:has(.dock-icon)) {
+  /* The tips' frame, said: not left to its backdrop filter. */
+  .dock {
     position: relative;
+  }
+  /* Not a tip's frame: a square's tip opens over the dock's middle, so the outer squares' stay on the screen. */
+  .dock :is(.round, .pill:has(.dock-icon)) {
+    position: static;
     display: grid;
     place-items: center;
     width: 42px;
@@ -2012,7 +2017,8 @@ button.contribution-quote:hover {
     opacity: 1;
   }
   @media (hover: hover) {
-    .dock button:hover > .tip {
+    /* One tip at a time over the dock's middle: the keyboard's, when it is on a square, wins over the pointer's. */
+    .dock:not(:has(button:focus-visible)) button:hover > .tip {
       display: inline-flex;
       opacity: 1;
     }
