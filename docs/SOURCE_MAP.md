@@ -195,6 +195,13 @@ Read in a checkout of `paperclipai/paperclip@5edf55d7350c7f08c9dd132c7e0f1421fa0
 |---|---|---|---|
 | CDP-141-EMULATION | Chromium `141.0.7390.37`, [`third_party/blink/public/devtools_protocol/domains/Emulation.pdl`](https://chromium.googlesource.com/chromium/src/+/refs/tags/141.0.7390.37/third_party/blink/public/devtools_protocol/domains/Emulation.pdl), `setDeviceMetricsOverride` | `dontSetVisibleSize` keeps visible-surface sizing separate from device/layout metrics. Width probes still read and validate the actual viewport, order and full snapshot; band-end measurements and captures set visible size normally. | `renderers/web/pdf/capture-html.mjs`, its full-snapshot equivalence test |
 
+## 2h. UML RAM backing investigation
+
+| Source id | Upstream file | Used for | Sophia files |
+|---|---|---|---|
+| UML-612-MEMORY | Linux `v6.12.101`, `arch/um/os-Linux/mem.c`, read from the Docker recipe's SHA-256-verified kernel archive | `choose_tempdir` prefers tmpfs so guest RAM avoids host dirty-page throttling; `create_mem_file` currently backs RAM with a temporary disk file. The local patch uses anonymous RAM, preserves close-on-exec, seals its size and fails if the host refuses executable mapping. This patch is not upstream accepted. | `renderers/web/pdf/uml/kernel-memory.patch`, `check-memory-backing.py`, `memory-backing-test.c`, `Dockerfile` |
+| LINUX-MEMFD | [Linux man-pages, `memfd_create(2)`](https://man7.org/linux/man-pages/man2/memfd_create.2.html), read 2026-10-08 | RAM-backed anonymous file semantics, fork sharing, close-on-exec and sealing. No mounted tmpfs, huge pages, new host file grant or host policy change is required. | same |
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

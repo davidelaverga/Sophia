@@ -102,3 +102,19 @@ pace and remaining budget, and completion. It flushes after capture returns. No 
 recorded; no subscriber is installed by production entry points. Width coverage, batches, pace rejection, deadlines,
 layout judgments and confinement remain unchanged. Fake-clock controls verify unchanged early pace failure and full
 coverage of a timely band with tracing enabled. New Linux CI evidence remains pending at preparation.
+
+## Anonymous RAM candidate
+
+The native boot record reports that the UML physical-memory file is not on tmpfs. The exact pinned upstream
+`arch/um/os-Linux/mem.c` prefers tmpfs to avoid host dirty-page throttling. This is a supported hypothesis, not a proven
+explanation of the Render pace failure. A private closure-allocation prototype preserved answers but showed no material
+warm improvement; it was not added to the candidate.
+
+The next patch changes only `create_mem_file` to use an anonymous memfd with the same declared length, close-on-exec and
+shared writable mapping. Grow/shrink/seal seals keep its length fixed. Creation, sizing, sealing and executable mapping
+must all succeed; denial exits without a disk fallback or host-policy adjustment. The original host isolation, ABI
+patch, guest memory allowance, browser confinement and width/time limits stay unchanged. Build controls compile the
+actual patched upstream function, testing anonymous backing, fixed length, shared writes across fork, closure across
+exec, and each denied primitive. An offline private ARM Linux VM passed these controls and cross-compiled the modified
+x86 UML kernel. All owned local VMs powered off naturally. Full original Linux CI and native Render evidence remain
+pending for this RAM candidate. The worker stays suspended; the earlier approval is not reused for this new source.

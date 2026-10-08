@@ -98,3 +98,29 @@ This verifies the supervisor's parent-death handling locally. Cancellation of
 the actual UML/browser tree still needs a native Render check. A clean source
 copy with no workspace `node_modules` also deployed the renderer dependencies
 successfully through the pinned pnpm command.
+
+## Current RAM-backing candidate
+
+The later `77597f30` native Render fixture still failed the original width pace
+gate, despite passing PDF, ten captures, sandbox and host adverse controls. Its
+batch is closed and the worker is suspended. The complete failed receipt is
+retained; see `docs/handoffs/SDD-01-CX-uml-width-profile.md`. The width diagnostic
+now traces the actual original sweep and labels its separate prewarmed samples
+accurately. It does not alter any acceptance check.
+
+The native boot log shows guest physical memory backed by a disk file rather
+than tmpfs. The pinned UML source explicitly prefers tmpfs to avoid host dirty
+page throttling. `kernel-memory.patch` changes only physical RAM backing to an
+anonymous memfd: the same declared length, close-on-exec, shared writable pages,
+and seals preventing size changes. It checks executable mapping and exits if
+creation, sizing, sealing or mapping is denied. There is no disk fallback, host
+mount, policy change, new file grant, huge page request or memory tier increase.
+
+At build time, `check-memory-backing.py` extracts the actual patched upstream
+function and compiles native controls against it. The controls verify anonymous
+tmpfs backing, fixed length, fork sharing, close-on-exec, and denial of each
+required primitive without fallback. Those controls and the modified UML kernel
+cross-compilation passed in the private offline ARM Linux lab. That is neither
+native Render performance nor host confinement acceptance. The original full
+Linux fixture and ordinary CI must pass on this source before any amended paid
+Render request. Kernel and host-isolation review remain independent obligations.

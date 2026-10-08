@@ -11,6 +11,7 @@ FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS kernel
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential gcc-x86-64-linux-gnu libc6-dev-amd64-cross patch xz-utils flex bison libssl-dev libelf-dev bc curl ca-certificates python3
 WORKDIR /build
 COPY renderers/web/pdf/uml/kernel.config renderers/web/pdf/uml/kernel-abi.patch renderers/web/pdf/uml/seccomp-abi-probe.c /build/
+COPY renderers/web/pdf/uml/kernel-memory.patch renderers/web/pdf/uml/check-memory-backing.py renderers/web/pdf/uml/memory-backing-test.c /build/
 RUN x86_64-linux-gnu-gcc -static -O2 /build/seccomp-abi-probe.c -o /build/abi-probe
 RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.101.tar.xz \
  && echo '0d21cd11933f49f7151b7c9dbb8cc3fddc8c8abe506434b850feecf41fc28a76  linux.tar.xz' | sha256sum --check - \
@@ -18,6 +19,8 @@ RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linu
  && cd linux-6.12.101 \
  && cp /build/kernel.config .config \
  && patch --fuzz=0 -p1 < /build/kernel-abi.patch \
+ && patch --fuzz=0 -p1 < /build/kernel-memory.patch \
+ && python3 /build/check-memory-backing.py arch/um/os-Linux/mem.c \
  && scripts/config --disable DEBUG_INFO --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT --enable DEBUG_INFO_NONE --disable DEBUG_INFO_BTF --disable MODULES --disable MODULE_SIG --set-str SYSTEM_TRUSTED_KEYS '' --set-str SYSTEM_REVOCATION_KEYS '' \
  && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- olddefconfig \
  && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- -j2 linux \
