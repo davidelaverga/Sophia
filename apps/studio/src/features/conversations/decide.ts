@@ -2,7 +2,7 @@
 // accepted or turned down in the context, a message proposed as a decision. After each, the brief is read again, here
 // and wherever it shows (the room's brief, Updates).
 import { useQueryClient } from '@tanstack/react-query'
-import type { MissionReceipt } from '@sophia/contracts'
+import type { MissionDecision, MissionReceipt } from '@sophia/contracts'
 import type { ApiError } from '../../api/client.ts'
 import { decideMissionChange, proposeMissionChange } from '../../api/mission.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
@@ -22,11 +22,22 @@ export function statementFrom(text: string, sophia: boolean): string {
   return end > 40 ? cut.slice(0, end + 1) : `${cut.slice(0, cut.lastIndexOf(' ')).trimEnd()}…`
 }
 
-/** What a refused decision says: someone decided first (a stale revision), or it couldn't be done. */
-export const refusalWords = (error: ApiError): string =>
-  error.status === 409
-    ? 'Someone decided it first. This is the brief as it is now.'
-    : 'That couldn’t be done. Try again in a moment.'
+/** What a refused write says, by what it was: no longer allowed, decided first, or not to be done now. */
+export function refusalWords(error: ApiError, write: 'decide' | 'propose'): string {
+  if (error.status === 403) return write === 'decide' ? 'You can’t decide this here.' : 'You can’t propose here.'
+  if (error.status === 409) {
+    return write === 'decide'
+      ? 'Someone decided it first. This is the brief as it is now.'
+      : 'That proposal couldn’t be sent as written. Try again.'
+  }
+  return 'That couldn’t be done. Try again in a moment.'
+}
+
+/**
+ * Whether a proposal is decided here: a constraint or a lesson, still current. A new direction (the mission itself) is
+ * decided in the brief, where it shows what it replaces; a stale one can't be accepted as it is (A08).
+ */
+export const decidableHere = (d: MissionDecision): boolean => d.kind !== 'mission' && !d.stale
 
 export interface DecideArgs {
   decisionId: string

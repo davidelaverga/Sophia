@@ -1,6 +1,7 @@
 // The brief's writes from a conversation (docs/plans/conversations-decide.md, C7), as A08 answers them: a proposal made
-// (a constraint, waiting), and one decided at the revision read (accepted to the top of the decisions, or turned down
-// and gone). `decide=stale`: the first decision finds the proposal already changed (409). Every word is synthetic.
+// (202, waiting, of the kind asked), and one decided at the revision read (accepted to the top of the decisions, or
+// declined and gone). The same Idempotency-Key replays its receipt. `decide=stale`: someone else accepted the first one
+// decided, just before (409): it has left what waits. Every word is synthetic.
 import type { MissionDecision } from '@sophia/contracts'
 import { membership, PROJECT } from './data.ts'
 
@@ -12,6 +13,8 @@ interface Brief {
 const PROPOSALS = `/api/v1/projects/${PROJECT}/mission/proposals`
 const DECISION = new RegExp(`^${PROPOSALS}/([0-9a-f-]{36})/decision$`)
 let made = 0
+/** Each write's receipt by its key: the same key replays it. */
+const receipts = new Map<string, Response>()
 let staleOnce = new URLSearchParams(window.location.search).get('decide') === 'stale'
 
 const json = (body: unknown, status = 200) =>
@@ -42,13 +45,14 @@ const receipt = (operation: 'propose' | 'decide', d: MissionDecision, decision: 
 function proposed(brief: Brief, init: RequestInit | undefined): Response | null {
   const body = bodyOf(init)
   const template = brief.pending[0] ?? brief.constraints[0]
+  const kind = body.kind === 'mission' || body.kind === 'lesson' ? body.kind : 'constraint'
   if (typeof body.statement !== 'string' || !body.statement.trim() || !template) return null
   made += 1
   const d: MissionDecision = {
     ...template,
     id: `00000000-0000-4000-8000-0000000002${String(made).padStart(2, '0')}`,
     revision: 1,
-    kind: 'constraint',
+    kind,
     state: 'proposed',
     statement: body.statement.trim(),
     proposedBy: membership.actorId,
@@ -58,7 +62,7 @@ function proposed(brief: Brief, init: RequestInit | undefined): Response | null 
     decidedVia: null,
   }
   brief.pending.push(d)
-  return json(receipt('propose', d, null), 201)
+  return json(receipt('propose', d, null), 202)
 }
 
 function decided(brief: Brief, id: string, init: RequestInit | undefined): Response | null {
@@ -68,8 +72,17 @@ function decided(brief: Brief, id: string, init: RequestInit | undefined): Respo
   if (!d || (body.decision !== 'accept' && body.decision !== 'reject')) return null
   if (staleOnce || body.expectedRevision !== d.revision) {
     staleOnce = false
-    const changed = { ...d, revision: d.revision + 1 }
-    brief.pending[at] = changed
+    // Someone else decided it first: it leaves what waits, accepted by them.
+    brief.pending.splice(at, 1)
+    const theirs = '00000000-0000-4000-8000-0000000000a9'
+    brief.constraints.unshift({
+      ...d,
+      revision: d.revision + 1,
+      state: 'accepted',
+      decidedBy: theirs,
+      decidedAt: new Date().toISOString(),
+      decidedVia: 'studio',
+    })
     return json({ code: 'stale_revision', message: 'Decided first', requestId: 'fixture', retry: 'never' }, 409)
   }
   brief.pending.splice(at, 1)
@@ -89,7 +102,12 @@ function decided(brief: Brief, id: string, init: RequestInit | undefined): Respo
 /** A08's proposal and decision writes on the brief the conversations show; null for anything else. */
 export function missionWritten(brief: Brief, method: string, path: string, init: RequestInit | undefined) {
   if (method !== 'POST') return null
-  if (path === PROPOSALS) return proposed(brief, init)
   const id = DECISION.exec(path)?.[1]
-  return id ? decided(brief, id, init) : null
+  if (path !== PROPOSALS && !id) return null
+  const key = new Headers(init?.headers).get('idempotency-key') ?? ''
+  const replay = receipts.get(key)
+  if (replay) return replay.clone()
+  const answer = id ? decided(brief, id, init) : proposed(brief, init)
+  if (answer && key) receipts.set(key, answer.clone())
+  return answer
 }
