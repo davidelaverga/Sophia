@@ -13,6 +13,7 @@ import { RecapPart, RecapSheet } from '../voice/MeetingRecap.tsx'
 import { namers, recapSections } from '../voice/recap-view.ts'
 import { digestLead, lengthShares, meetingRow, type DateWords } from './updates-view.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
+import { useArrival } from '../studio/project-go.tsx'
 
 interface Props {
   projectId: string
@@ -145,6 +146,8 @@ interface MeetingsProps {
 /** The project's meetings, newest first; a row opens its recap. */
 function Meetings({ projectId, identity, cursor, sheet }: MeetingsProps) {
   const [open, setOpen] = useState<string | null>(null)
+  // A meeting asked for from elsewhere (a report's source, project-go.tsx): its recap opens.
+  useArrival('updates', (to) => setOpen(to.meetingId))
   const list = useQuery({
     queryKey: ['vision', 'meetings', projectId, cursor],
     queryFn: ({ signal }) => listMeetings(identity.token, projectId, 10, signal),

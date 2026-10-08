@@ -56,7 +56,7 @@ import { TaskList, useTasks } from './TaskList.tsx'
 import { openCount } from './task-view.ts'
 import type { TaskPerson } from './PassageTask.tsx'
 import { VISION } from '../../app/vision.ts'
-import { SourcesList } from './SourcesList.tsx'
+import { SourcesTab } from './SourcesList.tsx'
 import { usePaneWidth } from './usePaneWidth.ts'
 import { useTransientStatus } from './useTransientStatus.ts'
 
@@ -617,7 +617,9 @@ function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion,
     <>
       {tab === 'document' && <DocumentView data={data} full={full} onCite={onCite} changes={changes} />}
       {tab === 'sources' && (
-        <SourcesList
+        <SourcesTab
+          identity={identity}
+          version={data.version}
           sources={data.sources.data?.sources}
           numbers={numbersOf(data.parsed)}
           failed={failedOutright(data.sources)}
