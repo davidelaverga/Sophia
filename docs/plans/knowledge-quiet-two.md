@@ -20,8 +20,9 @@
   shelf of documents.
 - **The lines say it in words:** the card's line and the pane's head in the app's sans, not mono. The head says the
   format, the version, its length (words or pages) and the design check; the size and the hash move to Download, said
-  when it is pointed at or focused («13.6 KB · 8f0f5f73»), still the bytes checked.
-- **«Edit summary»** for what the press does.
+  as its description: a tip under the pointer, the button's description to a screen reader, the download's note on
+  touch («13.6 KB · 8f0f5f73»), still the bytes checked.
+- **«Edit description»** for what the press does, the tile's own word for it.
 - **No label after «Knowledge»**, as Updates and Conversations.
 
 ## Checks (written first)
@@ -29,5 +30,5 @@
 - A Markdown cover's sheet is light (its background's luminance over 0.8) and its words read at 4.5:1 on it.
 - The card's line and the pane's head are not mono.
 - A designed page's head reads «HTML · v2 · design checked»; Download says «13.6 KB · 8f0f5f73» as its description.
-- The tile's press reads «Edit summary»; the view's head holds only «Knowledge».
+- The tile's press reads «Edit description»; the view's head holds only «Knowledge».
 - The existing Knowledge checks pass with their words updated.

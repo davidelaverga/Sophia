@@ -1,8 +1,8 @@
 // A report's description on its Knowledge card (plan §2.9): Sophia's from publication, or a member's edit with its
 // date. An editor's change is saved against the revision they saw when they began (summaryEdit): when someone else
 // changed it first, theirs is shown and nothing is overwritten, even after the cards were read again meanwhile. A save
-// with no reply is never sent again by itself (it may have landed). Edit moves the focus to the text, and leaving the
-// form (Cancel, Esc, a save) hands it back to Edit. Sophia's own description opens with her mark, which says so to a
+// with no reply is never sent again by itself (it may have landed). «Edit description» moves the focus to the text, and
+// leaving the form (Cancel, Esc, a save) hands it back to it. Sophia's own description opens with her mark, which says so to a
 // screen reader and under the pointer; a member's edit is said in words (docs/plans/knowledge-quiet.md). Edit sits at the
 // tile's foot, after what the tile puts there (History).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -122,7 +122,7 @@ export function SummaryEditor({ card, identity, editable, onSaved, children = nu
               className="text-button"
               onClick={() => start({ text: card.summary ?? '', base: card.summaryRevision })}
             >
-              Edit summary
+              Edit description
             </button>
           )}
         </div>

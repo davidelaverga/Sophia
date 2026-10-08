@@ -58,7 +58,10 @@ test('quiet two · the head says the format, the version and the check; Download
     .getByRole('button', { name: /, HTML page$/ })
     .click()
   await expect(pane(page).locator('.report-meta')).toHaveText('HTML · v2 · design checked')
-  await expect(pane(page).locator('.report-download .tip')).toContainText(/[\d.]+ (B|KB|MB) · [0-9a-f]{8}$/)
+  // Said to a screen reader and on touch too, not only in the tip a pointer shows.
+  await expect(pane(page).getByRole('button', { name: 'Download', exact: true })).toHaveAccessibleDescription(
+    /^[\d.]+ (B|KB|MB) · [0-9a-f]{8}$/,
+  )
 })
 
 test('quiet two · a Markdown version’s head says its length in words, not its bytes', async ({ page }) => {
@@ -66,10 +69,13 @@ test('quiet two · a Markdown version’s head says its length in words, not its
   await first(page).locator('.report-card-title').click()
   await pane(page).getByRole('group', { name: 'Format' }).getByRole('button', { name: 'Markdown' }).click()
   await expect(pane(page).locator('.report-meta')).toHaveText(/^Markdown · v2 · [\d,]+ words$/)
+  await expect(pane(page).getByRole('button', { name: 'Download', exact: true })).toHaveAccessibleDescription(
+    /^[\d.]+ (B|KB) · [0-9a-f]{8}$/,
+  )
 })
 
 test('quiet two · the tile’s press says what it edits; nothing follows «Knowledge»', async ({ page }) => {
   await page.goto(KNOWLEDGE)
-  await expect(first(page).getByRole('button', { name: 'Edit summary', exact: true })).toBeVisible()
+  await expect(first(page).getByRole('button', { name: 'Edit description', exact: true })).toBeVisible()
   await expect(page.locator('.knowledge .view-head')).toHaveText('Knowledge')
 })

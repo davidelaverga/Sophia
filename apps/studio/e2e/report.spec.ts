@@ -347,7 +347,7 @@ test('LFE-02.1 · a description edit never overwrites a teammate’s newer one, 
   await enter(page, '/room.html?place=knowledge')
   const card = page.getByRole('listitem').filter({ hasText: 'Fixture report' })
   await expect(card.getByText('A labelled fixture report, as Sophia described it.')).toBeVisible()
-  const edit = card.getByRole('button', { name: 'Edit summary', exact: true })
+  const edit = card.getByRole('button', { name: 'Edit description', exact: true })
   await edit.click()
   const field = card.getByRole('textbox', { name: 'Description' })
   await expect(field).toBeFocused() // Edit moves the focus to the text
@@ -880,8 +880,8 @@ test('HTML · the viewer shows the designed page in a frame with no permission, 
   await expect(pane(page).getByRole('note')).toHaveText(/checked by a separate visual reviewer/)
   await expect(pane(page).locator('.report-meta')).toHaveText('HTML · v1 · design checked')
   // Its bytes and their hash, exactly, at Download.
-  await expect(pane(page).locator('.report-download .tip')).toHaveText(
-    /^Download this version · [\d.]+ (B|KB) · 315a02d3$/,
+  await expect(pane(page).getByRole('button', { name: 'Download', exact: true })).toHaveAccessibleDescription(
+    /^[\d.]+ (B|KB) · 315a02d3$/,
   )
   await expect(pane(page).locator('.md')).toHaveCount(0) // never read through MarkdownView
   const saved = page.waitForEvent('download')

@@ -5,7 +5,7 @@
 // file is checked against its hash before it is shown, so what is read is what downloads. A non-modal complementary
 // region: focus moves to its title on open and back to the opener on close; Esc steps down, F toggles the full page.
 import { useQuery } from '@tanstack/react-query'
-import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { reportLanguage } from '@sophia/report/language'
 import { Icon, Tip } from '@sophia/ui'
@@ -733,7 +733,7 @@ async function viewerDownload(data: PaneData, show: (text: string, error?: boole
   if (!shown) return
   try {
     saveBlob(await checkedBlob(shown.file.bytes, shown.sha256, shown.file.mime), shown.file.filename)
-    show(`Downloading ${shown.file.filename} · ${formatBytes(shown.file.bytes.byteLength)}`)
+    show(`Downloading ${shown.file.filename} · ${exact(shown.file.bytes.byteLength, shown.sha256)}`)
   } catch (err: unknown) {
     show(err instanceof HashMismatch ? err.message : 'The download didn’t start. Try again.', true)
   }
@@ -818,11 +818,14 @@ function PaneHead(props: HeadProps) {
  */
 function DownloadButton(props: { ready: boolean; file: string | null; onDownload: () => void }) {
   const { ready, file, onDownload } = props
+  // The size and the hash said to a screen reader, and on touch (no tip there) by the download's own note.
+  const described = useId()
   return (
     <button
       type="button"
       className="pill report-download has-tip"
       aria-label="Download"
+      aria-describedby={file ? described : undefined}
       aria-disabled={!ready || undefined}
       onClick={() => {
         if (ready) onDownload()
@@ -830,6 +833,11 @@ function DownloadButton(props: { ready: boolean; file: string | null; onDownload
     >
       <Icon name="download" />
       <span className="report-download-label">Download</span>
+      {file && (
+        <span id={described} className="sr-only">
+          {file}
+        </span>
+      )}
       <Tip label={file ? `Download this version · ${file}` : 'Download this version'} side="bottom" align="end" />
     </button>
   )
