@@ -35,6 +35,7 @@ for (const [state, words] of [
     await expect(page.getByRole('heading', { name: 'This door is closed' })).toBeVisible()
     await expect(page.getByText(words)).toBeVisible()
     await expect(name(page)).toHaveCount(0)
+    expect(await asked(page)).toEqual(['/api/v1/join/preview'])
   })
 }
 
@@ -46,19 +47,23 @@ test('join · a knock waits, by name, until someone lets them in; then the room'
   await page.evaluate(() => window.joinFixture?.answer('admit'))
   await expect(page.getByText('You’ve been let in')).toBeVisible({ timeout: 8000 })
   expect(await asked(page)).toContain('/api/v1/join/knock')
+  // In: Join asks for the room's token and the call starts.
+  await page.getByRole('button', { name: 'Join the room' }).click()
+  await expect.poll(async () => (await asked(page)).some((p) => p.endsWith('/room-token'))).toBe(true)
 })
 
 test('join · not let in this time: it says so, and offers to ask again', async ({ page }) => {
   await page.goto('/join.html?answer=deny')
   await knockAs(page, 'Ana Ruiz')
   await expect(page.getByRole('heading', { name: 'Not this time' })).toBeVisible({ timeout: 8000 })
+  await expect(page.getByRole('button', { name: /Ask again/ })).toBeVisible()
 })
 
 test('join · blocked: it says they can’t join, with no door left to try', async ({ page }) => {
   await page.goto('/join.html?answer=block')
   await knockAs(page, 'Ana Ruiz')
   await expect(page.getByRole('heading', { name: 'You can’t join this room' })).toBeVisible({ timeout: 8000 })
-  await expect(knock(page)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Ask again|Ask to come in|Try again/ })).toHaveCount(0)
 })
 
 test('join · a session the invitation names is said under it', async ({ page }) => {

@@ -2,7 +2,8 @@
 // (JoinFlow), its four requests answered here instead of the API, and the call over the fake LiveKit every fixture
 // page uses. The link's token is in the fragment, as an invitation link carries it.
 //
-// `invite=member`: a member's invitation (sign in to accept); `state=expired|revoked|used_up`: a closed link;
+// A guest's invitation (a member's needs the sign-in the fixture pages don't have); `state=expired|revoked|used_up`: a
+// closed link;
 // `session=1`: the invitation names a session; `answer=admit|deny|block`: how the room answers the knock (otherwise
 // it waits until `window.joinFixture.answer(…)`). `window.joinFixture.asked` lists each request, in order.
 import '@fontsource-variable/geist/wght.css'
@@ -35,8 +36,8 @@ const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString()
 const preview: InvitationPreview = {
   projectTitle: DEMO ? DEMO_PROJECT : 'Fixture project',
   inviterName: DEMO ? 'lucia.marin@sophia.test' : 'host@sophia.test',
-  kind: query.get('invite') === 'member' ? 'member' : 'guest',
-  role: query.get('invite') === 'member' ? 'editor' : null,
+  kind: 'guest',
+  role: null,
   email: null,
   expiresAt: at(-86_400_000),
   session:
