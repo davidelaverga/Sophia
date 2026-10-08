@@ -628,7 +628,8 @@ export const waitingAtTheDoor: LobbyEntry = {
   id: '00000000-0000-4000-8000-0000000000b8',
   displayName: DEMO ? 'Ana Ruiz' : 'Fixture guest',
   status: 'waiting',
-  requestedAt: AT,
+  // In the demo the knock is a minute old (a fixed date read «6 days»); the checks keep their date.
+  requestedAt: DEMO ? new Date(Date.now() - 50_000).toISOString() : AT,
   decidedAt: null,
   knocks: 1,
 }

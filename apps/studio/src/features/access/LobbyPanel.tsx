@@ -11,6 +11,7 @@ import { knockNote } from './access-view.ts'
 import { useLobbyDecision } from './useAccess.ts'
 import { lasted } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
+import { initialOf } from '../conversations/conversation-list.ts'
 
 interface Props {
   projectId: string
@@ -52,6 +53,7 @@ export function LobbyPanel({ projectId, identity, lobby, canDecide }: Props) {
   return (
     <aside className="lobby arrive" aria-label="Waiting to come in">
       <LobbyHead
+        first={waiting[0]?.displayName ?? null}
         count={waiting.length}
         canDecide={canDecide}
         busy={busy}
@@ -98,6 +100,8 @@ export function LobbyPanel({ projectId, identity, lobby, canDecide }: Props) {
 }
 
 interface HeadProps {
+  /** The first one waiting: named when they are the only one. */
+  first: string | null
   count: number
   canDecide: boolean
   busy: boolean
@@ -105,13 +109,15 @@ interface HeadProps {
   onAdmitAll: () => void
 }
 
-function LobbyHead({ count, canDecide, busy, onDeclineAll, onAdmitAll }: HeadProps) {
+function LobbyHead({ first, count, canDecide, busy, onDeclineAll, onAdmitAll }: HeadProps) {
   if (count === 0) return null
   return (
     <>
       <div className="lobby-head">
         <p className="lobby-title" role="status">
-          {count === 1 ? 'Someone is waiting to come in' : `${count} people are waiting to come in`}
+          {count === 1 ? 'At the door' : `${String(count)} at the door`}
+          {/* The row names them to the eye; the status, heard alone, names the one waiting too. */}
+          {count === 1 && first && <span className="sr-only">: {first}</span>}
         </p>
         {canDecide && count > 1 && (
           <span className="lobby-all">
@@ -141,10 +147,15 @@ function LobbyRow({ entry, now, answer }: { entry: LobbyEntry; now: number; answ
   const asked = knockNote(entry.knocks)
   return (
     <li>
-      <span className="lobby-name">{entry.displayName}</span>
-      <span className="lobby-wait">
-        {asked && `${asked} · `}
-        {waitedFor(entry.requestedAt, now)}
+      <span className="lobby-face" aria-hidden>
+        {initialOf(entry.displayName)}
+      </span>
+      <span className="lobby-who">
+        <span className="lobby-name">{entry.displayName}</span>
+        <span className="lobby-wait">
+          {asked && `${asked} · `}
+          {waitedFor(entry.requestedAt, now)}
+        </span>
       </span>
       {answer && (
         <span className="lobby-actions">
@@ -157,7 +168,7 @@ function LobbyRow({ entry, now, answer }: { entry: LobbyEntry; now: number; answ
               onConfirm={answer.onBlock}
             />
           )}
-          <button type="button" className="ghost" disabled={answer.busy} onClick={answer.onDecline}>
+          <button type="button" className="text-button lobby-decline" disabled={answer.busy} onClick={answer.onDecline}>
             Decline
           </button>
           <button type="button" className="pill warm" disabled={answer.busy} onClick={answer.onAdmit}>
