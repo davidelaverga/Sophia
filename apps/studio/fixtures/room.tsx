@@ -292,11 +292,17 @@ const project = {
     }
     floorTo.push(nameOf(actorId))
   },
+  // The API reads who is in the room from the LiveKit server: a guest among them keeps her out.
+  guestHere: () => others().some((p) => p.standing === 'guest'),
   // As the API and her bridge answer her presses (exchange-writes.ts): in, she listens; quieted, she listens; ended,
   // she leaves the room; a pause lifted, she listens to the holder.
   onExchange: (action: ExchangeAction) => {
     if (action === 'end') {
+      // Ended, nothing of it stays: no pause, nothing she looked at.
       project.exchange = false
+      room.pauseReason = undefined
+      room.looking = null
+      endPause()
       sophiaLeaves()
       return
     }

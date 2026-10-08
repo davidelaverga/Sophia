@@ -80,8 +80,12 @@ describe('Studio API client', () => {
     reply(502, { code: 'from_a_proxy' })
     const proxy = await apiError(getSnapshot('t', P))
     assert.deepEqual([proxy.status, proxy.code, proxy.retry], [502, 'http_502', 'never'])
-    // HTTP/2 carries no status text: the refusal still has words, or it shows as nothing at all.
-    assert.equal(proxy.message, 'Sophia couldn’t do that (HTTP 502). Try again.')
+    // HTTP/2 carries no status text: the refusal still has words, or it shows as nothing at all; and the same words
+    // over HTTP/1.1, whose status text is not ours to show. «Try again» only where it can help.
+    assert.equal(proxy.message, 'That didn’t go through (HTTP 502). Try again.')
+    globalThis.fetch = () => Promise.resolve(new Response('<html>', { status: 404, statusText: 'Not Found' }))
+    const missing = await apiError(getSnapshot('t', P))
+    assert.deepEqual([missing.code, missing.message], ['http_404', 'That didn’t go through (HTTP 404).'])
   })
 
   it('never waits for good: a write with no reply in time is an unknown outcome, retried with the same key', async (t) => {

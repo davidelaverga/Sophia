@@ -27,6 +27,7 @@ test('room · «Speak with Sophia» brings her in, listening to whoever asked; �
   await enter(page)
   await press(page, 'Speak with Sophia').click()
   await expect(press(page, 'End')).toBeVisible()
+  await expect(dock(page).locator('.floor-label')).toHaveText('Sophia')
   await expect(page.getByText('Sophia is listening to you').first()).toBeVisible()
   await expect(dock(page).locator('.floor-error')).toHaveCount(0)
   await press(page, 'End').click()
@@ -45,4 +46,26 @@ test('room · in the demo too, her presses answer', async ({ page }) => {
   await enter(page, '&demo=1')
   await press(page, 'Speak with Sophia').click()
   await expect(press(page, 'End')).toBeVisible()
+})
+
+test('room · with a guest in the room she stays out, and the dock says why in the API’s words', async ({ page }) => {
+  await enter(page, '&people=2&guest=1')
+  await press(page, 'Speak with Sophia').click()
+  await expect(dock(page).locator('.floor-error')).toHaveText(
+    'A guest is in the room: Sophia joins when the room is member-only',
+  )
+  // Read whole: the tip of the press under the pointer keeps out of its way.
+  await expect(press(page, 'Speak with Sophia').locator('.tip')).toBeHidden()
+  await expect(press(page, 'End')).toHaveCount(0)
+})
+
+test('room · asked in, she may be shown a camera, and stops looking when asked', async ({ page }) => {
+  await enter(page)
+  await press(page, 'Speak with Sophia').click()
+  await press(page, 'Camera').click()
+  await press(page, 'Show Sophia your camera').click()
+  await expect(press(page, 'Stop looking')).toBeVisible()
+  await press(page, 'Stop looking').click()
+  await expect(press(page, 'Stop looking')).toHaveCount(0)
+  await expect(dock(page).locator('.floor-error')).toHaveCount(0)
 })

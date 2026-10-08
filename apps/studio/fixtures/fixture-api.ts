@@ -132,6 +132,8 @@ interface Project {
   room?: RoomAsked
   /** Sophia's conversation moved (exchange-writes.ts); absent, a press on it is unexpected. */
   onExchange?: (action: ExchangeAction) => void
+  /** A guest is in the room, as the LiveKit server lists them (exchange-writes.ts). */
+  guestHere?: () => boolean
   /** The floor passed on to this actor; absent, passing it is unexpected. */
   onFloor?: (actorId: string) => void
   /** The room moves (another member's change) just before the next pass reaches the API. */

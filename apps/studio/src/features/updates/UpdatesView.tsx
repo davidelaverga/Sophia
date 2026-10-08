@@ -115,9 +115,10 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
   )
 }
 
-/** What a Mark as seen that didn't go through says: no reply, or the API's words. */
+/** What a Mark as seen that didn't go through says: the API's own words, else (no reply, or none it wrote) ours. */
 const seenWords = (error: Error) =>
-  (error instanceof ApiError && error.status > 0 && error.message) || 'Not marked. Try again.'
+  (error instanceof ApiError && error.status > 0 && !error.code.startsWith('http_') && error.message) ||
+  'Not marked. Try again.'
 
 /** Writes what was seen (never lowered, so a second press is harmless), then reads the digest again. */
 function useMarkSeen(projectId: string, identity: Identity) {
