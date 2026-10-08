@@ -22,7 +22,7 @@
 }
 .report-meta {
   color: var(--text-2);
-  font: 12px/1.4 var(--mono);
+  font: var(--type-small) / 1.4 var(--sans);
 }
 
 /* --- the research card ---------------------------------------------------------------------------------------- */
@@ -789,27 +789,35 @@
 .report-cover[data-cover='lines'] {
   padding: 16px 20px 0;
 }
-/* A Markdown report's opening as a sheet rising from the cover's foot: its heading, its first words, its sections. */
+/* A Markdown report's opening as a sheet of paper rising from the cover's foot, as a designed page's cover is paper:
+   its heading, its first words, its sections, in dark ink. The paper and its inks are the page's, not the app's. */
 /* A column, not a grid: grid rows of clipped lines shrink to nothing past the sheet's height and cut them mid-line. */
 .report-cover-page {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
   height: 100%;
   padding: 14px 16px;
   overflow: hidden;
-  border: 1px solid var(--line-2);
-  border-bottom: 0;
   border-radius: var(--r-2) var(--r-2) 0 0;
-  background: rgba(236, 235, 241, 0.035);
-  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  background: #f8f6f1;
+  box-shadow: 0 -1px 12px rgba(0, 0, 0, 0.35);
+}
+/* Its words run on past the cover's foot, as a page does: they fade into the paper, never cut through a line. */
+.report-cover-page::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 36px;
+  background: linear-gradient(to bottom, rgba(248, 246, 241, 0), #f8f6f1);
 }
 .report-cover-page p {
   display: -webkit-box;
   flex: none;
   margin: 0;
   overflow: hidden;
-  color: var(--text-2);
+  color: #55525c;
   font-size: var(--type-small);
   line-height: 1.45;
   -webkit-box-orient: vertical;
@@ -817,16 +825,14 @@
 }
 .report-cover-page .report-cover-heading {
   margin-bottom: 2px;
-  color: var(--text);
+  color: #1c1a21;
   font-size: var(--type-body);
   font-weight: 600;
 }
 .report-cover-page .report-cover-section {
   margin-top: 4px;
-  color: var(--halo-text);
-  font: 600 var(--type-label) / 1.4 var(--mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: #3b3842;
+  font-weight: 600;
 }
 .report-cover[data-cover='waiting'],
 .report-cover[data-cover='mark'] {
