@@ -14,10 +14,13 @@ export function reviewWords(state: ArtifactRendition['reviewState']): string {
   return 'Designed by Sophia and checked by software only: no separate visual reviewer looked at it.'
 }
 
-/** The review state as a short tag for cards and the viewer's head. */
+/**
+ * The design check as a short tag for cards and the viewer's head: named for what checked it, so it never reads as the
+ * team's review (ReviewRow's «Not reviewed yet.» sits right under it).
+ */
 export function reviewTag(state: ArtifactRendition['reviewState']): string {
-  if (state === 'reviewed') return 'reviewed'
-  if (state === 'review_unresolved') return 'review unresolved'
+  if (state === 'reviewed') return 'design checked'
+  if (state === 'review_unresolved') return 'design findings open'
   return 'software-checked only'
 }
 

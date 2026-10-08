@@ -35,6 +35,8 @@ export function ReportHistory({ identity, versions, shown, onShow }: Props) {
   const numbers = new Map(versions.map((v) => [v.id, v.versionNumber ?? null]))
   // The report's own versions, which a version's facts may list among its sources: never counted as one (factsLine).
   const own = new Set(versions.map((v) => v.sourceId))
+  // The current version is the newest stable one (the list is newest first); an older stable one is history.
+  const current = versions.find((v) => v.state === 'stable')?.id
   return (
     <>
       <ol ref={list} className="report-history">
@@ -46,6 +48,7 @@ export function ReportHistory({ identity, versions, shown, onShow }: Props) {
               version={v}
               before={v.parentId === null ? null : (numbers.get(v.parentId) ?? null)}
               own={own}
+              current={v.id === current}
               shown={v.id === shown || (shown === null && i === 0)}
               onShow={() => onShow(v.id)}
               onCompare={older ? () => setCompare({ older, newer: v }) : null}
@@ -64,12 +67,14 @@ interface RowProps {
   before: number | null
   /** The source ids of the report's versions. */
   own: ReadonlySet<string>
+  /** The report's current version: the newest stable one. */
+  current: boolean
   shown: boolean
   onShow: () => void
   onCompare: (() => void) | null
 }
 
-function VersionRow({ version, before, own, shown, onShow, onCompare }: RowProps) {
+function VersionRow({ version, before, own, current, shown, onShow, onCompare }: RowProps) {
   const facts = factsLine(version, before, own)
   const chips = factChips(version)
   return (
@@ -77,7 +82,7 @@ function VersionRow({ version, before, own, shown, onShow, onCompare }: RowProps
       <div className="report-version-head">
         <strong>v{version.versionNumber ?? '?'}</strong>
         <span className="muted">{version.createdAt ? dayOf(version.createdAt, Date.now()) : ''}</span>
-        {version.state === 'stable' && <Tag tone="teal">Current</Tag>}
+        {current && <Tag tone="teal">Current</Tag>}
       </div>
       {facts && <p className="report-facts">{facts}</p>}
       {chips.length > 0 && (

@@ -256,9 +256,11 @@
   color: var(--text-2);
   font-size: 12px;
 }
+/* The tabs keep one line each; where the format switch doesn't fit beside them (a phone), it takes its own line. */
 .report-tabs {
   display: flex;
-  gap: 18px;
+  flex-wrap: wrap;
+  column-gap: 18px;
   padding: 0 16px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -1080,6 +1082,7 @@
 .report-format {
   display: inline-flex;
   align-self: center;
+  margin-block: 3px; /* 32 + 6: the tabs' 38, so the bar keeps its height beside them */
   margin-left: auto;
   padding: 2px;
   border: 1px solid var(--line);

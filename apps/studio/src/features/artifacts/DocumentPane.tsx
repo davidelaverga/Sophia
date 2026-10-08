@@ -675,7 +675,7 @@ function headOf(data: PaneData): { format: ViewerFormat; meta: string; canDownlo
   return { format: 'markdown', meta: metaLine(data.version, data.text.data), canDownload: data.text.isSuccess }
 }
 
-/** "HTML · v2 · 41.2 KB · 1a2b3c4d · reviewed": the designed page on screen, exactly, and how it was reviewed. */
+/** "HTML · v2 · 41.2 KB · 1a2b3c4d · design checked": the designed page on screen, exactly, and how it was checked. */
 function htmlMetaLine({ version, page }: PaneData): string {
   if (!version || !page) return ''
   return [

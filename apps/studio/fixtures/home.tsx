@@ -185,7 +185,7 @@ if (!root) throw new Error('home.html must contain #root')
 
 createRoot(root).render(
   <StrictMode>
-    <p className="fixture-label" role="note">
+    <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
       {DEMO ? DEMO_LABEL : 'Simulated — Home over labelled projects, no account'}
     </p>
     <Home />
