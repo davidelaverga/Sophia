@@ -60,17 +60,13 @@ export function useDecide(projectId: string, identity: Identity) {
   })
 }
 
-/**
- * A message's proposal sent under `key`: a constraint with these words (A08). Its receipt comes back once the brief has
- * been read again, so «it's in Still open» is never said before Still open can show it.
- */
 /** The same words, whatever the spaces or the case. */
 const sameWords = (a: string, b: string) =>
   a.trim().replace(/\s+/gu, ' ').toLowerCase() === b.trim().replace(/\s+/gu, ' ').toLowerCase()
 
-/** Whether these words already wait for a decision: proposing them again would add nothing. */
-export const alreadyOpen = (pending: readonly Pick<MissionDecision, 'statement'>[], statement: string): boolean =>
-  pending.some((d) => sameWords(d.statement, statement))
+/** Whether these words already wait for a decision as a constraint: proposing them again would add nothing. */
+export const alreadyOpen = (pending: readonly Pick<MissionDecision, 'kind' | 'statement'>[], statement: string) =>
+  pending.some((d) => d.kind === 'constraint' && sameWords(d.statement, statement))
 
 /**
  * Whether a fresh proposal's words already wait in the brief, read now: a proposal whose reply was lost, then the page
@@ -91,6 +87,10 @@ export function useAlreadyOpen(projectId: string, identity: Identity | null) {
   }
 }
 
+/**
+ * A message's proposal sent under `key`: a constraint with these words (A08). Its receipt comes back once the brief has
+ * been read again, so «it's in Still open» is never said before Still open can show it.
+ */
 export function useProposeSend(projectId: string, identity: Identity | null) {
   const client = useQueryClient()
   return async (key: string, statement: string): Promise<MissionReceipt> => {

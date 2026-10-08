@@ -61,7 +61,11 @@ describe('a refused decision', () => {
 })
 
 describe('a proposal already waiting (reconciled before a fresh one goes)', () => {
-  const waiting = [{ statement: 'Map first, list second' }, { statement: 'Briefs stay on one page' }]
+  const waiting = [
+    { kind: 'constraint' as const, statement: 'Map first, list second' },
+    { kind: 'constraint' as const, statement: 'Briefs stay on one page' },
+    { kind: 'mission' as const, statement: 'Reports for every team' },
+  ]
 
   it('is found by its words, whatever the spaces or the case', () => {
     assert.equal(alreadyOpen(waiting, '  briefs stay on ONE page '), true)
@@ -70,5 +74,9 @@ describe('a proposal already waiting (reconciled before a fresh one goes)', () =
   it('other words are a new proposal', () => {
     assert.equal(alreadyOpen(waiting, 'Briefs stay on two pages'), false)
     assert.equal(alreadyOpen([], 'Map first, list second'), false)
+  })
+
+  it('the same words waiting as another kind (a new direction) are not this constraint', () => {
+    assert.equal(alreadyOpen(waiting, 'Reports for every team'), false)
   })
 })
