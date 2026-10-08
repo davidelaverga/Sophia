@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { escapeHtml, icsEvent, inviteEmail, personName, sessionWhen } from './invite-email.ts'
+import { escapeHtml, icsEvent, inviteEmail, markUrl, personName, sessionWhen } from './invite-email.ts'
 import { deriveToken, joinUrl, linkFor, tokenHash } from './invite-token.ts'
 
 const cfg = { secret: 'unit-test-secret-at-least-32-characters!!', studioUrl: 'https://studio.example.com/' }
@@ -51,7 +52,9 @@ describe('invitation email', () => {
     const mail = inviteEmail({ ...base, kind: 'guest', role: null })
     assert.equal(mail.subject, 'Luis invited you to a room in Sophia')
     assert.ok(mail.html.includes('Join the room'))
-    assert.ok(mail.html.includes(escapeHtml('“Q4 <launch> & "plan"”')))
+    assert.ok(mail.html.includes(`>${escapeHtml('Q4 <launch> & "plan"')}</td>`))
+    assert.ok(mail.html.includes('Luis</span> invited you'))
+    assert.ok(!mail.html.includes('calendar invitation'))
     assert.ok(!mail.html.includes('<launch>'))
     assert.ok(mail.text.includes(`Join the room: ${base.url}`))
     assert.equal(mail.ics, null)
@@ -62,9 +65,33 @@ describe('invitation email', () => {
     assert.ok(mail.html.includes('a viewer'))
     assert.ok(mail.html.includes('ana@example.com'))
     assert.ok(mail.html.includes(escapeHtml(sessionWhen(session))))
-    assert.equal(sessionWhen(session), 'Thursday, October 1 · 10:00 – 11:00 (America/Bogota)')
+    assert.equal(sessionWhen(session), 'Thursday, October 1 · 10:00 – 11:00 Colombia Time')
+    assert.ok(mail.html.includes('The calendar invitation is attached.'))
     assert.ok(mail.ics?.includes('DTSTART:20261001T150000Z'))
     assert.ok(mail.ics?.includes('SUMMARY:Weekly\\, with Sophia\\; <b>'))
+  })
+
+  it('signs with the Umbral mark from the Studio the link opens, never the token, and labels the raw link', () => {
+    const mail = inviteEmail({ ...base, kind: 'guest', role: null })
+    assert.equal(markUrl(base.url), 'https://studio.example.com/brand/umbral-mark.png')
+    assert.equal(markUrl('http://localhost:5173/join#abc'), 'http://localhost:5173/brand/umbral-mark.png')
+    assert.ok(
+      mail.html.includes('<img src="https://studio.example.com/brand/umbral-mark.png" width="24" height="24" alt=""'),
+    )
+    assert.ok(!mail.html.includes('&#9679;'))
+    assert.equal(mail.html.split(`href="${base.url}"`).length - 1, 2)
+    assert.ok(mail.html.includes('>studio.example.com/join</a>'))
+    assert.ok(!mail.html.includes('#tok</a>'))
+    assert.ok(existsSync(new URL('../../studio/public/brand/umbral-mark.png', import.meta.url)))
+  })
+
+  it('still sends when the Studio address is not a web one: no mark, the whole link shown', () => {
+    for (const url of ['sophia-studio.vercel.app/join#tok', 'localhost:5173/join#tok']) {
+      assert.equal(markUrl(url), null)
+      const mail = inviteEmail({ ...base, url, kind: 'guest', role: null })
+      assert.ok(!mail.html.includes('<img'))
+      assert.ok(mail.html.includes(`>${url}</a>`))
+    }
   })
 
   it('writes RFC 5545 lines: CRLF endings, folded under 76 characters', () => {
