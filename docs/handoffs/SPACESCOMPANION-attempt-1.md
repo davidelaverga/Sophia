@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/spaces-companion.spec.ts`, `apps/studio/fixture
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `spaces/companion` from `spaces/honest` (`bbc1c39e`), 2026-10-07
-Ending commit/tree: `247c52005f3e3f441dce0fd89676afc2b044916e` (tree `af8740bf271d0d5cec081be28799be48e9fc3442`). The commits after it change only this handoff.
+Ending commit/tree: `578cc4e63feb3ba3f4a33073e2d730ad203e1380` (tree `36dcd1d2b65245e6b987f355c137aac067471d66`), after the checks waiting for her answer rather than the writing line, as CI found, and its base's changes merged in. The commits after it change only this handoff.
 
 ## Outcome
 
