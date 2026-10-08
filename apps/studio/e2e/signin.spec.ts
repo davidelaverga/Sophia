@@ -131,6 +131,8 @@ test('signin · refused for the hour, with no wait given, it still waits Auth’
 })
 
 test('signin · a send again that never answers ends, says so, and waits Auth’s window', async ({ page }) => {
+  // Three minutes of a held clock, each step run frame by frame under Sophia's light: past 30 s on a busy runner.
+  test.slow()
   await held(page, '?stall=1')
   await sendHeld(page, 'luis@sophia.test')
   await page.clock.fastForward(60_000)
