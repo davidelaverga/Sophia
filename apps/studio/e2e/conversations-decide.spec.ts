@@ -159,6 +159,19 @@ test('decide · on its way, another conversation and back: the words sent are sh
   await expect(stillOpen(page).locator('li').filter({ hasText: 'Briefs stay on one page' })).toHaveCount(1)
 })
 
+test('decide · words already waiting in Still open are not sent again: it says they are there', async ({ page }) => {
+  await enter(page)
+  const mine = open(page).locator('.conv-messages > li').last()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  // As after a lost reply and a reload: the key is gone, but the brief, read now, already has these words.
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('  map first, LIST second ')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(mine.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  expect(await writes(page, '/mission/proposals')).toEqual([])
+  await expect(stillOpen(page).locator('li').filter({ hasText: 'Map first, list second' })).toHaveCount(1)
+})
+
 test('decide @phone · on a touch screen the press is a finger’s 40 px, and a keyboard reaches it unpressed', async ({
   page,
 }) => {

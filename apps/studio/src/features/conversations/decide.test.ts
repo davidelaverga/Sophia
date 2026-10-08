@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
 import type { MissionDecision } from '@sophia/contracts'
-import { decidableHere, refusalWords, statementFrom } from './decide.ts'
+import { alreadyOpen, decidableHere, refusalWords, statementFrom } from './decide.ts'
 
 describe('a message proposed as a decision (C7)', () => {
   it('a member’s words, on one line, as written', () => {
@@ -57,5 +57,18 @@ describe('a refused decision', () => {
     assert.equal(decidableHere(d('lesson', false)), true)
     assert.equal(decidableHere(d('mission', false)), false)
     assert.equal(decidableHere(d('constraint', true)), false)
+  })
+})
+
+describe('a proposal already waiting (reconciled before a fresh one goes)', () => {
+  const waiting = [{ statement: 'Map first, list second' }, { statement: 'Briefs stay on one page' }]
+
+  it('is found by its words, whatever the spaces or the case', () => {
+    assert.equal(alreadyOpen(waiting, '  briefs stay on ONE page '), true)
+  })
+
+  it('other words are a new proposal', () => {
+    assert.equal(alreadyOpen(waiting, 'Briefs stay on two pages'), false)
+    assert.equal(alreadyOpen([], 'Map first, list second'), false)
   })
 })

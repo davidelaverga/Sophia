@@ -4,7 +4,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { MissionDecision, MissionReceipt } from '@sophia/contracts'
 import type { ApiError } from '../../api/client.ts'
-import { decideMissionChange, proposeMissionChange } from '../../api/mission.ts'
+import { decideMissionChange, getMission, proposeMissionChange } from '../../api/mission.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { missionKey } from '../mission/mission-view.ts'
@@ -64,6 +64,33 @@ export function useDecide(projectId: string, identity: Identity) {
  * A message's proposal sent under `key`: a constraint with these words (A08). Its receipt comes back once the brief has
  * been read again, so «it's in Still open» is never said before Still open can show it.
  */
+/** The same words, whatever the spaces or the case. */
+const sameWords = (a: string, b: string) =>
+  a.trim().replace(/\s+/gu, ' ').toLowerCase() === b.trim().replace(/\s+/gu, ' ').toLowerCase()
+
+/** Whether these words already wait for a decision: proposing them again would add nothing. */
+export const alreadyOpen = (pending: readonly Pick<MissionDecision, 'statement'>[], statement: string): boolean =>
+  pending.some((d) => sameWords(d.statement, statement))
+
+/**
+ * Whether a fresh proposal's words already wait in the brief, read now: a proposal whose reply was lost, then the page
+ * reloaded (its key gone with it), is found there rather than sent a second time. A read that fails finds nothing.
+ */
+export function useAlreadyOpen(projectId: string, identity: Identity | null) {
+  const client = useQueryClient()
+  return async (statement: string): Promise<boolean> => {
+    if (!identity) return false
+    const brief = await client
+      .fetchQuery({
+        queryKey: [...missionKey(projectId), identity.name, 'conversations'],
+        queryFn: () => getMission(identity.token, projectId),
+        staleTime: 0,
+      })
+      .catch(() => null)
+    return brief !== null && alreadyOpen(brief.pending, statement)
+  }
+}
+
 export function useProposeSend(projectId: string, identity: Identity | null) {
   const client = useQueryClient()
   return async (key: string, statement: string): Promise<MissionReceipt> => {

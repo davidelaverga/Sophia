@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { Icon, Tip } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { refusalWords, statementFrom, useProposeSend } from './decide.ts'
+import { refusalWords, statementFrom, useAlreadyOpen, useProposeSend } from './decide.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 import { useKept, withEntry } from './talk-store.ts'
 
@@ -33,13 +33,15 @@ function useHeldProposal(args: ProposeArgs | null) {
   const { projectId, identity, messageId: id } = args ?? NOBODY
   const { kept, change } = useKept(projectId, identity?.name ?? '')
   const send = useProposeSend(projectId, identity)
+  const waiting = useAlreadyOpen(projectId, identity)
   const held = kept.proposals[id] ?? null
   const marked = (on: boolean) => change((was) => ({ ...was, proposed: withEntry(was.proposed, id, on) }))
   const write = useHeldWrite<string, unknown>(
     held,
     (next: Held<string> | null) => change((was) => ({ ...was, proposals: withEntry(was.proposals, id, next) })),
     async (key, statement) => {
-      const receipt = await send(key, statement)
+      // A fresh one whose words already wait (its first reply lost, the page reloaded since): it is there, never sent twice.
+      const receipt = held === null && (await waiting(statement)) ? true : await send(key, statement)
       marked(true)
       return receipt
     },
