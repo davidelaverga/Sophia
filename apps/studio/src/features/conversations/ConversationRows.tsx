@@ -5,7 +5,7 @@ import { useId, useRef, useState } from 'react'
 import type { ConversationSummary } from '../../api/vision.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { pageMemory, useMemory } from '../work/planning/page-memory.ts'
-import { contributorsLine, narrowed, openWords } from './conversation-list.ts'
+import { contributorsLine, gistOf, narrowed, openWords } from './conversation-list.ts'
 
 /** «Open» and «Mine», per project and reader, while the page lives: another view and back finds them as left. */
 const shownBy = pageMemory<{ open: boolean; mine: boolean }>()
@@ -101,6 +101,7 @@ function Row(props: { conversation: ConversationSummary; open: boolean; me: stri
   const { conversation: c } = props
   const id = useId()
   const moved = movedAt(c.lastAt, Date.now())
+  const gist = gistOf(c, props.me)
   return (
     <li>
       <button
@@ -118,7 +119,7 @@ function Row(props: { conversation: ConversationSummary; open: boolean; me: stri
           {moved}
         </span>
         <span id={`${id}-d`} className="conv-about">
-          {c.summary && <span className="conv-gist">{c.summary}</span>}
+          {gist && <span className="conv-gist">{gist}</span>}
           <span className="sr-only">
             {`${contributorsLine(c, props.me)}. ${openWords(c.openQuestions)}.${moved ? ` Last moved ${moved}.` : ''}`}
           </span>

@@ -9,6 +9,8 @@ import {
   withMessage,
   answeredAfter,
   firstWords,
+  gistOf,
+  withLastMessage,
   pendingOf,
   byActivity,
   contributorsLine,
@@ -91,6 +93,41 @@ describe('matching', () => {
       ['a'],
     )
     assert.equal(matching(all, 'short data').length, 0)
+  })
+})
+
+describe('gistOf', () => {
+  const lucia = { actorId: 'lucia', name: 'Lucía' }
+  const at = '2026-10-06T09:40:00.000Z'
+  it('says the last message, who said it first; else the summary', () => {
+    const withSummary = conversation({ summary: 'Short or long.', contributors: [lucia] })
+    assert.equal(gistOf(withSummary, ME), 'Short or long.')
+    assert.equal(gistOf({ ...withSummary, lastMessage: null }, ME), 'Short or long.')
+    const said = (author: 'member' | 'sophia', actorId: string | null, name: string | null = null) =>
+      gistOf({ ...withSummary, lastMessage: { author, actorId, name, text: 'One page.', at } }, ME)
+    assert.equal(said('member', ME), 'You: One page.')
+    assert.equal(said('sophia', null), 'Sophia: One page.')
+    assert.equal(said('member', 'lucia'), 'Lucía: One page.')
+    assert.equal(said('member', 'gone'), 'Someone: One page.')
+    // Not listed, but the message names them.
+    assert.equal(said('member', 'marco', 'Marco'), 'Marco: One page.')
+  })
+})
+
+describe('withLastMessage', () => {
+  it('puts a confirmed message as its conversation’s last, where the list says last messages', () => {
+    const at = '2026-10-07T10:00:00.000Z'
+    const said = { author: 'member' as const, actorId: ME, name: 'You', text: 'Two pages.', at }
+    const list = [
+      conversation({ id: 'a', lastMessage: null }),
+      conversation({ id: 'b', lastMessage: { ...said, text: 'Old.' } }),
+      conversation({ id: 'c' }),
+    ]
+    const next = withLastMessage(list, 'a', said)
+    assert.equal(next[0]?.lastMessage?.text, 'Two pages.')
+    assert.equal(next[1]?.lastMessage?.text, 'Old.')
+    // A list that doesn't say last messages is left as it is.
+    assert.equal(withLastMessage(list, 'c', said)[2]?.lastMessage, undefined)
   })
 })
 

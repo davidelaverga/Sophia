@@ -173,6 +173,8 @@ export interface Conversations extends TalkWrites {
   messages: Record<string, ConversationMessage[]>
   /** The list's reads fail (`conversations=fail`, `window.fixture.failConversations`). */
   failList: boolean
+  /** The list says each one's last message (A18 proposed; `last=1`, and the demo). */
+  lastShown?: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -413,7 +415,21 @@ function conversationRead(talk: Conversations, url: URL) {
 function conversationsRead(talk: Conversations) {
   if (talk.failList) return unavailable()
   served.push('conversations:read')
-  return json({ conversations: talk.list })
+  if (!talk.lastShown) return json({ conversations: talk.list })
+  // A18 (proposed): each one's newest message, a line of it, as its messages say it now.
+  const lastOf = (id: string) => {
+    const m = talk.messages[id]?.at(-1)
+    return m
+      ? {
+          author: m.author,
+          actorId: m.actorId,
+          name: m.name,
+          text: m.text.replace(/\s+/gu, ' ').slice(0, 140),
+          at: m.at,
+        }
+      : null
+  }
+  return json({ conversations: talk.list.map((c) => ({ ...c, lastMessage: lastOf(c.id) })) })
 }
 
 /** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
