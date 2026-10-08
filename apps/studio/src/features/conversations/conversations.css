@@ -704,6 +704,101 @@
   background: var(--amber);
   transform: translateY(-2px);
 }
+/* Decide here (C7): a proposal waiting wraps its presses under it, on the statement's edge. */
+.conv-decisions.open li {
+  flex-wrap: wrap;
+}
+.conv-decide {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 10px;
+  padding-left: 15px;
+}
+.conv-decide .pill {
+  height: 28px;
+  padding: 0 12px;
+  font-size: var(--type-small);
+}
+.conv-decide .text-button {
+  color: var(--text-2);
+  font-size: var(--type-small);
+  text-decoration: none;
+}
+
+/* «Propose as decision» (C7): a small press at the message's own top corner, over the thread, never in its flow. Under the
+   pointer or the focus on a wide screen; on the message pressed on a phone. Its form, when open, is in the flow. */
+.conv-msg-body {
+  position: relative;
+}
+.conv-propose {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.conv-propose-press {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--plane-2);
+  color: var(--text-2);
+}
+.conv-propose-press:hover {
+  color: var(--text);
+}
+.conv-proposed {
+  color: var(--teal);
+  font-size: var(--type-small);
+  white-space: nowrap;
+}
+@media (hover: hover) {
+  .conv-msg:not(:hover, :focus-within) .conv-propose-press {
+    opacity: 0;
+  }
+}
+@media (hover: none) {
+  .conv-msg:not([data-pressed]) .conv-propose-press {
+    display: none;
+  }
+}
+/* While a message's form is open, its clock (placed on the row's middle) stays out of the way. */
+.conv-msg:has(.conv-propose-form) .conv-msg-at {
+  display: none;
+}
+.conv-propose-form {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 480px);
+  margin-top: 8px;
+}
+.conv-propose-form textarea {
+  min-height: 64px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--plane);
+  color: var(--text);
+  font: var(--type-body) / 1.5 var(--sans);
+  resize: vertical;
+}
+.conv-propose-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--type-small);
+}
+.conv-propose-acts .pill {
+  height: 30px;
+  padding: 0 14px;
+}
 .conv-help summary {
   min-height: 24px;
   color: var(--text-2);

@@ -181,9 +181,7 @@ function Decisions({ ctx, projectId, identity }: { ctx: MissionContext; projectI
               {open.shown.map((d) => (
                 <li key={d.id}>
                   {d.statement}
-                  {canDecide && (
-                    <DecideHere decision={d} busy={decide.state.status === 'sending'} onAnswer={answer} />
-                  )}
+                  {canDecide && <DecideHere decision={d} busy={decide.state.status === 'sending'} onAnswer={answer} />}
                 </li>
               ))}
             </ul>

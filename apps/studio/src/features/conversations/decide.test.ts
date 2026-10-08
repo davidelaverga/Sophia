@@ -5,7 +5,10 @@ import { refusalWords, statementFrom } from './decide.ts'
 
 describe('a message proposed as a decision (C7)', () => {
   it('a member’s words, on one line, as written', () => {
-    assert.equal(statementFrom('One page,\nwith the sources inline, then.', false), 'One page, with the sources inline, then.')
+    assert.equal(
+      statementFrom('One page,\nwith the sources inline, then.', false),
+      'One page, with the sources inline, then.',
+    )
   })
 
   it('Sophia’s words without the marks they are drawn with', () => {
@@ -16,7 +19,7 @@ describe('a message proposed as a decision (C7)', () => {
   })
 
   it('a long message is cut after a sentence within 200 characters', () => {
-    const long = `${'The brief keeps to one page so a new admin reads it in a minute. '.repeat(4)}`
+    const long = 'The brief keeps to one page so a new admin reads it in a minute. '.repeat(4)
     const cut = statementFrom(long, false)
     assert.ok(cut.length <= 200, String(cut.length))
     assert.ok(cut.endsWith('minute.'), cut)
