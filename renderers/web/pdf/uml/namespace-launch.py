@@ -6,8 +6,8 @@ import ctypes, os, signal, sys, stat, select
 
 if os.geteuid() != 0:
     raise RuntimeError("root supervisor required for real UID10001 separation")
-if len(sys.argv) != 6:
-    raise RuntimeError("namespace supervisor: launcher kernel initrd job guest-root")
+if len(sys.argv) < 6:
+    raise RuntimeError("namespace supervisor: launcher kernel initrd job guest-root [job refused-path...]")
 # Validate real host ownership here: host UID0 is deliberately unmapped in the
 # child's user namespace and appears there as the overflow UID.
 for artifact in [sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[5]]:

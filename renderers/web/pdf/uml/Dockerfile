@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
-# Experimental, fixture-only Render worker. Not a production renderer.
-# Build from repository root; ordinary Chromium confinement files are unchanged.
+# The UML render host for Render (SDD-01): the supervisor (default target) or the qualification fixture
+# (--target fixture). Build from repository root; ordinary Chromium confinement files are unchanged.
 ARG NODE_IMAGE=node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 FROM ${NODE_IMAGE} AS deploy
 WORKDIR /src
@@ -50,7 +50,7 @@ COPY --from=kernel /build/abi-probe /build/linux.uml /opt/uml/
 RUN sh /opt/uml/make-guest.sh && python3 /opt/uml/make-initrd.py /opt/uml /opt/uml/initrd.gz \
  && chmod 0555 /opt/uml/linux.uml /opt/uml/abi-probe && chmod 0444 /opt/uml/guest.raw /opt/uml/initrd.gz
 
-FROM ${NODE_IMAGE}
+FROM ${NODE_IMAGE} AS host
 RUN apt-get update && apt-get install -y --no-install-recommends python3 \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --gid 10001 render \
@@ -58,6 +58,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 \
  && mkdir -p /work && chmod 0755 /work
 COPY --from=guest /opt/uml /opt/uml
 USER root
-# Start idle. A Render/container restart never starts another fixture batch.
-# The operator invokes host-qa.py once through the approved Shell session.
+
+# The qualification fixture (build with --target fixture). Start idle. A Render/container restart never starts another
+# fixture batch. The operator invokes host-qa.py once through the approved Shell session.
+FROM host AS fixture
 CMD ["node", "-e", "console.log(JSON.stringify({event:'uml_worker_idle',qualification:false}));setInterval(()=>{},60000)"]
+
+# The render host (SDD-01; the default target). The unchanged supervisor holds the runner capability, talks only to the
+# Sophia API and runs each job's kernel inside the guest above, through the launchers in job mode (supervisor.mjs
+# runUml). Its secrets come from the host at run time: SOPHIA_API_URL and SOPHIA_RENDER_RUNNER_TOKEN_FILE (a file only
+# root can read; the launchers show it refused before the guest starts).
+FROM host AS supervisor
+COPY --from=deploy /out /opt/sophia-renderer
+ENV NODE_ENV=production \
+  SOPHIA_RENDER_ISOLATION=uml \
+  SOPHIA_UML_ROOT=/opt/uml \
+  SOPHIA_RENDER_WORK=/work
+WORKDIR /opt/sophia-renderer
+CMD ["node", "supervisor.mjs"]

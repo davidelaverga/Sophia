@@ -3,16 +3,30 @@ Run only inside a fresh user/network/PID namespace, after real UID separation.
 The pinned guest is an untrusted component behind this host policy.
 """
 
-import ctypes, errno, json, os, platform, resource, socket, sys
+import ctypes, errno, json, os, platform, resource, socket, stat, sys
 
 if platform.system() != "Linux" or platform.machine() != "x86_64":
     raise RuntimeError("Linux x86_64 required")
 if os.getuid() == 0 or os.geteuid() == 0 or os.getgroups():
     raise RuntimeError("nonroot with cleared supplementary groups required")
-if len(sys.argv) != 5:
-    raise RuntimeError("launcher kernel initrd job-dir read-only-guest-root")
+# The fixture (host-qa.py) passes four paths. The render supervisor (SDD-01) adds `job` and the paths the job must be
+# refused (the runner capability's file, the supervisor's environment): the guest then reads its job from a read-only
+# input disk and writes its output to a fixed-size output disk, both in the job directory.
+if len(sys.argv) < 5 or (len(sys.argv) > 5 and (sys.argv[5] != "job" or len(sys.argv) < 7)):
+    raise RuntimeError("launcher kernel initrd job-dir read-only-guest-root [job refused-path...]")
 kernel, initrd, job, guest = (os.path.realpath(x) for x in sys.argv[1:5])
+job_mode = len(sys.argv) > 5
+refused = sys.argv[6:] if job_mode else ["/root/sophia-uml-private-secret", "/opt/uml-other/control"]
 extra = ["mem=768M", "ubd0r=" + guest]
+if job_mode:
+    disks = []
+    for name in ["input.tar", "output.img"]:
+        disk = os.path.join(job, name)
+        st = os.lstat(disk)
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:
+            raise RuntimeError("job disks must be single regular files in the job directory")
+        disks.append(disk)
+    extra += ["ubd1r=" + disks[0], "ubd2=" + disks[1], "sophia_job=1"]
 for artifact in [kernel, initrd, guest]:
     st = os.stat(artifact)
     if not os.path.isfile(artifact) or st.st_uid == os.geteuid() or st.st_mode & 0o022:
@@ -189,15 +203,7 @@ def denied_read(path):
         return error.errno
 
 
-checks = {
-    path: denied_read(path)
-    for path in [
-        "/etc/hostname",
-        "/root/sophia-uml-private-secret",
-        "/opt/uml-other/control",
-        "/proc/1/environ",
-    ]
-}
+checks = {path: denied_read(path) for path in ["/etc/hostname", *refused, "/proc/1/environ"]}
 proof = job + "/policy-proof"
 fd = os.open(proof, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
 os.write(fd, b"synthetic")

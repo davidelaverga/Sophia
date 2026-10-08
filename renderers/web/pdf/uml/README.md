@@ -1,15 +1,34 @@
-# Experimental Render qualification worker
+# UML render host for Render
 
-This is a fixture-only candidate for the existing suspended
+## Production render host (SDD-01)
+
+The Dockerfile's default target, `supervisor`, is the render host: the unchanged
+supervisor in UML mode (`SOPHIA_RENDER_ISOLATION=uml`, see the renderer README),
+with the guest below. Each claimed job runs in a fresh guest started by the
+launchers in job mode (`landlock-launch.py … job <refused paths>`): the job comes
+from a read-only input disk and its output goes back on a fixed-size output disk
+(`guest-job`, `../uml-job.mjs`). The fixture's records, guards and limits are the
+same; job mode adds only the two disks and `sophia_job=1`, and requires at least
+one refused path (the runner capability's file and the supervisor's environment).
+
+```sh
+docker build --platform linux/amd64 -f renderers/web/pdf/uml/Dockerfile .             # render host
+docker build --platform linux/amd64 --target fixture -f renderers/web/pdf/uml/Dockerfile .  # fixture
+```
+
+CI (`.github/workflows/uml-supervisor.yml`) builds the render host and runs
+`supervisor-e2e.mjs` in it: a PDF job, a capture job at both targets and a job
+stopped while its guest renders, through the real launchers, kernel and browser,
+against a loopback stand-in of the renderer API. That is CI evidence on a GitHub
+host, not Render acceptance. The width sweep's own 60-second deadline decides its
+outcome; the earlier forecast from the first batch is gone (placement.mjs).
+
+## Qualification fixture
+
+This was a fixture-only candidate for the existing suspended
 `sophia-renderer-qualification` worker (`srv-db3ab3psrm7s73b8gbbg`). It does not
 register a runner, start the production supervisor, access production credentials,
 or deploy the Sophia application. No production acceptance is claimed.
-
-Build from the repository root with this Dockerfile:
-
-```sh
-docker build --platform linux/amd64 -f renderers/web/pdf/uml/Dockerfile .
-```
 
 The image builds Linux 6.12.101 from the hash-checked official archive, applies
 `kernel-abi.patch`, and builds a minimal read-only ext4 guest from an explicit

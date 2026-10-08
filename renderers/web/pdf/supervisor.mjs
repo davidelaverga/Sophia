@@ -12,9 +12,15 @@
 // SDD-01: a claim names the formats this host renders (`pdf`, and `png` for the capture kernel, capture-html.mjs); a
 // capture job runs that kernel instead and uploads each PNG its receipt names, checked against the receipt, before it
 // settles. A runner that names no formats is a PDF runner and is never handed a capture.
+// SDD-01, Render: with SOPHIA_RENDER_ISOLATION=uml the kernel runs, unchanged, inside a User-mode Linux guest
+// (renderers/web/pdf/uml) behind the host launchers (render uid, fresh user/network/PID namespaces, no new privileges,
+// Landlock, seccomp): one read-only input disk carries the job, one output disk of a fixed size carries its output
+// back (uml-job.mjs), read only as regular files with the kernels' own names, within bounds. Killing the launcher's
+// process group ends the guest; a guest past its job's time plus UML_MARGIN_MS is killed and its job abandoned.
 // Usage: supervisor.mjs, with SOPHIA_API_URL, SOPHIA_RENDER_RUNNER_TOKEN_FILE (or SOPHIA_RENDER_RUNNER_TOKEN),
 // SOPHIA_RENDER_WORK (a directory), and for the kernel SOPHIA_RENDER_UID (when root), SOPHIA_CHROMIUM_PATH or
-// PLAYWRIGHT_BROWSERS_PATH (or Playwright's default cache in HOME).
+// PLAYWRIGHT_BROWSERS_PATH (or Playwright's default cache in HOME); or SOPHIA_RENDER_ISOLATION=uml, with the guest's
+// artifacts under SOPHIA_UML_ROOT (/opt/uml).
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -22,6 +28,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { chromiumPath } from './confine.mjs'
 import { sha256Hex } from './source-manifest.mjs'
+import { inputArchive, outputDisk, takeOutput } from './uml-job.mjs'
 
 /** The kernel each format runs. */
 const KERNELS = {
@@ -35,10 +42,21 @@ const CAPTURE_NAME = /^[a-z0-9][a-z0-9.-]{0,150}\.png$/
 /** What the kernel inherits besides the browser's path: the render user and nothing else (never the capability). */
 const KERNEL_ENV = ['SOPHIA_RENDER_UID', 'SOPHIA_RENDER_GID']
 const KILL_GRACE_MS = 10_000
+/** A UML guest's time past its job's: its boot, the archive written back and its power-off. */
+export const UML_MARGIN_MS = 90_000
+/** What the launchers and the guest may print before the job is refused: their records, boot and kernel logs. */
+const UML_LOG_BYTES = 8 * 1024 * 1024
+/** The guest's artifacts, each root-owned and writable by no one else (namespace-launch.py checks them again). */
+const UML_ARTIFACTS = ['namespace-launch.py', 'landlock-launch.py', 'linux.uml', 'initrd.gz', 'guest.raw']
+/** Where a job's paths lie inside the guest (uml/guest-job). */
+const GUEST = { dir: '/work/job', sourceRoot: '/work/job/src', outputDir: '/work/job/out' }
 
 /**
+ * @typedef {{ root?: string, command?: (dir: string) => string[], marginMs?: number }} UmlConfig the guest's artifacts;
+ *   `command` and `marginMs` replace the launchers and the margin in tests only
  * @typedef {{ apiUrl: string, token: string, workDir: string, env?: NodeJS.ProcessEnv, heartbeatMs?: number,
- *   pollMs?: number, beforeRender?: (job: RenderJob) => Promise<void>, log?: (line: string) => void }} SupervisorConfig
+ *   pollMs?: number, beforeRender?: (job: RenderJob) => Promise<void>, log?: (line: string) => void,
+ *   isolation?: 'native' | 'uml', uml?: UmlConfig, tokenFile?: string }} SupervisorConfig
  * @typedef {{ jobId: string, leaseToken: string, language: string, sourceManifestHash: string, timeoutMs: number,
  *   files: { path: string, role: 'entry' | 'asset', sha256: string, byteLength: number }[], format: 'pdf' | 'png',
  *   targets: string[], sections: string[] | null }} RenderJob
@@ -234,7 +252,7 @@ function kernelJob(job, where) {
  * @param {RenderJob} job
  * @param {string} jobFile
  * @param {string} browser the headless shell, resolved by this process
- * @returns {Promise<{ cancelled: boolean }>}
+ * @returns {Promise<{ cancelled: boolean, timedOut: boolean }>}
  */
 function runKernel(cfg, job, jobFile, browser) {
   const source = cfg.env ?? process.env
@@ -247,15 +265,45 @@ function runKernel(cfg, job, jobFile, browser) {
     stdio: ['ignore', 'ignore', 'pipe'],
   })
   child.stderr.on('data', (/** @type {Buffer} */ d) => cfg.log?.(`[kernel ${job.jobId}] ${d.toString().trim()}`))
+  return supervised(cfg, job, child, null).done
+}
+
+/**
+ * Signal a process group this process started; one already gone is not an error.
+ * @param {number} group the negated pid of its leader
+ * @param {NodeJS.Signals} signal
+ */
+function signalGroup(group, signal) {
+  try {
+    process.kill(group, signal)
+  } catch (error) {
+    if (!(error instanceof Error) || Reflect.get(error, 'code') !== 'ESRCH') throw error
+  }
+}
+
+/**
+ * Supervise a process group the supervisor started: heartbeats while it runs; a Hold, a Stop, a lost lease or (when
+ * `wallMs` is set) its time running out kills the group, TERM then KILL. Resolves when it exits.
+ * @param {SupervisorConfig} cfg
+ * @param {RenderJob} job
+ * @param {import('node:child_process').ChildProcess} child the group's leader
+ * @param {number | null} wallMs
+ * @returns {{ stop: () => void, done: Promise<{ cancelled: boolean, timedOut: boolean }> }}
+ */
+function supervised(cfg, job, child, wallMs) {
   let cancelled = false
+  let timedOut = false
+  let stopped = false
+  const kill = () => {
+    if (stopped || child.pid === undefined || child.exitCode !== null) return
+    stopped = true
+    const group = -child.pid
+    signalGroup(group, 'SIGTERM')
+    setTimeout(() => child.exitCode === null && signalGroup(group, 'SIGKILL'), KILL_GRACE_MS).unref()
+  }
   const stop = () => {
-    if (cancelled || child.pid === undefined) return
-    cancelled = true
-    process.kill(-child.pid, 'SIGTERM')
-    setTimeout(
-      () => child.exitCode === null && child.pid !== undefined && process.kill(-child.pid, 'SIGKILL'),
-      KILL_GRACE_MS,
-    ).unref()
+    if (!stopped) cancelled = true
+    kill()
   }
   const beat = async () => {
     try {
@@ -267,12 +315,183 @@ function runKernel(cfg, job, jobFile, browser) {
   }
   void beat()
   const timer = setInterval(() => void beat(), cfg.heartbeatMs ?? 5000)
-  return new Promise((resolve) => {
+  const wall =
+    wallMs === null
+      ? undefined
+      : setTimeout(() => {
+          if (!stopped) timedOut = true
+          kill()
+        }, wallMs)
+  /** @type {Promise<{ cancelled: boolean, timedOut: boolean }>} */
+  const done = new Promise((/** @type {(v: { cancelled: boolean, timedOut: boolean }) => void} */ resolve) => {
     child.on('exit', () => {
       clearInterval(timer)
-      resolve({ cancelled })
+      clearTimeout(wall)
+      resolve({ cancelled, timedOut })
     })
   })
+  return { stop: kill, done }
+}
+
+/**
+ * The launchers' command for one job directory: namespace-launch.py, then landlock-launch.py in job mode, which must
+ * show the runner capability's file and this process's environment refused before it starts the guest.
+ * @param {SupervisorConfig} cfg
+ * @param {string} dir
+ */
+function umlCommand(cfg, dir) {
+  if (cfg.uml?.command) return cfg.uml.command(dir)
+  const root = cfg.uml?.root ?? '/opt/uml'
+  const refused = [`/proc/${process.pid}/environ`, ...(cfg.tokenFile ? [cfg.tokenFile] : [])]
+  return [
+    '/usr/bin/python3',
+    path.join(root, 'namespace-launch.py'),
+    path.join(root, 'landlock-launch.py'),
+    path.join(root, 'linux.uml'),
+    path.join(root, 'initrd.gz'),
+    dir,
+    path.join(root, 'guest.raw'),
+    'job',
+    ...refused,
+  ]
+}
+
+/**
+ * What the launchers reported before the guest started, read from the group's output within UML_LOG_BYTES: the first
+ * record of each kind counts, and a second (which only the guest could print) refuses the job. Lines the launchers or
+ * the guest mark (`UML_`) are logged; the rest of the guest's console is counted, not kept.
+ * @param {SupervisorConfig} cfg
+ * @param {RenderJob} job
+ * @param {import('node:child_process').ChildProcess} child
+ * @param {() => void} stop
+ */
+function launcherRecords(cfg, job, child, stop) {
+  /** @type {{ adverse: object | null, policy: object | null, refused: string | null }} */
+  const seen = { adverse: null, policy: null, refused: null }
+  let bytes = 0
+  let pending = ''
+  /** @param {string} line */
+  const take = (line) => {
+    if (line.startsWith('UML_')) cfg.log?.(`[uml ${job.jobId}] ${line.slice(0, 300)}`)
+    if (!line.startsWith('{') || !line.includes('"UML_HOST_')) return
+    /** @type {unknown} */
+    let record
+    try {
+      record = /** @type {unknown} */ (JSON.parse(line))
+    } catch {
+      return
+    }
+    if (typeof record !== 'object' || record === null) return
+    const event = fieldOf(record, 'event')
+    const key =
+      event === 'UML_HOST_ADVERSE_CONTROLS' ? 'adverse' : event === 'UML_HOST_POLICY_APPLIED' ? 'policy' : null
+    if (!key) return
+    if (seen[key]) seen.refused = `${String(event)} was reported twice`
+    else seen[key] = record
+  }
+  /** @param {Buffer} chunk */
+  const read = (chunk) => {
+    bytes += chunk.length
+    if (bytes > UML_LOG_BYTES) {
+      seen.refused ??= `the guest printed more than ${UML_LOG_BYTES} bytes`
+      stop()
+      return
+    }
+    pending += chunk.toString('utf8')
+    const lines = pending.split('\n')
+    pending = lines.pop() ?? ''
+    if (pending.length > 64 * 1024) pending = ''
+    for (const line of lines) take(line.trim())
+  }
+  child.stdout?.on('data', read)
+  child.stderr?.on('data', read)
+  return seen
+}
+
+/**
+ * Whether the launchers showed their policy applied: the render uid, seccomp, Landlock ABI 4 or later, and every
+ * adverse control (refused paths, no socket, a descendant bound by the same policy).
+ * @param {ReturnType<typeof launcherRecords>} seen
+ */
+function policyApplied(seen) {
+  const { adverse, policy } = seen
+  if (seen.refused || !adverse || !policy) return false
+  const abi = fieldOf(policy, 'landlockABI')
+  return (
+    fieldOf(policy, 'uid') === 10001 &&
+    fieldOf(policy, 'seccomp') === 2 &&
+    typeof abi === 'number' &&
+    abi >= 4 &&
+    adverseShown(adverse)
+  )
+}
+
+/**
+ * Whether the launcher's adverse controls all held: two refused paths or more (EPERM or EACCES), its own job directory
+ * read and written, an escaping link refused, no socket, and a descendant bound by the same policy.
+ * @param {object} adverse
+ */
+function adverseShown(adverse) {
+  const refused = fieldOf(adverse, 'excluded_errno')
+  return (
+    fieldOf(adverse, 'descendant_inherits') === true &&
+    fieldOf(adverse, 'own_job_read_write') === true &&
+    fieldOf(adverse, 'socket_errno') === 1 &&
+    fieldOf(adverse, 'symlink_errno') === 13 &&
+    typeof refused === 'object' &&
+    refused !== null &&
+    Object.keys(refused).length >= 2 &&
+    Object.values(refused).every((e) => e === 1 || e === 13)
+  )
+}
+
+/**
+ * A field of a record a launcher printed, unchecked.
+ * @param {object} o
+ * @param {string} key
+ * @returns {unknown}
+ */
+const fieldOf = (o, key) => /** @type {unknown} */ (Reflect.get(o, key))
+
+/**
+ * Run one job's kernel inside the UML guest: its input disk written, its output disk made, the launchers started as
+ * their own process group under the same heartbeats and Stop as a native kernel, and a wall time of the job's own plus
+ * the margin. The output is taken only when the launchers reported their policy applied.
+ * @param {SupervisorConfig} cfg
+ * @param {RenderJob} job
+ * @param {{ dir: string, sourceRoot: string, outputDir: string }} where
+ * @returns {Promise<{ cancelled: boolean, timedOut: boolean }>}
+ */
+async function runUml(cfg, job, where) {
+  const dir = path.join(where.dir, 'uml')
+  // namespace-launch.py maps exactly uid and gid 10001; the guest's directory is theirs, its input this process's.
+  const owner = process.getuid?.() === 0 ? { uid: 10001, gid: 10001 } : null
+  fs.mkdirSync(dir, { mode: 0o700 })
+  const archive = inputArchive(
+    job.format,
+    kernelJob(job, GUEST),
+    where.sourceRoot,
+    job.files.map((f) => f.path),
+  )
+  fs.writeFileSync(path.join(dir, 'input.tar'), archive, { flag: 'wx', mode: 0o644 })
+  outputDisk(path.join(dir, 'output.img'), owner)
+  if (owner) fs.chownSync(dir, owner.uid, owner.gid)
+  const [command, ...args] = umlCommand(cfg, dir)
+  if (!command) throw new Error('no UML launcher')
+  const child = spawn(command, args, {
+    env: { PATH: '/usr/bin:/bin' },
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  const run = supervised(cfg, job, child, job.timeoutMs + (cfg.uml?.marginMs ?? UML_MARGIN_MS))
+  const seen = launcherRecords(cfg, job, child, run.stop)
+  const result = await run.done
+  if (result.cancelled) return result
+  if (result.timedOut) throw new Error(`the UML guest ran past its job's time and was killed`)
+  if (seen.refused) throw new Error(`the UML guest's output is refused: ${seen.refused}`)
+  if (!policyApplied(seen)) throw new Error('the UML launchers did not report their host policy applied')
+  takeOutput(path.join(dir, 'output.img'), where.outputDir)
+  return result
 }
 
 /**
@@ -342,6 +561,10 @@ async function deliver(cfg, job, outputDir) {
  * @param {SupervisorConfig} cfg
  */
 function hostReady(cfg) {
+  if (cfg.isolation === 'uml') {
+    umlReady(cfg)
+    return ''
+  }
   const browser = chromiumPath(cfg.env ?? process.env)
   if (!fs.existsSync(browser)) {
     throw new Error(`no headless shell at ${browser}: set SOPHIA_CHROMIUM_PATH or PLAYWRIGHT_BROWSERS_PATH`)
@@ -350,6 +573,32 @@ function hostReady(cfg) {
     throw new Error(`the render user cannot reach ${cfg.workDir}: give it search permission for others (o+x)`)
   }
   return browser
+}
+
+/**
+ * What a UML host needs before it claims: the guest's artifacts, each a regular file, root-owned and writable by no
+ * one else when this process is root (it must be, to separate the launchers' uid), and a work directory the render
+ * uid can reach. Tests that replace the launchers skip the root requirement.
+ * @param {SupervisorConfig} cfg
+ */
+function umlReady(cfg) {
+  if (cfg.uml?.command) return
+  if (process.getuid?.() !== 0)
+    throw new Error('a UML host runs its supervisor as root, to start the guest as uid 10001')
+  for (const name of UML_ARTIFACTS) immutableArtifact(path.join(cfg.uml?.root ?? '/opt/uml', name))
+  if ((fs.statSync(cfg.workDir).mode & 0o001) === 0) {
+    throw new Error(`the render user cannot reach ${cfg.workDir}: give it search permission for others (o+x)`)
+  }
+}
+
+/**
+ * A guest artifact: a regular file (not through a link), root-owned and writable by no one else.
+ * @param {string} file
+ */
+function immutableArtifact(file) {
+  const st = fs.lstatSync(file, { throwIfNoEntry: false })
+  if (!st?.isFile()) throw new Error(`no UML artifact at ${file}`)
+  if (st.uid !== 0 || (st.mode & 0o022) !== 0) throw new Error(`${file} is not root-owned and immutable`)
 }
 
 /**
@@ -369,11 +618,18 @@ export async function runOnce(cfg) {
     fs.mkdirSync(where.sourceRoot, { mode: 0o755 })
     fs.mkdirSync(where.outputDir, { mode: 0o700 })
     await fetchPackage(cfg, job, where.sourceRoot)
-    const jobFile = path.join(dir, 'job.json')
-    fs.writeFileSync(jobFile, JSON.stringify(kernelJob(job, where)), { flag: 'wx', mode: 0o600 })
-    await cfg.beforeRender?.(job)
-    const run = await runKernel(cfg, job, jobFile, browser)
+    let run
+    if (cfg.isolation === 'uml') {
+      await cfg.beforeRender?.(job)
+      run = await runUml(cfg, job, where)
+    } else {
+      const jobFile = path.join(dir, 'job.json')
+      fs.writeFileSync(jobFile, JSON.stringify(kernelJob(job, where)), { flag: 'wx', mode: 0o600 })
+      await cfg.beforeRender?.(job)
+      run = await runKernel(cfg, job, jobFile, browser)
+    }
     if (run.cancelled) return { claimed: true, jobId: job.jobId, outcome: 'cancelled' }
+    if (run.timedOut) throw new Error('the kernel ran past its time and was killed')
     return { claimed: true, jobId: job.jobId, outcome: await deliver(cfg, job, where.outputDir) }
   } catch (error) {
     cfg.log?.(`render ${job.jobId} not delivered: ${error instanceof Error ? error.message : String(error)}`)
@@ -401,6 +657,17 @@ export async function supervise(cfg, signal) {
   }
 }
 
+/**
+ * How this host runs its kernels: natively (the default), or in the UML guest.
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {'native' | 'uml'}
+ */
+function isolationOf(env) {
+  const isolation = env.SOPHIA_RENDER_ISOLATION ?? 'native'
+  if (isolation !== 'native' && isolation !== 'uml') throw new Error('SOPHIA_RENDER_ISOLATION is native or uml')
+  return isolation
+}
+
 /** @param {NodeJS.ProcessEnv} env */
 function configOf(env) {
   const tokenFile = env.SOPHIA_RENDER_RUNNER_TOKEN_FILE
@@ -415,6 +682,9 @@ function configOf(env) {
     token,
     workDir: env.SOPHIA_RENDER_WORK,
     env,
+    isolation: isolationOf(env),
+    uml: { root: env.SOPHIA_UML_ROOT ?? '/opt/uml' },
+    ...(tokenFile ? { tokenFile } : {}),
     log: (/** @type {string} */ l) => process.stderr.write(`${l}\n`),
   }
 }

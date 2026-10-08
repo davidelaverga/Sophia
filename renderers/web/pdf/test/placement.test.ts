@@ -433,7 +433,7 @@ describe('how the texts lie inside a band (#117, placement.mjs)', () => {
         timedOut: false,
       })
       assert.ok(
-        records.slice(0, 20).every((r) => (r as { late: boolean }).late === false),
+        records.slice(0, 20).every((r) => !(r as { late: boolean }).late),
         'no batch before the time ran out is late',
       )
       records.length = 0

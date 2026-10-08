@@ -12,6 +12,7 @@ for name, path, mode in [
     ("bin/busybox", "/bin/busybox", 0o755),
     ("init", str(root / "guest-init"), 0o755),
     ("guest-run", str(root / "guest-run"), 0o755),
+    ("guest-job", str(root / "guest-job"), 0o755),
     ("diagnostic.mjs", str(root / "diagnostic.mjs"), 0o644),
     ("abi-probe", "/opt/uml/abi-probe", 0o755),
 ]:

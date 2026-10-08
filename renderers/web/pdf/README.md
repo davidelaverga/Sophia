@@ -105,6 +105,14 @@ Configuration:
 - `SOPHIA_RENDER_RUNNER_TOKEN_FILE`: the capability, registered by the owner by its SHA-256 (`sophia.register_render_runner`);
 - `SOPHIA_RENDER_WORK`: the work directory. When the supervisor runs as root it must be searchable by others, so the render user reaches the job directories; a host where it is not takes no job;
 - for the kernel: `SOPHIA_RENDER_UID` (when root), and the browser: `SOPHIA_CHROMIUM_PATH`, `PLAYWRIGHT_BROWSERS_PATH`, or Playwright's default cache in `HOME`. A host where the browser is missing takes no job.
+- `SOPHIA_RENDER_ISOLATION`: `native` (the default, above) or `uml`, for a host that cannot give the kernel's wrapper fresh namespaces and `/proc` (Render). See below.
+
+**UML mode (SDD-01, Render).** With `SOPHIA_RENDER_ISOLATION=uml` the supervisor runs as root and each job's kernel runs, unchanged, inside a User-mode Linux guest (`uml/`, image `uml/Dockerfile`, default target), behind the host launchers: uid 10001, fresh user, network and PID namespaces, no new privileges, Landlock ABI 4 and a seccomp filter (no sockets, mounts, modules or `io_uring`). Inside the guest the unchanged `confine.mjs` and `bin/confine-chromium` start the browser with Chromium's sandbox and the self-test, as on a native host. Per job (`uml-job.mjs`):
+- the supervisor writes the job (the kernel's name, its job file with the guest's paths, and the package) as one ustar archive, the guest's read-only input disk, and makes a zeroed output disk of exactly 112 MiB;
+- the launchers must print their policy and adverse-control records (the runner capability's file and the supervisor's environment refused, no socket, a descendant bound by the same policy) before the guest starts; without them, with a weaker one, or with a record printed twice, the job is abandoned and nothing is uploaded;
+- the guest writes its output directory back as one archive; the supervisor reads it through no link, as a regular file of exactly its size, and takes only regular files named as the kernels name their outputs (`receipt.json`, `report.pdf`, captures), at most 80 files, 32 MiB each and 100 MiB in all. Anything else refuses the whole archive. The receipt is then delivered exactly as a native kernel's is;
+- cancellation is the supervisor's: a Hold, a Stop or a lost lease kills the launchers' process group (TERM, then KILL after 10 s), whose namespace init takes the guest and every process in it; a guest still running at its job's time plus 90 s is killed the same way and its job abandoned.
+- `SOPHIA_UML_ROOT` (default `/opt/uml`) holds the guest's artifacts, each root-owned and writable by no one else, or the host takes no job.
 
 On the service side (migration 0030):
 - **Queue and claims.** A render job is a research task's child job. The queue skips goals that are not working. A lease runs 5 minutes and is extended by heartbeats. A lost lease is claimed again, at most three times, then the job fails as `renderer_lost`.

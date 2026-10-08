@@ -18,7 +18,7 @@ jobs:
       - name: Verify driver, settlement and owned affinity controls
         run: python3 -m unittest discover -s renderers/web/pdf/uml -p 'test_*.py'
       - name: Build exact fixture image
-        run: docker build --platform linux/amd64 -f renderers/web/pdf/uml/Dockerfile -t sophia-uml-fixture .
+        run: docker build --platform linux/amd64 --target fixture -f renderers/web/pdf/uml/Dockerfile -t sophia-uml-fixture .
       - name: Build preceding readers with the same candidate kernel and driver
         run: |
           baseline=4eb223e67d428c2473d07ccc2ad1912142c87b45
@@ -33,7 +33,7 @@ jobs:
             sha256sum "$path" "$control/$path"
           done
           printf 'UML_READER_CONTROL_SOURCE %s\n' "$baseline"
-          docker build --platform linux/amd64 -f "$control/renderers/web/pdf/uml/Dockerfile" -t sophia-uml-reader-control "$control"
+          docker build --platform linux/amd64 --target fixture -f "$control/renderers/web/pdf/uml/Dockerfile" -t sophia-uml-reader-control "$control"
       # The existing renderer CI requires this same runner-only namespace setting.
       # The browser sandbox, host Landlock and inherited seccomp remain active.
       - name: Allow the fixture's unprivileged namespaces
