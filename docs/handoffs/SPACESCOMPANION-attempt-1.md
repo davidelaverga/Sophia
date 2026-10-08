@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/spaces-companion.spec.ts`, `apps/studio/fixture
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `spaces/companion` from `spaces/honest` (`bbc1c39e`), 2026-10-07
-Ending commit/tree: `247c52005f3e3f441dce0fd89676afc2b044916e` (tree `af8740bf271d0d5cec081be28799be48e9fc3442`). The commit after it adds only this handoff.
+Ending commit/tree: `247c52005f3e3f441dce0fd89676afc2b044916e` (tree `af8740bf271d0d5cec081be28799be48e9fc3442`). The commits after it change only this handoff.
 
 ## Outcome
 
@@ -25,8 +25,8 @@ Design note: `docs/plans/spaces-companion.md`. Fixture only: the companion's wor
 
 ## Evidence
 
-- Browser checks: `e2e/spaces-companion.spec.ts` new (the apology to Davide, someone else's apology, «Marketing» is not
-  Marco, the deck again). Not run locally (RAM beside AION2 under the guard's floor, never lowered); CI runs them.
+- Browser checks: `e2e/spaces-companion.spec.ts` new (the apology to Davide, someone else's apology and «Why should I», «Davidek» is not
+  Davide, the deck again). Not run locally (RAM beside AION2 under the guard's floor, never lowered); CI runs them.
   The replies were probed by hand against the fixture's history.
 - Prettier, `oxlint --type-aware`, `tsc`. Mutants: not run, for the same reason.
 - Independent review, three rounds: the first's P2s taken (guessed names, the apology's direction, the weights'
