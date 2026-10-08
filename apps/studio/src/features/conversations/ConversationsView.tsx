@@ -25,6 +25,7 @@ import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
 import { NO_WORDS, START, useKept, withEntry } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { useArrival } from '../studio/project-go.tsx'
 import './conversations.css'
 
 /** Newest activity first: sorted once per answer. */
@@ -53,14 +54,20 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
     retry: 1,
   })
   useReadAgain(cursor, list.refetch)
-  return { list, all: list.data ?? [] }
+  // Read, and not being read again: what it holds is the list as it is now.
+  return { list, all: list.data ?? [], settled: list.isSuccess && !list.isFetching }
 }
 
 export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
   const { me, writer } = readerOf(membership)
-  const { list, all } = useList(projectId, identity, cursor)
-  const { open, choose } = useChosen(all)
+  const { list, all, settled } = useList(projectId, identity, cursor)
+  const { open, choose, ask, missing } = useChosen(all, settled)
   const panes = usePanes()
+  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too.
+  useArrival('conversations', (to) => {
+    ask(to.conversationId)
+    panes.show()
+  })
   const talk = useTalk(projectId, identity.name)
   const start = useStart(projectId, identity, talk, (id) => {
     choose(id)
@@ -83,6 +90,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         all={all}
         openId={shown?.id}
         me={me}
+        missing={missing}
         start={writer ? start : null}
         // With no conversation open (none yet, or the form for a new one), «Context» is the list's.
         context={shown ? null : { open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
@@ -114,6 +122,8 @@ function ListPane(props: {
   all: readonly ConversationSummary[]
   openId: string | undefined
   me: string
+  /** One asked for from elsewhere that the list, read again, doesn't hold. */
+  missing: boolean
   start: ReturnType<typeof useStart> | null
   context: Parameters<typeof ContextToggle>[0]['context'] | null
   onOpen: (id: string) => void
@@ -129,6 +139,11 @@ function ListPane(props: {
         </div>
       </div>
       <ListState read={props.read} count={all.length} />
+      {props.missing && (
+        <p className="conv-note" role="status">
+          The conversation asked for isn’t here: the newest is open.
+        </p>
+      )}
       {all.length > 0 && (
         <Rows
           {...{ all, me: props.me, reader: props.reader }}
@@ -284,12 +299,28 @@ function Open(props: {
 
 /**
  * The open conversation: the newest at first, then kept, so one that moves to the top meanwhile never takes its place.
- * One that leaves the list gives its place to the newest, which is kept in turn.
+ * One that leaves the list gives its place to the newest, which is kept in turn. One chosen while the list is still
+ * coming (asked for from elsewhere) waits for it.
  */
-function useChosen(all: readonly ConversationSummary[]) {
+function useChosen(all: readonly ConversationSummary[], settled: boolean) {
   const [chosen, setChosen] = useState<string | null>(null)
-  if (all[0] && !all.some((c) => c.id === chosen)) setChosen(all[0].id)
-  return { open: all.find((c) => c.id === chosen) ?? all[0], choose: setChosen }
+  // One asked for from elsewhere (`ask`) waits for the list read again before the newest takes its place, and then
+  // says it isn't there (`missing`) rather than opening another in silence.
+  const [wanted, setWanted] = useState<string | null>(null)
+  const held = all.some((c) => c.id === chosen)
+  if (all[0] && !held && (wanted === null || settled)) setChosen(all[0].id)
+  return {
+    open: all.find((c) => c.id === chosen) ?? all[0],
+    choose: (id: string) => {
+      setWanted(null)
+      setChosen(id)
+    },
+    ask: (id: string) => {
+      setWanted(id)
+      setChosen(id)
+    },
+    missing: wanted !== null && settled && !all.some((c) => c.id === wanted),
+  }
 }
 
 /**
