@@ -5,13 +5,15 @@ import { expect, test, type Page } from '@playwright/test'
 
 const PAGE = '/personal.html?demo=1'
 const field = (page: Page) => page.locator('#c-input')
-const lastAnswer = (page: Page) => page.locator('.msg.sophia .body').last()
+// Her answers, not the line saying she is writing one (`.typing`): the next words wait for the answer itself.
+const answers = (page: Page) => page.locator('.msg.sophia:not(.typing) .body')
+const lastAnswer = (page: Page) => answers(page).last()
 
 async function say(page: Page, words: string) {
-  const answers = await page.locator('.msg.sophia .body').count()
+  const before = await answers(page).count()
   await field(page).fill(words)
   await field(page).press('Enter')
-  await expect(page.locator('.msg.sophia .body')).toHaveCount(answers + 1)
+  await expect(answers(page)).toHaveCount(before + 1)
 }
 
 test('companion · a name said before brings back what you said about them', async ({ page }) => {
