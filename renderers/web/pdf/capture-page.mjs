@@ -2726,11 +2726,12 @@ function misplacedTables(blocks) {
  * reads 10² (#117); a citation marker may be raised.
  * @param {Element[]} blocks
  * @param {'ltr' | 'rtl'} base the direction of the report's language, a text with no letter's (misdirected)
+ * @param {OffscreenCanvasRenderingContext2D | null} [ctx] a retained scratch canvas for width reads only
  * @returns {string[]}
  */
-function reorderedBlocks(blocks, base) {
+function reorderedBlocks(blocks, base, ctx) {
   return blocks
-    .filter((el) => misdirected(el, base) || outOfOrder(el) || cellsOutOfOrder(el))
+    .filter((el) => misdirected(el, base) || outOfOrder(el, ctx) || cellsOutOfOrder(el, ctx))
     .map((el) => el.getAttribute('data-block') ?? '')
 }
 
@@ -2740,9 +2741,10 @@ function reorderedBlocks(blocks, base) {
  * as a block's are (outOfOrder), and a flex wrapper in a cell that draws "Not free" as "free Not", or a figure raised
  * in one, fails.
  * @param {Element} block
+ * @param {OffscreenCanvasRenderingContext2D | null} [ctx]
  */
-function cellsOutOfOrder(block) {
-  return [...block.querySelectorAll('th, td')].some((cell) => outOfOrder(cell))
+function cellsOutOfOrder(block, ctx) {
+  return [...block.querySelectorAll('th, td')].some((cell) => outOfOrder(cell, ctx))
 }
 
 /**
@@ -2803,14 +2805,15 @@ function ownText(el) {
  * Whether a block's runs of text are drawn out of their order (reorderedBlocks): each run's first line box against the
  * last line box of the run before it.
  * @param {Element} block
+ * @param {OffscreenCanvasRenderingContext2D | null} [canvas]
  */
-function outOfOrder(block) {
+function outOfOrder(block, canvas) {
   const rtl = getComputedStyle(block).direction === 'rtl'
   const opposite = rtl
     ? /(?![\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF])\p{L}/u
     : /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u
   const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
-  const look = { block, range: document.createRange(), opposite, ctx: new OffscreenCanvas(1, 1).getContext('2d') }
+  const look = { block, range: document.createRange(), opposite, ctx: baselineCanvas(canvas) }
   /** @type {Run | null} */
   let before = null
   /** @type {Run[]} */
@@ -2830,6 +2833,15 @@ function outOfOrder(block) {
     spaced = false
   }
   return offLine(runs)
+}
+
+/**
+ * Start each block with a fresh canvas's font, including when a font assignment is rejected.
+ * @param {OffscreenCanvasRenderingContext2D | null | undefined} canvas
+ */
+function baselineCanvas(canvas) {
+  if (canvas) canvas.font = '10px sans-serif'
+  return canvas === undefined ? new OffscreenCanvas(1, 1).getContext('2d') : canvas
 }
 
 /**
@@ -3124,6 +3136,7 @@ const IN_PAGE = [
   startsDirection,
   ownText,
   outOfOrder,
+  baselineCanvas,
   offLine,
   onOneLine,
   runOf,
@@ -3334,8 +3347,9 @@ export function conditionsScript() {
  * (misplacedTables) and the blocks whose text is drawn out of its order (reorderedBlocks), which the width sweep reads
  * at every width (capture-html.mjs, #117).
  * @param {'ltr' | 'rtl'} base the direction of the report's language (misdirected)
+ * @param {boolean} [retained] return a reader with one scratch canvas; its calls still read all current page data
  */
-export function orderScript(base) {
+export function orderScript(base, retained = false) {
   const source = [
     misplacedTables,
     cellsMoved,
@@ -3348,6 +3362,7 @@ export function orderScript(base) {
     startsDirection,
     ownText,
     outOfOrder,
+    baselineCanvas,
     offLine,
     onOneLine,
     runOf,
@@ -3361,6 +3376,10 @@ export function orderScript(base) {
     .map((f) => f.toString())
     .join('\n')
   const blocks = "[...document.querySelectorAll('[data-block]')]"
-  const order = `reorderedBlocks(${blocks}, ${JSON.stringify(base)})`
-  return `(() => {\n${source}\nreturn [innerWidth, misplacedTables(${blocks}).join(), ${order}.join()]\n})()`
+  const order = `reorderedBlocks(${blocks}, ${JSON.stringify(base)}${retained ? ', ctx' : ''})`
+  const answer = `[innerWidth, misplacedTables(${blocks}).join(), ${order}.join()]`
+  // Retain only trusted code and scratch storage, never a computed page answer.
+  return retained
+    ? `(() => {\n${source}\nconst ctx = new OffscreenCanvas(1, 1).getContext('2d')\nreturn () => ${answer}\n})()`
+    : `(() => {\n${source}\nreturn ${answer}\n})()`
 }

@@ -254,7 +254,21 @@ function addLayout(node, layout, li, strings) {
   if (w > 0 || h > 0 || !node.box) node.box = unite(node.box, [x, y, x + w, y + h])
   node.paint = widen(node.paint, layout.paintOrders?.[li])
   const styles = layout.styles[li] ?? []
-  node.style ??= Object.fromEntries(STYLES.map((name, k) => [name, stringAt(strings, styles[k])]))
+  node.style ??= stylesOf(styles, strings)
+}
+
+/**
+ * Decode every requested computed style without allocating a pair array for each property.
+ * @param {number[]} indices
+ * @param {string[]} strings
+ * @returns {Record<string, string>}
+ */
+function stylesOf(indices, strings) {
+  /** @type {Record<string, string>} */
+  const values = {}
+  let k = 0
+  for (const name of STYLES) values[name] = stringAt(strings, indices[k++])
+  return values
 }
 
 /**

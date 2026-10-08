@@ -141,7 +141,19 @@ const CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'no
 /** A protocol double executes the actual trusted expression and tracks every viewport/snapshot read. */
 function widthSession(fault = '') {
   const calls: { method: string; width: number }[] = []
-  const world = { innerWidth: 0, document: { querySelectorAll: () => [] } }
+  let canvases = 0
+  const world = {
+    innerWidth: 0,
+    document: { querySelectorAll: () => [] },
+    OffscreenCanvas: class {
+      constructor() {
+        canvases++
+      }
+      getContext() {
+        return { font: '10px sans-serif' }
+      }
+    },
+  }
   let reader: (() => unknown) | undefined
   const send = (method: string, params: Record<string, unknown>) => {
     if (method === 'Emulation.setDeviceMetricsOverride') world.innerWidth = Number(params.width)
@@ -174,12 +186,13 @@ function widthSession(fault = '') {
       send: (method: string, params: Record<string, unknown>) => Promise.resolve(send(method, params)),
     } as unknown as CDPSession,
     calls,
+    canvases: () => canvases,
   }
 }
 
 describe('the retained width reader', () => {
   it('executes the trusted function again and snapshots every requested width across batches', async () => {
-    const { cdp, calls } = widthSession()
+    const { cdp, calls, canvases } = widthSession()
     const probe = probeOf(cdp, 'ltr')
     const widths = Array.from({ length: 32 }, (_, k) => 320 + k)
     for (const batch of [widths, widths.toReversed()]) {
@@ -189,6 +202,7 @@ describe('the retained width reader', () => {
       )
     }
     assert.equal(calls.filter((c) => c.method === 'Runtime.evaluate').length, 1)
+    assert.equal(canvases(), 1, 'one scratch canvas is retained across both batches')
     for (const method of [
       'Emulation.setDeviceMetricsOverride',
       'Runtime.callFunctionOn',
@@ -590,6 +604,7 @@ describe('the confined capture kernel', () => {
             `body{margin:0;font:18px/1.5 serif}main{container-type:inline-size}section{padding:20px}
         .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
         .fixed{position:fixed;right:2vw;bottom:2vh}.sticky{position:sticky;top:0}
+        [data-block=p]{font:italic 700 21px serif}th{font:700 15px sans-serif}td{font:19px monospace}
         .wrap{display:flex;flex-wrap:wrap}.wrap span{width:min(510px,max(100px,calc(100vw - 506px)))}
         @media(min-width:800px){.media{margin-left:5vw}}
         @container(min-width:1016px){.container{padding-left:12vw}}table{width:90vw;border-collapse:collapse}`,
@@ -627,6 +642,14 @@ describe('the confined capture kernel', () => {
           baseline.push({ state: `${lie.state}|${String(moved)}|${String(reordered)}` })
           snapshots.push(sha(JSON.stringify(snapshot)))
         }
+        // Count only the retained reader's canvases. This page has varied block and cell fonts.
+        await tab.evaluate(`(() => {
+          const Original = OffscreenCanvas
+          globalThis.sophiaCanvasCreates = 0
+          globalThis.OffscreenCanvas = class extends Original {
+            constructor(...args) { super(...args); globalThis.sophiaCanvasCreates++ }
+          }
+        })()`)
         const captured: string[] = []
         const recording = {
           send: async (method: Parameters<CDPSession['send']>[0], params: Parameters<CDPSession['send']>[1]) => {
@@ -635,8 +658,17 @@ describe('the confined capture kernel', () => {
             return answer
           },
         } as unknown as CDPSession
-        assert.deepEqual(await probeOf(recording, 'ltr')(widths), baseline)
+        const probe = probeOf(recording, 'ltr')
+        assert.deepEqual(await probe(widths), baseline)
         assert.deepEqual(captured, snapshots, 'every complete snapshot, including computed styles and text boxes')
+        captured.length = 0
+        assert.deepEqual(await probe(widths.toReversed()), baseline.toReversed())
+        assert.deepEqual(captured, snapshots.toReversed(), 'all widths are read again in the reversed batch')
+        assert.equal(
+          await tab.evaluate('globalThis.sophiaCanvasCreates'),
+          1,
+          'one canvas across widths and table cells',
+        )
         assert.equal(browser.selfTest().active, true)
       } finally {
         await browser.close()

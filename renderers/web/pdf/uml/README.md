@@ -137,18 +137,29 @@ the worker is suspended. There has been no Claude handover or production release
 The preceding kernel configuration selected `CC_OPTIMIZE_FOR_SIZE` (`-Os`). The
 candidate now selects Linux's default `CC_OPTIMIZE_FOR_PERFORMANCE` (`-O2`). An
 offline cross-compile passed, and the normalized configurations differ only in
-that compiler choice. No kernel security option, guest memory, browser code,
-viewport count, batch size, pace gate or deadline changes with it.
+that compiler choice. That compiler choice does not change a kernel security option, guest memory,
+viewport count, batch size, pace gate or deadline.
 
-The Docker build accepts `UML_KERNEL_OPTIMIZATION=size` only to construct the
-comparison control; the default is `performance`. It rejects other values and
-checks and logs the selected normalized configuration before compiling. CI runs
-size, performance, performance, size in four fresh containers on the same Linux
-host, each restricted to one CPU and 2 GiB with network disabled. Every run uses
-the complete original fixture and retains its separate log; any failed run fails
-the job. This comparison is evidence of performance on that CI host, not a
-native Render success. The changed source needs an amended bounded paid request
-before another Render build and fixture.
+The Docker build accepts `UML_KERNEL_OPTIMIZATION=size` as a compiler comparison
+control; the default is `performance`. It rejects other values and logs the
+checked normalized configuration. The earlier compiler ABBA comparison belongs
+to source `4eb223e6`, and its results must not be assigned to a later candidate.
+
+The reader amendment decodes all requested snapshot styles with a simple loop
+and retains one text-baseline canvas for the width reader. It resets the font at
+each block and reads each current text and computed font again. DOM, layout,
+viewport, order and snapshot answers remain fresh; there is no page-answer cache.
+Ordinary target measurements retain their preceding canvas allocation behavior.
+
+CI now builds a reader control by restoring only `capture-page.mjs`,
+`capture-html.mjs` and `placement.mjs` from pinned source
+`4eb223e67d428c2473d07ccc2ad1912142c87b45` into an otherwise exact candidate
+context. Both images use the same candidate kernel, driver, guest libraries and
+security controls. Four fresh full original fixtures run baseline/optimized/
+optimized/baseline on one host, each at one CPU and 2 GiB with network disabled.
+Every run retains its separate original verdict and complete log; any failure
+fails the job. CI proves behavior on that host, not native Render success. A new
+source still needs an amended bounded paid request before a native build/test.
 
 The independent review also found that killing the root fixture driver could
 leave its namespace supervisor alive without the 240-second watchdog. A small

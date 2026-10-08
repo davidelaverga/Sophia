@@ -1018,7 +1018,7 @@ function metricsAt(width, height = SWEEP.height) {
  * @returns {import('./placement.mjs').Probe}
  */
 export function probeOf(cdp, base) {
-  const order = orderScript(base)
+  const order = orderScript(base, true)
   const compileStarted = performance.now()
   // Keep the identical, trusted expression as a function in this session. Sending
   // and parsing its full source for every width needlessly slows the bounded
@@ -1026,7 +1026,7 @@ export function probeOf(cdp, base) {
   // each call reads the current viewport and DOM again.
   const reader = cdp
     .send('Runtime.evaluate', {
-      expression: `(() => ${order})`,
+      expression: order,
       returnByValue: false,
       objectGroup: 'sophia-width-reader',
     })

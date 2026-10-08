@@ -161,3 +161,30 @@ both cancellation subtests fail; the tests cleaned up those owned children throu
 naturally. The independent amended whole-diff review found no further actionable issues; it did not independently run
 the private Linux checks or grant production kernel/host acceptance. Actual native UML cancellation remains unverified.
 No paid effect has been performed by this performance continuation.
+
+
+## Reader allocation amendment after compiler comparison preparation
+
+The first compiler comparison at `f8cb6357` was cancelled at the whole-job35-minute limit after two builds and two
+passing original fixtures; its third fixture was partial and fourth never started. Source `4eb223e6` expands only the
+whole CI job allowance to60 minutes, keeping every fixture deadline and security bound. Its complete result remains
+pending while this reader amendment is prepared. No cancelled or partial comparison is counted as a full pass.
+
+Four rotated rounds of six separate fresh-process macOS prototypes read all2241 real viewport widths, comparing three
+decoders on every complete fresh snapshot. A linear style decoder plus one retained text-baseline canvas reduced mean
+first-batch time from15.11 to11.33 ms and mean summed batch time from508.71 to442.08 ms. These private measurements
+motivate this amendment; they are not UML, Linux confinement or Render acceptance. The simpler loop outperformed the
+more complex per-snapshot style-cache prototype, so the cache is not included.
+
+The actual amendment reads all computed style fields through the same string-index fallback. The width order reader
+retains one scratch canvas, resetting its font at each block; all text, direction, fonts, ranges, layout and viewport
+answers remain freshly read. Ordinary target measurements keep the preceding fresh-canvas behavior. The browser
+regression compares complete snapshots and order answers across responsive/container-query boundaries, fixed/sticky
+boxes, flex/grid, RTL and varied-font tables, then repeats the widths in reverse and requires one canvas across batches.
+The protocol-double regression must fail when the preceding per-call order reader is restored.
+
+The next CI control restores only the three preceding reader modules from immutable `4eb223e6` into the candidate
+context; both images otherwise share all kernel, driver, guest and security inputs. It runs baseline/optimized/
+optimized/baseline as four fresh full original fixtures on one CPU/2 GiB, unchanged limits. Comparison and ordinary CI
+remain pending at preparation. The same paid worker remains suspended, all preceding batches stay closed, support
+remains unsent, and handback to Claude still waits for a full original native Render pass.
