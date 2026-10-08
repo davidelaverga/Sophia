@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/room-alive.spec.ts`, `apps/studio/fixtures/fake
 Runtime unit: the Studio (`apps/studio`) on its room fixture page, in the demo only; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `room/alive` from `room/honest` (`20a5e89f`), 2026-10-08
-Ending commit/tree: `a887d347edddfb57545e0e2d5b95c30db7704473` (tree `436951364360fdcbdb01304c3720c89bac46a490`). The commit after it adds only this handoff.
+Ending commit/tree: `30ddf4d6cc1512d959e07d4937b3d7c3ee9fa0b9` (tree `121a17a01282a7ca077b4913302ad12cafc5ef6f`), after its base's CI fix merged in. The commits after it change only this handoff.
 
 ## Outcome
 
