@@ -18,8 +18,10 @@
 - **The demo's goals:** three, from its own story: the pilot (completed), rolling the new onboarding out to every
   region (running), and keeping teams through an admin change (ready), each with its outcome and criteria in the
   report's own numbers. Goals reads them; Tasks shows them with their controls.
-- **A goal's controls answer:** Request review, Hold, Resume and Stop are admitted as the API admits them (a receipt
-  says sent, never done), and a moment later the goal's status moves as Sophia would confirm it.
+- **A goal's controls answer**, as the API's admission moves a goal (`admit_goal_command`, 0012): Hold, Stop and
+  Resume move it at once (holding, stopping, running) under a new authority, and a moment later the runtime confirms
+  where it settles (held, stopped); Request review asks the lead and leaves the goal as it is. A receipt says sent,
+  never done. The fixture refuses nothing a stale page sends: that stays as it was before this change.
 
 ## Checks (written first)
 

@@ -66,22 +66,42 @@ export const DEMO_GOALS: readonly Goal[] = [
   }),
 ]
 
-/** Where a goal's command leaves it once Sophia confirms it. */
-const AFTER: Record<Exclude<GoalCommand['kind'], 'steer'>, Goal['status']> = {
-  request_review: 'checking',
-  hold: 'held',
-  resume: 'running',
-  stop: 'stopped',
-}
-
 /**
- * The goals once `command` is confirmed: its goal at its next revision and state, if the command was made at the
- * revision it holds; any other command (a steer, a stale revision) leaves them as they are.
+ * What a command does to its goal's state, as the API does it (`admit_goal_command`, 0012): Hold, Stop and Resume move
+ * it at once, to holding, stopping or running, under a new authority; a review asks the lead and leaves the goal as it
+ * is. Holding and stopping then settle, to held and stopped, once the runtime confirms them.
  */
-export function goalsAfter(goals: readonly Goal[], command: GoalCommand): Goal[] {
+const ADMITTED: Partial<Record<GoalCommand['kind'], Goal['status']>> = {
+  hold: 'holding',
+  stop: 'stopping',
+  resume: 'running',
+}
+const SETTLED: Partial<Record<Goal['status'], Goal['status']>> = { holding: 'held', stopping: 'stopped' }
+
+const moved = (g: Goal, status: Goal['status']): Goal => ({
+  ...g,
+  status,
+  authorityEpoch: g.authorityEpoch + 1,
+  stateRevision: g.stateRevision + 1,
+})
+
+/** The goals once `command` is admitted: made at the goal's own revision and authority, it moves the goal's state. */
+export function goalsAdmitted(goals: readonly Goal[], command: GoalCommand): Goal[] {
+  const status = ADMITTED[command.kind]
   return goals.map((g) =>
-    g.id === command.goalId && command.kind !== 'steer' && command.expectedGoalRevision === g.revision
-      ? { ...g, status: AFTER[command.kind], revision: g.revision + 1, stateRevision: g.stateRevision + 1 }
+    status &&
+    g.id === command.goalId &&
+    command.expectedGoalRevision === g.revision &&
+    command.expectedAuthorityEpoch === g.authorityEpoch
+      ? moved(g, status)
       : g,
   )
+}
+
+/** The goals once the runtime confirms what `goalId` was asked: holding becomes held, stopping stopped. */
+export function goalsSettled(goals: readonly Goal[], goalId: string): Goal[] {
+  return goals.map((g) => {
+    const status = g.id === goalId ? SETTLED[g.status] : undefined
+    return status ? { ...g, status, stateRevision: g.stateRevision + 1 } : g
+  })
 }
