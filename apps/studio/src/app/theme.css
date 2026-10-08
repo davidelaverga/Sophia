@@ -15,7 +15,8 @@
   --glass: rgba(12, 11, 17, 0.74);
   --text: #ecebf1;
   --text-2: rgba(236, 235, 241, 0.66);
-  --text-3: rgba(236, 235, 241, 0.44);
+  /* The third ink still reads: 4.6:1 or more on the void, the plane and a raised plane (it was 3.8:1 at 0.44). */
+  --text-3: rgba(236, 235, 241, 0.52);
   --text-4: rgba(236, 235, 241, 0.26);
   --line: rgba(236, 235, 241, 0.08);
   --line-2: rgba(236, 235, 241, 0.14);

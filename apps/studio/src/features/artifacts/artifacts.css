@@ -636,7 +636,7 @@
   font-size: var(--type-small);
 }
 /* Sophia's notes, under the facts: who wrote them in small grey, or the line that unfolds them when they are folded.
-   A grey that reads at this size: --text-3 falls under 4.5:1 on the pane, and the folded line is the only way in. */
+   The second grey: the folded line is the only way in, so it reads above the third ink's floor. */
 .report-notes {
   display: grid;
   gap: 4px;
