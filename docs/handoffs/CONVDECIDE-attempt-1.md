@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/conversations-decide.spec.ts`, `apps/studio/fix
 Runtime unit: the Studio (`apps/studio`) and one shared icon (`packages/ui`), on the fixture pages; no API, database, worker or deployment touched. The writes are A08's, already in the API.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/decide` stacked on `conversations/answers` (`99e27488`, #173), 2026-10-08
-Ending commit/tree: `ec393d1002684e564d8982a9705ca876920d030a` (tree `cf568542e6e30791c842fec99ee82183287c8c4f`), after main merged in once Knowledge origins landed, after Decline at 24 px, the checks reading the brief's writes from the fixture and a name no longer shadowed, as CI found, after main merged in once C6 landed, after its base's changes merged in, after the answer's line taking the focus at once (a requestAnimationFrame never fires in a tab out of sight). The commits after it change only this handoff.
+Ending commit/tree: `604e01a51e02dce3b9fed25a45a5dc3971964f2d` (tree `42b6fc5c3e9c3cf57ea5d7dece649e23cb69aae7`), after Codex's three P1s fixed, after main merged in once Knowledge origins landed, after Decline at 24 px, the checks reading the brief's writes from the fixture and a name no longer shadowed, as CI found, after main merged in once C6 landed, after its base's changes merged in, after the answer's line taking the focus at once (a requestAnimationFrame never fires in a tab out of sight). The commits after it change only this handoff.
 
 ## Outcome
 
@@ -37,6 +37,15 @@ Design note: `docs/plans/conversations-decide.md`.
   proposal), fixed; its P3s on «Not now» (now Decline), focus after an answer, refusal words and the fixture fixed. Left:
   the press is reached by touch only on the message pressed (a screen reader reaches it by focus), and the viewer case
   has no browser check (the fixture grants every capability).
+
+- Codex's three P1s on the PR, fixed: a proposal with no definitive answer (on its way, or no reply) keeps its key and
+  its words across Cancel, and Propose sends that same one again (fixture `propose=lost`, a check that ends with one
+  entry in Still open); on a touch screen the press is hidden from sight only, in reach of a keyboard and a screen
+  reader, and 40 px under a coarse pointer (a @phone check). Run locally under the guard (gentle, one worker): the
+  decide, panes and conversations checks, 44 passed. Control mutants, each failing its check: Cancel discarding the
+  key; the press `display: none` on touch. Independent review, two rounds: the first found a phone check that never
+  opened a conversation, a stale close after a retry, and a 2 px sideways scroll, all fixed; the second found no P1
+  or P2, and its P3 is taken (the field read-only while a proposal is on its way).
 
 ## Limitations and next action
 
