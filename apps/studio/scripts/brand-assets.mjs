@@ -7,6 +7,7 @@
  * - favicon.ico: 16, 32 and 48, PNG entries, from the app icon (its dark square reads on light and dark tab bars);
  * - apple-touch-icon.png (180) and icon-192.png / icon-512.png, from the app icon (full-bleed for Apple, which rounds);
  * - brand/og.png (1200 × 630): the lockup on the void, a halo behind it.
+ * - brand/umbral-mark.png (96): the mark alone, transparent, for the invitation email (no SVG in mail clients).
  *
  * Chromium (Playwright's, already a dev dependency) draws each SVG at its exact size.
  */
@@ -87,5 +88,6 @@ writeFileSync(join(PUBLIC, 'apple-touch-icon.png'), await png(page, fullBleed, 1
 writeFileSync(join(PUBLIC, 'icon-192.png'), await png(page, app, 192))
 writeFileSync(join(PUBLIC, 'icon-512.png'), await png(page, app, 512))
 writeFileSync(join(PUBLIC, 'brand', 'og.png'), await card(page))
+writeFileSync(join(PUBLIC, 'brand', 'umbral-mark.png'), await png(page, master('umbral.svg'), 96))
 await browser.close()
 console.log('brand assets written to', PUBLIC)
