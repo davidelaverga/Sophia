@@ -28,6 +28,7 @@ import {
   idOf,
 } from './data.ts'
 import { DEMO } from './demo.ts'
+import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
 import { libraryVersions } from './demo-library.ts'
 import {
   content,
@@ -129,6 +130,8 @@ interface Project {
   onCommand?: (command: GoalCommand, key: string) => void
   /** The floor and Sophia's presence as the page asked for them (data.ts, room-people checks). */
   room?: RoomAsked
+  /** Sophia's conversation moved (exchange-writes.ts); absent, a press on it is unexpected. */
+  onExchange?: (action: ExchangeAction) => void
   /** The floor passed on to this actor; absent, passing it is unexpected. */
   onFloor?: (actorId: string) => void
   /** The room moves (another member's change) just before the next pass reaches the API. */
@@ -865,7 +868,7 @@ const isContribution = (value: unknown): value is { text: string; intent: Contri
   'intent' in value &&
   typeof value.intent === 'string'
 
-/** What the page posts: a room token, a goal's command, the floor passed on, or a message to the room. */
+/** What the page posts: a room token, a goal's command, the floor passed on, a message to the room, or Sophia asked in. */
 function posted(project: Project, path: string, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/contributions`) return contributed(project, init)
@@ -878,7 +881,7 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   if (path === `${base}/room-token`) return json(roomToken)
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
-  return null
+  return exchangeWritten(project, path, init, () => publish(project))
 }
 
 const isFloorRequest = (value: unknown): value is FloorRequest =>

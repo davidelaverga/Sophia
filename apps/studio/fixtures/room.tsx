@@ -71,6 +71,7 @@ import {
   VERSIONS_HELD,
 } from './report-data.ts'
 import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
+import type { ExchangeAction } from './exchange-writes.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -290,6 +291,22 @@ const project = {
       endPause()
     }
     floorTo.push(nameOf(actorId))
+  },
+  // As the API and her bridge answer her presses (exchange-writes.ts): in, she listens; quieted, she listens; ended,
+  // she leaves the room; a pause lifted, she listens to the holder.
+  onExchange: (action: ExchangeAction) => {
+    if (action === 'end') {
+      project.exchange = false
+      sophiaLeaves()
+      return
+    }
+    if (action === 'resume') {
+      room.pauseReason = undefined
+      endPause()
+      return
+    }
+    project.exchange = true
+    setSophia('listening')
   },
   messages: [] as (string | Said)[],
   contributions: new Map(),
