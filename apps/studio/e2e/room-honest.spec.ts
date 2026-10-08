@@ -27,7 +27,7 @@ test('room · «Speak with Sophia» brings her in, listening to whoever asked; �
   await enter(page)
   await press(page, 'Speak with Sophia').click()
   await expect(press(page, 'End')).toBeVisible()
-  await expect(dock(page).locator('.floor-label')).toHaveText('Sophia')
+  await expect(dock(page).locator('.sophia-controls .floor-label')).toHaveText('Sophia')
   await expect(page.getByText('Sophia is listening to you').first()).toBeVisible()
   await expect(dock(page).locator('.floor-error')).toHaveCount(0)
   await press(page, 'End').click()
