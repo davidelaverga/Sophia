@@ -27,7 +27,7 @@ import {
   entryIdOf,
   idOf,
 } from './data.ts'
-import { DEMO } from './demo.ts'
+import { DEMO, DEMO_ORIGINS } from './demo.ts'
 import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
 import { libraryVersions } from './demo-library.ts'
 import {
@@ -431,7 +431,8 @@ function conversationsRead(talk: Conversations) {
           author: m.author,
           actorId: m.actorId,
           name: m.name,
-          text: m.text.replace(/\s+/gu, ' ').slice(0, 140),
+          // Its opening as written, line breaks kept: the Studio says it in one line (C6, sophia-text.ts plainOf).
+          text: m.text.slice(0, 140),
           at: m.at,
         }
       : null
@@ -725,6 +726,8 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
 
 /** A report's versions (the fixture report's, or the older one's, which Knowledge's cover reads) and its sources. */
 function versionsOf(project: Project, path: string): Response | Promise<Response> | null {
+  if (/^\/api\/v1\/artifacts\/[0-9a-f-]{36}\/versions\/[0-9a-f-]{36}\/source-origins$/.test(path))
+    return originsRead(path)
   if (path === `/api/v1/artifacts/${REPORT}/versions`) return versionsRead(project)
   if (path === `/api/v1/artifacts/${OLDER_REPORT}/versions`) return json(olderVersions())
   if (path === `/api/v1/artifacts/${ELSEWHERE_REPORT}/versions`) return json(elsewhereVersions(ELSEWHERE.projectId))
@@ -1046,6 +1049,21 @@ function versionsRead(project: Project): Response {
 
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */
 const heldSources: (() => void)[] = []
+
+/**
+ * A19 (proposed): where a version's sources came from. The demo's report says it for its four; any other version knows
+ * none. `origins=fail`: the read fails, and every project source says «From the project». `origins=missing`: the
+ * conversation named is one the list doesn't hold (gone, or not this reader's).
+ */
+function originsRead(path: string): Response {
+  const asked = new URLSearchParams(window.location.search).get('origins')
+  if (asked === 'fail') return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  const origins = DEMO && path.startsWith(`/api/v1/artifacts/${REPORT}/`) ? DEMO_ORIGINS : []
+  const gone = '00000000-0000-4000-8000-0000000000c9'
+  return json({
+    origins: asked === 'missing' ? origins.map((o) => (o.kind === 'conversation' ? { ...o, id: gone } : o)) : origins,
+  })
+}
 
 /** What a version cites; while the page holds them, a read that answers once let through. */
 function sourcesRead(project: Project): Response | Promise<Response> {

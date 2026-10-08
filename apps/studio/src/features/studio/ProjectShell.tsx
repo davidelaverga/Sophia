@@ -12,6 +12,7 @@ import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { routePath, type View } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { VISION } from '../../app/vision.ts'
+import { ProjectGoProvider } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership, type SheetContext } from '../access/useAccess.ts'
@@ -427,11 +428,14 @@ function ProjectBody(props: BodyProps) {
   const looking = lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))
   // For whoever joined late, the meeting so far (A13): its card goes on the stage, its sheet on the page.
   const catchUp = useCatchUp(room, { projectId, identity, me: membership?.actorId ?? '', names: useKnownNames(room) })
+  // Around the viewer too: a report's source goes to the conversation or meeting it came from (project-go.tsx).
   const withViewer = (body: React.ReactNode) => (
-    <WithViewer {...props} panel={panel} looking={looking}>
-      {body}
-      <ProjectSheets {...props} panel={panel} catchUp={catchUp.sheet} />
-    </WithViewer>
+    <ProjectGoProvider onShow={onShow}>
+      <WithViewer {...props} panel={panel} looking={looking}>
+        {body}
+        <ProjectSheets {...props} panel={panel} catchUp={catchUp.sheet} />
+      </WithViewer>
+    </ProjectGoProvider>
   )
   const lobby = (
     <LobbyPanel
