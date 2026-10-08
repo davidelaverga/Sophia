@@ -9,7 +9,7 @@ Writable scope: `apps/studio/e2e/views-goals.spec.ts`, `apps/studio/fixtures/dem
 Runtime unit: the Studio (`apps/studio`) on its room fixture page; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `views/goals` from `room/alive` (`6bbdc944`), 2026-10-08
-Ending commit/tree: `a4880a469acaae2079cf5014e1f102bbb62a947a` (tree `eed3f189a9e71dccb9ff5aa6c2593e583208fbe9`), after its base merged in once main moved. The commit after it adds only this handoff.
+Ending commit/tree: `13c7580d24cd30ff67a2f39d60e6fa375928e84d` (tree `e2fca617271e617d045745b047f284019274d69a`), after its base's stronger stop check merged in, after its base merged in once main moved. The commit after it adds only this handoff.
 
 ## Outcome
 
@@ -24,11 +24,12 @@ Design note: `docs/plans/views-goals.md`. The critique was given to Luis in the 
 
 ## Evidence
 
-- Browser checks: `e2e/views-goals.spec.ts` (4) new. Not run locally (RAM beside AION2 under the guard's floor, never
-  lowered); CI runs them. Checked by hand in the in-app browser: Goals from its tab with three goals, Tasks with three
+- Browser checks: `e2e/views-goals.spec.ts` (4) new. Run locally under the guard (`pw-safe.ps1`) with the room's other
+  checks: 72 passed. Checked by hand in the in-app browser: Goals from its tab with three goals, Tasks with three
   and Hold turning the rollout Holding then Held (Resume and Stop then offered), Request review leaving a ready goal
   ready, Resources saying what it will hold, no request unanswered.
-- Prettier, `oxlint --type-aware`, `tsc`. Mutants: not run, for the same reason.
+- Control mutant: Goals left out of the views the page serves; the Goals check fails.
+- Prettier, `oxlint --type-aware`, `tsc`.
 - Independent review, two rounds: the first's P2 taken (Request review set a status the product never sets), with
   its P3s (the authority moved rather than the revision, the intermediate status); the second found no P1 or P2, and
   its P3 is taken (the admission published).
