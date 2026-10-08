@@ -28,11 +28,12 @@ Design note: `docs/plans/room-honest.md`. The critique was given to Luis in the 
 ## Evidence
 
 - Unit: `client.test.ts` (the words for a 502 without status text, and a 404 with it). Browser checks:
-  `e2e/room-honest.spec.ts` (6) new. Not run locally (RAM beside AION2 under the guard's floor, never lowered); CI
-  runs them. Checked by hand in the in-app browser: in, ended, quieted, the guest's refusal read whole, a camera shown
+  `e2e/room-honest.spec.ts` (6) new. Run locally under the guard (`pw-safe.ps1`) with the room's other checks: all
+  passed. Checked by hand in the in-app browser: in, ended, quieted, the guest's refusal read whole, a camera shown
   and no longer looked at, no request unanswered.
-- Prettier, `oxlint --type-aware`, `tsc`. Mutants: the client's fallback removed fails its unit check; the browser
-  mutants are not run, for the same reason.
+- Control mutants: the client's fallback removed fails its unit check; the fixture's guest refusal removed fails the
+  guest check.
+- Prettier, `oxlint --type-aware`, `tsc`.
 - Independent review, two rounds, no P1 or P2 in either; their P3s taken (the API's own refusals in the fixture, in
   the API's order, vision kept, the guest rule, a resume with no pause, words the same over any protocol, Mark as
   seen's words, a stale room's words, the checks the note promised).
