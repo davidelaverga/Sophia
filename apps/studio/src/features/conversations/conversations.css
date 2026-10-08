@@ -720,6 +720,11 @@
   padding: 0 12px;
   font-size: var(--type-small);
 }
+.conv-decide-note {
+  flex-basis: 100%;
+  padding-left: 15px;
+  color: var(--text-2);
+}
 .conv-decide .text-button {
   color: var(--text-2);
   font-size: var(--type-small);

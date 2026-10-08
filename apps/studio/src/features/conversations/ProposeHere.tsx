@@ -109,6 +109,8 @@ function ProposeForm(props: {
         autoFocus
         aria-label="Decision to propose"
         value={words}
+        // With no reply, Propose sends these same words again under the same key: they can't change meanwhile.
+        readOnly={propose.state.status === 'unknown'}
         maxLength={280}
         onChange={(e) => props.onWords(e.target.value)}
       />
@@ -122,7 +124,9 @@ function ProposeForm(props: {
         {propose.state.status === 'unknown' && (
           <span role="alert">No reply yet. Press Propose again: it sends the same proposal, never a second.</span>
         )}
-        {propose.state.status === 'rejected' && <span role="alert">{refusalWords(propose.state.error)}</span>}
+        {propose.state.status === 'rejected' && (
+          <span role="alert">{refusalWords(propose.state.error, 'propose')}</span>
+        )}
       </div>
     </form>
   )
