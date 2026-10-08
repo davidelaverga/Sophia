@@ -30,6 +30,7 @@ import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
 import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { blocksOf } from './sophia-text.ts'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 
 interface Props {
@@ -394,7 +395,7 @@ function MessageList(props: {
               </span>
             </span>
             <div className="conv-msg-body">
-              <p>{m.text}</p>
+              {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
               {sophia && at}
             </div>
             {!sophia && at}
@@ -403,6 +404,31 @@ function MessageList(props: {
       })}
     </ol>
   )
+}
+
+/** Sophia's words with their shape (sophia-text.ts): paragraphs, a lead, a list whose items may name who said it. */
+function SophiaText({ text }: { text: string }) {
+  return blocksOf(text).map((block, i) => {
+    if (block.kind === 'lead') {
+      return (
+        <p key={i} className="sophia-lead">
+          {block.text}
+        </p>
+      )
+    }
+    if (block.kind === 'p') return <p key={i}>{block.text}</p>
+    return (
+      // A list styled without marks keeps its role (Safari drops it otherwise).
+      <ul key={i} className="sophia-list" role="list">
+        {block.items.map((item, j) => (
+          <li key={j}>
+            {item.who && <span className="sophia-who">{`${item.who}: `}</span>}
+            {item.text}
+          </li>
+        ))}
+      </ul>
+    )
+  })
 }
 
 /** What the transcript's read says: reading, nobody written yet, or failed (out of date when some were read). */
