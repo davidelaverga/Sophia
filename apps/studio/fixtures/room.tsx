@@ -16,6 +16,7 @@
 // `looking=screen`; docs/plans/room-fixture-people.md).
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
+import type { Goal, GoalCommand } from '@sophia/contracts'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept } from '../src/features/conversations/talk-store.ts'
@@ -73,6 +74,7 @@ import {
 import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
 import type { ExchangeAction } from './exchange-writes.ts'
 import { sophiaArrives, stopScene } from './room-scene.ts'
+import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -299,6 +301,21 @@ const project = {
     if (DEMO) stopScene()
     floorMoves(actorId)
   },
+  // The demo's goals (demo-goals.ts): Goals reads them; Tasks acts on them. A command moves its goal as the API admits
+  // it, and a moment later the runtime confirms where it settles.
+  goals: DEMO ? [...DEMO_GOALS] : ([] as Goal[]),
+  ...(DEMO
+    ? {
+        onCommand: (command: GoalCommand) => {
+          project.goals = goalsAdmitted(project.goals, command)
+          publish(project)
+          window.setTimeout(() => {
+            project.goals = goalsSettled(project.goals, command.goalId)
+            publish(project)
+          }, 600)
+        },
+      }
+    : {}),
   // The API reads who is in the room from the LiveKit server: a guest among them keeps her out.
   guestHere: () => others().some((p) => p.standing === 'guest'),
   // As the API and her bridge answer her presses (exchange-writes.ts): in, she listens; quieted, she listens; ended,
@@ -799,15 +816,18 @@ function meetingRecords(): ReturnType<Meeting['records']> {
 
 const nothing = () => undefined
 
-/** The page `place=` names: Knowledge, Work (with the research task's card), Updates, else the room. */
-const viewOf = (place: string | null) =>
-  place === 'knowledge' || place === 'work' || place === 'updates' || place === 'conversations' ? place : 'studio'
+/** The page `place=` names: one of the views it serves (Work with the research task's card), else the room. */
+const PLACES = ['knowledge', 'work', 'updates', 'conversations', 'goals', 'resources'] as const
+const viewOf = (place: string | null): View => PLACES.find((p) => p === place) ?? 'studio'
 
-/** The views this fixture's API serves: the room, Conversations (when the page asks for them), Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
+/**
+ * The views this page shows: every one (Conversations when the page asks for them). Goals reads the snapshot's goals;
+ * Resources, with nothing serving it here, says what it will hold, as the product does until it is served.
+ */
 const SERVED: readonly View[] =
   query.has('conversations') || DEMO
-    ? ['studio', 'conversations', 'knowledge', 'work', 'updates']
-    : ['studio', 'knowledge', 'work', 'updates']
+    ? ['studio', 'conversations', 'goals', 'knowledge', 'work', 'updates', 'resources']
+    : ['studio', 'goals', 'knowledge', 'work', 'updates', 'resources']
 
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }
