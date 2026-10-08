@@ -32,6 +32,22 @@ test('door · it says who is at the door, by name; the row their initial, name a
   expect(await door(page).evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('0px')
 })
 
+test('door · it says how long they have waited; with two, both are named to a screen reader', async ({ page }) => {
+  await page.goto('/room.html?lobby=two')
+  await expect(door(page).getByRole('status')).toHaveText('2 at the door: Fixture guest, Bea Soto')
+  await expect(door(page).getByRole('listitem')).toHaveCount(2)
+  await expect(row(page).locator('.lobby-wait')).not.toBeEmpty()
+})
+
+test('door · asking before a Block, the name stays in sight above the question', async ({ page }) => {
+  await page.goto('/room.html?lobby=again')
+  await row(page).getByRole('button', { name: 'Block' }).click()
+  const name = row(page).locator('.lobby-name')
+  await expect(name).toBeVisible()
+  expect((await name.boundingBox())?.width ?? 0).toBeGreaterThan(40)
+  await expect(row(page).locator('.lobby-wait')).toHaveCSS('white-space', 'nowrap')
+})
+
 test('door · in the demo, the knock is a minute old, not days', async ({ page }) => {
   await page.goto('/room.html?demo=1&lobby=waiting')
   await expect(door(page).getByRole('status')).toHaveText('At the door: Ana Ruiz')

@@ -2627,8 +2627,11 @@ button.contribution-quote:hover {
   white-space: nowrap;
 }
 .lobby-wait {
+  overflow: hidden;
   color: var(--text-2);
   font-size: var(--type-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lobby-actions {
   display: flex;
@@ -2646,7 +2649,13 @@ button.contribution-quote:hover {
   color: var(--void);
 }
 .lobby-actions .pill.warm:hover:not(:disabled) {
-  background: #f6e8da;
+  background: #fff4e8;
+  box-shadow: 0 0 0 3px rgba(241, 220, 199, 0.22);
+}
+/* Asking before a Block: the question takes the row's width under the name, which stays in sight. */
+.lobby-actions:has(.confirm) {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
 }
 .lobby-decline {
   padding: 0 8px;

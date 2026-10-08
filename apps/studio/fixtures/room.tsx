@@ -297,7 +297,9 @@ const project = {
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
   pilot: query.get('history') === 'pilot',
-  waiting: query.get('lobby') === 'waiting',
+  // `lobby=again`: the one waiting has knocked twice, so Block is offered; `lobby=two`: two people wait.
+  waiting: query.get('lobby') === 'waiting' || query.get('lobby') === 'again' || query.get('lobby') === 'two',
+  lobbyAsked: query.get('lobby'),
   ...(query.get('role') === 'viewer' ? { role: 'viewer' as const } : {}),
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',

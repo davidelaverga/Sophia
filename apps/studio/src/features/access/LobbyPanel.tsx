@@ -11,7 +11,7 @@ import { knockNote } from './access-view.ts'
 import { useLobbyDecision } from './useAccess.ts'
 import { lasted } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
-import { initialOf } from '../conversations/conversation-list.ts'
+import { initialOf } from '../../app/profile.ts'
 
 interface Props {
   projectId: string
@@ -53,7 +53,7 @@ export function LobbyPanel({ projectId, identity, lobby, canDecide }: Props) {
   return (
     <aside className="lobby arrive" aria-label="Waiting to come in">
       <LobbyHead
-        first={waiting[0]?.displayName ?? null}
+        names={waiting.map((e) => e.displayName).join(', ') || null}
         count={waiting.length}
         canDecide={canDecide}
         busy={busy}
@@ -100,8 +100,8 @@ export function LobbyPanel({ projectId, identity, lobby, canDecide }: Props) {
 }
 
 interface HeadProps {
-  /** The first one waiting: named when they are the only one. */
-  first: string | null
+  /** Who waits, by name, for the status a screen reader hears. */
+  names: string | null
   count: number
   canDecide: boolean
   busy: boolean
@@ -109,15 +109,15 @@ interface HeadProps {
   onAdmitAll: () => void
 }
 
-function LobbyHead({ first, count, canDecide, busy, onDeclineAll, onAdmitAll }: HeadProps) {
+function LobbyHead({ names, count, canDecide, busy, onDeclineAll, onAdmitAll }: HeadProps) {
   if (count === 0) return null
   return (
     <>
       <div className="lobby-head">
         <p className="lobby-title" role="status">
           {count === 1 ? 'At the door' : `${String(count)} at the door`}
-          {/* The row names them to the eye; the status, heard alone, names the one waiting too. */}
-          {count === 1 && first && <span className="sr-only">: {first}</span>}
+          {/* The rows name them to the eye; the status, heard alone, names who waits too. */}
+          {names && <span className="sr-only">: {names}</span>}
         </p>
         {canDecide && count > 1 && (
           <span className="lobby-all">
@@ -148,7 +148,7 @@ function LobbyRow({ entry, now, answer }: { entry: LobbyEntry; now: number; answ
   return (
     <li>
       <span className="lobby-face" aria-hidden>
-        {initialOf(entry.displayName)}
+        {initialOf(entry.displayName, '')}
       </span>
       <span className="lobby-who">
         <span className="lobby-name">{entry.displayName}</span>
