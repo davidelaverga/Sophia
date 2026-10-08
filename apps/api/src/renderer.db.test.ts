@@ -2,7 +2,9 @@
 // 0030). The runner proves only its capability: it claims a job under a lease, reads each file of the package
 // through the API (checked against the package's hash, never a storage URL), uploads one PDF and settles with the
 // kernel's receipt. A research task is admitted for real; its package is an inline HTML entry and a byte-stored
-// image in an in-memory byte store.
+// image in an in-memory byte store that replaces on a second put, as Supabase Storage's S3 PutObject does: an object
+// stays as written because the API claims each key once in the database before it writes (0044, writeOnce), never
+// because the store refuses.
 import { createHash, randomUUID } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import type { FastifyInstance } from 'fastify'
@@ -12,6 +14,7 @@ import { after, before, describe, it } from 'node:test'
 import type { RenderClaim, RenderReceipt } from '@sophia/contracts'
 import {
   admitResearchTask,
+  claimObjectWrite,
   createPool,
   enqueueRenderJob,
   recordRuntimeReady,
@@ -23,7 +26,7 @@ import {
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
-import { memoryByteStore, objectPath } from './byte-store.ts'
+import { ByteStoreError, memoryByteStore, objectPath, writeOnce, type ByteStore } from './byte-store.ts'
 
 const A = randomUUID()
 const E = randomUUID()
@@ -38,7 +41,28 @@ let pool: pg.Pool
 let owner: pg.Client
 let app: FastifyInstance
 let base: string
-const store = memoryByteStore()
+const memory = memoryByteStore()
+/** Every key the API asked the store to write, in order. */
+const written: string[] = []
+/** While set, puts wait until this many have arrived, then all go on (two uploads held at once). */
+let barrier: { want: number; held: (() => void)[] } | null = null
+/**
+ * The in-memory store, except that a put replaces whatever is at its key and never refuses, as Supabase Storage's S3
+ * PutObject does (it upserts and ignores If-None-Match: upstream 307c5e31, SDD-01-CX-0015).
+ */
+const store: ByteStore & { objects: Map<string, Uint8Array> } = {
+  ...memory,
+  put(path, bytes) {
+    written.push(path)
+    memory.objects.set(path, bytes)
+    const held = barrier
+    if (!held) return Promise.resolve()
+    return new Promise<void>((resolve) => {
+      held.held.push(resolve)
+      if (held.held.length >= held.want) for (const go of held.held.splice(0)) go()
+    })
+  },
+}
 let projectId = ''
 let jobId = ''
 let imageId = ''
@@ -72,7 +96,10 @@ async function call(
   return { status: res.status, json, bytes, type: res.headers.get('content-type') }
 }
 
-const receipt = (outputSha: string): RenderReceipt => ({
+/** A write refused because its key was written before. */
+const conflict = (e: unknown) => e instanceof ByteStoreError && e.status === 409
+
+const receipt = (outputSha: string, outputBytes = PDF.byteLength): RenderReceipt => ({
   schema: 'sophia.pdf-render-receipt.v1',
   jobId,
   status: 'succeeded',
@@ -94,7 +121,7 @@ const receipt = (outputSha: string): RenderReceipt => ({
   output: {
     path: 'report.pdf',
     sha256: outputSha,
-    bytes: PDF.byteLength,
+    bytes: outputBytes,
     header: '%PDF-1.4',
     eof: true,
     pageCount: 1,
@@ -182,6 +209,7 @@ after(async () => {
 
 describe('render runner endpoints (A11, 0030)', () => {
   let lease = ''
+  let recorded = { sourceId: '', sha256: '', byteLength: 0 }
 
   it('claims only with the runner capability, and returns the job with its package', async () => {
     assert.equal((await call('/v1/renderer/claim', { token: null })).status, 401)
@@ -232,19 +260,94 @@ describe('render runner endpoints (A11, 0030)', () => {
   it('stores one PDF as the job output, refusing anything else and a second upload', async () => {
     const put = (pdf: Buffer) => call(`/v1/renderer/jobs/${jobId}/output`, { method: 'PUT', lease, pdf })
     assert.equal((await put(Buffer.from('<html>not a pdf</html>'))).status, 422)
-    const stored = await put(PDF)
-    assert.equal(stored.status, 200, JSON.stringify(stored.json))
-    const out = stored.json as { sourceId: string; sha256: string; byteLength: number }
-    assert.deepEqual([out.sha256, out.byteLength], [sha(PDF), PDF.byteLength])
-    assert.deepEqual(store.objects.get(objectPath(projectId, out.sourceId)), PDF)
+    // Two uploads at once (a runner sending again a reply it lost), both held until both reach the store: each goes
+    // to a key the database minted for it, and one is recorded.
+    const other = Buffer.from('%PDF-1.4\n%another rendering, longer\n%%EOF\n')
+    const from = written.length
+    barrier = { want: 2, held: [] }
+    const both = await Promise.all([put(PDF), put(other)]).finally(() => {
+      barrier = null
+    })
+    assert.deepEqual(
+      both.map((r) => r.status).toSorted((x, y) => x - y),
+      [200, 409],
+      JSON.stringify(both.map((r) => r.json)),
+    )
+    const keys = written.slice(from)
+    assert.equal(keys.length, 2, 'both uploads reached the store')
+    assert.notEqual(keys[0], keys[1], 'each to its own fresh key')
+    const won = both.find((r) => r.status === 200)?.json as typeof recorded
+    recorded = won
+    const kept = store.objects.get(objectPath(projectId, won.sourceId))
+    assert.ok(kept)
+    assert.deepEqual([sha(kept), kept.byteLength], [won.sha256, won.byteLength], 'the recorded object is as written')
+    const [lost] = keys.filter((k) => k !== objectPath(projectId, won.sourceId))
+    const named = await owner.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM sophia.source_objects WHERE project_id=$1 AND storage_key=$2`,
+      [projectId, `objects/${lost ?? ''}`],
+    )
+    assert.equal(named.rows[0]?.n, 0, 'the other upload’s object is named by no source')
+    const claimed = await owner.query<{ storage_key: string }>(
+      `SELECT storage_key FROM sophia.object_writes WHERE storage_key = ANY($1) ORDER BY storage_key`,
+      [keys],
+    )
+    assert.deepEqual(
+      claimed.rows.map((r) => r.storage_key),
+      keys.toSorted(),
+      'each upload claimed its key before writing',
+    )
     assert.equal((await put(PDF)).status, 409, 'once')
+    assert.equal(new Set(written).size, written.length, 'no key was ever written twice')
+  })
+
+  it('writes a key once: a second or racing write of other bytes is refused before the store, the first kept', async () => {
+    const claim = (racers: pg.Pool) =>
+      writeOnce(store, (path, digest, length) => withService(racers, (c) => claimObjectWrite(c, path, digest, length)))
+    const once = claim(pool)
+    const key = objectPath(projectId, randomUUID())
+    const from = written.length
+    await once.put(key, PDF, 'application/pdf')
+    const replacing = Buffer.from('%PDF-1.4\n%other bytes for the same key\n%%EOF\n')
+    await assert.rejects(once.put(key, replacing, 'application/pdf'), conflict, 'other bytes')
+    await assert.rejects(once.put(key, PDF, 'application/pdf'), conflict, 'the same bytes again: once means once')
+    assert.deepEqual(store.objects.get(key), PDF, 'the first bytes, unchanged')
+    assert.deepEqual(written.slice(from), [key], 'only the first write reached the store')
+    // Eight writes of different bytes to one fresh key at once, over eight connections: one is written, seven are
+    // refused before the store, and what is stored is the one written, with its claim.
+    const racers = createPool(db.apiUrl, { max: 8 })
+    try {
+      const raced = objectPath(projectId, randomUUID())
+      const bodies = Array.from({ length: 8 }, (_, k) => Buffer.from(`%PDF-1.4\n%rendering ${String(k)}\n%%EOF\n`))
+      const at = written.length
+      const results = await Promise.allSettled(bodies.map((b) => claim(racers).put(raced, b, 'application/pdf')))
+      const winners = results.flatMap((r, k) => (r.status === 'fulfilled' ? [k] : []))
+      assert.equal(winners.length, 1, JSON.stringify(results.map((r) => r.status)))
+      for (const r of results) if (r.status === 'rejected') assert.ok(conflict(r.reason), String(r.reason))
+      const first = bodies[winners[0] ?? -1]
+      assert.ok(first)
+      assert.deepEqual(written.slice(at), [raced], 'one write reached the store')
+      assert.deepEqual(store.objects.get(raced), first)
+      const row = await owner.query<{ sha256: string; byte_length: string }>(
+        `SELECT sha256, byte_length FROM sophia.object_writes WHERE storage_key=$1`,
+        [raced],
+      )
+      assert.deepEqual(row.rows, [{ sha256: sha(first), byte_length: String(first.byteLength) }])
+    } finally {
+      await racers.end()
+    }
+    // A claim that cannot be made refuses the write: nothing reaches the store unclaimed.
+    const lost = objectPath(projectId, randomUUID())
+    const down = writeOnce(store, () => Promise.reject(new Error('the database did not answer')))
+    await assert.rejects(down.put(lost, PDF, 'application/pdf'), /did not answer/u)
+    assert.equal(store.objects.has(lost), false)
   })
 
   it('settles with a receipt the contract validates', async () => {
     const settle = (body: unknown) => call(`/v1/renderer/jobs/${jobId}/settle`, { body })
-    assert.equal((await settle({ leaseToken: lease, receipt: { ...receipt(sha(PDF)), status: 'done' } })).status, 422)
-    assert.equal((await settle({ leaseToken: lease, receipt: { ...receipt(sha(PDF)), extra: 1 } })).status, 422)
-    const done = await settle({ leaseToken: lease, receipt: receipt(sha(PDF)) })
+    const ours = receipt(recorded.sha256, recorded.byteLength)
+    assert.equal((await settle({ leaseToken: lease, receipt: { ...ours, status: 'done' } })).status, 422)
+    assert.equal((await settle({ leaseToken: lease, receipt: { ...ours, extra: 1 } })).status, 422)
+    const done = await settle({ leaseToken: lease, receipt: ours })
     assert.deepEqual([done.status, done.json], [200, { state: 'succeeded', reason: null }])
   })
 })

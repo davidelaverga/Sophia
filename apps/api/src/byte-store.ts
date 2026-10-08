@@ -3,6 +3,13 @@
 // API, and a member reads them through a URL the API signs after authorizing that read (A11 getSourceContent).
 // Objects are written once under a source id and never overwritten, so a URL always reads the bytes whose hash the
 // API answered with. The credential is a Storage-only S3 access key (binding §8): it reaches no database.
+//
+// Write-once is kept by the database, not left to the service: Supabase Storage's S3 PutObject replaces an object and
+// ignores If-None-Match (upstream 307c5e31, SDD-01-CX-0015). writeOnce claims each key in the database (0044) and
+// commits the claim before a byte is sent; a key already claimed, by this API or one racing it, is refused before any
+// I/O to the store, and buildApp hands the routes no other store. The keys are fresh besides (renderer_output_slot and
+// renderer_capture_slot mint gen_random_uuid(); a retry gets a new one), and every read checks the recorded SHA-256
+// (the API's fileBytes, the Studio's download.ts).
 import { amzDates, authorization, encodeKey, presignedUrl, sha256Hex, uriEncode } from './s3-sign.ts'
 
 /** A stored source's object path: one object per source, named by its project and id. */
@@ -12,7 +19,10 @@ export const objectPath = (projectId: string, sourceId: string) => `${projectId}
 export const storedKey = (projectId: string, sourceId: string) => `objects/${objectPath(projectId, sourceId)}`
 
 export interface ByteStore {
-  /** Store new bytes at `path`. A path already written is refused: an object is never replaced. */
+  /**
+   * Store new bytes at `path`. A path written before is refused (409) and its object stays as written: writeOnce keeps
+   * that for every store the API is given, whose own refusals (s3ByteStore's HEAD and If-None-Match) are a second line.
+   */
   put(path: string, bytes: Uint8Array, mime: string): Promise<void>
   /** A URL that reads `path` until it expires; with a file name, opening it saves the file under that name. */
   signedUrl(path: string, expiresInSeconds: number, downloadAs: string | null): Promise<string>
@@ -46,10 +56,11 @@ type Fetch = typeof fetch
 const attachment = (name: string) => `attachment; filename="${name.replace(/["\\\r\n]/g, '_')}"`
 
 /**
- * S3-compatible object storage, signed with Signature Version 4: a put that never replaces an object (a HEAD first,
- * then `If-None-Match: *`; either refusal is 409), and a presigned GET that saves the file under its name when the
- * reader asked to. Path-style addressing (`<endpoint>/<bucket>/<key>`), as Supabase's S3 endpoint uses. Not yet
- * exercised against a live project: Codex's qualification (plan §5) runs it before any hosted release.
+ * S3-compatible object storage, signed with Signature Version 4: a put that refuses a key it finds (a HEAD first) and
+ * sends `If-None-Match: *` (a 412 is 409 too, where the service honours it; Supabase's does not), and a presigned GET
+ * that saves the file under its name when the reader asked to. Path-style addressing (`<endpoint>/<bucket>/<key>`), as
+ * Supabase's S3 endpoint uses. Not yet exercised against a live project: Codex's qualification (plan §5) runs it
+ * before any hosted release.
  */
 export function s3ByteStore(
   config: S3StorageConfig,
@@ -107,6 +118,28 @@ export function s3ByteStore(
       if (!res.ok) throw await failure(res, 'store get')
       return new Uint8Array(await res.arrayBuffer())
     },
+  }
+}
+
+/** Claims a key's one write: true the first time, false for a key already claimed (claimObjectWrite, 0044). */
+export type WriteClaim = (path: string, sha256: string, byteLength: number) => Promise<boolean>
+
+/**
+ * The store, written once per key whatever the store itself does with a second write: each put first claims its key
+ * (committed before any byte is sent) and is refused with 409 for a key already claimed, the same bytes included. A
+ * claim that cannot be made (the database did not answer) refuses the write: nothing reaches the store unclaimed.
+ * Reads are the store's own.
+ */
+export function writeOnce(store: ByteStore, claim: WriteClaim): ByteStore {
+  return {
+    async put(path, bytes, mime) {
+      if (!(await claim(path, sha256Hex(bytes), bytes.byteLength))) {
+        throw new ByteStoreError(409, `store put: ${path} was already written`)
+      }
+      await store.put(path, bytes, mime)
+    },
+    signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
+    get: (path) => store.get(path),
   }
 }
 

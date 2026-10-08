@@ -3,9 +3,16 @@ import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, ty
 import type pg from 'pg'
 import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { checkRoleSafety, RUNTIME_COMMANDS_CHANNEL, runtimeTokenHash, type RuntimeCaller } from '@sophia/persistence'
+import {
+  checkRoleSafety,
+  claimObjectWrite,
+  RUNTIME_COMMANDS_CHANNEL,
+  runtimeTokenHash,
+  withService,
+  type RuntimeCaller,
+} from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
-import type { ByteStore } from './byte-store.ts'
+import { writeOnce, type ByteStore } from './byte-store.ts'
 import { CompanionRunner, companionFailure, type Companion } from './companion.ts'
 import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
@@ -149,6 +156,20 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.runtime_capture_issue(bytea,text,text,jsonb,text)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)') IS NOT NULL AS ok`
 
+/**
+ * What an API with a byte store also requires: the claim every write makes first (0044, writeOnce). An API without
+ * one, and the previous API, require nothing of 0044, so it is not needed before the store is configured.
+ */
+const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(text,text,bigint)') IS NOT NULL AS ok`
+
+/** The byte store the routes are given: written once per key, by a claim the database keeps (0044). */
+const storeOf = (pool: pg.Pool, store: ByteStore | null | undefined): ByteStore | null =>
+  store
+    ? writeOnce(store, (path, sha256, byteLength) =>
+        withService(pool, (c) => claimObjectWrite(c, path, sha256, byteLength)),
+      )
+    : null
+
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
     logger: deps.logger ?? false,
@@ -175,7 +196,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerCors(app, deps.corsOrigins ?? [])
   registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
   app.setErrorHandler(handleError)
-  registerHealth(app, deps.pool)
+  registerHealth(app, deps.pool, Boolean(deps.byteStore))
+  const store = storeOf(deps.pool, deps.byteStore)
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   projectionRoutes(app, { pool: deps.pool })
@@ -184,13 +206,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
-  designRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
+  designRoutes(app, { pool: deps.pool, store })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit })
   accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
-  sourceRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
-  rendererRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
+  sourceRoutes(app, { pool: deps.pool, store })
+  rendererRoutes(app, { pool: deps.pool, store })
   knowledgeRoutes(app, { pool: deps.pool })
   coordinationRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
@@ -320,13 +342,14 @@ function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply
   return sendError(req, reply, 503, { code: 'unavailable', message: 'Unavailable', retry: 'safe_read' })
 }
 
-function registerHealth(app: FastifyInstance, pool: pg.Pool): void {
+function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean): void {
   app.get('/health', () => ({ ok: true }))
   app.get('/ready', async (_req, reply) => {
     try {
       await checkRoleSafety(pool)
       const { rows } = await pool.query<{ ok: boolean }>(REQUIRED_SCHEMA)
-      if (!rows[0]?.ok) return await reply.status(503).send({ ready: false, reason: 'schema' })
+      const store = stores ? (await pool.query<{ ok: boolean }>(STORE_SCHEMA)).rows[0]?.ok : true
+      if (!rows[0]?.ok || !store) return await reply.status(503).send({ ready: false, reason: 'schema' })
       return { ready: true }
     } catch {
       return reply.status(503).send({ ready: false, reason: 'database' })

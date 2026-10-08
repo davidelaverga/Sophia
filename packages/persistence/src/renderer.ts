@@ -128,3 +128,22 @@ export async function enqueueRenderJob(
   const row = onlyRow(rows, 'enqueue_render_job')
   return { jobId: row.job_id, manifestSha256: row.manifest_sha256 }
 }
+
+/**
+ * Claim an object key's one write before any byte of it is sent (0044): true the first time, false for a key already
+ * claimed, by this API or another racing it. Call it in a transaction of its own (withService) that commits before the
+ * write, so the claim holds whatever happens to the write.
+ */
+export async function claimObjectWrite(
+  c: pg.PoolClient,
+  key: string,
+  sha256: string,
+  byteLength: number,
+): Promise<boolean> {
+  const { rows } = await c.query<{ claimed: boolean }>(`SELECT sophia.claim_object_write($1, $2, $3) AS claimed`, [
+    key,
+    sha256,
+    byteLength,
+  ])
+  return onlyRow(rows, 'claim_object_write').claimed
+}

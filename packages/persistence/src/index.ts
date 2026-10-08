@@ -104,6 +104,7 @@ export {
 } from './artifacts.ts'
 export {
   enqueueRenderJob,
+  claimObjectWrite,
   rendererCaptureSlot,
   rendererClaim,
   rendererFile,
