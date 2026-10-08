@@ -46,6 +46,45 @@ export const DEMO_SOURCES = [
 
 const [SURVEY, TICKETS, CALLS, DASHBOARD] = DEMO_SOURCES.map((s) => s.id)
 
+/**
+ * Where the report's sources came from (A19, proposed; docs/plans/knowledge-origins.md): the survey a file Lucía added,
+ * the tickets a conversation about setup, the call notes the Oct 4 meeting, the dashboard a decision.
+ */
+export const DEMO_ORIGINS = [
+  {
+    sourceId: SURVEY ?? '',
+    kind: 'file',
+    id: '00000000-0000-4000-8000-0000000007a1',
+    title: 'week-3-survey.csv',
+    by: 'Lucía',
+    at: '2026-09-29T10:00:00.000Z',
+  },
+  {
+    sourceId: TICKETS ?? '',
+    kind: 'conversation',
+    id: '00000000-0000-4000-8000-0000000000c3',
+    title: 'Who owns setup when an admin changes?',
+    by: null,
+    at: '2026-10-04T09:00:00.000Z',
+  },
+  {
+    sourceId: CALLS ?? '',
+    kind: 'meeting',
+    id: '00000000-0000-4000-8000-0000000000e2',
+    title: null,
+    by: null,
+    at: '2026-10-04T15:00:00.000Z',
+  },
+  {
+    sourceId: DASHBOARD ?? '',
+    kind: 'decision',
+    id: '00000000-0000-4000-8000-0000000007a2',
+    title: 'Read activation from the September snapshot',
+    by: null,
+    at: '2026-09-30T12:00:00.000Z',
+  },
+] as const
+
 const MEASURED = `## What we measured
 
 Fourteen customer teams took the new onboarding between September 1 and 28, nine in the first region and five in the second. We read the week-3 survey [${String(SURVEY)}], every support ticket the pilot raised [${String(TICKETS)}], the notes from each first session [${String(CALLS)}] and the activation dashboard [${String(DASHBOARD)}].

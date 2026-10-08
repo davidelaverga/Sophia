@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/room-honest.spec.ts`, `apps/studio/fixtures/dat
 Runtime unit: the Studio (`apps/studio`): its API client's refusal words, Sophia's controls and the room fixture; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `room/honest` from `main` (`9368cf03`), 2026-10-08
-Ending commit/tree: `07b297937da3ae465a0c1f7c81bf9dbc69f9ce5a` (tree `a8f2e3ecc955802be62fef04b76875caf1634b46`), after the check reading Sophia's own label in the dock, as CI found. The commits after it change only this handoff.
+Ending commit/tree: `26b95d481cfba4d505816d14bd0b63630c16527a` (tree `f88e26525e22efff3db2a1dcb4d5f4ab983090a0`), after main merged in once Knowledge origins landed, after the check reading Sophia's own label in the dock, as CI found. The commits after it change only this handoff.
 
 ## Outcome
 
