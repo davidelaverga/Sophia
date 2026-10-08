@@ -1,6 +1,6 @@
 """One bounded fixture run; never starts/registers a production runner."""
 
-import hashlib, json, os, pathlib, selectors, signal, subprocess, tempfile, time, shutil
+import hashlib, json, os, pathlib, selectors, signal, subprocess, tempfile, time, shutil, sys
 
 root = pathlib.Path("/opt/uml")
 latch = pathlib.Path("/tmp/uml-qualification-started.json")
@@ -43,7 +43,12 @@ def digest(path):
 
 def bounded_child(argv, seconds, limit):
     proc = subprocess.Popen(
-        argv,
+        [
+            sys.executable,
+            str(pathlib.Path(__file__).with_name("owned-exec.py")),
+            str(os.getpid()),
+            *argv,
+        ],
         env={"PATH": "/usr/bin:/bin"},
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,

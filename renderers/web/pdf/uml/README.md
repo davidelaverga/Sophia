@@ -124,3 +124,36 @@ cross-compilation passed in the private offline ARM Linux lab. That is neither
 native Render performance nor host confinement acceptance. The original full
 Linux fixture and ordinary CI must pass on this source before any amended paid
 Render request. Kernel and host-isolation review remain independent obligations.
+
+## Current performance investigation
+
+The `4055ff13` RAM-backing candidate built and deployed on Render. Its original
+full fixture failed the first 32-width pace check: 961 ms projected beyond the
+unchanged 60-second deadline. A separate later failure-detail diagnostic covered
+all 2,241 widths in 37.787 seconds; that diagnostic does not replace the failed
+original result. The paid batch is closed, its complete receipt is retained, and
+the worker is suspended. There has been no Claude handover or production release.
+
+The preceding kernel configuration selected `CC_OPTIMIZE_FOR_SIZE` (`-Os`). The
+candidate now selects Linux's default `CC_OPTIMIZE_FOR_PERFORMANCE` (`-O2`). An
+offline cross-compile passed, and the normalized configurations differ only in
+that compiler choice. No kernel security option, guest memory, browser code,
+viewport count, batch size, pace gate or deadline changes with it.
+
+The Docker build accepts `UML_KERNEL_OPTIMIZATION=size` only to construct the
+comparison control; the default is `performance`. It rejects other values and
+checks and logs the selected normalized configuration before compiling. CI runs
+size, performance, performance, size in four fresh containers on the same Linux
+host, each restricted to one CPU and 2 GiB with network disabled. Every run uses
+the complete original fixture and retains its separate log; any failed run fails
+the job. This comparison is evidence of performance on that CI host, not a
+native Render success. The changed source needs an amended bounded paid request
+before another Render build and fixture.
+
+The independent review also found that killing the root fixture driver could
+leave its namespace supervisor alive without the 240-second watchdog. A small
+exec wrapper now binds every direct fixture child to the driver's lifetime with
+Linux parent-death signaling and a pre-exec parent-identity check. The existing
+namespace chain protects its descendants. Linux regression controls exercise
+driver `SIGTERM`, driver `SIGKILL` and refusal of an already-mismatched parent;
+this does not by itself prove native cancellation of the actual UML/browser tree.

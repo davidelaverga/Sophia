@@ -8,6 +8,8 @@ COPY . .
 RUN corepack enable pnpm && pnpm --filter @sophia/renderer-pdf deploy --prod /out
 
 FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS kernel
+# The size mode is a CI comparison control; native candidates use the default.
+ARG UML_KERNEL_OPTIMIZATION=performance
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential gcc-x86-64-linux-gnu libc6-dev-amd64-cross patch xz-utils flex bison libssl-dev libelf-dev bc curl ca-certificates python3
 WORKDIR /build
 COPY renderers/web/pdf/uml/kernel.config renderers/web/pdf/uml/kernel-abi.patch renderers/web/pdf/uml/seccomp-abi-probe.c /build/
@@ -22,7 +24,18 @@ RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linu
  && patch --fuzz=0 -p1 < /build/kernel-memory.patch \
  && python3 /build/check-memory-backing.py arch/um/os-Linux/mem.c \
  && scripts/config --disable DEBUG_INFO --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT --enable DEBUG_INFO_NONE --disable DEBUG_INFO_BTF --disable MODULES --disable MODULE_SIG --set-str SYSTEM_TRUSTED_KEYS '' --set-str SYSTEM_REVOCATION_KEYS '' \
+ && case "$UML_KERNEL_OPTIMIZATION" in \
+      performance) scripts/config --disable CC_OPTIMIZE_FOR_SIZE --enable CC_OPTIMIZE_FOR_PERFORMANCE ;; \
+      size) scripts/config --disable CC_OPTIMIZE_FOR_PERFORMANCE --enable CC_OPTIMIZE_FOR_SIZE ;; \
+      *) echo 'unsupported UML kernel optimization' >&2; exit 1 ;; \
+    esac \
  && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- olddefconfig \
+ && case "$UML_KERNEL_OPTIMIZATION" in \
+      performance) grep -qx 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y' .config ;; \
+      size) grep -qx 'CONFIG_CC_OPTIMIZE_FOR_SIZE=y' .config ;; \
+    esac \
+ && printf 'UML_KERNEL_OPTIMIZATION %s\n' "$UML_KERNEL_OPTIMIZATION" \
+ && sha256sum .config \
  && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- -j2 linux \
  && cp linux /build/linux.uml
 

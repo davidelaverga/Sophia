@@ -118,3 +118,46 @@ actual patched upstream function, testing anonymous backing, fixed length, share
 exec, and each denied primitive. An offline private ARM Linux VM passed these controls and cross-compiled the modified
 x86 UML kernel. All owned local VMs powered off naturally. Full original Linux CI and native Render evidence remain
 pending for this RAM candidate. The worker stays suspended; the earlier approval is not reused for this new source.
+
+## RAM-backing result and compiler optimization candidate
+
+Candidate `4055ff1336456a19053dd394395a84ffaad357b0` passed the original one-CPU/2-GiB Linux CI fixture
+([run 37796099848](https://github.com/davidelaverga/Sophia/actions/runs/37796099848)) and all six ordinary jobs in both
+push and PR CI. Its approved native Render build passed the actual anonymous-RAM controls, compiled and deployed.
+Host adverse controls, sandbox, PDF and ten captures passed. The original width check failed after its first32 widths:
+961 ms elapsed,58,929 ms remaining, early pace rejection without reaching the hard deadline. The observed1.958-second
+sweep stopped early; it was not a completed sweep. The later failure-detail diagnostic independently covered all2,241
+widths in37.787 seconds and cannot replace the original failed verdict.
+
+The complete768,267-byte log matched SHA-256 `7b34421b27a13e5644c61de1944ae9b7d4d6e6357d9be3202f95fe9b59a63427`.
+The guest exited naturally and owned descendants, scratch and sentinels settled. The verified idle supervisor exited
+via pidfd and remained a zombie until suspension. The original one-CPU/2-GB worker was suspended/not billed at18:55:48 UTC,
+before the19:03:05 UTC deadline. That paid batch is closed. Support remains unsent and there has been no Claude handover.
+
+The owner then requested performance optimization followed by handback to Claude. Starting source is4055ff13 and
+writable scope remains this qualification branch. Separate fresh-process macOS prototypes for shared baseline canvases
+and linear snapshot-style decoding preserved answers but yielded only modest gains; neither is included here. They do
+not establish native UML performance or explain the cold native first-batch difference.
+
+The existing kernel selected size optimization (`-Os`), whereas pinned upstream `init/Kconfig` defaults to performance
+optimization (`-O2`). The next candidate changes only that choice. Its offline x86 UML cross-compile passed and the
+normalized before/after configurations differ only in the two mutually exclusive optimization entries. The private VM
+powered off naturally. Browser code, RAM backing, all security options and all acceptance criteria are unchanged.
+
+CI builds the default performance image and an explicit size-control image from the same source. It runs four fresh
+complete fixtures on one host, in size/performance/performance/size order, at one CPU/2 GiB with network disabled. Each
+retains its own log and original verdict; any failure fails the job. CI timing evidence remains pending at preparation.
+An independent whole-diff review is required before push. The changed source requires an amended concrete paid request;
+no closed batch is reopened. Native success, actual UML/browser cancellation, independent kernel/host review and
+production application integration remain separate outstanding obligations.
+
+The independent reviewer inspected the whole diff and found one fixture ownership gap: stopping `host-qa` could leave
+the root namespace supervisor alive after its watchdog disappeared. `owned-exec.py` now arms parent-death `SIGKILL` and
+checks the spawning driver's PID before executing every owned direct child. Existing descendant guards remain active.
+Linux regression controls cover driver `SIGTERM`/`SIGKILL` and a mismatched parent; a guard-removal mutation must fail.
+This ownership correction is applied equally to both comparison images, so their only difference remains optimization.
+All ten helper tests passed without skips in the private offline ARM Linux VM. Removing the parent-death guard made
+both cancellation subtests fail; the tests cleaned up those owned children through their pidfds. The VM powered off
+naturally. The independent amended whole-diff review found no further actionable issues; it did not independently run
+the private Linux checks or grant production kernel/host acceptance. Actual native UML cancellation remains unverified.
+No paid effect has been performed by this performance continuation.

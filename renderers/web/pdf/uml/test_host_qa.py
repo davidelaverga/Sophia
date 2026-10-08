@@ -12,6 +12,7 @@ function = next(
 exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"))
 
 
+@unittest.skipUnless(sys.platform == "linux", "fixture ownership requires Linux prctl")
 class DriverControls(unittest.TestCase):
     def test_records_and_nonzero_exit(self):
         code = 'import json; print(json.dumps({"event":"UML_HOST_POLICY_APPLIED","seccomp":2})); raise SystemExit(7)'
