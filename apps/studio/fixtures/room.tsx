@@ -308,6 +308,7 @@ const project = {
     ? {
         onCommand: (command: GoalCommand) => {
           project.goals = goalsAdmitted(project.goals, command)
+          publish(project)
           window.setTimeout(() => {
             project.goals = goalsSettled(project.goals, command.goalId)
             publish(project)
