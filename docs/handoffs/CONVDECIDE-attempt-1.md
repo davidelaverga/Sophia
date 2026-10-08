@@ -29,8 +29,8 @@ Design note: `docs/plans/conversations-decide.md`.
 ## Evidence
 
 - Unit: `decide.test.ts` 6 passed (the statement from a message, refusals by write, what is decided here).
-- New browser checks in `e2e/conversations-decide.spec.ts` (6): not run locally (RAM beside AION2 under the guard's
-  floor, never lowered); CI runs them. Checked by hand in the in-app browser: the press at the bubble's corner, the
+- New browser checks in `e2e/conversations-decide.spec.ts` (6): run locally under the guard (`safe-run.ps1`, two
+  workers) on the stack's tip, with every conversations check and type-scale: 101 passed. Checked by hand in the in-app browser: the press at the bubble's corner, the
   form, a proposal landing in Still open, Accept moving it to the accepted decisions.
 - Prettier, `oxlint --type-aware`, `tsc`. Control mutant: the answer's line not focused once answered; the Accept check fails.
 - Independent review: two P2s (a resend of the old decision after no reply; Accept offered on a stale or direction
