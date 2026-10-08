@@ -15,6 +15,8 @@ const DECISION = new RegExp(`^${PROPOSALS}/([0-9a-f-]{36})/decision$`)
 let made = 0
 /** Each write's receipt by its key: the same key replays it. */
 const receipts = new Map<string, Response>()
+/** Every write that reached the brief, as `path` and its body: the checks read them (the page's fetch is faked, so no request leaves it). */
+export const missionWrites: { path: string; body: unknown }[] = []
 let staleOnce = new URLSearchParams(window.location.search).get('decide') === 'stale'
 
 const json = (body: unknown, status = 200) =>
@@ -104,6 +106,7 @@ export function missionWritten(brief: Brief, method: string, path: string, init:
   if (method !== 'POST') return null
   const id = DECISION.exec(path)?.[1]
   if (path !== PROPOSALS && !id) return null
+  missionWrites.push({ path, body: bodyOf(init) })
   const key = new Headers(init?.headers).get('idempotency-key') ?? ''
   const replay = receipts.get(key)
   if (replay) return replay.clone()

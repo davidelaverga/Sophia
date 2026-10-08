@@ -769,8 +769,8 @@ function missionAnswer(project: Project, method: string, path: string, init: Req
     return missionRead(project)
   }
   // A08's proposal and decision, from a conversation's context (C7, mission-writes.ts).
-  const written = project.missionPlus ? missionWritten(project.missionPlus, method, path, init) : null
-  if (written) return written
+  const brief = project.missionPlus ? missionWritten(project.missionPlus, method, path, init) : null
+  if (brief) return brief
   return project.notes ? notesAnswer(project.revision, project.notes, method, path, init) : null
 }
 
