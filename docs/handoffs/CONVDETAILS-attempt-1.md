@@ -25,10 +25,9 @@ Design note: `docs/plans/conversations-details.md`.
 ## Evidence
 
 - Unit: `conversation-list.test.ts` (all of a list, when asked) with Conversations' units, 44 passed.
-- Browser checks: `e2e/conversations-details.spec.ts` (3). Not run locally (RAM beside AION2 under the guard's floor,
-  never lowered); CI runs them. Checked by hand in the in-app browser: the labels, the press opening five decisions,
+- Browser checks: `e2e/conversations-details.spec.ts` (3). Run locally under the guard (`safe-run.ps1`, two workers) on the stack's tip, with every conversations check and type-scale: 101 passed. Checked by hand in the in-app browser: the labels, the press opening five decisions,
   the label on a phone's list and its conversation.
-- Prettier, `oxlint --type-aware`, `tsc`. Mutants: not run, for the same reason.
+- Prettier, `oxlint --type-aware`, `tsc`. Control mutant: «and 2 more» shows only the first three; the check fails.
 - Independent review: three P2s (the press under 24 px; the focus lost and the state announced on another press; the
   label hidden on the phone's list too), fixed with checks; its P3s on one state for two lists fixed (each list its
   own).
