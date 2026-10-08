@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/knowledge-origins.spec.ts`, `apps/studio/fixtur
 Runtime unit: the Studio (`apps/studio`) on its fixture pages, under the vision flag; no API, database, worker or deployment touched. The API part is a proposal (A19).
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `knowledge/origins` from `knowledge/quiet-two` (#172), with `main` merged in after #172, 2026-10-08
-Ending commit/tree: `00fc4e7e5f43093ba2ad683267b1e6e6ec809514` (tree `f0b4bd8f764896b2f5e88fad0623a7d9ec004f5e`). The commit after it adds only this handoff.
+Ending commit/tree: `c4b39b0929f735ca0387807b6db4870fa348cd1e` (tree `a27bf442545d8f12c87d97b86e003d7f3021b4fc`), after a source's title put on the type scale and the note's check told from the list's count, as CI found. The commits after it change only this handoff.
 
 ## Outcome
 
