@@ -21,6 +21,7 @@ import type { PersonalWrites } from '../src/features/personal/usePersonal.ts'
 import { projectsFor, useExtras } from './personal-extras.ts'
 import { useEscape } from '../src/features/personal/useEscape.ts'
 import { DEMO, DEMO_LABEL } from './demo.ts'
+import { companionReply } from './personal-replies.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 
@@ -251,19 +252,15 @@ function carryWritesFor(setSpace: (next: (s: Space) => Space) => void): Pick<Per
 /** What a live talk said, written as turns; a note kept from her look back. */
 function writtenBy(setSpace: (next: (s: Space) => Space) => void) {
   return {
-    talk: (lines: readonly TalkLine[]) =>
-      setSpace((s) => ({
-        ...s,
-        // Her lines in a talk answer what was said before them: never read as a greeting.
-        turns: [
-          ...s.turns,
-          ...lines.map((l, i) =>
-            turn(l.who === 'you' ? 'person' : 'sophia', l.text, new Date().toISOString(), {
-              replyTo: l.who === 'sophia' && i > 0 ? `talk-${String(i - 1)}` : null,
-            }),
-          ),
-        ],
-      })),
+    talk: (lines: readonly TalkLine[]) => {
+      // Her lines in a talk answer what was said before them: never read as a greeting. Made once, outside the update.
+      const said = lines.map((l, i) =>
+        turn(l.who === 'you' ? 'person' : 'sophia', l.text, new Date().toISOString(), {
+          replyTo: l.who === 'sophia' && i > 0 ? `talk-${String(i - 1)}` : null,
+        }),
+      )
+      setSpace((s) => ({ ...s, turns: [...s.turns, ...said] }))
+    },
     keep: (text: string) =>
       setSpace((s) => ({
         ...s,
@@ -279,6 +276,19 @@ function writtenBy(setSpace: (next: (s: Space) => Space) => void) {
         ],
       })),
   }
+}
+
+/**
+ * The space once Sophia answered `text`: the message answered, her words after it. The demo's Sophia answers with what
+ * you told her before this (personal-replies.ts); the checks keep one line.
+ */
+function answered(s: Space, text: string, hers: PersonalTurn): Space {
+  const turns = s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' as const } : t))
+  // What came before the message answered; were it gone meanwhile, everything kept.
+  const asked = turns.findLastIndex((t) => t.author === 'person' && t.text === text)
+  const before = asked < 0 ? turns : turns.slice(0, asked)
+  const words = DEMO ? companionReply(text, before) : REPLY
+  return { ...s, revision: s.revision + 1, turns: [...turns, { ...hers, text: words }] }
 }
 
 /** The space and its writes, as the API would keep them: a message is listed at once and answered 900 ms later. */
@@ -311,11 +321,9 @@ function useSimulated() {
       setSending(null)
       setBusy(false)
       const reply = () => {
-        setSpace((s) => ({
-          ...s,
-          turns: s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' } : t)),
-        }))
-        add(turn('sophia', REPLY, new Date().toISOString()))
+        // Her turn made once, outside the update (which React may run twice); its words filled in there.
+        const hers = turn('sophia', '', new Date().toISOString())
+        setSpace((s) => answered(s, text, hers))
       }
       window.clearTimeout(answer.current)
       if (query.has('holdReply') && window.personalFixture) window.personalFixture.answer = reply
