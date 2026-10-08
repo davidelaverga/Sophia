@@ -139,7 +139,6 @@ function ThisConversation({ conversation: c }: { conversation: ConversationSumma
 
 /** The accepted decisions, newest first, and what is proposed and not decided, kept apart. */
 function Decisions({ ctx, projectId, identity }: { ctx: MissionContext; projectId: string; identity: Identity }) {
-  const acceptedId = useId()
   const openId = useId()
   const decide = useDecide(projectId, identity)
   const [said, setSaid] = useState('')
@@ -150,25 +149,14 @@ function Decisions({ ctx, projectId, identity }: { ctx: MissionContext; projectI
       if (receipt) setSaid(args.decision === 'accept' ? `Accepted: ${statement}` : `Not now: ${statement}`)
     })
   }
-  const { shown, more } = acceptedOf(ctx.constraints)
-  const open = pendingOf(ctx.pending)
+  // «and 2 more» opens (C9): every accepted decision and every proposal waiting, until folded again.
+  const [every, setEvery] = useState(false)
+  const { shown, more } = acceptedOf(ctx.constraints, every)
+  const open = pendingOf(ctx.pending, every)
+  const total = acceptedOf(ctx.constraints).more + pendingOf(ctx.pending).more
   return (
     <>
-      <section aria-labelledby={acceptedId}>
-        <h4 id={acceptedId} className="eyebrow">
-          Accepted decisions
-        </h4>
-        {shown.length === 0 ? (
-          <p className="conv-note">None accepted yet.</p>
-        ) : (
-          <ul className="conv-decisions">
-            {shown.map((d) => (
-              <li key={d.id}>{d.statement}</li>
-            ))}
-          </ul>
-        )}
-        {more > 0 && <p className="conv-note">{`and ${String(more)} more`}</p>}
-      </section>
+      <Accepted shown={shown} more={more} onEvery={setEvery} />
       <section aria-labelledby={openId}>
         <h4 id={openId} className="eyebrow">
           Still open
@@ -185,15 +173,47 @@ function Decisions({ ctx, projectId, identity }: { ctx: MissionContext; projectI
                 </li>
               ))}
             </ul>
-            {open.more > 0 && <p className="conv-note">{`and ${String(open.more)} more`}</p>}
+            {open.more > 0 && <More every={false} more={open.more} onEvery={setEvery} />}
             <p className="conv-note">Proposed, not decided.</p>
           </>
         )}
         <p className="conv-note" role="status">
           {decide.state.status === 'rejected' ? refusalWords(decide.state.error) : said}
         </p>
+        {every && total > 0 && <More every more={total} onEvery={setEvery} />}
       </section>
     </>
+  )
+}
+
+/** The accepted decisions, newest first: three, or all once «and 2 more» is pressed. */
+function Accepted(props: { shown: readonly MissionDecision[]; more: number; onEvery: (every: boolean) => void }) {
+  const id = useId()
+  return (
+    <section aria-labelledby={id}>
+      <h4 id={id} className="eyebrow">
+        Accepted decisions
+      </h4>
+      {props.shown.length === 0 ? (
+        <p className="conv-note">None accepted yet.</p>
+      ) : (
+        <ul className="conv-decisions">
+          {props.shown.map((d) => (
+            <li key={d.id}>{d.statement}</li>
+          ))}
+        </ul>
+      )}
+      {props.more > 0 && <More every={false} more={props.more} onEvery={props.onEvery} />}
+    </section>
+  )
+}
+
+/** «and 2 more», a press that shows them all; open, «Show fewer» folds them again. */
+function More({ every, more, onEvery }: { every: boolean; more: number; onEvery: (every: boolean) => void }) {
+  return (
+    <button type="button" className="text-button conv-more" aria-expanded={every} onClick={() => onEvery(!every)}>
+      {every ? 'Show fewer' : `and ${String(more)} more`}
+    </button>
   )
 }
 

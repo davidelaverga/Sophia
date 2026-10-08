@@ -933,7 +933,19 @@
   margin: 0;
   padding: 0 4px;
   color: var(--text-2);
-  font: var(--type-label) / 1.3 var(--mono);
+  font: var(--type-small) / 1.3 var(--sans);
+}
+/* The context's labels in words (C9): the app's sans, sentence case, the second ink; quieter than what they label. */
+.conv-context .eyebrow {
+  color: var(--text-2);
+  font: 600 var(--type-small) / 1.4 var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.conv-more {
+  justify-self: start;
+  color: var(--text-2);
+  font-size: var(--type-small);
 }
 .conv-compose-hint [data-asked] {
   color: var(--halo-text);
