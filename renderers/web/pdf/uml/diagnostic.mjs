@@ -5,6 +5,8 @@ import net from 'node:net'
 import { probeHost } from '../host-probe.mjs'
 import { launchConfined } from '../confine.mjs'
 import { captureHtml } from '../capture-html.mjs'
+import { orderScript } from '../capture-page.mjs'
+import { meetingsOf, STYLES, withinTime } from '../placement.mjs'
 const input = '/tmp/uml-fixture.html'
 fs.writeFileSync(
   input,
@@ -171,9 +173,105 @@ if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
         captureCount: receipt.captures.length,
       }),
     )
+    await timeWidthProbe(source)
   } finally {
     fs.rmSync(source, { recursive: true, force: true })
     fs.rmSync(output, { recursive: true, force: true })
   }
 }
 process.exitCode = result.functionalPass && result.releaseLaunchBudgetPass && suite.every((check) => check.ok) ? 0 : 1
+
+/** @param {string} source trusted fixture source */
+async function timeWidthProbe(source) {
+  // Diagnostic only: compare repeated evaluation with a compiled copy of the
+  // identical order expression. Every sampled width still gets the same full
+  // snapshot and order/width validation. This never changes the suite verdict.
+  const probeWork = fs.mkdtempSync('/tmp/uml-width-timing-')
+  const timedBrowser = await launchConfined({ workDir: probeWork, timeoutMs: 30000 })
+  try {
+    if (!timedBrowser.selfTest().active) throw new Error('timing browser sandbox inactive')
+    const page = await timedBrowser.context.newPage()
+    await page.goto(`file://${source}/index.html`, { waitUntil: 'load', timeout: 30000 })
+    const cdp = await timedBrowser.context.newCDPSession(page)
+    await cdp.send('Runtime.enable')
+    const expression = orderScript('ltr')
+    const compiled = await cdp.send('Runtime.compileScript', {
+      expression,
+      sourceURL: 'sophia-width-diagnostic',
+      persistScript: true,
+    })
+    if (!compiled.scriptId || compiled.exceptionDetails) throw new Error('order compilation failed')
+    const scriptId = compiled.scriptId
+    const widths = Array.from({ length: 32 }, (_, k) => 320 + k)
+    const until = Date.now() + 60000
+    /** @type {string[] | null} */
+    let baseline = null
+    for (const mode of ['evaluate-cold', 'evaluate-warm', 'compiled-cold', 'compiled-warm']) {
+      if (Date.now() >= until) throw new Error('timing diagnostic exceeded 60 seconds')
+      const began = performance.now()
+      const answers = await timedWidthBatch(cdp, widths, { mode, scriptId, expression, until })
+      const ms = performance.now() - began
+      if (Date.now() >= until) throw new Error('timing diagnostic exceeded 60 seconds')
+      baseline ??= answers
+      console.log(
+        JSON.stringify({
+          event: 'UML_WIDTH_TIMING',
+          qualification: false,
+          diagnosticOnly: true,
+          mode,
+          widths: widths.length,
+          ms,
+          projected2241Ms: (ms / widths.length) * 2241,
+          identicalAnswers: JSON.stringify(answers) === JSON.stringify(baseline),
+          sandboxActive: timedBrowser.selfTest().active,
+        }),
+      )
+    }
+  } finally {
+    const timer = setTimeout(() => timedBrowser.kill(), 5000)
+    try {
+      await timedBrowser.close()
+    } catch {
+      timedBrowser.kill()
+    } finally {
+      clearTimeout(timer)
+      fs.rmSync(probeWork, { recursive: true, force: true })
+    }
+  }
+}
+
+/**
+ * @param {import('playwright-core').CDPSession} cdp
+ * @param {number[]} widths
+ * @param {{ mode: string, scriptId: string, expression: string, until: number }} options
+ */
+async function timedWidthBatch(cdp, widths, { mode, scriptId, expression, until }) {
+  const sent = widths.map((width) =>
+    Promise.all([
+      cdp.send('Emulation.setDeviceMetricsOverride', {
+        mobile: false,
+        width,
+        height: 900,
+        screenWidth: width,
+        screenHeight: 900,
+        deviceScaleFactor: 1,
+        screenOrientation: { angle: 0, type: 'landscapePrimary' },
+      }),
+      mode.startsWith('compiled')
+        ? cdp.send('Runtime.runScript', { scriptId, returnByValue: true })
+        : cdp.send('Runtime.evaluate', { expression, returnByValue: true }),
+      cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLES }),
+    ]),
+  )
+  const got = await withinTime(Promise.all(sent), until)
+  if ('late' in got) throw new Error('timing diagnostic exceeded 60 seconds')
+  const answers = got.value.map(([, read, snapshot], k) => {
+    const value = /** @type {unknown} */ (read.result.value)
+    if (read.exceptionDetails || !Array.isArray(value) || value[0] !== widths[k])
+      throw new Error(`timing width ${String(widths[k])} not read`)
+    const lie = meetingsOf(snapshot)
+    if ('issue' in lie) throw new Error(lie.issue)
+    return `${lie.state}|${String(value[1])}|${String(value[2])}`
+  })
+  return answers
+}
