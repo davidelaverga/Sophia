@@ -37,6 +37,8 @@ export interface Meeting {
   begun: () => boolean
   /** `meetings=none`: no meeting before this one (none closed yet). */
   noPast?: boolean
+  /** What the project published outside any meeting (the demo's readout): among what changed, never a meeting's. */
+  published?: () => Records['made']
 }
 
 export const newMeeting = (records: Meeting['records'], begun: Meeting['begun'], startedAt = Date.now()): Meeting => ({
@@ -76,7 +78,7 @@ const PAST: readonly MeetingRecap[] = [
     guests: 1,
     decided: [
       {
-        decisionId: '00000000-0000-4000-8000-0000000000d2',
+        decisionId: '00000000-0000-4000-8000-0000000000da',
         statement: DEMO ? DEMO_DECIDED : 'Keep the room checks on fixtures',
         proposedBy: personId(2),
         decidedBy: ME,
@@ -167,9 +169,11 @@ function everything(m: Meeting) {
   // The project as it is now: since you last looked is not the record at close, so later work shows here.
   const now = { ...current(m), ...m.records() }
   const all = [...PAST.toReversed(), m.begun() ? now : { ...now, decided: [] }]
+  const made = all.flatMap((r) => r.made)
+  const apart = (m.published?.() ?? []).filter((p) => !made.some((d) => d.artifactVersionId === p.artifactVersionId))
   return {
     decided: all.flatMap((r) => r.decided),
-    made: all.flatMap((r) => r.made),
+    made: [...apart, ...made],
     noted: all.flatMap((r) => r.noted),
     open: all.flatMap((r) => r.open),
     work: all.flatMap((r) => r.work),

@@ -40,3 +40,13 @@ test('digest · in the demo, the Oct 2 meeting’s recap says what was said', as
     'The second region starts on the translated checklist.',
   )
 })
+
+test('digest · in the demo, the meeting left now made nothing: the readout is the project’s, not this meeting’s', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&call=on')
+  await page.getByRole('button', { name: 'Leave the room' }).click()
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(recap).toBeVisible()
+  await expect(recap.getByRole('region', { name: 'Made' })).toHaveCount(0)
+})
