@@ -31,9 +31,11 @@ import type { Held } from './held-write.ts'
 import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { blocksOf } from './sophia-text.ts'
+import { useProposeHere } from './ProposeHere.tsx'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 
 interface Props {
+  projectId: string
   conversation: ConversationSummary
   identity: Identity
   me: string
@@ -108,7 +110,14 @@ export function OpenConversation(props: Props) {
         tabIndex={0}
         onScroll={follow.onScroll}
       >
-        <Messages read={read} me={me} awaiting={awaiting} onAnswered={props.onAnswered} onGrown={follow.grown} />
+        <Messages
+          read={read}
+          me={me}
+          awaiting={awaiting}
+          onAnswered={props.onAnswered}
+          onGrown={follow.grown}
+          propose={props.writer === true ? { projectId: props.projectId, identity } : null}
+        />
       </div>
       {props.writer === true && (
         <ConversationComposer
@@ -279,6 +288,8 @@ function Messages(props: {
   onAnswered: (at: string) => void
   /** The thread grew (a message, or «Sophia is answering…»): its scroll may follow. */
   onGrown: () => void
+  /** Where a message may be proposed as a decision (C7); null for those who can't write here. */
+  propose: Propose
 }) {
   const { read, me, onAnswered, onGrown } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
@@ -314,7 +325,7 @@ function Messages(props: {
           }}
         />
       )}
-      {messages.length > 0 && <MessageList messages={messages} me={me} first={first} />}
+      {messages.length > 0 && <MessageList messages={messages} me={me} first={first} propose={props.propose} />}
       {waiting && (
         <p className="conv-note conv-answering" role="status">
           <span className="conv-glyph" aria-hidden>
@@ -351,58 +362,91 @@ const classOf = (m: ConversationMessage, me: string) =>
   m.author === 'sophia' ? 'conv-msg sophia' : m.actorId === me ? 'conv-msg mine' : 'conv-msg'
 
 /** The messages, oldest first, each with who wrote it and when; the first takes the focus when it is given. */
+type Propose = { projectId: string; identity: Identity } | null
+
 function MessageList(props: {
   messages: readonly ConversationMessage[]
   me: string
   first: RefObject<HTMLLIElement | null>
+  propose: Propose
 }) {
-  const { messages, me, first } = props
+  const { messages, me, first, propose } = props
   const now = Date.now()
+  // On a phone (no pointer to point with), the message pressed shows its own press.
+  const [pressed, setPressed] = useState<string | null>(null)
   return (
     <ol className="conv-messages">
-      {messages.map((m, i) => {
-        const before = messages[i - 1]
-        const sophia = m.author === 'sophia'
-        // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
-        const at = (
-          <span className="conv-msg-at" aria-hidden>
-            {clock(m.at)}
-          </span>
-        )
-        return (
-          <li
-            key={m.id}
-            ref={i === 0 ? first : undefined}
-            tabIndex={i === 0 ? -1 : undefined}
-            className={classOf(m, me)}
-            data-run={continuesRun(before, m) ? 'on' : undefined}
-          >
-            {(!before || !sameDay(before.at, m.at)) && (
-              <span className="conv-day" aria-hidden>
-                {dayOf(m.at, now)}
-              </span>
-            )}
-            {sophia && (
-              <span className="conv-glyph" aria-hidden>
-                <Mark />
-              </span>
-            )}
-            <span className="conv-msg-by">
-              {messageBy(m, me)}
-              <span className="sr-only">
-                {' · '}
-                <time dateTime={m.at}>{when(m.at, now)}</time>
-              </span>
-            </span>
-            <div className="conv-msg-body">
-              {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
-              {sophia && at}
-            </div>
-            {!sophia && at}
-          </li>
-        )
-      })}
+      {messages.map((m, i) => (
+        <MessageItem
+          key={m.id}
+          message={m}
+          before={messages[i - 1]}
+          me={me}
+          now={now}
+          first={i === 0 ? first : undefined}
+          propose={propose}
+          pressed={pressed === m.id}
+          onPress={() => setPressed(m.id)}
+        />
+      ))}
     </ol>
+  )
+}
+
+/** One message: its day when it starts one, who wrote it, its words; where one can propose, its press and form (C7). */
+function MessageItem(props: {
+  message: ConversationMessage
+  before: ConversationMessage | undefined
+  me: string
+  now: number
+  first: RefObject<HTMLLIElement | null> | undefined
+  propose: Propose
+  pressed: boolean
+  onPress: () => void
+}) {
+  const { message: m, before, me, now } = props
+  const sophia = m.author === 'sophia'
+  const here = useProposeHere(props.propose && { ...props.propose, messageId: m.id, text: m.text, sophia })
+  // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
+  const at = (
+    <span className="conv-msg-at" aria-hidden>
+      {clock(m.at)}
+    </span>
+  )
+  return (
+    <li
+      ref={props.first}
+      tabIndex={props.first ? -1 : undefined}
+      className={classOf(m, me)}
+      data-run={continuesRun(before, m) ? 'on' : undefined}
+      data-pressed={props.pressed || undefined}
+      onClick={props.onPress}
+    >
+      {(!before || !sameDay(before.at, m.at)) && (
+        <span className="conv-day" aria-hidden>
+          {dayOf(m.at, now)}
+        </span>
+      )}
+      {sophia && (
+        <span className="conv-glyph" aria-hidden>
+          <Mark />
+        </span>
+      )}
+      <span className="conv-msg-by">
+        {messageBy(m, me)}
+        <span className="sr-only">
+          {' · '}
+          <time dateTime={m.at}>{when(m.at, now)}</time>
+        </span>
+      </span>
+      <div className="conv-msg-body">
+        {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
+        {sophia && at}
+        {here.press}
+      </div>
+      {!sophia && at}
+      {here.form}
+    </li>
   )
 }
 

@@ -38,6 +38,7 @@ export type IconName =
   | 'play'
   | 'keyboard'
   | 'pass'
+  | 'decide'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -177,6 +178,13 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <rect x="3" y="6" width="18" height="12" rx="2" />
       <path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10" />
+    </>
+  ),
+  // A decision: a check in a ring (a message proposed as one, C7).
+  decide: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M8.5 12.2l2.4 2.4 4.6-4.9" />
     </>
   ),
 }
