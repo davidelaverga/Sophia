@@ -332,7 +332,7 @@ const RESEND_AFTER = 60
 
 /**
  * How long a send again may take before it is said not confirmed: Supabase's call has no limit of its own, and a send
- * is a write, which may be the call that wakes a sleeping service (CONTRIBUTING, «No wait is endless»).
+ * is a write, which the Studio gives 90 s (CONTRIBUTING, «No wait is endless»).
  */
 const SEND_LIMIT_MS = WRITE_TIMEOUT_MS
 const NOT_CONFIRMED = 'Not confirmed: the email may still arrive. Wait for it, then send again.'
@@ -358,6 +358,8 @@ function SendAgain({ email, send }: { email: string; send: (email: string) => Pr
   const [now, setNow] = useState(() => Date.now())
   const [sending, setSending] = useState(false)
   const [said, setSaid] = useState<{ text: string; failed: boolean }>({ text: '', failed: false })
+  // A long send says so once it has lasted, as every long wait in the Studio does.
+  const slow = useSlow(sending)
   const left = Math.max(0, Math.ceil((until - now) / 1000))
   useEffect(() => {
     const tick = left > 0 ? setInterval(() => setNow(Date.now()), 1000) : undefined
@@ -391,6 +393,7 @@ function SendAgain({ email, send }: { email: string; send: (email: string) => Pr
       {/* One status from the start, its words changed in place; a failure in the error colour. */}
       <span className="muted" role="status" data-state={said.failed ? 'failed' : undefined}>
         {said.text}
+        {slow && ` ${SLOW_NOTE}`}
       </span>
     </p>
   )
