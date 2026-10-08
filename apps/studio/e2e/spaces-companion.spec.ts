@@ -23,11 +23,22 @@ test('companion · a name said before brings back what you said about them', asy
   await expect(lastAnswer(page)).toContainText('how it landed on Davide?')
 })
 
+test('companion · someone else apologising is not your apology; a name inside another word is no one', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await say(page, 'I wish Davide would apologise.')
+  await expect(lastAnswer(page)).toContainText('You mentioned Davide before:')
+  await expect(lastAnswer(page)).not.toContainText('apologise for')
+  await say(page, 'Marketing wants the deck sooner.')
+  await expect(lastAnswer(page)).not.toContainText('Marco')
+})
+
 test('companion · a weight named before is asked about again, and a day is no person', async ({ page }) => {
   await page.goto(PAGE)
   await say(page, 'The deck is still not done for Friday.')
   await expect(lastAnswer(page)).toHaveText(
-    'This is the deck again. Last time you said “I have a pitch on Friday and I keep putting off the deck.” Is it the same weight, or a new one?',
+    'It comes back to the deck again. Last time you said “I have a pitch on Friday and I keep putting off the deck.” Is it the same weight, or a new one?',
   )
 })
 

@@ -286,14 +286,13 @@ function writtenBy(setSpace: (next: (s: Space) => Space) => void) {
  * The space once Sophia answered `text`: the message answered, her words after it. The demo's Sophia answers with what
  * you told her before this (personal-replies.ts); the checks keep one line.
  */
-function answered(s: Space, text: string): Space {
+function answered(s: Space, text: string, hers: PersonalTurn): Space {
   const turns = s.turns.map((t) => (t.reply === 'pending' ? { ...t, reply: 'answered' as const } : t))
-  const before = turns.slice(
-    0,
-    turns.findLastIndex((t) => t.author === 'person' && t.text === text),
-  )
+  // What came before the message answered; were it gone meanwhile, everything kept.
+  const asked = turns.findLastIndex((t) => t.author === 'person' && t.text === text)
+  const before = asked < 0 ? turns : turns.slice(0, asked)
   const words = DEMO ? companionReply(text, before) : REPLY
-  return { ...s, revision: s.revision + 1, turns: [...turns, turn('sophia', words, new Date().toISOString())] }
+  return { ...s, revision: s.revision + 1, turns: [...turns, { ...hers, text: words }] }
 }
 
 /** The space and its writes, as the API would keep them: a message is listed at once and answered 900 ms later. */
@@ -325,7 +324,11 @@ function useSimulated() {
       add(turn('person', text, new Date().toISOString(), { reply: 'pending' }))
       setSending(null)
       setBusy(false)
-      const reply = () => setSpace((s) => answered(s, text))
+      const reply = () => {
+        // Her turn made once, outside the update (which React may run twice); its words filled in there.
+        const hers = turn('sophia', '', new Date().toISOString())
+        setSpace((s) => answered(s, text, hers))
+      }
       window.clearTimeout(answer.current)
       if (query.has('holdReply') && window.personalFixture) window.personalFixture.answer = reply
       else answer.current = window.setTimeout(reply, query.has('slow') ? 2500 : 900)
