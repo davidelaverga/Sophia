@@ -9,7 +9,7 @@ Writable scope: the files this PR changes (its diff against `main`), and nothing
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `polish/tertiary-ink` from `main`, 2026-10-07
-Ending commit/tree: `c474ad1754c6b945a2dc57217ca026264d53f172` (tree `c137268e74b8f753cf3eda836114c66c68642bf8`). The commit after it adds only this handoff.
+Ending commit/tree: `a571e9c2b85899d118bbfc5da01fa9bebae06ba3` (tree `d3e62f2deb7610756ba3901d3827974e5c4cdbbd`), after the review's notes (true comments; the check waits for the page). The commits after it change only this handoff.
 
 ## Outcome
 
