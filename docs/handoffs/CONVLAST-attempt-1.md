@@ -9,7 +9,7 @@ Writable scope: the files this PR changes (its diff against `main`), and nothing
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/last-message` from `main`, 2026-10-08
-Ending commit/tree: `3054ee8f695218978c527d1cd6f24b02876a86e4` (tree `9c024711163753a7dec7c01210c5c4a154250406`). The commit after it adds only this handoff.
+Ending commit/tree: `e68c7ab45919b411388a46ad22cb76141a24a296` (tree `9bd9f4c5c2eca51eb27cf67462daadb339f06f8e`), after the author's name in lastMessage and Codex's P2 (the receipt writes the row at once). The commit after it adds only this handoff.
 
 ## Outcome
 
