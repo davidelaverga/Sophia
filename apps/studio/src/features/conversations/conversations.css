@@ -601,12 +601,8 @@
   background: var(--halo);
 }
 .sophia-who {
-  margin-right: 6px;
   color: var(--text);
   font-weight: 600;
-}
-.sophia-who::after {
-  content: ':';
 }
 .conv-msg.sophia .conv-msg-at {
   position: static;

@@ -417,8 +417,9 @@ export interface ConversationSummary {
   /** The report it made, if any. */
   output: { artifactId: string; versionId: string; versionNumber: number; title: string } | null
   /**
-   * A18 (proposed, for Davide): its newest message, a line of it; absent where the API doesn't say it yet, null when
-   * there is none. Behind the vision flag, the fixture pages answer it.
+   * A18 (proposed, for Davide): its newest message, its opening (up to 140 characters, as written, line breaks kept:
+   * the row says it in one line, sophia-text.ts plainOf); absent where the API doesn't say it yet, null when there is
+   * none. Behind the vision flag, the fixture pages answer it.
    */
   lastMessage?: {
     author: 'member' | 'sophia'

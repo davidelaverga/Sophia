@@ -52,6 +52,15 @@ describe('Sophia’s words, read as light text (C6)', () => {
     )
   })
 
+  it('a row’s line folded by its reader reads the same: its items found again', () => {
+    assert.equal(
+      plainOf('Where it stands: - Marco: One page. - Lucía: Sources inline.'),
+      'Where it stands: Marco: One page. · Lucía: Sources inline.',
+    )
+    // A dash in a sentence stays a dash.
+    assert.equal(plainOf('Two teams - both new - left early.'), 'Two teams - both new - left early.')
+  })
+
   it('empty words are no block', () => {
     assert.deepEqual(blocksOf('  \n\n '), [])
   })

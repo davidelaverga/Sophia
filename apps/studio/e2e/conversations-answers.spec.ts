@@ -37,9 +37,10 @@ test('answers · «Sum it up» says each person’s point, who said it, and what
   await expect(answer.locator('.sophia-lead').first()).toHaveText('Where it stands:')
   const items = answer.locator('.sophia-list li')
   await expect(items).toHaveCount(2)
-  await expect(items.nth(0).locator('.sophia-who')).toHaveText('Marco')
-  await expect(items.nth(0)).toContainText('One page. Anything longer, nobody reads.')
-  await expect(items.nth(1).locator('.sophia-who')).toHaveText('Lucía')
+  await expect(items.nth(0).locator('.sophia-who')).toHaveText('Marco:')
+  // The colon is text: copied, the line reads as it shows.
+  await expect(items.nth(0)).toHaveText('Marco: One page. Anything longer, nobody reads.')
+  await expect(items.nth(1).locator('.sophia-who')).toHaveText('Lucía:')
   await expect(answer).toContainText('Already decided on Oct 5: “Keep the brief to one page”')
   await expect(answer).toContainText('Nothing in this conversation is decided yet.')
   await expect(answer).not.toContainText('I’ll keep that with the question')
@@ -49,13 +50,31 @@ test('answers · «Sum it up» says each person’s point, who said it, and what
   await expect(row).not.toContainText(' - ')
 })
 
-test('answers · «What’s still open?» lists the questions asked and the project’s proposals waiting', async ({
+test('answers · «What’s still open?» lists the project’s proposals waiting, not a question already answered', async ({
   page,
 }) => {
   const answer = await ask(page, 'Who owns setup when an admin changes?', 'What’s still open?')
   await expect(answer.locator('.sophia-lead').first()).toHaveText('Still open:')
-  await expect(answer.locator('.sophia-list')).toContainText('Who picks up setup then?')
-  await expect(answer.locator('.sophia-list')).toContainText('Map first, list second')
+  await expect(answer.locator('.sophia-list')).toContainText('Map first, list second · proposed, not decided')
+  // Asked, then answered by Sophia: no longer open.
+  await expect(answer.locator('.sophia-list')).not.toContainText('Who picks up setup then?')
+})
+
+test('answers · asked twice, Sophia reads what members said, never the presses nor her own answers', async ({
+  page,
+}) => {
+  await ask(page, 'Short or long briefs?', 'What did we decide?')
+  await open(page)
+    .getByRole('group', { name: 'Ask Sophia in one press' })
+    .getByRole('button', { name: 'Sum it up' })
+    .click()
+  await expect(open(page).locator('.conv-messages > li.sophia')).toHaveCount(2)
+  const answer = lastSophia(page)
+  await expect(answer.locator('.sophia-list li')).toHaveCount(2)
+  await expect(answer).not.toContainText('What did we decide?')
+  // Her earlier answer named all five decisions: the summary names only those the members' words touch.
+  await expect(answer).toContainText('“Keep the brief to one page”')
+  await expect(answer).not.toContainText('“No payments in the first release”')
 })
 
 test('answers · «What did we decide?» lists the project’s accepted decisions with their days', async ({ page }) => {

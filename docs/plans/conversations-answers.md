@@ -1,7 +1,7 @@
 # Conversations: Sophia answers for real (C6)
 
 > 2026-10-08 · Luis: «Evalúa conversations a ver si vale no 20 pero 30 dólares. Súbele el nivel», then «Procede con
-> C6». The first of four (C6–C9). Builds on `docs/plans/conversations-panes.md` and A18 (proposed). No API change.
+> C6». The first of four (C6–C9). Builds on `docs/plans/conversations-panes.md` and A18 (proposed). No API change, beyond what A18's proposed row line keeps (below).
 
 ## What reads as unfinished
 
