@@ -59,7 +59,10 @@ test('origins · a meeting’s press shows Updates with that meeting’s recap o
   await page.setViewportSize({ width: 1440, height: 900 })
   await openSources(page)
   await rows(page).nth(2).getByRole('button').click()
-  await expect(page.getByRole('dialog', { name: 'This meeting' })).toBeVisible()
+  // That meeting's recap, the Oct 4 one: what it decided.
+  await expect(page.getByRole('dialog', { name: 'This meeting' })).toContainText(
+    'Keep the readout to one page, with its sources inline',
+  )
   await expect(
     page.getByRole('navigation', { name: 'Project views' }).getByRole('link', { name: 'Updates' }),
   ).toHaveAttribute('aria-current', 'page')
@@ -77,4 +80,13 @@ test('origins · with the origins’ read failing, every project source says «F
   await openSources(page, `${KNOWLEDGE}&origins=fail`)
   await expect(pane(page).getByText('From the project')).toHaveCount(4)
   await expect(rows(page).getByRole('button')).toHaveCount(0)
+})
+
+test('origins · a conversation the list doesn’t hold is said so, never another opened in silence', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openSources(page, `${KNOWLEDGE}&origins=missing`)
+  await rows(page).nth(1).getByRole('button').click()
+  await expect(page.getByRole('region', { name: 'All conversations' }).getByRole('status')).toHaveText(
+    'The conversation asked for isn’t here: the newest is open.',
+  )
 })

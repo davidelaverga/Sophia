@@ -1044,18 +1044,22 @@ function versionsRead(project: Project): Response {
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */
 const heldSources: (() => void)[] = []
 
-/** What a version cites; while the page holds them, a read that answers once let through. */
 /**
  * A19 (proposed): where a version's sources came from. The demo's report says it for its four; any other version knows
- * none. `origins=fail`: the read fails, and every project source says «From the project».
+ * none. `origins=fail`: the read fails, and every project source says «From the project». `origins=missing`: the
+ * conversation named is one the list doesn't hold (gone, or not this reader's).
  */
 function originsRead(path: string): Response {
-  if (new URLSearchParams(window.location.search).get('origins') === 'fail') {
-    return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
-  }
-  return json({ origins: DEMO && path.startsWith(`/api/v1/artifacts/${REPORT}/`) ? DEMO_ORIGINS : [] })
+  const asked = new URLSearchParams(window.location.search).get('origins')
+  if (asked === 'fail') return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  const origins = DEMO && path.startsWith(`/api/v1/artifacts/${REPORT}/`) ? DEMO_ORIGINS : []
+  const gone = '00000000-0000-4000-8000-0000000000c9'
+  return json({
+    origins: asked === 'missing' ? origins.map((o) => (o.kind === 'conversation' ? { ...o, id: gone } : o)) : origins,
+  })
 }
 
+/** What a version cites; while the page holds them, a read that answers once let through. */
 function sourcesRead(project: Project): Response | Promise<Response> {
   if (!project.sourcesHeld) return json(citedSources)
   return new Promise((resolve) => heldSources.push(() => resolve(json(citedSources))))
