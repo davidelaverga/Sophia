@@ -781,7 +781,7 @@
   letter-spacing: 0;
   text-transform: none;
 }
-.conv-question input {
+.conv-new .conv-question input:not([type='checkbox']) {
   font-size: var(--type-title);
 }
 .conv-starters {

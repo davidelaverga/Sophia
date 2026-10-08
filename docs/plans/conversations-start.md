@@ -13,10 +13,11 @@
 ## What changes
 
 - **One question, then go.** The question is the one field that matters: «What do you want to figure out?». The
-  first message is optional («Add context»); left empty, the question is the first message. Start wakes as soon as
+  first message is optional («Context, if it helps»); left empty, the question is the first message. Start wakes as soon as
   there is a question; Enter in the question starts it.
 - **Start from what's open.** Under the question, up to three of the project's proposals waiting (the brief's
-  `pending`, the same read as the context) as presses: one fills the question. None waiting, none shown.
+  `pending`, the same read as the context, newest first, only those that fit a question's 120 characters) as
+  presses: one fills the question. None waiting, none shown.
 - **Quiet labels.** Sentence case in the app's sans, as the rest of the view (C9 does the rest of the view's labels).
 - Held writes stay as they were: with no reply, Start sends the same intent again under its key, never twice.
 
