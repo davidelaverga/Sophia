@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/room-alive.spec.ts`, `apps/studio/fixtures/fake
 Runtime unit: the Studio (`apps/studio`) on its room fixture page, in the demo only; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `room/alive` from `room/honest` (`20a5e89f`), 2026-10-08
-Ending commit/tree: `9c5b1784766e57dba2adf62ab746a9fbdb618dfb` (tree `d12b530438dc6a4215a680d8313f5f82b5411933`), after its base merged in once main moved, after its base's CI fix merged in. The commits after it change only this handoff.
+Ending commit/tree: `119d698acee71ce9e121e8c431ee1e5df578fbf8` (tree `bcb5808957e77e6d4fbff837597cf2f0364ba0e7`), after the stop check made to hold the floor, as a control mutant (the scene's timers never cleared) survived it, after its base merged in once main moved, after its base's CI fix merged in. The commits after it change only this handoff.
 
 ## Outcome
 
@@ -25,11 +25,13 @@ bar.
 
 ## Evidence
 
-- Browser checks: `e2e/room-alive.spec.ts` (4) new. Not run locally (RAM beside AION2 under the guard's floor, never
-  lowered); CI runs them. Checked by hand in the in-app browser: the whole scene ending «Sophia is listening to
+- Browser checks: `e2e/room-alive.spec.ts` (4) new. Run locally under the guard (`pw-safe.ps1`) with the room's other
+  checks (room-honest, room-dock, room-captions, room-people, ink, type-scale, views-goals): 72 passed. Checked by hand in the in-app browser: the whole scene ending «Sophia is listening to
   Marco», and a cut mid-line (her line `interrupted`, Marco never speaking, «listening to you»), no request
   unanswered.
-- Prettier, `oxlint --type-aware`, `tsc`. Mutants: not run, for the same reason.
+- Control mutant: the scene's timers never cleared on a press. It survived the first stop check (Marco's line fell
+  outside what it read); the check now also holds the floor where it was past Marco's turn, and the mutant fails it.
+- Prettier, `oxlint --type-aware`, `tsc`.
 - Independent review, two rounds: the first's P2 taken (Marco was captioned without the floor), with its P3s on a
   cut line and the checks' timing; the second found no P1 or P2, and its P3 is taken (a pass made from the page
   ends the scene).
