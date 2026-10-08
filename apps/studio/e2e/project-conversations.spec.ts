@@ -13,7 +13,8 @@ const rows = (page: Page) => list(page).getByRole('listitem').getByRole('button'
 const titles = (page: Page) => rows(page).locator('.conv-title')
 const open = (page: Page) => page.getByRole('region', { name: 'Open conversation' })
 const context = (page: Page) => page.getByRole('complementary', { name: 'Project context' })
-const messages = (page: Page) => open(page).getByRole('listitem')
+// The thread's messages: its own items, not those of a list inside one of Sophia's answers (C6).
+const messages = (page: Page) => open(page).locator('.conv-messages > li')
 
 test.beforeEach(async ({ page }) => {
   await page.route(

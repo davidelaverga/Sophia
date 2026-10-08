@@ -11,7 +11,8 @@ const list = (page: Page) => page.getByRole('region', { name: 'All conversations
 const rows = (page: Page) => list(page).getByRole('listitem').getByRole('button')
 const titles = (page: Page) => rows(page).locator('.conv-title')
 const open = (page: Page) => page.getByRole('region', { name: 'Open conversation' })
-const messages = (page: Page) => open(page).getByRole('listitem')
+// The thread's messages: its own items, not those of a list inside one of Sophia's answers (C6).
+const messages = (page: Page) => open(page).locator('.conv-messages > li')
 const field = (page: Page) => open(page).getByRole('textbox', { name: 'Continue this question with the team' })
 const send = (page: Page) => open(page).getByRole('button', { name: 'Send' })
 const form = (page: Page) => page.getByRole('form', { name: 'New conversation' })
