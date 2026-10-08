@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/conversations-details.spec.ts`, `apps/studio/fi
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/details` stacked on `conversations/start` (#175), 2026-10-08
-Ending commit/tree: `25eba7849408e5404a5d283f99a8f3a12e86a72d` (tree `999d8799851b75e7db8c0c5d65d83e7a77c4250e`), after its base's changes merged in. The commits after it change only this handoff.
+Ending commit/tree: `0357c2485629538b76f789fba211e9b1bb84c90b` (tree `2be474037f1c811a44bed016e9088c188e9e7203`), after its base's CI fixes merged in, after its base's changes merged in. The commits after it change only this handoff.
 
 ## Outcome
 
