@@ -122,7 +122,7 @@ export function SummaryEditor({ card, identity, editable, onSaved, children = nu
               className="text-button"
               onClick={() => start({ text: card.summary ?? '', base: card.summaryRevision })}
             >
-              Edit
+              Edit summary
             </button>
           )}
         </div>

@@ -33,7 +33,7 @@ test('honest · a designed page’s head names its design check; the team’s re
   await first(page)
     .getByRole('button', { name: /, HTML page$/ })
     .click()
-  await expect(pane(page).locator('.report-meta')).toHaveText(/^HTML · v2 · .* · design checked$/)
+  await expect(pane(page).locator('.report-meta')).toHaveText(/^HTML · v2 · design checked$/)
   await expect(pane(page).getByText('Not reviewed yet.')).toBeVisible()
   await expect(pane(page).locator('.report-meta')).not.toContainText(/\breviewed\b/)
 })

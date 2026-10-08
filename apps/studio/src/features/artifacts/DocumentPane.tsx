@@ -640,15 +640,13 @@ function TabContent({ tab, data, full, identity, focusSource, onCite, onVersion,
 const numbersOf = (parsed: ParsedReport | null): ReadonlyMap<string, number> =>
   new Map((parsed?.citations ?? []).map((id, i) => [id, i + 1]))
 
-/** "Markdown · v2 · 1,234 words · 8.1 KB · 1a2b3c4d": what is on screen, exactly. */
+/** "Markdown · v2 · 1,234 words": what is on screen, in words; its bytes and their hash are Download's (fileLine). */
 function metaLine(version: ArtifactVersion | undefined, text: LoadedText | undefined): string {
   if (!version) return ''
   return [
     version.format === 'markdown' ? 'Markdown' : version.format.toUpperCase(),
     version.versionNumber ? `v${version.versionNumber}` : null,
     text ? `${wordCount(text.text).toLocaleString()} words` : null,
-    text ? formatBytes(text.byteLength) : null,
-    shortHash(version.sourceHash),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -668,36 +666,49 @@ const shownFormat = (data: PaneData): ViewerFormat => {
   return data.showHtml ? 'html' : 'markdown'
 }
 
-/** What the head says about the format on screen, and whether its bytes are there to download. */
-function headOf(data: PaneData): { format: ViewerFormat; meta: string; canDownload: boolean } {
-  if (data.showPdf) return { format: 'pdf', meta: pdfMetaLine(data), canDownload: data.pdf.isSuccess }
-  if (data.showHtml) return { format: 'html', meta: htmlMetaLine(data), canDownload: data.html.isSuccess }
-  return { format: 'markdown', meta: metaLine(data.version, data.text.data), canDownload: data.text.isSuccess }
+interface HeadFacts {
+  format: ViewerFormat
+  meta: string
+  /** "41.2 KB · 1a2b3c4d": the bytes on screen and their hash, said at Download; null until they are known. */
+  file: string | null
+  canDownload: boolean
 }
 
-/** "HTML · v2 · 41.2 KB · 1a2b3c4d · design checked": the designed page on screen, exactly, and how it was checked. */
+/** What the head says about the format on screen, and whether its bytes are there to download. */
+function headOf(data: PaneData): HeadFacts {
+  const file = fileLine(data)
+  if (data.showPdf) return { format: 'pdf', meta: pdfMetaLine(data), file, canDownload: data.pdf.isSuccess }
+  if (data.showHtml) return { format: 'html', meta: htmlMetaLine(data), file, canDownload: data.html.isSuccess }
+  const meta = metaLine(data.version, data.text.data)
+  return { format: 'markdown', meta, file, canDownload: data.text.isSuccess }
+}
+
+/** "41.2 KB · 1a2b3c4d": a file's size, when its bytes are read, and its hash. */
+const exact = (bytes: number | undefined, sha256: string) =>
+  [bytes === undefined ? null : formatBytes(bytes), shortHash(sha256)].filter(Boolean).join(' · ')
+
+/** The bytes of the format on screen and the hash their record gives, exactly: what Download saves. */
+function fileLine({ version, text, rendition, showPdf, page, showHtml }: PaneData): string | null {
+  if (showPdf) return rendition ? exact(rendition.byteLength, rendition.sha256) : null
+  if (showHtml) return page ? exact(page.byteLength, page.sha256) : null
+  return version ? exact(text.data?.byteLength, version.sourceHash) : null
+}
+
+/** "HTML · v2 · design checked": the designed page on screen, and how it was checked. */
 function htmlMetaLine({ version, page }: PaneData): string {
   if (!version || !page) return ''
-  return [
-    'HTML',
-    version.versionNumber ? `v${version.versionNumber}` : null,
-    formatBytes(page.byteLength),
-    shortHash(page.sha256),
-    reviewTag(page.reviewState),
-  ]
+  return ['HTML', version.versionNumber ? `v${version.versionNumber}` : null, reviewTag(page.reviewState)]
     .filter(Boolean)
     .join(' · ')
 }
 
-/** "PDF · v2 · 3 pages · 68.0 KB · 1a2b3c4d": the PDF on screen, exactly. */
+/** "PDF · v2 · 3 pages": the PDF on screen. */
 function pdfMetaLine({ version, rendition }: PaneData): string {
   if (!version || !rendition) return ''
   return [
     'PDF',
     version.versionNumber ? `v${version.versionNumber}` : null,
     rendition.pageCount ? `${rendition.pageCount} ${rendition.pageCount === 1 ? 'page' : 'pages'}` : null,
-    formatBytes(rendition.byteLength),
-    shortHash(rendition.sha256),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -738,6 +749,8 @@ interface HeadProps {
   /** «Show everyone», where it is offered. */
   show: ReactNode
   full: boolean
+  /** The bytes on screen and their hash (fileLine), said at Download. */
+  file: string | null
   canDownload: boolean
   onDownload: () => void
   onEnlarge: () => void
@@ -785,7 +798,7 @@ function PaneHead(props: HeadProps) {
         )}
       </div>
       {props.show}
-      <DownloadButton ready={canDownload} onDownload={onDownload} />
+      <DownloadButton ready={canDownload} file={props.file} onDownload={onDownload} />
       <button type="button" className="round has-tip" aria-label={size} onClick={full ? onStepDown : onEnlarge}>
         <Icon name={full ? 'collapse' : 'expand'} />
         <Tip label={size} keys="F" side="bottom" align="end" />
@@ -803,7 +816,8 @@ function PaneHead(props: HeadProps) {
  * The bytes on screen, once they are checked: until then a press does nothing, and the button says so (aria-disabled,
  * never disabled), so it keeps the focus and its tip. Named on its own: a phone hides the word.
  */
-function DownloadButton({ ready, onDownload }: { ready: boolean; onDownload: () => void }) {
+function DownloadButton(props: { ready: boolean; file: string | null; onDownload: () => void }) {
+  const { ready, file, onDownload } = props
   return (
     <button
       type="button"
@@ -816,7 +830,7 @@ function DownloadButton({ ready, onDownload }: { ready: boolean; onDownload: () 
     >
       <Icon name="download" />
       <span className="report-download-label">Download</span>
-      <Tip label="Download this version" side="bottom" align="end" />
+      <Tip label={file ? `Download this version · ${file}` : 'Download this version'} side="bottom" align="end" />
     </button>
   )
 }

@@ -119,7 +119,6 @@ export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = nul
     <section ref={list} className="knowledge" aria-labelledby="knowledge-title">
       <header className="view-head">
         <h2 id="knowledge-title">Knowledge</h2>
-        <span className="eyebrow">Reports</span>
       </header>
       <div className="knowledge-filters">
         <ProjectFilter projectId={projectId} project={f.project} counts={counts} onProject={f.setProject} />
