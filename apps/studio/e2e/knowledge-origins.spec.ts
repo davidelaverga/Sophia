@@ -59,10 +59,8 @@ test('origins · a meeting’s press shows Updates with that meeting’s recap o
   await page.setViewportSize({ width: 1440, height: 900 })
   await openSources(page)
   await rows(page).nth(2).getByRole('button').click()
-  // That meeting's recap, the Oct 4 one: what it decided.
-  await expect(page.getByRole('dialog', { name: 'This meeting' })).toContainText(
-    'Keep the readout to one page, with its sources inline',
-  )
+  // That meeting's recap, the Oct 4 one: what it decided, as the brief has it (updates-digest.md).
+  await expect(page.getByRole('dialog', { name: 'This meeting' })).toContainText('Reports open on the answer')
   await expect(
     page.getByRole('navigation', { name: 'Project views' }).getByRole('link', { name: 'Updates' }),
   ).toHaveAttribute('aria-current', 'page')
