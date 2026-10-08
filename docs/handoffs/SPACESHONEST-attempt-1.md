@@ -6,11 +6,11 @@ rest of the app… sign-in, the workspace and personal space, the room, then the
 Human owner / executor resource: Luis / Claude Code in the Claude desktop app on Luis's Windows machine
 Native session: a local Claude Code session; its identity is unknown (not exported)
 Goal ID: none in the pack's goal index (`docs/pack/delivery/GOAL_INDEX.md`): a Studio slice from Luis's queue, named in «Goal and attempt».
-Writable scope: `apps/studio/e2e/knowledge-honest.spec.ts`, `apps/studio/e2e/spaces-honest.spec.ts`, `apps/studio/fixtures/home.html`, `apps/studio/fixtures/home.tsx`, `apps/studio/fixtures/join.html`, `apps/studio/fixtures/join.tsx`, `apps/studio/fixtures/personal.html`, `apps/studio/fixtures/room.html`, `apps/studio/fixtures/signin.html`, `apps/studio/src/features/personal/personal.css`, `docs/plans/spaces-honest.md`, and this handoff.
+Writable scope: `apps/studio/e2e/contrast.ts`, `apps/studio/e2e/knowledge-honest.spec.ts`, `apps/studio/e2e/spaces-honest.spec.ts`, `apps/studio/fixtures/home.html`, `apps/studio/fixtures/home.tsx`, `apps/studio/fixtures/join.html`, `apps/studio/fixtures/join.tsx`, `apps/studio/fixtures/personal.html`, `apps/studio/fixtures/room.html`, `apps/studio/fixtures/signin.html`, `apps/studio/src/features/personal/personal.css`, `docs/plans/spaces-honest.md`, and this handoff.
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `spaces/honest` from `main` (`9368cf03`), 2026-10-08
-Ending commit/tree: `d11c504e1f34ba2cc48dcd5a3238ed21e8bf7e04` (tree `2768a32c46cc393602204c5e157b9d48db8be6c5`). The commit after it adds only this handoff.
+Ending commit/tree: `92e6139d6b7b3b583ee6d47d1aab26ee3a47430f` (tree `da54aef5778ab5553411c95ce6a3fe4d43ac3ddc`), after the contrast check taught that transparent ink is not drawn, as CI found on the phone's demo line. The commits after it change only this handoff.
 
 ## Outcome
 
