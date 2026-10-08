@@ -8,11 +8,16 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useLayoutEffect, useRef } from 'react'
 import type { ApiError } from '../../api/client.ts'
-import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/vision.ts'
+import {
+  sendConversationMessage,
+  type ConversationSummary,
+  type MessageAsk,
+  type MessageSent,
+} from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { firstWords, messagesKey, withMessage, type ReadPages } from './conversation-list.ts'
+import { firstWords, messagesKey, withLastMessage, withMessage, type ReadPages } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 
 interface Props {
@@ -64,6 +69,11 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     const pages = messagesKey(conversationId, identity.name)
     queryClient.setQueryData<ReadPages<MessageSent['message']>>(pages, (read) => withMessage(read, sent.message))
     void queryClient.invalidateQueries({ queryKey: pages })
+    // Its row says it at once, before the list is read again (or should that read fail).
+    queryClient.setQueriesData<{ conversations: readonly ConversationSummary[] }>(
+      { queryKey: ['vision', 'conversations'] },
+      (read) => read && { ...read, conversations: withLastMessage(read.conversations, conversationId, sent.message) },
+    )
     void queryClient.invalidateQueries({ queryKey: ['vision', 'conversations'] })
     onSent(sent)
     // Asked of the view: this field may be gone by now, and the words written since are the view's.

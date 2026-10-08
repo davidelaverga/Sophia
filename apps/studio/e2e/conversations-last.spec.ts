@@ -40,6 +40,17 @@ test('last · a note sent moves its row to the top, its line now the note', asyn
   await expect(gists(page).first()).toHaveText('You: Two pages at most.')
 })
 
+test('last · a note sent says itself in its row at once, even when the list can’t be read again', async ({ page }) => {
+  await page.goto(`${PAGE}&last=1`)
+  const briefs = list(page).getByRole('listitem').filter({ hasText: 'Short or long briefs?' })
+  await briefs.getByRole('button').click()
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Two pages at most.')
+  await field(page).press('Enter')
+  await expect(briefs.locator('.conv-gist')).toHaveText('You: Two pages at most.')
+})
+
 test('last · where the list doesn’t say it, the row keeps Sophia’s summary', async ({ page }) => {
   await page.goto(PAGE)
   await expect(gists(page).first()).toHaveText(/^Compared a short brief/)

@@ -142,3 +142,19 @@ export function gistOf(c: ConversationSummary, me: string): string | null {
         : (c.contributors.find((p) => p.actorId === last.actorId)?.name ?? last.name ?? 'Someone')
   return `${who}: ${last.text}`
 }
+
+/**
+ * The list as a confirmed message leaves it: that conversation's last message is the message, where the list says last
+ * messages at all (A18 proposed). The rest, and a list that doesn't say them, as they were.
+ */
+export function withLastMessage(
+  list: readonly ConversationSummary[],
+  conversationId: string,
+  m: { author: 'member' | 'sophia'; actorId: string | null; name: string | null; text: string; at: string },
+): readonly ConversationSummary[] {
+  return list.map((c) =>
+    c.id === conversationId && c.lastMessage !== undefined
+      ? { ...c, lastMessage: { author: m.author, actorId: m.actorId, name: m.name, text: m.text, at: m.at } }
+      : c,
+  )
+}
