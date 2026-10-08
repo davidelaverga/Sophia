@@ -55,6 +55,16 @@ export const newMeeting = (records: Meeting['records'], begun: Meeting['begun'],
 
 const ME = membership.actorId
 
+/** A note kept in an earlier meeting, in its member's words (the demo's): its entry, when, what and who. */
+const said = (entry: string, at: string, text: string, actorId: string): MeetingRecap['noted'][number] => ({
+  entryId: `00000000-0000-4000-8000-000000000${entry}`,
+  kind: 'observation',
+  text,
+  authoredBy: 'member',
+  actorId,
+  at,
+})
+
 /** The two meetings before this one, closed, as the API keeps them. */
 const PAST: readonly MeetingRecap[] = [
   {
@@ -75,7 +85,16 @@ const PAST: readonly MeetingRecap[] = [
       },
     ],
     made: [],
-    noted: [],
+    noted: DEMO
+      ? [
+          said(
+            '5f4',
+            '2026-10-04T15:12:00.000Z',
+            'Both teams that left changed their admin in week three.',
+            personId(2),
+          ),
+        ]
+      : [],
     open: [
       {
         proposalId: '00000000-0000-4000-8000-0000000000f2',
@@ -94,7 +113,9 @@ const PAST: readonly MeetingRecap[] = [
     guests: 0,
     decided: [],
     made: [],
-    noted: [],
+    noted: DEMO
+      ? [said('5f3', '2026-10-02T09:41:00.000Z', 'The second region starts on the translated checklist.', personId(3))]
+      : [],
     open: [],
     work: [],
     names: { [ME]: VIEWER_NAME, [personId(3)]: 'Noor' },

@@ -726,17 +726,19 @@ function meetingRecords(): ReturnType<Meeting['records']> {
         undoable: false,
       },
     ],
-    made: project.meeting.made
-      ? [
-          {
-            artifactId: REPORT,
-            artifactVersionId: versionId(project.reportVersions),
-            title: project.reportTitle,
-            versionNumber: project.reportVersions,
-            askedBy: membership.actorId,
-          },
-        ]
-      : [],
+    // The project's report: made in this meeting, or, in the demo, the readout already published.
+    made:
+      project.meeting.made || DEMO
+        ? [
+            {
+              artifactId: REPORT,
+              artifactVersionId: versionId(project.reportVersions),
+              title: project.reportTitle,
+              versionNumber: project.reportVersions,
+              askedBy: membership.actorId,
+            },
+          ]
+        : [],
     noted: project.notes.kept.map((e) => ({
       entryId: e.id,
       kind: e.kind,
