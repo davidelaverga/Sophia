@@ -426,7 +426,8 @@ function conversationsRead(talk: Conversations) {
           author: m.author,
           actorId: m.actorId,
           name: m.name,
-          text: m.text.replace(/\s+/gu, ' ').slice(0, 140),
+          // Its opening as written, line breaks kept: the Studio says it in one line (C6, sophia-text.ts plainOf).
+          text: m.text.slice(0, 140),
           at: m.at,
         }
       : null
