@@ -10,18 +10,18 @@ RUN corepack enable pnpm && pnpm --filter @sophia/renderer-pdf deploy --prod /ou
 FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS kernel
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential gcc-x86-64-linux-gnu libc6-dev-amd64-cross patch xz-utils flex bison libssl-dev libelf-dev bc curl ca-certificates python3
 WORKDIR /build
+COPY renderers/web/pdf/uml/kernel.config renderers/web/pdf/uml/kernel-abi.patch renderers/web/pdf/uml/seccomp-abi-probe.c /build/
+RUN x86_64-linux-gnu-gcc -static -O2 /build/seccomp-abi-probe.c -o /build/abi-probe
 RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.101.tar.xz \
  && echo '0d21cd11933f49f7151b7c9dbb8cc3fddc8c8abe506434b850feecf41fc28a76  linux.tar.xz' | sha256sum --check - \
- && tar -xf linux.tar.xz
-COPY renderers/web/pdf/uml/kernel.config /build/linux-6.12.101/.config
-COPY renderers/web/pdf/uml/kernel-abi.patch /build/kernel-abi.patch
-COPY renderers/web/pdf/uml/seccomp-abi-probe.c /build/seccomp-abi-probe.c
-RUN x86_64-linux-gnu-gcc -static -O2 /build/seccomp-abi-probe.c -o /build/abi-probe
-WORKDIR /build/linux-6.12.101
-RUN patch --fuzz=0 -p1 < /build/kernel-abi.patch \
+ && tar -xf linux.tar.xz \
+ && cd linux-6.12.101 \
+ && cp /build/kernel.config .config \
+ && patch --fuzz=0 -p1 < /build/kernel-abi.patch \
  && scripts/config --disable DEBUG_INFO --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT --enable DEBUG_INFO_NONE --disable DEBUG_INFO_BTF --disable MODULES --disable MODULE_SIG --set-str SYSTEM_TRUSTED_KEYS '' --set-str SYSTEM_REVOCATION_KEYS '' \
  && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- olddefconfig \
- && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- -j2 linux
+ && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- -j2 linux \
+ && cp linux /build/linux.uml
 
 FROM ${NODE_IMAGE} AS guest
 COPY --from=deploy /out /opt/sophia-renderer
@@ -30,8 +30,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && node /opt/sophia-renderer/node_modules/playwright-core/cli.js install --with-deps chromium-headless-shell \
  && chmod -R a+rX,go-w /opt/pw-browsers
 COPY renderers/web/pdf/uml /opt/uml
-COPY --from=kernel /build/abi-probe /opt/uml/abi-probe
-RUN sh /opt/uml/make-guest.sh && python3 /opt/uml/make-initrd.py /opt/uml /opt/uml/initrd.gz
+COPY --from=kernel /build/abi-probe /build/linux.uml /opt/uml/
+RUN sh /opt/uml/make-guest.sh && python3 /opt/uml/make-initrd.py /opt/uml /opt/uml/initrd.gz \
+ && chmod 0555 /opt/uml/linux.uml /opt/uml/abi-probe && chmod 0444 /opt/uml/guest.raw /opt/uml/initrd.gz
 
 FROM ${NODE_IMAGE}
 RUN apt-get update && apt-get install -y --no-install-recommends python3 \
@@ -40,8 +41,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 \
  && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin render \
  && mkdir -p /work && chmod 0755 /work
 COPY --from=guest /opt/uml /opt/uml
-COPY --from=kernel /build/linux-6.12.101/linux /opt/uml/linux.uml
-RUN chmod 0555 /opt/uml/linux.uml /opt/uml/abi-probe && chmod 0444 /opt/uml/guest.raw /opt/uml/initrd.gz
 USER root
 # Start idle. A Render/container restart never starts another fixture batch.
 # The operator invokes host-qa.py once through the approved Shell session.
