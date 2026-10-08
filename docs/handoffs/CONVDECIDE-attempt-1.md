@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/conversations-decide.spec.ts`, `apps/studio/fix
 Runtime unit: the Studio (`apps/studio`) and one shared icon (`packages/ui`), on the fixture pages; no API, database, worker or deployment touched. The writes are A08's, already in the API.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/decide` stacked on `conversations/answers` (`99e27488`, #173), 2026-10-08
-Ending commit/tree: `37722db04628743b5bf35b91d50dab05386de400` (tree `c7401726aba41344d9fa24dc696951c9d79f6ac4`), after its base's changes merged in, after the answer's line taking the focus at once (a requestAnimationFrame never fires in a tab out of sight). The commits after it change only this handoff.
+Ending commit/tree: `5a1f2ac512847194c97dec077bb66fe394a2aa61` (tree `4e5f7d707ec201ec6353390a032b9fbc254cb5c8`), after main merged in once C6 landed, after its base's changes merged in, after the answer's line taking the focus at once (a requestAnimationFrame never fires in a tab out of sight). The commits after it change only this handoff.
 
 ## Outcome
 
