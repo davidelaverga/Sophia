@@ -26,9 +26,8 @@ Design note: `docs/plans/conversations-start.md`.
 
 - Unit: `new-conversation.test.ts` 4 passed (with the rest of Conversations' units, 44).
 - Browser checks: `e2e/conversations-start.spec.ts` (3) new; `project-conversation-writes.spec.ts` (Start ready with a
-  question alone) and `project-conversation-follow-ups.spec.ts` (the label renamed) updated. Not run locally (RAM
-  beside AION2 under the guard's floor, never lowered); CI runs them. Checked by hand in the in-app browser.
-- Prettier, `oxlint --type-aware`, `tsc`. Mutants: not run, for the same reason.
+  question alone) and `project-conversation-follow-ups.spec.ts` (the label renamed) updated. Run locally under the guard (`safe-run.ps1`, two workers) on the stack's tip, with every conversations check and type-scale: 101 passed. Checked by hand in the in-app browser.
+- Prettier, `oxlint --type-aware`, `tsc`. Control mutant: no proposal offered to start from; the starters check fails.
 - Independent review: one P1 (my check left out the form's 18 px heading) and one P2 (a long proposal past the
   question's limit), fixed; its P3s on the question's size (dead CSS) and the note's words fixed. Left: with no context,
   the first message repeats the question (by design); a starter overwrites what was typed.
