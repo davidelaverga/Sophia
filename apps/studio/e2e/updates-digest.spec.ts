@@ -47,6 +47,7 @@ test('digest · in the demo, the meeting left now made nothing: the readout is t
   await page.goto('/room.html?demo=1&call=on')
   await page.getByRole('button', { name: 'Leave the room' }).click()
   const recap = page.getByRole('dialog', { name: 'This meeting' })
-  await expect(recap).toBeVisible()
+  // The recap read back first (the sheet opens while it is put together): then no «Made» in it.
+  await expect(recap.getByRole('region', { name: 'Decided' })).toContainText('Run the pilot with fourteen teams')
   await expect(recap.getByRole('region', { name: 'Made' })).toHaveCount(0)
 })

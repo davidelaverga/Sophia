@@ -707,7 +707,6 @@ function researchWork(p: typeof project): { taskId: string; kind: string; state:
   return p.researchFinished ? [{ taskId: TASK, kind: 'research', state: 'succeeded' }] : []
 }
 
-/** The meeting's records as the page holds them now: who is in it, the decision, the report made, the notes kept. */
 /** The project's report at its current version, as a recap or the digest names it. */
 const readoutMade = (): ReturnType<Meeting['records']>['made'][number] => ({
   artifactId: REPORT,
@@ -717,6 +716,7 @@ const readoutMade = (): ReturnType<Meeting['records']>['made'][number] => ({
   askedBy: membership.actorId,
 })
 
+/** The meeting's records as the page holds them now: who is in it, the decision, the report made, the notes kept. */
 function meetingRecords(): ReturnType<Meeting['records']> {
   const people = others()
   const at = new Date().toISOString()
