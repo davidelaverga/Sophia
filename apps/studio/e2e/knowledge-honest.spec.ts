@@ -84,6 +84,15 @@ for (const [width, height] of [
       await page.waitForTimeout(800) // the page's own bars settle
       const box = await label.boundingBox()
       if (!box) throw new Error('the demo’s label is not on screen')
+      // Over the page's content it takes no press, and a screen reader still reads what it says.
+      await expect(label).toHaveCSS('pointer-events', 'none')
+      await expect(page.getByRole('note').filter({ hasText: 'Demo · simulated data' })).toHaveCount(1)
+      // On a phone no corner is free (spaces-honest.spec.ts): a thin line along the top edge, over nothing to read.
+      if (width <= 600) {
+        expect(box.y).toBe(0)
+        expect(box.height).toBeLessThanOrEqual(4)
+        return
+      }
       // The bars, the views, the room's controls and its door, Personal's composer: never under it.
       const chrome = await boxesOf(
         page
@@ -94,8 +103,6 @@ for (const [width, height] of [
       )
       expect(chrome.length).toBeGreaterThan(0)
       for (const b of chrome) expect(meets(box, b), JSON.stringify(b)).toBe(false)
-      // Over the page's content (a phone's tiles are presses edge to edge) it takes no press.
-      await expect(label).toHaveCSS('pointer-events', 'none')
     })
   }
 }
