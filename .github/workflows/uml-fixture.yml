@@ -1,0 +1,42 @@
+name: Experimental UML fixture
+
+on:
+  push:
+    branches: [codex/render-uml-qualification]
+    paths: ['renderers/web/pdf/**', '.github/workflows/uml-fixture.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  fixture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build exact fixture image
+        run: docker build --platform linux/amd64 -f renderers/web/pdf/uml/Dockerfile -t sophia-uml-fixture .
+      # The existing renderer CI requires this same runner-only namespace setting.
+      # The browser sandbox, host Landlock and inherited seccomp remain active.
+      - name: Allow the fixture's unprivileged namespaces
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: One bounded synthetic fixture on a single CPU
+        run: |
+          timeout --kill-after=5s 300s docker run --rm --cpus=1 --memory=2g \
+            --cap-drop=ALL --cap-add=CHOWN --cap-add=DAC_OVERRIDE --cap-add=FOWNER \
+            --cap-add=SETUID --cap-add=SETGID --cap-add=SYS_CHROOT \
+            --security-opt=no-new-privileges --security-opt=seccomp=unconfined \
+            --network=none sophia-uml-fixture python3 /opt/uml/ci-once.py > uml-fixture.log 2>&1
+      # The outer Docker filter is absent here just as on the Render worker; the
+      # unchanged host launcher installs its own filter before the UML kernel.
+      - name: Preserve synthetic diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: uml-fixture-${{ github.sha }}
+          path: uml-fixture.log
+          retention-days: 7
+          if-no-files-found: ignore

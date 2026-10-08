@@ -203,6 +203,7 @@ async function timeWidthProbe(source) {
     const objectId = compiled.result.objectId
     const widths = Array.from({ length: 32 }, (_, k) => 320 + k)
     const until = Date.now() + 60000
+    await profileWidthComponents(cdp, objectId, until)
     /** @type {string[] | null} */
     let baseline = null
     for (const mode of ['evaluate-cold', 'evaluate-warm', 'compiled-cold', 'compiled-warm']) {
@@ -237,6 +238,73 @@ async function timeWidthProbe(source) {
       fs.rmSync(probeWork, { recursive: true, force: true })
     }
   }
+}
+
+/**
+ * Attribute one small sequential sample without changing the production batch.
+ * Browser-side order time excludes the CDP transport; the other times include it.
+ * Every sample reads and validates the original order and full snapshot again.
+ * @param {import('playwright-core').CDPSession} cdp
+ * @param {string} objectId
+ * @param {number} until
+ */
+async function profileWidthComponents(cdp, objectId, until) {
+  const sample = async () => {
+    const totals = { viewportMs: 0, orderMs: 0, browserOrderMs: 0, snapshotMs: 0, comparisonMs: 0, snapshotBytes: 0 }
+    const cpu = process.cpuUsage()
+    for (let width = 320; width < 352; width += 1) {
+      let began = performance.now()
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        mobile: false,
+        width,
+        height: 800,
+        screenWidth: width,
+        screenHeight: 800,
+        deviceScaleFactor: 1,
+        screenOrientation: { angle: 0, type: 'landscapePrimary' },
+      })
+      totals.viewportMs += performance.now() - began
+      began = performance.now()
+      const read = await cdp.send('Runtime.callFunctionOn', {
+        objectId,
+        functionDeclaration:
+          'function () { const at = performance.now(); const value = this(); return { value, ms: performance.now() - at } }',
+        returnByValue: true,
+      })
+      totals.orderMs += performance.now() - began
+      /** @type {unknown} */
+      const answer = read.result.value
+      if (read.exceptionDetails || !answer || typeof answer !== 'object') throw new Error('component order unreadable')
+      /** @type {unknown} */
+      const value = Reflect.get(answer, 'value')
+      /** @type {unknown} */
+      const ms = Reflect.get(answer, 'ms')
+      if (!Array.isArray(value) || value[0] !== width) throw new Error(`component profile width ${width} not read`)
+      if (typeof ms !== 'number' || !Number.isFinite(ms)) throw new Error('component time unreadable')
+      totals.browserOrderMs += ms
+      began = performance.now()
+      const snapshot = await cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLES })
+      totals.snapshotMs += performance.now() - began
+      began = performance.now()
+      const lie = meetingsOf(snapshot)
+      totals.comparisonMs += performance.now() - began
+      if ('issue' in lie) throw new Error(lie.issue)
+      totals.snapshotBytes += Buffer.byteLength(JSON.stringify(snapshot))
+    }
+    return { ...totals, nodeCpuMicros: process.cpuUsage(cpu) }
+  }
+  const got = await withinTime(sample(), until)
+  if ('late' in got) throw new Error('component profile exceeded diagnostic time')
+  console.log(
+    JSON.stringify({
+      event: 'UML_WIDTH_COMPONENTS',
+      qualification: false,
+      diagnosticOnly: true,
+      sequentialSample: true,
+      widths: 32,
+      ...got.value,
+    }),
+  )
 }
 
 /**
