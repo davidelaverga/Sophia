@@ -1,6 +1,7 @@
 // Sign-in screens: Supabase magic link, dev identities, or a configuration hint. Each is a quiet room
 // with Sophia's light at rest above the words.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { WRITE_TIMEOUT_MS } from '../api/client.ts'
 import type { LightMode } from '../features/light/engine.ts'
 import type { Point } from '../features/light/motion.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
@@ -329,8 +330,11 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
  * address. Asked sooner, it answers how long is left, and the countdown takes that. */
 const RESEND_AFTER = 60
 
-/** How long a send again may take before it is said not confirmed: Supabase's call has no limit of its own. */
-const SEND_LIMIT_MS = 30_000
+/**
+ * How long a send again may take before it is said not confirmed: Supabase's call has no limit of its own, and a send
+ * is a write, which the Studio gives 90 s (CONTRIBUTING, «No wait is endless»).
+ */
+const SEND_LIMIT_MS = WRITE_TIMEOUT_MS
 const NOT_CONFIRMED = 'Not confirmed: the email may still arrive. Wait for it, then send again.'
 
 /** A send that ends: it settles, or it is refused as not confirmed once `ms` have passed. */
@@ -346,7 +350,7 @@ function inTime(sending: Promise<void>, ms: number): Promise<void> {
  * Send again, once the wait has passed: it counts down, sends, and says so. While it waits or sends it can't be
  * pressed (aria-disabled, so the focus stays on it). A refusal is said as one, in the screen's error colour, and waits
  * as long as it says (or Auth's window, when it says too many and gives no time); a send that never answers ends after
- * 30 s as not confirmed, and waits the window too, since the email may still arrive.
+ * a write's 90 s as not confirmed, and waits the window too, since the email may still arrive.
  */
 function SendAgain({ email, send }: { email: string; send: (email: string) => Promise<void> }) {
   // Counted from when it may be asked again, not by subtracting ticks: a throttled background tab still reads true.
@@ -354,6 +358,8 @@ function SendAgain({ email, send }: { email: string; send: (email: string) => Pr
   const [now, setNow] = useState(() => Date.now())
   const [sending, setSending] = useState(false)
   const [said, setSaid] = useState<{ text: string; failed: boolean }>({ text: '', failed: false })
+  // A long send says so once it has lasted, as every long wait in the Studio does.
+  const slow = useSlow(sending)
   const left = Math.max(0, Math.ceil((until - now) / 1000))
   useEffect(() => {
     const tick = left > 0 ? setInterval(() => setNow(Date.now()), 1000) : undefined
@@ -387,6 +393,7 @@ function SendAgain({ email, send }: { email: string; send: (email: string) => Pr
       {/* One status from the start, its words changed in place; a failure in the error colour. */}
       <span className="muted" role="status" data-state={said.failed ? 'failed' : undefined}>
         {said.text}
+        {slow && ` ${SLOW_NOTE}`}
       </span>
     </p>
   )
