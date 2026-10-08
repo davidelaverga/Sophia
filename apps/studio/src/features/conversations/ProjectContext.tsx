@@ -182,7 +182,8 @@ function StillOpen({ ctx, projectId, identity }: { ctx: MissionContext; projectI
   const answered = (receipt: unknown, words: string) => {
     if (!receipt) return
     setSaid(words)
-    requestAnimationFrame(() => status.current?.focus())
+    // The line is already there: the focus goes to it now (a frame may never come in a tab out of sight).
+    status.current?.focus()
   }
   const answer = (args: DecideArgs, statement: string) => {
     setSaid('')
