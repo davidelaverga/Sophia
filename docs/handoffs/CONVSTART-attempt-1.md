@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/conversations-start.spec.ts`, `apps/studio/e2e/
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/start` stacked on `conversations/decide` (#174), 2026-10-08
-Ending commit/tree: `7d7d2b053758ea6635e98bbffe1f49a897a943b5` (tree `3f124c1203bf9ce228bb88d682e420685b1676ff`), after the inactive Start left out of the contrast check and its base's CI fixes merged in, as CI found, after its base's changes merged in. The commits after it change only this handoff.
+Ending commit/tree: `73e727fb91c34387a480475af4c18f21c177b4d3` (tree `fe5e9a2d9a489d86e1b4ffc6fa13d080fcb30f53`), after its base merged in once main moved, after the inactive Start left out of the contrast check and its base's CI fixes merged in, as CI found, after its base's changes merged in. The commits after it change only this handoff.
 
 ## Outcome
 
