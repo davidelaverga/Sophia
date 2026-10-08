@@ -115,7 +115,7 @@ test('library · the tiles keep to the app’s four type sizes', async ({ page }
 test('library · Edit and History and changes keep their own presses on the tile', async ({ page }) => {
   await page.goto('/room.html?place=knowledge&designed=on')
   const card = tile(page, 'Fixture report')
-  expect(await onTop(card.getByRole('button', { name: 'Edit', exact: true })), 'Edit').toBe(true)
+  expect(await onTop(card.getByRole('button', { name: 'Edit description', exact: true })), 'Edit').toBe(true)
   expect(await onTop(card.getByRole('button', { name: 'History and changes' })), 'History').toBe(true)
   await card.getByRole('button', { name: 'History and changes' }).click()
   await expect(page.getByRole('tab', { name: /History/, selected: true })).toBeVisible()
@@ -147,7 +147,7 @@ test('library · a report with no description says so, and credits no one for it
   const older = tile(page, 'An older fixture report')
   await expect(older.getByText('No description yet.')).toBeVisible()
   await expect(older).not.toContainText('Description by Sophia')
-  await expect(older.getByRole('button', { name: 'Edit', exact: true })).toBeVisible()
+  await expect(older.getByRole('button', { name: 'Edit description', exact: true })).toBeVisible()
 })
 
 test('library · Tab never stops inside a cover: from the cover’s press it goes to the title, past the page’s links', async ({

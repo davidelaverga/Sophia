@@ -18,7 +18,7 @@ test('quiet · History and Edit share one line at the tile’s foot, not underli
   await page.goto('/room.html?place=knowledge')
   const card = tile(page, 'Fixture report')
   const history = card.getByRole('button', { name: 'History and changes' })
-  const edit = card.getByRole('button', { name: 'Edit', exact: true })
+  const edit = card.getByRole('button', { name: 'Edit description', exact: true })
   await expect(history).toHaveText('History')
   const [h, e] = await Promise.all([history.boundingBox(), edit.boundingBox()])
   expect(h && e && Math.abs(h.y + h.height / 2 - (e.y + e.height / 2)) <= 1, 'one line').toBe(true)
