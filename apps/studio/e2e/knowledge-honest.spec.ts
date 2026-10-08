@@ -86,7 +86,7 @@ for (const [width, height] of [
       if (!box) throw new Error('the demo’s label is not on screen')
       // Over the page's content it takes no press, and a screen reader still reads what it says.
       await expect(label).toHaveCSS('pointer-events', 'none')
-      await expect(label).toHaveText('Demo · simulated data')
+      await expect(page.getByRole('note').filter({ hasText: 'Demo · simulated data' })).toHaveCount(1)
       // On a phone no corner is free (spaces-honest.spec.ts): a thin line along the top edge, over nothing to read.
       if (width <= 600) {
         expect(box.y).toBe(0)
