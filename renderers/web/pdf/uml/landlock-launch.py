@@ -63,6 +63,21 @@ def call(n, *args):
     return v
 
 
+def pin_cpu():
+    # UML has one virtual CPU. Keep its kernel and traced userspace on the same
+    # allowed host CPU, avoiding migration/wakeup overhead between its tasks.
+    # This affects only this owned process and the children it creates.
+    allowed = os.sched_getaffinity(0)
+    if not allowed:
+        raise RuntimeError("no allowed host CPU")
+    selected = {min(allowed)}
+    os.sched_setaffinity(0, selected)
+    if os.sched_getaffinity(0) != selected:
+        raise RuntimeError("owned CPU affinity was not applied")
+    return sorted(selected)
+
+
+host_cpus = pin_cpu()
 abi = call(444, ctypes.c_void_p(), ctypes.c_size_t(0), ctypes.c_uint(1))
 if abi < 4:
     raise RuntimeError("Landlock ABI4 mandatory")
@@ -202,7 +217,12 @@ except OSError as error:
     socket_errno = error.errno
 pid = os.fork()
 if pid == 0:
-    os._exit(0 if denied_read("/etc/hostname") == errno.EACCES else 1)
+    os._exit(
+        0
+        if denied_read("/etc/hostname") == errno.EACCES
+        and sorted(os.sched_getaffinity(0)) == host_cpus
+        else 1
+    )
 _, status = os.waitpid(pid, 0)
 inheritance = os.waitstatus_to_exitcode(status) == 0
 print(
@@ -215,6 +235,7 @@ print(
             "symlink_errno": escape_errno,
             "socket_errno": socket_errno,
             "descendant_inherits": inheritance,
+            "hostCPUs": host_cpus,
         }
     ),
     flush=True,

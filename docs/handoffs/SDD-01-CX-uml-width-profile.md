@@ -42,3 +42,12 @@ support remains unsent. The approved combined spending ceiling is retained, not 
 
 Codex root examines the component profile from this exact Linux CI source, then implements and verifies the smallest
 supported fix. A different paid Render candidate requires an amended concrete request under WORKING_PROTOCOL §4.
+
+## CPU-affinity candidate
+
+The next candidate narrows only the owned host launcher's CPU affinity to one CPU already permitted by the OS. It
+verifies that the requested affinity took effect and that the adverse-control child inherited both affinity and file
+denial. The ordinary confinement modules, browser flags, host Landlock rules, host seccomp rules, guest kernel and width
+limits stay unchanged. A real Linux subprocess test checks inheritance through exec and leaves the test caller's
+affinity unchanged; a denied affinity request has no silent fallback. CI runs the original fixture at one CPU/2 GB.
+This is a performance hypothesis until the candidate's full fixture completes; no Render success is asserted.
