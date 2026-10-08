@@ -84,6 +84,50 @@ test('decide · a message proposed as a decision: its words in, sent as a constr
   await expect(marco.getByRole('button', { name: 'Propose as decision' })).toBeFocused()
 })
 
+test('decide · with no reply, Cancel keeps the proposal’s words and key: reopened, Propose sends the same one, never a second', async ({
+  page,
+}) => {
+  await enter(page, `${PAGE}&propose=lost`)
+  const mine = open(page).locator('.conv-messages > li').last()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  const field = open(page).getByRole('textbox', { name: 'Decision to propose' })
+  await field.fill('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(open(page).getByRole('alert')).toContainText('No reply yet')
+  await open(page).getByRole('button', { name: 'Cancel' }).click()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Propose as decision' }).click()
+  await expect(field).toHaveValue('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect(mine.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  // The first one had landed: the same key answers it, and Still open holds it once.
+  await expect(stillOpen(page).locator('li').filter({ hasText: 'Briefs stay on one page' })).toHaveCount(1)
+})
+
+test('decide @phone · on a touch screen the press is a finger’s 40 px, and a keyboard reaches it unpressed', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  // A phone shows the list first: the first conversation, opened.
+  await page
+    .getByRole('region', { name: 'All conversations' })
+    .getByRole('listitem')
+    .getByRole('button')
+    .first()
+    .click()
+  const mine = open(page).locator('.conv-messages > li').last()
+  const press = mine.getByRole('button', { name: 'Propose as decision' })
+  // Out of sight until the message is pressed, it is still in reach of a keyboard and a screen reader.
+  await expect(press).toHaveCSS('opacity', '0')
+  await press.focus()
+  await expect(press).toBeFocused()
+  await expect(press).toHaveCSS('opacity', '1')
+  const box = await press.boundingBox()
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(40)
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(40)
+})
+
 test('decide · Esc closes the form and gives the focus back to its press; nothing is sent', async ({ page }) => {
   await enter(page)
   const mine = open(page).locator('.conv-messages > li').last()

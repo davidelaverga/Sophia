@@ -24,29 +24,33 @@ export function useProposeHere(args: ProposeArgs | null): { press: ReactNode; fo
   const press = useRef<HTMLButtonElement>(null)
   const propose = usePropose(args?.projectId ?? '', args?.identity ?? null)
   if (!args) return { press: null, form: null }
-  const close = () => {
+  const state = propose.state
+  /** What was sent with no definitive answer yet (on its way, or no reply): it may already have landed. */
+  const unsettled = state.status === 'sending' || state.status === 'unknown' ? state.args : null
+  const away = () => {
     setWords(null)
-    propose.reset()
     requestAnimationFrame(() => press.current?.focus())
+  }
+  // Closed with a proposal unsettled, its key stays: reopened, Propose sends that same one, never a second.
+  const close = () => {
+    if (unsettled === null) propose.reset()
+    away()
   }
   const open = () => {
     setDone(false)
-    setWords(statementFrom(args.text, args.sophia))
+    setWords(unsettled ?? statementFrom(args.text, args.sophia))
+  }
+  // Proposed: settled for good, whichever press sent it.
+  const proposed = () => {
+    propose.reset()
+    setDone(true)
+    away()
   }
   return {
     press: words === null ? <ProposePress press={press} done={done} onOpen={open} /> : null,
     form:
       words === null ? null : (
-        <ProposeForm
-          words={words}
-          onWords={setWords}
-          propose={propose}
-          onClose={close}
-          onDone={() => {
-            setDone(true)
-            close()
-          }}
-        />
+        <ProposeForm words={words} onWords={setWords} propose={propose} onClose={close} onDone={proposed} />
       ),
   }
 }
@@ -109,8 +113,8 @@ function ProposeForm(props: {
         autoFocus
         aria-label="Decision to propose"
         value={words}
-        // With no reply, Propose sends these same words again under the same key: they can't change meanwhile.
-        readOnly={propose.state.status === 'unknown'}
+        // On their way, or with no reply (Propose sends these same words again under the same key): they can't change.
+        readOnly={sending || propose.state.status === 'unknown'}
         maxLength={280}
         onChange={(e) => props.onWords(e.target.value)}
       />

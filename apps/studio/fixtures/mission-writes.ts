@@ -18,6 +18,8 @@ const receipts = new Map<string, Response>()
 /** Every write that reached the brief, as `path` and its body: the checks read them (the page's fetch is faked, so no request leaves it). */
 export const missionWrites: { path: string; body: unknown }[] = []
 let staleOnce = new URLSearchParams(window.location.search).get('decide') === 'stale'
+/** `propose=lost`: the first proposal lands, but its reply is lost on the way (the page can't tell it landed). */
+let loseOnce = new URLSearchParams(window.location.search).get('propose') === 'lost'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -112,5 +114,12 @@ export function missionWritten(brief: Brief, method: string, path: string, init:
   if (replay) return replay.clone()
   const answer = id ? decided(brief, id, init) : proposed(brief, init)
   if (answer && key) receipts.set(key, answer.clone())
-  return answer
+  return id ? answer : delivered(answer)
+}
+
+/** A proposal's answer on its way back: lost the first time under `propose=lost`, as a dropped connection loses it. */
+function delivered(answer: Response | null): Response | Promise<Response> | null {
+  if (!answer || !loseOnce) return answer
+  loseOnce = false
+  return Promise.reject(new TypeError('Failed to fetch'))
 }
