@@ -854,7 +854,7 @@ test('HTML · the work card lists the stored designed page with its review, and 
   await enter(page, '/room.html?place=work&designed=on')
   const open = page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' })
   await expect(open).toContainText('HTML page · ')
-  await expect(open).toContainText('reviewed')
+  await expect(open).toContainText('design checked')
   const saved = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Download fixture-report-v1.html, HTML page' }).click()
   const download = await saved
@@ -878,7 +878,7 @@ test('HTML · the viewer shows the designed page in a frame with no permission, 
     page.frameLocator('iframe.report-html-frame').getByText('A labelled fixture designed page'),
   ).toBeVisible()
   await expect(pane(page).getByRole('note')).toHaveText(/checked by a separate visual reviewer/)
-  await expect(pane(page).locator('.report-meta')).toHaveText(/^HTML · v1 · .* · 315a02d3 · reviewed$/)
+  await expect(pane(page).locator('.report-meta')).toHaveText(/^HTML · v1 · .* · 315a02d3 · design checked$/)
   await expect(pane(page).locator('.md')).toHaveCount(0) // never read through MarkdownView
   const saved = page.waitForEvent('download')
   await pane(page).getByRole('button', { name: 'Download', exact: true }).click()
@@ -974,7 +974,7 @@ test('HTML · leaving while the page is designed and coming back shows the recor
   // The card reads the design again on its own clock (every 15 s) and, the design ended, the research's record: the
   // page as published, with its review; the design row is gone, and nothing it said before is played again.
   const opened = page.getByRole('button', { name: 'Open fixture-report-v1.html, HTML page' })
-  await expect(opened).toContainText('reviewed', { timeout: 25_000 })
+  await expect(opened).toContainText('design checked', { timeout: 25_000 })
   await expect(page.locator('.work-card .output-row[data-design]')).toHaveCount(0)
   await expect(page.locator('.work-card')).not.toContainText('Designing')
 })

@@ -259,6 +259,9 @@ interface CardProps {
 function ReportCardView({ card, showProject, editable, identity }: CardProps) {
   const viewer = useDocumentViewer()
   const client = useQueryClient()
+  // A designed report opens as the page its card shows, from its title and its History as from its cover: the version
+  // the card names, in HTML.
+  const as = card.formats.includes('html') ? { versionId: card.currentVersionId, format: 'html' as const } : {}
   return (
     <li className="report-card">
       <div className="report-card-cover">
@@ -276,7 +279,11 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
           </button>
         )}
       </div>
-      <button type="button" className="report-card-title" onClick={() => viewer?.open({ artifactId: card.artifactId })}>
+      <button
+        type="button"
+        className="report-card-title"
+        onClick={() => viewer?.open({ artifactId: card.artifactId, ...as })}
+      >
         {card.title}
       </button>
       <p className="report-meta">{metaOf(card, showProject, Date.now())}</p>
@@ -291,7 +298,7 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
           type="button"
           className="text-button"
           aria-label="History and changes"
-          onClick={() => viewer?.open({ artifactId: card.artifactId, tab: 'history' })}
+          onClick={() => viewer?.open({ artifactId: card.artifactId, tab: 'history', ...as })}
         >
           History
         </button>

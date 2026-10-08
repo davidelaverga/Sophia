@@ -475,7 +475,7 @@ if (!root) throw new Error('personal.html must contain #root')
 
 createRoot(root).render(
   <StrictMode>
-    <p className="fixture-label" role="note">
+    <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
       {DEMO ? DEMO_LABEL : 'Simulated — a conversation with Sophia, no account'}
     </p>
     <Personal />

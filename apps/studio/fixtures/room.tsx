@@ -324,7 +324,8 @@ const project = {
   showing: noShowing(),
   // A18: the project's conversations (`conversations=1`; `=none`, none; `=fail`, the list fails; `messages=fail`, the
   // second one's messages fail), and the brief's context beside them.
-  ...conversationsAsked(query.get('conversations'), query.get('messages') === 'fail'),
+  // The demo holds the conversations too: none of its views reads as broken.
+  ...conversationsAsked(query.get('conversations') ?? (DEMO ? '1' : null), query.get('messages') === 'fail'),
   // A16: the versions' reviews (review-data.ts).
   // Chapter 1: what members carried in from Personal (`carried=1`), and the project list failing (`projects=fail`).
   carriedIn: query.has('carried')
@@ -763,9 +764,10 @@ const viewOf = (place: string | null) =>
   place === 'knowledge' || place === 'work' || place === 'updates' || place === 'conversations' ? place : 'studio'
 
 /** The views this fixture's API serves: the room, Conversations (when the page asks for them), Knowledge, Work and Updates. The others' reads aren't faked, so their links stay. */
-const SERVED: readonly View[] = query.has('conversations')
-  ? ['studio', 'conversations', 'knowledge', 'work', 'updates']
-  : ['studio', 'knowledge', 'work', 'updates']
+const SERVED: readonly View[] =
+  query.has('conversations') || DEMO
+    ? ['studio', 'conversations', 'knowledge', 'work', 'updates']
+    : ['studio', 'knowledge', 'work', 'updates']
 
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }
@@ -853,7 +855,7 @@ const queryClient = new QueryClient()
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <p className="fixture-label" role="note">
+      <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
         {DEMO ? DEMO_LABEL : 'Fixture — no API, no call'}
       </p>
       <Kept>{(background) => <Project background={background} />}</Kept>
