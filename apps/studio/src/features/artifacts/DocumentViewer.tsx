@@ -3,44 +3,18 @@
 // enlarge) adds one history entry, so Back steps down, and Esc does the same (full → side → closed). One pane at a
 // time: opening a report closes the side panel, and opening the side panel closes the report.
 import type { TaskPerson } from './PassageTask.tsx'
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Identity } from '../../app/dev-identity.ts'
 import { ShortcutScope } from '../../app/shortcuts.ts'
 import { DocumentPane } from './DocumentPane.tsx'
 import type { ShowRender } from '../voice/ShowEveryone.tsx'
 import type { Passage } from './PassageBar.tsx'
 import type { SectionAsk } from './useSectionArrival.ts'
-import {
-  openedLink,
-  readReportLink,
-  withReportLink,
-  type ReportLink,
-  type ViewerFormat,
-  type ViewerTab,
-} from './report-link.ts'
+import { openedLink, readReportLink, withReportLink, type ReportLink, type ViewerTab } from './report-link.ts'
+import { ViewerContext, type OpenRequest } from './viewer-context.ts'
 import './artifacts.css'
 
-export interface OpenRequest {
-  artifactId: string
-  /** A version; omitted for the report's current one. */
-  versionId?: string | null
-  tab?: ViewerTab
-  /** The PDF of the version, when it has one; the Markdown otherwise. */
-  format?: ViewerFormat
-  /** A section to open at, by its heading's anchor (a search hit's). */
-  section?: string
-}
-
-interface ViewerApi {
-  open: (request: OpenRequest) => void
-  /** The report on screen now, or null: what was opened elsewhere needn't be offered again. */
-  shown: string | null
-}
-
-const ViewerContext = createContext<ViewerApi | null>(null)
-
-/** Opens a report in the viewer; null outside a project (nothing there shows the open action). */
-export const useDocumentViewer = (): ViewerApi | null => useContext(ViewerContext)
+export { useDocumentViewer, type OpenRequest } from './viewer-context.ts'
 
 const here = () => readReportLink(window.location.search)
 
@@ -102,6 +76,24 @@ function useReportHistory(projectId: string) {
   return { link, write, back }
 }
 
+/**
+ * Leaving the report for elsewhere in the project: where it covers the page (a phone, the full page) it closes first.
+ * Closing steps Back over the viewer's own entries: what comes after waits for that, or Back would take it away.
+ */
+function useLeaveFor(link: ReportLink | null, close: () => void) {
+  return useCallback(
+    (after: () => void) => {
+      const covers = link?.size === 'full' || window.matchMedia('(width <= 760px)').matches
+      if (!link || !covers) return after()
+      const depth = viewerDepth()
+      if (depth > 0) window.addEventListener('popstate', () => after(), { once: true })
+      close()
+      if (depth === 0) after()
+    },
+    [link, close],
+  )
+}
+
 interface Props {
   projectId: string
   identity: Identity
@@ -149,9 +141,9 @@ export function DocumentViewerProvider(props: Props) {
     },
     [closePanel, link, write],
   )
-  const shown = link?.artifactId ?? null
-  const api = useMemo(() => ({ open, shown }), [open, shown])
   const close = useCallback(() => back(link?.size === 'full' ? 2 : 1, null), [back, link?.size])
+  const leaveFor = useLeaveFor(link, close)
+  const api = useMemo(() => ({ open, shown: link?.artifactId ?? null, leaveFor }), [open, link?.artifactId, leaveFor])
   // One pane at a time, by what changed: the side panel opened over the report, so the report gives way; a report came
   // (Back or Forward) while the panel was open, so the panel gives way.
   const panelWas = useRef(panelOpen)
