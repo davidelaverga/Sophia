@@ -32,7 +32,7 @@ Design note: `docs/plans/conversations-decide.md`.
 - New browser checks in `e2e/conversations-decide.spec.ts` (6): not run locally (RAM beside AION2 under the guard's
   floor, never lowered); CI runs them. Checked by hand in the in-app browser: the press at the bubble's corner, the
   form, a proposal landing in Still open, Accept moving it to the accepted decisions.
-- Prettier, `oxlint --type-aware`, `tsc`. Mutants: not run, for the same reason.
+- Prettier, `oxlint --type-aware`, `tsc`. Control mutant: the answer's line not focused once answered; the Accept check fails.
 - Independent review: two P2s (a resend of the old decision after no reply; Accept offered on a stale or direction
   proposal), fixed; its P3s on «Not now» (now Decline), focus after an answer, refusal words and the fixture fixed. Left:
   the press is reached by touch only on the message pressed (a screen reader reaches it by focus), and the viewer case
@@ -40,5 +40,5 @@ Design note: `docs/plans/conversations-decide.md`.
 
 ## Limitations and next action
 
-- Next: run the browser checks and the mutants once there is RAM; merge after #173 on green CI with no Codex P1. C8 and
+- Next: merge on green CI with no Codex P1. C8 and
   C9 are stacked on this branch.
