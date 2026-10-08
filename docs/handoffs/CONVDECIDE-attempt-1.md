@@ -10,7 +10,7 @@ Writable scope: `apps/studio/e2e/conversations-decide.spec.ts`, `apps/studio/fix
 Runtime unit: the Studio (`apps/studio`) and one shared icon (`packages/ui`), on the fixture pages; no API, database, worker or deployment touched. The writes are A08's, already in the API.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `conversations/decide` stacked on `conversations/answers` (`99e27488`, #173), 2026-10-08
-Ending commit/tree: `66ce93c14df50abe344c456d5227ef474674cb5d` (tree `e2d572fd3af01a4deb4f6f48aaa770f21beff858`), after Codex's P1 on reloads answered, after Codex's next P1 fixed, after Codex's three P1s fixed, after main merged in once Knowledge origins landed, after Decline at 24 px, the checks reading the brief's writes from the fixture and a name no longer shadowed, as CI found, after main merged in once C6 landed, after its base's changes merged in, after the answer's line taking the focus at once (a requestAnimationFrame never fires in a tab out of sight). The commits after it change only this handoff.
+Ending commit/tree: `afc043edbfa72ba8688df50e7d3c81b5d5230492` (tree `ac17513db71a96837dd9b384f658f7d20b6d1363`), after Codex's P1 on a failed reconcile fixed, after Codex's P1 on reloads answered, after Codex's next P1 fixed, after Codex's three P1s fixed, after main merged in once Knowledge origins landed, after Decline at 24 px, the checks reading the brief's writes from the fixture and a name no longer shadowed, as CI found, after main merged in once C6 landed, after its base's changes merged in, after the answer's line taking the focus at once (a requestAnimationFrame never fires in a tab out of sight). The commits after it change only this handoff.
 
 ## Outcome
 
@@ -63,6 +63,10 @@ Design note: `docs/plans/conversations-decide.md`.
   already waiting); a control mutant without the reconcile fails it. Independent review: no P1 or P2; its P3s taken.
   Left: the narrow windows it names (a lost request still being processed at the reload; the proposal decided
   meanwhile; edited words), and the same reload gap for messages and the start form, which hold their keys in memory.
+- Codex's P1 on a failed reconcile: when the brief can't be read first, nothing is sent; it says so, and the next
+  press reads again (a read refused for access says that instead). Unit and browser checks (fixture `failMission`); a
+  control mutant falling through to the write fails it. Independent review: no P1 or P2; its P3 on access taken. By
+  Luis's word (2026-10-08), a further edge case Codex finds on this PR is answered in its thread as a follow-up.
 - Left for follow-ups (Codex P2s, on Luis's word): deciding in the context (focus after a refusal; the decided proposal
   locked until the brief is read again; «Accepting…» while it goes) and the stale-conflict wording.
 
