@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
-import { refusalWords, statementFrom } from './decide.ts'
+import type { MissionDecision } from '@sophia/contracts'
+import { decidableHere, refusalWords, statementFrom } from './decide.ts'
 
 describe('a message proposed as a decision (C7)', () => {
   it('a member’s words, on one line, as written', () => {
@@ -32,15 +33,29 @@ describe('a message proposed as a decision (C7)', () => {
   })
 })
 
+const d = (kind: string, stale: boolean) => ({ kind, stale }) as unknown as MissionDecision
+
 describe('a refused decision', () => {
-  it('a stale revision says someone decided first; anything else says try again', () => {
+  it('a stale revision says someone decided first; a refused role says so; anything else says try again', () => {
     assert.equal(
-      refusalWords(new ApiError(409, 'stale_revision', 'stale', 'never')),
+      refusalWords(new ApiError(409, 'stale_revision', 'stale', 'never'), 'decide'),
       'Someone decided it first. This is the brief as it is now.',
     )
     assert.equal(
-      refusalWords(new ApiError(503, 'unavailable', 'down', 'safe_read')),
+      refusalWords(new ApiError(409, 'idempotency_mismatch', 'x', 'never'), 'propose'),
+      'That proposal couldn’t be sent as written. Try again.',
+    )
+    assert.equal(refusalWords(new ApiError(403, 'forbidden', 'x', 'never'), 'decide'), 'You can’t decide this here.')
+    assert.equal(
+      refusalWords(new ApiError(503, 'unavailable', 'down', 'safe_read'), 'propose'),
       'That couldn’t be done. Try again in a moment.',
     )
+  })
+
+  it('a constraint or a lesson is decided here; a new direction or a stale one is not', () => {
+    assert.equal(decidableHere(d('constraint', false)), true)
+    assert.equal(decidableHere(d('lesson', false)), true)
+    assert.equal(decidableHere(d('mission', false)), false)
+    assert.equal(decidableHere(d('constraint', true)), false)
   })
 })

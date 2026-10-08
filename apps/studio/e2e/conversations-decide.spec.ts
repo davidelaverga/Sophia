@@ -31,11 +31,13 @@ test('decide · «Accept» in Still open makes it an accepted decision, at the r
   await expect(context(page).locator('.conv-decisions:not(.open) li').first()).toHaveText('Map first, list second')
   await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
   await expect(context(page).getByRole('status')).toHaveText('Accepted: Map first, list second')
+  // The press answered is gone with its line: the focus is on what it says, not lost.
+  await expect(context(page).getByRole('status')).toBeFocused()
 })
 
-test('decide · «Not now» takes it out of Still open, and nothing is accepted', async ({ page }) => {
+test('decide · «Decline» takes it out of Still open, and nothing is accepted', async ({ page }) => {
   await enter(page)
-  await stillOpen(page).getByRole('button', { name: 'Not now' }).click()
+  await stillOpen(page).getByRole('button', { name: 'Decline' }).click()
   await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
   await expect(context(page).locator('.conv-decisions:not(.open)')).not.toContainText('Map first, list second')
 })
@@ -46,11 +48,9 @@ test('decide · someone decided first: the context says so and shows the brief a
   await expect(context(page).getByRole('status')).toHaveText(
     'Someone decided it first. This is the brief as it is now.',
   )
-  // Read again: still waiting, now at its newer revision, and accepted at that one.
-  const asked = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith('/decision'))
-  await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
-  expect((await asked).postDataJSON()).toEqual({ decision: 'accept', expectedRevision: 2 })
+  // Read again: no longer waiting, among the accepted decisions, as whoever decided it left it.
   await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
+  await expect(context(page).locator('.conv-decisions:not(.open) li').first()).toHaveText('Map first, list second')
 })
 
 test('decide · a message proposed as a decision: its words in, sent as a constraint, then in Still open', async ({
