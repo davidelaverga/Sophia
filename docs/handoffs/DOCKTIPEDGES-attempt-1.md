@@ -8,7 +8,7 @@ Writable scope: the files this PR changes (its diff against `main`), and nothing
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no deploy, no production data, no comment on Davide's PRs.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-lfe003`, branch `polish/dock-tip-edges` from `main`, 2026-10-08
-Ending commit/tree: `c42c95895db7fb22e52df190837b741bbade6ba1` (tree `6fff2bb443899abd780b8259edfc104f08928487`). The commit after it adds only this handoff.
+Ending commit/tree: `6607e43fada24c8dd117cde708c68607129d8606` (tree `30cd8342acbcb253153c244a544e15e072c47534`), after the dock's frame said (position: relative) and Codex's P2 (one tip at a time). The commit after it adds only this handoff.
 
 ## Outcome
 
