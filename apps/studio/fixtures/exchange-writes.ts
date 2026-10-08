@@ -55,13 +55,14 @@ function stateOf(host: ExchangeHost): ExchangeState {
 }
 
 function start(host: ExchangeHost, init: RequestInit | undefined, publish: () => void): Response {
+  // The route asks the LiveKit server about guests before the database sees the request (routes/exchanges.ts).
+  if (host.guestHere?.()) return refused('invalid_state', GUEST)
   const key = new Headers(init?.headers).get('idempotency-key') ?? ''
   const replay = started.get(key)
   if (replay) return json(replay, 201)
   const body = bodyOf(init)
   if (body.expectedRoomRevision !== host.revision) return refused('stale_revision', 'Stale room revision')
   if (host.exchange) return refused('invalid_state', 'Sophia is already in this conversation')
-  if (host.guestHere?.()) return refused('invalid_state', GUEST)
   if (host.room) host.room.allowVision = body.allowVision === true
   host.onExchange?.('start')
   publish()
@@ -92,17 +93,25 @@ function refusalOf(host: ExchangeHost, what: Control, source: unknown): string |
   return what === 'look' ? lookRefusal(room, source) : null
 }
 
+/** What she sees moves: shown a source, or no longer looking (she looked, so vision stays allowed, as `allow_vision`). */
+function moveSight(room: RoomAsked, what: 'look' | 'stop-looking', source: unknown): void {
+  if (what === 'stop-looking') {
+    room.allowVision ??= !!room.looking
+    room.looking = null
+  } else if (source === 'screen' || source === 'camera') {
+    room.looking = { participantIdentity: membership.actorId, source }
+  }
+}
+
 function controlled(host: ExchangeHost, what: Control, init: RequestInit | undefined, publish: () => void): Response {
   const source = bodyOf(init).source
   const refusal = refusalOf(host, what, source)
   if (refusal) return refused('invalid_state', refusal)
-  // Ending an ended conversation again answers what it is, and changes nothing.
-  if (!host.exchange) return json(stateOf(host))
-  if (what === 'look' && host.room && (source === 'screen' || source === 'camera')) {
-    host.room.looking = { participantIdentity: membership.actorId, source }
-  } else if (what === 'stop-looking' && host.room) {
-    host.room.looking = null
-  } else if (what !== 'look' && what !== 'stop-looking') {
+  // Ending an ended conversation again, or resuming one not paused, answers what it is and changes nothing.
+  if (!host.exchange || (what === 'resume' && !host.room?.pauseReason)) return json(stateOf(host))
+  if (what === 'look' || what === 'stop-looking') {
+    if (host.room) moveSight(host.room, what, source)
+  } else {
     host.onExchange?.(what)
   }
   publish()
