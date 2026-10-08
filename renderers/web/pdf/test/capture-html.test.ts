@@ -41,7 +41,9 @@ import {
   MAX_POINTS,
   MAX_TEXT_RECTS,
   pageScript,
+  orderScript,
 } from '../capture-page.mjs'
+import { meetingsOf, STYLES } from '../placement.mjs'
 import { chromiumPath, launchConfined } from '../confine.mjs'
 
 const sha = (data: string | Uint8Array): string => createHash('sha256').update(data).digest('hex')
@@ -575,6 +577,73 @@ describe('the capture kernel identity', () => {
 })
 
 describe('the confined capture kernel', () => {
+  it(
+    'reads identical fresh order and full layout without resizing the visible surface at every width',
+    { skip },
+    async () => {
+      const workDir = fs.mkdtempSync(path.join(SCRATCH, 'sophia-width-surface-'))
+      const browser = await launchConfined({ workDir, env })
+      try {
+        const tab = await browser.context.newPage()
+        await tab.setContent(
+          page(
+            `body{margin:0;font:18px/1.5 serif}main{container-type:inline-size}section{padding:20px}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+        .fixed{position:fixed;right:2vw;bottom:2vh}.sticky{position:sticky;top:0}
+        .wrap{display:flex;flex-wrap:wrap}.wrap span{width:min(510px,max(100px,calc(100vw - 506px)))}
+        @media(min-width:800px){.media{margin-left:5vw}}
+        @container(min-width:1016px){.container{padding-left:12vw}}table{width:90vw;border-collapse:collapse}`,
+            `<main><section data-section="s"><h1 class="sticky">Heading</h1>
+        <p data-block="p" class="media container">${'Fresh text rewraps at every width. '.repeat(24)}</p>
+        <div class="grid"><p>A</p><p>B</p><p>C</p></div><div class="wrap"><span>One</span><span>Two</span></div>
+        <p class="fixed">Fixed text</p><p dir="rtl" data-block="rtl">مرحبا 123 world</p>
+        ${researchTable('t')}</section></main>`,
+          ),
+        )
+        await tab.evaluate('document.fonts.ready.then(() => true)')
+        const cdp = await browser.context.newCDPSession(tab)
+        const widths = [
+          320, 321, 351, 390, 512, 767, 768, 799, 800, 801, 1011, 1012, 1015, 1016, 1019, 1020, 1280, 1920, 2559, 2560,
+        ]
+        const baseline: { state: string }[] = []
+        const snapshots: string[] = []
+        for (const width of widths) {
+          await cdp.send('Emulation.setDeviceMetricsOverride', {
+            mobile: false,
+            width,
+            height: SWEEP.height,
+            screenWidth: width,
+            screenHeight: SWEEP.height,
+            deviceScaleFactor: 1,
+            screenOrientation: { angle: 0, type: 'landscapePrimary' },
+          })
+          const read = await cdp.send('Runtime.evaluate', { expression: orderScript('ltr'), returnByValue: true })
+          const [inner, moved, reordered] = read.result.value as unknown[]
+          assert.equal(inner, width)
+          assert.equal(read.exceptionDetails, undefined)
+          const snapshot = await cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLES })
+          const lie = meetingsOf(snapshot)
+          assert.ok(!('issue' in lie))
+          baseline.push({ state: `${lie.state}|${String(moved)}|${String(reordered)}` })
+          snapshots.push(sha(JSON.stringify(snapshot)))
+        }
+        const captured: string[] = []
+        const recording = {
+          send: async (method: Parameters<CDPSession['send']>[0], params: Parameters<CDPSession['send']>[1]) => {
+            const answer = await cdp.send(method, params)
+            if (method === 'DOMSnapshot.captureSnapshot') captured.push(sha(JSON.stringify(answer)))
+            return answer
+          },
+        } as unknown as CDPSession
+        assert.deepEqual(await probeOf(recording, 'ltr')(widths), baseline)
+        assert.deepEqual(captured, snapshots, 'every complete snapshot, including computed styles and text boxes')
+        assert.equal(browser.selfTest().active, true)
+      } finally {
+        await browser.close()
+        fs.rmSync(workDir, { recursive: true, force: true })
+      }
+    },
+  )
   it('has a confined browser wherever the renderer is required', () => {
     if (process.env.SOPHIA_RENDERER_REQUIRED === '1') assert.equal(why, null, `the renderer is required here: ${why}`)
   })

@@ -189,6 +189,12 @@ Read in a checkout of `paperclipai/paperclip@5edf55d7350c7f08c9dd132c7e0f1421fa0
 | PC-10 | pi-ai 0.87.1 `dist/providers/data/openai.json` (`gpt-6-luna`) | Window 272 000; prices 0.10 / 0.01 / 0.125 / 0.50 USD per million tokens (input, cache read, cache write, output) | `config/runtime-unit.json#model_routes.source-review-luna-high-v1`, `packages/dsh-bundle/cordis.patch.yml` (`openai-review`) |
 | PC-11 | `server/src/config.ts` 219–223; `server/src/auth/better-auth.ts` 273–277, 356–361; `server/src/index.ts` 741; better-auth 1.7.2 (`server/package.json` 78, the pin's lockfile) `dist/api/routes/sign-up.mjs` 145–147 | `PAPERCLIP_AUTH_DISABLE_SIGN_UP=true` sets better-auth's `emailAndPassword.disableSignUp`; better-auth then refuses an email sign-up with `APIError.from("BAD_REQUEST", { code: "EMAIL_PASSWORD_SIGN_UP_DISABLED" })`, which Paperclip's `createBetterAuthHandler` (`toNodeHandler(auth)`) answers unchanged: 400 with that code. The image qualifies only on this exact refusal, so if the pin or its better-auth moves, these lines are read again and the probe's constant and the receipt's fact change together | `scripts/paperclip-probe-flow.mjs` (`SIGN_UP_DISABLED`, `signUpRefused`), `scripts/paperclip-probe-url.mjs` and `scripts/paperclip-service-probe.mjs` (record status and code), `scripts/paperclip-image-receipt.mjs` (the `sign-up refused` fact), `scripts/paperclip-image-container.mjs` (`signup-closed`) |
 
+## 2g. Chromium protocol at SDD-01 UML width investigation
+
+| Source id | Upstream file | Used for | Sophia files |
+|---|---|---|---|
+| CDP-141-EMULATION | Chromium `141.0.7390.37`, [`third_party/blink/public/devtools_protocol/domains/Emulation.pdl`](https://chromium.googlesource.com/chromium/src/+/refs/tags/141.0.7390.37/third_party/blink/public/devtools_protocol/domains/Emulation.pdl), `setDeviceMetricsOverride` | `dontSetVisibleSize` keeps visible-surface sizing separate from device/layout metrics. Width probes still read and validate the actual viewport, order and full snapshot; band-end measurements and captures set visible size normally. | `renderers/web/pdf/capture-html.mjs`, its full-snapshot equivalence test |
+
 ## 3. Facts learned at the pin (not in the pack)
 
 These are observed behaviors of the pinned release, recorded so later goals

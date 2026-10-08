@@ -1024,7 +1024,10 @@ export function probeOf(cdp, base) {
     const objectId = compiled.result.objectId
     const sent = widths.map((width) =>
       Promise.all([
-        cdp.send('Emulation.setDeviceMetricsOverride', metricsAt(width)),
+        // These widths are read, never photographed. Override the actual layout
+        // metrics without resizing the compositor's visible surface each time.
+        // The band-end measurements and captures still set the visible size.
+        cdp.send('Emulation.setDeviceMetricsOverride', { ...metricsAt(width), dontSetVisibleSize: true }),
         cdp.send('Runtime.callFunctionOn', {
           objectId,
           functionDeclaration: 'function () { return this() }',

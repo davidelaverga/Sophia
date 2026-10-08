@@ -51,3 +51,30 @@ denial. The ordinary confinement modules, browser flags, host Landlock rules, ho
 limits stay unchanged. A real Linux subprocess test checks inheritance through exec and leaves the test caller's
 affinity unchanged; a denied affinity request has no silent fallback. CI runs the original fixture at one CPU/2 GB.
 This is a performance hypothesis until the candidate's full fixture completes; no Render success is asserted.
+
+## CPU-affinity result and visible-surface candidate
+
+Candidate `b37eda1e69ea7407f07038e55c75f8a21a2b6ebd` passed the complete original Linux CI fixture at one CPU/2 GB
+([run 37764472193](https://github.com/davidelaverga/Sophia/actions/runs/37764472193)), including all eight Python helper
+tests. All six ordinary CI jobs passed in push run 37764472235 and PR run 37764478067. The preceding Linux baseline
+failed width pace. CI is distinct from Render, and independently built images are not a same-image causal comparison.
+
+The approved native Render attempt built and deployed that exact source once on the original one CPU/2 GB worker.
+It applied CPU0 affinity, host UID10001, Landlock ABI8 and seccomp2; all host adverse controls, PDF and 10 captures
+passed, but the original width pace gate still failed. Launch took 3811.164 ms and the entire failed fixture took
+49.128 seconds. Render had moved to host kernel 7.0.0-1009-aws; historical attempts used kernel6.8/ABI4. Failure-only
+32-width retained-function samples projected 30.3–44.6 seconds; these are not completed sweep timings.
+
+The complete 756886-byte native log hash `6a86d0e8e7d6e0f9e358d592321f28b8a91ddf761269b529cf7b944b59ab5ce6` matched the
+export. Both PNG payloads were hash-verified. Guest exit and scratch/sentinel removal were natural. Only the verified
+owned idle supervisor was signaled via pidfd; it exited and remained an unreaped zombie until container suspension.
+The worker was suspended and not billed before the deadline, at the original tier. That batch is closed, without a
+retry. Claude handover remains withheld until a full native Render pass. Support remains unsent.
+
+The next source candidate uses Chromium's pinned `dontSetVisibleSize` option only for the widths whose layout is read
+without photographing them. Device metrics still change at every width, followed by fresh order and full snapshot
+reads. Band-end measurements and captures retain normal visible-surface sizing. No confinement rule, browser flag,
+width, batch, deadline or pace test changes. The new real Linux browser regression compares complete snapshots and
+order answers across responsive/container-query boundaries, fixed/sticky boxes, flex/grid wrapping, RTL and tables.
+An isolated macOS prototype returned identical full snapshots/order/viewport results on those cases. This establishes
+local equivalence, not native Linux or Render acceptance; new CI results remain pending at preparation.
