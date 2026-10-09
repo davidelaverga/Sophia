@@ -7,6 +7,12 @@
 
 All three belong to the owner's batch, never to this change. The contract is amendment A15; where this page and migration 0046 differ, 0046 holds.
 
+**Deploy order, in the owner's batch.** Each step needs the one before it, and turning it off goes back in reverse:
+1. deploy the media bridge and the Studio built from this change: a bridge from before it would take a grant's assignment and connect with no bound, where this one declines it while `SOPHIA_VOICE_EVIDENCE` is off;
+2. apply 0046;
+3. `SOPHIA_VOICE_QUALIFICATION=on` on the API: its readiness needs 0046's functions (`VOICE_SCHEMA`), and from then on assignments name a grant, which the bridge declines;
+4. `SOPHIA_VOICE_EVIDENCE=on` on the bridge: it reserves and records against the API's routes, which step 3 registered.
+
 **Why it exists.** Pack 03 G7 asks for a synthetic in-app voice episode: Create (HTML asked for by voice), a steer, leaving and returning, Hold, Resume and Stop. It is driven by the Voice Lab, which feeds synthetic audio into the Studio's own microphone path.
 
 The legacy Lab proved input from a browser Gemini WebSocket, and this product has none: the browser sends Opus over WebRTC to LiveKit, and the media bridge decodes it and talks to Gemini on the server. This contract gives the Lab product-authored receipts for the legs only the product can see. It does so without changing the product's privacy model.

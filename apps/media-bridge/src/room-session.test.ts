@@ -4367,4 +4367,27 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     assert.deepEqual(stops(), ['usage'])
     await session.close()
   })
+
+  it('off, a tool response is sent as before, never measured (an output JSON cannot carry fails nothing)', async () => {
+    // A FAKE output no JSON can carry (a BigInt): the API's never is, but measuring it must not run, or throw, off.
+    service.result = { status: 'ok', output: { size: 1n } } as unknown as MediaToolResult
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'call-off', name: 'project_status', args: {} }])
+    await until('the response sent', () => live.responses.length === 1)
+    assert.ok(logs.some(([event]) => event === 'tool.answered'))
+    await session.close()
+  })
+
+  it('under a grant, a tool response that cannot be measured is never sent: its delivery is unknown, and said', async () => {
+    service.result = { status: 'ok', output: { size: 1n } } as unknown as MediaToolResult
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.toolCalls([{ id: 'call-on', name: 'project_status', args: {} }])
+    await until('its delivery unknown', () => logs.some(([event]) => event === 'tool.delivery_unknown'))
+    assert.equal(live.responses.length, 0)
+    await session.close()
+  })
 })
