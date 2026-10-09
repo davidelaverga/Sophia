@@ -112,11 +112,13 @@ export function useDecideSend(projectId: string, identity: Identity) {
       await readAgain()
       return receipt
     } catch (err: unknown) {
-      // Refused as stale, its words are chosen from the brief read again: read even with no pane showing it (the
-      // person may have gone to another view meanwhile, where only an active read would be read again).
-      if (err instanceof ApiError && err.status === 409)
-        await client.refetchQueries({ queryKey: missionKey(projectId), type: 'all' })
-      else void readAgain()
+      // Refused as stale, its words are chosen from the brief read again: that read even with no pane showing it (the
+      // person may have gone to another view meanwhile, where only an active read would be read again); the others
+      // as ever.
+      if (err instanceof ApiError && err.status === 409) {
+        void readAgain()
+        await client.refetchQueries({ queryKey: contextKey(projectId, identity), type: 'all', exact: true })
+      } else void readAgain()
       throw err
     }
   }

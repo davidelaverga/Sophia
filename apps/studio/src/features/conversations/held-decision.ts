@@ -9,7 +9,7 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { contextKey, decideRefusal, refusalWords, stateOf, useDecideSend, type DecisionAsk } from './decide.ts'
 import { useHeldWrite } from './held-write.ts'
-import { useKept } from './talk-store.ts'
+import { currentGeneration, useKept } from './talk-store.ts'
 
 /** What the brief as last read says of a proposal: whether that read came back, and whether it still waits there. */
 function useBriefRead(projectId: string, identity: Identity) {
@@ -33,10 +33,12 @@ export function useHeldDecision(projectId: string, identity: Identity) {
     held,
     (next) => change((was) => ({ ...was, decision: next })),
     async (key, ask) => {
+      const born = currentGeneration()
       try {
         const receipt = await send(key, ask.args)
-        // Said answered before it is let go: never a moment with the presses awake on a decided proposal.
-        setDone(ask)
+        // Said answered before it is let go: never a moment with the presses awake on a decided proposal; and never
+        // for an account forgotten meanwhile (a write that began before a forgetting writes nothing after it).
+        if (born === currentGeneration()) setDone(ask)
         return receipt
       } catch (err: unknown) {
         refusal.current = err instanceof ApiError ? decideRefusal(err, briefOf(ask.args.decisionId)) : null
