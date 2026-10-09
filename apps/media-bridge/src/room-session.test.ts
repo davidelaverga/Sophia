@@ -4354,6 +4354,63 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     await session.close()
   })
 
+  it('a generation nobody asked for while input’s reservation is in flight is charged too: three ran, three charged', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(2), OUT) // the first generation, reserved
+    live.events.turnComplete()
+    await flush()
+    service.holdReservations = true
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // the open microphone asks for the next; the API is slow
+    await flush()
+    const held = live.audio
+    live.events.audio(speech(2), OUT) // a generation nobody asked for
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    assert.equal(live.audio, held, 'the chunk still waits for its own reservation')
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.equal(live.audio, held + 1, 'granted, the held chunk goes on')
+    live.events.audio(speech(2), OUT) // the third, under the input's own reservation
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    assert.deepEqual(kinds().toSorted(), ['connection', 'generation', 'generation', 'unasked'])
+    await session.close()
+  })
+
+  it('input’s reservation granted while an unasked generation is under way pays for the next one, not for that one', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(2), OUT)
+    live.events.turnComplete()
+    await flush()
+    service.holdReservations = true
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // asks for the next generation; the API is slow
+    await flush()
+    live.events.audio(speech(2), OUT) // a generation nobody asked for starts meanwhile
+    await flush()
+    service.holdReservations = false
+    service.answerReservations() // both answered while it is still under way
+    await flush()
+    await flush()
+    live.events.turnComplete() // the unasked one ends; the input's grant is still unspent
+    await flush()
+    live.events.audio(speech(2), OUT) // the next generation, under the input's own reservation
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    assert.deepEqual(kinds().toSorted(), ['connection', 'generation', 'generation', 'unasked'], 'charged once each')
+    await session.close()
+  })
+
   it('a tool response waits for its generation’s reservation; refused, it is never sent', async () => {
     voiceEvidence = true
     const { session, room, live } = await ready({ qualification: grant() })

@@ -11,7 +11,8 @@
 // - a provider connection is reserved before it opens, and its durable ordinal names its receipts;
 // - a generation is reserved before what can start one is sent (the first input after a turn ended, held meanwhile; a
 //   tool response; a notice; a typed message), charged at its worst case with what was sent and transcribed since the
-//   last charge; one that starts unasked is charged as its output arrives.
+//   last charge; one that starts unasked (its output arrives while no generation is paid for, a reservation still in
+//   flight included: nothing behind that has reached the provider yet) is charged as its output arrives.
 // A refusal, or no answer in time, stops the session for good: it sends nothing more to the provider and closes it
 // (RoomSession.guardStop). The receipts are recorded only while the grant's principal holds the floor.
 import type { UsageMetadata } from '@google/genai'
@@ -84,11 +85,16 @@ export class SessionQualification {
   /** The session's connection numbers, and each one's ordinals. */
   readonly #links = new Map<number, Link>()
   /**
-   * Whether a generation is reserved on a connection since its last turn ended: granted (input flows under it), or
-   * still being reserved (input waits for it).
+   * The reservation in flight for the next generation on a connection, asked for by input: input waits for it, and only
+   * this one, once granted, lets input flow.
    */
-  readonly #generations = new Map<number, Promise<GuardStop | null>>()
-  readonly #granted = new Set<number>()
+  readonly #pending = new Map<number, Promise<GuardStop | null>>()
+  /**
+   * Generations paid for on a connection that no turn has ended yet: each granted reservation, and each generation
+   * charged as it arrived (unasked). Input flows while there is one; output arriving while there is none is a generation
+   * nobody reserved. A turn's end takes one.
+   */
+  readonly #granted = new Map<number, number>()
   /** Tokens sent and transcribed since the last charge, at the assumed rates: the next charge carries them. */
   #sinceCharge = 0
   #stopped: GuardStop | null = null
@@ -189,11 +195,11 @@ export class SessionQualification {
     dropped: number,
     inputEpoch: number,
   ): GuardStop | 'hold' | null {
+    if (this.#pending.has(connection)) return this.#stopped ?? 'hold'
     if (!this.#granted.has(connection)) {
-      if (this.#generations.has(connection)) return this.#stopped ?? 'hold'
       const stop = this.#check(() => this.#reserve.reserve(this.#local(connection)))
       if (stop) return stop
-      this.#generations.set(connection, this.#charge(connection, false))
+      this.#reserveInput(connection)
       return 'hold'
     }
     const stop = this.#check(() => this.#reserve.sentAudio(chunk.length))
@@ -203,9 +209,9 @@ export class SessionQualification {
     return null
   }
 
-  /** The generation input waits for on this connection: null once granted, or why the session stops. */
+  /** The reservation input waits for on this connection: null once granted, or why the session stops. */
   granted(connection: number): Promise<GuardStop | null> {
-    return this.#generations.get(connection) ?? Promise.resolve(this.#stopped)
+    return this.#pending.get(connection) ?? Promise.resolve(this.#stopped)
   }
 
   /**
@@ -218,9 +224,10 @@ export class SessionQualification {
       this.#check(() => this.#reserve.sentText(chars))
     if (stop) return Promise.resolve(stop)
     this.#sinceCharge += chars / ASSUMED_RATES.charsPerToken
-    const charged = this.#charge(connection, false)
-    if (!this.#generations.has(connection)) this.#generations.set(connection, charged)
-    return charged
+    return this.#charge(connection, false).then((refused) => {
+      if (!refused) this.#grant(connection)
+      return refused
+    })
   }
 
   /** Before a video frame goes to the provider: counted, and carried by the next charge. */
@@ -242,7 +249,8 @@ export class SessionQualification {
       (out.chars === undefined ? null : this.#check(() => this.#reserve.transcribed(out.chars ?? 0)))
     if (stop) return stop
     if (out.chars !== undefined) this.#sinceCharge += out.chars / ASSUMED_RATES.charsPerToken
-    if (!this.#generations.has(connection)) this.#unasked(connection)
+    // A reservation still in flight is for what comes next: nothing behind it has reached the provider yet.
+    if (!this.#granted.has(connection)) this.#unasked(connection)
     this.#recorder.responded(out.toolCalls ?? 0)
     return null
   }
@@ -262,7 +270,9 @@ export class SessionQualification {
    */
   turnEnded(connection: number, how: TurnEnd): void {
     this.#reserve.ended(this.#local(connection))
-    if (this.#granted.delete(connection)) this.#generations.delete(connection)
+    const paid = this.#granted.get(connection) ?? 0
+    if (paid > 1) this.#granted.set(connection, paid - 1)
+    else this.#granted.delete(connection)
     this.#recorder.turnEnded(how)
   }
 
@@ -321,7 +331,7 @@ export class SessionQualification {
 
   /**
    * Reserve a generation on the API at its worst case: the context again, its output twice (audio and text), and what
-   * was sent and transcribed since the last charge. Granted, input on this connection flows under it.
+   * was sent and transcribed since the last charge.
    */
   async #charge(connection: number, unasked: boolean): Promise<GuardStop | null> {
     const durable = this.#durable(connection)
@@ -329,17 +339,28 @@ export class SessionQualification {
     this.#sinceCharge = 0
     const answer = await this.#ledger.generation(durable, Math.min(MAX_CHARGE, Math.ceil(worst)), unasked)
     if (!answer.ok) return this.#refused(answer)
-    if (this.#stopped) return this.#stopped
-    if (this.#generations.has(connection)) this.#granted.add(connection)
-    return null
+    return this.#stopped
+  }
+
+  /** The reservation input asked for: once granted, and only if it is still the one stored, input flows under it. */
+  #reserveInput(connection: number): void {
+    const pending: Promise<GuardStop | null> = this.#charge(connection, false).then((refused) => {
+      if (this.#pending.get(connection) !== pending) return refused
+      this.#pending.delete(connection)
+      if (!refused) this.#grant(connection)
+      return refused
+    })
+    this.#pending.set(connection, pending)
+  }
+
+  #grant(connection: number): void {
+    this.#granted.set(connection, (this.#granted.get(connection) ?? 0) + 1)
   }
 
   /** A generation started that nobody reserved: it is spent, so it is charged; a refusal stops the session. */
   #unasked(connection: number): void {
-    this.#granted.add(connection)
-    const charged = this.#charge(connection, true)
-    this.#generations.set(connection, charged)
-    void charged.then((stop) => {
+    this.#grant(connection)
+    void this.#charge(connection, true).then((stop) => {
       if (stop) this.#deps.stop(stop)
     })
   }
