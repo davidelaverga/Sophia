@@ -29,8 +29,8 @@ const MIGRATIONS = fileURLToPath(new URL('../../../db/migrations', import.meta.u
 const A = randomUUID() // admin
 const P = randomUUID() // the synthetic principal, an editor
 const RUN = 'ab'.repeat(32)
-/** The digest the API claims a call with no arguments under (canonical JSON '{}'). */
-const NO_ARGS = createHash('sha256').update('{}').digest('hex')
+/** The digest the API claims a call with no arguments and no context under (0047, callSha256). */
+const A_CALL = createHash('sha256').update('{"args":{},"guide":null,"inputMode":null,"utterance":null}').digest('hex')
 
 let db: TestDatabase
 let api: pg.Pool
@@ -197,7 +197,7 @@ describe('a voice tool call’s key is deleted an hour after its exchange ended,
     )
     const key = `live:${exchangeId}:1:k-1`
     await withService(api, (c) =>
-      claimLiveCall(c, { exchangeId, inputEpoch: 1, actorId: P, key, name: 'project_status', argsSha256: NO_ARGS }),
+      claimLiveCall(c, { exchangeId, inputEpoch: 1, actorId: P, key, name: 'project_status', callSha256: A_CALL }),
     )
     return { exchangeId, key }
   }
@@ -250,7 +250,7 @@ describe('a voice tool call’s key is deleted an hour after its exchange ended,
         actorId: P,
         key: old.key,
         name: 'project_status',
-        argsSha256: NO_ARGS,
+        callSha256: A_CALL,
       })
       await c.query(`SELECT sophia.media_tool_speaker($1,1,$2)`, [old.exchangeId, P])
       await c.query('COMMIT')

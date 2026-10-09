@@ -9,7 +9,7 @@ import { SignJWT } from 'jose'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import type { MediaEvidenceWrite } from '@sophia/contracts'
+import type { MediaEvidenceWrite, MediaToolCall } from '@sophia/contracts'
 import {
   DECLARED_NAMES,
   httpMediaService,
@@ -774,12 +774,33 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     }
     const goalId = (await goalOf()).id
     await owner((c) => c.query(`UPDATE sophia.goals SET status='running' WHERE id=$1`, [goalId]))
-    const voice = (actorId: string, inputEpoch: number, callId: string, name: string, args = {}) =>
-      call('POST', '/v1/media/tool-calls', {
-        api,
-        media: true,
-        body: { exchangeId, connectionGeneration: 1, callId, name, args, inputEpoch, actorId, guide: 'v1.2' },
-      })
+    /**
+     * The bridge's call with the context it carries: an utterance, an input mode, a guide (v1.2 unless named; undefined
+     * leaves it out).
+     */
+    const voiceIn =
+      (context: {
+        utterance?: MediaToolCall['utterance']
+        inputMode?: MediaToolCall['inputMode']
+        guide?: MediaToolCall['guide']
+      }) =>
+      (actorId: string, inputEpoch: number, callId: string, name: string, args = {}) =>
+        call('POST', '/v1/media/tool-calls', {
+          api,
+          media: true,
+          body: {
+            exchangeId,
+            connectionGeneration: 1,
+            callId,
+            name,
+            args,
+            inputEpoch,
+            actorId,
+            guide: 'v1.2',
+            ...context,
+          },
+        })
+    const voice = voiceIn({})
     const commandsUnder = async (callId: string) =>
       (
         await owner((c) =>
@@ -827,6 +848,7 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
       goalId,
       goalOf,
       voice,
+      voiceIn,
       commandsUnder,
       commandsBy,
       claimsOf,
@@ -933,6 +955,77 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
             ['start_research', null, 'clarify'],
             ['start_research', 'native_task', 'admitted'],
           ])
+      })
+
+      it('decide_mission_change under the id of the one its proposal’s utterance could only clarify is another call in the next: refused, nothing accepted (Codex r4233923450)', async () => {
+        const x = await twoSpeakers(mode)
+        const missionRevision = async () =>
+          (
+            await owner((c) =>
+              c.query<{ r: number }>(`SELECT mission_revision::int AS r FROM sophia.projects WHERE id=$1`, [
+                x.projectId,
+              ]),
+            )
+          ).rows[0]?.r
+        const proposed = await call('POST', `/api/v1/projects/${x.projectId}/mission/proposals`, {
+          actor: A,
+          body: { kind: 'mission', statement: 'A map of workshops.' },
+        })
+        assert.equal(proposed.status, 202, JSON.stringify(proposed.json))
+        const decisionId = String(proposed.json.decisionId)
+        const at4 = x.voiceIn({ utterance: 4, inputMode: 'voice' })
+        const at5 = x.voiceIn({ utterance: 5, inputMode: 'voice' })
+        const read = await at4(P, 1, 'u-read', 'read_selected_source', { decisionId })
+        assert.equal(read.json.output.putToSpeaker, true, 'the proposal is put to the speaker in utterance 4')
+        const answer = { proposalId: decisionId, proposalRevision: 1, decision: 'accept' }
+        assert.equal((await at4(P, 1, 'u-1', 'decide_mission_change', answer)).json.status, 'clarify')
+        assert.equal(
+          (await at4(P, 1, 'u-1', 'decide_mission_change', answer)).json.status,
+          'clarify',
+          'the identical call in the same utterance is its retry',
+        )
+        assert.deepEqual(
+          answerOf(await at5(P, 1, 'u-1', 'decide_mission_change', answer)),
+          conflict,
+          'the same tool and arguments in utterance 5 are another call',
+        )
+        assert.equal(await missionRevision(), 1, 'nothing was accepted under the key')
+        // A later utterance under its own key decides it; its retry is the same decision.
+        const decided = await at5(P, 1, 'u-2', 'decide_mission_change', answer)
+        assert.deepEqual(
+          [decided.json.status, decided.json.output.decision, decided.json.output.missionRevision],
+          ['committed', 'accepted', 2],
+          JSON.stringify(decided.json),
+        )
+        const again = await at5(P, 1, 'u-2', 'decide_mission_change', answer)
+        assert.deepEqual([again.json.status, again.json.output.missionRevision], ['committed', 2])
+        assert.equal(await missionRevision(), 2)
+        if (mode === 'on')
+          assert.deepEqual(
+            await listedBy(x.exchangeId),
+            [
+              ['read_selected_source', null, 'ok'],
+              ['decide_mission_change', null, 'clarify'],
+              ['decide_mission_change', null, 'committed'],
+            ],
+            'the clarify stays the only answer of its call; the decision is its own call’s',
+          )
+      })
+
+      it('the same call in another input mode or under another guide, or with an utterance it lacked, is another call (Codex r4233923450)', async () => {
+        const x = await twoSpeakers(mode)
+        const spoken = x.voiceIn({ inputMode: 'voice' })
+        assert.equal((await spoken(P, 1, 'k-1', 'project_status')).json.status, 'ok')
+        assert.equal((await spoken(P, 1, 'k-1', 'project_status')).json.status, 'ok', 'its retry')
+        assert.deepEqual(answerOf(await x.voiceIn({ inputMode: 'text' })(P, 1, 'k-1', 'project_status')), conflict)
+        assert.equal((await x.voice(P, 1, 'k-2', 'project_status')).json.status, 'ok', 'guide v1.2')
+        const v13 = x.voiceIn({ guide: 'v1.3' })
+        assert.deepEqual(answerOf(await v13(P, 1, 'k-2', 'project_status')), conflict, 'guide v1.3')
+        const bare = x.voiceIn({ guide: undefined })
+        assert.equal((await bare(P, 1, 'k-3', 'project_status')).json.status, 'ok', 'no guide, no utterance')
+        assert.equal((await bare(P, 1, 'k-3', 'project_status')).json.status, 'ok', 'its retry')
+        const named = x.voiceIn({ guide: undefined, utterance: 1 })
+        assert.deepEqual(answerOf(await named(P, 1, 'k-3', 'project_status')), conflict, 'an utterance it lacked')
       })
 
       it('the same arguments again go on as before, after a clarify and after an ok: at most one command (Codex P1 r4233409532)', async () => {
