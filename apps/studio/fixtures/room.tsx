@@ -76,6 +76,7 @@ import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
 import type { ExchangeAction } from './exchange-writes.ts'
 import { sophiaArrives, stopScene } from './room-scene.ts'
 import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
+import { demoServedGoals } from './demo-work.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -307,6 +308,8 @@ const project = {
   // The demo's goals (demo-goals.ts): Goals reads them; Tasks acts on them. A command moves its goal as the API admits
   // it, and a moment later the runtime confirms where it settles.
   goals: DEMO ? [...DEMO_GOALS] : ([] as Goal[]),
+  // The demo's board (demo-work.ts): the rollout's plan, so its Tasks draw a board as a planned goal's do.
+  ...(DEMO && { servedGoals: demoServedGoals }),
   ...(DEMO
     ? {
         onCommand: (command: GoalCommand) => {
