@@ -1027,7 +1027,7 @@ describe('one Paperclip-managed source review', () => {
     )
     const late = await answer(w, proposal.json, 'accept')
     assert.deepEqual([late.json.admission, late.json.rejection], ['rejected', 'expired'])
-    assert.equal((await deliver(w)).outcomes.length, 0)
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [])
     assert.equal(w.paperclip.issues.size, 0)
   })
 
@@ -1036,7 +1036,7 @@ describe('one Paperclip-managed source review', () => {
     const proposal = await propose(w)
     const declined = await answer(w, proposal.json, 'decline')
     assert.equal(declined.json.effect, 'choice_recorded')
-    assert.equal((await deliver(w)).outcomes.length, 0)
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [])
     assert.equal(w.paperclip.issues.size, 0)
   })
 })
@@ -1823,7 +1823,7 @@ describe('the coordination grant, and the runs of one attempt (Codex on #107)', 
     }
     assert.equal(await countOf(w, 'work_items'), 0, 'no work was admitted')
     assert.equal(await countOf(w, 'coordination_outbox'), 0, 'nothing is to be commissioned')
-    assert.equal((await deliver(w)).outcomes.length, 0)
+    assert.deepEqual(await outcomesOf(w, await deliver(w)), [])
     assert.equal(w.paperclip.issues.size, 0)
   })
 
