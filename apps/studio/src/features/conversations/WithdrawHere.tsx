@@ -2,14 +2,17 @@
 // press at the message's corner, beside «Propose as decision», under the pointer or the focus as that one is; pressed, a
 // short confirmation under the message says what goes, and only its own press withdraws. One intent, one key: with no
 // reply, the press sends it again under the same key. Withdrawn, the message keeps its place and says so, and the
-// conversation and the list are read again (her answers that read it go too, on the server).
+// conversation and the list are read again (her answers that read it go too, on the server). Its press and its
+// confirmation go with its words: the focus lands on what the message says now, unless the person moved it elsewhere
+// while the withdrawal was on its way (focusLater).
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import type { ApiError } from '../../api/client.ts'
 import { withdrawConversationMessage, type ConversationMessage } from '../../api/conversations.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { focusLater } from '../personal/focus.ts'
 import { LISTS, messagesKey, type ReadPages } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 
@@ -43,6 +46,7 @@ export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; 
   const [held, setHeld] = useState<Held<string> | null>(null)
   const [refused, setRefused] = useState<string | null>(null)
   const press = useRef<HTMLButtonElement>(null)
+  const landing = useLanding(args === null)
   const queryClient = useQueryClient()
   const write = useHeldWrite<string, ConversationMessage>(
     held,
@@ -58,33 +62,23 @@ export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; 
     requestAnimationFrame(() => press.current?.focus())
   }
   const go = async () => {
+    // Taken as the press is made: the message's item stays, its press and this confirmation go with its words.
+    const land = focusLater()
+    const item = press.current?.closest('li') ?? null
     const message = await write.run(args.messageId)
     if (!message) return
+    landing.arm(land, item)
     const pages = messagesKey(args.conversationId, accountOf(args.identity))
     queryClient.setQueryData<ReadPages<ConversationMessage>>(pages, (read) => withWithdrawn(read, message))
     void queryClient.invalidateQueries({ queryKey: pages })
     void queryClient.invalidateQueries({ queryKey: LISTS })
     setAsking(false)
   }
-  const label = args.own ? 'Withdraw message' : 'Remove message'
   return {
     press: (
-      <span className="conv-withdraw">
-        <button
-          ref={press}
-          type="button"
-          className="conv-propose-press has-tip"
-          aria-label={label}
-          aria-expanded={asking}
-          onClick={(e) => {
-            e.stopPropagation()
-            setAsking(true)
-          }}
-        >
-          <Icon name="close" />
-          <Tip label={label} side="top" align="end" />
-        </button>
-      </span>
+      <WithdrawPress press={press} label={args.own ? 'Withdraw message' : 'Remove message'} asking={asking}>
+        {() => setAsking(true)}
+      </WithdrawPress>
     ),
     form: asking ? (
       <WithdrawConfirm
@@ -96,6 +90,54 @@ export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; 
         onKeep={close}
       />
     ) : null,
+  }
+}
+
+/** The press at the message's corner: its words in its name and its tip. */
+function WithdrawPress(props: {
+  press: RefObject<HTMLButtonElement | null>
+  label: string
+  asking: boolean
+  children: () => void
+}) {
+  return (
+    <span className="conv-withdraw">
+      <button
+        ref={props.press}
+        type="button"
+        className="conv-propose-press has-tip"
+        aria-label={props.label}
+        aria-expanded={props.asking}
+        onClick={(e) => {
+          e.stopPropagation()
+          props.children()
+        }}
+      >
+        <Icon name="close" />
+        <Tip label={props.label} side="top" align="end" />
+      </button>
+    </span>
+  )
+}
+
+/**
+ * Where the focus goes once a withdrawal landed: on what the message says now, after the render that shows it withdrawn
+ * (not before), whichever comes first, its reply or the feed's read showing it withdrawn (`gone`).
+ */
+function useLanding(gone: boolean) {
+  const landing = useRef<{ land: (el: HTMLElement | null) => void; item: HTMLElement | null } | null>(null)
+  const [armed, setArmed] = useState(0)
+  useEffect(() => {
+    const at = landing.current
+    if (!gone || !at) return
+    landing.current = null
+    at.land(at.item?.querySelector<HTMLElement>('.conv-withdrawn') ?? null)
+  }, [gone, armed])
+  return {
+    arm: (land: (el: HTMLElement | null) => void, item: HTMLElement | null) => {
+      landing.current = { land, item }
+      setArmed((n) => n + 1)
+    },
   }
 }
 

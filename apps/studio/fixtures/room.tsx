@@ -881,6 +881,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,
+      withdrawMs: query.get('withdraw') === 'slow' ? 1500 : 0,
       receipts: new Map<string, { body: string; receipt: unknown }>(),
     },
     missionPlus: conversationMission(),

@@ -506,9 +506,18 @@ function MessageItem(props: {
   )
 }
 
-/** A message's words: hers with their shape, a member's as written, or that it was withdrawn. */
+/**
+ * A message's words: hers with their shape, a member's as written, or that it was withdrawn (where the focus lands when
+ * it is withdrawn here: WithdrawHere.tsx).
+ */
 function MessageWords({ words, sophia }: { words: string | null; sophia: boolean }) {
-  if (words === null) return <p className="conv-withdrawn">This message was withdrawn.</p>
+  if (words === null) {
+    return (
+      <p className="conv-withdrawn" tabIndex={-1}>
+        This message was withdrawn.
+      </p>
+    )
+  }
   return sophia ? <SophiaText text={words} /> : <p>{words}</p>
 }
 

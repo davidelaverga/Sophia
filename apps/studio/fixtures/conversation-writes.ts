@@ -1,5 +1,6 @@
 // A16's writes as the fixture pages answer them (docs/plans/project-conversation-writes.md; CON-01): a conversation
-// started, a message sent, each once per Idempotency-Key (the same key replays its receipt); viewers refused. Asking
+// started, a message sent, each once per Idempotency-Key (the same key replays its receipt); viewers refused. Its
+// author withdraws their own message, as 0048 does it (`withdraw=slow`: its reply takes 1.5 s). Asking
 // Sophia records a reply request on the message; her answer, a later message 900 ms on, names that request and settles
 // it, with the project's feed moving as it lands; what she says, sophia-answers.ts. Every word is synthetic.
 import type { ConversationReply } from '@sophia/contracts'
@@ -23,6 +24,8 @@ export interface TalkWrites {
   start: 'lost' | 'slow' | null
   /** How long Sophia takes to answer (`answer=slow`: 10 s; else 0.9 s). */
   answerMs: number
+  /** How long a withdrawal's reply takes (`withdraw=slow`: 1.5 s; else at once). */
+  withdrawMs: number
   /** This conversation's messages fail to read (`messages=fail`, or after a `send=thenFail` write). */
   failMessagesOf: string | null
   /** Each write's receipt by its key, with the words it was sent with: the same key replays it, only with them. */
@@ -38,6 +41,7 @@ interface Context {
 }
 
 const MESSAGES_TO = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
+const WITHDRAWAL_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages\/([0-9a-f-]{36})\/withdrawal$/
 const ME = membership.actorId
 let made = 0
 let sent = 0
@@ -50,16 +54,8 @@ const freshId = () => {
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
-const refused = () =>
-  json(
-    {
-      code: 'forbidden',
-      message: 'Viewers read conversations',
-      requestId: '00000000-0000-4000-8000-0000000000bf',
-      retry: 'never',
-    },
-    403,
-  )
+const refused = (message = 'Viewers read conversations') =>
+  json({ code: 'forbidden', message, requestId: '00000000-0000-4000-8000-0000000000bf', retry: 'never' }, 403)
 
 /** One minute after the newest activity (or the fixtures' day, with none): the conversation written in is the newest. */
 const next = (list: readonly FixtureConversation[]) =>
@@ -227,4 +223,62 @@ function answerLater(talk: TalkWrites, id: string, asking: FixtureMessage, ctx: 
     conversation.sophia = true
     ctx.moved()
   }, talk.answerMs)
+}
+
+/** A withdrawal (A16), once per key: the same key replays its receipt; undefined for any other request. */
+export function conversationWithdrawn(talk: TalkWrites, path: string, init: RequestInit | undefined, ctx: Context) {
+  const [, conversationId = '', messageId = ''] = WITHDRAWAL_OF.exec(path) ?? []
+  if (!messageId) return undefined
+  const key = new Headers(init?.headers).get('idempotency-key')
+  if (!key) return null
+  const what = `withdraw:${messageId}`
+  const replayed = talk.receipts.get(key)
+  if (replayed) return replayed.body === what ? json(replayed.receipt, 202) : null
+  const answer = withdrawn(talk, conversationId, messageId, ctx)
+  if (answer === null || answer instanceof Response) return answer
+  talk.receipts.set(key, { body: what, receipt: answer })
+  // The feed moves as the reply goes, as the API's event and reply follow its commit (in either order).
+  const reply = () => {
+    ctx.moved()
+    return json(answer, 202)
+  }
+  return talk.withdrawMs > 0 ? later(talk.withdrawMs, reply) : reply()
+}
+
+/**
+ * A message its author withdraws: its words and name go, and so do Sophia's answers that read it (asked at it or
+ * after), and a request still open there is cancelled; whoever has nothing left there stops counting.
+ */
+function withdrawn(talk: TalkWrites, conversationId: string, messageId: string, ctx: Context) {
+  const conversation = talk.list.find((c) => c.id === conversationId)
+  const all = talk.messages[conversationId]
+  const at = all?.findIndex((m) => m.id === messageId) ?? -1
+  const message = all?.[at]
+  if (!conversation || !all || !message) return null
+  if (message.author !== 'member' || message.actorId !== ME) return refused('Only its author withdraws a message')
+  withdrawFrom(all, at, next(talk.list))
+  conversation.contributors = conversation.contributors.filter((p) =>
+    all.some((m) => m.author === 'member' && m.actorId === p.actorId && !m.withdrawn),
+  )
+  conversation.sophia = all.some((m) => m.author === 'sophia' && !m.withdrawn)
+  ctx.record(`conversation-withdraw:${message.id.slice(-2)}`)
+  return { conversationId, message: wireMessage(message, at) }
+}
+
+/** The message at `at` withdrawn, with Sophia's answers to it or after it; a request still open from there cancelled. */
+function withdrawFrom(all: FixtureMessage[], at: number, now: string) {
+  const gone = (m: FixtureMessage) => {
+    if (m.withdrawn) return
+    m.withdrawn = { at: now }
+    m.text = null
+    m.name = null
+  }
+  const target = all[at]
+  if (target) gone(target)
+  for (const [i, m] of all.entries()) {
+    if (m.author === 'sophia' && all.findIndex((x) => x.id === m.replyTo?.messageId) >= at) gone(m)
+    if (m.ask && i >= at && ['pending', 'running', 'outcome_unknown'].includes(m.ask.state)) {
+      m.ask = { ...m.ask, state: 'cancelled', reason: 'source_withdrawn', settledAt: now }
+    }
+  }
 }

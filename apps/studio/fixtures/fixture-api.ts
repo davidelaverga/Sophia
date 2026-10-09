@@ -67,7 +67,7 @@ import {
   type FixtureMessage,
 } from './conversation-data.ts'
 import { wireList, wireMessage } from './conversation-wire.ts'
-import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
+import { conversationWithdrawn, conversationWritten, type TalkWrites } from './conversation-writes.ts'
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
@@ -334,11 +334,13 @@ function visionAnswer(project: Project, method: string, url: URL, init: RequestI
 /** A18's writes, where the page keeps conversations; undefined for any other request. */
 function talkWritten(project: Project, path: string, init: RequestInit | undefined) {
   if (!project.conversations) return undefined
-  return conversationWritten(project.conversations, path, init, {
+  const ctx = {
     viewer: project.role === 'viewer',
-    record: (what) => served.push(what),
+    record: (what: string) => served.push(what),
     moved: () => publish(project),
-  })
+  }
+  const taken = conversationWithdrawn(project.conversations, path, init, ctx)
+  return taken === undefined ? conversationWritten(project.conversations, path, init, ctx) : taken
 }
 
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */

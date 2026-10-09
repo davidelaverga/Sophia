@@ -225,6 +225,53 @@ test('writes · a row pressed with the form open opens that conversation, and th
   await expect(form(page)).toHaveCount(0)
 })
 
+/** The first conversation's message of yours (the third of its newest page), its press, and its confirmation. */
+async function withdrawOwn(page: Page, query = '') {
+  await page.goto(`${PAGE}${query}`)
+  await expect(messages(page)).toHaveCount(6)
+  const message = messages(page).nth(2)
+  await expect(message).toContainText('Please do. Short first.')
+  await message.hover()
+  const press = message.getByRole('button', { name: 'Withdraw message' })
+  await press.click()
+  const confirm = page.getByRole('group', { name: 'Withdraw this message' })
+  await expect(confirm.getByRole('button', { name: 'Withdraw' })).toBeFocused()
+  return { message, press, confirm }
+}
+
+test('writes · Keep it (or Esc) keeps your message and gives the focus back to its press', async ({ page }) => {
+  const { message, press, confirm } = await withdrawOwn(page)
+  await page.keyboard.press('Escape')
+  await expect(confirm).toHaveCount(0)
+  await expect(press).toBeFocused()
+  await press.click()
+  await confirm.getByRole('button', { name: 'Keep it' }).click()
+  await expect(press).toBeFocused()
+  await expect(message).toContainText('Please do. Short first.')
+  expect(await written(page, 'conversation-withdraw')).toEqual([])
+})
+
+test('writes · withdrawn, your message says so, and the focus lands there, not on the page (CX-0008)', async ({
+  page,
+}) => {
+  const { message, confirm } = await withdrawOwn(page)
+  await confirm.getByRole('button', { name: 'Withdraw' }).click()
+  const said = message.getByText('This message was withdrawn.')
+  await expect(said).toBeFocused()
+  await expect(message).not.toContainText('Please do. Short first.')
+  await expect(page.locator('body')).not.toBeFocused()
+  expect(await written(page, 'conversation-withdraw')).toEqual(['conversation-withdraw:06'])
+})
+
+test('writes · a withdrawal that lands after you moved on leaves the focus where you put it', async ({ page }) => {
+  const { message, confirm } = await withdrawOwn(page, '&withdraw=slow')
+  await confirm.getByRole('button', { name: 'Withdraw' }).click()
+  await expect(confirm.getByRole('button', { name: 'Withdrawing…' })).toBeVisible()
+  await field(page).focus()
+  await expect(message).toContainText('This message was withdrawn.')
+  await expect(field(page)).toBeFocused()
+})
+
 test('writes · a viewer has no field and no New conversation, and is told why', async ({ page }) => {
   await page.goto(`${PAGE}&role=viewer`)
   await expect(messages(page)).toHaveCount(6)

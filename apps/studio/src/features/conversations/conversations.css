@@ -61,6 +61,11 @@
   color: var(--text-2);
   font-style: italic;
 }
+/* Where the focus lands once a message is withdrawn here (WithdrawHere.tsx): its press and confirmation went with it. */
+.conv-withdrawn:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
 .conv-msg-body .conv-ask-ended {
   margin: 4px 0 0;
   color: var(--text-2);
