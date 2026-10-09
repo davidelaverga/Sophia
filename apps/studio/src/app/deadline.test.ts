@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { orLate, settleWithin } from './deadline.ts'
+import { endsWithin, orLate, settleWithin } from './deadline.ts'
 
 /**
  * What a promise holds once every pending callback has run: its value if it has settled, else 'still waiting' (nothing
@@ -38,5 +38,23 @@ describe('a wait that says when it was late', () => {
 
   it('keeps a failure a failure: nothing is swallowed', async () => {
     await assert.rejects(orLate(Promise.reject(new Error('no user')), 20_000), /no user/)
+  })
+})
+
+describe('a wait that ends in its own words', () => {
+  it('gives the work’s value in time, and keeps its failure as it was', async () => {
+    assert.equal(await endsWithin(Promise.resolve('sent'), 90_000, 'Not confirmed'), 'sent')
+    await assert.rejects(endsWithin(Promise.reject(new Error('Too many emails')), 90_000, 'Not confirmed'), /Too many/)
+  })
+
+  it('fails with its words once the time is up, not a moment before', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const waited = endsWithin(new Promise<void>(() => undefined), 90_000, 'Not confirmed').catch((e: unknown) =>
+      e instanceof Error ? e.message : 'not an error',
+    )
+    t.mock.timers.tick(89_999)
+    assert.equal(await now(waited), 'still waiting')
+    t.mock.timers.tick(1)
+    assert.equal(await now(waited), 'Not confirmed')
   })
 })

@@ -1,7 +1,8 @@
 // The sign-in's fixture page (e2e/signin.spec.ts): the Studio's own email sign-in, with its two ports answered here
 // instead of Supabase Auth. `fail=1`: the first email can't be sent, as when the Auth service is out of reach;
 // `limit=1`: an email asked for again is refused with the wait Supabase gives, as hosted Auth does within its window;
-// `limit=hour`: refused for the hour's emails, which gives no wait; `stall=1`: an email asked for again never answers.
+// `limit=hour`: refused for the hour's emails, which gives no wait; `stall=1`: an email asked for again never answers;
+// `stall=first`: the first email never answers; `stall=code`: a code is never answered.
 // `window.signinFixture.sent` lists each address an email was sent to, for the checks to read.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
@@ -31,11 +32,17 @@ const send = (email: string) =>
         fail(new Error('An email was just sent. You can ask for another in 17 seconds.'))
       } else if (query.get('limit') === 'hour' && sent.length > 1) {
         fail(new Error('Too many emails were sent in the last hour. The newest one still works; or try again later.'))
-      } else if (query.get('stall') !== '1' || sent.length === 1) done()
-      // stall=1: the second one never settles.
+      } else if (!stalls(sent.length)) done()
     }, 300),
   )
-const verify = () => new Promise<void>((_, fail) => setTimeout(() => fail(new Error('That code didn’t work.')), 300))
+/** stall=1: the second email never settles; stall=first: the first one doesn't. */
+function stalls(nth: number) {
+  return (query.get('stall') === '1' && nth > 1) || (query.get('stall') === 'first' && nth === 1)
+}
+const verify = () =>
+  new Promise<void>((_, fail) => {
+    if (query.get('stall') !== 'code') setTimeout(() => fail(new Error('That code didn’t work.')), 300)
+  })
 
 const root = document.getElementById('root')
 if (!root) throw new Error('signin.html must contain #root')
