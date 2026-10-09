@@ -1,24 +1,35 @@
 // An exchange under a voice qualification grant, as its RoomSession sees it (sophia.voice-qualification.v1; amendment
 // A15, migration 0046; docs/plans/voice-qualification-g7.md). It joins the receipts (qualification-recorder.ts, sent by
-// evidence-sender.ts) to the bridge's own spend bound (qualification-reserve.ts) and the grant's deadline. A session
-// has one only when SOPHIA_VOICE_EVIDENCE=on and its assignment names a grant; otherwise it has none, and nothing here
-// runs: what the bridge sends to the API and the provider is what it sent before.
+// evidence-sender.ts), the exchange's durable bound (qualification-ledger.ts, held by the API) and the bridge's own
+// first check (qualification-reserve.ts), with the grant's deadline. A session has one only when
+// SOPHIA_VOICE_EVIDENCE=on and its assignment names a grant; otherwise it has none, and nothing here runs: what the
+// bridge sends to the API and the provider is what it sent before.
 //
-// The bound holds for the whole session under the grant, whoever holds the floor: it counts and records nothing. Each
-// check comes before what it checks is sent, and returns why the session must stop, or null; once stopped, every check
-// says so, and the session sends nothing more to the provider and closes it (RoomSession.guardStop). The receipts are
-// recorded only while the grant's principal holds the floor (the recorder decides).
+// The bound holds for the whole session under the grant, whoever holds the floor: it counts and records nothing. Every
+// spend is first checked here, at once and without the network (a refusal here never waits on the API), then reserved
+// on the API, which holds the exchange's true counts across replaced sessions and restarted bridges:
+// - a provider connection is reserved before it opens, and its durable ordinal names its receipts;
+// - a generation is reserved before what can start one is sent (the first input after a turn ended, held meanwhile; a
+//   tool response; a notice; a typed message), charged at its worst case with what was sent and transcribed since the
+//   last charge; one that starts unasked is charged as its output arrives.
+// A refusal, or no answer in time, stops the session for good: it sends nothing more to the provider and closes it
+// (RoomSession.guardStop). The receipts are recorded only while the grant's principal holds the floor.
 import type { UsageMetadata } from '@google/genai'
 import type { MediaAssignment, MediaEvidenceAck, VoiceQualification } from '@sophia/contracts'
 import type { ReplyEnd } from './audio.ts'
 import { EvidenceSender } from './evidence-sender.ts'
 import type { Attribution, ProviderState } from './exchange-state.ts'
 import { type CloseReason, QualificationRecorder, type TurnEnd } from './qualification-recorder.ts'
-import { QualificationReserve, type Stop, type Verdict } from './qualification-reserve.ts'
+import { type LedgerAnswer, type LedgerStop, QualificationLedger } from './qualification-ledger.ts'
+import { ASSUMED_RATES, QualificationReserve, type Stop, type Verdict } from './qualification-reserve.ts'
 import type { MediaService } from './service.ts'
 
-/** Why the session stopped talking to the provider: the bound (qualification-reserve.ts) or the grant's deadline. */
-export type GuardStop = Stop | 'deadline'
+/** Why the session stopped talking to the provider: its own bound, the API's refusal, or the grant's deadline. */
+export type GuardStop = Stop | LedgerStop | 'deadline'
+
+/** The most a single charge may be (the API refuses more): the largest budget a grant can have. */
+const MAX_CHARGE = 5_000_000
+const INPUT_RATE = 16_000
 
 /**
  * SOPHIA_VOICE_EVIDENCE as the bridge reads it, the way the API reads SOPHIA_VOICE_QUALIFICATION: on, or off when off,
@@ -49,19 +60,37 @@ export interface QualificationDeps {
   attribution: () => Attribution | null
   /** The API's guard ended the exchange (an evidence answer said so). */
   ended: (reason: MediaEvidenceAck['reason']) => void
+  /** A reservation made on the way (an unasked generation's) was refused: the session stops. */
+  stop: (why: GuardStop) => void
+  reserve: MediaService['reserveQualification']
+  reserveRetryMs: readonly number[]
+  reserveTimeoutMs: number
   log: (event: string, detail?: Record<string, unknown>) => void
+}
+
+/** A provider connection: its ordinal in this session (the first check's) and in the exchange (the API's). */
+interface Link {
+  local: number
+  durable: number
 }
 
 export class SessionQualification {
   readonly #deps: QualificationDeps
   readonly #reserve: QualificationReserve
+  readonly #ledger: QualificationLedger
   readonly #recorder: QualificationRecorder
   readonly #sender: EvidenceSender
   readonly #deadline: number
-  /** The session's connection numbers, by their ordinal in this session (the reserve's and the receipts' ids). */
-  readonly #ordinals = new Map<number, number>()
-  /** Connections whose holder input already holds a generation's reserve, until that connection's turn ends. */
-  readonly #listening = new Set<number>()
+  /** The session's connection numbers, and each one's ordinals. */
+  readonly #links = new Map<number, Link>()
+  /**
+   * Whether a generation is reserved on a connection since its last turn ended: granted (input flows under it), or
+   * still being reserved (input waits for it).
+   */
+  readonly #generations = new Map<number, Promise<GuardStop | null>>()
+  readonly #granted = new Set<number>()
+  /** Tokens sent and transcribed since the last charge, at the assumed rates: the next charge carries them. */
+  #sinceCharge = 0
   #stopped: GuardStop | null = null
 
   constructor(deps: QualificationDeps) {
@@ -76,6 +105,14 @@ export class SessionQualification {
     // An unreadable deadline is already past: the bound fails closed.
     const deadline = Date.parse(grant.deadline)
     this.#deadline = Number.isFinite(deadline) ? deadline : 0
+    this.#ledger = new QualificationLedger({
+      exchangeId: deps.exchangeId,
+      grantId: grant.grantId,
+      reserve: deps.reserve,
+      retryMs: deps.reserveRetryMs,
+      timeoutMs: deps.reserveTimeoutMs,
+      log: deps.log,
+    })
     this.#sender = new EvidenceSender({
       exchangeId: deps.exchangeId,
       grantId: grant.grantId,
@@ -106,36 +143,44 @@ export class SessionQualification {
     this.#recorder.floor(assignment.inputActorId, assignment.qualification?.grantId ?? null)
   }
 
-  /** Before a provider connection opens: the grant's connections, the first included. */
-  connecting(connection: number, resumed: boolean): GuardStop | null {
-    const ordinal = this.#ordinals.size + 1
-    const stop = this.#check(() => this.#reserve.connected(ordinal))
+  /**
+   * Before a provider connection opens (the first, a reconnection, a replacing session's): checked here, then reserved
+   * on the API, whose durable ordinal its receipts name. Resolves to why it must not open, or null.
+   */
+  async connecting(connection: number, resumed: boolean): Promise<GuardStop | null> {
+    const local = this.#links.size + 1
+    const stop = this.#check(() => this.#reserve.connected(local))
     if (stop) return stop
-    this.#ordinals.set(connection, this.#recorder.opened(resumed))
+    const answer = await this.#ledger.connection()
+    if (!answer.ok || answer.ordinal === null) return this.#refused(answer)
+    if (this.#stopped) return this.#stopped
+    this.#links.set(connection, { local, durable: answer.ordinal })
+    this.#recorder.opened(answer.ordinal, resumed)
     return null
   }
 
   ready(connection: number): void {
-    this.#recorder.provider('ready', this.#ordinal(connection))
+    this.#recorder.provider('ready', this.#durable(connection))
   }
 
   /** A connection was lost or replaced: the next is on its way, or the provider is unavailable for now. */
   recovering(connection: number, state: ProviderState): void {
-    this.#recorder.provider(state === 'unavailable' ? 'unavailable' : 'recovering', this.#ordinal(connection))
+    this.#recorder.provider(state === 'unavailable' ? 'unavailable' : 'recovering', this.#durable(connection))
   }
 
   /** The provider's usage report, from whichever connection sent it: what it reports was spent. */
   usage(connection: number, usage: UsageMetadata): void {
     const total = usage.totalTokenCount
-    const ordinal = this.#ordinals.get(connection)
-    if (total === undefined || ordinal === undefined) return
-    this.#reserve.reported(ordinal, total)
-    this.#recorder.usage(ordinal, total, usage.promptTokenCount ?? null)
+    const link = this.#links.get(connection)
+    if (total === undefined || link === undefined) return
+    this.#reserve.reported(link.local, total)
+    this.#recorder.usage(link.durable, total, usage.promptTokenCount ?? null)
   }
 
   /**
-   * Before a chunk of the holder's audio goes to the provider. The first after its turn ended may start a generation, so
-   * it takes one's reserve; every chunk is counted. `dropped` is what the chunker dropped before it.
+   * Before a chunk of the holder's audio goes to the provider. The first after a turn ended may start a generation: it
+   * is reserved, and input waits ('hold') until the API granted it (granted()). Every chunk sent is counted. `dropped`
+   * is what the chunker dropped before it.
    */
   input(
     connection: number,
@@ -143,40 +188,61 @@ export class SessionQualification {
     chunk: Int16Array,
     dropped: number,
     inputEpoch: number,
-  ): GuardStop | null {
-    const ordinal = this.#ordinal(connection)
-    if (!this.#listening.has(connection)) {
-      const stop = this.#check(() => this.#reserve.reserve(ordinal))
+  ): GuardStop | 'hold' | null {
+    if (!this.#granted.has(connection)) {
+      if (this.#generations.has(connection)) return this.#stopped ?? 'hold'
+      const stop = this.#check(() => this.#reserve.reserve(this.#local(connection)))
       if (stop) return stop
-      this.#listening.add(connection)
+      this.#generations.set(connection, this.#charge(connection, false))
+      return 'hold'
     }
     const stop = this.#check(() => this.#reserve.sentAudio(chunk.length))
     if (stop) return stop
+    this.#sinceCharge += (chunk.length / INPUT_RATE) * ASSUMED_RATES.audioInPerSecond
     this.#recorder.input(identity, chunk, dropped, inputEpoch)
     return null
   }
 
-  /** Before text that starts a generation goes to the provider: a tool response, a notice, a typed message. */
-  prompt(connection: number, chars: number): GuardStop | null {
-    const ordinal = this.#ordinal(connection)
-    return this.#check(() => this.#reserve.reserve(ordinal)) ?? this.#check(() => this.#reserve.sentText(chars))
+  /** The generation input waits for on this connection: null once granted, or why the session stops. */
+  granted(connection: number): Promise<GuardStop | null> {
+    return this.#generations.get(connection) ?? Promise.resolve(this.#stopped)
   }
 
-  /** Before a video frame goes to the provider. */
+  /**
+   * Before text that starts a generation goes to the provider: a tool response, a notice, a typed message. Checked
+   * here at once, then reserved on the API; resolves to why it must not be sent, or null.
+   */
+  prompt(connection: number, chars: number): Promise<GuardStop | null> {
+    const stop =
+      this.#check(() => this.#reserve.reserve(this.#local(connection))) ??
+      this.#check(() => this.#reserve.sentText(chars))
+    if (stop) return Promise.resolve(stop)
+    this.#sinceCharge += chars / ASSUMED_RATES.charsPerToken
+    const charged = this.#charge(connection, false)
+    if (!this.#generations.has(connection)) this.#generations.set(connection, charged)
+    return charged
+  }
+
+  /** Before a video frame goes to the provider: counted, and carried by the next charge. */
   frame(): GuardStop | null {
-    return this.#check(() => this.#reserve.sentFrame())
+    const stop = this.#check(() => this.#reserve.sentFrame())
+    if (!stop) this.#sinceCharge += ASSUMED_RATES.perFrame
+    return stop
   }
 
   /**
    * Output arrived: audio (24 kHz samples), tool calls, or Sophia's words (their characters, billed as text). A
-   * generation nobody reserved takes its reserve now; one past the grant's per-turn output is cut.
+   * generation nobody reserved takes its reserve now, and is charged on the API (unasked); one past the grant's
+   * per-turn output is cut.
    */
   output(connection: number, out: { samples?: number; toolCalls?: number; chars?: number }): GuardStop | null {
-    const ordinal = this.#ordinal(connection)
+    const ordinal = this.#local(connection)
     const stop =
       this.#check(() => this.#reserve.received(ordinal, out.samples ?? 0)) ??
       (out.chars === undefined ? null : this.#check(() => this.#reserve.transcribed(out.chars ?? 0)))
     if (stop) return stop
+    if (out.chars !== undefined) this.#sinceCharge += out.chars / ASSUMED_RATES.charsPerToken
+    if (!this.#generations.has(connection)) this.#unasked(connection)
     this.#recorder.responded(out.toolCalls ?? 0)
     return null
   }
@@ -185,14 +251,18 @@ export class SessionQualification {
   heard(chars: number, finished: boolean): GuardStop | null {
     const stop = this.#check(() => this.#reserve.transcribed(chars))
     if (stop) return stop
+    this.#sinceCharge += chars / ASSUMED_RATES.charsPerToken
     this.#recorder.heard(chars, finished)
     return null
   }
 
-  /** The provider's turn on this connection ended: completed, cut by its barge-in, or lost with the connection. */
+  /**
+   * The provider's turn on this connection ended: completed, cut by its barge-in, or lost with the connection. A
+   * generation still being reserved is for what comes next, and stays.
+   */
   turnEnded(connection: number, how: TurnEnd): void {
-    this.#reserve.ended(this.#ordinal(connection))
-    this.#listening.delete(connection)
+    this.#reserve.ended(this.#local(connection))
+    if (this.#granted.delete(connection)) this.#generations.delete(connection)
     this.#recorder.turnEnded(how)
   }
 
@@ -241,8 +311,42 @@ export class SessionQualification {
     return { sent: this.#sender.sent, dropped: this.#sender.dropped }
   }
 
-  #ordinal(connection: number): number {
-    return this.#ordinals.get(connection) ?? 0
+  #local(connection: number): number {
+    return this.#links.get(connection)?.local ?? 0
+  }
+
+  #durable(connection: number): number {
+    return this.#links.get(connection)?.durable ?? 0
+  }
+
+  /**
+   * Reserve a generation on the API at its worst case: the context again, its output twice (audio and text), and what
+   * was sent and transcribed since the last charge. Granted, input on this connection flows under it.
+   */
+  async #charge(connection: number, unasked: boolean): Promise<GuardStop | null> {
+    const durable = this.#durable(connection)
+    const worst = ASSUMED_RATES.context + 2 * this.#deps.grant.maxOutputTokensPerTurn + this.#sinceCharge
+    this.#sinceCharge = 0
+    const answer = await this.#ledger.generation(durable, Math.min(MAX_CHARGE, Math.ceil(worst)), unasked)
+    if (!answer.ok) return this.#refused(answer)
+    if (this.#stopped) return this.#stopped
+    if (this.#generations.has(connection)) this.#granted.add(connection)
+    return null
+  }
+
+  /** A generation started that nobody reserved: it is spent, so it is charged; a refusal stops the session. */
+  #unasked(connection: number): void {
+    this.#granted.add(connection)
+    const charged = this.#charge(connection, true)
+    this.#generations.set(connection, charged)
+    void charged.then((stop) => {
+      if (stop) this.#deps.stop(stop)
+    })
+  }
+
+  #refused(answer: LedgerAnswer): GuardStop | null {
+    this.#halt(answer.ok ? 'unconfirmed' : answer.stop)
+    return this.#stopped
   }
 
   #check(verdict: () => Verdict): GuardStop | null {

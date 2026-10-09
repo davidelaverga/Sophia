@@ -37,6 +37,7 @@ const EXPORTS = [
   'MediaToolResult',
   'MediaToolSurface',
   'MediaEvidenceAck',
+  'MediaQualificationReservation',
   'MissionContext',
   'MissionReceipt',
   'MissionNotePolicy',

@@ -17,8 +17,10 @@
 //                               reply, as before. `bridge.start` shows the effective `liveCaptions`
 //   SOPHIA_VOICE_EVIDENCE       `on` records voice qualification receipts (A15) for an exchange whose assignment names
 //                               a grant, while its principal holds the floor, and holds such an exchange to the grant's
-//                               bound (qualification.ts). `off` or unset, its default: nothing of it runs, and what the
-//                               bridge sends is as before. Any other value stops the start. `bridge.start` shows it
+//                               bound, reserved on the API (qualification.ts). `off` or unset, its default: nothing of
+//                               it runs, what the bridge sends is as before, and an assignment that names a grant is
+//                               declined (no provider connection: its spend would have no bound). Any other value stops
+//                               the start. `bridge.start` shows it
 //   RENDER_GIT_COMMIT           the deployed commit the provider receipts name, when it is 40 hex; otherwise null
 //
 // One bridge instance serves all rooms: two instances would both join as `sophia` and replace each other.

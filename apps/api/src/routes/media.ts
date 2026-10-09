@@ -9,6 +9,7 @@ import type {
   MediaAnnounced,
   MediaAssignment,
   MediaEvidenceWrite,
+  MediaQualificationReserve,
   MediaHolderEvent,
   MediaPresenceReport,
   MediaQuiesceAck,
@@ -21,6 +22,7 @@ import {
   mediaAssignments,
   recordAnnounced,
   recordQualificationEvidence,
+  reserveQualification,
   reportPresence,
   voiceQualificationGuard,
   withService,
@@ -39,6 +41,7 @@ export const MEDIA_ROUTES: ReadonlySet<string> = new Set([
   '/v1/media/tool-calls',
   '/v1/media/tool-surface',
   '/v1/media/evidence',
+  '/v1/media/qualification-reserve',
 ])
 
 interface Deps {
@@ -123,7 +126,10 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit, voice }:
   )
 
   presenceRoute(app, pool, voice)
-  if (voice) evidenceRoute(app, pool)
+  if (voice) {
+    evidenceRoute(app, pool)
+    reserveRoute(app, pool)
+  }
 
   app.post<{ Body: MediaQuiesceAck }>(
     '/v1/media/quiesce-acks',
@@ -179,6 +185,24 @@ function evidenceRoute(app: FastifyInstance, pool: pg.Pool): void {
         recordQualificationEvidence(c, { exchangeId, grantId, seq, kind: receipt.kind, receipt: { ...receipt } }),
       )
     },
+  )
+}
+
+/**
+ * The bridge's durable reservation of a provider connection or a generation for an exchange under a voice qualification
+ * grant (A15, 0046): the exchange's bound, held here for every session and every bridge process. A reservation that
+ * does not fit ends the exchange in the same transaction.
+ */
+function reserveRoute(app: FastifyInstance, pool: pg.Pool): void {
+  app.post<{ Body: MediaQualificationReserve }>(
+    '/v1/media/qualification-reserve',
+    {
+      schema: {
+        body: { $ref: 'MediaQualificationReserve#' },
+        response: { 200: { $ref: 'MediaQualificationReservation#' } },
+      },
+    },
+    async (req) => withService(pool, (c) => reserveQualification(c, req.body)),
   )
 }
 

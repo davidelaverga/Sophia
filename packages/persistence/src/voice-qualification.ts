@@ -30,6 +30,40 @@ export async function voiceQualificationGuard(c: pg.PoolClient): Promise<number>
   return onlyRow(rows, 'voice_qualification_guard').ended
 }
 
+/** What the bridge reserves before it spends on an exchange under a grant (0046, media_voice_reserve). */
+export interface QualificationReserve {
+  exchangeId: string
+  grantId: string
+  kind: 'connection' | 'generation' | 'unasked'
+  /** The connection a generation runs on: a durable ordinal a 'connection' reservation returned. */
+  ordinal?: number
+  /** A generation's worst case, with what was sent and transcribed since the connection's last charge. */
+  charge?: number
+}
+
+/** Granted (with a connection's durable ordinal), or refused, and then the exchange has ended, and why. */
+export interface QualificationReservation {
+  ok: boolean
+  ordinal: number | null
+  stop: string | null
+  ended: boolean
+}
+
+/**
+ * Reserve a provider connection or a generation against the exchange's durable bound, under the exchange's lock. A
+ * reservation that does not fit ends the exchange. Call inside withService.
+ */
+export async function reserveQualification(
+  c: pg.PoolClient,
+  reserve: QualificationReserve,
+): Promise<QualificationReservation> {
+  const { rows } = await c.query<{ r: QualificationReservation }>(
+    `SELECT sophia.media_voice_reserve($1,$2,$3,$4,$5) AS r`,
+    [reserve.exchangeId, reserve.grantId, reserve.kind, reserve.ordinal ?? null, reserve.charge ?? null],
+  )
+  return onlyRow(rows, 'media_voice_reserve').r
+}
+
 /** A bridge receipt for an exchange under a grant. Call inside withService. */
 export async function recordQualificationEvidence(
   c: pg.PoolClient,

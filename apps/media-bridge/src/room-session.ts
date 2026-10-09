@@ -56,6 +56,7 @@ import {
 } from './audio.ts'
 import { Captions } from './captions.ts'
 import { EVIDENCE_RETRY_MS } from './evidence-sender.ts'
+import { RESERVE_RETRY_MS, RESERVE_TIMEOUT_MS } from './qualification-ledger.ts'
 import { type Assignment, ExchangeState, type InputState } from './exchange-state.ts'
 import { GuideContext } from './guide-context.ts'
 import type { GuideVersion, MissionGuide } from './guide.ts'
@@ -98,6 +99,9 @@ export interface SessionDeps {
   evidenceSequence?: (exchangeId: string) => () => number
   /** Waits before a receipt whose answer was lost is sent again; tests shorten them. */
   evidenceRetryMs?: readonly number[]
+  /** Waits before a reservation whose answer was lost is asked again, and each attempt's limit; tests shorten them. */
+  reserveRetryMs?: readonly number[]
+  reserveTimeoutMs?: number
 }
 
 const everyInterval = (fn: () => void, ms: number) => {
@@ -137,6 +141,8 @@ const SHOWN_KEPT = 20
 const BACKFILL_MS = 3000
 /** Caption ends kept while the room link is down, to send once it is back. */
 const CAPTION_ENDS_KEPT = 20
+/** The holder's chunks kept while their generation is reserved (under a grant): five seconds, the oldest dropped first. */
+const HELD_CHUNKS = 50
 /** How long closing waits for the announcements it still owes the API (best effort; the API keeps listing the rest). */
 const CLOSE_FLUSH_MS = 3000
 /** A heard notice whose receipt the API did not take is recorded again after this wait, until it is. */
@@ -526,6 +532,15 @@ export class RoomSession {
   private readonly qualification: SessionQualification | null
   /** The bound or the grant's deadline stopped the provider for good (guardStop). */
   private guarded = false
+  /**
+   * The assignment names a grant this bridge does not hold to its limits (SOPHIA_VOICE_EVIDENCE off): it opens no
+   * provider connection (decline()).
+   */
+  private readonly declined: boolean
+  /** Under a grant: the holder's chunks waiting for their generation's reservation, and reservations under way. */
+  private readonly held: Int16Array[] = []
+  private typedReserving = false
+  private noticeReserving = false
 
   constructor(assignment: MediaAssignment, deps: SessionDeps, handover: Handover | Promise<Handover> | null = null) {
     this.exchangeId = assignment.exchangeId
@@ -536,6 +551,7 @@ export class RoomSession {
     this.guideContext = new GuideContext(assignment)
     this.captions = new Captions(this.exchangeId, (packet) => this.sendCaption(packet))
     this.qualification = this.qualify(assignment)
+    this.declined = deps.voiceEvidence !== true && assignment.qualification !== undefined
     // Unique across bridge restarts, and so is the provider session that starts from it: tool-call idempotency keys
     // include the provider session (amendment A06).
     this.connection = Math.floor(deps.now())
@@ -604,6 +620,10 @@ export class RoomSession {
       now: () => deps.now(),
       attribution: () => this.state.attribution(),
       ended: (reason) => this.qualificationEnded(reason),
+      stop: (why) => this.guardStop(why),
+      reserve: (reserve, signal) => deps.service.reserveQualification(reserve, signal),
+      reserveRetryMs: deps.reserveRetryMs ?? RESERVE_RETRY_MS,
+      reserveTimeoutMs: deps.reserveTimeoutMs ?? RESERVE_TIMEOUT_MS,
       log: deps.log,
     })
     qualification.floor(assignment)
@@ -746,7 +766,7 @@ export class RoomSession {
     this.live = null
     if (!hadContext) return
     this.qualification?.turnEnded(replaced, 'lost')
-    this.chunker.clear()
+    this.clearInput()
     this.state.bumpGeneration()
     this.silence(this.pendingReply(this.deps.now()), 'recovered')
     this.endTurn(true)
@@ -989,12 +1009,41 @@ export class RoomSession {
       this.typedReply(identity, packet, 'refused', 'End this conversation and start a new one to continue.')
       return
     }
+    this.typedSeen.add(key)
     const typed = `[Project member typed message]\n${escapeMarkers(packet.text)}`
-    if (!this.mayPrompt(typed.length)) {
-      this.typedReply(identity, packet, 'refused', 'Sophia cannot receive this message now.')
+    if (this.qualification) return this.typedUnderGrant(this.qualification, identity, packet, typed)
+    this.acceptTyped(identity, packet, typed)
+  }
+
+  /**
+   * Under a grant, a typed message may start a generation: it is reserved first, and sent once granted, if the
+   * conversation still takes it. One waits at a time; a refusal stops the session.
+   */
+  private typedUnderGrant(
+    qualification: SessionQualification,
+    identity: string,
+    packet: ChatInput,
+    typed: string,
+  ): void {
+    if (this.typedReserving) {
+      this.typedReply(identity, packet, 'refused', 'Wait for the current reply before sending another message.')
       return
     }
-    this.typedSeen.add(key)
+    this.typedReserving = true
+    void qualification.prompt(this.connection, typed.length).then((stop) => {
+      this.typedReserving = false
+      if (stop) this.guardStop(stop)
+      const busy = this.awaitingReply || this.responding || this.typedOutputUntilTurnEnd
+      if (stop || busy || !this.mayAcceptTyped(identity, packet)) {
+        this.typedReply(identity, packet, 'refused', 'Sophia cannot receive this message now.')
+        return
+      }
+      this.acceptTyped(identity, packet, typed)
+    })
+  }
+
+  /** A typed message admitted: it reaches Google under the bridge's marker, and its reply goes to its sender alone. */
+  private acceptTyped(identity: string, packet: ChatInput, typed: string): void {
     this.typedOutputUntilTurnEnd = true
     this.typedInputEpoch = packet.inputEpoch
     this.typedStartedAt = this.deps.now()
@@ -1053,12 +1102,63 @@ export class RoomSession {
     }
     let dropped = this.chunker.dropped - droppedBefore
     for (let chunk = this.chunker.take(); chunk; chunk = this.chunker.take()) {
-      if (!this.mayForward(identity, chunk, dropped)) return
+      const gate = this.gate(identity, chunk, dropped)
+      if (gate === 'stop') return
       dropped = 0
-      live.sendAudio(chunk)
-      this.state.forwarded()
-      if (isAudible(chunk)) this.heardAt = this.deps.now()
+      if (gate === 'hold') this.hold(identity, chunk)
+      else this.forward(live, chunk)
     }
+  }
+
+  private forward(live: LiveLink, chunk: Int16Array): void {
+    live.sendAudio(chunk)
+    this.state.forwarded()
+    if (isAudible(chunk)) this.heardAt = this.deps.now()
+  }
+
+  /**
+   * Whether this chunk of the holder's audio may go to the provider now: always, without a grant. Under one, the first
+   * after a turn ended waits ('hold') while its generation is reserved; a refusal stops the session.
+   */
+  private gate(identity: string, chunk: Int16Array, dropped: number): 'send' | 'hold' | 'stop' {
+    const q = this.qualification
+    if (!q) return 'send'
+    const verdict = q.input(this.connection, identity, chunk, dropped, this.state.assignment.inputEpoch)
+    if (verdict === null) return 'send'
+    if (verdict === 'hold') return 'hold'
+    this.guardStop(verdict)
+    return 'stop'
+  }
+
+  /**
+   * Keep a chunk while its generation is being reserved (at most HELD_CHUNKS, the oldest dropped first). Once granted,
+   * what is held goes on, in order, if it still may; the first chunk held asks to be told.
+   */
+  private hold(identity: string, chunk: Int16Array): void {
+    const first = this.held.length === 0
+    this.held.push(chunk)
+    if (this.held.length > HELD_CHUNKS) this.held.shift()
+    const q = this.qualification
+    if (!first || !q) return
+    const connection = this.connection
+    void q.granted(connection).then((stop) => {
+      if (stop) return this.guardStop(stop)
+      const held = this.held.splice(0)
+      const live = this.live
+      if (connection !== this.connection || !live || !this.state.mayForwardAudio(identity, this.deps.now())) return
+      for (const next of held) {
+        const gate = this.gate(identity, next, 0)
+        if (gate === 'stop') return
+        if (gate === 'send') this.forward(live, next)
+        else this.hold(identity, next)
+      }
+    })
+  }
+
+  /** Nothing of the old input reaches Google afterwards: what the chunker has, and what waits for a reservation. */
+  private clearInput(): void {
+    this.chunker.clear()
+    this.held.length = 0
   }
 
   private onFrame(identity: string, source: VisualSource, frame: RgbaFrame, capturedAt: number): void {
@@ -1073,7 +1173,7 @@ export class RoomSession {
    */
   private handoff(): void {
     this.qualification?.windowEnded('handoff')
-    this.chunker.clear()
+    this.clearInput()
     this.live?.sendAudioStreamEnd()
     this.absence = null
     if (this.state.input(this.deps.now()) === 'settling') this.wasSettling = true
@@ -1117,7 +1217,7 @@ export class RoomSession {
     if (this.pauseApplied) return
     this.pauseApplied = true
     this.qualification?.windowEnded('paused')
-    this.chunker.clear()
+    this.clearInput()
     this.sampler.clear()
     this.live?.sendAudioStreamEnd()
     this.state.bumpGeneration()
@@ -1206,17 +1306,6 @@ export class RoomSession {
     return false
   }
 
-  /** Text that starts a generation (a tool response, a notice, a typed message) may go to the provider. */
-  private mayPrompt(chars: number): boolean {
-    return !this.qualification || this.within(this.qualification.prompt(this.connection, chars))
-  }
-
-  /** This chunk of the holder's audio may go to the provider (and, the principal's, it is recorded). */
-  private mayForward(identity: string, chunk: Int16Array, dropped: number): boolean {
-    const q = this.qualification
-    return !q || this.within(q.input(this.connection, identity, chunk, dropped, this.state.assignment.inputEpoch))
-  }
-
   /** The provider's tool calls may be acted on: they are its output, and may start a generation nobody asked for. */
   private mayCall(calls: number): boolean {
     return !this.qualification || this.within(this.qualification.output(this.connection, { toolCalls: calls }))
@@ -1237,7 +1326,7 @@ export class RoomSession {
     this.live?.close()
     this.live = null
     this.reconnectAt = null
-    this.chunker.clear()
+    this.clearInput()
     this.state.bumpGeneration()
     this.silence(null, 'closed')
     this.endTurn(true)
@@ -1247,12 +1336,22 @@ export class RoomSession {
 
   private async connect(): Promise<void> {
     if (this.closed || this.connecting) return
+    if (this.declined) return this.decline()
     this.connecting = true
     try {
       if (await this.checkGuideBound()) await this.openProvider()
     } finally {
       this.connecting = false
     }
+  }
+
+  /**
+   * An assignment names a grant this bridge does not hold to its limits (SOPHIA_VOICE_EVIDENCE is off): no provider
+   * connection opens, so nothing of the grant is spent unbounded. Sophia is unavailable there, and says why.
+   */
+  private decline(): void {
+    this.deps.log('qualification.declined', { exchangeId: this.exchangeId })
+    this.fail('Sophia does not take part in a qualification run this bridge does not record (SOPHIA_VOICE_EVIDENCE)')
   }
 
   /**
@@ -1287,7 +1386,11 @@ export class RoomSession {
     const connection = this.connection
     const resumed = this.handle !== null
     if (!resumed) this.providerSession += 1
-    if (this.qualification && !this.within(this.qualification.connecting(connection, resumed))) return
+    if (this.qualification) {
+      const stop = await this.qualification.connecting(connection, resumed)
+      if (stop) return this.guardStop(stop)
+      if (connection !== this.connection || this.isClosed()) return
+    }
     this.guideContext.sessionStarted(!resumed, this.everReady && !resumed)
     const { guide } = this.deps
     this.deps.log('provider.setup', {
@@ -1393,7 +1496,7 @@ export class RoomSession {
     this.live = null
     // A handle that failed twice in a row before the connection was ready is dropped: the next start is cold.
     if (failedBeforeReady && this.attempts >= 1) this.handle = null
-    this.chunker.clear()
+    this.clearInput()
     // A reply cut off mid-turn stops; one Google finished is already here and plays out.
     if (this.responding) {
       this.state.bumpGeneration()
@@ -1626,16 +1729,42 @@ export class RoomSession {
     this.answerTools(responses, this.connection)
   }
 
+  /**
+   * Under a grant, a tool response may start a generation (its WHEN_IDLE continuation): it is reserved first, and sent
+   * once granted, if its connection is still the current one. A refusal stops the session.
+   */
   private answerTools(responses: FunctionResponse[], connection: number): void {
-    if (!this.mayPrompt(JSON.stringify(responses).length)) return
+    const q = this.qualification
+    if (!q) return this.sendTools(responses, connection)
+    let chars: number
+    try {
+      chars = JSON.stringify(responses).length
+    } catch {
+      return this.toolsUndelivered(connection)
+    }
+    void q.prompt(connection, chars).then((stop) => {
+      if (stop) return this.guardStop(stop)
+      if (connection !== this.connection || this.closed) {
+        return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, connection })
+      }
+      this.sendTools(responses, connection)
+    })
+  }
+
+  private sendTools(responses: FunctionResponse[], connection: number): void {
     try {
       this.live?.sendToolResponses(responses)
     } catch {
-      this.deps.log('tool.delivery_unknown', { exchangeId: this.exchangeId, connection })
-      this.finishTyped('Tool reply delivery is unconfirmed. Your message will not be sent again automatically.')
-      return this.rebuild('tool response delivery unconfirmed')
+      return this.toolsUndelivered(connection)
     }
     for (const response of responses) this.logAnswered(response, connection)
+  }
+
+  /** A tool response that may not have reached the provider: the connection is replaced, never answered twice. */
+  private toolsUndelivered(connection: number): void {
+    this.deps.log('tool.delivery_unknown', { exchangeId: this.exchangeId, connection })
+    this.finishTyped('Tool reply delivery is unconfirmed. Your message will not be sent again automatically.')
+    this.rebuild('tool response delivery unconfirmed')
   }
 
   private logAnswered(response: FunctionResponse, connection: number): void {
@@ -1790,7 +1919,22 @@ export class RoomSession {
   private announceAloud(next: Result, notice: string, recipients: readonly string[], now: number): void {
     const live = this.live
     if (!live || this.state.provider !== 'ready' || !this.silent(now)) return
-    if (!this.mayPrompt(notice.length)) return
+    const q = this.qualification
+    if (!q) return this.sayNotice(next, notice, recipients, live)
+    // Under a grant, the notice's generation is reserved first; it is said once granted, if Sophia is still idle.
+    if (this.noticeReserving) return
+    this.noticeReserving = true
+    const connection = this.connection
+    void q.prompt(connection, notice.length).then((stop) => {
+      this.noticeReserving = false
+      if (stop) return this.guardStop(stop)
+      const granted = this.live
+      if (connection !== this.connection || !granted || this.state.provider !== 'ready') return
+      if (this.silent(this.deps.now())) this.sayNotice(next, notice, recipients, granted)
+    })
+  }
+
+  private sayNotice(next: Result, notice: string, recipients: readonly string[], live: LiveLink): void {
     const key = resultKey(next)
     this.announced.add(key)
     const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }

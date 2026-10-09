@@ -3,7 +3,7 @@
 **Status:** source only. It is off by default, and nothing here enables it. Enabling it needs all three:
 - an operator grant through the migration owner (migration 0046);
 - `SOPHIA_VOICE_QUALIFICATION=on` on the API. Off, its default, the API passes no grant on to the bridge, runs no guard, serves neither route below, names no grant on a room token, and needs nothing of 0046 to be ready;
-- `SOPHIA_VOICE_EVIDENCE=on` on the media bridge.
+- `SOPHIA_VOICE_EVIDENCE=on` on the media bridge. A bridge with it off opens no provider connection for an exchange whose assignment names a grant (it says why, voice unavailable): that grant's spend would have no bound there.
 
 All three belong to the owner's batch, never to this change. The contract is amendment A15; where this page and migration 0046 differ, 0046 holds.
 
@@ -34,21 +34,30 @@ The legacy Lab proved input from a browser Gemini WebSocket, and this product ha
 | `run_binding_sha256` | the Lab run's binding hash (`test_run_id`, `cleanup_obligation_id`, scenario). It is not secret, and the product never sees what it hashes. |
 | `approval_ref` | the owner's approval it rests on. |
 | `max_exchange_seconds` (60–1800) | the hard length of an exchange opened under the grant. |
-| `max_provider_connections` (1–10) | the provider connections a session may open, the first one included; past it, the exchange ends. |
-| `max_turns` (1–200) | the provider generations, whatever started them; at it, the exchange ends. |
+| `max_provider_connections` (1–10) | the provider connections the exchange may open, the first one included, whichever bridge session or process opens them; a reservation past it is refused, and the exchange ends. |
+| `max_turns` (1–200) | the provider generations, whatever started them, counted as they are reserved; at it, the exchange ends. |
 | `max_output_tokens_per_turn` (64–8,192) | one generation's output cap; the bridge sets it as the session's `maxOutputTokens` and cuts a generation that passes it. |
-| `max_usage_tokens` (1,000–5,000,000) | the provider tokens reported (`usageMetadata.totalTokenCount`, cumulative per provider session, summed across sessions). The exchange ends once what was reported, plus the last prompt's size (the context the next generation bills again) and one generation's output cap, would reach it. |
+| `max_usage_tokens` (1,000–5,000,000) | what the exchange may have cost: for each reserved connection, the greater of what was charged to it (each generation it started, at its worst case) and what the provider reported of it (`usageMetadata.totalTokenCount`, cumulative per provider session), summed. A generation whose charge would pass it is refused; the exchange ends once that sum, plus the latest connection's last prompt size (the context the next generation bills again) and one generation's output cap, would reach it. |
 | `expires_at` | the grant's end: at most 2 h after it is made. |
 | `revoked_at`, `revoke_reason` | `sophia.voice_qualification_revoke(project, grant, reason)`, owner only. |
 
 **Which exchanges a grant covers.** An exchange is under a grant when it is in the grant's project and was opened while the grant was active, that is, before it expired or was revoked. A grant never covers an exchange opened before it.
 
+**The durable bound (server-side).** The bound is the exchange's, held by the API, never a bridge session's: a session that replaces a lost one, or a restarted bridge, starts from the exchange's true counts. Under a grant, the bridge reserves before it spends, through `POST /v1/media/qualification-reserve` (`sophia.media_voice_reserve`, under the exchange's row lock):
+- `connection`, before it opens a provider connection: refused past `max_provider_connections`; otherwise the connection's durable ordinal, which its receipts name;
+- `generation`, before it sends what can start one, on a reserved connection, with a charge: refused past `max_turns`, or when the charge would pass `max_usage_tokens`;
+- `unasked`, when a generation nobody asked for started (its output arrived): it is already spent, so it is counted and charged whatever the limits, and the exchange ends if they are now reached.
+
+The charge is the bridge's worst case for the generation (the context again and its output twice) plus what it sent and was transcribed since its last charge. Connections and generations (`turns`) are durable counters only a reservation adds to; each connection keeps what was charged to it and what the provider reported of it. A reservation that does not fit ends the exchange as the guard would, with its reason, and so does a limit the guard would end it at. An exchange that has ended reserves nothing (409). A receipt names only a reserved connection (otherwise 422).
+
 **The guard (server-side, Lab-independent).** `sophia.voice_qualification_guard()` runs in the API's write transaction on every bridge presence report (every 5 s while the bridge is in the room), every assignment poll and every evidence write. It ends an exchange under a grant, as End would (ended_by null, event `room.exchange_qualification_limit`), at the first of these:
 - `now ≥ least(expires_at, opened_at + max_exchange_seconds)` (`deadline`, or `expired`);
 - the grant is revoked (`revoked`);
-- connections reported exceed `max_provider_connections` (`connections`);
-- generations reported reach `max_turns` (`turns`);
+- connections reserved exceed `max_provider_connections` (`connections`);
+- generations reserved reach `max_turns` (`turns`);
 - the next generation could pass `max_usage_tokens` (`usage`, the rule above).
+
+A bridge whose own bound stopped its session (its `session_closed` receipt says `guard`) ends the exchange too (`bridge`), for good.
 
 It writes a `guard` receipt (service, seq 0) with the reason. The guard runs only in an API with voice qualification on. Ending the exchange removes it from the bridge's assignments: the bridge's long poll wakes on the event, and its session closes, including the Gemini connection. **If the Lab dies, the exchange still ends at its deadline.** The bridge also stops forwarding input at the deadline itself (defence in depth).
 
@@ -75,29 +84,31 @@ An input window opens only for the principal's own forwarded audio; a reply and 
 |---|---|---|
 | `input_window` | from the first 16 kHz chunk forwarded to the provider for the principal, until the provider's turn completes (`turn_complete`), its barge-in (`interrupted`), a handoff, a pause, or the connection or session closes (`closed`) | windowSeq, inputEpoch, providerSession, connection, startedAtMs, endedAtMs, endReason, chunkCount, sampleCount, nonzeroSampleCount, audibleChunkCount (the bridge's audible floor), rms, peak (0–1 of full scale), droppedSamples (the input backlog's), sampleRate=16000, pcmDigestAlgorithm=`sha-256-chain-v1`, pcmSha256Chain, rawAudioExcluded=true |
 | `input_turn` | with its window's end, from what the provider showed of the turn by then | windowSeq, turnOrdinal, inputTranscriptionObserved (boolean), transcriptChars (**a count only**), finished, attributedToHolder (the turn was the principal's, at that epoch), modelResponded, toolCallCount, outcome: `answered` (the turn completed, or a handoff came, after a response), `interrupted` (barge-in, or a pause after a response), `no_user_turn_observed` (no response by then), `connection_lost` (the connection or session closed) |
-| `provider` | setup (as each connection opens), ready, recovering or unavailable (a connection lost or replaced), closed (the session closes); usage (a connection's reported total grew) | phase, providerSession (a UUID per provider session; a resumed connection keeps it), connection (its ordinal in the session), resumed, model, instructionSha256, bridgeCommit (or null), connectionsOpened, turns (provider generations ended: completed, cut by barge-in, or lost after output), usageTokens (each connection's highest `usageMetadata.totalTokenCount`, summed; or null), lastPromptTokens (the newest `promptTokenCount`; or null). The guard holds the last four to the grant. |
+| `provider` | setup (as each connection opens), ready, recovering or unavailable (a connection lost or replaced), closed (the session closes); usage (a connection's reported total grew) | phase, providerSession (a UUID per provider session; a resumed connection keeps it), connection (the durable ordinal its reservation returned), resumed, model, instructionSha256, bridgeCommit (or null), connectionsOpened (the highest ordinal this session holds), turns (provider generations this session saw end: completed, cut by barge-in, or lost after output), usageTokens (this connection's highest `usageMetadata.totalTokenCount`, or null), lastPromptTokens (its newest `promptTokenCount`, or null). The API keeps usageTokens and lastPromptTokens as that connection's; its own counts are the reservations'. |
 | `output_reply` | a reply ends: played out, or cut | replyOrdinal, turnOrdinal, providerSession, connection, receivedAtMs, firstPlayedAtMs, endedAtMs, terminal (`played`, `stopped`, `interrupted`, `recovered`, `closed`), samplesReceived, framesPlayed, nonSilentFramesPlayed (a nonzero sample), rms, peak (of the frames played), durationMs (framesPlayed × 20), playedDigestAlgorithm=`sha-256-chain-v1`, playedSha256Chain (over the 20 ms frames handed to the room track) |
 | `session_closed` | the session closes, or the bridge's bound stops it; recorded when anything of the session was | providerClosed, windows, turns (provider generations), replies, toolCalls and typedMessages (while the principal held the floor), transcriptRetained=false, reason: `ended` (the exchange ended or moved away, the API's guard said so, or the bridge stopped), `lost` (the room was lost), `guard` (the bridge's own bound or the deadline) |
-| `guard` | written by the API when the guard ends an exchange | reason (`deadline`, `expired`, `revoked`, `connections`, `turns`, `usage`) |
+| `guard` | written by the API when the guard or a refused reservation ends an exchange, or a bridge's own stop does | reason (`deadline`, `expired`, `revoked`, `connections`, `turns`, `usage`, `bridge`) |
 
-**The bridge's own bound** (`qualification-reserve.ts`, wired by `qualification.ts`). A session under a grant, with `SOPHIA_VOICE_EVIDENCE=on`, holds itself to the grant whoever holds the floor (it records nothing for this):
+**The bridge's bound** (`qualification.ts`: `qualification-ledger.ts` for the API's reservations, `qualification-reserve.ts` for its own first check). A session under a grant, with `SOPHIA_VOICE_EVIDENCE=on`, holds itself to the grant whoever holds the floor (it records nothing for this):
 - the provider's setup carries `maxOutputTokens` = `maxOutputTokensPerTurn` (only under a grant; otherwise it names no cap);
-- before anything that can start a generation (the first input after a turn ended, a tool response, a notice, a typed message), one generation's worst case is reserved: the context again and its output twice. A generation that starts unasked (a WHEN_IDLE continuation, a second tool round) takes its reserve as its output arrives;
+- every spend is first checked in the bridge, at once and without the network (a refusal there never waits on the API), then reserved on the API (the durable bound above): a provider connection before it opens (the first, a reconnection, a replacing session's, a restarted bridge's); a generation before what can start one is sent (the first input after a turn ended, a tool response, a notice, a typed message); a generation that starts unasked (a WHEN_IDLE continuation, a second tool round) as its output arrives;
+- while a generation is being reserved, the holder's input waits (at most 5 s of it, the oldest dropped first) and goes on in order once granted; a tool response, a notice or a typed message is sent once granted, if it still may be;
+- an answer refused (4xx) or missing after three attempts (after 0.25 and 1 s, each with 3 s to answer) is a refusal (`unconfirmed`): the bridge fails closed;
 - audio, frames and text sent, transcription received and usage reported are counted. A generation whose output passes the per-turn cap is cut;
-- a connection past `maxProviderConnections` is never opened. The `deadline` is checked on every tick (100 ms) and before anything is sent.
+- the `deadline` is checked on every tick (100 ms) and before anything is sent.
 
-When the bound says stop (`usage`, `turns`, `connections`, `output` or `deadline`):
+When the bound says stop (`usage`, `turns`, `connections`, `output`, `deadline`, a guard reason from the API, or `unconfirmed`):
 - the bridge sends nothing more to the provider and closes it for good;
 - it stops what is playing, and reports Sophia unavailable with the reason;
-- it records the provider's close and `session_closed` (`guard`).
+- it records the provider's close and `session_closed` (`guard`), which ends the exchange on the API (`bridge`) if a refusal had not already.
 
-The session stays in the room until the API ends the exchange (its guard, from what was reported, or at the deadline). The bound is conservative: a tool response's reserve and its continuation's each count, so a tool round can cost one generation more than the provider ran.
+Nothing of this runs without a grant: an exchange under none waits on no reservation. The bound is conservative: a tool response's reserve and its continuation's each count, and a reservation whose answer was lost and is asked again may count twice; either only ends an exchange earlier.
 
 **`sha-256-chain-v1`** is the Lab's own algorithm. Start from 32 zero bytes; for each frame `i` from 1: `chain = sha256(chain ‖ sha256(frame bytes) ‖ uint32be(i))`. A frame's bytes are its 16-bit samples, little-endian: on input, each 100 ms chunk forwarded (1,600 samples at 16 kHz); on output, each 20 ms frame played (480 samples at 24 kHz). A window or reply with no frame has the 32 zero bytes.
 
 On this transport the chain covers **the PCM the bridge forwarded or played**. It is **never** comparable to the Lab's source WAV or the browser's frames: the Opus path is lossy, and the input is resampled. The Lab reconciles input by ordinal and envelope only (`pcm_reconciliation: envelope_only`), and must not compare chains for equality.
 
-**Reading them.** `GET /api/v1/exchanges/{exchangeId}/qualification-evidence` is answered only to the grant's principal, with their own JWT. It returns the one grant covering the exchange (its limits and deadline, what was reported against them, why the guard ended it) and the receipts kept, bridge receipts in `seq` order then the service's guard receipt. Anyone else, or an exchange under no grant, gets 422 `not_found`, as the API's other reads do. An API with voice qualification off does not serve the route.
+**Reading them.** `GET /api/v1/exchanges/{exchangeId}/qualification-evidence` is answered only to the grant's principal, with their own JWT. It returns the one grant covering the exchange (its limits and deadline; the connections and generations reserved; usageTokens, what the provider reported, each connection's highest report, summed; committedTokens, what the exchange may have cost, the figure the budget holds; the latest connection's last prompt size; why it ended) and the receipts kept, bridge receipts in `seq` order then the service's guard receipt. Anyone else, or an exchange under no grant, gets 422 `not_found`, as the API's other reads do. An API with voice qualification off does not serve the route.
 
 ## Studio receipts (page only, never stored)
 
@@ -209,7 +220,7 @@ All of these are read by the principal through the member API (snapshot, native 
 
 ## Not verified here
 
-- That Gemini Live's `usageMetadata.totalTokenCount` is cumulative per provider session, as this contract and the bound assume. No provider call was made. If it is per turn, `usageTokens` under-reports, and so does the bridge's own bound once a report replaces its estimates of the generations the report covers. The turn, connection and per-turn output limits and the deadline hold either way.
+- That Gemini Live's `usageMetadata.totalTokenCount` is cumulative per provider session, as this contract and the bound assume. No provider call was made. If it is per turn, `usageTokens` under-reports; the durable bound still holds each connection at no less than what was charged to it (each generation at its worst case), and the turn, connection and per-turn output limits and the deadline hold either way.
 - A `model` id outside A15's pattern (for example `models/…`) would have every provider receipt refused (422), dropped and counted. The default `gemini-3.8-live` fits.
 
 ## What stays unavailable (typed, never forged)

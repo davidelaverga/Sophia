@@ -8,6 +8,8 @@ import {
   type MediaAssignment,
   type MediaEvidenceAck,
   type MediaEvidenceWrite,
+  type MediaQualificationReservation,
+  type MediaQualificationReserve,
   type MediaToolCall,
   type MediaToolResult,
   type VoiceQualification,
@@ -232,6 +234,29 @@ class FakeService implements MediaService {
     this.evidence.push(w)
     return this.ack
   }
+  /**
+   * The API's durable bound (A15), as a FAKE: every reservation is granted and connections are numbered, unless a test
+   * refuses (as the API would, ending the exchange) or makes it fail.
+   */
+  reservations: MediaQualificationReserve[] = []
+  ordinals = 0
+  refuse: MediaQualificationReservation['stop'] | 'error' = null
+  /** While set, each reservation waits for the test to answer it (the API is slow). */
+  holdReservations = false
+  private readonly waiting: Array<() => void> = []
+  answerReservations(): void {
+    for (const answer of this.waiting.splice(0)) answer()
+  }
+  reserveQualification = async (r: MediaQualificationReserve) => {
+    await Promise.resolve()
+    if (this.holdReservations) await new Promise<void>((resolve) => this.waiting.push(resolve))
+    this.reservations.push(r)
+    if (this.refuse === 'error') throw new ServiceError(503, 'POST /v1/media/qualification-reserve: 503')
+    if (this.refuse) return { ok: false, ordinal: null, stop: this.refuse, ended: true }
+    if (r.kind === 'connection') this.ordinals += 1
+    const ordinal = r.kind === 'connection' ? this.ordinals : (r.ordinal ?? null)
+    return { ok: true, ordinal, stop: null, ended: false }
+  }
   /** The operations the fake API executes: the declared ones unless a test says otherwise. */
   surface: string[] | null = [...DECLARED_NAMES]
   surfaceChecks = 0
@@ -325,7 +350,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handov
       log: (event, fields) => logs.push([event, fields ?? {}]),
       every: () => () => undefined,
       ...(liveCaptions === undefined ? {} : { liveCaptions }),
-      ...(voiceEvidence === undefined ? {} : { voiceEvidence, evidenceRetryMs: [0, 0] }),
+      ...(voiceEvidence === undefined ? {} : { voiceEvidence, evidenceRetryMs: [0, 0], reserveRetryMs: [0, 0] }),
     },
     handover,
   )
@@ -3744,6 +3769,7 @@ describe('room session: voice qualification evidence (A15), off by default', () 
     const holder = over.inputActorId ?? LUIS
     room.events.audio(holder, voice16k(), 16000, 1)
     room.events.audio(holder, pcm16k(), 16000, 1)
+    await flush()
     live.events.inputTranscript('Synthetic words', true)
     live.events.audio(speech(2), OUT)
     live.events.toolCalls([{ id: 'call-off', name: 'project_status', args: {} }])
@@ -3773,15 +3799,33 @@ describe('room session: voice qualification evidence (A15), off by default', () 
     }
   }
 
-  it('unset with a grant, on without one, or off: nothing is recorded, and what is sent is as before', async () => {
+  it('without a grant, off or on: nothing is recorded or reserved, and what is sent is as before', async () => {
     const before = await scripted({})
     assert.equal(before.receipts, 0)
     assert.equal(JSON.parse(before.provider.options).maxOutputTokens, undefined, 'the setup names no output cap')
-    assert.deepEqual(await scripted({ qualification: grant() }), before, 'SOPHIA_VOICE_EVIDENCE unset')
+    assert.equal(service.reservations.length, 0)
     voiceEvidence = false
-    assert.deepEqual(await scripted({ qualification: grant() }), before, 'off')
+    assert.deepEqual(await scripted({}), before, 'off')
     voiceEvidence = true
     assert.deepEqual(await scripted({}), before, 'on, but the assignment names no grant')
+    assert.equal(service.reservations.length, 0)
+  })
+
+  it('a grant this bridge does not record (SOPHIA_VOICE_EVIDENCE off or unset): no provider connection, and it says why', async () => {
+    for (const flag of [undefined, false]) {
+      voiceEvidence = flag
+      service = new FakeService()
+      const session = newSession({ qualification: grant() }, [member(LUIS)])
+      await session.start()
+      session.tick()
+      await flush()
+      assert.equal(lives.length, 0, 'the grant’s spend has no bound here, so none of it is spent')
+      assert.equal(session.observed().voice, 'unavailable')
+      assert.match(String(service.presences.at(-1)?.reason), /SOPHIA_VOICE_EVIDENCE/)
+      assert.deepEqual([service.evidence.length, service.reservations.length], [0, 0])
+      await session.close()
+    }
+    assert.equal(logs.filter(([event]) => event === 'qualification.declined').length, 2)
   })
 
   it('on, with a grant, while another member holds the floor: nothing is recorded; the grant’s cap still binds', async () => {
@@ -3834,6 +3878,7 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     const { session, room, live } = await ready({ qualification: grant() })
     assert.equal(live.options.maxOutputTokens, 1000, 'the grant’s per-turn output is the session’s cap')
     for (let i = 0; i < 3; i += 1) room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
     live.events.inputTranscript('Draft the brief please', true)
     live.events.audio(speech(2), OUT)
     live.events.toolCalls([{ id: 'call-q1', name: 'project_status', args: {} }])
@@ -3963,6 +4008,7 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     const { room, live } = await ready({ qualification: grant() })
     room.events.audio(LUIS, voice16k(), 16000, 1)
     room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
     assert.equal(live.audio, 2, 'forwarded at once, whatever the receipts are waiting for')
     await until('setup and ready dropped', () => logs.filter(([event]) => event === 'evidence.dropped').length === 2)
     const setup = service.evidence.filter((w) => w.seq === 1)
@@ -3980,6 +4026,7 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     service.recordEvidence = () => new Promise<MediaEvidenceAck>(() => undefined)
     live.events.turnComplete()
     for (let i = 0; i < 5; i += 1) room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
     assert.equal(live.audio, 7)
   })
 
@@ -3988,6 +4035,7 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     const { room, live } = await ready({ qualification: grant() })
     service.ack = { ended: true, reason: 'usage' }
     room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
     live.events.turnComplete()
     await until('the session closed', () => room.closed && live.closed)
     assert.ok(logs.some(([event, d]) => event === 'qualification.exchange_ended' && d.reason === 'usage'))
@@ -4022,6 +4070,7 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
     // A generation reserves the context (25,000) and its output twice (2 × 1000): two fit in 60,000, unreported.
     const { session, room, live } = await ready({ qualification: grant({ maxUsageTokens: 60_000 }) })
     room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
     live.events.audio(speech(2), OUT)
     live.events.turnComplete()
     live.events.usage({ totalTokenCount: 40_000, promptTokenCount: 30_000 })
@@ -4034,6 +4083,7 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
     voiceEvidence = true
     const { session, room, live } = await ready({ qualification: grant({ maxTurns: 1 }) })
     room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
     live.events.audio(speech(1), OUT)
     live.events.turnComplete()
     room.events.audio(LUIS, voice16k(), 16000, 1)
@@ -4058,6 +4108,7 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
     const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
     assert.equal(live.options.maxOutputTokens, 64)
     room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
     live.events.audio(speech(50), OUT)
     await flush()
     assert.equal(room.played.length, 50)
@@ -4076,6 +4127,7 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
         qualification: grant({ deadline: new Date(clock + 60_000).toISOString() }),
       })
       room.events.audio(LUIS, voice16k(), 16000, 1)
+      await flush() // its generation is reserved first: the chunk waits for the grant
       clock += 59_999
       session.tick()
       assert.equal(live.closed, false)
@@ -4095,6 +4147,7 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
       voiceEvidence = true
       const { session, room, live } = await ready({ qualification: grant({ maxTurns: turns }) })
       room.events.audio(LUIS, voice16k(), 16000, 1)
+      await flush() // its generation is reserved first: the chunk waits for the grant
       live.events.toolCalls([{ id: 'round-1', name: 'project_status', args: {} }])
       await flush()
       assert.equal(live.responses.length, 1, 'the holder’s turn and the tool response: two generations reserved')
@@ -4116,4 +4169,113 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
       }
     })
   }
+})
+
+describe('room session: the exchange’s durable bound, reserved on the API before anything is spent (A15)', () => {
+  const kinds = () => service.reservations.map((r) => r.kind)
+  const stops = () => logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why)
+
+  it('reserves each connection before it opens, and its receipts name the durable ordinal the API gave', async () => {
+    voiceEvidence = true
+    service.ordinals = 2 // an earlier session of this exchange opened two
+    const { session, live } = await ready({ qualification: grant() })
+    assert.deepEqual(kinds(), ['connection'])
+    assert.deepEqual(service.reservations[0], { exchangeId: EXCHANGE, grantId: GRANT_ID, kind: 'connection' })
+    await session.close()
+    const provider = service.evidence.filter((w) => w.receipt.kind === 'provider').map((w) => fields(w))
+    assert.ok(provider.length > 0 && provider.every((r) => r?.connection === 3 && r.connectionsOpened === 3))
+    assert.equal(live.closed, true)
+  })
+
+  it('a connection the API refuses is never opened: the session stops, and says so', async () => {
+    voiceEvidence = true
+    service.refuse = 'connections'
+    const session = newSession({ qualification: grant() }, [member(LUIS)])
+    await session.start()
+    await flush()
+    assert.equal(lives.length, 0)
+    assert.deepEqual(stops(), ['connections'])
+    assert.equal(session.observed().voice, 'unavailable')
+    await until('its close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    assert.equal(fields(service.evidence.at(-1))?.reason, 'guard')
+    await session.close()
+  })
+
+  it('an API that does not answer is a refusal: asked a bounded number of times, then nothing opens (fail closed)', async () => {
+    voiceEvidence = true
+    service.refuse = 'error'
+    const session = newSession({ qualification: grant() }, [member(LUIS)])
+    await session.start()
+    await until('given up', () => stops().length > 0)
+    assert.deepEqual(kinds(), ['connection', 'connection', 'connection'], 'once, then twice again')
+    assert.equal(lives.length, 0)
+    assert.deepEqual(stops(), ['unconfirmed'])
+    await session.close()
+  })
+
+  it('input waits while its generation is reserved, then goes on in order; a refusal sends none of it', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    const sent: number[] = []
+    const link: LiveLink = live
+    link.sendAudio = (chunk) => {
+      live.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    service.holdReservations = true
+    for (let i = 0; i < 3; i += 1) room.events.audio(LUIS, new Int16Array(1600).fill(2000 + i), 16000, 1)
+    await flush()
+    assert.equal(live.audio, 0, 'nothing reaches the provider before the API granted the generation')
+    service.answerReservations()
+    await flush()
+    assert.deepEqual(sent, [2000, 2001, 2002], 'then all of it, in order')
+    assert.deepEqual(kinds(), ['connection', 'generation'])
+    const charge = service.reservations[1]?.charge ?? 0
+    assert.ok(charge >= 25_000 + 2 * 1000, 'charged at its worst case: the context again and its output twice')
+    live.events.turnComplete()
+    service.refuse = 'usage'
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    service.answerReservations()
+    await flush()
+    assert.equal(live.audio, 3, 'refused: none of the next turn’s input was sent')
+    assert.deepEqual(stops(), ['usage'])
+    assert.equal(live.closed, true)
+    await session.close()
+  })
+
+  it('a generation nobody asked for is charged as its output arrives; refused, the session stops', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    live.events.audio(speech(2), OUT) // nobody asked: no input, no prompt
+    await flush()
+    assert.deepEqual(kinds(), ['connection', 'unasked'])
+    assert.equal(service.reservations[1]?.ordinal, 1)
+    live.events.turnComplete()
+    await flush()
+    service.refuse = 'turns'
+    const played = room.played.length
+    live.events.audio(speech(2), OUT)
+    await flush()
+    assert.deepEqual(kinds(), ['connection', 'unasked', 'unasked'])
+    assert.deepEqual(stops(), ['turns'])
+    live.events.audio(speech(2), OUT)
+    await flush()
+    assert.ok(room.played.length <= played + 2, 'nothing of what follows the refusal is played')
+    await session.close()
+  })
+
+  it('a tool response waits for its generation’s reservation; refused, it is never sent', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    service.refuse = 'usage'
+    live.events.toolCalls([{ id: 'call-r', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(service.calls.length, 1, 'the call itself ran')
+    assert.equal(live.responses.length, 0, 'its answer would start a generation the API refused')
+    assert.deepEqual(stops(), ['usage'])
+    await session.close()
+  })
 })

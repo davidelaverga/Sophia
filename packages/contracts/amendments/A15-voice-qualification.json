@@ -7,7 +7,8 @@
     "Off by default, three times over: migration 0046's grant is the migration owner's alone; the API serves none of this unless SOPHIA_VOICE_QUALIFICATION=on (off, it passes no grant on, runs no guard and needs nothing of 0046 to be ready); and the bridge records nothing unless SOPHIA_VOICE_EVIDENCE=on and its assignment names a grant (qualification, omitted otherwise). A room token names the grant only for its principal while it is active.",
     "No speech is retained: every receipt schema allows only numbers, booleans, enumerated words, ids, hex digests and times; no free text. Receipts are kept 24 hours and only the grant's principal reads them; anyone else finds nothing (not_found, 422, as the API's other reads).",
     "The guard (0046) runs on every evidence write, presence report and assignment poll, so an exchange under a grant ends at its deadline or limit whether or not the Lab is still there.",
-    "Joins the Lab needs to prove a run's outcome and its cleanup, all only with voice qualification on: a native task names the exchange whose voice tool call created it (exchangeId); a member reads their own voice tool calls in an exchange, in order, each with the command it admitted and the task that command created (getExchangeCalls), so a step is proven by the call that made it, never by a key, a time window or another call; and a member reads the room as the bridge last saw it, only whether they are in it and the counts (getRoomLivePresence). A call's command is linked to it by the transaction that inserted that command for the call, never by its key, so a member's own command, under any key, links to no call."
+    "Joins the Lab needs to prove a run's outcome and its cleanup, all only with voice qualification on: a native task names the exchange whose voice tool call created it (exchangeId); a member reads their own voice tool calls in an exchange, in order, each with the command it admitted and the task that command created (getExchangeCalls), so a step is proven by the call that made it, never by a key, a time window or another call; and a member reads the room as the bridge last saw it, only whether they are in it and the counts (getRoomLivePresence). A call's command is linked to it by the transaction that inserted that command for the call, never by its key, so a member's own command, under any key, links to no call.",
+    "The bound is the exchange's, held by the service, never a bridge session's: before the bridge opens a provider connection under a grant or lets a generation start, it reserves it (POST /v1/media/qualification-reserve), and the service counts connections and generations durably, with what each connection was charged and reported. A session that replaces a lost one, or a restarted bridge, starts from the exchange's true counts. A reservation that does not fit ends the exchange, as does the bridge's own stop (a session_closed receipt that says guard: reason bridge). A receipt names only a connection that was reserved."
   ],
   "patch": [
     {
@@ -93,7 +94,7 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "From the first 16 kHz chunk the bridge forwarded to the provider for the principal until the turn completes, is interrupted, hands off, pauses or closes. pcmSha256Chain covers the PCM forwarded (sha-256-chain-v1); it is never comparable to the Lab's source audio.",
+        "description": "From the first 16 kHz chunk the bridge forwarded to the provider for the principal until the turn completes, is interrupted, hands off, pauses or closes. pcmSha256Chain covers the PCM forwarded (sha-256-chain-v1); it is never comparable to the Lab's source audio. connection is the durable ordinal its connection's reservation returned.",
         "properties": {
           "kind": {
             "type": "string",
@@ -318,7 +319,7 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "The provider session's lifecycle and usage. connectionsOpened, turns, usageTokens and lastPromptTokens are what the guard holds to the grant's limits.",
+        "description": "The provider session's lifecycle and usage, on one reserved connection (connection is the durable ordinal its reservation returned). usageTokens and lastPromptTokens are that connection's own: what the provider reported of its session, which the service keeps as the connection's highest report. connectionsOpened and turns are what the bridge saw; the service's own counts are the reservations'.",
         "properties": {
           "kind": {
             "type": "string",
@@ -437,7 +438,7 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "A reply the bridge played to the room ended. playedSha256Chain covers the 20 ms frames handed to the room track (sha-256-chain-v1).",
+        "description": "A reply the bridge played to the room ended. playedSha256Chain covers the 20 ms frames handed to the room track (sha-256-chain-v1). connection is the durable ordinal its connection's reservation returned.",
         "properties": {
           "kind": {
             "type": "string",
@@ -702,12 +703,84 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Whether the exchange has ended, and why the guard ended it (null when it did not).",
+        "description": "Whether the exchange has ended, and why (null when it has not): a guard reason, or bridge when the bridge's own bound or the deadline stopped its session (its session_closed receipt said guard).",
         "properties": {
           "ended": {
             "type": "boolean"
           },
           "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage", "bridge"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["ended", "reason"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaQualificationReserve",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The bridge's durable reservation for an exchange under a grant, before it spends: a provider connection before it opens one; a generation before it sends what can start one (input after a turn ended, a tool response, a notice, a typed message), on a reserved connection; or a generation that started unasked (its output arrived), which is counted and charged whatever the limits. charge is the generation's worst case (the context again and its output twice) plus what was sent and transcribed since the connection's last charge.",
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["connection", "generation", "unasked"]
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "charge": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000000
+          }
+        },
+        "required": ["exchangeId", "grantId", "kind"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaQualificationReservation",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Granted, with a connection's durable ordinal (null for a generation), or refused: then the exchange has ended (ended true) and stop says why.",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ordinal": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stop": {
             "anyOf": [
               {
                 "type": "string",
@@ -717,9 +790,12 @@
                 "type": "null"
               }
             ]
+          },
+          "ended": {
+            "type": "boolean"
           }
         },
-        "required": ["ended", "reason"]
+        "required": ["ok", "ordinal", "stop", "ended"]
       }
     },
     {
@@ -748,7 +824,7 @@
           },
           "reason": {
             "type": "string",
-            "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage"]
+            "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage", "bridge"]
           },
           "atMs": {
             "type": "integer",
@@ -765,7 +841,7 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "What the grant's principal may read of an exchange its grant covers: the grant's limits and what was reported against them, and the receipts kept (24 hours) in order. Anyone else finds nothing.",
+        "description": "What the grant's principal may read of an exchange its grant covers: the grant's limits and what was reserved and reported against them, and the receipts kept (24 hours) in order. Anyone else finds nothing.",
         "properties": {
           "exchangeId": {
             "type": "string",
@@ -834,28 +910,38 @@
               "connectionsOpened": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 2147483647
+                "maximum": 2147483647,
+                "description": "Provider connections reserved for the exchange (durable: only a reservation adds to it)."
               },
               "turns": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 2147483647
+                "maximum": 2147483647,
+                "description": "Generations reserved for the exchange, asked for or not (durable: only a reservation adds to it)."
               },
               "usageTokens": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 9007199254740991
+                "maximum": 9007199254740991,
+                "description": "What the provider reported, each reserved connection's highest report, summed."
+              },
+              "committedTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "What the exchange may have cost: each reserved connection at the greater of what was charged to it (each generation at its worst case) and what the provider reported of it, summed. The guard holds this to the budget."
               },
               "lastPromptTokens": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 9007199254740991
+                "maximum": 9007199254740991,
+                "description": "The prompt size the exchange's latest connection last reported."
               },
               "endedReason": {
                 "anyOf": [
                   {
                     "type": "string",
-                    "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage"]
+                    "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage", "bridge"]
                   },
                   {
                     "type": "null"
@@ -877,6 +963,7 @@
               "connectionsOpened",
               "turns",
               "usageTokens",
+              "committedTokens",
               "lastPromptTokens",
               "endedReason"
             ]
@@ -1285,6 +1372,83 @@
             },
             "422": {
               "description": "Request fails the declared schema, or the receipt is not bound to this grant and run",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable"
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "SDD-01-G7"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1media~1qualification-reserve",
+      "value": {
+        "post": {
+          "operationId": "mediaQualificationReserve",
+          "summary": "The bridge's durable reservation of a provider connection or a generation for an exchange under a voice qualification grant, under the exchange's lock. A reservation that does not fit ends the exchange. Served only by an API with voice qualification on (SOPHIA_VOICE_QUALIFICATION=on).",
+          "tags": ["media"],
+          "security": [
+            {
+              "mediaBridgeCapability": []
+            }
+          ],
+          "parameters": [],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaQualificationReserve"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Granted, or refused and the exchange ended",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MediaQualificationReservation"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown media-bridge capability"
+            },
+            "403": {
+              "description": "The exchange is not under this grant",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The exchange has already ended (invalid_state)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, the exchange is not found (not_found), or a generation names a connection that was not reserved",
               "content": {
                 "application/json": {
                   "schema": {

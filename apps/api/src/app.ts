@@ -178,6 +178,7 @@ export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(t
  */
 export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_guard()') IS NOT NULL
   AND to_regprocedure('sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.media_voice_reserve(uuid,uuid,text,integer,bigint)') IS NOT NULL
   AND to_regprocedure('sophia.voice_qualification_evidence_read(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.voice_room_qualification(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.media_record_live_call(uuid,bigint,uuid,text,text)') IS NOT NULL

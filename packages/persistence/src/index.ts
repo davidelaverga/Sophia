@@ -143,6 +143,7 @@ export {
   readTaskExchanges,
   recordLiveCall,
   recordQualificationEvidence,
+  reserveQualification,
   roomQualification,
   voiceQualificationGuard,
   type ExchangeCalls,
@@ -150,6 +151,8 @@ export {
   type QualificationEvidenceAck,
   type QualificationEvidenceWrite,
   type QualificationReceiptKind,
+  type QualificationReservation,
+  type QualificationReserve,
 } from './voice-qualification.ts'
 export {
   claimRoomRemovals,

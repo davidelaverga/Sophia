@@ -12,12 +12,14 @@ import {
   readQualificationEvidence,
   readSnapshot,
   recordQualificationEvidence,
+  reserveQualification,
   roomQualification,
   startExchange,
   voiceQualificationGuard,
   withActor,
   withService,
   type QualificationReceiptKind,
+  type QualificationReserve,
 } from './index.ts'
 
 const A = randomUUID() // admin
@@ -131,6 +133,42 @@ const receipt = (grantId: string, kind: QualificationReceiptKind, extra: Record<
 const record = (exchangeId: string, grantId: string, seq: number, kind: QualificationReceiptKind, extra = {}) =>
   withService(pool, (c) =>
     recordQualificationEvidence(c, { exchangeId, grantId, seq, kind, receipt: receipt(grantId, kind, extra) }),
+  )
+
+/** A provider receipt's usage on connection 1. */
+const provider = (usageTokens: number, lastPromptTokens: number) => ({ connection: 1, usageTokens, lastPromptTokens })
+const noop = (): void => undefined
+
+const reserve = (
+  exchangeId: string,
+  grantId: string,
+  kind: QualificationReserve['kind'],
+  ordinal?: number,
+  charge?: number,
+) =>
+  withService(pool, (c) =>
+    reserveQualification(c, {
+      exchangeId,
+      grantId,
+      kind,
+      ...(ordinal === undefined ? {} : { ordinal }),
+      ...(charge === undefined ? {} : { charge }),
+    }),
+  )
+
+const countsOf = async (exchangeId: string) =>
+  (
+    await owner((c) =>
+      c.query<{ connections: number; turns: number }>(
+        `SELECT connections_opened AS connections, turns FROM sophia.voice_qualification_exchanges WHERE exchange_id=$1`,
+        [exchangeId],
+      ),
+    )
+  ).rows[0]
+
+const committedOf = async (exchangeId: string) =>
+  Number(
+    (await owner((c) => c.query<{ n: string }>(`SELECT sophia.voice_committed($1) AS n`, [exchangeId]))).rows[0]!.n,
   )
 
 describe('a voice qualification grant (0046)', () => {
@@ -251,61 +289,200 @@ describe('the guard (0046): it ends an exchange under a grant whether or not the
     assert.deepEqual(await stateOf(x2), { state: 'ended', reason: 'expired' })
   })
 
-  it('past its connection or turn limit, as the bridge reports them', async () => {
+  it('past its connection limit, or at its turns, as reserved: the counts are durable, never what a receipt says', async () => {
     const one = await project()
     const g1 = await grant(one.projectId, P, { connections: 2 })
     const x1 = await open(one.projectId)
-    assert.deepEqual(await record(x1, g1, 0, 'provider', { connectionsOpened: 2, turns: 0, usageTokens: 0 }), {
-      ended: false,
-      reason: null,
-    })
-    assert.deepEqual(await record(x1, g1, 1, 'provider', { connectionsOpened: 3, turns: 0, usageTokens: 0 }), {
-      ended: true,
-      reason: 'connections',
-    })
+    await reserve(x1, g1, 'connection')
+    // A receipt that says fewer, or more, changes no count.
+    await record(x1, g1, 0, 'provider', { connection: 1, connectionsOpened: 1, turns: 0, usageTokens: null })
+    await record(x1, g1, 1, 'provider', { connection: 1, connectionsOpened: 9, turns: 9, usageTokens: null })
+    assert.deepEqual(await countsOf(x1), { connections: 1, turns: 0 })
+    assert.equal((await stateOf(x1)).state, 'open')
+    // Past the limit only by the counter itself (a reservation never takes it there): the guard ends it.
+    await owner((c) =>
+      c.query(`UPDATE sophia.voice_qualification_exchanges SET connections_opened=3 WHERE exchange_id=$1`, [x1]),
+    )
+    await withService(pool, (c) => voiceQualificationGuard(c))
+    assert.deepEqual(await stateOf(x1), { state: 'ended', reason: 'connections' })
 
     const two = await project()
-    const g2 = await grant(two.projectId, P, { turns: 4 })
+    const g2 = await grant(two.projectId, P, { turns: 3 })
     const x2 = await open(two.projectId)
-    assert.equal((await record(x2, g2, 0, 'provider', { connectionsOpened: 1, turns: 3 })).ended, false)
-    assert.deepEqual(await record(x2, g2, 1, 'provider', { connectionsOpened: 1, turns: 4 }), {
-      ended: true,
-      reason: 'turns',
-    })
+    await reserve(x2, g2, 'connection')
+    assert.equal((await reserve(x2, g2, 'generation', 1, 1000)).ok, true)
+    assert.equal((await reserve(x2, g2, 'generation', 1, 1000)).ok, true)
+    await withService(pool, (c) => voiceQualificationGuard(c))
+    assert.equal((await stateOf(x2)).state, 'open', 'two generations of three')
+    assert.equal((await reserve(x2, g2, 'generation', 1, 1000)).ok, true)
+    await withService(pool, (c) => voiceQualificationGuard(c))
+    assert.deepEqual(await stateOf(x2), { state: 'ended', reason: 'turns' }, 'at its turns, the exchange ends')
   })
 
-  it('at its budget with the next turn reserved: the context it bills again and one turn’s output cap', async () => {
+  it('at its budget: what the exchange may have cost, the next turn’s context and one turn’s output cap', async () => {
     const { projectId } = await project()
     // Budget 100,000; output cap 2,000.
     const g = await grant(projectId, P, { budget: 100_000, outputPerTurn: 2000 })
     const x = await open(projectId)
+    await reserve(x, g, 'connection')
     // 60,000 reported + 37,999 context + 2,000 cap = 99,999: one more turn fits.
-    assert.equal(
-      (await record(x, g, 0, 'provider', { connectionsOpened: 1, usageTokens: 60_000, lastPromptTokens: 37_999 }))
-        .ended,
-      false,
-    )
+    assert.equal((await record(x, g, 0, 'provider', provider(60_000, 37_999))).ended, false)
     // 60,000 + 38,000 + 2,000 = 100,000: the next turn could reach it, so the exchange ends now.
-    assert.deepEqual(
-      await record(x, g, 1, 'provider', { connectionsOpened: 1, usageTokens: 60_000, lastPromptTokens: 38_000 }),
-      { ended: true, reason: 'usage' },
-    )
+    assert.deepEqual(await record(x, g, 1, 'provider', provider(60_000, 38_000)), { ended: true, reason: 'usage' })
   })
 
-  it('never lowers what was reported: an older report after a newer one changes nothing', async () => {
+  it('never lowers what a connection reported: an older report after a newer one changes nothing', async () => {
     const { projectId } = await project()
     const g = await grant(projectId, P, { budget: 100_000, outputPerTurn: 1000 })
     const x = await open(projectId)
-    await record(x, g, 1, 'provider', { connectionsOpened: 2, turns: 3, usageTokens: 50_000, lastPromptTokens: 9000 })
-    await record(x, g, 0, 'provider', { connectionsOpened: 1, turns: 1, usageTokens: 10_000, lastPromptTokens: 2000 })
+    await reserve(x, g, 'connection')
+    await record(x, g, 1, 'provider', { connection: 1, usageTokens: 50_000, lastPromptTokens: 9000 })
+    await record(x, g, 0, 'provider', { connection: 1, usageTokens: 10_000, lastPromptTokens: 2000 })
     const row = await owner((c) =>
       c.query(
-        `SELECT connections_opened AS c, turns AS t, usage_tokens::int AS u, last_prompt_tokens::int AS p
-          FROM sophia.voice_qualification_exchanges WHERE exchange_id=$1`,
+        `SELECT reported_usage::int AS u, last_prompt::int AS p FROM sophia.voice_qualification_connections
+          WHERE exchange_id=$1 AND ordinal=1`,
         [x],
       ),
     )
-    assert.deepEqual(row.rows[0], { c: 2, t: 3, u: 50_000, p: 9000 })
+    assert.deepEqual(row.rows[0], { u: 50_000, p: 9000 })
+  })
+})
+
+describe('the exchange’s durable bound (0046, media_voice_reserve)', () => {
+  it('two connection reservations at once with one left: exactly one is granted, the other ends the exchange', async () => {
+    const { projectId } = await project()
+    const g = await grant(projectId, P, { connections: 2 })
+    const x = await open(projectId)
+    assert.deepEqual(await reserve(x, g, 'connection'), { ok: true, ordinal: 1, stop: null, ended: false })
+    // The first holds its transaction open with the exchange's lock; the second starts while it does.
+    let release = noop
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const first = withService(pool, async (c) => {
+      const r = await reserveQualification(c, { exchangeId: x, grantId: g, kind: 'connection' })
+      await held
+      return r
+    })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const second = withService(pool, (c) => reserveQualification(c, { exchangeId: x, grantId: g, kind: 'connection' }))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    release()
+    const results = await Promise.allSettled([first, second])
+    assert.deepEqual(
+      results.map((r) => (r.status === 'fulfilled' ? r.value : `rejected: ${String(r.reason)}`)),
+      [
+        { ok: true, ordinal: 2, stop: null, ended: false },
+        { ok: false, ordinal: null, stop: 'connections', ended: true },
+      ],
+    )
+    assert.deepEqual(await countsOf(x), { connections: 2, turns: 0 })
+    assert.deepEqual(await stateOf(x), { state: 'ended', reason: 'connections' })
+    assert.equal(await codeOf(reserve(x, g, 'connection')), 'invalid_state', 'an ended exchange reserves nothing')
+  })
+
+  it('charges each connection; what the exchange may have cost is each one’s greater of charged and reported, summed', async () => {
+    const { projectId } = await project()
+    const g = await grant(projectId, P, { budget: 100_000, outputPerTurn: 2000 })
+    const x = await open(projectId)
+    await reserve(x, g, 'connection')
+    assert.equal((await reserve(x, g, 'generation', 1, 30_000)).ok, true)
+    await record(x, g, 1, 'provider', { connection: 1, usageTokens: 20_000, lastPromptTokens: 500 })
+    assert.equal(await committedOf(x), 30_000, 'a report under the charge: the charge stands')
+    await record(x, g, 2, 'provider', { connection: 1, usageTokens: 45_000, lastPromptTokens: 500 })
+    assert.equal(await committedOf(x), 45_000, 'a report over it: the report')
+    assert.deepEqual(await reserve(x, g, 'connection'), { ok: true, ordinal: 2, stop: null, ended: false })
+    assert.equal((await reserve(x, g, 'generation', 2, 30_000)).ok, true)
+    await record(x, g, 3, 'provider', { connection: 2, usageTokens: 10_000, lastPromptTokens: 1000 })
+    assert.equal(await committedOf(x), 45_000 + 30_000)
+    const evidence = (await withActor(pool, P, 'read', (c) => readQualificationEvidence(c, x))) as {
+      grant: Record<string, unknown>
+    }
+    assert.deepEqual(
+      [evidence.grant.usageTokens, evidence.grant.committedTokens, evidence.grant.lastPromptTokens],
+      [55_000, 75_000, 1000],
+      'reported, summed over the connections; what may have been spent; the latest connection’s prompt',
+    )
+    assert.deepEqual([evidence.grant.connectionsOpened, evidence.grant.turns], [2, 2])
+    // 75,000 + 26,000 would pass 100,000: refused, and the exchange ends.
+    assert.deepEqual(await reserve(x, g, 'generation', 2, 26_000), {
+      ok: false,
+      ordinal: null,
+      stop: 'usage',
+      ended: true,
+    })
+    assert.deepEqual(await stateOf(x), { state: 'ended', reason: 'usage' })
+    assert.equal(await committedOf(x), 75_000, 'a refused charge is not kept')
+  })
+
+  it('a generation nobody asked for is counted and charged whatever the limits, and then the exchange ends', async () => {
+    const { projectId } = await project()
+    const g = await grant(projectId, P, { turns: 1, budget: 50_000, outputPerTurn: 1000 })
+    const x = await open(projectId)
+    await reserve(x, g, 'connection')
+    assert.equal((await reserve(x, g, 'unasked', 1, 27_000)).ok, false, 'its one turn is spent: it ends')
+    assert.deepEqual(await countsOf(x), { connections: 1, turns: 1 })
+    assert.equal(await committedOf(x), 27_000)
+    assert.deepEqual(await stateOf(x), { state: 'ended', reason: 'turns' })
+
+    const two = await project()
+    const g2 = await grant(two.projectId, P, { turns: 10, budget: 50_000, outputPerTurn: 1000 })
+    const x2 = await open(two.projectId)
+    await reserve(x2, g2, 'connection')
+    assert.equal((await reserve(x2, g2, 'unasked', 1, 27_000)).ok, true)
+    assert.deepEqual(await reserve(x2, g2, 'unasked', 1, 27_000), {
+      ok: false,
+      ordinal: null,
+      stop: 'usage',
+      ended: true,
+    })
+    assert.equal(await committedOf(x2), 54_000, 'already spent: kept though it passes the budget')
+  })
+
+  it('a bridge’s own stop (session_closed, guard) ends the exchange, for good', async () => {
+    const { projectId } = await project()
+    const g = await grant(projectId)
+    const x = await open(projectId)
+    const closed = { providerClosed: true, windows: 0, turns: 0, replies: 0, toolCalls: 0, typedMessages: 0 }
+    assert.deepEqual(
+      await record(x, g, 1, 'session_closed', { ...closed, transcriptRetained: false, reason: 'lost' }),
+      {
+        ended: false,
+        reason: null,
+      },
+    )
+    assert.deepEqual(
+      await record(x, g, 2, 'session_closed', { ...closed, transcriptRetained: false, reason: 'guard' }),
+      {
+        ended: true,
+        reason: 'bridge',
+      },
+    )
+    assert.equal(await codeOf(reserve(x, g, 'connection')), 'invalid_state')
+  })
+
+  it('refuses what it cannot bind: another grant, an unknown exchange, an unreserved connection, a charge out of bounds', async () => {
+    const { projectId } = await project()
+    const g = await grant(projectId)
+    const x = await open(projectId)
+    assert.equal(await codeOf(reserve(x, randomUUID(), 'connection')), 'forbidden')
+    assert.equal(await codeOf(reserve(randomUUID(), g, 'connection')), 'not_found')
+    assert.equal(await codeOf(reserve(x, g, 'generation', 1, 1000)), 'invalid_request', 'no connection 1 yet')
+    await reserve(x, g, 'connection')
+    assert.equal(await codeOf(reserve(x, g, 'generation', 1, -1)), 'invalid_request')
+    assert.equal(await codeOf(reserve(x, g, 'generation', 1, 5_000_001)), 'invalid_request')
+    assert.equal(await codeOf(reserve(x, g, 'generation', 1)), 'invalid_request', 'a generation names its charge')
+    assert.equal(
+      await codeOf(
+        withActor(pool, P, 'write', (c) => reserveQualification(c, { exchangeId: x, grantId: g, kind: 'connection' })),
+      ),
+      'forbidden',
+      'a member is never the bridge',
+    )
+    // A receipt names only a reserved connection.
+    assert.equal(await codeOf(record(x, g, 1, 'provider', { connection: 2, usageTokens: 1 })), 'invalid_request')
+    assert.equal(await codeOf(record(x, g, 2, 'input_window', { connection: 2 })), 'invalid_request')
+    assert.equal((await record(x, g, 3, 'input_window', { connection: 1 })).ended, false)
+    assert.equal((await stateOf(x)).state, 'open', 'a refusal that binds nothing ends nothing')
   })
 })
 

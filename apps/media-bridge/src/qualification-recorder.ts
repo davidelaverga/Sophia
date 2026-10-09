@@ -99,11 +99,16 @@ class Envelope {
   }
 }
 
-/** One provider connection: its ordinal in the session (1..), its provider session, and whether it resumed one. */
+/**
+ * One provider connection: its durable ordinal in the exchange (the API's reservation gave it), its provider session,
+ * whether it resumed one, and what the provider reported of it (its session's highest total, the newest prompt size).
+ */
 interface Link {
   connection: number
   providerSession: string
   resumed: boolean
+  usage: number | null
+  lastPrompt: number | null
 }
 
 interface Window {
@@ -154,7 +159,6 @@ const CUT_OUTCOME: Record<'handoff' | 'paused', VoiceInputTurnReceipt['outcome']
 export class QualificationRecorder {
   readonly #setup: RecorderSetup
   readonly #links = new Map<number, Link>()
-  readonly #usage = new Map<number, number>()
   #link: Link | null = null
   #recording = false
   #closed = false
@@ -169,8 +173,6 @@ export class QualificationRecorder {
   #turns = 0
   /** The provider produced something (audio, a call, words) since its last turn ended. */
   #generating = false
-  #usageTokens: number | null = null
-  #lastPromptTokens: number | null = null
 
   constructor(setup: RecorderSetup) {
     this.#setup = setup
@@ -182,14 +184,16 @@ export class QualificationRecorder {
     this.#recording = !this.#closed && holder === grant.principalActorId && grantId === grant.grantId
   }
 
-  /** A provider connection is opening: the next ordinal, continuing its provider session when it resumes one. */
-  opened(resumed: boolean): number {
+  /**
+   * A provider connection is opening, under the durable ordinal its reservation returned; a resumed one continues its
+   * provider session.
+   */
+  opened(ordinal: number, resumed: boolean): void {
     const providerSession = resumed && this.#link ? this.#link.providerSession : (this.#setup.uuid?.() ?? randomUUID())
-    const link = { connection: this.#links.size + 1, providerSession, resumed }
-    this.#links.set(link.connection, link)
+    const link = { connection: ordinal, providerSession, resumed, usage: null, lastPrompt: null }
+    this.#links.set(ordinal, link)
     this.#link = link
-    this.provider('setup', link.connection)
-    return link.connection
+    this.provider('setup', ordinal)
   }
 
   /** A phase of a connection's lifecycle (setup, ready, recovering, unavailable, closed); usage has its own. */
@@ -205,25 +209,24 @@ export class QualificationRecorder {
       model: this.#setup.model,
       instructionSha256: this.#setup.instructionSha256,
       bridgeCommit: this.#setup.bridgeCommit,
-      connectionsOpened: this.#links.size,
+      connectionsOpened: Math.max(...this.#links.keys()),
       turns: this.#turns,
-      usageTokens: this.#usageTokens,
-      lastPromptTokens: this.#lastPromptTokens,
+      usageTokens: link.usage,
+      lastPromptTokens: link.lastPrompt,
     }
     this.#emit(receipt)
   }
 
   /**
-   * The provider's usage report on a connection: its session's total so far. A report that does not raise the
-   * connection's total is older news, and is not recorded. The receipt carries every connection's highest total,
-   * summed, and the prompt size of the newest report that gave one.
+   * The provider's usage report on a connection (by its durable ordinal): its session's total so far. A report that
+   * does not raise the connection's total is older news, and is not recorded. The receipt carries that connection's
+   * own total and newest prompt size; the API keeps each connection's and sums them.
    */
   usage(connection: number, total: number, promptTokens: number | null): void {
-    const known = this.#usage.get(connection)
-    if (known !== undefined && total <= known) return
-    this.#usage.set(connection, total)
-    this.#usageTokens = [...this.#usage.values()].reduce((sum, t) => sum + t, 0)
-    this.#lastPromptTokens = promptTokens ?? this.#lastPromptTokens
+    const link = this.#links.get(connection)
+    if (!link || (link.usage !== null && total <= link.usage)) return
+    link.usage = total
+    link.lastPrompt = promptTokens ?? link.lastPrompt
     this.provider('usage', connection)
   }
 

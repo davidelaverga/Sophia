@@ -7,6 +7,8 @@ import type {
   MediaEvidenceAck,
   MediaEvidenceWrite,
   MediaHolderEvent,
+  MediaQualificationReservation,
+  MediaQualificationReserve,
   MediaPresenceReport,
   MediaQuiesceAck,
   MediaToolCall,
@@ -16,6 +18,7 @@ import type {
 import {
   parseMediaAssignmentBatch,
   parseMediaEvidenceAck,
+  parseMediaQualificationReservation,
   parseMediaToolResult,
   parseMediaToolSurface,
 } from '@sophia/contracts/validate'
@@ -38,6 +41,14 @@ export interface MediaService {
    * answer says whether the API's guard has ended the exchange.
    */
   recordEvidence: (write: MediaEvidenceWrite) => Promise<MediaEvidenceAck>
+  /**
+   * The exchange's durable bound under a voice qualification grant (A15): a provider connection or a generation,
+   * reserved before it is spent. A refusal has ended the exchange. `signal` limits how long the bridge waits.
+   */
+  reserveQualification: (
+    reserve: MediaQualificationReserve,
+    signal?: AbortSignal,
+  ) => Promise<MediaQualificationReservation>
 }
 
 export class ServiceError extends Error {
@@ -64,8 +75,8 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
     return JSON.parse(text) as unknown
   }
 
-  const post = async (path: string, body: unknown): Promise<unknown> =>
-    send(path, { method: 'POST', body: JSON.stringify(body) })
+  const post = async (path: string, body: unknown, signal?: AbortSignal): Promise<unknown> =>
+    send(path, { method: 'POST', body: JSON.stringify(body), ...(signal ? { signal } : {}) })
 
   return {
     assignments: async (after, waitMs, signal) => {
@@ -82,5 +93,7 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
     toolSurface: async (guide) =>
       parseMediaToolSurface(await send(`/v1/media/tool-surface?guide=${guide}`, { method: 'GET' })),
     recordEvidence: async (write) => parseMediaEvidenceAck(await post('/v1/media/evidence', write)),
+    reserveQualification: async (reserve, signal) =>
+      parseMediaQualificationReservation(await post('/v1/media/qualification-reserve', reserve, signal)),
   }
 }

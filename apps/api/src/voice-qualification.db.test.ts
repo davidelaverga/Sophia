@@ -13,6 +13,7 @@ import type { MediaEvidenceWrite } from '@sophia/contracts'
 import {
   DECLARED_NAMES,
   httpMediaService,
+  MediaBridge,
   loadMissionGuide,
   RoomSession,
   type LiveEvents,
@@ -105,6 +106,14 @@ async function call(
   return { status: res.statusCode, json }
 }
 
+/** The bridge's durable reservation (A15), with the media-bridge capability. */
+const reserve = (body: Record<string, unknown>, api?: FastifyInstance) =>
+  call('POST', '/v1/media/qualification-reserve', { media: true, body, ...(api ? { api } : {}) })
+
+/** The API listening on a port, for the bridge's own HTTP client; once for the file. */
+let listening: Promise<string> | null = null
+const baseUrl = () => (listening ??= app.listen({ host: '127.0.0.1', port: 0 }))
+
 /** Turns of the event loop until `check` holds: the session's receipts go out on their own. */
 async function until(what: string, check: () => boolean, ms = 8000): Promise<void> {
   const deadline = Date.now() + ms
@@ -131,11 +140,22 @@ async function project() {
   return { projectId: seeded.projectId, roomId: snap.room.id, roomRevision: snap.room.revision }
 }
 
-async function grant(projectId: string, limits: { budget?: number; outputPerTurn?: number } = {}): Promise<string> {
+async function grant(
+  projectId: string,
+  limits: { budget?: number; outputPerTurn?: number; connections?: number; turns?: number } = {},
+): Promise<string> {
   const { rows } = await owner((c) =>
     c.query<{ id: string }>(
-      `SELECT (sophia.voice_qualification_grant($1,$2,$3,'synthetic-approval',900,3,20,$4,$5,3600)).id AS id`,
-      [projectId, P, RUN, limits.outputPerTurn ?? 1000, limits.budget ?? 200_000],
+      `SELECT (sophia.voice_qualification_grant($1,$2,$3,'synthetic-approval',900,$6,$7,$4,$5,3600)).id AS id`,
+      [
+        projectId,
+        P,
+        RUN,
+        limits.outputPerTurn ?? 1000,
+        limits.budget ?? 200_000,
+        limits.connections ?? 3,
+        limits.turns ?? 20,
+      ],
     ),
   )
   const id = rows[0]?.id
@@ -260,6 +280,12 @@ describe('voice qualification through the API (A15, 0046)', () => {
     const { projectId } = await project()
     const grantId = await grant(projectId)
     const exchangeId = await open(projectId)
+    assert.equal(
+      (await write(exchangeId, grantId, 1, inputWindow(grantId))).status,
+      422,
+      'connection 1 is not reserved',
+    )
+    assert.equal((await reserve({ exchangeId, grantId, kind: 'connection' })).json.ordinal, 1)
     const first = await write(exchangeId, grantId, 1, inputWindow(grantId))
     assert.equal(first.status, 200, JSON.stringify(first.json))
     assert.deepEqual(first.json, { ended: false, reason: null })
@@ -286,6 +312,7 @@ describe('voice qualification through the API (A15, 0046)', () => {
     const { projectId } = await project()
     const grantId = await grant(projectId, { budget: 10_000, outputPerTurn: 1000 })
     const exchangeId = await open(projectId)
+    await reserve({ exchangeId, grantId, kind: 'connection' })
     assert.equal((await write(exchangeId, grantId, 1, inputWindow(grantId))).status, 200)
     const under = await write(exchangeId, grantId, 2, provider(grantId, 4000, 3000))
     assert.deepEqual(under.json, { ended: false, reason: null }, '4000 + 3000 + 1000 is under 10000')
@@ -384,6 +411,7 @@ describe('voice qualification through the API (A15, 0046)', () => {
     })
     // No such route: the capability hook knows only routes that exist, so the bridge's token is refused as a member's.
     assert.equal(receipt.status, 401, 'no receipt route')
+    assert.equal((await reserve({ exchangeId, grantId, kind: 'connection' }, off)).status, 401, 'no reservation route')
     const kept = await owner((c) =>
       c.query(`SELECT 1 FROM sophia.voice_qualification_evidence WHERE exchange_id=$1`, [exchangeId]),
     )
@@ -930,8 +958,7 @@ describe('the media bridge records through the API (A15; fake LiveKit and Google
     const { projectId } = await project()
     const grantId = await grant(projectId)
     const exchangeId = await open(projectId)
-    const base = await app.listen({ host: '127.0.0.1', port: 0 })
-    const service = httpMediaService(base, MEDIA_TOKEN)
+    const service = httpMediaService(await baseUrl(), MEDIA_TOKEN)
     const batch = await service.assignments(null, 0, new AbortController().signal)
     const assignment = batch.assignments.find((a) => a.exchangeId === exchangeId)
     assert.ok(assignment?.qualification, 'the assignment names the grant')
@@ -939,6 +966,7 @@ describe('the media bridge records through the API (A15; fake LiveKit and Google
     let roomEvents: RoomEvents | undefined
     let liveEvents: LiveEvents | undefined
     let closed = 0
+    let sent = 0
     const played: Int16Array[] = []
     const logs: Array<[string, Record<string, unknown>]> = []
     const session = new RoomSession(assignment, {
@@ -962,7 +990,7 @@ describe('the media bridge records through the API (A15; fake LiveKit and Google
         await Promise.resolve()
         liveEvents = events
         const live: LiveLink = {
-          sendAudio: () => undefined,
+          sendAudio: () => void (sent += 1),
           sendAudioStreamEnd: () => undefined,
           sendFrame: () => undefined,
           sendToolResponses: () => undefined,
@@ -985,6 +1013,8 @@ describe('the media bridge records through the API (A15; fake LiveKit and Google
     assert.ok(roomEvents && liveEvents)
     liveEvents.setupComplete()
     for (let i = 0; i < 3; i += 1) roomEvents.audio(P, new Int16Array(1600).fill(2000), 16000, 1)
+    // The input waits for its generation's reservation on the API, then goes on.
+    await until('the held input went on', () => sent === 3)
     liveEvents.inputTranscript('Synthetic words for the Lab', true)
     liveEvents.audio(Buffer.alloc(480 * 2 * 2, 1).toString('base64'), 'audio/pcm;rate=24000')
     await new Promise((resolve) => setImmediate(resolve))
@@ -1035,5 +1065,176 @@ describe('the media bridge records through the API (A15; fake LiveKit and Google
     assert.deepEqual([reply?.framesPlayed, reply?.terminal], [played.length, 'played'])
     assert.equal(kept.find((r) => r.kind === 'session_closed')?.receipt.reason, 'ended')
     assert.equal(JSON.stringify(read.json).includes('Synthetic words'), false, 'no words reached the API')
+  })
+})
+
+describe('the exchange’s durable bound through the API (A15, 0046)', () => {
+  it('reserves connections and generations for the bridge alone, and answers what it cannot bind in the API’s words', async () => {
+    const { projectId } = await project()
+    const grantId = await grant(projectId, { connections: 1 })
+    const exchangeId = await open(projectId)
+    const granted = await reserve({ exchangeId, grantId, kind: 'connection' })
+    assert.deepEqual([granted.status, granted.json], [200, { ok: true, ordinal: 1, stop: null, ended: false }])
+    const generation = await reserve({ exchangeId, grantId, kind: 'generation', ordinal: 1, charge: 27_000 })
+    assert.deepEqual(generation.json, { ok: true, ordinal: 1, stop: null, ended: false })
+    assert.equal((await reserve({ exchangeId: randomUUID(), grantId, kind: 'connection' })).json.code, 'not_found')
+    assert.equal((await reserve({ exchangeId, grantId: randomUUID(), kind: 'connection' })).status, 403)
+    for (const charge of [-1, 5_000_001]) {
+      const bad = await reserve({ exchangeId, grantId, kind: 'generation', ordinal: 1, charge })
+      assert.equal(bad.status, 422, `charge ${String(charge)}`)
+    }
+    const unreserved = await reserve({ exchangeId, grantId, kind: 'generation', ordinal: 2, charge: 1 })
+    assert.deepEqual([unreserved.status, unreserved.json.code], [422, 'invalid_request'])
+    const member = await call('POST', '/v1/media/qualification-reserve', {
+      actor: P,
+      body: { exchangeId, grantId, kind: 'connection' },
+    })
+    assert.equal(member.status, 401, 'the bridge capability only')
+    const refused = await reserve({ exchangeId, grantId, kind: 'connection' })
+    assert.deepEqual(refused.json, { ok: false, ordinal: null, stop: 'connections', ended: true })
+    const ended = await reserve({ exchangeId, grantId, kind: 'connection' })
+    assert.deepEqual([ended.status, ended.json.code], [409, 'invalid_state'], 'an ended exchange reserves nothing')
+    const read = await call('GET', `/api/v1/exchanges/${exchangeId}/qualification-evidence`, { actor: P })
+    assert.deepEqual(
+      [read.json.state, read.json.grant.endedReason, read.json.grant.connectionsOpened, read.json.grant.turns],
+      ['ended', 'connections', 1, 1],
+    )
+    assert.equal(read.json.grant.committedTokens, 27_000)
+  })
+
+  /** The real MediaBridge on the real API; LiveKit and Gemini Live are LABELLED FAKES. */
+  async function bridgeOn(exchangeId: string) {
+    const service = httpMediaService(await baseUrl(), MEDIA_TOKEN)
+    const assigned = (await service.assignments(null, 0, new AbortController().signal)).assignments.find(
+      (a) => a.exchangeId === exchangeId,
+    )
+    assert.ok(assigned?.qualification)
+    const roomEvents: RoomEvents[] = []
+    const lives: LiveEvents[] = []
+    const sent: number[] = []
+    const logs: Array<[string, Record<string, unknown>]> = []
+    const bridge = new MediaBridge({
+      service,
+      joinRoom: async (_access, events) => {
+        await Promise.resolve()
+        roomEvents.push(events)
+        const room: RoomLink = {
+          people: () => [{ identity: P, standing: 'editor' }],
+          play: () => Promise.resolve(),
+          clearPlayback: () => undefined,
+          watch: () => undefined,
+          setState: () => Promise.resolve(),
+          close: () => Promise.resolve(),
+        }
+        return room
+      },
+      connectLive: async (_options, events) => {
+        await Promise.resolve()
+        lives.push(events)
+        const index = sent.push(0) - 1
+        const live: LiveLink = {
+          sendAudio: () => void (sent[index] = (sent[index] ?? 0) + 1),
+          sendAudioStreamEnd: () => undefined,
+          sendFrame: () => undefined,
+          sendToolResponses: () => undefined,
+          sendNotice: () => undefined,
+          close: () => undefined,
+        }
+        return live
+      },
+      apiKey: 'fake',
+      model: 'gemini-3.8-live',
+      guide: loadMissionGuide(DECLARED_NAMES),
+      bridgeInstanceId: 'bridge-bound',
+      now: Date.now,
+      log: (event, detail) => logs.push([event, detail ?? {}]),
+      every: () => () => undefined,
+      voiceEvidence: true,
+      evidenceRetryMs: [0, 0],
+      reserveRetryMs: [0, 0],
+    })
+    const stops = () => logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why)
+    /** The session stopped itself (a refusal), or the API's answer to a receipt said the exchange ended. */
+    const done = () => stops().length > 0 || logs.some(([event]) => event === 'qualification.exchange_ended')
+    return { bridge, assigned, roomEvents, lives, sent, stops, done }
+  }
+
+  const endedOf = async (exchangeId: string) =>
+    (
+      await owner((c) =>
+        c.query<{ state: string; reason: string | null; connections: number }>(
+          `SELECT e.state, q.ended_reason AS reason, q.connections_opened AS connections FROM sophia.room_exchanges e
+            JOIN sophia.voice_qualification_exchanges q ON q.exchange_id=e.id WHERE e.id=$1`,
+          [exchangeId],
+        ),
+      )
+    ).rows[0]
+
+  it('a lost room replaced on the same exchange opens no connection past the grant’s, and the exchange ends', async () => {
+    const { projectId } = await project()
+    await grant(projectId, { connections: 1 })
+    const exchangeId = await open(projectId)
+    const h = await bridgeOn(exchangeId)
+    await h.bridge.apply([h.assigned])
+    await until('the first connection', () => h.lives.length === 1)
+    h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
+    await until('the room lost', () => h.bridge.session(exchangeId)?.lost === true)
+    await h.bridge.apply([h.assigned])
+    await until('the replacement stopped', () => h.stops().length > 0)
+    assert.equal(h.roomEvents.length, 2, 'the replacement joined the room')
+    assert.equal(h.lives.length, 1, 'and opened no second provider connection')
+    assert.deepEqual(h.stops(), ['connections'])
+    assert.deepEqual(await endedOf(exchangeId), { state: 'ended', reason: 'connections', connections: 1 })
+    await h.bridge.stop()
+  })
+
+  it('a bridge process started again on the same exchange opens no connection past the grant’s', async () => {
+    const { projectId } = await project()
+    await grant(projectId, { connections: 1 })
+    const exchangeId = await open(projectId)
+    const first = await bridgeOn(exchangeId)
+    await first.bridge.apply([first.assigned])
+    await until('the first connection', () => first.lives.length === 1)
+    await first.bridge.stop()
+    const restarted = await bridgeOn(exchangeId)
+    await restarted.bridge.apply([restarted.assigned])
+    await until('the restarted process stopped', () => restarted.stops().length > 0)
+    assert.equal(restarted.lives.length, 0)
+    assert.deepEqual(restarted.stops(), ['connections'])
+    assert.deepEqual(await endedOf(exchangeId), { state: 'ended', reason: 'connections', connections: 1 })
+    await restarted.bridge.stop()
+  })
+
+  it('a replacing session gets no more generations than the exchange has left', async () => {
+    const { projectId } = await project()
+    await grant(projectId, { turns: 3 })
+    const exchangeId = await open(projectId)
+    const h = await bridgeOn(exchangeId)
+    const speak = () => h.roomEvents.at(-1)?.audio(P, new Int16Array(1600).fill(2000), 16000, 1)
+    await h.bridge.apply([h.assigned])
+    await until('the first connection', () => h.lives.length === 1)
+    h.lives[0]?.setupComplete()
+    speak()
+    await until('its input went on', () => h.sent[0] === 1)
+    h.lives[0]?.turnComplete()
+    speak()
+    await until('the next turn’s input went on', () => h.sent[0] === 2)
+    h.lives[0]?.turnComplete()
+    h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
+    await until('the room lost', () => h.bridge.session(exchangeId)?.lost === true)
+    await h.bridge.apply([h.assigned])
+    await until('the replacement connected', () => h.lives.length === 2)
+    h.lives[1]?.setupComplete()
+    speak()
+    await until('its one generation', () => h.sent[1] === 1)
+    h.lives[1]?.turnComplete()
+    speak()
+    // At its turns the exchange ends: the guard does it on the replacement's next receipt, or the next reservation is
+    // refused, whichever comes first.
+    await until('the replacement stopped', () => h.done())
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    assert.equal(h.sent[1], 1, 'the exchange had three generations; the replacement got the one that was left')
+    assert.equal((await endedOf(exchangeId))?.reason, 'turns')
+    await h.bridge.stop()
   })
 })

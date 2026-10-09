@@ -44,6 +44,7 @@ interface RoomFake {
 function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
   const log: string[] = []
   const roomEvents: RoomEvents[] = []
+  const ordinals = new Map<string, number>()
   const service: MediaService = {
     assignments: () => Promise.reject(new Error('unused')),
     presence: () => Promise.resolve(),
@@ -56,6 +57,13 @@ function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
       if (!evidence) return Promise.reject(new Error('unused'))
       evidence.push(write)
       return Promise.resolve({ ended: false, reason: null })
+    },
+    // The API's durable bound, as a FAKE that grants everything: bridge-bound.test.ts holds it to a grant.
+    reserveQualification: (reserve) => {
+      if (reserve.kind === 'connection') ordinals.set(reserve.exchangeId, (ordinals.get(reserve.exchangeId) ?? 0) + 1)
+      const ordinal =
+        reserve.kind === 'connection' ? (ordinals.get(reserve.exchangeId) ?? 1) : (reserve.ordinal ?? null)
+      return Promise.resolve({ ok: true, ordinal, stop: null, ended: false })
     },
   }
   const bridge = new MediaBridge({

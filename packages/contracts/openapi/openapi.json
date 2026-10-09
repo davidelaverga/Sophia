@@ -12889,6 +12889,81 @@
         "x-sophia-release-goal": "SDD-01-G7"
       }
     },
+    "/v1/media/qualification-reserve": {
+      "post": {
+        "operationId": "mediaQualificationReserve",
+        "summary": "The bridge's durable reservation of a provider connection or a generation for an exchange under a voice qualification grant, under the exchange's lock. A reservation that does not fit ends the exchange. Served only by an API with voice qualification on (SOPHIA_VOICE_QUALIFICATION=on).",
+        "tags": [
+          "media"
+        ],
+        "security": [
+          {
+            "mediaBridgeCapability": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaQualificationReserve"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Granted, or refused and the exchange ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaQualificationReservation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown media-bridge capability"
+          },
+          "403": {
+            "description": "The exchange is not under this grant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The exchange has already ended (invalid_state)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, the exchange is not found (not_found), or a generation names a connection that was not reserved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable"
+          }
+        },
+        "x-sophia-implementation": "implemented",
+        "x-sophia-release-goal": "SDD-01-G7"
+      }
+    },
     "/api/v1/exchanges/{exchangeId}/qualification-evidence": {
       "get": {
         "operationId": "getQualificationEvidence",
@@ -28628,7 +28703,7 @@
       "VoiceInputWindowReceipt": {
         "type": "object",
         "additionalProperties": false,
-        "description": "From the first 16 kHz chunk the bridge forwarded to the provider for the principal until the turn completes, is interrupted, hands off, pauses or closes. pcmSha256Chain covers the PCM forwarded (sha-256-chain-v1); it is never comparable to the Lab's source audio.",
+        "description": "From the first 16 kHz chunk the bridge forwarded to the provider for the principal until the turn completes, is interrupted, hands off, pauses or closes. pcmSha256Chain covers the PCM forwarded (sha-256-chain-v1); it is never comparable to the Lab's source audio. connection is the durable ordinal its connection's reservation returned.",
         "properties": {
           "kind": {
             "type": "string",
@@ -28856,7 +28931,7 @@
       "VoiceProviderReceipt": {
         "type": "object",
         "additionalProperties": false,
-        "description": "The provider session's lifecycle and usage. connectionsOpened, turns, usageTokens and lastPromptTokens are what the guard holds to the grant's limits.",
+        "description": "The provider session's lifecycle and usage, on one reserved connection (connection is the durable ordinal its reservation returned). usageTokens and lastPromptTokens are that connection's own: what the provider reported of its session, which the service keeps as the connection's highest report. connectionsOpened and turns are what the bridge saw; the service's own counts are the reservations'.",
         "properties": {
           "kind": {
             "type": "string",
@@ -28978,7 +29053,7 @@
       "VoiceOutputReplyReceipt": {
         "type": "object",
         "additionalProperties": false,
-        "description": "A reply the bridge played to the room ended. playedSha256Chain covers the 20 ms frames handed to the room track (sha-256-chain-v1).",
+        "description": "A reply the bridge played to the room ended. playedSha256Chain covers the 20 ms frames handed to the room track (sha-256-chain-v1). connection is the durable ordinal its connection's reservation returned.",
         "properties": {
           "kind": {
             "type": "string",
@@ -29246,12 +29321,95 @@
       "MediaEvidenceAck": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Whether the exchange has ended, and why the guard ended it (null when it did not).",
+        "description": "Whether the exchange has ended, and why (null when it has not): a guard reason, or bridge when the bridge's own bound or the deadline stopped its session (its session_closed receipt said guard).",
         "properties": {
           "ended": {
             "type": "boolean"
           },
           "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "deadline",
+                  "expired",
+                  "revoked",
+                  "connections",
+                  "turns",
+                  "usage",
+                  "bridge"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ended",
+          "reason"
+        ]
+      },
+      "MediaQualificationReserve": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The bridge's durable reservation for an exchange under a grant, before it spends: a provider connection before it opens one; a generation before it sends what can start one (input after a turn ended, a tool response, a notice, a typed message), on a reserved connection; or a generation that started unasked (its output arrived), which is counted and charged whatever the limits. charge is the generation's worst case (the context again and its output twice) plus what was sent and transcribed since the connection's last charge.",
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "connection",
+              "generation",
+              "unasked"
+            ]
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "charge": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000000
+          }
+        },
+        "required": [
+          "exchangeId",
+          "grantId",
+          "kind"
+        ]
+      },
+      "MediaQualificationReservation": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Granted, with a connection's durable ordinal (null for a generation), or refused: then the exchange has ended (ended true) and stop says why.",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ordinal": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stop": {
             "anyOf": [
               {
                 "type": "string",
@@ -29268,11 +29426,16 @@
                 "type": "null"
               }
             ]
+          },
+          "ended": {
+            "type": "boolean"
           }
         },
         "required": [
-          "ended",
-          "reason"
+          "ok",
+          "ordinal",
+          "stop",
+          "ended"
         ]
       },
       "VoiceGuardReceipt": {
@@ -29304,7 +29467,8 @@
               "revoked",
               "connections",
               "turns",
-              "usage"
+              "usage",
+              "bridge"
             ]
           },
           "atMs": {
@@ -29325,7 +29489,7 @@
       "QualificationEvidence": {
         "type": "object",
         "additionalProperties": false,
-        "description": "What the grant's principal may read of an exchange its grant covers: the grant's limits and what was reported against them, and the receipts kept (24 hours) in order. Anyone else finds nothing.",
+        "description": "What the grant's principal may read of an exchange its grant covers: the grant's limits and what was reserved and reported against them, and the receipts kept (24 hours) in order. Anyone else finds nothing.",
         "properties": {
           "exchangeId": {
             "type": "string",
@@ -29398,22 +29562,32 @@
               "connectionsOpened": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 2147483647
+                "maximum": 2147483647,
+                "description": "Provider connections reserved for the exchange (durable: only a reservation adds to it)."
               },
               "turns": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 2147483647
+                "maximum": 2147483647,
+                "description": "Generations reserved for the exchange, asked for or not (durable: only a reservation adds to it)."
               },
               "usageTokens": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 9007199254740991
+                "maximum": 9007199254740991,
+                "description": "What the provider reported, each reserved connection's highest report, summed."
+              },
+              "committedTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "What the exchange may have cost: each reserved connection at the greater of what was charged to it (each generation at its worst case) and what the provider reported of it, summed. The guard holds this to the budget."
               },
               "lastPromptTokens": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 9007199254740991
+                "maximum": 9007199254740991,
+                "description": "The prompt size the exchange's latest connection last reported."
               },
               "endedReason": {
                 "anyOf": [
@@ -29425,7 +29599,8 @@
                       "revoked",
                       "connections",
                       "turns",
-                      "usage"
+                      "usage",
+                      "bridge"
                     ]
                   },
                   {
@@ -29448,6 +29623,7 @@
               "connectionsOpened",
               "turns",
               "usageTokens",
+              "committedTokens",
               "lastPromptTokens",
               "endedReason"
             ]

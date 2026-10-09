@@ -92,7 +92,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
   it('a window from the principal’s first forwarded chunk to its turn’s end, and the turn: counts, never words', () => {
     const r = recorder()
     r.floor(PRINCIPAL, GRANT.grantId)
-    assert.equal(r.opened(false), 1)
+    r.opened(1, false)
     const loud = new Int16Array(1600).fill(1000)
     const quiet = new Int16Array(1600)
     quiet[0] = -2000
@@ -166,7 +166,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
   it('a reply: what arrived, the 20 ms frames handed to the room and their chain, and how it ended', () => {
     const r = recorder()
     r.floor(PRINCIPAL, GRANT.grantId)
-    r.opened(false)
+    r.opened(1, false)
     emitted.length = 0
     r.responded()
     r.replyReceived(1440)
@@ -203,7 +203,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
   it('a window ends at a barge-in, a handoff, a pause or a lost connection, each with what the turn showed', () => {
     const r = recorder()
     r.floor(PRINCIPAL, GRANT.grantId)
-    r.opened(false)
+    r.opened(1, false)
     const chunk = new Int16Array(1600).fill(500)
     const ends: Array<[() => void, boolean]> = [
       [() => r.turnEnded('interrupted'), true],
@@ -234,7 +234,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
   it('records nothing for anyone else: no window for their audio, no reply or lifecycle while they hold the floor', () => {
     const r = recorder()
     r.floor(OTHER, GRANT.grantId)
-    r.opened(false)
+    r.opened(1, false)
     r.input(OTHER, new Int16Array(1600).fill(800), 0, 1)
     r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 1)
     r.heard(10, true)
@@ -252,7 +252,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
   it('an assignment that no longer names the grant, or names another, stops the recording', () => {
     const r = recorder()
     r.floor(PRINCIPAL, null)
-    r.opened(false)
+    r.opened(1, false)
     r.floor(PRINCIPAL, '88888888-8888-4888-8888-888888888888')
     r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 1)
     r.turnEnded('turn_complete')
@@ -262,7 +262,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
   it('what opened under the principal ends with its receipt after the floor moved; nothing new opens', () => {
     const r = recorder()
     r.floor(PRINCIPAL, GRANT.grantId)
-    r.opened(false)
+    r.opened(1, false)
     r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 1)
     r.replyReceived(480)
     r.floor(OTHER, GRANT.grantId)
@@ -281,7 +281,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
   it('the session’s close: once, with its counts and no transcript; nothing is recorded after it', () => {
     const r = recorder()
     r.floor(PRINCIPAL, GRANT.grantId)
-    r.opened(false)
+    r.opened(1, false)
     r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 1)
     r.responded(2)
     r.typed()
@@ -318,37 +318,39 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
   })
 })
 
-describe('the provider’s receipts: the session’s counters, which the API’s guard holds to the grant', () => {
-  it('usage is every connection’s highest report, summed, with the last prompt; recorded when it grows', () => {
+describe('the provider’s receipts: a connection’s lifecycle, under its durable ordinal, and its own usage', () => {
+  it('usage is each connection’s own highest report, with its newest prompt; recorded when it grows', () => {
     const r = recorder()
     r.floor(PRINCIPAL, GRANT.grantId)
-    r.opened(false)
+    r.opened(1, false)
     r.usage(1, 28_000, 25_000)
     r.usage(1, 20_000, 18_000)
-    r.opened(false)
-    r.usage(2, 9000, null)
+    r.opened(4, false)
+    r.usage(4, 9000, null)
+    r.usage(4, 9500, 7000)
     const usage = emitted.filter((e) => e.kind === 'provider' && e.phase === 'usage')
     assert.deepEqual(
       usage.map((e) => e.kind === 'provider' && [e.connection, e.usageTokens, e.lastPromptTokens]),
       [
         [1, 28_000, 25_000],
-        [2, 37_000, 25_000],
+        [4, 9000, null],
+        [4, 9500, 7000],
       ],
-      'an older report changes nothing; a report without a prompt size keeps the last one',
+      'an older report changes nothing; the API sums the connections, each named by its durable ordinal',
     )
   })
 
   it('a resumed connection continues its provider session; a cold one starts another; generations are counted', () => {
     const r = recorder()
     r.floor(PRINCIPAL, GRANT.grantId)
-    r.opened(false)
+    r.opened(1, false)
     r.responded()
     r.turnEnded('turn_complete')
     r.turnEnded('lost')
     r.responded()
     r.turnEnded('lost')
-    assert.equal(r.opened(true), 2)
-    assert.equal(r.opened(false), 3)
+    r.opened(2, true)
+    r.opened(3, false)
     const setups = emitted.filter((e) => e.kind === 'provider')
     assert.deepEqual(
       setups.map(
