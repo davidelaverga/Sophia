@@ -27,7 +27,7 @@ import {
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
-import { CallFences } from './call-fence.ts'
+import { CallFences, fenceCall } from './call-fence.ts'
 import { executeToolCall } from './media-tools.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
@@ -572,13 +572,17 @@ describe('the fences one API process holds are bounded (Codex r4234782537)', () 
       assert.equal(await fencesFor(keys), 0, 'every fence given back: unlocked, its session ended')
       const fourth = await x.api(x.hold('b-4', 'project_status'), bounded)
       assert.equal(fourth.answer.status, 'ok', 'a call alone goes on (control)')
-      const sessions = await owner((c) =>
-        c.query<{ n: number }>(
-          `SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND application_name=$1`,
-          ['sophia-call-fence'],
-        ),
-      )
-      assert.equal(sessions.rows[0]?.n, 0, 'no fence session is left open')
+      // A session ends on the server once its socket closed: its backend leaves pg_stat_activity just after.
+      const fenceSessions = async () =>
+        (
+          await owner((c) =>
+            c.query<{ n: number }>(
+              `SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND application_name=$1`,
+              ['sophia-call-fence'],
+            ),
+          )
+        ).rows[0]?.n
+      await until('no fence session is left open', async () => (await fenceSessions()) === 0, 2000)
     } finally {
       await holder.query('ROLLBACK').catch(() => undefined)
       await holder.end()
@@ -670,45 +674,195 @@ describe('a call whose answer is not written answers unknown, never what its han
   })
 })
 
-describe('a fence’s connect is bounded by the call’s budget (Codex r4235131974)', () => {
-  it('a connect that never completes: the call answers unknown within its budget, its slot is given back, and the next call goes on', async () => {
+/** Until `check` holds, polling: what another process or the server does takes real time. */
+async function until(what: string, check: () => Promise<boolean>, ms: number): Promise<void> {
+  const deadline = Date.now() + ms
+  while (!(await check())) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
+/**
+ * A local listener that accepts and never speaks, nor closes its side when the fence closes its own (half-open, as a
+ * stalled peer does): a fence's connect to it never completes, and a graceful end waits on it. It records each socket
+ * and whether the fence closed its side.
+ */
+async function silentPeer() {
+  const sockets: Array<{ socket: net.Socket; ended: boolean }> = []
+  const server = net.createServer({ allowHalfOpen: true }, (socket) => {
+    const entry = { socket, ended: false }
+    sockets.push(entry)
+    socket.on('end', () => (entry.ended = true))
+    socket.on('error', () => undefined)
+    socket.resume() // it reads (and ignores) what comes, so it sees the fence close its side
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  assert.ok(address !== null && typeof address === 'object')
+  const stalledPool = createPool(`postgres://nobody@127.0.0.1:${String(address.port)}/nowhere`, { max: 1 })
+  return {
+    pool: stalledPool,
+    sockets,
+    end: async () => {
+      for (const { socket } of sockets) socket.destroy()
+      server.close()
+      await stalledPool.end()
+    },
+  }
+}
+
+/**
+ * A relay to the test database whose traffic can be frozen: a fence's session through it stalls once frozen, as on a
+ * network that stopped answering. It records whether the fence closed its side.
+ */
+async function freezableRelay() {
+  const target = new URL(db.apiUrl)
+  const links: Array<{ client: net.Socket; upstream: net.Socket; clientClosed: boolean }> = []
+  let frozen = false
+  const server = net.createServer((client) => {
+    const upstream = net.connect(Number(target.port), target.hostname)
+    const link = { client, upstream, clientClosed: false }
+    links.push(link)
+    client.on('data', (data: Buffer) => {
+      if (!frozen) upstream.write(data)
+    })
+    upstream.on('data', (data: Buffer) => {
+      if (!frozen) client.write(data)
+    })
+    client.on('close', () => {
+      link.clientClosed = true
+      upstream.destroy()
+    })
+    upstream.on('close', () => client.destroy())
+    client.on('error', () => undefined)
+    upstream.on('error', () => undefined)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  assert.ok(address !== null && typeof address === 'object')
+  const url = new URL(db.apiUrl)
+  url.hostname = '127.0.0.1'
+  url.port = String(address.port)
+  const relayPool = createPool(url.toString(), { max: 1 })
+  return {
+    pool: relayPool,
+    links,
+    freeze: () => {
+      frozen = true
+    },
+    end: async () => {
+      for (const { client, upstream } of links) {
+        client.destroy()
+        upstream.destroy()
+      }
+      server.close()
+      await relayPool.end()
+    },
+  }
+}
+
+/** How late past its budget a fence may answer: the abort is synchronous, so only timer and event-loop latency. */
+const MARGIN_MS = 250
+/** call-fence.ts FENCE_UNLOCK_MS (not imported, so the test also runs against a source without it). */
+const UNLOCK_MS = 1000
+
+describe('a fence’s connect is bounded by the call’s budget, and given up at once (Codex r4235131974, root r4235308990)', () => {
+  it('a connect that never completes: the call answers unknown within its budget plus the margin; at its return the slot is back and the peer saw the socket close; the next call goes on', async () => {
     const x = await exchange()
     await x.goalIs('running')
-    const sockets = new Set<net.Socket>()
-    // A local listener that accepts and never speaks.
-    const silent = net.createServer((socket) => {
-      sockets.add(socket)
-    })
-    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve))
-    const address = silent.address()
-    assert.ok(address !== null && typeof address === 'object')
-    const stalled = createPool(`postgres://nobody@127.0.0.1:${String(address.port)}/nowhere`, { max: 1 })
+    const silent = await silentPeer()
     const fences = new CallFences(1)
     try {
       const started = Date.now()
-      const answered = await Promise.race([
-        executeToolCall(stalled, x.hold('c-1'), true, fences),
-        new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), CALL_FENCE_WAIT_MS + 3000)),
-      ])
+      const answered = await executeToolCall(silent.pool, x.hold('c-1'), true, fences)
       const ms = Date.now() - started
-      assert.notEqual(answered, 'hung', `it answered within its budget (${String(ms)} ms)`)
-      if (answered === 'hung') return
+      const held = fences.held
+      // The socket was destroyed before the answer; its peer sees that on its next turns of the event loop.
+      await new Promise((resolve) => setTimeout(resolve, 50))
       assert.deepEqual(
         [answered.status, outputCode(answered)],
         ['unknown', 'unconfirmed:fence_timeout'],
         JSON.stringify(answered),
       )
-      assert.ok(ms >= CALL_FENCE_WAIT_MS - 500, `it waited its budget (${String(ms)} ms)`)
-      assert.ok(sockets.size >= 1, 'the fence’s connect reached the listener')
-      assert.equal(fences.held, 0, 'its slot given back')
+      assert.ok(
+        ms >= CALL_FENCE_WAIT_MS - 50 && ms < CALL_FENCE_WAIT_MS + MARGIN_MS,
+        `it answered at its budget (${String(ms)} ms)`,
+      )
+      assert.equal(held, 0, 'its slot was back when it answered')
+      assert.deepEqual(
+        silent.sockets.map((s) => s.ended),
+        [true],
+        'the peer saw the fence close its side',
+      )
       assert.deepEqual(await x.recorded(), [], 'nothing bound, run or marked')
       const next = await executeToolCall(pool, x.hold('c-2'), true, fences)
       assert.equal(next.status, 'ok', 'the next call, on a working database, goes on')
       assert.equal(fences.held, 0)
     } finally {
-      for (const socket of sockets) socket.destroy()
-      silent.close()
-      await stalled.end()
+      await silent.end()
+    }
+  })
+
+  it('a short budget (700 ms): late within it plus the margin, and a call queued behind it gets the slot when that budget ends', async () => {
+    const x = await exchange()
+    const silent = await silentPeer()
+    const fences = new CallFences(1)
+    try {
+      const started = Date.now()
+      const first = fenceCall(silent.pool, fences, { exchangeId: x.exchangeId, key: x.key('q-1') }, 700)
+      await new Promise((resolve) => setTimeout(resolve, 350))
+      // Queued for the one slot, on the working database, with a 700 ms wait of its own (it ends at about 1,050 ms).
+      const queued = fenceCall(pool, fences, { exchangeId: x.exchangeId, key: x.key('q-2') }, 700).then((fence) => ({
+        fence,
+        ms: Date.now() - started,
+      }))
+      assert.equal(await first, 'late')
+      const firstMs = Date.now() - started
+      assert.ok(firstMs >= 650 && firstMs < 700 + MARGIN_MS, `late at its budget (${String(firstMs)} ms)`)
+      const behind = await queued
+      assert.notEqual(behind.fence, 'busy', 'the queued call got the slot when the first one’s budget ended')
+      assert.notEqual(behind.fence, 'late')
+      assert.notEqual(behind.fence, 'held')
+      assert.ok(behind.ms < 1050, `before its own wait ran out (${String(behind.ms)} ms)`)
+      if (typeof behind.fence === 'object') await behind.fence.release()
+      assert.equal(fences.held, 0)
+    } finally {
+      await silent.end()
+    }
+  })
+
+  it('a release whose session stalls: unlocked or not within its bound, the socket destroyed, the slot back', async () => {
+    const x = await exchange()
+    const relay = await freezableRelay()
+    const fences = new CallFences(1)
+    try {
+      const fence = await fenceCall(relay.pool, fences, { exchangeId: x.exchangeId, key: x.key('r-1') }, 5000)
+      assert.ok(typeof fence === 'object', typeof fence === 'string' ? fence : 'a fence')
+      assert.equal((await fenceHolders(x.key('r-1'))).length, 1, 'the fence is held through the relay')
+      relay.freeze()
+      const started = Date.now()
+      const released = await Promise.race([
+        fence.release().then(() => 'released' as const),
+        new Promise<'stalled'>((resolve) => setTimeout(() => resolve('stalled'), UNLOCK_MS + 2000)),
+      ])
+      const ms = Date.now() - started
+      assert.equal(released, 'released', `its release returned (${String(ms)} ms)`)
+      assert.ok(ms < UNLOCK_MS + MARGIN_MS, `its release is bounded (${String(ms)} ms)`)
+      assert.equal(fences.held, 0, 'the slot is back')
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      assert.deepEqual(
+        relay.links.map((l) => l.clientClosed),
+        [true],
+        'its socket was destroyed',
+      )
+      await until(
+        'the server ended the session',
+        async () => (await fenceHolders(x.key('r-1'))).length === 0,
+        CALL_FENCE_WAIT_MS,
+      )
+    } finally {
+      await relay.end()
     }
   })
 })

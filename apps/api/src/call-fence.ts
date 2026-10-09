@@ -3,6 +3,7 @@
 // advisory lock on a database session of its own, bounded in number per API process, taken with the key's next
 // generation (0047 media_fence_live_call). A recorded call's answer is written only under that generation (media-tools
 // CallSeal), so an attempt whose session was lost, and whose fence another attempt then took, commits nothing.
+import net from 'node:net'
 import pg from 'pg'
 import { fenceLiveCall } from '@sophia/persistence'
 
@@ -94,19 +95,31 @@ export interface Fence {
 /** lock_timeout: the fence (or its generation's row) is another attempt's still. */
 const lockTimedOut = (err: unknown) => err instanceof Error && 'code' in err && err.code === '55P03'
 
+/** How long a release may wait for its unlock's answer, then for its session's end, before its socket is destroyed. */
+export const FENCE_UNLOCK_MS = 1000
+export const FENCE_END_MS = 250
 /**
- * Connect within `ms` (Codex P2 r4235131974): false once that ran out first, the connect left to fail on its own when
- * the client is ended. pg sets no time limit of its own by default.
+ * How long before the call's deadline the server's own lock_timeout answers: a fence held all along is then 'held'
+ * (another attempt is making the call), not 'late', and the call's own deadline stays the backstop.
  */
-async function connectWithin(client: pg.Client, ms: number): Promise<boolean> {
-  const connecting = client.connect().then(() => true)
-  connecting.catch(() => undefined)
+const LOCK_MARGIN_MS = 100
+
+/** The answer of work that ran out of time. */
+const LATE = Symbol('late')
+
+/**
+ * `work`'s value within `ms`, or LATE once that ran out first (Codex P2 r4235131974, root r4235308990): the work is
+ * left to fail on its own once its socket is destroyed. pg sets no connect limit of its own by default, and a query on
+ * a stalled socket never answers.
+ */
+async function within<T>(work: Promise<T>, ms: number): Promise<T | typeof LATE> {
+  work.catch(() => undefined)
   let timer: ReturnType<typeof setTimeout> | undefined
-  const late = new Promise<false>((resolve) => {
-    timer = setTimeout(() => resolve(false), Math.max(1, ms))
+  const late = new Promise<typeof LATE>((resolve) => {
+    timer = setTimeout(() => resolve(LATE), Math.max(1, ms))
   })
   try {
-    return await Promise.race([connecting, late])
+    return await Promise.race([work, late])
   } finally {
     clearTimeout(timer)
   }
@@ -114,11 +127,13 @@ async function connectWithin(client: pg.Client, ms: number): Promise<boolean> {
 
 /**
  * Take a call key's fence within `waitMs`: a slot of `fences`, a session of its own, the key's advisory lock, then the
- * key's next generation on that session, every step within what is left of `waitMs`, its connect included. 'busy'
- * when no slot came free in time, 'held' when another attempt held the fence (or a seal its generation's row) all
- * along, 'late' when the session could not be had in time: nothing was taken, and the slot is given back. It is taken
- * while holding no other lock, and calls under other keys never wait on it, so it adds no lock order. A holder that
- * dies ends its session, which releases the fence.
+ * key's next generation on that session, all of it within what is left of `waitMs` (its connect and every query
+ * included). 'busy' when no slot came free in time, 'held' when another attempt held the fence (or a seal its
+ * generation's row) all along, 'late' when the session could not be had in time: nothing was taken. Whenever it gives
+ * up, its socket is destroyed at once and its slot given back before it returns, never after an end that may stall
+ * (root r4235308990); the server ends the session, and whatever it took, when it sees that. It is taken while holding
+ * no other lock, and calls under other keys never wait on it, so it adds no lock order. A holder that dies ends its
+ * session, which releases the fence.
  */
 export async function fenceCall(
   pool: pg.Pool,
@@ -128,51 +143,82 @@ export async function fenceCall(
 ): Promise<Fence | 'busy' | 'held' | 'late'> {
   const deadline = Date.now() + waitMs
   const remaining = () => Math.max(1, deadline - Date.now())
-  const left = () => `${String(remaining())}ms`
   if (!(await fences.take(waitMs))) return 'busy'
-  // pg's own limit is a backstop past the budget; connectWithin is the budget.
-  const client = new pg.Client({
-    ...pool.options,
-    application_name: CALL_FENCE_APPLICATION,
-    connectionTimeoutMillis: remaining() + 1000,
-  })
-  let lost = false
-  const lose = () => {
-    lost = true
-  }
-  // A fence's session lost: its fence ended with it, and may be another attempt's now.
-  client.on('error', lose)
-  client.on('end', lose)
+  const session = new FenceSession(pool, fences, remaining() + 1000)
   const lock = `sophia.live_call:${call.key}`
-  let generation: string
+  const acquire = async (): Promise<string> => {
+    const left = () => `${String(Math.max(1, remaining() - LOCK_MARGIN_MS))}ms`
+    await session.client.connect()
+    await session.client.query(`SELECT set_config('lock_timeout', $1, false)`, [left()])
+    await session.client.query(`SELECT pg_advisory_lock(hashtextextended($1, 0))`, [lock])
+    await session.client.query(`SELECT set_config('lock_timeout', $1, false)`, [left()])
+    return fenceLiveCall(session.client, call.exchangeId, call.key)
+  }
+  let generation: string | typeof LATE
   try {
-    if (!(await connectWithin(client, remaining()))) {
-      await client.end().catch(() => undefined)
-      fences.give()
-      return 'late'
-    }
-    await client.query(`SELECT set_config('lock_timeout', $1, false)`, [left()])
-    await client.query(`SELECT pg_advisory_lock(hashtextextended($1, 0))`, [lock])
-    await client.query(`SELECT set_config('lock_timeout', $1, false)`, [left()])
-    generation = await fenceLiveCall(client, call.exchangeId, call.key)
+    generation = await within(acquire(), remaining())
   } catch (err: unknown) {
-    // Ending the session releases whatever it took.
-    await client.end().catch(() => undefined)
-    fences.give()
+    session.abort()
     if (lockTimedOut(err)) return 'held'
     throw err
+  }
+  if (generation === LATE) {
+    session.abort()
+    return 'late'
   }
   let released: Promise<void> | null = null
   return {
     generation,
-    lost: () => lost,
-    release: () =>
-      (released ??= (async () => {
-        // Unlocked first, while the session is this attempt's; a session lost is only ended, which released it.
-        if (!lost)
-          await client.query(`SELECT pg_advisory_unlock(hashtextextended($1, 0))`, [lock]).catch(() => undefined)
-        await client.end().catch(() => undefined)
-        fences.give()
-      })()),
+    lost: () => session.lost,
+    release: () => (released ??= session.release(lock)),
+  }
+}
+
+/**
+ * A fence's database session: a client of its own on a socket of its own, so the socket can be destroyed at once,
+ * with pg's connect limit (`backstopMs`) only past the call's budget. Its `error` or `end` marks it lost: its fence
+ * ended with it, and may be another attempt's now.
+ */
+class FenceSession {
+  readonly client: pg.Client
+  lost = false
+  #socket: net.Socket | null = null
+  readonly #fences: CallFences
+
+  constructor(pool: pg.Pool, fences: CallFences, backstopMs: number) {
+    this.#fences = fences
+    this.client = new pg.Client({
+      ...pool.options,
+      application_name: CALL_FENCE_APPLICATION,
+      connectionTimeoutMillis: backstopMs,
+      stream: () => {
+        this.#socket = new net.Socket()
+        return this.#socket
+      },
+    })
+    const lose = () => {
+      this.lost = true
+    }
+    this.client.on('error', lose)
+    this.client.on('end', lose)
+  }
+
+  /** Give up the session now: its socket destroyed, its slot given back; pg's end is never waited for. */
+  abort(): void {
+    this.#socket?.destroy()
+    this.#fences.give()
+  }
+
+  /**
+   * Unlocked first, while the session is this attempt's (a session lost is not asked), then ended; each within its
+   * bound (FENCE_UNLOCK_MS, FENCE_END_MS), else the socket is destroyed. The slot goes back once the session is ended
+   * or destroyed.
+   */
+  async release(lock: string): Promise<void> {
+    const unlock = () => this.client.query(`SELECT pg_advisory_unlock(hashtextextended($1, 0))`, [lock])
+    const unlocked = this.lost ? LATE : await within(unlock(), FENCE_UNLOCK_MS).catch(() => LATE)
+    const ended = unlocked === LATE ? LATE : await within(this.client.end(), FENCE_END_MS).catch(() => LATE)
+    if (ended === LATE) this.#socket?.destroy()
+    this.#fences.give()
   }
 }
