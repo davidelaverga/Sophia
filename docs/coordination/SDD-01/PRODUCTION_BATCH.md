@@ -58,7 +58,7 @@ Designs and reviews on the new unit keep their binding `running` after publicati
 
 ## 3. Order
 
-**Superseded for the joint candidate by [WBC-02-CC-0010](../WBC-02/WBC-02-CC-0010.md) §4**: the schema runs through 0044, and the API is deployed without storage before P1 sets it.
+**Superseded for the joint candidate by [WBC-02-CC-0010](../WBC-02/WBC-02-CC-0010.md) §4**: the schema runs through 0045, and the API is deployed without storage before P1 sets it.
 
 1. **Re-check** §0 read-only: the ledger, the six bindings and the reservation counts, the services' sources.
 2. **Schema.** Apply `0037` (main's), then `0038`, `0039`, `0040`, `0041`, WBC-02's `0042`, then `0043`, each in its own transaction, comparing each file's hash first. The running API (`1e912b7`) is compatible: 0038–0041 add tables and replace functions with the same signatures; research, briefs, missions and Try PDF again behave as before; nothing calls the design functions until the new API and runtime do. `pnpm test:sql` on a disposable copy of the ledger rehearses it.
@@ -90,7 +90,7 @@ Designs and reviews on the new unit keep their binding `running` after publicati
 
 ## 5. Rollback
 
-**Superseded for the joint candidate by [WBC-02-CC-0010](../WBC-02/WBC-02-CC-0010.md) §7**, which adds 0042 and 0044 to the forward-only schema, the runner revoked before an API rollback after P1, and the Paperclip image by digest.
+**Superseded for the joint candidate by [WBC-02-CC-0010](../WBC-02/WBC-02-CC-0010.md) §7**, which adds 0042, 0044 and 0045 to the forward-only schema, the runner revoked before an API rollback after P1, and the Paperclip image by digest.
 
 - **Guide:** unset `SOPHIA_GUIDE_VERSION` (back to v1.2, byte-identical declarations).
 - **HTML off without a rollback:** revoke the `png` runner, or run a runtime without the designer: admission then refuses HTML (`html_unavailable`), Markdown is offered; a design in flight is ended by Stop.
