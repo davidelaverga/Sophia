@@ -50,6 +50,23 @@ test('goals · in the demo, Tasks has the goals, and Hold on the running one hol
   await expect(rollout).toHaveAttribute('data-status', 'held')
 })
 
+test('goals · in the demo, Tasks draw the rollout’s plan as a board, in the pilot’s own words', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=work')
+  const rollout = goal(page, ROLLOUT)
+  // Its plan's next checkpoint is said under its title; its board, lane by lane (docs/plans/demo-board.md).
+  await expect(rollout).toContainText('The translation passes its review')
+  const board = page.locator('.board').first()
+  await expect(board.getByRole('region', { name: 'Active', exact: true })).toContainText(
+    'Translate the checklist for the second region',
+  )
+  await expect(board.getByRole('region', { name: 'Unassigned', exact: true })).toContainText(
+    'Measure days to a first shared report',
+  )
+  // None of the board fixture's own project shows through, nor its fixed clock: its sessions reported moments ago.
+  await expect(page.locator('main')).not.toContainText(/PDF|render|ReportPane|Davide/)
+  await expect(board).not.toContainText(/days ago/)
+})
+
 test('goals · without the demo, Goals opens and says there are none yet', async ({ page }) => {
   await page.goto('/room.html')
   await views(page).getByRole('link', { name: 'Goals' }).click()
