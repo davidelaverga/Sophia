@@ -166,7 +166,9 @@ async function admit(host: CoordinationHost, input: ApiRequest, signed: Signed):
  * plugin then never binds it, wakes it, changes it or settles a write on it, and never takes the miss for absence, so it
  * never creates another (Codex's automatic review of a06db118, P1). Sophia records the refusal; nothing changed.
  */
-const inProject = (issue: HostIssue, paperclipProjectId: string): boolean => issue.projectId === paperclipProjectId
+const inProject = (issue: HostIssue, paperclipProjectId: string): boolean =>
+  // Paperclip's project ids are UUIDs: the same project whatever case the configuration writes it in.
+  issue.projectId?.toLowerCase() === paperclipProjectId.toLowerCase()
 
 function stillMapped(issue: HostIssue, paperclipProjectId: string): void {
   if (!inProject(issue, paperclipProjectId))

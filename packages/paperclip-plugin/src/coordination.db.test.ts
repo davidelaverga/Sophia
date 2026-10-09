@@ -1340,6 +1340,20 @@ describe('an issue moved out of its mapped Paperclip project (Codex’s automati
     return { p, c, issueId }
   }
 
+  it('an issue whose project id differs only in case is in its project: controlled, found and sent again', async () => {
+    const { p, c, issueId } = await commissioned()
+    // The configuration's id as written, and Paperclip's own for the same project (a UUID's case is not its identity).
+    moveTo(p, issueId, PROJECT.toUpperCase())
+    const hold = await p.request(controlRequest(c, issueId, 'hold', 'hold-case'))
+    assert.equal(hold.status, 200, JSON.stringify(hold.body))
+    assert.equal(p.issues.get(issueId)?.status, 'blocked')
+    const found = await p.request(lookupRequest(c))
+    assert.deepEqual(found.body, { outcome: 'found', issueId, status: 'blocked' })
+    const again = await p.request(commissionRequest(c))
+    assert.equal(again.status, 200, JSON.stringify(again.body))
+    assert.equal(p.issues.size, 1)
+  })
+
   for (const [where, to] of [
     ['another project', 'pc-project-b'],
     ['no project', null],
