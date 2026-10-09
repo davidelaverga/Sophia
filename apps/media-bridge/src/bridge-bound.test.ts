@@ -807,3 +807,179 @@ describe('a session replacing another on its exchange opens nothing until the re
     }
   })
 })
+
+/** The API ended the exchange (its usage limit): what is charged after is refused (409). */
+function endedByTheApi(ledger: FakeLedger): void {
+  const durable = ledger.exchanges.get(E1)
+  assert.ok(durable)
+  durable.ended = 'usage'
+}
+
+describe('a chain of replacements waits on every charge the chain owes (Codex r4234949420)', () => {
+  /**
+   * Root's sequence: the real MediaBridge, maxTurns 1. Session A's provider sends output nobody reserved, its unasked
+   * charge held (unless `answered`); A's room is lost and the assignment comes again: B, waiting on A's ledger. With
+   * `before: 'failed'`, B has failed closed on A's ledger first (A's close past its bound); with `before: 'refused'`,
+   * A's charge was refused (the API ended the exchange) and B knows it. B's room is lost and the assignment comes
+   * again, while A's charge is still held: C, whose room hears one input chunk.
+   */
+  async function chained(opts: { reserveTimeoutMs?: number; before?: 'failed' | 'refused' } = {}) {
+    const ledger = new FakeLedger(grant({ maxTurns: 1 }))
+    let release: (() => void) | undefined
+    const free = () => release?.()
+    ledger.held = { kind: 'unasked', until: new Promise<void>((resolve) => (release = resolve)) }
+    const h = harness(ledger, opts.reserveTimeoutMs === undefined ? {} : { reserveTimeoutMs: opts.reserveTimeoutMs })
+    const logged = (event: string) => h.logs.filter(([e]) => e === event).map(([, d]) => d)
+    const assigned = assignment(ledger.grant)
+    await h.bridge.apply([assigned])
+    await settle()
+    h.lives[0]?.events.setupComplete()
+    h.lives[0]?.events.audio(out(), OUT) // a generation nobody reserved: charged unasked
+    await settle()
+    h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
+    await settle()
+    await h.bridge.apply([assigned]) // B
+    await settle()
+    assert.equal(h.roomEvents.length, 2, 'B joined the room')
+    if (opts.before === 'refused') {
+      endedByTheApi(ledger) // A's charge is refused (409), and its close hands over the loss
+      free()
+    }
+    if (opts.before) await until('B fails closed', () => logged('qualification.inherited_unsettled').length === 1)
+    h.roomEvents[1]?.connection('disconnected', 'livekit: 2')
+    await settle()
+    await h.bridge.apply([assigned]) // C
+    await settle()
+    assert.equal(h.roomEvents.length, 3, 'C joined the room')
+    h.roomEvents[2]?.audio(LUIS, chunk(), 16000, 1)
+    await settle()
+    const kinds = () => ledger.asked.map((r) => r.kind)
+    return { ledger, h, kinds, logged, release: free }
+  }
+
+  it('root’s sequence: B replaced while it still waits on A’s ledger; C opens nothing while A’s charge is held', async () => {
+    const x = await chained()
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      assert.equal(x.h.lives.length, 1, 'no provider connection for B or C')
+      assert.deepEqual(x.kinds(), ['connection', 'unasked'], 'and no reservation of theirs')
+      await until('C fails closed', () => x.logged('qualification.inherited_unsettled').length > 0)
+      assert.deepEqual(
+        x.logged('qualification.inherited_unsettled').map((d) => [d.charges, d.lost]),
+        [[1, false]],
+        'C: B’s own handover had not come, one unanswered link',
+      )
+    } finally {
+      x.release()
+      await x.h.bridge.stop()
+    }
+  })
+
+  it('A’s charge landing late: C opens once it is on the API', async () => {
+    const x = await chained()
+    try {
+      await until('C fails closed', () => x.logged('qualification.inherited_unsettled').length > 0)
+      assert.equal(x.h.lives.length, 1)
+      x.release()
+      await until('C opened', () => x.h.lives.length === 2)
+      assert.deepEqual(x.kinds().slice(0, 3), ['connection', 'unasked', 'connection'], 'after A’s charge')
+      assert.equal(x.h.lives[1]?.audio, 0, 'the chunk heard before it opened was never sent')
+    } finally {
+      x.release()
+      await x.h.bridge.stop()
+    }
+  })
+
+  it('A’s charge refused: C stays closed for good', async () => {
+    const x = await chained()
+    try {
+      await until('C fails closed', () => x.logged('qualification.inherited_unsettled').length > 0)
+      const durable = x.ledger.exchanges.get(E1)
+      assert.ok(durable)
+      durable.ended = 'usage' // the API ended the exchange meanwhile: A's late charge is refused (409)
+      x.release()
+      await until('the chain’s loss is seen', () => x.logged('qualification.inherited_lost').length > 0)
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      assert.equal(x.h.lives.length, 1, 'zero provider connections from B or C')
+      assert.deepEqual(x.kinds(), ['connection', 'unasked'], 'zero reservations from them')
+    } finally {
+      x.release()
+      await x.h.bridge.stop()
+    }
+  })
+
+  it('A’s charge refused before B was replaced: the loss is carried, and C never opens', async () => {
+    const x = await chained({ before: 'refused' })
+    try {
+      await until('C fails closed', () => x.logged('qualification.inherited_unsettled').length === 2)
+      assert.deepEqual(
+        x.logged('qualification.inherited_unsettled').map((d) => [d.charges, d.lost]),
+        [
+          [0, true],
+          [0, true],
+        ],
+        'B on A’s loss, then C on the same loss',
+      )
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      assert.equal(x.h.lives.length, 1)
+      assert.deepEqual(x.kinds(), ['connection', 'unasked'])
+    } finally {
+      x.release()
+      await x.h.bridge.stop()
+    }
+  })
+
+  it('B failed closed on A’s ledger before it was replaced: C still waits on A, then opens', async () => {
+    // Three attempts of 50 ms, twice: A's close stops waiting after 300 ms, and hands over its unanswered charge.
+    const x = await chained({ reserveTimeoutMs: 50, before: 'failed' })
+    try {
+      await until('C fails closed', () => x.logged('qualification.inherited_unsettled').length === 2)
+      assert.deepEqual(
+        x.logged('qualification.inherited_unsettled').map((d) => [d.charges, d.lost]),
+        [
+          [1, false],
+          [1, false],
+        ],
+        'B on A’s charge, then C on the same charge, carried',
+      )
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      assert.equal(x.h.lives.length, 1)
+      assert.deepEqual(x.kinds(), ['connection', 'unasked'])
+      x.release()
+      await until('C opened', () => x.h.lives.length === 2)
+      assert.deepEqual(x.kinds().slice(0, 3), ['connection', 'unasked', 'connection'], 'C alone: B was closed')
+    } finally {
+      x.release()
+      await x.h.bridge.stop()
+    }
+  })
+
+  it('nothing owed along the chain (control): B and C each open at once', async () => {
+    const ledger = new FakeLedger(grant())
+    const h = harness(ledger)
+    try {
+      const assigned = assignment(ledger.grant)
+      await h.bridge.apply([assigned])
+      await settle()
+      await until('A opened', () => h.lives.length === 1)
+      h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
+      await settle()
+      await h.bridge.apply([assigned])
+      await until('B opened', () => h.lives.length === 2)
+      h.roomEvents[1]?.connection('disconnected', 'livekit: 2')
+      await settle()
+      await h.bridge.apply([assigned])
+      await until('C opened', () => h.lives.length === 3)
+      assert.deepEqual(
+        ledger.asked.map((r) => r.kind),
+        ['connection', 'connection', 'connection'],
+      )
+      assert.deepEqual(
+        h.logs.filter(([event]) => event === 'qualification.inherited_unsettled'),
+        [],
+      )
+    } finally {
+      await h.bridge.stop()
+    }
+  })
+})

@@ -274,8 +274,9 @@ const resultKey = (r: Pick<Result, 'taskId' | 'resultRevision'>) => `${r.taskId}
  * - `captionEnds`: the ends of captions cut off while the room link was down (ids and sequences, never words), which
  *   the replacement sends once it has joined, so no member's caption is left as still being said (CX-0023);
  * - `ledger`: under a voice qualification grant, what the replaced session spent that the API may not hold yet
- *   (SessionQualification.ledger(); Codex r4234649847). The replacement opens no provider connection until all of it
- *   is on the API.
+ *   (SessionQualification.ledger(); Codex r4234649847), with every obligation it inherited and had not seen land
+ *   (Codex r4234949420): one ledger for the whole chain of sessions on the exchange. The replacement opens no provider
+ *   connection until all of it is on the API.
  * A process restart forgets it.
  */
 export interface Handover {
@@ -287,12 +288,23 @@ export interface Handover {
   ledger?: InheritedLedger
 }
 
-/** What a replaced session spent and the API may not hold yet: see SessionQualification.ledger(). */
+/**
+ * What the sessions replaced on an exchange spent and the API may not hold yet (SessionQualification.ledger()), one
+ * ledger for the whole chain (Codex r4234949420): a session hands over its own with whatever it inherited and had not
+ * seen land, so a session replaced while it still waited on its own handover passes that wait on.
+ */
 export interface InheritedLedger {
+  /** Charges still unanswered when it was handed over; a session whose own handover had not come yet counts one. */
   unanswered: number
+  /** Whether a charge was refused or never confirmed, anywhere in the chain. */
   lost: boolean
-  landed: Promise<boolean>
+  /** Once every charge is answered, whether all landed: one per session of the chain, side by side, never nested. */
+  landings: Promise<boolean>[]
 }
+
+/** Whether every charge of a ledger landed, once all are answered. */
+const landedAll = (ledger: InheritedLedger): Promise<boolean> =>
+  ledger.lost ? Promise.resolve(false) : Promise.all(ledger.landings).then((landed) => landed.every(Boolean))
 
 /**
  * Typed words reach Google after the bridge's own marker; inside them, an opening bracket before "Sophia" or
@@ -517,6 +529,8 @@ export class RoomSession {
    * provider connection opens until all of it is on the API (inheritedSettled()).
    */
   private inherited: Promise<InheritedLedger | null> | null = null
+  /** That ledger once handed over (null: none); undefined while the handover is still to come. */
+  private inheritedNow: InheritedLedger | null | undefined = undefined
   /** Leaving the room, once closing: a room's next exchange may join after it, whatever is still settling. */
   private leaving: Promise<void> | null = null
   /** Members who said they read Sophia (text mode); dropped when they leave. They decide whether she speaks. */
@@ -594,10 +608,15 @@ export class RoomSession {
     this.providerSession = this.connection
     if (handover instanceof Promise) {
       this.awaitingHandover = true
-      this.inherited = handover.then(
-        (h) => h.ledger ?? null,
-        () => null,
-      )
+      this.inherited = handover
+        .then(
+          (h) => h.ledger ?? null,
+          () => null,
+        )
+        .then((ledger) => {
+          this.inheritedNow = ledger
+          return ledger
+        })
       void handover
         .then(
           (h) => this.takeOver(h),
@@ -609,6 +628,7 @@ export class RoomSession {
     } else if (handover) {
       this.takeOver(handover)
       this.inherited = handover.ledger ? Promise.resolve(handover.ledger) : null
+      this.inheritedNow = handover.ledger ?? null
     }
   }
 
@@ -695,8 +715,32 @@ export class RoomSession {
     const delivered = (key: string) => this.heard.has(key) || (this.cardsDelivered.get(key) ?? 0) > 0
     const done = [...this.announced].filter((key) => !owing.has(key) && delivered(key))
     const captionEnds = this.captionEnds.length > 0 ? { captionEnds: [...this.captionEnds] } : {}
-    const ledger = this.qualification ? { ledger: this.qualification.ledger() } : {}
-    return { owed, unrecorded, done, shown: [...this.shown.values()], ...captionEnds, ...ledger }
+    const ledger = this.ledgerToHand()
+    return { owed, unrecorded, done, shown: [...this.shown.values()], ...captionEnds, ...(ledger ? { ledger } : {}) }
+  }
+
+  /**
+   * Under a grant, the ledger this session hands over (Codex r4234949420): its own, with what it inherited and has not
+   * seen land, whether that is known yet or not. Inherited and seen landed (it opened), it is only its own. Still to
+   * come (this session was replaced before its own handover came), it is one unanswered link that lands when the chain
+   * before it does. Known, its charges, its loss and its landings go on as they are.
+   */
+  private ledgerToHand(): InheritedLedger | null {
+    if (!this.qualification) return null
+    const own = this.qualification.ledger()
+    const mine: InheritedLedger = { unanswered: own.unanswered, lost: own.lost, landings: [own.landed] }
+    if (this.inherited === null) return mine
+    const known = this.inheritedNow
+    if (known === undefined) {
+      const before = this.inherited.then((ledger) => (ledger ? landedAll(ledger) : true))
+      return { unanswered: mine.unanswered + 1, lost: mine.lost, landings: [...mine.landings, before] }
+    }
+    if (known === null) return mine
+    return {
+      unanswered: mine.unanswered + known.unanswered,
+      lost: mine.lost || known.lost,
+      landings: [...mine.landings, ...known.landings],
+    }
   }
 
   /** Join the room first (so guests are seen before anything is heard), then connect Google. */
@@ -1462,10 +1506,12 @@ export class RoomSession {
    * Under a grant, a session that replaces another on its exchange opens no provider connection, so reserves nothing
    * and sends no input, until everything the replaced session spent is on the API (Codex r4234649847): otherwise its
    * reservations could take the exchange's last turn or budget before an already spent charge ends it. The handover
-   * comes once the replaced session closed, and its close waits for those charges, bounded (settle()). All answered and
-   * taken: it opens. Still unanswered then: it fails closed, unavailable and saying so (qualification.inherited_unsettled),
-   * and opens once they are all taken, if they are. One refused or never confirmed: it stays closed for good; the API
-   * ends the exchange (a refusal ends it) or its deadline does. Never past the bound, whatever the wait.
+   * comes once the replaced session closed, and its close waits for those charges, bounded (settle()); it carries what
+   * that session inherited and had not seen land, so a chain of replacements waits on all of it (r4234949420). All
+   * answered and taken: it opens. Still unanswered then: it fails closed, unavailable and saying so
+   * (qualification.inherited_unsettled), and opens once they are all taken, if they are. One refused or never
+   * confirmed, anywhere in the chain: it stays closed for good; the API ends the exchange (a refusal ends it) or its
+   * deadline does. Never past the bound, whatever the wait.
    */
   private async inheritedSettled(): Promise<boolean> {
     const inherited = this.inherited
@@ -1480,7 +1526,7 @@ export class RoomSession {
     this.deps.log('qualification.inherited_unsettled', detail)
     this.fail('Sophia waits until what the conversation before this one spent is on the record')
     if (!ledger.lost)
-      void ledger.landed.then((landed) => {
+      void landedAll(ledger).then((landed) => {
         if (this.closed) return
         if (!landed) return this.deps.log('qualification.inherited_lost', { exchangeId: this.exchangeId })
         this.inherited = null
