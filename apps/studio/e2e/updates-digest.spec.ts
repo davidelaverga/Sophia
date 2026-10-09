@@ -28,6 +28,22 @@ test('digest · in the demo, the readout made, the brief’s decision and open q
   await expect(part(page, 'Still open')).toContainText('Map first, list second')
   // The brief has no other decision: what Conversations shows is what Updates says.
   await expect(since(page)).not.toContainText('Translate the checklist')
+  // What was made opens from beside its words, on their line, not from the column's far edge.
+  // The words' own ink, not their box: the box may stretch to the column's edge.
+  const words = await part(page, 'Made')
+    .locator('.recap-line')
+    .first()
+    .evaluate((line) => {
+      const range = document.createRange()
+      range.selectNodeContents(line)
+      const r = range.getBoundingClientRect()
+      return { x: r.x, y: r.y, width: r.width, height: r.height }
+    })
+  const open = await part(page, 'Made').getByRole('button', { name: 'Open' }).boundingBox()
+  if (!open) throw new Error('not laid out')
+  expect(open.x - (words.x + words.width)).toBeGreaterThanOrEqual(0)
+  expect(open.x - (words.x + words.width)).toBeLessThanOrEqual(24)
+  expect(Math.abs(open.y + open.height / 2 - (words.y + words.height / 2))).toBeLessThanOrEqual(4)
 })
 
 test('digest · in the demo, the Oct 2 meeting’s recap says what was said', async ({ page }) => {

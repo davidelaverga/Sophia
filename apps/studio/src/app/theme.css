@@ -4358,8 +4358,9 @@ div.empty {
 .updates-part > .recap-section h4 {
   color: var(--halo-text);
 }
+/* The words take the room they need, no more: what was made opens from beside them, not from the column's far edge. */
 .updates-part > .recap-section li {
-  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, max-content) auto;
 }
 .updates-part > .recap-section li::before {
   content: '';
