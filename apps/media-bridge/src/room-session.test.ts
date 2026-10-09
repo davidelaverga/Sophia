@@ -4446,6 +4446,79 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
     assert.deepEqual(pick(fields(reply), 'terminal', 'framesPlayed'), { terminal: 'closed', framesPlayed: 50 })
   })
 
+  it('cuts a generation whose words alone pass the per-turn cap: nothing after the cut is forwarded or played (Codex r4233559250)', async () => {
+    voiceEvidence = true
+    // A per-turn cap of 64 tokens: 192 characters of Sophia's words, at the assumed 3 a token.
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.audio(speech(10), OUT) // 10 tokens of audio: far within the cap
+    await flush()
+    assert.equal(room.played.length, 10)
+    const forwarded = live.audio
+    live.events.outputTranscript('x'.repeat(300), false) // 100 tokens of words
+    await flush()
+    assert.equal(live.closed, true, 'the provider is closed at the cut')
+    live.events.audio(speech(10), OUT)
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    assert.equal(room.played.length, 10, 'nothing arriving after the cut is played')
+    assert.equal(live.audio, forwarded, 'nothing more is forwarded')
+    await stoppedFor('output', session, live)
+  })
+
+  it('a turn whose words stay within the per-turn cap goes on as before, and is charged no more (Codex r4233559250)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(10), OUT)
+    live.events.outputTranscript('x'.repeat(60), false) // 20 tokens of words
+    live.events.turnComplete()
+    await flush()
+    assert.equal(live.closed, false)
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.stopped'),
+      [],
+    )
+    assert.deepEqual(
+      service.reservations.map((r) => [r.kind, r.charge ?? null]),
+      [
+        ['connection', null],
+        ['generation', 25_000 + 2 * 64 + 4000],
+      ],
+      'its generation at its worst case with the allowance it filled; the words came out of that allowance',
+    )
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    assert.deepEqual(
+      service.reservations.map((r) => r.kind),
+      ['connection', 'generation', 'generation'],
+      'the next turn is asked for as before',
+    )
+    await session.close()
+  })
+
+  it('the holder’s transcribed words are not output: however many, they never trip the per-turn cap (Codex r4233559250)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.inputTranscript('w'.repeat(600), false) // 200 tokens of the holder's words
+    live.events.inputTranscript('w'.repeat(600), true)
+    await flush()
+    assert.equal(live.closed, false)
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.stopped'),
+      [],
+    )
+    live.events.audio(speech(10), OUT)
+    live.events.outputTranscript('x'.repeat(60), false)
+    await flush()
+    assert.equal(room.played.length, 10, 'Sophia’s answer plays')
+    await session.close()
+  })
+
   for (const by of ['tick', 'input'] as const) {
     it(`stops at the grant’s deadline (${by === 'tick' ? 'on the tick' : 'before input, ahead of the tick'})`, async () => {
       voiceEvidence = true

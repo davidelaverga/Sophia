@@ -287,11 +287,15 @@ export class SessionQualification {
   /**
    * Output arrived: audio (24 kHz samples) or Sophia's words (their characters, billed as text). A generation nobody
    * reserved takes its reserve now, and is charged on the API (unasked); one past the grant's per-turn output is cut.
+   * Her words are the generation's output text (Codex r4233559250): in tokens, rounded up as a call's payload is, they
+   * go to the generation's own text with its calls' payload, so words alone past the cap cut it. They are counted once
+   * in what the exchange may cost (transcribed) and charged once on the API, from the allowance (#owe).
    */
   output(connection: number, out: { samples?: number; chars?: number }): GuardStop | null {
     const ordinal = this.#local(connection)
+    const text = out.chars === undefined ? 0 : Math.ceil(out.chars / ASSUMED_RATES.charsPerToken)
     const stop =
-      this.#check(() => this.#reserve.received(ordinal, out.samples ?? 0)) ??
+      this.#check(() => this.#reserve.received(ordinal, out.samples ?? 0, text)) ??
       (out.chars === undefined ? null : this.#check(() => this.#reserve.transcribed(out.chars ?? 0)))
     if (stop) return stop
     // A reservation still in flight is for what comes next: nothing behind it has reached the provider yet.

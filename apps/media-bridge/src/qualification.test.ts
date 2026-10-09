@@ -19,8 +19,11 @@ const GRANT: VoiceQualification = {
 
 type Refusal = NonNullable<MediaQualificationReservation['stop']>
 
-/** A session's bound whose generation reservations wait until the test answers them (granted, or refused). */
-function bound() {
+/**
+ * A session's bound whose generation reservations wait until the test answers them (granted, or refused); the grant's
+ * limits as GRANT's, with `over`.
+ */
+function bound(over: Partial<VoiceQualification> = {}) {
   const waiting: Array<{
     kind: MediaQualificationReserve['kind']
     charge: number | undefined
@@ -29,7 +32,7 @@ function bound() {
   }> = []
   const q = new SessionQualification({
     exchangeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    grant: GRANT,
+    grant: { ...GRANT, ...over },
     model: 'fake-model',
     instructionSha256: 'ef'.repeat(32),
     bridgeCommit: null,
@@ -177,5 +180,60 @@ describe('the bound’s reservations, one by one (qualification.ts)', () => {
     )
     waiting[1]?.refuse('usage')
     assert.equal(await runs, 'usage', 'refused: its calls never run, and the session stops')
+  })
+})
+
+describe('Sophia’s words are output text, held to the per-turn cap (Codex r4233559250)', () => {
+  const chunk = new Int16Array(1600).fill(2000)
+
+  /** A connection whose generation, asked for by the holder's input, was granted; the grant's per-turn cap is `cap`. */
+  async function speaking(cap: number) {
+    const b = bound({ maxOutputTokensPerTurn: cap })
+    assert.equal(await b.q.connecting(1, false), null)
+    assert.equal(b.q.input(1, LUIS, chunk, 0, 1), 'hold')
+    await settle()
+    b.waiting[0]?.answer()
+    assert.equal(await b.q.granted(1), null)
+    return b
+  }
+
+  it('words whose characters alone pass the cap cut the generation, and nothing after the cut goes on', async () => {
+    const { q } = await speaking(64)
+    assert.equal(q.output(1, { chars: 60 }), null, '60 characters: 20 tokens, within the 64')
+    assert.equal(q.output(1, { chars: 150 }), 'output', '150 more: 70 tokens of words, past the 64 with no audio')
+    assert.equal(q.output(1, { samples: 2400 }), 'output', 'output after the cut is refused')
+    assert.equal(q.input(1, LUIS, chunk, 0, 1), 'output', 'and so is input')
+  })
+
+  it('the cap is each generation’s: the next one’s words count from zero', async () => {
+    const { q, waiting } = await speaking(64)
+    assert.equal(q.output(1, { chars: 180 }), null, '60 tokens: within the cap')
+    q.turnEnded(1, 'turn_complete')
+    assert.equal(q.input(1, LUIS, chunk, 0, 1), 'hold', 'the next generation is asked for')
+    await settle()
+    waiting[1]?.answer()
+    assert.equal(await q.granted(1), null)
+    assert.equal(q.output(1, { chars: 180 }), null, 'its own 60 tokens: within its own cap')
+  })
+
+  it('a normal turn’s words are charged on the API once, from the allowance: no more than before', async () => {
+    const { q, waiting } = await speaking(8192)
+    // 7,500 characters: 2,500 tokens of words, within the 8,192 cap and the 4,000 the turn's allowance holds. Charged
+    // twice (5,000 tokens) they would pass it, and a top-up would be asked for.
+    for (let i = 0; i < 25; i += 1) assert.equal(q.output(1, { chars: 300 }), null, `words ${String(i + 1)}`)
+    q.turnEnded(1, 'turn_complete')
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => [w.kind, w.charge]),
+      [['generation', 25_000 + 2 * 8192 + 4000]],
+      'one generation at its worst case with the allowance it filled, and nothing more: the words came out of it',
+    )
+  })
+
+  it('the holder’s transcribed words are not output: however many, they never trip the output cap', async () => {
+    const { q } = await speaking(64)
+    assert.equal(q.heard(1, 600, false), null, '200 tokens of the holder’s words, past 64: no cut')
+    assert.equal(q.heard(1, 600, true), null)
+    assert.equal(q.output(1, { chars: 60 }), null, 'Sophia’s 20 tokens still fit her generation’s cap')
   })
 })

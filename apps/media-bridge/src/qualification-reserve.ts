@@ -58,7 +58,10 @@ interface Open {
   reserved: number
   /** Audio received, in tokens. */
   output: number
-  /** Function-call payload received (names and arguments), in tokens: billed output text. */
+  /**
+   * Output text received, in tokens: Sophia's transcribed words and the function calls' payload (names and arguments),
+   * both billed output text. Never the holder's words: those are input's transcription, not this generation's output.
+   */
   text: number
 }
 
@@ -146,9 +149,10 @@ export class QualificationReserve {
   }
 
   /**
-   * Output arrived on a connection (24 kHz samples; zero for a transcript's first words), or a function call's payload
-   * (`text`, its name and arguments in tokens). A generation nobody reserved takes its reserve now; one whose audio, or
-   * whose calls' text, passes the per-turn cap is cut (its reserve holds each at the cap).
+   * Output arrived on a connection: audio (24 kHz samples) and output text (`text`, in tokens: Sophia's transcribed
+   * words, or a function call's name and arguments). A generation nobody reserved takes its reserve now; one whose
+   * audio, or whose text, passes the per-turn cap is cut (its reserve holds each at the cap). The text adds nothing more
+   * to what is committed: the reserve holds it, and Sophia's words are counted once, as transcribed().
    */
   received(connection: number, samples = 0, text = 0): Verdict {
     if (this.#stopped) return { ok: false, stop: this.#stopped }
