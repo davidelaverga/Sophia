@@ -52,6 +52,35 @@ export interface S3StorageConfig {
 
 type Fetch = typeof fetch
 
+/** The five settings of the S3 byte store, all or none. */
+export const STORAGE_SETTINGS = [
+  'SOPHIA_STORAGE_S3_ENDPOINT',
+  'SOPHIA_STORAGE_S3_REGION',
+  'SOPHIA_STORAGE_S3_ACCESS_KEY_ID',
+  'SOPHIA_STORAGE_S3_SECRET_ACCESS_KEY',
+  'SOPHIA_STORAGE_BUCKET',
+] as const
+
+/**
+ * The report byte store an environment configures (SMC-M03, D5): a Storage-only S3 access key, all five settings or
+ * none (null). The REST settings are retired: their key also bypassed the database's RLS (binding §8), so they refuse.
+ * The API (server.ts) and the operator's write-once probe (storage-probe.ts) read the same settings the same way.
+ */
+export function byteStoreFromEnv(env: Record<string, string | undefined>, fetchImpl: Fetch = fetch): ByteStore | null {
+  // Trimmed, as the API reads every setting: a trailing CR from a CRLF env file would break the signature.
+  const read = (name: string) => env[name]?.trim() || undefined
+  if (read('SOPHIA_STORAGE_URL') || read('SOPHIA_STORAGE_KEY')) {
+    throw new Error('SOPHIA_STORAGE_URL and SOPHIA_STORAGE_KEY are retired: configure the S3 access key instead')
+  }
+  const values = STORAGE_SETTINGS.map(read)
+  if (values.every((v) => !v)) return null
+  const [endpoint, region, accessKeyId, secretAccessKey, bucket] = values
+  if (!endpoint || !region || !accessKeyId || !secretAccessKey || !bucket) {
+    throw new Error(`${STORAGE_SETTINGS.join(', ')} are set together or not at all`)
+  }
+  return s3ByteStore({ endpoint, region, accessKeyId, secretAccessKey, bucket }, fetchImpl)
+}
+
 /** The quoted file name a download is saved as; the API's names are ASCII slugs (reportFilename), kept as they are. */
 const attachment = (name: string) => `attachment; filename="${name.replace(/["\\\r\n]/g, '_')}"`
 

@@ -160,10 +160,13 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
  * What an API with a byte store also requires: the claim every write makes first (0044, writeOnce). An API without
  * one, and the previous API, require nothing of 0044, so it is not needed before the store is configured.
  */
-const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(text,text,bigint)') IS NOT NULL AS ok`
+export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(text,text,bigint)') IS NOT NULL AS ok`
 
-/** The byte store the routes are given: written once per key, by a claim the database keeps (0044). */
-const storeOf = (pool: pg.Pool, store: ByteStore | null | undefined): ByteStore | null =>
+/**
+ * The byte store the routes are given: written once per key, by a claim the database keeps (0044). The operator's
+ * write-once probe (storage-probe.ts) composes the API's store with this same function.
+ */
+export const writeOnceStore = (pool: pg.Pool, store: ByteStore | null | undefined): ByteStore | null =>
   store
     ? writeOnce(store, (path, sha256, byteLength) =>
         withService(pool, (c) => claimObjectWrite(c, path, sha256, byteLength)),
@@ -197,7 +200,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
   app.setErrorHandler(handleError)
   registerHealth(app, deps.pool, Boolean(deps.byteStore))
-  const store = storeOf(deps.pool, deps.byteStore)
+  const store = writeOnceStore(deps.pool, deps.byteStore)
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   projectionRoutes(app, { pool: deps.pool })
