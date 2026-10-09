@@ -5,7 +5,8 @@
 // (fixture-api.ts), with one project whose goal offers Review sources, and the first proposal's reply lost after it
 // arrives (the next is answered). The synthetic Auth service's requests still leave the page, to the checks' answers.
 // `appFixture` says what the API was asked, across a reload too: each proposal sent (its key and its body), each
-// request with the account its token names, and any request the fixture did not expect.
+// request with the account its token names, and any request the fixture did not expect. `appFixture.hold(by, path)`
+// holds that account's requests for that path until `release()`, as a slow API's answer is.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import { StrictMode } from 'react'
@@ -25,6 +26,8 @@ declare global {
       /** Each API request, as `METHOD /path by <the subject its token names, or nobody>`. */
       asked: readonly string[]
       unexpected: readonly string[]
+      hold: (by: string, path: string) => void
+      release: () => void
     }
   }
 }
@@ -53,6 +56,17 @@ function subjectOf(headers: Headers): string {
     return typeof sub === 'string' ? sub : 'nobody'
   } catch {
     return 'nobody'
+  }
+}
+
+/** A request's path, its method and the account its token names, whatever form fetch was called with. */
+function described(input: RequestInfo | URL, init?: RequestInit) {
+  const given = input instanceof Request ? input : null
+  const href = input instanceof Request ? input.url : input instanceof URL ? input.href : input
+  return {
+    pathname: new URL(href, window.location.href).pathname,
+    method: (init?.method ?? given?.method ?? 'GET').toUpperCase(),
+    by: subjectOf(new Headers(init?.headers ?? given?.headers)),
   }
 }
 
@@ -97,13 +111,15 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
     proposals,
   })
   const fixture = window.fetch
+  let held: { by: string; path: string; waiting: (() => void)[] } | null = null
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-    const given = input instanceof Request ? input : null
-    const href = input instanceof Request ? input.url : input instanceof URL ? input.href : input
-    const { pathname } = new URL(href, window.location.href)
+    const { pathname, method, by } = described(input, init)
     if (pathname.startsWith('/synthetic-auth/')) return network(input, init)
-    const method = (init?.method ?? given?.method ?? 'GET').toUpperCase()
-    asked.push(`${method} ${pathname} by ${subjectOf(new Headers(init?.headers ?? given?.headers))}`)
+    asked.push(`${method} ${pathname} by ${by}`)
+    const holding = held
+    if (holding?.by === by && holding.path === pathname) {
+      return new Promise<Response>((answer) => holding.waiting.push(() => void fixture(input, init).then(answer)))
+    }
     return fixture(input, init)
   }
   window.appFixture = {
@@ -111,6 +127,14 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
     asked,
     get unexpected() {
       return [...unexpectedBefore, ...unexpected]
+    },
+    hold: (by, path) => {
+      held = { by, path, waiting: [] }
+    },
+    release: () => {
+      const waiting = held?.waiting ?? []
+      held = null
+      for (const go of waiting) go()
     },
   }
 }

@@ -98,7 +98,11 @@ declare global {
       proposals: readonly { key: string; body: unknown }[]
       asked: readonly string[]
       unexpected: readonly string[]
+      hold: (by: string, path: string) => void
+      release: () => void
     }
+    /** "Review sources" buttons the page added since the check began counting them. */
+    reviewSourcesAdded?: number
   }
 }
 
@@ -188,8 +192,8 @@ async function anotherTab(
 }
 
 /**
- * Who the app says is in: the address its account menu heads with. Each read is bounded: an identity that changes while
- * the menu is open closes it, and the poll that asks reads again.
+ * Who the app says is in: the address its account menu heads with, read by a poll (`expect.poll`). Each read is bounded
+ * and closes the menu again: an identity that changes while the menu is open closes it, and the poll reads again.
  */
 async function signedInAs(page: Page) {
   const head = page.locator('.menu-head')
@@ -200,6 +204,7 @@ async function signedInAs(page: Page) {
     return ''
   } finally {
     if (await head.count()) await page.keyboard.press('Escape')
+    await expect(head).toHaveCount(0)
   }
 }
 
@@ -282,7 +287,7 @@ test('codex · 06bf6229 · the viewer’s account under a new address keeps its 
   const parsed = async () =>
     Object.fromEntries(Object.entries(await tabHolds(page)).map(([k, v]) => [k, JSON.parse(v) as unknown]))
   expect(await parsed()).toEqual(keptAsSent())
-  expect(await signedInAs(page)).toBe(DAVIDE.email)
+  await expect.poll(() => signedInAs(page)).toBe(DAVIDE.email)
 
   // Davide changes his address, in another tab: Supabase's client there tells this one, the same account updated.
   await anotherTab(context, session(RENAMED), 'USER_UPDATED')
@@ -291,7 +296,7 @@ test('codex · 06bf6229 · the viewer’s account under a new address keeps its 
   expect(await unexpectedOf(page)).toEqual([])
   await page.reload()
   await expect(account(page)).toBeVisible()
-  expect(await signedInAs(page)).toBe(RENAMED.email)
+  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
   expect(await parsed()).toEqual(keptAsSent())
 
   // Under the new address, the form finds the same proposal, frozen, and proposes it again: its key, its request.
@@ -352,6 +357,41 @@ test('codex · 1581b4f0 · another account at the same address finds nothing of 
     `POST /api/v1/projects/${WORK_PROJECT}/plans/source-review by ${SAME_ADDRESS.id}`,
   ])
   await expect.poll(() => tabHolds(page)).toEqual(only(OTHER_PART))
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('codex · a06db118 · the next account’s first render reads nothing the last one’s cache held', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/work?work=lost`)
+  // What Sophia offers Davide is read and cached, under the address both accounts share.
+  await expect(page.getByRole('button', { name: 'Review sources' }).first()).toBeVisible()
+  const offer = `/api/v1/projects/${WORK_PROJECT}/plans/source-review`
+  // The next account's own read of it waits, and from now on every "Review sources" the page adds is counted.
+  await page.evaluate(
+    ([by, path]) => {
+      window.appFixture?.hold(by, path)
+      window.reviewSourcesAdded = 0
+      new MutationObserver((records) => {
+        for (const added of records.flatMap((r) => [...r.addedNodes])) {
+          const buttons = added instanceof HTMLElement ? [added, ...added.querySelectorAll('button')] : []
+          if (buttons.some((b) => b.tagName === 'BUTTON' && b.textContent === 'Review sources')) {
+            window.reviewSourcesAdded = (window.reviewSourcesAdded ?? 0) + 1
+          }
+        }
+      }).observe(document, { subtree: true, childList: true })
+    },
+    [SAME_ADDRESS.id, offer] as const,
+  )
+  await anotherTab(context, session(SAME_ADDRESS))
+  await expect.poll(() => askedOf(page)).toContain(`GET ${offer} by ${SAME_ADDRESS.id}`)
+  // Until the next account's own answer comes, nothing offered to Davide was shown to it, not even for a frame.
+  expect(await page.evaluate(() => window.reviewSourcesAdded)).toBe(0)
+  await expect(page.getByRole('button', { name: 'Review sources' })).toHaveCount(0)
+  await page.evaluate(() => window.appFixture?.release())
+  await expect(page.getByRole('button', { name: 'Review sources' }).first()).toBeVisible()
   expect(await unexpectedOf(page)).toEqual([])
 })
 

@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { callEnded, NOTICE } from '../features/personal/notice-view.ts'
@@ -8,6 +8,7 @@ import { OPEN } from '../features/personal/lock.ts'
 import { useLock, useUnlockOnReturn } from '../features/personal/useLock.ts'
 import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
+import { cacheFor, cacheOf, forgetPersonalReads } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
 import { forgetKept } from '../features/conversations/talk-store.ts'
 import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/work/planning/review-proposal.ts'
@@ -22,8 +23,6 @@ import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { Toast, useToast, type ShowToast } from './Toast.tsx'
 import { OpeningPrepares, useOpening } from './useOpening.ts'
 import { useProjectRoute } from './useProjectRoute.ts'
-
-const queryClient = new QueryClient()
 
 // Invitation links are a separate door: their page loads only when someone opens one.
 const JoinFlow = lazy(() => import('../features/access/JoinFlow.tsx').then((m) => ({ default: m.JoinFlow })))
@@ -62,21 +61,34 @@ function forgetUnderWay() {
   forgetProposals()
 }
 
+/**
+ * Cached server state belongs to one account (accountOf: its token's subject, which an email change keeps). Another
+ * account, even at the same address (Codex's review of 1581b4f0), has its own cache from its first render
+ * (account-cache.ts): set while rendering, as React has state follow a value, so the render that saw the change is not
+ * committed and the next is already on the new cache. Nothing is cleared while rendering: the last account's cache goes
+ * once it has been replaced, also when another tab signs in or out, and with it what was under way in a project's
+ * conversations.
+ */
+function useAccountCache(signedInAs: string | null) {
+  const [cache, setCache] = useState(() => cacheOf(signedInAs))
+  const current = cacheFor(cache, signedInAs)
+  if (current !== cache) setCache(current)
+  const { client } = current
+  useEffect(
+    () => () => {
+      client.clear()
+      forgetKept()
+    },
+    [client],
+  )
+  return client
+}
+
 export function App() {
   const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
-  // Cached server state belongs to one account (accountOf: its token's subject, which an email change keeps): whenever
-  // another comes in or it goes, also from another tab, none of it stays. Another account at the same address is
-  // another account (Codex's review of 1581b4f0).
   const signedInAs = state.status === 'signed_in' ? accountOf(state.identity) : null
-  useEffect(
-    () => () => {
-      queryClient.clear()
-      // And what was under way in a project's conversations: another tab signing out, a session that ended.
-      forgetKept()
-    },
-    [signedInAs],
-  )
+  const queryClient = useAccountCache(signedInAs)
   useProposalsOnlyOfWhoIsIn(state)
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
@@ -235,13 +247,15 @@ function useOneCallInSight(call: ProjectCall | null, project: string | null) {
   }, [call, project])
 }
 
-/** Nothing personal stays in memory while the padlock is shut, wherever the person is (Places may not be mounted). */
-function useForgetWhileLocked(locked: boolean, identity: string) {
+/**
+ * Nothing personal stays in memory while the padlock is shut, wherever the person is (Places may not be mounted), and
+ * under every address the account had here (account-cache.ts).
+ */
+function useForgetWhileLocked(locked: boolean) {
   const client = useQueryClient()
   useEffect(() => {
-    // What was read goes, and the reads on their way stop with their queries (each read takes its query's signal).
-    if (locked) client.removeQueries({ queryKey: ['personal', identity] })
-  }, [locked, identity, client])
+    if (locked) forgetPersonalReads(client)
+  }, [locked, client])
 }
 
 /**
@@ -339,7 +353,7 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
   const project = route.projectId
   useProviderReturn({ call, project, place: route.place, setLock, goTo, say: toast.show })
   useOneCallInSight(call, project)
-  useForgetWhileLocked(lock.locked, identity.name)
+  useForgetWhileLocked(lock.locked)
   useSayings({ ended, say: toast.show, project, notice })
   const sheets = useSheetsAtHome(leave)
   const actions = { data: sheets.data, privacy: sheets.privacy, chooseDev: onChooseDev, signOut: onSignOut }
