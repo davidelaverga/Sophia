@@ -29,7 +29,7 @@ function Criteria({ goal }: { goal: Goal }) {
       {goal.criteria.map((c) => (
         <li key={c.id}>
           <span>{c.description}</span>
-          {!c.required && <span className="optional"> · optional</span>}
+          {!c.required && <span className="criterion-optional"> · optional</span>}
         </li>
       ))}
     </ul>
