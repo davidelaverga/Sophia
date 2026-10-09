@@ -34,11 +34,15 @@ function fakeRoom() {
   return { room: room as unknown as Pick<Room, 'on'>, listeners, emit }
 }
 
-/** A media element as the room attaches one: its tag, whose voice it is marked as, the events listened to, its clock. */
+/**
+ * A media element as the room attaches one: its tag, whose voice it is marked as (remoteAudio marks it again when LiveKit
+ * recycles it for another track), the events listened to, how many listeners are still on it, and its clock.
+ */
 class Media extends EventTarget {
   readonly tag: string
-  readonly mark: string | null
+  mark: string | null
   readonly listened: string[] = []
+  live = 0
   currentTime = 0
   constructor(tag: string, mark: string | null) {
     super()
@@ -52,7 +56,14 @@ class Media extends EventTarget {
   }
   override addEventListener(...args: Parameters<EventTarget['addEventListener']>): void {
     this.listened.push(args[0])
+    this.live += 1
+    const options = args[2]
+    if (typeof options === 'object') options.signal?.addEventListener('abort', () => (this.live -= 1))
     super.addEventListener(...args)
+  }
+  /** Each playback moment, once. */
+  playThrough(): void {
+    for (const phase of PLAYBACK) this.dispatchEvent(new Event(phase))
   }
 }
 
@@ -78,6 +89,13 @@ const subscribed = (els: Media[], trackSid: string, who: object) => [
   who,
 ]
 
+/** A track unsubscribed: remoteAudio has detached its elements already, so the track lists none. */
+const unsubscribed = (trackSid: string, who: object) => [{ kind: 'audio', attachedElements: [] }, { trackSid }, who]
+
+/** The receipts' tracks and moments, in order. */
+const played = (details: ReceiptDetail[]) =>
+  details.map((d) => (d.event === 'sophia_playback' ? `${d.trackSid}:${d.phase}` : d.event))
+
 describe('the Studio’s voice qualification receipts (A15)', () => {
   it('without a grant, no listener is added and nothing is emitted', () => {
     const { room, listeners, emit } = fakeRoom()
@@ -93,12 +111,18 @@ describe('the Studio’s voice qualification receipts (A15)', () => {
     assert.deepEqual(seen.heard, [])
   })
 
-  it('under a grant, it listens to the room for the microphone and subscribed tracks, nothing else', () => {
+  it('under a grant, it listens to the room for the microphone, subscriptions and the call’s end, nothing else', () => {
     const { room, listeners } = fakeRoom()
     watchQualification(room, GRANT, page().target)
     assert.deepEqual(
       [...listeners.keys()].toSorted(),
-      [RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished, RoomEvent.TrackSubscribed].toSorted(),
+      [
+        RoomEvent.LocalTrackPublished,
+        RoomEvent.LocalTrackUnpublished,
+        RoomEvent.TrackSubscribed,
+        RoomEvent.TrackUnsubscribed,
+        RoomEvent.Disconnected,
+      ].toSorted(),
     )
   })
 
@@ -200,7 +224,7 @@ describe('the Studio’s voice qualification receipts (A15)', () => {
   it('an element that is not Sophia’s voice gets no listener at all', () => {
     const emitted: unknown[] = []
     for (const el of [new Media('audio', 'member'), new Media('audio', null), new Media('video', 'sophia')]) {
-      observePlayback(el as unknown as Playback, 'TR_x', (r) => emitted.push(r))
+      observePlayback(el as unknown as Playback, 'TR_x', (r) => emitted.push(r), new AbortController().signal)
       for (const phase of PLAYBACK) el.dispatchEvent(new Event(phase))
       assert.deepEqual(el.listened, [])
     }
@@ -227,5 +251,66 @@ describe('the Studio’s voice qualification receipts (A15)', () => {
       'event',
       'trackSid',
     ])
+  })
+  it('a member’s track on Sophia’s recycled element is not reported, and her subscription leaves no listener on it', () => {
+    const { room, emit } = fakeRoom()
+    const seen = page()
+    watchQualification(room, GRANT, seen.target)
+    const el = new Media('audio', 'sophia')
+    emit(RoomEvent.TrackSubscribed, ...subscribed([el], 'TR_sophia', SOPHIA))
+    emit(RoomEvent.TrackUnsubscribed, ...unsubscribed('TR_sophia', SOPHIA))
+    el.mark = 'member' // LiveKit hands the detached element to the next audio track; remoteAudio marks it the member's
+    emit(RoomEvent.TrackSubscribed, ...subscribed([el], 'TR_member', MEMBER))
+    el.playThrough()
+    assert.deepEqual(played(seen.details()), [])
+    assert.equal(el.live, 0)
+  })
+
+  it('Sophia subscribed again on her recycled element: each moment once, under the new subscription', () => {
+    const { room, emit } = fakeRoom()
+    const seen = page()
+    watchQualification(room, GRANT, seen.target)
+    const el = new Media('audio', 'sophia')
+    emit(RoomEvent.TrackSubscribed, ...subscribed([el], 'TR_sophia_1', SOPHIA))
+    emit(RoomEvent.TrackUnsubscribed, ...unsubscribed('TR_sophia_1', SOPHIA))
+    emit(RoomEvent.TrackSubscribed, ...subscribed([el], 'TR_sophia_2', SOPHIA))
+    el.playThrough()
+    assert.deepEqual(
+      played(seen.details()),
+      PLAYBACK.map((phase) => `TR_sophia_2:${phase}`),
+    )
+    assert.equal(el.live, PLAYBACK.length)
+  })
+
+  it('after the call, a later call without a grant that reuses her element reports nothing', () => {
+    const first = fakeRoom()
+    const seen = page()
+    watchQualification(first.room, GRANT, seen.target)
+    const el = new Media('audio', 'sophia')
+    first.emit(RoomEvent.TrackSubscribed, ...subscribed([el], 'TR_sophia', SOPHIA))
+    first.emit(RoomEvent.Disconnected) // the call ends: whatever was never unsubscribed goes with it
+    const later = fakeRoom()
+    watchQualification(later.room, undefined, seen.target)
+    later.emit(RoomEvent.TrackSubscribed, ...subscribed([el], 'TR_sophia_later', SOPHIA))
+    el.playThrough()
+    assert.deepEqual(played(seen.details()), [])
+    assert.equal(el.live, 0)
+  })
+
+  it('an element no longer marked hers is not reported, even before its subscription ends', () => {
+    const { room, emit } = fakeRoom()
+    const seen = page()
+    watchQualification(room, GRANT, seen.target)
+    const el = new Media('audio', 'sophia')
+    emit(RoomEvent.TrackSubscribed, ...subscribed([el], 'TR_sophia', SOPHIA))
+    el.mark = 'member'
+    el.playThrough()
+    assert.deepEqual(played(seen.details()), [])
+    el.mark = 'sophia'
+    el.playThrough()
+    assert.deepEqual(
+      played(seen.details()),
+      PLAYBACK.map((phase) => `TR_sophia:${phase}`),
+    )
   })
 })

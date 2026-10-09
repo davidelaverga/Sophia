@@ -101,7 +101,12 @@ The token holds for the call it opened. A grant revoked or expired during that c
 - `mic_unpublished` comes when LiveKit unpublishes it: when the call ends, however it ends (Leave, a lost connection, the server ending it).
 - A full reconnection, LiveKit's fallback when resuming fails, unpublishes the microphone and publishes it again: `mic_unpublished`, then `mic_published`.
 - The Studio has no in-call microphone switch. If LiveKit restarts the track in place (its default device changed), no new receipt comes, and `trackId` still names the track it published.
-- `sophia_playback` comes from Sophia's element only. The room marks her element (`data-sophia-room-audio="sophia"`) as her track is subscribed, and every other voice's `member`. The element is observed for as long as it lives. It is removed when her track is unsubscribed or the call ends. `mediaTimeMs` is the element's `currentTime` in whole milliseconds: the element's own clock, not the bridge's.
+- `sophia_playback` comes from Sophia's element only. The room marks her element (`data-sophia-room-audio="sophia"`) as her track is subscribed, and every other voice's `member`.
+  - Her element is observed from that subscription until her track is unsubscribed or the call ends.
+  - A receipt also needs the element to be marked hers when the event comes.
+  - LiveKit recycles a detached audio element for the next audio track attached, a member's or a later call's. So nothing of one subscription carries onto another track or into another call, with or without a grant.
+  - What the browser fires for the detach itself (the pause and emptying LiveKit's `detach()` queues) comes after the subscription ended and is not reported.
+  - `mediaTimeMs` is the element's `currentTime` in whole milliseconds: the element's own clock, not the bridge's.
 
 ## Deployed identities (I6)
 

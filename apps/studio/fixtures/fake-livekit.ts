@@ -5,7 +5,8 @@
 // from her participant on the reply topic. Who else is in the room, what Sophia's participant says and the video
 // feeds come from fake-people.ts. Under a grant the token names (`qualification=on`, A15), the Studio's own voice
 // receipts (voice-qualification.ts) hear the microphone's publication and the voices' elements from here, as they
-// would from LiveKit. Nothing else in the Studio is replaced.
+// would from LiveKit, which recycles a detached audio element for the next audio track. Nothing else in the Studio
+// is replaced.
 import { RoomEvent, Track, type Room } from 'livekit-client'
 import type { RoomQualification, RoomToken } from '@sophia/contracts'
 import { CHAT_REPLY_TOPIC, encodeChatPacket, type ChatPacket } from '@sophia/contracts/room-chat'
@@ -71,26 +72,61 @@ export function deliverCaption(packet: Parameters<NonNullable<RoomCallbacks['onC
   fromSophia(packet)
 }
 
-/** The voices' elements on the page (`voicesArrive`): the call's end removes them, as livekit-room.ts removes its own. */
-const voices = new Set<HTMLAudioElement>()
+/**
+ * Detached audio elements kept to attach again, as LiveKit keeps them (`recycledElements`, livekit-client 2.22.3): one
+ * at most, and the next audio track attached without an element takes it, whoever's it is and in whichever call.
+ */
+const recycled: HTMLAudioElement[] = []
+
+/** The voices on the page (`voicesArrive`), each with its track: they go when they leave or the call ends. */
+const voices = new Map<HTMLAudioElement, { trackSid: string; who: object }>()
+
+type Voice = 'sophia' | 'member'
+
+/** Whose voice: its first track and its participant. */
+const VOICES: Record<Voice, { trackSid: string; who: object }> = {
+  sophia: { trackSid: TRACKS.sophia, who: SOPHIA },
+  member: { trackSid: TRACKS.member, who: { identity: personId(1), metadata: '{}' } },
+}
+
+/** How many times each voice arrived: each later arrival is a track published anew, `<first sid>-2`, `-3`… */
+const arrived: Record<Voice, number> = { sophia: 0, member: 0 }
+
+/** As LiveKit's `attach()` and remoteAudio: a recycled element if one is free, else a new one, marked whose voice. */
+function attachVoice(voice: Voice): void {
+  const { who } = VOICES[voice]
+  arrived[voice] += 1
+  const trackSid = arrived[voice] === 1 ? VOICES[voice].trackSid : `${VOICES[voice].trackSid}-${arrived[voice]}`
+  const free = recycled.findIndex((e) => e.parentElement === null)
+  const [kept] = free === -1 ? [] : recycled.splice(free, 1)
+  const el = kept ?? document.createElement('audio')
+  el.dataset.sophiaRoomAudio = voice
+  document.body.append(el)
+  voices.set(el, { trackSid, who })
+  emit(RoomEvent.TrackSubscribed, { kind: Track.Kind.Audio, attachedElements: [el] }, { trackSid }, who)
+}
 
 /**
- * Sophia's voice and the first other person's reach this page, as LiveKit attaches a subscribed track (remoteAudio in
- * livekit-room.ts): an audio element each, marked whose it is as remoteAudio marks it. They carry no sound of their
- * own; a check gives them one.
+ * Sophia's voice and the first other person's reach this page, in this order, as LiveKit attaches a subscribed track
+ * (remoteAudio in livekit-room.ts): an audio element each, marked whose it is as remoteAudio marks it. They carry no
+ * sound of their own; a check gives them one.
  */
-export function voicesArrive(): void {
-  const member = { identity: personId(1), metadata: '{}' }
-  for (const [mark, trackSid, who] of [
-    ['sophia', TRACKS.sophia, SOPHIA],
-    ['member', TRACKS.member, member],
-  ] as const) {
-    const el = document.createElement('audio')
-    el.dataset.sophiaRoomAudio = mark
-    document.body.append(el)
-    voices.add(el)
-    emit(RoomEvent.TrackSubscribed, { kind: Track.Kind.Audio, attachedElements: [el] }, { trackSid }, who)
+export function voicesArrive(order: readonly Voice[] = ['sophia', 'member']): void {
+  for (const voice of order) attachVoice(voice)
+}
+
+/**
+ * The voices' tracks are unsubscribed, in the order they came, as remoteAudio and LiveKit's `detach()` do it: each
+ * element paused, removed and kept to attach again if none is kept yet, then its track's TrackUnsubscribed.
+ */
+export function voicesLeave(): void {
+  for (const [el, { trackSid, who }] of voices) {
+    el.pause()
+    if (!recycled.some((e) => e.parentElement === null)) recycled.push(el)
+    el.remove()
+    emit(RoomEvent.TrackUnsubscribed, { kind: Track.Kind.Audio, attachedElements: [] }, { trackSid }, who)
   }
+  voices.clear()
 }
 
 /** The viewer's microphone as LiveKit publishes it: its publication, and the MediaStreamTrack it carries. */
@@ -102,8 +138,8 @@ const MICROPHONE = {
 
 /**
  * The call's tracks as LiveKit keeps them: the microphone is published the first time it turns on (turned off, it is
- * muted, not unpublished); when the call ends, the others' tracks go first, their elements with them, then the
- * microphone is unpublished.
+ * muted, not unpublished). When the call ends, the others' tracks go first, their elements with them, then the
+ * microphone is unpublished, then the room says it disconnected.
  */
 function callTracks() {
   let published = false
@@ -114,10 +150,10 @@ function callTracks() {
       emit(RoomEvent.LocalTrackPublished, MICROPHONE)
     },
     end: () => {
-      for (const el of voices) el.remove()
-      voices.clear()
+      voicesLeave()
       if (published) emit(RoomEvent.LocalTrackUnpublished, MICROPHONE)
       published = false
+      emit(RoomEvent.Disconnected)
     },
   }
 }

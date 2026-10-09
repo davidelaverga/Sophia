@@ -17,6 +17,8 @@ declare global {
   interface Window {
     /** What the page dispatched as `sophia:voice-qualification`, in order (this check's own listener). */
     voiceReceipts?: unknown[]
+    /** Sophia's element as it was, to know it when LiveKit hands it to another track (this check's own). */
+    formerVoice?: Element | null
   }
 }
 
@@ -74,8 +76,8 @@ function tone(): string {
 
 type Step = 'tone' | 'play' | 'pause' | 'waiting' | 'end' | 'empty'
 
-/** Both voices, Sophia's and the member's, take one step together, each awaited until its element says it happened. */
-const onBoth = (page: Page, step: Step) =>
+/** The voices take one step together, each awaited until its element says it happened. */
+const onVoices = (page: Page, voices: readonly string[], step: Step) =>
   page.evaluate(
     async ({ selectors, which, src }) => {
       /** Each step: what it does, and the event that says it was done (none for one that is done at once). */
@@ -109,7 +111,7 @@ const onBoth = (page: Page, step: Step) =>
         await done
       }
     },
-    { selectors: [SOPHIA_VOICE, MEMBER_VOICE], which: step, src: step === 'tone' ? tone() : '' },
+    { selectors: voices, which: step, src: step === 'tone' ? tone() : '' },
   )
 
 /** A receipt's playback moment, if it names one. */
@@ -119,9 +121,27 @@ const phaseOf = (receipt: unknown) =>
 /** A receipt's keys, in order. */
 const keysOf = (receipt: unknown) => (typeof receipt === 'object' && receipt !== null ? Object.keys(receipt) : [])
 
-/** Each voice plays, pauses, waits, plays to its end and is emptied: every moment a receipt names, on both. */
-async function playThrough(page: Page) {
-  for (const step of ['tone', 'play', 'pause', 'waiting', 'end', 'empty'] as const) await onBoth(page, step)
+/** Each voice plays, pauses, waits, plays to its end and is emptied: every moment a receipt names; both, unless asked. */
+async function playThrough(page: Page, voices: readonly string[] = [SOPHIA_VOICE, MEMBER_VOICE]) {
+  for (const step of ['tone', 'play', 'pause', 'waiting', 'end', 'empty'] as const) await onVoices(page, voices, step)
+}
+
+/** Keeps Sophia's element as it is now, to know it again once LiveKit recycles it. */
+const keepHers = (page: Page) =>
+  page.evaluate((selector) => {
+    window.formerVoice = document.querySelector(selector)
+  }, SOPHIA_VOICE)
+
+/** Whether the voice at `selector` now plays on the element kept. */
+const onHerFormer = (page: Page, selector: string) =>
+  page.evaluate((s) => !!window.formerVoice && document.querySelector(s) === window.formerVoice, selector)
+
+/** Out of the call, then back in: what the meeting left is put away, and the microphone arrives again. */
+async function joinAgain(page: Page) {
+  await page.getByRole('dialog', { name: 'This meeting' }).getByRole('button', { name: 'Close', exact: true }).click()
+  await page.getByRole('button', { name: 'Join the room' }).first().click()
+  await expect(leave(page)).toBeVisible()
+  await expect.poll(async () => (await asked(page)).filter((a) => a === 'microphone:on')).toHaveLength(2)
 }
 
 test.beforeEach(async ({ page }) => {
@@ -188,4 +208,46 @@ test('voice qualification · without a grant, nothing is dispatched and no voice
   await expect.poll(() => asked(page)).toContain('leave')
   await expect(page.locator(SOPHIA_VOICE)).toHaveCount(0)
   expect(await receipts(page)).toEqual([])
+})
+
+test('voice qualification · a member’s voice on Sophia’s recycled element is not reported, and keeps no listener', async ({
+  page,
+}) => {
+  await enter(page, '&qualification=on')
+  await keepHers(page)
+  // Both tracks go, hers first: LiveKit keeps her element, and the member's voice, attached first, takes it.
+  await page.evaluate(() => window.fixture?.voicesLeave())
+  await page.evaluate(() => window.fixture?.voices(['member', 'sophia']))
+  expect(await onHerFormer(page, MEMBER_VOICE), 'the member’s voice plays on her old element').toBe(true)
+  expect(await listenersOn(page, MEMBER_VOICE)).toEqual([])
+  expect(await listenersOn(page, SOPHIA_VOICE)).toEqual(PHASES)
+
+  const before = (await receipts(page)).length
+  await playThrough(page, [MEMBER_VOICE])
+  expect((await receipts(page)).slice(before), 'the member’s playback').toEqual([])
+  await playThrough(page, [SOPHIA_VOICE])
+  const hers = (await receipts(page)).slice(before)
+  expect(new Set(hers.map(phaseOf))).toEqual(new Set(PHASES))
+  // Her second track, published anew: the first one's subscription ended with it.
+  for (const receipt of hers)
+    expect(receipt).toMatchObject({ event: 'sophia_playback', trackSid: `${TRACKS.sophia}-2` })
+})
+
+test('voice qualification · a later call without a grant reports nothing, even on Sophia’s recycled element', async ({
+  page,
+}) => {
+  await enter(page, '&qualification=on')
+  await keepHers(page)
+  await leave(page).click()
+  await expect.poll(async () => (await receipts(page)).length).toBe(2) // mic_published, mic_unpublished
+  await page.evaluate(() => window.fixture?.grant(false))
+  await joinAgain(page)
+  await page.evaluate(() => window.fixture?.voices())
+  expect(await onHerFormer(page, SOPHIA_VOICE), 'her voice plays on her old element').toBe(true)
+  expect(await listenersOn(page, SOPHIA_VOICE)).toEqual([])
+
+  await playThrough(page)
+  await leave(page).click()
+  await expect.poll(async () => (await asked(page)).filter((a) => a === 'leave')).toHaveLength(2)
+  expect((await receipts(page)).slice(2), 'the call without a grant').toEqual([])
 })
