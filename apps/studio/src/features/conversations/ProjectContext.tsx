@@ -10,14 +10,20 @@ import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } fr
 import { getMission } from '../../api/mission.ts'
 import type { ConversationSummary } from '../../api/conversations.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
-import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { missionKey } from '../mission/mission-view.ts'
 import { acceptedOf, coverageWords, pendingOf, questionWords } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { decidableHere, decideRefusal, pressesWait, useDecide, type DecideArgs } from './decide.ts'
+import {
+  contextKey,
+  decidableHere,
+  pressesWait,
+  type DecideArgs,
+  type DecideState,
+  type DecisionAsk,
+} from './decide.ts'
+import { useHeldDecision } from './held-decision.ts'
 import { useEraseHere, type Erase } from './EraseHere.tsx'
 
 interface Props {
@@ -38,7 +44,7 @@ interface Props {
 export function ProjectContext(props: Props) {
   const { projectId, identity, cursor, conversation, opened, onClose, notice, erase } = props
   const read = useQuery({
-    queryKey: [...missionKey(projectId), accountOf(identity), 'conversations'],
+    queryKey: contextKey(projectId, identity),
     queryFn: () => getMission(identity.token, projectId),
     retry: 1,
   })
@@ -82,7 +88,7 @@ export function ProjectContext(props: Props) {
       ) : (
         <p className="conv-note">No mission accepted yet.</p>
       )}
-      <Decisions ctx={ctx} projectId={projectId} identity={identity} fresh={!read.isError} />
+      <Decisions ctx={ctx} projectId={projectId} identity={identity} />
     </>,
   )
 }
@@ -165,7 +171,7 @@ function Covers({ words }: { words: string | null }) {
 }
 
 /** The accepted decisions, newest first, and what is proposed and not decided, kept apart. */
-function Decisions({ ctx, projectId, identity, fresh }: StillOpenProps) {
+function Decisions({ ctx, projectId, identity }: StillOpenProps) {
   // «and 2 more» opens its own list (C9), until folded again by the same press.
   const [every, setEvery] = useState(false)
   const { shown } = acceptedOf(ctx.constraints, every)
@@ -173,7 +179,7 @@ function Decisions({ ctx, projectId, identity, fresh }: StillOpenProps) {
   return (
     <>
       <Accepted shown={shown} more={more} every={every} onEvery={setEvery} />
-      <StillOpen ctx={ctx} projectId={projectId} identity={identity} fresh={fresh} />
+      <StillOpen ctx={ctx} projectId={projectId} identity={identity} />
     </>
   )
 }
@@ -219,7 +225,7 @@ function More({ every, more, onEvery }: { every: boolean; more: number; onEvery:
 }
 
 /** What a decision answered says. */
-const answeredWords = (args: DecideArgs, statement: string) =>
+const answeredWords = ({ args, statement }: DecisionAsk) =>
   `${args.decision === 'accept' ? 'Accepted' : 'Declined'}: ${statement}`
 
 /**
@@ -228,47 +234,39 @@ const answeredWords = (args: DecideArgs, statement: string) =>
  * presses wait while it goes, while unknown, and once answered until the brief no longer lists it.
  */
 function useDecideHere(projectId: string, identity: Identity, pending: readonly MissionDecision[]) {
-  const decide = useDecide(projectId, identity)
-  const [asked, setAsked] = useState<{ args: DecideArgs; statement: string } | null>(null)
-  const [said, setSaid] = useState('')
+  // Held by the view (held-decision.ts): a trip to another view and back finds the same decision, under its key.
+  const decision = useHeldDecision(projectId, identity)
   const status = useRef<HTMLParagraphElement>(null)
   const section = useRef<HTMLElement>(null)
-  const settled = (receipt: unknown, words: string) => {
-    if (receipt) setSaid(words)
+  const settled = () => {
     // The line is already there: the focus goes to it now (a frame may never come in a tab out of sight), if it is
     // still here or was lost with its press; never taken from where the person went meanwhile.
     const at = document.activeElement
     if (!at || at === document.body || section.current?.contains(at)) status.current?.focus()
   }
-  const answer = (args: DecideArgs, statement: string) => {
-    setSaid('')
-    setAsked({ args, statement })
-    void decide.submit(args).then((receipt) => settled(receipt, answeredWords(args, statement)))
-  }
+  const answer = (args: DecideArgs, statement: string) => void decision.run({ args, statement }).then(settled)
   const retry = () => {
-    if (asked) void decide.retry().then((receipt) => settled(receipt, answeredWords(asked.args, asked.statement)))
+    if (decision.state.status === 'unknown' && decision.asked) void decision.run(decision.asked).then(settled)
   }
-  const waits = (id: string) => pending.some((d) => d.id === id)
-  return { decide, asked, said, status, section, answer, retry, waits, busy: pressesWait(decide.state, pending) }
+  const { state, asked } = decision
+  return { state, asked, status, section, answer, retry, busy: pressesWait(state, pending) }
 }
 
 interface StillOpenProps {
   ctx: MissionContext
   projectId: string
   identity: Identity
-  /** Whether the brief's last read came back: a refusal's words are chosen from it only then. */
-  fresh: boolean
 }
 
 /**
  * What waits for a decision, decided here where it can be (C7): one decision at a time; with no reply, the presses wait
  * and «Try again» sends that same decision under its key, never another. Answered, the focus goes to what it says.
  */
-function StillOpen({ ctx, projectId, identity, fresh }: StillOpenProps) {
+function StillOpen({ ctx, projectId, identity }: StillOpenProps) {
   const [every, setEvery] = useState(false)
   const openId = useId()
   const here = useDecideHere(projectId, identity, ctx.pending)
-  const { decide, asked, said, status, section, answer, retry, waits, busy } = here
+  const { state, asked, status, section, answer, retry, busy } = here
   const open = pendingOf(ctx.pending, every)
   const { more } = pendingOf(ctx.pending)
   return (
@@ -292,29 +290,19 @@ function StillOpen({ ctx, projectId, identity, fresh }: StillOpenProps) {
           <p className="conv-note">Proposed, not decided.</p>
         </>
       )}
-      <DecideSaid
-        status={status}
-        state={decide.state}
-        asked={asked}
-        said={said}
-        refused={(id) => ({ fresh, stillWaiting: waits(id) })}
-        onRetry={retry}
-      />
+      <DecideSaid status={status} state={state} asked={asked} onRetry={retry} />
     </section>
   )
 }
 
 /**
- * What the last decision says: on its way (and a long wait's line), refused (by whether it still waits), not confirmed
- * (with «Try again»), or answered; where the focus goes after.
+ * What the last decision says: on its way (and a long wait's line), refused (in the words chosen from the brief read
+ * again), not confirmed (with «Try again»), or answered; where the focus goes after.
  */
 function DecideSaid(props: {
   status: RefObject<HTMLParagraphElement | null>
-  state: ReturnType<typeof useDecide>['state']
-  asked: { args: DecideArgs; statement: string } | null
-  said: string
-  /** What the brief read again says of a refused proposal: whether it came back, and still lists it as waiting. */
-  refused: (id: string) => { fresh: boolean; stillWaiting: boolean }
+  state: DecideState
+  asked: DecisionAsk | null
   onRetry: () => void
 }) {
   const { state, asked } = props
@@ -323,16 +311,16 @@ function DecideSaid(props: {
     <p ref={props.status} className="conv-note" role="status" tabIndex={-1}>
       {state.status === 'sending' && (state.args.decision === 'accept' ? 'Accepting…' : 'Declining…')}
       {slow && ` ${SLOW_NOTE}`}
-      {state.status === 'rejected' && decideRefusal(state.error, props.refused(state.args.decisionId))}
+      {state.status === 'rejected' && state.words}
       {state.status === 'unknown' && asked && (
         <>
-          {`Not confirmed: ${answeredWords(asked.args, asked.statement)}. `}
+          {`Not confirmed: ${answeredWords(asked)}. `}
           <button type="button" className="text-button" onClick={props.onRetry}>
             Try again
           </button>
         </>
       )}
-      {state.status === 'done' && props.said}
+      {state.status === 'done' && asked && answeredWords(asked)}
     </p>
   )
 }
