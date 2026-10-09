@@ -135,7 +135,9 @@ LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
   ORDER BY c.ordinal DESC LIMIT 1),0) $$;
 
 -- Why an exchange under a grant must end now, or null: the grant revoked or expired, the exchange's deadline, or a
--- limit reached by what was reserved (connections past the grant's, the grant's turns, the next turn past the budget).
+-- limit passed by what was reserved (connections or turns past the grant's: the last one allowed runs to its end) or
+-- the next turn that could pass the budget. A reservation is held to the same rules, so the guard never cuts a
+-- generation it granted.
 CREATE FUNCTION sophia.voice_limit_reached(g sophia.voice_qualification_grants, p_opened_at timestamptz, p_exchange uuid)
 RETURNS text LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
  SELECT CASE
@@ -143,7 +145,7 @@ RETURNS text LANGUAGE sql STABLE SET search_path=pg_catalog,sophia AS $$
    WHEN g.expires_at<=now() THEN 'expired'
    WHEN sophia.voice_deadline(g, p_opened_at)<=now() THEN 'deadline'
    WHEN coalesce(q.connections_opened,0)>g.max_provider_connections THEN 'connections'
-   WHEN coalesce(q.turns,0)>=g.max_turns THEN 'turns'
+   WHEN coalesce(q.turns,0)>g.max_turns THEN 'turns'
    WHEN sophia.voice_budget_reached(g, sophia.voice_committed(p_exchange), sophia.voice_last_prompt(p_exchange)) THEN 'usage'
    ELSE NULL END
  FROM (SELECT 1) one LEFT JOIN sophia.voice_qualification_exchanges q ON q.exchange_id=p_exchange $$;
@@ -280,8 +282,10 @@ END $$;
 -- * 'unasked', when a generation nobody asked for has started (its output arrived): it is already spent, so it is
 --   counted and charged whatever the limits, and the exchange ends if they are now reached.
 -- The charge is the bridge's worst case for the generation (the context again and its output twice) plus what it sent
--- and was transcribed since its last charge. A reservation that does not fit ends the exchange as the guard would; so
--- does a limit the guard would end it at. An exchange already ended is refused (40001).
+-- and was transcribed since its last charge. A generation fits while it leaves the turns within the grant's and, charged,
+-- the exchange's next turn could still not pass the budget (voice_budget_reached, the guard's own rule): so the guard
+-- never cuts one it granted. A reservation that does not fit ends the exchange as the guard would; so does a limit the
+-- guard would end it at. An exchange already ended is refused (40001).
 CREATE FUNCTION sophia.media_voice_reserve(p_exchange uuid, p_grant uuid, p_kind text, p_ordinal integer, p_charge bigint)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE e sophia.room_exchanges; g sophia.voice_qualification_grants; q sophia.voice_qualification_exchanges; why text;
@@ -319,7 +323,8 @@ BEGIN
   why:=coalesce(sophia.voice_limit_reached(g, e.opened_at, e.id), CASE
    WHEN p_kind='connection' AND q.connections_opened+1>g.max_provider_connections THEN 'connections'
    WHEN p_kind='generation' AND q.turns+1>g.max_turns THEN 'turns'
-   WHEN p_kind='generation' AND sophia.voice_committed(e.id)+p_charge>g.max_usage_tokens THEN 'usage'
+   WHEN p_kind='generation' AND sophia.voice_budget_reached(g, sophia.voice_committed(e.id)+p_charge,
+    sophia.voice_last_prompt(e.id)) THEN 'usage'
    ELSE NULL END);
   IF why IS NULL AND p_kind='connection' THEN
    UPDATE sophia.voice_qualification_exchanges SET connections_opened=q.connections_opened+1 WHERE exchange_id=e.id;

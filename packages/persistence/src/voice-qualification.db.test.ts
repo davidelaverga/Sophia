@@ -289,7 +289,7 @@ describe('the guard (0046): it ends an exchange under a grant whether or not the
     assert.deepEqual(await stateOf(x2), { state: 'ended', reason: 'expired' })
   })
 
-  it('past its connection limit, or at its turns, as reserved: the counts are durable, never what a receipt says', async () => {
+  it('past its connection limit, or past its turns, as reserved: the counts are durable, never what a receipt says', async () => {
     const one = await project()
     const g1 = await grant(one.projectId, P, { connections: 2 })
     const x1 = await open(one.projectId)
@@ -316,7 +316,9 @@ describe('the guard (0046): it ends an exchange under a grant whether or not the
     assert.equal((await stateOf(x2)).state, 'open', 'two generations of three')
     assert.equal((await reserve(x2, g2, 'generation', 1, 1000)).ok, true)
     await withService(pool, (c) => voiceQualificationGuard(c))
-    assert.deepEqual(await stateOf(x2), { state: 'ended', reason: 'turns' }, 'at its turns, the exchange ends')
+    assert.equal((await stateOf(x2)).state, 'open', 'the last generation allowed runs to its end')
+    assert.equal((await reserve(x2, g2, 'generation', 1, 1000)).ok, false)
+    assert.deepEqual(await stateOf(x2), { state: 'ended', reason: 'turns' }, 'past its turns, the exchange ends')
   })
 
   it('at its budget: what the exchange may have cost, the next turn’s context and one turn’s output cap', async () => {
@@ -419,9 +421,10 @@ describe('the exchange’s durable bound (0046, media_voice_reserve)', () => {
     const g = await grant(projectId, P, { turns: 1, budget: 50_000, outputPerTurn: 1000 })
     const x = await open(projectId)
     await reserve(x, g, 'connection')
-    assert.equal((await reserve(x, g, 'unasked', 1, 27_000)).ok, false, 'its one turn is spent: it ends')
-    assert.deepEqual(await countsOf(x), { connections: 1, turns: 1 })
-    assert.equal(await committedOf(x), 27_000)
+    assert.equal((await reserve(x, g, 'unasked', 1, 27_000)).ok, true, 'its one turn: it runs to its end')
+    assert.equal((await reserve(x, g, 'unasked', 1, 27_000)).ok, false, 'a second is past its turns: it ends')
+    assert.deepEqual(await countsOf(x), { connections: 1, turns: 2 })
+    assert.equal(await committedOf(x), 54_000)
     assert.deepEqual(await stateOf(x), { state: 'ended', reason: 'turns' })
 
     const two = await project()
@@ -436,6 +439,46 @@ describe('the exchange’s durable bound (0046, media_voice_reserve)', () => {
       ended: true,
     })
     assert.equal(await committedOf(x2), 54_000, 'already spent: kept though it passes the budget')
+  })
+
+  it('a generation it grants, the guard never cuts: turns and the budget agree, at the boundary from both sides', async () => {
+    const one = await project()
+    const g1 = await grant(one.projectId, P, { turns: 2 })
+    const x1 = await open(one.projectId)
+    await reserve(x1, g1, 'connection')
+    assert.equal((await reserve(x1, g1, 'generation', 1, 27_000)).ok, true)
+    assert.equal((await reserve(x1, g1, 'generation', 1, 27_000)).ok, true, 'the second of two')
+    assert.equal(await withService(pool, (c) => voiceQualificationGuard(c)), 0, 'not cut by the guard')
+    assert.equal((await record(x1, g1, 1, 'input_turn')).ended, false, 'nor by its own turn’s receipt')
+    assert.deepEqual(await reserve(x1, g1, 'generation', 1, 27_000), {
+      ok: false,
+      ordinal: null,
+      stop: 'turns',
+      ended: true,
+    })
+
+    // Budget 100,000, output cap 2,000, no prompt reported yet: a charge of 97,999 leaves 99,999 with the next turn's
+    // cap, under the budget; 98,000 would reach it.
+    const two = await project()
+    const g2 = await grant(two.projectId, P, { budget: 100_000, outputPerTurn: 2000 })
+    const x2 = await open(two.projectId)
+    await reserve(x2, g2, 'connection')
+    assert.equal((await reserve(x2, g2, 'generation', 1, 97_999)).ok, true)
+    assert.equal(await withService(pool, (c) => voiceQualificationGuard(c)), 0, 'granted, so not cut')
+    assert.equal((await stateOf(x2)).state, 'open')
+    const three = await project()
+    const g3 = await grant(three.projectId, P, { budget: 100_000, outputPerTurn: 2000 })
+    const x3 = await open(three.projectId)
+    await reserve(x3, g3, 'connection')
+    assert.deepEqual(await reserve(x3, g3, 'generation', 1, 98_000), {
+      ok: false,
+      ordinal: null,
+      stop: 'usage',
+      ended: true,
+    })
+    assert.equal(await committedOf(x3), 0, 'refused, never granted and cut')
+    // A later report of the prompt's size still ends it, as the guard always did: the next turn could pass the budget.
+    assert.deepEqual(await record(x2, g2, 1, 'provider', provider(10_000, 1)), { ended: true, reason: 'usage' })
   })
 
   it('a bridge’s own stop (session_closed, guard) ends the exchange, for good', async () => {

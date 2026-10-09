@@ -62,7 +62,8 @@ type Stop = NonNullable<MediaQualificationReservation['stop']>
 
 /**
  * A FAKE of the API's durable bound for one grant: connections and generations counted per exchange, each generation
- * charged, a reservation that does not fit refused and the exchange ended; an ended exchange is refused (409).
+ * charged, a reservation that does not fit refused and the exchange ended; an ended exchange is refused (409). No
+ * prompt size is reported here, so the budget's rule sees none.
  */
 class FakeLedger {
   readonly grant: VoiceQualification
@@ -97,18 +98,21 @@ class FakeLedger {
     }
   }
 
+  /** media_voice_reserve's rules (0046): past the turns or connections, or the next turn could reach the budget. */
   #stop(x: { connections: number; turns: number; charged: number }, r: MediaQualificationReserve): Stop | null {
     const g = this.grant
     const charge = r.charge ?? 0
+    const reached = (committed: number) => committed + g.maxOutputTokensPerTurn >= g.maxUsageTokens
     if (r.kind === 'unasked') {
       x.turns += 1
       x.charged += charge
-      if (x.turns >= g.maxTurns) return 'turns'
-      return x.charged > g.maxUsageTokens ? 'usage' : null
+      if (x.turns > g.maxTurns) return 'turns'
+      return reached(x.charged) ? 'usage' : null
     }
-    if (x.turns >= g.maxTurns) return 'turns'
+    if (x.turns > g.maxTurns) return 'turns'
     if (r.kind === 'connection') return x.connections + 1 > g.maxProviderConnections ? 'connections' : null
-    return x.charged + charge > g.maxUsageTokens ? 'usage' : null
+    if (x.turns + 1 > g.maxTurns) return 'turns'
+    return reached(x.charged + charge) ? 'usage' : null
   }
 }
 

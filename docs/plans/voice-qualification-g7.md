@@ -41,9 +41,9 @@ The legacy Lab proved input from a browser Gemini WebSocket, and this product ha
 | `approval_ref` | the owner's approval it rests on. |
 | `max_exchange_seconds` (60–1800) | the hard length of an exchange opened under the grant. |
 | `max_provider_connections` (1–10) | the provider connections the exchange may open, the first one included, whichever bridge session or process opens them; a reservation past it is refused, and the exchange ends. |
-| `max_turns` (1–200) | the provider generations, whatever started them, counted as they are reserved; at it, the exchange ends. |
+| `max_turns` (1–200) | the provider generations, whatever started them, counted as they are reserved; the last one allowed runs to its end, and the next is refused, which ends the exchange (one started unasked past it ends it too). |
 | `max_output_tokens_per_turn` (64–8,192) | one generation's output cap; the bridge sets it as the session's `maxOutputTokens` and cuts a generation that passes it. |
-| `max_usage_tokens` (1,000–5,000,000) | what the exchange may have cost: for each reserved connection, the greater of what was charged to it (each generation it started, at its worst case) and what the provider reported of it (`usageMetadata.totalTokenCount`, cumulative per provider session), summed. A generation whose charge would pass it is refused; the exchange ends once that sum, plus the latest connection's last prompt size (the context the next generation bills again) and one generation's output cap, would reach it. |
+| `max_usage_tokens` (1,000–5,000,000) | what the exchange may have cost: for each reserved connection, the greater of what was charged to it (each generation it started, at its worst case) and what the provider reported of it (`usageMetadata.totalTokenCount`, cumulative per provider session), summed. The exchange ends once that sum, plus the latest connection's last prompt size (the context the next generation bills again) and one generation's output cap, would reach it; a generation is refused when, with its charge, that would reach it, so a generation granted is never cut for usage. |
 | `expires_at` | the grant's end: at most 2 h after it is made. |
 | `revoked_at`, `revoke_reason` | `sophia.voice_qualification_revoke(project, grant, reason)`, owner only. |
 
@@ -51,7 +51,7 @@ The legacy Lab proved input from a browser Gemini WebSocket, and this product ha
 
 **The durable bound (server-side).** The bound is the exchange's, held by the API, never a bridge session's: a session that replaces a lost one, or a restarted bridge, starts from the exchange's true counts. Under a grant, the bridge reserves before it spends, through `POST /v1/media/qualification-reserve` (`sophia.media_voice_reserve`, under the exchange's row lock):
 - `connection`, before it opens a provider connection: refused past `max_provider_connections`; otherwise the connection's durable ordinal, which its receipts name;
-- `generation`, before it sends what can start one, on a reserved connection, with a charge: refused past `max_turns`, or when the charge would pass `max_usage_tokens`;
+- `generation`, before it sends what can start one, on a reserved connection, with a charge: refused past `max_turns`, or when, charged, the exchange's next turn could pass `max_usage_tokens` (the guard's own rule below). So the guard never cuts a generation it granted;
 - `unasked`, when a generation nobody asked for started (its output arrived): it is already spent, so it is counted and charged whatever the limits, and the exchange ends if they are now reached.
 
 The charge is the bridge's worst case for the generation (the context again and its output twice) plus what it sent and was transcribed since its last charge. Connections and generations (`turns`) are durable counters only a reservation adds to; each connection keeps what was charged to it and what the provider reported of it. A reservation that does not fit ends the exchange as the guard would, with its reason, and so does a limit the guard would end it at. An exchange that has ended reserves nothing (409). A receipt names only a reserved connection (otherwise 422).
@@ -60,7 +60,7 @@ The charge is the bridge's worst case for the generation (the context again and 
 - `now ≥ least(expires_at, opened_at + max_exchange_seconds)` (`deadline`, or `expired`);
 - the grant is revoked (`revoked`);
 - connections reserved exceed `max_provider_connections` (`connections`);
-- generations reserved reach `max_turns` (`turns`);
+- generations reserved pass `max_turns` (`turns`; only one started unasked takes them there);
 - the next generation could pass `max_usage_tokens` (`usage`, the rule above).
 
 A bridge whose own bound stopped its session (its `session_closed` receipt says `guard`) ends the exchange too (`bridge`), for good.
