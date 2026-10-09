@@ -882,7 +882,14 @@ describe('one Paperclip-managed source review', () => {
     assert.equal(whole.json.truncated, false)
     // The empty pages' receipts, presented too, change nothing: served to this review, they prove no read.
     const receipts = [partial, next, whole, atEnd, past].map((p) => String(p.json.receipt))
-    const published = await submit('s-ok', receipts, [w.sourceA, w.sourceB])
+    // Twenty characters of A are not A (Codex's security review of a06db118): it cannot be cited yet.
+    const part = await submit('s-part', receipts, [w.sourceA, w.sourceB])
+    assert.equal(part.status, 422, JSON.stringify(part.json))
+    assert.match(String(part.json.message), /did not read whole/)
+    // The rest of A, from where the last page stopped: every character of it has reached the review.
+    const rest = await page(w.sourceA, { offset: Number(next.json.nextOffset) })
+    assert.equal(rest.json.nextOffset, null, JSON.stringify(rest.json))
+    const published = await submit('s-ok', [...receipts, String(rest.json.receipt)], [w.sourceA, w.sourceB])
     assert.equal(published.json.outcome, 'published', JSON.stringify(published.json))
     const stored = await asOwner(
       async (o) =>
@@ -894,12 +901,93 @@ describe('one Paperclip-managed source review', () => {
         ).rows[0],
     )
     const expected = [
-      { sourceId: w.sourceA, deliveredChars: 20, totalChars: partial.json.totalChars, complete: false },
+      {
+        sourceId: w.sourceA,
+        deliveredChars: partial.json.totalChars,
+        totalChars: partial.json.totalChars,
+        complete: true,
+      },
       { sourceId: w.sourceB, deliveredChars: whole.json.totalChars, totalChars: whole.json.totalChars, complete: true },
     ].toSorted((a, b) => a.sourceId.localeCompare(b.sourceId))
-    assert.deepEqual(stored?.coverage, expected, 'one page of a source is not the whole source')
+    assert.deepEqual(stored?.coverage, expected, 'A, read in three pages, is whole')
     assert.deepEqual(stored?.inspected.toSorted(), [w.sourceA, w.sourceB].toSorted())
     // The published review's completion is mirrored to its issue: delivered here, so no later test's pass claims it.
+    assert.deepEqual(await mine(w, await deliver(w)), [['complete', 'delivered']])
+  })
+
+  it('a part of a source is not the source: a finding cites only a source all of which reached the review (Codex’s security review of a06db118, P2)', async () => {
+    const w = await world()
+    const { attemptId } = await running(w)
+    const at = { attemptId, nativeSessionId: `sophia-${attemptId}` }
+    const page = async (sourceId: string, from: Record<string, number> = {}) => {
+      const res = await w.runtime('/v1/runtime/source-review/context', { ...at, sourceId, ...from })
+      assert.equal(res.status, 200, JSON.stringify(res.json))
+      return { receipt: String(res.json.receipt), text: String(res.json.text), next: res.json.nextOffset }
+    }
+    const submit = (callId: string, receipts: string[], sourceIds: string[]) =>
+      w.runtime('/v1/runtime/source-review/submit', {
+        ...at,
+        callId,
+        result: {
+          verdict: 'changes_required',
+          report: REPORT,
+          findings: [{ status: 'contradicted', statement: 'The two budgets differ.', sourceIds }],
+          receipts,
+        },
+      })
+    const recorded = () =>
+      asOwner(
+        async (o) =>
+          (
+            await o.query<{ results: number; reads: number }>(
+              `SELECT (SELECT count(*)::int FROM sophia.work_results WHERE project_id=$1) AS results,
+                    (SELECT count(*)::int FROM sophia.work_review_reads WHERE project_id=$1) AS reads`,
+              [w.projectId],
+            )
+          ).rows[0],
+      )
+    const a = await page(w.sourceA)
+    assert.equal(a.next, null, 'A is read whole, in one page')
+    // Steered by what it read in A, the reviewer asks for B's last character alone, then cites B.
+    const last = await page(w.sourceB, { offset: SOURCE_B.length - 1 })
+    assert.equal(last.text, SOURCE_B.slice(-1))
+    const one = await submit('s-one', [a.receipt, last.receipt], [w.sourceA, w.sourceB])
+    assert.equal(one.status, 422, JSON.stringify(one.json))
+    assert.match(
+      String(one.json.message),
+      new RegExp(`did not read whole: ${w.sourceB} \\(1 of ${SOURCE_B.length} characters`),
+    )
+    // Pages that overlap count once: 0 to 40, 10 to 50 and the last character are 51 of B's 71, though their lengths
+    // add up to 81.
+    assert.equal(SOURCE_B.length, 71)
+    const head = await page(w.sourceB, { limit: 40 })
+    const over = await page(w.sourceB, { offset: 10, limit: 40 })
+    const parts = [a.receipt, last.receipt, head.receipt, over.receipt]
+    const overlap = await submit('s-overlap', parts, [w.sourceB])
+    assert.equal(overlap.status, 422, JSON.stringify(overlap.json))
+    assert.match(String(overlap.json.message), new RegExp(`did not read whole: ${w.sourceB} \\(51 of 71 `))
+    assert.deepEqual(await recorded(), { results: 0, reads: 0 }, 'a refused submit records nothing')
+    // Citing only what reached it whole, it publishes. The parts of B it read are inspected, never cited.
+    const published = await submit('s-ok', parts, [w.sourceA])
+    assert.equal(published.json.outcome, 'published', JSON.stringify(published.json))
+    const stored = await asOwner(
+      async (o) =>
+        (
+          await o.query<{ checks: { coverage: unknown; citedSources: string[] }; inspected: string[] }>(
+            `SELECT checks, inspected_source_ids::text[] AS inspected FROM sophia.work_results WHERE project_id=$1`,
+            [w.projectId],
+          )
+        ).rows[0],
+    )
+    assert.deepEqual(stored?.checks.citedSources, [w.sourceA])
+    assert.deepEqual(
+      stored?.checks.coverage,
+      [
+        { sourceId: w.sourceA, deliveredChars: SOURCE_A.length, totalChars: SOURCE_A.length, complete: true },
+        { sourceId: w.sourceB, deliveredChars: 51, totalChars: SOURCE_B.length, complete: false },
+      ].toSorted((x, y) => x.sourceId.localeCompare(y.sourceId)),
+    )
+    assert.deepEqual(stored?.inspected.toSorted(), [w.sourceA, w.sourceB].toSorted())
     assert.deepEqual(await mine(w, await deliver(w)), [['complete', 'delivered']])
   })
 

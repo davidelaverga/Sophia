@@ -11821,7 +11821,7 @@
     "/v1/runtime/source-review/context": {
       "post": {
         "operationId": "runtimeSourceReviewContext",
-        "summary": "The source review's task (goal, criteria, sources, limits, allowance), or a page of one of its manifest sources while it is still eligible. A page read here may be cited. Fenced.",
+        "summary": "The source review's task (goal, criteria, sources, limits, allowance), or a page of one of its manifest sources while it is still eligible. A source whose every page was read here may be cited. Fenced.",
         "tags": [
           "runtime"
         ],
@@ -27529,7 +27529,7 @@
       "SourceReviewPage": {
         "type": "object",
         "additionalProperties": false,
-        "description": "A page of one manifest source, with the receipt only this page carries: the submit presents it to cite the source (Codex on #107).",
+        "description": "A page of one manifest source, with the receipt only this page carries: the submit presents it, with those of the source's other pages, to cite the source (Codex on #107).",
         "properties": {
           "sourceId": {
             "type": "string",
@@ -27634,7 +27634,7 @@
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 400,
-                "description": "The receipts of the pages this review read and rests on; a finding may cite only sources one of them is of.",
+                "description": "The receipts of the pages this review read and rests on; a finding may cite only sources they cover whole, every character (a part of a source is not the source).",
                 "items": {
                   "type": "string",
                   "pattern": "^[0-9a-f]{32}$"

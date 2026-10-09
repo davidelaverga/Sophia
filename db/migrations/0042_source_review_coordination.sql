@@ -212,8 +212,8 @@ CREATE TABLE sophia.work_review_receipts (
  FOREIGN KEY(project_id,source_id) REFERENCES sophia.source_objects(project_id,id)
 );
 
--- Which manifest sources an attempt read (a finding may cite only these): recorded at the submit, from the receipts it
--- presents, so only a page that reached the model counts as read.
+-- Which manifest sources an attempt read (a finding may cite only those of them it read whole, review_checks): recorded at
+-- the submit, from the receipts it presents, so only a page that reached the model counts as read.
 CREATE TABLE sophia.work_review_reads (
  project_id uuid NOT NULL, attempt_id uuid NOT NULL, source_id uuid NOT NULL,
  first_read_at timestamptz NOT NULL DEFAULT now(),
@@ -710,7 +710,7 @@ BEGIN
  VALUES(p_project,eg,left('Source review: '||regexp_replace(reviewed.title,'\s+',' ','g'),120),
   'A stored review of the selected sources against the goal''s criteria. Completing the review accepts nothing it reviews.',
   jsonb_build_array(jsonb_build_object('id','review-stored','description',
-   'A bounded review report is stored, and every finding cites a manifest source the reviewer read','required',true,'verification','structural')),
+   'A bounded review report is stored, and every finding cites a manifest source the reviewer read whole','required',true,'verification','structural')),
   pr.mission_revision,'ready');
  INSERT INTO sophia.research_allowances(project_id,root_job_id,cap_usd,headroom_usd,source_policy,max_searches,max_reads)
  VALUES(p_project,NULL,p.allowance_usd,0,'source-review-v1',0,0) RETURNING * INTO al;
@@ -1455,7 +1455,7 @@ REVOKE ALL ON FUNCTION sophia.review_scope_of(bytea,text,text,jsonb,boolean) FRO
 
 -- POST /v1/runtime/source-review/context: without a source, the task (goal, criteria, sources, limits, allowance); with one, a
 -- page of that manifest source, while it can still be read, with its receipt. A source may be cited once the submit
--- presents a receipt of it: serving a page records nothing as read (Codex on #107).
+-- presents the receipts of pages that cover it whole: serving a page records nothing as read (Codex on #107).
 CREATE FUNCTION sophia.runtime_source_review_context(p_token_sha256 bytea, p_unit text, p_bridge text, p_request jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE s sophia.review_scope:=sophia.review_scope_of(p_token_sha256,p_unit,p_bridge,p_request,true); manifest jsonb;
@@ -1535,11 +1535,13 @@ BEGIN
 END $$;
 
 -- The structural and reference checks of a submitted review (the review's own completion policy): its size, its five
--- sections, and findings that cite manifest sources this attempt read and still can, against the goal's criteria.
--- Raises 22023 with what to fix; returns the checks it passed.
-CREATE FUNCTION sophia.review_checks(s sophia.review_scope, p_manifest jsonb, p_result jsonb) RETURNS jsonb LANGUAGE plpgsql STABLE
-SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE report text:=p_result->>'report'; f jsonb; sid text; missing text; heading text; cited text[]:='{}';
+-- sections, and findings that cite manifest sources this attempt read whole and can still read, against the goal's
+-- criteria. A part of a source is not the source: a page of one character, steered by another source, would otherwise
+-- let a finding speak for all of it (Codex's security review of a06db118, P2). p_coverage is what the submit's receipts
+-- delivered of each source (review_receipts_read). Raises 22023 with what to fix; returns the checks it passed.
+CREATE FUNCTION sophia.review_checks(s sophia.review_scope, p_manifest jsonb, p_result jsonb, p_coverage jsonb) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE report text:=p_result->>'report'; f jsonb; sid text; missing text; heading text; cited text[]:='{}'; cov jsonb;
 BEGIN
  IF p_result->>'verdict' IS NULL OR p_result->>'verdict' NOT IN ('supported','changes_required','insufficient_evidence') THEN
   RAISE EXCEPTION 'The verdict is supported, changes_required or insufficient_evidence' USING ERRCODE='22023'; END IF;
@@ -1562,6 +1564,10 @@ BEGIN
    IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p_manifest->'sources') x WHERE x->>'sourceId'=sid)
     OR NOT EXISTS(SELECT 1 FROM sophia.work_review_reads r WHERE r.project_id=s.project_id AND r.attempt_id=s.attempt_id AND r.source_id::text=sid) THEN
     RAISE EXCEPTION 'A finding cites a source this review did not read: %', sid USING ERRCODE='22023'; END IF;
+   SELECT c INTO cov FROM jsonb_array_elements(p_coverage) c WHERE c->>'sourceId'=sid;
+   IF (cov->>'complete')::boolean IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'A finding cites a source this review did not read whole: % (% of % characters); read every page of it and present each page''s receipt',
+     sid, coalesce(cov->>'deliveredChars','0'), coalesce(cov->>'totalChars','?') USING ERRCODE='22023'; END IF;
    IF NOT sophia.review_source_readable(s.project_id,sid::uuid) THEN
     RAISE EXCEPTION 'Source not released and eligible for project work: a cited source was withdrawn' USING ERRCODE='42501'; END IF;
    cited:=cited||sid;
@@ -1571,13 +1577,13 @@ BEGIN
   'reportBytes',octet_length(report),'findings',jsonb_array_length(p_result->'findings'),
   'citedSources',(SELECT to_jsonb(array_agg(DISTINCT c ORDER BY c)) FROM unnest(cited) c));
 END $$;
-REVOKE ALL ON FUNCTION sophia.review_checks(sophia.review_scope,jsonb,jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION sophia.review_checks(sophia.review_scope,jsonb,jsonb,jsonb) FROM PUBLIC;
 
 -- The reads a submit's receipts prove: each must be a receipt served to this attempt (a page that reached the model);
--- the sources they are of are recorded as read, and only those may be cited (review_checks). A page with no text of a
--- source that has some (asked past its end) brought the model nothing: its receipt proves no read (Codex on #107).
--- Returns what the pages cover of each source, in characters: one page is not the whole source, and the result says
--- which were read whole.
+-- the sources they are of are recorded as read (inspected), and only those they cover whole may be cited (review_checks).
+-- A page with no text of a source that has some (asked past its end) brought the model nothing: its receipt proves no
+-- read (Codex on #107). Returns what the pages cover of each source, in characters: one page is not the whole source,
+-- and the result says which were read whole.
 CREATE FUNCTION sophia.review_receipts_read(s sophia.review_scope, p_receipts jsonb) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE r text; x sophia.work_review_receipts; seen bytea[]:='{}'; coverage jsonb;
@@ -1644,7 +1650,7 @@ BEGIN
  END IF;
  manifest:=sophia.work_manifest(s.project_id,s.work_id);
  coverage:=sophia.review_receipts_read(s,p_request->'result'->'receipts');
- checks:=sophia.review_checks(s,manifest,p_request->'result')||jsonb_build_object('coverage',coverage);
+ checks:=sophia.review_checks(s,manifest,p_request->'result',coverage)||jsonb_build_object('coverage',coverage);
  SELECT coalesce(array_agg(source_id ORDER BY first_read_at,source_id),'{}') INTO inspected FROM sophia.work_review_reads
   WHERE project_id=s.project_id AND attempt_id=s.attempt_id;
  src:=sophia.put_text_source(s.project_id,w.accepted_by,'text/markdown; charset=utf-8',p_request->'result'->>'report');
