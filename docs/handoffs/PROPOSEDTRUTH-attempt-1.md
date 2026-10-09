@@ -11,7 +11,7 @@ Runtime unit: the Studio (`apps/studio`); no API change.
 Existing authority: Luis's instruction in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no CI change.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-chain`, branch `conversations/proposed-truth`, stacked on
 `conversations/held-decision` (#200, `0286616c`), 2026-10-09
-Ending commit/tree: `bdb609d772754b111715377cdf76b54fc36725b2` (tree `3b51bbeb9c30e1d77a8c6ab32ce86fb65f9dfb49`). The commit after it adds only this handoff.
+Ending commit/tree: `2a43273607c9592b689823038e331767c2d7c95f` (tree `095067b8b12addf6b5f3bf8b388852ca19e5b9f7`), after main merged in once #200 landed. The commit after it adds only this handoff.
 
 ## Outcome
 
@@ -39,5 +39,7 @@ Ending commit/tree: `bdb609d772754b111715377cdf76b54fc36725b2` (tree `3b51bbeb9c
 ## Limitations and next action
 
 - Every message with a press re-renders when the brief moves (minor; left).
-- Stacked on #200: once it merges, retarget to `main` and merge `main` in.
+- First opened as #201, stacked on #200; #200's merge deleted its base and closed #201, so it is opened again against
+  `main` with `main` merged in (its conflicts were #200's own lines; this branch's kept). The decide spec after the
+  merge: 21 passed.
 - Next: merge on green CI with no Codex P1.
