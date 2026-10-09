@@ -6,7 +6,9 @@
 # and writes a credential-free receipt to the run summary; the curated, scrubbed evidence (per-phase records, the
 # receipt, bounded redacted diagnostics) is uploaded as an artifact whatever the outcome (WBC-02-CX-0036). No secret,
 # no registry, no push, no deployment: this is development CI, not Render's platform fit, not a registry digest and
-# not a real Sophia (its address is closed).
+# not a real Sophia (its address is closed). Run by hand (workflow_dispatch), a run that qualified the image also
+# exports that image as an artifact, for paperclip-image-publish.yml to publish by digest (WBC-02-CC-0010 §2); a pull
+# request's run exports nothing.
 name: paperclip-image
 
 on:
@@ -47,10 +49,10 @@ jobs:
   image:
     name: Paperclip image under a 2 GiB cgroup
     runs-on: ubuntu-24.04
-    # Above the sum of every step's own budget (312 minutes), so a slow step that stays within its budget fails as
+    # Above the sum of every step's own budget (335 minutes), so a slow step that stays within its budget fails as
     # that step, and the receipt, scrub, upload and clean-up still run after it; the job's limit never ends the job
     # first (WBC-02, Codex review of 5446719). The unit tests hold this sum.
-    timeout-minutes: 330
+    timeout-minutes: 352
     services:
       # For scripts/paperclip-verify.mjs (the built worker under the pin's harness), as the database job has it.
       postgres:
@@ -267,6 +269,34 @@ jobs:
           { echo; echo '<details><summary>receipt.json</summary>'; echo; echo '```json'; cat "$EVIDENCE/receipt.json"; echo '```'; echo '</details>'; } >> "$GITHUB_STEP_SUMMARY"
           cat "$EVIDENCE/receipt.json"
           jq -e '.verdict == "qualified"' "$EVIDENCE/receipt.json"
+
+      # The image this run qualified, exactly (its ID is the identity record's), only on a run by hand and only once the
+      # receipt above reads qualified: the publish workflow loads it and checks the ID before it pushes anything.
+      - name: Export the qualified image
+        id: export
+        if: success() && github.event_name == 'workflow_dispatch'
+        timeout-minutes: 8
+        run: |
+          O="$RUNNER_TEMP/qualified-image"; mkdir -p "$O"
+          docker save "$IMAGE" | gzip -1 > "$O/image.tar.gz"
+          id="$(docker image inspect "$IMAGE" --format '{{.Id}}')"
+          test "$id" = "$(jq -r .image.id "$EVIDENCE/identity.json")"
+          jq -n --arg id "$id" --arg sha "$(sha256sum "$O/image.tar.gz" | cut -c1-64)" --arg candidate "$CANDIDATE" \
+            --arg pin "$PAPERCLIP_PIN" '{imageId: $id, archiveSha256: $sha, sophiaCommit: $candidate, paperclipPin: $pin}' \
+            > "$O/export.json"
+          cat "$O/export.json"
+          echo "dir=$O" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the qualified image
+        if: success() && steps.export.outputs.dir != ''
+        timeout-minutes: 15
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: paperclip-image-qualified-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.export.outputs.dir }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
 
       # The evidence directory holds only what the steps above wrote there: the probe's state file and the image's
       # manifest copy live outside it, and nothing from `docker inspect` but the container's state. Every file is

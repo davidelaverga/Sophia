@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { execFile, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -1580,5 +1580,185 @@ describe('review of 9bc711a: diagnostics are redacted whole before they are cut 
     assert.equal(tail.status, 0, tail.stderr)
     assert.deepEqual(fragments(tail.stdout), [])
     assert.match(tail.stdout, /omitted/)
+  })
+})
+
+describe('WBC-02-CC-0010 §2: the qualified image, exported by hand and published by digest', () => {
+  const WORKFLOW = fileURLToPath(new URL('../../.github/workflows/paperclip-image.yml', import.meta.url))
+  const PUBLISH = fileURLToPath(new URL('../../.github/workflows/paperclip-image-publish.yml', import.meta.url))
+
+  it('the qualification exports its image only on a run by hand, after its receipt, the ID its identity record names', () => {
+    const steps = parse(readFileSync(WORKFLOW, 'utf8')).jobs.image.steps
+    const names = steps.map((step) => step.name)
+    const exported = steps.find((step) => step.name === 'Export the qualified image')
+    const upload = steps.find((step) => step.name === 'Upload the qualified image')
+    assert.ok(names.indexOf('Receipt') < names.indexOf('Export the qualified image'), 'after the receipt reads qualified')
+    assert.equal(exported.if, "success() && github.event_name == 'workflow_dispatch'", 'never on a pull request')
+    assert.match(exported.run, /test "\$id" = "\$\(jq -r \.image\.id "\$EVIDENCE\/identity\.json"\)"/u)
+    assert.equal(upload.if, "success() && steps.export.outputs.dir != ''")
+    assert.equal(upload.with['retention-days'], 7)
+    assert.equal(upload.with.name, 'paperclip-image-qualified-${{ github.run_id }}-${{ github.run_attempt }}')
+  })
+
+  it('the publisher runs by hand, for the owner alone, with this job’s token for one package and nothing else', () => {
+    const workflow = parse(readFileSync(PUBLISH, 'utf8'))
+    assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'])
+    assert.deepEqual(workflow.permissions, { contents: 'read' })
+    const job = workflow.jobs.publish
+    assert.equal(
+      job.if,
+      'github.actor == github.repository_owner && github.triggering_actor == github.repository_owner',
+      'a re-run by anyone else is not the owner’s',
+    )
+    const sum = job.steps.reduce((total, step) => total + step['timeout-minutes'], 0)
+    assert.ok(job['timeout-minutes'] >= sum + 10, `the job's ${job['timeout-minutes']} minutes; the steps' budgets ${sum}`)
+    assert.ok(job['timeout-minutes'] <= 360)
+    assert.deepEqual(job.permissions, { contents: 'read', actions: 'read', packages: 'write' })
+    const text = readFileSync(PUBLISH, 'utf8')
+    assert.equal(/secrets\./u.test(text), false, 'no secret but its own token')
+    for (const step of job.steps) {
+      if (step.uses) assert.match(step.uses, /@[0-9a-f]{40}$/u, `${step.uses} is pinned by commit`)
+      if (step.run) assert.equal(/\$\{\{\s*inputs\./u.test(step.run), false, 'an input reaches a script only through env')
+      assert.ok(Number.isInteger(step['timeout-minutes']), `${step.name ?? step.uses} has a budget`)
+    }
+  })
+
+  it('the publisher pushes only the image the named qualified run exported, after checking its ID', () => {
+    const steps = parse(readFileSync(PUBLISH, 'utf8')).jobs.publish.steps
+    const names = steps.map((step) => step.name)
+    const run = steps[0].run
+    assert.match(run, /\.path == "\.github\/workflows\/paperclip-image\.yml" and \.event == "workflow_dispatch"/u)
+    assert.match(run, /\.conclusion == "success"/u)
+    const loaded = steps.find((step) => step.name === 'The very image the run qualified').run
+    assert.match(loaded, /= "\$QUALIFIED_ID"/u)
+    assert.ok(
+      names.indexOf('The very image the run qualified') < names.indexOf('Push it, by the tag naming the Sophia commit and the pin'),
+      'the ID is checked before anything is pushed',
+    )
+    const push = steps.find((step) => step.name === 'Push it, by the tag naming the Sophia commit and the pin').run
+    assert.match(push, /docker logout ghcr\.io/u)
+  })
+
+  it('the receipt, the identity record and the export must name one image of the named run: a mutant refuses', () => {
+    const step = parse(readFileSync(PUBLISH, 'utf8')).jobs.publish.steps.find(
+      (s) => s.name === 'The receipt, the identity record and the export name one qualified image',
+    )
+    if (spawnSync('jq', ['--version']).status !== 0) return
+    const c = 'c'.repeat(40)
+    const p = '5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb'
+    const id = `sha256:${'e'.repeat(64)}`
+    const env = {
+      ...process.env,
+      ATTEMPT: '1',
+      CANDIDATE: c,
+      PAPERCLIP_PIN: p,
+      RUN_ID: '42',
+      GITHUB_SERVER_URL: 'https://github.com',
+      GITHUB_REPOSITORY: 'owner/repo',
+    }
+    const archive = Buffer.from('the exported image')
+    const good = {
+      receipt: {
+        schema: 'sophia.paperclip-image-receipt.v2',
+        verdict: 'qualified',
+        context: { candidate: c, pin: p, run: 'https://github.com/owner/repo/actions/runs/42', attempt: '1' },
+        images: { image: { id, os: 'linux', architecture: 'amd64' } },
+        checks: [{ result: 'passed' }, { result: 'passed' }],
+      },
+      identity: {
+        pin: p,
+        pinMatches: true,
+        sophiaCommit: c,
+        sophiaCommitMatches: true,
+        sophiaTreeDirty: false,
+        manifestSha256: 'f'.repeat(64),
+        manifestMatches: true,
+        verifyManifestInImage: true,
+        image: { id, os: 'linux', architecture: 'amd64' },
+      },
+      exported: {
+        imageId: id,
+        archiveSha256: createHash('sha256').update(archive).digest('hex'),
+        sophiaCommit: c,
+        paperclipPin: p,
+      },
+    }
+    const verify = (files, bytes = archive) => {
+      const dir = mkdtempSync(join(tmpdir(), 'pc-publish-'))
+      try {
+        mkdirSync(join(dir, 'evidence'))
+        mkdirSync(join(dir, 'image'))
+        writeFileSync(join(dir, 'evidence', 'receipt.json'), JSON.stringify(files.receipt))
+        writeFileSync(join(dir, 'evidence', 'identity.json'), JSON.stringify(files.identity))
+        writeFileSync(join(dir, 'image', 'export.json'), JSON.stringify(files.exported))
+        writeFileSync(join(dir, 'image', 'image.tar.gz'), bytes)
+        const out = join(dir, 'env')
+        writeFileSync(out, '')
+        const run = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', step.run], {
+          env: { ...env, D: dir, GITHUB_ENV: out },
+          encoding: 'utf8',
+        })
+        return { status: run.status, env: readFileSync(out, 'utf8') }
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+    const passed = verify(good)
+    assert.equal(passed.status, 0, 'the qualified run’s own image')
+    assert.match(passed.env, new RegExp(`QUALIFIED_ID=${id}`, 'u'))
+    const other = `sha256:${'a'.repeat(64)}`
+    const mutants = {
+      'the receipt names another image': { ...good, receipt: { ...good.receipt, images: { image: { ...good.receipt.images.image, id: other } } } },
+      'the receipt is another attempt’s': { ...good, receipt: { ...good.receipt, context: { ...good.receipt.context, attempt: '2' } } },
+      'the receipt is another run’s': { ...good, receipt: { ...good.receipt, context: { ...good.receipt.context, run: 'https://github.com/owner/repo/actions/runs/41' } } },
+      'the receipt is another commit’s': { ...good, receipt: { ...good.receipt, context: { ...good.receipt.context, candidate: 'd'.repeat(40) } } },
+      'a check of the receipt did not pass': { ...good, receipt: { ...good.receipt, checks: [{ result: 'passed' }, { result: 'not reached' }] } },
+      'the export is another image': { ...good, exported: { ...good.exported, imageId: other } },
+      'the identity record is another image': { ...good, identity: { ...good.identity, image: { ...good.identity.image, id: other } } },
+    }
+    for (const [why, files] of Object.entries(mutants)) assert.notEqual(verify(files).status, 0, why)
+    assert.notEqual(verify(good, Buffer.from('another archive')).status, 0, 'the archive is not the one exported')
+  })
+})
+
+describe('WBC-02-CC-0010 §2.2: the image keeps a ~/.ssh for Render’s SSH', () => {
+  const START = fileURLToPath(new URL('../../deploy/paperclip/start.sh', import.meta.url))
+  const DOCKERFILE = fileURLToPath(new URL('../../deploy/paperclip/Dockerfile', import.meta.url))
+  const dirs = []
+  after(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
+
+  /** start.sh run against a stand-in server that only says it started, with the homes given. */
+  const start = (home, paperclipHome) => {
+    const dir = mkdtempSync(join(tmpdir(), 'pc-start-'))
+    dirs.push(dir)
+    const app = join(dir, 'app')
+    mkdirSync(join(app, 'server', 'dist'), { recursive: true })
+    mkdirSync(join(app, 'server', 'node_modules', 'tsx', 'dist'), { recursive: true })
+    writeFileSync(join(app, 'server', 'node_modules', 'tsx', 'dist', 'loader.mjs'), '')
+    writeFileSync(join(app, 'server', 'dist', 'index.js'), "console.log('started')\n")
+    const run = spawnSync('sh', [START], {
+      env: { PATH: process.env.PATH, HOME: home(dir), PAPERCLIP_HOME: paperclipHome(dir), SOPHIA_PAPERCLIP_DIR: '/opt/sophia', PAPERCLIP_APP_DIR: app },
+      encoding: 'utf8',
+    })
+    return { dir, run }
+  }
+
+  it('makes the instance home’s .ssh at 0700 at every start, and leaves another home alone', () => {
+    const { dir, run } = start((d) => join(d, 'home'), (d) => join(d, 'home'))
+    assert.equal(run.status, 0, run.stderr)
+    assert.match(run.stdout, /started/u)
+    assert.equal(lstatSync(join(dir, 'home', '.ssh')).mode & 0o777, 0o700)
+    // The same disk at the next start: a mode loosened in between is made 0700 again.
+    chmodSync(join(dir, 'home', '.ssh'), 0o755)
+    const again = spawnSync('sh', [START], {
+      env: { PATH: process.env.PATH, HOME: join(dir, 'home'), PAPERCLIP_HOME: join(dir, 'home'), SOPHIA_PAPERCLIP_DIR: '/opt/sophia', PAPERCLIP_APP_DIR: join(dir, 'app') },
+      encoding: 'utf8',
+    })
+    assert.equal(again.status, 0, again.stderr)
+    assert.equal(lstatSync(join(dir, 'home', '.ssh')).mode & 0o777, 0o700)
+    const other = start((d) => join(d, 'operator'), (d) => join(d, 'paperclip'))
+    assert.equal(other.run.status, 0, other.run.stderr)
+    assert.throws(() => lstatSync(join(other.dir, 'operator', '.ssh')), /ENOENT/u, 'an operator’s home is not touched')
+    assert.match(readFileSync(DOCKERFILE, 'utf8'), /install -d -m 0700 -o root -g root \/root\/\.ssh/u)
   })
 })

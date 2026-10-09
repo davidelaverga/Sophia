@@ -24,10 +24,16 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && usermod -d /paperclip node \
   && mkdir -p /paperclip \
-  && chown node:node /paperclip
+  && chown node:node /paperclip \
+  && install -d -m 0700 -o root -g root /root/.ssh
 WORKDIR /app
 COPY --chown=node:node --from=paperclip /app /app
 COPY --from=paperclip /app/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+# SSH (Render's, for a Docker service, needs the running user's ~/.ssh at 0700): the image starts as root, whose home
+# /root/.ssh is made above; the pin's entrypoint then runs the server as node with HOME=/paperclip, the service's disk,
+# whose .ssh start.sh makes at every start. Which of the two Render's session uses is checked on the instance
+# (WBC-02-CC-0010 §2.2) before an operator key is registered.
 
 # The verified packages, read only, at the paths the start script and the plugin install name.
 COPY MANIFEST.json start.sh verify-manifest.mjs /opt/sophia/

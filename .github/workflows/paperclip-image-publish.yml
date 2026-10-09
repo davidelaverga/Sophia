@@ -1,0 +1,162 @@
+# WBC-02 D4 delivery (WBC-02-CC-0010 §2): publish the exact Paperclip image one paperclip-image run qualified, to the
+# GitHub Container Registry, so Render pulls it by digest instead of building the pin's two-stage image itself. Run by
+# hand, by the repository owner's account only, for one named run. It builds nothing and qualifies nothing:
+# - the run must be a paperclip-image run by hand (workflow_dispatch) that succeeded;
+# - its receipt must read qualified, and its identity record must name a clean Sophia commit (the run's own head) and
+#   the pin, linux/amd64;
+# - the exported image must load with exactly the image ID that record names.
+# Then it pushes that image under a tag naming the Sophia commit and the pin, and records the registry digest and
+# whether an anonymous pull of it works. The image holds only the build of the public Sophia and Paperclip sources and
+# their defaults: no credential is built in, and no credential of Render or production reaches this workflow. Its job's
+# GITHUB_TOKEN holds this repository's package permission (packages: write is not a grant the platform limits to one
+# package); its commands name only the sophia-paperclip package.
+name: paperclip-image-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The id of a paperclip-image run by hand that qualified the image (from its URL)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paperclip-image-publish
+  cancel-in-progress: false
+
+env:
+  PAPERCLIP_PIN: 5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb
+  PACKAGE: sophia-paperclip
+
+jobs:
+  publish:
+    name: Publish a qualified Paperclip image by digest
+    # Dispatch already needs write access; publication is the repository owner's alone, on a re-run too (a re-run keeps
+    # the first actor and names its own in triggering_actor).
+    if: github.actor == github.repository_owner && github.triggering_actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    # Above the sum of the steps' own budgets (50 minutes) with room for the job's set-up and post steps, so a slow push
+    # still ends with its digest and delivery record; the unit tests hold this arithmetic.
+    timeout-minutes: 65
+    permissions:
+      contents: read
+      # The named run, its record and its artifacts.
+      actions: read
+      # This package, through this job's GITHUB_TOKEN.
+      packages: write
+    steps:
+      - name: The named run qualified the image, by hand, at a clean commit and the pin
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          [[ "$RUN_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::run_id is a run's numeric id"; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$RUNNER_TEMP/run.json"
+          jq -e '.path == ".github/workflows/paperclip-image.yml" and .event == "workflow_dispatch"
+            and .status == "completed" and .conclusion == "success"' "$RUNNER_TEMP/run.json"
+          echo "CANDIDATE=$(jq -r .head_sha "$RUNNER_TEMP/run.json")" >> "$GITHUB_ENV"
+          echo "ATTEMPT=$(jq -r .run_attempt "$RUNNER_TEMP/run.json")" >> "$GITHUB_ENV"
+          echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - name: Its receipt, identity record and exported image
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          D="$RUNNER_TEMP/qualified"; mkdir -p "$D/evidence" "$D/image"
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "paperclip-image-evidence-$RUN_ID-$ATTEMPT" --dir "$D/evidence"
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "paperclip-image-qualified-$RUN_ID-$ATTEMPT" --dir "$D/image"
+          echo "D=$D" >> "$GITHUB_ENV"
+
+      # One image, named alike by the receipt, the identity record and the export: the receipt's own run, attempt,
+      # candidate and pin, every check passed, and its image ID the identity record's and the export's.
+      - name: The receipt, the identity record and the export name one qualified image
+        timeout-minutes: 2
+        env:
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID"
+          id="$(jq -r .image.id "$D/evidence/identity.json")"
+          [[ "$id" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::the identity record names no image"; exit 1; }
+          jq -e --arg run "$run" --arg attempt "$ATTEMPT" --arg c "$CANDIDATE" --arg p "$PAPERCLIP_PIN" --arg id "$id" \
+            '.schema == "sophia.paperclip-image-receipt.v2" and .verdict == "qualified"
+            and ([.checks[].result] | length > 0 and all(. == "passed"))
+            and .context.run == $run and .context.attempt == $attempt and .context.candidate == $c and .context.pin == $p
+            and .images.image.id == $id and .images.image.os == "linux" and .images.image.architecture == "amd64"' \
+            "$D/evidence/receipt.json"
+          jq -e --arg c "$CANDIDATE" --arg p "$PAPERCLIP_PIN" --arg id "$id" '.pinMatches and .pin == $p
+            and .sophiaCommitMatches and .sophiaCommit == $c and .sophiaTreeDirty == false and .manifestMatches
+            and .verifyManifestInImage and .image.id == $id and .image.os == "linux" and .image.architecture == "amd64"' \
+            "$D/evidence/identity.json"
+          jq -e --arg c "$CANDIDATE" --arg p "$PAPERCLIP_PIN" --arg id "$id" \
+            '.imageId == $id and .sophiaCommit == $c and .paperclipPin == $p' "$D/image/export.json"
+          test "$(sha256sum "$D/image/image.tar.gz" | cut -c1-64)" = "$(jq -r .archiveSha256 "$D/image/export.json")"
+          echo "QUALIFIED_ID=$id" >> "$GITHUB_ENV"
+          echo "MANIFEST_SHA256=$(jq -r .manifestSha256 "$D/evidence/identity.json")" >> "$GITHUB_ENV"
+
+      - name: The very image the run qualified
+        timeout-minutes: 10
+        run: |
+          loaded="$(gunzip -c "$D/image/image.tar.gz" | docker load --quiet | sed -n 's/^Loaded image: //p')"
+          test -n "$loaded"
+          test "$(docker image inspect "$loaded" --format '{{.Id}}')" = "$QUALIFIED_ID"
+          echo "LOADED=$loaded" >> "$GITHUB_ENV"
+
+      - name: Push it, by the tag naming the Sophia commit and the pin
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ref="ghcr.io/$OWNER/$PACKAGE:sophia-$CANDIDATE-paperclip-${PAPERCLIP_PIN:0:12}"
+          echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker tag "$LOADED" "$ref"
+          docker push --quiet "$ref"
+          docker logout ghcr.io
+          digest="$(docker image inspect "$ref" --format '{{range .RepoDigests}}{{println .}}{{end}}' | sed -n "s|^ghcr.io/$OWNER/$PACKAGE@||p" | head -1)"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::no registry digest for $ref"; exit 1; }
+          echo "TAG=$ref" >> "$GITHUB_ENV"
+          echo "DIGEST=$digest" >> "$GITHUB_ENV"
+
+      # Render pulls a public image with no registry credential. A new package may start private: if so, a maintainer
+      # sets this one package's visibility to Public once, in its settings, and this check says so until then.
+      - name: Whether an anonymous pull by digest works
+        timeout-minutes: 2
+        run: |
+          token="$(curl -fsS "https://ghcr.io/token?scope=repository:$OWNER/$PACKAGE:pull" | jq -r '.token // empty')" || token=""
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+            "https://ghcr.io/v2/$OWNER/$PACKAGE/manifests/$DIGEST")" || code=000
+          if [ "$code" = 200 ]; then echo "ANONYMOUS=true" >> "$GITHUB_ENV"; else
+            echo "ANONYMOUS=false" >> "$GITHUB_ENV"
+            echo "::warning::an anonymous pull answered $code: set the $PACKAGE package's visibility to Public before Render pulls it"
+          fi
+
+      - name: The delivery record
+        timeout-minutes: 2
+        env:
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/delivery"
+          jq -n --arg image "ghcr.io/$OWNER/$PACKAGE@$DIGEST" --arg tag "$TAG" --arg digest "$DIGEST" --arg id "$QUALIFIED_ID" \
+            --arg c "$CANDIDATE" --arg p "$PAPERCLIP_PIN" --arg m "$MANIFEST_SHA256" --argjson anon "$ANONYMOUS" \
+            --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --arg attempt "$ATTEMPT" \
+            --arg by "$GITHUB_ACTOR" --arg publish "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '{image: $image, tag: $tag, digest: $digest, imageId: $id, platform: "linux/amd64", sophiaCommit: $c,
+              paperclipPin: $p, manifestSha256: $m, qualifiedRun: $run, qualifiedAttempt: $attempt, receipt: "qualified",
+              anonymousPull: $anon, publishedBy: $by, publishRun: $publish}' > "$RUNNER_TEMP/delivery/delivery.json"
+          cat "$RUNNER_TEMP/delivery/delivery.json"
+          { echo '## Paperclip image delivered'; echo; echo '```json'; cat "$RUNNER_TEMP/delivery/delivery.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the delivery record
+        timeout-minutes: 3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: paperclip-image-delivery-${{ inputs.run_id }}
+          path: ${{ runner.temp }}/delivery
+          if-no-files-found: error
+          retention-days: 90
