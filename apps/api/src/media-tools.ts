@@ -10,7 +10,7 @@
 // (CX-0026); a write whose commit is lost is unknown for every guide, never a refusal, and a retried control is
 // answered as the one already admitted.
 import { createHash } from 'node:crypto'
-import type pg from 'pg'
+import pg from 'pg'
 import type { MediaToolCall, MediaToolResult, Receipt } from '@sophia/contracts'
 import { canonicalJson } from '@sophia/coordination'
 import { DomainError } from '@sophia/domain'
@@ -104,23 +104,60 @@ const replayed = (answer: LiveCallAnswer): MediaToolResult => ({
 })
 
 /**
- * The calls under way in this process, by key. An identical call (the bridge's retry, or the provider's repeat) waits for
- * the one before it, so a recorded call's repeat reads its answer once it is given, never while it is being made.
+ * How long a call waits for the fence another attempt of it holds, in this API process or another (a rolling deploy),
+ * before it answers that the call is still being made. The bridge sets no limit on a tool call's answer, so this one
+ * never makes it ask again.
  */
-const underWay = new Map<string, Promise<void>>()
+export const CALL_FENCE_WAIT_MS = 5000
 
-async function oneAtATime<T>(key: string, run: () => Promise<T>): Promise<T> {
-  const mine = (underWay.get(key) ?? Promise.resolve()).then(run)
-  const settled = mine.then(
-    () => undefined,
-    () => undefined,
-  )
-  underWay.set(key, settled)
+/** Another attempt of the call holds its fence: nothing was run or marked here, and whether it applied is not known. */
+const inProgress: MediaToolResult = {
+  status: 'unknown',
+  output: {
+    code: 'unconfirmed:in_progress',
+    reason: 'That call is still being made; I could not confirm whether it was applied. Read project_status.',
+  },
+}
+
+const fenceUnavailable: MediaToolResult = {
+  status: 'error',
+  output: { reason: 'The tool failed; nothing was changed.' },
+}
+
+/**
+ * The fence on a call's key, across API processes (Codex P1 r4234393693, r4234171899): a session advisory lock on a
+ * connection of its own, keyed by the call key. It is taken before the call is claimed, bound and recorded, and held
+ * across its handler and its answer's mark, so another attempt of the call, in any API process, waits for it (at most
+ * `waitMs`), then reads the answer the holder gave, or runs a call the holder left unanswered. It is taken while holding
+ * no other lock, and calls under other keys never wait on it, so it adds no lock order. A holder that dies ends its
+ * session, which releases the fence. Resolves to its release (once), or null when the wait ran out.
+ */
+async function fenceCall(pool: pg.Pool, key: string, waitMs: number): Promise<(() => Promise<void>) | null> {
+  const client = new pg.Client(pool.options)
+  // A fence connection lost: its session, and so its fence, ended with it.
+  client.on('error', () => undefined)
+  const lock = `sophia.live_call:${key}`
   try {
-    return await mine
-  } finally {
-    if (underWay.get(key) === settled) underWay.delete(key)
+    await client.connect()
+    await client.query(`SELECT set_config('lock_timeout', $1, false)`, [`${String(waitMs)}ms`])
+    await client.query(`SELECT pg_advisory_lock(hashtextextended($1, 0))`, [lock])
+  } catch (err: unknown) {
+    await client.end().catch(() => undefined)
+    // lock_timeout: another attempt holds the fence still.
+    if (err instanceof Error && 'code' in err && err.code === '55P03') return null
+    throw err
   }
+  let released: Promise<void> | null = null
+  return () =>
+    (released ??= client
+      .query(`SELECT pg_advisory_unlock(hashtextextended($1, 0))`, [lock])
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+      // Ending the session releases the fence whatever the unlock did.
+      .then(() => client.end())
+      .catch(() => undefined))
 }
 
 /**
@@ -348,9 +385,12 @@ function declaredBy(call: MediaToolCall): boolean {
  * goes on as before. A recorded call once answered is terminal (Codex P1 r4234171899): its repeat is answered from the
  * record, and its handler never runs again, so a refusal that depended on the work's state can never admit later what
  * the record says it refused. A recorded call not answered yet (the attempt before stopped before its mark) runs again,
- * and is marked. A call that is not recorded (voice qualification off, or anyone but the grant's principal) runs again
- * as before: there is no record to keep true, and a lost answer gets a fresh one. Identical calls are made one at a time
- * in this process (oneAtATime), so a repeat that comes while its call is being made reads the answer once it is given.
+ * and is marked. With voice qualification on, the only API that records, every call is made under its key's fence
+ * (fenceCall, r4234393693): one attempt at a time across API processes, from before its binding to after its mark, so a
+ * repeat reads the answer once it is given, never while it is being made; one that cannot get the fence in time answers
+ * that it is still being made (unknown), and runs and marks nothing. A call that is not recorded (voice qualification
+ * off, or anyone but the grant's principal) runs again as before: there is no record to keep true, and a lost answer
+ * gets a fresh one.
  */
 export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice = false): Promise<MediaToolResult> {
   if (!declaredBy(call)) {
@@ -361,20 +401,53 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice 
   }
   // The bridge's Google session: the same across a resumed connection, so a repeated call is the same call.
   const key = `live:${call.exchangeId}:${String(call.connectionGeneration)}:${call.callId}`
-  return oneAtATime(key, () => executeOnce(pool, call, key, voice))
+  if (!voice) {
+    const bound = await bindCall(pool, call, key, false)
+    return 'status' in bound ? bound : handleCall(pool, call, key, bound)
+  }
+  let release: (() => Promise<void>) | null
+  try {
+    release = await fenceCall(pool, key, CALL_FENCE_WAIT_MS)
+  } catch {
+    return fenceUnavailable
+  }
+  if (!release) return inProgress
+  try {
+    const bound = await bindCall(pool, call, key, true)
+    if ('status' in bound) return bound
+    const result = await handleCall(pool, call, key, bound)
+    await markCall(pool, call, key, bound, result)
+    return result
+  } finally {
+    await release()
+  }
 }
 
-/** One call under its key, once any identical call before it in this process has been answered. */
-async function executeOnce(pool: pg.Pool, call: MediaToolCall, key: string, voice: boolean): Promise<MediaToolResult> {
-  let speaker: { projectId: string; recorded: boolean; answered: LiveCallAnswer | null }
+/** What binding a call found: its project, whether it is recorded, and its answer if it was given already. */
+interface Bound {
+  projectId: string
+  recorded: boolean
+  answered: LiveCallAnswer | null
+}
+
+/**
+ * Claim the call's key, bind it to its speaker and (voice qualification on) record it, in one transaction; a recorded
+ * call reads its answer there. A refusal or a question back when it does not bind.
+ */
+async function bindCall(
+  pool: pg.Pool,
+  call: MediaToolCall,
+  key: string,
+  voice: boolean,
+): Promise<Bound | MediaToolResult> {
   try {
-    speaker = await withService(pool, async (c) => {
-      // Before any lock: the claim locks only its key's row (0047 has no foreign key), never the project or the
+    return await withService(pool, async (c) => {
+      // Before any row lock: the claim locks only its key's row (0047 has no foreign key), never the project or the
       // exchange, so it adds no lock order to the recording's project lock below.
       await claimLiveCall(c, { ...call, key, callSha256: callSha256(call) })
       const bound = await toolSpeaker(c, call.exchangeId, call.inputEpoch, call.actorId)
       const recorded = voice && (await recordLiveCall(c, { ...call, key }))
-      // A recorded call once answered is terminal: read in the transaction that binds it, whatever the work does since.
+      // A recorded call once answered is terminal: read in the transaction that binds it, under its fence.
       const answered = recorded
         ? await liveCallAnswer(c, { exchangeId: call.exchangeId, actorId: call.actorId, key })
         : null
@@ -384,20 +457,32 @@ async function executeOnce(pool: pg.Pool, call: MediaToolCall, key: string, voic
     if (err instanceof DomainError && err.code === 'idempotency_conflict') return reusedCall
     return clarify('I couldn’t tell who asked that. Could the person holding the floor ask again?')
   }
-  if (speaker.answered) return replayed(speaker.answered)
+}
+
+/** A bound call's answer: its recorded answer replayed, or its handler run for its speaker. */
+async function handleCall(pool: pg.Pool, call: MediaToolCall, key: string, bound: Bound): Promise<MediaToolResult> {
+  if (bound.answered) return replayed(bound.answered)
   const ctx: ToolContext = {
     pool,
-    projectId: speaker.projectId,
+    projectId: bound.projectId,
     actorId: call.actorId,
     key,
     call,
     args: call.args,
-    liveCall: speaker.recorded,
+    liveCall: bound.recorded,
   }
-  const result = await TOOL_HANDLERS[call.name](ctx)
-  if (speaker.recorded) {
-    const answered = { exchangeId: call.exchangeId, actorId: call.actorId, key, outcome: result.status }
-    await withService(pool, (c) => answerLiveCall(c, answered)).catch(() => undefined)
-  }
-  return result
+  return TOOL_HANDLERS[call.name](ctx)
+}
+
+/** A recorded call answered now (not replayed), after what it admitted committed: its answer's status, once. */
+async function markCall(
+  pool: pg.Pool,
+  call: MediaToolCall,
+  key: string,
+  bound: Bound,
+  result: MediaToolResult,
+): Promise<void> {
+  if (!bound.recorded || bound.answered) return
+  const answered = { exchangeId: call.exchangeId, actorId: call.actorId, key, outcome: result.status }
+  await withService(pool, (c) => answerLiveCall(c, answered)).catch(() => undefined)
 }
