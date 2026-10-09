@@ -1,0 +1,109 @@
+{
+  "schema": "sophia.con01.source-manifest.v1",
+  "mission": "CON-01",
+  "edition": "0.1",
+  "date": "2026-10-09",
+  "sophia_read_ref": "695fe4424ad268111357553cf60a99e7f1523dea",
+  "status": "mission_specification_only",
+  "parent_zip_sha256": "cafb22928ab298e4691b38377671bbdbfa2f4cd79a30e50288bdd36be93efb80",
+  "preserved_references": [
+    {
+      "source_archive_member": "Sophia_Unified_Continuation_Pack_v3.0_2026-10-09/goals/CON-01.md",
+      "pack_path": "references/v3/goals__CON-01.md.original.txt",
+      "sha256": "be28f583eac72a0252928db120f48930600b15dde8ec7d82e9cf7e7fce83b759"
+    },
+    {
+      "source_archive_member": "Sophia_Unified_Continuation_Pack_v3.0_2026-10-09/architecture/07_CONVERSATIONS_AND_TASK_CONTEXT.md",
+      "pack_path": "references/v3/architecture__07_CONVERSATIONS_AND_TASK_CONTEXT.md.original.txt",
+      "sha256": "0ce6629c3f18c9cb9f94374d3a78efd42e45594100bd379a6af93f355bd7f9ea"
+    },
+    {
+      "source_archive_member": "Sophia_Unified_Continuation_Pack_v3.0_2026-10-09/architecture/06_OPERATIONS_AND_RELEASES.md",
+      "pack_path": "references/v3/architecture__06_OPERATIONS_AND_RELEASES.md.original.txt",
+      "sha256": "ab1337a332d91f1c41fbc0dde5150fb800008d45cae2b210a223d45246f2922f"
+    }
+  ],
+  "sources": [
+    {
+      "id": "S01",
+      "name": "Main ref",
+      "url": "https://api.github.com/repos/davidelaverga/Sophia/git/ref/heads/main",
+      "read_scope": "Main ref read; recorded source identity only, not deployed state."
+    },
+    {
+      "id": "S02",
+      "name": "Open PR collection",
+      "url": "https://api.github.com/repos/davidelaverga/Sophia/pulls?state=open&per_page=50",
+      "read_scope": "Read-only open-PR snapshot; draft #190 observed. Refresh at kickoff."
+    },
+    {
+      "id": "S03",
+      "name": "AGENTS.md",
+      "url": "https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/AGENTS.md",
+      "read_scope": "Returned repository entry/rules, through file end; precise toolchain and artifact/handoff requirements. Earlier missing documentation paths are not treated as source."
+    },
+    {
+      "id": "S04",
+      "name": "Conversation UI contract",
+      "url": "https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/apps/studio/src/api/vision.ts",
+      "read_scope": "Read lines 1\u2013230 and 370\u2013720. A18 proposal shapes, later response, members/viewers, artifact references; unrelated APIs remain out of scope."
+    },
+    {
+      "id": "S05",
+      "name": "ConversationsView.tsx",
+      "url": "https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/apps/studio/src/features/conversations/ConversationsView.tsx",
+      "read_scope": "Read lines 1\u2013170. Existing feature, accountOf query key, membership gate, feed invalidation and panels. Not a complete file audit."
+    },
+    {
+      "id": "S06",
+      "name": "Project conversations",
+      "url": "https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/project-conversations.md",
+      "read_scope": "Full returned plan: separate histories/shared project, contributors, pagination, explicit retention gap and tests."
+    },
+    {
+      "id": "S07",
+      "name": "Project conversation writes",
+      "url": "https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/project-conversation-writes.md",
+      "read_scope": "Full returned plan: Ask on/off, once-per-key writes, per-conversation drafts, later answer and current timestamp-oriented waiting behavior."
+    },
+    {
+      "id": "S08",
+      "name": "Conversation panes",
+      "url": "https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/conversations-panes.md",
+      "read_scope": "Full returned plan: chosen desktop/tablet/mobile behavior and focus/scroll expectations."
+    },
+    {
+      "id": "S09",
+      "name": "Conversation quick answers",
+      "url": "https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/conversations-answers.md",
+      "read_scope": "Full returned C6 plan: fixture demonstrations explicitly leave real answers to the runtime."
+    },
+    {
+      "id": "S10",
+      "name": "Conversation decisions",
+      "url": "https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/plans/conversations-decide.md",
+      "read_scope": "Full returned C7 plan: existing A08 operations and revision/idempotency rules, not new decision store."
+    },
+    {
+      "id": "S11",
+      "name": "Destination map",
+      "url": "https://github.com/davidelaverga/Sophia/blob/695fe4424ad268111357553cf60a99e7f1523dea/docs/DESTINATION_MAP.md",
+      "read_scope": "Requested lines 1\u2013150; response truncated after core package map. Claims limited to visible map entries: persistence, mission context, contracts, registry, native bridge, Paperclip and design."
+    },
+    {
+      "id": "S12",
+      "name": "Conversation directory",
+      "url": "https://github.com/davidelaverga/Sophia/tree/695fe4424ad268111357553cf60a99e7f1523dea/apps/studio/src/features/conversations",
+      "read_scope": "Directory/tree metadata only: existing components, stores and tests; not proof their behavior passes."
+    }
+  ],
+  "unallocated": [
+    "backend amendment ID",
+    "database migration ID",
+    "native preset ID if a new role is needed",
+    "mission issue/PR",
+    "live target",
+    "live provider allowance"
+  ],
+  "live_operations_performed": false
+}
