@@ -208,32 +208,42 @@ describe('the write-once probe (storage-probe.ts)', () => {
   })
 
   it('past its deadline sends nothing more, and its last line names its keys', async () => {
-    // A provider whose first answer comes only after the deadline: the store would then go on to its PUT.
+    // A provider whose first answer is held until the deadline's line is out: the store then goes on to its PUT. The
+    // deadline is well past the preconditions and the first claim, however slowly the database answers them.
     const stand = provider()
     const sent: string[] = []
+    let answerFirst: (() => void) | undefined
+    const held = new Promise<void>((resolve) => (answerFirst = resolve))
     const late: typeof fetch = async (input, init) => {
       sent.push(init?.method ?? 'GET')
-      await new Promise((resolve) => setTimeout(resolve, 600))
+      await held
       return stand.fetchImpl(input, init)
     }
     const runId = randomUUID()
     const log: object[] = []
+    const record = (r: object) => {
+      log.push(r)
+      if (Reflect.get(r, 'event') === 'STORAGE_PROBE_DONE') answerFirst?.()
+    }
     const LOST = Symbol('the sentinel')
     let sentinel: NodeJS.Timeout | undefined
     const ended = await Promise.race([
       runStorageProbe(
         { SOPHIA_API_DATABASE_URL: db.apiUrl, ...SETTINGS },
-        { fetchImpl: late, log: (r) => log.push(r), runId, probeMs: 300 },
+        { fetchImpl: late, log: record, runId, probeMs: 2000 },
       ),
-      new Promise<typeof LOST>((resolve) => (sentinel = setTimeout(() => resolve(LOST), 10_000))),
-    ]).finally(() => clearTimeout(sentinel))
+      new Promise<typeof LOST>((resolve) => (sentinel = setTimeout(() => resolve(LOST), 15_000))),
+    ]).finally(() => {
+      clearTimeout(sentinel)
+      answerFirst?.()
+    })
     assert.equal(ended, 3, 'uncertain, before the sentinel')
     const last = done(log)
-    assert.match(String(last.reason), /past 300 ms/u)
+    assert.match(String(last.reason), /past 2000 ms/u)
     assert.deepEqual(last.keys, runKeys(runId), 'the keys the operator looks for')
-    assert.equal(last.providerRequests, 1)
-    // Once the late answer is in, the store's next request is refused before it is sent.
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    assert.equal(last.providerRequests, 1, 'the first HEAD, held')
+    // The held answer is in: the store's next request is refused before it is sent.
+    await new Promise((resolve) => setTimeout(resolve, 500))
     assert.deepEqual(sent, ['HEAD'], 'nothing sent after the deadline')
     assert.equal(stand.state.puts, 0)
     assert.equal(log.at(-1), last, 'the deadline’s line is the last')

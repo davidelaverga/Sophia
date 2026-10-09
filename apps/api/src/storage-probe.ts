@@ -12,7 +12,7 @@
 // the first names the physical namespace it writes in (endpoint, region, bucket) and its keys; none names a credential
 // or a signed URL. Exit: 0 every guarantee held;
 // 1 one did not; 2 a precondition is missing (nothing written); 3 an outcome is uncertain (stopped at once, never
-// retried: its keys, named by its first line, are claimed and can never be written again; what the provider holds there
+// retried: its keys, named by its first line, were claimed or never written, and it never writes them again; what the provider holds there
 // is read from the dashboard's Storage view, never with a copy of the API's key).
 import { randomUUID } from 'node:crypto'
 import type pg from 'pg'
