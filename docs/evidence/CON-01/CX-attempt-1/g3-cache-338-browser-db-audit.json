@@ -1,0 +1,53 @@
+{
+  "candidate": "338878df8ac0e0cfc219b80af3728830d0dd7673",
+  "tree": "6e2051fc76bebdb5a8ba32bb2fe26a7fd24ee99c",
+  "observedAt": "2026-10-09T22:16:32.543Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "be283fa3-1500-4653-8bd6-8a4e32075bf9",
+  "messages": [
+    {
+      "title": "Synthetic cache privacy",
+      "id": "d9dcd380-faba-4c5a-a3d6-a11adc17a93a",
+      "conversation_id": "c0936b66-06cc-4660-bc4b-6d816f1f4a17",
+      "actor_id": "cb1390bf-afae-4c2c-b506-870cb120edef",
+      "seq": "1",
+      "body": null,
+      "withdrawn_at": "2026-10-09T22:16:18.638Z"
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "cb1390bf-afae-4c2c-b506-870cb120edef",
+      "idempotency_key": "72b984c6-e12c-4faa-aa8e-e0591a6d5eb8",
+      "operation": "start",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "d9dcd380-faba-4c5a-a3d6-a11adc17a93a"
+    },
+    {
+      "actor_id": "cb1390bf-afae-4c2c-b506-870cb120edef",
+      "idempotency_key": "3dd26fd4-b601-474b-97a5-4d1685b23929",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "d9dcd380-faba-4c5a-a3d6-a11adc17a93a",
+        "operation": "withdraw",
+        "conversationId": "c0936b66-06cc-4660-bc4b-6d816f1f4a17"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

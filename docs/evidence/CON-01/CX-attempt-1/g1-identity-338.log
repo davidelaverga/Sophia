@@ -1,0 +1,12 @@
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+Independent actual HTTP/PG: rename replay, same-email distinct subjects, project key scope, outsider and cross-project denial; zero operational/model records
+✔ distinct JWT subjects sharing an email remain isolated; rename and project key scopes retain exact receipts (860.71125ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1209.950708

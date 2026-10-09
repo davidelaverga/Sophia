@@ -1,0 +1,27 @@
+{
+  "candidate": "338878df8ac0e0cfc219b80af3728830d0dd7673",
+  "tree": "6e2051fc76bebdb5a8ba32bb2fe26a7fd24ee99c",
+  "root": "<candidate-root>",
+  "level": "L1 disposable real PostgreSQL; no provider, hosted writes or app acceptance",
+  "tests": [
+    "<review-evidence>/g1-identity-independent.test.mjs"
+  ],
+  "postgres": "pg_ctl (PostgreSQL) 17.6",
+  "at": "2026-10-09T22:15:12.621201+00:00",
+  "command": [
+    "node",
+    "--test",
+    "--test-concurrency=1",
+    "--test-timeout=90000",
+    "<review-evidence>/g1-identity-independent.test.mjs"
+  ],
+  "exit": 0,
+  "ownedServerStopped": true,
+  "ownedClusterRemoved": true,
+  "harness_bootstrap": {
+    "initial_reused_package": "missing postgres.bki; no server started; empty directory removed",
+    "owned_package": "@embedded-postgres/darwin-arm64@17.6.0-beta.15",
+    "archive_sha256": "68cae19565ec5b5c8e50fd9b6f5021bebd0ee2f5f4850a459c99a36c00e078d4",
+    "hydration": "official package postinstall symlink hydration; initial unhydrated attempt failed before server start; empty directory removed"
+  }
+}

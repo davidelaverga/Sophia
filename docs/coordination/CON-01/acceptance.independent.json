@@ -52,9 +52,10 @@
       "evidence_refs": [
         "CON-01-CX-0007.md",
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0013.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Independent338 actual local browser read-failure crossing FAILED: withdrawn message body NULL but cached list still displayed its words; bot r4234938133 remains open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -72,9 +73,10 @@
       "evidence_refs": [
         "CON-01-CX-0007.md",
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0013.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Independent338 actual local browser read-failure crossing FAILED: withdrawn message body NULL but cached list still displayed its words; bot r4234938133 remains open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -88,9 +90,11 @@
       "expected": "Different subjects with the same display email cannot read each other's browser state. Same subject with renamed email retains its own state, including pending callback results.",
       "required_evidence": "Auth/browser regression",
       "gate": "G1/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CX-0013.md"
+      ],
+      "limitation": "Independent actual HTTP/PG synthetic-JWT same-email/distinct-subject, rename replay and project-key isolation passed on338878df. Actual authorized two-account browser/native/hosted arms remain open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -585,7 +589,16 @@
       "candidate_tree": "6e2051fc76bebdb5a8ba32bb2fe26a7fd24ee99c",
       "level": "L1 real local Studio/API/PostgreSQL, synthetic accounts only",
       "review_refs": [
-        "CX-0011.md"
+        "CX-0011.md",
+        "CX-0013.md"
+      ]
+    },
+    {
+      "candidate_sha": "949a6e4ecf68c7c2ccb9e6d07f27752da8f8e4c5",
+      "candidate_tree": "b180ccaab29059e5294f86e975134f2016d0da0e",
+      "level": "G2 binding-only source review; no execution",
+      "review_refs": [
+        "CX-0012.md"
       ]
     }
   ]
