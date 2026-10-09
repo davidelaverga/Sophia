@@ -3886,7 +3886,10 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     assert.equal(live.responses.length, 1)
     live.events.turnComplete()
     await flush()
-    // The tool response's WHEN_IDLE continuation: a generation nobody asked for.
+    // Luis's microphone stays open (a quiet chunk): the next turn is his again.
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    await flush()
+    // The tool response's WHEN_IDLE continuation: a generation nobody asked for, answering Luis's turn.
     live.events.outputTranscript('Here is where it stands', false)
     live.events.audio(speech(1), OUT)
     await flush()
@@ -3901,6 +3904,8 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
       'input_window',
       'input_turn',
       'output_reply',
+      'input_window',
+      'input_turn',
       'output_reply',
       'provider:usage',
       'provider:closed',
@@ -3908,7 +3913,7 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     ])
     assert.deepEqual(
       service.evidence.map((w) => w.seq),
-      [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     )
     for (const w of service.evidence) {
       assert.deepEqual(breaches(w, COMPONENTS.MediaEvidenceWrite as Schema), [], tag(w))
@@ -3917,7 +3922,7 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
       assert.deepEqual([w.exchangeId, w.grantId, w.receipt.grantId], [EXCHANGE, GRANT_ID, GRANT_ID])
       assert.equal(w.receipt.runBindingSha256, RUN_BINDING)
     }
-    const [setup, , window, turn, reply, continuation, usage, , close] = service.evidence
+    const [setup, , window, turn, reply, , , continuation, usage, , close] = service.evidence
     assert.deepEqual(pick(fields(setup), 'connection', 'resumed', 'model', 'instructionSha256', 'bridgeCommit'), {
       connection: 1,
       resumed: false,
@@ -3987,7 +3992,7 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
       connectionsOpened: 1,
     })
     assert.deepEqual(pick(fields(close), 'windows', 'turns', 'replies', 'toolCalls', 'typedMessages', 'reason'), {
-      windows: 1,
+      windows: 2,
       turns: 2,
       replies: 2,
       toolCalls: 1,
@@ -4028,6 +4033,90 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     for (let i = 0; i < 5; i += 1) room.events.audio(LUIS, voice16k(), 16000, 1)
     await flush() // its generation is reserved first: the chunk waits for the grant
     assert.equal(live.audio, 7)
+  })
+
+  it('the floor moves to the principal while Sophia still answers another member: nothing of that turn is recorded', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ inputActorId: DAVIDE, qualification: grant() })
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunks wait for the grant
+    assert.equal(live.audio, 2, 'Davide was heard: the turn Sophia answers is his')
+    live.events.audio(speech(2), OUT)
+    await flush()
+    // The floor moves to Luis, the principal, while Sophia's answer to Davide is still arriving.
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 2, qualification: grant() }))
+    live.events.audio(speech(3), OUT)
+    live.events.toolCalls([{ id: 'call-davide', name: 'project_status', args: {} }])
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await flush()
+    await session.close()
+    const kinds = service.evidence.map(tag)
+    assert.ok(kinds.includes('session_closed'), 'Luis held the floor: the session’s close is his to record')
+    for (const kind of ['input_window', 'input_turn', 'output_reply'])
+      assert.ok(!kinds.includes(kind), `no ${kind}: nothing of Davide’s turn is recorded as Luis’s`)
+    const close = service.evidence.find((w) => w.receipt.kind === 'session_closed')
+    assert.deepEqual(pick(fields(close), 'windows', 'replies', 'toolCalls'), { windows: 0, replies: 0, toolCalls: 0 })
+  })
+
+  it('the floor moves to the principal before Sophia’s answer to another member begins: that answer is not his', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ inputActorId: DAVIDE, qualification: grant() })
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    assert.equal(live.audio, 1, 'Davide was heard: the turn Sophia answers is his')
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 2, qualification: grant() }))
+    live.events.audio(speech(3), OUT)
+    live.events.toolCalls([{ id: 'call-davide', name: 'project_status', args: {} }])
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await flush()
+    await session.close()
+    assert.deepEqual(
+      service.evidence.map(tag).filter((kind) => !kind.startsWith('provider:')),
+      ['session_closed'],
+      'Luis held the floor, and nothing of Davide’s turn is recorded as his',
+    )
+    const close = service.evidence.find((w) => w.receipt.kind === 'session_closed')
+    assert.deepEqual(pick(fields(close), 'windows', 'replies', 'toolCalls'), { windows: 0, replies: 0, toolCalls: 0 })
+  })
+
+  it('a reply to the principal still playing as the floor moves away ends with its receipt; the next member’s is not', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.holding = true
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.audio(speech(2), OUT) // Sophia answers Luis; the frames wait in the room's queue
+    await flush()
+    session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, qualification: grant() }))
+    room.holding = false
+    await room.release(10) // Luis's reply plays on after the floor moved
+    live.events.turnComplete()
+    await flush()
+    clock += 5000
+    session.tick()
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(4), OUT) // Sophia answers Davide
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await flush()
+    await session.close()
+    assert.deepEqual(replyEnds(), ['played', 'played'])
+    const replies = service.evidence.filter((w) => w.receipt.kind === 'output_reply')
+    assert.deepEqual(
+      replies.map((w) => pick(fields(w), 'replyOrdinal', 'turnOrdinal', 'terminal', 'samplesReceived', 'framesPlayed')),
+      [{ replyOrdinal: 1, turnOrdinal: 1, terminal: 'played', samplesReceived: 960, framesPlayed: 2 }],
+      'Luis’s reply, whole, and nothing of Davide’s',
+    )
+    assert.equal(fields(replies[0])?.playedSha256Chain, chainOf(room.played.slice(0, 2)))
+    const close = service.evidence.find((w) => w.receipt.kind === 'session_closed')
+    assert.deepEqual(pick(fields(close), 'windows', 'replies', 'toolCalls'), { windows: 1, replies: 1, toolCalls: 0 })
   })
 
   it('an answer that says the API’s guard ended the exchange closes the session, provider included, at once', async () => {

@@ -278,6 +278,55 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
     )
   })
 
+  it('a reply, a tool call or a response is the principal’s only when the turn it answers is theirs', () => {
+    const r = recorder()
+    attribution = { actorId: OTHER, inputEpoch: 1 }
+    r.floor(OTHER, GRANT.grantId)
+    r.opened(1, false)
+    r.input(OTHER, new Int16Array(1600).fill(800), 0, 1)
+    // Sophia answers the other member; the floor moves to the principal while she does.
+    r.replyReceived(480)
+    r.floor(PRINCIPAL, GRANT.grantId)
+    r.responded(2)
+    r.replyReceived(480)
+    // The handoff settles and the principal is heard while Sophia still answers the other member: that reply stays
+    // unrecorded to its end.
+    attribution = { actorId: PRINCIPAL, inputEpoch: 2 }
+    r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 2)
+    r.replyReceived(480)
+    r.replyPlayed(new Int16Array(480).fill(300))
+    r.replyEnded('played')
+    r.turnEnded('turn_complete')
+    // A turn no one's audio started (a notice, a continuation nobody was heard before): not the principal's either.
+    attribution = null
+    r.responded(1)
+    r.replyReceived(480)
+    r.replyEnded('played')
+    r.turnEnded('turn_complete')
+    // The principal's own turn is recorded.
+    attribution = { actorId: PRINCIPAL, inputEpoch: 2 }
+    r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 2)
+    r.responded(1)
+    r.replyReceived(480)
+    r.replyEnded('played')
+    r.turnEnded('turn_complete')
+    r.closed('ended')
+    assert.deepEqual(
+      emitted.map((e) => e.kind),
+      ['input_window', 'input_turn', 'output_reply', 'input_window', 'input_turn', 'provider', 'session_closed'],
+    )
+    const reply = emitted.find((e) => e.kind === 'output_reply')
+    assert.deepEqual(
+      reply?.kind === 'output_reply' && [reply.replyOrdinal, reply.turnOrdinal, reply.samplesReceived],
+      [1, 3, 480],
+    )
+    const close = emitted.at(-1)
+    assert.deepEqual(
+      close?.kind === 'session_closed' && [close.windows, close.turns, close.replies, close.toolCalls],
+      [2, 3, 1, 1],
+    )
+  })
+
   it('the session’s close: once, with its counts and no transcript; nothing is recorded after it', () => {
     const r = recorder()
     r.floor(PRINCIPAL, GRANT.grantId)

@@ -6,10 +6,12 @@
 // the bridge forwarded or played (sha-256-chain-v1), which cannot be inverted to audio.
 //
 // It records only while the grant's principal holds the floor (and the assignment still names the grant): an input
-// window opens only for the principal's own forwarded audio, a reply only while they hold the floor, and the provider's
-// lifecycle is recorded only then. What opened under the principal ends with its own receipt, whatever ends it. The
-// provider's counters (connections, generations, usage) are the session's, whoever holds the floor: the API's guard
-// holds them to the grant.
+// window opens only for the principal's own forwarded audio, and the provider's lifecycle is recorded only then. A reply,
+// a tool call or a response is the principal's only when the turn it answers is theirs (the floor's attribution,
+// ExchangeState): Sophia's answer to another member, still arriving as the floor moves to the principal, is never
+// recorded, and a reply that began for someone else stays unrecorded to its end. What opened under the principal ends
+// with its own receipt, whatever ends it. The provider's counters (connections, generations, usage) are the session's,
+// whoever holds the floor: the API's reservations hold them to the grant.
 import { createHash, randomUUID } from 'node:crypto'
 import type {
   MediaEvidenceWrite,
@@ -165,6 +167,11 @@ export class QualificationRecorder {
   #emitted = 0
   #window: Window | null = null
   #reply: Reply | null = null
+  /**
+   * A reply that began unrecorded (another member's turn, a turn no one's audio started, or not the principal's floor)
+   * stays so to its end.
+   */
+  #unrecordedReply = false
   #windows = 0
   #replies = 0
   #toolCalls = 0
@@ -265,6 +272,7 @@ export class QualificationRecorder {
   /** The provider produced something: audio, words, or tool calls (counted while the principal holds the floor). */
   responded(toolCalls = 0): void {
     this.#generating = true
+    if (!this.#answeringPrincipal()) return
     if (this.#recording) this.#toolCalls += toolCalls
     if (!this.#window) return
     this.#window.responded = true
@@ -291,9 +299,16 @@ export class QualificationRecorder {
     this.#endWindow(reason, responded ? CUT_OUTCOME[reason] : 'no_user_turn_observed')
   }
 
-  /** Reply audio arrived (24 kHz samples): a reply opens while the principal holds the floor. */
+  /**
+   * Reply audio arrived (24 kHz samples): a reply opens while the principal holds the floor and the turn it answers is
+   * theirs; one that began otherwise is never recorded, to its end.
+   */
   replyReceived(samples: number): void {
-    if (!this.#reply && this.#link && this.#recording) {
+    if (!this.#reply && !this.#unrecordedReply) {
+      if (!this.#link || !this.#recording || !this.#answeringPrincipal()) {
+        this.#unrecordedReply = true
+        return
+      }
       this.#replies += 1
       this.#reply = {
         replyOrdinal: this.#replies,
@@ -318,6 +333,7 @@ export class QualificationRecorder {
 
   /** The reply ended, as the session's own reply log says (audio.ts ReplyEnd). */
   replyEnded(terminal: ReplyEnd): void {
+    this.#unrecordedReply = false
     const r = this.#reply
     if (!r) return
     this.#reply = null
@@ -414,6 +430,11 @@ export class QualificationRecorder {
       toolCallCount: w.toolCalls,
       outcome,
     }
+  }
+
+  /** Whose turn the provider is answering is the principal's (the floor's attribution, not whoever holds it now). */
+  #answeringPrincipal(): boolean {
+    return this.#setup.attribution()?.actorId === this.#setup.grant.principalActorId
   }
 
   #base<K extends Receipt['kind']>(kind: K): Base<K> {
