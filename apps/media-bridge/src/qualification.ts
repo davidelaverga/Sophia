@@ -324,8 +324,9 @@ export class SessionQualification {
     this.#recorder.windowEnded(reason)
   }
 
-  typed(): void {
-    this.#recorder.typed()
+  /** A typed message of `by` went to the provider. */
+  typed(by: Attribution): void {
+    this.#recorder.typed(by)
   }
 
   /** The bridge asked for the next generation: a tool response (for the calls' speaker) or a notice (for no one). */

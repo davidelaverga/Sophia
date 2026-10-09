@@ -9,11 +9,12 @@
 // window opens only for the principal's own forwarded audio, and the provider's lifecycle is recorded only then. A reply,
 // a tool call or a response is the principal's only when the generation it belongs to answers them, as that generation
 // was asked for: a tool response's continuation answers the speaker of the calls, a result notice answers no one, and
-// otherwise the floor's attribution as the generation starts (ExchangeState). Asks are kept in order, each with the
-// generations it may be (Ask): one sent while the provider was idle is the next generation; one sent while a generation
-// was under way, the one after it; one sent while holder input was forwarded and nothing produced yet, either of the
-// next two. A generation is someone's only when every owner it may have agrees; otherwise it is no one's (fail closed),
-// never a guess. So Sophia's answer to another member, still arriving as the floor moves to the principal, is never
+// otherwise whoever's input was forwarded to start it. Who was forwarded is kept as it is forwarded (each holder's chunk,
+// a typed message), never read back from the floor when a later event arrives: the floor may have moved by then. Asks
+// are kept in order, each with the generations it may be (Ask): one sent while the provider was idle is the next
+// generation; one sent while a generation was under way, the one after it; one sent while holder input was forwarded
+// and nothing produced yet, either of the next two. A generation is someone's only when every owner it may have agrees;
+// otherwise it is no one's (fail closed), never a guess. So Sophia's answer to another member, still arriving as the floor moves to the principal, is never
 // recorded, nor is the continuation of another member's tool round, whatever was forwarded or answered meanwhile; a
 // reply that began for someone else stays unrecorded to its end. What opened under the principal ends with its own
 // receipt, whatever ends it. The provider's counters (connections, generations, usage) are the session's, whoever
@@ -167,8 +168,9 @@ const CUT_OUTCOME: Record<'handoff' | 'paused', VoiceInputTurnReceipt['outcome']
 /**
  * A generation the bridge asked for (a tool response, a notice): whom it answers, and the generations it may be, by
  * ordinal (turns + 1 is the next). Under WHEN_IDLE the provider takes an ask when it is next idle, in order. `floors`
- * are the holders whose forwarded input may be answered among those generations instead: the floor's attribution when
- * it was asked, and at each barge-in since. They stay candidates however the floor moves before the output comes.
+ * are the holders whose forwarded input may be answered among those generations instead: those forwarded since the
+ * last completed turn when it was asked, and again at each barge-in since. They stay candidates however the floor
+ * moves before the output comes.
  */
 interface Ask {
   by: Attribution | null
@@ -195,6 +197,12 @@ export class QualificationRecorder {
   #owner: Attribution | null | undefined = undefined
   /** The generations the bridge asked for whose turns have not all passed, in the order asked. */
   #asks: Ask[] = []
+  /**
+   * Each holder (with the input epoch) whose input went to the provider since the last turn completed, as it was
+   * forwarded: whom the next generations may answer. A barge-in's turn end keeps them, since what was said may be
+   * answered next, wherever the floor is when the provider says so.
+   */
+  #forwarded: Attribution[] = []
   #windows = 0
   #replies = 0
   #toolCalls = 0
@@ -260,8 +268,12 @@ export class QualificationRecorder {
     this.provider('usage', connection)
   }
 
-  /** A chunk of the holder's audio went to the provider: the principal's opens a window, if none is open. */
+  /**
+   * A chunk of the holder's audio went to the provider: whoever it is, the next generations may answer them; the
+   * principal's opens a window, if none is open.
+   */
   input(identity: string, chunk: Int16Array, droppedSamples: number, inputEpoch: number): void {
+    this.#forward({ actorId: identity, inputEpoch })
     if (!this.#window && this.#link && this.#recording && identity === this.#setup.grant.principalActorId) {
       this.#windows += 1
       this.#window = {
@@ -295,21 +307,21 @@ export class QualificationRecorder {
   /**
    * The bridge asked for a generation: a tool response, whose continuation answers the calls' speaker, or a notice, which
    * answers no one (null). Sent while the provider was idle (nothing produced in this turn, no holder input forwarded
-   * since the last turn ended: ExchangeState's attribution is null), it is the next generation; sent while a generation
-   * was under way, the one after it; sent while holder input was forwarded and nothing produced yet, either of the next
-   * two, since that input may or may not start one first. Each comes after the asks before it.
+   * since the last completed turn), it is the next generation; sent while a generation was under way, the one after it;
+   * sent while holder input was forwarded and nothing produced yet, either of the next two, since that input may or may
+   * not start one first. Each comes after the asks before it.
    */
   asked(by: Attribution | null): void {
     const next = this.#turns + 1
-    const floor = this.#setup.attribution()
+    const inputSince = this.#forwarded.length > 0
     let from = this.#generating ? next + 1 : next
-    let to = this.#generating || floor !== null ? next + 1 : next
+    let to = this.#generating || inputSince ? next + 1 : next
     const last = this.#asks.at(-1)
     if (last) {
       from = Math.max(from, last.from + 1)
       to = Math.max(to, last.to + 1)
     }
-    this.#asks.push({ by, from, to, floors: floor === null ? [] : [floor] })
+    this.#asks.push({ by, from, to, floors: [...this.#forwarded] })
   }
 
   /** The provider produced something: audio, words, or tool calls (counted while the principal holds the floor). */
@@ -322,7 +334,9 @@ export class QualificationRecorder {
     this.#window.toolCalls += toolCalls
   }
 
-  typed(): void {
+  /** A typed message went to the provider for `by`: the next generations may answer them. */
+  typed(by: Attribution): void {
+    this.#forward(by)
     if (this.#recording) this.#typed += 1
   }
 
@@ -336,6 +350,13 @@ export class QualificationRecorder {
     this.#generating = false
     this.#owner = undefined
     this.#settleAsks(how)
+    // A completed turn answered what was forwarded before it; a barge-in's, or a lost connection's, may not have.
+    if (how === 'turn_complete') this.#forwarded = []
+  }
+
+  #forward(by: Attribution): void {
+    if (!this.#forwarded.some((f) => f.actorId === by.actorId && f.inputEpoch === by.inputEpoch))
+      this.#forwarded.push(by)
   }
 
   /**
@@ -350,11 +371,11 @@ export class QualificationRecorder {
     }
     this.#asks = this.#asks.filter((a) => a.to > this.#turns)
     if (how !== 'interrupted') return
-    // The barge-in's speaker may be answered first, whoever holds the floor by the time the output comes.
-    const barging = this.#setup.attribution()
+    // Whoever was forwarded before the barge-in may be answered first, wherever the floor is when the provider's
+    // interruption arrives (it comes late, and the floor may have moved since).
     for (const a of this.#asks) {
       a.to += 1
-      if (barging) a.floors.push(barging)
+      a.floors.push(...this.#forwarded)
     }
   }
 
@@ -504,20 +525,17 @@ export class QualificationRecorder {
   }
 
   /**
-   * Whom generation `n` answers, fixed as its first output arrives: the floor's attribution when nothing asked for may be
-   * it; the ask it surely is (the only one that may be it, and only it); otherwise whom every owner it may have agrees
-   * on: the asks that may be it, the holders whose input they may come after (as they were when asked or barged in on,
-   * whoever holds the floor now), and, when holder input was forwarded since the last turn ended, the floor's. When
-   * they do not agree it is no one's (null), never a guess.
+   * Whom generation `n` answers, fixed as its first output arrives: the ask it surely is (the only one that may be it,
+   * and only it); otherwise whom every owner it may have agrees on: the asks that may be it, the holders whose input
+   * they may come after (as forwarded when they were asked or barged in on), and every holder forwarded since the last
+   * completed turn. When nobody was forwarded and nothing asked, or they do not agree, it is no one's (null), never a
+   * guess.
    */
   #ownerOf(n: number): Attribution | null {
     const asked = this.#asks.filter((a) => a.from <= n && n <= a.to)
-    const floor = this.#setup.attribution()
     const only = asked.length === 1 ? asked[0] : undefined
-    if (asked.length === 0) return floor
     if (only && only.from === only.to) return only.by
-    const owners = asked.flatMap((a) => [a.by, ...a.floors])
-    if (floor !== null) owners.push(floor)
+    const owners = [...asked.flatMap((a) => [a.by, ...a.floors]), ...this.#forwarded]
     const first = owners[0] ?? null
     return owners.every((o) => o !== null && o.actorId === first?.actorId) ? first : null
   }

@@ -1066,7 +1066,7 @@ export class RoomSession {
     }
     try {
       this.live?.sendNotice(typed)
-      this.qualification?.typed()
+      this.qualification?.typed({ actorId: identity, inputEpoch: packet.inputEpoch })
       this.typedReply(identity, packet, 'accepted')
       this.deps.log('chat.admitted', { exchangeId: this.exchangeId, turnId: packet.id, inputEpoch: packet.inputEpoch })
     } catch {

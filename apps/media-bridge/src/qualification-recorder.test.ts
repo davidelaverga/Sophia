@@ -62,6 +62,12 @@ function recorder(): QualificationRecorder {
   })
 }
 
+/** `who`'s input went to the provider: the floor's attribution, and the chunk the recorder is handed as it is forwarded. */
+function forward(r: QualificationRecorder, who: Attribution): void {
+  attribution = who
+  r.input(who.actorId, new Int16Array(1600).fill(800), 0, who.inputEpoch)
+}
+
 /** One generation of `samples` 24 kHz samples, played, then its turn's end. */
 function generation(r: QualificationRecorder, samples: number, how: 'turn_complete' | 'interrupted' = 'turn_complete') {
   r.responded()
@@ -107,12 +113,12 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
     r.input(PRINCIPAL, loud, 0, 1)
     clock += 100
     r.input(PRINCIPAL, quiet, 160, 1)
-    r.input(OTHER, loud, 0, 1)
     r.heard(12, false)
     r.heard(9, true)
     r.responded(1)
     clock += 900
     r.turnEnded('turn_complete')
+    r.input(OTHER, loud, 0, 1) // another member's audio opens no window
     const rms = Math.sqrt((1000 * 1000 * 1600 + 2000 * 2000) / 3200) / 32_768
     assert.deepEqual(emitted, [
       {
@@ -176,6 +182,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
     r.floor(PRINCIPAL, GRANT.grantId)
     r.opened(1, false)
     emitted.length = 0
+    r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 1) // the principal's words start the generation
     r.responded()
     r.replyReceived(1440)
     const frames = [new Int16Array(480).fill(300), new Int16Array(480), Int16Array.from({ length: 480 }, () => -600)]
@@ -251,7 +258,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
     r.replyPlayed(new Int16Array(480).fill(1))
     r.replyEnded('played')
     r.turnEnded('turn_complete')
-    r.typed()
+    r.typed({ actorId: OTHER, inputEpoch: 1 })
     r.usage(1, 5000, 4000)
     r.closed('ended')
     assert.deepEqual(emitted, [], 'nothing of a session the principal never held the floor in')
@@ -349,13 +356,13 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
     // principal heard before it or not.
     attribution = null
     r.asked({ actorId: OTHER, inputEpoch: 1 })
-    attribution = { actorId: PRINCIPAL, inputEpoch: 2 }
+    forward(r, { actorId: PRINCIPAL, inputEpoch: 2 })
     reply()
     r.turnEnded('turn_complete')
     // A result notice sent while idle: its generation answers no one.
     attribution = null
     r.asked(null)
-    attribution = { actorId: PRINCIPAL, inputEpoch: 2 }
+    forward(r, { actorId: PRINCIPAL, inputEpoch: 2 })
     reply()
     r.turnEnded('turn_complete')
     // The principal's own turn (recorded), with their tool response sent while it is under way: its continuation is the
@@ -364,11 +371,11 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
     reply()
     r.asked({ actorId: PRINCIPAL, inputEpoch: 2 })
     r.turnEnded('turn_complete')
-    attribution = { actorId: OTHER, inputEpoch: 3 }
+    forward(r, { actorId: OTHER, inputEpoch: 3 })
     reply()
     r.turnEnded('turn_complete')
-    // Nothing asked: the floor's attribution as the generation starts.
-    attribution = { actorId: PRINCIPAL, inputEpoch: 4 }
+    // Nothing asked: whoever's input was forwarded to start it.
+    forward(r, { actorId: PRINCIPAL, inputEpoch: 4 })
     reply()
     r.turnEnded('turn_complete')
     const replies = emitted.flatMap((e) => (e.kind === 'output_reply' ? [[e.replyOrdinal, e.turnOrdinal]] : []))
@@ -392,20 +399,20 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
 
     it('root’s control 1: the principal speaks and is answered: their 960 samples are recorded', () => {
       const r = fresh()
-      attribution = LUIS
-      r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 2)
+      forward(r, LUIS)
       generation(r, 960)
       assert.deepEqual(recordedReplies(), [960])
     })
 
     it('root’s control 2: a peer’s ask sent before the principal’s first output: neither generation is the principal’s', () => {
       const r = fresh()
-      attribution = LUIS // the principal's words were forwarded; nothing produced yet
+      forward(r, LUIS) // the principal's words were forwarded; nothing produced yet
       r.asked(DAVIDE) // Davide's slow tool response is sent now
       generation(r, 960) // Sophia's answer to Luis, or Davide's continuation: it cannot be told
-      attribution = LUIS // Luis's open microphone, forwarded again
+      forward(r, LUIS) // Luis's open microphone, forwarded again
       generation(r, 1440) // Davide's continuation, or an answer to Luis
       assert.deepEqual(recordedReplies(), [], 'no one’s, rather than a guess: never Davide’s 1440 as Luis’s')
+      forward(r, LUIS)
       generation(r, 480)
       assert.deepEqual(recordedReplies(), [480], 'past both, the floor’s again')
     })
@@ -415,26 +422,26 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
       attribution = null
       r.asked(null) // a result notice, sent while idle
       r.turnEnded('interrupted') // talked over before Sophia said a word of it
-      attribution = LUIS
-      r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 2)
+      forward(r, LUIS)
       generation(r, 960)
       assert.deepEqual(recordedReplies(), [960])
     })
 
     it('a notice sent while holder input was forwarded: neither of the next two generations is recorded', () => {
       const r = fresh()
-      attribution = LUIS
+      forward(r, LUIS)
       r.asked(null)
       generation(r, 480)
       generation(r, 960)
       assert.deepEqual(recordedReplies(), [], 'the notice may be either')
+      forward(r, LUIS)
       generation(r, 720)
       assert.deepEqual(recordedReplies(), [720])
     })
 
     it('a barge-in may be answered before what was asked: the ask may then be one generation later', () => {
       const r = fresh()
-      attribution = LUIS
+      forward(r, LUIS)
       r.responded() // the principal's generation is under way
       r.asked(DAVIDE) // Davide's tool response, sent meanwhile: the next generation, unless a barge-in comes first
       r.replyReceived(480)
@@ -443,13 +450,14 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
       generation(r, 960) // Luis's answer to his barge-in, or Davide's continuation
       generation(r, 1440)
       assert.deepEqual(recordedReplies(), [480], 'only the principal’s own generation, which began before the ask')
+      forward(r, LUIS)
       generation(r, 720)
       assert.deepEqual(recordedReplies(), [480, 720])
     })
 
     it('the principal’s own ask sent while another member’s input waits: the generation it may be is no one’s', () => {
       const r = fresh()
-      attribution = DAVIDE // Davide holds the floor now, and his words were forwarded
+      forward(r, DAVIDE) // Davide holds the floor now, and his words were forwarded
       r.asked(LUIS) // the principal's tool response from before, sent now
       generation(r, 960) // Sophia's answer to Davide, or the principal's continuation
       assert.deepEqual(recordedReplies(), [], 'never Davide’s answer as the principal’s')
@@ -457,26 +465,78 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
 
     it('Codex’s order: the principal’s ask queued while another member’s input owns the turn stays theirs too after a handoff', () => {
       const r = fresh()
-      attribution = DAVIDE // Davide's forwarded words own the turn; nothing produced yet
+      forward(r, DAVIDE) // Davide's forwarded words own the turn; nothing produced yet
       r.asked(LUIS) // the principal's delayed tool response is sent now
-      attribution = LUIS // the handoff settles, and the principal's audio is forwarded before any output
+      forward(r, LUIS) // the handoff settles, and the principal's audio is forwarded before any output
       generation(r, 960) // Sophia's answer to Davide, or the principal's continuation
       assert.deepEqual(recordedReplies(), [], 'never what may answer Davide as the principal’s')
     })
 
     it('a barge-in’s speaker stays a candidate for what was still asked, however the floor moves after it', () => {
       const r = fresh()
-      attribution = LUIS
+      forward(r, LUIS)
       r.responded() // the principal's own generation is under way
       r.asked(LUIS) // their tool response, sent meanwhile: the next generation
       r.replyReceived(480)
       r.replyEnded('interrupted')
-      attribution = DAVIDE // Davide (the floor moved to him) talks over it
+      forward(r, DAVIDE) // Davide (the floor moved to him) talks over it
       r.turnEnded('interrupted')
-      attribution = LUIS // the floor comes back, and the principal's audio is forwarded before any output
+      forward(r, LUIS) // the floor comes back, and the principal's audio is forwarded before any output
       generation(r, 960) // the answer to Davide's barge-in, or the principal's continuation
       generation(r, 1440)
       assert.deepEqual(recordedReplies(), [480], 'only the generation that began before the ask')
+    })
+
+    it('root’s control 5: an interruption that arrives after a handoff away and back: whoever was forwarded before it may be answered', () => {
+      const r = fresh()
+      forward(r, { actorId: PRINCIPAL, inputEpoch: 1 }) // 1. the principal's input is forwarded
+      r.responded() // and the provider responds
+      r.asked({ actorId: PRINCIPAL, inputEpoch: 1 }) // 2. their tool response, sent while the generation is under way
+      r.replyReceived(480) // 3. 480 samples of the principal's output
+      forward(r, { actorId: OTHER, inputEpoch: 2 }) // 4. a peer's input, forwarded at input epoch 2
+      forward(r, { actorId: PRINCIPAL, inputEpoch: 3 }) // 5. the floor back to the principal, forwarded at epoch 3
+      r.replyEnded('interrupted') // 6. only now does the provider's interruption arrive
+      r.turnEnded('interrupted')
+      generation(r, 960) // 7. the answer to the peer, or the principal's continuation
+      generation(r, 1440)
+      assert.deepEqual(recordedReplies(), [480], 'neither the 960 nor the 1440 is the principal’s; the 480 is')
+    })
+
+    it('with nothing asked: a late interruption keeps whoever was forwarded before it as a candidate, however the floor moved', () => {
+      const r = fresh()
+      forward(r, { actorId: PRINCIPAL, inputEpoch: 1 })
+      r.responded()
+      r.replyReceived(480)
+      forward(r, { actorId: OTHER, inputEpoch: 2 }) // the peer's input, forwarded
+      forward(r, { actorId: PRINCIPAL, inputEpoch: 3 }) // the floor back to the principal
+      r.replyEnded('interrupted')
+      r.turnEnded('interrupted') // the provider's interruption, late
+      forward(r, { actorId: PRINCIPAL, inputEpoch: 3 }) // the principal's microphone again, after it
+      generation(r, 960) // the answer to the peer, or to the principal
+      assert.deepEqual(recordedReplies(), [480], 'the 960 may answer the peer: no one’s')
+      forward(r, { actorId: PRINCIPAL, inputEpoch: 3 })
+      generation(r, 720)
+      assert.deepEqual(recordedReplies(), [480, 720], 'after a completed turn, the principal’s own again')
+    })
+
+    it('an ask sent just after a barge-in’s turn end is not idle: the barger may be answered first', () => {
+      const r = fresh()
+      forward(r, LUIS)
+      r.responded() // the principal's generation
+      forward(r, DAVIDE) // the floor moved: Davide talks over it
+      r.turnEnded('interrupted')
+      attribution = null // ExchangeState's turn ends with it; Davide's words are still to be answered
+      r.asked(LUIS) // the principal's tool response, sent now
+      generation(r, 960) // the answer to Davide, or the principal's continuation
+      assert.deepEqual(recordedReplies(), [])
+    })
+
+    it('a typed message’s speaker is a candidate as it is sent, like a forwarded chunk’s', () => {
+      const r = fresh()
+      r.typed(DAVIDE) // Davide's typed message went to the provider
+      forward(r, LUIS) // then the floor is the principal's, their microphone forwarded
+      generation(r, 960) // the answer to Davide's message, or to the principal
+      assert.deepEqual(recordedReplies(), [])
     })
 
     it('a lost connection’s asks are never answered on the next one', () => {
@@ -484,7 +544,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
       attribution = null
       r.asked(DAVIDE)
       r.turnEnded('lost')
-      attribution = LUIS
+      forward(r, LUIS)
       generation(r, 960)
       assert.deepEqual(recordedReplies(), [960])
     })
@@ -496,7 +556,7 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
     r.opened(1, false)
     r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 1)
     r.responded(2)
-    r.typed()
+    r.typed({ actorId: PRINCIPAL, inputEpoch: 1 })
     r.turnEnded('turn_complete')
     r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 1)
     r.replyReceived(480)

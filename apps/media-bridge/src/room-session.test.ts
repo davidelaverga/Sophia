@@ -4243,6 +4243,40 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     assert.equal(recordedSamples().length, before, 'never what may answer Davide recorded as Luis’s')
   })
 
+  it('a provider interruption that arrives after a handoff away and back: what may answer the peer is not the principal’s (root’s control 5)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1) // 1. Luis speaks; the provider responds
+    await flush()
+    await flush()
+    live.events.toolCalls([{ id: 'call-l', name: 'project_status', args: {} }])
+    await until('Luis’s tool response sent', () => live.responses.length === 1) // 2. sent while it is under way
+    live.events.audio(speech(1), OUT) // 3. 480 samples of Luis's reply
+    await flush()
+    session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    room.events.audio(DAVIDE, pcm16k(), 16000, 1) // 4. Davide's microphone, forwarded at epoch 2
+    await flush()
+    await flush()
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 3, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // 5. back to Luis, forwarded at epoch 3
+    await flush()
+    await flush()
+    live.events.interrupted() // 6. only now does the provider's interruption arrive
+    await flush()
+    for (const frames of [2, 3]) {
+      live.events.audio(speech(frames), OUT) // 7. 960, then 1440: the answer to Davide, or Luis's continuation
+      await flush()
+      live.events.turnComplete()
+      await flush()
+    }
+    await session.close()
+    assert.deepEqual(recordedSamples(), [OUTPUT_FRAME], 'only Luis’s own 480')
+  })
+
   it('a notice cut before a word leaves no mark: the principal’s next reply is recorded (R2 P3)', async () => {
     voiceEvidence = true
     const { session, room, live } = await ready({
