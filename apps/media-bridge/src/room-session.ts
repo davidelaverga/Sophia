@@ -824,10 +824,15 @@ export class RoomSession {
     if (evidence) await evidence
   }
 
-  /** The receipts end with the session; the close waits for those still queued, bounded as for its announcements. */
+  /**
+   * The receipts end with the session; the close waits for those still queued, bounded as for its announcements. With
+   * them, what the session owes the exchange's ledger is settled (qualification.ts settle(), bounded by the ledger's own
+   * attempts): every charge for what it already spent, then the bridge's stop if its bound stopped it (Codex
+   * r4234233106), so neither is lost with a process that exits once the close resolves.
+   */
   private async closeQualification(qualification: SessionQualification): Promise<void> {
     qualification.closed(this.lost ? 'lost' : 'ended')
-    await qualification.flush(CLOSE_FLUSH_MS)
+    await Promise.all([qualification.flush(CLOSE_FLUSH_MS), qualification.settle()])
     this.deps.log('evidence.closed', { exchangeId: this.exchangeId, ...qualification.delivery })
   }
 
@@ -1415,7 +1420,7 @@ export class RoomSession {
     this.endTurn(true)
     this.fail(`Sophia stopped: this conversation reached its qualification limit (${why})`)
     this.qualification?.closed('guard')
-    this.qualification?.stopped()
+    void this.qualification?.stopped()
   }
 
   private async connect(): Promise<void> {

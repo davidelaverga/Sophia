@@ -11,7 +11,7 @@ All three belong to the owner's batch, never to this change. The contract is ame
 1. apply 0046 and 0047 before any API built from this change goes out, every switch off. `pnpm db:migrate` applies them in order, with no way to skip one. That API is ready only with 0047's claim (`REQUIRED_SCHEMA`, `media_claim_live_call`), whatever `SOPHIA_VOICE_QUALIFICATION` says, and its readiness fails closed without it (503 `schema`). 0046 enables nothing without a grant;
 2. deploy the API, the media bridge and the Studio built from this change: a bridge from before it would take a grant's assignment and connect with no bound, where this one declines it while `SOPHIA_VOICE_EVIDENCE` is off;
 3. `SOPHIA_VOICE_QUALIFICATION=on` on the API: its readiness needs 0046's functions (`VOICE_SCHEMA`), and from then on assignments name a grant, which the bridge declines;
-4. `SOPHIA_VOICE_EVIDENCE=on` on the bridge: it reserves and records against the API's routes, which step 3 registered.
+4. `SOPHIA_VOICE_EVIDENCE=on` on the bridge: it reserves and records against the API's routes, which step 3 registered. First, the operator checks that the bridge service's shutdown grace on Render is at least 25 s (the default is 30 s; see "How long a shutdown may take").
 
 **Why it exists.** Pack 03 G7 asks for a synthetic in-app voice episode: Create (HTML asked for by voice), a steer, leaving and returning, Hold, Resume and Stop. It is driven by the Voice Lab, which feeds synthetic audio into the Studio's own microphone path.
 
@@ -117,8 +117,18 @@ An input window opens only for the principal's own forwarded audio; the provider
 When the bound says stop (`usage`, `turns`, `connections`, `output`, `deadline`, a guard reason from the API, or `unconfirmed`):
 - the bridge sends nothing more to the provider and closes it for good;
 - it stops what is playing, and reports Sophia unavailable with the reason;
-- it tells the API (`stop`), which ends the exchange (`bridge`) if a refusal had not already, whoever holds the floor and whether or not anything was recorded;
+- it tells the API (`stop`), which ends the exchange (`bridge`) if a refusal had not already, whoever holds the floor and whether or not anything was recorded. It does so once every charge for what was already spent is answered: every unasked generation's, never only the latest, and every top-up of a debt for output already received (Codex r4233954386, r4234233112), so the ended exchange's ledger holds them all;
 - while the principal holds the floor, it records the provider's close and `session_closed` (`guard`), which ends the exchange the same way.
+
+A session's close, the bridge process's SIGINT or SIGTERM included, waits for those charges and that stop before it resolves (Codex r4234233106). A close does not stop the exchange itself: a bridge going away is not the grant's limit, and a replacing or restarted bridge goes on with the exchange against its durable counts.
+
+**How long a shutdown may take** (SIGTERM to `process.exit`, as the code computes it). `server.ts` exits once `MediaBridge.stop()` resolves. That stop closes every session in parallel, under one deadline, `STOP_DEADLINE_MS` = 25 s; a close still running then is left and logged (`bridge.stop_deadline`). Each session's close runs these in parallel:
+- its announcements: at most `CLOSE_FLUSH_MS` = 3 s;
+- its receipts (the evidence flush): at most `CLOSE_FLUSH_MS` = 3 s;
+- what it owes the exchange's ledger (`settle()`): at most twice one reservation's bound. A reservation (`qualification-ledger.ts`) is at most 3 attempts of `RESERVE_TIMEOUT_MS` = 3 s with waits of 0.25 and 1 s between them (`RESERVE_RETRY_MS`): 10.25 s. The outstanding charges are concurrent requests, so all of them take one bound together, whatever their number; the stop follows them, one more bound. So 20.5 s, enforced by a timer from the start of the close, whatever the number of charges and whether the HTTP client honours its time limits. What is still unanswered then is logged (`qualification.charge_unsettled`: how many charges, and whether the stop was unsent, unanswered or answered) and not waited for: that is the residual, and a replacing bridge reserves against a ledger that may lack it;
+- leaving the LiveKit room: not bounded on its own (LiveKit's disconnect); the stop's deadline bounds it.
+
+So the worst case is 25 s, and the ledger's part ends within 20.5 s, inside it. Render sends SIGTERM and then SIGKILL after `maxShutdownDelaySeconds`, 30 s by default and settable up to 300 s (render.com/docs/deploys#graceful-shutdown). The default leaves 5 s of margin. **Operator precondition, before activation:** check the bridge service's configured shutdown grace on Render and confirm it is at least 25 s. The code cannot check it.
 
 Nothing of this runs without a grant: an exchange under none waits on no reservation. The bound is conservative: a tool response's reserve and its continuation's each count, and a reservation whose answer was lost and is asked again may count twice; either only ends an exchange earlier.
 

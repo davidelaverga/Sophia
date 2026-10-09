@@ -381,7 +381,7 @@ describe('a generation nobody reserved is charged even when its first output is 
     const { q, waiting } = bound({ maxOutputTokensPerTurn: 64 })
     assert.equal(await q.connecting(1, false), null)
     assert.equal(q.output(1, { chars: 300 }), 'output')
-    q.stopped()
+    void q.stopped()
     await settle()
     assert.deepEqual(
       waiting.map((w) => w.kind),
@@ -394,5 +394,60 @@ describe('a generation nobody reserved is charged even when its first output is 
       waiting.map((w) => w.kind),
       ['unasked', 'stop'],
     )
+  })
+})
+
+describe('every charge for what was spent is settled before the stop and the end (Codex r4234233112, r4234233106)', () => {
+  it('a function call waits for every unasked charge of its connection, not only the latest', async () => {
+    const { q, waiting } = bound()
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.output(1, { samples: 2400 }), null, 'a generation nobody reserved: charged')
+    q.turnEnded(1, 'turn_complete')
+    const runs = q.called(1, 1, 30) // a call of the next one, nobody reserved either: charged again
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['unasked', 'unasked', 'spend'],
+      'two generations nobody reserved, and the call’s payload owed by an empty allowance',
+    )
+    waiting[1]?.answer() // its own generation counted
+    waiting[2]?.answer() // and its payload paid
+    const sentinel = new Promise((resolve) => setImmediate(() => resolve('waiting')))
+    assert.equal(await Promise.race([runs.then(() => 'ran'), sentinel]), 'waiting', 'the first is still unanswered')
+    waiting[0]?.answer()
+    assert.equal(await runs, null, 'both counted: it runs')
+  })
+
+  it('the stop waits for a debt’s top-up too: words already received are charged before the exchange ends', async () => {
+    const { q, waiting } = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.output(1, { chars: 60 }), null, 'unasked, and 20 tokens owed by an empty allowance')
+    assert.equal(q.output(1, { chars: 300 }), 'output', 'then cut')
+    const stopping = q.stopped()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['unasked', 'spend'],
+    )
+    waiting[0]?.answer()
+    await settle()
+    assert.equal(waiting.length, 2, 'no stop while the top-up is unanswered')
+    waiting[1]?.answer()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['unasked', 'spend', 'stop'],
+    )
+    waiting[2]?.answer()
+    await stopping
+  })
+
+  it('a session that owes nothing settles at once, and sends no stop', async () => {
+    const { q, waiting } = bound()
+    assert.equal(await q.connecting(1, false), null)
+    const started = Date.now()
+    await q.settle()
+    assert.ok(Date.now() - started < 500)
+    assert.deepEqual(waiting, [])
   })
 })

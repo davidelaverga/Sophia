@@ -38,6 +38,10 @@ const E2 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 interface RoomFake {
   people?: { identity: string; standing: 'editor' }[]
   sendChat?: RoomLink['sendChat']
+  /** Leaving the room never finishes (LiveKit's disconnect hangs). */
+  leaveHangs?: boolean
+  /** The bridge's stop deadline, when a test bounds it. */
+  stopDeadlineMs?: number
 }
 
 /** With `evidence`, SOPHIA_VOICE_EVIDENCE is on and the receipts the API takes are kept there. */
@@ -81,6 +85,7 @@ function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
         setState: () => Promise.resolve(),
         close: async () => {
           await Promise.resolve()
+          if (fake.leaveHangs) await new Promise(() => undefined)
           log.push('leave')
         },
       }
@@ -106,6 +111,7 @@ function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
     log: (event) => log.push(event),
     every: () => () => undefined,
     ...(evidence ? { voiceEvidence: true } : {}),
+    ...(fake.stopDeadlineMs === undefined ? {} : { stopDeadlineMs: fake.stopDeadlineMs }),
   })
   return { bridge, log, roomEvents }
 }
@@ -113,6 +119,30 @@ function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
 const settle = () => new Promise((resolve) => setImmediate(resolve))
 
 describe('media bridge assignment loop', () => {
+  it('a stop is bounded: a session whose close never finishes is left at the deadline, and logged (Codex r4234233106)', async () => {
+    const { bridge, log } = harness({ leaveHangs: true, stopDeadlineMs: 100 })
+    await bridge.apply([assignment(E1)])
+    await settle()
+    const started = Date.now()
+    await bridge.stop()
+    assert.ok(Date.now() - started < 1000, 'within its deadline')
+    assert.deepEqual(
+      log.filter((l) => l === 'bridge.stop_deadline'),
+      ['bridge.stop_deadline'],
+    )
+  })
+
+  it('a stop whose sessions close in time logs no deadline (control)', async () => {
+    const { bridge, log } = harness({ stopDeadlineMs: 5000 })
+    await bridge.apply([assignment(E1)])
+    await settle()
+    const started = Date.now()
+    await bridge.stop()
+    assert.ok(Date.now() - started < 1000)
+    assert.ok(!log.includes('bridge.stop_deadline'))
+    assert.ok(log.includes('leave'))
+  })
+
   it('keeps one session per live exchange, updates it, and closes an ended one before the room’s next joins', async () => {
     const { bridge, log } = harness()
     await bridge.apply([assignment(E1)])

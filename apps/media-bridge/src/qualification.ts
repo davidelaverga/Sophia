@@ -121,10 +121,20 @@ export class SessionQualification {
    */
   readonly #granted = new Map<number, number>()
   /**
-   * The charge of a generation nobody reserved (unasked) on a connection, while the API has not answered it: a function
-   * call of that generation runs only once it is counted there, and not at all if it is refused.
+   * The charges of generations nobody reserved (unasked) on each connection, while the API has not answered them: every
+   * one, never only the latest (Codex r4234233112: a second unasked turn before the first's charge was answered hid the
+   * first). A function call runs only once all of its connection's are counted there, and not at all if one is refused.
    */
-  readonly #unaskedCharge = new Map<number, Promise<GuardStop | null>>()
+  readonly #unaskedCharges = new Map<number, Set<Promise<GuardStop | null>>>()
+  /**
+   * Charges for what was already spent, not answered yet: every unasked generation's, and every top-up of a debt (output
+   * already received). The session settles them before the bridge's stop, and before it ends (settle()).
+   */
+  readonly #owed = new Set<Promise<unknown>>()
+  /** The bridge's stop, once its bound stopped the session: sent when what it owes is answered (stopped()). */
+  #stopping: Promise<void> | null = null
+  #stopSent = false
+  #stopAnswered = false
   #stopped: GuardStop | null = null
   /** Frames dropped because the allowance did not cover them yet: never sent unpaid. */
   #framesDropped = 0
@@ -321,9 +331,9 @@ export class SessionQualification {
     this.#recorder.responded(calls)
     const owed = this.#owe(connection, tokens, 0)
     if (owed) return Promise.resolve(owed)
-    const counted = this.#unaskedCharge.get(connection)
-    if (!counted) return this.#paidUp(connection)
-    return counted.then((refused) => refused ?? this.#paidUp(connection))
+    const counted = [...(this.#unaskedCharges.get(connection) ?? [])]
+    if (counted.length === 0) return this.#paidUp(connection)
+    return Promise.all(counted).then((answers) => answers.find((a) => a !== null) ?? this.#paidUp(connection))
   }
 
   /**
@@ -405,17 +415,58 @@ export class SessionQualification {
 
   /**
    * The bound stopped the session: the API is told, so the exchange ends there too, whether or not anything was
-   * recorded (a receipt is recorded only while the principal holds the floor). A generation nobody reserved that is
-   * still being charged (the one whose first output was cut, say) is answered first: the stop then ends an exchange
-   * whose ledger already holds its turn and its charge, never one that would refuse it as ended (Codex r4233954386).
+   * recorded (a receipt is recorded only while the principal holds the floor). Every charge for what was already spent
+   * and not answered yet is answered first (Codex r4233954386, r4234233112): every generation nobody reserved, the one
+   * whose first output was cut included, and every debt's top-up. So the stop ends an exchange whose ledger already
+   * holds them, never one that would refuse them as ended. Once; resolves when the stop is answered (settle() awaits it).
    */
-  stopped(): void {
-    const charging = [...this.#unaskedCharge.values()]
-    void Promise.allSettled(charging)
-      .then(() => this.#ledger.stop())
+  stopped(): Promise<void> {
+    this.#stopping ??= this.#settled()
+      .then(() => {
+        this.#stopSent = true
+        return this.#ledger.stop()
+      })
       .then((ended) => {
+        this.#stopAnswered = true
         if (!ended) this.#deps.log('qualification.stop_unconfirmed', { exchangeId: this.#deps.exchangeId })
       })
+    return this.#stopping
+  }
+
+  /**
+   * Before the session ends (RoomSession's close, a process's SIGINT or SIGTERM included; Codex r4234233106): every
+   * charge for what it already spent is answered, then the bridge's stop if its bound stopped it, so the exchange's
+   * ledger holds all of it. A session its bound did not stop is not stopped here: a bridge going away is not the grant's
+   * limit, and a replacing or restarted bridge goes on with the exchange against those counts. Bounded by what the
+   * ledger's own attempts allow, twice (the charges, then the stop); what is still unanswered then is logged
+   * (qualification.charge_unsettled), never waited for.
+   */
+  async settle(): Promise<void> {
+    const { reserveRetryMs, reserveTimeoutMs } = this.#deps
+    const once = (reserveRetryMs.length + 1) * reserveTimeoutMs + reserveRetryMs.reduce((sum, ms) => sum + ms, 0)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const expired = new Promise<'expired'>((resolve) => {
+      timer = setTimeout(() => resolve('expired'), 2 * once)
+    })
+    const settled = this.#settled()
+      .then(() => this.#stopping)
+      .then(() => 'settled' as const)
+    const how = await Promise.race([settled, expired])
+    clearTimeout(timer)
+    if (how === 'expired') {
+      const stop =
+        this.#stopping === null ? 'none' : !this.#stopSent ? 'unsent' : this.#stopAnswered ? 'answered' : 'unanswered'
+      this.#deps.log('qualification.charge_unsettled', {
+        exchangeId: this.#deps.exchangeId,
+        charges: this.#owed.size,
+        stop,
+      })
+    }
+  }
+
+  /** Once every charge for what was already spent is answered, those that come while waiting included. */
+  async #settled(): Promise<void> {
+    while (this.#owed.size > 0) await Promise.allSettled(this.#owed)
   }
 
   /**
@@ -508,6 +559,7 @@ export class SessionQualification {
     if (due) return due
     if (this.#pending.has(connection)) return null
     const charge = this.#shortfall(connection)
+    const debt = (this.#links.get(connection)?.paid ?? 0) < 0
     const pending = this.#ledger.spend(this.#durable(connection), Math.min(MAX_CHARGE, charge)).then((answer) => {
       this.#pending.delete(connection)
       const stop = answer.ok ? this.#credited(connection, charge) : this.#refused(answer)
@@ -515,6 +567,9 @@ export class SessionQualification {
       return stop
     })
     this.#pending.set(connection, pending)
+    // A debt is for what was already received: owed before the session may stop or end. A top-up for input not sent yet
+    // is not: if the session ends first, that input is never sent.
+    if (debt) this.#oblige(pending)
     return null
   }
 
@@ -545,16 +600,29 @@ export class SessionQualification {
   /**
    * A generation started that nobody reserved: it is spent, so it is charged, even when its first output stopped the
    * session; a refusal stops the session. Its output has arrived already and is counted as it comes; a function call of
-   * it waits for the charge (#unaskedCharge), and so does the bridge's stop (stopped()).
+   * its connection waits for the charge (#unaskedCharges), and the bridge's stop and the session's end wait for it
+   * (#owed: stopped(), settle()).
    */
   #unasked(connection: number): void {
     this.#grant(connection)
+    const charges = this.#unaskedCharges.get(connection) ?? new Set<Promise<GuardStop | null>>()
+    this.#unaskedCharges.set(connection, charges)
     const charged: Promise<GuardStop | null> = this.#charge(connection, true).then((stop) => {
-      if (this.#unaskedCharge.get(connection) === charged) this.#unaskedCharge.delete(connection)
+      charges.delete(charged)
+      if (charges.size === 0 && this.#unaskedCharges.get(connection) === charges)
+        this.#unaskedCharges.delete(connection)
       if (stop) this.#deps.stop(stop)
       return stop
     })
-    this.#unaskedCharge.set(connection, charged)
+    charges.add(charged)
+    this.#oblige(charged)
+  }
+
+  /** A charge for what was already spent: kept until it is answered, whatever the answer. */
+  #oblige(charge: Promise<unknown>): void {
+    this.#owed.add(charge)
+    const done = () => this.#owed.delete(charge)
+    void charge.then(done, done)
   }
 
   #refused(answer: LedgerAnswer): GuardStop | null {

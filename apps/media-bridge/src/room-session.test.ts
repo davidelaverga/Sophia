@@ -333,6 +333,8 @@ let logs: Array<[string, Record<string, unknown>]>
 let liveCaptions: boolean | undefined
 /** SOPHIA_VOICE_EVIDENCE as the next session gets it: unset (off) unless a test says otherwise. */
 let voiceEvidence: boolean | undefined
+/** Each reservation attempt's time limit, when a test bounds it (the close's settling is bounded by it). */
+let reserveTimeoutMs: number | undefined
 
 /** What a replacement session is given: the handover, one still on its way, or nothing. */
 type Handed = Handover | Promise<Handover> | null
@@ -371,6 +373,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handov
       every: () => () => undefined,
       ...(liveCaptions === undefined ? {} : { liveCaptions }),
       ...(voiceEvidence === undefined ? {} : { voiceEvidence, evidenceRetryMs: [0, 0], reserveRetryMs: [0, 0] }),
+      ...(reserveTimeoutMs === undefined ? {} : { reserveTimeoutMs }),
     },
     handover,
   )
@@ -407,6 +410,7 @@ beforeEach(() => {
   logs = []
   liveCaptions = undefined
   voiceEvidence = undefined
+  reserveTimeoutMs = undefined
 })
 
 describe('room session: who Google hears (cases A10, A11)', () => {
@@ -4490,6 +4494,140 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
     })
   }
 
+  it('every unasked charge is answered before the stop, not only the latest (Codex r4234233112, root’s sequence)', async () => {
+    voiceEvidence = true
+    const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    service.holdReservations = true
+    live.events.audio(speech(1), OUT) // a generation nobody reserved: its charge is held
+    await flush()
+    live.events.turnComplete()
+    live.events.outputTranscript('x'.repeat(300), false) // another nobody reserved, on the same connection, cut at once
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['unasked', 'unasked'])
+    service.answerLast('unasked') // the second charge only
+    await flush()
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['unasked'], 'no stop while the first charge is unanswered')
+    service.answerFirst('unasked')
+    await until('the stop asked', () => service.waitingKinds().includes('stop'))
+    service.answerReservations()
+    await session.close()
+    assert.deepEqual(
+      service.reservations.map((r) => r.kind),
+      ['connection', 'unasked', 'unasked', 'stop'],
+    )
+  })
+
+  it('sequential unasked charges: the stop follows the last (Codex r4234233112, control)', async () => {
+    voiceEvidence = true
+    const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    service.holdReservations = true
+    live.events.audio(speech(1), OUT)
+    await flush()
+    service.answerFirst('unasked') // the first charge answered before the next turn
+    await flush()
+    live.events.turnComplete()
+    live.events.outputTranscript('x'.repeat(300), false)
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['unasked'])
+    service.answerFirst('unasked')
+    await until('the stop asked', () => service.waitingKinds().includes('stop'))
+    service.answerReservations()
+    await session.close()
+    assert.deepEqual(
+      service.reservations.map((r) => r.kind),
+      ['connection', 'unasked', 'unasked', 'stop'],
+    )
+  })
+
+  it('the close resolves only once a cut unasked generation’s charge and the stop are answered (Codex r4234233106, root’s sequence)', async () => {
+    voiceEvidence = true
+    const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    service.holdReservations = true
+    live.events.outputTranscript('x'.repeat(300), false)
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['unasked'])
+    let closed = false
+    const closing = session.close().then(() => {
+      closed = true
+    })
+    await flush()
+    await flush()
+    assert.equal(closed, false, 'not while the charge is unanswered')
+    service.answerFirst('unasked')
+    await until('the stop asked', () => service.waitingKinds().includes('stop'))
+    assert.equal(closed, false, 'nor while the stop is')
+    service.answerFirst('stop')
+    await closing
+    assert.deepEqual(
+      service.reservations.map((r) => r.kind),
+      ['connection', 'unasked', 'stop'],
+    )
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.charge_unsettled'),
+      [],
+    )
+  })
+
+  it('the close is bounded: an API that never answers leaves the charge unsettled, logged, and the close resolves (Codex r4234233106)', async () => {
+    voiceEvidence = true
+    reserveTimeoutMs = 50 // three attempts of 50 ms, twice (the charges, then the stop): 300 ms
+    const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    service.holdReservations = true // and never answered
+    live.events.outputTranscript('x'.repeat(300), false)
+    await flush()
+    const started = Date.now()
+    await session.close()
+    assert.ok(Date.now() - started < 2000, 'within its bound')
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.charge_unsettled').map(([, d]) => [d.charges, d.stop]),
+      [[1, 'unsent']],
+    )
+  })
+
+  it('the close’s whole bound: several charges never answered, and the close still resolves within it, logging them all (Codex r4234233106)', async () => {
+    voiceEvidence = true
+    reserveTimeoutMs = 50 // three attempts of 50 ms, twice (the charges, then the stop): 300 ms
+    const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    service.holdReservations = true // and never answered
+    live.events.audio(speech(1), OUT) // three generations nobody reserved, the last cut at its first words
+    await flush()
+    live.events.turnComplete()
+    live.events.audio(speech(1), OUT)
+    await flush()
+    live.events.turnComplete()
+    live.events.outputTranscript('x'.repeat(300), false)
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['unasked', 'unasked', 'unasked'])
+    const started = Date.now()
+    await session.close()
+    const took = Date.now() - started
+    assert.ok(took >= 250 && took < 2000, `the charges are concurrent: one bound for all of them (${String(took)} ms)`)
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.charge_unsettled').map(([, d]) => [d.charges, d.stop]),
+      [[3, 'unsent']],
+      'all three logged; the stop owed, never sent, since it waits for them',
+    )
+  })
+
+  it('a close that owes nothing resolves at once, as before (Codex r4234233106, control)', async () => {
+    voiceEvidence = true
+    reserveTimeoutMs = 10_000 // a bound it never waits for
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(2), OUT)
+    live.events.turnComplete()
+    await flush()
+    const started = Date.now()
+    await session.close()
+    assert.ok(Date.now() - started < 1000)
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.charge_unsettled'),
+      [],
+    )
+  })
+
   it('a generation asked for and cut by its words sends no unasked charge (Codex r4233954386, control)', async () => {
     voiceEvidence = true
     const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
@@ -4687,6 +4825,9 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     assert.equal(live.audio, 3, 'refused: none of the next turn’s input was sent')
     assert.deepEqual(stops(), ['usage'])
     assert.equal(live.closed, true)
+    // The close waits for the bridge's stop to be answered (r4234233106): the API answers it.
+    await until('the stop asked', () => service.waitingKinds().includes('stop'))
+    service.answerReservations()
     await session.close()
   })
 
@@ -5084,6 +5225,9 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     assert.equal(service.calls.length, 0, 'the refused generation’s call never ran: nothing admitted')
     assert.equal(next.responses.length, 0)
     assert.deepEqual(stops(), ['turns'])
+    // The close waits for the bridge's stop to be answered (r4234233106): the API answers it.
+    await until('the stop asked', () => service.waitingKinds().includes('stop'))
+    service.answerReservations()
     await session.close()
   })
 

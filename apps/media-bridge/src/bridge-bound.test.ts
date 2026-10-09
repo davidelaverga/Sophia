@@ -74,7 +74,8 @@ interface Durable {
   turns: number
   /** What the exchange may have cost: every charge (no usage is reported here). */
   charged: number
-  ended: Stop | null
+  /** Why the exchange ended: a refused reservation's reason, or a bridge's stop (endsOnStop). */
+  ended: Stop | 'bridge' | null
 }
 
 /**
@@ -88,6 +89,10 @@ class FakeLedger {
   /** Exchanges a bridge's own stop ended (reason bridge). */
   readonly stopped = new Set<string>()
   readonly exchanges = new Map<string, Durable>()
+  /** While set, a reservation of this kind waits until `until` resolves (the API is slow). */
+  held: { kind: MediaQualificationReserve['kind']; until: Promise<void> } | null = null
+  /** When set, a bridge's stop ends the exchange, as the real API does (0046): what comes after is refused (409). */
+  endsOnStop = false
 
   constructor(qualification: VoiceQualification) {
     this.grant = qualification
@@ -101,10 +106,12 @@ class FakeLedger {
   reserve = async (r: MediaQualificationReserve): Promise<MediaQualificationReservation> => {
     await Promise.resolve()
     this.asked.push(r)
+    if (this.held?.kind === r.kind) await this.held.until
     const x = this.exchanges.get(r.exchangeId) ?? { connections: 0, turns: 0, charged: 0, ended: null }
     this.exchanges.set(r.exchangeId, x)
     if (r.kind === 'stop') {
       this.stopped.add(r.exchangeId)
+      if (this.endsOnStop) x.ended ??= 'bridge'
       return { ok: true, ordinal: null, stop: null, ended: true }
     }
     if (x.ended) throw new ServiceError(409, 'POST /v1/media/qualification-reserve: 409 invalid_state')
@@ -113,17 +120,22 @@ class FakeLedger {
       x.ended = stop
       return { ok: false, ordinal: null, stop, ended: true }
     }
-    if (r.kind === 'connection') x.connections += 1
-    // An unasked generation was counted and charged as it was asked (#stop).
-    else if (r.kind !== 'unasked') {
-      if (r.kind === 'generation') x.turns += 1
-      x.charged += r.charge ?? 0
-    }
+    this.#count(x, r)
     return {
       ok: true,
       ordinal: r.kind === 'connection' ? x.connections : (r.ordinal ?? null),
       stop: null,
       ended: false,
+    }
+  }
+
+  /** A reservation that fits: a connection numbered, a generation counted, a charge added. */
+  #count(x: Durable, r: MediaQualificationReserve): void {
+    if (r.kind === 'connection') x.connections += 1
+    // An unasked generation was counted and charged as it was asked (#stop).
+    else if (r.kind !== 'unasked') {
+      if (r.kind === 'generation') x.turns += 1
+      x.charged += r.charge ?? 0
     }
   }
 
@@ -588,6 +600,44 @@ describe('a generation nobody reserved and cut at its first output is in the exc
     await settle()
     assert.equal(second.lives[0]?.audio, 0, 'Luis’s next words would be a third generation: never sent')
     assert.deepEqual(second.stops(), ['turns'])
+    await second.bridge.stop()
+  })
+})
+
+describe('a bridge process shut down while what it spent is being charged settles it before it exits (Codex r4234233106)', () => {
+  it('the charge and the stop are answered before stop() resolves; the ended exchange then refuses a restart', async () => {
+    const ledger = new FakeLedger(grant({ maxOutputTokensPerTurn: 64 }))
+    ledger.endsOnStop = true
+    let release: (() => void) | undefined
+    ledger.held = { kind: 'unasked', until: new Promise<void>((resolve) => (release = resolve)) }
+    const first = harness(ledger)
+    await first.bridge.apply([assignment(ledger.grant)])
+    await settle()
+    first.lives[0]?.events.setupComplete()
+    await turn(first, 0) // Luis's words: the exchange's first generation, asked for
+    first.lives[0]?.events.outputTranscript('x'.repeat(300), false) // one nobody reserved, cut at once; charge held
+    await settle()
+    assert.deepEqual(first.stops(), ['output'])
+    let exited = false
+    // SIGINT or SIGTERM: server.ts exits once the bridge's stop resolves.
+    const exiting = first.bridge.stop().then(() => {
+      exited = true
+    })
+    await settle()
+    assert.equal(exited, false, 'not while the charge is unanswered')
+    release?.()
+    await exiting
+    assert.deepEqual(
+      ledger.asked.map((r) => r.kind),
+      ['connection', 'generation', 'unasked', 'stop'],
+    )
+    const x = ledger.exchanges.get(E1)
+    assert.deepEqual([x?.turns, x?.ended], [2, 'bridge'], 'its turn counted, and the exchange ended by the stop')
+    assert.equal(ledger.committed(E1), 25_000 + 2 * 64 + 4000 + (25_000 + 2 * 64), 'and its charge')
+    const second = harness(ledger, { lifetime: 2 })
+    await second.bridge.apply([assignment(ledger.grant)])
+    await settle()
+    assert.equal(second.lives.length, 0, 'a restarted process opens no connection: nothing of the budget is reused')
     await second.bridge.stop()
   })
 })
