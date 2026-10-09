@@ -151,6 +151,41 @@ const fenceLost: MediaToolResult = {
   },
 }
 
+/** The fence's session could not be had within the call's budget (Codex P2 r4235131974): nothing was run or marked. */
+const fenceLate: MediaToolResult = {
+  status: 'unknown',
+  output: {
+    code: 'unconfirmed:fence_timeout',
+    reason: 'That call could not be made in time; I could not confirm whether it was applied. Read project_status.',
+  },
+}
+
+/**
+ * The call's answer could not be written (Codex P1 r4235131965): its mark failed, so the call stays unanswered and a
+ * repeat runs it again; what this attempt found is not its answer.
+ */
+const markFailed: MediaToolResult = {
+  status: 'unknown',
+  output: {
+    code: 'unconfirmed:mark_failed',
+    reason:
+      'I could not record the answer to that call; I could not confirm whether it was applied. Read project_status.',
+  },
+}
+
+/**
+ * The seal in a write's transaction failed (Codex P1 r4235131965): that transaction rolled back with it, so nothing of
+ * the call was applied or answered, and a repeat runs it again.
+ */
+const sealFailed: MediaToolResult = {
+  status: 'unknown',
+  output: {
+    code: 'unconfirmed:seal_failed',
+    reason:
+      'I could not record the answer to that call; I could not confirm whether it was applied. Read project_status.',
+  },
+}
+
 /** Thrown inside a write's transaction when this attempt's fence was lost: the write rolls back, unanswered. */
 class FenceLostError extends Error {}
 
@@ -170,6 +205,8 @@ class CallSeal {
   #sealed: MediaToolResult['status'] | null = null
   /** Another attempt took the fence, or this one's was lost: nothing of this attempt was committed with its answer. */
   #moved = false
+  /** The seal failed otherwise: its write rolled back with it (r4235131965). */
+  #failed = false
 
   constructor(call: MediaToolCall, key: string, fence: Fence) {
     this.#call = call
@@ -188,19 +225,22 @@ class CallSeal {
       await sealLiveCall(c, { exchangeId, key: this.#key, generation: this.#fence.generation, outcome })
     } catch (err: unknown) {
       if (isFenceMoved(err)) this.#moved = true
+      else this.#failed = true
       throw err
     }
     this.#sealed = outcome
   }
 
   /**
-   * The call's answer once its handler returned: fenceLost if this attempt lost its fence; the handler's own if it was
-   * sealed with its write (the seal is the write's last statement, so only a lost commit, answered unknown, can follow
-   * it); otherwise marked now, under the generation, unless another attempt took the fence. A mark that fails otherwise
-   * leaves the call unanswered, which proves nothing.
+   * The call's answer once its handler returned: fenceLost if this attempt lost its fence; sealFailed if its seal failed
+   * otherwise (its write rolled back with it); the handler's own if it was sealed with its write (the seal is the
+   * write's last statement, so only a lost commit, answered unknown, can follow it); otherwise marked now, under the
+   * generation. A mark that is not confirmed is never the handler's answer (Codex P1 r4235131965): fenceLost when
+   * another attempt took the fence, markFailed otherwise, the call left unanswered for a repeat to run.
    */
   async answer(pool: pg.Pool, result: MediaToolResult): Promise<MediaToolResult> {
     if (this.#moved) return fenceLost
+    if (this.#failed) return sealFailed
     if (this.#sealed !== null && result.status !== 'unknown') return result
     if (this.#fence.lost()) return fenceLost
     const { exchangeId, actorId } = this.#call
@@ -208,7 +248,7 @@ class CallSeal {
     try {
       await withService(pool, (c) => markLiveCall(c, answered))
     } catch (err: unknown) {
-      if (isFenceMoved(err)) return fenceLost
+      return isFenceMoved(err) ? fenceLost : markFailed
     }
     return result
   }
@@ -477,6 +517,7 @@ export async function executeToolCall(
   }
   if (fence === 'busy') return fenceBusy
   if (fence === 'held') return inProgress
+  if (fence === 'late') return fenceLate
   try {
     return await fencedCall(pool, call, key, fence)
   } finally {

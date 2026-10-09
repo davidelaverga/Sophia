@@ -95,22 +95,47 @@ export interface Fence {
 const lockTimedOut = (err: unknown) => err instanceof Error && 'code' in err && err.code === '55P03'
 
 /**
+ * Connect within `ms` (Codex P2 r4235131974): false once that ran out first, the connect left to fail on its own when
+ * the client is ended. pg sets no time limit of its own by default.
+ */
+async function connectWithin(client: pg.Client, ms: number): Promise<boolean> {
+  const connecting = client.connect().then(() => true)
+  connecting.catch(() => undefined)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), Math.max(1, ms))
+  })
+  try {
+    return await Promise.race([connecting, late])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
  * Take a call key's fence within `waitMs`: a slot of `fences`, a session of its own, the key's advisory lock, then the
- * key's next generation on that session. 'busy' when no slot came free in time, 'held' when another attempt held the
- * fence (or a seal its generation's row) all along: nothing was taken. It is taken while holding no other lock, and
- * calls under other keys never wait on it, so it adds no lock order. A holder that dies ends its session, which
- * releases the fence.
+ * key's next generation on that session, every step within what is left of `waitMs`, its connect included. 'busy'
+ * when no slot came free in time, 'held' when another attempt held the fence (or a seal its generation's row) all
+ * along, 'late' when the session could not be had in time: nothing was taken, and the slot is given back. It is taken
+ * while holding no other lock, and calls under other keys never wait on it, so it adds no lock order. A holder that
+ * dies ends its session, which releases the fence.
  */
 export async function fenceCall(
   pool: pg.Pool,
   fences: CallFences,
   call: { exchangeId: string; key: string },
   waitMs: number,
-): Promise<Fence | 'busy' | 'held'> {
+): Promise<Fence | 'busy' | 'held' | 'late'> {
   const deadline = Date.now() + waitMs
-  const left = () => `${String(Math.max(1, deadline - Date.now()))}ms`
+  const remaining = () => Math.max(1, deadline - Date.now())
+  const left = () => `${String(remaining())}ms`
   if (!(await fences.take(waitMs))) return 'busy'
-  const client = new pg.Client({ ...pool.options, application_name: CALL_FENCE_APPLICATION })
+  // pg's own limit is a backstop past the budget; connectWithin is the budget.
+  const client = new pg.Client({
+    ...pool.options,
+    application_name: CALL_FENCE_APPLICATION,
+    connectionTimeoutMillis: remaining() + 1000,
+  })
   let lost = false
   const lose = () => {
     lost = true
@@ -121,7 +146,11 @@ export async function fenceCall(
   const lock = `sophia.live_call:${call.key}`
   let generation: string
   try {
-    await client.connect()
+    if (!(await connectWithin(client, remaining()))) {
+      await client.end().catch(() => undefined)
+      fences.give()
+      return 'late'
+    }
     await client.query(`SELECT set_config('lock_timeout', $1, false)`, [left()])
     await client.query(`SELECT pg_advisory_lock(hashtextextended($1, 0))`, [lock])
     await client.query(`SELECT set_config('lock_timeout', $1, false)`, [left()])

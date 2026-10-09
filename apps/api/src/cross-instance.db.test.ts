@@ -8,6 +8,7 @@
 // terminated alone (found by the call key's hashed advisory lock), and another attempt takes the fence. And one API
 // process holds a bounded number of fences (Codex P1 r4234782537), counted in pg_locks.
 import { type ChildProcess, fork } from 'node:child_process'
+import net from 'node:net'
 import { createHash, randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import type { FastifyInstance } from 'fastify'
@@ -26,6 +27,8 @@ import {
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
+import { CallFences } from './call-fence.ts'
+import { executeToolCall } from './media-tools.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
@@ -581,6 +584,131 @@ describe('the fences one API process holds are bounded (Codex r4234782537)', () 
       await holder.end()
       await bounded.close()
       await small.end()
+    }
+  })
+})
+
+/** A tool result's code, if its output has one. */
+const outputCode = (result: MediaToolResult): unknown => ('code' in result.output ? result.output.code : undefined)
+
+/**
+ * A pool on the test's database whose queries naming `failing` fail before they are sent, as one whose connection
+ * dropped would, or with PostgreSQL's `code` (Codex P1 r4235131965). A call's fence takes a session of its own, from
+ * the same options, unaffected.
+ */
+function failingPool(failing: string, code?: string): pg.Pool {
+  const failingOne = createPool(db.apiUrl, { max: 4 })
+  const connect = failingOne.connect.bind(failingOne) as () => Promise<pg.PoolClient>
+  const wrapped = new WeakSet<pg.PoolClient>()
+  async function connectFailing(): Promise<pg.PoolClient> {
+    const client = await connect()
+    if (!wrapped.has(client)) {
+      wrapped.add(client)
+      const query = client.query.bind(client) as (text: string, values?: unknown[]) => Promise<pg.QueryResult>
+      const failingQuery = (text: string, values?: unknown[]) =>
+        typeof text === 'string' && text.includes(failing)
+          ? Promise.reject(Object.assign(new Error(`injected: ${failing} failed`), code === undefined ? {} : { code }))
+          : query(text, values)
+      Object.assign(client, { query: failingQuery })
+    }
+    return client
+  }
+  Object.assign(failingOne, { connect: connectFailing })
+  return failingOne
+}
+
+describe('a call whose answer is not written answers unknown, never what its handler found (Codex r4235131965)', () => {
+  it('a call that wrote nothing, its mark failing: unknown, left unanswered; asked again once the work runs, it runs once and is marked', async () => {
+    const x = await exchange()
+    await x.goalIs('completed')
+    const failing = failingPool('media_mark_live_call')
+    try {
+      const first = await executeToolCall(failing, x.hold('m-1'), true)
+      assert.deepEqual([first.status, outputCode(first)], ['unknown', 'unconfirmed:mark_failed'], JSON.stringify(first))
+      assert.deepEqual(await x.recorded(), [['control_work', null, null]], 'unanswered: the refusal is not its answer')
+    } finally {
+      await failing.end()
+    }
+    await x.goalIs('running')
+    const again = await x.api(x.hold('m-1'))
+    assert.deepEqual([again.answer.status, again.answer.output.replayed], ['ok', undefined])
+    assert.equal(await x.commandsUnder('m-1'), 1)
+    assert.deepEqual(await x.recorded(), [['control_work', 'hold', 'ok']])
+  })
+
+  it('a write whose seal fails: nothing commits and it answers unknown; asked again, it runs once and is marked', async () => {
+    const x = await exchange()
+    await x.goalIs('running')
+    // A serialization failure, as PostgreSQL raises it: a v1.2 guide's control would explain it as a refusal.
+    const failing = failingPool('live_call_seal', '40001')
+    try {
+      const first = await executeToolCall(failing, x.hold('m-2'), true)
+      assert.deepEqual([first.status, outputCode(first)], ['unknown', 'unconfirmed:seal_failed'], JSON.stringify(first))
+      assert.equal(await x.commandsUnder('m-2'), 0, 'the Hold rolled back with its seal')
+      assert.equal(await x.goalStatus(), 'running')
+      assert.deepEqual(await x.recorded(), [['control_work', null, null]], 'unanswered')
+    } finally {
+      await failing.end()
+    }
+    const again = await x.api(x.hold('m-2'))
+    assert.deepEqual([again.answer.status, again.answer.output.replayed], ['ok', undefined])
+    assert.equal(await x.commandsUnder('m-2'), 1)
+    assert.deepEqual(await x.recorded(), [['control_work', 'hold', 'ok']])
+  })
+
+  it('a mark that is written returns what the handler found (control)', async () => {
+    const x = await exchange()
+    await x.goalIs('completed')
+    const failing = failingPool('nothing-is-named-this')
+    try {
+      const answered = await executeToolCall(failing, x.hold('m-3'), true)
+      assert.equal(answered.status, 'refused', JSON.stringify(answered))
+    } finally {
+      await failing.end()
+    }
+    assert.deepEqual(await x.recorded(), [['control_work', null, 'refused']])
+  })
+})
+
+describe('a fence’s connect is bounded by the call’s budget (Codex r4235131974)', () => {
+  it('a connect that never completes: the call answers unknown within its budget, its slot is given back, and the next call goes on', async () => {
+    const x = await exchange()
+    await x.goalIs('running')
+    const sockets = new Set<net.Socket>()
+    // A local listener that accepts and never speaks.
+    const silent = net.createServer((socket) => {
+      sockets.add(socket)
+    })
+    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve))
+    const address = silent.address()
+    assert.ok(address !== null && typeof address === 'object')
+    const stalled = createPool(`postgres://nobody@127.0.0.1:${String(address.port)}/nowhere`, { max: 1 })
+    const fences = new CallFences(1)
+    try {
+      const started = Date.now()
+      const answered = await Promise.race([
+        executeToolCall(stalled, x.hold('c-1'), true, fences),
+        new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), CALL_FENCE_WAIT_MS + 3000)),
+      ])
+      const ms = Date.now() - started
+      assert.notEqual(answered, 'hung', `it answered within its budget (${String(ms)} ms)`)
+      if (answered === 'hung') return
+      assert.deepEqual(
+        [answered.status, outputCode(answered)],
+        ['unknown', 'unconfirmed:fence_timeout'],
+        JSON.stringify(answered),
+      )
+      assert.ok(ms >= CALL_FENCE_WAIT_MS - 500, `it waited its budget (${String(ms)} ms)`)
+      assert.ok(sockets.size >= 1, 'the fence’s connect reached the listener')
+      assert.equal(fences.held, 0, 'its slot given back')
+      assert.deepEqual(await x.recorded(), [], 'nothing bound, run or marked')
+      const next = await executeToolCall(pool, x.hold('c-2'), true, fences)
+      assert.equal(next.status, 'ok', 'the next call, on a working database, goes on')
+      assert.equal(fences.held, 0)
+    } finally {
+      for (const socket of sockets) socket.destroy()
+      silent.close()
+      await stalled.end()
     }
   })
 })
