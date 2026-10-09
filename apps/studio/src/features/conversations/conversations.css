@@ -704,6 +704,160 @@
   background: var(--amber);
   transform: translateY(-2px);
 }
+/* Decide here (C7): a proposal waiting wraps its presses under it, on the statement's edge. */
+.conv-decisions.open li {
+  flex-wrap: wrap;
+}
+.conv-decide {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 10px;
+  padding-left: 15px;
+}
+.conv-decide .pill {
+  height: 28px;
+  padding: 0 12px;
+  font-size: var(--type-small);
+}
+.conv-decide-note {
+  flex-basis: 100%;
+  padding-left: 15px;
+  color: var(--text-2);
+}
+.conv-decide .text-button {
+  /* A press a finger or pointer can find: 24 px at least, as every control in the conversations. */
+  min-height: 24px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  text-decoration: none;
+}
+
+/* «Propose as decision» (C7): a small press at the message's own top corner, over the thread, never in its flow. Under the
+   pointer or the focus on a wide screen; on the message pressed on a phone. Its form, when open, is in the flow. */
+.conv-msg-body {
+  position: relative;
+}
+.conv-propose {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.conv-propose-press {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--plane-2);
+  color: var(--text-2);
+}
+.conv-propose-press:hover {
+  color: var(--text);
+}
+.conv-proposed {
+  color: var(--teal);
+  font-size: var(--type-small);
+  white-space: nowrap;
+}
+@media (hover: hover) {
+  .conv-msg:not(:hover, :focus-within) .conv-propose-press {
+    opacity: 0;
+  }
+}
+/* On a touch screen it shows on the message pressed, or when the keyboard reaches it: out of sight, it stays in reach of
+   a keyboard and a screen reader, taking no tap meant for the message. */
+@media (hover: none) {
+  .conv-msg:not([data-pressed], :focus-within) .conv-propose,
+  .conv-msg:not([data-pressed], :focus-within) .conv-propose-press {
+    pointer-events: none;
+  }
+  .conv-msg:not([data-pressed], :focus-within) .conv-propose-press {
+    opacity: 0;
+  }
+}
+/* A finger's target: 40 px, as every icon control on a touch screen. */
+@media (pointer: coarse) {
+  /* Within the thread's 14 px gutter on a phone: nothing past it to scroll sideways to. */
+  .conv-propose {
+    top: -20px;
+    right: -12px;
+  }
+  .conv-propose-press {
+    width: 40px;
+    height: 40px;
+  }
+}
+/* Starting a conversation (C8): the labels in the app's sans, sentence case; the question set larger; the proposals
+   waiting under it as quiet presses that fill it. */
+.conv-new .field-label {
+  color: var(--text-2);
+  font: 500 var(--type-small) / 1.4 var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.conv-new .conv-question input:not([type='checkbox']) {
+  font-size: var(--type-title);
+}
+.conv-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -4px;
+}
+.conv-starters button {
+  max-width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conv-starters button:hover {
+  color: var(--text);
+  border-color: var(--line-3);
+}
+/* While a message's form is open, its clock (placed on the row's middle) stays out of the way. */
+.conv-msg:has(.conv-propose-form) .conv-msg-at {
+  display: none;
+}
+.conv-propose-form {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 480px);
+  margin-top: 8px;
+}
+.conv-propose-form textarea {
+  min-height: 64px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--plane);
+  color: var(--text);
+  font: var(--type-body) / 1.5 var(--sans);
+  resize: vertical;
+}
+.conv-propose-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--type-small);
+}
+.conv-propose-acts .pill {
+  height: 30px;
+  padding: 0 14px;
+}
 .conv-help summary {
   min-height: 24px;
   color: var(--text-2);
@@ -804,7 +958,20 @@
   margin: 0;
   padding: 0 4px;
   color: var(--text-2);
-  font: var(--type-label) / 1.3 var(--mono);
+  font: var(--type-small) / 1.3 var(--sans);
+}
+/* The context's labels in words (C9): the app's sans, sentence case, the second ink; quieter than what they label. */
+.conv-context .eyebrow {
+  color: var(--text-2);
+  font: 600 var(--type-small) / 1.4 var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.conv-more {
+  justify-self: start;
+  min-height: 24px;
+  color: var(--text-2);
+  font-size: var(--type-small);
 }
 .conv-compose-hint [data-asked] {
   color: var(--halo-text);

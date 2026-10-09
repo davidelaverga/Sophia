@@ -101,7 +101,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         }}
       />
       {start.starting && <NewConversation projectId={projectId} identity={identity} {...start.form} />}
-      {shown && <Open conversation={shown} {...{ identity, me, cursor, writer, talk, start, panes }} />}
+      {shown && <Open conversation={shown} {...{ projectId, identity, me, cursor, writer, talk, start, panes }} />}
       <ProjectContext
         {...{ projectId, identity, cursor }}
         conversation={shown}
@@ -268,6 +268,7 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
 
 /** The open conversation, with what is under way in it kept by the view (talk-store.ts). */
 function Open(props: {
+  projectId: string
   conversation: ConversationSummary
   identity: Identity
   me: string
@@ -281,6 +282,7 @@ function Open(props: {
   return (
     <OpenConversation
       key={c.id}
+      projectId={props.projectId}
       conversation={c}
       identity={props.identity}
       me={props.me}

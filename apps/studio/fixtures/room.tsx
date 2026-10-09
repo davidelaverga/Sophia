@@ -58,6 +58,7 @@ import {
   served,
   unexpected,
 } from './fixture-api.ts'
+import { missionWrites } from './mission-writes.ts'
 import {
   briefNotice,
   LONG_TITLE,
@@ -228,6 +229,8 @@ interface Fixture {
   /** What the API answered, as `snapshot:2` (fixture-api.ts). */
   served: readonly string[]
   unexpected: readonly string[]
+  /** The writes that reached the brief, each with its body (mission-writes.ts). */
+  missionWrites: readonly { path: string; body: unknown }[]
 }
 
 declare global {
@@ -734,6 +737,7 @@ window.fixture = {
   asked,
   served,
   unexpected,
+  missionWrites,
 }
 
 /** Answers waiting to be let through, typed as the fixture keeps them. */
