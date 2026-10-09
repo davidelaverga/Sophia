@@ -10,6 +10,7 @@ import type {
   Membership,
   MissionContext,
   Receipt,
+  RoomToken,
   Snapshot,
   SourceReviewAvailability,
   WorkBoardView,
@@ -20,6 +21,7 @@ import {
   membership,
   mission,
   PROJECT,
+  QUALIFICATION,
   ROOM,
   roomToken,
   snapshot,
@@ -68,6 +70,15 @@ import { SOURCE_REVIEW } from './source-review-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
+
+/**
+ * The room token this page is given: with `qualification=on` it names a grant, as the API names one to the grant's
+ * principal alone (A15); otherwise none, as for everyone else.
+ */
+const issuedToken: RoomToken =
+  new URLSearchParams(window.location.search).get('qualification') === 'on'
+    ? { ...roomToken, qualification: QUALIFICATION }
+    : roomToken
 
 /** Requests the fixture didn't expect, as `METHOD /path`: the checks assert there are none. */
 export const unexpected: string[] = []
@@ -990,7 +1001,7 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   const doneOf = TASK_DONE.exec(path)?.[1]
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
-  if (path === `${base}/room-token`) return json(roomToken)
+  if (path === `${base}/room-token`) return json(issuedToken)
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
   return exchangeWritten(project, path, init, () => publish(project))

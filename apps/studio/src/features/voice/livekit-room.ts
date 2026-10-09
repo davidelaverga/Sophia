@@ -5,6 +5,9 @@
 // Sophia (the media bridge, identity `sophia`, standing signed by the API) is not one of the people: she is
 // read separately through `sophia()`, from the attributes the bridge sets and from whether her sound actually
 // reaches this browser (S1-05A §6.5).
+//
+// Under a voice qualification grant, which the room token names to its principal alone (A15), the page also tells
+// itself its own microphone and Sophia's playback (voice-qualification.ts); without one, nothing of it is attached.
 import {
   DisconnectReason,
   Room,
@@ -24,6 +27,7 @@ import {
   type ChatNotice,
   type ChatReply,
 } from '@sophia/contracts/room-chat'
+import type { RoomToken } from '@sophia/contracts'
 import type { CallEnd } from './call-end.ts'
 import { deviceChange } from './device-change.ts'
 import { followingSignal } from './following-signal.ts'
@@ -31,6 +35,7 @@ import { VISION } from '../../app/vision.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import { isSophia, listenToSophia } from './sophia-channel.ts'
 import type { SophiaSignal } from './sophia-view.ts'
+import { watchQualification } from './voice-qualification.ts'
 
 // LiveKit logs every connection step at info level. A deployed Studio keeps warnings and errors in the
 // console; local development keeps the full trace.
@@ -210,19 +215,25 @@ function modeSignal(room: Room, textOnly: () => boolean): () => void {
   return send
 }
 
-export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
-  const room = new Room({
+/** A call's room: 720p cameras and simulcast keep a small room light on bandwidth; tiles receive only what they show. */
+const newRoom = () =>
+  new Room({
     adaptiveStream: true,
     dynacast: true,
-    // 720p cameras and simulcast keep a small room light on bandwidth; tiles receive only what they show.
     videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
     publishDefaults: { simulcast: true },
   })
+
+/** The call the token opens, as the API issued it: its server, its token and, for a grant's principal, the grant. */
+export async function connectRoom(issued: RoomToken, cb: RoomCallbacks): Promise<RoomConnection> {
+  const room = newRoom()
   for (const event of CHANGES) room.on(event, cb.onChange)
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
   let textOnly = false
   const audio = remoteAudio(room, () => textOnly)
+  // After the room's audio: Sophia's element is attached and marked when a receipt looks for it.
+  watchQualification(room, issued.qualification)
   room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
     for (const el of audio) el.remove()
     audio.clear()
@@ -231,7 +242,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   listenToSophia(room, cb)
   const signalMode = modeSignal(room, () => textOnly)
   const following = followingSignal(room, cb.onChange, { resync: VISION })
-  await room.connect(serverUrl, token)
+  await room.connect(issued.serverUrl, issued.token)
   const feedsOf = videoFeeds()
   const after = async (change: Promise<unknown>) => {
     await change

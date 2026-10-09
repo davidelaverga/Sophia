@@ -80,7 +80,11 @@ On this transport the chain covers **the PCM the bridge forwarded or played**. I
 
 ## Studio receipts (page only, never stored)
 
-**When they are emitted.** Only when the room-token answer carries `qualification`, which the API adds only for the grant's principal while the grant is active. The Studio then dispatches `window` `CustomEvent('sophia:voice-qualification', {detail})`.
+**When they are emitted.** Only when the room-token answer carries `qualification`, which the API adds only for the grant's principal while the grant is active. The Studio then dispatches `window` `CustomEvent('sophia:voice-qualification', {detail})`. It has no setting of its own. Without `qualification`, it adds no listener at all and dispatches nothing.
+
+The token holds for the call it opened. A grant revoked or expired during that call still names the grant on its receipts; the next join asks for a new token.
+
+**What the Studio does with them.** Nothing: no receipt is stored, sent to a server or logged. The detail is frozen. It carries only the grant's two fields (`grantId`, `runBindingSha256`), never anything else the grant holds. The receipts and their listeners load with the call (`apps/studio/src/features/voice/voice-qualification.ts`), never before.
 
 **The detail** has `schema: 'sophia.studio.voice_qualification.v1'`, `grantId`, `runBindingSha256`, `atMs`, `event`, and:
 
@@ -90,13 +94,22 @@ On this transport the chain covers **the PCM the bridge forwarded or played**. I
 | `mic_unpublished` | trackSid |
 | `sophia_playback` | phase (`play`, `playing`, `pause`, `waiting`, `ended`, `emptied`), trackSid, mediaTimeMs. Only from `audio[data-sophia-room-audio="sophia"]`; no other participant's element is observed. |
 
+`atMs` is the page's clock (`Date.now()`). Each receipt's keys come in the order above: schema, grantId, runBindingSha256, atMs, event, then the event's own fields.
+
+**When each one comes, as LiveKit drives them.**
+- `mic_published` comes when LiveKit publishes the local microphone: on joining, or the first time it is turned on in the call. Turning it off mutes it and does not unpublish it, so muting and unmuting emit nothing. No other source is reported (camera, screen, screen audio).
+- `mic_unpublished` comes when LiveKit unpublishes it: when the call ends, however it ends (Leave, a lost connection, the server ending it).
+- A full reconnection, LiveKit's fallback when resuming fails, unpublishes the microphone and publishes it again: `mic_unpublished`, then `mic_published`.
+- The Studio has no in-call microphone switch. If LiveKit restarts the track in place (its default device changed), no new receipt comes, and `trackId` still names the track it published.
+- `sophia_playback` comes from Sophia's element only. The room marks her element (`data-sophia-room-audio="sophia"`) as her track is subscribed, and every other voice's `member`. The element is observed for as long as it lives. It is removed when her track is unsubscribed or the call ends. `mediaTimeMs` is the element's `currentTime` in whole milliseconds: the element's own clock, not the bridge's.
+
 ## Deployed identities (I6)
 
 | Component | Where | Source |
 |---|---|---|
 | API | `GET /health` → `{ok, commit}` | `RENDER_GIT_COMMIT` (40 hex), or null; served whether or not voice qualification is on |
 | Bridge | `provider` receipts' `bridgeCommit` | same |
-| Studio | `<meta name="sophia-build" content="<commit>">`, only when the build sets `VITE_SOPHIA_COMMIT` | — |
+| Studio | `<meta name="sophia-build" content="<commit>">` in the page's head, only when the build sets `VITE_SOPHIA_COMMIT` | `VITE_SOPHIA_COMMIT` at build time (40 lowercase hex, as `RENDER_GIT_COMMIT`); any other value, or none, is no tag at all. No build in this repository sets it yet. |
 
 A missing identity is typed unavailable by the Lab, never guessed.
 
