@@ -78,7 +78,8 @@ jobs:
           [[ "$attempt" =~ ^[0-9]{1,6}$ ]] || { echo "::error::the run names no attempt"; exit 1; }
           echo "CANDIDATE=$CANDIDATE_INPUT" >> "$GITHUB_ENV"
           echo "ATTEMPT=$attempt" >> "$GITHUB_ENV"
-          echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+          # Lower case, as GHCR names it; with tr, not ${…,,}, so a contributor's Bash 3.2 runs this step's test too.
+          echo "OWNER=$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
       - name: Its receipt, identity record and exported image
         timeout-minutes: 15
