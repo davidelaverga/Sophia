@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type { Goal, SourceReviewAvailability, SourceReviewProposalRequest } from '@sophia/contracts'
 import { proposeReview, reviewAvailability } from '../../../api/work.ts'
 import type { Identity } from '../../../app/dev-identity.ts'
-import { EARLIER, outcomeOf, proposals, type Asked, type Sent } from './review-proposal.ts'
+import { EARLIER, outcomeOf, proposals, proposalViewer, type Asked, type Sent } from './review-proposal.ts'
 import { ALLOWANCE_STEP, allowanceOk, kib, selectionOf } from './review-sources.ts'
 
 interface Props {
@@ -39,12 +39,12 @@ interface FormProps extends Props {
 
 /**
  * The proposal, sent once per press. After no reply, a press sends the same key and the same request again; only
- * Sophia's answer ends it. It is kept before it is sent (review-proposal.ts), per viewer, project and goal, so closing
+ * Sophia's answer ends it. It is kept before it is sent (review-proposal.ts), per account, project and goal, so closing
  * the form, leaving Tasks and reloading the page all find it again, and an answer that arrives after this form has
  * gone still ends it, and only it: a newer proposal kept since for the goal stays (forget, by the key sent).
  */
 function useProposal({ projectId, identity, goal, onProposed }: Props) {
-  const at = { viewer: identity.name, project: projectId, goal: goal.id }
+  const at = { viewer: proposalViewer(identity), project: projectId, goal: goal.id }
   const [sent, setSent] = useState<Sent>(() => {
     const kept = proposals.pending(at)
     return kept ? { state: 'unanswered', said: EARLIER, ...kept } : { state: 'idle' }

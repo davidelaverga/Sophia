@@ -4,12 +4,15 @@
 // answer lost, could be proposed a second time. Here it is kept while the tab lives (session storage, and this page's
 // memory where storage is refused), per viewer, project and goal, until Sophia answers it: proposed, or a definite
 // refusal. Until then it is the proposal that form sends again, its key and its request unchanged. Only the key and
-// the request are kept, and another viewer's, project's or goal's proposal never meets this one.
+// the request are kept, and another viewer's, project's or goal's proposal never meets this one. The viewer is their
+// account (accountOf: its token's subject), never their email, which the account can change while one is unanswered
+// (Codex's automatic review of 06bf6229, P2).
 import type { SourceReviewProposalRequest } from '@sophia/contracts'
 import { ApiError } from '../../../api/client.ts'
 import type { AuthState } from '../../../app/auth.ts'
+import { accountOf } from '../../../app/auth-callback.ts'
 
-/** Whose proposal, where: the viewer (their identity's stable name), the project and the goal. */
+/** Whose proposal, where: the viewer (their account, `proposalViewer`), the project and the goal. */
 export interface ProposalAt {
   viewer: string
   project: string
@@ -201,6 +204,13 @@ function viewerOf(key: string): string | undefined {
 /** The page's proposals. */
 export const proposals = new Proposals()
 
+/**
+ * Whose a proposal is: the account signed in (accountOf), its token's subject, which a change of its email keeps; its
+ * name only where the token carries none (a dev identity's), as the device's drafts and padlock are kept. Every part
+ * that keeps, finds or forgets one names its viewer so: the form, the board's reconciliation and who is in.
+ */
+export const proposalViewer = (identity: { name: string; token: string }): string => accountOf(identity)
+
 /** Signing out, or another viewer coming in: no proposal of anyone's stays (App.tsx, beside talk-store's). */
 export const forgetProposals = () => proposals.forgetAll()
 
@@ -211,7 +221,7 @@ export const forgetProposals = () => proposals.forgetAll()
  * of an effect on who is in did: it ran as each load went from loading to signed in (Codex's re-review of 6e9e2a9b).
  */
 export function proposalsKeptFor(state: AuthState): string | null | undefined {
-  if (state.status === 'signed_in') return state.identity.name
+  if (state.status === 'signed_in') return proposalViewer(state.identity)
   return state.status === 'signed_out' ? null : undefined
 }
 

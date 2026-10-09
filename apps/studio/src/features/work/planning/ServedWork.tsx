@@ -18,7 +18,7 @@ import { PlanBoard } from './PlanBoard.tsx'
 import { PlanNext } from './PlanNext.tsx'
 import { PlanTab } from './PlanTab.tsx'
 import { actionable, boardOf, forYou, type GoalView } from './plan.ts'
-import { proposals } from './review-proposal.ts'
+import { proposals, proposalViewer } from './review-proposal.ts'
 import { ReviewSources } from './ReviewSources.tsx'
 import { commandWith, decideWith, readResultWith } from './served.ts'
 
@@ -194,7 +194,7 @@ export function useServedWork({ projectId, identity, feed, canAct, enabled }: Se
           const pending = pendingAdmission(board, goal.id, viewerId, now)
           if (pending) {
             return (
-              <Recorded viewer={identity.name} project={projectId} goal={goal.id}>
+              <Recorded viewer={proposalViewer(identity)} project={projectId} goal={goal.id}>
                 <Decision decision={pending} people={people} now={now} viewerId={viewerId} onDecide={decide} />
               </Recorded>
             )

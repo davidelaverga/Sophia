@@ -2,8 +2,10 @@
 // synthetic Supabase Auth service these checks answer in the page (vite.app.config.ts): what the app keeps on the
 // device as who is in changes. Codex's re-review of 6e9e2a9b found every page load forgetting the review proposals kept
 // unanswered (review-proposal.ts): App forgot them in an effect's cleanup, which ran as each load went from finding out
-// who is in to signed in. The fixture pages, which have no App, could not see it. The sessions and proposals here are
-// synthetic, for accounts at sophia.test; nothing reaches an Auth service or an API.
+// who is in to signed in. The fixture pages, which have no App, could not see it. Codex's automatic review of 06bf6229
+// (P2) found them kept by the email, which an account can change: they are its account's, its token's subject. The
+// sessions and proposals here are synthetic, for accounts at sophia.test; nothing reaches an Auth service or an API
+// (`work=lost` answers the app's reads in the page, fixtures/app.tsx).
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 
 const APP = 'http://127.0.0.1:5198'
@@ -21,6 +23,13 @@ interface Person {
 }
 const DAVIDE: Person = { id: '00000000-0000-4000-8000-00000000d001', email: 'davide@sophia.test' }
 const LUIS: Person = { id: '00000000-0000-4000-8000-00000000e001', email: 'luis@sophia.test' }
+/** Davide's account under the address it changed to: the same account, its token's subject unchanged. */
+const RENAMED: Person = { ...DAVIDE, email: 'davide.new@sophia.test' }
+/** Another account at Davide's old address (his deleted, a new one made): another subject, so nothing of his. */
+const SAME_ADDRESS: Person = { id: '00000000-0000-4000-8000-00000000d002', email: DAVIDE.email }
+/** The project and goal `work=lost` serves (fixtures/data.ts's PROJECT, work-data.ts's goal). */
+const WORK_PROJECT = '00000000-0000-4000-8000-0000000000aa'
+const WORK_GOAL = '00000000-0000-4000-8000-0000000000b1'
 
 const part = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
 
@@ -47,9 +56,9 @@ function session(person: Person) {
   }
 }
 
-/** A kept proposal's place in the tab (review-proposal.ts's proposalKey) and what is kept there. */
+/** A kept proposal's place in the tab (review-proposal.ts's proposalKey: its account, the subject) and what is kept. */
 const keyOf = (viewer: Person, project: string, goal: string) =>
-  `${PREFIX}${JSON.stringify([viewer.email, project, goal])}`
+  `${PREFIX}${JSON.stringify([viewer.id, project, goal])}`
 const keptAs = (goal: string, key: string) =>
   JSON.stringify({
     key,
@@ -85,6 +94,7 @@ interface Watch {
 declare global {
   interface Window {
     appWatch?: Watch
+    appFixture?: { proposals: readonly { key: string; body: unknown }[]; unexpected: readonly string[] }
   }
 }
 
@@ -149,22 +159,42 @@ async function signedInTab(context: BrowserContext, person: Person, held: Record
 
 const account = (page: Page) => page.getByRole('button', { name: 'Account' }).first()
 
-/** Another tab of this browser, as Supabase's client there tells this one: another account in, or nobody. */
-async function anotherTab(context: BrowserContext, now: ReturnType<typeof session> | null) {
+/**
+ * Another tab of this browser, as Supabase's client there tells this one: another account in, or nobody; `event`
+ * USER_UPDATED, the same account changed there (its address).
+ */
+async function anotherTab(
+  context: BrowserContext,
+  now: ReturnType<typeof session> | null,
+  event = now ? 'SIGNED_IN' : 'SIGNED_OUT',
+) {
   const other = await context.newPage()
   await other.goto(`${APP}/favicon.svg`)
   await other.evaluate(
-    ([key, signedIn]) => {
+    ([key, signedIn, said]) => {
       if (signedIn) localStorage.setItem(key, JSON.stringify(signedIn))
       else localStorage.removeItem(key)
       // A BroadcastChannel's message has no target origin: the channel is this origin's alone.
       // oxlint-disable-next-line unicorn/require-post-message-target-origin
-      new BroadcastChannel(key).postMessage({ event: signedIn ? 'SIGNED_IN' : 'SIGNED_OUT', session: signedIn })
+      new BroadcastChannel(key).postMessage({ event: said, session: signedIn })
     },
-    [SESSION_KEY, now] as const,
+    [SESSION_KEY, now, event] as const,
   )
   await other.close()
 }
+
+/** Who the app says is in: the address its account menu heads with. */
+async function signedInAs(page: Page) {
+  await account(page).click()
+  const head = page.locator('.menu-head')
+  const said = (await head.textContent()) ?? ''
+  await page.keyboard.press('Escape')
+  await expect(head).toHaveCount(0)
+  return said
+}
+
+/** Each proposal the fixture's service was sent (`work=lost`), with its key and its body. */
+const sentTo = (page: Page) => page.evaluate(() => window.appFixture?.proposals ?? [])
 
 test('codex · 6e9e2a9b · a page load keeps the viewer’s proposals: finding out who is in, signed in, and a reload', async ({
   context,
@@ -195,6 +225,72 @@ test('codex · 6e9e2a9b · another account coming in, in another tab, keeps only
   await anotherTab(context, session(LUIS))
   await expect.poll(() => tabHolds(page)).toEqual(only(LUIS_A, OTHER_PART))
   await expect(account(page)).toBeVisible()
+})
+
+test('codex · 06bf6229 · another account at the viewer’s old address is another account: it keeps none of theirs', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await expect.poll(() => tabHolds(page)).toEqual(only(...DAVIDES, OTHER_PART))
+  await anotherTab(context, session(SAME_ADDRESS))
+  await expect.poll(() => tabHolds(page)).toEqual(only(OTHER_PART))
+  await expect(account(page)).toBeVisible()
+})
+
+test('codex · 06bf6229 · the viewer’s account under a new address keeps its unanswered proposal: the same one after a reload', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/work?work=lost`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  const purpose = form.getByLabel('Purpose (optional)')
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await purpose.fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  const [first] = await sentTo(page)
+  expect(first?.body).toMatchObject({ goalId: WORK_GOAL, purpose: 'Check the budgets agree', allowanceUsd: 0.5 })
+  const k1 = keyOf(DAVIDE, WORK_PROJECT, WORK_GOAL)
+  const keptAsSent = () => ({ [k1]: { key: first?.key, request: first?.body }, [OTHER_PART]: {} })
+  const parsed = async () =>
+    Object.fromEntries(Object.entries(await tabHolds(page)).map(([k, v]) => [k, JSON.parse(v) as unknown]))
+  expect(await parsed()).toEqual(keptAsSent())
+  expect(await signedInAs(page)).toBe(DAVIDE.email)
+
+  // Davide changes his address, in another tab: Supabase's client there tells this one, the same account updated.
+  await anotherTab(context, session(RENAMED), 'USER_UPDATED')
+  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  expect(await parsed()).toEqual(keptAsSent())
+  await page.reload()
+  await expect(account(page)).toBeVisible()
+  expect(await signedInAs(page)).toBe(RENAMED.email)
+  expect(await parsed()).toEqual(keptAsSent())
+
+  // Under the new address, the form finds the same proposal, frozen, and proposes it again: its key, its request.
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.',
+  )
+  await expect(purpose).toHaveValue('Check the budgets agree')
+  await expect(purpose).toHaveJSProperty('readOnly', true)
+  await expect(form.getByRole('checkbox', { name: 'Press plan v2' })).toBeChecked()
+  await expect(form.getByRole('checkbox', { name: 'Launch brief v3' })).toBeDisabled()
+  await form.getByRole('button', { name: 'Propose again' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Proposed.' })).toBeVisible()
+  const sent = await sentTo(page)
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(first)
+  // Answered: nothing is kept.
+  await expect.poll(() => tabHolds(page)).toEqual(only(OTHER_PART))
+  // Every read the app made was the fixture's to answer.
+  expect(await page.evaluate(() => window.appFixture?.unexpected)).toEqual([])
 })
 
 test('codex · 6e9e2a9b · signing out forgets every proposal at once, before the Auth service answers', async ({

@@ -9,6 +9,7 @@ import {
   Proposals,
   proposalsKeptFor,
   proposalsOnlyOf,
+  proposalViewer,
   type Asked,
   type ProposalAt,
 } from './review-proposal.ts'
@@ -166,6 +167,7 @@ describe('a proposal whose outcome is unknown is kept beyond its form (Codex on 
   })
 })
 
+/** Signed in by a token that names no subject (a dev identity's): the viewer is the name. */
 const signedIn = (name: string): AuthState => ({ status: 'signed_in', identity: { name, role: 'member', token: 't' } })
 const luis: ProposalAt = { ...at, viewer: 'luis@sophia.test', goal: 'goal-2' }
 
@@ -237,6 +239,67 @@ describe('who is in decides whose proposals stay, never a page load (Codex’s r
     assert.equal(proposalsKeptFor({ status: 'link_offer', account: 'davide@sophia.test', slow: true }), undefined)
     assert.equal(proposalsKeptFor({ status: 'signed_out' }), null)
     assert.equal(proposalsKeptFor(signedIn('davide@sophia.test')), 'davide@sophia.test')
+    assert.equal(proposalsKeptFor(account(DAVIDE, 'davide@sophia.test')), DAVIDE)
+  })
+})
+
+/** A Supabase account's token: unsigned, its subject and its email (the API is never asked here). */
+const tokenOf = (sub: string, email: string) =>
+  `${Buffer.from('{"alg":"none"}').toString('base64url')}.${Buffer.from(JSON.stringify({ sub, email })).toString('base64url')}.`
+/** Signed in to the account `sub`, by the address `email`, as auth.ts names it (the email). */
+const account = (sub: string, email: string): AuthState => ({
+  status: 'signed_in',
+  identity: { name: email, role: '', token: tokenOf(sub, email) },
+})
+const DAVIDE = '00000000-0000-4000-8000-00000000d001'
+
+describe('a proposal is its account’s, never its email’s (Codex’s automatic review of 06bf6229, P2)', () => {
+  it('names the viewer by the token’s subject; by the name only where the token carries none, as accountOf does', () => {
+    assert.equal(proposalViewer({ name: 'davide@sophia.test', token: tokenOf(DAVIDE, 'davide@sophia.test') }), DAVIDE)
+    assert.equal(
+      proposalViewer({ name: 'davide.new@sophia.test', token: tokenOf(DAVIDE, 'davide.new@sophia.test') }),
+      DAVIDE,
+    )
+    // A dev identity (dev-identity.ts) whose token names no subject, or one that cannot be read: its name, every time.
+    assert.equal(proposalViewer({ name: 'davide', token: 'dev-token' }), 'davide')
+    assert.equal(proposalViewer({ name: 'davide', token: 'a.not-base64!.c' }), 'davide')
+  })
+
+  it('the same account under a new email keeps its proposal, in the tab and the page’s memory', () => {
+    const before = account(DAVIDE, 'davide@sophia.test')
+    const after = account(DAVIDE, 'davide.new@sophia.test')
+    const mine: ProposalAt = { ...at, viewer: DAVIDE }
+    for (const storage of [tab().storage, refusing]) {
+      const page = new Proposals(storage)
+      page.keep(mine, asked)
+      page.keep(luis, asked)
+      through(page, before, after, after)
+      assert.deepEqual(page.pending(mine), asked, 'kept as it was sent: its key and its request')
+      assert.equal(page.pending(luis), null, 'another viewer’s goes')
+    }
+  })
+
+  it('another account at the same email is another viewer: none of the first’s stays', () => {
+    const t = tab()
+    const page = new Proposals(t.storage)
+    const mine: ProposalAt = { ...at, viewer: DAVIDE }
+    page.keep(mine, asked)
+    through(
+      page,
+      account(DAVIDE, 'davide@sophia.test'),
+      account('00000000-0000-4000-8000-00000000d002', 'davide@sophia.test'),
+    )
+    assert.equal(page.pending(mine), null)
+    assert.equal(t.items.size, 0)
+  })
+
+  it('a proposal kept under an email (before this) is nobody’s once its account is in, and goes', () => {
+    const t = tab()
+    const page = new Proposals(t.storage)
+    page.keep(at, asked)
+    through(page, account(DAVIDE, at.viewer))
+    assert.equal(page.pending(at), null)
+    assert.equal(t.items.size, 0)
   })
 })
 
