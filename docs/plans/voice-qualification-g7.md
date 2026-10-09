@@ -27,7 +27,7 @@ The legacy Lab proved input from a browser Gemini WebSocket, and this product ha
 - **Only the approved synthetic principal is recorded:**
   - the bridge records input only while the floor holder is the grant's principal;
   - the Studio emits page receipts only to the principal's own page, for its own microphone and Sophia's playback.
-- **Retention:** evidence rows expire 24 h after they are written, and expired rows are deleted.
+- **Retention:** evidence rows expire 24 h after they are written, and expired rows are deleted (`sophia.voice_evidence_expire()`) by the worker's periodic pass (`dispatchOnce`, at least every 2 s, on the worker's login), whatever `SOPHIA_VOICE_QUALIFICATION` says and whether or not a bridge reports; the guard deletes them too. Nothing else of 0046 expires: the exchanges' counters and the connections' charges are the durable bound and the audit of what a grant spent, the recorded calls are the canonical join from a task to its exchange, and the grants are the operator's record. None of them holds speech, a digest or a timing of anyone's input.
 - **No credential appears** in a receipt, a log or an API answer.
 
 ## The gate (I0)

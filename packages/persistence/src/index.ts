@@ -136,6 +136,7 @@ export {
 } from './exchange.ts'
 export {
   answerLiveCall,
+  expireVoiceEvidence,
   liveCallAdmits,
   readExchangeCalls,
   readLivePresence,

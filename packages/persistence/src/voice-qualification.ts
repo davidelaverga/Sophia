@@ -2,6 +2,7 @@
 // Off unless the migration owner grants it. The bridge's receipts carry counts, booleans, ids, timings and SHA-256
 // chains over PCM it forwarded or played: never a transcript, a caption, typed words or audio.
 import type pg from 'pg'
+import { classifyDbError } from './errors.ts'
 import { onlyRow } from './rows.ts'
 
 export type QualificationReceiptKind = 'input_window' | 'input_turn' | 'provider' | 'output_reply' | 'session_closed'
@@ -28,6 +29,24 @@ export interface QualificationEvidenceAck {
 export async function voiceQualificationGuard(c: pg.PoolClient): Promise<number> {
   const { rows } = await c.query<{ ended: number }>(`SELECT sophia.voice_qualification_guard() AS ended`)
   return onlyRow(rows, 'voice_qualification_guard').ended
+}
+
+/**
+ * Maintenance, on the worker's login: delete the voice qualification receipts past their 24 hours (0046,
+ * voice_evidence_expire). Run by the worker's periodic pass, so retention holds whether or not a bridge reports and
+ * whatever the API's switch says. A database without 0046 holds none: nothing is asked of it, and it answers 0.
+ */
+export async function expireVoiceEvidence(pool: pg.Pool): Promise<number> {
+  try {
+    const present = await pool.query<{ ok: boolean }>(
+      `SELECT to_regprocedure('sophia.voice_evidence_expire()') IS NOT NULL AS ok`,
+    )
+    if (!present.rows[0]?.ok) return 0
+    const { rows } = await pool.query<{ n: number }>(`SELECT sophia.voice_evidence_expire() AS n`)
+    return onlyRow(rows, 'voice_evidence_expire').n
+  } catch (err: unknown) {
+    throw classifyDbError(err)
+  }
 }
 
 /**

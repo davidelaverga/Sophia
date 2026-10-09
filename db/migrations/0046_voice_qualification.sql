@@ -22,7 +22,8 @@
 --   reservation checks the same limits for its own exchange; the event wakes the bridge's poll, and the bridge closes
 --   the session and its provider connection.
 -- * The bridge's receipts (input windows, input turns, the provider's lifecycle, replies, the session's close) are
---   kept 24 hours, readable only by the grant's principal. They carry counts, booleans, ids, timings and SHA-256
+--   kept 24 hours, readable only by the grant's principal, then deleted (voice_evidence_expire: the worker's periodic
+--   pass, whatever the API's switch says and whether or not a bridge reports; the guard too). They carry counts, booleans, ids, timings and SHA-256
 --   chains over PCM the bridge forwards or plays: the API's schemas refuse any free text. Nothing is kept of a
 --   transcript, a caption or typed words.
 -- * The canonical exchange of a voice-created task: the service records the exchange each bound voice tool call of a
@@ -210,8 +211,25 @@ BEGIN
  RETURN true;
 END $$;
 
+-- Receipts past their 24 hours, the bridge's and the guard's, deleted: how many. The worker's periodic pass calls it
+-- (apps/worker dispatchOnce, at least every 2 s, on the sophia_worker login), so retention holds without bridge traffic
+-- and whatever the API's voice qualification switch says; the guard calls it too. Nothing else of 0046 expires: the
+-- exchanges' counters and the connections' charges are the durable bound (deleting a live exchange's would reset its
+-- spend) and an ended one's is the audit of what the grant spent; live_tool_calls is the canonical join from a task to
+-- its exchange, kept as long as the task; the grants are the operator's record. None holds speech, a digest or a timing
+-- of anyone's input: the receipts do.
+CREATE FUNCTION sophia.voice_evidence_expire() RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE n integer;
+BEGIN
+ IF sophia.actor_id() IS NOT NULL THEN RAISE EXCEPTION 'Expiry is the service''s, never a member''s' USING ERRCODE='42501'; END IF;
+ DELETE FROM sophia.voice_qualification_evidence WHERE expires_at<=now();
+ GET DIAGNOSTICS n = ROW_COUNT;
+ RETURN n;
+END $$;
+
 -- End every exchange under a grant that is past its deadline, revoked, expired or over a limit, as End would.
--- Returns how many it ended. Expired evidence goes too.
+-- Returns how many it ended. Expired evidence goes too (voice_evidence_expire).
 -- Lock order (0003): a due exchange's project, then the exchange, as control_exchange takes them. A row another
 -- transaction holds is skipped, never waited on, so the guard is never part of a deadlock: a reservation or a receipt
 -- holding it checks its own exchange under its locks, and the next run (each presence report, each assignment read)
@@ -221,7 +239,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE r record; e sophia.room_exchanges; g sophia.voice_qualification_grants; why text; n integer:=0;
 BEGIN
  PERFORM sophia.require_service();
- DELETE FROM sophia.voice_qualification_evidence WHERE expires_at<now();
+ PERFORM sophia.voice_evidence_expire();
  FOR r IN SELECT x.id, x.project_id FROM sophia.room_exchanges x
    CROSS JOIN LATERAL sophia.voice_grant_of(x.project_id, x.opened_at) c
    WHERE x.state<>'ended' AND c.id IS NOT NULL AND sophia.voice_limit_reached(c, x.opened_at, x.id) IS NOT NULL
@@ -634,7 +652,7 @@ REVOKE ALL ON FUNCTION sophia.voice_grant_of(uuid,timestamptz), sophia.voice_dea
  sophia.voice_end_exchange(uuid,sophia.voice_qualification_grants,text),
  sophia.media_voice_reserve(uuid,uuid,text,integer,bigint),
  sophia.voice_qualification_grant(uuid,uuid,text,text,integer,integer,integer,integer,bigint,integer),
- sophia.voice_qualification_revoke(uuid,uuid,text), sophia.voice_qualification_guard(),
+ sophia.voice_qualification_revoke(uuid,uuid,text), sophia.voice_qualification_guard(), sophia.voice_evidence_expire(),
  sophia.voice_assignment_qualification(uuid,timestamptz), sophia.media_record_evidence(uuid,uuid,integer,text,jsonb),
  sophia.voice_qualification_evidence_read(uuid), sophia.voice_room_qualification(uuid),
  sophia.media_record_live_call(uuid,bigint,uuid,text,text), sophia.room_live_presence(uuid),
@@ -647,5 +665,6 @@ GRANT EXECUTE ON FUNCTION sophia.voice_qualification_guard(), sophia.media_recor
  sophia.media_record_live_call(uuid,bigint,uuid,text,text), sophia.room_live_presence(uuid),
  sophia.native_task_exchanges(uuid,uuid[]), sophia.exchange_calls(uuid,timestamptz), sophia.live_call_admits(uuid,text),
  sophia.media_answer_live_call(uuid,uuid,text,text), sophia.task_withdrawn_sources(uuid,uuid) TO sophia_api;
+GRANT EXECUTE ON FUNCTION sophia.voice_evidence_expire() TO sophia_worker;
 
 COMMIT;

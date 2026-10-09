@@ -1,6 +1,8 @@
 // The runtime dispatcher (S1-05A, db/migrations/0012): moves admitted native deliveries from the outbox into the
 // bound runtime's command queue. It is a transport step, not a second reasoning loop: it never builds prompts,
 // chooses work or retries an effect it cannot prove absent. Each pass
+//   0. deletes voice qualification receipts past their 24 hours (0046, voice_evidence_expire; nothing without 0046):
+//      the house sweep, so their retention holds whatever the API's switch says and whether or not a bridge reports;
 //   1. marks expired dispatch leases outcome_unknown (never pending again by themselves),
 //   2. reconciles those rows from what the database recorded (queued → keep the result; never queued → pending),
 //   3. claims pending native rows, Hold/Stop first, and dispatches each under its lease: the database rechecks
@@ -10,12 +12,15 @@ import {
   claimRuntimeOutbox,
   dispatchRuntimeOutbox,
   expireDispatchLeases,
+  expireVoiceEvidence,
   ProjectEventListener,
   reconcileRuntimeOutbox,
   type DispatchOutcome,
 } from '@sophia/persistence'
 
 export interface PassResult {
+  /** Voice qualification receipts past their retention, deleted (0 without 0046, or when the sweep failed: logged). */
+  voiceEvidenceExpired: number
   expired: number
   reconciled: number
   outcomes: DispatchOutcome[]
@@ -37,8 +42,20 @@ const describe = (o: DispatchOutcome): string =>
     ? `enqueued as runtime command ${o.runtimeCommandId} (seq ${o.seq})`
     : `${o.result}: ${o.reason ?? ''}`
 
+/** The voice receipts' sweep, apart from dispatch: a failure is logged and tried again on the next pass. */
+async function expireVoiceReceipts(pool: pg.Pool, options: DispatcherOptions): Promise<number> {
+  try {
+    return await expireVoiceEvidence(pool)
+  } catch (err: unknown) {
+    // Not rethrown: retention is swept again on the next pass, and it must never hold runtime dispatch back.
+    options.log?.(`voice evidence expiry failed: ${err instanceof Error ? err.message : String(err)}`)
+    return 0
+  }
+}
+
 /** One pass. Safe to run concurrently from several workers: claims skip locked rows. */
 export async function dispatchOnce(pool: pg.Pool, options: DispatcherOptions): Promise<PassResult> {
+  const voiceEvidenceExpired = await expireVoiceReceipts(pool, options)
   const expired = await expireDispatchLeases(pool)
   const reconciled = await reconcileRuntimeOutbox(pool)
   const claimed = await claimRuntimeOutbox(pool, options.workerId, options.batchSize ?? 10, options.leaseSeconds ?? 30)
@@ -56,7 +73,7 @@ export async function dispatchOnce(pool: pg.Pool, options: DispatcherOptions): P
       options.log?.(`dispatch of outbox ${row.id} did not record: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
-  return { expired, reconciled, outcomes, lost }
+  return { voiceEvidenceExpired, expired, reconciled, outcomes, lost }
 }
 
 /**
