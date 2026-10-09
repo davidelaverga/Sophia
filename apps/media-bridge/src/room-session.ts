@@ -1118,11 +1118,14 @@ export class RoomSession {
 
   /**
    * Whether this chunk of the holder's audio may go to the provider now: always, without a grant. Under one, the first
-   * after a turn ended waits ('hold') while its generation is reserved; a refusal stops the session.
+   * after a turn ended waits ('hold') while its generation is reserved, and every chunk after it waits behind it, until
+   * that reservation (never another's) is granted; a refusal stops the session.
    */
   private gate(identity: string, chunk: Int16Array, dropped: number): 'send' | 'hold' | 'stop' {
     const q = this.qualification
     if (!q) return 'send'
+    // Behind chunks still waiting for their own reservation: in order, never ahead of them.
+    if (this.held.length > 0) return 'hold'
     const verdict = q.input(this.connection, identity, chunk, dropped, this.state.assignment.inputEpoch)
     if (verdict === null) return 'send'
     if (verdict === 'hold') return 'hold'

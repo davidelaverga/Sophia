@@ -357,10 +357,12 @@ export class SessionQualification {
     return this.#stopped
   }
 
-  /** The reservation input asked for: once granted, and only if it is still the one stored, input flows under it. */
+  /**
+   * The reservation input asked for, stored as the one it waits for: only its own grant lets input flow (a tool
+   * response's, a notice's or a typed message's never touches it).
+   */
   #reserveInput(connection: number): void {
-    const pending: Promise<GuardStop | null> = this.#charge(connection, false).then((refused) => {
-      if (this.#pending.get(connection) !== pending) return refused
+    const pending = this.#charge(connection, false).then((refused) => {
       this.#pending.delete(connection)
       if (!refused) this.#grant(connection)
       return refused

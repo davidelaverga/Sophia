@@ -243,13 +243,23 @@ class FakeService implements MediaService {
   refuse: MediaQualificationReservation['stop'] | 'error' = null
   /** While set, each reservation waits for the test to answer it (the API is slow). */
   holdReservations = false
-  private readonly waiting: Array<() => void> = []
+  private readonly waiting: Array<{ kind: string; answer: () => void }> = []
   answerReservations(): void {
-    for (const answer of this.waiting.splice(0)) answer()
+    for (const { answer } of this.waiting.splice(0)) answer()
+  }
+  /** The kinds of the reservations waiting for an answer, in the order asked. */
+  waitingKinds(): string[] {
+    return this.waiting.map((w) => w.kind)
+  }
+  /** Answer the last waiting reservation of this kind. */
+  answerLast(kind: string): void {
+    const at = this.waiting.map((w) => w.kind).lastIndexOf(kind)
+    if (at >= 0) this.waiting.splice(at, 1)[0]?.answer()
   }
   reserveQualification = async (r: MediaQualificationReserve) => {
     await Promise.resolve()
-    if (this.holdReservations) await new Promise<void>((resolve) => this.waiting.push(resolve))
+    if (this.holdReservations)
+      await new Promise<void>((resolve) => this.waiting.push({ kind: r.kind, answer: resolve }))
     this.reservations.push(r)
     if (this.refuse === 'error') throw new ServiceError(503, 'POST /v1/media/qualification-reserve: 503')
     if (this.refuse) return { ok: false, ordinal: null, stop: this.refuse, ended: true }
@@ -4475,6 +4485,41 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     assert.deepEqual(stops(), ['output'])
     assert.deepEqual(service.evidence, [], 'Davide held the floor: nothing recorded')
     assert.deepEqual(kinds(), ['connection', 'generation', 'stop'], 'the stop told to the API all the same')
+    await session.close()
+  })
+
+  it('held input goes on in order, under its own reservation, never ahead of it when another is granted first', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    const sent: number[] = []
+    const link: LiveLink = live
+    link.sendAudio = (chunk) => {
+      live.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    room.events.audio(LUIS, new Int16Array(1600).fill(1000), 16000, 1)
+    await flush()
+    live.events.audio(speech(1), OUT)
+    live.events.turnComplete()
+    await flush()
+    service.holdReservations = true
+    room.events.audio(LUIS, new Int16Array(1600).fill(2000), 16000, 1) // held: its reservation is in flight
+    await flush()
+    live.events.toolCalls([{ id: 'call-b2', name: 'project_status', args: {} }]) // a late call of the last turn
+    const generations = () => service.waitingKinds().filter((k) => k === 'generation').length
+    await until('the tool response reserved', () => generations() === 2) // the held chunk's, then the response's
+    service.answerLast('generation') // the API answers the tool response's reservation first
+    await flush()
+    await flush()
+    room.events.audio(LUIS, new Int16Array(1600).fill(3000), 16000, 1)
+    await flush()
+    assert.deepEqual(sent, [1000], 'nothing goes before the held chunk’s own reservation is granted')
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.deepEqual(sent, [1000, 2000, 3000], 'in the order spoken')
+    assert.equal(live.responses.length, 1)
     await session.close()
   })
 
