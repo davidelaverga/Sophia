@@ -9,7 +9,10 @@ import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test
 import {
   answerLiveCall,
   createPool,
+  fenceLiveCall,
+  isFenceMoved,
   liveCallAnswer,
+  markLiveCall,
   mediaAssignments,
   readQualificationEvidence,
   readSnapshot,
@@ -17,6 +20,7 @@ import {
   recordLiveCall,
   reserveQualification,
   roomQualification,
+  sealLiveCall,
   startExchange,
   voiceQualificationGuard,
   withActor,
@@ -52,6 +56,13 @@ async function owner<T>(fn: (c: pg.Client) => Promise<T>): Promise<T> {
     await c.end()
   }
 }
+
+/** Whether a write was refused because another attempt took the call's fence (0047, 'Fence moved'). */
+const moved = (p: Promise<unknown>) =>
+  p.then(
+    () => false,
+    (err: unknown) => isFenceMoved(err),
+  )
 
 async function codeOf(p: Promise<unknown>): Promise<string> {
   try {
@@ -704,6 +715,67 @@ describe('a recorded voice call’s key (0046, media_record_live_call; Codex P1 
       'forbidden',
       'a member is never the service',
     )
+  })
+
+  it('its answer under its fence’s generation: each attempt takes the next; under a moved one nothing is written; the next waits for a seal (0047; Codex r4234782534)', async () => {
+    const { projectId } = await project()
+    await grant(projectId)
+    const x = await open(projectId)
+    const key = `live:${x}:1:c-2`
+    const answerOf = () => withService(pool, (c) => liveCallAnswer(c, { exchangeId: x, actorId: P, key }))
+    const fence = () => withService(pool, (c) => fenceLiveCall(c, x, key))
+    const seal = (generation: string, outcome: 'ok' | 'refused') =>
+      withActor(pool, P, 'write', (c) => sealLiveCall(c, { exchangeId: x, key, generation, outcome }))
+    const mark = (generation: string, outcome: 'ok' | 'refused') =>
+      withService(pool, (c) => markLiveCall(c, { exchangeId: x, actorId: P, key, generation, outcome }))
+    await withService(pool, (c) =>
+      recordLiveCall(c, { exchangeId: x, inputEpoch: 1, actorId: P, key, name: 'control_work' }),
+    )
+    assert.equal(await fence(), '1')
+    assert.equal(await fence(), '2', 'the next attempt takes the next generation')
+    assert.equal(await moved(seal('1', 'ok')), true, 'a seal under a moved generation is refused')
+    assert.equal(await moved(mark('1', 'refused')), true, 'and so is a mark')
+    assert.equal(await answerOf(), null, 'nothing was written')
+    assert.equal(
+      await codeOf(withService(pool, (c) => sealLiveCall(c, { exchangeId: x, key, generation: '2', outcome: 'ok' }))),
+      'forbidden',
+      'a seal is the speaker’s own write',
+    )
+    assert.equal(
+      await codeOf(withActor(pool, P, 'write', (c) => fenceLiveCall(c, x, key))),
+      'forbidden',
+      'a generation is the service’s',
+    )
+    assert.equal(
+      await codeOf(
+        withActor(pool, P, 'write', (c) =>
+          markLiveCall(c, { exchangeId: x, actorId: P, key, generation: '2', outcome: 'ok' }),
+        ),
+      ),
+      'forbidden',
+      'and so is a mark',
+    )
+    // A seal under the current generation holds the key's row to its commit: the next generation waits for it.
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(`SELECT set_config('sophia.actor_id', $1, true)`, [P])
+      await sealLiveCall(client, { exchangeId: x, key, generation: '2', outcome: 'ok' })
+      let taken = false
+      const next = fence().then((g) => {
+        taken = true
+        return g
+      })
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      assert.equal(taken, false, 'the next generation waits for the seal’s commit')
+      await client.query('COMMIT')
+      assert.equal(await next, '3')
+    } finally {
+      client.release()
+    }
+    assert.deepEqual(await answerOf(), { outcome: 'ok', commandId: null, taskId: null }, 'the seal’s answer')
+    await mark('3', 'refused')
+    assert.deepEqual(await answerOf(), { outcome: 'ok', commandId: null, taskId: null }, 'answered once')
   })
 })
 

@@ -13,6 +13,7 @@ import {
 } from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
 import { writeOnce, type ByteStore } from './byte-store.ts'
+import { CALL_FENCE_SESSIONS, CallFences } from './call-fence.ts'
 import { CompanionRunner, companionFailure, type Companion } from './companion.ts'
 import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
@@ -90,6 +91,12 @@ export interface AppDeps {
    * on, so a bridge never records.
    */
   voiceQualification?: boolean
+  /**
+   * With voice qualification on, at most this many voice tool calls are made at once in this process, each under its
+   * key's fence, a database session of its own beside the pool's (Codex P1 r4234782537): CALL_FENCE_SESSIONS (8) by
+   * default. A call that finds none free within its wait (5 s) answers unknown, and runs and marks nothing.
+   */
+  callFenceSessions?: number
 }
 
 /**
@@ -175,7 +182,9 @@ export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(t
 
 /**
  * What an API with voice qualification on (A15) calls of 0046: its guard, the bridge's receipts, the principal's read and
- * the room token's grant. An API with it off, the default, and the previous API, require nothing of 0046.
+ * the room token's grant; and of 0047, a recorded call's answer, its fence's generation, and the seal and the mark that
+ * write the answer under it (Codex P1 r4234782534). An API with it off, the default, and the previous API, require
+ * nothing of 0046, and of 0047 only the claim (REQUIRED_SCHEMA).
  */
 export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_guard()') IS NOT NULL
   AND to_regprocedure('sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)') IS NOT NULL
@@ -185,8 +194,10 @@ export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_
   AND to_regprocedure('sophia.media_record_live_call(uuid,bigint,uuid,text,text)') IS NOT NULL
   AND to_regprocedure('sophia.live_call_admits(uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.live_call_command()') IS NOT NULL
-  AND to_regprocedure('sophia.media_answer_live_call(uuid,uuid,text,text)') IS NOT NULL
   AND to_regprocedure('sophia.media_live_call_answer(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.media_fence_live_call(uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.live_call_seal(uuid,text,bigint,text)') IS NOT NULL
+  AND to_regprocedure('sophia.media_mark_live_call(uuid,uuid,text,bigint,text)') IS NOT NULL
   AND to_regprocedure('sophia.exchange_calls(uuid,timestamptz)') IS NOT NULL
   AND to_regprocedure('sophia.room_live_presence(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.native_task_exchanges(uuid,uuid[])') IS NOT NULL
@@ -243,7 +254,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   designRoutes(app, { pool: deps.pool, store })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit, voice })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
-  mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit, voice })
+  const fences = new CallFences(deps.callFenceSessions ?? CALL_FENCE_SESSIONS)
+  mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit, voice, fences })
   accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
   sourceRoutes(app, { pool: deps.pool, store })
   rendererRoutes(app, { pool: deps.pool, store })

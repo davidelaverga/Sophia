@@ -27,6 +27,7 @@ import {
   voiceQualificationGuard,
   withService,
 } from '@sophia/persistence'
+import type { CallFences } from '../call-fence.ts'
 import { issueBridgeToken, type LiveKitConfig } from '../livekit.ts'
 import { executeToolCall, TOOL_SURFACES, type GuideVersion } from '../media-tools.ts'
 import type { NotificationHub } from '../notification-hub.ts'
@@ -50,6 +51,8 @@ interface Deps {
   livekit: LiveKitConfig | undefined
   /** Voice qualification evidence (A15, 0046), off by default: see AppDeps.voiceQualification. */
   voice: boolean
+  /** The fence sessions this API process's voice tool calls take, bounded (see AppDeps.callFenceSessions). */
+  fences: CallFences
 }
 
 const pollQuery = {
@@ -104,7 +107,7 @@ const TOOL_SURFACE_ROUTE = {
   },
 }
 
-export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit, voice }: Deps): void {
+export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit, voice, fences }: Deps): void {
   app.get<{ Querystring: { after?: string; waitMs: string } }>(
     '/v1/media/assignments',
     { schema: { querystring: pollQuery, response: { 200: { $ref: 'MediaAssignmentBatch#' } } } },
@@ -167,7 +170,7 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit, voice }:
   app.post<{ Body: MediaToolCall }>(
     '/v1/media/tool-calls',
     { schema: { body: { $ref: 'MediaToolCall#' }, response: { 200: { $ref: 'MediaToolResult#' } } } },
-    async (req) => executeToolCall(pool, req.body, voice),
+    async (req) => executeToolCall(pool, req.body, voice, fences),
   )
 }
 

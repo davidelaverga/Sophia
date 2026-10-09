@@ -3,7 +3,7 @@
 // chains over PCM it forwarded or played: never a transcript, a caption, typed words or audio.
 import type pg from 'pg'
 import type { MediaToolResult } from '@sophia/contracts'
-import { classifyDbError } from './errors.ts'
+import { classifyDbError, pgError } from './errors.ts'
 import { onlyRow } from './rows.ts'
 
 export type QualificationReceiptKind = 'input_window' | 'input_turn' | 'provider' | 'output_reply' | 'session_closed'
@@ -162,7 +162,10 @@ export async function liveCallAnswer(
   return onlyRow(rows, 'media_live_call_answer').answer
 }
 
-/** The API answered a recorded call, after anything it admitted for it committed: its answer's status. withService. */
+/**
+ * 0046's mark of a recorded call's answer, under no fence's generation: the API's path no longer calls it (0047
+ * live_call_seal and media_mark_live_call write the answer under the fence's generation instead). withService.
+ */
 export async function answerLiveCall(
   c: pg.PoolClient,
   call: { exchangeId: string; actorId: string; key: string; outcome: string },
@@ -173,6 +176,57 @@ export async function answerLiveCall(
     call.key,
     call.outcome,
   ])
+}
+
+/**
+ * The next generation of a call key's fence, for the attempt that now holds it (0047 media_fence_live_call; Codex P1
+ * r4234782534): on the fence's own session, once its advisory lock is held, in a statement of its own. It waits for a
+ * seal still holding the key's row. A bigint, as PostgreSQL returns it (text).
+ */
+export async function fenceLiveCall(c: pg.ClientBase, exchangeId: string, key: string): Promise<string> {
+  const { rows } = await c.query<{ generation: string }>(`SELECT sophia.media_fence_live_call($1,$2) AS generation`, [
+    exchangeId,
+    key,
+  ])
+  return onlyRow(rows, 'media_fence_live_call').generation
+}
+
+/** A recorded call's answer under its attempt's fence: the outcome, and the generation that attempt took. */
+export interface FencedAnswer {
+  exchangeId: string
+  key: string
+  generation: string
+  outcome: MediaToolResult['status']
+}
+
+/**
+ * A recorded call's answer, sealed in the speaker's own transaction that writes what the call does (0047
+ * live_call_seal): its last statement, so the write and the answer commit together, or neither does. Raises 'Fence
+ * moved' (isFenceMoved) when another attempt took the call's fence since, and the transaction must not commit.
+ */
+export async function sealLiveCall(c: pg.PoolClient, call: FencedAnswer): Promise<void> {
+  await c.query(`SELECT sophia.live_call_seal($1,$2,$3,$4)`, [call.exchangeId, call.key, call.generation, call.outcome])
+}
+
+/**
+ * A recorded call that wrote nothing, answered under its attempt's fence (0047 media_mark_live_call). withService.
+ * Raises 'Fence moved' (isFenceMoved) when another attempt took the call's fence since: nothing is marked.
+ */
+export async function markLiveCall(c: pg.PoolClient, call: FencedAnswer & { actorId: string }): Promise<void> {
+  await c.query(`SELECT sophia.media_mark_live_call($1,$2,$3,$4,$5)`, [
+    call.exchangeId,
+    call.actorId,
+    call.key,
+    call.generation,
+    call.outcome,
+  ])
+}
+
+/** Whether a seal or a mark was refused because another attempt took the call's fence: the error, or its cause. */
+export function isFenceMoved(err: unknown): boolean {
+  const cause = err instanceof Error && err.cause !== undefined ? err.cause : err
+  const { code, message } = pgError(cause)
+  return code === '40001' && message.startsWith('Fence moved')
 }
 
 /**

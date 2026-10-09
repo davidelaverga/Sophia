@@ -62,7 +62,7 @@ export async function reviseHtmlPage(ctx: ToolContext): Promise<MediaToolResult>
     const receipt = await withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
       // Voice qualification on (A15): the edit's task is linked to the call that asked for it, in this transaction.
       if (ctx.liveCall) await liveCallAdmits(c, ctx.projectId, ctx.key)
-      return requestDesignEdit(
+      const edit = await requestDesignEdit(
         c,
         ctx.projectId,
         ctx.key,
@@ -75,6 +75,9 @@ export async function reviseHtmlPage(ctx: ToolContext): Promise<MediaToolResult>
         },
         'voice',
       )
+      // A recorded call's answer, with what it admitted (Codex P1 r4234782534): the transaction's last statement.
+      await ctx.seal?.(c, 'admitted')
+      return edit
     })
     return {
       status: 'admitted',
