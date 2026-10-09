@@ -13,9 +13,11 @@ import {
   createPool,
   liveCallAdmits,
   readSnapshot,
+  recordLiveCall,
   startExchange,
   submitContribution,
   withActor,
+  withService,
 } from '@sophia/persistence'
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
@@ -120,10 +122,22 @@ async function grant(projectId: string, limits: { budget?: number; outputPerTurn
   return id
 }
 
-async function open(projectId: string): Promise<string> {
-  const snap = await withActor(pool, P, 'read', (c) => readSnapshot(c, projectId))
+/** The last item, which must be there. */
+function lastOf<T>(items: readonly T[]): T {
+  const last = items.at(-1)
+  assert.ok(last !== undefined)
+  return last
+}
+
+/** Each listed call's command kind, or null, and how it was answered. */
+const kinds = (calls: ReadonlyArray<{ command: { kind: string } | null; outcome: string | null }>) =>
+  calls.map((c) => [c.command?.kind ?? null, c.outcome])
+
+/** An exchange `opener` opens, holding its floor (input epoch 1). */
+async function open(projectId: string, opener = P): Promise<string> {
+  const snap = await withActor(pool, opener, 'read', (c) => readSnapshot(c, projectId))
   assert.ok(snap)
-  const receipt = await withActor(pool, P, 'write', (c) =>
+  const receipt = await withActor(pool, opener, 'write', (c) =>
     startExchange(c, snap.room.id, randomUUID(), { expectedRoomRevision: snap.room.revision, allowVision: false }),
   )
   return receipt.exchangeId
@@ -441,13 +455,19 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
       ).map((t) => [t.id, t.exchangeId]),
     )
 
+  /** An exchange P opens under P's voice qualification grant: only then are P's calls in it recorded. */
+  const granted = async (projectId: string) => {
+    await grant(projectId)
+    return open(projectId)
+  }
+
   const recorded = async (key: string) =>
     (await owner((c) => c.query(`SELECT 1 FROM sophia.live_tool_calls WHERE idempotency_key=$1`, [key]))).rowCount
 
   it('names the exchange its voice tool call ran in; a member’s own command under any key, another actor or the API off names none', async () => {
     const { projectId } = await project()
     await registerRuntime(db.ownerUrl, { projectId, admin: A })
-    const exchangeId = await open(projectId)
+    const exchangeId = await granted(projectId)
     const bound = await toolCall(exchangeId, P, 'call-1')
     assert.equal(bound.status, 200, JSON.stringify(bound.json))
     assert.notEqual(bound.json.status, 'clarify', 'the call was bound to its speaker')
@@ -494,6 +514,8 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     seq: number
     tool: string
     inputEpoch: number
+    answeredAt: string | null
+    outcome: string | null
     command: { commandId: string; kind: string; goalId: string; authorityEpoch: number; state: string } | null
     taskId: string | null
   }
@@ -506,7 +528,7 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
   async function controlledExchange() {
     const { projectId } = await project()
     await registerRuntime(db.ownerUrl, { projectId, admin: A })
-    const exchangeId = await open(projectId)
+    const exchangeId = await granted(projectId)
     const task = await brief(projectId, E, randomUUID())
     const goal = async () => {
       const snap = await withActor(pool, P, 'read', (c) => readSnapshot(c, projectId))
@@ -556,7 +578,7 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     assert.equal(forged.status, 202, JSON.stringify(forged.json))
     const other = await project()
     await registerRuntime(db.ownerUrl, { projectId: other.projectId, admin: A })
-    const otherExchange = await open(other.projectId)
+    const otherExchange = await granted(other.projectId)
     assert.equal((await toolCall(otherExchange, P, 'y-1')).json.status, 'ok')
     const otherTask = await brief(other.projectId, P, `live:${otherExchange}:1:y-1`, true)
     return {
@@ -580,14 +602,18 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     assert.equal(mine.json.exchangeId, x.exchangeId)
     const list = mine.json.calls as Listed[]
     assert.deepEqual(
-      list.map((c) => [c.tool, c.command ? [c.command.kind, c.command.goalId] : null, c.taskId, c.inputEpoch]),
+      list.map((c) => [c.tool, c.command ? [c.command.kind, c.command.goalId] : null, c.taskId, c.outcome]),
       [
-        ['control_work', ['steer', x.goalId], null, 1],
-        ['control_work', ['hold', x.goalId], null, 1],
-        ['control_work', null, null, 1],
-        ['project_status', null, null, 1],
+        ['control_work', ['steer', x.goalId], null, 'ok'],
+        ['control_work', ['hold', x.goalId], null, 'ok'],
+        ['control_work', null, null, 'refused'],
+        ['project_status', null, null, 'ok'],
       ],
       'in the order recorded: the steer, the Hold, the refused Hold, the read; the replay is the Hold’s one entry, and the speaker’s own command under the read’s key is not the read’s',
+    )
+    assert.ok(
+      list.every((c) => c.inputEpoch === 1 && c.answeredAt !== null),
+      'each was answered, after what it admitted committed',
     )
     const [steer, hold] = list
     assert.ok(steer?.command && hold?.command)
@@ -615,9 +641,10 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
       [x.otherTask],
       'the other exchange lists its own call, with the task it created',
     )
+    const seenByE = await callsOf(E, x.exchangeId)
     assert.deepEqual(
-      (await callsOf(E, x.exchangeId)).json,
-      { exchangeId: x.exchangeId, calls: [] },
+      [seenByE.json.exchangeId, seenByE.json.calls],
+      [x.exchangeId, []],
       'another member sees none of the speaker’s calls',
     )
     assert.deepEqual(
@@ -629,7 +656,117 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     assert.deepEqual([outsider.status, outsider.json.code], [422, 'not_found'], 'a non-member finds no exchange')
     const unknown = await callsOf(P, randomUUID())
     assert.deepEqual([unknown.status, unknown.json.code], [422, 'not_found'])
+    for (const id of [x.exchangeId.toUpperCase(), `urn:uuid:${x.exchangeId}`]) {
+      const odd = await callsOf(P, id)
+      assert.deepEqual([odd.status, odd.json.code], [422, 'invalid_request'], 'only a lowercase canonical id')
+    }
+    const badAfter = await call('GET', `/api/v1/exchanges/${x.exchangeId}/calls?after=yesterday`, { actor: P })
+    assert.deepEqual([badAfter.status, badAfter.json.code], [422, 'invalid_request'])
     assert.equal((await callsOf(P, x.exchangeId, off)).status, 404, 'the API off serves no such route')
+  })
+
+  it('keeps only the grant’s principal’s calls in an exchange under the grant; every call is answered as before', async () => {
+    const ungranted = await project()
+    await registerRuntime(db.ownerUrl, { projectId: ungranted.projectId, admin: A })
+    const plain = await open(ungranted.projectId)
+    const asked = await toolCall(plain, P, 'plain-1')
+    assert.equal(asked.json.status, 'ok', 'the call is answered as with voice qualification off')
+    assert.equal(await recorded(`live:${plain}:1:plain-1`), 0, 'no grant: nothing is kept')
+    const task = await brief(ungranted.projectId, E, randomUUID())
+    const steer = await call('POST', '/v1/media/tool-calls', {
+      media: true,
+      body: {
+        exchangeId: plain,
+        connectionGeneration: 1,
+        callId: 'plain-2',
+        name: 'control_work',
+        args: { taskId: task, action: 'steer', brief: 'Lead with the cost.' },
+        inputEpoch: 1,
+        actorId: P,
+        guide: 'v1.2',
+      },
+    })
+    assert.equal(steer.json.status, 'ok', 'a control is admitted as before, with nothing to link it to')
+    assert.deepEqual((await callsOf(P, plain)).json.calls, [])
+    const other = await project()
+    await registerRuntime(db.ownerUrl, { projectId: other.projectId, admin: A })
+    await grant(other.projectId)
+    const theirs = await open(other.projectId, E)
+    const spoken = await toolCall(theirs, E, 'e-1')
+    assert.equal(spoken.json.status, 'ok', 'E holds the floor and is answered')
+    assert.equal(await recorded(`live:${theirs}:1:e-1`), 0, 'a speaker other than the grant’s principal is not kept')
+    assert.deepEqual((await callsOf(E, theirs)).json.calls, [])
+  })
+
+  it('a baseline leaves out a call already on its way; a call not answered yet shows no command', async () => {
+    const { projectId } = await project()
+    await registerRuntime(db.ownerUrl, { projectId, admin: A })
+    const exchangeId = await granted(projectId)
+    const task = await brief(projectId, E, randomUUID())
+    const goalId = (await withActor(pool, P, 'read', (c) => readSnapshot(c, projectId)))?.work.find(
+      (t) => t.id === task,
+    )?.goalId
+    assert.ok(goalId)
+    await owner((c) => c.query(`UPDATE sophia.goals SET status='running' WHERE id=$1`, [goalId]))
+    const hold = (callId: string) =>
+      call('POST', '/v1/media/tool-calls', {
+        media: true,
+        body: {
+          exchangeId,
+          connectionGeneration: 1,
+          callId,
+          name: 'control_work',
+          args: { taskId: task, action: 'hold' },
+          inputEpoch: 1,
+          actorId: P,
+          guide: 'v1.2',
+        },
+      })
+    const recordOnly = (callId: string) => (c: pg.PoolClient) =>
+      recordLiveCall(c, {
+        exchangeId,
+        inputEpoch: 1,
+        actorId: P,
+        key: `live:${exchangeId}:1:${callId}`,
+        name: 'control_work',
+      })
+    // A stray Hold is on its way, recorded but not committed, while the Lab reads its baseline.
+    const gate = Promise.withResolvers<void>()
+    const started = Promise.withResolvers<void>()
+    const stray = withService(pool, async (c) => {
+      await recordOnly('stray')(c)
+      started.resolve()
+      await gate.promise
+    })
+    await started.promise
+    const baseline = await callsOf(P, exchangeId)
+    assert.deepEqual(baseline.json.calls, [], 'not committed: not seen')
+    gate.resolve()
+    await stray
+    assert.equal((await hold('stray')).json.status, 'ok', 'the stray Hold commits and is admitted after the baseline')
+    assert.equal((await hold('own')).json.status, 'refused', 'the step’s own Hold: the goal was held before it')
+    assert.deepEqual(kinds((await callsOf(P, exchangeId)).json.calls), [
+      ['hold', 'ok'],
+      [null, 'refused'],
+    ])
+    const since = await call(
+      'GET',
+      `/api/v1/exchanges/${exchangeId}/calls?after=${encodeURIComponent(String(baseline.json.readAt))}`,
+      { actor: P },
+    )
+    assert.deepEqual(
+      kinds(since.json.calls),
+      [[null, 'refused']],
+      'after the baseline, only the step’s own refused Hold, which certifies nothing',
+    )
+    // A call recorded and not answered yet: whatever it admits may not have committed.
+    await withService(pool, recordOnly('pending'))
+    const pending = lastOf<Listed>((await callsOf(P, exchangeId)).json.calls)
+    assert.deepEqual([pending.answeredAt, pending.outcome, pending.command], [null, null, null])
+    assert.equal((await hold('pending')).json.status, 'refused')
+    const answered = lastOf<Listed>((await callsOf(P, exchangeId)).json.calls)
+    assert.equal(answered.seq, pending.seq, 'the same call, answered')
+    assert.deepEqual([answered.answeredAt === null, answered.outcome], [false, 'refused'])
   })
 
   it('start_research by voice: its task names the exchange, and only the call that created it lists that task', async () => {
@@ -659,7 +796,7 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
       payload: { state: 'ready', reason: null, unrecovered: [] },
     })
     assert.equal(ready.statusCode, 204, ready.body)
-    const exchangeId = await open(projectId)
+    const exchangeId = await granted(projectId)
     const research = (callId: string) =>
       call('POST', '/v1/media/tool-calls', {
         media: true,
@@ -688,12 +825,13 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
       tool: string
       command: { kind: string } | null
       taskId: string | null
+      outcome: string | null
     }>
     assert.deepEqual(
-      list.map((x) => [x.tool, x.command?.kind ?? null, x.taskId]),
+      list.map((x) => [x.tool, x.command?.kind ?? null, x.taskId, x.outcome]),
       [
-        ['start_research', 'native_task', taskId],
-        ['start_research', null, null],
+        ['start_research', 'native_task', taskId, 'admitted'],
+        ['start_research', null, null, 'ok'],
       ],
       'the repeat created nothing, so it certifies no creation; the replay is the first call’s one entry',
     )
@@ -760,6 +898,8 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     assert.deepEqual([outsider.status, outsider.json.code], [422, 'not_found'], 'a non-member finds no room')
     const unknown = await presence(P, app, randomUUID())
     assert.deepEqual([unknown.status, unknown.json.code], [422, 'not_found'])
+    const urn = await presence(P, app, `urn:uuid:${roomId}`)
+    assert.deepEqual([urn.status, urn.json.code], [422, 'invalid_request'], 'only a lowercase canonical id')
     assert.equal((await presence(P, off)).status, 404, 'the API off serves no such route')
   })
 })

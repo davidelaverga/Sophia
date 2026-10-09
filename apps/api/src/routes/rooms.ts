@@ -12,7 +12,7 @@ import {
   withActor,
 } from '@sophia/persistence'
 import { issueRoomToken, type LiveKitConfig } from '../livekit.ts'
-import { idempotencyHeader, projectParams } from './schemas.ts'
+import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 const roomParams = {
   type: 'object',
@@ -20,6 +20,15 @@ const roomParams = {
   properties: { roomId: { type: 'string', format: 'uuid' } },
   required: ['roomId'],
 } as const
+
+/** A15's routes take only lowercase canonical ids, as the contract declares them (schemas.ts). */
+const voiceParams = (name: 'roomId' | 'exchangeId') =>
+  ({
+    type: 'object',
+    additionalProperties: false,
+    properties: { [name]: { type: 'string', pattern: UUID_PATTERN } },
+    required: [name],
+  }) as const
 
 interface Deps {
   pool: pg.Pool
@@ -98,15 +107,7 @@ function evidenceReadRoute(app: FastifyInstance, pool: pg.Pool): void {
   app.get<{ Params: { exchangeId: string } }>(
     '/api/v1/exchanges/:exchangeId/qualification-evidence',
     {
-      schema: {
-        params: {
-          type: 'object',
-          additionalProperties: false,
-          properties: { exchangeId: { type: 'string', format: 'uuid' } },
-          required: ['exchangeId'],
-        },
-        response: { 200: { $ref: 'QualificationEvidence#' } },
-      },
+      schema: { params: voiceParams('exchangeId'), response: { 200: { $ref: 'QualificationEvidence#' } } },
     },
     async (req) => withActor(pool, req.actorId, 'read', (c) => readQualificationEvidence(c, req.params.exchangeId)),
   )
@@ -119,30 +120,32 @@ function evidenceReadRoute(app: FastifyInstance, pool: pg.Pool): void {
 function livePresenceRoute(app: FastifyInstance, pool: pg.Pool): void {
   app.get<{ Params: { roomId: string } }>(
     '/api/v1/rooms/:roomId/live-presence',
-    { schema: { params: roomParams, response: { 200: { $ref: 'RoomLivePresence#' } } } },
+    { schema: { params: voiceParams('roomId'), response: { 200: { $ref: 'RoomLivePresence#' } } } },
     async (req) => withActor(pool, req.actorId, 'read', (c) => readLivePresence(c, req.params.roomId)),
   )
 }
 
 /**
  * A member reads their own voice tool calls in an exchange, in the order they were recorded, each with its tool, the
- * command it admitted and the task that command created (A15). Another member's calls are never listed; an exchange
+ * command it admitted, the task that command created and how it was answered (A15). With `after` (an earlier read's
+ * readAt), only calls whose recording began after that read. Another member's calls are never listed; an exchange
  * outside the caller's projects is not found.
  */
 function exchangeCallsRoute(app: FastifyInstance, pool: pg.Pool): void {
-  app.get<{ Params: { exchangeId: string } }>(
+  app.get<{ Params: { exchangeId: string }; Querystring: { after?: string } }>(
     '/api/v1/exchanges/:exchangeId/calls',
     {
       schema: {
-        params: {
+        params: voiceParams('exchangeId'),
+        querystring: {
           type: 'object',
           additionalProperties: false,
-          properties: { exchangeId: { type: 'string', format: 'uuid' } },
-          required: ['exchangeId'],
+          properties: { after: { type: 'string', format: 'date-time' } },
         },
         response: { 200: { $ref: 'ExchangeCalls#' } },
       },
     },
-    async (req) => withActor(pool, req.actorId, 'read', (c) => readExchangeCalls(c, req.params.exchangeId)),
+    async (req) =>
+      withActor(pool, req.actorId, 'read', (c) => readExchangeCalls(c, req.params.exchangeId, req.query.after ?? null)),
   )
 }

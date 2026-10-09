@@ -104,28 +104,52 @@ A missing identity is typed unavailable by the Lab, never guessed.
 
 `projectId` → `room.id` (the LiveKit room) → `exchangeId` and `inputEpoch` → the native task the exchange's voice tool call created (`NativeTask.exchangeId`) → its output (`artifactId`, `resultSourceId`) → the artifact version → its downloaded bytes' SHA-256.
 
-**`NativeTask.exchangeId` is canonical.** The service records each voice tool call as it binds the call to its speaker (`media_tool_speaker`), with the tool it named, under the key the API gives its command (`live:<exchangeId>:<generation>:<callId>`). It checks again that the exchange has not ended and that the actor held the call's input epoch (0046, `live_tool_calls`). The command the call admits is linked to it by the transaction that inserts that command: the API marks the transaction for that one recorded call of the speaker's (`live_call_admits`) before it admits, and a trigger links only a command inserted under the mark. The key never joins by itself:
+**`NativeTask.exchangeId` is canonical.** The service records each voice tool call of a grant's principal, in an exchange opened under that grant, as it binds the call to its speaker (`media_tool_speaker`). It records the tool the call named, under the key the API gives its command (`live:<exchangeId>:<generation>:<callId>`). It checks again that the exchange has not ended and that the actor held the call's input epoch (0046, `live_tool_calls`). Nobody else's call, and no call outside a grant, is kept.
+
+The command a call admits is linked to it by the transaction that inserts that command. The API marks the transaction for that one recorded call of the speaker's (`live_call_admits`) before it admits, and a trigger links only a command inserted under the mark. Once the API has answered the call, after anything it admitted has committed, the service marks the call answered with the answer's status. The key never joins by itself:
 - A member's own command never links, under any key, even the very key of a recorded call that admitted nothing.
 - Nobody can mark another speaker's call.
 - A retried call admits nothing new, so it links nothing new.
 - A task created while the API's voice qualification was off does not get it.
+- A task rebuilt from a voice-created one (`research_rebuild`, under its own `rebuild:` command) does not get it. The Lab follows the voice-created task, not its rebuild.
 
 The snapshot and the task detail carry it only with voice qualification on.
 
-**The calls that made each step.** `GET /api/v1/exchanges/{exchangeId}/calls` answers a member with their own voice tool calls in that exchange, in the order the service recorded them (`seq`). Each entry has the tool it named, its input epoch, the command it admitted (kind, goal, the authority epoch it took, its state) and the task that command created. The command is `null` for a call that admitted nothing:
+**The calls that made each step.** `GET /api/v1/exchanges/{exchangeId}/calls` answers a member with their own recorded voice tool calls in that exchange, in the order the service recorded them (`seq`), and `readAt`, the moment it was read. Each entry has:
+- the tool it named, and its input epoch;
+- the command it admitted (kind, goal, the authority epoch it took, its state), and the task that command created;
+- when the API answered it (`answeredAt`) and with what status (`outcome`).
+
+The command is `null` for a call that admitted nothing:
 - a read, or a clarification;
 - a refusal: a Hold on work that is not running (already held, or held before the step) admits no command;
 - a repeat that the work answered with what was already under way (`existingTaskId`).
 
-A replayed call stays the one entry it was. Another member's calls and another exchange's calls are never listed. An exchange outside the caller's projects is 422 `not_found`.
+It is also `null` for a call not answered yet (`answeredAt: null`), since whatever it admits may not have committed. A replayed call stays the one entry it was. Another member's calls and another exchange's calls are never listed. An exchange outside the caller's projects is 422 `not_found`, and an id that is not a lowercase canonical UUID is 422 `invalid_request`.
+
+With `?after=<readAt>` from an earlier read, only calls whose recording began after that read are listed. A call already on its way at that read is never listed, whether or not it had committed. `seq` alone cannot say that: it is assigned when a row is inserted, not when it commits.
 
 How the Lab certifies a voice step from it:
-1. Read the calls before the step's write-ahead, and keep the highest `seq`.
-2. After the step, take only calls with a higher `seq`.
-3. Certify only if exactly one of them has a command of the expected kind on the expected goal (`steer`, `hold`, `resume` and `stop` on the task's goal; `native_task` for create, with its `taskId`).
-4. Check the effect: the command's state, the goal's status in the snapshot, and an authority epoch higher than the previous control step's.
+1. Wait until the previous step has settled: every call listed so far is answered, and the previous step's reply has ended.
+2. Then, before the step's write-ahead, read the calls and keep `readAt` as the step's baseline. Pass it back verbatim; it is never compared as a millisecond time.
+3. After the step, read `?after=<baseline>` until every call listed is answered. A timeout is not a pass.
+4. Certify only if exactly one of those calls has a command, and that command is the expected one:
+   - `native_task` with its `taskId` for create, answered `admitted`;
+   - `steer`, `hold`, `resume` or `stop` on the created task's goal, answered `ok`.
+5. Check the effect:
+   - the command's state;
+   - the goal's status in the snapshot;
+   - for hold, resume and stop (which take a new authority epoch; a steer does not), an authority epoch higher than the previous of those;
+   - a command id never certified by an earlier step.
 
-Anything else is not a pass: no new call, a call with no command, another kind or goal, more than one candidate, or a `seq` at or below the baseline. Neither is a task or command found elsewhere, whether in another exchange or from the principal's own request.
+Anything else is not a pass:
+- no new call;
+- an unanswered call;
+- no call with a command, or more than one;
+- another kind or goal;
+- another outcome.
+
+Neither is a task or command found elsewhere, whether in another exchange or from the principal's own request.
 
 **The room as the bridge last saw it.** `GET /api/v1/rooms/{roomId}/live-presence` answers a member:
 - whether they themselves are in the room (`selfPresent`);

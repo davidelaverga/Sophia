@@ -14,6 +14,7 @@ import type { MediaToolCall, MediaToolResult, Receipt } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
   admitGoalCommand,
+  answerLiveCall,
   canCommand,
   liveCallAdmits,
   readSnapshot,
@@ -265,8 +266,10 @@ function declaredBy(call: MediaToolCall): boolean {
 
 /**
  * Execute one call for its bound speaker. Unbound attribution is a question back, never an action. With voice
- * qualification on (A15), the call is recorded as it is bound, and the command it admits is linked to it in the same
- * transaction (liveCallAdmits): the canonical join from the task it creates to the exchange (NativeTask.exchangeId).
+ * qualification on (A15), a call of a grant's principal in an exchange under that grant is recorded as it is bound;
+ * the command it admits is linked to it in the same transaction (liveCallAdmits), the canonical join from the task it
+ * creates to the exchange (NativeTask.exchangeId); and once it is answered, after that admission committed, it is
+ * marked so with the answer's status. A mark that fails leaves the call unanswered, which proves nothing.
  */
 export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice = false): Promise<MediaToolResult> {
   if (!declaredBy(call)) {
@@ -277,12 +280,11 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice 
   }
   // The bridge's Google session: the same across a resumed connection, so a repeated call is the same call.
   const key = `live:${call.exchangeId}:${String(call.connectionGeneration)}:${call.callId}`
-  let speaker: { projectId: string }
+  let speaker: { projectId: string; recorded: boolean }
   try {
     speaker = await withService(pool, async (c) => {
       const bound = await toolSpeaker(c, call.exchangeId, call.inputEpoch, call.actorId)
-      if (voice) await recordLiveCall(c, { ...call, key })
-      return bound
+      return { ...bound, recorded: voice && (await recordLiveCall(c, { ...call, key })) }
     })
   } catch {
     return clarify('I couldn’t tell who asked that. Could the person holding the floor ask again?')
@@ -294,7 +296,12 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice 
     key,
     call,
     args: call.args,
-    liveCall: voice,
+    liveCall: speaker.recorded,
   }
-  return TOOL_HANDLERS[call.name](ctx)
+  const result = await TOOL_HANDLERS[call.name](ctx)
+  if (speaker.recorded) {
+    const answered = { exchangeId: call.exchangeId, actorId: call.actorId, key, outcome: result.status }
+    await withService(pool, (c) => answerLiveCall(c, answered)).catch(() => undefined)
+  }
+  return result
 }

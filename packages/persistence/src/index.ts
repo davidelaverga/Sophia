@@ -135,6 +135,7 @@ export {
   type PresenceReport,
 } from './exchange.ts'
 export {
+  answerLiveCall,
   liveCallAdmits,
   readExchangeCalls,
   readLivePresence,

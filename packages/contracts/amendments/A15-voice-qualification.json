@@ -1031,11 +1031,15 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "A member's own voice tool calls in an exchange, in the order the service recorded them (seq, increasing across all exchanges), each with the tool it named, the command it admitted and the task that command created. command is null for a call that admitted nothing: a read, a clarification, a refusal (a Hold on work that is not running admits no command), or a retry of an earlier call (it is that call's one entry). A command is the call's only when the transaction that inserted it did so for this call; a member's own command under the call's key is not. Another member's calls and another exchange's are never listed.",
+        "description": "A member's own voice tool calls in an exchange, in the order the service recorded them (seq, increasing across all exchanges), each with the tool it named, the command it admitted, the task that command created, and when and how the API answered it. Only calls of a voice qualification grant's principal, in an exchange opened under that grant, are recorded. command is null for a call that admitted nothing (a read, a clarification, a refusal: a Hold on work that is not running admits no command; a repeat answered with the task under way) and for one not answered yet (answeredAt null: whatever it admits may not have committed). A replayed call is its first call's one entry. A command is the call's only when the transaction that inserted it did so for this call; a member's own command under the call's key is not. Another member's calls and another exchange's are never listed. readAt is when this was read: given back as after, only calls whose recording began after that read are listed, so a call already on its way at that read, committed or not, never is.",
         "properties": {
           "exchangeId": {
             "type": "string",
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "readAt": {
+            "type": "string",
+            "format": "date-time"
           },
           "calls": {
             "type": "array",
@@ -1061,6 +1065,39 @@
                 "tool": {
                   "type": "string",
                   "pattern": "^[a-z][a-z_]{0,63}$"
+                },
+                "answeredAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "outcome": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "admitted",
+                        "refused",
+                        "clarify",
+                        "error",
+                        "committed",
+                        "proposed",
+                        "conflict",
+                        "denied",
+                        "unknown"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "command": {
                   "anyOf": [
@@ -1156,11 +1193,11 @@
                   ]
                 }
               },
-              "required": ["seq", "recordedAt", "inputEpoch", "tool", "command", "taskId"]
+              "required": ["seq", "recordedAt", "inputEpoch", "tool", "answeredAt", "outcome", "command", "taskId"]
             }
           }
         },
-        "required": ["exchangeId", "calls"],
+        "required": ["exchangeId", "readAt", "calls"],
         "x-sophia-implementation": "implemented",
         "x-sophia-release-goal": "SDD-01-G7"
       }
@@ -1379,7 +1416,7 @@
       "value": {
         "get": {
           "operationId": "getExchangeCalls",
-          "summary": "A member reads their own voice tool calls in an exchange, in the order they were recorded, each with its tool, the command it admitted and the task that command created. Served only by an API with voice qualification on. An exchange outside the caller's projects is not found.",
+          "summary": "A member reads their own voice tool calls in an exchange, in the order they were recorded, each with its tool, the command it admitted, the task that command created and how it was answered. With after (an earlier read's readAt), only calls whose recording began after that read. Served only by an API with voice qualification on. An exchange outside the caller's projects is not found.",
           "tags": ["rooms"],
           "security": [
             {
@@ -1395,6 +1432,16 @@
                 "type": "string",
                 "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
               }
+            },
+            {
+              "name": "after",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "description": "An earlier read's readAt: only calls whose recording began after it."
             }
           ],
           "responses": {
