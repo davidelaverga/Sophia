@@ -71,7 +71,7 @@ The mission's one record of where things stand. Source, local tests, independent
 | CON01-A18 | Projection race | G2/G3 | not_run | |
 | CON01-A19 | Source injection | G2 | not_run | |
 | CON01-A20 | Decision actions retained | G3 | not_run | |
-| CON01-A21 | Output identity | G3 | not_run (positive arm proposed not_applicable: no association path, binding map §10) | |
+| CON01-A21 | Output identity | G3 | not_run | |
 | CON01-A22 | Draft and held write | G3 | not_run | |
 | CON01-A23 | Read errors independently | G3 | not_run | |
 | CON01-A24 | Mobile and accessibility | G3/G5 | not_run | |
@@ -95,4 +95,14 @@ The mission's one record of where things stand. Source, local tests, independent
 
 ## Next action
 
-Codex reviews the G0 binding (CON-01-CC-0001). Meanwhile Claude writes G1's failing tests and migration 0048 behind the off-by-default switch. Neither the schema nor G2's runtime path is frozen before the review.
+Codex reviews the G1 intermediate ([CC-0003](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088984254)) and binding revision 3 (CX-0003's two G2 corrections).
+
+Claude continues in this order:
+1. wires the Studio to the real local API (G1);
+2. merges `main`;
+3. writes the option C impact inventory for review before any G2 code.
+
+Still open:
+- Davide's D-1 … D-6 and B-1.
+- #190's acknowledgment before any shared runtime write.
+- No hosted text or inference until the cohort, policy, route, payer, finite caps, expiry and an exact batch are bound.

@@ -2,7 +2,10 @@
 
 **Mission:** CON-01, saved project conversations ([pack](../../missions/2026-10-09-con01-conversations/README.md), [01 mission](../../missions/2026-10-09-con01-conversations/01_MISSION.md), [03 contract](../../missions/2026-10-09-con01-conversations/03_CONTRACT_AND_RETENTION.md), [04 runtime](../../missions/2026-10-09-con01-conversations/04_RUNTIME_AND_CONTEXT.md)). **Coordination:** [README](README.md). This file binds the pack's proposals to the code at the base: what exists and is reused, what is new and reserved, and what Davide decides. It is G0's deliverable and Codex's review object for the binding. A later change is recorded in §13 with its reason, in the commit that makes it.
 
-**State: proposed, revision 2.** Codex's G0 review [CON-01-CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493) of revision 1 (`b00d07f`) requested changes. This revision makes them (§14). Nothing here is frozen until Codex rechecks it.
+**State: proposed, revision 3.**
+- Codex's review [CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493) of revision 1 (`b00d07f`) requested five corrections; revision 2 (`c703b2d`) made them.
+- Codex's recheck [CX-0003](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088757330) reviewed G1 at specification level and asked for two more G2 privacy corrections; revision 3 makes them (§8.3, §14).
+- Nothing in G2 is frozen until Codex rechecks it.
 - G1 (§4–§6) is implemented locally behind disabled switches.
 - G2 (§8) follows option C as the review's architectural direction. It still waits for the impact inventory (§8.2), its own review, and Davide's D-6.
 
@@ -240,25 +243,44 @@ Today, every native session belongs to a `work_attempt`, which belongs to a `goa
 - the request's own text, attributed;
 - the prompt section (pack 04, the exact paragraph), installed as a hashed bundle asset.
 
-Nothing from another conversation, Personal or the room is read. Assembly records what it put in the prompt:
-- **`conversation_reply_sources`:** the bounded identities of every project source whose text was included, as `source_objects` ids (the mission frame, each constraint and pending decision's source);
+Nothing from another conversation, Personal or the room is read.
+
+**The full source predicate** (CX-0003 correction 1). A project source may enter a prompt, and a prompt that read it may be dispatched or published, only while **all** of these hold for it at that moment:
+- `project_id` is this project;
+- `scope = 'project'` (never `private`: 0001's `source_objects.scope`, which native admission already requires in 0012);
+- `eligible` is true and `state = 'ready'`;
+- its `sha256` and `eligibility_revision` equal the values recorded at assembly, so a changed body or a re-eligibility is a different source revision;
+- the project's `audience_revision` equals the one recorded at assembly.
+
+Assembly records what it put in the prompt:
+- **`conversation_reply_sources`:** one row per project source whose text was included, directly or through a summary (below), with `source_id` and the `sha256` and `eligibility_revision` read (the mission frame, each constraint and pending decision's source);
 - the conversation messages read (`fromSeq`..`cutoff_seq`) and the `erasure_revision`;
-- the project's `eligibility_revision` at assembly;
+- the project's `eligibility_revision` and `audience_revision` at assembly;
 - the attempt's `context_hash`.
 
-**Revalidation** happens before dispatch (when assembled) and again at publication. The request must still be `running`; the asker must still be an active writer; the conversation must be open with an unchanged `erasure_revision`; and **every recorded source must still be eligible** (`source_objects.eligible AND state='ready'`).
-- A privacy failure (a withdrawn message, an ineligible source, an erased conversation) cancels the request (`source_withdrawn`, `conversation_erased`, `asker_removed`). Its output is suppressed and never published, and its native copies are scrubbed and retired (§8.5).
+**Transitive dependencies through summaries** (CX-0003 correction 2). A summary projection keeps its own dependency set: every project source its generating reply read, each with its recorded revision, and the message range it covers.
+- When a later request's prompt includes that summary instead of the old messages, its `conversation_reply_sources` inherits the summary's whole set, and its coverage keeps the summary's message range.
+- Dependency is never inferred from what is visible in the current `MissionContext`: it is the recorded union, so a source that has since left the mission context still fences every answer that read it, at any generation.
+- Reproducer, tested: R1 reads source S and produces summary P; S leaves the mission context; R2 reads P; S is then withdrawn, both while R2 runs and after R2 publishes. R2 is cancelled, or its answer suppressed. P is deleted. So is any later projection or answer whose set contains S.
+
+**Revalidation** happens before dispatch (when assembled) and again at publication. The request must still be `running`; the asker must still be an active writer; the conversation must be open with an unchanged `erasure_revision`; and **every recorded source must still satisfy the full source predicate** above, at its recorded revision.
+- A privacy failure cancels the request (`source_withdrawn`, `source_out_of_scope`, `audience_changed`, `conversation_erased`, `asker_removed`). Privacy failures are: a withdrawn message, any source out of the predicate, a changed audience revision, or an erased conversation. The output is suppressed and never published, and its native copies are scrubbed and retired (§8.5).
 - An ordinary replacement, where the ledger moved but every recorded source is still eligible (a new decision accepted, a proposal declined), still publishes. The reply carries `contextChanged: true`, and the Studio says "Written before the project's decisions changed". It is never re-run automatically.
 
 **Publication** happens at capture, in one transaction. It requires every condition above plus a complete final assistant message (`turn/end` `completed`). It inserts one Sophia message (`reply_id` = the request; `replyTo` = its message), sets the request to `answered` with `answer_id`, and emits `.reply_changed`. Otherwise the request ends `cancelled` with the privacy reason, or `failed` (`turn_error`, `max_tokens`, `blocked`), and nothing is published. Partial streamed text is never published (A26).
 
-**After publication**, an AFTER UPDATE trigger on `source_objects` fires when a source turns ineligible: A08 withdrawal through `mission_erase_source`, research revocation, a design source. For every conversation request whose `conversation_reply_sources` names that source:
+**After publication**, an AFTER UPDATE OR DELETE trigger on `source_objects` fires on **any transition out of the full predicate**: `eligible` turning false, `state` leaving `ready`, `scope` becoming `private`, a changed `sha256` or `eligibility_revision`, or the row's deletion. Typical causes are A08 withdrawal through `mission_erase_source`, research revocation and a design source. An AFTER UPDATE trigger on `projects.audience_revision` does the same for every request recorded at an older audience revision whose answer is not yet published. Published answers stay with their own audience rule, which is the project's current members. For every conversation request whose `conversation_reply_sources` names that source (directly or inherited):
 - an open request is cancelled `source_withdrawn`;
 - a published answer is suppressed (`withdrawn_by = 'source'`);
 - projections generated from it are deleted;
 - its native copies are scrubbed and retired.
 
-The trigger is additive: no mission, research or design function is replaced. This race (withdrawal while the model runs) and the post-publication case are tested apart from the conversation-message race.
+The triggers are additive: no mission, research or design function is replaced. Tested apart from the conversation-message race, each both in flight and after publication:
+- withdrawal while the model runs, and after publication;
+- a scope-only change to `private`;
+- a changed body or hash;
+- an audience change;
+- the second-generation summary case above.
 
 **Exactly once.** One request has one attempt and one outbox row. Restart, reconnect and replay read state; they never admit. An uncertain dispatch stays `outcome_unknown` until `reconcile_runtime_outbox` decides, against the same grant accounting (A12, A13). Asking again is a new message and a new request.
 
@@ -394,4 +416,5 @@ A21 is **not** closed as not-applicable (CX-0002). The existing linked-output re
 | When | Change | Why |
 |---|---|---|
 | 2026-10-09 | First version (G0), revision 1 at `b00d07f` | — |
+| 2026-10-09 | Revision 3, the two corrections of CX-0003: the full source predicate (project, `scope='project'`, eligible and ready, recorded `sha256` and `eligibility_revision`, unchanged audience revision) at assembly, dispatch and publication, with suppression on any transition out of it; and transitive dependencies through summaries, recorded as a union, never inferred from the current mission context (§8.3) | CX-0003 |
 | 2026-10-09 | Revision 2, the five corrections of CX-0002 (correction 1 was already in 0048; the text now says it): every target in each operation's semantic request (§4); `ProjectionCoverage` bound (§3.1); project-source eligibility recorded, revalidated and enforced after publication (§8.3); the operational copies and their retirement, with B-1 (§8.5); a grant with expiry and serialized aggregate accounting, the effort left to Davide (§8.4); option C with the inventory required before G2 (§8.2); the notice names the actual recipient (§5); A21 not closed as N/A (§10); acknowledgment before shared runtime writes, and no assumed live predecessor (§1, §2) | CX-0002 |
