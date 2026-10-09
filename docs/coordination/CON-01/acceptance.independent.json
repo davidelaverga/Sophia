@@ -9,9 +9,12 @@
       "expected": "Two conversations share current accepted project context while retaining different history and source/request origins; no automatic new computer.",
       "required_evidence": "PostgreSQL + native/context tests + actual app",
       "gate": "G2/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CX-0008.md",
+        "CX-0010.md"
+      ],
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -27,9 +30,11 @@
       "gate": "G1/G5",
       "status": "partial_L1",
       "evidence_refs": [
-        "CON-01-CX-0007.md"
+        "CON-01-CX-0007.md",
+        "CX-0008.md",
+        "CX-0010.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -45,9 +50,11 @@
       "gate": "G0/G5",
       "status": "partial_L1",
       "evidence_refs": [
-        "CON-01-CX-0007.md"
+        "CON-01-CX-0007.md",
+        "CX-0008.md",
+        "CX-0010.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -63,9 +70,11 @@
       "gate": "G1/G5",
       "status": "partial_L1",
       "evidence_refs": [
-        "CON-01-CX-0007.md"
+        "CON-01-CX-0007.md",
+        "CX-0008.md",
+        "CX-0010.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -130,9 +139,11 @@
       "gate": "G1/G5",
       "status": "partial_L1",
       "evidence_refs": [
-        "CON-01-CX-0007.md"
+        "CON-01-CX-0007.md",
+        "CX-0008.md",
+        "CX-0010.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -205,9 +216,11 @@
       "gate": "G1/G2",
       "status": "partial_L1",
       "evidence_refs": [
-        "CON-01-CX-0007.md"
+        "CON-01-CX-0007.md",
+        "CX-0008.md",
+        "CX-0010.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "baseline_evidence": []
     },
     {
@@ -236,9 +249,11 @@
       "gate": "G2",
       "status": "partial_L1",
       "evidence_refs": [
-        "CON-01-CX-0007.md"
+        "CON-01-CX-0007.md",
+        "CX-0008.md",
+        "CX-0010.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "baseline_evidence": []
     },
     {
@@ -263,9 +278,12 @@
       "expected": "An admitted request survives API/execution-host restart; observation or replay cannot independently start a duplicate response attempt.",
       "required_evidence": "Controlled native/service restart",
       "gate": "G2",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CX-0008.md",
+        "CX-0010.md"
+      ],
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "baseline_evidence": []
     },
     {
@@ -363,9 +381,12 @@
       "expected": "Propose/Accept/Decline still use the existing authorized A08 path with the observed revision and one intent key; a stale decision is refreshed/refused.",
       "required_evidence": "Existing decision tests + browser",
       "gate": "G3",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CX-0008.md",
+        "CX-0010.md"
+      ],
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "baseline_evidence": [
         "52 baseline PostgreSQL A08/runtime tests pass; no CON-01 combined candidate or live smoke."
       ]
@@ -387,9 +408,12 @@
       "expected": "A delayed receipt clears only the submitted text; newer text and per-conversation drafts survive navigation; unsent drafts are not stored server-side by this feature.",
       "required_evidence": "Browser adverse test",
       "gate": "G3",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CX-0008.md",
+        "CX-0010.md"
+      ],
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "baseline_evidence": []
     },
     {
@@ -398,9 +422,12 @@
       "expected": "Failure of list, thread or context is honest and retryable independently; no error is rendered as an empty successful history.",
       "required_evidence": "Browser/API fault test",
       "gate": "G3",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CX-0008.md",
+        "CX-0010.md"
+      ],
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "baseline_evidence": []
     },
     {
@@ -409,9 +436,12 @@
       "expected": "Desktop three panes; tablet context drawer; phone list/thread and context sheet. Send stays reachable, keyboard focus returns and history scroll does not jump on passive updates.",
       "required_evidence": "Actual browser at 390, 900/1000 and 1440 widths",
       "gate": "G3/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CX-0008.md",
+        "CX-0010.md"
+      ],
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -427,9 +457,12 @@
       "expected": "Revoked access or withdrawn content is rechecked on rehydrate/next read and before publication; old events cannot repopulate ineligible content.",
       "required_evidence": "API/replay/native + browser",
       "gate": "G2/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CX-0008.md",
+        "CX-0010.md"
+      ],
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -528,5 +561,23 @@
   "candidate_sha": "95ea5126f87c83cf7c19abe745d47d17671f31c5",
   "candidate_tree": "8b4f68daaa8e9163d18047e6a78a0459813e0610",
   "review_ref": "CON-01-CX-0007.md",
-  "current_main_observed": "71dbea3eb57f976c3b993285d45de917e59f204d"
+  "current_main_observed": "71dbea3eb57f976c3b993285d45de917e59f204d",
+  "supplemental_candidates": [
+    {
+      "candidate_sha": "839fb45b378a4f22517e4bf940372c6734f558ef",
+      "candidate_tree": "fcf069e806d2ca852c2b76855f81f7731e13d708",
+      "level": "L1 actual local browser/API/PostgreSQL; synthetic accounts, no fixture/provider/runtime",
+      "review_refs": [
+        "CX-0008.md",
+        "CX-0010.md"
+      ]
+    },
+    {
+      "candidate_sha": "ad8dcafe7177020b49cc13b30ee9dcb0731e5bc3",
+      "level": "G2 binding-only source review; no G2 execution",
+      "review_refs": [
+        "CX-0009.md"
+      ]
+    }
+  ]
 }

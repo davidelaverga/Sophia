@@ -1,0 +1,5 @@
+{
+  "ownedApiPid": 85325,
+  "action": "SIGTERM did not finish while the browser had long-lived connections; SIGKILL to the verified owned local API PID completed the deliberately forced restart",
+  "scope": "local disposable test only; no runtime/provider; no hosted process"
+}

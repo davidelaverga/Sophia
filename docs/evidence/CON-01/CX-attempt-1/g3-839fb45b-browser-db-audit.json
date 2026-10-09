@@ -1,0 +1,85 @@
+{
+  "candidate": "839fb45b378a4f22517e4bf940372c6734f558ef",
+  "tree": "fcf069e806d2ca852c2b76855f81f7731e13d708",
+  "observedAt": "2026-10-09T21:47:03.915Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "14c8199d-2c77-4105-bd08-647a89fabfd1",
+  "messages": [
+    {
+      "title": "CX desktop saved human conversation",
+      "id": "afc784f8-2836-4611-8173-6c83cf9db457",
+      "conversation_id": "19c5678f-389c-4b9c-ad0a-082d2a8ee7bc",
+      "actor_id": "9b8f5c0c-6335-4ea1-be3c-f5bdbdd9a13c",
+      "seq": "1",
+      "body": "Synthetic context: the project chooses the blue launch plan.",
+      "withdrawn_at": null
+    },
+    {
+      "title": "CX desktop saved human conversation",
+      "id": "006e124d-cdfe-48d5-b415-cdeef51eff05",
+      "conversation_id": "19c5678f-389c-4b9c-ad0a-082d2a8ee7bc",
+      "actor_id": "9b8f5c0c-6335-4ea1-be3c-f5bdbdd9a13c",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-09T21:40:59.036Z"
+    },
+    {
+      "title": "CX separate green conversation",
+      "id": "6994e4b3-aa68-4fd4-b216-c1417326a8d0",
+      "conversation_id": "216d13c8-017d-4ea7-a7a2-f9556dfa81c5",
+      "actor_id": "9b8f5c0c-6335-4ea1-be3c-f5bdbdd9a13c",
+      "seq": "1",
+      "body": "Synthetic context: this conversation discusses the green fallback.",
+      "withdrawn_at": null
+    },
+    {
+      "title": "CX separate green conversation",
+      "id": "277cf95d-992e-49a7-b95b-1e7e5848c5fa",
+      "conversation_id": "216d13c8-017d-4ea7-a7a2-f9556dfa81c5",
+      "actor_id": "9b8f5c0c-6335-4ea1-be3c-f5bdbdd9a13c",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-09T21:43:45.154Z"
+    },
+    {
+      "title": "CX separate green conversation",
+      "id": "90f29b89-7b25-493d-ace7-e2c0322e2977",
+      "conversation_id": "216d13c8-017d-4ea7-a7a2-f9556dfa81c5",
+      "actor_id": "9b8f5c0c-6335-4ea1-be3c-f5bdbdd9a13c",
+      "seq": "3",
+      "body": "Synthetic blocked ask: which current decision applies?",
+      "withdrawn_at": null
+    }
+  ],
+  "replies": [
+    {
+      "id": "588263b2-7cf4-4120-8230-97819c24bf09",
+      "conversation_id": "216d13c8-017d-4ea7-a7a2-f9556dfa81c5",
+      "message_id": "90f29b89-7b25-493d-ace7-e2c0322e2977",
+      "asked_by": "9b8f5c0c-6335-4ea1-be3c-f5bdbdd9a13c",
+      "cutoff_seq": "3",
+      "state": "blocked",
+      "reason": "replies_not_enabled"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "7969db39-90c6-4a18-bb1c-a1330dca37b3",
+      "kind": "constraint",
+      "state": "accepted",
+      "revision": "2",
+      "body": "Proposed constraint: Synthetic A08 decision: use the green fallback after review."
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 1
+  }
+}

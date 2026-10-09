@@ -1,0 +1,66 @@
+{
+  "candidate": "839fb45b378a4f22517e4bf940372c6734f558ef",
+  "tree": "fcf069e806d2ca852c2b76855f81f7731e13d708",
+  "observedAt": "2026-10-09T21:52:20.611Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "02b604f1-9fe7-43fe-9fd2-3bab18775867",
+  "messages": [
+    {
+      "title": "CX recovery conversation",
+      "id": "8ba03a31-6375-42a7-8099-96e3421cc2cd",
+      "conversation_id": "572eee83-0033-474c-8292-79619bc35391",
+      "actor_id": "d35b5a3e-35bd-453d-bdc4-5c8378bb0111",
+      "seq": "1",
+      "body": "Synthetic first durable message.",
+      "withdrawn_at": null
+    },
+    {
+      "title": "CX recovery conversation",
+      "id": "81db7396-3169-4f05-9336-0327cbba3805",
+      "conversation_id": "572eee83-0033-474c-8292-79619bc35391",
+      "actor_id": "d35b5a3e-35bd-453d-bdc4-5c8378bb0111",
+      "seq": "2",
+      "body": "Synthetic lost reply message, write this once.",
+      "withdrawn_at": null
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "d35b5a3e-35bd-453d-bdc4-5c8378bb0111",
+      "idempotency_key": "f95391be-4d8a-43db-bc88-139118ca931a",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "407e4d4369e7528aaf5fa8a4d8187279bdec745f792267679c9e63bf0e9c5afa",
+        "titleSha256": "e4793908f7eeae06370f3154541735823d42391c28a9f6beb0f5b2b34ae3a9bd"
+      },
+      "message_id": "8ba03a31-6375-42a7-8099-96e3421cc2cd"
+    },
+    {
+      "actor_id": "d35b5a3e-35bd-453d-bdc4-5c8378bb0111",
+      "idempotency_key": "bebbf8df-13cf-471c-9fe7-eae2a7b3647f",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "82a0bbfd6481267140b377bb3c5b81c34edacc77cdf8360f7b01013cab542997",
+        "conversationId": "572eee83-0033-474c-8292-79619bc35391"
+      },
+      "message_id": "81db7396-3169-4f05-9336-0327cbba3805"
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}
