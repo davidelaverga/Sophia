@@ -29,6 +29,7 @@ on:
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - scripts/paperclip-*.mjs
+      - scripts/render-ssh-check.sh
 
 permissions:
   contents: read
@@ -173,6 +174,16 @@ jobs:
             > "$EVIDENCE/identity.json"
           jq -e '.pinMatches and .sophiaCommitMatches and .sophiaTreeDirty == false and .manifestMatches and .verifyManifestInImage
             and .image.os == "linux" and .image.architecture == "amd64"' "$EVIDENCE/identity.json"
+
+      # Render's SSH into this service (WBC-02-CC-0010 §2.2), checked inside the image as it starts: its user root, not
+      # locked, with its HOME and ~/.ssh (0700) off /paperclip, where the service's disk is mounted. A failure fails the
+      # run, so nothing is exported or published.
+      - name: Render's SSH preconditions
+        timeout-minutes: 2
+        run: |
+          timeout 90 docker run --rm --network none --read-only \
+            --volume "$GITHUB_WORKSPACE/sophia/scripts/render-ssh-check.sh:/opt/check/render-ssh-check.sh:ro" \
+            --entrypoint /bin/sh "$IMAGE" /opt/check/render-ssh-check.sh /paperclip
 
       - name: Synthetic credentials, a disposable database and home
         timeout-minutes: 3

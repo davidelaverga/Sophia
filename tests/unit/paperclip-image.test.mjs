@@ -1805,44 +1805,102 @@ describe('WBC-02-CC-0010 §2: the qualified image, exported by hand and publishe
   })
 })
 
-describe('WBC-02-CC-0010 §2.2: the image keeps a ~/.ssh for Render’s SSH', () => {
-  const START = fileURLToPath(new URL('../../deploy/paperclip/start.sh', import.meta.url))
-  const DOCKERFILE = fileURLToPath(new URL('../../deploy/paperclip/Dockerfile', import.meta.url))
+describe('WBC-02-CC-0010 §2.2: Render’s SSH runs as root, unlocked, its home and ~/.ssh off the service’s disk', () => {
+  const ROOT = fileURLToPath(new URL('../../', import.meta.url))
+  const START = join(ROOT, 'deploy/paperclip/start.sh')
+  const CHECK = join(ROOT, 'scripts/render-ssh-check.sh')
   const dirs = []
   after(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
-
-  /** start.sh run against a stand-in server that only says it started, with the homes given. */
-  const start = (home, paperclipHome) => {
-    const dir = mkdtempSync(join(tmpdir(), 'pc-start-'))
+  const scratch = (prefix) => {
+    const dir = mkdtempSync(join(tmpdir(), prefix))
     dirs.push(dir)
+    return dir
+  }
+
+  it('start.sh gives the server the instance home, whatever HOME it was started with, and makes nothing for SSH there', () => {
+    const dir = scratch('pc-start-')
     const app = join(dir, 'app')
     mkdirSync(join(app, 'server', 'dist'), { recursive: true })
     mkdirSync(join(app, 'server', 'node_modules', 'tsx', 'dist'), { recursive: true })
     writeFileSync(join(app, 'server', 'node_modules', 'tsx', 'dist', 'loader.mjs'), '')
-    writeFileSync(join(app, 'server', 'dist', 'index.js'), "console.log('started')\n")
+    writeFileSync(join(app, 'server', 'dist', 'index.js'), 'console.log(`HOME=${process.env.HOME}`)\n')
+    const home = join(dir, 'paperclip')
     const run = spawnSync('sh', [START], {
-      env: { PATH: process.env.PATH, HOME: home(dir), PAPERCLIP_HOME: paperclipHome(dir), SOPHIA_PAPERCLIP_DIR: '/opt/sophia', PAPERCLIP_APP_DIR: app },
+      env: { PATH: process.env.PATH, HOME: join(dir, 'root'), PAPERCLIP_HOME: home, SOPHIA_PAPERCLIP_DIR: '/opt/sophia', PAPERCLIP_APP_DIR: app },
       encoding: 'utf8',
     })
-    return { dir, run }
-  }
-
-  it('makes the instance home’s .ssh at 0700 at every start, and leaves another home alone', () => {
-    const { dir, run } = start((d) => join(d, 'home'), (d) => join(d, 'home'))
     assert.equal(run.status, 0, run.stderr)
-    assert.match(run.stdout, /started/u)
-    assert.equal(lstatSync(join(dir, 'home', '.ssh')).mode & 0o777, 0o700)
-    // The same disk at the next start: a mode loosened in between is made 0700 again.
-    chmodSync(join(dir, 'home', '.ssh'), 0o755)
-    const again = spawnSync('sh', [START], {
-      env: { PATH: process.env.PATH, HOME: join(dir, 'home'), PAPERCLIP_HOME: join(dir, 'home'), SOPHIA_PAPERCLIP_DIR: '/opt/sophia', PAPERCLIP_APP_DIR: join(dir, 'app') },
-      encoding: 'utf8',
-    })
-    assert.equal(again.status, 0, again.stderr)
-    assert.equal(lstatSync(join(dir, 'home', '.ssh')).mode & 0o777, 0o700)
-    const other = start((d) => join(d, 'operator'), (d) => join(d, 'paperclip'))
-    assert.equal(other.run.status, 0, other.run.stderr)
-    assert.throws(() => lstatSync(join(other.dir, 'operator', '.ssh')), /ENOENT/u, 'an operator’s home is not touched')
-    assert.match(readFileSync(DOCKERFILE, 'utf8'), /install -d -m 0700 -o root -g root \/root\/\.ssh/u)
+    assert.equal(run.stdout.trim(), `HOME=${home}`, 'the server’s home is the disk')
+    assert.throws(() => lstatSync(join(home, '.ssh')), /ENOENT/u, 'no .ssh on the disk: SSH is root’s, in /root')
+  })
+
+  it('the images set no HOME and no user but root, make /root/.ssh at 0700, lock no account; CI checks each built image', () => {
+    // An instruction a line, its continued lines joined; the final stage only.
+    const instructions = (file) => {
+      const text = readFileSync(join(ROOT, file), 'utf8').replace(/\\\n/g, ' ')
+      const lines = text.split('\n').filter((l) => !/^\s*#/.test(l))
+      const final = lines.findLastIndex((l) => /^FROM\s/.test(l))
+      return { all: lines.join('\n'), final: lines.slice(final) }
+    }
+    for (const file of ['deploy/paperclip/Dockerfile', 'renderers/web/pdf/uml/Dockerfile']) {
+      const { all, final } = instructions(file)
+      for (const line of final.filter((l) => /^ENV\s/.test(l))) assert.equal(/(^|\s)HOME=/.test(line.slice(4)), false, `${file}: ${line.slice(0, 80)}`)
+      for (const line of final.filter((l) => /^USER\s/.test(l))) assert.match(line, /^USER\s+(root|0)\s*$/, file)
+      assert.match(all, /install -d -m 0700 -o root -g root \/root\/\.ssh/, `${file} makes root’s .ssh at 0700`)
+      assert.equal(/passwd\s+(-\S*l|--lock)|usermod\s[^\n]*(\s-\S*L|--lock)|chpasswd/.test(all), false, `${file} locks no account`)
+    }
+    assert.match(readFileSync(join(ROOT, 'deploy/paperclip/Dockerfile'), 'utf8'), /PAPERCLIP_HOME=\/paperclip/)
+    const paperclip = parse(readFileSync(join(ROOT, '.github/workflows/paperclip-image.yml'), 'utf8'))
+    const step = paperclip.jobs.image.steps.find((s) => s.name === 'Render’s SSH preconditions'.replace('’', "'"))
+    assert.match(step.run, /render-ssh-check\.sh \/paperclip\s*$/, 'checked against the disk Render mounts at /paperclip')
+    assert.ok(paperclip.on.pull_request.paths.includes('scripts/render-ssh-check.sh'))
+    const uml = parse(readFileSync(join(ROOT, '.github/workflows/uml-supervisor.yml'), 'utf8'))
+    const umlSteps = uml.jobs.supervisor.steps.map((s) => s.name)
+    assert.ok(umlSteps.indexOf("Render's SSH preconditions") > umlSteps.indexOf('Build the render host image'))
+    assert.ok(uml.on.push.paths.includes('scripts/render-ssh-check.sh') && uml.on.pull_request.paths.includes('scripts/render-ssh-check.sh'))
+  })
+
+  it('the check passes an image as Render needs it, and names each way Render’s SSH would fail', () => {
+    // Stand-ins for id and getent; the home and its .ssh are real directories, owned by whoever runs the test.
+    const run = ({ user = 'root', shadow = 'root:*:20731:0:99999:7:::', home, passwdHome = home, mode = 0o700, ssh = true, disk }) => {
+      const dir = scratch('render-ssh-')
+      const bin = join(dir, 'bin')
+      mkdirSync(bin)
+      writeFileSync(join(bin, 'id'), `#!/bin/sh\nif [ "$1" = -un ]; then echo '${user}'; else ${process.execPath} -e 'console.log(process.getuid())'; fi\n`)
+      writeFileSync(join(bin, 'getent'), `#!/bin/sh\ncase "$1" in passwd) echo 'root:x:0:0:root:${passwdHome(dir)}:/bin/bash' ;; shadow) [ -n '${shadow}' ] && echo '${shadow}' ;; esac\n`)
+      chmodSync(join(bin, 'id'), 0o755)
+      chmodSync(join(bin, 'getent'), 0o755)
+      const h = home(dir)
+      mkdirSync(h, { recursive: true })
+      if (ssh) {
+        mkdirSync(join(h, '.ssh'))
+        chmodSync(join(h, '.ssh'), mode)
+      }
+      const result = spawnSync('sh', [CHECK, ...(disk ? [disk(dir)] : [])], {
+        env: { PATH: `${bin}:${process.env.PATH}`, HOME: h, RENDER_SSH_ROOT_HOME: passwdHome(dir) },
+        encoding: 'utf8',
+      })
+      return { status: result.status, out: result.stdout + result.stderr }
+    }
+    const root = (d) => join(d, 'root')
+    const disk = (d) => join(d, 'paperclip')
+    const ok = run({ home: root, disk })
+    assert.equal(ok.status, 0, ok.out)
+    assert.match(ok.out, /RENDER_SSH_PRECONDITION ok/)
+    const refused = {
+      'root is locked': { home: root, shadow: 'root:!:20731:0:99999:7:::' },
+      'root is locked (an emptied lock)': { home: root, shadow: 'root:!*:20731:0:99999:7:::', expect: 'root is locked' },
+      'root has no shadow entry, or an empty password': { home: root, shadow: '' },
+      'not root': { home: root, user: 'node' },
+      'is on the disk mounted at': { home: disk, disk },
+      'is not a directory at 0700': { home: root, mode: 0o755 },
+      'missing .ssh': { home: root, ssh: false, expect: 'is not a directory at 0700' },
+      'HOME is not passwd’s': { home: root, passwdHome: (d) => join(d, 'elsewhere'), expect: 'the user’s HOME is'.replace('’', "'") },
+    }
+    for (const [why, { expect = why, ...setup }] of Object.entries(refused)) {
+      const result = run(setup)
+      assert.equal(result.status, 1, `${why}: ${result.out}`)
+      assert.ok(result.out.includes(expect), `${why}: ${result.out}`)
+    }
   })
 })

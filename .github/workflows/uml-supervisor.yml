@@ -6,10 +6,10 @@ name: UML render host
 # of the renderer API (uml/supervisor-e2e.mjs, run from the deployed package). This is CI evidence on a GitHub host, not Render acceptance.
 on:
   pull_request:
-    paths: ['renderers/web/pdf/**', '.github/workflows/uml-supervisor.yml']
+    paths: ['renderers/web/pdf/**', '.github/workflows/uml-supervisor.yml', 'scripts/render-ssh-check.sh']
   push:
     branches: [scm-01/workboard-source-review]
-    paths: ['renderers/web/pdf/**', '.github/workflows/uml-supervisor.yml']
+    paths: ['renderers/web/pdf/**', '.github/workflows/uml-supervisor.yml', 'scripts/render-ssh-check.sh']
 
 permissions:
   contents: read
@@ -24,6 +24,13 @@ jobs:
         run: python3 -m unittest discover -s renderers/web/pdf/uml -p 'test_*.py'
       - name: Build the render host image
         run: docker build --platform linux/amd64 -f renderers/web/pdf/uml/Dockerfile -t sophia-uml-supervisor .
+      # Render's SSH into the render host (WBC-02-CC-0010 §2.2), checked inside the image as it starts: its user root,
+      # not locked, with HOME /root and ~/.ssh at 0700. The render host has no persistent disk.
+      - name: Render's SSH preconditions
+        run: |
+          timeout 90 docker run --rm --network none --read-only \
+            --volume "$PWD/scripts/render-ssh-check.sh:/opt/check/render-ssh-check.sh:ro" \
+            --entrypoint /bin/sh sophia-uml-supervisor /opt/check/render-ssh-check.sh
       # The existing renderer CI requires this same runner-only namespace setting. The browser sandbox, host Landlock
       # and inherited seccomp remain active.
       - name: Allow the launchers' unprivileged namespaces

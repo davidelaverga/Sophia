@@ -65,7 +65,7 @@ whole-tree cancellation, memory bounds, output protocol validation and independe
 review remain necessary before a production adapter can be accepted.
 
 The worker starts idle. The operator invokes `python3 /opt/uml/host-qa.py` once
-over the operator's SSH session (`render ssh`, [WBC-02-CC-0010](../../../../docs/coordination/WBC-02/WBC-02-CC-0010.md) §2.2). The host caps the owned child at 240 seconds and 8 MiB output, requires
+over the operator's SSH session (plain `ssh -t` to the address the service's Connect shows, [WBC-02-CC-0010](../../../../docs/coordination/WBC-02/WBC-02-CC-0010.md) §2.2). The host caps the owned child at 240 seconds and 8 MiB output, requires
 all named fixture records, and reports failures as failures even when the VM
 powers off with exit 0. It writes a latch before starting so another invocation in the same filesystem does not repeat the test, then
 idles on success or failure for operator collection. The container start command

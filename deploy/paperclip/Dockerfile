@@ -30,10 +30,10 @@ WORKDIR /app
 COPY --chown=node:node --from=paperclip /app /app
 COPY --from=paperclip /app/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# SSH (Render's, for a Docker service, needs the running user's ~/.ssh at 0700): the image starts as root, whose home
-# /root/.ssh is made above; the pin's entrypoint then runs the server as node with HOME=/paperclip, the service's disk,
-# whose .ssh start.sh makes at every start. Which of the two Render's session uses is checked on the instance
-# (WBC-02-CC-0010 §2.2) before an operator key is registered.
+# SSH: Render's session runs as the image's user, root, and needs root unlocked, its home off any persistent disk and
+# its ~/.ssh at 0700 (WBC-02-CC-0010 §2.2). So this image sets no HOME: root's is /root, as its passwd entry says, never
+# /paperclip, where the service's disk is mounted; /root/.ssh is made above. Only the server, run as node by the pin's
+# entrypoint, has the disk for its home: start.sh sets it. scripts/render-ssh-check.sh checks this in CI.
 
 # The verified packages, read only, at the paths the start script and the plugin install name.
 COPY MANIFEST.json start.sh verify-manifest.mjs /opt/sophia/
@@ -53,7 +53,6 @@ RUN node /opt/sophia/verify-manifest.mjs /opt/sophia 5edf55d7350c7f08c9dd132c7e0
 # store (deploy/paperclip/README.md).
 ENV NODE_ENV=production \
   NODE_OPTIONS=--max-old-space-size=1024 \
-  HOME=/paperclip \
   HOST=0.0.0.0 \
   PORT=3100 \
   SERVE_UI=true \
