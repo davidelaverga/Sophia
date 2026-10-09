@@ -412,12 +412,16 @@
       "evidence_refs": [
         "CX-0008.md",
         "CX-0010.md",
-        "CX-0015.md"
+        "CX-0015.md",
+        "CX-0016.md",
+        "CX-0017.md",
+        "CX-0018.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "baseline_evidence": [
         "52 baseline PostgreSQL A08/runtime tests pass; no CON-01 combined candidate or live smoke."
-      ]
+      ],
+      "latest_checkpoint": "Actual explicit A08 proposal/Accept produced accepted constraint revision2 and persisted after chat withdrawal on7660. Receipt initially stale;5c automatic P2 confirms failed-reread wording issue. Main203 now changes shared receipt semantics and requires combined source/app requalification."
     },
     {
       "id": "CON01-A21",
@@ -440,10 +444,13 @@
       "evidence_refs": [
         "CX-0008.md",
         "CX-0010.md",
-        "CX-0015.md"
+        "CX-0015.md",
+        "CX-0017.md",
+        "CX-0018.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
-      "baseline_evidence": []
+      "baseline_evidence": [],
+      "latest_checkpoint": "Same-key erasure retry after lost success/navigation and lateHTTP/feed preserving another draft pass0f locally. Capped-list omission after unreached erasure independently loses the original unsent draft (P1), so this arm fails and overall case remains partial."
     },
     {
       "id": "CON01-A23",
@@ -473,7 +480,10 @@
         "CX-0010.md",
         "CX-0011.md",
         "CX-0014.md",
-        "CX-0015.md"
+        "CX-0015.md",
+        "CX-0016.md",
+        "CX-0017.md",
+        "CX-0018.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. At338878df ordinary withdrawal and moved-focus delayed success pass; feed-first own/admin withdrawal still drops focus until HTTP returns. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "live_blockers": [
@@ -483,7 +493,8 @@
       ],
       "baseline_evidence": [
         "L0 fixture browser: 1440/1000/390 widths, pane/drawer/list-first/Send checks pass on main; feature candidate and actual app not qualified."
-      ]
+      ],
+      "latest_checkpoint": "390px original feed-first focus and late receipt/feed destination/draft behavior pass within bounded7660/0f local episodes. Capped-list false settlement still invalidates affected privacy/draft release qualification; no hosted/mobile provider episode."
     },
     {
       "id": "CON01-A25",
@@ -496,7 +507,10 @@
         "CX-0008.md",
         "CX-0010.md",
         "CX-0014.md",
-        "CX-0015.md"
+        "CX-0015.md",
+        "CX-0016.md",
+        "CX-0017.md",
+        "CX-0018.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "live_blockers": [
@@ -504,7 +518,8 @@
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
         "No accepted saved-text policy or exact approved operation batch"
       ],
-      "baseline_evidence": []
+      "baseline_evidence": [],
+      "latest_checkpoint": "Human withdrawal body/contributor derivatives clear despite failed GETs on7660. Pure unloaded-Sophia/cache-gap arm passes0f L0 only. Capped-list false erasure claim reproduced actual L1 on0f; native/provider late-race suppression not tested."
     },
     {
       "id": "CON01-A26",
@@ -524,7 +539,9 @@
       "required_evidence": "Existing relevant suites + smoke app checks",
       "gate": "G4/G5",
       "status": "not_run",
-      "evidence_refs": [],
+      "evidence_refs": [
+        "CX-0018.md"
+      ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
@@ -533,7 +550,8 @@
       ],
       "baseline_evidence": [
         "52 baseline PostgreSQL A08/runtime tests pass; no CON-01 combined candidate or live smoke."
-      ]
+      ],
+      "latest_checkpoint": "Author447 scoped Studio gate failed1129/1131 browser tests,2failures; not pnpm check. Raw logs inaccessible, author receipt read. Main203 materially changes shared proposal files; no current combined collateral acceptance."
     },
     {
       "id": "CON01-A28",
@@ -554,7 +572,8 @@
       "gate": "G4/G5",
       "status": "partial_L1",
       "evidence_refs": [
-        "CON-01-CX-0007.md"
+        "CON-01-CX-0007.md",
+        "CX-0018.md"
       ],
       "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "live_blockers": [
@@ -562,7 +581,8 @@
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
         "No accepted saved-text policy or exact approved operation batch"
       ],
-      "baseline_evidence": []
+      "baseline_evidence": [],
+      "latest_checkpoint": "Actual local false erasure/draft loss under capped list is P1 release hold. No hosted rollback performed or full native/governed-data rollback rehearsal qualified; exact compatible artifact still unbound."
     },
     {
       "id": "CON01-A30",
@@ -591,9 +611,12 @@
       "required_evidence": "Diff/artifact/coordination inspection",
       "gate": "G4",
       "status": "not_run",
-      "evidence_refs": [],
+      "evidence_refs": [
+        "CX-0018.md"
+      ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
-      "baseline_evidence": []
+      "baseline_evidence": [],
+      "latest_checkpoint": "Current main3e6d57b1/PR203 proposal truth ownership discovered and immediately sent to exact Claude session. G2 six-function acknowledgment/main window still pending; combined immutable integration not yet independently qualified."
     }
   ],
   "reviewer_session": "01a1224a-32b4-7222-a017-50a277572d95",
