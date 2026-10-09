@@ -69,7 +69,7 @@ export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; 
     const before = queryClient.getQueryData<ReadPages<ConversationMessage>>(pages)
     const after = withWithdrawn(before, message)
     queryClient.setQueryData<ReadPages<ConversationMessage>>(pages, () => after)
-    const remains = remainsAfter(before, after, message)
+    const remains = remainsAfter(after, message)
     queryClient.setQueriesData<ConversationList>({ queryKey: LISTS }, (list) =>
       listWithdrawn(list, args.conversationId, remains),
     )

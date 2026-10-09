@@ -472,7 +472,7 @@ describe('listWithdrawn: the list says nothing the withdrawal took (PR #199 revi
     policy: null,
     capability: { state: 'enabled' as const, write: true, moderate: false, ask: 'available' as const, askReason: null },
   })
-  const nothingElse = { writer: null, writerStays: false, sophiaStays: null }
+  const nothingElse = { writer: null, writerStays: false, sophiaStays: true }
 
   it('drops that conversation’s last message and summary, and leaves the others', () => {
     const list = listOf()
@@ -484,18 +484,17 @@ describe('listWithdrawn: the list says nothing the withdrawal took (PR #199 revi
   })
 
   it('drops its writer among those who wrote there, unless words of theirs are still read there', () => {
-    const gone = listWithdrawn(listOf(), 'c1', { writer: ME, writerStays: false, sophiaStays: null })
+    const gone = listWithdrawn(listOf(), 'c1', { writer: ME, writerStays: false, sophiaStays: true })
     assert.deepEqual(
       gone?.conversations[0]?.contributors.map((p) => p.actorId),
       ['lucia'],
     )
-    const stays = listWithdrawn(listOf(), 'c1', { writer: ME, writerStays: true, sophiaStays: null })
+    const stays = listWithdrawn(listOf(), 'c1', { writer: ME, writerStays: true, sophiaStays: true })
     assert.equal(stays?.conversations[0]?.contributors.length, 2)
   })
 
-  it('drops Sophia only where the withdrawal took her answers and none is left', () => {
+  it('keeps Sophia only where an answer of hers is still to be seen', () => {
     assert.equal(listWithdrawn(listOf(), 'c1', { ...nothingElse, sophiaStays: false })?.conversations[0]?.sophia, false)
-    assert.equal(listWithdrawn(listOf(), 'c1', { ...nothingElse, sophiaStays: true })?.conversations[0]?.sophia, true)
     assert.equal(listWithdrawn(listOf(), 'c1', nothingElse)?.conversations[0]?.sophia, true)
   })
 })
@@ -505,21 +504,32 @@ const page = (messages: ConversationMessage[]) => ({ pages: [{ messages, before:
 
 describe('remainsAfter: who still has words there, as read (PR #199 review)', () => {
   const gone = msg(3, { text: null, name: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
+  const after = (read: ReturnType<typeof page>) => remainsAfter(withWithdrawn(read, gone), gone)
 
   it('says the writer is gone when no other words of theirs are read, and stays when some are', () => {
-    const before = page([msg(2, { actorId: 'lucia', name: 'Lucía' }), msg(3)])
-    const r = remainsAfter(before, withWithdrawn(before, gone), gone)
-    assert.deepEqual(r, { writer: ME, writerStays: false, sophiaStays: null })
-    const more = page([msg(1), msg(3)])
-    assert.equal(remainsAfter(more, withWithdrawn(more, gone), gone).writerStays, true)
+    assert.deepEqual(after(page([msg(2, { actorId: 'lucia', name: 'Lucía' }), msg(3)])), {
+      writer: ME,
+      writerStays: false,
+      sophiaStays: false,
+    })
+    assert.equal(after(page([msg(1), msg(3)])).writerStays, true)
   })
 
-  it('says whether Sophia still has words there only when the withdrawal took an answer of hers', () => {
-    const only = page([msg(3), answer(4, 3)])
-    assert.equal(remainsAfter(only, withWithdrawn(only, gone), gone).sophiaStays, false)
-    const earlier = page([msg(1), answer(2, 1), msg(3), answer(4, 3)])
-    assert.equal(remainsAfter(earlier, withWithdrawn(earlier, gone), gone).sophiaStays, true)
-    const none = page([answer(2, 1), msg(3)])
-    assert.equal(remainsAfter(none, withWithdrawn(none, gone), gone).sophiaStays, null)
+  it('keeps Sophia only where an answer of hers that did not read it is still to be seen', () => {
+    assert.equal(after(page([msg(3), answer(4, 3)])).sophiaStays, false)
+    assert.equal(after(page([msg(1), answer(2, 1), msg(3), answer(4, 3)])).sophiaStays, true)
+  })
+
+  it('never keeps Sophia on what isn’t read: an answer that read it may lie outside the pages (read again, a gap)', () => {
+    // The newest page read again, the older one with the message kept from before: what came between is not read.
+    const gap = {
+      pages: [
+        { messages: [msg(9), msg(10)], before: '9' },
+        { messages: [msg(2), msg(3)], before: null },
+      ],
+      pageParams: [null, '4'],
+    }
+    assert.equal(after(gap).sophiaStays, false)
+    assert.equal(remainsAfter(undefined, gone).sophiaStays, false)
   })
 })
