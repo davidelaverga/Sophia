@@ -62,7 +62,10 @@ test('decide · someone decided first: the context says so and shows the brief a
   // Its words wait for the brief read again: never «the brief changed» from the brief as it was.
   await page.evaluate(() => window.fixture?.holdMission(true))
   await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
-  await expect(context(page).getByRole('status')).toHaveText('Accepting…')
+  // The 409 is answered at once; half a second on, its words still wait for the read again.
+  await expect.poll(() => writes(page, '/decision')).toHaveLength(1)
+  await page.waitForTimeout(500)
+  expect(await context(page).getByRole('status').textContent()).toBe('Accepting…')
   await page.evaluate(() => window.fixture?.holdMission(false))
   await expect(context(page).getByRole('status')).toHaveText(
     'Someone decided it first. This is the brief as it is now.',
