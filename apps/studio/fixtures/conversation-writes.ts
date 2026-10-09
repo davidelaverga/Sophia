@@ -40,6 +40,8 @@ export interface TalkWrites {
   erase: 'feedFirst' | 'unreached' | 'lost' | null
   /** An erasure has already failed to reach the API (`erase=unreached` lets one through after it). */
   eraseMissed?: boolean
+  /** The conversations erased here: a read of one is refused as not found (0048 hides it), never answered with words. */
+  erasedIds?: Set<string>
   /** This conversation's messages fail to read (`messages=fail`, or after a `send=thenFail` write). */
   failMessagesOf: string | null
   /** Each write's receipt by its key, with the words it was sent with: the same key replays it, only with them. */
@@ -336,8 +338,10 @@ export function conversationErased(talk: TalkWrites, path: string, init: Request
   const at = talk.list.findIndex((c) => c.id === conversationId)
   if (at < 0) return null
   talk.list.splice(at, 1)
-  // Its messages are gone for good: a page asking for them again is unexpected.
+  // Its messages are gone for good. A read of them is refused as the API refuses it (not found), never answered; one
+  // for any conversation this fixture never knew stays unexpected.
   delete talk.messages[conversationId]
+  ;(talk.erasedIds ??= new Set()).add(conversationId)
   const receipt = { conversationId, erased: true }
   talk.receipts.set(key, { body: what, receipt })
   ctx.record(`conversation-erase:${conversationId.slice(-2)}`)

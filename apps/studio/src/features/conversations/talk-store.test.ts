@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { changeIfCurrent, currentGeneration, forgetKept, keptAt, withoutConversation } from './talk-store.ts'
+import {
+  changeIfCurrent,
+  currentGeneration,
+  forgetKept,
+  keptAt,
+  withErasure,
+  withoutConversation,
+  type Kept,
+} from './talk-store.ts'
 
 const PLACE = 'project luis@sophia.test'
 const draft = (text: string) => (was: NonNullable<ReturnType<typeof keptAt>>) => ({ ...was, drafts: { c1: text } })
@@ -42,4 +50,50 @@ describe('withoutConversation', () => {
     assert.deepEqual(after.asked, { c2: null })
     assert.deepEqual(after.start, kept.start)
   })
+
+  it('settles the erased conversation’s erasure alone: another conversation’s, and Still open’s decision, stay', () => {
+    const kept = keptWith({
+      erasures: { c1: { key: 'e1', ask: 'c1', sending: true }, c2: { key: 'e2', ask: 'c2', sending: false } },
+      decision: DECISION,
+    })
+    const after = withoutConversation(kept, 'c1')
+    assert.deepEqual(after.erasures, { c2: { key: 'e2', ask: 'c2', sending: false } })
+    assert.deepEqual(after.erased, { c1: true })
+    assert.deepEqual(after.decision, DECISION)
+  })
 })
+
+describe('withErasure', () => {
+  it('holds an erasure on its way or with no reply, and lets it go once answered', () => {
+    const kept = keptWith({})
+    const sending = withErasure(kept, 'c1', { key: 'e1', ask: 'c1', sending: true })
+    assert.deepEqual(sending.erasures, { c1: { key: 'e1', ask: 'c1', sending: true } })
+    const unknown = withErasure(sending, 'c1', { key: 'e1', ask: 'c1', sending: false })
+    assert.deepEqual(unknown.erasures, { c1: { key: 'e1', ask: 'c1', sending: false } })
+    assert.deepEqual(withErasure(unknown, 'c1', null).erasures, {})
+  })
+
+  it('never brings back a settled erasure: its old request failing, or answering late, changes nothing', () => {
+    const settled = withoutConversation(keptWith({ erasures: { c1: { key: 'e1', ask: 'c1', sending: true } } }), 'c1')
+    assert.equal(withErasure(settled, 'c1', { key: 'e1', ask: 'c1', sending: false }), settled)
+    assert.equal(withErasure(settled, 'c1', null), settled)
+    // Another conversation's erasure is its own.
+    const other = withErasure(settled, 'c2', { key: 'e2', ask: 'c2', sending: true })
+    assert.deepEqual(other.erasures, { c2: { key: 'e2', ask: 'c2', sending: true } })
+  })
+})
+
+const DECISION = {
+  key: 'd1',
+  ask: { args: { decisionId: 'p1', revision: 3, decision: 'accept' as const }, statement: 'Map first' },
+  sending: false,
+}
+
+/** What is kept for PLACE, these fields changed, everything else as it starts. */
+function keptWith(fields: Partial<Kept>): Kept {
+  forgetKept()
+  changeIfCurrent(PLACE, currentGeneration(), (was) => ({ ...was, ...fields }))
+  const kept = keptAt(PLACE)
+  assert.ok(kept)
+  return kept
+}

@@ -17,6 +17,7 @@ const erase = (page: Page) => context(page).getByRole('button', { name: 'Erase t
 const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?? [])])
 const written = async (page: Page, kind: string) => (await served(page)).filter((s) => s.startsWith(`${kind}:`))
 const FIRST = 'What makes a report worth reading?'
+const C1 = '00000000-0000-4000-8000-0000000000c1'
 const field = (page: Page) => open(page).getByRole('textbox', { name: 'Continue this question with the team' })
 
 test.beforeEach(async ({ page }) => {
@@ -29,6 +30,18 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(async ({ page }) => {
   expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
 })
+
+/**
+ * The erased conversation read only before the page could know it was gone, and refused as not found (as 0048 hides
+ * it): as the feed moves, the open thread is read again with the list. Once the list shows it gone, never again.
+ */
+async function noReadOnceGone(page: Page) {
+  const refused = (await written(page, 'messages-gone')).length
+  // Its read again as the feed moved, and that read's one retry at most.
+  expect(refused).toBeLessThanOrEqual(2)
+  await page.waitForTimeout(1000)
+  expect(await written(page, 'messages-gone')).toHaveLength(refused)
+}
 
 /** The first conversation open, its context shown (a panel «Context» opens where it is one). */
 async function opened(page: Page, query = '') {
@@ -163,6 +176,7 @@ for (const width of ['desktop', '@phone'] as const) {
     await expect(rows(page).first()).toBeFocused()
     await expect(list(page)).toContainText('The conversation was erased.')
     await expect(list(page)).not.toContainText(FIRST)
+    await noReadOnceGone(page)
   })
 }
 
@@ -205,7 +219,9 @@ for (const width of ['desktop', '@phone'] as const) {
     await expect(field(page)).toBeVisible()
     await expect(field(page)).toBeFocused()
     await expect(field(page)).toHaveValue('Draft after the erasure.')
-    await expect(list(page)).not.toContainText('The conversation was erased.')
+    // Nowhere on the page (on a phone the list is out of sight while a conversation is open).
+    await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
+    await noReadOnceGone(page)
   })
 }
 
@@ -233,6 +249,53 @@ test('removal · an erasure with no reply is sent again under its key, after ano
   expect(keys[1]).toBe(keys[0])
 })
 
+test('removal · an erasure whose reply is lost, out of a list of the newest only: the focus lands, nothing says erased', async ({
+  page,
+}) => {
+  // A list holding the newest only proves nothing by leaving one out (it may be older): only a reply or a whole list
+  // settles an erasure, so with its reply lost the list says nothing of it.
+  await opened(page, '&erase=lost&more=1')
+  await erase(page).click()
+  await page.getByRole('group', { name: 'Erase this conversation' }).getByRole('button', { name: 'Erase' }).click()
+  await expect(list(page)).not.toContainText(FIRST)
+  await expect(rows(page).first()).toBeFocused()
+  await page.waitForTimeout(1000)
+  await expect(list(page)).not.toContainText('The conversation was erased.')
+  await noReadOnceGone(page)
+})
+
+test('removal · an erasure with no reply, its conversation pushed past the list’s newest: kept, its draft too, and sent again under its key', async ({
+  page,
+}) => {
+  // PR #199 r4235299406, CON-01-CX-0018: newer activity, not the erasure, takes it out of a list of the newest only.
+  await page.goto(`${PAGE}&erase=unreached`)
+  await expect(messages(page)).toHaveCount(6)
+  await field(page).fill('SYNTHETIC-CAP-DRAFT-MUST-SURVIVE')
+  const toggle = open(page).getByRole('button', { name: 'Context' })
+  if (await toggle.isVisible()) await toggle.click()
+  await erase(page).click()
+  const confirm = page.getByRole('group', { name: 'Erase this conversation' })
+  await confirm.getByRole('button', { name: 'Erase' }).click()
+  await expect(confirm).toContainText('Not confirmed')
+  await page.evaluate((id) => window.fixture?.capPast(id), C1)
+  await expect(list(page)).not.toContainText(FIRST)
+  await expect(rows(page).first()).toBeFocused()
+  await page.waitForTimeout(1000)
+  await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
+  // Back among the newest: its draft as it was, and its erasure still held under the same key.
+  await page.evaluate(() => window.fixture?.capPast(null))
+  await rows(page).filter({ hasText: FIRST }).click()
+  await expect(field(page)).toHaveValue('SYNTHETIC-CAP-DRAFT-MUST-SURVIVE')
+  if (await toggle.isVisible()) await toggle.click()
+  await erase(page).click()
+  await expect(confirm).toContainText('Not confirmed')
+  await confirm.getByRole('button', { name: 'Erase' }).click()
+  await expect(list(page)).not.toContainText(FIRST)
+  const keys = await written(page, 'erase-key')
+  expect(keys).toHaveLength(2)
+  expect(keys[1]).toBe(keys[0])
+})
+
 test('removal · an erasure whose reply is lost is said when the feed shows it gone', async ({ page }) => {
   await opened(page, '&erase=lost')
   await erase(page).click()
@@ -240,4 +303,5 @@ test('removal · an erasure whose reply is lost is said when the feed shows it g
   await expect(list(page)).not.toContainText(FIRST)
   await expect(list(page).getByRole('status').filter({ hasText: 'The conversation was erased.' })).toBeVisible()
   await expect(rows(page).first()).toBeFocused()
+  await noReadOnceGone(page)
 })

@@ -36,6 +36,11 @@ export interface Kept {
    * that pressed it, so opening another conversation and coming back sends it again under the same key, never anew.
    */
   erasures: Readonly<Record<string, Held<string> | null>>
+  /**
+   * The conversations known erased here (its erasure's reply, or the whole list read without it): nothing is kept for
+   * them again, so a late answer to their erasure (a failure, or no reply) never brings its intent back.
+   */
+  erased: Readonly<Record<string, true>>
 }
 
 /**
@@ -66,6 +71,7 @@ const EMPTY: Kept = {
   decision: null,
   decisionRefusal: null,
   erasures: {},
+  erased: {},
 }
 
 const kept = new Map<string, Kept>()
@@ -124,7 +130,10 @@ export const withEntry = <T>(was: Readonly<Record<string, T>>, key: string, valu
 const withoutEntry = <T>(was: Readonly<Record<string, T>>, key: string): Readonly<Record<string, T>> =>
   Object.fromEntries(Object.entries(was).filter(([k]) => k !== key))
 
-/** What is kept without one conversation's part (it was erased): its draft, intent, message held, refusal and wait. */
+/**
+ * What is kept without one erased conversation's part: its draft, intent, message held, refusal and wait, and its
+ * erasure, settled (never brought back: withErasure). Another conversation's part, and Still open's decision, stay.
+ */
 export const withoutConversation = (k: Kept, id: string): Kept => ({
   ...k,
   drafts: withoutEntry(k.drafts, id),
@@ -132,4 +141,15 @@ export const withoutConversation = (k: Kept, id: string): Kept => ({
   holds: withoutEntry(k.holds, id),
   refusals: withoutEntry(k.refusals, id),
   asked: withoutEntry(k.asked, id),
+  erasures: withoutEntry(k.erasures, id),
+  erased: withEntry(k.erased, id, true),
 })
+
+/**
+ * One conversation's erasure intent, changed (on its way, with no reply, or answered): unless it was settled already,
+ * when a late answer to it changes nothing.
+ */
+export function withErasure(k: Kept, id: string, next: Held<string> | null): Kept {
+  if (k.erased[id]) return k
+  return { ...k, erasures: next ? withEntry(k.erasures, id, next) : withoutEntry(k.erasures, id) }
+}

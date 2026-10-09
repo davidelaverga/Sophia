@@ -146,6 +146,11 @@ interface Fixture {
   failConversations: (on: boolean) => void
   /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
   conversationMoves: () => void
+  /**
+   * Newer activity pushes this conversation past what the list holds (A16's newest 200, `more`), never erasing it; null
+   * brings it back. The feed moves either way.
+   */
+  capPast: (conversationId: string | null) => void
   /** The brief's reads fail, or read again. */
   failMission: (on: boolean) => void
   /** While on, the brief's reads wait; off, the waiting ones are answered. */
@@ -590,6 +595,11 @@ window.fixture = {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
     if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
   },
+  capPast: (conversationId) => {
+    if (!project.conversations) return
+    project.conversations.cappedOut = conversationId
+    publish(project)
+  },
   failMission: (on) => {
     project.missionFails = on
   },
@@ -902,6 +912,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       failList: which === 'fail',
       lastShown: DEMO || query.get('last') === '1',
       more: query.get('more') === '1',
+      cappedOut: null as string | null,
       failMessagesOf: failMessages ? CONVERSATION.briefs : null,
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),

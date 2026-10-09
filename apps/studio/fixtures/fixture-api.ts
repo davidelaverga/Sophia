@@ -225,6 +225,8 @@ export interface Conversations extends TalkWrites {
   lastShown?: boolean
   /** The list says older conversations exist that it doesn't hold (`more=1`, A16's `more`). */
   more?: boolean
+  /** One pushed past what the list holds by newer activity, never erased: left out, the list saying `more` (`capPast`). */
+  cappedOut?: string | null
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -447,6 +449,18 @@ function meetingAnswer(project: Project, path: string): Promise<Response> | Resp
   return new Promise((resolve) => held.push(() => resolve(json(recap))))
 }
 
+/** A conversation this person can't see (erased): not found, as A16 refuses it. */
+const conversationGone = () =>
+  new Response(
+    JSON.stringify({
+      code: 'not_found',
+      message: 'Conversation not found',
+      requestId: '00000000-0000-4000-8000-0000000000ce',
+      retry: 'never',
+    }),
+    { status: 404, headers: { 'content-type': 'application/json' } },
+  )
+
 /** The API's answer while it can't read the records (packages/domain/src/errors.ts). */
 const unavailable = () =>
   new Response(
@@ -479,14 +493,21 @@ function conversationsRead(talk: Conversations, role: Membership['role']) {
     lastShown: talk.lastShown === true,
     viewer: role === 'viewer',
     admin: role === 'admin',
-    more: talk.more === true,
+    more: talk.more === true || Boolean(talk.cappedOut),
   }
-  return json(wireList(talk.list, talk.messages, opts))
+  const listed = talk.cappedOut ? talk.list.filter((c) => c.id !== talk.cappedOut) : talk.list
+  return json(wireList(listed, talk.messages, opts))
 }
 
 /** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
 function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   if (talk.failMessagesOf === conversationId) return unavailable()
+  // Erased here: as 0048's row policy hides it, the API refuses its read as not found. A page reads it again only as
+  // the feed moves (the open thread and the list read at once), before the list shows it gone.
+  if (talk.erasedIds?.has(conversationId)) {
+    served.push(`messages-gone:${conversationId.slice(-2)}`)
+    return conversationGone()
+  }
   const all = talk.messages[conversationId]
   if (!all) return null
   const before = url.searchParams.get('before')
