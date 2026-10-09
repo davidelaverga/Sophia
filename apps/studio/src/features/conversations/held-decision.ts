@@ -7,22 +7,15 @@ import type { MissionContext, MissionReceipt } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { missionKey } from '../mission/mission-view.ts'
-import { decideRefusal, refusalWords, useDecideSend, type DecideArgs, type DecideState } from './decide.ts'
+import { contextKey, decideRefusal, refusalWords, stateOf, useDecideSend, type DecisionAsk } from './decide.ts'
 import { useHeldWrite } from './held-write.ts'
 import { useKept } from './talk-store.ts'
-
-/** A decision asked: what it decides, and the words of the proposal it decides. */
-export interface DecisionAsk {
-  args: DecideArgs
-  statement: string
-}
 
 /** What the brief as last read says of a proposal: whether that read came back, and whether it still waits there. */
 function useBriefRead(projectId: string, identity: Identity) {
   const client = useQueryClient()
   return (id: string) => {
-    const read = client.getQueryState<MissionContext>([...missionKey(projectId), accountOf(identity), 'conversations'])
+    const read = client.getQueryState<MissionContext>(contextKey(projectId, identity))
     return { fresh: read?.status !== 'error', stillWaiting: read?.data?.pending.some((d) => d.id === id) === true }
   }
 }
@@ -41,7 +34,10 @@ export function useHeldDecision(projectId: string, identity: Identity) {
     (next) => change((was) => ({ ...was, decision: next })),
     async (key, ask) => {
       try {
-        return await send(key, ask.args)
+        const receipt = await send(key, ask.args)
+        // Said answered before it is let go: never a moment with the presses awake on a decided proposal.
+        setDone(ask)
+        return receipt
       } catch (err: unknown) {
         refusal.current = err instanceof ApiError ? decideRefusal(err, briefOf(ask.args.decisionId)) : null
         throw err
@@ -53,19 +49,10 @@ export function useHeldDecision(projectId: string, identity: Identity) {
       say: (err) => refusal.current ?? refusalWords(err, 'decide'),
     },
   )
-  const state: DecideState = held
-    ? { status: held.sending ? 'sending' : 'unknown', args: held.ask.args }
-    : write.refused !== null
-      ? { status: 'rejected', words: write.refused }
-      : done
-        ? { status: 'done', args: done.args }
-        : { status: 'idle' }
   /** This decision, or the one held with no reply again under its key; the receipt once recorded. */
-  const run = async (ask: DecisionAsk) => {
+  const run = (ask: DecisionAsk) => {
     setDone(null)
-    const receipt = await write.run(ask)
-    if (receipt) setDone(ask)
-    return receipt
+    return write.run(ask)
   }
-  return { state, asked: held?.ask ?? done, run }
+  return { state: stateOf(held, write.refused, done), asked: held?.ask ?? done, run }
 }

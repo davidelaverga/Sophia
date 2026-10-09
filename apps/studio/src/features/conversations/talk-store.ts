@@ -5,7 +5,7 @@
 // signing out or switching identity (App), as the cached reads are.
 import { useCallback, useSyncExternalStore } from 'react'
 import type { ConversationAsk, MessageAsk } from '../../api/vision.ts'
-import type { DecisionAsk } from './held-decision.ts'
+import type { DecisionAsk } from './decide.ts'
 import type { Held } from './held-write.ts'
 
 export interface Kept {

@@ -2,7 +2,15 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
 import type { MissionDecision } from '@sophia/contracts'
-import { alreadyOpen, decidableHere, decideRefusal, pressesWait, refusalWords, statementFrom } from './decide.ts'
+import {
+  alreadyOpen,
+  decidableHere,
+  decideRefusal,
+  pressesWait,
+  refusalWords,
+  stateOf,
+  statementFrom,
+} from './decide.ts'
 
 describe('a message proposed as a decision (C7)', () => {
   it('a member’s words, on one line, as written', () => {
@@ -129,5 +137,24 @@ describe('a decision on its way (Still open)', () => {
         'It wasn’t decided here: the brief changed since.',
       )
     }
+  })
+})
+
+describe('Still open’s decision, from what the view holds (held-decision.md)', () => {
+  const ask = { args: { decisionId: 'a', revision: 1, decision: 'accept' as const }, statement: 'Map first' }
+
+  it('held, it is on its way, or has no reply', () => {
+    assert.deepEqual(stateOf({ key: 'k', ask, sending: true }, null, null), { status: 'sending', args: ask.args })
+    assert.deepEqual(stateOf({ key: 'k', ask, sending: false }, null, null), { status: 'unknown', args: ask.args })
+  })
+
+  it('held wins over a refusal or an answer left from before', () => {
+    assert.deepEqual(stateOf({ key: 'k', ask, sending: false }, 'Refused.', ask), { status: 'unknown', args: ask.args })
+  })
+
+  it('let go: refused in its words, else answered, else nothing', () => {
+    assert.deepEqual(stateOf(null, 'Refused.', ask), { status: 'rejected', words: 'Refused.' })
+    assert.deepEqual(stateOf(null, null, ask), { status: 'done', args: ask.args })
+    assert.deepEqual(stateOf(null, null, null), { status: 'idle' })
   })
 })

@@ -161,6 +161,20 @@ test('decide · with no reply, a trip to Goals and back: the decision is still h
   expect(await writes(page, '/decision')).toHaveLength(2)
 })
 
+test('decide · refused while the person is away: back, it says what the brief read again says', async ({ page }) => {
+  await enter(page, `${PAGE}&decide=stale-late`)
+  await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
+  const views = page.getByRole('navigation', { name: 'Project views' })
+  await views.getByRole('link', { name: 'Goals' }).click()
+  await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
+  // The refusal comes back (3 s) while no pane shows the brief: the brief is read again all the same.
+  await page.waitForTimeout(3500)
+  await views.getByRole('link', { name: 'Conversations' }).click()
+  await expect(context(page).getByRole('status')).toHaveText(
+    'Someone decided it first. This is the brief as it is now.',
+  )
+})
+
 test('decide · a message proposed as a decision: its words in, sent as a constraint, then in Still open', async ({
   page,
 }) => {

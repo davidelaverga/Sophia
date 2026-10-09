@@ -10,15 +10,20 @@ import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } fr
 import { getMission } from '../../api/mission.ts'
 import type { ConversationSummary } from '../../api/vision.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
-import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { missionKey } from '../mission/mission-view.ts'
 import { acceptedOf, openWords, pendingOf } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { decidableHere, pressesWait, type DecideArgs, type DecideState } from './decide.ts'
-import { useHeldDecision, type DecisionAsk } from './held-decision.ts'
+import {
+  contextKey,
+  decidableHere,
+  pressesWait,
+  type DecideArgs,
+  type DecideState,
+  type DecisionAsk,
+} from './decide.ts'
+import { useHeldDecision } from './held-decision.ts'
 
 interface Props {
   projectId: string
@@ -33,7 +38,7 @@ interface Props {
 
 export function ProjectContext({ projectId, identity, cursor, conversation, opened, onClose }: Props) {
   const read = useQuery({
-    queryKey: [...missionKey(projectId), accountOf(identity), 'conversations'],
+    queryKey: contextKey(projectId, identity),
     queryFn: () => getMission(identity.token, projectId),
     retry: 1,
   })
@@ -266,8 +271,8 @@ function StillOpen({ ctx, projectId, identity }: StillOpenProps) {
 }
 
 /**
- * What the last decision says: on its way (and a long wait's line), refused (by whether it still waits), not confirmed
- * (with «Try again»), or answered; where the focus goes after.
+ * What the last decision says: on its way (and a long wait's line), refused (in the words chosen from the brief read
+ * again), not confirmed (with «Try again»), or answered; where the focus goes after.
  */
 function DecideSaid(props: {
   status: RefObject<HTMLParagraphElement | null>
