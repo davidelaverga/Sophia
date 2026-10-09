@@ -863,7 +863,9 @@ async function deliver(cfg, job, outputDir) {
     const reply = await api(cfg, route, { kind: 'settle', json: { leaseToken: job.leaseToken, receipt } }, asJson)
     return stateOf(reply)
   } catch (error) {
-    if (asking && error instanceof ApiError && error.status < 500)
+    // Only the settlement's own refusal (422: no output of these bytes under this lease) says the PDF was not recorded;
+    // a lost lease (409) or a revoked runner (401) says nothing of it.
+    if (asking && error instanceof ApiError && error.status === 422)
       throw new Error('the PDF was not recorded: settlement refused it', { cause: error })
     throw error
   }

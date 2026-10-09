@@ -3,10 +3,11 @@
 -- upload's answer could not settle it, and render_sweep queued the job again keeping output_source_id, so every later
 -- claim's renderer_output_slot refused its upload ("The render already has its output") until the job failed as
 -- renderer_lost, its render done.
--- * render_sweep, replaced: a running render whose lease ran out and is queued again (claims below 3) forgets the
---   output its lost lease recorded, as a Hold's requeue does (renderer_settle, 0039). The next claim renders and
---   records afresh, under a new key. A render that fails as renderer_lost keeps what it had; a settled one is never
---   touched.
+-- * render_sweep, replaced: a running render whose lease ran out and is queued again (claims below 3) forgets what its
+--   lost lease recorded: a PDF's output, as a Hold's requeue does (renderer_settle, 0039), and a capture job's
+--   captures, which capture_outputs_match counts all of (a later run naming its tiles otherwise could never settle).
+--   The next claim renders and records afresh, under new keys. A render that fails as renderer_lost keeps what it
+--   had; a settled one is never touched.
 -- * The forgotten output's source object stays as recorded. Every reader of a source object looks it up by an id a job,
 --   version or citation holds, and none holds this one, so nothing presents it; its bytes are never rewritten (0044).
 -- * Unchanged: the Stop and newer-version cancellations above it, the three-claim limit, the claim's lease, and every
@@ -33,7 +34,11 @@ BEGIN
    reason=CASE WHEN r.claims<3 THEN j.reason ELSE 'renderer_lost: the render runner stopped answering' END
    FROM sophia.render_jobs r WHERE j.kind='render' AND j.state='running' AND j.lease_until<now()
     AND r.project_id=j.project_id AND r.job_id=j.id
-   RETURNING j.project_id, j.id, j.state)
+   RETURNING j.project_id, j.id, j.state),
+ forgotten AS (
+  DELETE FROM sophia.render_job_outputs o USING lost
+   WHERE o.project_id=lost.project_id AND o.job_id=lost.id AND lost.state='pending'
+   RETURNING o.job_id)
  UPDATE sophia.render_jobs r SET output_source_id=NULL FROM lost
   WHERE r.project_id=lost.project_id AND r.job_id=lost.id AND lost.state='pending' AND r.receipt IS NULL;
 END $$;

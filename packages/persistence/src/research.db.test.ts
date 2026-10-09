@@ -3018,7 +3018,7 @@ describe('render jobs (0030)', () => {
     })
   })
 
-  it('keeps the output a render recorded when its lease runs out at a Hold or Stop: those settle as before (0045)', async () => {
+  it('still cancels at a Stop a render that recorded its output, never presenting it (0045)', async () => {
     const r = await renderWorld()
     const queued = await r.enqueue()
     const job = await claimMine(queued.jobId)

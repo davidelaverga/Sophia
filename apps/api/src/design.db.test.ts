@@ -1115,6 +1115,36 @@ describe('Hold, Resume and Stop of a design (B-20, 0041)', () => {
   })
 })
 
+describe('a capture render queued again after its lease ran out (0045)', () => {
+  it('starts with none of the lost lease’s captures: the next run’s own captures settle, a stray name gone', async () => {
+    const { w, at } = await designing()
+    const d = await drafted(w, at, { capture: false })
+    const job = await claimCapture()
+    // The first lease records a capture under a name the next run does not produce, then its lease runs out.
+    const stray = `${String((job.targets as string[])[0])}.overview.9.png`
+    const lease = { 'x-sophia-render-lease': job.leaseToken }
+    const put = await runner(`/v1/renderer/jobs/${String(job.jobId)}/captures/${stray}`, {
+      method: 'PUT',
+      raw: PNG,
+      type: 'image/png',
+      headers: lease,
+    })
+    assert.equal(put.status, 200, JSON.stringify(put.json))
+    await owner((c) =>
+      c.query(`UPDATE sophia.jobs SET lease_until=now()-interval '1 second' WHERE project_id=$1 AND id=$2`, [
+        w.projectId,
+        job.jobId,
+      ]),
+    )
+    const again = await claimCapture()
+    assert.equal(again.jobId, job.jobId)
+    assert.notEqual(again.leaseToken, job.leaseToken)
+    const shots = await settleCapture(again, d.pkg, d.sections, { html: d.html })
+    assert.equal(shots.settled.state, 'succeeded', JSON.stringify(shots.settled))
+    assert.equal(shots.names.includes(stray), false)
+  })
+})
+
 describe('a steer reaches the running designer (B-15)', () => {
   it('is the speaker’s contribution, delivered to the design’s own session, which can still act on it', async () => {
     const { w, taskId, at } = await designing()
