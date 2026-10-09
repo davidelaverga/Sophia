@@ -50,7 +50,7 @@ The legacy Lab proved input from a browser Gemini WebSocket, and this product ha
 
 The charge is the bridge's worst case for the generation (the context again and its output twice) plus what it sent and was transcribed since its last charge. Connections and generations (`turns`) are durable counters only a reservation adds to; each connection keeps what was charged to it and what the provider reported of it. A reservation that does not fit ends the exchange as the guard would, with its reason, and so does a limit the guard would end it at. An exchange that has ended reserves nothing (409). A receipt names only a reserved connection (otherwise 422).
 
-**The guard (server-side, Lab-independent).** `sophia.voice_qualification_guard()` runs in the API's write transaction on every bridge presence report (every 5 s while the bridge is in the room), every assignment poll and every evidence write. It ends an exchange under a grant, as End would (ended_by null, event `room.exchange_qualification_limit`), at the first of these:
+**The guard (server-side, Lab-independent).** `sophia.voice_qualification_guard()` runs in the API's write transaction on every bridge presence report (every 5 s while the bridge is in the room) and every assignment poll; every evidence write and every reservation checks the same limits for its own exchange alone, under its locks. It ends an exchange under a grant, as End would (ended_by null, event `room.exchange_qualification_limit`), at the first of these:
 - `now ≥ least(expires_at, opened_at + max_exchange_seconds)` (`deadline`, or `expired`);
 - the grant is revoked (`revoked`);
 - connections reserved exceed `max_provider_connections` (`connections`);
@@ -58,6 +58,8 @@ The charge is the bridge's worst case for the generation (the context again and 
 - the next generation could pass `max_usage_tokens` (`usage`, the rule above).
 
 A bridge whose own bound stopped its session (its `session_closed` receipt says `guard`) ends the exchange too (`bridge`), for good.
+
+**Locks.** A reservation, a receipt and the guard lock an exchange's project before the exchange, as `control_exchange` and every other writer do (0003): ending an exchange emits the project's event, so taking the exchange first was a deadlock against a member's control of it, and a receipt that ran the guard for every exchange while holding its own was a deadlock against another exchange's receipt. The guard skips a project or an exchange another transaction holds, never waiting on it, in a fixed order (project, exchange); that transaction checks its own exchange under its locks, and the guard's next run takes up what is left. Skipping is what keeps the guard out of a deadlock; the order only makes its locks predictable.
 
 It writes a `guard` receipt (service, seq 0) with the reason. The guard runs only in an API with voice qualification on. Ending the exchange removes it from the bridge's assignments: the bridge's long poll wakes on the event, and its session closes, including the Gemini connection. **If the Lab dies, the exchange still ends at its deadline.** The bridge also stops forwarding input at the deadline itself (defence in depth).
 

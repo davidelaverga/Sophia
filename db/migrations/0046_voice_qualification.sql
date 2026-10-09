@@ -205,19 +205,29 @@ END $$;
 
 -- End every exchange under a grant that is past its deadline, revoked, expired or over a limit, as End would.
 -- Returns how many it ended. Expired evidence goes too.
+-- Lock order (0003): a due exchange's project, then the exchange, as control_exchange takes them. A row another
+-- transaction holds is skipped, never waited on, so the guard is never part of a deadlock: a reservation or a receipt
+-- holding it checks its own exchange under its locks, and the next run (each presence report, each assignment read)
+-- takes up what is left. The fixed order only makes the guard's locks predictable; skipping is what keeps it apart.
 CREATE FUNCTION sophia.voice_qualification_guard() RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE r record; why text; n integer:=0;
+DECLARE r record; e sophia.room_exchanges; g sophia.voice_qualification_grants; why text; n integer:=0;
 BEGIN
  PERFORM sophia.require_service();
  DELETE FROM sophia.voice_qualification_evidence WHERE expires_at<now();
- FOR r IN SELECT e.id AS exchange_id, e.opened_at, g AS grant_row
-   FROM sophia.room_exchanges e
-   CROSS JOIN LATERAL sophia.voice_grant_of(e.project_id, e.opened_at) g
-   WHERE e.state<>'ended' AND g.id IS NOT NULL LOOP
-  why:=sophia.voice_limit_reached(r.grant_row, r.opened_at, r.exchange_id);
-  CONTINUE WHEN why IS NULL;
-  IF sophia.voice_end_exchange(r.exchange_id, r.grant_row, why) THEN n:=n+1; END IF;
+ FOR r IN SELECT x.id, x.project_id FROM sophia.room_exchanges x
+   CROSS JOIN LATERAL sophia.voice_grant_of(x.project_id, x.opened_at) c
+   WHERE x.state<>'ended' AND c.id IS NOT NULL AND sophia.voice_limit_reached(c, x.opened_at, x.id) IS NOT NULL
+   ORDER BY x.project_id, x.id LOOP
+  PERFORM 1 FROM sophia.projects WHERE id=r.project_id FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
+  SELECT * INTO e FROM sophia.room_exchanges WHERE id=r.id AND state<>'ended' FOR UPDATE SKIP LOCKED;
+  CONTINUE WHEN NOT FOUND;
+  -- Read again under the locks: a reservation, a receipt or another run may have moved it since.
+  g:=sophia.voice_grant_of(e.project_id, e.opened_at);
+  why:=sophia.voice_limit_reached(g, e.opened_at, e.id);
+  CONTINUE WHEN g.id IS NULL OR why IS NULL;
+  IF sophia.voice_end_exchange(e.id, g, why) THEN n:=n+1; END IF;
  END LOOP;
  RETURN n;
 END $$;
@@ -271,6 +281,7 @@ END $$;
 CREATE FUNCTION sophia.media_voice_reserve(p_exchange uuid, p_grant uuid, p_kind text, p_ordinal integer, p_charge bigint)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE e sophia.room_exchanges; g sophia.voice_qualification_grants; q sophia.voice_qualification_exchanges; why text;
+ p uuid;
 BEGIN
  PERFORM sophia.require_service();
  IF p_kind IS NULL OR p_kind NOT IN ('connection','generation','unasked') THEN
@@ -278,12 +289,16 @@ BEGIN
  IF p_kind<>'connection' AND (p_ordinal IS NULL OR p_ordinal NOT BETWEEN 1 AND 64 OR p_charge IS NULL
    OR p_charge NOT BETWEEN 0 AND 5000000) THEN
   RAISE EXCEPTION 'A generation names its connection and a charge of 0 to 5,000,000' USING ERRCODE='22023'; END IF;
+ -- Lock order (0003): the project, then its exchange, as control_exchange takes them; ending the exchange emits the
+ -- project's event under both.
+ SELECT project_id INTO p FROM sophia.room_exchanges WHERE id=p_exchange;
+ IF p IS NULL THEN RAISE EXCEPTION 'Exchange not found' USING ERRCODE='22023'; END IF;
+ PERFORM 1 FROM sophia.projects WHERE id=p FOR UPDATE;
  SELECT * INTO e FROM sophia.room_exchanges WHERE id=p_exchange FOR UPDATE;
- IF e.id IS NULL THEN RAISE EXCEPTION 'Exchange not found' USING ERRCODE='22023'; END IF;
  g:=sophia.voice_grant_of(e.project_id, e.opened_at);
  IF g.id IS NULL OR g.id<>p_grant THEN RAISE EXCEPTION 'The exchange is not under this grant' USING ERRCODE='42501'; END IF;
  IF e.state='ended' THEN RAISE EXCEPTION 'The exchange has ended' USING ERRCODE='40001'; END IF;
- -- The exchange's row lock above is what makes a reservation atomic: the counters are read and moved under it.
+ -- The exchange's row lock above makes a reservation atomic: the counters are read and moved under it.
  SELECT * INTO q FROM sophia.voice_qualification_exchanges WHERE exchange_id=e.id;
  IF q.exchange_id IS NULL THEN
   INSERT INTO sophia.voice_qualification_exchanges(exchange_id,project_id,grant_id) VALUES(e.id,e.project_id,g.id)
@@ -320,17 +335,22 @@ END $$;
 -- same receipt again is a no-op; another under the same number is refused), naming only a connection that was
 -- reserved. A provider receipt carries what the provider reported of its connection's session, kept as that
 -- connection's highest report with its prompt size; a session_closed receipt that says guard (the bridge's own bound
--- or the deadline stopped it) ends the exchange. The guard then runs.
+-- or the deadline stopped it) ends the exchange. Then the guard's limits are checked for this exchange alone, under its
+-- locks: another exchange is the guard's to end, never a receipt's (holding one exchange while waiting on another's
+-- lock was a deadlock).
 CREATE FUNCTION sophia.media_record_evidence(p_exchange uuid, p_grant uuid, p_seq integer, p_kind text, p_receipt jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE e sophia.room_exchanges; g sophia.voice_qualification_grants; prior jsonb; q sophia.voice_qualification_exchanges;
- v_usage bigint:=(p_receipt->>'usageTokens')::bigint;
+ v_usage bigint:=(p_receipt->>'usageTokens')::bigint; p uuid; why text;
 BEGIN
  PERFORM sophia.require_service();
  IF p_kind NOT IN ('input_window','input_turn','provider','output_reply','session_closed') THEN
   RAISE EXCEPTION 'Not a bridge receipt' USING ERRCODE='22023'; END IF;
+ -- Lock order (0003): the project, then its exchange, as for a reservation.
+ SELECT project_id INTO p FROM sophia.room_exchanges WHERE id=p_exchange;
+ IF p IS NULL THEN RAISE EXCEPTION 'Exchange not found' USING ERRCODE='22023'; END IF;
+ PERFORM 1 FROM sophia.projects WHERE id=p FOR UPDATE;
  SELECT * INTO e FROM sophia.room_exchanges WHERE id=p_exchange FOR UPDATE;
- IF e.id IS NULL THEN RAISE EXCEPTION 'Exchange not found' USING ERRCODE='22023'; END IF;
  g:=sophia.voice_grant_of(e.project_id, e.opened_at);
  IF g.id IS NULL OR g.id<>p_grant THEN RAISE EXCEPTION 'The exchange is not under this grant' USING ERRCODE='42501'; END IF;
  IF p_receipt->>'kind' IS DISTINCT FROM p_kind OR p_receipt->>'grantId' IS DISTINCT FROM g.id::text
@@ -357,7 +377,8 @@ BEGIN
    WHERE exchange_id=e.id AND ordinal=(p_receipt->>'connection')::integer;
  END IF;
  IF p_kind='session_closed' AND p_receipt->>'reason'='guard' THEN PERFORM sophia.voice_end_exchange(e.id, g, 'bridge'); END IF;
- PERFORM sophia.voice_qualification_guard();
+ why:=sophia.voice_limit_reached(g, e.opened_at, e.id);
+ IF why IS NOT NULL THEN PERFORM sophia.voice_end_exchange(e.id, g, why); END IF;
  SELECT * INTO q FROM sophia.voice_qualification_exchanges WHERE exchange_id=e.id;
  RETURN jsonb_build_object('ended',(SELECT state='ended' FROM sophia.room_exchanges WHERE id=e.id),
   'reason',q.ended_reason);
