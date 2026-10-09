@@ -23,6 +23,7 @@ import {
   listWithdrawn,
   remainsAfter,
   withWithdrawn,
+  type ReadPages,
 } from './conversation-list.ts'
 
 const ME = 'me'
@@ -504,7 +505,7 @@ const page = (messages: ConversationMessage[]) => ({ pages: [{ messages, before:
 
 describe('remainsAfter: who still has words there, as read (PR #199 review)', () => {
   const gone = msg(3, { text: null, name: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
-  const after = (read: ReturnType<typeof page>) => remainsAfter(withWithdrawn(read, gone), gone)
+  const after = (read: ReadPages<ConversationMessage>) => remainsAfter(withWithdrawn(read, gone), gone)
 
   it('says the writer is gone when no other words of theirs are read, and stays when some are', () => {
     assert.deepEqual(after(page([msg(2, { actorId: 'lucia', name: 'Lucía' }), msg(3)])), {
