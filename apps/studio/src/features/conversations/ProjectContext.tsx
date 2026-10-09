@@ -12,10 +12,11 @@ import type { ConversationSummary } from '../../api/vision.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { missionKey } from '../mission/mission-view.ts'
 import { acceptedOf, openWords, pendingOf } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { decidableHere, refusalWords, useDecide, type DecideArgs } from './decide.ts'
+import { decidableHere, decideRefusal, pressesWait, useDecide, type DecideArgs } from './decide.ts'
 
 interface Props {
   projectId: string
@@ -199,30 +200,39 @@ const answeredWords = (args: DecideArgs, statement: string) =>
  * What waits for a decision, decided here where it can be (C7): one decision at a time; with no reply, the presses wait
  * and «Try again» sends that same decision under its key, never another. Answered, the focus goes to what it says.
  */
-function StillOpen({ ctx, projectId, identity }: { ctx: MissionContext; projectId: string; identity: Identity }) {
-  const [every, setEvery] = useState(false)
-  const openId = useId()
+/**
+ * One decision at a time from Still open (docs/plans/decide-on-its-way.md): what was asked, what its line says, and
+ * the focus on that line once it settles, whatever the answer (the press may be gone with the brief read again). The
+ * presses wait while it goes, while unknown, and once answered until the brief no longer lists it.
+ */
+function useDecideHere(projectId: string, identity: Identity, pending: readonly MissionDecision[]) {
   const decide = useDecide(projectId, identity)
   const [asked, setAsked] = useState<{ args: DecideArgs; statement: string } | null>(null)
   const [said, setSaid] = useState('')
   const status = useRef<HTMLParagraphElement>(null)
-  const open = pendingOf(ctx.pending, every)
-  const { more } = pendingOf(ctx.pending)
-  const busy = decide.state.status === 'sending' || decide.state.status === 'unknown'
-  const answered = (receipt: unknown, words: string) => {
-    if (!receipt) return
-    setSaid(words)
+  const settled = (receipt: unknown, words: string) => {
+    if (receipt) setSaid(words)
     // The line is already there: the focus goes to it now (a frame may never come in a tab out of sight).
     status.current?.focus()
   }
   const answer = (args: DecideArgs, statement: string) => {
     setSaid('')
     setAsked({ args, statement })
-    void decide.submit(args).then((receipt) => answered(receipt, answeredWords(args, statement)))
+    void decide.submit(args).then((receipt) => settled(receipt, answeredWords(args, statement)))
   }
   const retry = () => {
-    if (asked) void decide.retry().then((receipt) => answered(receipt, answeredWords(asked.args, asked.statement)))
+    if (asked) void decide.retry().then((receipt) => settled(receipt, answeredWords(asked.args, asked.statement)))
   }
+  const waits = (id: string) => pending.some((d) => d.id === id)
+  return { decide, asked, said, status, answer, retry, waits, busy: pressesWait(decide.state, pending) }
+}
+
+function StillOpen({ ctx, projectId, identity }: { ctx: MissionContext; projectId: string; identity: Identity }) {
+  const [every, setEvery] = useState(false)
+  const openId = useId()
+  const { decide, asked, said, status, answer, retry, waits, busy } = useDecideHere(projectId, identity, ctx.pending)
+  const open = pendingOf(ctx.pending, every)
+  const { more } = pendingOf(ctx.pending)
   return (
     <section aria-labelledby={openId}>
       <h4 id={openId} className="eyebrow">
@@ -244,23 +254,31 @@ function StillOpen({ ctx, projectId, identity }: { ctx: MissionContext; projectI
           <p className="conv-note">Proposed, not decided.</p>
         </>
       )}
-      <DecideSaid status={status} state={decide.state} asked={asked} said={said} onRetry={retry} />
+      <DecideSaid status={status} state={decide.state} asked={asked} said={said} waits={waits} onRetry={retry} />
     </section>
   )
 }
 
-/** What the last decision says: refused, not confirmed (with «Try again»), or answered; where the focus goes after. */
+/**
+ * What the last decision says: on its way (and a long wait's line), refused (by whether it still waits), not confirmed
+ * (with «Try again»), or answered; where the focus goes after.
+ */
 function DecideSaid(props: {
   status: RefObject<HTMLParagraphElement | null>
   state: ReturnType<typeof useDecide>['state']
   asked: { args: DecideArgs; statement: string } | null
   said: string
+  /** Whether the brief, as read now, still lists this proposal as waiting. */
+  waits: (id: string) => boolean
   onRetry: () => void
 }) {
   const { state, asked } = props
+  const slow = useSlow(state.status === 'sending')
   return (
     <p ref={props.status} className="conv-note" role="status" tabIndex={-1}>
-      {state.status === 'rejected' && refusalWords(state.error, 'decide')}
+      {state.status === 'sending' && (state.args.decision === 'accept' ? 'Accepting…' : 'Declining…')}
+      {slow && ` ${SLOW_NOTE}`}
+      {state.status === 'rejected' && decideRefusal(state.error, props.waits(state.args.decisionId))}
       {state.status === 'unknown' && asked && (
         <>
           {`Not confirmed: ${answeredWords(asked.args, asked.statement)}. `}

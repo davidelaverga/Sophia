@@ -4,6 +4,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { MissionDecision, MissionReceipt } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
+import type { AdmissionState } from '../../api/useAdmission.ts'
 import { decideMissionChange, getMission, proposeMissionChange } from '../../api/mission.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -32,6 +33,29 @@ export function refusalWords(error: ApiError, write: 'decide' | 'propose'): stri
       : 'That proposal couldn’t be sent as written. Try again.'
   }
   return 'That couldn’t be done. Try again in a moment.'
+}
+
+/**
+ * A refused decision's words (docs/plans/decide-on-its-way.md). Every 409 is a stale revision; the brief read again
+ * tells them apart: a proposal still waiting wasn't decided by anyone, what it would replace changed.
+ */
+export function decideRefusal(error: ApiError, stillWaiting: boolean): string {
+  if (error.status === 409 && stillWaiting) {
+    return 'It can’t be decided as it is: the brief changed since. This is the brief as it is now.'
+  }
+  return refusalWords(error, 'decide')
+}
+
+/**
+ * Whether Accept and Decline wait: while a decision goes or its outcome is unknown, and once answered until the brief
+ * read again no longer lists it (a read that is slow or fails would otherwise wake them on a decided proposal).
+ */
+export function pressesWait(
+  state: AdmissionState<Pick<DecideArgs, 'decisionId'>, unknown>,
+  pending: readonly Pick<MissionDecision, 'id'>[],
+): boolean {
+  if (state.status === 'sending' || state.status === 'unknown') return true
+  return state.status === 'done' && pending.some((d) => d.id === state.args.decisionId)
 }
 
 /**

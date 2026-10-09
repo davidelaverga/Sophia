@@ -66,6 +66,49 @@ test('decide · someone decided first: the context says so and shows the brief a
   // Read again: no longer waiting, among the accepted decisions, as whoever decided it left it.
   await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
   await expect(context(page).locator('.conv-decisions:not(.open) li').first()).toHaveText('Map first, list second')
+  // The press it was on is gone: the focus is on what was said.
+  await expect(context(page).getByRole('status')).toBeFocused()
+})
+
+test('decide · refused while it still waits: it says the brief changed, not that someone decided', async ({ page }) => {
+  await enter(page, `${PAGE}&decide=replaced`)
+  await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
+  await expect(context(page).getByRole('status')).toHaveText(
+    'It can’t be decided as it is: the brief changed since. This is the brief as it is now.',
+  )
+  await expect(context(page).getByRole('status')).toBeFocused()
+  // Still waiting, undecided, and said as one that can't be accepted as it is.
+  await expect(stillOpen(page)).toContainText('Map first, list second')
+  await expect(stillOpen(page)).toContainText('The direction changed since: it can’t be accepted as it is.')
+})
+
+test('decide · while a decision goes it says «Accepting…», and both presses wait, drawn so', async ({ page }) => {
+  await enter(page, `${PAGE}&decide=slow`)
+  const accept = stillOpen(page).getByRole('button', { name: 'Accept' })
+  const decline = stillOpen(page).getByRole('button', { name: 'Decline' })
+  await accept.click()
+  await expect(context(page).getByRole('status')).toHaveText('Accepting…')
+  for (const press of [accept, decline]) {
+    await expect(press).toHaveAttribute('aria-disabled', 'true')
+    expect(await press.evaluate((b) => getComputedStyle(b).opacity)).toBe('0.45')
+  }
+  await decline.click({ force: true }) // waiting: nothing more is sent
+  await expect(context(page).getByRole('status')).toHaveText('Accepted: Map first, list second')
+  expect(await writes(page, '/decision')).toEqual([{ decision: 'accept', expectedRevision: 1 }])
+})
+
+test('decide · answered, its presses wait until the brief read again no longer lists it', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdMission(true))
+  const accept = stillOpen(page).getByRole('button', { name: 'Accept' })
+  await accept.click()
+  await expect(context(page).getByRole('status')).toHaveText('Accepted: Map first, list second')
+  // The brief isn't read again yet: still listed, but its presses wait, and a press sends nothing.
+  await expect(accept).toHaveAttribute('aria-disabled', 'true')
+  await accept.click({ force: true })
+  expect(await writes(page, '/decision')).toHaveLength(1)
+  await page.evaluate(() => window.fixture?.holdMission(false))
+  await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
 })
 
 test('decide · a message proposed as a decision: its words in, sent as a constraint, then in Still open', async ({
