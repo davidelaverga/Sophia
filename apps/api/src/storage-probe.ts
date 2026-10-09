@@ -6,7 +6,8 @@
 // - one fresh key written by eight writers at once, over eight connections: one written, seven refused;
 // - every request to the provider counted, by method and key: one PUT per key, whatever the provider does with a second.
 // Finite: 11 claims, at most 7 provider requests, 2 objects of under 100 bytes, never deleted (a claim is never
-// released). It prints JSON lines and never a setting, a credential or a signed URL. Exit: 0 every guarantee held;
+// released). With `--run <uuid>` it is one-shot: both keys derive from the operator's run id, so a start that runs it
+// again under the same id (the API's start command restarted) finds its first key claimed and writes nothing (exit 2). It prints JSON lines and never a setting, a credential or a signed URL. Exit: 0 every guarantee held;
 // 1 one did not; 2 a precondition is missing (nothing written); 3 an outcome is uncertain (stopped at once, never
 // retried: the key printed is claimed and can never be written again; HEAD it to see what the provider holds).
 import { randomUUID } from 'node:crypto'
@@ -64,6 +65,16 @@ class Stop extends Error {
 
 const refused = (error: unknown) => error instanceof ByteStoreError && error.status === 409
 
+/** The two keys of a one-shot run: its id, and one derived from it. */
+export function runKeys(run: string): [string, string] {
+  if (!UUID.test(run)) throw new Stop(2, 'a run id is a UUID')
+  const h = sha256Hex(new TextEncoder().encode(`${run}:racing`))
+  const racing = `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`
+  return [objectPath(PROBE_PROJECT, run), objectPath(PROBE_PROJECT, racing)]
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
+
 interface Probe {
   /** The API's store as buildApp composes it, its claims over the API's pool. */
   store: ByteStore
@@ -72,6 +83,8 @@ interface Probe {
   calls: ProviderCall[]
   fetchImpl: typeof fetch
   log: (record: object) => void
+  /** A one-shot run: a first key found claimed means the run id was used before, not a broken guarantee. */
+  oneShot?: boolean
 }
 
 /** The requests sent for one key, counted by method. */
@@ -86,6 +99,7 @@ async function firstWrite(p: Probe, key: string, bytes: Buffer) {
   try {
     await p.store.put(key, bytes, MIME)
   } catch (error) {
+    if (refused(error) && p.oneShot) throw new Stop(2, 'this run id was used before: nothing written', key)
     if (refused(error)) throw new Stop(1, 'a fresh key was refused', key)
     throw new Stop(3, `the first write's outcome is unknown: ${String(error)}`, key)
   }
@@ -172,8 +186,10 @@ async function race(p: Probe, key: string) {
  * The probe itself, over the API's composed stores: the sequential key, then the racing key.
  * @returns the exit code
  */
-export async function probeWriteOnce(p: Probe, keyOf = () => objectPath(PROBE_PROJECT, randomUUID())): Promise<number> {
-  const keys = [keyOf(), keyOf()] as const
+export async function probeWriteOnce(
+  p: Probe,
+  keys: readonly [string, string] = [objectPath(PROBE_PROJECT, randomUUID()), objectPath(PROBE_PROJECT, randomUUID())],
+): Promise<number> {
   try {
     await sequential(p, keys[0])
     await race(p, keys[1])
@@ -214,7 +230,7 @@ async function ready(pool: pg.Pool, store: ByteStore | null) {
  */
 export async function runStorageProbe(
   env: Record<string, string | undefined>,
-  options: { fetchImpl?: typeof fetch; log?: (record: object) => void } = {},
+  options: { fetchImpl?: typeof fetch; log?: (record: object) => void; runId?: string } = {},
 ): Promise<number> {
   const print = options.log ?? ((record: object) => console.log(JSON.stringify(record)))
   // Once the probe is past its time, nothing it does after is reported: the deadline's line is the last.
@@ -251,7 +267,9 @@ export async function runStorageProbe(
         resolve(3)
       }, PROBE_MS)
     })
-    return await Promise.race([probeWriteOnce({ store, racing, calls, fetchImpl, log }), deadline])
+    const oneShot = options.runId !== undefined
+    const keys = oneShot ? runKeys(options.runId ?? '') : undefined
+    return await Promise.race([probeWriteOnce({ store, racing, calls, fetchImpl, log, oneShot }, keys), deadline])
   } catch (error) {
     const stop = error instanceof Stop ? error : new Stop(2, String(error))
     log({ event: 'STORAGE_PROBE_DONE', ok: false, exit: stop.exit, reason: stop.message })

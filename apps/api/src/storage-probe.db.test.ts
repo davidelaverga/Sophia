@@ -13,7 +13,15 @@ import { createPool } from '@sophia/persistence'
 import { createTestDatabase, type TestDatabase } from '@sophia/test-support'
 import { writeOnceStore } from './app.ts'
 import { ByteStoreError, byteStoreFromEnv } from './byte-store.ts'
-import { countingFetch, probeWriteOnce, PROBE_PROJECT, runStorageProbe, type ProviderCall } from './storage-probe.ts'
+import { randomUUID } from 'node:crypto'
+import {
+  countingFetch,
+  probeWriteOnce,
+  PROBE_PROJECT,
+  runKeys,
+  runStorageProbe,
+  type ProviderCall,
+} from './storage-probe.ts'
 
 const SETTINGS = {
   SOPHIA_STORAGE_S3_ENDPOINT: 'https://provider.invalid/storage/v1/s3',
@@ -126,6 +134,33 @@ describe('the write-once probe (storage-probe.ts)', () => {
     } finally {
       await pool.end()
     }
+  })
+
+  it('is one-shot under a run id: the same id again, as a restarted start command runs it, writes nothing', async () => {
+    const stand = provider()
+    const env = { SOPHIA_API_DATABASE_URL: db.apiUrl, ...SETTINGS }
+    const runId = randomUUID()
+    const first: object[] = []
+    assert.equal(await runStorageProbe(env, { fetchImpl: stand.fetchImpl, log: (r) => first.push(r), runId }), 0)
+    const [sequentialKey, racingKey] = runKeys(runId)
+    assert.deepEqual(
+      [...stand.objects.keys()].toSorted(),
+      [
+        `/storage/v1/s3/sophia-report-bytes/${sequentialKey}`,
+        `/storage/v1/s3/sophia-report-bytes/${racingKey}`,
+      ].toSorted(),
+      'the run id’s own two keys',
+    )
+    assert.equal(stand.state.puts, 2)
+    const again: object[] = []
+    assert.equal(await runStorageProbe(env, { fetchImpl: stand.fetchImpl, log: (r) => again.push(r), runId }), 2)
+    assert.match(String(done(again).reason), /run id was used before: nothing written/u)
+    assert.equal(stand.state.puts, 2, 'no PUT the second time')
+    assert.equal(
+      await runStorageProbe(env, { fetchImpl: stand.fetchImpl, log: () => undefined, runId: 'not-a-uuid' }),
+      2,
+    )
+    assert.equal(stand.state.puts, 2)
   })
 
   it('writes nothing without its preconditions: the settings, the API’s login (never an owner’s) and 0044', async () => {
