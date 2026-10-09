@@ -5,6 +5,7 @@
 // signing out or switching identity (App), as the cached reads are.
 import { useCallback, useSyncExternalStore } from 'react'
 import type { ConversationAsk, MessageAsk } from '../../api/vision.ts'
+import type { DecisionAsk } from './decide.ts'
 import type { Held } from './held-write.ts'
 
 export interface Kept {
@@ -23,6 +24,10 @@ export interface Kept {
   proposalRefusals: Readonly<Record<string, string | null>>
   /** A message whose proposal was recorded, until its form is opened again: whatever part is on screen says so. */
   proposed: Readonly<Record<string, boolean>>
+  /** Still open's decision on its way, or sent with no reply (its key and intent): one at a time, never sent twice. */
+  decision: Held<DecisionAsk> | null
+  /** The words of a refusal that answered Still open's decision, until its next press. */
+  decisionRefusal: string | null
 }
 
 /**
@@ -49,6 +54,8 @@ const EMPTY: Kept = {
   proposals: {},
   proposalRefusals: {},
   proposed: {},
+  decision: null,
+  decisionRefusal: null,
 }
 
 const kept = new Map<string, Kept>()
