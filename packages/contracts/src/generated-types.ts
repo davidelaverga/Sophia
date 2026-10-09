@@ -239,6 +239,23 @@ export type CoordinationObservation = { "phase": "queued" | "running" | "holding
 export type DesignDeliveryAck = { "attemptId": string; "nativeSessionId": string; "deliveryId": string; "attachments": ReadonlyArray<{ "name": string; "attachmentId": string; }>; };
 export type DesignDeliveryReceipt = { "deliveryId": string; "renderJobId": string; "state": "delivered"; "captures": ReadonlyArray<string>; };
 export type DesignShownMeasure = { "id": string; "section": string | null; "box": { "x": number; "y": number; "width": number; "height": number; }; "fontPx": number; "issues": ReadonlyArray<"not_rendered" | "hidden" | "transparent" | "no_visible_text" | "off_page" | "text_cut" | "clipped" | "scrolls" | "covered" | "low_contrast">; "contrast": { "ratio": number | null; "floor": number; "large": boolean; "detail": string | null; }; };
+export type ConversationMember = { "actorId": string; "name": string; };
+export type ConversationOpening = { "author": "member" | "sophia"; "actorId": string | null; "name": string | null; "text": string; "at": string; };
+export type ProjectionCoverage = { "state": "not_assessed" | "current" | "stale" | "unavailable"; "complete": boolean; "fromSeq": number | null; "throughSeq": number | null; "newer": number; "generatedAt": string | null; "replyId": string | null; "eligibilityRevision": number | null; "ledgerRevision": number | null; };
+export type ConversationOutput = { "artifactId": string; "versionId": string; "versionNumber": number; "title": string; };
+export type ConversationSummary = { "id": string; "title": string; "revision": number; "summary": string | null; "summaryCoverage": ProjectionCoverage; "lastAt": string; "contributors": ReadonlyArray<ConversationMember>; "sophia": boolean; "openQuestions": number; "questionsCoverage": ProjectionCoverage; "output": ConversationOutput | null; "lastMessage": ConversationOpening | null; };
+export type ConversationReply = { "id": string; "messageId": string; "state": "pending" | "running" | "answered" | "failed" | "cancelled" | "blocked" | "outcome_unknown"; "reason": string | null; "answerId": string | null; "askedAt": string; "settledAt": string | null; };
+export type ConversationMessage = { "id": string; "seq": number; "author": "member" | "sophia"; "actorId": string | null; "name": string | null; "text": string | null; "at": string; "withdrawn": { "at": string; } | null; "ask": ConversationReply | null; "replyTo": { "messageId": string; "replyId": string; } | null; };
+export type ConversationPolicy = { "id": "conversation-text-v1"; "notice": string; "retention": "until_withdrawn_or_erased"; "audience": "project_members"; };
+export type ConversationCapability = { "state": "off" | "enabled" | "read_only"; "write": boolean; "moderate": boolean; "ask": "available" | "unavailable"; "askReason": string | null; };
+export type ConversationList = { "projectId": string; "conversations": ReadonlyArray<ConversationSummary>; "more": boolean; "policy": ConversationPolicy | null; "capability": ConversationCapability; };
+export type ConversationMessagePage = { "conversationId": string; "messages": ReadonlyArray<ConversationMessage>; "before": string | null; };
+export type ConversationStart = { "title": string; "text": string; "askSophia": boolean; };
+export type ConversationSend = { "text": string; "askSophia": boolean; };
+export type ConversationStarted = { "conversation": ConversationSummary; "message": ConversationMessage; "sophia": "asked" | "not_asked"; "reply": ConversationReply | null; };
+export type ConversationMessageSent = { "message": ConversationMessage; "sophia": "asked" | "not_asked"; "reply": ConversationReply | null; };
+export type ConversationWithdrawal = { "conversationId": string; "message": ConversationMessage; };
+export type ConversationErasure = { "conversationId": string; "erased": true; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -378,4 +395,10 @@ export interface Operations {
   "coordinationCancel": { method: "POST"; path: "/v1/coordination/cancel"; request: CoordinationRunRequest; response: CoordinationObservation; };
   "runtimeDesignDelivered": { method: "POST"; path: "/v1/runtime/design/delivered"; request: DesignDeliveryAck; response: DesignDeliveryReceipt; };
   "runtimeReviewDelivered": { method: "POST"; path: "/v1/runtime/review/delivered"; request: DesignDeliveryAck; response: DesignDeliveryReceipt; };
+  "listConversations": { method: "GET"; path: "/api/v1/projects/{projectId}/conversations"; request: undefined; response: ConversationList; };
+  "startConversation": { method: "POST"; path: "/api/v1/projects/{projectId}/conversations"; request: ConversationStart; response: ConversationStarted; };
+  "getConversationMessages": { method: "GET"; path: "/api/v1/conversations/{conversationId}/messages"; request: undefined; response: ConversationMessagePage; };
+  "sendConversationMessage": { method: "POST"; path: "/api/v1/conversations/{conversationId}/messages"; request: ConversationSend; response: ConversationMessageSent; };
+  "withdrawConversationMessage": { method: "POST"; path: "/api/v1/conversations/{conversationId}/messages/{messageId}/withdrawal"; request: undefined; response: ConversationWithdrawal; };
+  "eraseConversation": { method: "POST"; path: "/api/v1/conversations/{conversationId}/erasure"; request: undefined; response: ConversationErasure; };
 }

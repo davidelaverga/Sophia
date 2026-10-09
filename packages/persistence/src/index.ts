@@ -254,3 +254,22 @@ export {
   type DesignCaptureRefs,
   type DesignRoles,
 } from './design.ts'
+export {
+  CONVERSATION_LIST_LIMIT,
+  CONVERSATION_NOTICE,
+  CONVERSATION_PAGE_LIMIT,
+  conversationCursor,
+  cursorSeq,
+  eraseConversation,
+  readConversationList,
+  readConversationMessage,
+  readConversationPage,
+  readConversationReply,
+  readConversationSummary,
+  sendConversationMessage,
+  startConversation,
+  withdrawConversationMessage,
+  type ConversationReceipt,
+  type ConversationSendWrite,
+  type ConversationStartWrite,
+} from './conversations.ts'

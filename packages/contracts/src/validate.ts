@@ -42,6 +42,12 @@ import {
   validateWorkResult,
   validateSourceReviewProposal,
   validateSourceReviewAvailability,
+  validateConversationList,
+  validateConversationMessagePage,
+  validateConversationStarted,
+  validateConversationMessageSent,
+  validateConversationWithdrawal,
+  validateConversationErasure,
   validateReceipt,
   validateRoomSession,
   validateRoomToken,
@@ -114,6 +120,12 @@ export const parseWorkReceipt = parser('WorkReceipt', validateWorkReceipt)
 export const parseWorkResult = parser('WorkResult', validateWorkResult)
 export const parseSourceReviewProposal = parser('SourceReviewProposal', validateSourceReviewProposal)
 export const parseSourceReviewAvailability = parser('SourceReviewAvailability', validateSourceReviewAvailability)
+export const parseConversationList = parser('ConversationList', validateConversationList)
+export const parseConversationMessagePage = parser('ConversationMessagePage', validateConversationMessagePage)
+export const parseConversationStarted = parser('ConversationStarted', validateConversationStarted)
+export const parseConversationMessageSent = parser('ConversationMessageSent', validateConversationMessageSent)
+export const parseConversationWithdrawal = parser('ConversationWithdrawal', validateConversationWithdrawal)
+export const parseConversationErasure = parser('ConversationErasure', validateConversationErasure)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {
