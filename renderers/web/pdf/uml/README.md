@@ -18,8 +18,10 @@ docker build --platform linux/amd64 -f renderers/web/pdf/uml/Dockerfile .
 ```
 
 The guest kernel is built without hostfs, mconsole, network transports, virtio
-sockets and the port, pty, tty and xterm channels; the build fails if `.config`
-keeps any of them, or modules. It reaches the host through its three disks and
+sockets, the port, pty, tty and xterm channels, the host watchdog, random device
+and mmapper; the build fails if `.config` keeps any of them, or modules. The
+output disk, which the guest writes, is opened without copy-on-write headers
+(`ubd2d=`). It reaches the host through its three disks and
 its console (`con0` on the launchers' pipes) only.
 
 CI (`.github/workflows/uml-supervisor.yml`) builds the render host and runs

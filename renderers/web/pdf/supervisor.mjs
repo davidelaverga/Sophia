@@ -64,8 +64,9 @@ const UML_ARTIFACTS = ['namespace-launch.py', 'landlock-launch.py', 'linux.uml',
 const GUEST = { dir: '/work/job', sourceRoot: '/work/job/src', outputDir: '/work/job/out' }
 
 /**
- * @typedef {{ root?: string, command?: (dir: string) => string[], marginMs?: number }} UmlConfig the guest's artifacts;
- *   `command` and `marginMs` replace the launchers and the margin in tests only
+ * @typedef {{ root?: string, command?: (dir: string) => string[], marginMs?: number, goneMs?: number }} UmlConfig the
+ *   guest's artifacts; `command`, `marginMs` and `goneMs` replace the launchers, the margin and the reap's wait in tests
+ *   only
  * @typedef {{ apiUrl: string, token: string, workDir: string, env?: NodeJS.ProcessEnv, heartbeatMs?: number,
  *   pollMs?: number, beforeRender?: (job: RenderJob) => Promise<void>, log?: (line: string) => void,
  *   isolation?: 'native' | 'uml', uml?: UmlConfig, tokenFile?: string }} SupervisorConfig
@@ -299,7 +300,7 @@ function runKernel(cfg, job, jobFile, browser) {
     stdio: ['ignore', 'ignore', 'pipe'],
   })
   child.stderr.on('data', (/** @type {Buffer} */ d) => cfg.log?.(`[kernel ${job.jobId}] ${d.toString().trim()}`))
-  return supervised(cfg, job, child, null, null).done
+  return supervised(cfg, job, child, { wallMs: null, uid: null, goneMs: GONE_MS }).done
 }
 
 /**
@@ -334,8 +335,11 @@ function liveProcesses() {
     try {
       const stat = fs.readFileSync(`/proc/${name}/stat`, 'utf8')
       const [state, , pgrp] = stat.slice(stat.lastIndexOf(')') + 2).split(' ')
-      if (state === 'Z' || state === 'X') continue
-      const uid = /^Uid:\s+(\d+)/mu.exec(fs.readFileSync(`/proc/${name}/status`, 'utf8'))?.[1]
+      const status = fs.readFileSync(`/proc/${name}/status`, 'utf8')
+      // A zombie has one thread left; a process whose main thread exited while others run also reads Z, and runs.
+      const threads = Number(/^Threads:\s+(\d+)/mu.exec(status)?.[1] ?? 1)
+      if (state === 'X' || (state === 'Z' && threads <= 1)) continue
+      const uid = /^Uid:\s+(\d+)/mu.exec(status)?.[1]
       live.push({ pid: Number(name), pgrp: Number(pgrp), uid: Number(uid ?? -1) })
     } catch {
       // gone while it was read
@@ -346,13 +350,14 @@ function liveProcesses() {
 
 /**
  * Kill what is left of a process group whose leader exited, and (when `uid` is set) every process of that uid, until
- * none is alive or GONE_MS passes. Zombies are not alive: this process may be PID 1 and never reap them.
+ * none is alive or `goneMs` passes. Zombies are not alive: this process may be PID 1 and never reap them.
  * @param {number} pgid
  * @param {number | null} uid
+ * @param {number} goneMs
  * @returns {Promise<boolean>} whether they are all gone
  */
-async function reap(pgid, uid) {
-  const until = Date.now() + GONE_MS
+async function reap(pgid, uid, goneMs) {
+  const until = Date.now() + goneMs
   for (;;) {
     const live = liveProcesses()
     const left = live
@@ -387,33 +392,13 @@ function groupAlive(pgid) {
 }
 
 /**
- * Supervise a process group the supervisor started: heartbeats while it runs; a Hold, a Stop, a lost lease or (when
- * `wallMs` is set) its time running out kills the group, TERM then KILL. Once its leader exits, what is left of the
- * group (and, with `uid`, every process of that uid) is killed and waited for, then its pipes for at most CLOSE_MS;
- * a leader that never starts ends it too. Resolves with how it ended.
+ * Heartbeats for a running job, every `heartbeatMs`: anything but `continue` (a Hold, a Stop, a lost lease), or no
+ * answer, stops it.
  * @param {SupervisorConfig} cfg
  * @param {RenderJob} job
- * @param {import('node:child_process').ChildProcess} child the group's leader
- * @param {number | null} wallMs
- * @param {number | null} uid
- * @returns {{ stop: () => void, done: Promise<RunEnd> }}
+ * @param {() => void} stop
  */
-function supervised(cfg, job, child, wallMs, uid) {
-  let cancelled = false
-  let timedOut = false
-  let stopped = false
-  const running = () => child.exitCode === null && child.signalCode === null
-  const kill = () => {
-    if (stopped || child.pid === undefined || !running()) return
-    stopped = true
-    const group = -child.pid
-    signalGroup(group, 'SIGTERM')
-    setTimeout(() => running() && signalGroup(group, 'SIGKILL'), KILL_GRACE_MS).unref()
-  }
-  const stop = () => {
-    if (!stopped) cancelled = true
-    kill()
-  }
+function heartbeats(cfg, job, stop) {
   const beat = async () => {
     try {
       const res = await api(cfg, `/v1/renderer/jobs/${job.jobId}/heartbeat`, { json: { leaseToken: job.leaseToken } })
@@ -423,38 +408,90 @@ function supervised(cfg, job, child, wallMs, uid) {
     }
   }
   void beat()
-  const timer = setInterval(() => void beat(), cfg.heartbeatMs ?? 5000)
+  return setInterval(() => void beat(), cfg.heartbeatMs ?? 5000)
+}
+
+/**
+ * When the group's leader exits: kill and wait for what is left (reap), then its pipes for at most CLOSE_MS, and end
+ * the run with whether all of it was gone. A leader that never started ends the run at once.
+ * @param {import('node:child_process').ChildProcess} child
+ * @param {{ uid: number | null, goneMs: number }} limits
+ * @param {(end: Omit<RunEnd, 'cancelled' | 'timedOut'>) => void} finish
+ */
+function onLeaderEnd(child, limits, finish) {
+  const closed = new Promise((resolve) => {
+    child.once('close', resolve)
+  })
+  child.on('error', (error) => {
+    if (child.pid === undefined) finish({ lingering: false, failed: `the kernel did not start: ${error.message}` })
+  })
+  child.once('exit', () => {
+    const pgid = child.pid
+    if (pgid === undefined) return
+    reap(pgid, limits.uid, limits.goneMs)
+      .then(async (gone) => {
+        await Promise.race([closed, new Promise((r) => setTimeout(r, CLOSE_MS).unref())])
+        finish({ lingering: !gone, failed: null })
+      })
+      .catch(() => finish({ lingering: true, failed: null }))
+  })
+}
+
+/**
+ * Supervise a process group the supervisor started: heartbeats while it runs; a Hold, a Stop, a lost lease or (when
+ * `wallMs` is set) its time running out kills the group, TERM then KILL. Once its leader exits, what is left of the
+ * group (and, with `uid`, every process of that uid) is killed and waited for, for at most `goneMs`, then its pipes for
+ * at most CLOSE_MS; a leader that never starts ends it too, and one still running `goneMs` after its SIGKILL ends it as
+ * lingering. Resolves with how it ended.
+ * @param {SupervisorConfig} cfg
+ * @param {RenderJob} job
+ * @param {import('node:child_process').ChildProcess} child the group's leader
+ * @param {{ wallMs: number | null, uid: number | null, goneMs: number }} limits
+ * @returns {{ stop: () => void, done: Promise<RunEnd> }}
+ */
+function supervised(cfg, job, child, limits) {
+  let cancelled = false
+  let timedOut = false
+  let stopped = false
+  /** @type {PromiseWithResolvers<RunEnd>} */
+  const ended = Promise.withResolvers()
+  const { promise: done, resolve } = ended
+  const running = () => child.exitCode === null && child.signalCode === null
+  /** @param {Omit<RunEnd, 'cancelled' | 'timedOut'>} end */
+  const finish = (end) => {
+    clearInterval(timer)
+    clearTimeout(wall)
+    resolve({ cancelled, timedOut, ...end })
+  }
+  const kill = () => {
+    if (stopped || child.pid === undefined || !running()) return
+    stopped = true
+    const group = -child.pid
+    signalGroup(group, 'SIGTERM')
+    setTimeout(() => {
+      if (!running()) return
+      signalGroup(group, 'SIGKILL')
+      // A leader that outlives its SIGKILL never exits for us: the run ends as lingering, and the host is tainted.
+      setTimeout(() => running() && finish({ lingering: true, failed: null }), limits.goneMs).unref()
+    }, KILL_GRACE_MS).unref()
+  }
+  const stop = () => {
+    if (!stopped) cancelled = true
+    kill()
+  }
+  const timer = heartbeats(cfg, job, stop)
   const wall =
-    wallMs === null
+    limits.wallMs === null
       ? undefined
       : setTimeout(() => {
           if (!stopped) timedOut = true
           kill()
-        }, wallMs)
-  const closed = new Promise((resolve) => {
-    child.once('close', resolve)
+        }, limits.wallMs)
+  child.once('exit', () => {
+    clearInterval(timer)
+    clearTimeout(wall)
   })
-  /** @type {Promise<RunEnd>} */
-  const done = new Promise((resolve) => {
-    const end = () => {
-      clearInterval(timer)
-      clearTimeout(wall)
-    }
-    child.once('error', (error) => {
-      if (child.pid !== undefined) return
-      end()
-      resolve({ cancelled, timedOut, lingering: false, failed: `the kernel did not start: ${error.message}` })
-    })
-    child.once('exit', () => {
-      end()
-      const pgid = child.pid
-      if (pgid === undefined) return
-      void reap(pgid, uid).then(async (gone) => {
-        await Promise.race([closed, new Promise((r) => setTimeout(r, CLOSE_MS).unref())])
-        resolve({ cancelled, timedOut, lingering: !gone, failed: null })
-      })
-    })
-  })
+  onLeaderEnd(child, limits, finish)
   return { stop: kill, done }
 }
 
@@ -618,29 +655,14 @@ function refuseGuest(result, seen) {
  * @returns {Promise<RunEnd>}
  */
 async function runUml(cfg, job, where) {
-  const dir = path.join(where.dir, 'uml')
-  // namespace-launch.py maps exactly uid and gid 10001; the guest's directory is theirs, its input this process's.
-  const owner = process.getuid?.() === 0 ? { uid: 10001, gid: 10001 } : null
-  fs.mkdirSync(dir, { mode: 0o700 })
-  const archive = inputArchive(
-    job.format,
-    kernelJob(job, GUEST),
-    where.sourceRoot,
-    job.files.map((f) => f.path),
-  )
-  fs.writeFileSync(path.join(dir, 'input.tar'), archive, { flag: 'wx', mode: 0o644 })
-  const disk = outputDisk(path.join(dir, 'output.img'), owner)
+  const { dir, disk, owner } = jobDisks(job, where)
   try {
-    if (owner) fs.chownSync(dir, owner.uid, owner.gid)
-    const [command, ...args] = umlCommand(cfg, dir)
-    if (!command) throw new Error('no UML launcher')
-    const child = spawn(command, args, {
-      env: { PATH: '/usr/bin:/bin' },
-      detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+    const child = spawnLaunchers(cfg, dir)
     const wallMs = job.timeoutMs + (cfg.uml?.marginMs ?? UML_MARGIN_MS)
-    const run = supervised(cfg, job, child, wallMs, owner ? RENDER_UID : null)
+    // Every process of the render uid is this job's only with the real launchers, as root, one job at a time
+    // (umlReady); a test's stand-in launcher sweeps its own group alone.
+    const uid = owner && !cfg.uml?.command ? RENDER_UID : null
+    const run = supervised(cfg, job, child, { wallMs, uid, goneMs: cfg.uml?.goneMs ?? GONE_MS })
     const seen = launcherRecords(cfg, job, child, run.stop)
     const result = await run.done
     if (result.failed || result.lingering || result.cancelled) return result
@@ -650,6 +672,42 @@ async function runUml(cfg, job, where) {
   } finally {
     fs.closeSync(disk)
   }
+}
+
+/**
+ * One job's guest directory: the input disk (the job's archive, this process's and read-only to the guest) and the
+ * output disk, whose descriptor is kept (outputDisk), in a directory the launchers' uid owns when this process is root.
+ * @param {RenderJob} job
+ * @param {{ dir: string, sourceRoot: string }} where
+ * @returns {{ dir: string, disk: number, owner: { uid: number, gid: number } | null }}
+ */
+function jobDisks(job, where) {
+  const dir = path.join(where.dir, 'uml')
+  // namespace-launch.py maps exactly uid and gid 10001; the guest's directory is theirs, its input this process's.
+  const owner = process.getuid?.() === 0 ? { uid: RENDER_UID, gid: RENDER_UID } : null
+  fs.mkdirSync(dir, { mode: 0o700 })
+  const files = job.files.map((f) => f.path)
+  const archive = inputArchive(job.format, kernelJob(job, GUEST), where.sourceRoot, files)
+  fs.writeFileSync(path.join(dir, 'input.tar'), archive, { flag: 'wx', mode: 0o644 })
+  const disk = outputDisk(path.join(dir, 'output.img'), owner)
+  try {
+    if (owner) fs.chownSync(dir, owner.uid, owner.gid)
+  } catch (error) {
+    fs.closeSync(disk)
+    throw error
+  }
+  return { dir, disk, owner }
+}
+
+/**
+ * The launchers for one job directory, started as their own process group, with only PATH in their environment.
+ * @param {SupervisorConfig} cfg
+ * @param {string} dir
+ */
+function spawnLaunchers(cfg, dir) {
+  const [command, ...args] = umlCommand(cfg, dir)
+  if (!command) throw new Error('no UML launcher')
+  return spawn(command, args, { env: { PATH: '/usr/bin:/bin' }, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
 }
 
 /**
@@ -745,6 +803,10 @@ function umlReady(cfg) {
     throw new Error('a UML host runs its supervisor as root, to start the guest as uid 10001')
   for (const name of UML_ARTIFACTS) immutableArtifact(path.join(cfg.uml?.root ?? '/opt/uml', name))
   fs.accessSync('/usr/bin/python3', fs.constants.X_OK)
+  // One job at a time: the reap after a job kills every process of the render uid, so none may run before one.
+  if (liveProcesses()?.some((p) => p.uid === RENDER_UID)) {
+    throw new Error(`a process of the render uid ${RENDER_UID} is running: this host takes no job beside it`)
+  }
   if ((fs.statSync(cfg.workDir).mode & 0o001) === 0) {
     throw new Error(`the render user cannot reach ${cfg.workDir}: give it search permission for others (o+x)`)
   }

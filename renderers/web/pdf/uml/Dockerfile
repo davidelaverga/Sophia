@@ -24,14 +24,14 @@ RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linu
  && patch --fuzz=0 -p1 < /build/kernel-memory.patch \
  && python3 /build/check-memory-backing.py arch/um/os-Linux/mem.c \
  && scripts/config --disable DEBUG_INFO --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT --enable DEBUG_INFO_NONE --disable DEBUG_INFO_BTF --disable MODULES --disable MODULE_SIG --set-str SYSTEM_TRUSTED_KEYS '' --set-str SYSTEM_REVOCATION_KEYS '' \
- && scripts/config --disable HOSTFS --disable MCONSOLE --disable UML_NET --disable VIRTIO_UML --disable PORT_CHAN --disable PTY_CHAN --disable TTY_CHAN --disable XTERM_CHAN \
+ && scripts/config --disable HOSTFS --disable MCONSOLE --disable UML_NET --disable VIRTIO_UML --disable PORT_CHAN --disable PTY_CHAN --disable TTY_CHAN --disable XTERM_CHAN --disable UML_WATCHDOG --disable UML_RANDOM --disable MMAPPER \
  && case "$UML_KERNEL_OPTIMIZATION" in \
       performance) scripts/config --disable CC_OPTIMIZE_FOR_SIZE --enable CC_OPTIMIZE_FOR_PERFORMANCE ;; \
       size) scripts/config --disable CC_OPTIMIZE_FOR_PERFORMANCE --enable CC_OPTIMIZE_FOR_SIZE ;; \
       *) echo 'unsupported UML kernel optimization' >&2; exit 1 ;; \
     esac \
  && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- olddefconfig \
- && if grep -E '^CONFIG_(HOSTFS|MCONSOLE|UML_NET[A-Z_]*|VIRTIO_UML|PORT_CHAN|PTY_CHAN|TTY_CHAN|XTERM_CHAN|MODULES)=' .config; then echo 'the guest kernel keeps a host-facing option' >&2; exit 1; fi \
+ && if grep -E '^CONFIG_(HOSTFS|MCONSOLE|UML_NET[A-Z_]*|VIRTIO_UML|PORT_CHAN|PTY_CHAN|TTY_CHAN|XTERM_CHAN|UML_WATCHDOG|UML_RANDOM|MMAPPER|MODULES)=' .config; then echo 'the guest kernel keeps a host-facing option' >&2; exit 1; fi \
  && case "$UML_KERNEL_OPTIMIZATION" in \
       performance) grep -qx 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y' .config ;; \
       size) grep -qx 'CONFIG_CC_OPTIMIZE_FOR_SIZE=y' .config ;; \
@@ -53,8 +53,9 @@ RUN sh /opt/uml/make-guest.sh && python3 /opt/uml/make-initrd.py /opt/uml /opt/u
  && chmod 0555 /opt/uml/linux.uml /opt/uml/abi-probe && chmod 0444 /opt/uml/guest.raw /opt/uml/initrd.gz
 
 # The guest kernel reaches the host only through its three disks and its console (con0 on the launchers' pipes): no
-# hostfs, no mconsole, no network transports, no virtio sockets and no port, pty, tty or xterm channels (the build
-# above fails if one is left), beside the host launchers' Landlock and seccomp, which refuse sockets, mounts, modules
+# hostfs, no mconsole, no network transports, no virtio sockets, no port, pty, tty or xterm channels, no host
+# watchdog, random device or mmapper (the build above fails if one is left), and its writable disk opened without
+# copy-on-write headers (ubd2d=, landlock-launch.py), beside the host launchers' Landlock and seccomp, which refuse sockets, mounts, modules
 # and io_uring to the guest's host processes.
 FROM ${NODE_IMAGE} AS host
 RUN apt-get update && apt-get install -y --no-install-recommends python3 \

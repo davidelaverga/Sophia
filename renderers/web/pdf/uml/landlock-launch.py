@@ -26,7 +26,8 @@ if job_mode:
         if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1:
             raise RuntimeError("job disks must be single regular files in the job directory")
         disks.append(disk)
-    extra += ["ubd1r=" + disks[0], "ubd2=" + disks[1], "sophia_job=1"]
+    # The output disk is written by the guest: "d" opens it as plain data, never reading a COW header it could write.
+    extra += ["ubd1r=" + disks[0], "ubd2d=" + disks[1], "sophia_job=1"]
 for artifact in [kernel, initrd, guest]:
     st = os.stat(artifact)
     if not os.path.isfile(artifact) or st.st_uid == os.geteuid() or st.st_mode & 0o022:

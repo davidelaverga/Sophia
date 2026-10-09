@@ -11,10 +11,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
-import { runOnce } from '../supervisor.mjs'
+import { HostTainted, runOnce, supervise } from '../supervisor.mjs'
 
 const sha = (b: Buffer | string): string => createHash('sha256').update(b).digest('hex')
 const hasTar = process.platform !== 'win32' && spawnSync('tar', ['--version']).status === 0
+const hasPython = process.platform === 'linux' && spawnSync('python3', ['--version']).status === 0
 const TOKEN = 'runner-capability'
 const HTML = Buffer.from('<!doctype html><title>t</title><p>Città.</p><img src="img/chart.png">')
 const PNG = Buffer.from('89504e470d0a1a0a', 'hex')
@@ -74,6 +75,17 @@ if (mode === 'hang') {
   if (mode === 'duplicate') say(policy)
   // The guest's side puts a FIFO where its output disk was: the supervisor reads the disk it made, never this path.
   if (mode === 'fifo') { fs.rmSync(path.join(dir, 'output.img')); spawnSync('mkfifo', [path.join(dir, 'output.img')]) }
+  // A descendant whose main thread exited while another runs on: it reads Z, and is alive.
+  if (mode === 'zombie') {
+    const py = 'import ctypes, os, platform, threading, time\\n' +
+      'def work():\\n    time.sleep(30)\\n    os._exit(0)\\n' +
+      'threading.Thread(target=work).start()\\ntime.sleep(0.1)\\n' +
+      'ctypes.CDLL(None).syscall(60 if platform.machine() == "x86_64" else 93, 0)\\n'
+    const left = spawn('python3', ['-I', '-c', py], { stdio: 'ignore' })
+    left.unref()
+    fs.writeFileSync(pids, process.pid + ' ' + left.pid)
+    await new Promise((r) => setTimeout(r, 400))
+  }
   // A descendant left behind in the launchers' group, deaf to TERM, when the leader exits on its own.
   if (mode === 'orphan') {
     const left = spawn('sh', ['-c', 'trap "" TERM; sleep 600'], { stdio: 'ignore' })
@@ -115,6 +127,27 @@ function claimed(job: Job): Reply {
         sections: null,
       },
     },
+  }
+}
+
+/** Kill the whole process group of the stand-in guest whose pids a file holds (its leader's first), if any is left. */
+function killGroup(file: string): void {
+  const [leader] = readFileSync(file, 'utf8').split(' ').map(Number)
+  try {
+    if (leader) process.kill(-leader, 'SIGKILL')
+  } catch {
+    // already gone
+  }
+}
+
+/** Whether a process runs on: present, and not a zombie (one thread left); one whose main thread exited still runs. */
+function alive(pid: number | undefined): boolean {
+  try {
+    const status = readFileSync(`/proc/${String(pid)}/status`, 'utf8')
+    const threads = Number(/^Threads:\s+(\d+)/mu.exec(status)?.[1] ?? 1)
+    return !/^State:\s+Z/mu.test(status) || threads > 1
+  } catch {
+    return false
   }
 }
 
@@ -292,6 +325,50 @@ describe('the supervisor in UML mode (SDD-01)', { skip: !hasTar && 'needs tar' }
       log.some((l) => l.includes('UML_JOB_KERNEL_EXIT:0??[2J')),
       'a marked line is logged printable',
     )
+  })
+
+  it(
+    'waits for a descendant whose main thread exited while another runs: gone when the run ends',
+    { skip: !hasPython && 'needs python3 on Linux' },
+    async () => {
+      const { outcome, pids } = await run({ format: 'pdf' }, 'zombie')
+      assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
+      const [, left] = readFileSync(pids, 'utf8').split(' ').map(Number)
+      assert.equal(alive(left), false, 'its other thread was killed too, before the run ended')
+    },
+  )
+
+  it('a job whose processes outlive the reap taints the host: its directory kept, nothing delivered, no more claims', async () => {
+    const existing = new Set(readdirSync(work))
+    const pidFiles = [join(scratch, 'tainted-1.pids'), join(scratch, 'tainted-2.pids')]
+    const cfg = (pids: string) => ({
+      apiUrl: base,
+      token: TOKEN,
+      workDir: work,
+      heartbeatMs: 100,
+      isolation: 'uml' as const,
+      // The reap's wait already over at its first look: the descendant the guest leaves is still there.
+      uml: { command: (dir: string) => [process.execPath, guest, 'orphan', dir, pids], goneMs: -1 },
+      log: () => undefined,
+    })
+    try {
+      next = { format: 'pdf' }
+      seen = { uploads: [], settles: [], beats: 0 }
+      await assert.rejects(runOnce(cfg(pidFiles[0] ?? '')), HostTainted)
+      const kept = readdirSync(work).filter((d) => !existing.has(d))
+      assert.equal(kept.length, 1, 'the job directory is kept for the restart')
+      assert.deepEqual(seen.uploads, [])
+      assert.deepEqual(seen.settles, [])
+      // The loop stops claiming: it ends with the taint rather than taking the next job.
+      next = { format: 'pdf' }
+      await assert.rejects(supervise(cfg(pidFiles[1] ?? ''), new AbortController().signal), HostTainted)
+      assert.equal(next, null, 'that one job was claimed, and no other')
+    } finally {
+      next = null
+      // What the reap left: the guest's whole group, the descendant's own child included.
+      for (const file of pidFiles) killGroup(file)
+      for (const d of readdirSync(work)) if (!existing.has(d)) rmSync(join(work, d), { recursive: true, force: true })
+    }
   })
 
   it('reads each stream’s lines apart: a record split around a line of the other stream still counts', async () => {
