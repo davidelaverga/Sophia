@@ -455,6 +455,30 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
       assert.deepEqual(recordedReplies(), [], 'never Davide’s answer as the principal’s')
     })
 
+    it('Codex’s order: the principal’s ask queued while another member’s input owns the turn stays theirs too after a handoff', () => {
+      const r = fresh()
+      attribution = DAVIDE // Davide's forwarded words own the turn; nothing produced yet
+      r.asked(LUIS) // the principal's delayed tool response is sent now
+      attribution = LUIS // the handoff settles, and the principal's audio is forwarded before any output
+      generation(r, 960) // Sophia's answer to Davide, or the principal's continuation
+      assert.deepEqual(recordedReplies(), [], 'never what may answer Davide as the principal’s')
+    })
+
+    it('a barge-in’s speaker stays a candidate for what was still asked, however the floor moves after it', () => {
+      const r = fresh()
+      attribution = LUIS
+      r.responded() // the principal's own generation is under way
+      r.asked(LUIS) // their tool response, sent meanwhile: the next generation
+      r.replyReceived(480)
+      r.replyEnded('interrupted')
+      attribution = DAVIDE // Davide (the floor moved to him) talks over it
+      r.turnEnded('interrupted')
+      attribution = LUIS // the floor comes back, and the principal's audio is forwarded before any output
+      generation(r, 960) // the answer to Davide's barge-in, or the principal's continuation
+      generation(r, 1440)
+      assert.deepEqual(recordedReplies(), [480], 'only the generation that began before the ask')
+    })
+
     it('a lost connection’s asks are never answered on the next one', () => {
       const r = fresh()
       attribution = null

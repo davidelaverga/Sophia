@@ -166,12 +166,15 @@ const CUT_OUTCOME: Record<'handoff' | 'paused', VoiceInputTurnReceipt['outcome']
 
 /**
  * A generation the bridge asked for (a tool response, a notice): whom it answers, and the generations it may be, by
- * ordinal (turns + 1 is the next). Under WHEN_IDLE the provider takes an ask when it is next idle, in order.
+ * ordinal (turns + 1 is the next). Under WHEN_IDLE the provider takes an ask when it is next idle, in order. `floors`
+ * are the holders whose forwarded input may be answered among those generations instead: the floor's attribution when
+ * it was asked, and at each barge-in since. They stay candidates however the floor moves before the output comes.
  */
 interface Ask {
   by: Attribution | null
   from: number
   to: number
+  floors: Attribution[]
 }
 
 export class QualificationRecorder {
@@ -298,15 +301,15 @@ export class QualificationRecorder {
    */
   asked(by: Attribution | null): void {
     const next = this.#turns + 1
-    const inputSince = this.#setup.attribution() !== null
+    const floor = this.#setup.attribution()
     let from = this.#generating ? next + 1 : next
-    let to = this.#generating || inputSince ? next + 1 : next
+    let to = this.#generating || floor !== null ? next + 1 : next
     const last = this.#asks.at(-1)
     if (last) {
       from = Math.max(from, last.from + 1)
       to = Math.max(to, last.to + 1)
     }
-    this.#asks.push({ by, from, to })
+    this.#asks.push({ by, from, to, floors: floor === null ? [] : [floor] })
   }
 
   /** The provider produced something: audio, words, or tool calls (counted while the principal holds the floor). */
@@ -346,7 +349,13 @@ export class QualificationRecorder {
       return
     }
     this.#asks = this.#asks.filter((a) => a.to > this.#turns)
-    if (how === 'interrupted') for (const a of this.#asks) a.to += 1
+    if (how !== 'interrupted') return
+    // The barge-in's speaker may be answered first, whoever holds the floor by the time the output comes.
+    const barging = this.#setup.attribution()
+    for (const a of this.#asks) {
+      a.to += 1
+      if (barging) a.floors.push(barging)
+    }
   }
 
   /** The window ends before its turn did: a handoff or a pause. */
@@ -497,8 +506,9 @@ export class QualificationRecorder {
   /**
    * Whom generation `n` answers, fixed as its first output arrives: the floor's attribution when nothing asked for may be
    * it; the ask it surely is (the only one that may be it, and only it); otherwise whom every owner it may have agrees
-   * on: the asks that may be it and, when holder input was forwarded since the last turn ended, the floor's. When they
-   * do not agree it is no one's (null), never a guess.
+   * on: the asks that may be it, the holders whose input they may come after (as they were when asked or barged in on,
+   * whoever holds the floor now), and, when holder input was forwarded since the last turn ended, the floor's. When
+   * they do not agree it is no one's (null), never a guess.
    */
   #ownerOf(n: number): Attribution | null {
     const asked = this.#asks.filter((a) => a.from <= n && n <= a.to)
@@ -506,7 +516,8 @@ export class QualificationRecorder {
     const only = asked.length === 1 ? asked[0] : undefined
     if (asked.length === 0) return floor
     if (only && only.from === only.to) return only.by
-    const owners = floor === null ? asked.map((a) => a.by) : [...asked.map((a) => a.by), floor]
+    const owners = asked.flatMap((a) => [a.by, ...a.floors])
+    if (floor !== null) owners.push(floor)
     const first = owners[0] ?? null
     return owners.every((o) => o !== null && o.actorId === first?.actorId) ? first : null
   }

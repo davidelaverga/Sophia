@@ -4200,6 +4200,49 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     assert.deepEqual(recordedSamples(), [])
   })
 
+  it('the principal’s slow tool response sent while Davide’s words own the turn: after a handoff back, not the principal’s (Codex)', async () => {
+    voiceEvidence = true
+    let release: ((r: MediaToolResult) => void) | undefined
+    service.toolCall = async (c) => {
+      service.calls.push(c)
+      return new Promise<MediaToolResult>((resolve) => {
+        release = resolve
+      })
+    }
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    await flush()
+    live.events.toolCalls([{ id: 'call-l', name: 'project_status', args: {} }]) // Luis's call; the API is slow
+    await flush()
+    live.events.audio(speech(1), OUT) // "one moment, Luis"
+    live.events.turnComplete()
+    await flush()
+    session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    // Davide's microphone is forwarded, below the bridge's audible floor: no reply is fenced at the handoff, so only
+    // the receipts' own rule keeps what may answer him off Luis's record.
+    room.events.audio(DAVIDE, pcm16k(), 16000, 1)
+    await flush()
+    await flush()
+    release?.({ status: 'ok', output: { summary: 'x' } }) // Luis's answer is sent while Davide's input owns the turn
+    await until('Luis’s tool response sent', () => live.responses.length === 1)
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 3, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // the floor is Luis's again, his microphone forwarded before any output
+    await flush()
+    await flush()
+    const before = recordedSamples().length
+    live.events.audio(speech(2), OUT) // Sophia's answer to Davide, or Luis's continuation: it cannot be told
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    assert.equal(recordedSamples().length, before, 'never what may answer Davide recorded as Luis’s')
+  })
+
   it('a notice cut before a word leaves no mark: the principal’s next reply is recorded (R2 P3)', async () => {
     voiceEvidence = true
     const { session, room, live } = await ready({
