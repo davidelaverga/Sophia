@@ -158,6 +158,8 @@ interface Fixture {
   holdProjects: (on: boolean) => void
   /** Lets the held membership reads through, and every later one (`membership=hold`). */
   releaseMembership: () => void
+  /** While on, Sophia is out of reach: every API request fails as a lost connection (`outage=1`). */
+  outage: (on: boolean) => void
   /** Marco carries a note to this project, and the feed moves (chapter 1). */
   carryIn: () => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
@@ -424,6 +426,8 @@ const project = {
   cardAhead: query.get('card') === 'ahead',
   projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
   membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
+  outage: query.get('outage') === '1',
+  outsider: query.get('member') === '0',
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
   missionFails: false,
@@ -607,6 +611,9 @@ window.fixture = {
     const held = project.membershipHeld ?? []
     project.membershipHeld = null
     for (const answer of held) answer()
+  },
+  outage: (on) => {
+    project.outage = on
   },
   carryIn: () => {
     project.carriedIn = [
@@ -868,6 +875,11 @@ function sendAsked(which: string | null): Send | null {
   return sends.find((s) => s === which) ?? null
 }
 
+/** How a withdrawal's reply and the feed come (`withdraw=`): both late, the feed first, or at once. */
+function withdrawAsked(which: string | null): 'slow' | 'feedFirst' | null {
+  return which === 'slow' || which === 'feedFirst' ? which : null
+}
+
 /** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
 function conversationsAsked(which: string | null, failMessages: boolean) {
   if (which === null) return {}
@@ -881,7 +893,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,
-      withdrawMs: query.get('withdraw') === 'slow' ? 1500 : 0,
+      withdraw: withdrawAsked(query.get('withdraw')),
       receipts: new Map<string, { body: string; receipt: unknown }>(),
     },
     missionPlus: conversationMission(),

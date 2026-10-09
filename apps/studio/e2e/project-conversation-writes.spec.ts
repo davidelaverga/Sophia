@@ -272,6 +272,65 @@ test('writes · a withdrawal that lands after you moved on leaves the focus wher
   await expect(field(page)).toBeFocused()
 })
 
+test('writes · when the feed shows it withdrawn before its reply comes, the focus lands there at once (CX-0011)', async ({
+  page,
+}) => {
+  const { message, confirm } = await withdrawOwn(page, '&withdraw=feedFirst')
+  await confirm.getByRole('button', { name: 'Withdraw' }).click()
+  // The feed shows it 0.5 s on; its reply comes 2.5 s on.
+  await expect(message.getByText('This message was withdrawn.')).toBeFocused({ timeout: 1500 })
+  expect(await written(page, 'reply')).toEqual([])
+  await expect.poll(() => written(page, 'reply'), { timeout: 5000 }).toEqual(['reply:withdrawal'])
+  await expect(message.getByText('This message was withdrawn.')).toBeFocused()
+})
+
+test('writes · moved on before the feed shows it withdrawn, the focus stays where you put it', async ({ page }) => {
+  const { message, confirm } = await withdrawOwn(page, '&withdraw=feedFirst')
+  await confirm.getByRole('button', { name: 'Withdraw' }).click()
+  await field(page).focus()
+  await expect(message).toContainText('This message was withdrawn.')
+  await expect.poll(() => written(page, 'reply'), { timeout: 5000 }).toEqual(['reply:withdrawal'])
+  await expect(field(page)).toBeFocused()
+})
+
+/**
+ * Opened while Sophia is out of reach (the project's reads and the membership's fail), then back: Try again reads the
+ * project again, and the membership with it (CX-0010).
+ */
+async function backFromOutage(page: Page, query = '') {
+  await page.goto(`${PAGE}&outage=1${query}`)
+  // Both reads have failed by the time the door says so (each asks three times more first).
+  await expect(page.getByText('Sophia is unreachable')).toBeVisible({ timeout: 20_000 })
+  await expect(field(page)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.outage(false))
+  await page.getByRole('button', { name: 'Try again' }).click()
+}
+
+test('writes · opened out of reach, Try again brings back the field and New conversation for a member (CX-0010)', async ({
+  page,
+}) => {
+  await backFromOutage(page)
+  await expect(messages(page)).toHaveCount(6)
+  await expect(field(page)).toBeVisible()
+  await expect(list(page).getByRole('button', { name: 'New conversation' })).toBeVisible()
+  await expect(messages(page).nth(2).getByRole('button', { name: 'Withdraw message' })).toHaveCount(1)
+})
+
+test('writes · a viewer back from out of reach still only reads', async ({ page }) => {
+  await backFromOutage(page, '&role=viewer')
+  await expect(messages(page)).toHaveCount(6)
+  await expect(open(page)).toContainText('Viewers read conversations; members write in them.')
+  await expect(field(page)).toHaveCount(0)
+  await expect(list(page).getByRole('button', { name: 'New conversation' })).toHaveCount(0)
+})
+
+test('writes · someone who is no member, back from out of reach, is told so and offered nothing', async ({ page }) => {
+  await backFromOutage(page, '&member=0')
+  await expect(page.getByText('No access to this project')).toBeVisible()
+  await expect(list(page)).toHaveCount(0)
+  await expect(field(page)).toHaveCount(0)
+})
+
 test('writes · a viewer has no field and no New conversation, and is told why', async ({ page }) => {
   await page.goto(`${PAGE}&role=viewer`)
   await expect(messages(page)).toHaveCount(6)

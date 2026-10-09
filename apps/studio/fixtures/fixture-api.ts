@@ -188,6 +188,10 @@ interface Project {
   projectsHeld?: (() => void)[] | null
   /** While set, the membership's reads wait for these (`membership=hold`, `window.fixture.releaseMembership`). */
   membershipHeld?: (() => void)[] | null
+  /** Sophia is out of reach (`outage=1`, `window.fixture.outage`): every API request fails as a lost connection. */
+  outage?: boolean
+  /** This viewer is no member of the project (`member=0`): its reads are refused, as the API refuses them. */
+  outsider?: boolean
   /** The project list's reads fail (`projects=fail`). */
   projectsFail?: boolean
   /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
@@ -1252,10 +1256,24 @@ export function releaseText(project: Project): void {
   for (const release of heldTexts.splice(0)) release()
 }
 
+/** A project's read refused to someone who isn't its member, as the API answers it. */
+const outside = () =>
+  new Response(
+    JSON.stringify({
+      code: 'forbidden',
+      message: 'Not a member of this project',
+      requestId: '00000000-0000-4000-8000-0000000000bd',
+      retry: 'never',
+    }),
+    { status: 403, headers: { 'content-type': 'application/json' } },
+  )
+
 export function installFixtureApi(project: Project): void {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const url = new URL(hrefOf(input), window.location.href)
+    if (project.outage && url.pathname.startsWith('/api/')) return Promise.reject(new TypeError('Failed to fetch'))
+    if (project.outsider && url.pathname.startsWith(`/api/v1/projects/${PROJECT}/`)) return Promise.resolve(outside())
     const response = answer(project, method, url, init)
     if (response) return Promise.resolve(response)
     unexpected.push(`${method} ${url.pathname}`)

@@ -1,6 +1,7 @@
 // A16's writes as the fixture pages answer them (docs/plans/project-conversation-writes.md; CON-01): a conversation
 // started, a message sent, each once per Idempotency-Key (the same key replays its receipt); viewers refused. Its
-// author withdraws their own message, as 0048 does it (`withdraw=slow`: its reply takes 1.5 s). Asking
+// author withdraws their own message, as 0048 does it (`withdraw=slow`: its reply and the feed 1.5 s on;
+// `withdraw=feedFirst`: the feed 0.5 s on, its reply 2.5 s on). Asking
 // Sophia records a reply request on the message; her answer, a later message 900 ms on, names that request and settles
 // it, with the project's feed moving as it lands; what she says, sophia-answers.ts. Every word is synthetic.
 import type { ConversationReply } from '@sophia/contracts'
@@ -24,8 +25,8 @@ export interface TalkWrites {
   start: 'lost' | 'slow' | null
   /** How long Sophia takes to answer (`answer=slow`: 10 s; else 0.9 s). */
   answerMs: number
-  /** How long a withdrawal's reply takes (`withdraw=slow`: 1.5 s; else at once). */
-  withdrawMs: number
+  /** A withdrawal's reply and the feed: both 1.5 s on (`withdraw=slow`), the feed first (`feedFirst`), or at once. */
+  withdraw: 'slow' | 'feedFirst' | null
   /** This conversation's messages fail to read (`messages=fail`, or after a `send=thenFail` write). */
   failMessagesOf: string | null
   /** Each write's receipt by its key, with the words it was sent with: the same key replays it, only with them. */
@@ -237,12 +238,24 @@ export function conversationWithdrawn(talk: TalkWrites, path: string, init: Requ
   const answer = withdrawn(talk, conversationId, messageId, ctx)
   if (answer === null || answer instanceof Response) return answer
   talk.receipts.set(key, { body: what, receipt: answer })
-  // The feed moves as the reply goes, as the API's event and reply follow its commit (in either order).
+  return withdrawalReplied(talk.withdraw, answer, ctx)
+}
+
+/** The API's event and its reply both follow its commit, in either order: the feed moves with the reply, or first. */
+function withdrawalReplied(order: TalkWrites['withdraw'], answer: unknown, ctx: Context) {
   const reply = () => {
-    ctx.moved()
+    ctx.record('reply:withdrawal')
     return json(answer, 202)
   }
-  return talk.withdrawMs > 0 ? later(talk.withdrawMs, reply) : reply()
+  if (order === 'feedFirst') {
+    setTimeout(ctx.moved, 500)
+    return later(2500, reply)
+  }
+  const both = () => {
+    ctx.moved()
+    return reply()
+  }
+  return order === 'slow' ? later(1500, both) : both()
 }
 
 /**

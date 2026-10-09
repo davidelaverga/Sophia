@@ -15,7 +15,7 @@ import { CONVERSATIONS, VISION } from '../../app/vision.ts'
 import { ProjectGoProvider } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
-import { canInvite, useMembership, type SheetContext } from '../access/useAccess.ts'
+import { canInvite, useProjectMembership, type SheetContext } from '../access/useAccess.ts'
 import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
 import { KnowledgeReports } from '../artifacts/KnowledgeReports.tsx'
 import { CarriedIn } from '../artifacts/CarriedIn.tsx'
@@ -283,7 +283,7 @@ export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
-  const membership = useMembership(projectId, identity.name, identity.token).data
+  const membership = useProjectMembership(projectId, identity.name, identity.token, snapshot.dataUpdatedAt).data
   const [inviting, setInviting] = useState(false)
   const [searching, setSearching] = useState(false)
   const search = () => setSearching(true)

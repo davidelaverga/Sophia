@@ -62,12 +62,12 @@ export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; 
     requestAnimationFrame(() => press.current?.focus())
   }
   const go = async () => {
-    // Taken as the press is made: the message's item stays, its press and this confirmation go with its words.
-    const land = focusLater()
-    const item = press.current?.closest('li') ?? null
+    // Armed as the press is made: the feed may show it withdrawn before its reply comes, taking this confirmation and
+    // the press with its words (CX-0011). It lands only once the message shows withdrawn, and only on a focus left
+    // where it was or dropped (focusLater); a refusal leaves the message, and so nothing to land on.
+    landing.arm(focusLater(), press.current?.closest('li') ?? null)
     const message = await write.run(args.messageId)
     if (!message) return
-    landing.arm(land, item)
     const pages = messagesKey(args.conversationId, accountOf(args.identity))
     queryClient.setQueryData<ReadPages<ConversationMessage>>(pages, (read) => withWithdrawn(read, message))
     void queryClient.invalidateQueries({ queryKey: pages })
