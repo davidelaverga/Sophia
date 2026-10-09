@@ -439,9 +439,10 @@
       "status": "partial_L1",
       "evidence_refs": [
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0011.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. At338878df ordinary withdrawal and moved-focus delayed success pass; feed-first own/admin withdrawal still drops focus until HTTP returns.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -577,6 +578,14 @@
       "level": "G2 binding-only source review; no G2 execution",
       "review_refs": [
         "CX-0009.md"
+      ]
+    },
+    {
+      "candidate_sha": "338878df8ac0e0cfc219b80af3728830d0dd7673",
+      "candidate_tree": "6e2051fc76bebdb5a8ba32bb2fe26a7fd24ee99c",
+      "level": "L1 real local Studio/API/PostgreSQL, synthetic accounts only",
+      "review_refs": [
+        "CX-0011.md"
       ]
     }
   ]

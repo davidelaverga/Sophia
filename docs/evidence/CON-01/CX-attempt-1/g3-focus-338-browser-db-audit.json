@@ -1,0 +1,111 @@
+{
+  "candidate": "338878df8ac0e0cfc219b80af3728830d0dd7673",
+  "tree": "6e2051fc76bebdb5a8ba32bb2fe26a7fd24ee99c",
+  "observedAt": "2026-10-09T22:00:26.319Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "eeb0585b-5fc1-4a38-9e4f-05b4476b3f94",
+  "messages": [
+    {
+      "title": "CX focus recheck",
+      "id": "8a7eaf23-8b6a-4346-99bc-9f1d440b5f67",
+      "conversation_id": "40624fa6-9696-4c34-b379-e871caec3401",
+      "actor_id": "a65dfe8b-f353-48aa-bf0b-4bb10c6ef51a",
+      "seq": "1",
+      "body": null,
+      "withdrawn_at": "2026-10-09T21:57:52.717Z"
+    },
+    {
+      "title": "CX focus recheck",
+      "id": "f7069d54-21fe-4a42-b891-8ff1d2b18d21",
+      "conversation_id": "40624fa6-9696-4c34-b379-e871caec3401",
+      "actor_id": "a65dfe8b-f353-48aa-bf0b-4bb10c6ef51a",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-09T21:58:11.616Z"
+    },
+    {
+      "title": "CX focus recheck",
+      "id": "89e3bd99-785d-4322-bcc1-bb498f57921e",
+      "conversation_id": "40624fa6-9696-4c34-b379-e871caec3401",
+      "actor_id": "a65dfe8b-f353-48aa-bf0b-4bb10c6ef51a",
+      "seq": "3",
+      "body": null,
+      "withdrawn_at": "2026-10-09T21:58:55.053Z"
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "a65dfe8b-f353-48aa-bf0b-4bb10c6ef51a",
+      "idempotency_key": "6ef4cf33-7f6a-40c4-8085-0f5dafe8a940",
+      "operation": "start",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "8a7eaf23-8b6a-4346-99bc-9f1d440b5f67"
+    },
+    {
+      "actor_id": "a65dfe8b-f353-48aa-bf0b-4bb10c6ef51a",
+      "idempotency_key": "613dab8c-06ba-4373-996c-69d7e99b2f73",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "8a7eaf23-8b6a-4346-99bc-9f1d440b5f67",
+        "operation": "withdraw",
+        "conversationId": "40624fa6-9696-4c34-b379-e871caec3401"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "a65dfe8b-f353-48aa-bf0b-4bb10c6ef51a",
+      "idempotency_key": "7d1dcd61-7ec0-49ce-bed4-a4411de4eb26",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "f7069d54-21fe-4a42-b891-8ff1d2b18d21"
+    },
+    {
+      "actor_id": "a65dfe8b-f353-48aa-bf0b-4bb10c6ef51a",
+      "idempotency_key": "a2b732c2-6332-4b70-9e89-f9624bd6a8f3",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "f7069d54-21fe-4a42-b891-8ff1d2b18d21",
+        "operation": "withdraw",
+        "conversationId": "40624fa6-9696-4c34-b379-e871caec3401"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "a65dfe8b-f353-48aa-bf0b-4bb10c6ef51a",
+      "idempotency_key": "b451f209-e7d9-426c-98f4-ef01fd4b5ac5",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "89e3bd99-785d-4322-bcc1-bb498f57921e"
+    },
+    {
+      "actor_id": "5a29e253-12ef-47de-9612-f0d382b03b1b",
+      "idempotency_key": "b8633f01-c588-472a-a50a-c478d0aa575a",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "89e3bd99-785d-4322-bcc1-bb498f57921e",
+        "operation": "withdraw",
+        "conversationId": "40624fa6-9696-4c34-b379-e871caec3401"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

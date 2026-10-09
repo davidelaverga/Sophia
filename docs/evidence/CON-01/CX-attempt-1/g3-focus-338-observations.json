@@ -1,0 +1,29 @@
+{
+  "observer": "Codex through cua_repl, read-only DOM inspection after real UI actions",
+  "candidate": "338878df8ac0e0cfc219b80af3728830d0dd7673",
+  "tree": "6e2051fc76bebdb5a8ba32bb2fe26a7fd24ee99c",
+  "level": "L1 real local Studio/API/PostgreSQL, synthetic accounts only",
+  "ordinaryOwnWithdrawal": {
+    "activeTag": "P",
+    "activeText": "This message was withdrawn.",
+    "verdict": "pass"
+  },
+  "ownFeedBeforeDelayedHttp": {
+    "delayMs": 3000,
+    "beforeHttpActiveTag": "BODY",
+    "movedToComposerDuringWait": true,
+    "afterHttpActiveTag": "TEXTAREA",
+    "afterHttpValue": "Draft written while withdrawal response is delayed.",
+    "verdict": "focus handoff fails before HTTP; deliberate move preserved after HTTP"
+  },
+  "adminFeedBeforeDelayedHttp": {
+    "delayMs": 3000,
+    "beforeHttpActiveTag": "BODY",
+    "afterHttpActiveTag": "P",
+    "afterHttpActiveText": "This message was withdrawn.",
+    "verdict": "focus handoff fails before HTTP; eventual handoff passes"
+  },
+  "providerCalls": 0,
+  "providerSpendUsd": 0,
+  "uncertainProviderSpendUsd": 0
+}
