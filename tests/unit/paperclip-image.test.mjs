@@ -1603,7 +1603,11 @@ describe('WBC-02-CC-0010 §2: the qualified image, exported by hand and publishe
   it('the publisher runs by hand, for the owner alone, with this job’s token for one package and nothing else', () => {
     const workflow = parse(readFileSync(PUBLISH, 'utf8'))
     assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'])
+    const inputs = workflow.on.workflow_dispatch.inputs
+    assert.deepEqual(Object.keys(inputs), ['run_id', 'candidate'])
+    assert.equal(inputs.candidate.required, true, 'the release candidate is named, not taken from the run')
     assert.deepEqual(workflow.permissions, { contents: 'read' })
+    assert.equal(workflow.defaults.run.shell, 'bash', 'pipefail in every step')
     const job = workflow.jobs.publish
     assert.equal(
       job.if,
@@ -1639,11 +1643,78 @@ describe('WBC-02-CC-0010 §2: the qualified image, exported by hand and publishe
     assert.match(push, /docker logout ghcr\.io/u)
   })
 
-  it('the receipt, the identity record and the export must name one image of the named run: a mutant refuses', () => {
+  it('the named run must be a successful run by hand of the qualifying workflow at the named candidate', (t) => {
+    if (spawnSync('jq', ['--version']).status !== 0) {
+      t.skip('jq is not installed')
+      return
+    }
+    const step = parse(readFileSync(PUBLISH, 'utf8')).jobs.publish.steps[0]
+    const c = 'c'.repeat(40)
+    const good = {
+      path: '.github/workflows/paperclip-image.yml',
+      event: 'workflow_dispatch',
+      status: 'completed',
+      conclusion: 'success',
+      head_sha: c,
+      run_attempt: 2,
+    }
+    // A stand-in `gh` that answers the run's record, as `gh api` does.
+    const check = (run, { runId = '42', candidate = c } = {}) => {
+      const dir = mkdtempSync(join(tmpdir(), 'pc-publish-run-'))
+      try {
+        mkdirSync(join(dir, 'bin'))
+        writeFileSync(join(dir, 'answer.json'), JSON.stringify(run))
+        writeFileSync(join(dir, 'bin', 'gh'), `#!/bin/sh\ncat '${join(dir, 'answer.json')}'\n`)
+        chmodSync(join(dir, 'bin', 'gh'), 0o755)
+        const out = join(dir, 'env')
+        writeFileSync(out, '')
+        const env = {
+          ...process.env,
+          PATH: `${join(dir, 'bin')}:${process.env.PATH}`,
+          RUN_ID: runId,
+          CANDIDATE_INPUT: candidate,
+          GITHUB_ENV: out,
+          RUNNER_TEMP: dir,
+          GITHUB_REPOSITORY: 'Owner/repo',
+          GITHUB_REPOSITORY_OWNER: 'Owner',
+        }
+        const result = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', step.run], {
+          env,
+          encoding: 'utf8',
+        })
+        return { status: result.status, env: readFileSync(out, 'utf8') }
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+    const passed = check(good)
+    assert.equal(passed.status, 0)
+    assert.equal(passed.env, `CANDIDATE=${c}\nATTEMPT=2\nOWNER=owner\n`)
+    const refused = {
+      'a run of another commit than the candidate': [{ ...good, head_sha: 'd'.repeat(40) }],
+      'a pull request’s run': [{ ...good, event: 'pull_request' }],
+      'a failed run': [{ ...good, conclusion: 'failure' }],
+      'another workflow’s run': [{ ...good, path: '.github/workflows/ci.yml' }],
+      'a candidate that is not a full SHA': [good, { candidate: 'c'.repeat(12) }],
+      'a candidate with a newline': [good, { candidate: `${c}\nBASH_ENV=/tmp/x` }],
+      'a run id that is not a number': [good, { runId: '42; true' }],
+      'an attempt that is not a number': [{ ...good, run_attempt: '1\nBASH_ENV=/tmp/x' }],
+    }
+    for (const [why, [run, inputs]] of Object.entries(refused)) {
+      const result = check(run, inputs)
+      assert.notEqual(result.status, 0, why)
+      assert.equal(result.env, '', `${why}: nothing reaches GITHUB_ENV`)
+    }
+  })
+
+  it('the receipt, the identity record and the export must name one image of the named run: a mutant refuses', (t) => {
     const step = parse(readFileSync(PUBLISH, 'utf8')).jobs.publish.steps.find(
       (s) => s.name === 'The receipt, the identity record and the export name one qualified image',
     )
-    if (spawnSync('jq', ['--version']).status !== 0) return
+    if (spawnSync('jq', ['--version']).status !== 0) {
+      t.skip('jq is not installed')
+      return
+    }
     const c = 'c'.repeat(40)
     const p = '5edf55d7350c7f08c9dd132c7e0f1421fa0bf2fb'
     const id = `sha256:${'e'.repeat(64)}`
@@ -1714,11 +1785,22 @@ describe('WBC-02-CC-0010 §2: the qualified image, exported by hand and publishe
       'the receipt is another commit’s': { ...good, receipt: { ...good.receipt, context: { ...good.receipt.context, candidate: 'd'.repeat(40) } } },
       'a check of the receipt did not pass': { ...good, receipt: { ...good.receipt, checks: [{ result: 'passed' }, { result: 'not reached' }] } },
       'the receipt is another pin’s': { ...good, receipt: { ...good.receipt, context: { ...good.receipt.context, pin: 'e'.repeat(40) } } },
+      'the identity record is another commit’s': { ...good, identity: { ...good.identity, sophiaCommit: 'd'.repeat(40) } },
+      'the identity record is another pin’s': { ...good, identity: { ...good.identity, pin: 'e'.repeat(40) } },
+      'the identity record’s manifest digest is not one': {
+        ...good,
+        identity: { ...good.identity, manifestSha256: `${'f'.repeat(64)}\nBASH_ENV=/tmp/x` },
+      },
       'the export is another image': { ...good, exported: { ...good.exported, imageId: other } },
       'the export is another commit’s': { ...good, exported: { ...good.exported, sophiaCommit: 'd'.repeat(40) } },
+      'the export is another pin’s': { ...good, exported: { ...good.exported, paperclipPin: 'e'.repeat(40) } },
       'the identity record is another image': { ...good, identity: { ...good.identity, image: { ...good.identity.image, id: other } } },
     }
-    for (const [why, files] of Object.entries(mutants)) assert.notEqual(verify(files).status, 0, why)
+    for (const [why, files] of Object.entries(mutants)) {
+      const refused = verify(files)
+      assert.notEqual(refused.status, 0, why)
+      assert.equal(refused.env, '', `${why}: nothing reaches GITHUB_ENV`)
+    }
     assert.notEqual(verify(good, Buffer.from('another archive')).status, 0, 'the archive is not the one exported')
   })
 })

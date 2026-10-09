@@ -277,6 +277,7 @@ jobs:
         if: success() && github.event_name == 'workflow_dispatch'
         timeout-minutes: 8
         run: |
+          set -o pipefail
           O="$RUNNER_TEMP/qualified-image"; mkdir -p "$O"
           docker save "$IMAGE" | gzip -1 > "$O/image.tar.gz"
           id="$(docker image inspect "$IMAGE" --format '{{.Id}}')"

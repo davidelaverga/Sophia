@@ -1,7 +1,9 @@
 # WBC-02 D4 delivery (WBC-02-CC-0010 §2): publish the exact Paperclip image one paperclip-image run qualified, to the
 # GitHub Container Registry, so Render pulls it by digest instead of building the pin's two-stage image itself. Run by
-# hand, by the repository owner's account only, for one named run. It builds nothing and qualifies nothing:
-# - the run must be a paperclip-image run by hand (workflow_dispatch) that succeeded;
+# hand, by the repository owner's account only, for one named run of one named candidate. It builds nothing and
+# qualifies nothing:
+# - the run must be a paperclip-image run by hand (workflow_dispatch) that succeeded, on the named candidate commit
+#   (the reviewed release candidate, never whatever the run happened to build);
 # - its receipt must read qualified, and its identity record must name a clean Sophia commit (the run's own head) and
 #   the pin, linux/amd64;
 # - the exported image must load with exactly the image ID that record names.
@@ -19,9 +21,18 @@ on:
         description: The id of a paperclip-image run by hand that qualified the image (from its URL)
         required: true
         type: string
+      candidate:
+        description: The release candidate's full Sophia commit SHA; the named run must have built exactly it
+        required: true
+        type: string
 
 permissions:
   contents: read
+
+# bash with pipefail: a failing stage of a pipe fails its step.
+defaults:
+  run:
+    shell: bash
 
 concurrency:
   group: paperclip-image-publish
@@ -38,7 +49,7 @@ jobs:
     # the first actor and names its own in triggering_actor).
     if: github.actor == github.repository_owner && github.triggering_actor == github.repository_owner
     runs-on: ubuntu-24.04
-    # Above the sum of the steps' own budgets (50 minutes) with room for the job's set-up and post steps, so a slow push
+    # Above the sum of the steps' own budgets (52 minutes) with room for the job's set-up and post steps, so a slow push
     # still ends with its digest and delivery record; the unit tests hold this arithmetic.
     timeout-minutes: 65
     permissions:
@@ -48,18 +59,25 @@ jobs:
       # This package, through this job's GITHUB_TOKEN.
       packages: write
     steps:
-      - name: The named run qualified the image, by hand, at a clean commit and the pin
+      # Every value written to GITHUB_ENV here and below is checked against its form first: a newline in one would set
+      # other variables for the steps after it.
+      - name: The named run qualified the image, by hand, at the candidate and the pin
         timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.run_id }}
+          CANDIDATE_INPUT: ${{ inputs.candidate }}
         run: |
           [[ "$RUN_ID" =~ ^[0-9]{1,20}$ ]] || { echo "::error::run_id is a run's numeric id"; exit 1; }
+          [[ "$CANDIDATE_INPUT" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::candidate is a full commit SHA"; exit 1; }
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$RUNNER_TEMP/run.json"
-          jq -e '.path == ".github/workflows/paperclip-image.yml" and .event == "workflow_dispatch"
-            and .status == "completed" and .conclusion == "success"' "$RUNNER_TEMP/run.json"
-          echo "CANDIDATE=$(jq -r .head_sha "$RUNNER_TEMP/run.json")" >> "$GITHUB_ENV"
-          echo "ATTEMPT=$(jq -r .run_attempt "$RUNNER_TEMP/run.json")" >> "$GITHUB_ENV"
+          jq -e --arg c "$CANDIDATE_INPUT" '.path == ".github/workflows/paperclip-image.yml" and .event == "workflow_dispatch"
+            and .status == "completed" and .conclusion == "success" and .head_sha == $c' "$RUNNER_TEMP/run.json" \
+            || { echo "::error::run $RUN_ID is not a successful run by hand of paperclip-image at $CANDIDATE_INPUT"; exit 1; }
+          attempt="$(jq -r .run_attempt "$RUNNER_TEMP/run.json")"
+          [[ "$attempt" =~ ^[0-9]{1,6}$ ]] || { echo "::error::the run names no attempt"; exit 1; }
+          echo "CANDIDATE=$CANDIDATE_INPUT" >> "$GITHUB_ENV"
+          echo "ATTEMPT=$attempt" >> "$GITHUB_ENV"
           echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
 
       - name: Its receipt, identity record and exported image
@@ -96,14 +114,16 @@ jobs:
           jq -e --arg c "$CANDIDATE" --arg p "$PAPERCLIP_PIN" --arg id "$id" \
             '.imageId == $id and .sophiaCommit == $c and .paperclipPin == $p' "$D/image/export.json"
           test "$(sha256sum "$D/image/image.tar.gz" | cut -c1-64)" = "$(jq -r .archiveSha256 "$D/image/export.json")"
+          manifest="$(jq -r .manifestSha256 "$D/evidence/identity.json")"
+          [[ "$manifest" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::the identity record names no manifest digest"; exit 1; }
           echo "QUALIFIED_ID=$id" >> "$GITHUB_ENV"
-          echo "MANIFEST_SHA256=$(jq -r .manifestSha256 "$D/evidence/identity.json")" >> "$GITHUB_ENV"
+          echo "MANIFEST_SHA256=$manifest" >> "$GITHUB_ENV"
 
       - name: The very image the run qualified
         timeout-minutes: 10
         run: |
           loaded="$(gunzip -c "$D/image/image.tar.gz" | docker load --quiet | sed -n 's/^Loaded image: //p')"
-          test -n "$loaded"
+          [[ "$loaded" =~ ^[A-Za-z0-9._/:@-]+$ ]] || { echo "::error::the archive loads no single named image"; exit 1; }
           test "$(docker image inspect "$loaded" --format '{{.Id}}')" = "$QUALIFIED_ID"
           echo "LOADED=$loaded" >> "$GITHUB_ENV"
 
@@ -113,10 +133,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ref="ghcr.io/$OWNER/$PACKAGE:sophia-$CANDIDATE-paperclip-${PAPERCLIP_PIN:0:12}"
+          # The login is removed however the step ends, a failed push included.
+          trap 'docker logout ghcr.io > /dev/null 2>&1 || true' EXIT
           echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           docker tag "$LOADED" "$ref"
           docker push --quiet "$ref"
-          docker logout ghcr.io
           digest="$(docker image inspect "$ref" --format '{{range .RepoDigests}}{{println .}}{{end}}' | sed -n "s|^ghcr.io/$OWNER/$PACKAGE@||p" | head -1)"
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::no registry digest for $ref"; exit 1; }
           echo "TAG=$ref" >> "$GITHUB_ENV"
@@ -129,7 +150,7 @@ jobs:
         run: |
           token="$(curl -fsS "https://ghcr.io/token?scope=repository:$OWNER/$PACKAGE:pull" | jq -r '.token // empty')" || token=""
           code="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" \
-            -H 'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+            -H 'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json' \
             "https://ghcr.io/v2/$OWNER/$PACKAGE/manifests/$DIGEST")" || code=000
           if [ "$code" = 200 ]; then echo "ANONYMOUS=true" >> "$GITHUB_ENV"; else
             echo "ANONYMOUS=false" >> "$GITHUB_ENV"
