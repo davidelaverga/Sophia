@@ -61,6 +61,14 @@ const assignment = (qualification: VoiceQualification, over: Partial<MediaAssign
 const settle = async () => {
   for (let i = 0; i < 20; i += 1) await new Promise((resolve) => setImmediate(resolve))
 }
+/** Until `check` holds, with the timers running: a close's settling and a handover take real time. */
+async function until(what: string, check: () => boolean, ms = 5000): Promise<void> {
+  const deadline = Date.now() + ms
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
 const chunk = () => new Int16Array(1600).fill(2000)
 /** 20 ms of Sophia's audio as the provider sends it: 24 kHz PCM, base64. */
 const out = () => Buffer.from(new Int16Array(480).fill(1000).buffer).toString('base64')
@@ -202,10 +210,12 @@ interface Options {
   now?: () => number
   meter?: Meter
   lifetime?: number
+  /** Each reservation attempt's time limit, when a test bounds it (a close's settling is bounded by it). */
+  reserveTimeoutMs?: number
 }
 
 /** One bridge process: LiveKit and Gemini Live are labelled fakes; the API is the ledger, and keeps the receipts. */
-function harness(ledger: FakeLedger, { now = Date.now, meter, lifetime = 1 }: Options = {}) {
+function harness(ledger: FakeLedger, { now = Date.now, meter, lifetime = 1, reserveTimeoutMs }: Options = {}) {
   const evidence: MediaEvidenceWrite[] = []
   const roomEvents: RoomEvents[] = []
   const lives: Array<{ events: LiveEvents; audio: number; frames: number }> = []
@@ -274,9 +284,10 @@ function harness(ledger: FakeLedger, { now = Date.now, meter, lifetime = 1 }: Op
     voiceEvidence: true,
     evidenceRetryMs: [0, 0],
     reserveRetryMs: [0, 0],
+    ...(reserveTimeoutMs === undefined ? {} : { reserveTimeoutMs }),
   })
   const stops = () => logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why)
-  return { bridge, evidence, roomEvents, lives, stops, calls }
+  return { bridge, evidence, roomEvents, lives, stops, calls, logs }
 }
 
 /** The principal speaks and Sophia's turn completes: one generation on the live connection. */
@@ -639,5 +650,160 @@ describe('a bridge process shut down while what it spent is being charged settle
     await settle()
     assert.equal(second.lives.length, 0, 'a restarted process opens no connection: nothing of the budget is reused')
     await second.bridge.stop()
+  })
+})
+
+describe('a session replacing another on its exchange opens nothing until the replaced one’s charges are on the API (Codex r4234649847)', () => {
+  /**
+   * Root's sequence: the real MediaBridge, maxTurns 1. The first session's provider sends output nobody reserved (its
+   * unasked charge held unless `answered`), its room is lost, the same assignment comes again, and the replacement's
+   * room hears one input chunk.
+   */
+  async function replaced(opts: { answered: boolean; reserveTimeoutMs?: number }) {
+    const ledger = new FakeLedger(grant({ maxTurns: 1 }))
+    let release: (() => void) | undefined
+    if (!opts.answered) ledger.held = { kind: 'unasked', until: new Promise<void>((resolve) => (release = resolve)) }
+    const h = harness(ledger, opts.reserveTimeoutMs === undefined ? {} : { reserveTimeoutMs: opts.reserveTimeoutMs })
+    const assigned = assignment(ledger.grant)
+    await h.bridge.apply([assigned])
+    await settle()
+    h.lives[0]?.events.setupComplete()
+    h.lives[0]?.events.audio(out(), OUT) // a generation nobody reserved: charged unasked
+    await settle()
+    h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
+    await settle()
+    await h.bridge.apply([assigned])
+    await settle()
+    assert.equal(h.roomEvents.length, 2, 'the replacement joined the room')
+    h.roomEvents[1]?.audio(LUIS, chunk(), 16000, 1)
+    await settle()
+    const kinds = () => ledger.asked.map((r) => r.kind)
+    return { ledger, h, kinds, release: () => release?.() }
+  }
+
+  it('the replaced session’s unasked charge held, then answered: nothing of the replacement before it, then it opens', async () => {
+    const x = await replaced({ answered: false })
+    try {
+      assert.equal(x.h.lives.length, 1, 'no provider connection for the replacement')
+      assert.deepEqual(x.kinds(), ['connection', 'unasked'], 'and no reservation of its own')
+      x.release()
+      await until('the replacement opened', () => x.h.lives.length === 2)
+      assert.deepEqual(x.kinds().slice(0, 3), ['connection', 'unasked', 'connection'], 'after the charge it inherited')
+      assert.equal(x.h.lives[1]?.audio, 0, 'the chunk heard before it opened was never sent')
+    } finally {
+      x.release()
+      await x.h.bridge.stop()
+    }
+  })
+
+  it('nothing owed (root’s control: the charge answered before the room is lost): the replacement opens at once, and the spent turn holds', async () => {
+    const x = await replaced({ answered: true })
+    try {
+      await until('the replacement opened', () => x.h.lives.length === 2)
+      x.h.lives[1]?.events.setupComplete()
+      x.h.roomEvents[1]?.audio(LUIS, chunk(), 16000, 1)
+      await settle()
+      assert.equal(x.h.lives[1]?.audio, 0, 'its input would start a second generation: refused, never sent')
+      assert.deepEqual(x.h.stops(), ['turns'])
+    } finally {
+      await x.h.bridge.stop()
+    }
+  })
+
+  it('the replaced session’s charge never answered: past the bound the replacement still opens nothing, and says so', async () => {
+    // Three attempts of 50 ms, twice: the replaced session's close stops waiting after 300 ms.
+    const x = await replaced({ answered: false, reserveTimeoutMs: 50 })
+    try {
+      await until('the replacement fails closed', () =>
+        x.h.logs.some(([event]) => event === 'qualification.inherited_unsettled'),
+      )
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      x.h.roomEvents[1]?.audio(LUIS, chunk(), 16000, 1)
+      await settle()
+      assert.equal(x.h.lives.length, 1, 'zero provider connections from the replacement')
+      assert.deepEqual(x.kinds(), ['connection', 'unasked'], 'zero reservations from it')
+      assert.equal(x.h.lives[0]?.audio, 0, 'zero inputs, on any connection')
+      assert.deepEqual(
+        x.h.logs.filter(([event]) => event === 'qualification.inherited_unsettled').map(([, d]) => d.charges),
+        [1],
+      )
+    } finally {
+      x.release()
+      await x.h.bridge.stop()
+    }
+  })
+
+  /** The replaced session's charge still unanswered past its close's bound: the replacement has failed closed. */
+  async function failedClosed() {
+    const x = await replaced({ answered: false, reserveTimeoutMs: 50 })
+    const inherited = (event: string) => x.h.logs.some(([e]) => e === event)
+    await until('the replacement fails closed', () => inherited('qualification.inherited_unsettled'))
+    return { ...x, inherited }
+  }
+
+  it('answered after the bound: the replacement opens only once the charge it inherited is on the API', async () => {
+    const x = await failedClosed()
+    try {
+      assert.equal(x.h.lives.length, 1)
+      x.release()
+      await until('the replacement opened', () => x.h.lives.length === 2)
+      assert.deepEqual(x.kinds().slice(0, 3), ['connection', 'unasked', 'connection'], 'after the charge it inherited')
+    } finally {
+      x.release()
+      await x.h.bridge.stop()
+    }
+  })
+
+  it('refused after the bound: the replacement stays closed for good, and says so', async () => {
+    const x = await failedClosed()
+    try {
+      const durable = x.ledger.exchanges.get(E1)
+      assert.ok(durable)
+      durable.ended = 'usage' // the API ended the exchange meanwhile: the late charge is refused (409)
+      x.release()
+      await until('the charge is refused', () => x.inherited('qualification.inherited_lost'))
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      assert.equal(x.h.lives.length, 1, 'zero provider connections from the replacement')
+      assert.deepEqual(x.kinds(), ['connection', 'unasked'], 'zero reservations from it')
+    } finally {
+      x.release()
+      await x.h.bridge.stop()
+    }
+  })
+
+  it('refused before the handover: the replacement never opens', async () => {
+    const ledger = new FakeLedger(grant({ maxTurns: 1 }))
+    let release: (() => void) | undefined
+    ledger.held = { kind: 'unasked', until: new Promise<void>((resolve) => (release = resolve)) }
+    const h = harness(ledger)
+    try {
+      const assigned = assignment(ledger.grant)
+      await h.bridge.apply([assigned])
+      await settle()
+      h.lives[0]?.events.setupComplete()
+      h.lives[0]?.events.audio(out(), OUT)
+      await settle()
+      h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
+      await settle()
+      await h.bridge.apply([assigned])
+      const durable = ledger.exchanges.get(E1)
+      assert.ok(durable)
+      durable.ended = 'usage'
+      release?.()
+      const unsettled = () => h.logs.filter(([event]) => event === 'qualification.inherited_unsettled')
+      await until('the replacement fails closed', () => unsettled().length > 0)
+      assert.deepEqual(
+        unsettled().map(([, d]) => [d.charges, d.lost]),
+        [[0, true]],
+      )
+      assert.equal(h.lives.length, 1)
+      assert.deepEqual(
+        ledger.asked.map((r) => r.kind),
+        ['connection', 'unasked'],
+      )
+    } finally {
+      release?.()
+      await h.bridge.stop()
+    }
   })
 })

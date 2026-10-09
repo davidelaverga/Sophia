@@ -63,6 +63,8 @@ function bound(over: Partial<VoiceQualification> = {}) {
 const settle = async () => {
   for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setImmediate(resolve))
 }
+/** What the session asked the API, in order: each kind with its charge. */
+const charges = (waiting: ReturnType<typeof bound>['waiting']) => waiting.map((w) => [w.kind, w.charge])
 
 describe('the bound’s reservations, one by one (qualification.ts)', () => {
   it('input waits for its own reservation: another granted first never lets it through', async () => {
@@ -449,5 +451,150 @@ describe('every charge for what was spent is settled before the stop and the end
     await q.settle()
     assert.ok(Date.now() - started < 500)
     assert.deepEqual(waiting, [])
+  })
+})
+
+describe('output that cuts its generation is charged before the stop: what it billed past its reserve (Codex r4234649836)', () => {
+  const chunk = new Int16Array(1600).fill(2000)
+
+  /**
+   * Root's sequence: a per-turn cap of 64; the holder's input asks for its generation, prepaid at 25,000 + 2 × 64 +
+   * 4,000 = 29,128 and granted; one 100 ms chunk of input sent from the allowance (4.2 tokens: 3,995.8 left); then 1 s
+   * of Sophia's audio (32 tokens, within the cap).
+   */
+  async function cutting() {
+    const b = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await b.q.connecting(1, false), null)
+    assert.equal(b.q.input(1, LUIS, chunk, 0, 1), 'hold')
+    await settle()
+    b.waiting[0]?.answer()
+    assert.equal(await b.q.granted(1), null)
+    assert.equal(b.q.input(1, LUIS, chunk, 0, 1), null, 'one 100 ms chunk, from the allowance')
+    assert.equal(b.q.output(1, { samples: 24_000 }), null, '1 s of audio: 32 tokens')
+    return b
+  }
+
+  /** Then 15,000 characters (5,000 tokens), by `cut`: the stop waits for the 909 that closes the 908.2 gap. */
+  async function chargedBeforeTheStop(cut: (q: SessionQualification) => Promise<string | null>) {
+    const { q, waiting } = await cutting()
+    assert.equal(await cut(q), 'output')
+    const stopping = q.stopped()
+    await settle()
+    // 32 + 5,000 billed, 128 reserved, nothing owed yet: 4,904 from the 3,995.8 left, 908.2 short. Charged alone.
+    assert.deepEqual(
+      charges(waiting),
+      [
+        ['generation', 29_128],
+        ['spend', 909],
+      ],
+      'the debt alone, before the stop',
+    )
+    assert.ok(
+      29_128 + 909 >= 25_000 + 4.2 + 32 + 5000,
+      'the API holds at least what the provider billed: 30,037 ≥ 30,036.2',
+    )
+    waiting[1]?.answer()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'spend', 'stop'],
+      'the stop once the charge is answered',
+    )
+    waiting[2]?.answer()
+    await stopping
+    assert.deepEqual({ unanswered: q.ledger().unanswered, lost: q.ledger().lost }, { unanswered: 0, lost: false })
+  }
+
+  it('words past the cap: the 4,904 tokens past its reserve are charged, 909 on the API, before the stop (root’s sequence)', async () => {
+    await chargedBeforeTheStop((q) => Promise.resolve(q.output(1, { chars: 15_000 })))
+  })
+
+  it('a function call whose payload passes the cap: the same charge, before the stop', async () => {
+    await chargedBeforeTheStop((q) => q.called(1, 1, 15_000))
+  })
+
+  it('audio past the cap: 130 s more (4,160 tokens), 4,064 past its reserve, 68.2 short: 69 charged', async () => {
+    const { q, waiting } = await cutting()
+    assert.equal(q.output(1, { samples: 130 * 24_000 }), 'output')
+    void q.stopped()
+    await settle()
+    assert.deepEqual(charges(waiting), [
+      ['generation', 29_128],
+      ['spend', 69],
+    ])
+    assert.ok(29_128 + 69 >= 25_000 + 4.2 + 32 + 4160, '29,197 ≥ 29,196.2')
+  })
+
+  it('a generation nobody reserved, cut by its first words: its charge, unasked, and what passed its reserve', async () => {
+    const { q, waiting } = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.output(1, { chars: 15_000 }), 'output')
+    await settle()
+    assert.deepEqual(charges(waiting), [
+      ['unasked', 25_000 + 2 * 64],
+      ['spend', 5000 - 2 * 64],
+    ])
+  })
+
+  it('within the cap: owed from the allowance as before, nothing charged (control)', async () => {
+    const { q, waiting } = await cutting()
+    assert.equal(q.output(1, { chars: 192 }), null, '64 tokens of words: the cap, not past it')
+    await settle()
+    assert.deepEqual(charges(waiting), [['generation', 29_128]])
+  })
+
+  it('a cut the allowance covers charges nothing more (control)', async () => {
+    const { q, waiting } = await cutting()
+    // 32 + 100 billed, 128 reserved: 4 past it, from the 3,995.8 left.
+    assert.equal(q.output(1, { chars: 300 }), 'output', '100 tokens of words: past the cap')
+    void q.stopped()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'stop'],
+      'no spend: the stop at once',
+    )
+  })
+
+  it('a cut while a top-up is in flight: only the debt that top-up leaves, charged once it is credited', async () => {
+    const { q, waiting } = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.output(1, { chars: 60 }), null, 'unasked; 20 tokens owed by an empty allowance: 4,020 asked')
+    assert.equal(q.output(1, { chars: 15_000 }), 'output', '5,020 billed, 128 reserved, 20 owed already: 4,872 more')
+    const stopping = q.stopped()
+    await settle()
+    assert.deepEqual(charges(waiting), [
+      ['unasked', 25_128],
+      ['spend', 4020],
+    ])
+    waiting[0]?.answer()
+    waiting[1]?.answer()
+    await settle()
+    assert.deepEqual(
+      charges(waiting),
+      [
+        ['unasked', 25_128],
+        ['spend', 4020],
+        ['spend', 872],
+      ],
+      'the 4,020 credited: 872 short',
+    )
+    assert.equal(25_128 + 4020 + 872, 25_000 + 20 + 5000, 'what the API holds is what the provider billed: 30,020')
+    waiting[2]?.answer()
+    await settle()
+    assert.equal(waiting[3]?.kind, 'stop')
+    waiting[3]?.answer()
+    await stopping
+  })
+
+  it('a refused charge is not on the API: the ledger handed over says so', async () => {
+    const { q, waiting } = await cutting()
+    assert.equal(q.output(1, { chars: 15_000 }), 'output')
+    await settle()
+    assert.deepEqual(q.ledger().unanswered, 1, 'unanswered')
+    const { landed } = q.ledger()
+    waiting[1]?.refuse('usage')
+    assert.equal(await landed, false)
+    assert.equal(q.ledger().lost, true)
   })
 })

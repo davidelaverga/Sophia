@@ -195,3 +195,35 @@ describe('a turn end retires the one generation that ended (Codex r4233559261)',
     assert.equal(r.committed, 30_000, 'nothing of the lost connection is left open')
   })
 })
+
+describe('what output that stops the bound left unpaid (Codex r4234649836)', () => {
+  it('a cut by words: what its generation billed past its reserve and past what was owed for it already', () => {
+    const r = new QualificationReserve(limits({ outputTokensPerTurn: 64 }))
+    r.connected(1)
+    assert.deepEqual(r.reserve(1), { ok: true })
+    assert.deepEqual(r.received(1, SECOND_OUT, 0), { ok: true }, '32 tokens of audio')
+    assert.equal(r.unpaid, 0, 'taken: nothing unpaid')
+    assert.deepEqual(r.received(1, 0, 20), { ok: true }, '20 tokens of words, owed as they come')
+    assert.deepEqual(r.received(1, 0, 5000), { ok: false, stop: 'output' })
+    assert.equal(r.unpaid, 32 + 5020 - 128 - 20, 'billed 5,052; reserved 128; owed already 20')
+    assert.deepEqual(r.received(1, 0, 10), { ok: false, stop: 'output' })
+    assert.equal(r.unpaid, 0, 'nothing after the stop is counted, so nothing is unpaid')
+  })
+
+  it('a cut within its reserve leaves nothing unpaid', () => {
+    const r = new QualificationReserve(limits({ outputTokensPerTurn: 64 }))
+    r.connected(1)
+    r.reserve(1)
+    assert.deepEqual(r.received(1, 0, 100), { ok: false, stop: 'output' })
+    assert.equal(r.unpaid, 0, '100 billed, 128 reserved')
+  })
+
+  it('a generation nobody asked for past the grant’s turns: what its first output billed past its worst case', () => {
+    const r = new QualificationReserve(limits({ outputTokensPerTurn: 64, turns: 1 }))
+    r.connected(1)
+    r.reserve(1)
+    r.ended(1)
+    assert.deepEqual(r.received(1, 0, 5000), { ok: false, stop: 'turns' })
+    assert.equal(r.unpaid, 5000 - 128)
+  })
+})

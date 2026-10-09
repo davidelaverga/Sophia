@@ -63,6 +63,8 @@ interface Open {
    * both billed output text. Never the holder's words: those are input's transcription, not this generation's output.
    */
   text: number
+  /** Of that text, what the session owed from the connection's allowance: every chunk this generation took. */
+  owed: number
 }
 
 export class QualificationReserve {
@@ -78,6 +80,7 @@ export class QualificationReserve {
   #transcribed = 0
   #generations = 0
   #stopped: Stop | null = null
+  #unpaid = 0
 
   constructor(limits: ReserveLimits, rates: TokenRates = ASSUMED_RATES) {
     this.#limits = limits
@@ -87,6 +90,16 @@ export class QualificationReserve {
   /** Why the bridge stopped, or null while it may go on. Once stopped, it stays stopped. */
   get stopped(): Stop | null {
     return this.#stopped
+  }
+
+  /**
+   * What the last output received() was given left unpaid, when it stopped (Codex r4234649836): the tokens its
+   * generation billed beyond its reserve (its output twice the per-turn cap: audio and text) and beyond what the session
+   * already owed for it from the connection's allowance. Zero when the output was taken: the session owes its text in
+   * full, as before.
+   */
+  get unpaid(): number {
+    return this.#unpaid
   }
 
   /** Every token the exchange may have cost or may still cost for what is under way. */
@@ -155,19 +168,34 @@ export class QualificationReserve {
    * to what is committed: the reserve holds it, and Sophia's words are counted once, as transcribed().
    */
   received(connection: number, samples = 0, text = 0): Verdict {
+    this.#unpaid = 0
     if (this.#stopped) return { ok: false, stop: this.#stopped }
+    const audio = (samples / OUTPUT_RATE) * this.#rates.audioOutPerSecond
+    const reserved = 2 * this.#limits.outputTokensPerTurn
     let open = this.#open.find((o) => o.connection === connection)
     if (!open) {
-      if (this.#generations >= this.#limits.turns) return this.#stop('turns')
+      // Its generation is charged (unasked) at its worst case: what this output bills beyond that is unpaid.
+      const beyond = Math.max(0, audio + text - reserved)
+      if (this.#generations >= this.#limits.turns) {
+        this.#unpaid = beyond
+        return this.#stop('turns')
+      }
       const reserve = this.#reserveFor()
       const fits = this.#fits(reserve)
       open = this.#take(connection, reserve)
-      if (!fits.ok) return fits
+      if (!fits.ok) {
+        this.#unpaid = beyond
+        return fits
+      }
     }
-    open.output += (samples / OUTPUT_RATE) * this.#rates.audioOutPerSecond
+    open.output += audio
     open.text += text
     const cap = this.#limits.outputTokensPerTurn
-    if (open.output > cap || open.text > cap) return this.#stop('output')
+    if (open.output > cap || open.text > cap) {
+      this.#unpaid = Math.max(0, open.output + open.text - reserved - open.owed)
+      return this.#stop('output')
+    }
+    open.owed += text
     return this.#fits(0)
   }
 
@@ -199,7 +227,7 @@ export class QualificationReserve {
   #take(connection: number, reserved: number): Open {
     this.#generations += 1
     // The input so far is now part of the context this generation bills.
-    const open = { connection, reserved: reserved + this.#input, output: 0, text: 0 }
+    const open = { connection, reserved: reserved + this.#input, output: 0, text: 0, owed: 0 }
     this.#input = 0
     this.#open.push(open)
     return open

@@ -131,6 +131,8 @@ export class SessionQualification {
    * already received). The session settles them before the bridge's stop, and before it ends (settle()).
    */
   readonly #owed = new Set<Promise<unknown>>()
+  /** Whether a charge for what was already spent was refused, or never confirmed: it is not on the API. */
+  #lost = false
   /** The bridge's stop, once its bound stopped the session: sent when what it owes is answered (stopped()). */
   #stopping: Promise<void> | null = null
   #stopSent = false
@@ -305,11 +307,14 @@ export class SessionQualification {
     const ordinal = this.#local(connection)
     const text = out.chars === undefined ? 0 : Math.ceil(out.chars / ASSUMED_RATES.charsPerToken)
     const unasked = this.#startsUnasked(connection)
+    // Counted whatever stops the session: the provider billed it.
+    const received = this.#reserve.received(ordinal, out.samples ?? 0, text)
+    const unpaid = this.#reserve.unpaid
     const stop =
-      this.#check(() => this.#reserve.received(ordinal, out.samples ?? 0, text)) ??
+      this.#check(() => received) ??
       (out.chars === undefined ? null : this.#check(() => this.#reserve.transcribed(out.chars ?? 0)))
     if (unasked) this.#unasked(connection)
-    if (stop) return stop
+    if (stop) return this.#stopsUnpaid(connection, unpaid, stop)
     this.#recorder.responded(0)
     return out.chars === undefined ? null : this.#owe(connection, out.chars / ASSUMED_RATES.charsPerToken, 0)
   }
@@ -325,9 +330,11 @@ export class SessionQualification {
   called(connection: number, calls: number, chars: number): Promise<GuardStop | null> {
     const tokens = chars / ASSUMED_RATES.charsPerToken
     const unasked = this.#startsUnasked(connection)
-    const stop = this.#check(() => this.#reserve.received(this.#local(connection), 0, Math.ceil(tokens)))
+    const received = this.#reserve.received(this.#local(connection), 0, Math.ceil(tokens))
+    const unpaid = this.#reserve.unpaid
+    const stop = this.#check(() => received)
     if (unasked) this.#unasked(connection)
-    if (stop) return Promise.resolve(stop)
+    if (stop) return Promise.resolve(this.#stopsUnpaid(connection, unpaid, stop))
     this.#recorder.responded(calls)
     const owed = this.#owe(connection, tokens, 0)
     if (owed) return Promise.resolve(owed)
@@ -464,6 +471,15 @@ export class SessionQualification {
     }
   }
 
+  /**
+   * What this session spent and the API may not hold yet, for the session that replaces it on the exchange (Codex
+   * r4234649847): how many of its charges are still unanswered, whether one was refused or never confirmed, and once
+   * every one is answered, whether all of them are on the API.
+   */
+  ledger(): { unanswered: number; lost: boolean; landed: Promise<boolean> } {
+    return { unanswered: this.#owed.size, lost: this.#lost, landed: this.#settled().then(() => !this.#lost) }
+  }
+
   /** Once every charge for what was already spent is answered, those that come while waiting included. */
   async #settled(): Promise<void> {
     while (this.#owed.size > 0) await Promise.allSettled(this.#owed)
@@ -496,11 +512,39 @@ export class SessionQualification {
    * `extra` (text it sends, or the allowance input asked for).
    */
   async #charge(connection: number, unasked: boolean, extra = 0): Promise<GuardStop | null> {
-    const durable = this.#durable(connection)
-    const worst = ASSUMED_RATES.context + 2 * this.#deps.grant.maxOutputTokensPerTurn + extra
-    const answer = await this.#ledger.generation(durable, Math.min(MAX_CHARGE, Math.ceil(worst)), unasked)
+    const answer = await this.#generation(connection, unasked, extra)
     if (!answer.ok) return this.#refused(answer)
     return this.#stopped
+  }
+
+  /** A generation reserved on the API at its worst case, with `extra`: the API's answer. */
+  #generation(connection: number, unasked: boolean, extra = 0): Promise<LedgerAnswer> {
+    const worst = ASSUMED_RATES.context + 2 * this.#deps.grant.maxOutputTokensPerTurn + extra
+    return this.#ledger.generation(this.#durable(connection), Math.min(MAX_CHARGE, Math.ceil(worst)), unasked)
+  }
+
+  /**
+   * Output that stopped the session (Codex r4234649836): what its generation billed beyond its reserve and beyond what
+   * was owed for it already comes out of the allowance, and a debt it leaves is charged on the API at once, a spend of
+   * the debt alone (nothing more will be sent, so nothing is refilled). It is owed before the stop and the end. The
+   * stop itself is returned as it was.
+   */
+  #stopsUnpaid(connection: number, unpaid: number, stop: GuardStop): GuardStop {
+    const link = this.#links.get(connection)
+    if (!link || unpaid <= 0) return stop
+    link.paid -= unpaid
+    this.#oblige(this.#chargeDebt(connection, link))
+    return stop
+  }
+
+  /** A stopped connection's debt, charged once a top-up in flight is credited: whether it is on the API. */
+  async #chargeDebt(connection: number, link: Link): Promise<boolean> {
+    await this.#pending.get(connection)
+    const debt = Math.ceil(-link.paid)
+    if (debt <= 0) return true
+    const answer = await this.#ledger.spend(link.durable, Math.min(MAX_CHARGE, debt))
+    if (answer.ok) link.paid += debt
+    return answer.ok
   }
 
   /**
@@ -560,7 +604,8 @@ export class SessionQualification {
     if (this.#pending.has(connection)) return null
     const charge = this.#shortfall(connection)
     const debt = (this.#links.get(connection)?.paid ?? 0) < 0
-    const pending = this.#ledger.spend(this.#durable(connection), Math.min(MAX_CHARGE, charge)).then((answer) => {
+    const spent = this.#ledger.spend(this.#durable(connection), Math.min(MAX_CHARGE, charge))
+    const pending = spent.then((answer) => {
       this.#pending.delete(connection)
       const stop = answer.ok ? this.#credited(connection, charge) : this.#refused(answer)
       if (stop) this.#deps.stop(stop)
@@ -568,17 +613,18 @@ export class SessionQualification {
     })
     this.#pending.set(connection, pending)
     // A debt is for what was already received: owed before the session may stop or end. A top-up for input not sent yet
-    // is not: if the session ends first, that input is never sent.
-    if (debt) this.#oblige(pending)
+    // is not: if the session ends first, that input is never sent. Kept until its credit (which may ask another) is done.
+    if (debt) this.#oblige(pending.then(() => spent).then((answer) => answer.ok))
     return null
   }
 
   /** A grant prepaid `amount` for the connection's input: credited, and a debt still left is topped up again. */
   #credited(connection: number, amount: number): GuardStop | null {
-    if (this.#stopped) return this.#stopped
     const link = this.#links.get(connection)
+    // What the API took is the allowance's, stopped or not: a stopped connection's debt is what is left after it.
+    if (link) link.paid += amount
+    if (this.#stopped) return this.#stopped
     if (!link) return null
-    link.paid += amount
     return link.paid < 0 ? this.#topUp(connection) : null
   }
 
@@ -607,22 +653,36 @@ export class SessionQualification {
     this.#grant(connection)
     const charges = this.#unaskedCharges.get(connection) ?? new Set<Promise<GuardStop | null>>()
     this.#unaskedCharges.set(connection, charges)
-    const charged: Promise<GuardStop | null> = this.#charge(connection, true).then((stop) => {
-      charges.delete(charged)
-      if (charges.size === 0 && this.#unaskedCharges.get(connection) === charges)
-        this.#unaskedCharges.delete(connection)
-      if (stop) this.#deps.stop(stop)
-      return stop
-    })
+    const answer = this.#generation(connection, true)
+    this.#oblige(answer.then((a) => a.ok))
+    const charged: Promise<GuardStop | null> = answer
+      .then((a) => (a.ok ? this.#stopped : this.#refused(a)))
+      .then((stop) => {
+        charges.delete(charged)
+        if (charges.size === 0 && this.#unaskedCharges.get(connection) === charges)
+          this.#unaskedCharges.delete(connection)
+        if (stop) this.#deps.stop(stop)
+        return stop
+      })
     charges.add(charged)
-    this.#oblige(charged)
   }
 
-  /** A charge for what was already spent: kept until it is answered, whatever the answer. */
-  #oblige(charge: Promise<unknown>): void {
-    this.#owed.add(charge)
-    const done = () => this.#owed.delete(charge)
-    void charge.then(done, done)
+  /**
+   * A charge for what was already spent: kept until it is answered, whatever the answer; `landed` says whether the API
+   * took it. One refused, or never confirmed, is not on the API (#lost).
+   */
+  #oblige(landed: Promise<boolean>): void {
+    this.#owed.add(landed)
+    void landed.then(
+      (ok) => {
+        this.#owed.delete(landed)
+        if (!ok) this.#lost = true
+      },
+      () => {
+        this.#owed.delete(landed)
+        this.#lost = true
+      },
+    )
   }
 
   #refused(answer: LedgerAnswer): GuardStop | null {
