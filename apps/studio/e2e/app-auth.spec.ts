@@ -98,7 +98,7 @@ declare global {
       proposals: readonly { key: string; body: unknown }[]
       asked: readonly string[]
       unexpected: readonly string[]
-      hold: (by: string, path: string) => void
+      hold: (by: string, path: string, method?: string) => void
       release: () => void
     }
     /** "Review sources" buttons the page added since the check began counting them. */
@@ -540,6 +540,79 @@ test('browser-account · viewer-state lens restores under same subject after ema
   await expect(page.locator('#lens-converse[aria-selected="true"]')).toBeVisible()
   // Davide's stored viewer state is untouched.
   expect(await page.evaluate((k) => localStorage.getItem(k), davideViewerKey)).toContain('"explore"')
+})
+
+test('browser-account · pending Start survives USER_UPDATED: started conversation appears without reload', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/conversations?work=lost`)
+  const list = page.locator('section[aria-label="All conversations"]')
+  await expect(list).toBeVisible()
+  // The seeded list has 3 conversations.
+  await expect(list.locator('.conv-row')).toHaveCount(3)
+  // Hold POST only on the start endpoint (same path as the GET list read; holding both would race).
+  const startPath = `/api/v1/projects/${WORK_PROJECT}/conversations`
+  await page.evaluate(([by, path]) => window.appFixture?.hold(by, path, 'POST'), [DAVIDE.id, startPath] as const)
+  // Open the new conversation form, turn off Ask Sophia (no feed-publishing answer), and start one.
+  await page.getByRole('button', { name: 'New conversation' }).click()
+  const form = page.getByRole('form', { name: 'New conversation' })
+  await form.getByLabel('Ask Sophia').uncheck()
+  await form.getByLabel('Question').fill('Which numbers need checking?')
+  await form.getByRole('button', { name: 'Start' }).click()
+  await expect(form.getByRole('button', { name: 'Starting…' })).toBeVisible()
+  // Verify the held POST was actually reached before changing the identity.
+  await expect.poll(() => askedOf(page)).toContain(`POST ${startPath} by ${DAVIDE.id}`)
+  // While the start is in flight, Davide changes email from another tab.
+  await anotherTab(context, session(RENAMED), 'USER_UPDATED')
+  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  // Barrier: the rendered list still shows the original 3 conversations (on da769 the changed-email key
+  // triggers a refetch that settles here; on the fix the cached data is already in place).
+  await expect(list.locator('.conv-row')).toHaveCount(3)
+  // Release the held POST: the callback must write to the stable-account cache key, so the started
+  // conversation appears in the list without feed event or reload.
+  await page.evaluate(() => window.appFixture?.release())
+  await expect(list.locator('.conv-row').filter({ hasText: 'Which numbers need checking?' })).toBeVisible()
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('browser-account · pending Send survives USER_UPDATED: sent message appears without reload', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/conversations?work=lost`)
+  const list = page.locator('section[aria-label="All conversations"]')
+  await expect(list).toBeVisible()
+  // Open the first conversation (reading): its newest page has 6 messages.
+  const READING = '00000000-0000-4000-8000-0000000000c1'
+  await list.locator('.conv-row').first().click()
+  await expect(page.locator('.conv-open')).toBeVisible()
+  const MESSAGE_COUNT = 6
+  await expect(page.locator('.conv-msg')).toHaveCount(MESSAGE_COUNT)
+  // Turn off Ask Sophia so no feed-publishing answer is scheduled.
+  await page.getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  // Hold POST only on the send endpoint (GET messages uses the same path prefix; holding both would race).
+  const sendPath = `/api/v1/conversations/${READING}/messages`
+  await page.evaluate(([by, path]) => window.appFixture?.hold(by, path, 'POST'), [DAVIDE.id, sendPath] as const)
+  // Type and send a message.
+  const field = page.getByLabel('Continue this question with the team')
+  await field.fill('Check the March figures')
+  await page.keyboard.press('Enter')
+  // Verify the held POST was actually reached before changing the identity.
+  await expect.poll(() => askedOf(page)).toContain(`POST ${sendPath} by ${DAVIDE.id}`)
+  // While the send is in flight, Davide changes email from another tab.
+  await anotherTab(context, session(RENAMED), 'USER_UPDATED')
+  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  // Barrier: the rendered transcript still shows the original messages (on da769 the changed-email key
+  // triggers a refetch that settles here; on the fix the cached data is already in place).
+  await expect(page.locator('.conv-msg')).toHaveCount(MESSAGE_COUNT)
+  // Release the held POST: the callback must write to the stable-account cache key, so the sent message
+  // appears in the thread without feed event or reload.
+  await page.evaluate(() => window.appFixture?.release())
+  await expect(page.locator('.conv-msg').filter({ hasText: 'Check the March figures' })).toBeVisible()
+  expect(await unexpectedOf(page)).toEqual([])
 })
 
 test('browser-account · blocked storage does not break navigation or account transitions', async ({ context }) => {

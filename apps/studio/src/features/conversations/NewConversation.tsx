@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, type RefObject } from 'react'
 import { getMission } from '../../api/mission.ts'
 import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/vision.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -63,7 +64,7 @@ function useStartWrite(props: Props) {
 function useStarters(props: Props): string[] {
   const { projectId, identity } = props
   const brief = useQuery({
-    queryKey: [...missionKey(projectId), identity.name, 'conversations'],
+    queryKey: [...missionKey(projectId), accountOf(identity), 'conversations'],
     queryFn: () => getMission(identity.token, projectId),
     retry: 1,
   })

@@ -10,6 +10,7 @@ import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } fr
 import { getMission } from '../../api/mission.ts'
 import type { ConversationSummary } from '../../api/vision.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { missionKey } from '../mission/mission-view.ts'
@@ -30,7 +31,7 @@ interface Props {
 
 export function ProjectContext({ projectId, identity, cursor, conversation, opened, onClose }: Props) {
   const read = useQuery({
-    queryKey: [...missionKey(projectId), identity.name, 'conversations'],
+    queryKey: [...missionKey(projectId), accountOf(identity), 'conversations'],
     queryFn: () => getMission(identity.token, projectId),
     retry: 1,
   })

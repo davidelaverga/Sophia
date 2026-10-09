@@ -14,6 +14,7 @@ import { createRoot } from 'react-dom/client'
 import { App } from '../src/app/App.tsx'
 import { begin } from '../src/app/entry.ts'
 import '../src/app/theme.css'
+import { conversations, conversationMission, messagesOf } from './conversation-data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
@@ -26,7 +27,7 @@ declare global {
       /** Each API request, as `METHOD /path by <the subject its token names, or nobody>`. */
       asked: readonly string[]
       unexpected: readonly string[]
-      hold: (by: string, path: string) => void
+      hold: (by: string, path: string, method?: string) => void
       release: () => void
     }
   }
@@ -109,15 +110,27 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
     work: false,
     review: SOURCE_REVIEW,
     proposals,
+    conversations: {
+      list: conversations(),
+      messages: messagesOf(),
+      failList: false,
+      lastShown: false,
+      failMessagesOf: null,
+      send: null,
+      start: null,
+      answerMs: 900,
+      receipts: new Map(),
+    },
+    missionPlus: conversationMission(),
   })
   const fixture = window.fetch
-  let held: { by: string; path: string; waiting: (() => void)[] } | null = null
+  let held: { by: string; path: string; method?: string; waiting: (() => void)[] } | null = null
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const { pathname, method, by } = described(input, init)
     if (pathname.startsWith('/synthetic-auth/')) return network(input, init)
     asked.push(`${method} ${pathname} by ${by}`)
     const holding = held
-    if (holding?.by === by && holding.path === pathname) {
+    if (holding?.by === by && holding.path === pathname && (!holding.method || holding.method === method)) {
       return new Promise<Response>((answer) => holding.waiting.push(() => void fixture(input, init).then(answer)))
     }
     return fixture(input, init)
@@ -128,8 +141,8 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
     get unexpected() {
       return [...unexpectedBefore, ...unexpected]
     },
-    hold: (by, path) => {
-      held = { by, path, waiting: [] }
+    hold: (by, path, method?) => {
+      held = method ? { by, path, method, waiting: [] } : { by, path, waiting: [] }
     },
     release: () => {
       const waiting = held?.waiting ?? []
