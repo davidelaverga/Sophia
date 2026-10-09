@@ -666,6 +666,18 @@
     "candidate": "0f2f3798dcb876937c3fb1403d9ad89be1c1e241",
     "tree": "dca8624f3c7d7294eb0210fd97da9e210aa0055e",
     "newestSource": "5c3866ad963e57fdbd3bb987280e7773e9e87b00",
-    "statement": "P1 independently actual-app reproduced: unreached erase plus200 actual newer conversations makes capped list omit still-open target; false erased notice and local draft loss. New formal5c review confirms P1 and A08 stale receipt P2. Earlier positive retry/destination branches remain bounded passes; G4 withheld pending immutable correction/recheck. No G2/live authority."
+    "statement": "P1 independently actual-app reproduced: unreached erase plus200 actual newer conversations makes capped list omit still-open target; false erased notice and local draft loss. New formal5c review confirms P1 and A08 stale receipt P2. Earlier positive retry/destination branches remain bounded passes; G4 withheld pending immutable correction/recheck. No G2/live authority.",
+    "currentMain": "3e6d57b13ee8eabe62cb8e5e1d0ee2e7ebd76b3c",
+    "mainIntegrationRequired": "PR203 shared proposal truth files invalidate affected previous A08 review",
+    "authorScopedGate447": {
+      "browserPassed": 1129,
+      "browserFailed": 2,
+      "browserTotal": 1131,
+      "skipped": 0,
+      "exit": 1,
+      "fullPnpmCheck": false,
+      "rawLogsAccessible": false,
+      "source": "issueCC14/6090866282 author receipt"
+    }
   }
 }
