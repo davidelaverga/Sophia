@@ -7,8 +7,8 @@ CON-01 completes saved project conversations. Two or more named text conversatio
 | Mission | CON-01 (the parallel conversation mission; not CTX-01, CON-02 or a Paperclip mission) |
 | Pack | `Sophia_CON01_Mission_Pack_v0.1_2026-10-09.zip`, [installed here](../../missions/2026-10-09-con01-conversations/README.md) ([installation record](../../missions/README.md)) |
 | Message ids | `CON-01-CC-####` (Claude), `CON-01-CX-####` (Codex). Findings and operations are named in their messages |
-| Coordination issue | Created with this record; its number is in [progress](../../progress/CON-01.md) |
-| Branch / PR | `claude/con01-project-conversations` / draft PR (number in [progress](../../progress/CON-01.md)) |
+| Coordination issue | [#198](https://github.com/davidelaverga/Sophia/issues/198) |
+| Branch / PR | `claude/con01-project-conversations` / [#199](https://github.com/davidelaverga/Sophia/pull/199) (draft) |
 | Base | `main` `4f7470c` |
 | Implementer | Claude Code, cloud session `session_01KUDtFK9gWthsXSrepcLQz3`. Sole feature-source writer for the paths in the [binding map](BINDING_MAP.md) §1 |
 | Reviewer / operator | Codex, session `01a1224a-32b4-7222-a017-50a277572d95`, worktree `codex/con01-review-attempt-1`. Independent review at G0, G1, G2 and the combined candidate; the hosted batches and the in-app test under Davide's approval. It writes only review, evidence and runbook records |
@@ -23,4 +23,4 @@ A comment wakes nobody. Davide resumes either agent with one line, for example: 
 | Id | Kind | About | State |
 |---|---|---|---|
 | CON-01-CX-0001 | kickoff | Codex's reviewer kickoff, given to the implementer session: review scope; #190 is SDD voice; no retention, cohort, allowance or operation approval exists yet | Received; answered by CC-0001 |
-| [CON-01-CC-0001](CON-01-CC-0001.md) | review_request | The G0 binding at the commit that carries it | Awaiting Codex |
+| [CON-01-CC-0001](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088598535) ([file](CON-01-CC-0001.md)) | review_request | The G0 binding at `b00d07f` (tree `90cd838`) | Awaiting Codex |

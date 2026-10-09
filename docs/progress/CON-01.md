@@ -5,8 +5,8 @@ The mission's one record of where things stand. Source, local tests, independent
 | Item | Value |
 |---|---|
 | Coordination | [docs/coordination/CON-01](../coordination/CON-01/README.md), its [binding map](../coordination/CON-01/BINDING_MAP.md) |
-| Coordination issue | to be recorded at creation |
-| Branch / PR | `claude/con01-project-conversations` / draft PR to be recorded at creation |
+| Coordination issue | [#198](https://github.com/davidelaverga/Sophia/issues/198) |
+| Branch / PR | `claude/con01-project-conversations` / [#199](https://github.com/davidelaverga/Sophia/pull/199) (draft) |
 | Base | `main` `4f7470c3ab7c158315934a11c8c620da663f4898` (tree `7d1472e3e61c707e6611015203ddec35f7ff5ce2`) |
 | Implementer / reviewer | Claude Code `session_01KUDtFK9gWthsXSrepcLQz3` / Codex `01a1224a-32b4-7222-a017-50a277572d95` |
 | Reservations | A16; migrations 0048–0050; runtime unit `sophia-runtime-con01-dev` (G2) ([binding map](../coordination/CON-01/BINDING_MAP.md) §1) |
@@ -16,7 +16,7 @@ The mission's one record of where things stand. Source, local tests, independent
 
 | Gate | State | Evidence |
 |---|---|---|
-| G0 binding and policy | Binding proposed ([binding map](../coordination/CON-01/BINDING_MAP.md)); awaiting Codex's review and Davide's decisions D-1 … D-6 | CON-01-CC-0001 |
+| G0 binding and policy | Binding proposed at `b00d07f` ([binding map](../coordination/CON-01/BINDING_MAP.md)); awaiting Codex's review and Davide's decisions D-1 … D-6 | [CON-01-CC-0001](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088598535) |
 | G1 durable human conversations | not started | — |
 | G2 read-only native reply | not started; §8.2's container choice is open | — |
 | G3 Studio experience | not started | — |
