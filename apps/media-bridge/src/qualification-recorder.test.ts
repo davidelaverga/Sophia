@@ -62,6 +62,14 @@ function recorder(): QualificationRecorder {
   })
 }
 
+/** One generation of `samples` 24 kHz samples, played, then its turn's end. */
+function generation(r: QualificationRecorder, samples: number, how: 'turn_complete' | 'interrupted' = 'turn_complete') {
+  r.responded()
+  r.replyReceived(samples)
+  r.replyEnded('played')
+  r.turnEnded(how)
+}
+
 beforeEach(() => {
   clock = 1_800_000_000_000
   emitted = []
@@ -327,36 +335,135 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
     )
   })
 
-  it('a generation the bridge asked for answers whom it asked for: a tool response’s speaker; a notice, no one', () => {
+  it('a generation the bridge asked for answers whom it asked for: the next one while idle, the one after one under way', () => {
     const r = recorder()
     r.floor(PRINCIPAL, GRANT.grantId)
     r.opened(1, false)
     emitted.length = 0
-    const generation = () => {
+    const reply = () => {
       r.responded()
       r.replyReceived(480)
       r.replyEnded('played')
-      r.turnEnded('turn_complete')
     }
-    // Another member's tool response was sent; the principal is heard before its continuation.
+    // Another member's tool response, sent while the provider was idle: the next generation is its continuation, the
+    // principal heard before it or not.
+    attribution = null
     r.asked({ actorId: OTHER, inputEpoch: 1 })
     attribution = { actorId: PRINCIPAL, inputEpoch: 2 }
-    generation()
-    // A result notice, the principal heard first again.
+    reply()
+    r.turnEnded('turn_complete')
+    // A result notice sent while idle: its generation answers no one.
+    attribution = null
     r.asked(null)
-    generation()
-    // The principal's own tool response, whatever the floor's attribution by then.
-    attribution = { actorId: OTHER, inputEpoch: 3 }
+    attribution = { actorId: PRINCIPAL, inputEpoch: 2 }
+    reply()
+    r.turnEnded('turn_complete')
+    // The principal's own turn (recorded), with their tool response sent while it is under way: its continuation is the
+    // generation after it, theirs, whatever the floor's attribution by then.
+    r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 2)
+    reply()
     r.asked({ actorId: PRINCIPAL, inputEpoch: 2 })
-    generation()
+    r.turnEnded('turn_complete')
+    attribution = { actorId: OTHER, inputEpoch: 3 }
+    reply()
+    r.turnEnded('turn_complete')
     // Nothing asked: the floor's attribution as the generation starts.
     attribution = { actorId: PRINCIPAL, inputEpoch: 4 }
-    generation()
+    reply()
+    r.turnEnded('turn_complete')
     const replies = emitted.flatMap((e) => (e.kind === 'output_reply' ? [[e.replyOrdinal, e.turnOrdinal]] : []))
     assert.deepEqual(replies, [
       [1, 3],
       [2, 4],
+      [3, 5],
     ])
+  })
+
+  describe('whom a generation answers when an ask may be more than one (R2 review P2 and P3): fail closed', () => {
+    const DAVIDE = { actorId: OTHER, inputEpoch: 1 }
+    const LUIS = { actorId: PRINCIPAL, inputEpoch: 2 }
+    const recordedReplies = () => emitted.flatMap((e) => (e.kind === 'output_reply' ? [e.samplesReceived] : []))
+    const fresh = () => {
+      const r = recorder()
+      r.floor(PRINCIPAL, GRANT.grantId)
+      r.opened(1, false)
+      return r
+    }
+
+    it('root’s control 1: the principal speaks and is answered: their 960 samples are recorded', () => {
+      const r = fresh()
+      attribution = LUIS
+      r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 2)
+      generation(r, 960)
+      assert.deepEqual(recordedReplies(), [960])
+    })
+
+    it('root’s control 2: a peer’s ask sent before the principal’s first output: neither generation is the principal’s', () => {
+      const r = fresh()
+      attribution = LUIS // the principal's words were forwarded; nothing produced yet
+      r.asked(DAVIDE) // Davide's slow tool response is sent now
+      generation(r, 960) // Sophia's answer to Luis, or Davide's continuation: it cannot be told
+      attribution = LUIS // Luis's open microphone, forwarded again
+      generation(r, 1440) // Davide's continuation, or an answer to Luis
+      assert.deepEqual(recordedReplies(), [], 'no one’s, rather than a guess: never Davide’s 1440 as Luis’s')
+      generation(r, 480)
+      assert.deepEqual(recordedReplies(), [480], 'past both, the floor’s again')
+    })
+
+    it('root’s control 3: a notice cut before a word leaves no mark: the principal’s next reply is recorded', () => {
+      const r = fresh()
+      attribution = null
+      r.asked(null) // a result notice, sent while idle
+      r.turnEnded('interrupted') // talked over before Sophia said a word of it
+      attribution = LUIS
+      r.input(PRINCIPAL, new Int16Array(1600).fill(800), 0, 2)
+      generation(r, 960)
+      assert.deepEqual(recordedReplies(), [960])
+    })
+
+    it('a notice sent while holder input was forwarded: neither of the next two generations is recorded', () => {
+      const r = fresh()
+      attribution = LUIS
+      r.asked(null)
+      generation(r, 480)
+      generation(r, 960)
+      assert.deepEqual(recordedReplies(), [], 'the notice may be either')
+      generation(r, 720)
+      assert.deepEqual(recordedReplies(), [720])
+    })
+
+    it('a barge-in may be answered before what was asked: the ask may then be one generation later', () => {
+      const r = fresh()
+      attribution = LUIS
+      r.responded() // the principal's generation is under way
+      r.asked(DAVIDE) // Davide's tool response, sent meanwhile: the next generation, unless a barge-in comes first
+      r.replyReceived(480)
+      r.replyEnded('interrupted')
+      r.turnEnded('interrupted')
+      generation(r, 960) // Luis's answer to his barge-in, or Davide's continuation
+      generation(r, 1440)
+      assert.deepEqual(recordedReplies(), [480], 'only the principal’s own generation, which began before the ask')
+      generation(r, 720)
+      assert.deepEqual(recordedReplies(), [480, 720])
+    })
+
+    it('the principal’s own ask sent while another member’s input waits: the generation it may be is no one’s', () => {
+      const r = fresh()
+      attribution = DAVIDE // Davide holds the floor now, and his words were forwarded
+      r.asked(LUIS) // the principal's tool response from before, sent now
+      generation(r, 960) // Sophia's answer to Davide, or the principal's continuation
+      assert.deepEqual(recordedReplies(), [], 'never Davide’s answer as the principal’s')
+    })
+
+    it('a lost connection’s asks are never answered on the next one', () => {
+      const r = fresh()
+      attribution = null
+      r.asked(DAVIDE)
+      r.turnEnded('lost')
+      attribution = LUIS
+      generation(r, 960)
+      assert.deepEqual(recordedReplies(), [960])
+    })
   })
 
   it('the session’s close: once, with its counts and no transcript; nothing is recorded after it', () => {

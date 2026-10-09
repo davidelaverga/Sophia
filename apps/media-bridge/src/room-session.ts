@@ -1968,9 +1968,11 @@ export class RoomSession {
     this.announced.add(key)
     const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
     this.notice = { key, result: next, event, cards: this.track(key, next, this.sendCards(next, recipients)) }
+    // Asked before the notice makes the next turn a system turn: whether holder input went to the provider since its
+    // last turn ended decides which generations the notice may be (qualification-recorder.ts).
+    this.qualification?.asked(null)
     this.state.systemTurn()
     live.sendNotice(notice)
-    this.qualification?.asked(null)
   }
 
   /**

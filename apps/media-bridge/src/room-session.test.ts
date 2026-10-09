@@ -4125,6 +4125,98 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     assert.deepEqual(pick(fields(close), 'replies', 'toolCalls'), { replies: 0, toolCalls: 0 })
   })
 
+  /** The samples of each output_reply recorded, in order. */
+  const recordedSamples = () =>
+    service.evidence.filter((w) => w.receipt.kind === 'output_reply').map((w) => fields(w)?.samplesReceived)
+
+  it('another member’s slow tool response sent while the principal’s turn is under way: neither generation is recorded (R2 P2)', async () => {
+    voiceEvidence = true
+    let release: ((r: MediaToolResult) => void) | undefined
+    service.toolCall = async (c) => {
+      service.calls.push(c)
+      return new Promise<MediaToolResult>((resolve) => {
+        release = resolve
+      })
+    }
+    const { session, room, live } = await ready({ inputActorId: DAVIDE, qualification: grant() })
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush()
+    await flush()
+    live.events.toolCalls([{ id: 'call-d', name: 'project_status', args: {} }]) // Davide's call; the API is slow
+    await flush()
+    live.events.audio(speech(2), OUT) // "one moment, Davide"
+    live.events.turnComplete()
+    await flush()
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    room.events.audio(LUIS, voice16k(), 16000, 1) // Luis asks something
+    await flush()
+    await flush()
+    release?.({ status: 'ok', output: { summary: 'x' } }) // Davide's answer is sent while Luis's turn is under way
+    await until('Davide’s tool response sent', () => live.responses.length === 1)
+    live.events.audio(speech(2), OUT) // Sophia answers Luis (960 samples), or is it Davide's continuation?
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // Luis's open microphone, a quiet room
+    await flush()
+    await flush()
+    live.events.audio(speech(3), OUT) // Davide's WHEN_IDLE continuation (1440 samples), or an answer to Luis?
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    assert.deepEqual(recordedSamples(), [], 'no one’s rather than a guess: never Davide’s 1440 as Luis’s reply')
+  })
+
+  it('a notice sent after the principal’s words were forwarded may be either of the next two generations: neither is recorded', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1) // Luis speaks; no transcript of it yet
+    await flush()
+    await flush()
+    session.update(
+      assignment({ qualification: grant(), results: [{ taskId: TASK, resultRevision: 1, kind: 'research' }] }),
+    )
+    session.tick()
+    for (let i = 0; i < 4; i += 1) await flush()
+    assert.equal(live.notices.length, 1, 'the notice was sent')
+    for (const frames of [2, 3]) {
+      live.events.audio(speech(frames), OUT) // the answer to Luis, and the notice: in an order that cannot be told
+      await flush()
+      live.events.turnComplete()
+      await flush()
+      room.events.audio(LUIS, pcm16k(), 16000, 1) // Luis's open microphone, a quiet room
+      await flush()
+      await flush()
+    }
+    await session.close()
+    assert.deepEqual(recordedSamples(), [])
+  })
+
+  it('a notice cut before a word leaves no mark: the principal’s next reply is recorded (R2 P3)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({
+      qualification: grant(),
+      results: [{ taskId: TASK, resultRevision: 1, kind: 'research' }],
+    })
+    session.tick()
+    for (let i = 0; i < 4; i += 1) await flush()
+    assert.equal(live.notices.length, 1, 'the notice was sent, nothing forwarded before it')
+    live.events.interrupted() // talked over before Sophia said a word of it
+    await flush()
+    room.events.audio(LUIS, voice16k(), 16000, 1) // Luis asks
+    await flush()
+    await flush()
+    live.events.audio(speech(2), OUT) // Sophia answers Luis
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    assert.deepEqual(recordedSamples(), [OUTPUT_FRAME * 2])
+  })
+
   it('a result notice is no one’s turn, even when the principal’s open microphone is forwarded before it is said', async () => {
     voiceEvidence = true
     const { session, room, live } = await ready({
