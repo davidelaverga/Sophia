@@ -1,15 +1,18 @@
 // The words a project's conversations are listed with (docs/plans/project-conversations.md): who wrote there, what is
 // open, the filter by title, and the brief's accepted decisions beside them.
 import type { MissionDecision } from '@sophia/contracts'
-import type { ConversationSummary } from '../../api/vision.ts'
+import type { ConversationMessage, ConversationReply, ConversationSummary } from '../../api/conversations.ts'
 import { plainOf } from './sophia-text.ts'
 
-/** The project's conversations, as read for this person. */
-export const listKey = (projectId: string, name: string) => ['vision', 'conversations', projectId, name] as const
+/** Every conversation list read, whatever its project or reader: what a write moves. */
+export const LISTS = ['conversations', 'list'] as const
+
+/** The project's conversations, as read for this person (their account: the token's subject, #189). */
+export const listKey = (projectId: string, name: string) => [...LISTS, projectId, name] as const
 
 /** A conversation's messages, as read for this person. */
 export const messagesKey = (conversationId: string, name: string) =>
-  ['vision', 'conversation', conversationId, name] as const
+  ['conversations', 'messages', conversationId, name] as const
 
 /** Who wrote there, mine as «You», then Sophia when she answered: «Lucía, You · Sophia». */
 export function contributorsLine(c: Pick<ConversationSummary, 'contributors' | 'sophia'>, me: string): string {
@@ -107,13 +110,34 @@ export function initialOf(name: string | null): string {
   return (first?.segment ?? 'A').toLocaleUpperCase()
 }
 
-/** Whether Sophia answered since she was asked: a message of hers written after then (wherever the page holds it). */
-export function answeredAfter(
-  messages: readonly { author: 'member' | 'sophia'; at: string }[],
-  askedAt: string,
-): boolean {
-  const asked = Date.parse(askedAt)
-  return messages.some((m) => m.author === 'sophia' && Date.parse(m.at) > asked)
+/**
+ * Whether a reply request is still under way: its answer, or its end, is still to come. Only the request itself says
+ * so: a message of Sophia's settles only the request it names (`replyTo`), never one asked before it by time (A16).
+ */
+export const replyOpen = (r: Pick<ConversationReply, 'state'>): boolean =>
+  r.state === 'pending' || r.state === 'running' || r.state === 'outcome_unknown'
+
+/** The request a message asked, as the pages read hold it now; undefined while that message isn't among them. */
+export const replyOf = (
+  messages: readonly ConversationMessage[],
+  messageId: string,
+): ConversationReply | null | undefined => messages.find((m) => m.id === messageId)?.ask
+
+/** What a request that ended without an answer says, under the message that asked; null for any other. */
+export function replyEndWords(r: Pick<ConversationReply, 'state' | 'reason'>): string | null {
+  if (r.state === 'blocked') {
+    if (r.reason === 'runtime_unavailable') return 'Sophia couldn’t be reached, so she didn’t answer this.'
+    if (r.reason === 'replies_not_enabled')
+      return 'Sophia doesn’t answer in conversations yet: this stays with the team.'
+    return 'Sophia’s answers aren’t on for this project now, so she didn’t answer this.'
+  }
+  if (r.state === 'failed') return 'Sophia couldn’t answer this. Asking again tries once more.'
+  if (r.state === 'cancelled') {
+    if (r.reason === 'source_withdrawn') return 'Not answered: something it would have read was withdrawn.'
+    if (r.reason === 'asker_removed') return 'Not answered: who asked is no longer a member here.'
+    return 'Not answered.'
+  }
+  return null
 }
 
 /** A message's first words, for the line that says which one wasn't confirmed. */
@@ -162,11 +186,16 @@ export function gistOf(c: ConversationSummary, me: string): string | null {
 export function withLastMessage(
   list: readonly ConversationSummary[],
   conversationId: string,
-  m: { author: 'member' | 'sophia'; actorId: string | null; name: string | null; text: string; at: string },
+  m: Pick<ConversationMessage, 'author' | 'actorId' | 'name' | 'text' | 'at'>,
 ): readonly ConversationSummary[] {
+  const text = m.text
+  if (text === null) return list
   return list.map((c) =>
-    c.id === conversationId && c.lastMessage !== undefined
-      ? { ...c, lastMessage: { author: m.author, actorId: m.actorId, name: m.name, text: m.text, at: m.at } }
+    c.id === conversationId
+      ? {
+          ...c,
+          lastMessage: { author: m.author, actorId: m.actorId, name: m.name, text: text.slice(0, 140), at: m.at },
+        }
       : c,
   )
 }

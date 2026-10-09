@@ -2,7 +2,7 @@
 // project while the page lives; how many show when narrowed; nothing left says so, with Clear. Each row opens its
 // conversation.
 import { useId, useRef, useState } from 'react'
-import type { ConversationSummary } from '../../api/vision.ts'
+import type { ConversationSummary } from '../../api/conversations.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { pageMemory, useMemory } from '../work/planning/page-memory.ts'
 import { contributorsLine, gistOf, narrowed, openWords } from './conversation-list.ts'

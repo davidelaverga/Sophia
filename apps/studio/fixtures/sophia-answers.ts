@@ -2,7 +2,7 @@
 // the field answered with what the conversation and the project hold, in her light text (sophia-text.ts), as A18's
 // runtime would. She reads what members said, never the presses nor her own answers. Anything else asked gets an honest
 // line, never a promise. Every word is synthetic.
-import type { ConversationMessage } from '../src/api/vision.ts'
+import type { FixtureMessage as ConversationMessage } from './conversation-data.ts'
 import { conversationMission } from './conversation-data.ts'
 import { membership } from './data.ts'
 
@@ -44,9 +44,12 @@ const wordsOf = (text: string) =>
       .filter((w) => !COMMON.has(w)),
   )
 
-/** What members said: their messages, not the presses asked of her, not her answers. */
+/** A message's words; a withdrawn one has none. */
+const wordsIn = (m: ConversationMessage) => m.text ?? ''
+
+/** What members said: their messages, not the presses asked of her, not her answers, nothing withdrawn. */
 const saidBy = (messages: readonly ConversationMessage[]) =>
-  messages.filter((m) => m.author === 'member' && !PRESSES.has(m.text.trim()))
+  messages.filter((m) => m.author === 'member' && m.text !== null && !PRESSES.has(m.text.trim()))
 
 /** Who said it, to her: the one asking is «You», as the thread says it. */
 const who = (m: ConversationMessage) => (m.actorId === membership.actorId ? 'You' : (m.name ?? 'A member'))
@@ -78,7 +81,7 @@ const oneLine = (text: string) => text.replace(/\s+/gu, ' ').trim()
 function sumUp(messages: readonly ConversationMessage[]): string {
   const said = saidBy(messages)
   if (said.length === 0) return 'Nobody has said anything here yet: there is nothing to sum up.'
-  const lines = points(said).map((m) => `- ${who(m)}: ${oneLine(m.text)}`)
+  const lines = points(said).map((m) => `- ${who(m)}: ${oneLine(wordsIn(m))}`)
   const before = touched(said, messages[0]?.at ?? '').map(
     (d) => `Already decided on ${dayOf(d.decidedAt ?? '')}: “${d.statement}”.`,
   )
@@ -90,7 +93,7 @@ function unanswered(messages: readonly ConversationMessage[]): string[] {
   return saidBy(messages).flatMap((m) => {
     const at = messages.indexOf(m)
     const replied = messages.slice(at + 1).some((later) => later.actorId !== m.actorId || later.author !== m.author)
-    const question = questionIn(m.text)
+    const question = questionIn(wordsIn(m))
     return question && !replied ? [question] : []
   })
 }

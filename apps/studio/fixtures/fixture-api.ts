@@ -59,8 +59,14 @@ import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-
 import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
 import { reviewed, type Reviews } from './review-data.ts'
 import { created, finished, type Tasks } from './task-data.ts'
-import type { ConversationMessage, ConversationSummary, ProjectTask, VersionReview } from '../src/api/vision.ts'
-import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
+import type { ProjectTask, VersionReview } from '../src/api/vision.ts'
+import {
+  MESSAGE_PAGE,
+  type conversationMission,
+  type FixtureConversation,
+  type FixtureMessage,
+} from './conversation-data.ts'
+import { wireList, wireMessage } from './conversation-wire.ts'
 import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
@@ -198,10 +204,10 @@ interface Project {
   missionHeld?: (() => void)[] | null
 }
 
-/** The conversations as the A18 reads give them (and its writes keep them), and the reads that fail. */
+/** The conversations as the fixtures keep them (A16 serves them, conversation-wire.ts), and the reads that fail. */
 export interface Conversations extends TalkWrites {
-  list: ConversationSummary[]
-  messages: Record<string, ConversationMessage[]>
+  list: FixtureConversation[]
+  messages: Record<string, FixtureMessage[]>
   /** The list's reads fail (`conversations=fail`, `window.fixture.failConversations`). */
   failList: boolean
   /** The list says each one's last message (A18 proposed; `last=1`, and the demo). */
@@ -339,7 +345,7 @@ function talkWritten(project: Project, path: string, init: RequestInit | undefin
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
   if (url.pathname === `/api/v1/projects/${PROJECT}/discussion/replies`) return repliesRead(project)
-  const talk = project.conversations && conversationRead(project.conversations, url)
+  const talk = project.conversations && conversationRead(project.conversations, url, project.role === 'viewer')
   if (talk !== undefined) return talk
   if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
   const reviews = REVIEWS_OF.exec(url.pathname)
@@ -435,33 +441,18 @@ const REVIEWS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions\/([0-9a-f-]
 const TASKS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
 const MESSAGES_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
 
-/** A18's reads: the list, or a page of a conversation's messages; undefined for any other request. */
-function conversationRead(talk: Conversations, url: URL) {
-  if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk)
+/** A16's reads: the list, or a page of a conversation's messages; undefined for any other request. */
+function conversationRead(talk: Conversations, url: URL, viewer: boolean) {
+  if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk, viewer)
   const messagesOf = MESSAGES_OF.exec(url.pathname)?.[1]
   return messagesOf ? messagesRead(talk, messagesOf, url) : undefined
 }
 
-/** The project's conversations (A18), as listed. */
-function conversationsRead(talk: Conversations) {
+/** The project's conversations (A16), as listed, each one's newest message where the page asks for last messages. */
+function conversationsRead(talk: Conversations, viewer: boolean) {
   if (talk.failList) return unavailable()
   served.push('conversations:read')
-  if (!talk.lastShown) return json({ conversations: talk.list })
-  // A18 (proposed): each one's newest message, a line of it, as its messages say it now.
-  const lastOf = (id: string) => {
-    const m = talk.messages[id]?.at(-1)
-    return m
-      ? {
-          author: m.author,
-          actorId: m.actorId,
-          name: m.name,
-          // Its opening as written, line breaks kept: the Studio says it in one line (C6, sophia-text.ts plainOf).
-          text: m.text.slice(0, 140),
-          at: m.at,
-        }
-      : null
-  }
-  return json({ conversations: talk.list.map((c) => ({ ...c, lastMessage: lastOf(c.id) })) })
+  return json(wireList(talk.list, talk.messages, { lastShown: talk.lastShown === true, viewer }))
 }
 
 /** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
@@ -475,7 +466,11 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   const end = Math.min(all.length, Number(before ?? all.length))
   const start = Math.max(0, end - MESSAGE_PAGE)
   served.push(`messages:${conversationId.slice(-2)}:${String(start)}`)
-  return json({ messages: all.slice(start, end), before: start > 0 ? String(start) : null })
+  return json({
+    conversationId,
+    messages: all.slice(start, end).map((m, i) => wireMessage(m, start + i)),
+    before: start > 0 ? String(start) : null,
+  })
 }
 
 /** Who waits at the door: one first knock, one knocking again (`lobby=again`), or two (`lobby=two`). */

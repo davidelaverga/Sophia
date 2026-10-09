@@ -8,7 +8,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { getMission } from '../../api/mission.ts'
-import type { ConversationSummary } from '../../api/vision.ts'
+import type { ConversationSummary } from '../../api/conversations.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'

@@ -6,7 +6,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, type RefObject } from 'react'
 import { getMission } from '../../api/mission.ts'
-import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/vision.ts'
+import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/conversations.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'

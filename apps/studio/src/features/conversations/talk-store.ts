@@ -4,7 +4,7 @@
 // a refusal that answered one meanwhile; since when Sophia was asked; and the start's words and intent. Forgotten on
 // signing out or switching identity (App), as the cached reads are.
 import { useCallback, useSyncExternalStore } from 'react'
-import type { ConversationAsk, MessageAsk } from '../../api/vision.ts'
+import type { ConversationAsk, MessageAsk } from '../../api/conversations.ts'
 import type { Held } from './held-write.ts'
 
 export interface Kept {
@@ -26,11 +26,12 @@ export interface Kept {
 }
 
 /**
- * When Sophia was asked: the server's time of the message that asked (her answer comes after it, by the same clock),
- * and this page's own time then (how long she has been waiting, by this page's clock: never the two mixed).
+ * Sophia asked here: the reply request the API recorded and the message that asked (only that request's own state, or
+ * her answer naming it, ends the wait), and this page's own time then (how long she has been waiting, by its clock).
  */
 export interface Asked {
-  at: string
+  replyId: string
+  messageId: string
   here: number
 }
 

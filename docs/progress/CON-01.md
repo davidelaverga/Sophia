@@ -17,7 +17,7 @@ The mission's one record of where things stand. Source, local tests, independent
 | Gate | State | Evidence |
 |---|---|---|
 | G0 binding and policy | Revision 1 at `b00d07f`: changes requested ([CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493)). Revision 2 makes the five corrections ([CC-0002](../coordination/CON-01/CON-01-CC-0002.md)); awaiting Codex's recheck and Davide's D-1 … D-6 and B-1 | [CC-0001](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088598535), CX-0002, CC-0002 |
-| G1 durable human conversations | Intermediate candidate (CC-0003): migration 0048, A16, persistence, routes behind `SOPHIA_CONVERSATIONS`, real-PostgreSQL and HTTP tests. The Studio is not yet wired. The full ordinary gate (`pnpm check`) is pending | CC-0003 (below) |
+| G1 durable human conversations | Server at `a7cc081` (CC-0005: CX-0006's race fixed). The Studio is wired to A16 in the commit after it: the real local API, request correlation, honest asks, withdrawn messages. The full ordinary gate passed at `a7cc081` in a clean worktree. Codex's independent G1 rerun is pending | CC-0003, CC-0005, CC-0006 |
 | G2 read-only native reply | not started: option C preferred as direction; the impact inventory (§8.2) comes first; B-1 blocks activation | — |
 | G3 Studio experience | not started | — |
 | G4 combined candidate | not started | — |
@@ -40,7 +40,28 @@ The mission's one record of where things stand. Source, local tests, independent
 | `pnpm typecheck` | exit 0 |
 | `pnpm contracts:check` (A16 generated: 4 paths, 17 schemas, purely additive) | exit 0 |
 | Prettier and type-aware oxlint on every changed TypeScript file | clean |
-| Full ordinary gate (`pnpm check`: build, unit, format, lint, artifacts, integration) and the full `pnpm test:db` | **pending** at the intermediate |
+| Full ordinary gate (`pnpm check`: build, unit, format, lint, artifacts, integration) and the full `pnpm test:db` | **pending** at the intermediate (`6092d93`). A gate I ran then over my working tree showed A16's JSON unformatted; that was corrected in `a7cc081` |
+
+## G1 server at `a7cc081` (tree `ada2700`): the ordinary gate in a clean worktree at exactly that commit
+
+Exit codes were written to a file by the shell, never read through a pipeline.
+
+| Command | Exit | Result |
+|---|---|---|
+| `pnpm check` (toolchain, format, lint, build, typecheck, contracts, unit, artifacts, integration) | 0 | Unit 2096 (2095 pass, 1 skipped); artifacts match linux-x64; integration 101 (99 pass, 2 skipped) |
+| `pnpm test:db` | 0 | 626 tests, 626 pass, 0 skipped |
+| `pnpm test:sql` | 0 | 46 migrations, 5 test files passed |
+| The two conversation suites with the CX-0006 race regressions | 0 | 26 tests, 26 pass |
+
+## G1 Studio wiring (the commit after `a7cc081`)
+
+| Check | Result |
+|---|---|
+| `pnpm format:check`, `pnpm lint`, `pnpm typecheck` (whole repository) | exit 0 each |
+| Studio unit tests (`node --test "apps/studio/src/**/!(*.db\|*.live).test.ts"`) | 1012 tests, 1012 pass |
+| Luis's 12 conversation browser suites against the fixture pages, which now serve A16 shapes, desktop and phone. Local Playwright 1.63 config launching this container's Chromium 141 (`/opt/pw-browsers/chromium`): the pinned headless shell 1243 is not installed here | 115 passed |
+| Other browser suites touching conversations or the nav: app-auth, knowledge-honest, knowledge-origins, project-connections, report, spaces-honest, type-scale | 114 passed, 1 failed under load (app-auth lens restore: a 5 s sign-in wait). Not reproduced: app-auth alone with `--repeat-each=3` gives 45/45 |
+| **Real local episode** (L1: real API with `SOPHIA_CONVERSATIONS=on`, PostgreSQL 16.15, Studio dev build with `VITE_SOPHIA_CONVERSATIONS=1`, `dev-db.ts` synthetic identities, project setting written by the operator function) | Davide starts «Onboarding direction» (POST 202) with Ask off. His asked message is recorded with its request `blocked`, said under it. Luis contributes. After Davide reloads, every message is read back from PostgreSQL ("You, luis@sophia.test"). Vera (viewer, 390 px) reads, with no composer and no New conversation. A second and third conversation keep separate histories. The composer says "Sophia doesn’t answer here yet" and offers no quick ask while `capability.ask` is unavailable |
 
 ## Acceptance (pack 07; every case starts `not_run`)
 

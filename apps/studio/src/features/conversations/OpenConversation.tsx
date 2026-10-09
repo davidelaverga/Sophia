@@ -11,21 +11,24 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   getConversationMessages,
   type ConversationMessage,
+  type ConversationReply,
   type ConversationSummary,
   type MessageAsk,
-} from '../../api/vision.ts'
+} from '../../api/conversations.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { Mark } from '../../app/Mark.tsx'
 import {
-  answeredAfter,
   continuesRun,
   contributorsLine,
   initialOf,
   messageBy,
   messagesKey,
+  replyEndWords,
+  replyOf,
+  replyOpen,
 } from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
@@ -44,6 +47,8 @@ interface Props {
   cursor: string | undefined
   /** Members write here; viewers read; undefined until the membership is read (neither, meanwhile). */
   writer: boolean | undefined
+  /** Sophia answers here now (the list's `capability.ask`). */
+  answers: boolean
   draft: string
   onDraft: (text: string) => void
   askSophia: boolean
@@ -55,11 +60,11 @@ interface Props {
   /** The refusal that answered the last press here (kept by the view). */
   refused: string | null
   onRefused: (words: string | null) => void
-  /** When Sophia was asked here (kept by the view): a message that doesn't ask her leaves it. */
+  /** The request Sophia was last asked here (kept by the view): a message that doesn't ask her leaves it. */
   asked: Asked | null
-  onAsked: (at: string) => void
-  /** Her answer to the ask made at `at` was seen: that wait is over (kept by the view). */
-  onAnswered: (at: string) => void
+  onAsked: (reply: ConversationReply) => void
+  /** The request `replyId` ended (answered, or said why not): that wait is over (kept by the view). */
+  onAnswered: (replyId: string) => void
   /** Just started here: the focus goes to its title, once. */
   arrived: boolean
   onArrived: () => void
@@ -73,8 +78,8 @@ interface Props {
 export const ANSWER_WAIT_MS = 120_000
 
 /**
- * When Sophia was asked here; late once she hasn't answered in time, counted on this page's clock from when it asked
- * (not from coming back, and never against the server's clock).
+ * The request Sophia was asked here; late once it hasn't ended in time, counted on this page's clock from when it
+ * asked (not from coming back, and never against the server's clock).
  */
 function useAwaiting(asked: Asked | null) {
   const [late, setLate] = useState(false)
@@ -85,7 +90,7 @@ function useAwaiting(asked: Asked | null) {
     const timer = setTimeout(() => setLate(true), Math.max(0, ANSWER_WAIT_MS - (Date.now() - here)))
     return () => clearTimeout(timer)
   }, [here])
-  return { since: asked?.at ?? null, late }
+  return { replyId: asked?.replyId ?? null, messageId: asked?.messageId ?? null, late }
 }
 
 export function OpenConversation(props: Props) {
@@ -129,6 +134,7 @@ export function OpenConversation(props: Props) {
           askSophia={props.askSophia}
           onAskSophia={props.onAskSophia}
           canSend={read.data !== undefined}
+          answers={props.answers}
           onClearIf={props.onClearIf}
           held={props.held}
           onHeld={props.onHeld}
@@ -136,7 +142,7 @@ export function OpenConversation(props: Props) {
           onRefused={props.onRefused}
           onSent={(sent) => {
             follow.sent()
-            if (sent.sophia === 'asked') props.onAsked(sent.message.at)
+            if (sent.reply) props.onAsked(sent.reply)
           }}
         />
       )}
@@ -285,8 +291,8 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
 function Messages(props: {
   read: ReturnType<typeof useTranscript>
   me: string
-  awaiting: { since: string | null; late: boolean }
-  onAnswered: (at: string) => void
+  awaiting: { replyId: string | null; messageId: string | null; late: boolean }
+  onAnswered: (replyId: string) => void
   /** The thread grew (a message, or «Sophia is answering…»): its scroll may follow. */
   onGrown: () => void
   /** Where a message may be proposed as a decision (C7); null for those who can't write here. */
@@ -295,13 +301,7 @@ function Messages(props: {
   const { read, me, onAnswered, onGrown } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
   const messages = read.data?.pages.toReversed().flatMap((p) => p.messages) ?? []
-  const since = props.awaiting.since
-  const answered = since !== null && answeredAfter(messages, since)
-  // Seen once, the wait is over for good: newer messages may later push her answer out of the page read.
-  useEffect(() => {
-    if (answered) onAnswered(since)
-  }, [answered, since, onAnswered])
-  const waiting = since !== null && !answered
+  const waiting = useReplyWait(messages, props.awaiting, onAnswered)
   // Grown at its end (a message, or the wait): an earlier page read above leaves where the reader is.
   const newest = messages.at(-1)?.id
   useEffect(() => onGrown(), [newest, waiting, onGrown])
@@ -339,6 +339,25 @@ function Messages(props: {
       )}
     </>
   )
+}
+
+/**
+ * Whether the request asked here is still under way. Only the request itself ends the wait: answered (her answer names
+ * it), or said why not. A message of hers to another request, or written later by the clock, settles nothing (A16;
+ * CON01-A09). Seen once, the wait is over for good: newer messages may later push the asking message out of the page.
+ */
+function useReplyWait(
+  messages: readonly ConversationMessage[],
+  awaiting: { replyId: string | null; messageId: string | null },
+  onAnswered: (replyId: string) => void,
+): boolean {
+  const { replyId, messageId } = awaiting
+  const reply = messageId === null ? undefined : replyOf(messages, messageId)
+  const ended = replyId !== null && reply?.id === replyId && !replyOpen(reply)
+  useEffect(() => {
+    if (ended) onAnswered(replyId)
+  }, [ended, replyId, onAnswered])
+  return replyId !== null && !ended
 }
 
 /** Earlier messages: reads the page before, once at a time; says so when it can't. */
@@ -394,6 +413,18 @@ function MessageList(props: {
   )
 }
 
+/**
+ * A message's words (none once withdrawn: it keeps its place and nothing else, so nothing to propose from), its
+ * «Propose as decision» press and form where one can propose (C7), and why a request it asked ended unanswered.
+ */
+function useMessageParts(m: ConversationMessage, propose: Propose) {
+  const words = m.withdrawn ? null : m.text
+  const here = useProposeHere(
+    propose && words !== null ? { ...propose, messageId: m.id, text: words, sophia: m.author === 'sophia' } : null,
+  )
+  return { words, here, ended: m.ask ? replyEndWords(m.ask) : null }
+}
+
 /** One message: its day when it starts one, who wrote it, its words; where one can propose, its press and form (C7). */
 function MessageItem(props: {
   message: ConversationMessage
@@ -407,7 +438,7 @@ function MessageItem(props: {
 }) {
   const { message: m, before, me, now } = props
   const sophia = m.author === 'sophia'
-  const here = useProposeHere(props.propose && { ...props.propose, messageId: m.id, text: m.text, sophia })
+  const { words, here, ended } = useMessageParts(m, props.propose)
   // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
   const at = (
     <span className="conv-msg-at" aria-hidden>
@@ -441,14 +472,21 @@ function MessageItem(props: {
         </span>
       </span>
       <div className="conv-msg-body">
-        {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
+        <MessageWords words={words} sophia={sophia} />
         {sophia && at}
         {here.press}
+        {ended && <p className="conv-ask-ended">{ended}</p>}
       </div>
       {!sophia && at}
       {here.form}
     </li>
   )
+}
+
+/** A message's words: hers with their shape, a member's as written, or that it was withdrawn. */
+function MessageWords({ words, sophia }: { words: string | null; sophia: boolean }) {
+  if (words === null) return <p className="conv-withdrawn">This message was withdrawn.</p>
+  return sophia ? <SophiaText text={words} /> : <p>{words}</p>
 }
 
 /** Sophia's words with their shape (sophia-text.ts): paragraphs, a lead, a list whose items may name who said it. */

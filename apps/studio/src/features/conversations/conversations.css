@@ -56,6 +56,16 @@
   font-size: var(--type-small);
   overflow-wrap: anywhere;
 }
+/* A message withdrawn keeps its place and says so; a request that ended unanswered says why, under the message (A16). */
+.conv-withdrawn {
+  color: var(--text-2);
+  font-style: italic;
+}
+.conv-msg-body .conv-ask-ended {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
 .conv-note .text-button,
 .conv-earlier .text-button {
   min-height: 24px;

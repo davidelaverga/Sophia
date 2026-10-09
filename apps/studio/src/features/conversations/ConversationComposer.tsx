@@ -13,12 +13,12 @@ import {
   type ConversationSummary,
   type MessageAsk,
   type MessageSent,
-} from '../../api/vision.ts'
+} from '../../api/conversations.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { firstWords, messagesKey, withLastMessage, withMessage, type ReadPages } from './conversation-list.ts'
+import { firstWords, LISTS, messagesKey, withLastMessage, withMessage, type ReadPages } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 
 interface Props {
@@ -31,6 +31,11 @@ interface Props {
   onAskSophia: (on: boolean) => void
   /** The conversation has been read: until then, nothing is sent into it (its receipt would have no page to join). */
   canSend: boolean
+  /**
+   * Sophia answers here now (the list's `capability.ask`). Where she doesn't, asking her still records the request,
+   * which says why it went unanswered; the field says so before, and offers no quick ask that could only end so.
+   */
+  answers: boolean
   /** Clears the draft if it still holds these words, as the view holds it now (not as this field last saw it). */
   onClearIf: (text: string) => void
   held: Held<MessageAsk> | null
@@ -72,13 +77,13 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     void queryClient.invalidateQueries({ queryKey: pages })
     // Its row says it at once, before the list is read again (or should that read fail).
     queryClient.setQueriesData<{ conversations: readonly ConversationSummary[] }>(
-      { queryKey: ['vision', 'conversations'] },
+      { queryKey: LISTS },
       (read) => read && { ...read, conversations: withLastMessage(read.conversations, conversationId, sent.message) },
     )
-    void queryClient.invalidateQueries({ queryKey: ['vision', 'conversations'] })
+    void queryClient.invalidateQueries({ queryKey: LISTS })
     onSent(sent)
     // Asked of the view: this field may be gone by now, and the words written since are the view's.
-    if (fromDraft) onClearIf(sent.message.text)
+    if (fromDraft) onClearIf(sent.message.text ?? text)
     return true
   }
   const go = async () => {
@@ -139,11 +144,13 @@ export function ConversationComposer(props: Props) {
         <AskSophia on={asks} held={held !== null} onChange={props.onAskSophia} />
         <SendButton ready={ready} busy={busy} />
       </div>
-      {props.canSend && (
+      {props.canSend && props.answers && (
         <QuickAsks away={draft.trim() !== '' || held !== null} busy={busy} onAsk={(w) => void ask(w)} />
       )}
       <p className="conv-compose-hint">
-        <span data-asked={asks || undefined}>{asks ? 'Sophia will answer' : 'To the team only'}</span>
+        <span data-asked={asks || undefined}>
+          {asks ? (props.answers ? 'Sophia will answer' : 'Sophia doesn’t answer here yet') : 'To the team only'}
+        </span>
         <span>Enter sends · Shift+Enter, a new line</span>
       </p>
       {(words ?? slow) && (

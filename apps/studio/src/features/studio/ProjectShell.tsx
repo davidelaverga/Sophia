@@ -11,7 +11,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { routePath, type View } from '../../app/route.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
-import { VISION } from '../../app/vision.ts'
+import { CONVERSATIONS, VISION } from '../../app/vision.ts'
 import { ProjectGoProvider } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
@@ -498,7 +498,7 @@ function ProjectBody(props: BodyProps) {
   return withViewer(
     <>
       {lobby}
-      <main className={pageClass(work, props.plans, view === 'conversations' && VISION)}>
+      <main className={pageClass(work, props.plans, view === 'conversations' && CONVERSATIONS)}>
         {resources ?? <PageBody {...props} />}
         {work && pulse}
       </main>
@@ -583,7 +583,7 @@ function PageBody(props: BodyProps) {
   const { view, projectId, identity, membership, snapshot, onShow } = props
   if (view === 'knowledge') return <Knowledge {...{ projectId, identity, membership, snapshot }} />
   if (view === 'goals' || view === 'work') return <Goals {...props} />
-  if (view === 'conversations' && VISION) {
+  if (view === 'conversations' && CONVERSATIONS) {
     return <ConversationsView {...{ projectId, identity, membership }} cursor={snapshot?.cursor} />
   }
   if (view === 'updates' && VISION) {

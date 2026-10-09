@@ -1,8 +1,10 @@
-// A18's writes as the proposed API would answer them (docs/plans/project-conversation-writes.md): a conversation
-// started, a message sent, each once per Idempotency-Key (the same key replays its receipt); viewers refused; Sophia's
-// answer a later message, 900 ms on, with the project's feed moving as it lands; what she says, sophia-answers.ts.
-// Every word is synthetic.
-import type { ConversationMessage, ConversationSummary } from '../src/api/vision.ts'
+// A16's writes as the fixture pages answer them (docs/plans/project-conversation-writes.md; CON-01): a conversation
+// started, a message sent, each once per Idempotency-Key (the same key replays its receipt); viewers refused. Asking
+// Sophia records a reply request on the message; her answer, a later message 900 ms on, names that request and settles
+// it, with the project's feed moving as it lands; what she says, sophia-answers.ts. Every word is synthetic.
+import type { ConversationReply } from '@sophia/contracts'
+import type { FixtureConversation, FixtureMessage } from './conversation-data.ts'
+import { wireMessage, wireSummary } from './conversation-wire.ts'
 import { membership } from './data.ts'
 import { PROJECT } from './data.ts'
 import { VIEWER_NAME } from './demo.ts'
@@ -10,8 +12,8 @@ import { answerFor } from './sophia-answers.ts'
 
 /** What the writes keep: the conversations themselves, and the receipts by key. */
 export interface TalkWrites {
-  list: ConversationSummary[]
-  messages: Record<string, ConversationMessage[]>
+  list: FixtureConversation[]
+  messages: Record<string, FixtureMessage[]>
   /**
    * `send=lost`: the first message lands, its reply lost; `send=refused`: messages are refused; `send=refusedSlow`:
    * refused 1.5 s on; `send=slow`: each reply takes 1.5 s; `send=thenFail`: it lands, then the conversation's reads fail.
@@ -39,6 +41,12 @@ const MESSAGES_TO = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
 const ME = membership.actorId
 let made = 0
 let sent = 0
+/** Ids the writes make, UUIDs as A16's are. */
+let ids = 0
+const freshId = () => {
+  ids += 1
+  return `00000000-0000-4000-8000-0000000e${ids.toString(16).padStart(4, '0')}`
+}
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -54,7 +62,7 @@ const refused = () =>
   )
 
 /** One minute after the newest activity (or the fixtures' day, with none): the conversation written in is the newest. */
-const next = (list: readonly ConversationSummary[]) =>
+const next = (list: readonly FixtureConversation[]) =>
   new Date(
     Math.max(Date.parse('2026-10-06T00:00:00.000Z'), ...list.map((c) => Date.parse(c.lastAt))) + 60_000,
   ).toISOString()
@@ -93,17 +101,19 @@ export function conversationWritten(talk: TalkWrites, path: string, init: Reques
 function started(talk: TalkWrites, key: string, body: Record<string, unknown>, ctx: Context) {
   if (typeof body.title !== 'string' || body.title.length > 120) return null
   made += 1
-  const id = `00000000-0000-4000-8000-0000000000e${String(made)}`
+  const id = freshId()
   const at = next(talk.list)
-  const message: ConversationMessage = {
-    id: `${id}-1`,
+  const mid = freshId()
+  const message: FixtureMessage = {
+    id: mid,
     author: 'member',
     actorId: ME,
     name: VIEWER_NAME,
     text: String(body.text),
     at,
+    ask: body.askSophia ? askOf(mid, at) : null,
   }
-  const conversation: ConversationSummary = {
+  const conversation: FixtureConversation = {
     id,
     title: body.title,
     summary: null,
@@ -115,10 +125,15 @@ function started(talk: TalkWrites, key: string, body: Record<string, unknown>, c
   }
   talk.list.unshift(conversation)
   talk.messages[id] = [message]
-  const receipt = { conversation, message }
+  const receipt = {
+    conversation: wireSummary(conversation, [message], false),
+    message: wireMessage(message, 0),
+    sophia: message.ask ? 'asked' : 'not_asked',
+    reply: message.ask ?? null,
+  }
   talk.receipts.set(key, { body: JSON.stringify(body), receipt })
   ctx.record(`conversation-start:${body.title}:${body.askSophia ? 'yes' : 'no'}`)
-  if (body.askSophia) answerLater(talk, id, String(body.text), ctx)
+  if (message.ask) answerLater(talk, id, message, ctx)
   // It landed; the page never hears so, and only starting again under the same key can tell it.
   if (talk.start === 'lost' && made === 1) return Promise.reject(new TypeError('Failed to fetch'))
   if (talk.start === 'slow') return later(1500, () => json(receipt, 201))
@@ -133,23 +148,29 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
   if (talk.send === 'refusedSlow') return later(1500, refused)
   sent += 1
   const at = next(talk.list)
-  const message: ConversationMessage = {
-    id: `${id}-m${String(sent)}`,
+  const mid = freshId()
+  const message: FixtureMessage = {
+    id: mid,
     author: 'member',
     actorId: ME,
     name: VIEWER_NAME,
     text: String(body.text),
     at,
+    ask: body.askSophia ? askOf(mid, at) : null,
   }
   all.push(message)
   conversation.lastAt = at
   if (!conversation.contributors.some((p) => p.actorId === ME)) {
     conversation.contributors = [...conversation.contributors, { actorId: ME, name: VIEWER_NAME }]
   }
-  const receipt = { message, sophia: body.askSophia ? 'asked' : 'not_asked' }
+  const receipt = {
+    message: wireMessage(message, all.length - 1),
+    sophia: message.ask ? 'asked' : 'not_asked',
+    reply: message.ask ?? null,
+  }
   talk.receipts.set(key, { body: JSON.stringify(body), receipt })
   ctx.record(`conversation-message:${String(body.text)}:${body.askSophia ? 'yes' : 'no'}`)
-  if (body.askSophia) answerLater(talk, id, String(body.text), ctx)
+  if (message.ask) answerLater(talk, id, message, ctx)
   return replied(talk, id, receipt, ctx)
 }
 
@@ -167,15 +188,41 @@ function replied(talk: TalkWrites, id: string, receipt: unknown, ctx: Context) {
   return json(receipt, 201)
 }
 
-/** Sophia's answer to what was asked, a later message: the conversation counts her in, and the feed moves. */
-function answerLater(talk: TalkWrites, id: string, asked: string, ctx: Context) {
+/** A reply request, recorded with the message that asks, pending until her answer names it. */
+const askOf = (messageId: string, at: string): ConversationReply => ({
+  id: freshId(),
+  messageId,
+  state: 'pending',
+  reason: null,
+  answerId: null,
+  askedAt: at,
+  settledAt: null,
+})
+
+/**
+ * Sophia's answer to what was asked, a later message naming the request it answers: the request is answered, the
+ * conversation counts her in, and the feed moves.
+ */
+function answerLater(talk: TalkWrites, id: string, asking: FixtureMessage, ctx: Context) {
+  const request = asking.ask
+  if (!request) return
   setTimeout(() => {
     const conversation = talk.list.find((c) => c.id === id)
     const all = talk.messages[id]
     if (!conversation || !all) return
     const at = next(talk.list)
-    const text = answerFor(asked, all)
-    all.push({ id: `${id}-s${String(all.length)}`, author: 'sophia', actorId: null, name: null, text, at })
+    const text = answerFor(asking.text ?? '', all)
+    const answer: FixtureMessage = {
+      id: freshId(),
+      author: 'sophia',
+      actorId: null,
+      name: null,
+      text,
+      at,
+      replyTo: { messageId: asking.id, replyId: request.id },
+    }
+    all.push(answer)
+    asking.ask = { ...request, state: 'answered', answerId: answer.id, settledAt: at }
     conversation.lastAt = at
     conversation.sophia = true
     ctx.moved()
