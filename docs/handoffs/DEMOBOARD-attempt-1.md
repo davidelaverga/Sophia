@@ -10,7 +10,7 @@ Writable scope: `apps/studio/fixtures/demo-work.ts` (new), `apps/studio/fixtures
 `apps/studio/e2e/views-goals.spec.ts`, the design note and this handoff.
 Runtime unit: none: the Studio's fixture pages (`apps/studio`); nothing the Studio builds changes.
 Existing authority: Luis's instruction in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no CI change.
-Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-decide`, branch `fixtures/demo-board` from `main` (`695fe44`), 2026-10-09
+Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-decide`, branch `fixtures/demo-board` from `main` (`acfba406`), 2026-10-09
 Ending commit/tree: `396a1b989116c415d8275ae0a02e96c5e923b1af` (tree `4f413073f347ca0d141314e3b00dc3b36f000f0f`). The commit after it adds only this handoff.
 
 ## Outcome
