@@ -62,7 +62,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --gid 10001 render \
  && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin render \
- && mkdir -p /work && chmod 0755 /work
+ && mkdir -p /work && chmod 0755 /work \
+ && install -d -m 0700 -o root -g root /root/.ssh
 COPY --from=guest /opt/uml /opt/uml
 # The render supervisor (SDD-01): it holds the runner capability, talks only to the Sophia API and runs each job's
 # unchanged kernel inside the guest, through the launchers in job mode (supervisor.mjs runUml). Its secrets come from
@@ -72,6 +73,8 @@ COPY --from=deploy /out /opt/sophia-renderer
 ENV SOPHIA_RENDER_ISOLATION=uml \
   SOPHIA_UML_ROOT=/opt/uml \
   SOPHIA_RENDER_WORK=/work
+# Render's SSH into a Docker service needs the running user's ~/.ssh at 0700: the supervisor and the fixture run as
+# root, whose home holds it (WBC-02-CC-0010 §2.2).
 USER root
 # Idle unless the service's command says otherwise, so a restart or a deploy of a service that sets none starts
 # nothing: the render host sets its command to `node /opt/sophia-renderer/supervisor.mjs`; the qualification
