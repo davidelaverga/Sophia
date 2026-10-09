@@ -142,6 +142,25 @@ test('decide · answered but the brief can’t be read again: its presses wait u
   await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
 })
 
+test('decide · with no reply, a trip to Goals and back: the decision is still held, sent again under its key', async ({
+  page,
+}) => {
+  await enter(page, `${PAGE}&decide=lost`)
+  await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
+  const status = context(page).getByRole('status')
+  await expect(status).toHaveText('Not confirmed: Accepted: Map first, list second. Try again')
+  // To another view and back: the pane is mounted anew, and the decision with no reply is still the one held.
+  const views = page.getByRole('navigation', { name: 'Project views' })
+  await views.getByRole('link', { name: 'Goals' }).click()
+  await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
+  await views.getByRole('link', { name: 'Conversations' }).click()
+  await expect(status).toHaveText('Not confirmed: Accepted: Map first, list second. Try again')
+  // Sent again under its key: the first one's receipt answers it (a new key would find nothing left to decide).
+  await status.getByRole('button', { name: 'Try again' }).click()
+  await expect(status).toHaveText('Accepted: Map first, list second')
+  expect(await writes(page, '/decision')).toHaveLength(2)
+})
+
 test('decide · a message proposed as a decision: its words in, sent as a constraint, then in Still open', async ({
   page,
 }) => {

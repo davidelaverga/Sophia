@@ -4,9 +4,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { MissionDecision, MissionReceipt } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
-import type { AdmissionState } from '../../api/useAdmission.ts'
 import { decideMissionChange, getMission, proposeMissionChange } from '../../api/mission.ts'
-import { useAdmission } from '../../api/useAdmission.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { missionKey } from '../mission/mission-view.ts'
@@ -53,10 +51,7 @@ export function decideRefusal(error: ApiError, read: { fresh: boolean; stillWait
  * Whether Accept and Decline wait: while a decision goes or its outcome is unknown, and once answered until the brief
  * read again no longer lists it (a read that is slow or fails would otherwise wake them on a decided proposal).
  */
-export function pressesWait(
-  state: AdmissionState<Pick<DecideArgs, 'decisionId'>, unknown>,
-  pending: readonly Pick<MissionDecision, 'id'>[],
-): boolean {
+export function pressesWait(state: DecideState, pending: readonly Pick<MissionDecision, 'id'>[]): boolean {
   if (state.status === 'sending' || state.status === 'unknown') return true
   return state.status === 'done' && pending.some((d) => d.id === state.args.decisionId)
 }
@@ -73,15 +68,21 @@ export interface DecideArgs {
   decision: 'accept' | 'reject'
 }
 
+/** Where Still open's decision stands: on its way, with no reply, answered, or refused in these words. */
+export type DecideState =
+  | { status: 'idle' }
+  | { status: 'sending' | 'unknown' | 'done'; args: DecideArgs }
+  | { status: 'rejected'; words: string }
+
 /**
  * A proposal accepted or turned down, at the revision read; the brief read again whatever the answer. Answered or
  * refused as stale, it settles once that read is back, so what it says agrees with what shows (a refusal's words are
  * chosen from it); with no reply it doesn't wait for it, a write's 90 s being long enough.
  */
-export function useDecide(projectId: string, identity: Identity) {
+export function useDecideSend(projectId: string, identity: Identity) {
   const client = useQueryClient()
   const readAgain = () => client.invalidateQueries({ queryKey: missionKey(projectId) })
-  return useAdmission<DecideArgs, MissionReceipt>(async (key, a) => {
+  return async (key: string, a: DecideArgs): Promise<MissionReceipt> => {
     try {
       const receipt = await decideMissionChange(identity.token, projectId, a.decisionId, key, {
         decision: a.decision,
@@ -94,7 +95,7 @@ export function useDecide(projectId: string, identity: Identity) {
       else void readAgain()
       throw err
     }
-  })
+  }
 }
 
 /** The same words, whatever the spaces or the case. */

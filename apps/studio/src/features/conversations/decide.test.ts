@@ -98,14 +98,13 @@ describe('a decision on its way (Still open)', () => {
   })
 
   it('answered, they wait until the brief read again no longer lists it', () => {
-    assert.equal(pressesWait({ status: 'done', args: asked, result: {} }, waiting), true)
-    assert.equal(pressesWait({ status: 'done', args: asked, result: {} }, [{ id: 'b' }]), false)
+    assert.equal(pressesWait({ status: 'done', args: asked }, waiting), true)
+    assert.equal(pressesWait({ status: 'done', args: asked }, [{ id: 'b' }]), false)
   })
 
   it('idle or refused, they don’t wait', () => {
     assert.equal(pressesWait({ status: 'idle' }, waiting), false)
-    const refused = new ApiError(409, 'stale_revision', 'stale', 'never')
-    assert.equal(pressesWait({ status: 'rejected', args: asked, error: refused }, waiting), false)
+    assert.equal(pressesWait({ status: 'rejected', words: 'Someone decided it first.' }, waiting), false)
   })
 
   it('refused while it still waits: the brief changed, not decided by someone', () => {
