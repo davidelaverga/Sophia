@@ -160,6 +160,23 @@ async function admit(host: CoordinationHost, input: ApiRequest, signed: Signed):
   return claims
 }
 
+/**
+ * Whether an issue is still in the Paperclip project its commission is mapped to, as the signed envelope names it and the
+ * configuration maps it. A board user can move an issue to another project of the company, or out of every project: the
+ * plugin then never binds it, wakes it, changes it or settles a write on it, and never takes the miss for absence, so it
+ * never creates another (Codex's automatic review of a06db118, P1). Sophia records the refusal; nothing changed.
+ */
+const inProject = (issue: HostIssue, paperclipProjectId: string): boolean => issue.projectId === paperclipProjectId
+
+function stillMapped(issue: HostIssue, paperclipProjectId: string): void {
+  if (!inProject(issue, paperclipProjectId))
+    refuse(
+      409,
+      'issue_moved',
+      'The issue that holds this commission is no longer in its mapped Paperclip project; nothing was changed',
+    )
+}
+
 /** The core issue that holds a commission key, found by its exact origin; more than one is a broken invariant. */
 async function issueOf(host: CoordinationHost, companyId: string, key: string): Promise<HostIssue | null> {
   const found = await host.issues.list({ companyId, originKind: COMMISSION_ORIGIN_KIND, originId: key, limit: 2 })
@@ -242,14 +259,18 @@ async function createIssue(
     })
     return { issue, landed: false }
   } catch (err: unknown) {
-    if (!(err instanceof UnansweredHostCall))
-      await host.execute(
-        `UPDATE ${host.namespace}.commissions SET create_ended_at = now(), updated_at = now()
-          WHERE commission_key = $1 AND state = 'creating' AND create_ended_at IS NULL`,
-        [c.key],
-      )
+    if (!(err instanceof UnansweredHostCall)) await endClaim(host, c.key)
     throw err
   }
+}
+
+/** The host answered the claimed create (or nothing was asked of it): the claim ends. */
+async function endClaim(host: CoordinationHost, key: string) {
+  await host.execute(
+    `UPDATE ${host.namespace}.commissions SET create_ended_at = now(), updated_at = now()
+      WHERE commission_key = $1 AND state = 'creating' AND create_ended_at IS NULL`,
+    [key],
+  )
 }
 
 async function wake(host: CoordinationHost, issue: HostIssue, key: string): Promise<boolean> {
@@ -394,12 +415,20 @@ export async function handleCommission(host: CoordinationHost, input: ApiRequest
   })
   const bound = { ...c, companyId: input.companyId }
   const existing = await issueOf(host, input.companyId, c.key)
-  if (existing !== null) return existingCommission(host, c, bound, existing)
+  if (existing !== null) {
+    stillMapped(existing, c.paperclipProjectId)
+    return existingCommission(host, c, bound, existing)
+  }
   const agent = await host.reviewerAgent(input.companyId)
   if (agent === null) refuse(409, 'reviewer_missing', 'The source-reviewer agent is not provisioned in this company')
   if (!(await claim(host, input.companyId, c)))
     refuse(503, 'commission_in_progress', 'Another request is creating this commission; reconcile by its key')
   const { issue, landed } = await createIssue(host, c, input.companyId, agent)
+  if (landed && !inProject(issue, c.paperclipProjectId)) {
+    // The create this claim follows ended with its issue, since moved: the claim ends, and nothing is bound or woken.
+    await endClaim(host, c.key)
+    stillMapped(issue, c.paperclipProjectId)
+  }
   if (landed) return existingCommission(host, c, bound, issue)
   await bind(host, bound, issue.id)
   const queued = await wakeCommission(host, c, issue)
@@ -422,7 +451,7 @@ export async function handleLookup(host: CoordinationHost, input: ApiRequest): P
   const body = input.body
   if (!isLookupRequest(body)) refuse(422, 'invalid_request', 'Not a lookup request')
   const { lookup, envelope } = body
-  await admit(host, input, {
+  const claims = await admit(host, input, {
     envelope,
     payload: lookup,
     ops: new Set(['lookup']),
@@ -435,7 +464,10 @@ export async function handleLookup(host: CoordinationHost, input: ApiRequest): P
     [lookup.key],
   )
   const issue = await issueOf(host, input.companyId, lookup.key)
-  if (issue !== null) return { outcome: 'found', issueId: issue.id, status: issue.status }
+  if (issue !== null) {
+    stillMapped(issue, claims.paperclipProjectId)
+    return { outcome: 'found', issueId: issue.id, status: issue.status }
+  }
   // A create the host has not answered, nor an operator fenced, could yet produce the issue: not proof of absence.
   if (rows[0]?.creating === true)
     refuse(503, 'commission_in_progress', 'A create of this commission may still be in flight')
@@ -461,6 +493,7 @@ export async function handleControl(host: CoordinationHost, input: ApiRequest): 
       deliveryKey: control.key,
     },
   })
+  stillMapped(target, claims.paperclipProjectId)
   // The binding normally exists from the commission; a namespace that lost it is re-bound from the issue itself.
   await host.execute(
     `INSERT INTO ${host.namespace}.commissions (commission_key, company_id, sophia_project_id, paperclip_project_id, work_id, state, issue_id)
@@ -480,14 +513,23 @@ export async function handleControl(host: CoordinationHost, input: ApiRequest): 
       commissionKey: control.commissionKey,
       issueId: target.id,
       companyId: input.companyId,
+      paperclipProjectId: claims.paperclipProjectId,
     })
     return { outcome: 'already', issueId: target.id, status: settled ?? target.status, wakeQueued: false }
   }
-  return applyControl(host, { companyId: input.companyId, issue: target, control, seq: recorded.seq })
+  return applyControl(host, {
+    companyId: input.companyId,
+    paperclipProjectId: claims.paperclipProjectId,
+    issue: target,
+    control,
+    seq: recorded.seq,
+  })
 }
 
 interface Pending {
   readonly companyId: string
+  /** The Paperclip project the commission is mapped to: its issue must still be there. */
+  readonly paperclipProjectId: string
   readonly issue: HostIssue
   readonly control: Control
   readonly seq: string
@@ -498,12 +540,14 @@ interface Subject {
   readonly commissionKey: string
   readonly issueId: string
   readonly companyId: string
+  readonly paperclipProjectId: string
 }
 
 const subjectOf = (p: Pending): Subject => ({
   commissionKey: p.control.commissionKey,
   issueId: p.issue.id,
   companyId: p.companyId,
+  paperclipProjectId: p.paperclipProjectId,
 })
 
 /**
@@ -538,6 +582,8 @@ async function effectOf(host: CoordinationHost, p: Pending, token: string): Prom
   }
   const effect = CONTROL_EFFECT[p.control.op]
   const current = (await host.issues.get(p.issue.id, p.companyId)) ?? p.issue
+  // Read again just before it is written: it may have moved since the control was admitted.
+  stillMapped(current, p.paperclipProjectId)
   const updated =
     current.status === effect.status ? current : await writeStatus(host, subjectOf(p), token, effect.status)
   const queued = effect.wake ? await wakeOnce(host, updated, p.control.key) : false
@@ -677,7 +723,10 @@ async function settle(host: CoordinationHost, s: Subject, token: string): Promis
     const at = open[0]?.at
     if (at === undefined) return { settled: true, status }
     const want = await wantedStatus(host, s.commissionKey)
-    status = (await host.issues.get(s.issueId, s.companyId))?.status ?? null
+    const issue = await host.issues.get(s.issueId, s.companyId)
+    // An issue moved out of its project is neither written nor settled on: its writes stay open, settled once it is back.
+    if (issue !== null && !inProject(issue, s.paperclipProjectId)) return { settled: false, status: issue.status }
+    status = issue?.status ?? null
     if (want !== null && status !== null && status !== want && open.some((e) => e.status === status)) {
       status = (await writeStatus(host, s, token, want)).status
       continue
@@ -733,15 +782,25 @@ async function settleAfter(host: CoordinationHost, s: Subject, token: string): P
  * next delivery. A commission whose lease is held is left to its holder. Returns how many commissions it settled.
  */
 export async function settleOpenWrites(host: CoordinationHost): Promise<number> {
-  const rows = await host.query<{ commission_key: string; company_id: string; issue_id: string }>(
-    `SELECT DISTINCT c.commission_key, c.company_id, c.issue_id::text AS issue_id
+  const rows = await host.query<{
+    commission_key: string
+    company_id: string
+    issue_id: string
+    paperclip_project_id: string
+  }>(
+    `SELECT DISTINCT c.commission_key, c.company_id, c.issue_id::text AS issue_id, c.paperclip_project_id
        FROM ${host.namespace}.effects e JOIN ${host.namespace}.commissions c ON c.commission_key = e.commission_key
       WHERE e.settled_at IS NULL AND c.issue_id IS NOT NULL`,
     [],
   )
   let settled = 0
   for (const row of rows) {
-    const s = { commissionKey: row.commission_key, issueId: row.issue_id, companyId: row.company_id }
+    const s = {
+      commissionKey: row.commission_key,
+      issueId: row.issue_id,
+      companyId: row.company_id,
+      paperclipProjectId: row.paperclip_project_id,
+    }
     const result = await settleLeased(host, s, 0).catch(() => null)
     if (result?.settled === true) settled += 1
   }

@@ -48,9 +48,11 @@ export async function installNamespace(db: Queryable): Promise<void> {
   await db.query(migration)
 }
 
-export interface MemoryIssue extends Omit<HostIssueCreate, 'status'> {
+export interface MemoryIssue extends Omit<HostIssueCreate, 'status' | 'projectId'> {
   readonly id: string
   status: string
+  /** Where a board user put it: the project it was created in, another one, or none. */
+  projectId: string | null
 }
 
 export interface MemoryPaperclipOptions {

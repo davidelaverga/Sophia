@@ -16,9 +16,10 @@ import {
   type Lookup,
 } from '@sophia/coordination/plugin-wire'
 import { createEmptyDatabase, type EmptyDatabase } from '@sophia/test-support'
-import { forgetSpentNonces, NONCE_GRACE_SECONDS, settleOpenWrites } from './coordination.ts'
-import type { HostProcess } from './host.ts'
+import { forgetSpentNonces, handleApiRequest, NONCE_GRACE_SECONDS, settleOpenWrites } from './coordination.ts'
+import type { CoordinationHost, HostProcess } from './host.ts'
 import {
+  INTEGRATION_USER,
   installNamespace,
   memoryPaperclip,
   NAMESPACE,
@@ -1312,4 +1313,148 @@ describe('control', () => {
   it('keeps routes under the plugin namespace path', () => {
     assert.equal(ROUTES.control('a b'), '/issues/a%20b/control')
   })
+})
+
+/** A board user moves the issue: to another project of the same company, or out of every project. */
+const moveTo = (p: MemoryPaperclip, issueId: string, projectId: string | null) => {
+  const issue = p.issues.get(issueId)
+  assert.ok(issue)
+  p.issues.set(issueId, { ...issue, projectId })
+}
+
+describe('an issue moved out of its mapped Paperclip project (Codex’s automatic review of a06db118, P1)', () => {
+  const count = async (table: string, key: string) =>
+    Number(
+      (
+        await client.query<{ n: string }>(
+          `SELECT count(*)::text AS n FROM ${NAMESPACE}.${table} WHERE commission_key = $1`,
+          [key],
+        )
+      ).rows[0]?.n,
+    )
+  async function commissioned() {
+    const p = paperclip()
+    const c = commissionOf()
+    await p.request(commissionRequest(c))
+    const issueId = [...p.issues.keys()][0] ?? ''
+    return { p, c, issueId }
+  }
+
+  for (const [where, to] of [
+    ['another project', 'pc-project-b'],
+    ['no project', null],
+  ] as const) {
+    it(`a control of an issue moved to ${where} changes nothing and records nothing`, async () => {
+      const { p, c, issueId } = await commissioned()
+      moveTo(p, issueId, to)
+      const res = await p.request(controlRequest(c, issueId, 'hold', `hold-${to ?? 'none'}`))
+      assert.equal(res.status, 409, JSON.stringify(res.body))
+      assert.deepEqual(code(res.body), {
+        code: 'issue_moved',
+        message:
+          'The issue that holds this commission is no longer in its mapped Paperclip project; nothing was changed',
+      })
+      assert.equal(p.issues.get(issueId)?.status, 'todo')
+      assert.equal(await count('controls', c.key), 0)
+      assert.equal(await count('effects', c.key), 0)
+    })
+
+    it(`a control held at the lease while the issue moves to ${where} writes nothing to it`, async () => {
+      const { p, c, issueId } = await commissioned()
+      await client.query(
+        `UPDATE ${NAMESPACE}.commissions SET effect_holder = 'another-delivery', effect_until = now() + interval '60 seconds'
+          WHERE commission_key = $1`,
+        [c.key],
+      )
+      const held = p.request(controlRequest(c, issueId, 'hold', `hold-late-${to ?? 'none'}`))
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      moveTo(p, issueId, to)
+      await client.query(
+        `UPDATE ${NAMESPACE}.commissions SET effect_holder = NULL, effect_until = NULL WHERE commission_key = $1`,
+        [c.key],
+      )
+      const res = await held
+      assert.equal(res.status, 409, JSON.stringify(res.body))
+      assert.equal(
+        p.issues.get(issueId)?.status,
+        'todo',
+        'the issue it reads just before writing is in another project',
+      )
+      assert.equal(await count('effects', c.key), 0)
+    })
+
+    it(`a commission sent again for an issue moved to ${where} neither binds nor wakes it, nor creates another`, async () => {
+      const { p, c, issueId } = await commissioned()
+      assert.equal(p.wakeups.length, 1)
+      moveTo(p, issueId, to)
+      const again = await p.request(commissionRequest(c))
+      assert.equal(again.status, 409, JSON.stringify(again.body))
+      assert.equal(p.issues.size, 1, 'never a second issue')
+      assert.equal(p.wakeups.length, 1, 'not woken again')
+    })
+
+    it(`a commission whose crashed create left its issue, moved to ${where}, creates no second one and binds nothing`, async () => {
+      const p = paperclip()
+      const c = commissionOf()
+      moveTo(p, await landCreate(p, c), to)
+      const res = await p.request(commissionRequest(c))
+      assert.equal(res.status, 409, JSON.stringify(res.body))
+      assert.equal(p.issues.size, 1, 'a miss in the mapped project is no leave to create')
+      assert.equal(await count('commissions', c.key), 0, 'not bound')
+      assert.equal(p.wakeups.length, 0)
+    })
+
+    it(`a create whose issue lands just after the commission's first read, moved to ${where}, binds and wakes nothing`, async () => {
+      const p = paperclip()
+      const c = commissionOf()
+      // The create an earlier claim followed ends with its issue between this commission's first read and its claim.
+      const host: CoordinationHost = {
+        ...p.host,
+        reviewerAgent: async (companyId) => {
+          moveTo(p, await landCreate(p, c), to)
+          return p.host.reviewerAgent(companyId)
+        },
+      }
+      const actor = { actorType: 'user' as const, actorId: INTEGRATION_USER, userId: INTEGRATION_USER }
+      const res = await handleApiRequest(host, { ...commissionRequest(c), actor })
+      assert.equal(res.status, 409, JSON.stringify(res.body))
+      assert.equal(p.issues.size, 1, 'never a second issue')
+      assert.equal(p.wakeups.length, 0)
+      assert.deepEqual(
+        await claimOf(c.key),
+        { process: 'host-1:100', ended: true },
+        'the host answered: the claim ends',
+      )
+      const bound = await client.query(
+        `SELECT 1 FROM ${NAMESPACE}.commissions WHERE commission_key = $1 AND issue_id IS NOT NULL`,
+        [c.key],
+      )
+      assert.equal(bound.rowCount, 0, 'not bound')
+    })
+
+    it(`a lookup answers an issue moved to ${where} neither found nor absent`, async () => {
+      const { p, c, issueId } = await commissioned()
+      moveTo(p, issueId, to)
+      const res = await p.request(lookupRequest(c))
+      assert.equal(res.status, 409, JSON.stringify(res.body))
+    })
+
+    it(`the settle job writes nothing to an issue moved to ${where}`, async () => {
+      const { p, c, issueId } = await commissioned()
+      const hold = await p.request(controlRequest(c, issueId, 'hold', `hold-settle-${to ?? 'none'}`))
+      assert.equal(hold.status, 200)
+      // A stale write lands after the Hold (the issue shows todo again, from a write still open), then the issue moves.
+      await client.query(
+        `INSERT INTO ${NAMESPACE}.effects (effect_id, commission_key, status, ended_at) VALUES ($1, $2, 'todo', now())`,
+        [randomUUID(), c.key],
+      )
+      const issue = p.issues.get(issueId)
+      assert.ok(issue)
+      issue.status = 'todo'
+      moveTo(p, issueId, to)
+      assert.equal(await settleOpenWrites(p.host), 0)
+      assert.equal(p.issues.get(issueId)?.status, 'todo', 'nothing written to an issue in another project')
+      assert.equal(await openWrites(c.key), 1, 'left open: back in its project, it is settled then')
+    })
+  }
 })
