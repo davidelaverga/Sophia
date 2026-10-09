@@ -682,6 +682,62 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     assert.ok(!text.includes(x.forgedId), 'nor is the speaker’s own command')
   })
 
+  it('a call id reused for another operation is refused before it runs: nothing links to the call it reuses (Codex P1 on PR #190)', async () => {
+    const { projectId } = await project()
+    await registerRuntime(db.ownerUrl, { projectId, admin: A })
+    const exchangeId = await granted(projectId)
+    const task = await brief(projectId, E, randomUUID())
+    const goalOf = async () => {
+      const snap = await withActor(pool, P, 'read', (c) => readSnapshot(c, projectId))
+      const found = snap?.goals.find((x) => x.id === snap.work.find((t) => t.id === task)?.goalId)
+      assert.ok(found)
+      return found
+    }
+    const goalId = (await goalOf()).id
+    await owner((c) => c.query(`UPDATE sophia.goals SET status='running' WHERE id=$1`, [goalId]))
+    const voice = (callId: string, name: string, args: Record<string, unknown> = {}) =>
+      call('POST', '/v1/media/tool-calls', {
+        media: true,
+        body: { exchangeId, connectionGeneration: 1, callId, name, args, inputEpoch: 1, actorId: P, guide: 'v1.2' },
+      })
+    assert.equal((await voice('c-1', 'project_status')).json.status, 'ok', 'a read, recorded and answered')
+    // The provider reuses the read's call id for a Hold on running work.
+    const reused = await voice('c-1', 'control_work', { taskId: task, action: 'hold' })
+    assert.deepEqual(
+      [reused.status, reused.json.status, reused.json.output.code],
+      [200, 'refused', 'not_started:idempotency_conflict'],
+    )
+    assert.equal((await goalOf()).status, 'running', 'the Hold never ran')
+    // The same read again, the bridge's retry of a lost answer: answered as before.
+    assert.equal((await voice('c-1', 'project_status')).json.status, 'ok')
+    // A Hold under its own id is admitted and linked once, replayed or not.
+    const hold = await voice('h-1', 'control_work', { taskId: task, action: 'hold' })
+    assert.equal(hold.json.status, 'ok', JSON.stringify(hold.json))
+    assert.equal((await voice('h-1', 'control_work', { taskId: task, action: 'hold' })).json.status, 'ok')
+    const listed = (await callsOf(P, exchangeId)).json.calls as Listed[]
+    assert.deepEqual(
+      listed.map((c) => [c.tool, c.command ? [c.command.kind, c.command.commandId] : null, c.outcome]),
+      [
+        ['project_status', null, 'ok'],
+        ['control_work', ['hold', String(hold.json.output.commandId)], 'ok'],
+      ],
+      'the read stays a read with no command; the Hold is its own call’s, once',
+    )
+    const rows = await owner((c) =>
+      c.query<{ tool: string; command: string | null }>(
+        `SELECT tool, command_id AS command FROM sophia.live_tool_calls WHERE exchange_id=$1 ORDER BY seq`,
+        [exchangeId],
+      ),
+    )
+    assert.deepEqual(
+      rows.rows.map((r) => [r.tool, r.command === null]),
+      [
+        ['project_status', true],
+        ['control_work', false],
+      ],
+    )
+  })
+
   it('lists another exchange’s calls only there; another member, an outsider or the API off reads none', async () => {
     const x = await controlledExchange()
     const theirs = await callsOf(P, x.otherExchange)

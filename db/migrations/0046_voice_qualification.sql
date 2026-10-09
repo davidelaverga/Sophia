@@ -492,7 +492,10 @@ GRANT SELECT ON sophia.live_tool_calls TO sophia_api;
 -- Record a bound voice tool call's exchange, under the key the API gives its command (live:<exchange>:<generation>:
 -- <call>). The service checks again what media_tool_speaker bound: the exchange has not ended and the actor held the
 -- input epoch the call names; a key naming another exchange is refused. Whether the call is (now or already) recorded:
--- only one of the grant's principal, in an exchange opened under that grant, is. The same call again is a no-op.
+-- only one of the grant's principal, in an exchange opened under that grant, is. The same call again (the bridge's
+-- retry of a lost answer: the same exchange, epoch and tool) is a no-op. Another call under a recorded key (a provider
+-- call id reused for another operation, or under another epoch) is refused (23505, idempotency_conflict), so the API
+-- runs nothing for it: the command it would admit must never link to the call that holds the key.
 CREATE FUNCTION sophia.media_record_live_call(p_exchange uuid, p_input_epoch bigint, p_actor uuid, p_key text, p_tool text)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE e sophia.room_exchanges; g sophia.voice_qualification_grants; p uuid;
@@ -513,6 +516,9 @@ BEGIN
  IF g.id IS NULL OR g.principal_actor_id<>p_actor THEN RETURN false; END IF;
  INSERT INTO sophia.live_tool_calls(project_id,actor_id,idempotency_key,exchange_id,input_epoch,tool)
  VALUES(e.project_id,p_actor,p_key,e.id,p_input_epoch,p_tool) ON CONFLICT DO NOTHING;
+ IF NOT FOUND AND NOT EXISTS(SELECT 1 FROM sophia.live_tool_calls WHERE project_id=e.project_id AND actor_id=p_actor
+   AND idempotency_key=p_key AND exchange_id=e.id AND input_epoch=p_input_epoch AND tool=p_tool) THEN
+  RAISE EXCEPTION 'Idempotency key reused: another voice call holds this key' USING ERRCODE='23505'; END IF;
  RETURN true;
 END $$;
 

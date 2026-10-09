@@ -12,6 +12,7 @@ import {
   readQualificationEvidence,
   readSnapshot,
   recordQualificationEvidence,
+  recordLiveCall,
   reserveQualification,
   roomQualification,
   startExchange,
@@ -646,6 +647,36 @@ describe('a top-up of a connection’s input allowance (0046, media_voice_reserv
     assert.equal(direct, '42501')
     assert.equal(await committedOf(x), 0, 'nothing was charged by any of them')
     assert.equal((await stateOf(x)).state, 'open', 'a refusal that binds nothing ends nothing')
+  })
+})
+
+describe('a recorded voice call’s key (0046, media_record_live_call; Codex P1 on PR #190)', () => {
+  it('the same call again is a no-op; another tool or another epoch under the key is refused and changes nothing', async () => {
+    const { projectId } = await project()
+    await grant(projectId)
+    const x = await open(projectId)
+    const key = `live:${x}:1:c-1`
+    const recordAs = (tool: string, inputEpoch = 1) =>
+      withService(pool, (c) => recordLiveCall(c, { exchangeId: x, inputEpoch, actorId: P, key, name: tool }))
+    assert.equal(await recordAs('project_status'), true)
+    assert.equal(await recordAs('project_status'), true, 'the bridge’s retry of a lost answer: the same call')
+    assert.equal(await codeOf(recordAs('start_research')), 'idempotency_conflict', 'another operation under the key')
+    // P holds input epoch 2 as well (a floor that came back to them): the key's call was epoch 1's.
+    await owner((c) =>
+      c.query(`INSERT INTO sophia.exchange_inputs(project_id,exchange_id,input_epoch,actor_id) VALUES($1,$2,2,$3)`, [
+        projectId,
+        x,
+        P,
+      ]),
+    )
+    assert.equal(await codeOf(recordAs('project_status', 2)), 'idempotency_conflict', 'another epoch under the key')
+    const rows = await owner((c) =>
+      c.query<{ tool: string; epoch: string }>(
+        `SELECT tool, input_epoch AS epoch FROM sophia.live_tool_calls WHERE exchange_id=$1`,
+        [x],
+      ),
+    )
+    assert.deepEqual(rows.rows, [{ tool: 'project_status', epoch: '1' }], 'one call, as first recorded')
   })
 })
 

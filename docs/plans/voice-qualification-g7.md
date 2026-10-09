@@ -178,6 +178,7 @@ The command a call admits is linked to it by the transaction that inserts that c
 - A member's own command never links, under any key, even the very key of a recorded call that admitted nothing.
 - Nobody can mark another speaker's call.
 - A retried call admits nothing new, so it links nothing new.
+- A provider call id reused for another call (another tool, or another input epoch, under the same key) is refused before anything runs: the call is answered `refused`, `not_started:idempotency_conflict`, nothing is admitted, and the call that holds the key keeps what it recorded. Run unrecorded, its command would link to that call.
 - A task created while the API's voice qualification was off does not get it.
 - A task rebuilt from a voice-created one (`research_rebuild`, under its own `rebuild:` command) does not get it. The Lab follows the voice-created task, not its rebuild.
 

@@ -52,6 +52,15 @@ const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v
 
 const clarify = (question: string): MediaToolResult => ({ status: 'clarify', output: { ask: question } })
 
+/** A provider call id the service recorded for another operation, used again: nothing runs, nothing is linked. */
+const reusedCall: MediaToolResult = {
+  status: 'refused',
+  output: {
+    code: 'not_started:idempotency_conflict',
+    reason: 'That call was already made as another operation; nothing was done. Ask again.',
+  },
+}
+
 /**
  * control_work's refusals in the speaker's words; anything unexpected is an error the model must not paper over. A
  * commit whose outcome is lost, or a database that did not answer, is unknown: it may have been applied.
@@ -269,7 +278,9 @@ function declaredBy(call: MediaToolCall): boolean {
  * qualification on (A15), a call of a grant's principal in an exchange under that grant is recorded as it is bound;
  * the command it admits is linked to it in the same transaction (liveCallAdmits), the canonical join from the task it
  * creates to the exchange (NativeTask.exchangeId); and once it is answered, after that admission committed, it is
- * marked so with the answer's status. A mark that fails leaves the call unanswered, which proves nothing.
+ * marked so with the answer's status. A mark that fails leaves the call unanswered, which proves nothing. A call whose
+ * key the service recorded for another call (a provider call id reused for another operation, or under another epoch)
+ * is refused before anything runs: run unrecorded, its command would link to the call that holds the key.
  */
 export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice = false): Promise<MediaToolResult> {
   if (!declaredBy(call)) {
@@ -286,7 +297,8 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice 
       const bound = await toolSpeaker(c, call.exchangeId, call.inputEpoch, call.actorId)
       return { ...bound, recorded: voice && (await recordLiveCall(c, { ...call, key })) }
     })
-  } catch {
+  } catch (err: unknown) {
+    if (err instanceof DomainError && err.code === 'idempotency_conflict') return reusedCall
     return clarify('I couldn’t tell who asked that. Could the person holding the floor ask again?')
   }
   const ctx: ToolContext = {
