@@ -1713,7 +1713,9 @@ describe('WBC-02-CC-0010 §2: the qualified image, exported by hand and publishe
       'the receipt is another run’s': { ...good, receipt: { ...good.receipt, context: { ...good.receipt.context, run: 'https://github.com/owner/repo/actions/runs/41' } } },
       'the receipt is another commit’s': { ...good, receipt: { ...good.receipt, context: { ...good.receipt.context, candidate: 'd'.repeat(40) } } },
       'a check of the receipt did not pass': { ...good, receipt: { ...good.receipt, checks: [{ result: 'passed' }, { result: 'not reached' }] } },
+      'the receipt is another pin’s': { ...good, receipt: { ...good.receipt, context: { ...good.receipt.context, pin: 'e'.repeat(40) } } },
       'the export is another image': { ...good, exported: { ...good.exported, imageId: other } },
+      'the export is another commit’s': { ...good, exported: { ...good.exported, sophiaCommit: 'd'.repeat(40) } },
       'the identity record is another image': { ...good, identity: { ...good.identity, image: { ...good.identity.image, id: other } } },
     }
     for (const [why, files] of Object.entries(mutants)) assert.notEqual(verify(files).status, 0, why)
