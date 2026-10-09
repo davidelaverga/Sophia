@@ -171,10 +171,18 @@ export class QualificationReserve {
     return this.#fits(0)
   }
 
-  /** The provider's turn on this connection ended: completed, interrupted, or the connection lost. */
-  ended(connection: number): void {
-    const ending = this.#open.filter((o) => o.connection === connection)
-    this.#open = this.#open.filter((o) => o.connection !== connection)
+  /**
+   * The provider's turn on this connection ended, completed or interrupted: the one generation that ended is retired,
+   * the oldest still open there, the one received() counts output against. Generations reserved after it on the same
+   * connection stay open for their own turn ends (Codex r4233559261: two tool responses reserved before either
+   * continuation ended; retiring both at the first end made the second continuation look unasked, one generation too
+   * many). A lost connection (`lost`) retires every generation open on it. What is retired stays counted at its cost
+   * until a report covers it.
+   */
+  ended(connection: number, lost = false): void {
+    const open = this.#open.filter((o) => o.connection === connection)
+    const ending = lost ? open : open.slice(0, 1)
+    this.#open = this.#open.filter((o) => !ending.includes(o))
     const cost = ending.reduce((sum, o) => sum + Math.max(o.reserved, this.#generationCost(o.output)), 0)
     if (cost > 0) this.#unreported.set(connection, (this.#unreported.get(connection) ?? 0) + cost)
   }

@@ -155,3 +155,43 @@ describe('reconnections, transcription and a provider that does not honour the o
     assert.equal(r.committed, ASSUMED_RATES.context + 2 * 160)
   })
 })
+
+describe('a turn end retires the one generation that ended (Codex r4233559261)', () => {
+  it('two generations reserved on one connection: each turn end retires the oldest, and counts its cost alone', () => {
+    const r = new QualificationReserve(limits({ turns: 2 }))
+    r.connected(1)
+    assert.deepEqual(r.reserve(1), { ok: true }, 'the first tool response’s continuation')
+    assert.deepEqual(r.reserve(1), { ok: true }, 'the second’s, reserved before the first continuation ended')
+    assert.deepEqual(r.received(1, SECOND_OUT), { ok: true }, 'the first continuation')
+    r.ended(1)
+    r.reported(1, 30_000)
+    assert.equal(r.committed, 30_000 + GENERATION, 'the report covers the one that ended; the other keeps its reserve')
+    assert.deepEqual(r.received(1, SECOND_OUT), { ok: true }, 'the second continuation: its own reserved generation')
+    r.ended(1)
+    assert.deepEqual(r.received(1), { ok: false, stop: 'turns' }, 'a third, nobody reserved, is past the two')
+  })
+
+  it('the oldest goes first: each continuation’s output is held to its own generation’s cap', () => {
+    const r = new QualificationReserve(limits({ outputTokensPerTurn: 320 }))
+    r.connected(1)
+    r.reserve(1)
+    r.reserve(1)
+    assert.deepEqual(r.received(1, 8 * SECOND_OUT), { ok: true }, 'the first continuation: 256 of its 320')
+    r.ended(1)
+    assert.deepEqual(
+      r.received(1, 8 * SECOND_OUT),
+      { ok: true },
+      'the second: 256 of its own 320, not 512 of the first’s',
+    )
+  })
+
+  it('a lost connection retires every generation open on it', () => {
+    const r = new QualificationReserve(limits())
+    r.connected(1)
+    r.reserve(1)
+    r.reserve(1)
+    r.ended(1, true)
+    r.reported(1, 30_000)
+    assert.equal(r.committed, 30_000, 'nothing of the lost connection is left open')
+  })
+})

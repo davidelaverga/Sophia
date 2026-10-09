@@ -4541,8 +4541,8 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
     })
   }
 
-  for (const turns of [3, 4]) {
-    it(`a WHEN_IDLE continuation and a second tool round each count as a generation (${turns} turns)`, async () => {
+  for (const turns of [2, 3]) {
+    it(`a tool response’s WHEN_IDLE continuation is the generation reserved for it; a second round’s response is one more (${turns} turns; Codex r4233559261)`, async () => {
       voiceEvidence = true
       const { session, room, live } = await ready({ qualification: grant({ maxTurns: turns }) })
       room.events.audio(LUIS, voice16k(), 16000, 1)
@@ -4550,13 +4550,18 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
       live.events.toolCalls([{ id: 'round-1', name: 'project_status', args: {} }])
       await flush()
       assert.equal(live.responses.length, 1, 'the holder’s turn and the tool response: two generations reserved')
-      live.events.turnComplete()
-      // Nobody asked for this one: the tool response's continuation, which starts a second tool round.
+      live.events.turnComplete() // the holder's generation ends; the response's stays open for its own turn end
+      // The tool response's continuation, the generation reserved for it, starts a second tool round.
       live.events.audio(speech(1), OUT)
       live.events.toolCalls([{ id: 'round-2', name: 'project_status', args: {} }])
       await flush()
-      if (turns === 3) {
-        assert.equal(live.responses.length, 1, 'the third generation was the continuation: no fourth may start')
+      assert.deepEqual(
+        service.reservations.map((r) => r.kind).filter((kind) => kind !== 'stop'),
+        ['connection', 'generation', 'generation', ...(turns === 3 ? ['generation'] : [])],
+        'nothing charged unasked: the continuation was reserved, so the session counts what the API counted',
+      )
+      if (turns === 2) {
+        assert.equal(live.responses.length, 1, 'the second round’s response would start a third generation: refused')
         await stoppedFor('turns', session, live)
       } else {
         assert.equal(live.responses.length, 2)

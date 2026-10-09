@@ -62,6 +62,9 @@ const settle = async () => {
   for (let i = 0; i < 20; i += 1) await new Promise((resolve) => setImmediate(resolve))
 }
 const chunk = () => new Int16Array(1600).fill(2000)
+/** 20 ms of Sophia's audio as the provider sends it: 24 kHz PCM, base64. */
+const out = () => Buffer.from(new Int16Array(480).fill(1000).buffer).toString('base64')
+const OUT = 'audio/pcm;rate=24000'
 
 type Stop = NonNullable<MediaQualificationReservation['stop']>
 
@@ -514,6 +517,42 @@ describe('a function call runs only once the exchange counted its generation, ac
       'three asked by Luis’s words, the call’s own (unasked), and the one its response asks for',
     )
     assert.deepEqual(h.stops(), [])
+    await h.bridge.stop()
+  })
+})
+
+describe('each turn end retires the one generation that ended, against the durable ledger (Codex r4233559261)', () => {
+  it('two tool responses reserved on one connection before either continuation ended: both run, no false turns stop', async () => {
+    // Luis's words are the exchange's first generation; the provider's turn ends with two calls; each handler's
+    // response reserves its continuation (the second and the third), both before the first continuation ends.
+    const ledger = new FakeLedger(grant({ maxTurns: 3 }))
+    const h = harness(ledger)
+    await h.bridge.apply([assignment(ledger.grant)])
+    await settle()
+    const live = h.lives[0]
+    live?.events.setupComplete()
+    h.roomEvents.at(-1)?.audio(LUIS, chunk(), 16000, 1)
+    await settle()
+    live?.events.toolCalls([
+      { id: 'call-1', name: 'project_status', args: {} },
+      { id: 'call-2', name: 'project_status', args: {} },
+    ])
+    live?.events.turnComplete()
+    await settle()
+    assert.equal(h.calls.length, 2, 'both handlers ran')
+    assert.equal(ledger.exchanges.get(E1)?.turns, 3, 'the API counted Luis’s generation and both continuations')
+    for (const n of [1, 2]) {
+      live?.events.audio(out(), OUT)
+      await settle()
+      assert.deepEqual(h.stops(), [], `continuation ${String(n)} runs`)
+      live?.events.turnComplete()
+      await settle()
+    }
+    assert.equal(ledger.exchanges.get(E1)?.turns, 3, 'nothing counted twice: the session’s three are the API’s three')
+    assert.equal(ledger.exchanges.get(E1)?.ended, null)
+    live?.events.audio(out(), OUT) // a fourth generation nobody reserved
+    await settle()
+    assert.deepEqual(h.stops(), ['turns'], 'past the grant’s three, here as on the API')
     await h.bridge.stop()
   })
 })

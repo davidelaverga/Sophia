@@ -237,3 +237,68 @@ describe('Sophia’s words are output text, held to the per-turn cap (Codex r423
     assert.equal(q.output(1, { chars: 60 }), null, 'Sophia’s 20 tokens still fit her generation’s cap')
   })
 })
+
+describe('each turn end retires the one generation that ended (Codex r4233559261)', () => {
+  it('two prompts granted on one connection under a grant of exactly two turns: both continuations go on, no false stop', async () => {
+    // Root's shape: the real SessionQualification, two generations the API granted, maxTurns 2 (reserveTimeoutMs 1000).
+    const { q, waiting } = bound({ maxTurns: 2 })
+    assert.equal(await q.connecting(1, false), null)
+    const first = q.prompt(1, 100) // a tool response's continuation
+    const second = q.prompt(1, 100) // another's, asked before the first continuation ended
+    await settle()
+    waiting[0]?.answer()
+    waiting[1]?.answer()
+    assert.deepEqual([await first, await second], [null, null])
+    assert.equal(q.output(1, { samples: 2400 }), null, 'the first continuation')
+    q.turnEnded(1, 'turn_complete')
+    assert.equal(
+      q.output(1, { samples: 2400 }),
+      null,
+      'the second continuation: the API counted it; it is not one more',
+    )
+    q.turnEnded(1, 'turn_complete')
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'generation'],
+      'nothing charged unasked: the session counts the two the API counted',
+    )
+    assert.equal(q.output(1, { samples: 2400 }), 'turns', 'a third, nobody reserved, is past the grant’s two')
+  })
+
+  it('a lost connection ends all of its generations: a late report from it covers them all', async () => {
+    // Two generations of 27,000 (the context and twice the 1,000 cap) and 34 of text each fit a budget of 55,000.
+    const { q, waiting } = bound({ maxUsageTokens: 55_000 })
+    assert.equal(await q.connecting(1, false), null)
+    const first = q.prompt(1, 100)
+    const second = q.prompt(1, 100)
+    await settle()
+    waiting[0]?.answer()
+    waiting[1]?.answer()
+    assert.deepEqual([await first, await second], [null, null])
+    q.turnEnded(1, 'lost') // replaced before either continuation came
+    q.usage(1, { totalTokenCount: 1000 }) // the lost session's last report, after it was replaced
+    assert.equal(await q.connecting(2, true), null)
+    const next = q.prompt(2, 100)
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'generation', 'generation'],
+      'the report covers both: 1,034 committed, so the next 27,000 fits (one still open there would hold 28,068)',
+    )
+    waiting[2]?.answer()
+    assert.equal(await next, null)
+  })
+
+  it('one generation, one turn end: as before', async () => {
+    const { q, waiting } = bound({ maxTurns: 1 })
+    assert.equal(await q.connecting(1, false), null)
+    const asked = q.prompt(1, 100)
+    await settle()
+    waiting[0]?.answer()
+    assert.equal(await asked, null)
+    assert.equal(q.output(1, { samples: 2400 }), null)
+    q.turnEnded(1, 'turn_complete')
+    assert.equal(q.output(1, { samples: 2400 }), 'turns', 'the next, nobody reserved, is past the grant’s one')
+  })
+})

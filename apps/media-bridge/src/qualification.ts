@@ -352,12 +352,15 @@ export class SessionQualification {
 
   /**
    * The provider's turn on this connection ended: completed, cut by its barge-in, or lost with the connection. A
-   * generation still being reserved is for what comes next, and stays.
+   * generation still being reserved is for what comes next, and stays. A completed or interrupted turn retires one
+   * generation, here and in the reserve (the oldest open there, Codex r4233559261); the others paid for on the
+   * connection stay for their own turn ends. A lost connection retires all of its own: no turn of it ends again.
    */
   turnEnded(connection: number, how: TurnEnd): void {
-    this.#reserve.ended(this.#local(connection))
+    const lost = how === 'lost'
+    this.#reserve.ended(this.#local(connection), lost)
     const paid = this.#granted.get(connection) ?? 0
-    if (paid > 1) this.#granted.set(connection, paid - 1)
+    if (paid > 1 && !lost) this.#granted.set(connection, paid - 1)
     else this.#granted.delete(connection)
     this.#recorder.turnEnded(how)
   }
