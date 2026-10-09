@@ -4,7 +4,7 @@
 // is not shown (Tasks shows the goals alone, as before). Its ports are Sophia's (served.ts): nothing here reaches
 // Paperclip, and nothing derives a grant: each action is as the board's view allows it to the viewer.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Goal } from '@sophia/contracts'
 import { answerDecision, commandWork, operationReceipt, readBoard, workResult } from '../../../api/work.ts'
 import { tokenSubject } from '../../../app/auth-callback.ts'
@@ -18,6 +18,7 @@ import { PlanBoard } from './PlanBoard.tsx'
 import { PlanNext } from './PlanNext.tsx'
 import { PlanTab } from './PlanTab.tsx'
 import { actionable, boardOf, forYou, type GoalView } from './plan.ts'
+import { proposals } from './review-proposal.ts'
 import { ReviewSources } from './ReviewSources.tsx'
 import { commandWith, decideWith, readResultWith } from './served.ts'
 
@@ -142,8 +143,27 @@ function peopleOf(identity: Identity, viewerId: string | null): Record<string, P
 export function pendingAdmission(board: BoardView | null, goalId: string, viewerId: string | null, now: Date) {
   const goal = board?.goals.find((g) => g.goal_id === goalId)
   if (!goal || goal.current_plan !== null || viewerId === null) return null
-  const proposals = new Set(goal.proposed_plans.map((p) => p.plan_id))
-  return goal.decisions.find((d) => proposals.has(d.plan_id) && d.decider_id === viewerId && actionable(d, now)) ?? null
+  const proposed = new Set(goal.proposed_plans.map((p) => p.plan_id))
+  return goal.decisions.find((d) => proposed.has(d.plan_id) && d.decider_id === viewerId && actionable(d, now)) ?? null
+}
+
+/**
+ * The viewer's proposal on the board, waiting on its decision: Sophia recorded it, so no proposal of this goal is kept
+ * unanswered (review-proposal.ts). Answered there, the form after it starts afresh, never on the old request.
+ */
+function Recorded({
+  viewer,
+  project,
+  goal,
+  children,
+}: {
+  viewer: string
+  project: string
+  goal: string
+  children: ReactNode
+}) {
+  useEffect(() => proposals.forget({ viewer, project, goal }), [viewer, project, goal])
+  return children
 }
 
 /** Tasks' plans and pilot entry from the board Sophia serves for this project, as this viewer sees it. */
@@ -172,8 +192,13 @@ export function useServedWork({ projectId, identity, feed, canAct, enabled }: Se
     canAct && enabled
       ? (goal: Goal) => {
           const pending = pendingAdmission(board, goal.id, viewerId, now)
-          if (pending)
-            return <Decision decision={pending} people={people} now={now} viewerId={viewerId} onDecide={decide} />
+          if (pending) {
+            return (
+              <Recorded viewer={identity.name} project={projectId} goal={goal.id}>
+                <Decision decision={pending} people={people} now={now} viewerId={viewerId} onDecide={decide} />
+              </Recorded>
+            )
+          }
           return <ReviewSources projectId={projectId} identity={identity} goal={goal} onProposed={refresh} />
         }
       : undefined

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { proposalKey, Proposals, type Asked, type ProposalAt } from './review-proposal.ts'
+import { ApiError } from '../../../api/client.ts'
+import { EARLIER, outcomeOf, proposalKey, Proposals, type Asked, type ProposalAt } from './review-proposal.ts'
 
 /** A tab's session storage: what a reload of the page keeps. */
 function tab() {
@@ -11,6 +12,10 @@ function tab() {
       getItem: (k: string) => items.get(k) ?? null,
       setItem: (k: string, v: string) => void items.set(k, v),
       removeItem: (k: string) => void items.delete(k),
+      key: (i: number) => [...items.keys()][i] ?? null,
+      get length() {
+        return items.size
+      },
     }),
   }
 }
@@ -26,6 +31,10 @@ const refusing = () => ({
   removeItem: () => {
     throw new Error('SecurityError')
   },
+  key: () => {
+    throw new Error('SecurityError')
+  },
+  length: 0,
 })
 
 const at: ProposalAt = { viewer: 'davide@sophia.test', project: 'project-1', goal: 'goal-1' }
@@ -94,6 +103,21 @@ describe('a proposal whose outcome is unknown is kept beyond its form (Codex on 
     assert.equal(page.pending(at), null)
   })
 
+  it('a sign-out, or another viewer coming in, forgets every viewer’s, and nothing else in the tab', () => {
+    const t = tab()
+    const page = new Proposals(t.storage)
+    page.keep(at, asked)
+    page.keep({ ...at, viewer: 'luis@sophia.test', goal: 'goal-2' }, asked)
+    t.items.set('sophia.plan.seen.v3:["project-1"]', '{}')
+    page.forgetAll()
+    assert.equal(page.pending(at), null)
+    assert.deepEqual([...t.items.keys()], ['sophia.plan.seen.v3:["project-1"]'], 'only what is not a proposal stays')
+    const refused = new Proposals(refusing)
+    refused.keep(at, asked)
+    refused.forgetAll()
+    assert.equal(refused.pending(at), null, 'the page’s memory too, where storage is refused')
+  })
+
   it('Sophia’s answer ends it, on this page and in the tab', () => {
     const t = tab()
     const page = new Proposals(t.storage)
@@ -102,5 +126,36 @@ describe('a proposal whose outcome is unknown is kept beyond its form (Codex on 
     assert.equal(page.pending(at), null)
     assert.equal(new Proposals(t.storage).pending(at), null)
     assert.equal(t.items.size, 0, 'nothing is left in the tab')
+  })
+})
+
+const failed = (status: number, code: string, retry: ApiError['retry']) => new ApiError(status, code, 'said', retry)
+
+describe('what a failed proposal says, and whether it is kept (Codex on #107 and on 2c018256)', () => {
+  it('keeps it, with its key and request, wherever Sophia may have recorded it', () => {
+    for (const [why, err, said] of [
+      ['no reply', failed(0, 'network', 'same_admission_key'), 'No reply from Sophia.'],
+      ['a session that ended', failed(401, 'unauthorized', 'reauthorize'), 'Sign in again.'],
+      ['ask again under the key', failed(409, 'in_flight', 'same_admission_key'), 'Sophia’s reply was unclear.'],
+      ['a server failure', failed(503, 'unavailable', 'same_admission_key'), 'Sophia’s reply was unclear.'],
+      ['an unreadable success', new SyntaxError('Unexpected end of JSON input'), 'Sophia’s reply was unclear.'],
+    ] as const) {
+      const outcome = outcomeOf(err, asked)
+      assert.equal(outcome.state, 'unanswered', why)
+      assert.ok(outcome.state === 'unanswered' && outcome.key === asked.key && outcome.request === asked.request, why)
+      assert.ok(outcome.state === 'unanswered' && outcome.said.startsWith(said), `${why}: ${JSON.stringify(outcome)}`)
+    }
+  })
+
+  it('ends it on a definite refusal, and on a conflict under its key (Sophia already holds one)', () => {
+    assert.deepEqual(outcomeOf(failed(403, 'source_ineligible', 'never'), asked), { state: 'refused', said: 'said' })
+    assert.deepEqual(outcomeOf(failed(409, 'stale_revision', 'never'), asked), { state: 'refused', said: 'said' })
+    const conflict = outcomeOf(failed(409, 'idempotency_conflict', 'never'), asked)
+    assert.equal(conflict.state, 'refused')
+    assert.match(conflict.state === 'refused' ? conflict.said : '', /already holds a proposal sent under this key/u)
+  })
+
+  it('says, when found again, that it may already be recorded', () => {
+    assert.match(EARLIER, /may already be recorded/u)
   })
 })

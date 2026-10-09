@@ -6,6 +6,7 @@
 // refusal. Until then it is the proposal that form sends again, its key and its request unchanged. Only the key and
 // the request are kept, and another viewer's, project's or goal's proposal never meets this one.
 import type { SourceReviewProposalRequest } from '@sophia/contracts'
+import { ApiError } from '../../../api/client.ts'
 
 /** Whose proposal, where: the viewer (their identity's stable name), the project and the goal. */
 export interface ProposalAt {
@@ -20,9 +21,53 @@ export interface Asked {
   readonly request: SourceReviewProposalRequest
 }
 
+/** What the form is at: a proposal being sent or unanswered keeps its key and its request. */
+export type Sent =
+  | { state: 'idle' }
+  | ({ state: 'sending' } & Asked)
+  | { state: 'proposed' }
+  | { state: 'refused'; said: string }
+  | ({ state: 'unanswered'; said: string } & Asked)
+
+/** What a proposal found again after leaving Tasks or reloading says: Sophia may already have it. */
+export const EARLIER =
+  'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.'
+
+/**
+ * Sophia's definite refusal: a 4xx it answered, unless it says to ask again under the same key or to sign in again
+ * (a session that ended says nothing of the proposal).
+ */
+const refusal = (err: unknown): err is ApiError =>
+  err instanceof ApiError &&
+  err.status >= 400 &&
+  err.status < 500 &&
+  err.retry !== 'same_admission_key' &&
+  err.retry !== 'reauthorize'
+
+/**
+ * What a failed proposal says. One whose outcome is unknown keeps its key and the request as it was sent: asking again
+ * sends exactly that, so Sophia answers it as the same proposal, never as a different body under its key; only a
+ * definite refusal lets the form start afresh (Codex on #107). A conflict under its key means Sophia already holds a
+ * proposal sent under it: nothing is kept, and the board shows it.
+ */
+export function outcomeOf(err: unknown, asked: Asked): Sent {
+  if (err instanceof ApiError && err.code === 'idempotency_conflict') {
+    return { state: 'refused', said: 'Sophia already holds a proposal sent under this key: find it on the board.' }
+  }
+  if (refusal(err)) return { state: 'refused', said: err.message }
+  const said =
+    err instanceof ApiError && err.retry === 'reauthorize'
+      ? 'Sign in again.'
+      : err instanceof ApiError && err.status === 0
+        ? 'No reply from Sophia.'
+        : 'Sophia’s reply was unclear.'
+  return { state: 'unanswered', said: `${said} Propose again to check; it is the same proposal.`, ...asked }
+}
+
+const PREFIX = 'sophia.review.proposal.v1:'
+
 /** Where a proposal is kept: its viewer, project and goal, each whole (JSON), so no two scopes share a key. */
-export const proposalKey = (at: ProposalAt) =>
-  `sophia.review.proposal.v1:${JSON.stringify([at.viewer, at.project, at.goal])}`
+export const proposalKey = (at: ProposalAt) => `${PREFIX}${JSON.stringify([at.viewer, at.project, at.goal])}`
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
@@ -43,13 +88,15 @@ function isAsked(value: unknown, at: ProposalAt): value is Asked {
 }
 
 /** What keeping needs of a storage. */
-type Kept = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+type Kept = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>
 
 const isKept = (value: unknown): value is Kept =>
   isRecord(value) &&
   typeof value.getItem === 'function' &&
   typeof value.setItem === 'function' &&
-  typeof value.removeItem === 'function'
+  typeof value.removeItem === 'function' &&
+  typeof value.key === 'function' &&
+  typeof value.length === 'number'
 
 /** The tab's session storage, or none where there is none or the browser refuses it. */
 function session(): Kept | null {
@@ -104,7 +151,23 @@ export class Proposals {
       // Storage refused: nothing was kept there.
     }
   }
+
+  /** Every viewer's, at a sign-out or a change of who is in: nothing of theirs stays on the device. */
+  forgetAll(): void {
+    this.#memory.clear()
+    try {
+      const storage = this.#storage()
+      if (!storage) return
+      const keys = Array.from({ length: storage.length }, (_, i) => storage.key(i))
+      for (const key of keys) if (key?.startsWith(PREFIX)) storage.removeItem(key)
+    } catch {
+      // Storage refused: nothing was kept there.
+    }
+  }
 }
 
 /** The page's proposals. */
 export const proposals = new Proposals()
+
+/** Signing out, or another viewer coming in: no proposal of anyone's stays (App.tsx, beside talk-store's). */
+export const forgetProposals = () => proposals.forgetAll()

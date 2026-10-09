@@ -10,6 +10,7 @@ import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.
 import { AccountMenu } from './AccountMenu.tsx'
 import { accountOf } from './auth-callback.ts'
 import { forgetKept } from '../features/conversations/talk-store.ts'
+import { forgetProposals } from '../features/work/planning/review-proposal.ts'
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
@@ -45,6 +46,12 @@ function useDraftsOnlyOfWhoIsIn(state: AuthState) {
   }, [who])
 }
 
+/** What a person had under way on this device: a project's conversations (talk-store.ts) and unanswered proposals. */
+function forgetUnderWay() {
+  forgetKept()
+  forgetProposals()
+}
+
 export function App() {
   const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
@@ -54,7 +61,7 @@ export function App() {
     () => () => {
       queryClient.clear()
       // And what was under way in a project's conversations: another tab signing out, a session that ended.
-      forgetKept()
+      forgetUnderWay()
     },
     [signedInAs],
   )
@@ -69,17 +76,17 @@ export function App() {
   const switchIdentity = (identity: Identity | null) => {
     setSignedIn(null)
     queryClient.clear()
-    forgetKept()
+    forgetUnderWay()
     chooseDev(identity)
     // The same identity again is no change App's effect would see: it is in, as it was.
     setSignedIn(identity?.name ?? null)
   }
-  // Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, and what
-  // was under way in a project's conversations (talk-store.ts).
+  // Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, what was
+  // under way in a project's conversations (talk-store.ts) and any review proposal still unanswered.
   const leaveSession = () => {
     setSignedIn(null)
     queryClient.clear()
-    forgetKept()
+    forgetUnderWay()
     forgetPendingUnlock()
     // A sign-out that fails leaves the person in: their writes are theirs again.
     void signOutForgetting(signOut, forgetDrafts).catch(() => setSignedIn(signedInAs))

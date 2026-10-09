@@ -138,6 +138,10 @@ interface Project {
    * unexpected.
    */
   proposals?: { lose: number; how: 'lost' | 'unreadable'; sent: { key: string; body: unknown }[] }
+  /** The goals of the board Sophia serves, as the page holds them now (`admits=`); absent, none. */
+  servedGoals?: () => WorkBoardView['goals']
+  /** A decision on the served board answered (`admits=`): its receipt; absent, an answer is unexpected. */
+  onAnswer?: (decisionId: string, answer: unknown) => unknown
   /** A goal's command (Request review, Hold, Stop), with its idempotency key; absent, a command is unexpected. */
   onCommand?: (command: GoalCommand, key: string) => void
   /** The floor and Sophia's presence as the page asked for them (data.ts, room-people checks). */
@@ -638,10 +642,20 @@ function meetingClosed(project: Project, init: RequestInit | undefined): Promise
   return new Response(JSON.stringify(receipt), { status: 202, headers: { 'content-type': 'application/json' } })
 }
 
+/** A decision on the served board answered (`admits=`): the page's receipt for it; null for any other write. */
+function answered(project: Project, method: string, path: string, init: RequestInit | undefined): Response | null {
+  const decision = new RegExp(`^/api/v1/projects/${PROJECT}/decisions/([^/]+)/answer$`).exec(path)?.[1]
+  if (method !== 'POST' || !decision || !project.onAnswer) return null
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  return json(project.onAnswer(decodeURIComponent(decision), body))
+}
+
 /** What the page writes: the room's focus (PUT), else what it posts. */
 function written(project: Project, method: string, path: string, init: RequestInit | undefined) {
   if (method === 'POST' && path === `/api/v1/projects/${PROJECT}/plans/source-review` && project.proposals)
     return proposed(project.proposals, init)
+  const receipt = answered(project, method, path, init)
+  if (receipt) return receipt
   if (method === 'PUT' && path === `/api/v1/projects/${PROJECT}/seen`) return seenPut(project, init)
   if (method === 'PUT') return path === `/api/v1/rooms/${ROOM}/focus` ? focusPut(project, init) : null
   return posted(project, path, init)
@@ -785,7 +799,7 @@ function workRead(project: Project, path: string) {
       snapshot_cursor: String(project.revision),
       observed_at: new Date().toISOString(),
       coverage: 'complete',
-      goals: [],
+      goals: project.servedGoals?.() ?? [],
     }
     return json(board)
   }

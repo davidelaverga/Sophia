@@ -6,9 +6,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { Goal, SourceReviewAvailability, SourceReviewProposalRequest } from '@sophia/contracts'
 import { proposeReview, reviewAvailability } from '../../../api/work.ts'
-import { ApiError } from '../../../api/client.ts'
 import type { Identity } from '../../../app/dev-identity.ts'
-import { proposals, type Asked } from './review-proposal.ts'
+import { EARLIER, outcomeOf, proposals, type Asked, type Sent } from './review-proposal.ts'
 import { ALLOWANCE_STEP, allowanceOk, kib, selectionOf } from './review-sources.ts'
 
 interface Props {
@@ -21,31 +20,6 @@ interface Props {
 
 /** The allowance a review starts from: half a dollar, or the cap when it is lower. */
 const startingAllowance = (a: SourceReviewAvailability) => Math.min(0.5, a.maxAllowanceUsd ?? 0.5)
-
-type Sent =
-  | { state: 'idle' }
-  | ({ state: 'sending' } & Asked)
-  | { state: 'proposed' }
-  | { state: 'refused'; said: string }
-  | ({ state: 'unanswered'; said: string } & Asked)
-
-/**
- * Sophia's definite refusal: a 4xx it answered, unless it says to ask again under the same key. Anything else (no
- * reply, a 5xx, a success whose body cannot be read) leaves the proposal's outcome unknown: it may have been recorded.
- */
-const refusal = (err: unknown): err is ApiError =>
-  err instanceof ApiError && err.status >= 400 && err.status < 500 && err.retry !== 'same_admission_key'
-
-/**
- * What a failed proposal says. One whose outcome is unknown keeps its key and the request as it was sent: asking again
- * sends exactly that, so Sophia answers it as the same proposal, never as a different body under its key; only a
- * definite refusal lets the form start afresh (Codex on #107).
- */
-function outcomeOf(err: unknown, asked: Asked): Sent {
-  if (refusal(err)) return { state: 'refused', said: err.message }
-  const said = err instanceof ApiError && err.status === 0 ? 'No reply from Sophia.' : 'Sophia’s reply was unclear.'
-  return { state: 'unanswered', said: `${said} Propose again to check; it is the same proposal.`, ...asked }
-}
 
 /** Whether a proposal is in flight or unanswered: its fields are kept as it was sent until Sophia answers it. */
 const pending = (sent: Sent): sent is Extract<Sent, Asked> => sent.state === 'sending' || sent.state === 'unanswered'
@@ -62,9 +36,6 @@ interface FormProps extends Props {
   proposal: Proposal
   onClose: () => void
 }
-
-/** What a proposal still unanswered from before says, found again after leaving Tasks or reloading the page. */
-const EARLIER = 'An earlier proposal has no answer yet. Propose again to check; it is the same proposal.'
 
 /**
  * The proposal, sent once per press. After no reply, a press sends the same key and the same request again; only

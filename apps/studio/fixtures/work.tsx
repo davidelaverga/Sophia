@@ -68,6 +68,7 @@ import {
   moreGoals,
   moreViews,
   people,
+  plan,
   secondGoal,
   secondView,
   unplannedGoal,
@@ -125,6 +126,8 @@ declare global {
       reconnect?: () => void
       /** Each goal command sent (Request review, Hold, Stop), with its key (LFE-07.2). */
       goalCommands?: readonly { kind: string; key: string }[]
+      /** Each answer to the served board's admission decision (`admits=`). */
+      admissions?: readonly unknown[]
       /** Each source review proposed (`proposed=lost|unreadable`), with its key and its body. */
       proposals?: readonly { key: string; body: unknown }[]
       replay?: (operationId: string) => void
@@ -185,6 +188,95 @@ const sentBefore = (): { key: string; body: unknown }[] => {
 const proposals: { lose: number; how: 'lost' | 'unreadable'; sent: { key: string; body: unknown }[] } | undefined =
   proposing === 'lost' || proposing === 'unreadable' ? { lose: 1, how: proposing, sent: sentBefore() } : undefined
 if (proposals) addEventListener('pagehide', () => sessionStorage.setItem(SENT_KEY, JSON.stringify(proposals.sent)))
+
+/**
+ * `admits=1|other|luis` (with `served=1&proposed=lost`): once the first proposal is recorded, the board Sophia serves
+ * shows a labelled synthetic admission decision for it: Davide's on the first goal (`1`), Davide's on the second goal
+ * (`other`, with `two=1`), or Luis's on the first goal (`luis`). The page's viewer is then Davide, by a synthetic,
+ * unsigned token whose subject the Studio reads (tokenSubject). Answered, the decision is recorded; each answer is in
+ * `workFixture.admissions`.
+ */
+const admits = query.get('admits')
+const admission: { state: 'proposed' | 'accepted'; answers: unknown[] } = { state: 'proposed', answers: [] }
+const base64url = (value: object) =>
+  btoa(JSON.stringify(value)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_')
+const DAVIDE_TOKEN = `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url({ sub: 'davide', fixture: 'synthetic, unsigned' })}.`
+const viewing = admits ? { ...identity, token: DAVIDE_TOKEN } : identity
+
+/** A goal's plan only proposed, with the admission decision `deciderId` answers. */
+function admittedOn(view: GoalView, planId: string, deciderId: string): GoalView {
+  const decided = admission.state === 'accepted'
+  return {
+    ...view,
+    decisions: [
+      {
+        decision_id: 'admit-1',
+        revision: 1,
+        work_id: 'review-1',
+        plan_id: planId,
+        plan_revision: 1,
+        candidate_version_ref: null,
+        question: 'Start the source review?',
+        decider_id: deciderId,
+        choices: [
+          { key: 'start', label: 'Start the review' },
+          { key: 'decline', label: 'Not now' },
+        ],
+        expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+        state: decided ? 'accepted' : 'proposed',
+        selected_choice: decided ? 'start' : null,
+        choice_receipt_id: decided ? 'receipt-admit-1' : null,
+        plan_reaction: 'not_needed',
+      },
+    ],
+  }
+}
+
+/** The goals of the board Sophia serves, as `admits=` asks: none until the first proposal is recorded. */
+function servedGoals(): GoalView[] {
+  if (!admits || !proposals || proposals.sent.length === 0) return []
+  if (admits === 'other') return [admittedOn(secondView, 'plan-2', 'davide')]
+  const proposedPlan = {
+    ...plan,
+    plan_id: 'plan-review-1',
+    revision: 1,
+    state: 'proposed' as const,
+    decision_ref: null,
+  }
+  const first: GoalView = {
+    goal_id: goal.id,
+    current_plan: null,
+    proposed_plans: [proposedPlan],
+    next_checkpoint: null,
+    items: [],
+    decisions: [],
+  }
+  return [admittedOn(first, 'plan-review-1', admits === 'luis' ? 'luis' : 'davide')]
+}
+
+/** Davide's answer to the admission decision: recorded, as the service's receipt says. */
+function answerAdmission(decisionId: string, answer: unknown) {
+  admission.answers.push({ decisionId, answer })
+  admission.state = 'accepted'
+  const operation = typeof answer === 'object' && answer !== null ? String(Reflect.get(answer, 'operation_id')) : ''
+  return {
+    schema_version: 'sophia.work.receipt.v1',
+    operation_id: operation,
+    receipt_id: 'receipt-admit-1',
+    project_id: PROJECT,
+    work_id: 'review-1',
+    assignment_id: null,
+    assignment_generation: null,
+    kind: 'decision',
+    revision: 2,
+    observed_at: new Date().toISOString(),
+    admission: 'recorded',
+    delivery: 'not_applicable',
+    effect: 'choice_recorded',
+    rejection: null,
+    evidence_refs: ['fixture-admission'],
+  }
+}
 /** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
 let onGoalCommand: ((command: GoalCommand, key: string) => void) | null = null
 installFixtureApi({
@@ -210,6 +302,7 @@ installFixtureApi({
   work: false,
   ...(served && { review: cap === null ? SOURCE_REVIEW : { ...SOURCE_REVIEW, maxAllowanceUsd: Number(cap) } }),
   ...(proposals && { proposals }),
+  ...(admits && { servedGoals, onAnswer: answerAdmission }),
   // A12: a call left from here has a meeting that left nothing (MeetingRecap's empty recap).
   meeting: newMeeting(
     () => ({
@@ -232,6 +325,7 @@ window.workFixture = {
   receipts,
   questions,
   ...(proposals && { proposals: proposals.sent }),
+  ...(admits && { admissions: admission.answers }),
 }
 const nothing = () => undefined
 
@@ -756,6 +850,7 @@ function Tasks() {
         { commands: lead.commands, again },
       ),
       ...(proposals && { proposals: proposals.sent }),
+      ...(admits && { admissions: admission.answers }),
     }
   }, [update, viewer, lead, again])
   const board = viewOf(first, arrived, now, coverage)
@@ -800,7 +895,7 @@ function Shell({ plans, viewer, now, onCommand }: ShellProps) {
     <ProjectShell
       projectId={PROJECT}
       view={view}
-      identity={identity}
+      identity={viewing}
       account={null}
       // Conversations' reads aren't faked on this page (room.html's are): its tab stays where it is.
       onShow={(next) => next !== 'conversations' && setView(next)}
