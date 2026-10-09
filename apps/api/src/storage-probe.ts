@@ -7,7 +7,10 @@
 // - every request to the provider counted, by method and key: one PUT per key, whatever the provider does with a second.
 // Finite: 11 claims, at most 7 provider requests, 2 objects of under 100 bytes, never deleted (a claim is never
 // released). With `--run <uuid>` it is one-shot: both keys derive from the operator's run id, so a start that runs it
-// again under the same id (the API's start command restarted) finds its first key claimed and writes nothing (exit 2). It prints JSON lines and never a setting, a credential or a signed URL. Exit: 0 every guarantee held;
+// again under the same id (the API's start command restarted) finds its first key claimed and writes nothing (exit 2).
+// It ends within PROBE_MS, its preconditions' queries included, so the API's start follows it. It prints JSON lines:
+// the first names the physical namespace it writes in (endpoint, region, bucket) and its keys; none names a credential
+// or a signed URL. Exit: 0 every guarantee held;
 // 1 one did not; 2 a precondition is missing (nothing written); 3 an outcome is uncertain (stopped at once, never
 // retried: the key printed is claimed and can never be written again; HEAD it to see what the provider holds).
 import { randomUUID } from 'node:crypto'
@@ -24,6 +27,8 @@ export const RACERS = 8
 /** Each request to the provider, and the whole probe, end within these. */
 const REQUEST_MS = 20_000
 export const PROBE_MS = 120_000
+/** Closing the probe's connections waits no longer than this: a connection the database never answered can't hold it. */
+const ENDING_MS = 5_000
 const MIME = 'application/octet-stream'
 
 /** One request the probe's store sent to the provider: its method, the object key it named, and how it answered. */
@@ -85,6 +90,25 @@ interface Probe {
   log: (record: object) => void
   /** A one-shot run: a first key found claimed means the run id was used before, not a broken guarantee. */
   oneShot?: boolean
+  /** The physical namespace the store writes in, named by the probe's first line so its evidence binds it. */
+  namespace?: Namespace
+}
+
+/** Where the objects are: the endpoint (its origin and path only), the region and the bucket. Never a credential. */
+export interface Namespace {
+  endpoint: string
+  region: string
+  bucket: string
+}
+
+/** The namespace the API's settings name (they are complete: byteStoreFromEnv has read them). */
+function namespaceOf(env: Record<string, string | undefined>): Namespace {
+  const endpoint = new URL(env.SOPHIA_STORAGE_S3_ENDPOINT?.trim() ?? '')
+  return {
+    endpoint: `${endpoint.origin}${endpoint.pathname.replace(/\/+$/u, '')}`,
+    region: env.SOPHIA_STORAGE_S3_REGION?.trim() ?? '',
+    bucket: env.SOPHIA_STORAGE_BUCKET?.trim() ?? '',
+  }
 }
 
 /** The requests sent for one key, counted by method. */
@@ -190,6 +214,7 @@ export async function probeWriteOnce(
   p: Probe,
   keys: readonly [string, string] = [objectPath(PROBE_PROJECT, randomUUID()), objectPath(PROBE_PROJECT, randomUUID())],
 ): Promise<number> {
+  p.log({ event: 'STORAGE_PROBE_START', ...(p.namespace ? { namespace: p.namespace } : {}), keys })
   try {
     await sequential(p, keys[0])
     await race(p, keys[1])
@@ -224,13 +249,15 @@ async function ready(pool: pg.Pool, store: ByteStore | null) {
 }
 
 /**
- * Run the probe with the API's own environment (SOPHIA_API_DATABASE_URL and the five SOPHIA_STORAGE_* settings), within
- * PROBE_MS. Tests give a stand-in provider.
+ * Run the probe with the API's own environment (SOPHIA_API_DATABASE_URL and the five SOPHIA_STORAGE_* settings). It ends
+ * within PROBE_MS from its first query, its preconditions' included, and closing its connections waits at most
+ * ENDING_MS more: run from a start command, the API's own start follows it whatever the database or the provider does.
+ * Tests give a stand-in provider and a shorter deadline.
  * @returns the exit code
  */
 export async function runStorageProbe(
   env: Record<string, string | undefined>,
-  options: { fetchImpl?: typeof fetch; log?: (record: object) => void; runId?: string } = {},
+  options: { fetchImpl?: typeof fetch; log?: (record: object) => void; runId?: string; probeMs?: number } = {},
 ): Promise<number> {
   const print = options.log ?? ((record: object) => console.log(JSON.stringify(record)))
   // Once the probe is past its time, nothing it does after is reported: the deadline's line is the last.
@@ -247,35 +274,54 @@ export async function runStorageProbe(
   const fetchImpl = countingFetch(calls, options.fetchImpl)
   const pool = createPool(url, { max: 2 })
   const racers = createPool(url, { max: RACERS })
+  const probeMs = options.probeMs ?? PROBE_MS
   let timer: NodeJS.Timeout | undefined
+  const deadline = new Promise<number>((resolve) => {
+    timer = setTimeout(() => {
+      log({
+        event: 'STORAGE_PROBE_DONE',
+        ok: false,
+        exit: 3,
+        reason: `past ${String(probeMs)} ms`,
+        providerRequests: calls.length,
+      })
+      over = true
+      resolve(3)
+    }, probeMs)
+  })
+  const probe = async () => {
+    try {
+      const raw = byteStoreFromEnv(env, fetchImpl)
+      await ready(pool, raw)
+      const store = writeOnceStore(pool, raw)
+      const racing = writeOnceStore(racers, raw)
+      if (!store || !racing) throw new Stop(2, 'the API has no byte store configured')
+      // Preconditions that answered only after the deadline write nothing: the deadline's exit stands.
+      if (over) return 3
+      const oneShot = options.runId !== undefined
+      const keys = oneShot ? runKeys(options.runId ?? '') : undefined
+      const namespace = namespaceOf(env)
+      return await probeWriteOnce({ store, racing, calls, fetchImpl, log, oneShot, namespace }, keys)
+    } catch (error) {
+      const stop = error instanceof Stop ? error : new Stop(2, String(error))
+      log({ event: 'STORAGE_PROBE_DONE', ok: false, exit: stop.exit, reason: stop.message })
+      return stop.exit
+    }
+  }
   try {
-    const raw = byteStoreFromEnv(env, fetchImpl)
-    await ready(pool, raw)
-    const store = writeOnceStore(pool, raw)
-    const racing = writeOnceStore(racers, raw)
-    if (!store || !racing) throw new Stop(2, 'the API has no byte store configured')
-    const deadline = new Promise<number>((resolve) => {
-      timer = setTimeout(() => {
-        log({
-          event: 'STORAGE_PROBE_DONE',
-          ok: false,
-          exit: 3,
-          reason: `past ${String(PROBE_MS)} ms`,
-          providerRequests: calls.length,
-        })
-        over = true
-        resolve(3)
-      }, PROBE_MS)
-    })
-    const oneShot = options.runId !== undefined
-    const keys = oneShot ? runKeys(options.runId ?? '') : undefined
-    return await Promise.race([probeWriteOnce({ store, racing, calls, fetchImpl, log, oneShot }, keys), deadline])
-  } catch (error) {
-    const stop = error instanceof Stop ? error : new Stop(2, String(error))
-    log({ event: 'STORAGE_PROBE_DONE', ok: false, exit: stop.exit, reason: stop.message })
-    return stop.exit
+    return await Promise.race([probe(), deadline])
   } finally {
     clearTimeout(timer)
-    await Promise.all([pool.end(), racers.end()])
+    await closeWithin([pool, racers])
   }
+}
+
+/** Close the pools, waiting no longer than ENDING_MS: a connection the database never answered can't hold the probe. */
+async function closeWithin(pools: pg.Pool[]) {
+  let ending: NodeJS.Timeout | undefined
+  await Promise.race([
+    Promise.allSettled(pools.map((p) => p.end())),
+    new Promise((resolve) => (ending = setTimeout(resolve, ENDING_MS))),
+  ])
+  clearTimeout(ending)
 }

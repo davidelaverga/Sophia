@@ -2,9 +2,10 @@
 // behaves as Supabase Storage's S3 PutObject does in the pinned source (it replaces whatever is at its key and ignores
 // If-None-Match), and the real claim (0044) on PostgreSQL through the API's login. The probe holds there, fails a
 // store not written once, stops at once on an unknown write without trying it again, and writes nothing without its
-// preconditions.
+// preconditions. Run from the API's start command, it ends within its deadline whatever the database does.
 import assert from 'node:assert/strict'
 import { copyFileSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { createServer, type AddressInfo, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -72,6 +73,13 @@ describe('the write-once probe (storage-probe.ts)', () => {
     )
     assert.equal(exit, 0, JSON.stringify(log))
     assert.equal(done(log).ok, true)
+    // Its first line binds the evidence to the physical namespace written in, and names no credential.
+    assert.deepEqual(Reflect.get(log[0] ?? {}, 'namespace'), {
+      endpoint: SETTINGS.SOPHIA_STORAGE_S3_ENDPOINT,
+      region: SETTINGS.SOPHIA_STORAGE_S3_REGION,
+      bucket: SETTINGS.SOPHIA_STORAGE_BUCKET,
+    })
+    assert.equal(Reflect.get(log[0] ?? {}, 'event'), 'STORAGE_PROBE_START')
     assert.equal(stand.state.puts, 2, 'one PUT for each of the two keys')
     assert.equal(stand.objects.size, 2)
     for (const path of stand.objects.keys()) assert.match(path, new RegExp(`/sophia-report-bytes/${PROBE_PROJECT}/`))
@@ -161,6 +169,36 @@ describe('the write-once probe (storage-probe.ts)', () => {
       2,
     )
     assert.equal(stand.state.puts, 2)
+  })
+
+  it('ends within its deadline when the database never answers, its preconditions included', async () => {
+    // A database that accepts a connection and never answers: the probe's first query, a precondition, waits on it.
+    const sockets = new Set<Socket>()
+    const silent = createServer((socket) => sockets.add(socket))
+    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve))
+    const { port } = silent.address() as AddressInfo
+    const stand = provider()
+    const log: object[] = []
+    const LOST = Symbol('the sentinel')
+    let sentinel: NodeJS.Timeout | undefined
+    try {
+      // 200 ms to its deadline, then at most 5 s closing connections that never opened: well within the sentinel.
+      const ended = await Promise.race([
+        runStorageProbe(
+          { SOPHIA_API_DATABASE_URL: `postgres://sophia_api@127.0.0.1:${String(port)}/sophia`, ...SETTINGS },
+          { fetchImpl: stand.fetchImpl, log: (r) => log.push(r), probeMs: 200 },
+        ),
+        new Promise<typeof LOST>((resolve) => (sentinel = setTimeout(() => resolve(LOST), 10_000))),
+      ])
+      assert.equal(ended, 3, 'the probe ends, uncertain, before the sentinel')
+      assert.match(String(done(log).reason), /past 200 ms/u)
+      assert.equal(log.filter((r) => Reflect.get(r, 'event') === 'STORAGE_PROBE_DONE').length, 1, 'its last line')
+      assert.equal(stand.state.puts, 0)
+    } finally {
+      clearTimeout(sentinel)
+      for (const socket of sockets) socket.destroy()
+      await new Promise((resolve) => silent.close(resolve))
+    }
   })
 
   it('writes nothing without its preconditions: the settings, the API’s login (never an owner’s) and 0044', async () => {
