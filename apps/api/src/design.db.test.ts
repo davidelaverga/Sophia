@@ -1209,6 +1209,41 @@ describe('a capture render queued again after its lease ran out (0045)', () => {
     const shots = await settleCapture(again, d.pkg, d.sections, { html: d.html })
     assert.equal(shots.settled.state, 'succeeded', JSON.stringify(shots.settled))
   })
+
+  it('takes no render job’s row it need not change: a Stop holding one neither waits for it nor makes it wait', async () => {
+    const { w, at } = await designing()
+    await drafted(w, at, { capture: false })
+    const job = await claimCapture()
+    const jobId = String(job.jobId)
+    await owner((c) =>
+      c.query(`UPDATE sophia.jobs SET lease_until=now()-interval '1 second' WHERE project_id=$1 AND id=$2`, [
+        w.projectId,
+        jobId,
+      ]),
+    )
+    // A Stop's deferred trigger (research_rendition_stopped, 0032) locks a render job's row before its job: held here,
+    // over a job whose lost lease recorded no output (a capture's never does), so the sweep has nothing there to change.
+    const stopping = new pg.Client({ connectionString: db.ownerUrl })
+    await stopping.connect()
+    try {
+      await stopping.query('BEGIN')
+      await stopping.query(`SELECT 1 FROM sophia.render_jobs WHERE project_id=$1 AND job_id=$2 FOR UPDATE`, [
+        w.projectId,
+        jobId,
+      ])
+      await owner(async (c) => {
+        await c.query(`SET lock_timeout='5s'`)
+        await c.query('SELECT sophia.render_sweep()')
+      })
+    } finally {
+      await stopping.query('ROLLBACK').catch(() => undefined)
+      await stopping.end()
+    }
+    const left = await owner((c) =>
+      c.query(`SELECT state FROM sophia.jobs WHERE project_id=$1 AND id=$2`, [w.projectId, jobId]),
+    )
+    assert.equal(left.rows[0].state, 'pending', 'queued again without waiting for the render job’s row')
+  })
 })
 
 describe('a steer reaches the running designer (B-15)', () => {

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { mergeConfig, type Plugin } from 'vite'
 import fixtures, { studioPageAs } from './vite.fixtures.config.ts'
 
@@ -29,4 +30,9 @@ const appAddresses: Plugin = {
 export default mergeConfig(fixtures, {
   plugins: [appAddresses, studioPageAs('/app.html', '/app.tsx')],
   server: { port: 5198 },
+  // Its own dependency cache: the two fixture servers start together, and Vite renews a cache whose config differs from
+  // its own, so sharing one, either could replace the files the other is serving. The app's page is served, not a file,
+  // so its entry is named for the scan: what App imports is prepared before the first page, never during a check.
+  cacheDir: fileURLToPath(new URL('./node_modules/.vite-app', import.meta.url)),
+  optimizeDeps: { entries: ['**/*.html', 'app.tsx'] },
 })

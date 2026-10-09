@@ -43,8 +43,11 @@ BEGIN
   FROM lost WHERE lost.state='pending';
  DELETE FROM sophia.render_job_outputs o USING unnest(v_projects,v_jobs) AS q(project_id,job_id)
   WHERE o.project_id=q.project_id AND o.job_id=q.job_id;
+ -- Only a row holding an output is written (and locked): a Stop's deferred trigger (research_rendition_stopped, 0032)
+ -- locks a rendition's render_jobs row before its job, the opposite order to this, so the sweep takes no render_jobs row
+ -- it need not change.
  UPDATE sophia.render_jobs r SET output_source_id=NULL FROM unnest(v_projects,v_jobs) AS q(project_id,job_id)
-  WHERE r.project_id=q.project_id AND r.job_id=q.job_id AND r.receipt IS NULL;
+  WHERE r.project_id=q.project_id AND r.job_id=q.job_id AND r.receipt IS NULL AND r.output_source_id IS NOT NULL;
 END $$;
 
 COMMIT;
