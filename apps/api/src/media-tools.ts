@@ -16,6 +16,7 @@ import {
   admitGoalCommand,
   answerLiveCall,
   canCommand,
+  claimLiveCall,
   liveCallAdmits,
   readSnapshot,
   readTaskStandings,
@@ -52,7 +53,7 @@ const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v
 
 const clarify = (question: string): MediaToolResult => ({ status: 'clarify', output: { ask: question } })
 
-/** A provider call id the service recorded for another operation, used again: nothing runs, nothing is linked. */
+/** A call key another call holds (another speaker, epoch or operation under a reused call id): nothing runs. */
 const reusedCall: MediaToolResult = {
   status: 'refused',
   output: {
@@ -278,9 +279,11 @@ function declaredBy(call: MediaToolCall): boolean {
  * qualification on (A15), a call of a grant's principal in an exchange under that grant is recorded as it is bound;
  * the command it admits is linked to it in the same transaction (liveCallAdmits), the canonical join from the task it
  * creates to the exchange (NativeTask.exchangeId); and once it is answered, after that admission committed, it is
- * marked so with the answer's status. A mark that fails leaves the call unanswered, which proves nothing. A call whose
- * key the service recorded for another call (a provider call id reused for another operation, or under another epoch)
- * is refused before anything runs: run unrecorded, its command would link to the call that holds the key.
+ * marked so with the answer's status. A mark that fails leaves the call unanswered, which proves nothing. Every call,
+ * voice qualification on or off, first claims its key for its speaker, epoch and operation (0047): one call per key,
+ * whoever speaks. A key another call holds (a provider call id reused by another speaker, under another epoch or for
+ * another operation) is refused before anything runs, so no second write is admitted under it; the same call again
+ * (the bridge's retry of a lost answer) goes on as before.
  */
 export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice = false): Promise<MediaToolResult> {
   if (!declaredBy(call)) {
@@ -294,6 +297,8 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice 
   let speaker: { projectId: string; recorded: boolean }
   try {
     speaker = await withService(pool, async (c) => {
+      // Before any lock: the claim takes only its key's row, so it adds no lock order to the recording's.
+      await claimLiveCall(c, { ...call, key })
       const bound = await toolSpeaker(c, call.exchangeId, call.inputEpoch, call.actorId)
       return { ...bound, recorded: voice && (await recordLiveCall(c, { ...call, key })) }
     })

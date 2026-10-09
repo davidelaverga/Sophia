@@ -172,6 +172,25 @@ export async function holderEvent(
   return onlyRow(rows, 'media_holder_event').outcome
 }
 
+/**
+ * Claim a bound tool call's key (live:<exchange>:<generation>:<call>) for its speaker, input epoch and tool, before
+ * anything runs for it (0047): one call per key, whoever speaks. The same call again (the bridge's retry of a lost
+ * answer) is a no-op; another speaker, epoch or tool under the key raises idempotency_conflict. Call inside withService,
+ * in the transaction that binds the call (toolSpeaker), before it takes any lock.
+ */
+export async function claimLiveCall(
+  c: pg.PoolClient,
+  call: { exchangeId: string; inputEpoch: number; actorId: string; key: string; name: string },
+): Promise<void> {
+  await c.query(`SELECT sophia.media_claim_live_call($1,$2,$3,$4,$5)`, [
+    call.exchangeId,
+    call.inputEpoch,
+    call.actorId,
+    call.key,
+    call.name,
+  ])
+}
+
 /** The project a tool call acts in, when its speaker is bound to its input epoch; otherwise it raises. */
 export async function toolSpeaker(
   c: pg.PoolClient,

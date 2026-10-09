@@ -120,6 +120,7 @@ export {
 export { claimRuntimeOutbox, dispatchRuntimeOutbox, reconcileRuntimeOutbox, type DispatchOutcome } from './dispatch.ts'
 export {
   ackQuiesce,
+  claimLiveCall,
   controlExchange,
   holderEvent,
   mediaAssignments,

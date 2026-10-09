@@ -179,6 +179,7 @@ The command a call admits is linked to it by the transaction that inserts that c
 - Nobody can mark another speaker's call.
 - A retried call admits nothing new, so it links nothing new.
 - A provider call id reused for another call (another tool, or another input epoch, under the same key) is refused before anything runs: the call is answered `refused`, `not_started:idempotency_conflict`, nothing is admitted, and the call that holds the key keeps what it recorded. Run unrecorded, its command would link to that call.
+- The key is one call whoever speaks, with voice qualification on or off (0047, `live_call_keys`): the API claims each bound call's key for its speaker, input epoch and tool before any handler runs, in the transaction that binds it. The same call again goes on as before; another speaker, epoch or tool under the key is refused the same way, in either order, so no second write is admitted under a key. The claim is an insert on the key's primary key (of two at once, exactly one holds it) and takes no project or exchange lock. Nothing of it is read by a member: a refused call of another member is never in the principal's calls, and neither is its tool or its arguments.
 - A task created while the API's voice qualification was off does not get it.
 - A task rebuilt from a voice-created one (`research_rebuild`, under its own `rebuild:` command) does not get it. The Lab follows the voice-created task, not its rebuild.
 

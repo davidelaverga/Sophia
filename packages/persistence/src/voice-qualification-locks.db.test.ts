@@ -110,6 +110,10 @@ const reserve = (x: { exchangeId: string; grantId: string }) =>
 const spend = (x: { exchangeId: string; grantId: string }) =>
   run(`SELECT sophia.media_voice_reserve($1,$2,'spend',1,4000)`, [x.exchangeId, x.grantId])
 const guard = () => run(`SELECT sophia.voice_qualification_guard()`, [])
+const E = randomUUID() // another member, a peer of the principal's
+/** The API's claim of a bound tool call's key (0047), for a speaker, an epoch and a tool. */
+const claim = (x: { exchangeId: string }, actor: string, key: string, tool = 'project_status', epoch = 1) =>
+  run(`SELECT sophia.media_claim_live_call($1,$2,$3,$4,$5)`, [x.exchangeId, epoch, actor, key, tool])
 const stopSpeaking = (x: { exchangeId: string }) =>
   run(`SELECT sophia.control_exchange($1,'stop_speaking',NULL)`, [x.exchangeId], P)
 
@@ -306,6 +310,59 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
     assert.equal(await endedWhy(due.exchangeId), 'ended:deadline', 'its own receipt did, under its lock')
   })
 
+  describe('a bound tool call’s key is one call, whoever speaks (0047; root’s ruling on PR #190)', () => {
+    it('the same call again is a no-op; another speaker, epoch or tool under the key is refused; a member never claims', async () => {
+      const x = await dueExchange(false)
+      const key = `live:${x.exchangeId}:1:c-1`
+      assert.equal(await claim(x, P, key), 'ok')
+      assert.equal(await claim(x, P, key), 'ok', 'the bridge’s retry of a lost answer')
+      assert.equal(await claim(x, E, key), '23505', 'another speaker')
+      assert.equal(await claim(x, P, key, 'project_status', 2), '23505', 'another epoch')
+      assert.equal(await claim(x, P, key, 'control_work'), '23505', 'another tool')
+      assert.equal(
+        await run(
+          `SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status')`,
+          [x.exchangeId, P, `live:x:1:c-2`],
+          P,
+        ),
+        '42501',
+        'a member is never the service',
+      )
+      assert.equal(await claim(x, P, `live:${randomUUID()}:1:c-3`), '22023', 'a key naming another exchange')
+      const { rows } = await owner((c) =>
+        c.query<{ actor: string; epoch: string; tool: string }>(
+          `SELECT actor_id AS actor, input_epoch AS epoch, tool FROM sophia.live_call_keys WHERE exchange_id=$1`,
+          [x.exchangeId],
+        ),
+      )
+      assert.deepEqual(rows, [{ actor: P, epoch: '1', tool: 'project_status' }], 'one claim, as first made')
+      assert.equal(await run(`SELECT count(*) FROM sophia.live_call_keys`, []), '42501', 'the API’s login reads none')
+    })
+
+    it('two speakers at once under one key: the second waits, and is refused once the first commits (or holds it if not)', async () => {
+      for (const first of ['commit', 'rollback'] as const) {
+        const x = await dueExchange(false)
+        const key = `live:${x.exchangeId}:1:race`
+        const c = new pg.Client({ connectionString: db.ownerUrl })
+        await c.connect()
+        try {
+          await c.query('BEGIN')
+          await c.query(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status')`, [x.exchangeId, P, key])
+          const second = await started(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status')`, [
+            x.exchangeId,
+            E,
+            key,
+          ])
+          assert.equal(await untilBlocked(second), 'waiting', 'the second claim waits on the first')
+          await c.query(first === 'commit' ? 'COMMIT' : 'ROLLBACK')
+          assert.equal(await second.done, first === 'commit' ? '23505' : 'ok', `the first ${first}s`)
+        } finally {
+          await c.end()
+        }
+      }
+    })
+  })
+
   describe('an End and a voice call being recorded serialize (C5): End is a durable boundary for the calls', () => {
     const record = (x: { exchangeId: string }, key: string) =>
       started(`SELECT sophia.media_record_live_call($1,1,$2,$3,'control_work')`, [x.exchangeId, P, key])
@@ -345,12 +402,13 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
       assert.deepEqual(await callsOf(x.exchangeId), [])
     })
 
-    it('a recording racing End, Stop Speaking, a receipt, a reservation, a top-up and the guard: no deadlock in 20 trials', async () => {
+    it('a recording racing End, Stop Speaking, a receipt, a reservation, a top-up, two speakers’ claims of one key and the guard: no deadlock in 20 trials', async () => {
       const outcomes: string[] = []
       for (let trial = 0; trial < TRIALS; trial += 1) {
         const x = await dueExchange(true, true)
         const recorded = await record(x, `live:${x.exchangeId}:1:race-${String(trial)}`)
         const ending = await end(x)
+        const key = `live:${x.exchangeId}:1:claim-${String(trial)}`
         const results = await Promise.all([
           recorded.done,
           ending.done,
@@ -358,10 +416,15 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
           write(x),
           reserve(x),
           spend(x),
+          claim(x, P, key),
+          claim(x, E, key),
           guard(),
         ])
-        // A recording, a reservation or Stop Speaking after the exchange ended is refused as such (40001).
-        outcomes.push(...results.filter((r) => r !== '40001'))
+        const claims = results.slice(6, 8)
+        assert.deepEqual(claims.toSorted(), ['23505', 'ok'], 'of two speakers under one key, exactly one claims it')
+        // A recording, a reservation or Stop Speaking after the exchange ended is refused as such (40001); the claim the
+        // other speaker lost is refused as such (23505).
+        outcomes.push(...results.filter((r) => r !== '40001' && r !== '23505'))
       }
       assert.deepEqual(
         outcomes.filter((o) => o !== 'ok'),

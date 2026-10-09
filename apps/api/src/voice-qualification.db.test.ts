@@ -106,6 +106,10 @@ async function call(
   return { status: res.statusCode, json }
 }
 
+/** A tool call's answer as the bridge reads it: the HTTP status, the call's status and its code. */
+const answerOf = (r: { status: number; json: { status: string; output: { code?: string } } }) =>
+  [r.status, r.json.status, r.json.output.code] as const
+
 /** The bridge's durable reservation (A15), with the media-bridge capability. */
 const reserve = (body: Record<string, unknown>, api?: FastifyInstance) =>
   call('POST', '/v1/media/qualification-reserve', { media: true, body, ...(api ? { api } : {}) })
@@ -737,6 +741,122 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
       ],
     )
   })
+
+  /**
+   * A project with running work, and an exchange (under P's grant with voice qualification on) whose floor P held at
+   * input epoch 1 and Davide (E) holds at 2: the bridge's calls for either speaker, through the API in that mode.
+   */
+  async function twoSpeakers(mode: 'on' | 'off') {
+    const api = mode === 'on' ? app : off
+    const { projectId } = await project()
+    await registerRuntime(db.ownerUrl, { projectId, admin: A })
+    const exchangeId = mode === 'on' ? await granted(projectId) : await open(projectId)
+    await owner((c) =>
+      c.query(`INSERT INTO sophia.exchange_inputs(project_id,exchange_id,input_epoch,actor_id) VALUES($1,$2,2,$3)`, [
+        projectId,
+        exchangeId,
+        E,
+      ]),
+    )
+    const task = await brief(projectId, A, randomUUID())
+    const goalOf = async () => {
+      const snap = await withActor(pool, P, 'read', (c) => readSnapshot(c, projectId))
+      const found = snap?.goals.find((x) => x.id === snap.work.find((t) => t.id === task)?.goalId)
+      assert.ok(found)
+      return found
+    }
+    const goalId = (await goalOf()).id
+    await owner((c) => c.query(`UPDATE sophia.goals SET status='running' WHERE id=$1`, [goalId]))
+    const voice = (actorId: string, inputEpoch: number, callId: string, name: string, args = {}) =>
+      call('POST', '/v1/media/tool-calls', {
+        api,
+        media: true,
+        body: { exchangeId, connectionGeneration: 1, callId, name, args, inputEpoch, actorId, guide: 'v1.2' },
+      })
+    const commandsUnder = async (callId: string) =>
+      (
+        await owner((c) =>
+          c.query<{ n: number }>(`SELECT count(*)::int AS n FROM sophia.commands WHERE idempotency_key=$1`, [
+            `live:${exchangeId}:1:${callId}`,
+          ]),
+        )
+      ).rows[0]?.n
+    return { exchangeId, task, goalId, goalOf, voice, commandsUnder, hold: { taskId: task, action: 'hold' } }
+  }
+
+  const conflict = [200, 'refused', 'not_started:idempotency_conflict'] as const
+
+  for (const mode of ['on', 'off'] as const) {
+    describe(`a call key is one call whoever speaks, voice qualification ${mode} (root’s ruling, 0047)`, () => {
+      it('the principal first: a peer’s call under the key, or the principal’s for another tool, is refused before it runs', async () => {
+        const x = await twoSpeakers(mode)
+        assert.equal((await x.voice(P, 1, 'c-1', 'project_status')).json.status, 'ok')
+        assert.deepEqual(answerOf(await x.voice(E, 2, 'c-1', 'control_work', x.hold)), conflict, 'another speaker')
+        assert.deepEqual(answerOf(await x.voice(E, 2, 'c-1', 'project_status')), conflict, 'another speaker, same read')
+        assert.deepEqual(answerOf(await x.voice(P, 1, 'c-1', 'control_work', x.hold)), conflict, 'another tool')
+        assert.equal((await x.goalOf()).status, 'running', 'no Hold ran under the key')
+        assert.equal(await x.commandsUnder('c-1'), 0)
+      })
+
+      it('the peer first: the principal’s call under a peer’s call key is refused before it runs', async () => {
+        const x = await twoSpeakers(mode)
+        assert.equal((await x.voice(E, 2, 'c-2', 'project_status')).json.status, 'ok')
+        assert.deepEqual(answerOf(await x.voice(P, 1, 'c-2', 'control_work', x.hold)), conflict)
+        assert.equal((await x.goalOf()).status, 'running', 'no Hold ran under the key')
+        assert.equal(await x.commandsUnder('c-2'), 0)
+        if (mode === 'on') {
+          const listed = (await callsOf(P, x.exchangeId)).json.calls as Listed[]
+          assert.deepEqual(listed, [], 'nothing of Davide’s call, nor the principal’s refused one, in the evidence')
+        }
+      })
+
+      it('a peer’s own call under a new key, and each speaker’s lost-answer retry, go on as before: one command each', async () => {
+        const x = await twoSpeakers(mode)
+        const peer = await x.voice(E, 2, 'e-1', 'control_work', x.hold)
+        assert.equal(peer.json.status, 'ok', JSON.stringify(peer.json))
+        const retry = await x.voice(E, 2, 'e-1', 'control_work', x.hold)
+        assert.deepEqual([retry.json.status, retry.json.output.commandId], ['ok', peer.json.output.commandId])
+        assert.equal(await x.commandsUnder('e-1'), 1)
+        // The Hold settled (the runtime checked the stops): the work is held, and takes the principal's Resume.
+        await owner((c) => c.query(`UPDATE sophia.goals SET status='held' WHERE id=$1`, [x.goalId]))
+        const resume = await x.voice(P, 1, 'r-1', 'control_work', { taskId: x.task, action: 'resume' })
+        assert.equal(resume.json.status, 'ok', JSON.stringify(resume.json))
+        const again = await x.voice(P, 1, 'r-1', 'control_work', { taskId: x.task, action: 'resume' })
+        assert.deepEqual([again.json.status, again.json.output.commandId], ['ok', resume.json.output.commandId])
+        assert.equal(await x.commandsUnder('r-1'), 1)
+        if (mode === 'on') {
+          const listed = (await callsOf(P, x.exchangeId)).json.calls as Listed[]
+          assert.deepEqual(
+            listed.map((c) => [c.tool, c.command?.commandId ?? null]),
+            [['control_work', String(resume.json.output.commandId)]],
+            'the principal’s own call only, linked once; nothing of Davide’s',
+          )
+          assert.ok(!JSON.stringify(listed).includes(E))
+        }
+      })
+
+      it('two speakers at once under one key: exactly one proceeds, whichever, in each of 5 trials', async () => {
+        const x = await twoSpeakers(mode)
+        for (let trial = 0; trial < 5; trial += 1) {
+          const callId = `race-${String(trial)}`
+          const both = await Promise.all([
+            x.voice(P, 1, callId, 'project_status'),
+            x.voice(E, 2, callId, 'project_status'),
+          ])
+          const answers = both.map((r) => answerOf(r))
+          assert.deepEqual(
+            answers.map((a) => a[1]).toSorted((a, b) => a.localeCompare(b)),
+            ['ok', 'refused'],
+            `trial ${String(trial)}: ${JSON.stringify(answers)}`,
+          )
+          assert.deepEqual(
+            answers.find((a) => a[1] === 'refused'),
+            conflict,
+          )
+        }
+      })
+    })
+  }
 
   it('lists another exchange’s calls only there; another member, an outsider or the API off reads none', async () => {
     const x = await controlledExchange()
