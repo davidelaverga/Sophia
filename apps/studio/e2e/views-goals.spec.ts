@@ -26,6 +26,9 @@ test('goals · in the demo, Goals opens from its tab with the project’s three 
   await expect(views(page).getByRole('link', { name: 'Goals' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
   await expect(goals(page)).toHaveCount(3)
+  // Every criterion here is required: the rule goes unsaid (docs/plans/goal-optional.md).
+  await expect(page.locator('.criteria li').first()).toBeVisible()
+  await expect(page.locator('.criteria').getByText(/required/i)).toHaveCount(0)
   for (const title of [ROLLOUT, 'Keep teams through an admin change', 'Run the pilot with fourteen teams']) {
     await expect(goal(page, title)).toHaveCount(1)
   }
