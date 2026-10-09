@@ -38,6 +38,7 @@ for (const [name, url] of PAGES) {
         // No corner is free on a phone: a thin line along the top edge, as the demo's, hiding no words.
         const box = await page.locator('.fixture-label').boundingBox()
         expect(box?.height).toBeLessThanOrEqual(4)
+        expect(box?.y).toBe(0)
       } else {
         expect(await covered(page)).toEqual([])
       }
