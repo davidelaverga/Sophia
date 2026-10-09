@@ -36,6 +36,8 @@ interface Props {
    * which says why it went unanswered; the field says so before, and offers no quick ask that could only end so.
    */
   answers: boolean
+  /** The saved-text notice, said above the field before the reader's first message in the project. */
+  notice: string | null
   /** Clears the draft if it still holds these words, as the view holds it now (not as this field last saw it). */
   onClearIf: (text: string) => void
   held: Held<MessageAsk> | null
@@ -98,6 +100,17 @@ function useMessageWrite(props: Props, askSophia: boolean) {
   return { busy: write.busy, ready, go, quick, words, held: write.unknown }
 }
 
+/** Under the field: who the message goes to (Sophia only where she answers here), and how Enter sends. */
+function Hint({ asks, answers }: { asks: boolean; answers: boolean }) {
+  const to = asks ? (answers ? 'Sophia will answer' : 'Sophia doesn’t answer here yet') : 'To the team only'
+  return (
+    <p className="conv-compose-hint">
+      <span data-asked={asks || undefined}>{to}</span>
+      <span>Enter sends · Shift+Enter, a new line</span>
+    </p>
+  )
+}
+
 export function ConversationComposer(props: Props) {
   const { draft, onDraft } = props
   const { busy, ready, go, quick, words, held } = useMessageWrite(props, props.askSophia)
@@ -127,6 +140,7 @@ export function ConversationComposer(props: Props) {
         void go()
       }}
     >
+      {props.notice && <p className="conv-note conv-notice">{props.notice}</p>}
       <div className="conv-field-box">
         <textarea
           aria-label="Continue this question with the team"
@@ -147,12 +161,7 @@ export function ConversationComposer(props: Props) {
       {props.canSend && props.answers && (
         <QuickAsks away={draft.trim() !== '' || held !== null} busy={busy} onAsk={(w) => void ask(w)} />
       )}
-      <p className="conv-compose-hint">
-        <span data-asked={asks || undefined}>
-          {asks ? (props.answers ? 'Sophia will answer' : 'Sophia doesn’t answer here yet') : 'To the team only'}
-        </span>
-        <span>Enter sends · Shift+Enter, a new line</span>
-      </p>
+      <Hint asks={asks} answers={props.answers} />
       {(words ?? slow) && (
         <p className="conv-note" role="alert">
           {words ?? SLOW_NOTE}

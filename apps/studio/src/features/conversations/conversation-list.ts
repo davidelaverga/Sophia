@@ -1,6 +1,7 @@
 // The words a project's conversations are listed with (docs/plans/project-conversations.md): who wrote there, what is
 // open, the filter by title, and the brief's accepted decisions beside them.
 import type { MissionDecision } from '@sophia/contracts'
+import type { ProjectionCoverage } from '@sophia/contracts'
 import type { ConversationMessage, ConversationReply, ConversationSummary } from '../../api/conversations.ts'
 import { plainOf } from './sophia-text.ts'
 
@@ -23,6 +24,30 @@ export function contributorsLine(c: Pick<ConversationSummary, 'contributors' | '
 
 export const openWords = (n: number): string =>
   n === 0 ? 'No open questions' : n === 1 ? '1 open question' : `${String(n)} open questions`
+
+/**
+ * What is open, as far as anyone knows (A16 coverage): never «No open questions» where nobody has looked, only that
+ * none is recorded yet.
+ */
+export const questionWords = (c: Pick<ConversationSummary, 'openQuestions' | 'questionsCoverage'>): string =>
+  c.questionsCoverage.state === 'not_assessed' ? 'No recorded questions yet' : openWords(c.openQuestions)
+
+/**
+ * What a summary or a question list covers (binding map §3.1): which messages, and what came since; nothing where none
+ * exists yet (the words beside it say so). A partial one says it read only the newest.
+ */
+export function coverageWords(c: ProjectionCoverage): string | null {
+  if (c.state === 'not_assessed' || c.fromSeq === null || c.throughSeq === null) {
+    return c.state === 'unavailable' ? 'It couldn’t be made just now.' : null
+  }
+  const range = `messages ${String(c.fromSeq)}–${String(c.throughSeq)}${c.complete ? '' : ', the newest then'}`
+  if (c.state === 'unavailable') return `It couldn’t be updated just now: it covers ${range}.`
+  if (c.state === 'stale') {
+    const since = c.newer > 0 ? `${String(c.newer)} newer since` : 'the project’s decisions have changed since'
+    return `Covers ${range}; ${since}.`
+  }
+  return `Covers ${range}.`
+}
 
 /** Newest activity first, whatever order they came in. */
 export const byActivity = (all: readonly ConversationSummary[]): ConversationSummary[] =>

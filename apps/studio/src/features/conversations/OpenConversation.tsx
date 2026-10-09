@@ -36,6 +36,7 @@ import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { blocksOf } from './sophia-text.ts'
 import { useProposeHere } from './ProposeHere.tsx'
+import { useWithdrawHere } from './WithdrawHere.tsx'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 
 interface Props {
@@ -49,6 +50,10 @@ interface Props {
   writer: boolean | undefined
   /** Sophia answers here now (the list's `capability.ask`). */
   answers: boolean
+  /** The reader may remove any message here (an admin: the list's `capability.moderate`). */
+  moderate: boolean
+  /** The saved-text notice, before the reader's first message in the project; null after it. */
+  notice: string | null
   draft: string
   onDraft: (text: string) => void
   askSophia: boolean
@@ -123,6 +128,7 @@ export function OpenConversation(props: Props) {
           onAnswered={props.onAnswered}
           onGrown={follow.grown}
           propose={props.writer === true ? { projectId: props.projectId, identity } : null}
+          withdraw={{ conversationId: c.id, identity, me, moderate: props.moderate }}
         />
       </div>
       {props.writer === true && (
@@ -135,6 +141,7 @@ export function OpenConversation(props: Props) {
           onAskSophia={props.onAskSophia}
           canSend={read.data !== undefined}
           answers={props.answers}
+          notice={props.notice}
           onClearIf={props.onClearIf}
           held={props.held}
           onHeld={props.onHeld}
@@ -297,6 +304,8 @@ function Messages(props: {
   onGrown: () => void
   /** Where a message may be proposed as a decision (C7); null for those who can't write here. */
   propose: Propose
+  /** Who may withdraw what here: their own messages, and any for an admin. */
+  withdraw: Withdraw
 }) {
   const { read, me, onAnswered, onGrown } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
@@ -326,7 +335,9 @@ function Messages(props: {
           }}
         />
       )}
-      {messages.length > 0 && <MessageList messages={messages} me={me} first={first} propose={props.propose} />}
+      {messages.length > 0 && (
+        <MessageList messages={messages} me={me} first={first} propose={props.propose} withdraw={props.withdraw} />
+      )}
       {waiting && (
         <p className="conv-note conv-answering" role="status">
           <span className="conv-glyph" aria-hidden>
@@ -383,12 +394,15 @@ const classOf = (m: ConversationMessage, me: string) =>
 
 /** The messages, oldest first, each with who wrote it and when; the first takes the focus when it is given. */
 type Propose = { projectId: string; identity: Identity } | null
+/** Who reads here (`me`), whether they remove any message (`moderate`), and where. */
+type Withdraw = { conversationId: string; identity: Identity; me: string; moderate: boolean }
 
 function MessageList(props: {
   messages: readonly ConversationMessage[]
   me: string
   first: RefObject<HTMLLIElement | null>
   propose: Propose
+  withdraw: Withdraw
 }) {
   const { messages, me, first, propose } = props
   const now = Date.now()
@@ -405,6 +419,7 @@ function MessageList(props: {
           now={now}
           first={i === 0 ? first : undefined}
           propose={propose}
+          withdraw={props.withdraw}
           pressed={pressed === m.id}
           onPress={() => setPressed(m.id)}
         />
@@ -417,12 +432,17 @@ function MessageList(props: {
  * A message's words (none once withdrawn: it keeps its place and nothing else, so nothing to propose from), its
  * «Propose as decision» press and form where one can propose (C7), and why a request it asked ended unanswered.
  */
-function useMessageParts(m: ConversationMessage, propose: Propose) {
+function useMessageParts(m: ConversationMessage, propose: Propose, withdraw: Withdraw) {
   const words = m.withdrawn ? null : m.text
   const here = useProposeHere(
     propose && words !== null ? { ...propose, messageId: m.id, text: words, sophia: m.author === 'sophia' } : null,
   )
-  return { words, here, ended: m.ask ? replyEndWords(m.ask) : null }
+  // An author withdraws their own (whatever their role now), an admin removes any; nothing once withdrawn (A16).
+  const own = m.author === 'member' && m.actorId === withdraw.me
+  const away = useWithdrawHere(
+    words !== null && (own || withdraw.moderate) ? { ...withdraw, messageId: m.id, own } : null,
+  )
+  return { words, here, away, ended: m.ask ? replyEndWords(m.ask) : null }
 }
 
 /** One message: its day when it starts one, who wrote it, its words; where one can propose, its press and form (C7). */
@@ -433,12 +453,13 @@ function MessageItem(props: {
   now: number
   first: RefObject<HTMLLIElement | null> | undefined
   propose: Propose
+  withdraw: Withdraw
   pressed: boolean
   onPress: () => void
 }) {
   const { message: m, before, me, now } = props
   const sophia = m.author === 'sophia'
-  const { words, here, ended } = useMessageParts(m, props.propose)
+  const { words, here, away, ended } = useMessageParts(m, props.propose, props.withdraw)
   // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
   const at = (
     <span className="conv-msg-at" aria-hidden>
@@ -475,10 +496,12 @@ function MessageItem(props: {
         <MessageWords words={words} sophia={sophia} />
         {sophia && at}
         {here.press}
+        {away.press}
         {ended && <p className="conv-ask-ended">{ended}</p>}
       </div>
       {!sophia && at}
       {here.form}
+      {away.form}
     </li>
   )
 }

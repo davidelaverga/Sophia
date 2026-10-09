@@ -775,6 +775,24 @@
   font-size: var(--type-small);
   white-space: nowrap;
 }
+/* Withdraw (one's own) and Remove (an admin's): a second press at the corner, beside «Propose as decision». Its
+   confirmation, when open, is in the flow under the message. */
+.conv-withdraw {
+  position: absolute;
+  top: -12px;
+  right: 22px;
+  z-index: 1;
+}
+.conv-withdraw-form {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 480px);
+  margin-top: 8px;
+}
+/* With the confirmation open, the message's time steps aside, as with «Propose as decision». */
+.conv-msg:has(.conv-withdraw-form) .conv-msg-at {
+  display: none;
+}
 @media (hover: hover) {
   .conv-msg:not(:hover, :focus-within) .conv-propose-press {
     opacity: 0;
@@ -784,6 +802,7 @@
    a keyboard and a screen reader, taking no tap meant for the message. */
 @media (hover: none) {
   .conv-msg:not([data-pressed], :focus-within) .conv-propose,
+  .conv-msg:not([data-pressed], :focus-within) .conv-withdraw,
   .conv-msg:not([data-pressed], :focus-within) .conv-propose-press {
     pointer-events: none;
   }
@@ -797,6 +816,10 @@
   .conv-propose {
     top: -20px;
     right: -12px;
+  }
+  .conv-withdraw {
+    top: -20px;
+    right: 34px;
   }
   .conv-propose-press {
     width: 40px;

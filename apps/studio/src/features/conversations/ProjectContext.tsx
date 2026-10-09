@@ -15,7 +15,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { missionKey } from '../mission/mission-view.ts'
-import { acceptedOf, openWords, pendingOf } from './conversation-list.ts'
+import { acceptedOf, coverageWords, pendingOf, questionWords } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { decidableHere, decideRefusal, pressesWait, useDecide, type DecideArgs } from './decide.ts'
 
@@ -28,9 +28,11 @@ interface Props {
   /** Opened as a panel (under 1180 px): its Close takes the focus. */
   opened: boolean
   onClose: () => void
+  /** The saved-text policy's notice (A16), reachable here after a first message: null where none applies. */
+  notice: string | null
 }
 
-export function ProjectContext({ projectId, identity, cursor, conversation, opened, onClose }: Props) {
+export function ProjectContext({ projectId, identity, cursor, conversation, opened, onClose, notice }: Props) {
   const read = useQuery({
     queryKey: [...missionKey(projectId), accountOf(identity), 'conversations'],
     queryFn: () => getMission(identity.token, projectId),
@@ -39,7 +41,7 @@ export function ProjectContext({ projectId, identity, cursor, conversation, open
   useReadAgain(cursor, read.refetch)
   const ctx = read.data
   const frame = (body: ReactNode) => (
-    <Frame opened={opened} onClose={onClose} conversation={conversation}>
+    <Frame opened={opened} onClose={onClose} conversation={conversation} notice={notice}>
       {body}
     </Frame>
   )
@@ -89,6 +91,7 @@ function Frame(props: {
   opened: boolean
   onClose: () => void
   conversation: ConversationSummary | undefined
+  notice: string | null
   children: ReactNode
 }) {
   const close = useRef<HTMLButtonElement>(null)
@@ -116,10 +119,11 @@ function Frame(props: {
       <details className="conv-help">
         <summary>How conversation context works</summary>
         <p>
-          A conversation keeps its own messages and summary. Sophia’s next answer here can also read the project’s
-          current mission, decisions and eligible sources. Other conversations are read only when asked, never merged.
-          This context is the same for every conversation here.
+          A conversation keeps its own messages and summary. Sophia’s answer here reads this conversation’s recent
+          messages and the project’s current mission and decisions, the same for every conversation here. She never
+          reads another conversation, anyone’s personal space or the room.
         </p>
+        {props.notice && <p>{props.notice}</p>}
       </details>
     </aside>
   )
@@ -134,9 +138,16 @@ function ThisConversation({ conversation: c }: { conversation: ConversationSumma
         This conversation
       </h4>
       <p className="conv-this-summary">{c.summary ?? 'No summary yet.'}</p>
-      <p className="conv-note">{openWords(c.openQuestions)}</p>
+      <Covers words={coverageWords(c.summaryCoverage)} />
+      <p className="conv-note">{questionWords(c)}</p>
+      <Covers words={coverageWords(c.questionsCoverage)} />
     </section>
   )
+}
+
+/** What a summary or a question list covers, where one exists. */
+function Covers({ words }: { words: string | null }) {
+  return words ? <p className="conv-note conv-covers">{words}</p> : null
 }
 
 /** The accepted decisions, newest first, and what is proposed and not decided, kept apart. */

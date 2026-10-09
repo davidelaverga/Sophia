@@ -34,7 +34,11 @@ import { useArrival } from '../studio/project-go.tsx'
 import './conversations.css'
 
 /** Newest activity first, sorted once per answer, with what the reader may do there. */
-const sorted = (answer: ConversationList) => ({ all: byActivity(answer.conversations), capability: answer.capability })
+const sorted = (answer: ConversationList) => ({
+  all: byActivity(answer.conversations),
+  capability: answer.capability,
+  notice: answer.policy?.notice ?? null,
+})
 
 interface Props {
   projectId: string
@@ -71,13 +75,33 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
     list,
     all: list.data?.all ?? [],
     capability: list.data?.capability,
+    notice: list.data?.notice ?? null,
     settled: list.isSuccess && !list.isFetching,
   }
 }
 
-export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
-  const { list, all, capability, settled } = useList(projectId, identity, cursor)
+/**
+ * The list as read, and what this reader may do with it: who they are, whether they write, what Sophia answers here,
+ * and the saved-text notice (before their first message in the project; after it, in the context's help).
+ */
+function useReader(projectId: string, identity: Identity, membership: Membership | undefined, cursor?: string) {
+  const read = useList(projectId, identity, cursor)
+  const { capability, notice, all } = read
   const { me, writer } = readerOf(membership, capability?.write)
+  const wrote = all.some((c) => c.contributors.some((p) => p.actorId === me))
+  return {
+    ...read,
+    me,
+    writer,
+    firstNotice: wrote ? null : notice,
+    answers: capability?.ask === 'available',
+    moderate: capability?.moderate === true,
+  }
+}
+
+export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
+  const reader = useReader(projectId, identity, membership, cursor)
+  const { list, all, capability, notice, settled, me, writer } = reader
   const { open, choose, ask, missing } = useChosen(all, settled)
   const panes = usePanes()
   // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too.
@@ -118,22 +142,45 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
           panes.show()
         }}
       />
-      {start.starting && <NewConversation projectId={projectId} identity={identity} {...start.form} />}
-      {shown && (
-        <Open
-          conversation={shown}
-          answers={capability?.ask === 'available'}
-          {...{ projectId, identity, me, cursor, writer, talk, start, panes }}
-        />
-      )}
+      <Middle shown={shown} {...{ projectId, identity, cursor, reader, talk, start, panes }} />
       <ProjectContext
         {...{ projectId, identity, cursor }}
         conversation={shown}
+        notice={notice}
         opened={panes.context}
         onClose={panes.closeContext}
       />
       {panes.context && <div className="conv-scrim" aria-hidden onClick={panes.closeContext} />}
     </section>
+  )
+}
+
+/** The middle pane: the form for a new conversation, or the one open. */
+function Middle(props: {
+  shown: ConversationSummary | undefined
+  projectId: string
+  identity: Identity
+  cursor: string | undefined
+  reader: ReturnType<typeof useReader>
+  talk: ReturnType<typeof useTalk>
+  start: ReturnType<typeof useStart>
+  panes: ReturnType<typeof usePanes>
+}) {
+  const { shown, projectId, identity, cursor, reader, talk, start, panes } = props
+  if (start.starting) {
+    return <NewConversation projectId={projectId} identity={identity} notice={reader.firstNotice} {...start.form} />
+  }
+  if (!shown) return null
+  return (
+    <Open
+      conversation={shown}
+      answers={reader.answers}
+      moderate={reader.moderate}
+      notice={reader.firstNotice}
+      me={reader.me}
+      writer={reader.writer}
+      {...{ projectId, identity, cursor, talk, start, panes }}
+    />
   )
 }
 
@@ -301,6 +348,8 @@ function Open(props: {
   cursor: string | undefined
   writer: boolean | undefined
   answers: boolean
+  moderate: boolean
+  notice: string | null
   talk: ReturnType<typeof useTalk>
   start: ReturnType<typeof useStart>
   panes: ReturnType<typeof usePanes>
@@ -316,6 +365,8 @@ function Open(props: {
       cursor={props.cursor}
       writer={props.writer}
       answers={props.answers}
+      moderate={props.moderate}
+      notice={props.notice}
       {...talk.of(c.id)}
       arrived={start.arrived === c.id}
       onArrived={start.clearArrived}

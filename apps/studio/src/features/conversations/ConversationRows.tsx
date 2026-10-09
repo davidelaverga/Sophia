@@ -5,7 +5,7 @@ import { useId, useRef, useState } from 'react'
 import type { ConversationSummary } from '../../api/conversations.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { pageMemory, useMemory } from '../work/planning/page-memory.ts'
-import { contributorsLine, gistOf, narrowed, openWords } from './conversation-list.ts'
+import { contributorsLine, gistOf, narrowed, questionWords } from './conversation-list.ts'
 
 /** «Open» and «Mine», per project and reader, while the page lives: another view and back finds them as left. */
 const shownBy = pageMemory<{ open: boolean; mine: boolean }>()
@@ -121,7 +121,7 @@ function Row(props: { conversation: ConversationSummary; open: boolean; me: stri
         <span id={`${id}-d`} className="conv-about">
           {gist && <span className="conv-gist">{gist}</span>}
           <span className="sr-only">
-            {`${contributorsLine(c, props.me)}. ${openWords(c.openQuestions)}.${moved ? ` Last moved ${moved}.` : ''}`}
+            {`${contributorsLine(c, props.me)}. ${questionWords(c)}.${moved ? ` Last moved ${moved}.` : ''}`}
           </span>
           {c.openQuestions > 0 && (
             <span className="conv-open-flag" aria-hidden>

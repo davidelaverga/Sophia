@@ -33,6 +33,8 @@ interface Props {
   onRefused: (words: string | null) => void
   onStarted: (started: ConversationStarted, ask: ConversationAsk) => void
   onCancel: () => void
+  /** The saved-text notice, before the reader's first message in the project; null after it. */
+  notice: string | null
 }
 
 /** The start's write: the held intent again, or the form's words as a new one. */
@@ -90,6 +92,7 @@ export function NewConversation(props: Props) {
       }}
     >
       <h3>New conversation</h3>
+      {props.notice && <p className="conv-note conv-notice">{props.notice}</p>}
       <Fields
         question={question}
         shown={shown}
