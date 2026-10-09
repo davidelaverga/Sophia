@@ -4,7 +4,7 @@ The written inventory CX-0002 asked for before any G2 code. Its subject: every r
 
 The sweep was read-only, at `main` `71dbea3e` (the branch's base for G2). Each SQL function is cited at its **latest** definition. Line numbers are approximate. Claims marked *verified* were re-read directly for this file.
 
-**State:** proposed, for Codex's review and Davide's D-6. No G2 code exists. The [binding map](BINDING_MAP.md) §8.2 (revision 4) binds what this file finds.
+**State:** proposed, for Codex's review and Davide's D-6. No G2 code exists. The [binding map](BINDING_MAP.md) §8.2 binds what this file finds. Revision 5 (CX-0009) corrects two rows this file first left unedited: `apply_runtime_receipt` and `runtime_record_observations` (§3, §4.6, §4.7).
 
 ## 1. The finding that shapes the design: goal paths fail open
 
@@ -39,10 +39,10 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 | `capture_native_result` (`0042:1724`) | Goal join `FOR UPDATE`; status and epoch gates | Returns at the first missing job; a `draft_brief` job would publish unfenced | **Reply branch first**, keyed on the binding's attempt `conversation_reply_id`, before any goal or job read (§4.3). The rest byte-identical, plus a `g.id IS NULL` guard |
 | `research_turn_end` (`0026:169`), `design_turn_end` (`0040:718`), `design_input` (`0040:470`), `review_turn_end` (`0042:1674`) | Gates on `g`; nudges insert outbox rows with `g.id` and `g.authority_epoch` | NOT NULL errors, or `put_text_source` with a NULL owner | Unreachable: they run only for a job of their kind, and a reply attempt has no job. Not edited |
 | `research_scope_of` (`0025:365`), `design_scope_of` (`0041:44`), `review_scope_of` (`0042:1429`) | Goal join; fence on `g.status` and epoch | Requires a job of its kind first (else 42501), so already **fail-closed** for replies | Not edited. A test asserts a reply attempt's runtime-capability call to each is refused |
-| `apply_runtime_receipt` (`0012:464`) | Goal join `FOR UPDATE OF g2`; `ready→running` and settle on the goal | No goal change; binding and attempt changes apply | Not edited: its goal part is a no-op for replies, as it should be. A rejected create of a reply fails its attempt; the reply's capture branch settles the request `failed` / `runtime_rejected` |
-| `runtime_record_observations` (`0023:20`) | None (usage keyed by `attempt_id`) | Works | Not edited |
+| `apply_runtime_receipt` (`0012:464`) | Goal join `FOR UPDATE OF g2`; `ready→running` and settle on the goal; terminal updates and events only for a **job** | Binding and attempt change, but a reply has no job: **a rejected create leaves the request waiting**, since no `turn/end` comes and capture never runs (CX-0009). A reply's `stop` `checked` calls `settle_native_control` with a NULL goal (a no-op) | **Replaced (revision 5):** a reply branch first, before the goal and job reads; the same goal-independent updates, then the reply's transitions (§4.6); the goal path byte-identical |
+| `runtime_record_observations` (`0023:20`) | None (usage keyed by `attempt_id`), but it **writes text**: each observation's `data` is stored before capture, and an assistant message never calls capture | A late observation after a withdrawal's scrub **writes the withdrawn text back** (CX-0009) | **Replaced (revision 5):** a privacy-fenced reply branch under the conversation writers' lock order (§4.7); goal observations unchanged |
 | `runtime_poll` (`0016:114`), `runtime_record_ready` (`0012:613`), `claim_runtime_outbox` (`0012:627`), `reconcile_runtime_outbox` (`0012:782`), `expire_dispatch_leases` (`0004:19`), `record_dispatch_result` (`0008:6`), `deny_` / `defer_native_delivery`, `runtime_unavailable` | None | Work | Not edited. **Proved under the new lane:** an uncertain reply dispatch is reconciled, and a lease that ran out is retaken, with no second runtime command (A12, A13) |
-| `settle_native_control`, `admit_goal_command` (`0012:442`, `:279`) | Keyed by goal | Not reachable for replies | Not edited. Replies are cancelled by `conversation_cancel` (withdrawal, erasure, a source out of predicate, the grant switch, asker removal), which writes a `stop` runtime command at the reply's raised epoch (§4.4) |
+| `settle_native_control`, `admit_goal_command` (`0012:442`, `:279`) | Keyed by goal | `admit_goal_command` is not reachable for replies. `settle_native_control` **is** reached today, by a reply's `stop` receipt through `apply_runtime_receipt`, with a NULL goal: it finds no goal and does nothing | Not edited. `apply_runtime_receipt`'s reply branch returns before it (§4.6). Replies are cancelled by `conversation_cancel` (withdrawal, erasure, a source out of predicate, the grant switch, asker removal), which writes a `stop` runtime command at the reply's raised epoch (§4.4) |
 | `claim_outbox` (`0007:11`, old path, only `races.db.test.ts`) | Inner join to goals | Never claims a reply row | Not edited |
 | `runtime_hello` | See §2 | — | Replaced (§4.5) |
 | Goal triggers (`0042:508`, `0028:261`, `0032:298`, `0040:944`); research and design revocation and publish functions | Fire on goal changes | Never fire for replies | Not edited |
@@ -66,6 +66,8 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 3. **Capture** (the reply branch of `capture_native_result`): on `turn/end`, the publication checks (§8.3), then one Sophia message and the request `answered`; or `failed` / `cancelled`; then `retire` (§8.5).
 4. **Epoch.** A reply attempt's `authority_epoch` starts at 1. `conversation_cancel` raises it to 2 and writes a `stop`. The bridge's existing stale-epoch rejection (`control-bridge.ts:705-707`) then refuses any older command, and capture withholds a result whose owning command's epoch is older (the existing rule, applied in the reply branch).
 5. **Hello.** Reply bindings in `running`, `idle` or `stopping` are listed with `authorityEpoch` = the attempt's, and `state`: `stopped` once cancelled or retired, else `active`. A reply never has `held`.
+6. **Receipts** (the reply branch of `apply_runtime_receipt`; CX-0009 correction 1). The terminal path for what never reaches `turn/end`: a rejected create (`failed` / `runtime_rejected`), a failed create (`failed` / `runtime_failed`, its open reservation `uncertain`), an uncertain create (`outcome_unknown`, the same request, attempt and reservation, never a new attempt), a stop (the request stays `cancelled`) and a retire. Each writes a `retire` where a native copy may exist. The full table and the receipt-only tests are in the [binding map](BINDING_MAP.md) §8.2.1.
+7. **Ingestion** (the reply branch of `runtime_record_observations`; CX-0009 correction 2). Under the project row, then the reply rows in id order, the order every conversation writer uses: an observation for a request no longer `pending` or `running`, or for an erased conversation, is stored **scrubbed** (its ids, type and sequence kept; its `data` reduced to usage). Usage is recorded from the original first. Scrubbing anywhere is an update in place, never a delete, so a replayed batch never re-inserts text. Tests in the binding map §8.2.2.
 
 ## 5. TypeScript readers and writers
 
@@ -85,7 +87,7 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 
 ## 6. Preservation evidence (what proves the goal paths are untouched)
 
-- **Function body diffs.** For each replaced function (`dispatch_runtime_outbox`, `native_delivery_ineligible`, `capture_native_result`, `runtime_hello`), a test reads `pg_get_functiondef` and the 0042, 0041 or 0028 source text. It asserts the new body equals the old one with only the named insertions: the reply branch, and the `g.id IS NULL` guard.
+- **Function body diffs.** For each replaced function (`dispatch_runtime_outbox`, `native_delivery_ineligible`, `capture_native_result`, `runtime_hello`, `apply_runtime_receipt`, `runtime_record_observations`), a test reads `pg_get_functiondef` and the 0042, 0041, 0028, 0012 or 0023 source text. It asserts the new body equals the old one with only the named insertions: the reply branch, and the `g.id IS NULL` guard.
 - **Pinned behaviour:** `db/tests/0037_amendment_preservation.sql` (dispatch's grants, SECURITY DEFINER and `search_path`); `personal.db.test.ts:922-929` (no `sophia` function executable by PUBLIC); `db/tests/0001_scope_and_commands.sql`; `runtime.db.test.ts` (hello bindings, epoch); the full `pnpm test:db`; `pnpm test:integration` (`runtime-service.test.mjs`, which uses `goalId`).
 - **Bridge fixtures** with a goal binding (`tests/unit/bridge-core.test.mjs`, `routes.test.mjs`) stay as they are, and a reply-binding twin is added.
 - **Readiness:** `REQUIRED_SCHEMA` is not changed (`runtime_hello`'s signature stays). G2's functions join `CONVERSATION_SCHEMA`.
@@ -95,7 +97,7 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 
 | File | Owner today | CON-01's change |
 |---|---|---|
-| Migration 0049 (`CREATE OR REPLACE` of the four functions above) | One writer; #190's 0046/0047 replace only `media_assignments` | Replaced from their latest bodies, with the insertions only |
+| Migration 0049 (`CREATE OR REPLACE` of the six functions above) | One writer; #190's 0046/0047 (at `f885459`) replace only `media_assignments` | Replaced from their latest bodies, with the insertions only |
 | A04's `RuntimeWorkBinding` (amended in A16), `dsh-bundle/src/runtime-wire.generated.ts` and `runtime-wire-types.generated.ts`, `dsh-bundle/dist` | Contracts and runtime writer | `oneOf` goal or reply |
 | `config/specialists.json` + schema, `role-registry.ts`, `cordis.patch.yml`, `runtime-unit.json` (id, presets, `role_routes`, `model_routes`), lock and digests | Davide (LFE-00) | One role, one preset and one route (D-4). `pnpm artifacts:record` once, on the combined candidate |
 
@@ -105,4 +107,4 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 
 B (a separate reply queue and bridge poll) would avoid touching these functions. But it duplicates the leases, journal, reconcile and epoch fencing that §3 shows are goal-independent and already proven.
 
-C changes four functions with reply-first branches and fail-closed guards, and leaves every other goal path byte-identical. The fail-open finding (§1) is the reason the guards are part of the design, not an afterthought: without them, C would be unsafe.
+C changes six functions with reply-first branches and fail-closed guards, and leaves every other goal path byte-identical. The fail-open finding (§1) is the reason the guards are part of the design, not an afterthought: without them, C would be unsafe.

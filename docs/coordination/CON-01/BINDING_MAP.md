@@ -2,10 +2,11 @@
 
 **Mission:** CON-01, saved project conversations ([pack](../../missions/2026-10-09-con01-conversations/README.md), [01 mission](../../missions/2026-10-09-con01-conversations/01_MISSION.md), [03 contract](../../missions/2026-10-09-con01-conversations/03_CONTRACT_AND_RETENTION.md), [04 runtime](../../missions/2026-10-09-con01-conversations/04_RUNTIME_AND_CONTEXT.md)). **Coordination:** [README](README.md). This file binds the pack's proposals to the code at the base: what exists and is reused, what is new and reserved, and what Davide decides. It is G0's deliverable and Codex's review object for the binding. A later change is recorded in §14 with its reason, in the commit that makes it.
 
-**State: proposed, revision 4.**
+**State: proposed, revision 5.**
 - Codex's review [CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493) of revision 1 (`b00d07f`) requested five corrections; revision 2 (`c703b2d`) made them.
 - Codex's recheck [CX-0003](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088757330) reviewed G1 at specification level and asked for two more G2 privacy corrections; revision 3 makes them (§8.3, §14).
 - Revision 4 binds the option C impact inventory ([G2_IMPACT_INVENTORY.md](G2_IMPACT_INVENTORY.md)) into §8.2.
+- Codex's review [CX-0009](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6089780887) of revision 4 asked for two lifecycle bindings; revision 5 makes them: receipts settle what capture cannot (§8.2.1), and observation ingestion is privacy-fenced (§8.2.2).
 - Nothing in G2 is frozen until Codex rechecks it.
 - G1 (§4–§6) is implemented locally behind disabled switches; Codex accepted its SQL correction at L1 within G1 scope ([CX-0007](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6089616601)).
 - G2 (§8) follows option C as the review's architectural direction. It still waits for the inventory's review, Davide's D-6 and B-1, and the shared-window acknowledgments.
@@ -53,7 +54,7 @@ Status words: **built** (in this branch, with tests), **planned** (not built; na
 | `apps/api/src/app.ts` | #190 | Registers `projectConversationRoutes` only when `SOPHIA_CONVERSATIONS=on`, and adds a `CONVERSATION_SCHEMA` readiness check that is required only when it is on (the `STORE_SCHEMA` pattern, `app.ts:164`). `REQUIRED_SCHEMA` is untouched | As above |
 | `packages/persistence/src/index.ts` | #190 | One export line | Trivial merge |
 | `apps/worker/src/runtime-dispatch.ts` | #190 | None planned. G2 dispatch is SQL. If that changes, it is announced first | — |
-| `dispatch_runtime_outbox`, `capture_native_result` (last at 0042), `native_delivery_ineligible` (0041), `runtime_hello` (0028), all `CREATE OR REPLACE` | none open (#190 at `46f22b9`: 0046 replaces only `media_assignments`, 0047 adds a table) | G2, under §8.2 option C: each replaced from its latest body with only the named insertions (a reply-first branch, a `g.id IS NULL` guard, `runtime_hello`'s `UNION ALL`), and a diff test against that text | Announced in the issue before writing; one writer |
+| `dispatch_runtime_outbox`, `capture_native_result` (last at 0042), `native_delivery_ineligible` (0041), `runtime_hello` (0028), `apply_runtime_receipt` (0012), `runtime_record_observations` (0023), all `CREATE OR REPLACE` | none open (#190 at `f885459`: 0046 replaces only `media_assignments`, 0047 adds a table) | G2, under §8.2 option C: each replaced from its latest body with only the named insertions (a reply-first branch, a `g.id IS NULL` guard, `runtime_hello`'s `UNION ALL`), and a diff test against that text | Announced in the issue before writing; one writer |
 | A04's `RuntimeWorkBinding` (amended in A16), `packages/dsh-bundle/src/runtime-wire.generated.ts` and `runtime-wire-types.generated.ts` (from `packages/contracts/scripts/generate-runtime-wire.ts`), `packages/dsh-bundle/dist` | none open | G2: the binding becomes a `oneOf` of the goal binding (unchanged) or `{conversationReplyId}` (§8.2) | As the runtime row below |
 | `config/specialists.json` + schema enum, `packages/dsh-bundle` (`control-bridge.ts`, `role-registry.ts`), `cordis.patch.yml`, `config/runtime-unit.json`, both `specialists.generated.ts`, bundle lock and digests | none open (owner: Davide, LFE-00 map) | G2: one additive role, preset and route. The whole current roster is kept; `pnpm artifacts:record` runs once, on the combined candidate | A public declaration is not ownership. Before any shared runtime replacement or artifact generation, the other lanes' owners (SDD-01/#190; WBC-02) acknowledge, and the exact current-`main` window is named in #198 |
 | `apps/studio/src/app/route.ts`, `features/studio/ViewNav.tsx`, `ProjectShell.tsx` (Luis's shell) | Luis | Replace the `VISION` gate on the Conversations tab only with a conversations gate (§9). No visual change | Luis is asked in the issue before the edit |
@@ -233,19 +234,78 @@ Today, every native session belongs to a `work_attempt`, which belongs to a `goa
 - **Wire:** A04's `RuntimeWorkBinding` (amended in A16) becomes a `oneOf`: `{goalId, goalRevision}` exactly as today, or `{conversationReplyId}`. There is no `goalId: null`. The bridge reads only `attemptId` and `authorityEpoch`, so its behaviour for goals is unchanged; the generated wire and `dsh-bundle/dist` are rebuilt, and the artifacts are recorded once on the combined candidate.
 - One fresh native session per reply (`sophia-<attemptId>`), never reused. Task readers join attempts to goals with an inner join and never see a reply attempt: there is no goal to filter.
 
-**The four functions replaced in 0049** (from their latest bodies, with the named insertions only):
+**The six functions replaced in 0049** (from their latest bodies, with the named insertions only):
 - **`dispatch_runtime_outbox`:** when `o.conversation_reply_id IS NOT NULL`, it runs `conversation_dispatch` and returns, before the goal lock. The reply's fences: the request is `pending` (first dispatch) or `running` (a lease retaken after reconcile), the conversation is open, the asker still writes, every recorded source satisfies the full predicate (§8.3), and the grant is enabled and unexpired (§8.4). After the goal lock, a `g.id IS NULL` guard denies.
 - **`native_delivery_ineligible`:** a first `WHEN g.id IS NULL` refuses. Reply eligibility is its own `conversation_delivery_ineligible`.
 - **`capture_native_result`:** the reply branch is matched on the attempt's `conversation_reply_id`, before any goal or job read; a `g.id IS NULL` guard follows it.
 - **`runtime_hello`:** today it inner-joins `goals` (`0028:95-102`), so a reply binding would never be restored after a reconnect. It becomes a `UNION ALL` of the goal bindings (byte-identical) and the reply bindings in `running`, `idle` or `stopping`, with the reply's epoch and `stopped` once cancelled or retired, else `active`.
+- **`apply_runtime_receipt`** (`0012:464`): a reply branch first, keyed on the attempt's `conversation_reply_id`, before the goal and job reads (§8.2.1). It applies the same goal-independent updates (the command's answered stage, the outbox row, the `commands` row), then the reply's own transitions, and returns. Without it, a rejected create would leave the reply waiting forever (CX-0009), and a reply's `stop` receipt would reach `settle_native_control` with a NULL goal (a no-op there today, but a goal path a reply must not take).
+- **`runtime_record_observations`** (`0023:20`): a reply branch for observations whose binding's attempt belongs to a reply, under the conversation writers' lock order, before the insert (§8.2.2). It is a text writer, so it is fenced like one. Goal observations take the unchanged path.
 
-**Not edited, with the reason** ([inventory](G2_IMPACT_INVENTORY.md) §3): the `*_turn_end` functions and `design_input` (a reply has no job, so they cannot run); the `*_scope_of` functions (already fail closed without a job of their kind; a test asserts a reply's call to each is refused); `apply_runtime_receipt` (its goal part is a no-op for a reply); `settle_native_control` and `admit_goal_command` (keyed by goal; a reply is cancelled by withdrawal, erasure, a source out of the predicate, the grant switch or asker removal); the leases, reconcile, receipts and observations (goal-independent, proved under the new lane, A12 and A13); goal triggers and `native_task_view`.
+**Not edited, with the reason** ([inventory](G2_IMPACT_INVENTORY.md) §3): the `*_turn_end` functions and `design_input` (a reply has no job, so they cannot run); the `*_scope_of` functions (already fail closed without a job of their kind; a test asserts a reply's call to each is refused); `settle_native_control` and `admit_goal_command` (keyed by goal; `apply_runtime_receipt`'s reply branch returns before `settle_native_control`, and a reply is cancelled by withdrawal, erasure, a source out of the predicate, the grant switch or asker removal); the leases, reconcile and receipt recording (goal-independent, proved under the new lane, A12 and A13); goal triggers and `native_task_view`.
 
 **Admission writes no job:** in the send's transaction, one attempt, binding, command and outbox row, and the request `pending`. Capture keys on the request.
 
-**Preservation evidence:** a test reads each replaced function's `pg_get_functiondef` and asserts it equals its source text (0042, 0041 or 0028) with only the named insertions. The existing pinned and behavioural suites stay as they are (`0037_amendment_preservation.sql`, the PUBLIC-execute check, `runtime.db.test.ts`, the full `pnpm test:db` and the integration tests); the bridge's goal-binding fixtures gain a reply-binding twin. A role declaration or a setup flag alone does not qualify the assembled tools.
+**Preservation evidence:** a test reads each replaced function's `pg_get_functiondef` and asserts it equals its source text (0042, 0041, 0028, 0012 or 0023) with only the named insertions. The existing pinned and behavioural suites stay as they are (`0037_amendment_preservation.sql`, the PUBLIC-execute check, `runtime.db.test.ts`, the full `pnpm test:db` and the integration tests); the bridge's goal-binding fixtures gain a reply-binding twin. A role declaration or a setup flag alone does not qualify the assembled tools.
 
 **Shared windows:** 0049, A04's binding, the generated runtime wire, `dsh-bundle/dist` and the runtime registry are shared files (§2). Each waits for the acknowledgment of #190's owner and the WBC-02/SDD-01 runtime owner, and a named `main` window ([inventory](G2_IMPACT_INVENTORY.md) §7).
+
+#### 8.2.1 Receipts settle what capture cannot (CX-0009 correction 1)
+
+Capture runs only on `turn/end` (`0023:45-46`). Some outcomes never produce one:
+- the bridge rejects a command it cannot parse and returns without a session or a turn (`control-bridge.ts:651-665`);
+- a create that throws answers `failed`, possibly after its session began (`control-bridge.ts:730`);
+- a create, stop or retire whose outcome is not known answers `outcome_unknown`, or nothing at all (a lost lease, then `reconcile_runtime_outbox`).
+
+So the reply branch of `apply_runtime_receipt` is a terminal path of its own. Receipts are already recorded once (`runtime_receipts` `ON CONFLICT DO NOTHING`), so a restart's replay applies nothing twice. Correlation runs through the runtime command (its attempt, then its reply), never through the wire binding a rejected command may lack.
+
+| Receipt | Binding | Attempt | Reply request (visible) | Open reservation (§8.4) | Native copies (§8.5) |
+|---|---|---|---|---|---|
+| `create` `delivered` | `running` | `running` | `pending` → `running` | unchanged | — |
+| `create` `rejected` | `settled` | `failed` | `failed`, `runtime_rejected`, terminal | none can be open (no call left); one found is `released` | `retire` written: the bridge answers `checked` where no session or journal exists |
+| `create` `failed` | `lost` | `outcome_unknown` | `failed`, `runtime_failed`, terminal | `uncertain`, still counted against the total | `retire` written: the session may have begun |
+| `create` `outcome_unknown` | `lost` | `outcome_unknown` | `outcome_unknown`, same request and attempt | `uncertain`, still counted | retire waits for the outcome |
+| `stop` `checked` | `settled` | — | stays `cancelled` (set by `conversation_cancel`) | settled from reported usage; with none reported, `uncertain` (a call was under way) | `retire` written |
+| `stop` `rejected` / `failed` / `outcome_unknown` | `stopping` | — | stays `cancelled`; its purge said pending | `uncertain` | retried at the next hello (§8.5) |
+| `retire` `checked` | `retired` | — | its purge recorded done | — | gone from the host |
+| `retire` not `checked` | unchanged | — | its purge stays pending, and says so | — | retried at the next hello |
+
+What holds across the table:
+- **No new attempt, ever.** An uncertain dispatch keeps its request, attempt and reservation. `reconcile_runtime_outbox` re-dispatches the same outbox row only when no runtime command was ever written; otherwise it waits for the receipt. Asking again is a new message.
+- **Terminal and visible.** A `failed` or `cancelled` request says why under its message; `outcome_unknown` says the outcome isn't known yet. None of them publishes anything.
+- **Late resolution.** A `turn/end` that arrives after `outcome_unknown` (a restarted bridge replaying its journal) goes through capture's reply branch and its publication checks like any other. An operator may also settle the request and its reservation.
+- **Spending.** `uncertain` stays counted in `uncertain_usd` against the total until an operator reconciles it. Actual usage recorded from observations (§8.2.2) settles a reservation at its real cost.
+
+**Tests, receipt-only (no `turn/end` is ever sent):**
+- a rejected create: the request ends `failed` / `runtime_rejected` and is said under its message; no second attempt, outbox row or runtime command; no reservation; one `retire`;
+- a failed create with an open reservation: `failed`; the reservation `uncertain` and counted; still counted after a restart;
+- an `outcome_unknown` create: the same request, attempt and reservation remain; `reconcile_runtime_outbox` writes no second runtime command; a later `turn/end` replayed from the journal publishes only if every publication check still holds;
+- each receipt replayed (a restart): applied once;
+- a reply's `stop` answered `checked`, then `outcome_unknown`: the request stays `cancelled`; no goal row is read or changed, and `settle_native_control` is never reached;
+- `retire` answered `checked`, and not answered at all: done, or pending and said so, then retried at hello.
+
+#### 8.2.2 Observation ingestion is privacy-fenced (CX-0009 correction 2)
+
+`runtime_record_observations` stores each observation's `data` (assistant text, compaction summaries) before capture, and an assistant message never calls capture. Scrubbing existing rows and retiring the host does not stop a buffered observation arriving afterwards from writing withdrawn text back. So ingestion is fenced like the other text writers.
+
+**Lock order.** A batch that holds any observation for a reply attempt first takes the project row `FOR UPDATE`, then each involved reply request row `FOR UPDATE` in id order. This is the order every conversation writer uses: `conversation_locked` takes the project, then the conversation; withdrawal, erasure, suppression and the source triggers then cancel or suppress the requests. So ingestion and those writers serialize, in either order, and never deadlock against each other. Goal observations in the same batch take the unchanged path.
+
+**What is stored, decided under those locks:**
+- The request is `pending` or `running`, its conversation is open at the recorded `erasure_revision`, and nothing has suppressed it: the observation is stored as today.
+- Otherwise (cancelled, failed, suppressed, answered, retired, or the conversation erased), the row is stored **scrubbed**. It keeps its `binding_id`, `upstream_key`, `type` and `native_seq`, so correlation and de-duplication hold. Its `data` keeps only usage: provider, model, the token counts, the text's length, and `scrubbed: true`.
+- **Usage is never lost.** The `usage_records` row is written from the original observation before the text is dropped, keyed by `provider_call_id` as today. A call that happened is counted at its reported cost.
+- A `turn/end` still goes to capture, whose reply branch refuses publication for a request no longer `running` and ends its accounting.
+
+**Scrubbing is an update in place, never a delete.** The rows stay, so a batch replayed after a restart conflicts on `upstream_key` and can never re-insert the text. This applies to the withdrawal or suppression transaction (§8.5) and to publication: capture's publication transaction scrubs the attempt's observations too, so the answer's only text copy is its conversation message.
+
+**Tests (real PostgreSQL, the stub provider, labelled L1):**
+- withdrawal commits first, then a late `assistant/message` for that reply: stored scrubbed, usage recorded, request still `cancelled`;
+- the observation is stored first, then the withdrawal: scrubbed by the withdrawal;
+- each order under a held lock, the waiter observed in `pg_stat_activity` (the CX-0006 pattern);
+- a delayed assistant message with no `turn/end` after cancellation: scrubbed, capture never called, request still `cancelled`;
+- a delayed whole batch (messages, compaction and `turn/end`) after withdrawal: all scrubbed, nothing published, accounting ended;
+- the same batch replayed after a restart: nothing re-inserted, no text restored;
+- after publication, a late observation: scrubbed, and the answer stays the only copy.
 
 ### 8.3 Context, correlation and publication (CX-0002 correction 2)
 
@@ -278,7 +338,7 @@ Assembly records what it put in the prompt:
 **Transitive dependencies through summaries** (CX-0003 correction 2). A summary projection keeps its own dependency set: every project source its generating reply read, each with its recorded revision, and the message range it covers.
 - When a later request's prompt includes that summary instead of the old messages, its `conversation_reply_sources` inherits the summary's whole set, and its coverage keeps the summary's message range.
 - Dependency is never inferred from what is visible in the current `MissionContext`: it is the recorded union, so a source that has since left the mission context still fences every answer that read it, at any generation.
-- Reproducer, tested: R1 reads source S and produces summary P; S leaves the mission context; R2 reads P; S is then withdrawn, both while R2 runs and after R2 publishes. R2 is cancelled, or its answer suppressed. P is deleted. So is any later projection or answer whose set contains S.
+- Reproducer, a **required test, not yet run** (no G2 code exists): R1 reads source S and produces summary P; S leaves the mission context; R2 reads P; S is then withdrawn, both while R2 runs and after R2 publishes. R2 is cancelled, or its answer suppressed. P is deleted. So is any later projection or answer whose set contains S.
 
 **Revalidation** happens before dispatch (when assembled) and again at publication. The request must still be `pending` or `running` at dispatch (§8.2), and `running` at publication; the asker must still be an active writer; the conversation must be open with an unchanged `erasure_revision`; and **every recorded source must still satisfy the full source predicate** above, at its recorded revision.
 - A privacy failure cancels the request (`source_withdrawn`, `source_out_of_scope`, `audience_changed`, `conversation_erased`, `asker_removed`). Privacy failures are: a withdrawn message, any source out of the predicate, a changed audience revision, or an erased conversation. The output is suppressed and never published, and its native copies are scrubbed and retired (§8.5).
@@ -334,7 +394,7 @@ Every copy of a reply's prompt or answer:
 |---|---|---|
 | The answer | `conversation_messages` | Withdrawal and suppression (§6, §8.3) |
 | The create payload (the prompt) | `runtime_commands.body.payload.text` | Scrubbed in the withdrawal or suppression transaction to a fixed marker with its length, unless an immutability trigger forbids it (checked before 0049; if one does, the copy is not written there at all: the prompt is fetched by the bridge through a scoped runtime read instead, the research-context pattern) |
-| Assistant text and events | `native_observations` | The same transaction deletes the reply attempt's observations' text, keeping only the ids and sequences fencing needs |
+| Assistant text and events | `native_observations` | The same transaction scrubs the reply attempt's observations **in place** (usage only; the rows stay, so a replayed batch never re-inserts text). Publication scrubs them too. Observations arriving later are stored scrubbed (§8.2.2) |
 | The prompt, in the command journal | Bridge journal file per session (`journalDir`, in the project's harness home; `control-bridge.ts:970-980` writes `content`) | **Retirement** (below) |
 | History events, user and assistant messages | dsh session log for `sophia-<attemptId>` (harness home) | **Retirement** (below) |
 | Messages a Resume held | Stash entries in the journal (`sophia/stash`, `control-bridge.ts:921-925`) | **Retirement** (below); a reply session takes no Resume or steer, so it never holds any |
@@ -411,6 +471,7 @@ A21 is **not** closed as not-applicable (CX-0002). The existing linked-output re
 - two pending asks and an unrelated message (A09);
 - a long transcript stays within its window (A28);
 - no conversation text in any log line;
+- the receipt-only cases of §8.2.1 and the ingestion cases of §8.2.2;
 - the preservation diff and behavioural checks of §8.2.
 
 **G3:** the existing browser suites against fixtures with A16 shapes, plus a real-API browser run (the local stack, `scripts/dev-stack.ts`), at 390, 1000 and 1440 px.
@@ -433,6 +494,7 @@ A21 is **not** closed as not-applicable (CX-0002). The existing linked-output re
 | When | Change | Why |
 |---|---|---|
 | 2026-10-09 | First version (G0), revision 1 at `b00d07f` | — |
+| 2026-10-09 | Revision 5, CX-0009's two lifecycle bindings: `apply_runtime_receipt` gets a reply branch, the terminal path for outcomes with no `turn/end` (rejected, failed, uncertain, stop and retire), with receipt-only tests (§8.2.1); `runtime_record_observations` gets a privacy-fenced reply branch under the conversation writers' lock order, storing late or disallowed observations scrubbed while keeping correlation and actual usage, with serial, concurrent, delayed, batch and replay tests (§8.2.2); scrubbing is an update in place, and publication scrubs too (§8.5); §8.3's reproducer is labelled a required test until it runs | CX-0009 |
 | 2026-10-09 | Revision 4, the option C impact inventory bound (§8.2): goal paths fail open on a goal-less row, so reply-first branches and fail-closed `g.id IS NULL` guards are required together; `goal_revision` nullable with its CHECK; a reply's own epoch; the wire binding a `oneOf` (no `goalId: null`); `runtime_hello` a `UNION ALL`; the four replaced functions named, the rest not edited with reasons; admission writes no job; dispatch accepts `pending` or `running` | CX-0002, CX-0003, CX-0007 |
 | 2026-10-09 | Revision 3, the two corrections of CX-0003: the full source predicate (project, `scope='project'`, eligible and ready, recorded `sha256` and `eligibility_revision`, unchanged audience revision) at assembly, dispatch and publication, with suppression on any transition out of it; and transitive dependencies through summaries, recorded as a union, never inferred from the current mission context (§8.3) | CX-0003 |
 | 2026-10-09 | Revision 2, the five corrections of CX-0002 (correction 1 was already in 0048; the text now says it): every target in each operation's semantic request (§4); `ProjectionCoverage` bound (§3.1); project-source eligibility recorded, revalidated and enforced after publication (§8.3); the operational copies and their retirement, with B-1 (§8.5); a grant with expiry and serialized aggregate accounting, the effort left to Davide (§8.4); option C with the inventory required before G2 (§8.2); the notice names the actual recipient (§5); A21 not closed as N/A (§10); acknowledgment before shared runtime writes, and no assumed live predecessor (§1, §2) | CX-0002 |
