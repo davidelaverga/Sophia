@@ -5,6 +5,7 @@
 import { readBoardView, type GoalView } from '../src/features/work/planning/board-view.ts'
 import { PROJECT } from './data.ts'
 import { DEMO_GOALS } from './demo-goals.ts'
+import { unexpected } from './fixture-api.ts'
 import { NOW } from './resources-data.ts'
 import { firstGoal } from './work-data.ts'
 
@@ -21,21 +22,27 @@ const WORDS: readonly (readonly [string, string])[] = [
   ['Measure render time on large reports', 'Measure days to a first shared report'],
   ['A retry candidate passes its review', 'The translation passes its review'],
   ['Write the export’s release note', 'Write the rollout note'],
-  ['Reports stay under 20 MB.', 'The second region’s admins read English for now.'],
+  ['Reports stay under 20 MB.', 'The second region’s teams start in the same week.'],
   ['Write the retry’s failing test', 'Write the admin-change checklist'],
   ['Review the retry’s candidate', 'Review the translation'],
   ['Reproduce the failed render', 'Map where new admins get stuck'],
   ['Implement the PDF retry', 'Translate the checklist for the second region'],
   ['Review the report pane', 'Review the first-week report'],
-  ['Reading ReportPane.tsx', 'Reading the week-3 survey'],
+  ['Reading ReportPane.tsx', 'Reading the first-week report'],
   ['Three times', 'Three regions'],
   ['Ship it now', 'Send it now'],
   ['Twice', 'Two regions'],
   ['Davide’s', 'Marco’s'],
 ]
 
-/** The board fixture's people the demo doesn't have, by the demo's own: Davide is Marco, Mara is Noor. */
-const CAST: Readonly<Record<string, string>> = { davide: 'marco', mara: 'noor' }
+/** The board fixture's people the demo doesn't have, by the demo's own: Davide is Marco. */
+const CAST: Readonly<Record<string, string>> = { davide: 'marco' }
+
+/**
+ * A session's commands (guidance, hold, stop): the room's demo has no lead to take them, so a task offers only what
+ * the page can answer (asking Sophia), never a press that fails (no dead affordances).
+ */
+const COMMANDS = new Set(['guidance', 'hold', 'stop'])
 
 /** The board fixture's clock is fixed (resources-data.ts); the demo's is now: every time moves by the difference. */
 const ISO = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/
@@ -66,14 +73,22 @@ export function demoServedGoals(): GoalView[] {
   if (!ROLLOUT) return []
   const view = firstGoal('luis')
   const plan = view.current_plan && { ...view.current_plan, goal_id: ROLLOUT.id, goal_revision: ROLLOUT.revision }
+  const items = view.items.map((i) => ({
+    ...i,
+    available_actions: i.available_actions.filter((a) => !COMMANDS.has(a.kind)),
+  }))
   const read = readBoardView({
     schema_version: 'sophia.work.board.v1',
     project_id: PROJECT,
     snapshot_cursor: '1',
     observed_at: new Date().toISOString(),
     coverage: 'complete',
-    goals: [inPilotWords({ ...view, goal_id: ROLLOUT.id, current_plan: plan }, Date.now() - NOW.getTime())],
+    goals: [inPilotWords({ ...view, goal_id: ROLLOUT.id, current_plan: plan, items }, Date.now() - NOW.getTime())],
   })
-  if (!read.ok) throw new Error(`The demo's board doesn't read: ${read.problems.join('; ')}`)
-  return [...read.value.goals]
+  if (read.ok) return [...read.value.goals]
+  // Loud in development and in every check (`unexpected`), never a blank demo: the goals then show without a plan.
+  const said = `The demo's board doesn't read: ${read.problems.join('; ')}`
+  console.error(said)
+  unexpected.push(said)
+  return []
 }

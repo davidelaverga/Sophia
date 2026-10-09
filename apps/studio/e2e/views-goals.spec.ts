@@ -65,6 +65,13 @@ test('goals · in the demo, Tasks draw the rollout’s plan as a board, in the p
   // None of the board fixture's own project shows through, nor its fixed clock: its sessions reported moments ago.
   await expect(page.locator('main')).not.toContainText(/PDF|render|ReportPane|Davide/)
   await expect(board).not.toContainText(/days ago/)
+  // The room's demo has no lead to take a session's commands: a running task offers none, never a press that fails.
+  await board.getByText('Review the first-week report').click()
+  const sheet = page.getByRole('dialog', { name: 'Review the first-week report' })
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  for (const press of ['Hold', 'Stop'])
+    await expect(sheet.getByRole('button', { name: press, exact: true })).toHaveCount(0)
 })
 
 test('goals · without the demo, Goals opens and says there are none yet', async ({ page }) => {
