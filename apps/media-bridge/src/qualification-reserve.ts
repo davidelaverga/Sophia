@@ -1,0 +1,199 @@
+// The bridge's own spend bound for an exchange under a voice qualification grant (sophia.voice-qualification.v1, its
+// guard; docs/plans/voice-qualification-g7.md). The API ends such an exchange once the usage the bridge reports reaches
+// the grant's budget, but that alone bounds nothing in time:
+// - Gemini Live reports usage now and then, never ahead, and every generation bills the whole context again;
+// - transcription is billed as output text, which the reported total may not include;
+// - a reconnection opens another provider session, whose first generation bills the resumed context again;
+// - a generation can start without the bridge asking: the provider's own turn detection while input flows, a tool
+//   response's continuation (WHEN_IDLE), a second tool round, a notice; and two can overlap;
+// - the project's spend cap acts minutes late.
+// So before anything that can start a generation, the bridge asks whether the worst case of one more still fits under
+// the budget: what was reported, what it has itself sent and received since, every transcription, and a full reserve
+// for each generation still open. A generation that starts unasked takes its reserve as it starts. When nothing more
+// fits, the bridge sends nothing more and closes the provider. A generation's output is reserved at the grant's per-turn
+// cap; the provider is configured with that cap too, but nothing here relies on it being honoured: what the bridge
+// receives is counted, and a generation past the cap is cut. The rates are assumptions, refreshed at batch time; a rate
+// too high only ends an exchange earlier.
+
+/** The grant's limits the bridge enforces itself (the API's guard enforces them again, from what is reported). */
+export interface ReserveLimits {
+  /** Provider tokens for the whole exchange, every connection and generation together. */
+  usageTokens: number
+  /** One generation's output: its audio and its transcription each reserved at this. */
+  outputTokensPerTurn: number
+  /** Provider generations, whatever started them. */
+  turns: number
+  /** Provider connections, the first included. */
+  connections: number
+}
+
+/** Tokens per unit, as billed: assumptions to refresh at batch time, never measured here. */
+export interface TokenRates {
+  audioInPerSecond: number
+  audioOutPerSecond: number
+  perFrame: number
+  charsPerToken: number
+  /** The most context one generation bills again: the session's compression trigger (live-session.ts). */
+  context: number
+}
+
+export const ASSUMED_RATES: TokenRates = {
+  audioInPerSecond: 32,
+  audioOutPerSecond: 32,
+  perFrame: 258,
+  charsPerToken: 3,
+  context: 25_000,
+}
+
+const INPUT_RATE = 16_000
+const OUTPUT_RATE = 24_000
+
+/** Why the bridge stops: the budget would be passed, the generations or connections are spent, or a turn ran over. */
+export type Stop = 'usage' | 'turns' | 'connections' | 'output'
+
+export type Verdict = { ok: true } | { ok: false; stop: Stop }
+
+interface Open {
+  connection: number
+  reserved: number
+  output: number
+}
+
+export class QualificationReserve {
+  readonly #limits: ReserveLimits
+  readonly #rates: TokenRates
+  /** Each connection's highest reported total (cumulative within its provider session). */
+  readonly #reported = new Map<number, number>()
+  /** Each connection's generations that ended since its last report, at their reserve. */
+  readonly #unreported = new Map<number, number>()
+  readonly #connections = new Set<number>()
+  #open: Open[] = []
+  #input = 0
+  #transcribed = 0
+  #generations = 0
+  #stopped: Stop | null = null
+
+  constructor(limits: ReserveLimits, rates: TokenRates = ASSUMED_RATES) {
+    this.#limits = limits
+    this.#rates = rates
+  }
+
+  /** Why the bridge stopped, or null while it may go on. Once stopped, it stays stopped. */
+  get stopped(): Stop | null {
+    return this.#stopped
+  }
+
+  /** Every token the exchange may have cost or may still cost for what is under way. */
+  get committed(): number {
+    let sum = this.#input + this.#transcribed
+    for (const total of this.#reported.values()) sum += total
+    for (const estimate of this.#unreported.values()) sum += estimate
+    for (const open of this.#open) sum += Math.max(open.reserved, this.#generationCost(open.output))
+    return sum
+  }
+
+  /** A provider connection opens (a reconnection or resumption included). */
+  connected(connection: number): Verdict {
+    this.#connections.add(connection)
+    if (this.#connections.size > this.#limits.connections) return this.#stop('connections')
+    return this.#fits(0)
+  }
+
+  /** The provider's usage report: the total of its session on this connection, so far. */
+  reported(connection: number, total: number): void {
+    this.#reported.set(connection, Math.max(this.#reported.get(connection) ?? 0, total))
+    // What ended before the report is in it; what is still open keeps its reserve.
+    this.#unreported.delete(connection)
+  }
+
+  /** Input sent: 16 kHz samples, a video frame, or text (a notice, a typed message, a tool response). */
+  sentAudio(samples: number): Verdict {
+    this.#input += (samples / INPUT_RATE) * this.#rates.audioInPerSecond
+    return this.#fits(0)
+  }
+
+  sentFrame(): Verdict {
+    this.#input += this.#rates.perFrame
+    return this.#fits(0)
+  }
+
+  sentText(chars: number): Verdict {
+    this.#input += Math.ceil(chars / this.#rates.charsPerToken)
+    return this.#fits(0)
+  }
+
+  /** A transcription arrived (the holder's words or Sophia's): billed as output text, never assumed reported. */
+  transcribed(chars: number): Verdict {
+    this.#transcribed += Math.ceil(chars / this.#rates.charsPerToken)
+    return this.#fits(0)
+  }
+
+  /**
+   * Before anything that can start a generation: opening input after a turn ended, a tool response, a notice, a typed
+   * message. Fitting, the generation's reserve is taken now; not fitting, nothing may be sent.
+   */
+  reserve(connection: number): Verdict {
+    if (this.#stopped) return { ok: false, stop: this.#stopped }
+    if (this.#generations >= this.#limits.turns) return this.#stop('turns')
+    const reserve = this.#reserveFor()
+    const fits = this.#fits(reserve)
+    if (!fits.ok) return fits
+    this.#take(connection, reserve)
+    return fits
+  }
+
+  /**
+   * Output arrived on a connection (24 kHz samples; zero for a tool call or a transcript's first words). A generation
+   * nobody reserved takes its reserve now; one past the per-turn cap is cut.
+   */
+  received(connection: number, samples = 0): Verdict {
+    if (this.#stopped) return { ok: false, stop: this.#stopped }
+    let open = this.#open.find((o) => o.connection === connection)
+    if (!open) {
+      if (this.#generations >= this.#limits.turns) return this.#stop('turns')
+      const reserve = this.#reserveFor()
+      const fits = this.#fits(reserve)
+      open = this.#take(connection, reserve)
+      if (!fits.ok) return fits
+    }
+    open.output += (samples / OUTPUT_RATE) * this.#rates.audioOutPerSecond
+    if (open.output > this.#limits.outputTokensPerTurn) return this.#stop('output')
+    return this.#fits(0)
+  }
+
+  /** The provider's turn on this connection ended: completed, interrupted, or the connection lost. */
+  ended(connection: number): void {
+    const ending = this.#open.filter((o) => o.connection === connection)
+    this.#open = this.#open.filter((o) => o.connection !== connection)
+    const cost = ending.reduce((sum, o) => sum + Math.max(o.reserved, this.#generationCost(o.output)), 0)
+    if (cost > 0) this.#unreported.set(connection, (this.#unreported.get(connection) ?? 0) + cost)
+  }
+
+  /** One generation's worst case: the whole context again, the input since, and its output twice (audio, text). */
+  #reserveFor(): number {
+    return this.#rates.context + 2 * this.#limits.outputTokensPerTurn
+  }
+
+  #generationCost(output: number): number {
+    return this.#rates.context + 2 * output
+  }
+
+  #take(connection: number, reserved: number): Open {
+    this.#generations += 1
+    // The input so far is now part of the context this generation bills.
+    const open = { connection, reserved: reserved + this.#input, output: 0 }
+    this.#input = 0
+    this.#open.push(open)
+    return open
+  }
+
+  #fits(more: number): Verdict {
+    if (this.#stopped) return { ok: false, stop: this.#stopped }
+    return this.committed + more > this.#limits.usageTokens ? this.#stop('usage') : { ok: true }
+  }
+
+  #stop(stop: Stop): Verdict {
+    this.#stopped ??= stop
+    return { ok: false, stop: this.#stopped }
+  }
+}

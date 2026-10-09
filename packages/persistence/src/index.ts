@@ -135,6 +135,15 @@ export {
   type PresenceReport,
 } from './exchange.ts'
 export {
+  readQualificationEvidence,
+  recordQualificationEvidence,
+  roomQualification,
+  voiceQualificationGuard,
+  type QualificationEvidenceAck,
+  type QualificationEvidenceWrite,
+  type QualificationReceiptKind,
+} from './voice-qualification.ts'
+export {
   claimRoomRemovals,
   pendingRemoval,
   readRemoval,
