@@ -759,9 +759,10 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
       ]),
     )
     const task = await brief(projectId, A, randomUUID())
-    const goalOf = async () => {
+    /** The goal of a task (the brief's, unless named). */
+    const goalOf = async (of = task) => {
       const snap = await withActor(pool, P, 'read', (c) => readSnapshot(c, projectId))
-      const found = snap?.goals.find((x) => x.id === snap.work.find((t) => t.id === task)?.goalId)
+      const found = snap?.goals.find((x) => x.id === snap.work.find((t) => t.id === of)?.goalId)
       assert.ok(found)
       return found
     }
@@ -781,7 +782,58 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
           ]),
         )
       ).rows[0]?.n
-    return { exchangeId, task, goalId, goalOf, voice, commandsUnder, hold: { taskId: task, action: 'hold' } }
+    /** Who admitted each command under a call's key, and its kind, in the order admitted. */
+    const commandsBy = async (callId: string) =>
+      (
+        await owner((c) =>
+          c.query<{ actor: string; kind: string }>(
+            `SELECT actor_id AS actor, kind FROM sophia.commands WHERE idempotency_key=$1 ORDER BY created_at`,
+            [`live:${exchangeId}:1:${callId}`],
+          ),
+        )
+      ).rows.map((r) => [r.actor, r.kind])
+    /** The claims (0047) held under these calls' keys. */
+    const claimsOf = async (...callIds: string[]) =>
+      (
+        await owner((c) =>
+          c.query<{ key: string }>(
+            `SELECT idempotency_key AS key FROM sophia.live_call_keys WHERE idempotency_key = ANY($1)`,
+            [callIds.map((id) => `live:${exchangeId}:1:${id}`)],
+          ),
+        )
+      ).rows.map((r) => r.key)
+    /** Bind another speaker to an input epoch of the exchange, as a floor change would. */
+    const bindTo = (actorId: string, inputEpoch: number) =>
+      owner((c) =>
+        c.query(`INSERT INTO sophia.exchange_inputs(project_id,exchange_id,input_epoch,actor_id) VALUES($1,$2,$3,$4)`, [
+          projectId,
+          exchangeId,
+          inputEpoch,
+          actorId,
+        ]),
+      )
+    return {
+      projectId,
+      exchangeId,
+      task,
+      goalId,
+      goalOf,
+      voice,
+      commandsUnder,
+      commandsBy,
+      claimsOf,
+      bindTo,
+      hold: { taskId: task, action: 'hold' },
+    }
+  }
+
+  /** Deadlocks PostgreSQL has counted in this database so far, once its statistics have been flushed (about 1 s). */
+  const deadlocks = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    const { rows } = await owner((c) =>
+      c.query<{ n: string }>(`SELECT deadlocks AS n FROM pg_stat_database WHERE datname=current_database()`),
+    )
+    return Number(rows[0]?.n)
   }
 
   const conflict = [200, 'refused', 'not_started:idempotency_conflict'] as const
@@ -833,6 +885,73 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
           )
           assert.ok(!JSON.stringify(listed).includes(E))
         }
+      })
+
+      it('a command first under the key, in either order: the other speaker’s call is refused, and the one command is the first’s (prodrev-r3 N3)', async () => {
+        const x = await twoSpeakers(mode)
+        assert.equal((await x.voice(P, 1, 'h-1', 'control_work', x.hold)).json.status, 'ok')
+        assert.deepEqual(answerOf(await x.voice(E, 2, 'h-1', 'control_work', x.hold)), conflict)
+        assert.deepEqual(await x.commandsBy('h-1'), [[P, 'hold']], 'the principal’s Hold only')
+        await owner((c) => c.query(`UPDATE sophia.goals SET status='running' WHERE id=$1`, [x.goalId]))
+        assert.equal((await x.voice(E, 2, 'h-2', 'control_work', x.hold)).json.status, 'ok')
+        assert.deepEqual(answerOf(await x.voice(P, 1, 'h-2', 'control_work', x.hold)), conflict)
+        assert.deepEqual(await x.commandsBy('h-2'), [[E, 'hold']], 'Davide’s Hold only')
+      })
+
+      it('a call that does not bind claims nothing: the speaker it belongs to then runs under that key (prodrev-r3 N3)', async () => {
+        const x = await twoSpeakers(mode)
+        const outsider = randomUUID()
+        await x.bindTo(outsider, 5) // bound to an epoch, but no member of the project
+        assert.equal((await x.voice(E, 9, 'sq-1', 'project_status')).json.status, 'clarify', 'an epoch nobody holds')
+        assert.equal((await x.voice(E, 1, 'sq-2', 'project_status')).json.status, 'clarify', 'the principal’s epoch')
+        assert.equal((await x.voice(outsider, 5, 'sq-3', 'project_status')).json.status, 'clarify', 'a non-member')
+        assert.deepEqual(await x.claimsOf('sq-1', 'sq-2', 'sq-3'), [], 'the claim rolled back with the bind')
+        for (const callId of ['sq-1', 'sq-2', 'sq-3']) {
+          const own = await x.voice(P, 1, callId, 'project_status')
+          assert.equal(own.json.status, 'ok', `${callId}: ${JSON.stringify(own.json)}`)
+        }
+      })
+
+      it('the same speaker at another input epoch is another call: refused under the key, nothing runs (prodrev-r3 N3)', async () => {
+        const x = await twoSpeakers(mode)
+        await x.bindTo(P, 3) // the floor came back to the principal at epoch 3
+        assert.equal((await x.voice(P, 1, 'm-1', 'project_status')).json.status, 'ok')
+        assert.deepEqual(answerOf(await x.voice(P, 3, 'm-1', 'project_status')), conflict, 'the same read')
+        assert.deepEqual(answerOf(await x.voice(P, 3, 'm-1', 'control_work', x.hold)), conflict, 'a Hold')
+        assert.equal((await x.goalOf()).status, 'running', 'no Hold ran under the key')
+        assert.equal(await x.commandsUnder('m-1'), 0)
+      })
+
+      it('calls under distinct keys at once, three in each of 10 trials: every one goes on, no deadlock, one command each (prodrev-r3 F1)', async () => {
+        const x = await twoSpeakers(mode)
+        const tasks = [x.task, await brief(x.projectId, A, randomUUID()), await brief(x.projectId, A, randomUUID())]
+        const goals = await Promise.all(tasks.map(async (t) => (await x.goalOf(t)).id))
+        const deadlocksBefore = await deadlocks()
+        const seen: string[] = []
+        const commands: number[] = []
+        for (let trial = 0; trial < 10; trial += 1) {
+          await owner((c) => c.query(`UPDATE sophia.goals SET status='running' WHERE id = ANY($1)`, [goals]))
+          const keys = ['pa', 'pb', 'ec'].map((k) => `${k}-${String(trial)}`)
+          const holds = await Promise.all([
+            x.voice(P, 1, keys[0] ?? '', 'control_work', { taskId: tasks[0], action: 'hold' }),
+            x.voice(P, 1, keys[1] ?? '', 'control_work', { taskId: tasks[1], action: 'hold' }),
+            x.voice(E, 2, keys[2] ?? '', 'control_work', { taskId: tasks[2], action: 'hold' }),
+          ])
+          seen.push(holds.map((r) => String(r.json.status)).join('/'))
+          for (const key of keys) commands.push((await x.commandsUnder(key)) ?? 0)
+        }
+        const counted = (await deadlocks()) - deadlocksBefore
+        assert.deepEqual(
+          seen.filter((s) => s !== 'ok/ok/ok'),
+          [],
+          `every call answered ok (PostgreSQL counted ${String(counted)} deadlocks)`,
+        )
+        assert.equal(counted, 0, 'no deadlock (40P01)')
+        assert.deepEqual(
+          commands,
+          Array.from({ length: 30 }, () => 1),
+          'one command under each key',
+        )
       })
 
       it('two speakers at once under one key: exactly one proceeds, whichever, in each of 5 trials', async () => {

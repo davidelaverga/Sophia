@@ -2,7 +2,8 @@
 // voice_evidence_expire; Codex P2 on PR #190), level: sql-run. Before, only the API's guard deleted them, and the API
 // runs the guard only on bridge traffic and only with SOPHIA_VOICE_QUALIFICATION=on: with the switch turned off after a
 // run, or no traffic, receipts and their digest chains stayed stored past the 24 h promised. Nothing here builds the
-// API or runs the guard: the worker's own pass, on its own login, is the only actor.
+// API or runs the guard: the worker's own pass, on its own login, is the only actor. The same pass deletes the claimed
+// keys of voice tool calls an hour after their exchange ended (0047, live_call_keys_expire; prodrev-r3 F3 on PR #190).
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -12,6 +13,8 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import {
+  claimLiveCall,
+  controlExchange,
   createPool,
   readSnapshot,
   recordQualificationEvidence,
@@ -178,5 +181,105 @@ describe('voice qualification receipts expire from the worker’s periodic pass 
     } finally {
       await owner((c) => c.query(`GRANT EXECUTE ON FUNCTION sophia.voice_evidence_expire() TO sophia_worker`))
     }
+  })
+})
+
+describe('a voice tool call’s key is deleted an hour after its exchange ended, by the same pass (0047; prodrev-r3 F3)', () => {
+  /** An exchange P opened in a fresh project, and the key of one bound call in it, claimed as the API claims it. */
+  async function claimed(): Promise<{ exchangeId: string; key: string }> {
+    const seeded = await seedProject(db.ownerUrl, { admin: A, editors: [P] })
+    const snap = await withActor(api, P, 'read', (c) => readSnapshot(c, seeded.projectId))
+    assert.ok(snap)
+    const { exchangeId } = await withActor(api, P, 'write', (c) =>
+      startExchange(c, snap.room.id, randomUUID(), { expectedRoomRevision: snap.room.revision, allowVision: false }),
+    )
+    const key = `live:${exchangeId}:1:k-1`
+    await withService(api, (c) =>
+      claimLiveCall(c, { exchangeId, inputEpoch: 1, actorId: P, key, name: 'project_status' }),
+    )
+    return { exchangeId, key }
+  }
+  const keyOf = async (exchangeId: string): Promise<string[]> =>
+    (
+      await owner((c) =>
+        c.query<{ key: string }>(`SELECT idempotency_key AS key FROM sophia.live_call_keys WHERE exchange_id=$1`, [
+          exchangeId,
+        ]),
+      )
+    ).rows.map((r) => r.key)
+  /** End the exchange as its member would, then move its end back by `ago`. */
+  async function ended(exchangeId: string, ago: string): Promise<void> {
+    await withActor(api, P, 'write', (c) => controlExchange(c, exchangeId, 'end'))
+    await owner((c) =>
+      c.query(`UPDATE sophia.room_exchanges SET ended_at=ended_at-$2::interval WHERE id=$1`, [exchangeId, ago]),
+    )
+  }
+
+  it('only keys of exchanges that ended over an hour ago go: an open exchange’s, or one ended within the hour, stay', async () => {
+    const open = await claimed()
+    const recent = await claimed()
+    const old = await claimed()
+    await ended(recent.exchangeId, '59 minutes')
+    await ended(old.exchangeId, '61 minutes')
+    const lines: string[] = []
+    const pass = await dispatchOnce(worker, { workerId: 'test-worker', log: (line) => lines.push(line) })
+    assert.deepEqual(
+      [await keyOf(open.exchangeId), await keyOf(recent.exchangeId), await keyOf(old.exchangeId)],
+      [[open.key], [recent.key], []],
+    )
+    assert.equal(pass.liveCallKeysExpired, 1)
+    assert.deepEqual(lines, [], 'nothing failed')
+    assert.equal((await dispatchOnce(worker, { workerId: 'test-worker' })).liveCallKeysExpired, 0, 'once')
+  })
+
+  it('a late call under a deleted key claims nothing: its exchange ended, so its bind refuses it and the claim rolls back', async () => {
+    const old = await claimed()
+    await ended(old.exchangeId, '61 minutes')
+    await dispatchOnce(worker, { workerId: 'test-worker' })
+    assert.deepEqual(await keyOf(old.exchangeId), [])
+    const c = await api.connect()
+    let refused = 'ok'
+    try {
+      await c.query('BEGIN')
+      // As the API's bind transaction (executeToolCall): the claim, then the speaker's bind.
+      await claimLiveCall(c, {
+        exchangeId: old.exchangeId,
+        inputEpoch: 1,
+        actorId: P,
+        key: old.key,
+        name: 'project_status',
+      })
+      await c.query(`SELECT sophia.media_tool_speaker($1,1,$2)`, [old.exchangeId, P])
+      await c.query('COMMIT')
+    } catch (err: unknown) {
+      refused = (err as { code?: string }).code ?? 'error'
+      await c.query('ROLLBACK')
+    } finally {
+      c.release()
+    }
+    assert.equal(refused, '40001', 'the exchange has ended')
+    assert.deepEqual(await keyOf(old.exchangeId), [], 'no key again')
+  })
+
+  it('on a database without 0047 the pass deletes no key and logs nothing', async () => {
+    const lines: string[] = []
+    const pass = await dispatchOnce(worker0045, { workerId: 'test-worker', log: (line) => lines.push(line) })
+    assert.equal(pass.liveCallKeysExpired, 0)
+    assert.deepEqual(lines, [])
+  })
+
+  it('is the worker’s alone: a member, the API’s login and an actor on the worker’s login get 42501', async () => {
+    const expire = 'SELECT sophia.live_call_keys_expire()'
+    assert.equal(await sqlstate(api, expire, P), '42501', 'a member')
+    assert.equal(await sqlstate(api, expire), '42501', 'the API’s login (PUBLIC has no EXECUTE either)')
+    assert.equal(await sqlstate(worker, expire, P), '42501', 'a member identity on the worker’s login')
+    assert.equal(await sqlstate(worker, expire), 'ok', 'the worker itself')
+    const { rows } = await owner((c) =>
+      c.query<{ definer: boolean; config: string[] }>(
+        `SELECT prosecdef AS definer, proconfig AS config FROM pg_proc
+          WHERE oid=to_regprocedure('sophia.live_call_keys_expire()')`,
+      ),
+    )
+    assert.deepEqual(rows, [{ definer: true, config: ['search_path=pg_catalog, sophia'] }], 'a fixed search_path')
   })
 })

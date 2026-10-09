@@ -10,6 +10,7 @@ import type {
   SophiaPresence,
 } from '@sophia/contracts'
 import { safeInt } from './bigint.ts'
+import { classifyDbError } from './errors.ts'
 import { onlyRow } from './rows.ts'
 
 /** A bridge that has not reported for this long is not heard: its voice is `unavailable`. */
@@ -189,6 +190,24 @@ export async function claimLiveCall(
     call.key,
     call.name,
   ])
+}
+
+/**
+ * Maintenance, on the worker's login: delete the claimed keys of exchanges that ended over an hour ago (0047,
+ * live_call_keys_expire). A call in an ended exchange is refused at its bind, so its key protects nothing more. Run by
+ * the worker's periodic pass. A database without 0047 holds none: nothing is asked of it, and it answers 0.
+ */
+export async function expireLiveCallKeys(pool: pg.Pool): Promise<number> {
+  try {
+    const present = await pool.query<{ ok: boolean }>(
+      `SELECT to_regprocedure('sophia.live_call_keys_expire()') IS NOT NULL AS ok`,
+    )
+    if (!present.rows[0]?.ok) return 0
+    const { rows } = await pool.query<{ n: number }>(`SELECT sophia.live_call_keys_expire() AS n`)
+    return onlyRow(rows, 'live_call_keys_expire').n
+  } catch (err: unknown) {
+    throw classifyDbError(err)
+  }
 }
 
 /** The project a tool call acts in, when its speaker is bound to its input epoch; otherwise it raises. */

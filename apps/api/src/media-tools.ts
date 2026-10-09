@@ -297,7 +297,8 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice 
   let speaker: { projectId: string; recorded: boolean }
   try {
     speaker = await withService(pool, async (c) => {
-      // Before any lock: the claim takes only its key's row, so it adds no lock order to the recording's.
+      // Before any lock: the claim locks only its key's row (0047 has no foreign key), never the project or the
+      // exchange, so it adds no lock order to the recording's project lock below.
       await claimLiveCall(c, { ...call, key })
       const bound = await toolSpeaker(c, call.exchangeId, call.inputEpoch, call.actorId)
       return { ...bound, recorded: voice && (await recordLiveCall(c, { ...call, key })) }

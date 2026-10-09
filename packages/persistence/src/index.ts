@@ -122,6 +122,7 @@ export {
   ackQuiesce,
   claimLiveCall,
   controlExchange,
+  expireLiveCallKeys,
   holderEvent,
   mediaAssignments,
   PRESENCE_FRESH_SECONDS,

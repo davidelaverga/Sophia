@@ -180,6 +180,65 @@ async function untilBlocked(s: { pid: number; settled: () => boolean }): Promise
   throw new Error(`backend ${String(s.pid)} neither ended nor waited`)
 }
 
+/**
+ * A project with the principal and a peer (Davide, E, bound at epoch 2), with or without the principal's grant, and an
+ * exchange the principal opened (epoch 1).
+ */
+async function peerExchange(granted: boolean): Promise<{ projectId: string; exchangeId: string }> {
+  const seeded = await seedProject(db.ownerUrl, { admin: A, editors: [P, E] })
+  if (granted)
+    await owner((c) =>
+      c.query(`SELECT sophia.voice_qualification_grant($1,$2,$3,'synthetic-approval',900,3,20,1000,200000,3600)`, [
+        seeded.projectId,
+        P,
+        RUN,
+      ]),
+    )
+  const snap = await withActor(pool, P, 'read', (c) => readSnapshot(c, seeded.projectId))
+  assert.ok(snap)
+  const { exchangeId } = await withActor(pool, P, 'write', (c) =>
+    startExchange(c, snap.room.id, randomUUID(), { expectedRoomRevision: snap.room.revision, allowVision: false }),
+  )
+  await owner((c) =>
+    c.query(`INSERT INTO sophia.exchange_inputs(project_id,exchange_id,input_epoch,actor_id) VALUES($1,$2,2,$3)`, [
+      seeded.projectId,
+      exchangeId,
+      E,
+    ]),
+  )
+  return { projectId: seeded.projectId, exchangeId }
+}
+
+/** An open transaction on the API's login, as the service, and its backend. */
+async function opened(): Promise<{ c: pg.PoolClient; pid: number }> {
+  const c = await pool.connect()
+  await c.query('BEGIN')
+  await c.query(`SET LOCAL lock_timeout = '10s'`)
+  const pid = Number((await c.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid)
+  return { c, pid }
+}
+
+/** A statement sent on an open transaction: whether it settled yet, and its outcome ('ok' or SQLSTATE) when it does. */
+function sent(t: { c: pg.PoolClient; pid: number }, sql: string, params: unknown[]) {
+  let settled = false
+  const done = t.c
+    .query(sql, params)
+    .then(
+      () => 'ok',
+      (err: unknown) => (err as { code?: string }).code ?? 'error',
+    )
+    .finally(() => {
+      settled = true
+    })
+  return { pid: t.pid, done, settled: () => settled }
+}
+
+/** Commit what went on, roll back what did not, and give the connection back. */
+async function finish(t: { c: pg.PoolClient }, outcome: string): Promise<void> {
+  await t.c.query(outcome === 'ok' ? 'COMMIT' : 'ROLLBACK').catch(() => undefined)
+  t.c.release()
+}
+
 /** The principal's own recorded calls in an exchange, as they read them. */
 async function callsOf(exchangeId: string): Promise<unknown[]> {
   const { rows } = await withActor(pool, P, 'read', (c) =>
@@ -361,6 +420,84 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
         }
       }
     })
+
+    it('an open claim locks neither its project nor its exchange: either can be taken FOR UPDATE at once (prodrev-r3 F1)', async () => {
+      const x = await peerExchange(true)
+      const t = await opened()
+      try {
+        await t.c.query(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status')`, [
+          x.exchangeId,
+          P,
+          `live:${x.exchangeId}:1:open`,
+        ])
+        const nowait = (sql: string, id: string) =>
+          owner((o) =>
+            o.query(sql, [id]).then(
+              () => 'ok',
+              (err: unknown) => (err as { code?: string }).code ?? 'error',
+            ),
+          )
+        assert.deepEqual(
+          [
+            await nowait(`SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE NOWAIT`, x.projectId),
+            await nowait(`SELECT 1 FROM sophia.room_exchanges WHERE id=$1 FOR UPDATE NOWAIT`, x.exchangeId),
+          ],
+          ['ok', 'ok'],
+          'no row lock of either is held (a foreign key would hold both FOR KEY SHARE: 55P03)',
+        )
+      } finally {
+        await finish(t, 'rollback')
+      }
+    })
+
+    it('two calls of one project under distinct keys, each claimed, bound and recorded in its own transaction: the second waits for the first, no deadlock (prodrev-r3 F1)', async () => {
+      // The API's order in one transaction per call: claim, bind (media_tool_speaker), record (media_record_live_call,
+      // which takes the project FOR UPDATE, with or without a grant). Both claims and both binds go first; each
+      // transaction is finished as soon as its own recording settles.
+      const cases = [
+        { name: 'the principal twice, under a grant', granted: true, peer: P, epoch: 1 },
+        { name: 'the principal and Davide, under a grant', granted: true, peer: E, epoch: 2 },
+        { name: 'the principal twice, no grant (voice qualification on)', granted: false, peer: P, epoch: 1 },
+      ]
+      const seen: Record<string, unknown> = {}
+      const exchanges: string[] = []
+      for (const k of cases) {
+        const x = await peerExchange(k.granted)
+        exchanges.push(x.exchangeId)
+        const a = await opened()
+        const b = await opened()
+        const keyA = `live:${x.exchangeId}:1:a`
+        const keyB = `live:${x.exchangeId}:1:b`
+        const claimSql = `SELECT sophia.media_claim_live_call($1,$2,$3,$4,'project_status')`
+        const bindSql = `SELECT sophia.media_tool_speaker($1,$2,$3)`
+        const recordSql = `SELECT sophia.media_record_live_call($1,$2,$3,$4,'project_status')`
+        await a.c.query(claimSql, [x.exchangeId, 1, P, keyA])
+        await b.c.query(claimSql, [x.exchangeId, k.epoch, k.peer, keyB])
+        await a.c.query(bindSql, [x.exchangeId, 1, P])
+        await b.c.query(bindSql, [x.exchangeId, k.epoch, k.peer])
+        const first = sent(a, recordSql, [x.exchangeId, 1, P, keyA])
+        const firstWaited = await untilBlocked(first)
+        const second = sent(b, recordSql, [x.exchangeId, k.epoch, k.peer, keyB])
+        const secondWaited = await untilBlocked(second)
+        const one = await first.done
+        await finish(a, one)
+        const two = await second.done
+        await finish(b, two)
+        seen[k.name] = { first: [firstWaited, one], second: [secondWaited, two] }
+      }
+      assert.deepEqual(
+        seen,
+        Object.fromEntries(cases.map((k) => [k.name, { first: ['done', 'ok'], second: ['waiting', 'ok'] }])),
+        'the first records at once; the second waits for its project lock, then records: [ok, ok], never 40P01',
+      )
+      const { rows } = await owner((c) =>
+        c.query<{ n: number }>(
+          `SELECT count(*)::int AS n FROM sophia.live_call_keys WHERE exchange_id = ANY($1::uuid[])`,
+          [exchanges],
+        ),
+      )
+      assert.equal(rows[0]?.n, 6, 'every claim committed with its call, one per call')
+    })
   })
 
   describe('an End and a voice call being recorded serialize (C5): End is a durable boundary for the calls', () => {
@@ -402,7 +539,22 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
       assert.deepEqual(await callsOf(x.exchangeId), [])
     })
 
-    it('a recording racing End, Stop Speaking, a receipt, a reservation, a top-up, two speakers’ claims of one key and the guard: no deadlock in 20 trials', async () => {
+    /** One bound call as the API makes it, in one transaction: claim its key, bind its speaker, record it. */
+    const bound = async (x: { exchangeId: string }, key: string): Promise<string> => {
+      const t = await opened()
+      let outcome = 'ok'
+      try {
+        await t.c.query(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status')`, [x.exchangeId, P, key])
+        await t.c.query(`SELECT sophia.media_tool_speaker($1,1,$2)`, [x.exchangeId, P])
+        await t.c.query(`SELECT sophia.media_record_live_call($1,1,$2,$3,'project_status')`, [x.exchangeId, P, key])
+      } catch (err: unknown) {
+        outcome = (err as { code?: string }).code ?? 'error'
+      }
+      await finish(t, outcome)
+      return outcome
+    }
+
+    it('a recording racing End, Stop Speaking, a receipt, a reservation, a top-up, two speakers’ claims of one key, two bound calls under distinct keys and the guard: no deadlock in 20 trials', async () => {
       const outcomes: string[] = []
       for (let trial = 0; trial < TRIALS; trial += 1) {
         const x = await dueExchange(true, true)
@@ -419,6 +571,8 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
           claim(x, P, key),
           claim(x, E, key),
           guard(),
+          bound(x, `live:${x.exchangeId}:1:bound-a-${String(trial)}`),
+          bound(x, `live:${x.exchangeId}:1:bound-b-${String(trial)}`),
         ])
         const claims = results.slice(6, 8)
         assert.deepEqual(claims.toSorted(), ['23505', 'ok'], 'of two speakers under one key, exactly one claims it')
