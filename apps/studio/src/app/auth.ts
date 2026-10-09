@@ -262,16 +262,16 @@ export type PasskeyOutcome = 'signed_in' | 'dismissed' | 'expired'
 
 /**
  * Sign in with a passkey saved for this site: the browser's picker, or its autofill list when `autofill` is set
- * (the email field carries autocomplete="username webauthn"). An autofill offer can outlive its challenge
- * (5 minutes): "expired" then asks the caller to offer again.
+ * (the email field carries autocomplete="username webauthn"). `signal` closes either. An autofill offer can outlive
+ * its challenge (5 minutes): "expired" then asks the caller to offer again.
  */
-export async function signInWithPasskey(autofill?: { signal: AbortSignal }): Promise<PasskeyOutcome> {
+export async function signInWithPasskey(ask: { signal: AbortSignal; autofill?: boolean }): Promise<PasskeyOutcome> {
   if (!supabase) throw new Error('Supabase Auth is not configured')
-  const { error } = await supabase.auth.signInWithPasskey(
-    autofill ? { options: { mediation: 'conditional', signal: autofill.signal } } : undefined,
-  )
+  const { error } = await supabase.auth.signInWithPasskey({
+    options: { signal: ask.signal, ...(ask.autofill ? { mediation: 'conditional' as const } : {}) },
+  })
   if (!error) return 'signed_in'
-  if (cancelled(error) || autofill?.signal.aborted) return 'dismissed'
+  if (cancelled(error) || ask.signal.aborted) return 'dismissed'
   if ('code' in error && error.code === 'webauthn_challenge_expired') return 'expired'
   throw new Error('That passkey didn’t work here. Sign in another way, then add a passkey from your account.')
 }
