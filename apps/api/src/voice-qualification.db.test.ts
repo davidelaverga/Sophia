@@ -1,6 +1,8 @@
 // Voice qualification evidence through the API (A15, migration 0046; docs/plans/voice-qualification-g7.md), level:
 // sql-run. The bridge's receipts, the principal's read, the grant on the assignment and the room token, and the guard
-// on the presence and assignment paths. LiveKit is unreachable here: room tokens are signed locally.
+// on the presence and assignment paths. LiveKit is unreachable here: room tokens are signed locally. The last case
+// runs the media bridge's own session (RoomSession, its HTTP client) against this API, with LABELLED FAKES for LiveKit
+// and Gemini Live: it proves the bridge's receipts cross the real contract, not that a model or a room heard anything.
 import { createHash, randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
@@ -8,6 +10,16 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { MediaEvidenceWrite } from '@sophia/contracts'
+import {
+  DECLARED_NAMES,
+  httpMediaService,
+  loadMissionGuide,
+  RoomSession,
+  type LiveEvents,
+  type LiveLink,
+  type RoomEvents,
+  type RoomLink,
+} from '@sophia/media-bridge'
 import {
   admitNativeTask,
   createPool,
@@ -91,6 +103,15 @@ async function call(
   })
   const json = res.body ? JSON.parse(res.body) : null
   return { status: res.statusCode, json }
+}
+
+/** Turns of the event loop until `check` holds: the session's receipts go out on their own. */
+async function until(what: string, check: () => boolean, ms = 8000): Promise<void> {
+  const deadline = Date.now() + ms
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
 }
 
 async function owner<T>(fn: (c: pg.Client) => Promise<T>): Promise<T> {
@@ -901,5 +922,118 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     const urn = await presence(P, app, `urn:uuid:${roomId}`)
     assert.deepEqual([urn.status, urn.json.code], [422, 'invalid_request'], 'only a lowercase canonical id')
     assert.equal((await presence(P, off)).status, 404, 'the API off serves no such route')
+  })
+})
+
+describe('the media bridge records through the API (A15; fake LiveKit and Google)', () => {
+  it('its receipts are taken as A15 declares them, read back by the principal, and the guard’s end closes it', async () => {
+    const { projectId } = await project()
+    const grantId = await grant(projectId)
+    const exchangeId = await open(projectId)
+    const base = await app.listen({ host: '127.0.0.1', port: 0 })
+    const service = httpMediaService(base, MEDIA_TOKEN)
+    const batch = await service.assignments(null, 0, new AbortController().signal)
+    const assignment = batch.assignments.find((a) => a.exchangeId === exchangeId)
+    assert.ok(assignment?.qualification, 'the assignment names the grant')
+    assert.equal(assignment.inputActorId, P, 'the principal opened it, and holds the floor')
+    let roomEvents: RoomEvents | undefined
+    let liveEvents: LiveEvents | undefined
+    let closed = 0
+    const played: Int16Array[] = []
+    const logs: Array<[string, Record<string, unknown>]> = []
+    const session = new RoomSession(assignment, {
+      service,
+      // LABELLED FAKE LiveKit room: the principal is in it.
+      joinRoom: async (_access, events) => {
+        await Promise.resolve()
+        roomEvents = events
+        const room: RoomLink = {
+          people: () => [{ identity: P, standing: 'editor' }],
+          play: async (frame) => void played.push(await Promise.resolve(frame)),
+          clearPlayback: () => undefined,
+          watch: () => undefined,
+          setState: () => Promise.resolve(),
+          close: () => Promise.resolve(void (closed += 1)),
+        }
+        return room
+      },
+      // LABELLED FAKE Gemini Live connection.
+      connectLive: async (_options, events) => {
+        await Promise.resolve()
+        liveEvents = events
+        const live: LiveLink = {
+          sendAudio: () => undefined,
+          sendAudioStreamEnd: () => undefined,
+          sendFrame: () => undefined,
+          sendToolResponses: () => undefined,
+          sendNotice: () => undefined,
+          close: () => void (closed += 1),
+        }
+        return live
+      },
+      apiKey: 'fake',
+      model: 'gemini-3.8-live',
+      guide: loadMissionGuide(DECLARED_NAMES),
+      bridgeInstanceId: 'bridge-voice',
+      now: Date.now,
+      log: (event, detail) => logs.push([event, detail ?? {}]),
+      every: () => () => undefined,
+      voiceEvidence: true,
+      evidenceRetryMs: [0, 0],
+    })
+    await session.start()
+    assert.ok(roomEvents && liveEvents)
+    liveEvents.setupComplete()
+    for (let i = 0; i < 3; i += 1) roomEvents.audio(P, new Int16Array(1600).fill(2000), 16000, 1)
+    liveEvents.inputTranscript('Synthetic words for the Lab', true)
+    liveEvents.audio(Buffer.alloc(480 * 2 * 2, 1).toString('base64'), 'audio/pcm;rate=24000')
+    await new Promise((resolve) => setImmediate(resolve))
+    liveEvents.turnComplete()
+    // A report that leaves no room for the next turn: the API's guard ends the exchange on this receipt, and its
+    // answer closes the session at once.
+    liveEvents.usage({ totalTokenCount: 196_000, promptTokenCount: 26_000 })
+    await until(`the session closed (${String(closed)})`, () => closed === 2)
+    await session.close()
+    assert.ok(logs.some(([event, d]) => event === 'qualification.exchange_ended' && d.reason === 'usage'))
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'evidence.dropped'),
+      [],
+      'every receipt was taken',
+    )
+    const read = await call('GET', `/api/v1/exchanges/${exchangeId}/qualification-evidence`, { actor: P })
+    assert.equal(read.status, 200, JSON.stringify(read.json))
+    assert.equal(read.json.state, 'ended')
+    assert.deepEqual(
+      [
+        read.json.grant.endedReason,
+        read.json.grant.usageTokens,
+        read.json.grant.turns,
+        read.json.grant.connectionsOpened,
+      ],
+      ['usage', 196_000, 1, 1],
+    )
+    type Kept = { source: string; seq: number; kind: string; receipt: Record<string, unknown> }
+    const kept = read.json.receipts as Kept[]
+    assert.deepEqual(
+      kept.map((r) => [r.source, r.seq, r.kind === 'provider' ? `provider:${String(r.receipt.phase)}` : r.kind]),
+      [
+        ['bridge', 1, 'provider:setup'],
+        ['bridge', 2, 'provider:ready'],
+        ['bridge', 3, 'input_window'],
+        ['bridge', 4, 'input_turn'],
+        ['bridge', 5, 'output_reply'],
+        ['bridge', 6, 'provider:usage'],
+        ['bridge', 7, 'provider:closed'],
+        ['bridge', 8, 'session_closed'],
+        ['service', 0, 'guard'],
+      ],
+    )
+    assert.ok(kept.every((r) => r.receipt.grantId === grantId && r.receipt.runBindingSha256 === RUN))
+    const window = kept.find((r) => r.kind === 'input_window')?.receipt
+    assert.deepEqual([window?.chunkCount, window?.sampleCount, window?.endReason], [3, 4800, 'turn_complete'])
+    const reply = kept.find((r) => r.kind === 'output_reply')?.receipt
+    assert.deepEqual([reply?.framesPlayed, reply?.terminal], [played.length, 'played'])
+    assert.equal(kept.find((r) => r.kind === 'session_closed')?.receipt.reason, 'ended')
+    assert.equal(JSON.stringify(read.json).includes('Synthetic words'), false, 'no words reached the API')
   })
 })

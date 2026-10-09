@@ -38,8 +38,11 @@ import type { ChatCaption, ChatInput, ChatNotice, ChatReply } from '@sophia/cont
 //    floor, and Sophia's spoken reply, under the same fences as her audio. Each fragment is passed on and forgotten
 //    (captions.ts); no transcript reaches a log, a tool call, the API or retained state. A typed reply stays the
 //    sender's. SOPHIA_LIVE_CAPTIONS=off sends none.
+//  - Under a voice qualification grant, with SOPHIA_VOICE_EVIDENCE=on (off by default), the session records the
+//    principal's receipts and holds itself to the grant's bound and deadline (qualification.ts): past them it sends
+//    nothing more to Google and closes it. Without both, none of it runs.
 import type { FunctionCall, FunctionResponse } from '@google/genai'
-import type { MediaAssignment, MediaToolCall, MediaToolResult } from '@sophia/contracts'
+import type { MediaAssignment, MediaEvidenceAck, MediaToolCall, MediaToolResult } from '@sophia/contracts'
 import {
   base64ToPcm,
   FormatError,
@@ -52,10 +55,12 @@ import {
   type ReplyEnd,
 } from './audio.ts'
 import { Captions } from './captions.ts'
+import { EVIDENCE_RETRY_MS } from './evidence-sender.ts'
 import { type Assignment, ExchangeState, type InputState } from './exchange-state.ts'
 import { GuideContext } from './guide-context.ts'
 import type { GuideVersion, MissionGuide } from './guide.ts'
 import type { ConnectLive, LiveEvents, LiveLink } from './live-session.ts'
+import { type GuardStop, SessionQualification } from './qualification.ts'
 import type { JoinRoom, RoomLink, RoomPerson, VisualSource } from './rtc.ts'
 import { type MediaService, ServiceError } from './service.ts'
 import { isToolName, refusedResponse, TOOL_SETS, toolResponse, WRITE_TOOLS, type ToolSet } from './tools.ts'
@@ -82,6 +87,17 @@ export interface SessionDeps {
   toolRetryMs?: readonly number[]
   /** Live captions for the members present (CX-0023); false sends none (SOPHIA_LIVE_CAPTIONS=off). On by default. */
   liveCaptions?: boolean
+  /**
+   * Voice qualification evidence (SOPHIA_VOICE_EVIDENCE=on, A15): a session whose assignment names a grant records its
+   * receipts and holds itself to the grant (qualification.ts). Off by default: then nothing of it runs.
+   */
+  voiceEvidence?: boolean
+  /** The deployed commit the provider receipts name (RENDER_GIT_COMMIT, 40 hex), or null. */
+  bridgeCommit?: string | null
+  /** An exchange's receipt sequence, shared by the sessions that replace one another on it (MediaBridge). */
+  evidenceSequence?: (exchangeId: string) => () => number
+  /** Waits before a receipt whose answer was lost is sent again; tests shorten them. */
+  evidenceRetryMs?: readonly number[]
 }
 
 const everyInterval = (fn: () => void, ms: number) => {
@@ -319,6 +335,10 @@ function statusOf(response: FunctionResponse): unknown {
   return typeof output === 'object' && output !== null && 'status' in output ? output.status : undefined
 }
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
+/** A transcript's length in characters (code points): all a qualification receipt keeps of it. */
+const charsOf = (text: string) => Array.from(text).length
+/** How many 16-bit samples base64 PCM carries, without decoding it. */
+const pcmSamples = (data: string) => Math.floor(Buffer.byteLength(data, 'base64') / 2)
 const shortString = (value: unknown) => (typeof value === 'string' && value.length <= 64 ? value : undefined)
 
 /** The ids a tool answer carries (the work it started or controlled, a refusal's code), for the log only. */
@@ -502,6 +522,10 @@ export class RoomSession {
   private readonly captions: Captions
   /** Captions that ended while the room link was down: an end carries no words, so it waits to be sent. */
   private captionEnds: ChatCaption[] = []
+  /** Under a voice qualification grant with SOPHIA_VOICE_EVIDENCE=on: its receipts and bound; otherwise null. */
+  private readonly qualification: SessionQualification | null
+  /** The bound or the grant's deadline stopped the provider for good (guardStop). */
+  private guarded = false
 
   constructor(assignment: MediaAssignment, deps: SessionDeps, handover: Handover | Promise<Handover> | null = null) {
     this.exchangeId = assignment.exchangeId
@@ -511,6 +535,7 @@ export class RoomSession {
     this.state = new ExchangeState(toAssignment(assignment))
     this.guideContext = new GuideContext(assignment)
     this.captions = new Captions(this.exchangeId, (packet) => this.sendCaption(packet))
+    this.qualification = this.qualify(assignment)
     // Unique across bridge restarts, and so is the provider session that starts from it: tool-call idempotency keys
     // include the provider session (amendment A06).
     this.connection = Math.floor(deps.now())
@@ -556,6 +581,39 @@ export class RoomSession {
     for (const identity of this.greeted) this.backfill(identity)
     this.captionEnds = [...captionEnds, ...this.captionEnds].slice(-CAPTION_ENDS_KEPT)
     if (this.room) this.sendCaptionEnds()
+  }
+
+  /**
+   * An assignment that names a grant, with SOPHIA_VOICE_EVIDENCE=on: the receipts and the bound (qualification.ts).
+   * Their sequence continues the exchange's, when a session replaced on it numbered some already (MediaBridge).
+   */
+  private qualify(assignment: MediaAssignment): SessionQualification | null {
+    const { deps } = this
+    const grant = assignment.qualification
+    if (!deps.voiceEvidence || !grant) return null
+    let seq = 0
+    const qualification = new SessionQualification({
+      exchangeId: this.exchangeId,
+      grant,
+      model: deps.model,
+      instructionSha256: deps.guide.combined.sha256,
+      bridgeCommit: deps.bridgeCommit ?? null,
+      record: (write) => deps.service.recordEvidence(write),
+      nextSeq: deps.evidenceSequence?.(this.exchangeId) ?? (() => (seq += 1)),
+      retryMs: deps.evidenceRetryMs ?? EVIDENCE_RETRY_MS,
+      now: () => deps.now(),
+      attribution: () => this.state.attribution(),
+      ended: (reason) => this.qualificationEnded(reason),
+      log: deps.log,
+    })
+    qualification.floor(assignment)
+    return qualification
+  }
+
+  /** The API's guard ended the exchange (a receipt's answer said so): close now, before the poll brings the end. */
+  private qualificationEnded(reason: MediaEvidenceAck['reason']): void {
+    this.deps.log('qualification.exchange_ended', { exchangeId: this.exchangeId, reason })
+    void this.close()
   }
 
   /** What this session still owes its room, once it is closed: see Handover. */
@@ -653,6 +711,7 @@ export class RoomSession {
     const before = this.assignment
     const change = this.state.update(toAssignment(next), this.deps.now())
     this.assignment = next
+    this.qualification?.floor(next)
     if (change.handoff || change.stopSpeaking || change.lookChanged || before.state !== next.state) {
       this.deps.log('assignment.changed', { exchangeId: this.exchangeId, ...epochs(next), ...change })
     }
@@ -681,10 +740,12 @@ export class RoomSession {
     this.deps.log('context.rebuild', { exchangeId: this.exchangeId, reason })
     this.handle = null
     const hadContext = this.live !== null || this.connecting
+    const replaced = this.connection
     this.connection += 1
     this.live?.close()
     this.live = null
     if (!hadContext) return
+    this.qualification?.turnEnded(replaced, 'lost')
     this.chunker.clear()
     this.state.bumpGeneration()
     this.silence(this.pendingReply(this.deps.now()), 'recovered')
@@ -692,6 +753,7 @@ export class RoomSession {
     this.state.provider = 'recovering'
     this.reconnectAt = this.deps.now()
     this.reportDirty = true
+    this.qualification?.recovering(replaced, this.state.provider)
   }
 
   /**
@@ -710,6 +772,7 @@ export class RoomSession {
     this.stopTicking?.()
     const owed = this.flushAnnouncements()
     this.logReply('closed')
+    const evidence = this.qualification ? this.closeQualification(this.qualification) : null
     this.captions.cut()
     this.framer.clear()
     this.connection += 1
@@ -718,6 +781,14 @@ export class RoomSession {
     this.leaving = this.leaveRoom()
     await this.leaving
     await owed
+    if (evidence) await evidence
+  }
+
+  /** The receipts end with the session; the close waits for those still queued, bounded as for its announcements. */
+  private async closeQualification(qualification: SessionQualification): Promise<void> {
+    qualification.closed(this.lost ? 'lost' : 'ended')
+    await qualification.flush(CLOSE_FLUSH_MS)
+    this.deps.log('evidence.closed', { exchangeId: this.exchangeId, ...qualification.delivery })
   }
 
   private async leaveRoom(): Promise<void> {
@@ -918,6 +989,11 @@ export class RoomSession {
       this.typedReply(identity, packet, 'refused', 'End this conversation and start a new one to continue.')
       return
     }
+    const typed = `[Project member typed message]\n${escapeMarkers(packet.text)}`
+    if (!this.mayPrompt(typed.length)) {
+      this.typedReply(identity, packet, 'refused', 'Sophia cannot receive this message now.')
+      return
+    }
     this.typedSeen.add(key)
     this.typedOutputUntilTurnEnd = true
     this.typedInputEpoch = packet.inputEpoch
@@ -936,7 +1012,8 @@ export class RoomSession {
       toolIds: new Set(),
     }
     try {
-      this.live?.sendNotice(`[Project member typed message]\n${escapeMarkers(packet.text)}`)
+      this.live?.sendNotice(typed)
+      this.qualification?.typed()
       this.typedReply(identity, packet, 'accepted')
       this.deps.log('chat.admitted', { exchangeId: this.exchangeId, turnId: packet.id, inputEpoch: packet.inputEpoch })
     } catch {
@@ -967,13 +1044,17 @@ export class RoomSession {
     const live = this.live
     if (this.typedOutputUntilTurnEnd) return
     if (!live || !this.state.mayForwardAudio(identity, this.deps.now())) return
+    const droppedBefore = this.chunker.dropped
     try {
       this.chunker.push(samples, rate, channels)
     } catch (err: unknown) {
       if (err instanceof FormatError) return this.deps.log('audio.refused', { error: err.message })
       throw err
     }
+    let dropped = this.chunker.dropped - droppedBefore
     for (let chunk = this.chunker.take(); chunk; chunk = this.chunker.take()) {
+      if (!this.mayForward(identity, chunk, dropped)) return
+      dropped = 0
       live.sendAudio(chunk)
       this.state.forwarded()
       if (isAudible(chunk)) this.heardAt = this.deps.now()
@@ -991,6 +1072,7 @@ export class RoomSession {
    * settle starts now, so its end is acted on even if the old turn ends before the next tick.
    */
   private handoff(): void {
+    this.qualification?.windowEnded('handoff')
     this.chunker.clear()
     this.live?.sendAudioStreamEnd()
     this.absence = null
@@ -1034,6 +1116,7 @@ export class RoomSession {
     }
     if (this.pauseApplied) return
     this.pauseApplied = true
+    this.qualification?.windowEnded('paused')
     this.chunker.clear()
     this.sampler.clear()
     this.live?.sendAudioStreamEnd()
@@ -1116,6 +1199,52 @@ export class RoomSession {
 
   // Provider side ------------------------------------------------------------------------------------------------
 
+  /** Under a grant, whether the bound let it through; when it did not, the provider is closed for good (guardStop). */
+  private within(stop: GuardStop | null): boolean {
+    if (stop === null) return true
+    this.guardStop(stop)
+    return false
+  }
+
+  /** Text that starts a generation (a tool response, a notice, a typed message) may go to the provider. */
+  private mayPrompt(chars: number): boolean {
+    return !this.qualification || this.within(this.qualification.prompt(this.connection, chars))
+  }
+
+  /** This chunk of the holder's audio may go to the provider (and, the principal's, it is recorded). */
+  private mayForward(identity: string, chunk: Int16Array, dropped: number): boolean {
+    const q = this.qualification
+    return !q || this.within(q.input(this.connection, identity, chunk, dropped, this.state.assignment.inputEpoch))
+  }
+
+  /** The provider's tool calls may be acted on: they are its output, and may start a generation nobody asked for. */
+  private mayCall(calls: number): boolean {
+    return !this.qualification || this.within(this.qualification.output(this.connection, { toolCalls: calls }))
+  }
+
+  /**
+   * Under a grant, the bound or the grant's deadline says stop (qualification.ts): nothing more reaches the provider,
+   * whose connection closes for good, and what is playing stops. The session stays in the room, unavailable and saying
+   * why, until the API ends the exchange (its guard, from what was reported, or at the deadline) and the assignment goes.
+   */
+  private guardStop(why: GuardStop): void {
+    if (this.closed || this.guarded) return
+    this.guarded = true
+    this.deps.log('qualification.stopped', { exchangeId: this.exchangeId, why })
+    this.finishTyped('This conversation reached its limit; this reply was stopped.')
+    this.qualification?.turnEnded(this.connection, 'lost')
+    this.connection += 1
+    this.live?.close()
+    this.live = null
+    this.reconnectAt = null
+    this.chunker.clear()
+    this.state.bumpGeneration()
+    this.silence(null, 'closed')
+    this.endTurn(true)
+    this.fail(`Sophia stopped: this conversation reached its qualification limit (${why})`)
+    this.qualification?.closed('guard')
+  }
+
   private async connect(): Promise<void> {
     if (this.closed || this.connecting) return
     this.connecting = true
@@ -1158,6 +1287,7 @@ export class RoomSession {
     const connection = this.connection
     const resumed = this.handle !== null
     if (!resumed) this.providerSession += 1
+    if (this.qualification && !this.within(this.qualification.connecting(connection, resumed))) return
     this.guideContext.sessionStarted(!resumed, this.everReady && !resumed)
     const { guide } = this.deps
     this.deps.log('provider.setup', {
@@ -1178,6 +1308,7 @@ export class RoomSession {
           systemInstruction: guide.instruction,
           tools: this.tools.declarations,
           resumptionHandle: this.handle,
+          ...(this.qualification ? { maxOutputTokens: this.qualification.maxOutputTokens } : {}),
         },
         this.events(connection),
       )
@@ -1196,7 +1327,7 @@ export class RoomSession {
         if (current()) this.ready(connection)
       },
       toolCalls: (calls) => {
-        if (current()) for (const call of calls) void this.runTool(call, connection)
+        if (current() && this.mayCall(calls.length)) for (const call of calls) void this.runTool(call, connection)
       },
       toolCancellations: (ids) => {
         for (const id of ids) this.cancelled.add(`${connection}:${id}`)
@@ -1225,7 +1356,10 @@ export class RoomSession {
       resumption: (handle) => {
         if (current() && handle) this.handle = handle
       },
-      usage: (usage) => this.deps.log('provider.usage', { totalTokens: usage.totalTokenCount }),
+      usage: (usage) => {
+        this.deps.log('provider.usage', { totalTokens: usage.totalTokenCount })
+        this.qualification?.usage(connection, usage)
+      },
       closed: (reason) => {
         if (current()) this.recover(reason)
       },
@@ -1234,6 +1368,7 @@ export class RoomSession {
 
   private ready(connection: number): void {
     this.deps.log('provider.ready', { exchangeId: this.exchangeId, connection, resumed: this.handle !== null })
+    this.qualification?.ready(connection)
     this.state.provider = 'ready'
     this.readyConnection = connection
     this.everReady = true
@@ -1245,6 +1380,8 @@ export class RoomSession {
   /** Stop stale output, forget the connection and schedule the next one (resumed if a handle is held). */
   private recover(reason: string): void {
     if (this.closed) return
+    const lost = this.connection
+    this.qualification?.turnEnded(lost, 'lost')
     // Resuming abandoned typed work could deliver an uncorrelated continuation as room audio.
     if (this.typedOutputUntilTurnEnd) this.handle = null
     this.finishTyped('Connection interrupted. The message will not be sent again automatically.')
@@ -1269,10 +1406,12 @@ export class RoomSession {
     this.reason = delay === undefined ? `Sophia’s voice service is unavailable: ${reason}` : null
     this.reconnectAt = this.deps.now() + (delay ?? UNAVAILABLE_RETRY_MS)
     this.reportDirty = true
+    this.qualification?.recovering(lost, this.state.provider)
     this.deps.log('provider.recover', { exchangeId: this.exchangeId, reason, attempt: this.attempts })
   }
 
   private bargeIn(): void {
+    this.qualification?.turnEnded(this.connection, 'interrupted')
     if (this.typedTurn?.usedTools) return this.rebuild('typed tool continuation interrupted')
     this.state.bumpGeneration()
     this.silence(null, 'interrupted')
@@ -1300,6 +1439,7 @@ export class RoomSession {
    * can be found for are not shown.
    */
   private inputWords(text: string, finished: boolean): void {
+    if (this.qualification && !this.within(this.qualification.heard(charsOf(text), finished))) return
     if (text.trim()) this.wordsHeard()
     const input = this.state.input(this.deps.now())
     const who = this.state.attribution()
@@ -1312,6 +1452,8 @@ export class RoomSession {
    * typed turn's continuation, a pause or guest, a stopped reply still arriving), so no caption shows what is not heard.
    */
   private outputWords(text: string): void {
+    const q = this.qualification
+    if (q && text && !this.within(q.output(this.connection, { chars: charsOf(text) }))) return
     if (this.typedTurn) return this.typedOutput(text)
     if (this.typedOutputUntilTurnEnd || this.fenced(this.deps.now())) return
     const generation = this.state.currentGeneration()
@@ -1343,6 +1485,7 @@ export class RoomSession {
   }
 
   private turnComplete(): void {
+    this.qualification?.turnEnded(this.connection, 'turn_complete')
     const turn = this.typedTurn
     if (turn && (turn.pendingTools > 0 || turn.responses.length > 0)) {
       // WHEN_IDLE creates another provider turn. Send one batch only AFTER the current boundary, keeping
@@ -1371,6 +1514,7 @@ export class RoomSession {
   private logReply(how: ReplyEnd): void {
     const figures = this.reply.end(how, this.framer.queued, this.framer.dropped)
     if (figures) this.deps.log('audio.reply', { exchangeId: this.exchangeId, ...figures })
+    this.qualification?.replyEnded(how)
     this.captions.replyEnded(how)
   }
 
@@ -1394,6 +1538,9 @@ export class RoomSession {
   }
 
   private audioOut(data: string, mimeType: string | undefined): void {
+    // Under a grant, every chunk the provider sends is counted, the ones dropped below too: it was generated.
+    const q = this.qualification
+    if (q && !this.within(q.output(this.connection, { samples: pcmSamples(data) }))) return
     if (this.typedOutputUntilTurnEnd) return // Typed replies are visible text; no voice recording or playback is added.
     const generation = this.state.currentGeneration()
     if (this.fence) {
@@ -1418,6 +1565,7 @@ export class RoomSession {
     const droppedBefore = this.framer.dropped
     this.framer.push(samples, generation)
     this.reply.received(samples.length, this.framer.queued, droppedBefore, this.deps.now())
+    this.qualification?.replyReceived(samples.length)
     void this.pump()
   }
 
@@ -1434,6 +1582,7 @@ export class RoomSession {
         await room.play(frame)
         this.playingUntil = this.deps.now() + PLAYING_TAIL_MS
         this.reply.played()
+        this.qualification?.replyPlayed(frame)
         this.noticeHeard()
       }
     } catch (err: unknown) {
@@ -1478,6 +1627,7 @@ export class RoomSession {
   }
 
   private answerTools(responses: FunctionResponse[], connection: number): void {
+    if (!this.mayPrompt(JSON.stringify(responses).length)) return
     try {
       this.live?.sendToolResponses(responses)
     } catch {
@@ -1558,6 +1708,7 @@ export class RoomSession {
   tick(): void {
     if (this.closed) return
     const now = this.deps.now()
+    if (this.qualification) this.within(this.qualification.due())
     this.expireTyped(now)
     this.settled(now)
     this.applyPause()
@@ -1610,6 +1761,7 @@ export class RoomSession {
     const frame = this.sampler.take(now, this.state.assignment.observationEpoch)
     if (!frame || !looking || !this.live) return
     if (!this.state.mayForwardFrame(looking.participantIdentity, looking.source, frame.observationEpoch)) return
+    if (this.qualification && !this.within(this.qualification.frame())) return
     this.live.sendFrame(toJpeg(frame))
   }
 
@@ -1638,6 +1790,7 @@ export class RoomSession {
   private announceAloud(next: Result, notice: string, recipients: readonly string[], now: number): void {
     const live = this.live
     if (!live || this.state.provider !== 'ready' || !this.silent(now)) return
+    if (!this.mayPrompt(notice.length)) return
     const key = resultKey(next)
     this.announced.add(key)
     const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }

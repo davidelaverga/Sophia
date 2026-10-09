@@ -15,6 +15,7 @@ import {
   validateInvitationPreview,
   validateLobbyEntry,
   validateMediaAssignmentBatch,
+  validateMediaEvidenceAck,
   validateMediaToolResult,
   validateMediaToolSurface,
   validateMembership,
@@ -93,6 +94,7 @@ export const parseExchangeState = parser('ExchangeState', validateExchangeState)
 export const parseMediaAssignmentBatch = parser('MediaAssignmentBatch', validateMediaAssignmentBatch)
 export const parseMediaToolResult = parser('MediaToolResult', validateMediaToolResult)
 export const parseMediaToolSurface = parser('MediaToolSurface', validateMediaToolSurface)
+export const parseMediaEvidenceAck = parser('MediaEvidenceAck', validateMediaEvidenceAck)
 export const parseMissionContext = parser('MissionContext', validateMissionContext)
 export const parseMissionReceipt = parser('MissionReceipt', validateMissionReceipt)
 export const parseMissionNotePolicy = parser('MissionNotePolicy', validateMissionNotePolicy)

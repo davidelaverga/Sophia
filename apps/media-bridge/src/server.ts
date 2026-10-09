@@ -15,6 +15,11 @@
 //                               is said aloud (CX-0023); unset, on, true, 1 or yes, they are on. Any other value is
 //                               read as off and logged (`bridge.setting_not_understood`). Off, words only cut a
 //                               reply, as before. `bridge.start` shows the effective `liveCaptions`
+//   SOPHIA_VOICE_EVIDENCE       `on` records voice qualification receipts (A15) for an exchange whose assignment names
+//                               a grant, while its principal holds the floor, and holds such an exchange to the grant's
+//                               bound (qualification.ts). `off` or unset, its default: nothing of it runs, and what the
+//                               bridge sends is as before. Any other value stops the start. `bridge.start` shows it
+//   RENDER_GIT_COMMIT           the deployed commit the provider receipts name, when it is 40 hex; otherwise null
 //
 // One bridge instance serves all rooms: two instances would both join as `sophia` and replace each other.
 //
@@ -26,6 +31,7 @@ import { MediaBridge } from './bridge.ts'
 import { GUIDE_DIR, guideIdentity, guideVersionOf, loadMissionGuide } from './guide.ts'
 import { liveCaptionsSetting } from './captions.ts'
 import { connectGeminiLive } from './live-session.ts'
+import { commitOf, voiceEvidenceSetting } from './qualification.ts'
 import { connectRehearsal, REHEARSAL_BANNER } from './rehearsal.ts'
 import { joinLiveKitRoom } from './rtc.ts'
 import { httpMediaService } from './service.ts'
@@ -56,6 +62,9 @@ if (!captions.understood) {
   )
 }
 
+// Voice qualification evidence: off unless on, and a value that is neither stops the start (it throws here).
+const voiceEvidence = voiceEvidenceSetting(process.env.SOPHIA_VOICE_EVIDENCE)
+
 const rehearse = process.env.SOPHIA_LIVE_MODE === 'rehearse'
 const model = rehearse ? 'rehearsal' : (process.env.SOPHIA_LIVE_MODEL ?? 'gemini-3.8-live')
 
@@ -68,6 +77,8 @@ const bridge = new MediaBridge({
   guide,
   bridgeInstanceId: instance,
   liveCaptions: captions.on,
+  voiceEvidence,
+  bridgeCommit: commitOf(process.env.RENDER_GIT_COMMIT),
   now: Date.now,
   log: (event, detail) => console.log(JSON.stringify({ at: new Date().toISOString(), event, ...detail })),
 })
@@ -87,6 +98,7 @@ console.log(
     instance,
     model,
     liveCaptions: captions.on,
+    voiceEvidence,
     ...(rehearse ? { banner: REHEARSAL_BANNER } : {}),
   }),
 )

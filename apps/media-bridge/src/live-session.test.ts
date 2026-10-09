@@ -115,7 +115,11 @@ describe('the provider setup frame (T19, T21)', () => {
   })
   after(() => endpoint.stop())
 
-  async function setupOf(version: GuideVersion, resumptionHandle: string | null): Promise<Setup> {
+  async function setupOf(
+    version: GuideVersion,
+    resumptionHandle: string | null,
+    maxOutputTokens?: number,
+  ): Promise<Setup> {
     const connect = geminiLive({ baseUrl })
     const options = {
       apiKey: 'test-key',
@@ -123,6 +127,7 @@ describe('the provider setup frame (T19, T21)', () => {
       systemInstruction: loadMissionGuide(TOOL_SETS[version].names, GUIDE_DIR, version).instruction,
       tools: TOOL_SETS[version].declarations,
       resumptionHandle,
+      ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }),
     }
     const link = await connect(options, noEvents)
     link.close()
@@ -215,5 +220,14 @@ describe('the provider setup frame (T19, T21)', () => {
     const resumed = await setupOf('v1.2', 'handle-7')
     assert.equal(resumed.sessionResumption.handle, 'handle-7')
     assert.deepEqual({ ...resumed, sessionResumption: {} }, fresh)
+  })
+
+  it('under a voice qualification grant only, the setup caps one generation’s output; otherwise it names none', async () => {
+    const plain = await setupOf('v1.2', null)
+    assert.equal('maxOutputTokens' in plain.generationConfig, false, 'no cap: the setup is as before')
+    const capped = await setupOf('v1.2', null, 512)
+    assert.equal(capped.generationConfig.maxOutputTokens, 512)
+    delete capped.generationConfig.maxOutputTokens
+    assert.deepEqual(capped, plain, 'nothing else changes')
   })
 })

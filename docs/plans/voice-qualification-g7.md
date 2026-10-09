@@ -57,22 +57,43 @@ It writes a `guard` receipt (service, seq 0) with the reason. The guard runs onl
 ## Bridge receipts (I1–I5), over `POST /v1/media/evidence`
 
 **Recording conditions.** The bridge records only while all of these hold:
-- `SOPHIA_VOICE_EVIDENCE` is on (default off);
-- the assignment carries `qualification`;
-- the floor holder is the grant's `principalActorId`.
+- `SOPHIA_VOICE_EVIDENCE` is `on` (default off: `off`, unset or empty; any other value stops the bridge's start, and `bridge.start` logs `voiceEvidence`);
+- the assignment carries `qualification`, naming the same grant;
+- the floor holder (the assignment's `inputActorId`) is the grant's `principalActorId`.
 
-**Sending.** Each receipt has a per-exchange sequence `seq` (1–99,999, in the write, not the receipt), and a resend with the same `seq` and body is idempotent; another body under the same `seq` is refused (409 `idempotency_conflict`). Every receipt carries `kind`, `schema: 'sophia.bridge.voice_qualification.v1'`, `grantId`, `runBindingSha256` and `atMs`; A15's schemas refuse any other field. Sending never blocks audio: a failed send is retried, then dropped and counted.
+An input window opens only for the principal's own forwarded audio; a reply and the provider's phases are recorded only while the principal holds the floor. What opened under the principal ends with its own receipt, whatever ends it (a handoff ends its window). Nothing is recorded of a session the principal never held the floor in, not even its close. Off, or without a grant, the bridge sends the API and the provider exactly what it sent before.
+
+**Sending.** Each receipt has a per-exchange sequence `seq` (1–99,999, in the write, not the receipt). A resend with the same `seq` and body is idempotent; another body under the same `seq` is refused (409 `idempotency_conflict`). Every receipt carries `kind`, `schema: 'sophia.bridge.voice_qualification.v1'`, `grantId`, `runBindingSha256` and `atMs`; A15's schemas refuse any other field.
+- The bridge numbers an exchange's receipts once per process, across the sessions that replace one another on it (a lost room). A new process starts again at 1: the numbers an earlier process used are refused (409), dropped and counted.
+- Sending never blocks or delays audio. Receipts are queued (at most 1,000; past that, dropped) and sent one at a time, in order.
+- A lost answer or a 5xx is sent again with the same `seq` and body, after 0.5, 2 and 5 s; then the receipt is dropped. A 4xx is dropped at once.
+- A session's close waits at most 3 s for its queue; the rest is dropped.
+- Each drop is logged (`evidence.dropped`: seq, kind, why, a running count), never its body; the close logs `evidence.closed` (sent, dropped).
+- An answer `{ended: true}` closes the session at once, its provider connection included; the assignment poll then drops it.
 
 | Kind | When | Fields (beyond grantId, runBindingSha256, seq, atMs) |
 |---|---|---|
-| `input_window` | from the first 16 kHz chunk forwarded to the provider for the principal, until the turn completes, is interrupted, hands off, pauses or closes | windowSeq, inputEpoch, providerSession, connection, startedAtMs, endedAtMs, endReason, chunkCount, sampleCount, nonzeroSampleCount, audibleChunkCount, rms, peak, droppedSamples, sampleRate=16000, pcmDigestAlgorithm=`sha-256-chain-v1`, pcmSha256Chain, rawAudioExcluded=true |
-| `input_turn` | the provider's turn for that window ends | windowSeq, turnOrdinal, inputTranscriptionObserved (boolean), transcriptChars (**a count only**), finished, attributedToHolder, modelResponded, toolCallCount, outcome (`answered`, `no_user_turn_observed`, `interrupted`, `connection_lost`) |
-| `provider` | setup, ready, recovering, unavailable, closed; usage updates | phase, providerSession, connection, resumed, model, instructionSha256, bridgeCommit (or null), connectionsOpened, turns, usageTokens (or null), lastPromptTokens (or null). The guard holds the last four to the grant. |
-| `output_reply` | a reply ends | replyOrdinal, turnOrdinal, providerSession, connection, receivedAtMs, firstPlayedAtMs, endedAtMs, terminal (`played`, `stopped`, `interrupted`, `recovered`, `closed`), samplesReceived, framesPlayed, nonSilentFramesPlayed, rms, peak, durationMs, playedDigestAlgorithm=`sha-256-chain-v1`, playedSha256Chain (over the 20 ms frames handed to the room track) |
-| `session_closed` | the session closes | providerClosed, windows, turns, replies, toolCalls, typedMessages, transcriptRetained=false, reason (`ended`, `lost`, `guard`) |
-| `guard` | written by the API when the guard ends an exchange | reason (`deadline`, `expired`, `revoked`, `connections`, `usage`) |
+| `input_window` | from the first 16 kHz chunk forwarded to the provider for the principal, until the provider's turn completes (`turn_complete`), its barge-in (`interrupted`), a handoff, a pause, or the connection or session closes (`closed`) | windowSeq, inputEpoch, providerSession, connection, startedAtMs, endedAtMs, endReason, chunkCount, sampleCount, nonzeroSampleCount, audibleChunkCount (the bridge's audible floor), rms, peak (0–1 of full scale), droppedSamples (the input backlog's), sampleRate=16000, pcmDigestAlgorithm=`sha-256-chain-v1`, pcmSha256Chain, rawAudioExcluded=true |
+| `input_turn` | with its window's end, from what the provider showed of the turn by then | windowSeq, turnOrdinal, inputTranscriptionObserved (boolean), transcriptChars (**a count only**), finished, attributedToHolder (the turn was the principal's, at that epoch), modelResponded, toolCallCount, outcome: `answered` (the turn completed, or a handoff came, after a response), `interrupted` (barge-in, or a pause after a response), `no_user_turn_observed` (no response by then), `connection_lost` (the connection or session closed) |
+| `provider` | setup (as each connection opens), ready, recovering or unavailable (a connection lost or replaced), closed (the session closes); usage (a connection's reported total grew) | phase, providerSession (a UUID per provider session; a resumed connection keeps it), connection (its ordinal in the session), resumed, model, instructionSha256, bridgeCommit (or null), connectionsOpened, turns (provider generations ended: completed, cut by barge-in, or lost after output), usageTokens (each connection's highest `usageMetadata.totalTokenCount`, summed; or null), lastPromptTokens (the newest `promptTokenCount`; or null). The guard holds the last four to the grant. |
+| `output_reply` | a reply ends: played out, or cut | replyOrdinal, turnOrdinal, providerSession, connection, receivedAtMs, firstPlayedAtMs, endedAtMs, terminal (`played`, `stopped`, `interrupted`, `recovered`, `closed`), samplesReceived, framesPlayed, nonSilentFramesPlayed (a nonzero sample), rms, peak (of the frames played), durationMs (framesPlayed × 20), playedDigestAlgorithm=`sha-256-chain-v1`, playedSha256Chain (over the 20 ms frames handed to the room track) |
+| `session_closed` | the session closes, or the bridge's bound stops it; recorded when anything of the session was | providerClosed, windows, turns (provider generations), replies, toolCalls and typedMessages (while the principal held the floor), transcriptRetained=false, reason: `ended` (the exchange ended or moved away, the API's guard said so, or the bridge stopped), `lost` (the room was lost), `guard` (the bridge's own bound or the deadline) |
+| `guard` | written by the API when the guard ends an exchange | reason (`deadline`, `expired`, `revoked`, `connections`, `turns`, `usage`) |
 
-**`sha-256-chain-v1`** is the Lab's own algorithm. Start from 32 zero bytes; for each frame `i` from 1: `chain = sha256(chain ‖ sha256(frame bytes) ‖ uint32be(i))`.
+**The bridge's own bound** (`qualification-reserve.ts`, wired by `qualification.ts`). A session under a grant, with `SOPHIA_VOICE_EVIDENCE=on`, holds itself to the grant whoever holds the floor (it records nothing for this):
+- the provider's setup carries `maxOutputTokens` = `maxOutputTokensPerTurn` (only under a grant; otherwise it names no cap);
+- before anything that can start a generation (the first input after a turn ended, a tool response, a notice, a typed message), one generation's worst case is reserved: the context again and its output twice. A generation that starts unasked (a WHEN_IDLE continuation, a second tool round) takes its reserve as its output arrives;
+- audio, frames and text sent, transcription received and usage reported are counted. A generation whose output passes the per-turn cap is cut;
+- a connection past `maxProviderConnections` is never opened. The `deadline` is checked on every tick (100 ms) and before anything is sent.
+
+When the bound says stop (`usage`, `turns`, `connections`, `output` or `deadline`):
+- the bridge sends nothing more to the provider and closes it for good;
+- it stops what is playing, and reports Sophia unavailable with the reason;
+- it records the provider's close and `session_closed` (`guard`).
+
+The session stays in the room until the API ends the exchange (its guard, from what was reported, or at the deadline). The bound is conservative: a tool response's reserve and its continuation's each count, so a tool round can cost one generation more than the provider ran.
+
+**`sha-256-chain-v1`** is the Lab's own algorithm. Start from 32 zero bytes; for each frame `i` from 1: `chain = sha256(chain ‖ sha256(frame bytes) ‖ uint32be(i))`. A frame's bytes are its 16-bit samples, little-endian: on input, each 100 ms chunk forwarded (1,600 samples at 16 kHz); on output, each 20 ms frame played (480 samples at 24 kHz). A window or reply with no frame has the 32 zero bytes.
 
 On this transport the chain covers **the PCM the bridge forwarded or played**. It is **never** comparable to the Lab's source WAV or the browser's frames: the Opus path is lossy, and the input is resampled. The Lab reconciles input by ordinal and envelope only (`pcm_reconciliation: envelope_only`), and must not compare chains for equality.
 
@@ -185,6 +206,11 @@ All of these are read by the principal through the member API (snapshot, native 
 - an object that is missing, or not the caller's, is 422 with `{code: 'not_found'}`;
 - a route the API does not serve (voice qualification off) is 404;
 - 401 and 403 are authentication and authorization.
+
+## Not verified here
+
+- That Gemini Live's `usageMetadata.totalTokenCount` is cumulative per provider session, as this contract and the bound assume. No provider call was made. If it is per turn, `usageTokens` under-reports, and so does the bridge's own bound once a report replaces its estimates of the generations the report covers. The turn, connection and per-turn output limits and the deadline hold either way.
+- A `model` id outside A15's pattern (for example `models/…`) would have every provider receipt refused (422), dropped and counted. The default `gemini-3.8-live` fits.
 
 ## What stays unavailable (typed, never forged)
 

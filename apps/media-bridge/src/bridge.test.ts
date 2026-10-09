@@ -1,5 +1,5 @@
 // The assignment loop against LABELLED FAKES (no LiveKit, no Google): one session per live exchange.
-import type { MediaAssignment } from '@sophia/contracts'
+import type { MediaAssignment, MediaEvidenceWrite } from '@sophia/contracts'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { MediaBridge } from './bridge.ts'
@@ -40,7 +40,8 @@ interface RoomFake {
   sendChat?: RoomLink['sendChat']
 }
 
-function harness(fake: RoomFake = {}) {
+/** With `evidence`, SOPHIA_VOICE_EVIDENCE is on and the receipts the API takes are kept there. */
+function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
   const log: string[] = []
   const roomEvents: RoomEvents[] = []
   const service: MediaService = {
@@ -51,6 +52,11 @@ function harness(fake: RoomFake = {}) {
     announced: () => Promise.resolve(),
     toolCall: () => Promise.reject(new Error('unused')),
     toolSurface: () => Promise.resolve({ names: [...DECLARED_NAMES] }),
+    recordEvidence: (write) => {
+      if (!evidence) return Promise.reject(new Error('unused'))
+      evidence.push(write)
+      return Promise.resolve({ ended: false, reason: null })
+    },
   }
   const bridge = new MediaBridge({
     service,
@@ -91,6 +97,7 @@ function harness(fake: RoomFake = {}) {
     now: Date.now,
     log: (event) => log.push(event),
     every: () => () => undefined,
+    ...(evidence ? { voiceEvidence: true } : {}),
   })
   return { bridge, log, roomEvents }
 }
@@ -175,6 +182,46 @@ describe('media bridge assignment loop', () => {
     await bridge.apply([assignment(E2, { inputEpoch: 2 })])
     assert.ok(Date.now() - started < 1000, 'not held by the ended session')
     assert.equal(bridge.session(E2)?.observed().inputEpoch, 2)
+    await bridge.stop()
+  })
+
+  it('numbers an exchange’s receipts once across the sessions that replace one another on it (A15)', async () => {
+    const principal = '11111111-1111-4111-8111-111111111111'
+    const qualification = {
+      grantId: '77777777-7777-4777-8777-777777777777',
+      runBindingSha256: 'ab'.repeat(32),
+      principalActorId: principal,
+      deadline: new Date(Date.now() + 900_000).toISOString(),
+      maxProviderConnections: 3,
+      maxTurns: 20,
+      maxOutputTokensPerTurn: 1000,
+      maxUsageTokens: 200_000,
+    }
+    const evidence: MediaEvidenceWrite[] = []
+    const { bridge, roomEvents } = harness({ people: [{ identity: principal, standing: 'editor' }] }, evidence)
+    const assigned = [assignment(E1, { inputActorId: principal, qualification }), assignment(E2, { qualification })]
+    await bridge.apply(assigned)
+    await settle()
+    roomEvents[0]?.connection('disconnected', 'livekit: 1')
+    await settle()
+    await bridge.apply(assigned)
+    await settle()
+    assert.equal(roomEvents.length, 3, 'E1 joined again')
+    const kinds = evidence
+      .filter((w) => w.exchangeId === E1)
+      .toSorted((a, b) => a.seq - b.seq)
+      .map((w) => [w.seq, w.receipt.kind === 'provider' ? w.receipt.phase : w.receipt.kind])
+    assert.deepEqual(kinds, [
+      [1, 'setup'],
+      [2, 'closed'],
+      [3, 'session_closed'],
+      [4, 'setup'],
+    ])
+    assert.equal(
+      evidence.some((w) => w.exchangeId === E2),
+      false,
+      'nobody holds E2’s floor: nothing is recorded there',
+    )
     await bridge.stop()
   })
 })

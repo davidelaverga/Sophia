@@ -1,9 +1,11 @@
-// The bridge's client for the private media routes (contract amendments A06, A08). It authenticates with the media-bridge
-// capability (a bearer the API compares by hash), never a member's session. Every response is validated against
-// the canonical contract before the bridge acts on it: an assignment that does not parse is not an assignment.
+// The bridge's client for the private media routes (contract amendments A06, A08, A15). It authenticates with the
+// media-bridge capability (a bearer the API compares by hash), never a member's session. Every response is validated
+// against the canonical contract before the bridge acts on it: an assignment that does not parse is not an assignment.
 import type {
   MediaAnnounced,
   MediaAssignmentBatch,
+  MediaEvidenceAck,
+  MediaEvidenceWrite,
   MediaHolderEvent,
   MediaPresenceReport,
   MediaQuiesceAck,
@@ -11,7 +13,12 @@ import type {
   MediaToolResult,
   MediaToolSurface,
 } from '@sophia/contracts'
-import { parseMediaAssignmentBatch, parseMediaToolResult, parseMediaToolSurface } from '@sophia/contracts/validate'
+import {
+  parseMediaAssignmentBatch,
+  parseMediaEvidenceAck,
+  parseMediaToolResult,
+  parseMediaToolSurface,
+} from '@sophia/contracts/validate'
 import type { GuideVersion } from './guide.ts'
 
 /** What the bridge asks of the API; tests supply a labelled fake. */
@@ -26,6 +33,11 @@ export interface MediaService {
   /** The operations the API executes for a guide version (A08, A11): the guide activates only when they equal the
    *  declared tools. */
   toolSurface: (guide: GuideVersion) => Promise<MediaToolSurface>
+  /**
+   * A receipt for an exchange under a voice qualification grant (A15), sent only with SOPHIA_VOICE_EVIDENCE=on. The
+   * answer says whether the API's guard has ended the exchange.
+   */
+  recordEvidence: (write: MediaEvidenceWrite) => Promise<MediaEvidenceAck>
 }
 
 export class ServiceError extends Error {
@@ -69,5 +81,6 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
     toolCall: async (call) => parseMediaToolResult(await post('/v1/media/tool-calls', call)),
     toolSurface: async (guide) =>
       parseMediaToolSurface(await send(`/v1/media/tool-surface?guide=${guide}`, { method: 'GET' })),
+    recordEvidence: async (write) => parseMediaEvidenceAck(await post('/v1/media/evidence', write)),
   }
 }

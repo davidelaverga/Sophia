@@ -3,7 +3,15 @@ import type { ChatCaption, ChatNotice, ChatReply } from '@sophia/contracts/room-
 // for the API. This is bridge-logic evidence only (S1-05A cases A06, A09–A14 and §7 holder departure); it is not a live model or media
 // test and does not count toward A04/A05 acceptance.
 import type { FunctionResponse } from '@google/genai'
-import type { MediaAssignment, MediaToolCall, MediaToolResult } from '@sophia/contracts'
+import {
+  openapi,
+  type MediaAssignment,
+  type MediaEvidenceAck,
+  type MediaEvidenceWrite,
+  type MediaToolCall,
+  type MediaToolResult,
+  type VoiceQualification,
+} from '@sophia/contracts'
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
 import { inspect } from 'node:util'
@@ -11,6 +19,7 @@ import { OUTPUT_FRAME, pcmToBase64 } from './audio.ts'
 import { SETTLE_MS } from './exchange-state.ts'
 import { GUIDE_DIR, loadMissionGuide, type GuideVersion, type MissionGuide } from './guide.ts'
 import type { LiveEvents, LiveLink, LiveOptions } from './live-session.ts'
+import { Sha256Chain } from './qualification-recorder.ts'
 import {
   HOLDER_ARRIVAL_MS,
   HOLDER_GRACE_MS,
@@ -215,6 +224,14 @@ class FakeService implements MediaService {
     this.calls.push(c)
     return this.result
   }
+  /** Voice qualification receipts as the API received them (A15), every attempt; and the answer it gives. */
+  evidence: MediaEvidenceWrite[] = []
+  ack: MediaEvidenceAck = { ended: false, reason: null }
+  recordEvidence = async (w: MediaEvidenceWrite) => {
+    await Promise.resolve()
+    this.evidence.push(w)
+    return this.ack
+  }
   /** The operations the fake API executes: the declared ones unless a test says otherwise. */
   surface: string[] | null = [...DECLARED_NAMES]
   surfaceChecks = 0
@@ -269,6 +286,8 @@ let joinTokens: string[]
 let logs: Array<[string, Record<string, unknown>]>
 /** SOPHIA_LIVE_CAPTIONS as the next session gets it: unset unless a test says otherwise. */
 let liveCaptions: boolean | undefined
+/** SOPHIA_VOICE_EVIDENCE as the next session gets it: unset (off) unless a test says otherwise. */
+let voiceEvidence: boolean | undefined
 
 /** What a replacement session is given: the handover, one still on its way, or nothing. */
 type Handed = Handover | Promise<Handover> | null
@@ -306,6 +325,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handov
       log: (event, fields) => logs.push([event, fields ?? {}]),
       every: () => () => undefined,
       ...(liveCaptions === undefined ? {} : { liveCaptions }),
+      ...(voiceEvidence === undefined ? {} : { voiceEvidence, evidenceRetryMs: [0, 0] }),
     },
     handover,
   )
@@ -341,6 +361,7 @@ beforeEach(() => {
   joinTokens = []
   logs = []
   liveCaptions = undefined
+  voiceEvidence = undefined
 })
 
 describe('room session: who Google hears (cases A10, A11)', () => {
@@ -3622,4 +3643,477 @@ describe('room session: live captions (CX-0023)', () => {
     assert.deepEqual(room.captions, [])
     await session.close()
   })
+})
+
+// Voice qualification evidence (A15; qualification.ts) -----------------------------------------------------------------
+
+const GRANT_ID = '77777777-7777-4777-8777-777777777777'
+const RUN_BINDING = 'ab'.repeat(32)
+/** The grant an assignment names (A15): Luis is its principal, and its deadline is 15 minutes off the test's clock. */
+const grant = (over: Partial<VoiceQualification> = {}): VoiceQualification => ({
+  grantId: GRANT_ID,
+  runBindingSha256: RUN_BINDING,
+  principalActorId: LUIS,
+  deadline: new Date(clock + 900_000).toISOString(),
+  maxProviderConnections: 3,
+  maxTurns: 20,
+  maxOutputTokensPerTurn: 1000,
+  maxUsageTokens: 200_000,
+  ...over,
+})
+
+type Schema = Record<string, unknown>
+const COMPONENTS = openapi.components.schemas
+const RECEIPT_SCHEMAS: Record<MediaEvidenceWrite['receipt']['kind'], string> = {
+  input_window: 'VoiceInputWindowReceipt',
+  input_turn: 'VoiceInputTurnReceipt',
+  provider: 'VoiceProviderReceipt',
+  output_reply: 'VoiceOutputReplyReceipt',
+  session_closed: 'VoiceSessionClosedReceipt',
+}
+
+/**
+ * Where a value breaks a schema of the contract (openapi.json, as amended by A15), checked for the keywords A15's
+ * evidence schemas use: type, const, enum, pattern, bounds, required, additionalProperties false, anyOf and $ref. An
+ * empty list: it validates, as the API's Ajv would take it.
+ */
+function breaches(value: unknown, schema: Schema, at = '$'): string[] {
+  if (typeof schema.$ref === 'string') return breaches(value, COMPONENTS[schema.$ref.split('/').at(-1) ?? ''] ?? {}, at)
+  if (Array.isArray(schema.anyOf)) {
+    const options = schema.anyOf as Schema[]
+    return options.some((option) => breaches(value, option, at).length === 0) ? [] : [`${at}: matches no anyOf`]
+  }
+  const found: string[] = []
+  if ('const' in schema && value !== schema.const) found.push(`${at}: is not ${String(schema.const)}`)
+  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) found.push(`${at}: is not one of its enum`)
+  return [...found, ...typeBreaches(value, schema, at)]
+}
+
+function typeBreaches(value: unknown, schema: Schema, at: string): string[] {
+  const kinds: Record<string, () => string[]> = {
+    object: () => objectBreaches(value, schema, at),
+    string: () => stringBreaches(value, schema, at),
+    integer: () => numberBreaches(value, schema, at),
+    number: () => numberBreaches(value, schema, at),
+    boolean: () => (typeof value === 'boolean' ? [] : [`${at}: not a boolean`]),
+    null: () => (value === null ? [] : [`${at}: not null`]),
+  }
+  return kinds[String(schema.type)]?.() ?? [`${at}: a schema this check does not read`]
+}
+
+function stringBreaches(value: unknown, schema: Schema, at: string): string[] {
+  if (typeof value !== 'string') return [`${at}: not a string`]
+  const pattern = typeof schema.pattern === 'string' ? new RegExp(schema.pattern, 'u') : null
+  return pattern && !pattern.test(value) ? [`${at}: does not match ${pattern.source}`] : []
+}
+
+function numberBreaches(value: unknown, schema: Schema, at: string): string[] {
+  const whole = schema.type === 'number' || Number.isInteger(value)
+  if (typeof value !== 'number' || !Number.isFinite(value) || !whole) return [`${at}: not ${String(schema.type)}`]
+  const below = typeof schema.minimum === 'number' && value < schema.minimum
+  const above = typeof schema.maximum === 'number' && value > schema.maximum
+  return below || above ? [`${at}: ${value} is out of bounds`] : []
+}
+
+function objectBreaches(value: unknown, schema: Schema, at: string): string[] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [`${at}: not an object`]
+  const properties = (schema.properties ?? {}) as Record<string, Schema>
+  const found = ((schema.required ?? []) as string[]).filter((k) => !(k in value)).map((k) => `${at}.${k}: missing`)
+  for (const [k, v] of Object.entries(value)) {
+    const property = properties[k]
+    if (property) found.push(...breaches(v, property, `${at}.${k}`))
+    else if (schema.additionalProperties === false) found.push(`${at}.${k}: not declared`)
+  }
+  return found
+}
+
+/** A receipt's fields, for reading in a test. */
+const fields = (w: MediaEvidenceWrite | undefined) => w?.receipt as Record<string, unknown> | undefined
+const tag = (w: MediaEvidenceWrite) => (w.receipt.kind === 'provider' ? `provider:${w.receipt.phase}` : w.receipt.kind)
+const chainOf = (frames: Int16Array[]) => {
+  const chain = new Sha256Chain()
+  for (const frame of frames) chain.add(frame)
+  return chain.hex
+}
+
+describe('room session: voice qualification evidence (A15), off by default', () => {
+  /** One scripted exchange: everything that reached the provider, the room and the API, and how many receipts. */
+  async function scripted(over: Partial<MediaAssignment>) {
+    service = new FakeService()
+    const { session, room, live } = await ready(over)
+    const holder = over.inputActorId ?? LUIS
+    room.events.audio(holder, voice16k(), 16000, 1)
+    room.events.audio(holder, pcm16k(), 16000, 1)
+    live.events.inputTranscript('Synthetic words', true)
+    live.events.audio(speech(2), OUT)
+    live.events.toolCalls([{ id: 'call-off', name: 'project_status', args: {} }])
+    await flush()
+    live.events.turnComplete()
+    live.events.usage({ totalTokenCount: 1000, promptTokenCount: 900 })
+    await flush()
+    session.tick()
+    await session.close()
+    return {
+      receipts: service.evidence.length,
+      provider: {
+        options: JSON.stringify(live.options),
+        audio: live.audio,
+        streamEnds: live.streamEnds,
+        notices: live.notices,
+        responses: JSON.stringify(live.responses),
+        closed: live.closed,
+      },
+      room: {
+        played: room.played.map((frame) => frame.join()),
+        clears: room.clears,
+        attributes: JSON.stringify(room.attributes),
+        captions: room.captions.length,
+      },
+      api: JSON.stringify([service.presences, service.calls, service.holders, service.announcedEvents, service.acks]),
+    }
+  }
+
+  it('unset with a grant, on without one, or off: nothing is recorded, and what is sent is as before', async () => {
+    const before = await scripted({})
+    assert.equal(before.receipts, 0)
+    assert.equal(JSON.parse(before.provider.options).maxOutputTokens, undefined, 'the setup names no output cap')
+    assert.deepEqual(await scripted({ qualification: grant() }), before, 'SOPHIA_VOICE_EVIDENCE unset')
+    voiceEvidence = false
+    assert.deepEqual(await scripted({ qualification: grant() }), before, 'off')
+    voiceEvidence = true
+    assert.deepEqual(await scripted({}), before, 'on, but the assignment names no grant')
+  })
+
+  it('on, with a grant, while another member holds the floor: nothing is recorded; the grant’s cap still binds', async () => {
+    const before = await scripted({ inputActorId: DAVIDE })
+    voiceEvidence = true
+    const other = await scripted({ inputActorId: DAVIDE, qualification: grant() })
+    assert.equal(other.receipts, 0, 'nothing of another member’s turn, and no lifecycle while they hold the floor')
+    const { maxOutputTokens, ...options } = JSON.parse(other.provider.options) as Record<string, unknown>
+    assert.equal(maxOutputTokens, 1000, 'the session is under the grant, whoever speaks')
+    assert.deepEqual({ ...other, provider: { ...other.provider, options: JSON.stringify(options) } }, before)
+  })
+
+  it('the schema check reads A15: an undeclared field, free text or a value out of bounds is refused', () => {
+    const write = {
+      exchangeId: EXCHANGE,
+      grantId: GRANT_ID,
+      seq: 1,
+      receipt: {
+        kind: 'session_closed',
+        schema: 'sophia.bridge.voice_qualification.v1',
+        grantId: GRANT_ID,
+        runBindingSha256: RUN_BINDING,
+        atMs: 1,
+        providerClosed: true,
+        windows: 0,
+        turns: 0,
+        replies: 0,
+        toolCalls: 0,
+        typedMessages: 0,
+        transcriptRetained: false,
+        reason: 'ended',
+      },
+    }
+    const writeSchema = COMPONENTS.MediaEvidenceWrite as Schema
+    assert.deepEqual(breaches(write, writeSchema), [])
+    for (const bad of [
+      { ...write, receipt: { ...write.receipt, text: 'Draft the brief' } },
+      { ...write, receipt: { ...write.receipt, transcriptRetained: true } },
+      { ...write, receipt: { ...write.receipt, reason: 'because' } },
+      { ...write, seq: 100_000 },
+      { ...write, receipt: { ...write.receipt, windows: 0.5 } },
+    ])
+      assert.notDeepEqual(breaches(bad, writeSchema), [], JSON.stringify(bad).slice(0, 80))
+  })
+})
+
+describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE_EVIDENCE=on and a grant', () => {
+  it('the principal’s turn, its reply, a tool round with its WHEN_IDLE continuation, usage and the close', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    assert.equal(live.options.maxOutputTokens, 1000, 'the grant’s per-turn output is the session’s cap')
+    for (let i = 0; i < 3; i += 1) room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.inputTranscript('Draft the brief please', true)
+    live.events.audio(speech(2), OUT)
+    live.events.toolCalls([{ id: 'call-q1', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(live.responses.length, 1)
+    live.events.turnComplete()
+    await flush()
+    // The tool response's WHEN_IDLE continuation: a generation nobody asked for.
+    live.events.outputTranscript('Here is where it stands', false)
+    live.events.audio(speech(1), OUT)
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    live.events.usage({ totalTokenCount: 30_000, promptTokenCount: 26_000 })
+    await session.close()
+
+    assert.deepEqual(service.evidence.map(tag), [
+      'provider:setup',
+      'provider:ready',
+      'input_window',
+      'input_turn',
+      'output_reply',
+      'output_reply',
+      'provider:usage',
+      'provider:closed',
+      'session_closed',
+    ])
+    assert.deepEqual(
+      service.evidence.map((w) => w.seq),
+      [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    )
+    for (const w of service.evidence) {
+      assert.deepEqual(breaches(w, COMPONENTS.MediaEvidenceWrite as Schema), [], tag(w))
+      const declared = (COMPONENTS[RECEIPT_SCHEMAS[w.receipt.kind]] as { properties: Schema }).properties
+      assert.deepEqual(Object.keys(w.receipt).toSorted(), Object.keys(declared).toSorted(), `exactly A15’s ${tag(w)}`)
+      assert.deepEqual([w.exchangeId, w.grantId, w.receipt.grantId], [EXCHANGE, GRANT_ID, GRANT_ID])
+      assert.equal(w.receipt.runBindingSha256, RUN_BINDING)
+    }
+    const [setup, , window, turn, reply, continuation, usage, , close] = service.evidence
+    assert.deepEqual(pick(fields(setup), 'connection', 'resumed', 'model', 'instructionSha256', 'bridgeCommit'), {
+      connection: 1,
+      resumed: false,
+      model: 'fake-model',
+      instructionSha256: GUIDE.combined.sha256,
+      bridgeCommit: null,
+    })
+    const sessions = new Set(service.evidence.map((w) => fields(w)?.providerSession).filter(Boolean))
+    assert.equal(sessions.size, 1, 'one provider session, named the same on every receipt')
+    const loud = 2000 / 32_768
+    assert.deepEqual(
+      pick(fields(window), 'windowSeq', 'endReason', 'chunkCount', 'sampleCount', 'audibleChunkCount', 'rms', 'peak'),
+      {
+        windowSeq: 1,
+        endReason: 'turn_complete',
+        chunkCount: 3,
+        sampleCount: 4800,
+        audibleChunkCount: 3,
+        rms: loud,
+        peak: loud,
+      },
+    )
+    assert.equal(fields(window)?.pcmSha256Chain, chainOf([voice16k(), voice16k(), voice16k()]), 'the PCM forwarded')
+    assert.deepEqual(
+      pick(
+        fields(turn),
+        'turnOrdinal',
+        'inputTranscriptionObserved',
+        'transcriptChars',
+        'finished',
+        'attributedToHolder',
+      ),
+      {
+        turnOrdinal: 1,
+        inputTranscriptionObserved: true,
+        transcriptChars: 22,
+        finished: true,
+        attributedToHolder: true,
+      },
+    )
+    assert.deepEqual(pick(fields(turn), 'modelResponded', 'toolCallCount', 'outcome'), {
+      modelResponded: true,
+      toolCallCount: 1,
+      outcome: 'answered',
+    })
+    assert.deepEqual(
+      pick(fields(reply), 'replyOrdinal', 'turnOrdinal', 'terminal', 'samplesReceived', 'framesPlayed'),
+      {
+        replyOrdinal: 1,
+        turnOrdinal: 1,
+        terminal: 'played',
+        samplesReceived: 960,
+        framesPlayed: 2,
+      },
+    )
+    assert.equal(fields(reply)?.playedSha256Chain, chainOf(room.played.slice(0, 2)), 'the frames handed to the room')
+    assert.deepEqual(pick(fields(continuation), 'replyOrdinal', 'turnOrdinal', 'framesPlayed', 'durationMs'), {
+      replyOrdinal: 2,
+      turnOrdinal: 2,
+      framesPlayed: 1,
+      durationMs: 20,
+    })
+    assert.deepEqual(pick(fields(usage), 'usageTokens', 'lastPromptTokens', 'turns', 'connectionsOpened'), {
+      usageTokens: 30_000,
+      lastPromptTokens: 26_000,
+      turns: 2,
+      connectionsOpened: 1,
+    })
+    assert.deepEqual(pick(fields(close), 'windows', 'turns', 'replies', 'toolCalls', 'typedMessages', 'reason'), {
+      windows: 1,
+      turns: 2,
+      replies: 2,
+      toolCalls: 1,
+      typedMessages: 0,
+      reason: 'ended',
+    })
+    const all = JSON.stringify(service.evidence)
+    assert.equal(all.includes('Draft the brief') || all.includes('Here is where'), false, 'no words, only counts')
+  })
+
+  it('a receipt the API did not take never holds audio back: same number and body again, then dropped and counted', async () => {
+    voiceEvidence = true
+    service.recordEvidence = async (w: MediaEvidenceWrite) => {
+      await Promise.resolve()
+      service.evidence.push(structuredClone(w))
+      throw new ServiceError(503, 'POST /v1/media/evidence: 503')
+    }
+    const { room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    assert.equal(live.audio, 2, 'forwarded at once, whatever the receipts are waiting for')
+    await until('setup and ready dropped', () => logs.filter(([event]) => event === 'evidence.dropped').length === 2)
+    const setup = service.evidence.filter((w) => w.seq === 1)
+    assert.equal(setup.length, 3, 'sent, then twice again')
+    assert.deepEqual(setup[1], setup[0])
+    assert.deepEqual(setup[2], setup[0])
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'evidence.dropped').map(([, d]) => [d.seq, d.kind, d.why, d.dropped]),
+      [
+        [1, 'provider', 'unanswered', 1],
+        [2, 'provider', 'unanswered', 2],
+      ],
+    )
+    // An API that never answers: the receipts wait, the holder is still heard.
+    service.recordEvidence = () => new Promise<MediaEvidenceAck>(() => undefined)
+    live.events.turnComplete()
+    for (let i = 0; i < 5; i += 1) room.events.audio(LUIS, voice16k(), 16000, 1)
+    assert.equal(live.audio, 7)
+  })
+
+  it('an answer that says the API’s guard ended the exchange closes the session, provider included, at once', async () => {
+    voiceEvidence = true
+    const { room, live } = await ready({ qualification: grant() })
+    service.ack = { ended: true, reason: 'usage' }
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.turnComplete()
+    await until('the session closed', () => room.closed && live.closed)
+    assert.ok(logs.some(([event, d]) => event === 'qualification.exchange_ended' && d.reason === 'usage'))
+    await until('its close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    assert.equal(fields(service.evidence.at(-1))?.reason, 'ended')
+  })
+})
+
+describe('room session: the bridge’s own bound under a grant (qualification-reserve.ts)', () => {
+  /** Stopped for `why`: the provider closed for good, Sophia unavailable, and the receipts end with the guard’s close. */
+  async function stoppedFor(why: string, session: RoomSession, live: FakeLive): Promise<void> {
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why),
+      [why],
+    )
+    assert.equal(live.closed, true)
+    assert.equal(session.observed().voice, 'unavailable')
+    await until('the guard’s close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    assert.deepEqual(service.evidence.slice(-2).map(tag), ['provider:closed', 'session_closed'])
+    assert.equal(fields(service.evidence.at(-1))?.reason, 'guard')
+    clock += 60_000
+    session.tick()
+    await flush()
+    assert.equal(lives.length, 1, 'no connection is opened again')
+    const recorded = service.evidence.length
+    await session.close()
+    assert.equal(service.evidence.length, recorded, 'nothing is recorded after the guard’s close')
+  }
+
+  it('stops at the usage budget: the next generation must fit with what was reported, before its input is sent', async () => {
+    voiceEvidence = true
+    // A generation reserves the context (25,000) and its output twice (2 × 1000): two fit in 60,000, unreported.
+    const { session, room, live } = await ready({ qualification: grant({ maxUsageTokens: 60_000 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.audio(speech(2), OUT)
+    live.events.turnComplete()
+    live.events.usage({ totalTokenCount: 40_000, promptTokenCount: 30_000 })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    assert.equal(live.audio, 1, 'the input that could start the next generation is not sent')
+    await stoppedFor('usage', session, live)
+  })
+
+  it('stops at the grant’s turns', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant({ maxTurns: 1 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.audio(speech(1), OUT)
+    live.events.turnComplete()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    assert.equal(live.audio, 1)
+    await stoppedFor('turns', session, live)
+  })
+
+  it('stops before a connection past the grant’s opens', async () => {
+    voiceEvidence = true
+    const { session, live } = await ready({ qualification: grant({ maxProviderConnections: 1 }) })
+    live.events.goAway('1s')
+    clock += 1000
+    session.tick()
+    await flush()
+    assert.equal(lives.length, 1, 'the second connection is never opened')
+    await stoppedFor('connections', session, live)
+  })
+
+  it('cuts a generation past the grant’s per-turn output, whatever the provider was configured with', async () => {
+    voiceEvidence = true
+    // 64 tokens of audio out: two seconds at the assumed 32 tokens a second.
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    assert.equal(live.options.maxOutputTokens, 64)
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.audio(speech(50), OUT)
+    await flush()
+    assert.equal(room.played.length, 50)
+    live.events.audio(speech(60), OUT)
+    await flush()
+    assert.equal(room.played.length, 50, 'nothing of the chunk past the cap is played')
+    await stoppedFor('output', session, live)
+    const reply = service.evidence.find((w) => w.receipt.kind === 'output_reply')
+    assert.deepEqual(pick(fields(reply), 'terminal', 'framesPlayed'), { terminal: 'closed', framesPlayed: 50 })
+  })
+
+  for (const by of ['tick', 'input'] as const) {
+    it(`stops at the grant’s deadline (${by === 'tick' ? 'on the tick' : 'before input, ahead of the tick'})`, async () => {
+      voiceEvidence = true
+      const { session, room, live } = await ready({
+        qualification: grant({ deadline: new Date(clock + 60_000).toISOString() }),
+      })
+      room.events.audio(LUIS, voice16k(), 16000, 1)
+      clock += 59_999
+      session.tick()
+      assert.equal(live.closed, false)
+      clock += 1
+      if (by === 'tick') {
+        session.tick()
+        assert.equal(live.closed, true, 'the tick stops it, before anything more is sent')
+      }
+      room.events.audio(LUIS, voice16k(), 16000, 1)
+      assert.equal(live.audio, 1, 'nothing is forwarded at the deadline')
+      await stoppedFor('deadline', session, live)
+    })
+  }
+
+  for (const turns of [3, 4]) {
+    it(`a WHEN_IDLE continuation and a second tool round each count as a generation (${turns} turns)`, async () => {
+      voiceEvidence = true
+      const { session, room, live } = await ready({ qualification: grant({ maxTurns: turns }) })
+      room.events.audio(LUIS, voice16k(), 16000, 1)
+      live.events.toolCalls([{ id: 'round-1', name: 'project_status', args: {} }])
+      await flush()
+      assert.equal(live.responses.length, 1, 'the holder’s turn and the tool response: two generations reserved')
+      live.events.turnComplete()
+      // Nobody asked for this one: the tool response's continuation, which starts a second tool round.
+      live.events.audio(speech(1), OUT)
+      live.events.toolCalls([{ id: 'round-2', name: 'project_status', args: {} }])
+      await flush()
+      if (turns === 3) {
+        assert.equal(live.responses.length, 1, 'the third generation was the continuation: no fourth may start')
+        await stoppedFor('turns', session, live)
+      } else {
+        assert.equal(live.responses.length, 2)
+        assert.equal(
+          logs.some(([event]) => event === 'qualification.stopped'),
+          false,
+        )
+        await session.close()
+      }
+    })
+  }
 })
