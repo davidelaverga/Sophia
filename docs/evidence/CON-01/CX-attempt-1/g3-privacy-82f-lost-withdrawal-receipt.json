@@ -1,0 +1,1 @@
+{"at":"2026-10-09T23:37:18.627Z","path":"/api/v1/conversations/0307adaa-704a-46e5-a984-8800be5c0027/messages/a767940b-72a5-44d3-a3e2-d6e77d22b329/withdrawal","idempotencyKey":"b18c15b2-8a46-46cb-bb1a-841c8bf0b736","actualApiStatus":202,"delayMs":0,"effect":"API response fully received; success body withheld and replaced with incomplete JSON for this one local withdrawal"}

@@ -1,0 +1,18 @@
+[
+  {
+    "at": "2026-10-09T23:37:18.626Z",
+    "kind": "withdrawal",
+    "path": "/api/v1/conversations/0307adaa-704a-46e5-a984-8800be5c0027/messages/a767940b-72a5-44d3-a3e2-d6e77d22b329/withdrawal",
+    "idempotencyKey": "b18c15b2-8a46-46cb-bb1a-841c8bf0b736",
+    "actualApiStatus": 202,
+    "bodyWithheld": true
+  },
+  {
+    "at": "2026-10-09T23:37:26.652Z",
+    "kind": "withdrawal",
+    "path": "/api/v1/conversations/0307adaa-704a-46e5-a984-8800be5c0027/messages/a767940b-72a5-44d3-a3e2-d6e77d22b329/withdrawal",
+    "idempotencyKey": "cfba8278-020f-4c07-ad95-decf6ff8a02f",
+    "actualApiStatus": 202,
+    "bodyWithheld": false
+  }
+]

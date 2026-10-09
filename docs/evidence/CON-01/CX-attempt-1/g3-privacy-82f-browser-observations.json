@@ -1,0 +1,28 @@
+{
+  "candidate": "82f812d01c946ad5ef306111bf241e138db67558",
+  "tree": "9a33dcaa54d1a2c699eed1df171e4555c6669146",
+  "level": "L1 actual local Studio/API/PostgreSQL17.6; synthetic only; no fixtures/native/provider",
+  "scenario": "Owned proxy withholds one actual202 withdrawal body while only local feed/conversation reads fail; switch to other conversation and back; retry",
+  "observations": [
+    {
+      "at": "2026-10-09T23:37:18.626Z",
+      "event": "actual202body withheld",
+      "key": "b18c15b2-8a46-46cb-bb1a-841c8bf0b736",
+      "ui": "Not confirmed: Withdraw sends it again; it won\u2019t be withdrawn twice."
+    },
+    {
+      "at": "2026-10-09T23:37:23.293Z",
+      "event": "returned after conversation switch",
+      "confirmationHasUnknownNotice": false
+    },
+    {
+      "at": "2026-10-09T23:37:26.652Z",
+      "event": "UIretry actual202",
+      "key": "cfba8278-020f-4c07-ad95-decf6ff8a02f",
+      "uiAfter": "This message was withdrawn.",
+      "focus": "P"
+    }
+  ],
+  "verdict": "fails same-intent/key retention: two actual durable withdraw requests; one withdrawn message effect only; no duplicate body effect claimed",
+  "browserCleanup": "Owned tab20 closed; viewport was default"
+}

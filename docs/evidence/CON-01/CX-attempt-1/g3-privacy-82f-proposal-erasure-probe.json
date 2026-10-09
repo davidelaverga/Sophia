@@ -1,0 +1,15 @@
+{
+  "candidate": "82f812d01c946ad5ef306111bf241e138db67558",
+  "level": "L0 actual pure store helper only; not actual browser memory",
+  "conversationDraftRemoved": true,
+  "retainedProposal": {
+    "key": "synthetic-proposal-key",
+    "ask": "SYNTHETIC-WITHDRAWN-PROPOSAL-TEXT",
+    "sending": false
+  },
+  "retainedRefusal": "synthetic refusal",
+  "retainedProposedMark": {
+    "id": "synthetic-decision",
+    "statement": "SYNTHETIC-WITHDRAWN-PROPOSED-TEXT"
+  }
+}

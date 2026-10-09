@@ -1,5 +1,13 @@
 # CON-01 independent reviewer/operator handoff — attempt 1
 
+## Current authoritative checkpoint — CX-0020
+
+Exact82f812d0/tree9a33dcaa: actual unknown withdrawal loses original key after conversation switch, two durable same-intent request rows/one withdrawn body effect; L0 store retains message-keyed proposal text after erasure. New automaticreview5476335312 P1 external-client cache cleanup is independently source-confirmed only. PriorCX19 cap/erase/A08 passes remain bounded. [CX-0020](../coordination/CON-01/CX-0020.md) records scope/reproducer/cleanup. Phone focus/privacy/retry corrections requested fromClaude; reviewer authored no fix.
+
+Author147 focused browser pass separate; full82f gate explicitly invalidated/stopped after Vite source edits, no full pass. G2 unimplemented/shared-owner window/D6/B1 and live setup/operation authority missing; questions pending/no answer inferred. OP-0001-r1 draft_not_authorized. Combined reviewed/authorized/deployed/app_verified/owner_accepted=false. No new hosted tuple/effect/provider use: calls/spend/uncertainty0. All eleven owned stacks cleaned, latest exit0/API+Studio stopped/disposable DB dropped/PG stopped+cluster removed/tab20 closed. Governed rollback still unqualified; other missions untouched.
+
+Next bounded action: immutable author privacy/withdrawal/phone corrections independently rechecked, thenG2/composition/exact gates. Davide makes final decision; no unattended monitoring or broader completion.
+
 ## Current authoritative checkpoint — CX-0019
 
 Exact82f812d0/tree9a33dcaa integrates main3e6d57b1. Actual local Studio/API/PG recheck passes CX18 cap falsifier, same-key erasure once, late lost HTTP preserving other thread/focus/draft and main203 A08 accept→failed reread→recovery.28 focused units/typecheck pass. New bounded P2: on phone, activating already-selected surviving row opens thread with focus BODY; author correction requested. [CX-0019](../coordination/CON-01/CX-0019.md) and updated36-case ledger own current verdicts. No feature fix authored by reviewer.
