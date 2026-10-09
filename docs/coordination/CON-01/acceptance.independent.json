@@ -12,9 +12,10 @@
       "status": "partial_L1",
       "evidence_refs": [
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -32,9 +33,10 @@
       "evidence_refs": [
         "CON-01-CX-0007.md",
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -53,9 +55,10 @@
         "CON-01-CX-0007.md",
         "CX-0008.md",
         "CX-0010.md",
-        "CX-0013.md"
+        "CX-0013.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Independent338 actual local browser read-failure crossing FAILED: withdrawn message body NULL but cached list still displayed its words; bot r4234938133 remains open.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Independent338 actual local browser read-failure crossing FAILED: withdrawn message body NULL but cached list still displayed its words; bot r4234938133 remains open. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -75,9 +78,10 @@
         "CX-0008.md",
         "CX-0010.md",
         "CX-0013.md",
-        "CX-0014.md"
+        "CX-0014.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Independent338 actual local browser read-failure crossing FAILED: withdrawn message body NULL but cached list still displayed its words; bot r4234938133 remains open. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Independent338 actual local browser read-failure crossing FAILED: withdrawn message body NULL but cached list still displayed its words; bot r4234938133 remains open. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -146,9 +150,10 @@
       "evidence_refs": [
         "CON-01-CX-0007.md",
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -223,9 +228,10 @@
       "evidence_refs": [
         "CON-01-CX-0007.md",
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "baseline_evidence": []
     },
     {
@@ -286,9 +292,10 @@
       "status": "partial_L1",
       "evidence_refs": [
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "baseline_evidence": []
     },
     {
@@ -389,9 +396,10 @@
       "status": "partial_L1",
       "evidence_refs": [
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "baseline_evidence": [
         "52 baseline PostgreSQL A08/runtime tests pass; no CON-01 combined candidate or live smoke."
       ]
@@ -416,9 +424,10 @@
       "status": "partial_L1",
       "evidence_refs": [
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "baseline_evidence": []
     },
     {
@@ -431,9 +440,10 @@
       "evidence_refs": [
         "CX-0008.md",
         "CX-0010.md",
-        "CX-0014.md"
+        "CX-0014.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "baseline_evidence": []
     },
     {
@@ -447,9 +457,10 @@
         "CX-0008.md",
         "CX-0010.md",
         "CX-0011.md",
-        "CX-0014.md"
+        "CX-0014.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. At338878df ordinary withdrawal and moved-focus delayed success pass; feed-first own/admin withdrawal still drops focus until HTTP returns. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. At338878df ordinary withdrawal and moved-focus delayed success pass; feed-first own/admin withdrawal still drops focus until HTTP returns. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -469,9 +480,10 @@
       "evidence_refs": [
         "CX-0008.md",
         "CX-0010.md",
-        "CX-0014.md"
+        "CX-0014.md",
+        "CX-0015.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -570,7 +582,7 @@
   "candidate_sha": "95ea5126f87c83cf7c19abe745d47d17671f31c5",
   "candidate_tree": "8b4f68daaa8e9163d18047e6a78a0459813e0610",
   "review_ref": "CON-01-CX-0007.md",
-  "current_main_observed": "71dbea3eb57f976c3b993285d45de917e59f204d",
+  "current_main_observed": "6744e78edc023ca093869362c8878e843edc3922",
   "supplemental_candidates": [
     {
       "candidate_sha": "839fb45b378a4f22517e4bf940372c6734f558ef",
@@ -619,6 +631,14 @@
       "level": "G2 normalized fail-closed specification direction reviewed; no G2 execution or owner approval",
       "review_refs": [
         "CX-0014.md"
+      ]
+    },
+    {
+      "candidate_sha": "447e7aec0ef923e58e386155089cf64d63422f2c",
+      "candidate_tree": "506a8615216894c046b989d003a6c3b3395322a6",
+      "level": "L1 actual local browser/API/PostgreSQL17.6; no fixtures/runtime/provider; partial corrected crossings and new failures",
+      "review_refs": [
+        "CX-0015.md"
       ]
     }
   ]

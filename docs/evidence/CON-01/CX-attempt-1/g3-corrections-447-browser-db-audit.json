@@ -1,0 +1,180 @@
+{
+  "candidate": "447e7aec0ef923e58e386155089cf64d63422f2c",
+  "tree": "506a8615216894c046b989d003a6c3b3395322a6",
+  "observedAt": "2026-10-09T22:38:51.301Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "0ee03945-a84b-423c-9932-4daba318334b",
+  "messages": [
+    {
+      "title": "Cache correction 447",
+      "id": "5af6ca04-0ba1-404f-8b80-9f293e6371bf",
+      "conversation_id": "98179c8f-9682-4d84-9355-c742fc101c34",
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "seq": "1",
+      "body": "Cache correction 447",
+      "withdrawn_at": null
+    },
+    {
+      "title": "Cache correction 447",
+      "id": "da5b9c93-89aa-4d53-975a-92352a020e9c",
+      "conversation_id": "98179c8f-9682-4d84-9355-c742fc101c34",
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-09T22:34:37.398Z"
+    },
+    {
+      "title": null,
+      "id": "8364ecc2-9bf6-462c-ba04-07d940b4f6ce",
+      "conversation_id": "8317dbd8-30a8-49ae-974d-4e35577f0c19",
+      "actor_id": "824a7d04-4d17-4ca5-bb82-cea3a8b41ad0",
+      "seq": "1",
+      "body": null,
+      "withdrawn_at": "2026-10-09T22:35:32.932Z"
+    },
+    {
+      "title": null,
+      "id": "47fdfbf9-e1ed-459c-830e-35f233e8a35d",
+      "conversation_id": "c176d7f7-7947-4df5-b6e8-a9a8720f1cb8",
+      "actor_id": "824a7d04-4d17-4ca5-bb82-cea3a8b41ad0",
+      "seq": "1",
+      "body": null,
+      "withdrawn_at": "2026-10-09T22:35:57.698Z"
+    },
+    {
+      "title": "Contributor privacy 447",
+      "id": "5c879275-b292-4dd5-8f1b-6507aa0bbe0a",
+      "conversation_id": "3c318d5f-b826-4458-a0aa-602718842667",
+      "actor_id": "824a7d04-4d17-4ca5-bb82-cea3a8b41ad0",
+      "seq": "1",
+      "body": "Contributor privacy 447",
+      "withdrawn_at": null
+    },
+    {
+      "title": "Contributor privacy 447",
+      "id": "cb06412d-6977-4016-8aec-2c944c1a0e42",
+      "conversation_id": "3c318d5f-b826-4458-a0aa-602718842667",
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-09T22:37:33.002Z"
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "idempotency_key": "29730a82-4529-48d9-8143-e07dab2649af",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "87ad980ce0b3ba24319badbb63e7cc04c2272cae752cb83d8aa9035ca8726e92",
+        "titleSha256": "87ad980ce0b3ba24319badbb63e7cc04c2272cae752cb83d8aa9035ca8726e92"
+      },
+      "message_id": "5af6ca04-0ba1-404f-8b80-9f293e6371bf"
+    },
+    {
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "idempotency_key": "cdfb65d8-4154-4649-8645-d9f05a92afa8",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "da5b9c93-89aa-4d53-975a-92352a020e9c"
+    },
+    {
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "idempotency_key": "121501c1-f1e1-4616-ad88-bf25534aa93e",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "da5b9c93-89aa-4d53-975a-92352a020e9c",
+        "operation": "withdraw",
+        "conversationId": "98179c8f-9682-4d84-9355-c742fc101c34"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "824a7d04-4d17-4ca5-bb82-cea3a8b41ad0",
+      "idempotency_key": "2b26861b-f557-4c6e-8361-2349b2ec0b3c",
+      "operation": "start",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "8364ecc2-9bf6-462c-ba04-07d940b4f6ce"
+    },
+    {
+      "actor_id": "824a7d04-4d17-4ca5-bb82-cea3a8b41ad0",
+      "idempotency_key": "43bb8068-e425-4d75-befa-e02a5a149599",
+      "operation": "erase",
+      "semantic_request": {
+        "operation": "erase",
+        "conversationId": "8317dbd8-30a8-49ae-974d-4e35577f0c19"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "824a7d04-4d17-4ca5-bb82-cea3a8b41ad0",
+      "idempotency_key": "b3c652d9-7cf2-4539-af0c-9b68117ebb7e",
+      "operation": "start",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "47fdfbf9-e1ed-459c-830e-35f233e8a35d"
+    },
+    {
+      "actor_id": "824a7d04-4d17-4ca5-bb82-cea3a8b41ad0",
+      "idempotency_key": "63d981f7-790b-49ea-b4e9-043095b4366a",
+      "operation": "erase",
+      "semantic_request": {
+        "operation": "erase",
+        "conversationId": "c176d7f7-7947-4df5-b6e8-a9a8720f1cb8"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "824a7d04-4d17-4ca5-bb82-cea3a8b41ad0",
+      "idempotency_key": "47ebc65d-3a57-4ff0-a978-2c9fc9a82266",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "833aa2517326f750e2586a17328d76a2691a95f307b4c809d497841304d7eece",
+        "titleSha256": "833aa2517326f750e2586a17328d76a2691a95f307b4c809d497841304d7eece"
+      },
+      "message_id": "5c879275-b292-4dd5-8f1b-6507aa0bbe0a"
+    },
+    {
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "idempotency_key": "f8b8a7c1-a2a4-4f74-8bc1-12ee78079c82",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "cb06412d-6977-4016-8aec-2c944c1a0e42"
+    },
+    {
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "idempotency_key": "8b20132e-2d10-4ed8-9538-bae15f1eff3d",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "cb06412d-6977-4016-8aec-2c944c1a0e42",
+        "operation": "withdraw",
+        "conversationId": "3c318d5f-b826-4458-a0aa-602718842667"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 3,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

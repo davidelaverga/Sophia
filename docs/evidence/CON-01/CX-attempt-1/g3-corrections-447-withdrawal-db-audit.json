@@ -1,0 +1,74 @@
+{
+  "candidate": "447e7aec0ef923e58e386155089cf64d63422f2c",
+  "tree": "506a8615216894c046b989d003a6c3b3395322a6",
+  "observedAt": "2026-10-09T22:34:42.137Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "0ee03945-a84b-423c-9932-4daba318334b",
+  "messages": [
+    {
+      "title": "Cache correction 447",
+      "id": "5af6ca04-0ba1-404f-8b80-9f293e6371bf",
+      "conversation_id": "98179c8f-9682-4d84-9355-c742fc101c34",
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "seq": "1",
+      "body": "Cache correction 447",
+      "withdrawn_at": null
+    },
+    {
+      "title": "Cache correction 447",
+      "id": "da5b9c93-89aa-4d53-975a-92352a020e9c",
+      "conversation_id": "98179c8f-9682-4d84-9355-c742fc101c34",
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-09T22:34:37.398Z"
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "idempotency_key": "29730a82-4529-48d9-8143-e07dab2649af",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "87ad980ce0b3ba24319badbb63e7cc04c2272cae752cb83d8aa9035ca8726e92",
+        "titleSha256": "87ad980ce0b3ba24319badbb63e7cc04c2272cae752cb83d8aa9035ca8726e92"
+      },
+      "message_id": "5af6ca04-0ba1-404f-8b80-9f293e6371bf"
+    },
+    {
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "idempotency_key": "cdfb65d8-4154-4649-8645-d9f05a92afa8",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "da5b9c93-89aa-4d53-975a-92352a020e9c"
+    },
+    {
+      "actor_id": "666750b4-09c6-49d2-a1e1-4afcbeaa28cb",
+      "idempotency_key": "121501c1-f1e1-4616-ad88-bf25534aa93e",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "da5b9c93-89aa-4d53-975a-92352a020e9c",
+        "operation": "withdraw",
+        "conversationId": "98179c8f-9682-4d84-9355-c742fc101c34"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

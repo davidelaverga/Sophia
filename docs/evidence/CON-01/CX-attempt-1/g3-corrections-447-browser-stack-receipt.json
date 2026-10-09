@@ -1,0 +1,11 @@
+{
+  "candidate": "447e7aec0ef923e58e386155089cf64d63422f2c",
+  "tree": "506a8615216894c046b989d003a6c3b3395322a6",
+  "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+  "apiPort": 53192,
+  "studioPort": 53193,
+  "pid": 90615,
+  "exit": 0,
+  "postgresStopped": true,
+  "clusterRemoved": true
+}

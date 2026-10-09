@@ -1,0 +1,10 @@
+{
+  "candidate": "447e7aec0ef923e58e386155089cf64d63422f2c",
+  "at": "2026-10-09T22:38:34.928Z",
+  "projectId": "a24842c4-4087-4250-b246-338327a87a67",
+  "conversationId": "327dcfb2-2a9f-4939-8264-9a771a4d1d13",
+  "controlContributors": 200,
+  "controlValidated": true,
+  "afterContributors": 201,
+  "afterValidationFailure": "Response does not match ConversationList: /conversations/0/contributors must NOT have more than 200 items"
+}
