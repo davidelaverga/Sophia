@@ -14,6 +14,7 @@ import {
   type ConversationSummary,
   type MessageAsk,
 } from '../../api/vision.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
 import { Waiting } from '../../app/Waiting.tsx'
@@ -68,7 +69,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     ask(to.conversationId)
     panes.show()
   })
-  const talk = useTalk(projectId, identity.name)
+  const talk = useTalk(projectId, accountOf(identity))
   const start = useStart(projectId, identity, talk, (id) => {
     choose(id)
     panes.show()

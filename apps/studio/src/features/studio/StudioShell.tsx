@@ -4,6 +4,7 @@
 // stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Snapshot } from '@sophia/contracts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { useMembership } from '../access/useAccess.ts'
@@ -208,7 +209,7 @@ function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
 export function StudioShell(props: Props) {
   const { projectId, identity, room, snapshot, panel, looking, captions: held, made, catchUp = null } = props
   const background = props.background ?? false
-  const { state, setLens, setDraft } = useViewerState(identity.name, projectId)
+  const { state, setLens, setDraft } = useViewerState(accountOf(identity), projectId)
   const chatDraft = useAskedInto(panel, state.drafts.converse ?? '', (text) => setDraft('converse', text))
   const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
   const names = useKnownNames(room)
