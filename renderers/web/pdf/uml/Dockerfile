@@ -78,5 +78,5 @@ ENV SOPHIA_RENDER_ISOLATION=uml \
 USER root
 # Idle unless the service's command says otherwise, so a restart or a deploy of a service that sets none starts
 # nothing: the render host sets its command to `node /opt/sophia-renderer/supervisor.mjs`; the qualification
-# fixture invokes host-qa.py once through the approved Shell session.
+# fixture invokes host-qa.py once over the operator's SSH session (WBC-02-CC-0010 §2.2).
 CMD ["node", "-e", "console.log(JSON.stringify({event:'uml_worker_idle',qualification:false}));setInterval(()=>{},60000)"]
