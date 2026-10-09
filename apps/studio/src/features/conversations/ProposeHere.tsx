@@ -53,7 +53,7 @@ function useHeldProposal(args: ProposeArgs | null) {
   const brief = useQuery<MissionContext>(
     identity
       ? { ...contextQuery(projectId, identity), enabled: false }
-      : { queryKey: ['mission', 'nobody'], queryFn: skipToken },
+      : { queryKey: ['conversations', 'no-brief'], queryFn: skipToken },
   )
   const write = useHeldWrite<string, unknown>(
     held,
@@ -124,7 +124,7 @@ export function useProposeHere(args: ProposeArgs | null): { press: ReactNode; fo
 /** What a message proposed says, by where its proposal stands in the brief as last read (proposed-truth.md). */
 const PROPOSED: Readonly<Record<ProposedWhere, string>> = {
   waiting: 'Proposed · it’s in Still open',
-  decided: 'Proposed · decided since',
+  gone: 'Proposed · no longer in Still open',
   unread: 'Proposed · Still open couldn’t be read again',
 }
 

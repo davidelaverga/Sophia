@@ -138,9 +138,11 @@ export function useDecideSend(projectId: string, identity: Identity) {
 const sameWords = (a: string, b: string) =>
   a.trim().replace(/\s+/gu, ' ').toLowerCase() === b.trim().replace(/\s+/gu, ' ').toLowerCase()
 
-/** Whether these words already wait for a decision as a constraint: proposing them again would add nothing. */
-export const alreadyOpen = (pending: readonly Pick<MissionDecision, 'kind' | 'statement'>[], statement: string) =>
-  pending.some((d) => d.kind === 'constraint' && sameWords(d.statement, statement))
+/** The constraint already waiting with these words, if one does: proposing them again would add nothing. */
+export const openAs = <D extends Pick<MissionDecision, 'kind' | 'statement'>>(
+  pending: readonly D[],
+  statement: string,
+) => pending.find((d) => d.kind === 'constraint' && sameWords(d.statement, statement))
 
 /** Which proposal a message made (proposed-truth.md): its decision's id when the receipt names it, and its words. */
 export interface ProposedMark {
@@ -148,18 +150,20 @@ export interface ProposedMark {
   statement: string
 }
 
-/** Where a message's proposal stands in the brief as last read: waiting, decided since, or not read again. */
-export type ProposedWhere = 'waiting' | 'decided' | 'unread'
+/**
+ * Where a message's proposal stands in the brief as last read: waiting, no longer waiting (decided, withdrawn, or past
+ * the newest the brief lists: «gone» says only what is so), or not read again.
+ */
+export type ProposedWhere = 'waiting' | 'gone' | 'unread'
 
 export function proposedWhere(
   read: { isError: boolean; data: Pick<MissionContext, 'pending'> | undefined },
   mark: ProposedMark,
 ): ProposedWhere {
   if (read.isError || !read.data) return 'unread'
-  const waits = read.data.pending.some((d) =>
-    mark.id === null ? sameWords(d.statement, mark.statement) : d.id === mark.id,
-  )
-  return waits ? 'waiting' : 'decided'
+  const { pending } = read.data
+  const waits = mark.id === null ? openAs(pending, mark.statement) !== undefined : pending.some((d) => d.id === mark.id)
+  return waits ? 'waiting' : 'gone'
 }
 
 /** A fresh proposal not sent because the brief couldn't be read first: a refusal, so the next press reads again. */
@@ -180,7 +184,7 @@ export function useAlreadyOpen(projectId: string, identity: Identity | null) {
       .catch((err: unknown) => (err instanceof ApiError && err.status === 403 ? err : null))
     if (brief instanceof ApiError) throw brief
     if (brief === null) throw new ApiError(503, BRIEF_UNREAD, 'The brief could not be read', 'never')
-    const found = brief.pending.find((d) => d.kind === 'constraint' && sameWords(d.statement, statement))
+    const found = openAs(brief.pending, statement)
     return found ? { id: found.id, statement } : null
   }
 }
@@ -194,7 +198,10 @@ export function useProposeSend(projectId: string, identity: Identity | null) {
   return async (key: string, statement: string): Promise<MissionReceipt> => {
     if (!identity) throw new Error('Nobody to propose as')
     const receipt = await proposeMissionChange(identity.token, projectId, key, { kind: 'constraint', statement })
-    await client.invalidateQueries({ queryKey: missionKey(projectId) })
+    // The conversations' read even with no pane showing it (the person may have gone to another view meanwhile, where
+    // only an active read would be read again): what the message then says is the brief as it is now. The rest as ever.
+    void client.invalidateQueries({ queryKey: missionKey(projectId) })
+    await client.refetchQueries({ queryKey: contextKey(projectId, identity), type: 'all', exact: true })
     return receipt
   }
 }
