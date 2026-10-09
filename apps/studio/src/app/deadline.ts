@@ -28,3 +28,13 @@ export function orLate<T>(work: Promise<T>, ms: number): Promise<T | 'late'> {
   })
   return Promise.race([work, late]).finally(() => clearTimeout(timer))
 }
+
+/**
+ * The work's own outcome, or a failure in `words` once the time is up: a wait that ends, said as the caller words it
+ * (the work is not cancelled, so its words say what may still happen). A failure in time stays the work's own.
+ */
+export async function endsWithin<T>(work: Promise<T>, ms: number, words: string): Promise<T> {
+  const outcome = await orLate(work, ms)
+  if (outcome === 'late') throw new Error(words)
+  return outcome
+}

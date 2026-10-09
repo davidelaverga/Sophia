@@ -149,6 +149,54 @@ test('signin · a send again that never answers ends, says so, and waits Auth’
   await expect(again(page)).toHaveText(/^Send again in (59|60) s$/) // the window, a second already gone
 })
 
+const longWait = (page: Page) => page.getByText(/^Taking longer than usual\./)
+
+test('signin · a first email that never answers ends, says so, and the address stays to try again', async ({
+  page,
+}) => {
+  await held(page, '?stall=first')
+  // Sophia's light thinks while the email goes, a frame each step of the held clock; no check here reads it, so it is
+  // put away (a box with no size asks for no frames), as for the send-again checks.
+  await page.addStyleTag({ content: '.light { display: none }' })
+  await email(page).fill('luis@sophia.test')
+  await page.getByRole('button', { name: 'Email me a link' }).click()
+  await page.clock.runFor(400)
+  await expect(page.getByRole('button', { name: 'Sending…' })).toBeDisabled()
+  // A send is a write: past a read's 30 s it is still on its way, and says the wait is long.
+  await page.clock.fastForward(30_000)
+  await expect(longWait(page)).toBeVisible()
+  await page.clock.fastForward(60_000)
+  await page.clock.runFor(1000)
+  // No code field here yet: it says what still works if the email arrives, and to ask again only if it doesn't.
+  await expect(page.getByRole('alert')).toHaveText(
+    'Not confirmed: the email may still arrive, and its link works in this browser. If it doesn’t come, ask for it again.',
+  )
+  await expect(longWait(page)).toHaveCount(0)
+  await expect(email(page)).toHaveValue('luis@sophia.test')
+  await expect(email(page)).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Email me a link' })).toBeEnabled()
+  expect(await sentTo(page)).toEqual(['luis@sophia.test'])
+})
+
+test('signin · a code that never answers ends, says so, and can be pressed again', async ({ page }) => {
+  await held(page, '?stall=code')
+  await sendHeld(page, 'luis@sophia.test')
+  await page.getByLabel('Code from the email').fill('123456')
+  const press = page.getByRole('button', { name: /^(Sign in with code|Checking…)$/ })
+  await press.click()
+  await expect(press).toHaveText('Checking…')
+  await page.clock.fastForward(30_000)
+  await expect(longWait(page)).toBeVisible()
+  await page.clock.fastForward(60_000)
+  await page.clock.runFor(1000)
+  await expect(page.getByRole('alert')).toHaveText(
+    'Not confirmed: the code may still sign you in. If nothing changes, try it again.',
+  )
+  await expect(longWait(page)).toHaveCount(0)
+  await expect(press).toHaveText('Sign in with code')
+  await expect(press).toBeFocused() // it waited aria-disabled, so the focus stayed on it
+})
+
 test('signin · another email brings the address back, ready, and the mark goes', async ({ page }) => {
   await page.goto(PAGE)
   await sendTo(page, 'luis@sophia.test')

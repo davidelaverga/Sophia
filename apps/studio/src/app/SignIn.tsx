@@ -15,7 +15,8 @@ import { ProviderButtons } from './ProviderButtons.tsx'
 import { SLOW_NOTE, useSlow } from './useSlow.ts'
 import { Mark } from './Mark.tsx'
 import { mailHome, plausibleEmail } from './mail-home.ts'
-import { waitAfter } from './auth-words.ts'
+import { CODE_NOT_CONFIRMED, EMAIL_NOT_CONFIRMED, FIRST_EMAIL_NOT_CONFIRMED, waitAfter } from './auth-words.ts'
+import { endsWithin } from './deadline.ts'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
 const LOCAL_AUTH = /^http:\/\/(127\.0\.0\.1|localhost):54321/.test(import.meta.env.VITE_SUPABASE_URL ?? '')
@@ -252,7 +253,7 @@ function useAddress(send: (email: string) => Promise<void>) {
     }
     setState({ step: 'sending' })
     try {
-      await send(email.trim())
+      await sendInTime(send(email.trim()), FIRST_EMAIL_NOT_CONFIRMED)
       setState({ step: 'sent' })
     } catch (err: unknown) {
       setState({ step: 'error', message: err instanceof Error ? err.message : 'Could not send the link.' })
@@ -315,6 +316,7 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
           {state.step === 'sending' ? 'Sending…' : 'Email me a link'}
         </button>
       </form>
+      {state.step === 'sending' && <SlowNote />}
       {state.step === 'error' && (
         <p id="email-error" className="form-error" role="alert">
           {state.message}
@@ -331,20 +333,17 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
 const RESEND_AFTER = 60
 
 /**
- * How long a send again may take before it is said not confirmed: Supabase's call has no limit of its own, and a send
- * is a write, which the Studio gives 90 s (CONTRIBUTING, «No wait is endless»).
+ * How long an email or a code may take before it is said not confirmed: Supabase's calls have no limit of their own,
+ * and each is a write, which the Studio gives 90 s (CONTRIBUTING, «No wait is endless»; docs/plans/signin-limits.md).
  */
-const SEND_LIMIT_MS = WRITE_TIMEOUT_MS
-const NOT_CONFIRMED = 'Not confirmed: the email may still arrive. Wait for it, then send again.'
+const AUTH_LIMIT_MS = WRITE_TIMEOUT_MS
 
-/** A send that ends: it settles, or it is refused as not confirmed once `ms` have passed. */
-function inTime(sending: Promise<void>, ms: number): Promise<void> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const late = new Promise<never>((_, fail) => {
-    timer = setTimeout(() => fail(new Error(NOT_CONFIRMED)), ms)
-  })
-  return Promise.race([sending, late]).finally(() => clearTimeout(timer))
-}
+/**
+ * A sign-in email that ends: sent, refused, or not confirmed once a write's time has passed, said in `words` (a first
+ * one, with no code field yet, says what still works if it arrives).
+ */
+export const sendInTime = (sending: Promise<void>, words = EMAIL_NOT_CONFIRMED) =>
+  endsWithin(sending, AUTH_LIMIT_MS, words)
 
 /**
  * Send again, once the wait has passed: it counts down, sends, and says so. While it waits or sends it can't be
@@ -375,13 +374,13 @@ function SendAgain({ email, send }: { email: string; send: (email: string) => Pr
     setSending(true)
     setSaid({ text: 'Sending…', failed: false })
     try {
-      await inTime(send(email), SEND_LIMIT_MS)
+      await sendInTime(send(email))
       setSaid({ text: 'Sent again. Only the newest link and code work.', failed: false })
       waitFor(RESEND_AFTER)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Could not send it again.'
       setSaid({ text: message, failed: true })
-      waitFor(message === NOT_CONFIRMED ? RESEND_AFTER : waitAfter(message, RESEND_AFTER))
+      waitFor(message === EMAIL_NOT_CONFIRMED ? RESEND_AFTER : waitAfter(message, RESEND_AFTER))
     }
     setSending(false)
   }
@@ -447,7 +446,7 @@ export function CodeForm({ email, verify = verifyEmailCode }: { email: string } 
   const check = async (code: string) => {
     setState({ step: 'sending' })
     try {
-      await verify(email, code)
+      await endsWithin(verify(email, code), AUTH_LIMIT_MS, CODE_NOT_CONFIRMED)
       // Signed in: the auth listener replaces this screen with the project.
     } catch (err: unknown) {
       setState({ step: 'error', message: err instanceof Error ? err.message : 'That code did not work.' })
@@ -462,6 +461,7 @@ export function CodeForm({ email, verify = verifyEmailCode }: { email: string } 
         focus={finePointer()}
         onCheck={(code) => void check(code)}
       />
+      {state.step === 'sending' && <SlowNote />}
       {state.step === 'error' && (
         <p className="form-error" role="alert">
           {state.message}

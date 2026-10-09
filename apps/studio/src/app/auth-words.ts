@@ -11,6 +11,19 @@ export interface AuthFailure {
 
 const CLOSED = (email: string) => `New accounts are closed on this server, so ${email} can’t sign up yet.`
 
+/** A sign-in email with no answer in time: it may still go out, so a second one waits for it (it would void the first). */
+export const EMAIL_NOT_CONFIRMED = 'Not confirmed: the email may still arrive. Wait for it, then send again.'
+
+/**
+ * A first sign-in email with no answer in time, said where there is no code field yet: what still works if it arrives,
+ * and that asking again is for when it doesn't (a second email voids the first one's link and code).
+ */
+export const FIRST_EMAIL_NOT_CONFIRMED =
+  'Not confirmed: the email may still arrive, and its link works in this browser. If it doesn’t come, ask for it again.'
+
+/** A code with no answer in time: it may still sign in, which the page follows; if not, it can be tried again. */
+export const CODE_NOT_CONFIRMED = 'Not confirmed: the code may still sign you in. If nothing changes, try it again.'
+
 /** How long the page's own words say to wait before another email ("…another in 41 seconds."), if they say it. */
 export function secondsToWait(sentence: string): number | null {
   const seconds = /another in (\d+) seconds?/.exec(sentence)?.[1]
