@@ -1,7 +1,7 @@
 {
   "schema": "sophia.con01.independent-acceptance.v1",
   "mission": "CON-01",
-  "evidence_status": "baseline_and_g0_review_only",
+  "evidence_status": "g1_locally_verified_bounded_review_g2_g3_live_open",
   "cases": [
     {
       "id": "CON-01-T01",
@@ -11,7 +11,7 @@
       "gate": "G2/G5",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -25,9 +25,11 @@
       "expected": "Contributor list contains actual eligible human writers; Sophia appears only after a published reply; attendance or project membership alone adds nobody.",
       "required_evidence": "Database + UI + actual app",
       "gate": "G1/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -41,9 +43,11 @@
       "expected": "Previously unsaved room/voice/caption history is absent; only explicit named-conversation text is saved under the accepted policy.",
       "required_evidence": "Policy review + database + app",
       "gate": "G0/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -57,9 +61,11 @@
       "expected": "Withdrawal removes the body from eligible reads and dependent summaries, question projections and cached native context; a late dependent reply cannot publish.",
       "required_evidence": "Database + native race test + app",
       "gate": "G1/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -75,7 +81,7 @@
       "gate": "G1/G5",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -91,9 +97,11 @@
       "expected": "Failure between conversation creation and first message leaves no partial accepted start; successful start has one first message and consistent receipt.",
       "required_evidence": "PostgreSQL transaction test",
       "gate": "G1",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "passed_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "Real disposable PostgreSQL/API crossing passed on95ea5126; no hosted/app/provider acceptance implied.",
       "baseline_evidence": []
     },
     {
@@ -102,9 +110,11 @@
       "expected": "Retry of a committed start with the same intent key returns the same conversation/message; no second native response obligation.",
       "required_evidence": "Database + real HTTP/browser adverse test",
       "gate": "G1/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -118,9 +128,11 @@
       "expected": "Retry preserves one human message and one response request, even after changing conversations and reopening the composer.",
       "required_evidence": "Database + browser + app",
       "gate": "G1/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -134,9 +146,11 @@
       "expected": "Changing text, title, ask flag or target under an old key is rejected as a conflict, not silently reused or executed again.",
       "required_evidence": "API/database negative test",
       "gate": "G1",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "passed_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "Real disposable PostgreSQL/API crossing passed on95ea5126; no hosted/app/provider acceptance implied.",
       "baseline_evidence": []
     },
     {
@@ -145,9 +159,11 @@
       "expected": "Viewers can read only eligible project content and cannot post; outsiders/guests and revoked members cannot read through IDs, cursors, summaries or idempotent receipt replay.",
       "required_evidence": "Authenticated API + RLS + app spot check",
       "gate": "G1/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -161,9 +177,11 @@
       "expected": "Supplying an actor, name, assistant author, project or response target cannot impersonate a member or publish an assistant message.",
       "required_evidence": "Schema/API negative test",
       "gate": "G1",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "passed_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "Real disposable PostgreSQL/API crossing passed on95ea5126; no hosted/app/provider acceptance implied.",
       "baseline_evidence": []
     },
     {
@@ -172,9 +190,11 @@
       "expected": "Concurrent equal-timestamp messages appear once in a stable conversation order; pages have no duplicates/gaps; another conversation's cursor is refused.",
       "required_evidence": "Database concurrency + browser",
       "gate": "G1",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "baseline_evidence": []
     },
     {
@@ -183,9 +203,11 @@
       "expected": "askSophia=false stores text but performs no inference, paid summary, operational issue, external action or worker wake. Verify counters/state, not just UI silence.",
       "required_evidence": "Database + runtime/provider-call spy",
       "gate": "G1/G2",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "baseline_evidence": []
     },
     {
@@ -196,7 +218,7 @@
       "gate": "G2/G5",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -212,9 +234,11 @@
       "expected": "Human text persists according to policy; absent native readiness or grant yields a truthful blocked/not-admitted answer state and no false progress.",
       "required_evidence": "Local runtime fault + UI",
       "gate": "G2",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "baseline_evidence": []
     },
     {
@@ -225,7 +249,7 @@
       "gate": "G2/G5",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -241,7 +265,7 @@
       "gate": "G2",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     },
     {
@@ -252,7 +276,7 @@
       "gate": "G2",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     },
     {
@@ -263,7 +287,7 @@
       "gate": "G2/G5",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -279,7 +303,7 @@
       "gate": "G2/G5",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -295,7 +319,7 @@
       "gate": "G2",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     },
     {
@@ -306,7 +330,7 @@
       "gate": "G3",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [
         "F2: openWords(0) implies completeness without coverage; G0 coverage is still being bound."
       ]
@@ -319,7 +343,7 @@
       "gate": "G2/G3",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     },
     {
@@ -330,7 +354,7 @@
       "gate": "G2",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     },
     {
@@ -341,7 +365,7 @@
       "gate": "G3",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [
         "52 baseline PostgreSQL A08/runtime tests pass; no CON-01 combined candidate or live smoke."
       ]
@@ -354,7 +378,7 @@
       "gate": "G3",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     },
     {
@@ -365,7 +389,7 @@
       "gate": "G3",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     },
     {
@@ -376,7 +400,7 @@
       "gate": "G3",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     },
     {
@@ -387,7 +411,7 @@
       "gate": "G3/G5",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -405,7 +429,7 @@
       "gate": "G2/G5",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -421,7 +445,7 @@
       "gate": "G2",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     },
     {
@@ -432,7 +456,7 @@
       "gate": "G4/G5",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -450,7 +474,7 @@
       "gate": "G2/G4",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     },
     {
@@ -459,9 +483,11 @@
       "expected": "Disabling new asks/writes preserves governed reads/erase/control access and stored data; rollback does not revert to ephemeral storage or revive old asks.",
       "required_evidence": "Release rehearsal + operator evidence",
       "gate": "G4/G5",
-      "status": "not_run",
-      "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "status": "partial_L1",
+      "evidence_refs": [
+        "CON-01-CX-0007.md"
+      ],
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -477,7 +503,7 @@
       "gate": "G5",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -493,14 +519,14 @@
       "gate": "G4",
       "status": "not_run",
       "evidence_refs": [],
-      "limitation": "G0 documentation candidate only; no implementing CON-01 G1/G2/G3 candidate available at this checkpoint.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": []
     }
   ],
   "reviewer_session": "01a1224a-32b4-7222-a017-50a277572d95",
   "attempt": "CON-01-CX-attempt-1",
-  "candidate_sha": "c703b2df259bf414e28eeb48d5c5e8b39f330cf8",
-  "candidate_tree": "e4fd211f3904298779b021148cc7cc232081cadd",
-  "review_ref": "CON-01-CX-0003.md",
-  "current_main_observed": "5489bd2ab9c78253554ba1811312b692a62c9c3d"
+  "candidate_sha": "95ea5126f87c83cf7c19abe745d47d17671f31c5",
+  "candidate_tree": "8b4f68daaa8e9163d18047e6a78a0459813e0610",
+  "review_ref": "CON-01-CX-0007.md",
+  "current_main_observed": "71dbea3eb57f976c3b993285d45de917e59f204d"
 }
