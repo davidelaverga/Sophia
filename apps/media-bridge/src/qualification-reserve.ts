@@ -56,7 +56,10 @@ export type Verdict = { ok: true } | { ok: false; stop: Stop }
 interface Open {
   connection: number
   reserved: number
+  /** Audio received, in tokens. */
   output: number
+  /** Function-call payload received (names and arguments), in tokens: billed output text. */
+  text: number
 }
 
 export class QualificationReserve {
@@ -143,10 +146,11 @@ export class QualificationReserve {
   }
 
   /**
-   * Output arrived on a connection (24 kHz samples; zero for a tool call or a transcript's first words). A generation
-   * nobody reserved takes its reserve now; one past the per-turn cap is cut.
+   * Output arrived on a connection (24 kHz samples; zero for a transcript's first words), or a function call's payload
+   * (`text`, its name and arguments in tokens). A generation nobody reserved takes its reserve now; one whose audio, or
+   * whose calls' text, passes the per-turn cap is cut (its reserve holds each at the cap).
    */
-  received(connection: number, samples = 0): Verdict {
+  received(connection: number, samples = 0, text = 0): Verdict {
     if (this.#stopped) return { ok: false, stop: this.#stopped }
     let open = this.#open.find((o) => o.connection === connection)
     if (!open) {
@@ -157,7 +161,9 @@ export class QualificationReserve {
       if (!fits.ok) return fits
     }
     open.output += (samples / OUTPUT_RATE) * this.#rates.audioOutPerSecond
-    if (open.output > this.#limits.outputTokensPerTurn) return this.#stop('output')
+    open.text += text
+    const cap = this.#limits.outputTokensPerTurn
+    if (open.output > cap || open.text > cap) return this.#stop('output')
     return this.#fits(0)
   }
 
@@ -181,7 +187,7 @@ export class QualificationReserve {
   #take(connection: number, reserved: number): Open {
     this.#generations += 1
     // The input so far is now part of the context this generation bills.
-    const open = { connection, reserved: reserved + this.#input, output: 0 }
+    const open = { connection, reserved: reserved + this.#input, output: 0, text: 0 }
     this.#input = 0
     this.#open.push(open)
     return open

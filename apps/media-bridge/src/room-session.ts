@@ -303,6 +303,18 @@ interface TypedTurn {
 }
 const CALL_ID = /^[A-Za-z0-9_.:-]{1,64}$/
 
+/**
+ * A tool call as it arrived from the provider, read then and never later: whose it is (the turn's holder, or null), the
+ * typed turn that counts it as pending, its input mode, the utterance it answers, and whether input was paused.
+ */
+interface Arrival {
+  who: Attribution | null
+  turn: TypedTurn | null
+  inputMode: 'text' | 'voice'
+  utterance: number
+  paused: boolean
+}
+
 export const toAssignment = (a: MediaAssignment): Assignment => ({
   exchangeId: a.exchangeId,
   projectId: a.projectId,
@@ -343,6 +355,10 @@ function statusOf(response: FunctionResponse): unknown {
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 /** A transcript's length in characters (code points): all a qualification receipt keeps of it. */
 const charsOf = (text: string) => Array.from(text).length
+
+/** What function calls carry as billed output text: each name and its serialized arguments, in characters. */
+const payloadChars = (calls: readonly FunctionCall[]) =>
+  calls.reduce((sum, call) => sum + (call.name ?? '').length + JSON.stringify(call.args ?? {}).length, 0)
 /** How many 16-bit samples base64 PCM carries, without decoding it. */
 const pcmSamples = (data: string) => Math.floor(Buffer.byteLength(data, 'base64') / 2)
 const shortString = (value: unknown) => (typeof value === 'string' && value.length <= 64 ? value : undefined)
@@ -1330,9 +1346,42 @@ export class RoomSession {
     return false
   }
 
-  /** The provider's tool calls may be acted on: they are its output, and may start a generation nobody asked for. */
-  private mayCall(calls: number): boolean {
-    return !this.qualification || this.within(this.qualification.output(this.connection, { toolCalls: calls }))
+  /**
+   * The provider's tool calls, attributed as they arrive. Under a grant they are its output (billed text, and perhaps a
+   * generation nobody asked for): measured, held to the bound and paid before any handler runs; a cut or a refusal runs
+   * none, and the calls of a connection replaced meanwhile are never run.
+   */
+  private callTools(calls: FunctionCall[], connection: number): void {
+    // Everything a call is run as is read as it arrives, as before there was anything to wait for: a turn ending or a
+    // floor moving while it waits changes none of it, and its typed turn counts it as pending from now.
+    const turn = this.typedTurn
+    if (this.typedOutputUntilTurnEnd && (!turn || !this.state.mayPlay(turn.generation))) return
+    const who = this.state.attribution()
+    const arrival: Arrival = {
+      who,
+      turn,
+      inputMode: who && this.typedInputEpoch === who.inputEpoch ? 'text' : 'voice',
+      utterance: this.guideContext.utterance,
+      paused: this.state.input(this.deps.now()) === 'paused',
+    }
+    if (turn) {
+      turn.pendingTools += calls.length
+      turn.usedTools = true
+      for (const call of calls) turn.toolIds.add(call.id ?? '')
+    }
+    const q = this.qualification
+    if (!q) {
+      for (const call of calls) void this.runTool(call, connection, arrival)
+      return
+    }
+    void q.called(connection, calls.length, payloadChars(calls)).then((stop) => {
+      if (stop) return this.guardStop(stop)
+      if (connection !== this.connection || this.closed) {
+        if (turn) turn.pendingTools -= calls.length
+        return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, connection })
+      }
+      for (const call of calls) void this.runTool(call, connection, arrival)
+    })
   }
 
   /**
@@ -1455,7 +1504,7 @@ export class RoomSession {
         if (current()) this.ready(connection)
       },
       toolCalls: (calls) => {
-        if (current() && this.mayCall(calls.length)) for (const call of calls) void this.runTool(call, connection)
+        if (current()) this.callTools(calls, connection)
       },
       toolCancellations: (ids) => {
         for (const id of ids) this.cancelled.add(`${connection}:${id}`)
@@ -1721,19 +1770,15 @@ export class RoomSession {
     }
   }
 
-  private async runTool(call: FunctionCall, connection: number): Promise<void> {
+  /**
+   * One call, as it arrived (`callTools`): it runs as whose it was, and its response's continuation answers them,
+   * whoever holds the floor by then.
+   */
+  private async runTool(call: FunctionCall, connection: number, arrival: Arrival): Promise<void> {
     const id = call.id ?? ''
     const name = call.name ?? ''
-    // Whose call this is: its response's continuation answers them, whoever holds the floor by then.
-    const who = this.state.attribution()
-    const turn = this.typedTurn
-    if (this.typedOutputUntilTurnEnd && (!turn || !this.state.mayPlay(turn.generation))) return
-    if (turn) {
-      turn.pendingTools += 1
-      turn.usedTools = true
-      turn.toolIds.add(id)
-    }
-    const response = await this.toolOutcome(id, name, call.args ?? {})
+    const { who, turn } = arrival
+    const response = await this.toolOutcome(id, name, call.args ?? {}, arrival)
     if (turn) turn.pendingTools -= 1
     // Never answer a call the provider cancelled, or one from a connection that has since been replaced.
     if (connection !== this.connection || this.cancelled.has(`${connection}:${id}`)) {
@@ -1810,14 +1855,20 @@ export class RoomSession {
     })
   }
 
-  private async toolOutcome(id: string, name: string, args: Record<string, unknown>): Promise<FunctionResponse> {
+  private async toolOutcome(
+    id: string,
+    name: string,
+    args: Record<string, unknown>,
+    arrival: Arrival,
+  ): Promise<FunctionResponse> {
     const call = { id, name }
     if (!CALL_ID.test(id) || !isToolName(name, this.tools.names))
       return toolResponse(call, { status: 'error', output: { reason: 'Unknown tool' } })
-    if (this.state.input(this.deps.now()) === 'paused') {
+    // Paused as it arrived, or by the time it would run: either way it waits for the person to ask again.
+    if (arrival.paused || this.state.input(this.deps.now()) === 'paused') {
       return refusedResponse(call, 'The conversation is paused; ask again when it resumes.')
     }
-    const who = this.state.attribution()
+    const { who } = arrival
     if (!who)
       return refusedResponse(call, 'I couldn’t tell who asked that. Could the person holding the floor ask again?')
     const request: MediaToolCall = {
@@ -1828,8 +1879,8 @@ export class RoomSession {
       args,
       inputEpoch: who.inputEpoch,
       actorId: who.actorId,
-      utterance: this.guideContext.utterance,
-      inputMode: this.typedInputEpoch === who.inputEpoch ? 'text' : 'voice',
+      utterance: arrival.utterance,
+      inputMode: arrival.inputMode,
       guide: this.deps.guide.version,
     }
     const write = WRITE_TOOLS.has(name)

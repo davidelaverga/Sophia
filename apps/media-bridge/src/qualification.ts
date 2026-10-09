@@ -280,11 +280,10 @@ export class SessionQualification {
   }
 
   /**
-   * Output arrived: audio (24 kHz samples), tool calls, or Sophia's words (their characters, billed as text). A
-   * generation nobody reserved takes its reserve now, and is charged on the API (unasked); one past the grant's
-   * per-turn output is cut.
+   * Output arrived: audio (24 kHz samples) or Sophia's words (their characters, billed as text). A generation nobody
+   * reserved takes its reserve now, and is charged on the API (unasked); one past the grant's per-turn output is cut.
    */
-  output(connection: number, out: { samples?: number; toolCalls?: number; chars?: number }): GuardStop | null {
+  output(connection: number, out: { samples?: number; chars?: number }): GuardStop | null {
     const ordinal = this.#local(connection)
     const stop =
       this.#check(() => this.#reserve.received(ordinal, out.samples ?? 0)) ??
@@ -292,8 +291,38 @@ export class SessionQualification {
     if (stop) return stop
     // A reservation still in flight is for what comes next: nothing behind it has reached the provider yet.
     if (!this.#granted.has(connection)) this.#unasked(connection)
-    this.#recorder.responded(out.toolCalls ?? 0)
+    this.#recorder.responded(0)
     return out.chars === undefined ? null : this.#owe(connection, out.chars / ASSUMED_RATES.charsPerToken, 0)
+  }
+
+  /**
+   * The provider's function calls arrived on this connection, before any handler runs. Their payload (each name and its
+   * serialized arguments, `chars`) is billed output text: it is held to the per-turn cap (a generation whose calls pass
+   * it is cut, and nothing runs) and paid from the allowance as Sophia's words are. Resolves once what they cost is
+   * durable on the API (a top-up its debt asked for included): null to run them, or why the session stops instead.
+   */
+  called(connection: number, calls: number, chars: number): Promise<GuardStop | null> {
+    const tokens = chars / ASSUMED_RATES.charsPerToken
+    const stop = this.#check(() => this.#reserve.received(this.#local(connection), 0, Math.ceil(tokens)))
+    if (stop) return Promise.resolve(stop)
+    if (!this.#granted.has(connection)) this.#unasked(connection)
+    this.#recorder.responded(calls)
+    const owed = this.#owe(connection, tokens, 0)
+    if (owed) return Promise.resolve(owed)
+    return this.#paidUp(connection)
+  }
+
+  /**
+   * Once the connection's allowance is out of debt (what was owed was topped up on the API): null, or why the session
+   * stops. With no debt it is at once: the allowance was prepaid.
+   */
+  #paidUp(connection: number): Promise<GuardStop | null> {
+    if (this.#stopped) return Promise.resolve(this.#stopped)
+    if ((this.#links.get(connection)?.paid ?? 0) >= 0) return Promise.resolve(null)
+    const pending = this.#pending.get(connection)
+    if (pending) return pending.then(() => this.#paidUp(connection))
+    const stop = this.#topUp(connection)
+    return stop ? Promise.resolve(stop) : this.#paidUp(connection)
   }
 
   /**

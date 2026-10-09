@@ -4771,6 +4771,130 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     await session.close()
   })
 
+  it('a function call whose payload alone passes the per-turn cap is cut: no handler runs (Codex r4232908459)', async () => {
+    voiceEvidence = true
+    // A per-turn cap of 64 tokens: 192 characters of names and arguments.
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    await flush()
+    live.events.toolCalls([{ id: 'call-big', name: 'project_status', args: { note: 'x'.repeat(300) } }])
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'no handler ran')
+    assert.equal(live.responses.length, 0)
+    assert.deepEqual(stops(), ['output'])
+    await session.close()
+  })
+
+  it('a function call’s handler waits until what its payload owes is paid on the API (Codex r4232908459)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, marked16k(1000), 16000, 1) // its generation, granted with the turn's allowance
+    await flush()
+    service.holdReservations = true
+    await untilTopUp(room) // the allowance spent: a top-up is in flight
+    live.events.toolCalls([{ id: 'call-1', name: 'project_status', args: { note: 'y'.repeat(60) } }])
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'the call owes past the allowance: nothing runs before the top-up is granted')
+    service.holdReservations = false
+    service.answerReservations()
+    await until('the handler ran', () => service.calls.length === 1)
+    await until('its response sent', () => live.responses.length === 1)
+    await session.close()
+  })
+
+  it('a call that waits on its payment while its connection is replaced never runs', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, marked16k(1000), 16000, 1)
+    await flush()
+    service.holdReservations = true
+    await untilTopUp(room)
+    live.events.toolCalls([{ id: 'call-old', name: 'project_status', args: { note: 'y'.repeat(60) } }])
+    await flush()
+    live.events.goAway('1s') // the provider connection is replaced meanwhile
+    clock += 1000
+    session.tick()
+    await until('the new connection reserved', () => service.waitingKinds().includes('connection'))
+    service.answerFirst('spend') // the old connection's top-up is granted only now
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'the old connection’s call is never run')
+    assert.equal(live.responses.length, 0)
+    assert.ok(
+      logs.some(([event]) => event === 'tool.dropped'),
+      'dropped, and logged',
+    )
+    await session.close()
+  })
+
+  it('a call that waits on its payment runs as whose it was when it arrived, though its turn ended meanwhile', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, marked16k(1000), 16000, 1) // its generation, granted with the turn's allowance
+    await flush()
+    service.holdReservations = true
+    await untilTopUp(room)
+    live.events.toolCalls([{ id: 'call-luis', name: 'project_status', args: { note: 'y'.repeat(60) } }])
+    await flush()
+    live.events.turnComplete() // from here on, a call arriving is nobody's
+    await flush()
+    assert.equal(service.calls.length, 0, 'nothing runs before it is paid')
+    service.holdReservations = false
+    service.answerReservations()
+    await until('the handler ran', () => service.calls.length === 1)
+    assert.equal(service.calls[0]?.actorId, LUIS, 'Luis’s call, as it arrived: not refused as nobody’s')
+    assert.equal(service.calls[0]?.inputEpoch, 1)
+    assert.equal(service.calls[0]?.inputMode, 'voice')
+    await session.close()
+  })
+
+  it('a typed turn’s call that waits on its payment stays that turn’s when the provider turn ends meanwhile', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.typed?.(LUIS, {
+      kind: 'input',
+      id: REQUEST,
+      exchangeId: EXCHANGE,
+      inputEpoch: 1,
+      text: 'Synthetic typed request',
+    })
+    await until('the typed message accepted', () => room.chat.some((c) => c.packet.kind === 'accepted'))
+    service.holdReservations = true
+    // Sophia's typed words spend the turn's allowance: a top-up is asked for, and waits.
+    for (let i = 0; i < 200 && !service.waitingKinds().includes('spend'); i += 1) {
+      live.events.outputTranscript('z'.repeat(300), false)
+      await flush()
+    }
+    assert.deepEqual(service.waitingKinds(), ['spend'])
+    live.events.toolCalls([{ id: 'typed-paid', name: 'project_status', args: {} }])
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    assert.equal(service.calls.length, 0, 'nothing runs before it is paid')
+    assert.equal(
+      room.chat.some((c) => c.packet.kind === 'complete'),
+      false,
+      'the typed turn waits for its call: the provider turn ending is not its end',
+    )
+    service.holdReservations = false
+    service.answerReservations()
+    await until('the handler ran', () => service.calls.length === 1)
+    assert.equal(service.calls[0]?.actorId, LUIS)
+    assert.equal(service.calls[0]?.inputMode, 'text')
+    await until('its response sent as the typed turn’s continuation', () => live.responses.length === 1)
+    live.events.turnComplete()
+    await flush()
+    assert.deepEqual(
+      room.chat.filter((c) => c.packet.kind === 'complete').map((c) => c.identity),
+      [LUIS],
+      'then the typed turn ends, once, to its sender',
+    )
+    await session.close()
+  })
+
   it('a tool response waits for its generation’s reservation; refused, it is never sent', async () => {
     voiceEvidence = true
     const { session, room, live } = await ready({ qualification: grant() })
