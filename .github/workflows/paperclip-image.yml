@@ -50,7 +50,7 @@ jobs:
   image:
     name: Paperclip image under a 2 GiB cgroup
     runs-on: ubuntu-24.04
-    # Above the sum of every step's own budget (335 minutes), so a slow step that stays within its budget fails as
+    # Above the sum of every step's own budget (337 minutes), so a slow step that stays within its budget fails as
     # that step, and the receipt, scrub, upload and clean-up still run after it; the job's limit never ends the job
     # first (WBC-02, Codex review of 5446719). The unit tests hold this sum.
     timeout-minutes: 352

@@ -1851,8 +1851,13 @@ describe('WBC-02-CC-0010 §2.2: Render’s SSH runs as root, unlocked, its home 
     }
     assert.match(readFileSync(join(ROOT, 'deploy/paperclip/Dockerfile'), 'utf8'), /PAPERCLIP_HOME=\/paperclip/)
     const paperclip = parse(readFileSync(join(ROOT, '.github/workflows/paperclip-image.yml'), 'utf8'))
-    const step = paperclip.jobs.image.steps.find((s) => s.name === 'Render’s SSH preconditions'.replace('’', "'"))
+    const names = paperclip.jobs.image.steps.map((s) => s.name)
+    const at = names.indexOf("Render's SSH preconditions")
+    const step = paperclip.jobs.image.steps[at]
     assert.match(step.run, /render-ssh-check\.sh \/paperclip\s*$/, 'checked against the disk Render mounts at /paperclip')
+    assert.ok(at > names.indexOf('The image') && at < names.indexOf('Export the qualified image'), 'the built image, before any export')
+    // Nothing given to the container may stand in for what the image itself holds.
+    assert.equal(/\s(-e|--env|--env-file|--user|-u)(\s|=)/.test(step.run), false, 'no HOME, environment or user given')
     assert.ok(paperclip.on.pull_request.paths.includes('scripts/render-ssh-check.sh'))
     const uml = parse(readFileSync(join(ROOT, '.github/workflows/uml-supervisor.yml'), 'utf8'))
     const umlSteps = uml.jobs.supervisor.steps.map((s) => s.name)
@@ -1862,11 +1867,11 @@ describe('WBC-02-CC-0010 §2.2: Render’s SSH runs as root, unlocked, its home 
 
   it('the check passes an image as Render needs it, and names each way Render’s SSH would fail', () => {
     // Stand-ins for id and getent; the home and its .ssh are real directories, owned by whoever runs the test.
-    const run = ({ user = 'root', shadow = 'root:*:20731:0:99999:7:::', home, passwdHome = home, mode = 0o700, ssh = true, disk }) => {
+    const run = ({ user = 'root', shadow = 'root:*:20731:0:99999:7:::', home, passwdHome = home, rootHome = passwdHome, mode = 0o700, ssh = true, disk }) => {
       const dir = scratch('render-ssh-')
       const bin = join(dir, 'bin')
       mkdirSync(bin)
-      writeFileSync(join(bin, 'id'), `#!/bin/sh\nif [ "$1" = -un ]; then echo '${user}'; else ${process.execPath} -e 'console.log(process.getuid())'; fi\n`)
+      writeFileSync(join(bin, 'id'), `#!/bin/sh\nif [ "$1" = -un ]; then echo '${user}'; else '${process.execPath}' -e 'console.log(process.getuid())'; fi\n`)
       writeFileSync(join(bin, 'getent'), `#!/bin/sh\ncase "$1" in passwd) echo 'root:x:0:0:root:${passwdHome(dir)}:/bin/bash' ;; shadow) [ -n '${shadow}' ] && echo '${shadow}' ;; esac\n`)
       chmodSync(join(bin, 'id'), 0o755)
       chmodSync(join(bin, 'getent'), 0o755)
@@ -1877,7 +1882,7 @@ describe('WBC-02-CC-0010 §2.2: Render’s SSH runs as root, unlocked, its home 
         chmodSync(join(h, '.ssh'), mode)
       }
       const result = spawnSync('sh', [CHECK, ...(disk ? [disk(dir)] : [])], {
-        env: { PATH: `${bin}:${process.env.PATH}`, HOME: h, RENDER_SSH_ROOT_HOME: passwdHome(dir) },
+        env: { PATH: `${bin}:${process.env.PATH}`, HOME: h, RENDER_SSH_ROOT_HOME: rootHome(dir) },
         encoding: 'utf8',
       })
       return { status: result.status, out: result.stdout + result.stderr }
@@ -1895,7 +1900,8 @@ describe('WBC-02-CC-0010 §2.2: Render’s SSH runs as root, unlocked, its home 
       'is on the disk mounted at': { home: disk, disk },
       'is not a directory at 0700': { home: root, mode: 0o755 },
       'missing .ssh': { home: root, ssh: false, expect: 'is not a directory at 0700' },
-      'HOME is not passwd’s': { home: root, passwdHome: (d) => join(d, 'elsewhere'), expect: 'the user’s HOME is'.replace('’', "'") },
+      'HOME is not root’s home': { home: root, rootHome: (d) => join(d, 'elsewhere'), expect: "the user's HOME is" },
+      'passwd names another home for root': { home: root, rootHome: root, passwdHome: (d) => join(d, 'elsewhere'), expect: "root's home in passwd is" },
     }
     for (const [why, { expect = why, ...setup }] of Object.entries(refused)) {
       const result = run(setup)
