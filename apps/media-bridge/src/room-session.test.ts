@@ -4467,6 +4467,43 @@ describe('room session: the bridge’s own bound under a grant (qualification-re
     await stoppedFor('output', session, live)
   })
 
+  for (const first of ['words', 'call'] as const) {
+    it(`a generation nobody reserved whose first ${first === 'words' ? 'words pass' : 'function call passes'} the cap: cut, and charged unasked before the stop (Codex r4233954386)`, async () => {
+      voiceEvidence = true
+      const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+      // Nobody spoke and nothing was asked: what the provider sends now starts a generation nobody reserved.
+      if (first === 'words') live.events.outputTranscript('x'.repeat(300), false)
+      else live.events.toolCalls([{ id: 'call-big', name: 'project_status', args: { note: 'x'.repeat(300) } }])
+      await flush()
+      await flush()
+      assert.deepEqual(
+        service.reservations.map((r) => [r.kind, r.charge ?? null]),
+        [
+          ['connection', null],
+          ['unasked', 25_000 + 2 * 64],
+          ['stop', null],
+        ],
+        'its turn and its charge reach the API, before the stop that ends the exchange',
+      )
+      assert.equal(service.calls.length, 0, 'no handler ran')
+      await stoppedFor('output', session, live)
+    })
+  }
+
+  it('a generation asked for and cut by its words sends no unasked charge (Codex r4233954386, control)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.outputTranscript('x'.repeat(300), false)
+    await flush()
+    assert.deepEqual(
+      service.reservations.map((r) => r.kind),
+      ['connection', 'generation', 'stop'],
+    )
+    await stoppedFor('output', session, live)
+  })
+
   it('a turn whose words stay within the per-turn cap goes on as before, and is charged no more (Codex r4233559250)', async () => {
     voiceEvidence = true
     const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })

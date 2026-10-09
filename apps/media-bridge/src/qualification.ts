@@ -294,12 +294,12 @@ export class SessionQualification {
   output(connection: number, out: { samples?: number; chars?: number }): GuardStop | null {
     const ordinal = this.#local(connection)
     const text = out.chars === undefined ? 0 : Math.ceil(out.chars / ASSUMED_RATES.charsPerToken)
+    const unasked = this.#startsUnasked(connection)
     const stop =
       this.#check(() => this.#reserve.received(ordinal, out.samples ?? 0, text)) ??
       (out.chars === undefined ? null : this.#check(() => this.#reserve.transcribed(out.chars ?? 0)))
+    if (unasked) this.#unasked(connection)
     if (stop) return stop
-    // A reservation still in flight is for what comes next: nothing behind it has reached the provider yet.
-    if (!this.#granted.has(connection)) this.#unasked(connection)
     this.#recorder.responded(0)
     return out.chars === undefined ? null : this.#owe(connection, out.chars / ASSUMED_RATES.charsPerToken, 0)
   }
@@ -314,9 +314,10 @@ export class SessionQualification {
    */
   called(connection: number, calls: number, chars: number): Promise<GuardStop | null> {
     const tokens = chars / ASSUMED_RATES.charsPerToken
+    const unasked = this.#startsUnasked(connection)
     const stop = this.#check(() => this.#reserve.received(this.#local(connection), 0, Math.ceil(tokens)))
+    if (unasked) this.#unasked(connection)
     if (stop) return Promise.resolve(stop)
-    if (!this.#granted.has(connection)) this.#unasked(connection)
     this.#recorder.responded(calls)
     const owed = this.#owe(connection, tokens, 0)
     if (owed) return Promise.resolve(owed)
@@ -404,12 +405,17 @@ export class SessionQualification {
 
   /**
    * The bound stopped the session: the API is told, so the exchange ends there too, whether or not anything was
-   * recorded (a receipt is recorded only while the principal holds the floor).
+   * recorded (a receipt is recorded only while the principal holds the floor). A generation nobody reserved that is
+   * still being charged (the one whose first output was cut, say) is answered first: the stop then ends an exchange
+   * whose ledger already holds its turn and its charge, never one that would refuse it as ended (Codex r4233954386).
    */
   stopped(): void {
-    void this.#ledger.stop().then((ended) => {
-      if (!ended) this.#deps.log('qualification.stop_unconfirmed', { exchangeId: this.#deps.exchangeId })
-    })
+    const charging = [...this.#unaskedCharge.values()]
+    void Promise.allSettled(charging)
+      .then(() => this.#ledger.stop())
+      .then((ended) => {
+        if (!ended) this.#deps.log('qualification.stop_unconfirmed', { exchangeId: this.#deps.exchangeId })
+      })
   }
 
   /**
@@ -526,8 +532,20 @@ export class SessionQualification {
   }
 
   /**
-   * A generation started that nobody reserved: it is spent, so it is charged; a refusal stops the session. Its output
-   * has arrived already and is counted as it comes; a function call of it waits for the charge (#unaskedCharge).
+   * Whether output arriving now on the connection starts a generation nobody reserved: none is paid for there (a
+   * reservation still in flight is for what comes next: nothing behind it has reached the provider yet), and the
+   * session was still going when it came. Asked before the bound judges the output: the provider generated and billed
+   * it whatever the bound says, so it is charged even when that very output is cut or past a limit (Codex
+   * r4233954386: a first chunk past the per-turn cap, or a function call's payload, left no durable record of its turn).
+   */
+  #startsUnasked(connection: number): boolean {
+    return this.#stopped === null && !this.#granted.has(connection)
+  }
+
+  /**
+   * A generation started that nobody reserved: it is spent, so it is charged, even when its first output stopped the
+   * session; a refusal stops the session. Its output has arrived already and is counted as it comes; a function call of
+   * it waits for the charge (#unaskedCharge), and so does the bridge's stop (stopped()).
    */
   #unasked(connection: number): void {
     this.#grant(connection)

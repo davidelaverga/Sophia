@@ -302,3 +302,97 @@ describe('each turn end retires the one generation that ended (Codex r4233559261
     assert.equal(q.output(1, { samples: 2400 }), 'turns', 'the next, nobody reserved, is past the grant’s one')
   })
 })
+
+describe('a generation nobody reserved is charged even when its first output is cut (Codex r4233954386)', () => {
+  /** Its worst case under a per-turn cap of 64: the context and the cap twice. */
+  const UNASKED_64 = 25_000 + 2 * 64
+
+  it('a first chunk of 60 characters: one unasked charge, and it goes on (root’s control)', async () => {
+    const { q, waiting } = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.output(1, { chars: 60 }), null)
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => [w.kind, w.charge]),
+      [
+        ['unasked', UNASKED_64],
+        ['spend', 4020],
+      ],
+      'its generation, unasked, once; and its 20 tokens of words owed by an empty allowance, topped up',
+    )
+  })
+
+  it('a first chunk of 300 characters past the cap: cut (output), and its generation still charged once, unasked', async () => {
+    const { q, waiting } = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.output(1, { chars: 300 }), 'output')
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => [w.kind, w.charge]),
+      [['unasked', UNASKED_64]],
+      'its turn and its charge reach the API',
+    )
+    assert.equal(q.output(1, { chars: 300 }), 'output', 'what follows the cut is refused')
+    q.turnEnded(1, 'lost') // the session drops the connection at its stop
+    assert.equal(q.output(1, { chars: 3 }), 'output', 'and so is anything that still arrives')
+    await settle()
+    assert.equal(waiting.length, 1, 'and charges nothing more: the session had stopped')
+  })
+
+  it('a first function call whose payload passes the cap: none runs, and its generation is charged once, unasked', async () => {
+    const { q, waiting } = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(await q.called(1, 1, 300), 'output')
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => [w.kind, w.charge]),
+      [['unasked', UNASKED_64]],
+    )
+  })
+
+  it('a refusal of that charge is recorded as the API answers it', async () => {
+    const { q, waiting } = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.output(1, { chars: 300 }), 'output')
+    await settle()
+    assert.equal(waiting[0]?.kind, 'unasked')
+    waiting[0]?.refuse('turns')
+    await settle()
+    assert.equal(q.due(), 'output', 'the session stays stopped for its cut')
+  })
+
+  it('a generation asked for and cut by its words is not charged again (control)', async () => {
+    const { q, waiting } = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.input(1, LUIS, new Int16Array(1600).fill(2000), 0, 1), 'hold')
+    await settle()
+    waiting[0]?.answer()
+    assert.equal(await q.granted(1), null)
+    assert.equal(q.output(1, { chars: 300 }), 'output')
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation'],
+      'nothing unasked: it was reserved',
+    )
+  })
+
+  it('the bridge’s stop goes to the API only once that charge is answered, so the ended exchange holds it', async () => {
+    const { q, waiting } = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.output(1, { chars: 300 }), 'output')
+    q.stopped()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['unasked'],
+      'the stop waits',
+    )
+    waiting[0]?.answer()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['unasked', 'stop'],
+    )
+  })
+})

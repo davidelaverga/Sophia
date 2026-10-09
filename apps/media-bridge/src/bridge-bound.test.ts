@@ -556,3 +556,38 @@ describe('each turn end retires the one generation that ended, against the durab
     await h.bridge.stop()
   })
 })
+
+describe('a generation nobody reserved and cut at its first output is in the exchange’s ledger (Codex r4233954386)', () => {
+  it('its turn and its charge count across a restart: the restarted process gets no generation past them', async () => {
+    // The FakeLedger keeps the exchange open after a bridge's stop (the real API ends it), so a restart reads its counts.
+    const ledger = new FakeLedger(grant({ maxTurns: 2, maxOutputTokensPerTurn: 64 }))
+    const first = harness(ledger)
+    await first.bridge.apply([assignment(ledger.grant)])
+    await settle()
+    first.lives[0]?.events.setupComplete()
+    await turn(first, 0) // Luis's words: the exchange's first generation, asked for
+    first.lives[0]?.events.outputTranscript('x'.repeat(300), false) // a second nobody reserved, past the cap at once
+    await settle()
+    assert.deepEqual(first.stops(), ['output'])
+    assert.deepEqual(
+      ledger.asked.map((r) => r.kind),
+      ['connection', 'generation', 'unasked', 'stop'],
+    )
+    assert.equal(ledger.exchanges.get(E1)?.turns, 2, 'the cut generation is counted')
+    assert.equal(
+      ledger.committed(E1),
+      25_000 + 2 * 64 + 4000 + (25_000 + 2 * 64),
+      'and charged: Luis’s at its worst case with his allowance, and the cut one at its worst case',
+    )
+    await first.bridge.stop()
+    const second = harness(ledger, { lifetime: 2 })
+    await second.bridge.apply([assignment(ledger.grant)])
+    await settle()
+    second.lives[0]?.events.setupComplete()
+    second.roomEvents.at(-1)?.audio(LUIS, chunk(), 16000, 1)
+    await settle()
+    assert.equal(second.lives[0]?.audio, 0, 'Luis’s next words would be a third generation: never sent')
+    assert.deepEqual(second.stops(), ['turns'])
+    await second.bridge.stop()
+  })
+})
