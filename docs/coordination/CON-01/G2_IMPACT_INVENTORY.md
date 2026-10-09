@@ -4,7 +4,7 @@ The written inventory CX-0002 asked for before any G2 code. Its subject: every r
 
 The sweep was read-only, at `main` `71dbea3e` (the branch's base for G2). Each SQL function is cited at its **latest** definition. Line numbers are approximate. Claims marked *verified* were re-read directly for this file.
 
-**State:** proposed, for Codex's review and Davide's D-6. No G2 code exists. The [binding map](BINDING_MAP.md) §8.2 binds what this file finds. Revision 5 (CX-0009) corrects two rows this file first left unedited: `apply_runtime_receipt` and `runtime_record_observations` (§3, §4.6, §4.7).
+**State:** proposed, for Codex's review and Davide's D-6. No G2 code exists. The [binding map](BINDING_MAP.md) §8.2 binds what this file finds. Revision 5 (CX-0009) corrects two rows this file first left unedited: `apply_runtime_receipt` and `runtime_record_observations` (§3, §4.6, §4.7). Revision 6 (CX-0012) makes an uncertain or failed create terminal and fail-closed (§4.5, §4.6).
 
 ## 1. The finding that shapes the design: goal paths fail open
 
@@ -65,8 +65,8 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
    4. a binding `{conversationReplyId}`.
 3. **Capture** (the reply branch of `capture_native_result`): on `turn/end`, the publication checks (§8.3), then one Sophia message and the request `answered`; or `failed` / `cancelled`; then `retire` (§8.5).
 4. **Epoch.** A reply attempt's `authority_epoch` starts at 1. `conversation_cancel` raises it to 2 and writes a `stop`. The bridge's existing stale-epoch rejection (`control-bridge.ts:705-707`) then refuses any older command, and capture withholds a result whose owning command's epoch is older (the existing rule, applied in the reply branch).
-5. **Hello.** Reply bindings in `running`, `idle` or `stopping` are listed with `authorityEpoch` = the attempt's, and `state`: `stopped` once cancelled or retired, else `active`. A reply never has `held`.
-6. **Receipts** (the reply branch of `apply_runtime_receipt`; CX-0009 correction 1). The terminal path for what never reaches `turn/end`: a rejected create (`failed` / `runtime_rejected`), a failed create (`failed` / `runtime_failed`, its open reservation `uncertain`), an uncertain create (`outcome_unknown`, the same request, attempt and reservation, never a new attempt), a stop (the request stays `cancelled`) and a retire. Each writes a `retire` where a native copy may exist. The full table and the receipt-only tests are in the [binding map](BINDING_MAP.md) §8.2.1.
+5. **Hello.** Every reply binding not yet `retired` is listed, with `authorityEpoch` = the attempt's, and `state` `active` only while its request is `pending` or `running`, else `stopped` (revision 6, CX-0012: a `lost` binding too, so a restarted bridge never resumes it). A reply never has `held`.
+6. **Receipts** (the reply branch of `apply_runtime_receipt`; CX-0009 correction 1). The terminal path for what never reaches `turn/end`: a rejected create (`failed` / `runtime_rejected`), a failed create (`failed` / `runtime_failed`, its open reservation `uncertain`), an uncertain create (`outcome_unknown`, terminal: never published, its reservation `uncertain` until an operator reconciles it, never a new attempt; revision 6, CX-0012), a stop (the request stays `cancelled`) and a retire. No receipt moves a request out of a terminal state. Each writes a `retire` where a native copy may exist. The full table and the receipt-only tests are in the [binding map](BINDING_MAP.md) §8.2.1.
 7. **Ingestion** (the reply branch of `runtime_record_observations`; CX-0009 correction 2). Under the project row, then the reply rows in id order, the order every conversation writer uses: an observation for a request no longer `pending` or `running`, or for an erased conversation, is stored **scrubbed** (its ids, type and sequence kept; its `data` reduced to usage). Usage is recorded from the original first. Scrubbing anywhere is an update in place, never a delete, so a replayed batch never re-inserts text. Tests in the binding map §8.2.2.
 
 ## 5. TypeScript readers and writers
@@ -97,7 +97,7 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 
 | File | Owner today | CON-01's change |
 |---|---|---|
-| Migration 0049 (`CREATE OR REPLACE` of the six functions above) | One writer; #190's 0046/0047 (at `f885459`) replace only `media_assignments` | Replaced from their latest bodies, with the insertions only |
+| Migration 0049 (`CREATE OR REPLACE` of the six functions above) | One writer; #190's 0046/0047 (at `0483d40`) replace only `media_assignments` | Replaced from their latest bodies, with the insertions only |
 | A04's `RuntimeWorkBinding` (amended in A16), `dsh-bundle/src/runtime-wire.generated.ts` and `runtime-wire-types.generated.ts`, `dsh-bundle/dist` | Contracts and runtime writer | `oneOf` goal or reply |
 | `config/specialists.json` + schema, `role-registry.ts`, `cordis.patch.yml`, `runtime-unit.json` (id, presets, `role_routes`, `model_routes`), lock and digests | Davide (LFE-00) | One role, one preset and one route (D-4). `pnpm artifacts:record` once, on the combined candidate |
 
