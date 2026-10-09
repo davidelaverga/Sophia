@@ -14,6 +14,7 @@ import {
   type MessageAsk,
   type MessageSent,
 } from '../../api/vision.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -66,7 +67,7 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     if (!sent) return false
     // The receipt's message shows at once, and stays should reading the conversation again fail; then the list moves
     // too (its order, who wrote there).
-    const pages = messagesKey(conversationId, identity.name)
+    const pages = messagesKey(conversationId, accountOf(identity))
     queryClient.setQueryData<ReadPages<MessageSent['message']>>(pages, (read) => withMessage(read, sent.message))
     void queryClient.invalidateQueries({ queryKey: pages })
     // Its row says it at once, before the list is read again (or should that read fail).

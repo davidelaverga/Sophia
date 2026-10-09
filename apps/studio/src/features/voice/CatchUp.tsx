@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { getSoFar, listMeetings, type Digest } from '../../api/vision.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { VISION } from '../../app/vision.ts'
@@ -45,7 +46,7 @@ function useSoFar(target: Target, liveSince: number | null) {
     queryKey: ['vision', 'so-far', projectId, liveSince],
     queryFn: async ({ signal }): Promise<SoFar | null> => {
       const running = (await listMeetings(identity.token, projectId, 1, signal)).meetings.find((m) => !m.endedAt)
-      const known = meetingsOf(identity.name, projectId)
+      const known = meetingsOf(accountOf(identity), projectId)
       if (!running || liveSince === null || known.has(running.id)) return null
       known.add(running.id)
       const minutes = joinedIn(running.startedAt, liveSince)

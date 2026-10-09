@@ -85,17 +85,18 @@ const ANNOUNCE: Record<Place, string> = {
   work: 'Work. Shared with your team.',
 }
 
-const flagKey = (identity: string, flag: string) => `sophia.personal.${flag}.v1.${identity}`
-function readFlag(identity: string, flag: string): string | null {
+/** Per-device convenience keyed by account (the token's subject, stable across email changes). */
+const flagKey = (account: string, flag: string) => `sophia.personal.${flag}.v1.${account}`
+function readFlag(account: string, flag: string): string | null {
   try {
-    return localStorage.getItem(flagKey(identity, flag))
+    return localStorage.getItem(flagKey(account, flag))
   } catch {
     return null
   }
 }
-function writeFlag(identity: string, flag: string, value: string): void {
+function writeFlag(account: string, flag: string, value: string): void {
   try {
-    localStorage.setItem(flagKey(identity, flag), value)
+    localStorage.setItem(flagKey(account, flag), value)
   } catch {
     // storage unavailable: the page forgets it on reload
   }
@@ -194,14 +195,15 @@ function useArrival(place: Place) {
 /** Moving between the places, and the padlock. Personal behind a shut padlock asks the person to confirm it's them. */
 function usePlaceNavigation(props: PlacesProps, layers: Layers) {
   const { place, lock, setLock, onGo, identity, toast } = props
+  const account = accountOf(identity)
   const arrive = useCallback(
     (target: Place, then?: () => void) => {
       layers.closeMenus()
-      if (target !== 'home') writeFlag(identity.name, 'last', target)
+      if (target !== 'home') writeFlag(account, 'last', target)
       if (target !== place) onGo(target)
       then?.()
     },
-    [layers, place, onGo, identity.name],
+    [layers, place, onGo, account],
   )
   // Once the person confirmed it's them, they arrive where they asked to go: the check is not asked again.
   const enter = useCallback(
@@ -262,16 +264,16 @@ function homeKey(e: KeyboardEvent): 'enter' | null {
 }
 
 /** Enter at home goes to the side used last ("/" reaches Sophia's line, ↑/↓ the index: Welcome.tsx). */
-function useHomeKeys(place: Place, active: boolean, identity: string, nav: Nav) {
+function useHomeKeys(place: Place, active: boolean, account: string, nav: Nav) {
   useEffect(() => {
     if (place !== 'home' || !active) return undefined
     const onKey = (e: KeyboardEvent) => {
       const key = modalOnScreen() ? null : homeKey(e) // a sheet on screen owns the keys
-      if (key === 'enter') nav.enter(readFlag(identity, 'last') === 'work' ? 'work' : 'personal')
+      if (key === 'enter') nav.enter(readFlag(account, 'last') === 'work' ? 'work' : 'personal')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [place, active, identity, nav])
+  }, [place, active, account, nav])
 }
 
 /** H, P, W go to the three places; D opens your data; L the padlock; T the notes. Esc closes what opened last. */
@@ -289,7 +291,7 @@ function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav) {
     },
     free,
   )
-  useHomeKeys(place, free, props.identity.name, nav)
+  useHomeKeys(place, free, accountOf(props.identity), nav)
   // With nothing open, Escape takes the place home; each open layer closes first, the latest first. The menus and the
   // sheets close themselves (usePopover, useDialog).
   useEscape(place !== 'home', () => nav.enter('home'))

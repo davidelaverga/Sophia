@@ -14,6 +14,7 @@ import {
   type ConversationSummary,
   type MessageAsk,
 } from '../../api/vision.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
@@ -270,7 +271,7 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
 /** The conversation as read, a page at a time (the newest first), and read again as the feed moves. */
 function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined) {
   const read = useInfiniteQuery({
-    queryKey: messagesKey(conversationId, identity.name),
+    queryKey: messagesKey(conversationId, accountOf(identity)),
     queryFn: ({ pageParam, signal }) => getConversationMessages(identity.token, conversationId, pageParam, signal),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.before,
