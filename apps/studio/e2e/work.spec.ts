@@ -3163,6 +3163,70 @@ test('@phone · codex · #107 · on a phone too, a proposal answered unreadably 
   await lostProposal(page, 'unreadable')
 })
 
+/**
+ * A proposal whose reply was lost, found again after leaving Tasks for another view or after reloading the page (Codex's
+ * automatic review of 1acb1efa, P2): the same key and the same request, never a second proposal; once Sophia answers,
+ * nothing is kept.
+ */
+async function lostThenBack(page: Page, away: 'view' | 'reload') {
+  await page.goto(`${PAGE}?served=1&proposed=lost`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  const purpose = form.getByLabel('Purpose (optional)')
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await purpose.fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  if (away === 'view') {
+    await views(page).getByRole('link', { name: 'Resources', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Review sources' })).toHaveCount(0)
+    await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  } else {
+    await page.reload()
+  }
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'An earlier proposal has no answer yet. Propose again to check; it is the same proposal.',
+  )
+  await expect(purpose).toHaveValue('Check the budgets agree')
+  await expect(purpose).toHaveJSProperty('readOnly', true)
+  await expect(form.getByRole('checkbox', { name: 'Press plan v2' })).toBeChecked()
+  await expect(form.getByRole('checkbox', { name: 'Launch brief v3' })).toBeDisabled()
+  await form.getByRole('button', { name: 'Propose again' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Proposed.' })).toBeVisible()
+  const sent = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(sent[0])
+  expect(sent[0]?.body).toMatchObject({ purpose: 'Check the budgets agree', allowanceUsd: 0.5 })
+  // Answered: nothing is kept, so the page opened again starts afresh.
+  await page.reload()
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByLabel('Purpose (optional)')).toHaveValue('')
+  await expect(form.getByRole('alert')).toHaveCount(0)
+}
+
+test('codex · 1acb1efa · a proposal whose reply was lost is the same one after leaving Tasks and coming back', async ({
+  page,
+}) => {
+  await lostThenBack(page, 'view')
+})
+
+test('codex · 1acb1efa · a proposal whose reply was lost is the same one after the page reloads', async ({ page }) => {
+  await lostThenBack(page, 'reload')
+})
+
+test('@phone · codex · 1acb1efa · on a phone too, a lost proposal is the same one after leaving Tasks', async ({
+  page,
+}) => {
+  await lostThenBack(page, 'view')
+})
+
+test('@phone · codex · 1acb1efa · on a phone too, a lost proposal is the same one after a reload', async ({ page }) => {
+  await lostThenBack(page, 'reload')
+})
+
 test('codex · #107 · a cap below a cent, or between cents, starts the allowance there and the form may be sent', async ({
   page,
 }) => {

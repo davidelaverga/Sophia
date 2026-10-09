@@ -165,11 +165,26 @@ const served = query.get('served') === '1'
 const cap = query.get('cap')
 /**
  * `proposed=lost|unreadable`: the first proposal's reply is lost, or a success that cannot be read; the next is answered.
- * `workFixture.proposals` lists each sent.
+ * `workFixture.proposals` lists each sent, across a reload of the tab too (the service remembers what it was sent).
  */
 const proposing = query.get('proposed')
+const SENT_KEY = 'fixture.work.proposals'
+const sentBefore = (): { key: string; body: unknown }[] => {
+  try {
+    const kept: unknown = JSON.parse(sessionStorage.getItem(SENT_KEY) ?? '[]')
+    if (!Array.isArray(kept)) return []
+    return kept.flatMap((p: unknown) =>
+      typeof p === 'object' && p !== null && typeof Reflect.get(p, 'key') === 'string'
+        ? [{ key: String(Reflect.get(p, 'key')), body: Reflect.get(p, 'body') as unknown }]
+        : [],
+    )
+  } catch {
+    return []
+  }
+}
 const proposals: { lose: number; how: 'lost' | 'unreadable'; sent: { key: string; body: unknown }[] } | undefined =
-  proposing === 'lost' || proposing === 'unreadable' ? { lose: 1, how: proposing, sent: [] } : undefined
+  proposing === 'lost' || proposing === 'unreadable' ? { lose: 1, how: proposing, sent: sentBefore() } : undefined
+if (proposals) addEventListener('pagehide', () => sessionStorage.setItem(SENT_KEY, JSON.stringify(proposals.sent)))
 /** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
 let onGoalCommand: ((command: GoalCommand, key: string) => void) | null = null
 installFixtureApi({

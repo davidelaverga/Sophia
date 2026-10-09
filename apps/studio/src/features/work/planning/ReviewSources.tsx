@@ -8,6 +8,7 @@ import type { Goal, SourceReviewAvailability, SourceReviewProposalRequest } from
 import { proposeReview, reviewAvailability } from '../../../api/work.ts'
 import { ApiError } from '../../../api/client.ts'
 import type { Identity } from '../../../app/dev-identity.ts'
+import { proposals, type Asked } from './review-proposal.ts'
 import { ALLOWANCE_STEP, allowanceOk, kib, selectionOf } from './review-sources.ts'
 
 interface Props {
@@ -20,12 +21,6 @@ interface Props {
 
 /** The allowance a review starts from: half a dollar, or the cap when it is lower. */
 const startingAllowance = (a: SourceReviewAvailability) => Math.min(0.5, a.maxAllowanceUsd ?? 0.5)
-
-/** One proposal as sent: its key and its whole request, kept together until Sophia answers it. */
-interface Asked {
-  readonly key: string
-  readonly request: SourceReviewProposalRequest
-}
 
 type Sent =
   | { state: 'idle' }
@@ -68,25 +63,38 @@ interface FormProps extends Props {
   onClose: () => void
 }
 
+/** What a proposal still unanswered from before says, found again after leaving Tasks or reloading the page. */
+const EARLIER = 'An earlier proposal has no answer yet. Propose again to check; it is the same proposal.'
+
 /**
  * The proposal, sent once per press. After no reply, a press sends the same key and the same request again; only
- * Sophia's answer ends it. It is held beside the form, so closing and reopening the form keeps it too.
+ * Sophia's answer ends it. It is kept before it is sent (review-proposal.ts), per viewer, project and goal, so closing
+ * the form, leaving Tasks and reloading the page all find it again, and an answer that arrives after this form has
+ * gone still ends it.
  */
 function useProposal({ projectId, identity, goal, onProposed }: Props) {
-  const [sent, setSent] = useState<Sent>({ state: 'idle' })
+  const at = { viewer: identity.name, project: projectId, goal: goal.id }
+  const [sent, setSent] = useState<Sent>(() => {
+    const kept = proposals.pending(at)
+    return kept ? { state: 'unanswered', said: EARLIER, ...kept } : { state: 'idle' }
+  })
   const propose = async (body: Omit<SourceReviewProposalRequest, 'goalId' | 'goalRevision'>) => {
     if (sent.state === 'sending') return
     const asked: Asked =
       sent.state === 'unanswered'
         ? { key: sent.key, request: sent.request }
         : { key: crypto.randomUUID(), request: { goalId: goal.id, goalRevision: goal.revision, ...body } }
+    proposals.keep(at, asked)
     setSent({ state: 'sending', ...asked })
     try {
       await proposeReview(identity.token, projectId, asked.key, asked.request)
+      proposals.forget(at)
       setSent({ state: 'proposed' })
       onProposed()
     } catch (err: unknown) {
-      setSent(outcomeOf(err, asked))
+      const outcome = outcomeOf(err, asked)
+      if (outcome.state === 'refused') proposals.forget(at)
+      setSent(outcome)
     }
   }
   /** A new form starts afresh, unless a proposal is still unanswered. */
