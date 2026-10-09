@@ -778,8 +778,8 @@ const put = (job, bytes) =>
   /** @type {const} */ ({ kind: 'upload', read: 'none', method: 'PUT', lease: job.leaseToken, bytes })
 
 /**
- * An upload that got no whole answer: whether the API stored and recorded it is unknown, so the job is not delivered
- * and nothing is settled; the lease decides what happens to it next, never this host's guess.
+ * An upload that got no whole answer: whether the API stored and recorded it is unknown, never guessed here. A PDF's
+ * is asked of settlement (uploadOrAsk); a capture's is left to the lease.
  * @param {Promise<unknown>} call
  * @param {string} what
  */
@@ -819,6 +819,31 @@ async function upload(cfg, job, outputDir, receipt, outputSha256) {
 }
 
 /**
+ * Upload what succeeded. A PDF whose upload failed may still have been recorded, its answer the only thing lost (none
+ * in time, a connection cut after the API committed it): then settlement asks. The API settles a PDF only if the output
+ * its lease recorded has the receipt's SHA-256, so a settlement it takes means these very bytes were recorded, and one
+ * it refuses means they were not; the job is then left to its lease, and a later claim renders it afresh (0045).
+ * Nothing is guessed here. A capture's failed upload is left to the lease: a later claim records each name again.
+ * @param {SupervisorConfig} cfg
+ * @param {RenderJob} job
+ * @param {string} outputDir
+ * @param {unknown} receipt
+ * @param {string | null} outputSha256
+ * @returns {Promise<boolean>} whether settlement must say if the PDF was recorded
+ */
+async function uploadOrAsk(cfg, job, outputDir, receipt, outputSha256) {
+  try {
+    await upload(cfg, job, outputDir, receipt, outputSha256)
+    return false
+  } catch (error) {
+    if (job.format !== 'pdf') throw error
+    const why = error instanceof Error ? error.message : String(error)
+    cfg.log?.(`render ${job.jobId}: ${why}; settling asks the API whether the PDF was recorded`)
+    return true
+  }
+}
+
+/**
  * Upload the outputs when the kernel succeeded, then settle with its receipt.
  * @param {SupervisorConfig} cfg
  * @param {RenderJob} job
@@ -830,11 +855,18 @@ async function deliver(cfg, job, outputDir) {
   /** @type {unknown} */
   const receipt = JSON.parse(fs.readFileSync(receiptFile, 'utf8'))
   const facts = receiptFacts(receipt)
-  if (facts.status === 'succeeded') await upload(cfg, job, outputDir, receipt, facts.outputSha256)
+  let asking = false
+  if (facts.status === 'succeeded') asking = await uploadOrAsk(cfg, job, outputDir, receipt, facts.outputSha256)
   else cfg.log?.(`render ${job.jobId} ${String(facts.status)}: ${facts.errorCode || 'no error code'}`)
   const route = `/v1/renderer/jobs/${job.jobId}/settle`
-  const reply = await api(cfg, route, { kind: 'settle', json: { leaseToken: job.leaseToken, receipt } }, asJson)
-  return stateOf(reply)
+  try {
+    const reply = await api(cfg, route, { kind: 'settle', json: { leaseToken: job.leaseToken, receipt } }, asJson)
+    return stateOf(reply)
+  } catch (error) {
+    if (asking && error instanceof ApiError && error.status < 500)
+      throw new Error('the PDF was not recorded: settlement refused it', { cause: error })
+    throw error
+  }
 }
 
 /**

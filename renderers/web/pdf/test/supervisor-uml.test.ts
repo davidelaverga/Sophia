@@ -196,10 +196,26 @@ describe(
     let seen: Seen = { uploads: [], settles: [], beats: 0 }
     /** Routes the stand-in API answers with headers and part of a body, and never finishes. */
     let silent = new Set<string>()
+    /** Routes the stand-in API carries out (an upload is recorded) and then answers as `silent` does: the answer lost. */
+    let lost = new Set<string>()
+    /** The job the stand-in last handed out, and how many settlements it refused. */
+    let current: Job | null = null
+    let refusedSettles = 0
 
     before(async () => {
       writeFileSync(guest, GUEST)
       spawnSync('mkdir', ['-p', '-m', '0755', work])
+      /** As renderer_settle: a succeeded PDF settles only with the output its lease recorded. */
+      const settleReply = (body: Buffer): Reply => {
+        const settle = JSON.parse(body.toString('utf8')) as { receipt?: { status?: string } }
+        const recorded = seen.uploads.some((u) => u.route === '/v1/renderer/jobs/job-1/output')
+        if (settle.receipt?.status === 'succeeded' && current?.format === 'pdf' && !recorded) {
+          refusedSettles += 1
+          return { status: 422, value: { code: 'invalid_request', message: 'names its recorded output' } }
+        }
+        seen.settles.push(settle)
+        return { status: 200, value: { state: 'settled' } }
+      }
       /** The stand-in API's reply to one request. */
       const reply = (req: IncomingMessage, body: Buffer): Reply => {
         const url = new URL(req.url ?? '/', 'http://x')
@@ -207,6 +223,7 @@ describe(
         if (url.pathname === '/v1/renderer/claim') {
           const job = next
           next = null
+          current = job ?? current
           return job ? claimed(job) : { status: 200, value: { job: null } }
         }
         if (url.pathname === '/v1/renderer/jobs/job-1/file') {
@@ -221,10 +238,7 @@ describe(
           seen.uploads.push({ route: url.pathname, bytes: body })
           return { status: 200, value: {} }
         }
-        if (url.pathname === '/v1/renderer/jobs/job-1/settle') {
-          seen.settles.push(JSON.parse(body.toString('utf8')) as unknown)
-          return { status: 200, value: { state: 'settled' } }
-        }
+        if (url.pathname === '/v1/renderer/jobs/job-1/settle') return settleReply(body)
         return { status: 404, value: { error: url.pathname } }
       }
       server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -232,7 +246,8 @@ describe(
         req.on('data', (c: Buffer) => chunks.push(c))
         req.on('end', () => {
           const route = new URL(req.url ?? '/', 'http://x').pathname
-          if (silent.has(route)) {
+          if (lost.has(route)) reply(req, Buffer.concat(chunks))
+          if (silent.has(route) || lost.has(route)) {
             res.writeHead(200, { 'content-type': 'application/json' })
             res.write('{')
             return
@@ -452,8 +467,31 @@ describe(
       }
     })
 
-    it('an upload whose answer never finishes is left unknown: the job abandoned, nothing settled', async () => {
+    it('a PDF the API recorded, its answer lost, is settled: settlement finds the output its lease recorded', async () => {
+      lost = new Set(['/v1/renderer/jobs/job-1/output'])
+      const pending = run({ format: 'pdf' }, 'ok', {}, 300)
+      const settled = await within(pending, 5000)
+      try {
+        assert.notEqual(settled, LOST, 'the job ended within its time')
+        const { outcome, log } = settled as Awaited<typeof pending>
+        assert.equal(outcome.claimed && outcome.outcome, 'settled', log.join('\n'))
+        const asked =
+          /the PDF's upload got no whole answer: its outcome is unknown; settling asks the API whether the PDF was recorded/u
+        assert.ok(
+          log.some((l) => asked.test(l)),
+          log.join('\n'),
+        )
+        assert.equal(seen.uploads.length, 1, 'uploaded once, never sent again')
+        assert.equal(seen.settles.length, 1)
+      } finally {
+        if (settled === LOST) await release(pending, null)
+        lost = new Set()
+      }
+    })
+
+    it('a PDF whose upload got no answer and was not recorded is refused at settlement: left to its lease', async () => {
       silent = new Set(['/v1/renderer/jobs/job-1/output'])
+      refusedSettles = 0
       const pending = run({ format: 'pdf' }, 'ok', {}, 300)
       const settled = await within(pending, 5000)
       try {
@@ -461,10 +499,28 @@ describe(
         const { outcome, log } = settled as Awaited<typeof pending>
         assert.equal(outcome.claimed && outcome.outcome, 'abandoned')
         assert.ok(
-          log.some((l) => /the PDF's upload got no whole answer: its outcome is unknown/u.test(l)),
+          log.some((l) => /the PDF was not recorded: settlement refused it/u.test(l)),
           log.join('\n'),
         )
-        assert.deepEqual(seen.settles, [], 'never settled on a guess')
+        assert.equal(refusedSettles, 1, 'settlement asked once, and refused')
+        assert.deepEqual(seen.settles, [], 'nothing settled on a guess')
+      } finally {
+        if (settled === LOST) await release(pending, null)
+        silent = new Set()
+      }
+    })
+
+    it('a capture whose upload got no answer is left to its lease: no settlement asked', async () => {
+      silent = new Set(['/v1/renderer/jobs/job-1/captures/w390-light-overview-1.png'])
+      refusedSettles = 0
+      const pending = run({ format: 'png' }, 'ok', {}, 300)
+      const settled = await within(pending, 5000)
+      try {
+        assert.notEqual(settled, LOST, 'the job ended within its time')
+        const { outcome, log } = settled as Awaited<typeof pending>
+        assert.equal(outcome.claimed && outcome.outcome, 'abandoned', log.join('\n'))
+        assert.deepEqual(seen.settles, [])
+        assert.equal(refusedSettles, 0)
       } finally {
         if (settled === LOST) await release(pending, null)
         silent = new Set()

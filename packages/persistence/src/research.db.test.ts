@@ -2975,6 +2975,78 @@ describe('render jobs (0030)', () => {
     assert.equal((await renderState(r.w, queued.jobId)).result_source_id, null)
   })
 
+  it('claims a render that recorded its output and lost its lease afresh: the new run records and settles its own (0045)', async () => {
+    const r = await renderWorld()
+    const queued = await r.enqueue()
+    const job = await claimMine(queued.jobId)
+    const record = (lease: string, sourceId: string, content: string) =>
+      service((c) =>
+        rendererRecordOutput(c, runnerHash(), queued.jobId, lease, {
+          sourceId,
+          sha256: sha(content),
+          byteLength: content.length,
+        }),
+      )
+    const slot = await service((c) => rendererOutputSlot(c, runnerHash(), job.jobId, job.leaseToken))
+    await record(job.leaseToken, slot.sourceId, 'pdf')
+    // The upload's answer was lost, so the runner never settled; its lease runs out and a claim queues it again.
+    await owner((c) =>
+      c.query(`UPDATE sophia.jobs SET lease_until=now()-interval '1 second' WHERE project_id=$1 AND id=$2`, [
+        r.w.projectId,
+        queued.jobId,
+      ]),
+    )
+    const again = await claimMine(queued.jobId)
+    const settle = (lease: string, content: string) =>
+      service((c) => rendererSettle(c, runnerHash(), queued.jobId, lease, receiptFor(r.expected, sha(content))))
+    assert.equal(await codeOf(settle(job.leaseToken, 'pdf')), 'invalid_state', 'the lost lease settles nothing')
+    assert.equal(
+      await codeOf(settle(again.leaseToken, 'pdf')),
+      'invalid_request',
+      'the forgotten output is no output of the new lease',
+    )
+    const slot2 = await service((c) => rendererOutputSlot(c, runnerHash(), again.jobId, again.leaseToken))
+    assert.notEqual(slot2.sourceId, slot.sourceId, 'a fresh key')
+    await record(again.leaseToken, slot2.sourceId, 'pdf, again')
+    assert.equal(await codeOf(settle(again.leaseToken, 'pdf')), 'invalid_request', 'only its own output settles')
+    assert.deepEqual(await settle(again.leaseToken, 'pdf, again'), { state: 'succeeded', reason: null })
+    assert.deepEqual(await renderState(r.w, queued.jobId), {
+      state: 'succeeded',
+      reason: null,
+      claims: 2,
+      result_source_id: slot2.sourceId,
+    })
+  })
+
+  it('keeps the output a render recorded when its lease runs out at a Hold or Stop: those settle as before (0045)', async () => {
+    const r = await renderWorld()
+    const queued = await r.enqueue()
+    const job = await claimMine(queued.jobId)
+    const slot = await service((c) => rendererOutputSlot(c, runnerHash(), job.jobId, job.leaseToken))
+    await service((c) =>
+      rendererRecordOutput(c, runnerHash(), job.jobId, job.leaseToken, {
+        sourceId: slot.sourceId,
+        sha256: sha('pdf'),
+        byteLength: 3,
+      }),
+    )
+    // Under its live lease, a Stop's sweep cancels it (the claim sweeps first): the recorded output is never presented.
+    await control(r.w, 'stop', r.receipt.goalId)
+    await service((c) => rendererClaim(c, runnerHash()))
+    const stopped = await renderState(r.w, queued.jobId)
+    assert.equal(stopped.state, 'cancelled')
+    assert.equal(stopped.result_source_id, null)
+    const kept = await one<{ output_source_id: string | null }>(
+      `SELECT output_source_id FROM sophia.render_jobs WHERE project_id=$1 AND job_id=$2`,
+      [r.w.projectId, queued.jobId],
+    )
+    assert.equal(
+      kept.output_source_id,
+      slot.sourceId,
+      'a cancelled render is not queued again, so nothing is forgotten',
+    )
+  })
+
   it('claims a render whose lease ran out again, three times at most, then fails it as renderer_lost', async () => {
     const r = await renderWorld()
     const queued = await r.enqueue()
