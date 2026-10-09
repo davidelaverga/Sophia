@@ -19,7 +19,8 @@ import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
 import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { forgetKept } from '../src/features/conversations/talk-store.ts'
+import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
+import { accountOf } from '../src/app/auth-callback.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccountMenu } from '../src/app/AccountMenu.tsx'
@@ -52,6 +53,7 @@ import {
 import {
   installFixtureApi,
   publish,
+  type Conversations,
   releaseSources,
   releaseTask,
   releaseText,
@@ -151,6 +153,12 @@ interface Fixture {
    * brings it back. The feed moves either way.
    */
   capPast: (conversationId: string | null) => void
+  /** Another admin, elsewhere, erases this conversation: it leaves the list and its messages go; the feed moves. */
+  eraseElsewhere: (conversationId: string) => void
+  /** The list says (or stops saying) that it holds the newest only (`more`); the feed moves. */
+  listMore: (on: boolean) => void
+  /** What the view keeps for this project and this page's account (talk-store.ts), as a check reads it. */
+  kept: () => Kept | undefined
   /** The brief's reads fail, or read again. */
   failMission: (on: boolean) => void
   /** While on, the brief's reads wait; off, the waiting ones are answered. */
@@ -600,6 +608,21 @@ window.fixture = {
     project.conversations.cappedOut = conversationId
     publish(project)
   },
+  eraseElsewhere: (conversationId) => {
+    const talk: Conversations | undefined = project.conversations
+    if (!talk) return
+    const at = talk.list.findIndex((c) => c.id === conversationId)
+    if (at >= 0) talk.list.splice(at, 1)
+    delete talk.messages[conversationId]
+    ;(talk.erasedIds ??= new Set()).add(conversationId)
+    publish(project)
+  },
+  listMore: (on) => {
+    if (!project.conversations) return
+    project.conversations.more = on
+    publish(project)
+  },
+  kept: () => keptAt(`${PROJECT} ${accountOf(identity)}`),
   failMission: (on) => {
     project.missionFails = on
   },
@@ -898,8 +921,8 @@ function eraseAsked(which: string | null): 'feedFirst' | 'unreached' | 'lost' | 
 }
 
 /** How a withdrawal's reply and the feed come (`withdraw=`): both late, the feed first, or at once. */
-function withdrawAsked(which: string | null): 'slow' | 'feedFirst' | 'thenFail' | null {
-  return which === 'slow' || which === 'feedFirst' || which === 'thenFail' ? which : null
+function withdrawAsked(which: string | null): 'slow' | 'feedFirst' | 'thenFail' | 'unreached' | null {
+  return which === 'slow' || which === 'feedFirst' || which === 'thenFail' || which === 'unreached' ? which : null
 }
 
 /** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */

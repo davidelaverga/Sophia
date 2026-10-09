@@ -2,11 +2,17 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   changeIfCurrent,
+  changeKept,
   currentGeneration,
   forgetKept,
+  goneFrom,
   keptAt,
   withErasure,
+  withHome,
+  withListed,
   withoutConversation,
+  withoutMessage,
+  withWithdrawal,
   type Kept,
 } from './talk-store.ts'
 
@@ -80,6 +86,83 @@ describe('withErasure', () => {
     // Another conversation's erasure is its own.
     const other = withErasure(settled, 'c2', { key: 'e2', ask: 'c2', sending: true })
     assert.deepEqual(other.erasures, { c2: { key: 'e2', ask: 'c2', sending: true } })
+  })
+})
+
+const held = (key: string) => ({ key, ask: 'words from the message', sending: false })
+
+describe('a gone message’s part (PR #199 r4235397318, r4235397321)', () => {
+  const parts = (): Partial<Kept> => ({
+    proposals: { m1: held('p1'), m2: held('p2') },
+    proposalRefusals: { m1: 'refused', m2: null },
+    proposed: { m1: { id: 'd1', statement: 'words from the message' }, m2: null },
+    withdrawals: { m1: held('w1'), m2: held('w2') },
+    homes: { m1: 'c1', m2: 'c2' },
+    decision: DECISION,
+  })
+
+  it('an erased conversation takes its messages’ proposals and withdrawals; another’s, and the decision, stay', () => {
+    const after = withoutConversation(keptWith(parts()), 'c1')
+    assert.deepEqual(Object.keys(after.proposals), ['m2'])
+    assert.deepEqual(Object.keys(after.proposalRefusals), ['m2'])
+    assert.deepEqual(Object.keys(after.proposed), ['m2'])
+    assert.deepEqual(Object.keys(after.withdrawals), ['m2'])
+    assert.deepEqual(after.homes, { m2: 'c2' })
+    assert.deepEqual(after.gone, { m1: true })
+    assert.deepEqual(after.decision, DECISION)
+  })
+
+  it('a late answer writing a gone message’s proposal back (ProposeHere writes its own) is left out', () => {
+    keptWith(parts())
+    changeKept(PLACE, (k) => withoutConversation(k, 'c1'))
+    changeKept(PLACE, (k) => ({ ...k, proposals: { ...k.proposals, m1: held('p1') } }))
+    changeKept(PLACE, (k) => ({ ...k, proposed: { ...k.proposed, m1: { id: 'd1', statement: 'late' } } }))
+    const now = keptAt(PLACE)
+    assert.ok(now)
+    assert.equal(now.proposals.m1, undefined)
+    assert.equal(now.proposed.m1, undefined)
+    assert.deepEqual(now.proposals.m2, held('p2'))
+  })
+
+  it('a message withdrawn here takes its own part only', () => {
+    const after = withoutMessage(keptWith(parts()), 'm1')
+    assert.deepEqual(Object.keys(after.proposals), ['m2'])
+    assert.deepEqual(Object.keys(after.withdrawals), ['m2'])
+    assert.deepEqual(after.gone, { m1: true })
+  })
+
+  it('a withdrawal is held under its message, its conversation known, and never comes back once gone', () => {
+    const k = withWithdrawal(keptWith({}), 'm1', 'c1', held('w1'))
+    assert.deepEqual(k.withdrawals, { m1: held('w1') })
+    assert.deepEqual(k.homes, { m1: 'c1' })
+    assert.deepEqual(withWithdrawal(k, 'm1', 'c1', null).withdrawals, {})
+    const gone = withoutMessage(k, 'm1')
+    assert.equal(withWithdrawal(gone, 'm1', 'c1', held('w1')), gone)
+    assert.equal(withHome(withHome(k, 'm9', 'c3'), 'm9', 'c3').homes.m9, 'c3')
+  })
+})
+
+describe('goneFrom and withListed: only a whole list says one is gone', () => {
+  it('seen in a list of the newest only, left out of one: kept; left out of a whole list later: gone', () => {
+    // Opened on a project already past the newest the list holds: every list read so far is capped.
+    let k = withListed(keptWith({ drafts: { c1: 'a draft' } }), ['c1', 'c2', 'c3'], false)
+    assert.deepEqual(Object.keys(k.listed).toSorted(), ['c1', 'c2', 'c3'])
+    // Erased elsewhere; a capped list leaves it out: nothing proved, it stays seen.
+    k = withListed(k, ['c2', 'c3', 'c4'], false)
+    assert.deepEqual(Object.keys(k.listed).toSorted(), ['c1', 'c2', 'c3', 'c4'])
+    // A whole list, read now, without it: gone, though no earlier whole list ever held it.
+    assert.deepEqual(goneFrom(k, ['c2', 'c3', 'c4']), ['c1'])
+    const settled = withListed(withoutConversation(k, 'c1'), ['c2', 'c3', 'c4'], true)
+    assert.deepEqual(Object.keys(settled.listed).toSorted(), ['c2', 'c3', 'c4'])
+    assert.equal(settled.drafts.c1, undefined)
+    assert.deepEqual(goneFrom(settled, ['c2', 'c3', 'c4']), [])
+  })
+
+  it('an erasure held here counts though never seen listed; a start seen listed is never gone while listed', () => {
+    const k = withListed(keptWith({ erasures: { c9: { key: 'e9', ask: 'c9', sending: false } } }), ['c1'], true)
+    assert.deepEqual(goneFrom(k, ['c1']), ['c9'])
+    const started = withListed(k, ['c5', 'c1'], true)
+    assert.deepEqual(goneFrom(started, ['c5', 'c1']), ['c9'])
   })
 })
 

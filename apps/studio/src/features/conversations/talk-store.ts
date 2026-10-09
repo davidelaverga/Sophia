@@ -41,6 +41,20 @@ export interface Kept {
    * them again, so a late answer to their erasure (a failure, or no reply) never brings its intent back.
    */
   erased: Readonly<Record<string, true>>
+  /** A message's withdrawal on its way, or sent with no reply (its key), by message: sent again under the same key. */
+  withdrawals: Readonly<Record<string, Held<string> | null>>
+  /** The conversation of each message that has something kept here (a withdrawal or a proposal), by message. */
+  homes: Readonly<Record<string, string>>
+  /**
+   * Messages withdrawn here, or whose conversation is gone: nothing is kept for them again, whatever answers late (a
+   * proposal's reply included): every change to what is kept leaves their part out (`retired`).
+   */
+  gone: Readonly<Record<string, true>>
+  /**
+   * The conversations this view has seen listed (any list read, the newest only included, a start just made too): one a
+   * whole list read later no longer holds is gone. A list of the newest only leaving one out proves nothing.
+   */
+  listed: Readonly<Record<string, true>>
 }
 
 /**
@@ -72,6 +86,10 @@ const EMPTY: Kept = {
   decisionRefusal: null,
   erasures: {},
   erased: {},
+  withdrawals: {},
+  homes: {},
+  gone: {},
+  listed: {},
 }
 
 const kept = new Map<string, Kept>()
@@ -86,9 +104,9 @@ const subscribe = (listener: () => void) => {
   }
 }
 
-/** Changes what is kept for one project and account; everyone reading it reads it again. */
+/** Changes what is kept for one project and account (never anything for a message gone); everyone reads it again. */
 export function changeKept(place: string, change: (was: Kept) => Kept): void {
-  kept.set(place, change(kept.get(place) ?? EMPTY))
+  kept.set(place, retired(change(kept.get(place) ?? EMPTY)))
   for (const listener of listeners) listener()
 }
 
@@ -130,20 +148,92 @@ export const withEntry = <T>(was: Readonly<Record<string, T>>, key: string, valu
 const withoutEntry = <T>(was: Readonly<Record<string, T>>, key: string): Readonly<Record<string, T>> =>
   Object.fromEntries(Object.entries(was).filter(([k]) => k !== key))
 
+/** A record without the entries `out` names. */
+const without = <T>(
+  was: Readonly<Record<string, T>>,
+  out: Readonly<Record<string, true>>,
+): Readonly<Record<string, T>> => Object.fromEntries(Object.entries(was).filter(([k]) => out[k] !== true))
+
 /**
- * What is kept without one erased conversation's part: its draft, intent, message held, refusal and wait, and its
- * erasure, settled (never brought back: withErasure). Another conversation's part, and Still open's decision, stay.
+ * What is kept with no part for a message gone: its proposal (held, refused or recorded) and its withdrawal held. A
+ * late answer that wrote one back (main's ProposeHere writes its own) is left out here, at every change.
  */
-export const withoutConversation = (k: Kept, id: string): Kept => ({
-  ...k,
-  drafts: withoutEntry(k.drafts, id),
-  asks: withoutEntry(k.asks, id),
-  holds: withoutEntry(k.holds, id),
-  refusals: withoutEntry(k.refusals, id),
-  asked: withoutEntry(k.asked, id),
-  erasures: withoutEntry(k.erasures, id),
-  erased: withEntry(k.erased, id, true),
-})
+export function retired(k: Kept): Kept {
+  const out = k.gone
+  const any = (r: Readonly<Record<string, unknown>>) => Object.keys(r).some((id) => out[id])
+  if (![k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes].some(any)) return k
+  return {
+    ...k,
+    proposals: without(k.proposals, out),
+    proposalRefusals: without(k.proposalRefusals, out),
+    proposed: without(k.proposed, out),
+    withdrawals: without(k.withdrawals, out),
+    homes: without(k.homes, out),
+  }
+}
+
+/** What is kept with these messages gone (withdrawn, or their conversation erased): nothing of theirs, ever again. */
+const withGone = (k: Kept, messages: readonly string[]): Kept =>
+  retired({ ...k, gone: { ...k.gone, ...Object.fromEntries(messages.map((m) => [m, true as const])) } })
+
+/** What is kept once a message is withdrawn here: its proposal and its withdrawal held go, and never come back. */
+export const withoutMessage = (k: Kept, messageId: string): Kept => withGone(k, [messageId])
+
+/**
+ * What is kept without one erased conversation's part: its draft, intent, message held, refusal and wait, its
+ * messages' proposals and withdrawals (never brought back: `retired`), and its erasure, settled (never brought back:
+ * withErasure). Another conversation's part, and Still open's decision, stay.
+ */
+export function withoutConversation(k: Kept, id: string): Kept {
+  const messages = Object.keys(k.homes).filter((m) => k.homes[m] === id)
+  return withGone(
+    {
+      ...k,
+      drafts: withoutEntry(k.drafts, id),
+      asks: withoutEntry(k.asks, id),
+      holds: withoutEntry(k.holds, id),
+      refusals: withoutEntry(k.refusals, id),
+      asked: withoutEntry(k.asked, id),
+      erasures: withoutEntry(k.erasures, id),
+      erased: withEntry(k.erased, id, true),
+      listed: withoutEntry(k.listed, id),
+    },
+    messages,
+  )
+}
+
+/** The message's conversation known, for a message with something kept here (its erasure takes that too). */
+export const withHome = (k: Kept, messageId: string, conversationId: string): Kept =>
+  k.homes[messageId] === conversationId ? k : { ...k, homes: withEntry(k.homes, messageId, conversationId) }
+
+/**
+ * The conversations a whole list read now no longer holds, of those seen listed here or with an erasure held here:
+ * gone (erased, here or by anyone else). Only a whole list says so: call it with nothing else.
+ */
+export function goneFrom(k: Kept, now: readonly string[]): string[] {
+  const here = new Set(now)
+  const knew = new Set([...Object.keys(k.listed), ...Object.keys(k.erasures)])
+  return [...knew].filter((id) => !here.has(id))
+}
+
+/**
+ * What is kept with the conversations a list read now holds seen: a whole list's are the ones seen from now on (what it
+ * left out was settled before: goneFrom); a list of the newest only adds its own, and forgets none it left out.
+ */
+export function withListed(k: Kept, now: readonly string[], whole: boolean): Kept {
+  const added = now.filter((id) => !k.listed[id])
+  const dropped = whole ? Object.keys(k.listed).filter((id) => !now.includes(id)) : []
+  if (added.length === 0 && dropped.length === 0) return k
+  const base = whole ? {} : k.listed
+  return { ...k, listed: { ...base, ...Object.fromEntries(now.map((id) => [id, true as const])) } }
+}
+
+/** A message's withdrawal intent, changed, and its conversation known (so its erasure takes it too). */
+export function withWithdrawal(k: Kept, messageId: string, conversationId: string, next: Held<string> | null): Kept {
+  if (k.gone[messageId]) return k
+  const withdrawals = next ? withEntry(k.withdrawals, messageId, next) : withoutEntry(k.withdrawals, messageId)
+  return withHome({ ...k, withdrawals }, messageId, conversationId)
+}
 
 /**
  * One conversation's erasure intent, changed (on its way, with no reply, or answered): unless it was settled already,

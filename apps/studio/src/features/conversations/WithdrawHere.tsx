@@ -1,7 +1,8 @@
 // Withdrawing a message (CON-01, A16; binding map §6): its author withdraws their own, an admin removes any. A small
 // press at the message's corner, beside «Propose as decision», under the pointer or the focus as that one is; pressed, a
 // short confirmation under the message says what goes, and only its own press withdraws. One intent, one key: with no
-// reply, the press sends it again under the same key. Withdrawn, the message keeps its place and says so, and the
+// reply, the press sends it again under the same key, kept by the view (talk-store.ts) so another conversation opened
+// meanwhile and this one again still finds it (PR #199 r4235397321). Withdrawn, the message keeps its place and says so, and the
 // conversation and the list are read again (her answers that read it go too, on the server). Its press and its
 // confirmation go with its words: the focus lands on what the message says now, unless the person moved it elsewhere
 // while the withdrawal was on its way (focusLater).
@@ -18,9 +19,11 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { focusLater } from '../personal/focus.ts'
 import { LISTS, listWithdrawn, messagesKey, remainsAfter, withWithdrawn, type ReadPages } from './conversation-list.ts'
-import { useHeldWrite, type Held } from './held-write.ts'
+import { useHeldWrite } from './held-write.ts'
+import { useKept, withoutMessage, withWithdrawal } from './talk-store.ts'
 
 export interface WithdrawArgs {
+  projectId: string
   conversationId: string
   identity: Identity
   messageId: string
@@ -38,14 +41,14 @@ export function withdrawRefusal(err: ApiError): string {
 /** One message's withdrawal: its press (at the message's corner) and, pressed, its confirmation; null where none may. */
 export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; form: ReactNode } {
   const [asking, setAsking] = useState(false)
-  const [held, setHeld] = useState<Held<string> | null>(null)
   const [refused, setRefused] = useState<string | null>(null)
   const press = useRef<HTMLButtonElement>(null)
   const landing = useLanding(args === null)
   const queryClient = useQueryClient()
+  const { kept, change } = useKept(args?.projectId ?? '', args ? accountOf(args.identity) : '')
   const write = useHeldWrite<string, ConversationMessage>(
-    held,
-    setHeld,
+    args ? (kept.withdrawals[args.messageId] ?? null) : null,
+    (next) => args && change((k) => withWithdrawal(k, args.messageId, args.conversationId, next)),
     async (key, messageId) =>
       (await withdrawConversationMessage(args?.identity.token ?? '', args?.conversationId ?? '', messageId, key))
         .message,
@@ -63,6 +66,8 @@ export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; 
     landing.arm(focusLater(), press.current?.closest('li') ?? null)
     const message = await write.run(args.messageId)
     if (!message) return
+    // Withdrawn: nothing is kept for it again (its proposal held, refused or recorded), whatever answers late.
+    change((k) => withoutMessage(k, message.id))
     const pages = messagesKey(args.conversationId, accountOf(args.identity))
     // What it said, what was said from it, and who it says wrote there leave the screen now: not only once (and if)
     // it is read again.

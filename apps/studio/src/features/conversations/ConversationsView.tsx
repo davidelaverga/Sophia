@@ -29,7 +29,16 @@ import { NewConversation } from './NewConversation.tsx'
 import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
 import type { Erase } from './EraseHere.tsx'
-import { NO_WORDS, START, useKept, withEntry, withErasure, withoutConversation } from './talk-store.ts'
+import {
+  goneFrom,
+  NO_WORDS,
+  START,
+  useKept,
+  withEntry,
+  withErasure,
+  withListed,
+  withoutConversation,
+} from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { useArrival } from '../studio/project-go.tsx'
 import './conversations.css'
@@ -81,6 +90,8 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
     capability: list.data?.capability,
     notice: list.data?.notice ?? null,
     settled: list.isSuccess && !list.isFetching,
+    /** Read, as it is now, and holding every conversation (no `more`): one missing from it is gone. */
+    whole: list.isSuccess && !list.isFetching && !list.data.more,
   }
 }
 
@@ -114,8 +125,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     panes.show()
   })
   const talk = useTalk(projectId, accountOf(identity))
-  // Read now, and holding every conversation (no `more`): one missing from it is gone.
-  const erased = useErased(talk, panes, all, settled && !reader.more, accountOf(identity))
+  const erased = useErased(talk, panes, { all, seen: list.isSuccess, whole: reader.whole }, accountOf(identity))
   const start = useStart(projectId, identity, talk, (id) => {
     erased.clear()
     choose(id)
@@ -297,11 +307,18 @@ function usePanes() {
   const dropContext = useCallback(() => setContext(false), [])
   useContextPanel(view, context, closeContext, dropContext)
   const show = () => {
+    const from = document.activeElement
     setScreen('thread')
     // Shown now (a phone kept it hidden): it opens at its newest message.
     requestAnimationFrame(() => {
       const thread = view.current?.querySelector('.conv-scroll')
       if (thread) thread.scrollTop = thread.scrollHeight
+      // Pressed from the list a phone now hides (the row with it): the focus goes to the conversation's title, never
+      // to the page. Where the list stays in sight, the row keeps it.
+      const pressed = from instanceof HTMLElement && from.closest('.conv-list') ? from : null
+      if (pressed && (document.activeElement === document.body || !pressed.checkVisibility())) {
+        view.current?.querySelector<HTMLElement>('.conv-head h3')?.focus({ preventScroll: true })
+      }
     })
   }
   const toList = useCallback(() => {
@@ -487,7 +504,7 @@ function eraseOf(
  * opened. The focus, armed as Erase is pressed, waits for the conversation to leave the list (its reply, the feed
  * first, or any read without it), then for the list to be in sight (on a phone it shows only then), and lands on the
  * row open now, unless the person moved it elsewhere meanwhile (focusLater; CX-0015). Only its reply, or a whole list
- * read without it (`complete`: read now, no `more`), settles it: what was kept for it goes, and the list says it was
+ * read without it (`whole`: read now, no `more`; useSeen), settles it: what was kept for it goes, and the list says it was
  * erased if the person is still where the erase left them. A list that failed, is still being read, or lists the
  * newest only proves nothing: one missing from it may be older, and its erasure stays held. A reply (or a feed) that
  * comes after they opened another conversation never moves them, their focus or their draft.
@@ -495,10 +512,10 @@ function eraseOf(
 function useErased(
   talk: ReturnType<typeof useTalk>,
   panes: ReturnType<typeof usePanes>,
-  all: readonly ConversationSummary[],
-  complete: boolean,
+  read: Listed,
   account: string,
 ) {
+  const { all } = read
   const queryClient = useQueryClient()
   const [said, setSaid] = useState(false)
   const landing = useRef<{ id: string; land: (el: HTMLElement | null) => void } | null>(null)
@@ -507,7 +524,7 @@ function useErased(
   // It left the list: now the list is to show, and the focus to land once it does.
   const [due, setDue] = useState(false)
   const { toList, view, screen, context } = panes
-  const { change, kept } = talk
+  const { change } = talk
   // Settled, by a whole list without it or by its reply, whichever first: what was kept for it goes, its messages as
   // read with it, and it is said, once.
   const settle = useCallback(
@@ -527,11 +544,7 @@ function useErased(
     toList()
     setDue(true)
   }, [all, due, toList])
-  // Out of a whole list read now, an erasure held here (on its way, or with no reply) is settled.
-  useEffect(() => {
-    if (!complete) return
-    for (const id of Object.keys(kept.erasures)) if (!all.some((c) => c.id === id)) settle(id)
-  }, [complete, all, kept.erasures, settle])
+  useSeen(talk, read, settle)
   useEffect(() => {
     const at = landing.current
     if (!due || !at || screen !== 'list' || context) return
@@ -557,6 +570,29 @@ function useErased(
     },
     on: settle,
   }
+}
+
+/** The list as read: its conversations, whether it was read, and whether whole (no `more`) and read now. */
+interface Listed {
+  all: readonly ConversationSummary[]
+  seen: boolean
+  whole: boolean
+}
+
+/**
+ * Every list read is seen. Out of a whole list read now, a conversation seen before is gone, erased here or by anyone
+ * else (PR #199 r4235397313): an erasure held here settles, and whatever was kept for it, or read of it, goes with it.
+ * A list of the newest only leaving one out proves nothing.
+ */
+function useSeen(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: string) => void) {
+  const { kept, change } = talk
+  const { all, seen, whole } = read
+  useEffect(() => {
+    if (!seen) return
+    const now = all.map((c) => c.id)
+    if (whole) for (const id of goneFrom(kept, now)) settle(id)
+    if (withListed(kept, now, whole) !== kept) change((k) => withListed(k, now, whole))
+  }, [seen, whole, all, kept, settle, change])
 }
 
 /** Where the focus goes as the form goes: back to New conversation when put away, not when a row is pressed. */

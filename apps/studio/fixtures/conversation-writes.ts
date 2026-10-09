@@ -2,7 +2,8 @@
 // started, a message sent, each once per Idempotency-Key (the same key replays its receipt); viewers refused. Its
 // author withdraws their own message, an admin removes any or erases a conversation, as 0048 does it
 // (`withdraw=slow`: its reply and the feed 1.5 s on; `withdraw=feedFirst`: the feed 0.5 s on, its reply 2.5 s on;
-// `withdraw=thenFail`: it lands, then the conversation's and the list's reads fail). Asking
+// `withdraw=thenFail`: it lands, then the conversation's and the list's reads fail; `withdraw=unreached`: the first
+// one never reaches the API). Asking
 // Sophia records a reply request on the message; her answer, a later message 900 ms on, names that request and settles
 // it, with the project's feed moving as it lands; what she says, sophia-answers.ts. Every word is synthetic.
 import type { ConversationReply } from '@sophia/contracts'
@@ -30,7 +31,9 @@ export interface TalkWrites {
    * A withdrawal's reply and the feed: both 1.5 s on (`withdraw=slow`), the feed first (`feedFirst`), at once, or at
    * once and then every read of the conversation and the list failing (`thenFail`).
    */
-  withdraw: 'slow' | 'feedFirst' | 'thenFail' | null
+  withdraw: 'slow' | 'feedFirst' | 'thenFail' | 'unreached' | null
+  /** A withdrawal has already failed to reach the API (`withdraw=unreached` lets one through after it). */
+  withdrawMissed?: boolean
   /** The list's reads fail. */
   failList: boolean
   /**
@@ -251,16 +254,30 @@ export function conversationWithdrawn(talk: TalkWrites, path: string, init: Requ
   const key = new Headers(init?.headers).get('idempotency-key')
   if (!key) return null
   const what = `withdraw:${messageId}`
+  // Each try, by its key: the same intent goes again under the same key, whatever the page did meanwhile.
+  ctx.record(`withdraw-key:${key}`)
+  if (missedOnce(talk)) return Promise.reject(new TypeError('Failed to fetch'))
   const replayed = talk.receipts.get(key)
   if (replayed) return replayed.body === what ? json(replayed.receipt, 202) : null
   const answer = withdrawn(talk, conversationId, messageId, ctx)
   if (answer === null || answer instanceof Response) return answer
   talk.receipts.set(key, { body: what, receipt: answer })
-  if (talk.withdraw === 'thenFail') {
-    talk.failMessagesOf = conversationId
-    talk.failList = true
-  }
+  failAfter(talk, conversationId)
   return withdrawalReplied(talk.withdraw, answer, ctx)
+}
+
+/** `withdraw=thenFail`: once it lands, the conversation's reads and the list's fail. */
+function failAfter(talk: TalkWrites, conversationId: string) {
+  if (talk.withdraw !== 'thenFail') return
+  talk.failMessagesOf = conversationId
+  talk.failList = true
+}
+
+/** `withdraw=unreached`: the first withdrawal never reaches the API (whether this one is it); later ones do. */
+function missedOnce(talk: TalkWrites): boolean {
+  if (talk.withdraw !== 'unreached' || talk.withdrawMissed) return false
+  talk.withdrawMissed = true
+  return true
 }
 
 /** The API's event and its reply both follow its commit, in either order: the feed moves with the reply, or first. */

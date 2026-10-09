@@ -32,7 +32,7 @@ import {
 } from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
-import type { Asked } from './talk-store.ts'
+import { useKept, withHome, type Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { blocksOf } from './sophia-text.ts'
 import { useProposeHere } from './ProposeHere.tsx'
@@ -128,7 +128,7 @@ export function OpenConversation(props: Props) {
           onAnswered={props.onAnswered}
           onGrown={follow.grown}
           propose={props.writer === true ? { projectId: props.projectId, identity } : null}
-          withdraw={{ conversationId: c.id, identity, me, moderate: props.moderate }}
+          withdraw={{ projectId: props.projectId, conversationId: c.id, identity, me, moderate: props.moderate }}
         />
       </div>
       {props.writer === true && (
@@ -395,7 +395,7 @@ const classOf = (m: ConversationMessage, me: string) =>
 /** The messages, oldest first, each with who wrote it and when; the first takes the focus when it is given. */
 type Propose = { projectId: string; identity: Identity } | null
 /** Who reads here (`me`), whether they remove any message (`moderate`), and where. */
-type Withdraw = { conversationId: string; identity: Identity; me: string; moderate: boolean }
+type Withdraw = { projectId: string; conversationId: string; identity: Identity; me: string; moderate: boolean }
 
 function MessageList(props: {
   messages: readonly ConversationMessage[]
@@ -434,6 +434,7 @@ function MessageList(props: {
  */
 function useMessageParts(m: ConversationMessage, propose: Propose, withdraw: Withdraw) {
   const words = m.withdrawn ? null : m.text
+  useHome(m.id, withdraw.conversationId, propose)
   const here = useProposeHere(
     propose && words !== null ? { ...propose, messageId: m.id, text: words, sophia: m.author === 'sophia' } : null,
   )
@@ -443,6 +444,18 @@ function useMessageParts(m: ConversationMessage, propose: Propose, withdraw: Wit
     words !== null && (own || withdraw.moderate) ? { ...withdraw, messageId: m.id, own } : null,
   )
   return { words, here, away, ended: m.ask ? replyEndWords(m.ask) : null }
+}
+
+/**
+ * A message with a proposal kept for it (talk-store: held, refused or recorded, by ProposeHere): its conversation known,
+ * so that conversation's erasure takes the proposal too (PR #199 r4235397318).
+ */
+function useHome(messageId: string, conversationId: string, place: Propose) {
+  const { kept, change } = useKept(place?.projectId ?? '', place ? accountOf(place.identity) : '')
+  const has = place !== null && [kept.proposals, kept.proposalRefusals, kept.proposed].some((r) => messageId in r)
+  useEffect(() => {
+    if (has) change((k) => withHome(k, messageId, conversationId))
+  }, [has, messageId, conversationId, change])
 }
 
 /** One message: its day when it starts one, who wrote it, its words; where one can propose, its press and form (C7). */

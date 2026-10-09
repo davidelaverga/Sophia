@@ -18,6 +18,8 @@ const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?
 const written = async (page: Page, kind: string) => (await served(page)).filter((s) => s.startsWith(`${kind}:`))
 const FIRST = 'What makes a report worth reading?'
 const C1 = '00000000-0000-4000-8000-0000000000c1'
+/** What the view keeps for this project and account (talk-store.ts), as the fixture page reads it. */
+const kept = (page: Page) => page.evaluate(() => window.fixture?.kept())
 const field = (page: Page) => open(page).getByRole('textbox', { name: 'Continue this question with the team' })
 
 test.beforeEach(async ({ page }) => {
@@ -177,6 +179,11 @@ for (const width of ['desktop', '@phone'] as const) {
     await expect(list(page)).toContainText('The conversation was erased.')
     await expect(list(page)).not.toContainText(FIRST)
     await noReadOnceGone(page)
+    // The row it landed on, pressed: on a phone the list goes, and the conversation's title has the focus, not the
+    // page (Codex, A24); beside the list, the row keeps it.
+    await page.keyboard.press('Enter')
+    await expect(open(page).getByRole('heading', { level: 3 })).toBeVisible()
+    await expect(width === '@phone' ? open(page).getByRole('heading', { level: 3 }) : rows(page).first()).toBeFocused()
   })
 }
 
@@ -294,6 +301,86 @@ test('removal · an erasure with no reply, its conversation pushed past the list
   const keys = await written(page, 'erase-key')
   expect(keys).toHaveLength(2)
   expect(keys[1]).toBe(keys[0])
+})
+
+test('removal · a removal with no reply is sent again under its key, after another conversation was opened', async ({
+  page,
+}) => {
+  // PR #199 r4235397321: the intent is kept by the view, not by the message's part, which goes with the conversation.
+  await opened(page, '&withdraw=unreached')
+  const message = messages(page).nth(3)
+  await message.hover()
+  await message.getByRole('button', { name: 'Remove message' }).click()
+  const confirm = page.getByRole('group', { name: 'Remove this message' })
+  await confirm.getByRole('button', { name: 'Remove' }).click()
+  await expect(confirm).toContainText('Not confirmed')
+  await rows(page).nth(1).click()
+  await expect(messages(page)).toHaveCount(2)
+  await rows(page).first().click()
+  await expect(messages(page)).toHaveCount(6)
+  const again = messages(page).nth(3)
+  await again.hover()
+  await again.getByRole('button', { name: 'Remove message' }).click()
+  await expect(confirm).toContainText('Not confirmed')
+  await confirm.getByRole('button', { name: 'Remove' }).click()
+  await expect(again.getByText('This message was withdrawn.')).toBeVisible()
+  const keys = await written(page, 'withdraw-key')
+  expect(keys).toHaveLength(2)
+  expect(keys[1]).toBe(keys[0])
+  expect(await written(page, 'conversation-withdraw')).toHaveLength(1)
+})
+
+test('removal · erased while a message’s proposal is on its way: nothing of it is kept, its late reply included', async ({
+  page,
+}) => {
+  // PR #199 r4235397318: a message's proposal (its words and key) goes with its conversation, and stays gone.
+  await page.goto(`${PAGE}&propose=slow`)
+  await expect(messages(page)).toHaveCount(6)
+  const message = messages(page).nth(3)
+  await message.hover()
+  await message.getByRole('button', { name: 'Propose as decision' }).click()
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  await expect.poll(async () => Object.keys((await kept(page))?.proposals ?? {}).length).toBe(1)
+  const [id = ''] = Object.keys((await kept(page))?.proposals ?? {})
+  const toggle = open(page).getByRole('button', { name: 'Context' })
+  if (await toggle.isVisible()) await toggle.click()
+  await erase(page).click()
+  await page.getByRole('group', { name: 'Erase this conversation' }).getByRole('button', { name: 'Erase' }).click()
+  await expect(list(page)).not.toContainText(FIRST)
+  // The proposal's reply comes 3 s after it went: it brings nothing back.
+  await expect.poll(async () => (await page.evaluate(() => window.fixture?.missionWrites ?? [])).length).toBe(1)
+  await page.waitForTimeout(3500)
+  const after = await kept(page)
+  expect([after?.proposals[id], after?.proposed[id], after?.proposalRefusals[id]]).toEqual([
+    undefined,
+    undefined,
+    undefined,
+  ])
+  expect(after?.gone[id]).toBe(true)
+})
+
+test('removal · erased elsewhere: a list of the newest only proves nothing; a whole list later lets its part go', async ({
+  page,
+}) => {
+  // PR #199 r4235397313 and Codex's countercase: seen only in lists of the newest, then erased by someone else.
+  await page.goto(`${PAGE}&more=1`)
+  await expect(messages(page)).toHaveCount(6)
+  await field(page).fill('SYNTHETIC-DRAFT-ERASED-ELSEWHERE')
+  await rows(page).nth(1).click()
+  await expect(messages(page)).toHaveCount(2)
+  await page.evaluate((c) => window.fixture?.eraseElsewhere(c), C1)
+  await expect(list(page)).not.toContainText(FIRST)
+  await page.waitForTimeout(1000)
+  // Left out of a list of the newest only: nothing proved, what was kept for it stays.
+  expect((await kept(page))?.drafts[C1]).toBe('SYNTHETIC-DRAFT-ERASED-ELSEWHERE')
+  expect((await kept(page))?.erased[C1]).toBeUndefined()
+  // The list read whole: it is gone, and so is what was kept for it.
+  await page.evaluate(() => window.fixture?.listMore(false))
+  await expect.poll(async () => (await kept(page))?.drafts[C1]).toBeUndefined()
+  expect((await kept(page))?.erased[C1]).toBe(true)
+  // Erased by someone else: nothing here says it was erased here.
+  await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
+  await expect(messages(page)).toHaveCount(2)
 })
 
 test('removal · an erasure whose reply is lost is said when the feed shows it gone', async ({ page }) => {
