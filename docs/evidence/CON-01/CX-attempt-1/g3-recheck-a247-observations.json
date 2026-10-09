@@ -1,0 +1,43 @@
+{
+  "candidate": "a247b7896a53c5d4b8acf5966f0fc556d082ce18",
+  "tree": "21b3a2e8d35ae2de7ebae36ca203c5e38d7d7ba2",
+  "level": "L1 actual local browser/API/PostgreSQL17.6; synthetic, no fixtures/native/provider",
+  "membership_failures": [
+    {
+      "count": 8,
+      "at": "2026-10-09T22:20:24.028Z"
+    },
+    {
+      "count": 20,
+      "at": "2026-10-09T22:20:45.110Z"
+    },
+    {
+      "count": 34,
+      "at": "2026-10-09T22:21:10.223Z"
+    }
+  ],
+  "membership_fault": "test-only loopback503 membership GET only; snapshot/list/API/SSE succeeded; no new UI action between counts",
+  "fault_removed": "Invite and New conversation restored",
+  "focus": [
+    {
+      "operation": "own withdrawal",
+      "response_hold_ms": 3000,
+      "observed_elapsed_ms": 287,
+      "active_tag": "P",
+      "active_text": "This message was withdrawn."
+    },
+    {
+      "operation": "admin removal",
+      "response_hold_ms": 3000,
+      "observed_elapsed_ms": 304,
+      "active_tag": "P",
+      "active_text": "This message was withdrawn."
+    },
+    {
+      "operation": "move to composer during held HTTP response",
+      "active_tag": "TEXTAREA",
+      "draft": "Draft preserved while withdrawal response lands",
+      "after_response": "same focus and draft"
+    }
+  ]
+}
