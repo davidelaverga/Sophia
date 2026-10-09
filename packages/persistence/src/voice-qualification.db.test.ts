@@ -7,7 +7,9 @@ import { after, before, describe, it } from 'node:test'
 import { DomainError } from '@sophia/domain'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import {
+  answerLiveCall,
   createPool,
+  liveCallAnswer,
   mediaAssignments,
   readQualificationEvidence,
   readSnapshot,
@@ -677,6 +679,31 @@ describe('a recorded voice call’s key (0046, media_record_live_call; Codex P1 
       ),
     )
     assert.deepEqual(rows.rows, [{ tool: 'project_status', epoch: '1' }], 'one call, as first recorded')
+  })
+
+  it('its answer, for a repeat: none while unanswered, then the outcome once; the service’s alone (0047; Codex r4234171899)', async () => {
+    const { projectId } = await project()
+    await grant(projectId)
+    const x = await open(projectId)
+    const key = `live:${x}:1:c-1`
+    const answerOf = () => withService(pool, (c) => liveCallAnswer(c, { exchangeId: x, actorId: P, key }))
+    assert.equal(await answerOf(), null, 'never recorded')
+    assert.equal(
+      await withService(pool, (c) =>
+        recordLiveCall(c, { exchangeId: x, inputEpoch: 1, actorId: P, key, name: 'control_work' }),
+      ),
+      true,
+    )
+    assert.equal(await answerOf(), null, 'recorded, not answered: the repeat runs it')
+    await withService(pool, (c) => answerLiveCall(c, { exchangeId: x, actorId: P, key, outcome: 'refused' }))
+    assert.deepEqual(await answerOf(), { outcome: 'refused', commandId: null, taskId: null })
+    await withService(pool, (c) => answerLiveCall(c, { exchangeId: x, actorId: P, key, outcome: 'ok' }))
+    assert.deepEqual(await answerOf(), { outcome: 'refused', commandId: null, taskId: null }, 'answered once')
+    assert.equal(
+      await codeOf(withActor(pool, P, 'read', (c) => liveCallAnswer(c, { exchangeId: x, actorId: P, key }))),
+      'forbidden',
+      'a member is never the service',
+    )
   })
 })
 

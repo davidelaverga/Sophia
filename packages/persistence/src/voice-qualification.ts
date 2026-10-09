@@ -2,6 +2,7 @@
 // Off unless the migration owner grants it. The bridge's receipts carry counts, booleans, ids, timings and SHA-256
 // chains over PCM it forwarded or played: never a transcript, a caption, typed words or audio.
 import type pg from 'pg'
+import type { MediaToolResult } from '@sophia/contracts'
 import { classifyDbError } from './errors.ts'
 import { onlyRow } from './rows.ts'
 
@@ -136,6 +137,29 @@ export async function recordLiveCall(
     [call.exchangeId, call.inputEpoch, call.actorId, call.key, call.name],
   )
   return onlyRow(rows, 'media_record_live_call').recorded
+}
+
+/** A recorded call's answer, once it was answered: its outcome, the command it admitted and that command's task. */
+export interface LiveCallAnswer {
+  outcome: MediaToolResult['status']
+  commandId: string | null
+  taskId: string | null
+}
+
+/**
+ * A recorded voice call's answer, if it was answered (0047, media_live_call_answer; Codex P1 r4234171899): a recorded
+ * call once answered is terminal, and its repeat is answered from this, running nothing. Null for a call answered by
+ * no one yet. withService, in the transaction that binds and records the call, after recordLiveCall said true.
+ */
+export async function liveCallAnswer(
+  c: pg.PoolClient,
+  call: { exchangeId: string; actorId: string; key: string },
+): Promise<LiveCallAnswer | null> {
+  const { rows } = await c.query<{ answer: LiveCallAnswer | null }>(
+    `SELECT sophia.media_live_call_answer($1,$2,$3) AS answer`,
+    [call.exchangeId, call.actorId, call.key],
+  )
+  return onlyRow(rows, 'media_live_call_answer').answer
 }
 
 /** The API answered a recorded call, after anything it admitted for it committed: its answer's status. withService. */

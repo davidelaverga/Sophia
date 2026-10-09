@@ -28,7 +28,8 @@
 -- refused at its bind (media_tool_speaker, 40001) before the claim commits, so the key protects nothing more; the
 -- worker's periodic pass deletes it an hour after the end (live_call_keys_expire), a margin far past the bridge's
 -- retries (a second at most).
--- It reads and writes nothing of voice qualification (0046): an API with that off needs this migration and none of 0046.
+-- Its claim reads and writes nothing of voice qualification (0046): an API with that off needs this migration and none
+-- of 0046. Only media_live_call_answer, below, reads 0046's record of a call, and only for a call that was recorded.
 -- 0046's recording (media_record_live_call) compares the exchange, epoch and tool, not the call's digest, and needs no
 -- more: the API claims every call it records first, in the same transaction, so another call under a recorded key is
 -- refused here before the recording runs, and the claim outlives every call that could still bind.
@@ -65,6 +66,24 @@ BEGIN
   RAISE EXCEPTION 'Idempotency key reused: another call holds this key' USING ERRCODE='23505'; END IF;
 END $$;
 
+-- A recorded voice call's answer, for a repeat of it (Codex P1 r4234171899): a recorded call once answered is terminal,
+-- and the API answers its repeat from here, running nothing again. A refusal or a question that depended on the state
+-- of the work stays the call's answer however that state moves; run again, the handler could admit a command that
+-- live_call_admits would link to a call recorded as refused. Its outcome, the command it admitted and that command's
+-- task, as exchange_calls reads them; null while it is unanswered (the attempt before stopped before answering it: the
+-- repeat runs it, and answers it). The service reads it in the transaction that binds the call, after the recording
+-- (0046, media_record_live_call), so only for a recorded call, never without 0046. It locks nothing.
+CREATE FUNCTION sophia.media_live_call_answer(p_exchange uuid, p_actor uuid, p_key text) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ PERFORM sophia.require_service();
+ RETURN (SELECT jsonb_build_object('outcome',lt.outcome,'commandId',lt.command_id,
+   'taskId',(SELECT j.id FROM sophia.jobs j WHERE j.project_id=lt.project_id AND j.command_id=lt.command_id
+     AND j.parent_job_id IS NULL ORDER BY j.created_at LIMIT 1))
+  FROM sophia.live_tool_calls lt
+  WHERE lt.exchange_id=p_exchange AND lt.actor_id=p_actor AND lt.idempotency_key=p_key AND lt.answered_at IS NOT NULL);
+END $$;
+
 -- Delete the keys of exchanges that ended over an hour ago; returns how many. Run by the worker's periodic pass (apps/worker
 -- dispatchOnce, on the sophia_worker login), never by a member. Its own statement: it locks only the keys it deletes.
 CREATE FUNCTION sophia.live_call_keys_expire() RETURNS integer
@@ -78,8 +97,10 @@ BEGIN
  RETURN n;
 END $$;
 
-REVOKE ALL ON FUNCTION sophia.media_claim_live_call(uuid,bigint,uuid,text,text,text), sophia.live_call_keys_expire() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.media_claim_live_call(uuid,bigint,uuid,text,text,text) TO sophia_api;
+REVOKE ALL ON FUNCTION sophia.media_claim_live_call(uuid,bigint,uuid,text,text,text), sophia.live_call_keys_expire(),
+ sophia.media_live_call_answer(uuid,uuid,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION sophia.media_claim_live_call(uuid,bigint,uuid,text,text,text),
+ sophia.media_live_call_answer(uuid,uuid,text) TO sophia_api;
 GRANT EXECUTE ON FUNCTION sophia.live_call_keys_expire() TO sophia_worker;
 
 COMMIT;

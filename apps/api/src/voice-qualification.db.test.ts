@@ -23,12 +23,14 @@ import {
 } from '@sophia/media-bridge'
 import {
   admitNativeTask,
+  claimLiveCall,
   createPool,
   liveCallAdmits,
   readSnapshot,
   recordLiveCall,
   startExchange,
   submitContribution,
+  toolSpeaker,
   withActor,
   withService,
 } from '@sophia/persistence'
@@ -41,6 +43,7 @@ import {
 } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
+import { callSha256 } from './media-tools.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
@@ -998,7 +1001,10 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
           JSON.stringify(decided.json),
         )
         const again = await at5(P, 1, 'u-2', 'decide_mission_change', answer)
-        assert.deepEqual([again.json.status, again.json.output.missionRevision], ['committed', 2])
+        assert.equal(again.json.status, 'committed')
+        // Recorded (voice on), its repeat is answered from the record; not recorded, it runs again (r4234171899).
+        if (mode === 'on') assert.equal(again.json.output.replayed, true)
+        else assert.equal(again.json.output.missionRevision, 2)
         assert.equal(await missionRevision(), 2)
         if (mode === 'on')
           assert.deepEqual(
@@ -1032,18 +1038,75 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
         const x = await twoSpeakers(mode)
         const unclear = { taskId: x.task }
         assert.equal((await x.voice(P, 1, 'i-1', 'control_work', unclear)).json.status, 'clarify')
-        assert.equal((await x.voice(P, 1, 'i-1', 'control_work', unclear)).json.status, 'clarify', 'its retry')
+        const asked = await x.voice(P, 1, 'i-1', 'control_work', unclear)
+        assert.equal(asked.json.status, 'clarify', 'its retry')
         assert.equal(await x.commandsUnder('i-1'), 0)
         const hold = await x.voice(P, 1, 'i-2', 'control_work', x.hold)
         assert.equal(hold.json.status, 'ok', JSON.stringify(hold.json))
         const retry = await x.voice(P, 1, 'i-2', 'control_work', x.hold)
         assert.deepEqual([retry.json.status, retry.json.output.commandId], ['ok', hold.json.output.commandId])
         assert.equal(await x.commandsUnder('i-2'), 1)
+        // Recorded (voice on), each retry is answered from the record (r4234171899); not recorded, it runs again.
+        assert.deepEqual(
+          [asked.json.output.replayed, retry.json.output.replayed],
+          mode === 'on' ? [true, true] : [undefined, undefined],
+        )
         if (mode === 'on')
           assert.deepEqual(await listedBy(x.exchangeId), [
             ['control_work', null, 'clarify'],
             ['control_work', 'hold', 'ok'],
           ])
+      })
+
+      it(`a Hold refused while its goal was completed, repeated once it runs: ${mode === 'on' ? 'answered from the record, nothing admitted' : 'not recorded, so it runs again'} (Codex r4234171899)`, async () => {
+        // Root's sequence: the Hold refused while the goal is completed; the goal running; the identical call again.
+        const x = await twoSpeakers(mode)
+        const goalIs = (status: string) =>
+          owner((c) => c.query(`UPDATE sophia.goals SET status=$2 WHERE id=$1`, [x.goalId, status]))
+        await goalIs('completed')
+        const refused = await x.voice(P, 1, 'a-1', 'control_work', x.hold)
+        assert.equal(refused.json.status, 'refused', JSON.stringify(refused.json))
+        await goalIs('running')
+        const again = await x.voice(P, 1, 'a-1', 'control_work', x.hold)
+        if (mode === 'on') {
+          assert.deepEqual(
+            [again.json.status, again.json.output.replayed],
+            ['refused', true],
+            JSON.stringify(again.json),
+          )
+          assert.equal(await x.commandsUnder('a-1'), 0, 'nothing admitted under the key')
+          assert.equal((await x.goalOf()).status, 'running', 'the work was not held')
+          assert.deepEqual(
+            await listedBy(x.exchangeId),
+            [['control_work', null, 'refused']],
+            'the record still says refused, and no command is linked to it',
+          )
+        } else {
+          assert.equal(again.json.status, 'ok', 'nothing recorded to keep true: a repeat gets a fresh answer')
+          assert.equal(await x.commandsUnder('a-1'), 1)
+          await goalIs('running')
+        }
+        // Root's control: a fresh call key after the same change admits exactly one command.
+        const fresh = await x.voice(P, 1, 'a-2', 'control_work', x.hold)
+        assert.deepEqual([fresh.json.status, fresh.json.output.replayed], ['ok', undefined], JSON.stringify(fresh.json))
+        assert.equal(await x.commandsUnder('a-2'), 1)
+        assert.equal((await x.goalOf()).status, 'holding')
+        if (mode === 'on')
+          assert.deepEqual(await listedBy(x.exchangeId), [
+            ['control_work', null, 'refused'],
+            ['control_work', 'hold', 'ok'],
+          ])
+      })
+
+      it('a peer’s refused Hold, repeated once the work runs, runs again: nothing of theirs is recorded (Codex r4234171899, control)', async () => {
+        const x = await twoSpeakers(mode)
+        await owner((c) => c.query(`UPDATE sophia.goals SET status='held' WHERE id=$1`, [x.goalId]))
+        assert.equal((await x.voice(E, 2, 'p-1', 'control_work', x.hold)).json.status, 'refused')
+        await owner((c) => c.query(`UPDATE sophia.goals SET status='running' WHERE id=$1`, [x.goalId]))
+        const again = await x.voice(E, 2, 'p-1', 'control_work', x.hold)
+        assert.deepEqual([again.json.status, again.json.output.replayed], ['ok', undefined])
+        assert.equal(await x.commandsUnder('p-1'), 1)
+        if (mode === 'on') assert.deepEqual(await listedBy(x.exchangeId), [], 'nothing of Davide’s')
       })
 
       it('the same arguments in another key order, at any depth, are the same call; an array in another order is not (Codex P1 r4233409532)', async () => {
@@ -1196,6 +1259,55 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
       })
     })
   }
+
+  describe('a recorded call once answered is terminal (Codex r4234171899)', () => {
+    /** Each call P listed in the exchange: its tool, its command's kind and its answer. */
+    const listedIn = async (exchangeId: string) =>
+      ((await callsOf(P, exchangeId)).json.calls as Listed[]).map((c) => [c.tool, c.command?.kind ?? null, c.outcome])
+
+    it('a recorded call whose first attempt stopped before its answer runs again, once, and is answered', async () => {
+      const x = await twoSpeakers('on')
+      const key = `live:${x.exchangeId}:1:l-1`
+      // The first attempt claimed, bound and recorded the call, then stopped before it ran or was answered.
+      await withService(pool, async (c) => {
+        const bound = { exchangeId: x.exchangeId, inputEpoch: 1, actorId: P, key, name: 'control_work' }
+        await claimLiveCall(c, { ...bound, callSha256: callSha256({ args: x.hold, guide: 'v1.2' }) })
+        await toolSpeaker(c, x.exchangeId, 1, P)
+        assert.equal(await recordLiveCall(c, bound), true)
+      })
+      assert.deepEqual(await listedIn(x.exchangeId), [['control_work', null, null]], 'recorded, not answered')
+      const retry = await x.voice(P, 1, 'l-1', 'control_work', x.hold)
+      assert.deepEqual([retry.json.status, retry.json.output.replayed], ['ok', undefined], JSON.stringify(retry.json))
+      assert.equal(await x.commandsUnder('l-1'), 1, 'its handler ran once')
+      assert.deepEqual(await listedIn(x.exchangeId), [['control_work', 'hold', 'ok']], 'and it is answered')
+      const again = await x.voice(P, 1, 'l-1', 'control_work', x.hold)
+      assert.deepEqual(
+        [again.json.status, again.json.output.replayed, again.json.output.commandId],
+        ['ok', true, retry.json.output.commandId],
+      )
+      assert.equal(await x.commandsUnder('l-1'), 1)
+    })
+
+    it('two identical recorded calls at once: one is made, the other answered from its record once it is answered', async () => {
+      const x = await twoSpeakers('on')
+      const both = await Promise.all([
+        x.voice(P, 1, 'w-1', 'control_work', x.hold),
+        x.voice(P, 1, 'w-1', 'control_work', x.hold),
+      ])
+      assert.deepEqual(
+        both.map((r) => String(r.json.status)),
+        ['ok', 'ok'],
+      )
+      assert.equal(both[0]?.json.output.commandId, both[1]?.json.output.commandId)
+      assert.deepEqual(
+        both.map((r) => r.json.output.replayed === true).toSorted((a, b) => Number(a) - Number(b)),
+        [false, true],
+        'exactly one ran',
+      )
+      assert.equal(await x.commandsUnder('w-1'), 1)
+      assert.deepEqual(await listedIn(x.exchangeId), [['control_work', 'hold', 'ok']])
+    })
+  })
 
   it('lists another exchange’s calls only there; another member, an outsider or the API off reads none', async () => {
     const x = await controlledExchange()

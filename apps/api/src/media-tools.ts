@@ -20,6 +20,7 @@ import {
   canCommand,
   claimLiveCall,
   liveCallAdmits,
+  liveCallAnswer,
   readSnapshot,
   readTaskStandings,
   recordLiveCall,
@@ -29,6 +30,7 @@ import {
   toolSpeaker,
   withActor,
   withService,
+  type LiveCallAnswer,
   type SentCommand,
   type TaskStanding,
 } from '@sophia/persistence'
@@ -86,6 +88,40 @@ export const callSha256 = (call: Pick<MediaToolCall, 'args' | 'utterance' | 'inp
       'utf8',
     )
     .digest('hex')
+
+/**
+ * A recorded call already answered, asked again (Codex P1 r4234171899): its recorded answer, with the command it admitted
+ * and that command's task, and nothing run or admitted again. A state-dependent refusal or question stays its answer.
+ */
+const replayed = (answer: LiveCallAnswer): MediaToolResult => ({
+  status: answer.outcome,
+  output: {
+    replayed: true,
+    ...(answer.commandId === null ? {} : { commandId: answer.commandId }),
+    ...(answer.taskId === null ? {} : { taskId: answer.taskId }),
+    note: 'This call was already answered; nothing more was done.',
+  },
+})
+
+/**
+ * The calls under way in this process, by key. An identical call (the bridge's retry, or the provider's repeat) waits for
+ * the one before it, so a recorded call's repeat reads its answer once it is given, never while it is being made.
+ */
+const underWay = new Map<string, Promise<void>>()
+
+async function oneAtATime<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const mine = (underWay.get(key) ?? Promise.resolve()).then(run)
+  const settled = mine.then(
+    () => undefined,
+    () => undefined,
+  )
+  underWay.set(key, settled)
+  try {
+    return await mine
+  } finally {
+    if (underWay.get(key) === settled) underWay.delete(key)
+  }
+}
 
 /**
  * control_work's refusals in the speaker's words; anything unexpected is an error the model must not paper over. A
@@ -309,7 +345,12 @@ function declaredBy(call: MediaToolCall): boolean {
  * callSha256): one call per key, whoever speaks. A key another call holds (a provider call id reused by another speaker,
  * under another epoch, for another operation, or with other arguments, utterance, input mode or guide) is refused before
  * anything runs, so no second write is admitted under it; the same call again (the bridge's retry of a lost answer)
- * goes on as before.
+ * goes on as before. A recorded call once answered is terminal (Codex P1 r4234171899): its repeat is answered from the
+ * record, and its handler never runs again, so a refusal that depended on the work's state can never admit later what
+ * the record says it refused. A recorded call not answered yet (the attempt before stopped before its mark) runs again,
+ * and is marked. A call that is not recorded (voice qualification off, or anyone but the grant's principal) runs again
+ * as before: there is no record to keep true, and a lost answer gets a fresh one. Identical calls are made one at a time
+ * in this process (oneAtATime), so a repeat that comes while its call is being made reads the answer once it is given.
  */
 export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice = false): Promise<MediaToolResult> {
   if (!declaredBy(call)) {
@@ -320,19 +361,30 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice 
   }
   // The bridge's Google session: the same across a resumed connection, so a repeated call is the same call.
   const key = `live:${call.exchangeId}:${String(call.connectionGeneration)}:${call.callId}`
-  let speaker: { projectId: string; recorded: boolean }
+  return oneAtATime(key, () => executeOnce(pool, call, key, voice))
+}
+
+/** One call under its key, once any identical call before it in this process has been answered. */
+async function executeOnce(pool: pg.Pool, call: MediaToolCall, key: string, voice: boolean): Promise<MediaToolResult> {
+  let speaker: { projectId: string; recorded: boolean; answered: LiveCallAnswer | null }
   try {
     speaker = await withService(pool, async (c) => {
       // Before any lock: the claim locks only its key's row (0047 has no foreign key), never the project or the
       // exchange, so it adds no lock order to the recording's project lock below.
       await claimLiveCall(c, { ...call, key, callSha256: callSha256(call) })
       const bound = await toolSpeaker(c, call.exchangeId, call.inputEpoch, call.actorId)
-      return { ...bound, recorded: voice && (await recordLiveCall(c, { ...call, key })) }
+      const recorded = voice && (await recordLiveCall(c, { ...call, key }))
+      // A recorded call once answered is terminal: read in the transaction that binds it, whatever the work does since.
+      const answered = recorded
+        ? await liveCallAnswer(c, { exchangeId: call.exchangeId, actorId: call.actorId, key })
+        : null
+      return { ...bound, recorded, answered }
     })
   } catch (err: unknown) {
     if (err instanceof DomainError && err.code === 'idempotency_conflict') return reusedCall
     return clarify('I couldn’t tell who asked that. Could the person holding the floor ask again?')
   }
+  if (speaker.answered) return replayed(speaker.answered)
   const ctx: ToolContext = {
     pool,
     projectId: speaker.projectId,
