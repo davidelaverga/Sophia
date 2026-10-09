@@ -4,6 +4,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { MissionDecision, MissionReceipt } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
+import type { AdmissionState } from '../../api/useAdmission.ts'
 import { decideMissionChange, getMission, proposeMissionChange } from '../../api/mission.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { accountOf } from '../../app/auth-callback.ts'
@@ -36,6 +37,31 @@ export function refusalWords(error: ApiError, write: 'decide' | 'propose'): stri
 }
 
 /**
+ * A refused decision's words (docs/plans/decide-on-its-way.md). Every 409 is a stale revision; the brief read again
+ * tells them apart: a proposal still waiting wasn't decided by anyone, what it would replace changed. A brief that
+ * couldn't be read again can't tell: its words are true either way.
+ */
+export function decideRefusal(error: ApiError, read: { fresh: boolean; stillWaiting: boolean }): string {
+  if (error.status !== 409) return refusalWords(error, 'decide')
+  if (!read.fresh) return 'It wasn’t decided here: the brief changed since.'
+  return read.stillWaiting
+    ? 'It can’t be decided as it is: the brief changed since. This is the brief as it is now.'
+    : refusalWords(error, 'decide')
+}
+
+/**
+ * Whether Accept and Decline wait: while a decision goes or its outcome is unknown, and once answered until the brief
+ * read again no longer lists it (a read that is slow or fails would otherwise wake them on a decided proposal).
+ */
+export function pressesWait(
+  state: AdmissionState<Pick<DecideArgs, 'decisionId'>, unknown>,
+  pending: readonly Pick<MissionDecision, 'id'>[],
+): boolean {
+  if (state.status === 'sending' || state.status === 'unknown') return true
+  return state.status === 'done' && pending.some((d) => d.id === state.args.decisionId)
+}
+
+/**
  * Whether a proposal is decided here: a constraint or a lesson, still current. A new direction (the mission itself) is
  * decided in the brief, where it shows what it replaces; a stale one can't be accepted as it is (A08).
  */
@@ -47,17 +73,26 @@ export interface DecideArgs {
   decision: 'accept' | 'reject'
 }
 
-/** A proposal accepted or turned down, at the revision read; the brief read again whatever the answer. */
+/**
+ * A proposal accepted or turned down, at the revision read; the brief read again whatever the answer. Answered or
+ * refused as stale, it settles once that read is back, so what it says agrees with what shows (a refusal's words are
+ * chosen from it); with no reply it doesn't wait for it, a write's 90 s being long enough.
+ */
 export function useDecide(projectId: string, identity: Identity) {
   const client = useQueryClient()
+  const readAgain = () => client.invalidateQueries({ queryKey: missionKey(projectId) })
   return useAdmission<DecideArgs, MissionReceipt>(async (key, a) => {
     try {
-      return await decideMissionChange(identity.token, projectId, a.decisionId, key, {
+      const receipt = await decideMissionChange(identity.token, projectId, a.decisionId, key, {
         decision: a.decision,
         expectedRevision: a.revision,
       })
-    } finally {
-      void client.invalidateQueries({ queryKey: missionKey(projectId) })
+      await readAgain()
+      return receipt
+    } catch (err: unknown) {
+      if (err instanceof ApiError && err.status === 409) await readAgain()
+      else void readAgain()
+      throw err
     }
   })
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
 import type { MissionDecision } from '@sophia/contracts'
-import { alreadyOpen, decidableHere, refusalWords, statementFrom } from './decide.ts'
+import { alreadyOpen, decidableHere, decideRefusal, pressesWait, refusalWords, statementFrom } from './decide.ts'
 
 describe('a message proposed as a decision (C7)', () => {
   it('a member’s words, on one line, as written', () => {
@@ -85,5 +85,50 @@ describe('a proposal not sent because the brief could not be read first', () => 
   it('says nothing was sent, and to try again', () => {
     const unread = new ApiError(503, 'brief_unread', 'The brief could not be read', 'never')
     assert.equal(refusalWords(unread, 'propose'), 'Couldn’t check the brief first, so nothing was sent. Try again.')
+  })
+})
+
+describe('a decision on its way (Still open)', () => {
+  const asked = { decisionId: 'a', revision: 1, decision: 'accept' as const }
+  const waiting = [{ id: 'a' }, { id: 'b' }]
+
+  it('the presses wait while it goes and while its outcome is unknown', () => {
+    assert.equal(pressesWait({ status: 'sending', args: asked }, waiting), true)
+    assert.equal(pressesWait({ status: 'unknown', args: asked }, waiting), true)
+  })
+
+  it('answered, they wait until the brief read again no longer lists it', () => {
+    assert.equal(pressesWait({ status: 'done', args: asked, result: {} }, waiting), true)
+    assert.equal(pressesWait({ status: 'done', args: asked, result: {} }, [{ id: 'b' }]), false)
+  })
+
+  it('idle or refused, they don’t wait', () => {
+    assert.equal(pressesWait({ status: 'idle' }, waiting), false)
+    const refused = new ApiError(409, 'stale_revision', 'stale', 'never')
+    assert.equal(pressesWait({ status: 'rejected', args: asked, error: refused }, waiting), false)
+  })
+
+  it('refused while it still waits: the brief changed, not decided by someone', () => {
+    const stale = new ApiError(409, 'stale_revision', 'stale', 'never')
+    assert.equal(
+      decideRefusal(stale, { fresh: true, stillWaiting: true }),
+      'It can’t be decided as it is: the brief changed since. This is the brief as it is now.',
+    )
+    assert.equal(
+      decideRefusal(stale, { fresh: true, stillWaiting: false }),
+      'Someone decided it first. This is the brief as it is now.',
+    )
+    const forbidden = new ApiError(403, 'forbidden', 'x', 'never')
+    assert.equal(decideRefusal(forbidden, { fresh: true, stillWaiting: true }), 'You can’t decide this here.')
+  })
+
+  it('refused with the brief not read again: words true either way, none saying it shows the brief as it is', () => {
+    const stale = new ApiError(409, 'stale_revision', 'stale', 'never')
+    for (const stillWaiting of [true, false]) {
+      assert.equal(
+        decideRefusal(stale, { fresh: false, stillWaiting }),
+        'It wasn’t decided here: the brief changed since.',
+      )
+    }
   })
 })
