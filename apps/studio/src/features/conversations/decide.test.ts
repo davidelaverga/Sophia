@@ -7,6 +7,7 @@ import {
   decidableHere,
   decideRefusal,
   pressesWait,
+  proposedWhere,
   refusalWords,
   stateOf,
   statementFrom,
@@ -156,5 +157,25 @@ describe('Still open’s decision, from what the view holds (held-decision.md)',
     assert.deepEqual(stateOf(null, 'Refused.', ask), { status: 'rejected', words: 'Refused.' })
     assert.deepEqual(stateOf(null, null, ask), { status: 'done', args: ask.args })
     assert.deepEqual(stateOf(null, null, null), { status: 'idle' })
+  })
+})
+
+describe('where a message’s proposal stands, in the brief as last read (proposed-truth.md)', () => {
+  const pending = [{ id: 'p1', statement: 'Briefs stay on one page' }] as unknown as MissionDecision[]
+  const read = { isError: false, data: { pending } }
+
+  it('waiting while the brief lists it, by its id, or by its words when the receipt named none', () => {
+    assert.equal(proposedWhere(read, { id: 'p1', statement: 'anything' }), 'waiting')
+    assert.equal(proposedWhere(read, { id: null, statement: '  briefs stay ON one page ' }), 'waiting')
+  })
+
+  it('decided since once the brief, read, no longer lists it', () => {
+    assert.equal(proposedWhere(read, { id: 'p2', statement: 'Briefs stay on one page' }), 'decided')
+    assert.equal(proposedWhere({ isError: false, data: { pending: [] } }, { id: null, statement: 'x' }), 'decided')
+  })
+
+  it('not read again when the last read failed, or there is none yet', () => {
+    assert.equal(proposedWhere({ isError: true, data: { pending } }, { id: 'p1', statement: 'x' }), 'unread')
+    assert.equal(proposedWhere({ isError: false, data: undefined }, { id: 'p1', statement: 'x' }), 'unread')
   })
 })

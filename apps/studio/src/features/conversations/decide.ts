@@ -2,7 +2,7 @@
 // accepted or turned down in the context, a message proposed as a decision. After each, the brief is read again, here
 // and wherever it shows (the room's brief, Updates).
 import { useQueryClient } from '@tanstack/react-query'
-import type { MissionDecision, MissionReceipt } from '@sophia/contracts'
+import type { MissionContext, MissionDecision, MissionReceipt } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import { decideMissionChange, getMission, proposeMissionChange } from '../../api/mission.ts'
 import { accountOf } from '../../app/auth-callback.ts'
@@ -96,6 +96,16 @@ export const contextKey = (projectId: string, identity: Pick<Identity, 'name' | 
   [...missionKey(projectId), accountOf(identity), 'conversations'] as const
 
 /**
+ * The brief's read for the conversations: one set of options for every reader of it (the context, the start, a
+ * message's proposal, the check before proposing), so none rewrites another's (a query takes its newest observer's).
+ */
+export const contextQuery = (projectId: string, identity: Identity) => ({
+  queryKey: contextKey(projectId, identity),
+  queryFn: () => getMission(identity.token, projectId),
+  retry: 1,
+})
+
+/**
  * A proposal accepted or turned down, at the revision read; the brief read again whatever the answer. Answered or
  * refused as stale, it settles once that read is back, so what it says agrees with what shows (a refusal's words are
  * chosen from it); with no reply it doesn't wait for it, a write's 90 s being long enough.
@@ -132,6 +142,26 @@ const sameWords = (a: string, b: string) =>
 export const alreadyOpen = (pending: readonly Pick<MissionDecision, 'kind' | 'statement'>[], statement: string) =>
   pending.some((d) => d.kind === 'constraint' && sameWords(d.statement, statement))
 
+/** Which proposal a message made (proposed-truth.md): its decision's id when the receipt names it, and its words. */
+export interface ProposedMark {
+  id: string | null
+  statement: string
+}
+
+/** Where a message's proposal stands in the brief as last read: waiting, decided since, or not read again. */
+export type ProposedWhere = 'waiting' | 'decided' | 'unread'
+
+export function proposedWhere(
+  read: { isError: boolean; data: Pick<MissionContext, 'pending'> | undefined },
+  mark: ProposedMark,
+): ProposedWhere {
+  if (read.isError || !read.data) return 'unread'
+  const waits = read.data.pending.some((d) =>
+    mark.id === null ? sameWords(d.statement, mark.statement) : d.id === mark.id,
+  )
+  return waits ? 'waiting' : 'decided'
+}
+
 /** A fresh proposal not sent because the brief couldn't be read first: a refusal, so the next press reads again. */
 const BRIEF_UNREAD = 'brief_unread'
 
@@ -142,19 +172,16 @@ const BRIEF_UNREAD = 'brief_unread'
  */
 export function useAlreadyOpen(projectId: string, identity: Identity | null) {
   const client = useQueryClient()
-  return async (statement: string): Promise<boolean> => {
-    if (!identity) return false
+  return async (statement: string): Promise<ProposedMark | null> => {
+    if (!identity) return null
     const brief = await client
-      .fetchQuery({
-        queryKey: contextKey(projectId, identity),
-        queryFn: () => getMission(identity.token, projectId),
-        staleTime: 0,
-      })
+      .fetchQuery({ ...contextQuery(projectId, identity), staleTime: 0 })
       // Access lost is said as such; any other failure is the brief unread.
       .catch((err: unknown) => (err instanceof ApiError && err.status === 403 ? err : null))
     if (brief instanceof ApiError) throw brief
     if (brief === null) throw new ApiError(503, BRIEF_UNREAD, 'The brief could not be read', 'never')
-    return alreadyOpen(brief.pending, statement)
+    const found = brief.pending.find((d) => d.kind === 'constraint' && sameWords(d.statement, statement))
+    return found ? { id: found.id, statement } : null
   }
 }
 
