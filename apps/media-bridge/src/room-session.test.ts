@@ -256,6 +256,11 @@ class FakeService implements MediaService {
     const at = this.waiting.map((w) => w.kind).lastIndexOf(kind)
     if (at >= 0) this.waiting.splice(at, 1)[0]?.answer()
   }
+  /** Answer the first waiting reservation of this kind. */
+  answerFirst(kind: string): void {
+    const at = this.waiting.map((w) => w.kind).indexOf(kind)
+    if (at >= 0) this.waiting.splice(at, 1)[0]?.answer()
+  }
   reserveQualification = async (r: MediaQualificationReserve) => {
     await Promise.resolve()
     if (this.holdReservations)
@@ -4639,6 +4644,53 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     await flush()
     await flush()
     assert.equal(live.audio, before + 1, 'Davide’s chunk went on; Luis’s, from before the handoff, did not')
+    await session.close()
+  })
+
+  it('a reconnection while input waits: the old connection’s late grant leaves the new one’s held chunks to it (R2 nit)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    await flush()
+    live.events.audio(speech(1), OUT)
+    live.events.turnComplete()
+    await flush()
+    service.holdReservations = true
+    room.events.audio(LUIS, voice16k(), 16000, 1) // held: its reservation on connection 1 is in flight
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['generation'])
+    live.events.goAway('1s') // the provider connection is replaced meanwhile
+    clock += 1000
+    session.tick()
+    await until('the new connection reserved', () => service.waitingKinds().length === 2)
+    service.answerLast('connection')
+    await until('the new connection opened', () => lives.length === 2)
+    const next = lives.at(-1)
+    assert.ok(next && next !== live)
+    next.events.setupComplete()
+    await flush()
+    const sent: number[] = []
+    const link: LiveLink = next
+    link.sendAudio = (chunk) => {
+      next.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    room.events.audio(LUIS, marked16k(4000), 16000, 1) // Luis speaks on the new connection: held behind its own
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['generation', 'generation'])
+    service.answerFirst('generation') // the old connection's late answer comes first
+    await flush()
+    await flush()
+    assert.deepEqual(sent, [], 'nothing goes before its own connection’s reservation')
+    service.answerReservations() // then the new connection's own
+    await flush()
+    await flush()
+    assert.deepEqual(sent, [4000], 'Luis’s first words on the new connection reach it')
+    service.holdReservations = false
+    room.events.audio(LUIS, marked16k(5000), 16000, 1)
+    await flush()
+    assert.deepEqual(sent, [4000, 5000], 'in the order spoken')
     await session.close()
   })
 
