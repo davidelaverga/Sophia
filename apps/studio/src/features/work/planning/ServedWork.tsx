@@ -148,6 +148,17 @@ export function pendingAdmission(board: BoardView | null, goalId: string, viewer
 }
 
 /**
+ * Whether the board shows a plan proposed for this goal waiting on the viewer's own decision, whether or not a plan is
+ * in force: a proposal of theirs Sophia recorded.
+ */
+export function proposalShown(board: BoardView | null, goalId: string, viewerId: string | null, now: Date): boolean {
+  const goal = board?.goals.find((g) => g.goal_id === goalId)
+  if (!goal || viewerId === null) return false
+  const proposed = new Set(goal.proposed_plans.map((p) => p.plan_id))
+  return goal.decisions.some((d) => proposed.has(d.plan_id) && d.decider_id === viewerId && actionable(d, now))
+}
+
+/**
  * The viewer's proposal on the board, waiting on its decision: Sophia recorded it, so no proposal of this goal is kept
  * unanswered (review-proposal.ts). Answered there, the form after it starts afresh, never on the old request.
  */
@@ -199,7 +210,15 @@ export function useServedWork({ projectId, identity, feed, canAct, enabled }: Se
               </Recorded>
             )
           }
-          return <ReviewSources projectId={projectId} identity={identity} goal={goal} onProposed={refresh} />
+          return (
+            <ReviewSources
+              projectId={projectId}
+              identity={identity}
+              goal={goal}
+              onProposed={refresh}
+              shown={proposalShown(board, goal.id, viewerId, now)}
+            />
+          )
         }
       : undefined
   return { plans, entry }

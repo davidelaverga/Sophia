@@ -3,9 +3,9 @@
 // optional purpose; proposing starts nothing: Sophia answers with a plan and a decision on the board, which the
 // proposer takes there. Shown only where Sophia has enrolled the project; nothing is said where it hasn't.
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Goal, SourceReviewAvailability, SourceReviewProposalRequest } from '@sophia/contracts'
-import { proposeReview, reviewAvailability } from '../../../api/work.ts'
+import { proposeReview, recordedProposal, reviewAvailability } from '../../../api/work.ts'
 import type { Identity } from '../../../app/dev-identity.ts'
 import { EARLIER, outcomeOf, proposals, proposalViewer, type Asked, type Sent } from './review-proposal.ts'
 import { ALLOWANCE_STEP, allowanceOk, kib, selectionOf } from './review-sources.ts'
@@ -16,6 +16,11 @@ interface Props {
   goal: Goal
   /** The proposal is recorded: the board shows its decision. */
   onProposed: () => void
+  /**
+   * The board shows a plan proposed for this goal waiting on the viewer's own decision (a replacement beside the plan
+   * in force): Sophia may hold the one kept here unanswered.
+   */
+  shown?: boolean
 }
 
 /** The allowance a review starts from: half a dollar, or the cap when it is lower. */
@@ -43,7 +48,7 @@ interface FormProps extends Props {
  * the form, leaving Tasks and reloading the page all find it again, and an answer that arrives after this form has
  * gone still ends it, and only it: a newer proposal kept since for the goal stays (forget, by the key sent).
  */
-function useProposal({ projectId, identity, goal, onProposed }: Props) {
+function useProposal({ projectId, identity, goal, onProposed, shown = false }: Props) {
   const at = { viewer: proposalViewer(identity), project: projectId, goal: goal.id }
   const [sent, setSent] = useState<Sent>(() => {
     const kept = proposals.pending(at)
@@ -68,9 +73,39 @@ function useProposal({ projectId, identity, goal, onProposed }: Props) {
       setSent(outcome)
     }
   }
+  useRecorded({ projectId, identity, goal, shown }, sent, setSent)
   /** A new form starts afresh, unless a proposal is still unanswered. */
   const reset = () => setSent((now) => (pending(now) ? now : { state: 'idle' }))
   return { sent, propose, reset }
+}
+
+/**
+ * A proposal kept unanswered while the board shows one of the viewer's waiting on their decision for this goal: the
+ * board's own decision, beside the plan in force, so nothing at this entry lets it go (Codex's automatic review of
+ * a06db118, P2). Sophia is asked whether it recorded the one kept here, by its key and never by proposing again.
+ * Recorded, it is answered, and only it goes; not found, or no answer, it stays as it was, so a different proposal
+ * kept here is never let go for another's decision.
+ */
+function useRecorded(
+  props: Pick<Props, 'projectId' | 'identity' | 'goal'> & { shown: boolean },
+  sent: Sent,
+  set: (s: Sent) => void,
+) {
+  const { projectId, identity, goal, shown } = props
+  const asking = shown && sent.state === 'unanswered' ? sent.key : null
+  const recorded = useQuery({
+    queryKey: ['source-review-proposal', projectId, proposalViewer(identity), asking],
+    queryFn: ({ signal }) => recordedProposal(identity.token, projectId, asking ?? '', signal),
+    enabled: asking !== null,
+    retry: false,
+  })
+  const viewer = proposalViewer(identity)
+  const answered = recorded.data === undefined ? null : asking
+  useEffect(() => {
+    if (answered === null) return
+    proposals.forget({ viewer, project: projectId, goal: goal.id }, answered)
+    set({ state: 'proposed' })
+  }, [answered, viewer, projectId, goal.id, set])
 }
 
 function SourcesField({

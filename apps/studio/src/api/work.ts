@@ -40,6 +40,17 @@ export const proposeReview = (token: string, projectId: string, key: string, bod
     parseSourceReviewProposal,
   )
 
+/**
+ * The viewer's own proposal under its key, as Sophia recorded it: one whose answer was lost, known without proposing it
+ * again. Not found: Sophia holds no proposal of theirs under that key.
+ */
+export const recordedProposal = (token: string, projectId: string, key: string, signal?: AbortSignal) =>
+  callApi<SourceReviewProposal>(
+    `${project(projectId)}/plans/source-review/proposals/${encodeURIComponent(key)}`,
+    { token, method: 'GET', ...(signal && { signal }) },
+    parseSourceReviewProposal,
+  )
+
 /** The exact answer to one decision, under its operation: the Idempotency-Key is the operation's id. */
 export const answerDecision = (token: string, projectId: string, answer: WorkDecisionAnswer) =>
   callApi<WorkReceipt>(

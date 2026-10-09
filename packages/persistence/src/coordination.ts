@@ -53,6 +53,15 @@ export const proposeSourceReview = (
     'propose_source_review',
   )
 
+/** The caller's own proposal under `key`, as it was recorded: a proposal whose answer was lost, known without resending. */
+export const sourceReviewProposal = (c: pg.PoolClient, projectId: string, key: string) =>
+  call<SourceReviewProposal>(
+    c,
+    'SELECT sophia.source_review_proposal($1, $2) AS reply',
+    [projectId, key],
+    'source_review_proposal',
+  )
+
 export const answerWorkDecision = (
   c: pg.PoolClient,
   projectId: string,

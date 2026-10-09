@@ -20,6 +20,7 @@ import {
   readBoardFacts,
   readWorkResult,
   sourceReviewAvailability,
+  sourceReviewProposal,
   withActor,
   workOperationReceipt,
 } from '@sophia/persistence'
@@ -33,6 +34,16 @@ const withIds = (...names: string[]) =>
     properties: Object.fromEntries(['projectId', ...names].map((n) => [n, { type: 'string', pattern: UUID_PATTERN }])),
     required: ['projectId', ...names],
   }) as const
+
+const proposalParams = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    projectId: { type: 'string', pattern: UUID_PATTERN },
+    key: { type: 'string', minLength: 1, maxLength: 160 },
+  },
+  required: ['projectId', 'key'],
+} as const
 
 const operationParams = {
   type: 'object',
@@ -132,6 +143,14 @@ function planRoutes(app: FastifyInstance, pool: pg.Pool): void {
       )
       return reply.status(201).send(proposal)
     },
+  )
+
+  // The caller's own proposal under its key, as recorded: one whose answer was lost is known without proposing again.
+  app.get<{ Params: { projectId: string; key: string } }>(
+    '/api/v1/projects/:projectId/plans/source-review/proposals/:key',
+    { schema: { params: proposalParams, response: { 200: { $ref: 'SourceReviewProposal#' } } } },
+    async (req) =>
+      withActor(pool, req.actorId, 'read', (c) => sourceReviewProposal(c, req.params.projectId, req.params.key)),
   )
 }
 

@@ -857,6 +857,21 @@ BEGIN
  RETURN sophia.work_receipt(op);
 END $$;
 
+-- GET /api/v1/projects/{projectId}/plans/source-review/proposals/{key}: the caller's own source-review proposal under
+-- that key, as Sophia recorded it (its plan, decision and work), so a proposal whose answer was lost is known recorded
+-- without proposing it again. Only ever the caller's: another member's key, or one never proposed under, is not found.
+-- A refused proposal is never recorded, so it is not found either. (Codex's automatic review of a06db118, P2.)
+CREATE FUNCTION sophia.source_review_proposal(p_project uuid, p_key text) RETURNS jsonb LANGUAGE plpgsql STABLE
+SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE op sophia.work_operations;
+BEGIN
+ IF sophia.actor_id() IS NULL OR NOT sophia.is_member(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
+ SELECT * INTO op FROM sophia.work_operations
+  WHERE project_id=p_project AND actor_id=sophia.actor_id() AND idempotency_key=p_key AND operation='propose_source_review';
+ IF NOT FOUND THEN RAISE EXCEPTION 'Proposal not found' USING ERRCODE='22023'; END IF;
+ RETURN op.result;
+END $$;
+
 -- GET /api/v1/projects/{projectId}/work/{workId}/result: the exact result version, while every source it drew on can
 -- still be read; otherwise pending, withdrawn or unavailable. Never a URL, never another version.
 CREATE FUNCTION sophia.read_work_result(p_project uuid, p_work uuid, p_version uuid) RETURNS jsonb LANGUAGE plpgsql STABLE
@@ -1936,7 +1951,7 @@ CREATE TRIGGER work_commissions_failed AFTER UPDATE OF state ON sophia.work_comm
 
 REVOKE ALL ON FUNCTION sophia.propose_source_review(uuid,text,jsonb,jsonb), sophia.answer_work_decision(uuid,uuid,text,jsonb),
  sophia.work_command(uuid,uuid,text,jsonb), sophia.work_operation_receipt(uuid,text), sophia.read_work_result(uuid,uuid,uuid),
- sophia.source_review_availability(uuid,text,text),
+ sophia.source_review_availability(uuid,text,text), sophia.source_review_proposal(uuid,text),
  sophia.coordination_permit(bytea,jsonb), sophia.coordination_start(bytea,jsonb), sophia.coordination_observe(bytea,jsonb),
  sophia.coordination_cancel(bytea,jsonb),
  sophia.runtime_source_review_context(bytea,text,text,jsonb), sophia.runtime_source_review_reserve(bytea,text,text,jsonb),
@@ -1946,7 +1961,7 @@ REVOKE ALL ON FUNCTION sophia.propose_source_review(uuid,text,jsonb,jsonb), soph
 -- Members, through the API's actor context.
 GRANT EXECUTE ON FUNCTION sophia.propose_source_review(uuid,text,jsonb,jsonb), sophia.answer_work_decision(uuid,uuid,text,jsonb),
  sophia.work_command(uuid,uuid,text,jsonb), sophia.work_operation_receipt(uuid,text), sophia.read_work_result(uuid,uuid,uuid),
- sophia.source_review_availability(uuid,text,text) TO sophia_api;
+ sophia.source_review_availability(uuid,text,text), sophia.source_review_proposal(uuid,text) TO sophia_api;
 -- The adapter and the runtime, through the API with their own capabilities (never a member identity).
 GRANT EXECUTE ON FUNCTION sophia.coordination_permit(bytea,jsonb), sophia.coordination_start(bytea,jsonb),
  sophia.coordination_observe(bytea,jsonb), sophia.coordination_cancel(bytea,jsonb),

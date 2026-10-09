@@ -143,6 +143,8 @@ interface Project {
     how: 'lost' | 'unreadable' | 'held'
     sent: { key: string; body: unknown }[]
     held?: ((read: () => void) => void)[]
+    /** Each read of a proposal by its key, as answered: `recorded <key>` or `not_found <key>`. */
+    reads?: string[]
   }
   /** The goals of the board Sophia serves, as the page holds them now (`admits=`); absent, none. */
   servedGoals?: () => WorkBoardView['goals']
@@ -810,7 +812,27 @@ function workRead(project: Project, path: string) {
     return json(board)
   }
   if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) return json(project.review ?? REVIEW_NOT_ENABLED)
+  const key = PROPOSAL_READ.exec(path)?.[1]
+  if (key !== undefined && project.proposals) return proposalRead(project.proposals, decodeURIComponent(key))
   return null
+}
+
+const PROPOSAL_READ = new RegExp(`^/api/v1/projects/${PROJECT}/plans/source-review/proposals/([^/]+)$`)
+
+/**
+ * The viewer's own proposal under its key, as the service recorded it: every one sent arrived and was recorded (a lost
+ * reply is lost on its way back), so any key it was sent under is found; any other is not.
+ */
+function proposalRead(p: NonNullable<Project['proposals']>, key: string): Response {
+  const recorded = p.sent.some((s) => s.key === key)
+  p.reads?.push(`${recorded ? 'recorded' : 'not_found'} ${key}`)
+  if (!recorded) {
+    return new Response(
+      JSON.stringify({ code: 'not_found', message: 'Proposal not found', requestId: proposalId(9), retry: 'never' }),
+      { status: 422, headers: { 'content-type': 'application/json' } },
+    )
+  }
+  return new Response(proposalAnswered().body, { status: 200, headers: { 'content-type': 'application/json' } })
 }
 
 const REVIEW_NOT_ENABLED: SourceReviewAvailability = {

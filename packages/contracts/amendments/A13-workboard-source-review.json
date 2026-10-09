@@ -2669,6 +2669,77 @@
     },
     {
       "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1plans~1source-review~1proposals~1{key}",
+      "value": {
+        "get": {
+          "operationId": "getSourceReviewProposal",
+          "summary": "The caller's own source-review proposal under its idempotency key, as it was recorded (its plan, decision and work): a proposal whose answer was lost is known recorded without proposing it again. Read-only; another member's key, a refused proposal or one never sent is not found.",
+          "tags": ["work"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            {
+              "name": "key",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Recorded",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SourceReviewProposal"
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Not a member",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "No proposal of the caller's under that key (not_found)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "WBC-02"
+        }
+      }
+    },
+    {
+      "op": "add",
       "path": "/paths/~1api~1v1~1projects~1{projectId}~1decisions~1{decisionId}~1answer",
       "value": {
         "post": {

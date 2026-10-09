@@ -225,6 +225,7 @@ export {
   runtimeSourceReviewSettle,
   runtimeSourceReviewSubmit,
   sourceReviewAvailability,
+  sourceReviewProposal,
   workOperationReceipt,
   type CoordinationDelivery,
   type DeliveryOutcome,

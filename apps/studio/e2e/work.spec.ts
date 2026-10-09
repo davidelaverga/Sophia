@@ -3232,7 +3232,7 @@ const keptProposals = (page: Page) =>
   page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('sophia.review.proposal.v1:')))
 
 /** A proposal sent with its reply lost, then the page read again (a reload): the board Sophia serves, as it is now. */
-async function lostThenReloaded(page: Page, admits: '1' | 'other' | 'luis') {
+async function lostThenReloaded(page: Page, admits: '1' | 'other' | 'luis' | 'replacement') {
   await page.goto(`${PAGE}?served=1&proposed=lost&admits=${admits}${admits === 'other' ? '&two=1' : ''}`)
   await page.getByRole('button', { name: 'Review sources' }).first().click()
   const form = page.getByRole('form', { name: 'Review sources' })
@@ -3358,6 +3358,70 @@ for (const [admits, whose] of [
     expect(await keptProposals(page)).toHaveLength(1)
   })
 }
+
+/**
+ * Codex's automatic review of a06db118 (P2): a proposal whose reply was lost, recorded as the goal's proposed replacement
+ * beside the plan in force. That decision is the board's, beside the plan, so nothing at the pilot's entry let the kept
+ * proposal go: the form stayed frozen on it, and no other could be composed until the visible one was proposed again.
+ */
+async function lostAsReplacement(page: Page) {
+  const form = await lostThenReloaded(page, 'replacement')
+  await expect(page.getByText('Start the source review?').first()).toBeVisible()
+  // Sophia says the kept proposal is recorded: it is let go, by its key, and never sent again.
+  const [k1] = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  await expect.poll(() => page.evaluate(() => window.workFixture?.proposalReads ?? [])).toContain(`recorded ${k1?.key}`)
+  await expect.poll(() => keptProposals(page)).toEqual([])
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByRole('alert')).toHaveCount(0)
+  await expect(form.getByLabel('Purpose (optional)')).toHaveValue('')
+  await expect(form.getByRole('button', { name: 'Propose review' })).toBeVisible()
+  expect(await page.evaluate(() => window.workFixture?.proposals ?? [])).toHaveLength(1)
+}
+
+test('codex · a06db118 · a kept proposal Sophia never recorded stays kept, though the board shows another of the viewer’s', async ({
+  page,
+}) => {
+  const form = page.getByRole('form', { name: 'Review sources' })
+  await page.goto(`${PAGE}?served=1&proposed=lost&admits=replacement`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await form.getByLabel('Purpose (optional)').fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  // The tab keeps another proposal for the goal instead, under a key Sophia never had: as one lost on its way would be.
+  const NEVER = '6f1c7d3e-0b5a-4c2e-9d8f-0000000000ee'
+  await page.evaluate((never) => {
+    for (const k of Object.keys(sessionStorage).filter((x) => x.startsWith('sophia.review.proposal.v1:'))) {
+      const kept: unknown = JSON.parse(sessionStorage.getItem(k) ?? 'null')
+      if (typeof kept === 'object' && kept !== null) sessionStorage.setItem(k, JSON.stringify({ ...kept, key: never }))
+    }
+  }, NEVER)
+  await page.reload()
+  await expect(page.getByText('Start the source review?').first()).toBeVisible()
+  // Sophia is asked, says it holds none under that key, and the kept proposal stays as it was, frozen.
+  await expect.poll(() => page.evaluate(() => window.workFixture?.proposalReads ?? [])).toContain(`not_found ${NEVER}`)
+  expect(await keptProposals(page)).toHaveLength(1)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.',
+  )
+  await expect(form.getByLabel('Purpose (optional)')).toHaveValue('Check the budgets agree')
+  expect(await page.evaluate(() => window.workFixture?.proposals ?? [])).toHaveLength(1)
+})
+
+test('codex · a06db118 · a lost proposal recorded as the goal’s replacement plan is let go: the form starts afresh', async ({
+  page,
+}) => {
+  await lostAsReplacement(page)
+})
+
+test('@phone · codex · a06db118 · on a phone too, a lost proposal recorded as a replacement plan is let go', async ({
+  page,
+}) => {
+  await lostAsReplacement(page)
+})
 
 test('codex · #107 · a cap below a cent, or between cents, starts the allowance there and the form may be sent', async ({
   page,

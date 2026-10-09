@@ -363,6 +363,7 @@ export interface Operations {
   "getWorkBoard": { method: "GET"; path: "/api/v1/projects/{projectId}/plans"; request: undefined; response: WorkBoardView; };
   "getSourceReviewAvailability": { method: "GET"; path: "/api/v1/projects/{projectId}/plans/source-review"; request: undefined; response: SourceReviewAvailability; };
   "proposeSourceReview": { method: "POST"; path: "/api/v1/projects/{projectId}/plans/source-review"; request: SourceReviewProposalRequest; response: SourceReviewProposal; };
+  "getSourceReviewProposal": { method: "GET"; path: "/api/v1/projects/{projectId}/plans/source-review/proposals/{key}"; request: undefined; response: SourceReviewProposal; };
   "answerWorkDecision": { method: "POST"; path: "/api/v1/projects/{projectId}/decisions/{decisionId}/answer"; request: WorkDecisionAnswer; response: WorkReceipt; };
   "admitWorkCommand": { method: "POST"; path: "/api/v1/projects/{projectId}/assignments/{assignmentId}/commands"; request: WorkCommand; response: WorkReceipt; };
   "getWorkOperation": { method: "GET"; path: "/api/v1/projects/{projectId}/work/operations/{operationId}"; request: undefined; response: WorkReceipt; };

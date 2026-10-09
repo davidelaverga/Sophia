@@ -130,6 +130,8 @@ declare global {
       admissions?: readonly unknown[]
       /** Each source review proposed (`proposed=lost|unreadable`), with its key and its body. */
       proposals?: readonly { key: string; body: unknown }[]
+      /** Each read of a proposal by its key, as answered: `recorded <key>` or `not_found <key>`. */
+      proposalReads?: readonly string[]
       /** `proposed=held`: the first proposal's answer, held until now, arrives; resolved once the page has read it. */
       releaseProposal?: () => Promise<void>
       replay?: (operationId: string) => void
@@ -195,17 +197,19 @@ const proposals:
       how: 'lost' | 'unreadable' | 'held'
       sent: { key: string; body: unknown }[]
       held: ((read: () => void) => void)[]
+      reads: string[]
     }
   | undefined =
   proposing === 'lost' || proposing === 'unreadable' || proposing === 'held'
-    ? { lose: 1, how: proposing, sent: sentBefore(), held: [] }
+    ? { lose: 1, how: proposing, sent: sentBefore(), held: [], reads: [] }
     : undefined
 if (proposals) addEventListener('pagehide', () => sessionStorage.setItem(SENT_KEY, JSON.stringify(proposals.sent)))
 
 /**
- * `admits=1|other|luis` (with `served=1&proposed=lost`): once the first proposal is recorded, the board Sophia serves
- * shows a labelled synthetic admission decision for it: Davide's on the first goal (`1`), Davide's on the second goal
- * (`other`, with `two=1`), or Luis's on the first goal (`luis`). The page's viewer is then Davide, by a synthetic,
+ * `admits=1|other|luis|replacement` (with `served=1&proposed=lost`): once the first proposal is recorded, the board
+ * Sophia serves shows a labelled synthetic admission decision for it: Davide's on the first goal (`1`), Davide's on the
+ * second goal (`other`, with `two=1`), Luis's on the first goal (`luis`), or Davide's on the first goal's proposed
+ * replacement, beside the plan in force (`replacement`). The page's viewer is then Davide, by a synthetic,
  * unsigned token whose subject the Studio reads (tokenSubject). Answered, the decision is recorded; each answer is in
  * `workFixture.admissions`.
  */
@@ -271,7 +275,7 @@ function servedGoals(): GoalView[] {
   }
   const first: GoalView = {
     goal_id: goal.id,
-    current_plan: null,
+    current_plan: admits === 'replacement' ? plan : null,
     proposed_plans: [proposedPlan],
     next_checkpoint: null,
     items: [],
@@ -350,7 +354,7 @@ window.workFixture = {
   commands,
   receipts,
   questions,
-  ...(proposals && { proposals: proposals.sent }),
+  ...(proposals && { proposals: proposals.sent, proposalReads: proposals.reads }),
   ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
   ...(admits && { admissions: admission.answers }),
 }
@@ -876,7 +880,7 @@ function Tasks() {
         viewer,
         { commands: lead.commands, again },
       ),
-      ...(proposals && { proposals: proposals.sent }),
+      ...(proposals && { proposals: proposals.sent, proposalReads: proposals.reads }),
       ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
       ...(admits && { admissions: admission.answers }),
     }

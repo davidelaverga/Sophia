@@ -148,6 +148,7 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.take_back_personal_release(text,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.erase_personal_space(text,text)') IS NOT NULL
   AND to_regprocedure('sophia.propose_source_review(uuid,text,jsonb,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.source_review_proposal(uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.answer_work_decision(uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.work_command(uuid,uuid,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.read_work_result(uuid,uuid,uuid)') IS NOT NULL

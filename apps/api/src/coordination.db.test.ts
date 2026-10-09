@@ -2488,3 +2488,60 @@ describe('a control after the work closed (Codex on #107)', () => {
     assert.equal(w.paperclip.issues.get(issue.id)?.status, 'cancelled')
   })
 })
+
+describe('a proposal whose answer was lost, read back by its key (Codex’s automatic review of a06db118, P2)', () => {
+  const read = (actor: string, w: World, key: string) =>
+    member(actor, `/api/v1/projects/${w.projectId}/plans/source-review/proposals/${encodeURIComponent(key)}`)
+  const proposeUnder = (w: World, key: string, over: Record<string, unknown> = {}) =>
+    member(
+      E,
+      `/api/v1/projects/${w.projectId}/plans/source-review`,
+      { goalId: w.goalId, goalRevision: 1, sourceIds: [w.sourceA], allowanceUsd: 0.5, ...over },
+      key,
+    )
+  const plans = (w: World) =>
+    asOwner(
+      async (o) =>
+        (
+          await o.query<{ n: number }>(`SELECT count(*)::int AS n FROM sophia.work_plans WHERE project_id=$1`, [
+            w.projectId,
+          ])
+        ).rows[0]?.n,
+    )
+
+  it('answers its proposer exactly as Sophia answered the proposal, and records nothing more', async () => {
+    const w = await world()
+    const key = randomUUID()
+    const sent = await proposeUnder(w, key)
+    assert.equal(sent.status, 201, JSON.stringify(sent.json))
+    const back = await read(E, w, key)
+    assert.equal(back.status, 200, JSON.stringify(back.json))
+    assert.deepEqual(back.json, sent.json)
+    assert.deepEqual(await read(E, w, key), back, 'read again, the same')
+    assert.equal(await plans(w), 1, 'reading proposes nothing')
+  })
+
+  it('finds nothing under another member’s key, a key never sent, a refused proposal or an answer’s key', async () => {
+    const w = await world()
+    const key = randomUUID()
+    assert.equal((await proposeUnder(w, key)).status, 201)
+    assert.equal((await read(A, w, key)).status, 422, 'another member’s, the admin’s included')
+    const never = await read(E, w, randomUUID())
+    assert.deepEqual([never.status, never.json.code], [422, 'not_found'], 'never sent')
+    const refusedKey = randomUUID()
+    assert.equal((await proposeUnder(w, refusedKey, { allowanceUsd: 3 })).status, 422, 'above the cap')
+    assert.equal((await read(E, w, refusedKey)).status, 422, 'a refused proposal is never recorded')
+    const proposal = await propose(w)
+    const answerKey = randomUUID()
+    assert.equal((await answer(w, proposal.json, 'decline', E, answerKey)).status, 200)
+    assert.equal((await read(E, w, answerKey)).status, 422, 'an answer is another operation')
+    assert.equal(await plans(w), 2)
+  })
+
+  it('refuses whoever is not a member of the project', async () => {
+    const w = await world()
+    const key = randomUUID()
+    assert.equal((await proposeUnder(w, key)).status, 201)
+    assert.equal((await read(randomUUID(), w, key)).status, 403)
+  })
+})
