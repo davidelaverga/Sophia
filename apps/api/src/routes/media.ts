@@ -161,7 +161,7 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit, voice }:
   app.post<{ Body: MediaToolCall }>(
     '/v1/media/tool-calls',
     { schema: { body: { $ref: 'MediaToolCall#' }, response: { 200: { $ref: 'MediaToolResult#' } } } },
-    async (req) => executeToolCall(pool, req.body),
+    async (req) => executeToolCall(pool, req.body, voice),
   )
 }
 

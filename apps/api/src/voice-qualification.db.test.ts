@@ -8,8 +8,15 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import type { MediaEvidenceWrite } from '@sophia/contracts'
-import { createPool, readSnapshot, startExchange, withActor } from '@sophia/persistence'
-import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
+import {
+  admitNativeTask,
+  createPool,
+  readSnapshot,
+  startExchange,
+  submitContribution,
+  withActor,
+} from '@sophia/persistence'
+import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 
@@ -383,5 +390,148 @@ describe('voice qualification through the API (A15, 0046)', () => {
     } finally {
       await plain.close()
     }
+  })
+})
+
+describe('the exchange of a voice-created task, and the room as the bridge last saw it (A15, 0046)', () => {
+  /** A brief admitted by `actor` under `key`: what a voice tool call's command is, under the key the API gives it. */
+  async function brief(projectId: string, actor: string, key: string): Promise<string> {
+    const said = await withActor(pool, actor, 'write', (c) =>
+      submitContribution(c, projectId, randomUUID(), {
+        source: null,
+        text: 'Draft the brief from this.',
+        threadId: null,
+        artifactVersionId: null,
+        intent: 'discuss',
+      }),
+    )
+    const { rows } = await owner((c) =>
+      c.query<{ r: string }>(`SELECT mission_revision AS r FROM sophia.projects WHERE id=$1`, [projectId]),
+    )
+    const receipt = await withActor(pool, actor, 'write', (c) =>
+      admitNativeTask(c, projectId, key, {
+        kind: 'draft_brief',
+        instruction: 'Draft the brief.',
+        contributionIds: [said.contributionId],
+        expectedMissionRevision: Number(rows[0]?.r),
+      }),
+    )
+    return receipt.taskId
+  }
+
+  const toolCall = (exchangeId: string, actorId: string, callId: string, api = app) =>
+    call('POST', '/v1/media/tool-calls', {
+      api,
+      media: true,
+      body: { exchangeId, connectionGeneration: 1, callId, name: 'project_status', args: {}, inputEpoch: 1, actorId },
+    })
+
+  const exchangesOf = async (projectId: string, actor: string, api = app) =>
+    new Map(
+      (
+        (await call('GET', `/api/v1/projects/${projectId}/snapshot`, { actor, api })).json.work as Array<{
+          id: string
+          exchangeId?: string
+        }>
+      ).map((t) => [t.id, t.exchangeId]),
+    )
+
+  const recorded = async (key: string) =>
+    (await owner((c) => c.query(`SELECT 1 FROM sophia.live_tool_calls WHERE idempotency_key=$1`, [key]))).rowCount
+
+  it('names the exchange its voice tool call ran in; a look-alike key, another actor or the API off names none', async () => {
+    const { projectId } = await project()
+    await registerRuntime(db.ownerUrl, { projectId, admin: A })
+    const exchangeId = await open(projectId)
+    const bound = await toolCall(exchangeId, P, 'call-1')
+    assert.equal(bound.status, 200, JSON.stringify(bound.json))
+    assert.notEqual(bound.json.status, 'clarify', 'the call was bound to its speaker')
+    const key = `live:${exchangeId}:1:call-1`
+    assert.equal(await recorded(key), 1, 'the service recorded the call as it bound it')
+    const voiced = await brief(projectId, P, key)
+    const lookAlike = await brief(projectId, E, `live:${exchangeId}:1:call-2`)
+    const otherActor = await brief(projectId, E, key)
+    const studio = await brief(projectId, P, randomUUID())
+    const seen = await exchangesOf(projectId, E)
+    assert.equal(seen.get(voiced), exchangeId, 'the task its call created names the exchange')
+    assert.equal(seen.get(lookAlike), undefined, 'a member’s own key that reads live:… names none')
+    assert.equal(seen.get(otherActor), undefined, 'another actor’s command under the same key names none')
+    assert.equal(seen.get(studio), undefined)
+    const detail = await call('GET', `/api/v1/projects/${projectId}/native-tasks/${voiced}`, { actor: P })
+    assert.equal(detail.status, 200, JSON.stringify(detail.json))
+    assert.equal(detail.json.task.exchangeId, exchangeId, 'the task detail names it too')
+    assert.equal((await exchangesOf(projectId, P, off)).get(voiced), undefined, 'the API off reads none of it')
+    const offCall = await toolCall(exchangeId, P, 'call-3', off)
+    assert.equal(offCall.status, 200)
+    assert.equal(await recorded(`live:${exchangeId}:1:call-3`), 0, 'the API off records nothing')
+    const unbound = await toolCall(exchangeId, E, 'call-4')
+    assert.equal(unbound.json.status, 'clarify', 'a caller who does not hold the floor is not bound')
+    assert.equal(await recorded(`live:${exchangeId}:1:call-4`), 0, 'and nothing is recorded for it')
+    const outsider = randomUUID()
+    const theirs = await call('GET', `/api/v1/projects/${projectId}/snapshot`, { actor: outsider })
+    assert.equal(theirs.status, 403, 'a non-member reads no task at all')
+  })
+
+  it('answers a member only whether they are in the room, the counts and the report’s age; nobody else’s identity', async () => {
+    const { roomId } = await project()
+    const presence = (actor: string, api = app, room = roomId) =>
+      call('GET', `/api/v1/rooms/${room}/live-presence`, { actor, api })
+    const none = await presence(P)
+    assert.equal(none.status, 200, JSON.stringify(none.json))
+    assert.deepEqual(
+      [none.json.observed, none.json.fresh, none.json.selfPresent, none.json.participants],
+      [false, false, false, 0],
+      'no report: nothing observed, and nothing claimed',
+    )
+    const report = await call('POST', '/v1/media/presence', {
+      media: true,
+      body: {
+        roomId,
+        exchangeId: null,
+        bridgeInstanceId: 'bridge-1',
+        voice: 'ready',
+        reason: null,
+        participants: [
+          { identity: P, standing: 'editor' },
+          { identity: 'guest-0001', standing: 'guest' },
+        ],
+      },
+    })
+    assert.equal(report.status, 204)
+    const mine = await presence(P)
+    assert.deepEqual(Object.keys(mine.json).toSorted(), [
+      'emptySince',
+      'exchangeId',
+      'fresh',
+      'guests',
+      'observed',
+      'participants',
+      'reportedAt',
+      'roomId',
+      'selfPresent',
+      'voice',
+    ])
+    assert.deepEqual(
+      [
+        mine.json.observed,
+        mine.json.fresh,
+        mine.json.selfPresent,
+        mine.json.participants,
+        mine.json.guests,
+        mine.json.voice,
+      ],
+      [true, true, true, 2, 1, 'ready'],
+    )
+    assert.ok(!JSON.stringify(mine.json).includes('guest-0001'), 'no identity but the caller’s own presence')
+    assert.equal((await presence(E)).json.selfPresent, false, 'another member sees only that they are not in it')
+    await owner((c) =>
+      c.query(`UPDATE sophia.room_ai_presence SET reported_at=now()-interval '1 minute' WHERE room_id=$1`, [roomId]),
+    )
+    assert.equal((await presence(P)).json.fresh, false, 'an old report is stale')
+    const outsider = await presence(randomUUID())
+    assert.deepEqual([outsider.status, outsider.json.code], [422, 'not_found'], 'a non-member finds no room')
+    const unknown = await presence(P, app, randomUUID())
+    assert.deepEqual([unknown.status, unknown.json.code], [422, 'not_found'])
+    assert.equal((await presence(P, off)).status, 404, 'the API off serves no such route')
   })
 })

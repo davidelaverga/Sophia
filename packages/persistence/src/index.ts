@@ -135,10 +135,14 @@ export {
   type PresenceReport,
 } from './exchange.ts'
 export {
+  readLivePresence,
   readQualificationEvidence,
+  readTaskExchanges,
+  recordLiveCall,
   recordQualificationEvidence,
   roomQualification,
   voiceQualificationGuard,
+  type LivePresence,
   type QualificationEvidenceAck,
   type QualificationEvidenceWrite,
   type QualificationReceiptKind,

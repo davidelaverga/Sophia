@@ -17,6 +17,7 @@ import {
   canCommand,
   readSnapshot,
   readTaskStandings,
+  recordLiveCall,
   researchGateOpen,
   sentCommand,
   submitContribution,
@@ -260,17 +261,27 @@ function declaredBy(call: MediaToolCall): boolean {
   return surface.includes(call.name) && (sinceV12(guide) || call.name !== 'control_work' || args.action !== 'steer')
 }
 
-/** Execute one call for its bound speaker. Unbound attribution is a question back, never an action. */
-export async function executeToolCall(pool: pg.Pool, call: MediaToolCall): Promise<MediaToolResult> {
+/**
+ * Execute one call for its bound speaker. Unbound attribution is a question back, never an action. With voice
+ * qualification on (A15), the call's exchange is recorded under its command's key as it is bound: the canonical join from
+ * the task it creates to the exchange (NativeTask.exchangeId).
+ */
+export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice = false): Promise<MediaToolResult> {
   if (!declaredBy(call)) {
     return {
       status: 'refused',
       output: { code: 'not_started:not_declared', reason: 'That operation is not available in this conversation.' },
     }
   }
+  // The bridge's Google session: the same across a resumed connection, so a repeated call is the same call.
+  const key = `live:${call.exchangeId}:${String(call.connectionGeneration)}:${call.callId}`
   let speaker: { projectId: string }
   try {
-    speaker = await withService(pool, (c) => toolSpeaker(c, call.exchangeId, call.inputEpoch, call.actorId))
+    speaker = await withService(pool, async (c) => {
+      const bound = await toolSpeaker(c, call.exchangeId, call.inputEpoch, call.actorId)
+      if (voice) await recordLiveCall(c, { ...call, key })
+      return bound
+    })
   } catch {
     return clarify('I couldn’t tell who asked that. Could the person holding the floor ask again?')
   }
@@ -278,8 +289,7 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall): Promi
     pool,
     projectId: speaker.projectId,
     actorId: call.actorId,
-    // The bridge's Google session: the same across a resumed connection, so a repeated call is the same call.
-    key: `live:${call.exchangeId}:${String(call.connectionGeneration)}:${call.callId}`,
+    key,
     call,
     args: call.args,
   }

@@ -4,6 +4,7 @@ import type { FloorRequest, RoomTokenRequest } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
   authorizeRoomJoin,
+  readLivePresence,
   readQualificationEvidence,
   roomQualification,
   transferInputFloor,
@@ -65,7 +66,10 @@ export function roomRoutes(app: FastifyInstance, { pool, livekit, voice }: Deps)
     },
   )
 
-  if (voice) evidenceReadRoute(app, pool)
+  if (voice) {
+    evidenceReadRoute(app, pool)
+    livePresenceRoute(app, pool)
+  }
 
   app.post<{ Params: { roomId: string }; Headers: { 'idempotency-key': string }; Body: FloorRequest }>(
     '/api/v1/rooms/:roomId/input-floor',
@@ -103,5 +107,17 @@ function evidenceReadRoute(app: FastifyInstance, pool: pg.Pool): void {
       },
     },
     async (req) => withActor(pool, req.actorId, 'read', (c) => readQualificationEvidence(c, req.params.exchangeId)),
+  )
+}
+
+/**
+ * A member reads the room as the media bridge last saw it (A15): whether they themselves are in it, the counts, the
+ * bridge's voice and the report's age; nobody else's identity. A room outside the caller's projects is not found.
+ */
+function livePresenceRoute(app: FastifyInstance, pool: pg.Pool): void {
+  app.get<{ Params: { roomId: string } }>(
+    '/api/v1/rooms/:roomId/live-presence',
+    { schema: { params: roomParams, response: { 200: { $ref: 'RoomLivePresence#' } } } },
+    async (req) => withActor(pool, req.actorId, 'read', (c) => readLivePresence(c, req.params.roomId)),
   )
 }

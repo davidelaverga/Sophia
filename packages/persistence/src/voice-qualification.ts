@@ -62,3 +62,56 @@ export async function roomQualification(
   )
   return rows[0]?.q ?? null
 }
+
+/**
+ * The exchange a bound voice tool call ran in, under the key its command is admitted with (live:<exchange>:...): the
+ * canonical join from a native task to the exchange that asked for it. Call inside withService, after toolSpeaker.
+ */
+export async function recordLiveCall(
+  c: pg.PoolClient,
+  call: { exchangeId: string; inputEpoch: number; actorId: string; key: string },
+): Promise<void> {
+  await c.query(`SELECT sophia.media_record_live_call($1,$2,$3,$4)`, [
+    call.exchangeId,
+    call.inputEpoch,
+    call.actorId,
+    call.key,
+  ])
+}
+
+/** The room as the bridge last saw it, for a member: only whether they are in it, the counts and the report's age. */
+export interface LivePresence {
+  roomId: string
+  observed: boolean
+  reportedAt: string | null
+  fresh: boolean
+  voice: 'connecting' | 'ready' | 'recovering' | 'unavailable' | null
+  exchangeId: string | null
+  selfPresent: boolean
+  participants: number
+  guests: number
+  emptySince: string | null
+}
+
+/** Call inside withActor(..., 'read'). A room outside the caller's projects is not found. */
+export async function readLivePresence(c: pg.PoolClient, roomId: string): Promise<LivePresence> {
+  const { rows } = await c.query<{ p: LivePresence }>(`SELECT sophia.room_live_presence($1) AS p`, [roomId])
+  return onlyRow(rows, 'room_live_presence').p
+}
+
+/**
+ * The exchange each of these tasks was created in by a voice tool call (0046), for a member. A task no such call created
+ * is absent from the map. Call inside withActor(..., 'read'), only with voice qualification on.
+ */
+export async function readTaskExchanges(
+  c: pg.PoolClient,
+  projectId: string,
+  taskIds: readonly string[],
+): Promise<Map<string, string>> {
+  if (taskIds.length === 0) return new Map()
+  const { rows } = await c.query<{ task_id: string; exchange_id: string }>(
+    `SELECT task_id, exchange_id FROM sophia.native_task_exchanges($1, $2::uuid[])`,
+    [projectId, [...taskIds]],
+  )
+  return new Map(rows.map((r) => [r.task_id, r.exchange_id]))
+}

@@ -100,11 +100,31 @@ On this transport the chain covers **the PCM the bridge forwarded or played**. I
 
 A missing identity is typed unavailable by the Lab, never guessed.
 
-## Joins the Lab makes (existing, unchanged)
+## Joins the Lab makes
 
-`projectId` → `room.id` (the LiveKit room) → `exchangeId` and `inputEpoch` → the command key `live:<exchangeId>:<generation>:<callId>` → `research_tasks.exchange_id`/`job_id` → `design_tasks.published_version_id` → the artifact version → its downloaded bytes' SHA-256.
+`projectId` → `room.id` (the LiveKit room) → `exchangeId` and `inputEpoch` → the native task the exchange's voice tool call created (`NativeTask.exchangeId`) → its output (`artifactId`, `resultSourceId`) → the artifact version → its downloaded bytes' SHA-256.
 
-All are read by the principal through the member API (snapshot, events, native tasks, artifacts).
+**`NativeTask.exchangeId` is canonical.** The service records the exchange each voice tool call ran in, under the key the API gives its command (`live:<exchangeId>:<generation>:<callId>`). It records it only after it has bound the call to its speaker (`media_tool_speaker`), and checks it again: the exchange has not ended, and the actor held the call's input epoch (0046, `live_tool_calls`). A task names an exchange only when its command's actor and key match such a record:
+- A member's own key never sets it, even one that reads `live:…`.
+- Another actor's command under the same key does not get it.
+- A task created while the API's voice qualification was off does not get it.
+
+The snapshot and the task detail carry it only with voice qualification on.
+
+**The room as the bridge last saw it.** `GET /api/v1/rooms/{roomId}/live-presence` answers a member:
+- whether they themselves are in the room (`selfPresent`);
+- how many participants there are, and how many of those are guests;
+- the bridge's voice and the live exchange;
+- when the bridge last reported.
+
+It answers nobody else's identity. `observed: false` (no report) or `fresh: false` (older than 15 s; the bridge reports every 5 s while it is in the room) proves nothing either way. A room outside the caller's projects is 422 `not_found`. The route exists only with voice qualification on.
+
+All of these are read by the principal through the member API (snapshot, native tasks, artifacts, live presence, evidence).
+
+**Status codes the Lab must expect** (this API's convention for every member read):
+- an object that is missing, or not the caller's, is 422 with `{code: 'not_found'}`;
+- a route the API does not serve (voice qualification off) is 404;
+- 401 and 403 are authentication and authorization.
 
 ## What stays unavailable (typed, never forged)
 

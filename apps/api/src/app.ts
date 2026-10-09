@@ -179,7 +179,10 @@ export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(t
 export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_guard()') IS NOT NULL
   AND to_regprocedure('sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.voice_qualification_evidence_read(uuid)') IS NOT NULL
-  AND to_regprocedure('sophia.voice_room_qualification(uuid)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.voice_room_qualification(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.media_record_live_call(uuid,bigint,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.room_live_presence(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.native_task_exchanges(uuid,uuid[])') IS NOT NULL AS ok`
 
 /**
  * The byte store the routes are given: written once per key, by a claim the database keeps (0044). The operator's
@@ -223,9 +226,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const store = writeOnceStore(deps.pool, deps.byteStore)
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
-  projectionRoutes(app, { pool: deps.pool })
+  projectionRoutes(app, { pool: deps.pool, voice })
   commandRoutes(app, { pool: deps.pool })
-  conversationRoutes(app, { pool: deps.pool })
+  conversationRoutes(app, { pool: deps.pool, voice })
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
