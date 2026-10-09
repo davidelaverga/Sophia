@@ -4358,8 +4358,9 @@ div.empty {
 .updates-part > .recap-section h4 {
   color: var(--halo-text);
 }
+/* The words take the room they need, no more: what was made opens from beside them, not from the column's far edge. */
 .updates-part > .recap-section li {
-  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, max-content) auto;
 }
 .updates-part > .recap-section li::before {
   content: '';
@@ -4376,6 +4377,8 @@ div.empty {
 }
 .updates-part > .recap-section li > .text-button {
   grid-column: 3;
+  /* Its own width, by its words: the track's room left over would otherwise stretch it, its word centred far off. */
+  justify-self: start;
 }
 .updates-part > [data-kind='decided'] li::before {
   width: 8px;
