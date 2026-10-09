@@ -66,16 +66,16 @@ export function wireSummary(
   }
 }
 
-/** The list as A16 serves it to a member (a viewer reads and writes nothing). */
+/** The list as A16 serves it to a member (a viewer reads and writes nothing; an admin also removes and erases). */
 export function wireList(
   list: readonly FixtureConversation[],
   messages: Readonly<Record<string, readonly FixtureMessage[]>>,
-  opts: { lastShown: boolean; viewer: boolean },
+  opts: { lastShown: boolean; viewer: boolean; admin: boolean; more?: boolean },
 ): ConversationList {
   return {
     projectId: PROJECT,
     conversations: list.map((c) => wireSummary(c, messages[c.id] ?? [], opts.lastShown)),
-    more: false,
+    more: opts.more === true,
     policy: {
       id: 'conversation-text-v1',
       notice:
@@ -83,6 +83,6 @@ export function wireList(
       retention: 'until_withdrawn_or_erased',
       audience: 'project_members',
     },
-    capability: { state: 'enabled', write: !opts.viewer, moderate: false, ask: 'available', askReason: null },
+    capability: { state: 'enabled', write: !opts.viewer, moderate: opts.admin, ask: 'available', askReason: null },
   }
 }

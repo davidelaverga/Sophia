@@ -316,6 +316,30 @@ test('writes · opened out of reach, Try again brings back the field and New con
   await expect(messages(page).nth(2).getByRole('button', { name: 'Withdraw message' })).toHaveCount(1)
 })
 
+test('writes · a membership that keeps failing is asked a bounded number of times, and comes back with a later read', async ({
+  page,
+}) => {
+  test.setTimeout(60_000)
+  await page.goto(`${PAGE}&membership=fail`)
+  await expect(messages(page)).toHaveCount(6)
+  const asked = async () => (await served(page)).filter((s) => s === 'membership:failed').length
+  // Its first read and its retries, then once more for the project's read: never again on its own failures.
+  await expect.poll(asked, { timeout: 25_000 }).toBeGreaterThanOrEqual(5)
+  await page.waitForTimeout(12_000)
+  const settled = await asked()
+  expect(settled).toBeLessThanOrEqual(8)
+  await page.waitForTimeout(6_000)
+  expect(await asked()).toBe(settled)
+  await expect(field(page)).toHaveCount(0)
+  // Answered again, it comes back with the project's next read (the feed moving).
+  await page.evaluate(() => {
+    window.fixture?.failMembership(false)
+    window.fixture?.carryIn()
+  })
+  await expect(field(page)).toBeVisible({ timeout: 15_000 })
+  await expect(list(page).getByRole('button', { name: 'New conversation' })).toBeVisible()
+})
+
 test('writes · a viewer back from out of reach still only reads', async ({ page }) => {
   await backFromOutage(page, '&role=viewer')
   await expect(messages(page)).toHaveCount(6)

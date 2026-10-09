@@ -673,6 +673,17 @@
   font-size: var(--type-body);
   line-height: 1.65;
 }
+/* An admin's Erase this conversation: quiet, at the foot of «This conversation», its confirmation under it. */
+.conv-this .conv-erase {
+  justify-self: start;
+  min-height: 24px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.conv-erase-form {
+  display: grid;
+  gap: 8px;
+}
 .conv-mission {
   display: grid;
   gap: 4px;

@@ -67,7 +67,12 @@ import {
   type FixtureMessage,
 } from './conversation-data.ts'
 import { wireList, wireMessage } from './conversation-wire.ts'
-import { conversationWithdrawn, conversationWritten, type TalkWrites } from './conversation-writes.ts'
+import {
+  conversationErased,
+  conversationWithdrawn,
+  conversationWritten,
+  type TalkWrites,
+} from './conversation-writes.ts'
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
@@ -103,7 +108,7 @@ interface Project {
   waiting: boolean
   /** `lobby=again` (knocked twice) or `lobby=two` (two waiting); anything else, one first knock. */
   lobbyAsked?: string | null
-  /** This viewer's role in the project (`role=viewer`); the fixture's own, admin, otherwise. */
+  /** This viewer's role in the project (`role=viewer`, `role=editor`); the fixture's own, admin, otherwise. */
   role?: Membership['role']
   /** The report's description on Knowledge (report-data.ts). */
   description: Description
@@ -190,6 +195,8 @@ interface Project {
   membershipHeld?: (() => void)[] | null
   /** Sophia is out of reach (`outage=1`, `window.fixture.outage`): every API request fails as a lost connection. */
   outage?: boolean
+  /** The membership's reads fail as the API's `unavailable`, the rest answer (`membership=fail`, `failMembership`). */
+  membershipFails?: boolean
   /** This viewer is no member of the project (`member=0`): its reads are refused, as the API refuses them. */
   outsider?: boolean
   /** The project list's reads fail (`projects=fail`). */
@@ -216,6 +223,8 @@ export interface Conversations extends TalkWrites {
   failList: boolean
   /** The list says each one's last message (A18 proposed; `last=1`, and the demo). */
   lastShown?: boolean
+  /** The list says older conversations exist that it doesn't hold (`more=1`, A16's `more`). */
+  more?: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -340,18 +349,22 @@ function talkWritten(project: Project, path: string, init: RequestInit | undefin
   if (!project.conversations) return undefined
   const ctx = {
     viewer: project.role === 'viewer',
+    admin: membershipOf(project).role === 'admin',
     record: (what: string) => served.push(what),
     moved: () => publish(project),
   }
-  const taken = conversationWithdrawn(project.conversations, path, init, ctx)
-  return taken === undefined ? conversationWritten(project.conversations, path, init, ctx) : taken
+  const talk = project.conversations
+  const taken = conversationWithdrawn(talk, path, init, ctx)
+  if (taken !== undefined) return taken
+  const erasure = conversationErased(talk, path, init, ctx)
+  return erasure === undefined ? conversationWritten(talk, path, init, ctx) : erasure
 }
 
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
   if (url.pathname === `/api/v1/projects/${PROJECT}/discussion/replies`) return repliesRead(project)
-  const talk = project.conversations && conversationRead(project.conversations, url, project.role === 'viewer')
+  const talk = project.conversations && conversationRead(project.conversations, url, membershipOf(project).role)
   if (talk !== undefined) return talk
   if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
   const reviews = REVIEWS_OF.exec(url.pathname)
@@ -396,6 +409,10 @@ const membershipOf = (project: Project) => ({ ...membership, role: project.role 
 
 /** The reader's membership; while held, a read that waits until it is let through. */
 function membershipRead(project: Project): Response | Promise<Response> {
+  if (project.membershipFails) {
+    served.push('membership:failed')
+    return unavailable()
+  }
   const held = project.membershipHeld
   if (held) return new Promise<Response>((resolve) => held.push(() => resolve(json(membershipOf(project)))))
   return json(membershipOf(project))
@@ -448,17 +465,23 @@ const TASKS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
 const MESSAGES_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
 
 /** A16's reads: the list, or a page of a conversation's messages; undefined for any other request. */
-function conversationRead(talk: Conversations, url: URL, viewer: boolean) {
-  if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk, viewer)
+function conversationRead(talk: Conversations, url: URL, role: Membership['role']) {
+  if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk, role)
   const messagesOf = MESSAGES_OF.exec(url.pathname)?.[1]
   return messagesOf ? messagesRead(talk, messagesOf, url) : undefined
 }
 
 /** The project's conversations (A16), as listed, each one's newest message where the page asks for last messages. */
-function conversationsRead(talk: Conversations, viewer: boolean) {
+function conversationsRead(talk: Conversations, role: Membership['role']) {
   if (talk.failList) return unavailable()
   served.push('conversations:read')
-  return json(wireList(talk.list, talk.messages, { lastShown: talk.lastShown === true, viewer }))
+  const opts = {
+    lastShown: talk.lastShown === true,
+    viewer: role === 'viewer',
+    admin: role === 'admin',
+    more: talk.more === true,
+  }
+  return json(wireList(talk.list, talk.messages, opts))
 }
 
 /** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */

@@ -1,7 +1,7 @@
 // Server state for room access: this person's role in the project, the invitations they can manage, and
 // their answers at the lobby. TanStack Query caches per person and project; mutations refresh them.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { LobbyDecision, LobbyEntry, Membership, RoomSession } from '@sophia/contracts'
 import { decideLobbyEntry, getMembership, listInvitations } from '../../api/access.ts'
 import { ApiError } from '../../api/client.ts'
@@ -32,15 +32,20 @@ export function useMembership(projectId: string, viewer: string, token: string) 
 
 /**
  * This person's membership as the project's shell reads it: one that failed to read (the API out of reach) is read
- * again each time the project is (`readAt`, its snapshot's time: Try again, or the view asking again by itself), so
- * the controls it decides come back with the project (CON-01-CX-0010). Until it is read, none is offered: an unread
- * membership decides nothing.
+ * again once each time the project is read anew (`readAt`, its snapshot's time: Try again, or the view or the feed
+ * reading it again), so the controls it decides come back with the project (CON-01-CX-0010). Only a new project read
+ * asks again: the membership's own failures never do, so a membership that keeps failing is asked a bounded number of
+ * times, not without end. Until it is read, none is offered: an unread membership decides nothing.
  */
 export function useProjectMembership(projectId: string, viewer: string, token: string, readAt: number) {
   const read = useMembership(projectId, viewer, token)
   const { isError: failed, refetch } = read
+  // The project read the last asking-again answered to: a failure since is never a reason to ask again.
+  const askedAt = useRef(0)
   useEffect(() => {
-    if (failed && readAt > 0) void refetch()
+    if (!failed || readAt <= 0 || askedAt.current === readAt) return
+    askedAt.current = readAt
+    void refetch()
   }, [failed, readAt, refetch])
   return read
 }

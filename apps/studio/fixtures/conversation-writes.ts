@@ -1,7 +1,8 @@
 // A16's writes as the fixture pages answer them (docs/plans/project-conversation-writes.md; CON-01): a conversation
 // started, a message sent, each once per Idempotency-Key (the same key replays its receipt); viewers refused. Its
-// author withdraws their own message, as 0048 does it (`withdraw=slow`: its reply and the feed 1.5 s on;
-// `withdraw=feedFirst`: the feed 0.5 s on, its reply 2.5 s on). Asking
+// author withdraws their own message, an admin removes any or erases a conversation, as 0048 does it
+// (`withdraw=slow`: its reply and the feed 1.5 s on; `withdraw=feedFirst`: the feed 0.5 s on, its reply 2.5 s on;
+// `withdraw=thenFail`: it lands, then the conversation's and the list's reads fail). Asking
 // Sophia records a reply request on the message; her answer, a later message 900 ms on, names that request and settles
 // it, with the project's feed moving as it lands; what she says, sophia-answers.ts. Every word is synthetic.
 import type { ConversationReply } from '@sophia/contracts'
@@ -25,8 +26,13 @@ export interface TalkWrites {
   start: 'lost' | 'slow' | null
   /** How long Sophia takes to answer (`answer=slow`: 10 s; else 0.9 s). */
   answerMs: number
-  /** A withdrawal's reply and the feed: both 1.5 s on (`withdraw=slow`), the feed first (`feedFirst`), or at once. */
-  withdraw: 'slow' | 'feedFirst' | null
+  /**
+   * A withdrawal's reply and the feed: both 1.5 s on (`withdraw=slow`), the feed first (`feedFirst`), at once, or at
+   * once and then every read of the conversation and the list failing (`thenFail`).
+   */
+  withdraw: 'slow' | 'feedFirst' | 'thenFail' | null
+  /** The list's reads fail. */
+  failList: boolean
   /** This conversation's messages fail to read (`messages=fail`, or after a `send=thenFail` write). */
   failMessagesOf: string | null
   /** Each write's receipt by its key, with the words it was sent with: the same key replays it, only with them. */
@@ -35,6 +41,8 @@ export interface TalkWrites {
 
 interface Context {
   viewer: boolean
+  /** An admin removes any message and erases a conversation. */
+  admin: boolean
   /** What the page records as served (`window.fixture.served`). */
   record: (what: string) => void
   /** The project's feed moves (Sophia's answer landed). */
@@ -43,6 +51,7 @@ interface Context {
 
 const MESSAGES_TO = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
 const WITHDRAWAL_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages\/([0-9a-f-]{36})\/withdrawal$/
+const ERASURE_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/erasure$/
 const ME = membership.actorId
 let made = 0
 let sent = 0
@@ -238,6 +247,10 @@ export function conversationWithdrawn(talk: TalkWrites, path: string, init: Requ
   const answer = withdrawn(talk, conversationId, messageId, ctx)
   if (answer === null || answer instanceof Response) return answer
   talk.receipts.set(key, { body: what, receipt: answer })
+  if (talk.withdraw === 'thenFail') {
+    talk.failMessagesOf = conversationId
+    talk.failList = true
+  }
   return withdrawalReplied(talk.withdraw, answer, ctx)
 }
 
@@ -268,7 +281,8 @@ function withdrawn(talk: TalkWrites, conversationId: string, messageId: string, 
   const at = all?.findIndex((m) => m.id === messageId) ?? -1
   const message = all?.[at]
   if (!conversation || !all || !message) return null
-  if (message.author !== 'member' || message.actorId !== ME) return refused('Only its author withdraws a message')
+  const own = message.author === 'member' && message.actorId === ME
+  if (!own && !ctx.admin) return refused('Only its author or an admin withdraws a message')
   withdrawFrom(all, at, next(talk.list))
   conversation.contributors = conversation.contributors.filter((p) =>
     all.some((m) => m.author === 'member' && m.actorId === p.actorId && !m.withdrawn),
@@ -294,4 +308,26 @@ function withdrawFrom(all: FixtureMessage[], at: number, now: string) {
       m.ask = { ...m.ask, state: 'cancelled', reason: 'source_withdrawn', settledAt: now }
     }
   }
+}
+
+/** A conversation an admin erases (A16), once per key: it leaves the list, with every message; undefined otherwise. */
+export function conversationErased(talk: TalkWrites, path: string, init: RequestInit | undefined, ctx: Context) {
+  const conversationId = ERASURE_OF.exec(path)?.[1]
+  if (!conversationId) return undefined
+  const key = new Headers(init?.headers).get('idempotency-key')
+  if (!key) return null
+  const what = `erase:${conversationId}`
+  const replayed = talk.receipts.get(key)
+  if (replayed) return replayed.body === what ? json(replayed.receipt, 202) : null
+  if (!ctx.admin) return refused('Only an admin erases a conversation')
+  const at = talk.list.findIndex((c) => c.id === conversationId)
+  if (at < 0) return null
+  talk.list.splice(at, 1)
+  // Its messages are gone for good: a page asking for them again is unexpected.
+  delete talk.messages[conversationId]
+  const receipt = { conversationId, erased: true }
+  talk.receipts.set(key, { body: what, receipt })
+  ctx.record(`conversation-erase:${conversationId.slice(-2)}`)
+  ctx.moved()
+  return json(receipt, 202)
 }

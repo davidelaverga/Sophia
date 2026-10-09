@@ -103,3 +103,17 @@ export const withEntry = <T>(was: Readonly<Record<string, T>>, key: string, valu
   ...was,
   [key]: value,
 })
+
+/** A record without one entry. */
+const withoutEntry = <T>(was: Readonly<Record<string, T>>, key: string): Readonly<Record<string, T>> =>
+  Object.fromEntries(Object.entries(was).filter(([k]) => k !== key))
+
+/** What is kept without one conversation's part (it was erased): its draft, intent, message held, refusal and wait. */
+export const withoutConversation = (k: Kept, id: string): Kept => ({
+  ...k,
+  drafts: withoutEntry(k.drafts, id),
+  asks: withoutEntry(k.asks, id),
+  holds: withoutEntry(k.holds, id),
+  refusals: withoutEntry(k.refusals, id),
+  asked: withoutEntry(k.asked, id),
+})

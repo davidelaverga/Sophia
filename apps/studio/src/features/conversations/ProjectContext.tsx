@@ -18,6 +18,7 @@ import { missionKey } from '../mission/mission-view.ts'
 import { acceptedOf, coverageWords, pendingOf, questionWords } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { decidableHere, decideRefusal, pressesWait, useDecide, type DecideArgs } from './decide.ts'
+import { useEraseHere, type Erase } from './EraseHere.tsx'
 
 interface Props {
   projectId: string
@@ -30,9 +31,12 @@ interface Props {
   onClose: () => void
   /** The saved-text policy's notice (A16), reachable here after a first message: null where none applies. */
   notice: string | null
+  /** Where the reader erases the open conversation (an admin: the list's `capability.moderate`); null for others. */
+  erase: Erase | null
 }
 
-export function ProjectContext({ projectId, identity, cursor, conversation, opened, onClose, notice }: Props) {
+export function ProjectContext(props: Props) {
+  const { projectId, identity, cursor, conversation, opened, onClose, notice, erase } = props
   const read = useQuery({
     queryKey: [...missionKey(projectId), accountOf(identity), 'conversations'],
     queryFn: () => getMission(identity.token, projectId),
@@ -41,7 +45,7 @@ export function ProjectContext({ projectId, identity, cursor, conversation, open
   useReadAgain(cursor, read.refetch)
   const ctx = read.data
   const frame = (body: ReactNode) => (
-    <Frame opened={opened} onClose={onClose} conversation={conversation} notice={notice}>
+    <Frame opened={opened} onClose={onClose} conversation={conversation} notice={notice} erase={erase}>
       {body}
     </Frame>
   )
@@ -92,6 +96,7 @@ function Frame(props: {
   onClose: () => void
   conversation: ConversationSummary | undefined
   notice: string | null
+  erase: Erase | null
   children: ReactNode
 }) {
   const close = useRef<HTMLButtonElement>(null)
@@ -113,7 +118,10 @@ function Frame(props: {
           </svg>
         </button>
       </div>
-      {props.conversation && <ThisConversation conversation={props.conversation} />}
+      {/* Keyed: a confirmation asked for one conversation never stays for the next one opened. */}
+      {props.conversation && (
+        <ThisConversation key={props.conversation.id} conversation={props.conversation} erase={props.erase} />
+      )}
       <h3 className="eyebrow">Project context</h3>
       {props.children}
       <details className="conv-help">
@@ -129,9 +137,13 @@ function Frame(props: {
   )
 }
 
-/** The open conversation, first: Sophia's summary of it, and how many questions are open there. */
-function ThisConversation({ conversation: c }: { conversation: ConversationSummary }) {
+/**
+ * The open conversation, first: Sophia's summary of it, and how many questions are open there; at its foot, an admin's
+ * Erase this conversation.
+ */
+function ThisConversation({ conversation: c, erase }: { conversation: ConversationSummary; erase: Erase | null }) {
   const id = useId()
+  const away = useEraseHere(erase, c.id)
   return (
     <section className="conv-this" aria-labelledby={id}>
       <h4 id={id} className="eyebrow">
@@ -141,6 +153,8 @@ function ThisConversation({ conversation: c }: { conversation: ConversationSumma
       <Covers words={coverageWords(c.summaryCoverage)} />
       <p className="conv-note">{questionWords(c)}</p>
       <Covers words={coverageWords(c.questionsCoverage)} />
+      {away.press}
+      {away.form}
     </section>
   )
 }

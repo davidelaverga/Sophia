@@ -2,7 +2,12 @@
 // open, the filter by title, and the brief's accepted decisions beside them.
 import type { MissionDecision } from '@sophia/contracts'
 import type { ProjectionCoverage } from '@sophia/contracts'
-import type { ConversationMessage, ConversationReply, ConversationSummary } from '../../api/conversations.ts'
+import type {
+  ConversationList,
+  ConversationMessage,
+  ConversationReply,
+  ConversationSummary,
+} from '../../api/conversations.ts'
 import { plainOf } from './sophia-text.ts'
 
 /** Every conversation list read, whatever its project or reader: what a write moves. */
@@ -185,6 +190,65 @@ export function withMessage<M extends { id: string }>(
   const [newest, ...rest] = read?.pages ?? []
   if (!read || !newest || read.pages.some((p) => p.messages.some((m) => m.id === message.id))) return read
   return { ...read, pages: [{ ...newest, messages: [...newest.messages, message] }, ...rest] }
+}
+
+/**
+ * The pages as a withdrawal the API accepted leaves them, at once and before they are read again (should that read
+ * fail, they stay so): the message as the API answered it; Sophia's answers that read it (asked at it or after; one
+ * whose asking message isn't read here but came after it, too) withdrawn; and a request still open from there
+ * cancelled, as 0048 does it. Nothing it said stays on screen meanwhile.
+ */
+export function withWithdrawn(
+  read: ReadPages<ConversationMessage> | undefined,
+  gone: ConversationMessage,
+): ReadPages<ConversationMessage> | undefined {
+  if (!read) return read
+  const seqOf = new Map(read.pages.flatMap((p) => p.messages.map((m) => [m.id, m.seq] as const)))
+  const readIt = (m: ConversationMessage) => {
+    if (m.author !== 'sophia' || m.withdrawn) return false
+    const asked = m.replyTo ? seqOf.get(m.replyTo.messageId) : undefined
+    return asked === undefined ? m.seq > gone.seq : asked >= gone.seq
+  }
+  const after = (m: ConversationMessage): ConversationMessage => {
+    if (m.id === gone.id) return gone
+    if (readIt(m)) return { ...m, text: null, name: null, withdrawn: gone.withdrawn }
+    if (m.ask && m.seq >= gone.seq && replyOpen(m.ask)) {
+      return {
+        ...m,
+        ask: { ...m.ask, state: 'cancelled', reason: 'source_withdrawn', settledAt: gone.withdrawn?.at ?? null },
+      }
+    }
+    return m
+  }
+  return { ...read, pages: read.pages.map((p) => ({ ...p, messages: p.messages.map(after) })) }
+}
+
+/** Nothing known yet about what a summary or a question list covers. */
+const NOT_ASSESSED: ProjectionCoverage = {
+  state: 'not_assessed',
+  complete: false,
+  fromSeq: null,
+  throughSeq: null,
+  newer: 0,
+  generatedAt: null,
+  replyId: null,
+  eligibilityRevision: null,
+  ledgerRevision: null,
+}
+
+/**
+ * A list as a withdrawal leaves it, at once and before it is read again: that conversation's last message and summary,
+ * which may say the words withdrawn, go (the next read says what remains).
+ */
+export function listWithdrawn(list: ConversationList | undefined, conversationId: string) {
+  return (
+    list && {
+      ...list,
+      conversations: list.conversations.map((c) =>
+        c.id === conversationId ? { ...c, lastMessage: null, summary: null, summaryCoverage: NOT_ASSESSED } : c,
+      ),
+    }
+  )
 }
 
 /**

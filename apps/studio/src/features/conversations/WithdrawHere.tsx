@@ -9,11 +9,15 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import type { ApiError } from '../../api/client.ts'
-import { withdrawConversationMessage, type ConversationMessage } from '../../api/conversations.ts'
+import {
+  withdrawConversationMessage,
+  type ConversationList,
+  type ConversationMessage,
+} from '../../api/conversations.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { focusLater } from '../personal/focus.ts'
-import { LISTS, messagesKey, type ReadPages } from './conversation-list.ts'
+import { LISTS, listWithdrawn, messagesKey, withWithdrawn, type ReadPages } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 
 export interface WithdrawArgs {
@@ -29,15 +33,6 @@ export function withdrawRefusal(err: ApiError): string {
   if (err.code === 'forbidden') return 'That isn’t yours to withdraw.'
   if (err.code === 'not_found') return 'That message is no longer here.'
   return 'That didn’t go through. Try again.'
-}
-
-/** The pages with one message as the withdrawal left it. */
-export function withWithdrawn<M extends { id: string }>(read: ReadPages<M> | undefined, message: M) {
-  if (!read) return read
-  return {
-    ...read,
-    pages: read.pages.map((p) => ({ ...p, messages: p.messages.map((m) => (m.id === message.id ? message : m)) })),
-  }
 }
 
 /** One message's withdrawal: its press (at the message's corner) and, pressed, its confirmation; null where none may. */
@@ -69,7 +64,11 @@ export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; 
     const message = await write.run(args.messageId)
     if (!message) return
     const pages = messagesKey(args.conversationId, accountOf(args.identity))
+    // What it said, and what was said from it, leaves the screen now: not only once (and if) it is read again.
     queryClient.setQueryData<ReadPages<ConversationMessage>>(pages, (read) => withWithdrawn(read, message))
+    queryClient.setQueriesData<ConversationList>({ queryKey: LISTS }, (list) =>
+      listWithdrawn(list, args.conversationId),
+    )
     void queryClient.invalidateQueries({ queryKey: pages })
     void queryClient.invalidateQueries({ queryKey: LISTS })
     setAsking(false)

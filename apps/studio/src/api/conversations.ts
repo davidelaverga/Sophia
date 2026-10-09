@@ -27,6 +27,7 @@ import {
 import { callApi } from './client.ts'
 
 export type {
+  ConversationErasure,
   ConversationList,
   ConversationMessage,
   ConversationReply,

@@ -160,6 +160,8 @@ interface Fixture {
   releaseMembership: () => void
   /** While on, Sophia is out of reach: every API request fails as a lost connection (`outage=1`). */
   outage: (on: boolean) => void
+  /** While on, only the membership's reads fail (`membership=fail`). */
+  failMembership: (on: boolean) => void
   /** Marco carries a note to this project, and the feed moves (chapter 1). */
   carryIn: () => void
   /** While on, tasks' writes land but their replies wait for `releaseTasks` (A17). */
@@ -368,6 +370,7 @@ const project = {
   waiting: query.get('lobby') === 'waiting' || query.get('lobby') === 'again' || query.get('lobby') === 'two',
   lobbyAsked: query.get('lobby'),
   ...(query.get('role') === 'viewer' ? { role: 'viewer' as const } : {}),
+  ...(query.get('role') === 'editor' ? { role: 'editor' as const } : {}),
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
@@ -426,6 +429,7 @@ const project = {
   cardAhead: query.get('card') === 'ahead',
   projectsHeld: query.get('projects') === 'hold' ? waiting() : null,
   membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
+  membershipFails: query.get('membership') === 'fail',
   outage: query.get('outage') === '1',
   outsider: query.get('member') === '0',
   // A13: searches held while the page asks (`holdSearch`).
@@ -614,6 +618,9 @@ window.fixture = {
   },
   outage: (on) => {
     project.outage = on
+  },
+  failMembership: (on) => {
+    project.membershipFails = on
   },
   carryIn: () => {
     project.carriedIn = [
@@ -876,8 +883,8 @@ function sendAsked(which: string | null): Send | null {
 }
 
 /** How a withdrawal's reply and the feed come (`withdraw=`): both late, the feed first, or at once. */
-function withdrawAsked(which: string | null): 'slow' | 'feedFirst' | null {
-  return which === 'slow' || which === 'feedFirst' ? which : null
+function withdrawAsked(which: string | null): 'slow' | 'feedFirst' | 'thenFail' | null {
+  return which === 'slow' || which === 'feedFirst' || which === 'thenFail' ? which : null
 }
 
 /** The conversations a page asks for (A18), with the brief's context beside them; none when it asks for none. */
@@ -889,6 +896,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       messages: { ...messagesOf(), [CONVERSATION.quiet]: [] },
       failList: which === 'fail',
       lastShown: DEMO || query.get('last') === '1',
+      more: query.get('more') === '1',
       failMessagesOf: failMessages ? CONVERSATION.briefs : null,
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),

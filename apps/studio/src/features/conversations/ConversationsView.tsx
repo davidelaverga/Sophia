@@ -28,7 +28,7 @@ import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
 import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
-import { NO_WORDS, START, useKept, withEntry } from './talk-store.ts'
+import { NO_WORDS, START, useKept, withEntry, withoutConversation } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { useArrival } from '../studio/project-go.tsx'
 import './conversations.css'
@@ -36,6 +36,8 @@ import './conversations.css'
 /** Newest activity first, sorted once per answer, with what the reader may do there. */
 const sorted = (answer: ConversationList) => ({
   all: byActivity(answer.conversations),
+  // The API lists the newest only, and says so (`more`): older ones exist that this list can't open.
+  more: answer.more,
   capability: answer.capability,
   notice: answer.policy?.notice ?? null,
 })
@@ -74,6 +76,7 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
   return {
     list,
     all: list.data?.all ?? [],
+    more: list.data?.more === true,
     capability: list.data?.capability,
     notice: list.data?.notice ?? null,
     settled: list.isSuccess && !list.isFetching,
@@ -110,7 +113,9 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     panes.show()
   })
   const talk = useTalk(projectId, accountOf(identity))
+  const erased = useErased(talk, panes, all)
   const start = useStart(projectId, identity, talk, (id) => {
+    erased.clear()
     choose(id)
     panes.show()
   })
@@ -132,12 +137,15 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         openId={shown?.id}
         me={me}
         missing={missing}
+        more={reader.more}
+        erased={erased.said}
         capability={capability}
         start={writer ? start : null}
         // With no conversation open (none yet, or the form for a new one), «Context» is the list's.
         context={shown ? null : { open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
         onOpen={(id) => {
           start.close()
+          erased.clear()
           choose(id)
           panes.show()
         }}
@@ -147,6 +155,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         {...{ projectId, identity, cursor }}
         conversation={shown}
         notice={notice}
+        erase={reader.moderate ? { projectId, identity, arm: erased.arm, onErased: erased.on } : null}
         opened={panes.context}
         onClose={panes.closeContext}
       />
@@ -195,6 +204,10 @@ function ListPane(props: {
   me: string
   /** One asked for from elsewhere that the list, read again, doesn't hold. */
   missing: boolean
+  /** The list holds the newest only: older conversations exist that it doesn't list (A16's `more`). */
+  more: boolean
+  /** The one open was just erased here (the newest is open now). */
+  erased: boolean
   /** What the reader may do here now, as the list says it (advisory: each write is checked again). */
   capability: ConversationList['capability'] | undefined
   start: ReturnType<typeof useStart> | null
@@ -214,7 +227,19 @@ function ListPane(props: {
       <ListState read={props.read} count={all.length} capability={props.capability} />
       {props.missing && (
         <p className="conv-note" role="status">
-          The conversation asked for isn’t here: the newest is open.
+          {props.more
+            ? 'The conversation asked for isn’t among those listed here (it may be older): the newest is open.'
+            : 'The conversation asked for isn’t here: the newest is open.'}
+        </p>
+      )}
+      {props.more && (
+        <p className="conv-note">
+          Only the newest {all.length} conversations are listed here: older ones can’t be opened from this list yet.
+        </p>
+      )}
+      {props.erased && (
+        <p className="conv-note" role="status">
+          The conversation was erased.
         </p>
       )}
       {all.length > 0 && (
@@ -277,9 +302,12 @@ function usePanes() {
       if (thread) thread.scrollTop = thread.scrollHeight
     })
   }
-  const back = () => {
+  const toList = () => {
     setContext(false)
     setScreen('list')
+  }
+  const back = () => {
+    toList()
     // After the list shows again: the row of the conversation left, else the filter (that row may be filtered out).
     requestAnimationFrame(() => {
       const at = view.current?.querySelector<HTMLElement>('.conv-row[aria-pressed="true"]')
@@ -292,6 +320,7 @@ function usePanes() {
     screen,
     show,
     back,
+    toList,
     context,
     toggleContext: () => setContext((on) => !on),
     closeContext,
@@ -431,6 +460,44 @@ function useTalk(projectId: string, name: string) {
       change((k) => (k.asked[id]?.replyId === replyId ? { ...k, asked: withEntry(k.asked, id, null) } : k)),
   })
   return { of, kept, change }
+}
+
+/**
+ * A conversation erased here: what the view kept for it goes (its draft, its message held, its wait), the list shows
+ * again (a phone's one screen), and the list says it was erased until another is opened. The focus, armed as Erase is
+ * pressed (the feed may take the conversation away before the reply comes), lands on the row now open once the list
+ * no longer holds it, unless the person moved it elsewhere meanwhile (focusLater).
+ */
+function useErased(
+  talk: ReturnType<typeof useTalk>,
+  panes: ReturnType<typeof usePanes>,
+  all: readonly ConversationSummary[],
+) {
+  const [said, setSaid] = useState(false)
+  const landing = useRef<{ id: string; land: (el: HTMLElement | null) => void } | null>(null)
+  useEffect(() => {
+    const at = landing.current
+    if (!at || all.some((c) => c.id === at.id)) return
+    landing.current = null
+    const view = panes.view.current
+    at.land(
+      view?.querySelector<HTMLElement>('.conv-row[aria-pressed="true"]') ??
+        view?.querySelector<HTMLElement>('.conv-filter, .conv-start') ??
+        null,
+    )
+  }, [all, said, panes.view])
+  return {
+    said,
+    clear: () => setSaid(false),
+    arm: (id: string, land: (el: HTMLElement | null) => void) => {
+      landing.current = { id, land }
+    },
+    on: (id: string) => {
+      talk.change((k) => withoutConversation(k, id))
+      setSaid(true)
+      panes.toList()
+    },
+  }
 }
 
 /** Where the focus goes as the form goes: back to New conversation when put away, not when a row is pressed. */

@@ -20,6 +20,8 @@ import {
   replyEndWords,
   replyOf,
   replyOpen,
+  listWithdrawn,
+  withWithdrawn,
 } from './conversation-list.ts'
 
 const ME = 'me'
@@ -358,5 +360,107 @@ describe('initialOf: a face’s letter', () => {
     assert.equal(initialOf(null), 'A')
     assert.equal(initialOf(''), 'A')
     assert.equal(initialOf('🙂 Ana'), '🙂')
+  })
+})
+
+/** A message as the API serves it, by its order; Sophia's answers name the message that asked. */
+const msg = (seq: number, over: Partial<ConversationMessage> = {}): ConversationMessage => ({
+  id: `m${String(seq)}`,
+  seq,
+  author: 'member',
+  actorId: ME,
+  name: 'Me',
+  text: `words ${String(seq)}`,
+  at: '2026-10-06T09:00:00.000Z',
+  withdrawn: null,
+  ask: null,
+  replyTo: null,
+  ...over,
+})
+const answer = (seq: number, asked: number) =>
+  msg(seq, {
+    author: 'sophia',
+    actorId: null,
+    name: null,
+    replyTo: { messageId: `m${String(asked)}`, replyId: `r${String(asked)}` },
+  })
+const ask = (state: ConversationReply['state']): ConversationReply => ({
+  id: 'r',
+  messageId: 'm',
+  state,
+  reason: null,
+  answerId: null,
+  askedAt: '2026-10-06T09:00:00.000Z',
+  settledAt: null,
+})
+const shown = (read: ReturnType<typeof withWithdrawn>) =>
+  read?.pages.flatMap((p) => p.messages.map((m) => `${m.id}:${m.text ?? (m.withdrawn ? 'withdrawn' : 'none')}`))
+
+describe('withWithdrawn: what a withdrawal takes off the screen at once (PR #199 review)', () => {
+  const gone = msg(3, { text: null, name: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
+
+  it('withdraws the message, and Sophia’s answers that read it, before anything is read again', () => {
+    const read = {
+      pages: [
+        { messages: [answer(4, 3), msg(5), answer(6, 5)], before: '3' },
+        { messages: [msg(2), answer(2.5, 1), msg(3)], before: null },
+      ],
+      pageParams: [null, '3'],
+    }
+    assert.deepEqual(shown(withWithdrawn(read, gone)), [
+      'm4:withdrawn',
+      'm5:words 5',
+      'm6:withdrawn',
+      'm2:words 2',
+      'm2.5:words 2.5',
+      'm3:withdrawn',
+    ])
+  })
+
+  it('withdraws an answer whose asking message isn’t read here when it came after the message', () => {
+    const read = { pages: [{ messages: [answer(7, 6), answer(1.5, 1)], before: null }], pageParams: [null] }
+    assert.deepEqual(shown(withWithdrawn(read, gone)), ['m7:withdrawn', 'm1.5:words 1.5'])
+  })
+
+  it('cancels a request still open from there, and leaves one asked before it', () => {
+    const read = {
+      pages: [{ messages: [msg(2, { ask: ask('pending') }), msg(4, { ask: ask('running') })], before: null }],
+      pageParams: [null],
+    }
+    const after = withWithdrawn(read, gone)?.pages[0]?.messages
+    assert.equal(after?.[0]?.ask?.state, 'pending')
+    assert.equal(after?.[1]?.ask?.state, 'cancelled')
+    assert.equal(after?.[1]?.ask?.reason, 'source_withdrawn')
+  })
+
+  it('leaves a conversation not read yet as it is', () => {
+    assert.equal(withWithdrawn(undefined, gone), undefined)
+  })
+})
+
+describe('listWithdrawn: the list says nothing the withdrawal took (PR #199 review)', () => {
+  it('drops that conversation’s last message and summary, and leaves the others', () => {
+    const last = { author: 'member' as const, actorId: ME, name: 'Me', text: 'words 3', at: '2026-10-06T09:00:00.000Z' }
+    const list = {
+      projectId: 'p',
+      conversations: [
+        conversation({ lastMessage: last, summary: 'Said: words 3' }),
+        conversation({ id: 'c2', lastMessage: last }),
+      ],
+      more: false,
+      policy: null,
+      capability: {
+        state: 'enabled' as const,
+        write: true,
+        moderate: false,
+        ask: 'available' as const,
+        askReason: null,
+      },
+    }
+    const after = listWithdrawn(list, 'c1')
+    assert.equal(after?.conversations[0]?.lastMessage, null)
+    assert.equal(after?.conversations[0]?.summary, null)
+    assert.equal(after?.conversations[0]?.summaryCoverage.state, 'not_assessed')
+    assert.deepEqual(after?.conversations[1], list.conversations[1])
   })
 })
