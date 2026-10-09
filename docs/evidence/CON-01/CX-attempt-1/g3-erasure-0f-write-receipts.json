@@ -1,0 +1,42 @@
+[
+  {
+    "at": "2026-10-09T23:01:31.226Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/b95c47c8-c49d-40f4-81e4-ba7a3d1805dc/erasure",
+    "idempotencyKey": "fa43b8c6-6b5e-4bbd-b025-8209ae34b684",
+    "actualApiStatus": 202,
+    "bodyWithheld": true
+  },
+  {
+    "at": "2026-10-09T23:01:39.660Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/b95c47c8-c49d-40f4-81e4-ba7a3d1805dc/erasure",
+    "idempotencyKey": "fa43b8c6-6b5e-4bbd-b025-8209ae34b684",
+    "actualApiStatus": 202,
+    "bodyWithheld": false
+  },
+  {
+    "at": "2026-10-09T23:02:01.993Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/4a9f4773-979b-4b03-9b8f-317e533086fe/erasure",
+    "idempotencyKey": "1056ef87-45a5-4d57-be8c-179a43eb5596",
+    "actualApiStatus": 202,
+    "bodyWithheld": true
+  },
+  {
+    "at": "2026-10-09T23:02:19.595Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/e8254e98-f073-49d1-a1f9-bc6ce332919d/erasure",
+    "idempotencyKey": "6a7c4522-55c7-44a1-93da-932092c4db2e",
+    "actualApiStatus": 202,
+    "bodyWithheld": false
+  },
+  {
+    "at": "2026-10-09T23:02:51.970Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/f8392ee9-f2bf-49d9-ad85-2d6e352f9ad0/erasure",
+    "idempotencyKey": "535881c5-bb30-4df0-823c-461c4e421891",
+    "actualApiStatus": 202,
+    "bodyWithheld": true
+  }
+]

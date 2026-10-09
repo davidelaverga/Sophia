@@ -1,5 +1,15 @@
 # CON-01 independent reviewer/operator handoff — attempt 1
 
+## Current authoritative checkpoint — CX-0017
+
+This supersedes earlier readiness summaries below. Exact0f2f3798/tree dca8624:59 focused units/typecheck pass. Actual local API/PG/browser passes same-key erasure retry after lost success/navigation, mobile feed-only settlement, late HTTP and late feed preserving newly selected thread/focus/draft. Capped/unloaded attribution probe passes L0 only. See [CX-0017](../coordination/CON-01/CX-0017.md), durable receipts/audit and each case in the36-case ledger. New held-erasure cleanup/list-absence source concerns were returned to Claude, not presented as an actual duplicate.
+
+Newer5c3866ad/tree7c669731 integrates main6ef8d855 and A08 receipt88ee51e5; affected requalification remains. Full author gate last observed447 only, CI newer heads queued/pending, shared PR190096dd030 acknowledgment pending. G2 still has no implementation/provider evidence. source_ready=true for published partial G1/G3; locally_verified only bounded crossings; combined reviewed/authorized/deployed/app_verified/owner_accepted=false.
+
+No hosted operation or new serving tuple observation. Existing hosted browser room shell is accessible, with no Conversations navigation; no designated two-account cohort verified. OP-0001-r1 remains draft_not_authorized with missing policy/host-copy choice, project/accounts, route/credential/payer/cap/expiry and executable approval. Calls/spend/uncertainty0. All eight owned stacks cleaned; newest exit0/API+Studio stopped/DB dropped/PG stopped+cluster removed,1 tab closed/viewport reset. No unresolved owned effect; governed data/other missions unchanged. Rollback remains to be qualified.
+
+One next bounded action: inspect/recheck immutable author settlement and current-main/A08 corrections, then exact gate/review results. Davide owns final acceptance; no other mission or broader product is complete.
+
 ## Current authoritative checkpoint — CX-0016
 
 This section supersedes earlier readiness/candidate summaries below; their observations remain historical. Exact independent candidate7660c734/tree1a2f9da:27 published PG/API tests and57 focused units pass; actual201-writer participation, human contributor privacy under failed reads, original mobile erase focus and separate accepted A08 write pass within L1. New late erase HTTP navigation fails; unread Sophia attribution gap reproduced L0 only. See [CX-0016](../coordination/CON-01/CX-0016.md) and the 36-case ledger.

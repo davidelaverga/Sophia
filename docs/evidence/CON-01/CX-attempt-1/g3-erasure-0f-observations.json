@@ -1,0 +1,83 @@
+{
+  "candidate": "0f2f3798dcb876937c3fb1403d9ad89be1c1e241",
+  "tree": "dca8624f3c7d7294eb0210fd97da9e210aa0055e",
+  "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts; L0 pure probes separately labeled",
+  "checks": {
+    "focusedUnits": {
+      "passed": 59,
+      "skipped": 0,
+      "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/decide.test.ts"
+    },
+    "studioTypecheck": {
+      "exit": 0,
+      "command": "pnpm --filter @sophia/studio typecheck"
+    },
+    "frozenInstall": {
+      "exit": 0
+    },
+    "postgresqlSuites": "27/27 on7660; exact DB/persistence/API/contract source unchanged through0f; not rerun on0f"
+  },
+  "crossings": [
+    {
+      "name": "same erasure intent after lost success and navigation",
+      "verdict": "passed_L1",
+      "firstAt": "2026-10-09T23:01:31.226Z",
+      "retryAt": "2026-10-09T23:01:39.660Z",
+      "key": "fa43b8c6-6b5e-4bbd-b025-8209ae34b684",
+      "observation": "Real202 body withheld, feed/list GETs blocked; navigate away/back; Not confirmed persists; retry same key202; DB exactlyone erasure request, target bodyNULL"
+    },
+    {
+      "name": "mobile feed settles with lost HTTP body",
+      "verdict": "passed_L1",
+      "at": "2026-10-09T23:02:02.210Z",
+      "viewport": [
+        390,
+        844
+      ],
+      "observation": "Actual202 body withheld; feed/read removes target; screenlist, surviving row BUTTON focused and The conversation was erased status shown without usable HTTP body"
+    },
+    {
+      "name": "late HTTP after navigation",
+      "verdict": "passed_L1",
+      "beforeAt": "2026-10-09T23:02:20.227Z",
+      "elapsedMs": 690,
+      "afterAt": "2026-10-09T23:02:27.654Z",
+      "observation": "Reopen surviving conversation and type before real HTTP3000ms; after receipt screenthread/TEXTAREA/composer264x36/draft preserved, no erased notice"
+    },
+    {
+      "name": "late feed after navigation",
+      "verdict": "passed_L1",
+      "beforeAt": "2026-10-09T23:02:53.166Z",
+      "afterAt": "2026-10-09T23:03:27.116Z",
+      "observation": "Actual202 body withheld plus feed/list GETs held; move to surviving draft; restore read/feed; target absent but thread/TEXTAREA/new draft intact and no erased notice"
+    },
+    {
+      "name": "unloaded Sophia and capped local redaction",
+      "verdict": "passed_L0_only",
+      "observation": "Identical pure cache probe fails7660;0f retains and others at199 retained contributors and suppresses unproven Sophia attribution"
+    },
+    {
+      "name": "settlement removes held erasure intent",
+      "verdict": "source_concern_reproduced_L0",
+      "observation": "withoutConversation drops old draft but retains erasures[target] with sending=true; old asynchronous failure can still write unknown held state. Author notified. No claim of actual duplicate or provider effect."
+    }
+  ],
+  "cleanup": {
+    "wrapperExit": 0,
+    "databaseDropped": true,
+    "postgresStopped": true,
+    "clusterRemoved": true,
+    "apiStopped": true,
+    "studioStopped": true,
+    "localTabsClosed": 1,
+    "viewportReset": true
+  },
+  "limits": {
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainSpend": 0,
+    "hostedEffects": 0
+  },
+  "newerHeadUnqualified": "5c3866ad963e57fdbd3bb987280e7773e9e87b00",
+  "liveReadOnlyObservation": "Existing hosted tab showed room shell and no Conversations navigation at checkpoint, without new sign-in/write; no actual two-account designated cohort verified"
+}
