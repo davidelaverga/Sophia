@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
-// What a fixture page shows once it has drawn (docs/plans/type-scale-drawn.md): a part for each read that fills it,
+// What a fixture page shows once it has drawn (docs/plans/type-scale-drawn.md, ink-drawn.md): a part for each read that fills it,
 // the last of a chain included, so a check that measures the page measures it whole. Never «the network is idle»: a
 // fixture page keeps loading as it draws, and a quiet moment may not come in time on a slow runner.
 
@@ -11,13 +11,14 @@ const BAR: Part = (page) => page.getByRole('button', { name: 'Invite' })
 
 export const DRAWN = {
   home: [
-    // Work's index and «You and Sophia», each its own read.
+    // Work's index and «You and Sophia» (their own reads in the Studio; the fixture gives them on its first render).
     (page) => page.getByText('Launch plan').first(),
-    (page) => page.getByText('1 note').first(),
+    (page) => page.getByText(/\b1 note\b/).first(),
   ],
   personal: [
+    // The thread and its notes (given on the fixture's first render with `demo`).
     (page) => page.getByText('I have a pitch on Friday and I keep putting off the deck.').first(),
-    (page) => page.getByText('1 note').first(),
+    (page) => page.getByText(/\b1 note\b/).first(),
   ],
   room: [BAR, (page) => page.getByText('The room is ready')],
   knowledge: [

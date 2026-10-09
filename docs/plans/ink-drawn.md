@@ -8,7 +8,10 @@
 - What each fixture page shows once it has drawn moves to one place, `e2e/drawn.ts` (`DRAWN`, `drawn()`): a part for
   each read that fills the page, the last of a chain included. `type-scale.spec.ts` uses it as before; `ink.spec.ts`
   now does too, and gains Home's and the personal space's parts (Work's index and «You and Sophia»; the thread and its
-  notes). Home's greeting is not one: it changes with the hour.
+  notes: their own reads in the Studio, given on the first render by these fixtures). Home's greeting is not one: it
+  changes with the hour.
+- Left as it was: on a wide screen the wait ends at the first written cover, so a later one still waiting goes
+  unmeasured (as in `type-scale` before).
 - Knowledge's covers draw only once in reach: on a wide screen the cards with written covers are, so the check waits
   for one of those (its words are measured); on a phone only the first card is (a designed page), so it waits for
   that one.
