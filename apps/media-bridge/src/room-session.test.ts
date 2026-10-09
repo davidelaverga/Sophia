@@ -4084,6 +4084,54 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     assert.deepEqual(pick(fields(close), 'windows', 'replies', 'toolCalls'), { windows: 0, replies: 0, toolCalls: 0 })
   })
 
+  it('the continuation of another member’s tool round is theirs, even with the floor moved and the principal heard first', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ inputActorId: DAVIDE, qualification: grant() })
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.toolCalls([{ id: 'call-d', name: 'project_status', args: {} }]) // Davide's call
+    await until('Davide’s tool response sent', () => live.responses.length === 1)
+    live.events.audio(speech(2), OUT)
+    live.events.turnComplete()
+    await flush()
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // Luis's open microphone is forwarded before the continuation
+    await flush()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(3), OUT) // the WHEN_IDLE continuation: Sophia tells Davide his result
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    assert.ok(
+      !service.evidence.some((w) => w.receipt.kind === 'output_reply'),
+      'nothing of the answer to Davide’s call is recorded as Luis’s',
+    )
+    const close = service.evidence.find((w) => w.receipt.kind === 'session_closed')
+    assert.deepEqual(pick(fields(close), 'replies', 'toolCalls'), { replies: 0, toolCalls: 0 })
+  })
+
+  it('a result notice is no one’s turn, even when the principal’s open microphone is forwarded before it is said', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({
+      qualification: grant(),
+      results: [{ taskId: TASK, resultRevision: 1, kind: 'research' }],
+    })
+    session.tick()
+    for (let i = 0; i < 4; i += 1) await flush()
+    assert.equal(live.notices.length, 1, 'the notice was sent')
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // Luis's open microphone, a quiet room
+    await flush()
+    live.events.audio(speech(2), OUT) // Sophia says the notice
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    assert.ok(!service.evidence.some((w) => w.receipt.kind === 'output_reply'), 'the notice is not Luis’s reply')
+  })
+
   it('a reply to the principal still playing as the floor moves away ends with its receipt; the next member’s is not', async () => {
     voiceEvidence = true
     const { session, room, live } = await ready({ qualification: grant() })

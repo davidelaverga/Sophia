@@ -284,6 +284,11 @@ export class SessionQualification {
     this.#recorder.typed()
   }
 
+  /** The bridge asked for the next generation: a tool response (for the calls' speaker) or a notice (for no one). */
+  asked(by: Attribution | null): void {
+    this.#recorder.asked(by)
+  }
+
   replyReceived(samples: number): void {
     this.#recorder.replyReceived(samples)
   }

@@ -57,7 +57,7 @@ import {
 import { Captions } from './captions.ts'
 import { EVIDENCE_RETRY_MS } from './evidence-sender.ts'
 import { RESERVE_RETRY_MS, RESERVE_TIMEOUT_MS } from './qualification-ledger.ts'
-import { type Assignment, ExchangeState, type InputState } from './exchange-state.ts'
+import { type Assignment, type Attribution, ExchangeState, type InputState } from './exchange-state.ts'
 import { GuideContext } from './guide-context.ts'
 import type { GuideVersion, MissionGuide } from './guide.ts'
 import type { ConnectLive, LiveEvents, LiveLink } from './live-session.ts'
@@ -1699,6 +1699,8 @@ export class RoomSession {
   private async runTool(call: FunctionCall, connection: number): Promise<void> {
     const id = call.id ?? ''
     const name = call.name ?? ''
+    // Whose call this is: its response's continuation answers them, whoever holds the floor by then.
+    const who = this.state.attribution()
     const turn = this.typedTurn
     if (this.typedOutputUntilTurnEnd && (!turn || !this.state.mayPlay(turn.generation))) return
     if (turn) {
@@ -1712,11 +1714,16 @@ export class RoomSession {
     if (connection !== this.connection || this.cancelled.has(`${connection}:${id}`)) {
       return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, name, connection })
     }
-    this.queueToolResponse(turn, response, connection)
+    this.queueToolResponse(turn, response, connection, who)
   }
 
-  private queueToolResponse(turn: TypedTurn | null, response: FunctionResponse, connection: number): void {
-    if (!turn) return this.answerTools([response], connection)
+  private queueToolResponse(
+    turn: TypedTurn | null,
+    response: FunctionResponse,
+    connection: number,
+    who: Attribution | null,
+  ): void {
+    if (!turn) return this.answerTools([response], connection, who)
     if (this.typedTurn !== turn || !this.state.mayPlay(turn.generation)) return
     turn.responses.push(response)
     this.flushTypedTools(turn)
@@ -1726,16 +1733,16 @@ export class RoomSession {
     if (this.typedTurn !== turn || !turn.providerEnded || turn.pendingTools > 0 || turn.responses.length === 0) return
     const responses = turn.responses.splice(0)
     turn.providerEnded = false
-    this.answerTools(responses, this.connection)
+    this.answerTools(responses, this.connection, { actorId: turn.identity, inputEpoch: turn.packet.inputEpoch })
   }
 
   /**
    * Under a grant, a tool response may start a generation (its WHEN_IDLE continuation): it is reserved first, and sent
    * once granted, if its connection is still the current one. A refusal stops the session.
    */
-  private answerTools(responses: FunctionResponse[], connection: number): void {
+  private answerTools(responses: FunctionResponse[], connection: number, who: Attribution | null): void {
     const q = this.qualification
-    if (!q) return this.sendTools(responses, connection)
+    if (!q) return this.sendTools(responses, connection, who)
     let chars: number
     try {
       chars = JSON.stringify(responses).length
@@ -1747,16 +1754,17 @@ export class RoomSession {
       if (connection !== this.connection || this.closed) {
         return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, connection })
       }
-      this.sendTools(responses, connection)
+      this.sendTools(responses, connection, who)
     })
   }
 
-  private sendTools(responses: FunctionResponse[], connection: number): void {
+  private sendTools(responses: FunctionResponse[], connection: number, who: Attribution | null): void {
     try {
       this.live?.sendToolResponses(responses)
     } catch {
       return this.toolsUndelivered(connection)
     }
+    this.qualification?.asked(who)
     for (const response of responses) this.logAnswered(response, connection)
   }
 
@@ -1941,6 +1949,7 @@ export class RoomSession {
     this.notice = { key, result: next, event, cards: this.track(key, next, this.sendCards(next, recipients)) }
     this.state.systemTurn()
     live.sendNotice(notice)
+    this.qualification?.asked(null)
   }
 
   /**

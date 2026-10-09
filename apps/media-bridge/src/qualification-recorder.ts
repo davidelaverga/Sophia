@@ -7,10 +7,12 @@
 //
 // It records only while the grant's principal holds the floor (and the assignment still names the grant): an input
 // window opens only for the principal's own forwarded audio, and the provider's lifecycle is recorded only then. A reply,
-// a tool call or a response is the principal's only when the turn it answers is theirs (the floor's attribution,
-// ExchangeState): Sophia's answer to another member, still arriving as the floor moves to the principal, is never
-// recorded, and a reply that began for someone else stays unrecorded to its end. What opened under the principal ends
-// with its own receipt, whatever ends it. The provider's counters (connections, generations, usage) are the session's,
+// a tool call or a response is the principal's only when the generation it belongs to answers them, as that generation
+// was asked for: a tool response's continuation answers the speaker of the calls, a result notice answers no one, and
+// otherwise the floor's attribution as the generation starts (ExchangeState). Sophia's answer to another member, still
+// arriving as the floor moves to the principal, is never recorded, nor is the continuation of another member's tool
+// round however the principal's microphone was forwarded meanwhile; a reply that began for someone else stays
+// unrecorded to its end. What opened under the principal ends with its own receipt, whatever ends it. The provider's counters (connections, generations, usage) are the session's,
 // whoever holds the floor: the API's reservations hold them to the grant.
 import { createHash, randomUUID } from 'node:crypto'
 import type {
@@ -172,6 +174,10 @@ export class QualificationRecorder {
    * stays so to its end.
    */
   #unrecordedReply = false
+  /** Whom the generation under way answers, fixed as its first output arrives; undefined before that. */
+  #owner: Attribution | null | undefined = undefined
+  /** Whom the next generation answers when the bridge asked for it (a tool response, a notice); undefined otherwise. */
+  #askedBy: Attribution | null | undefined = undefined
   #windows = 0
   #replies = 0
   #toolCalls = 0
@@ -269,6 +275,14 @@ export class QualificationRecorder {
     if (finished) w.finished = true
   }
 
+  /**
+   * The bridge asked for the next generation: a tool response, whose continuation answers the calls' speaker, or a
+   * notice, which answers no one (null).
+   */
+  asked(by: Attribution | null): void {
+    this.#askedBy = by
+  }
+
   /** The provider produced something: audio, words, or tool calls (counted while the principal holds the floor). */
   responded(toolCalls = 0): void {
     this.#generating = true
@@ -291,6 +305,7 @@ export class QualificationRecorder {
     else this.#endWindow('closed', 'connection_lost')
     if (how !== 'lost' || this.#generating) this.#turns += 1
     this.#generating = false
+    this.#owner = undefined
   }
 
   /** The window ends before its turn did: a handoff or a pause. */
@@ -432,9 +447,13 @@ export class QualificationRecorder {
     }
   }
 
-  /** Whose turn the provider is answering is the principal's (the floor's attribution, not whoever holds it now). */
+  /** The generation under way answers the principal (as it was asked for, never whoever holds the floor now). */
   #answeringPrincipal(): boolean {
-    return this.#setup.attribution()?.actorId === this.#setup.grant.principalActorId
+    if (this.#owner === undefined) {
+      this.#owner = this.#askedBy === undefined ? this.#setup.attribution() : this.#askedBy
+      this.#askedBy = undefined
+    }
+    return this.#owner?.actorId === this.#setup.grant.principalActorId
   }
 
   #base<K extends Receipt['kind']>(kind: K): Base<K> {

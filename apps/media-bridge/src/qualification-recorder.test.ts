@@ -327,6 +327,38 @@ describe('receipts: exactly A15’s fields, while the principal holds the floor'
     )
   })
 
+  it('a generation the bridge asked for answers whom it asked for: a tool response’s speaker; a notice, no one', () => {
+    const r = recorder()
+    r.floor(PRINCIPAL, GRANT.grantId)
+    r.opened(1, false)
+    emitted.length = 0
+    const generation = () => {
+      r.responded()
+      r.replyReceived(480)
+      r.replyEnded('played')
+      r.turnEnded('turn_complete')
+    }
+    // Another member's tool response was sent; the principal is heard before its continuation.
+    r.asked({ actorId: OTHER, inputEpoch: 1 })
+    attribution = { actorId: PRINCIPAL, inputEpoch: 2 }
+    generation()
+    // A result notice, the principal heard first again.
+    r.asked(null)
+    generation()
+    // The principal's own tool response, whatever the floor's attribution by then.
+    attribution = { actorId: OTHER, inputEpoch: 3 }
+    r.asked({ actorId: PRINCIPAL, inputEpoch: 2 })
+    generation()
+    // Nothing asked: the floor's attribution as the generation starts.
+    attribution = { actorId: PRINCIPAL, inputEpoch: 4 }
+    generation()
+    const replies = emitted.flatMap((e) => (e.kind === 'output_reply' ? [[e.replyOrdinal, e.turnOrdinal]] : []))
+    assert.deepEqual(replies, [
+      [1, 3],
+      [2, 4],
+    ])
+  })
+
   it('the session’s close: once, with its counts and no transcript; nothing is recorded after it', () => {
     const r = recorder()
     r.floor(PRINCIPAL, GRANT.grantId)
