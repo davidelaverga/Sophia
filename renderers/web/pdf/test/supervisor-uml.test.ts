@@ -31,7 +31,16 @@ const adverse = '{"event": "UML_HOST_ADVERSE_CONTROLS", "baseline_world_readable
 const policy = mode === 'weak'
   ? '{"event": "UML_HOST_POLICY_APPLIED", "landlockABI": 4, "uid": 10001, "seccomp": 0, "qualification": false}'
   : '{"event": "UML_HOST_POLICY_APPLIED", "landlockABI": 4, "uid": 10001, "seccomp": 2, "qualification": false}'
-if (mode !== 'norecords') { say(adverse); say(policy) }
+const pause = () => new Promise((r) => setTimeout(r, 60))
+if (mode === 'split') {
+  // The first record in two writes with a line of the other stream between them: each stream keeps its own line.
+  process.stdout.write(adverse.slice(0, 40))
+  await pause()
+  process.stderr.write('a console line on the other stream\\n')
+  await pause()
+  process.stdout.write(adverse.slice(40) + '\\n')
+  say(policy)
+} else if (mode !== 'norecords') { say(adverse); say(policy) }
 if (mode === 'hang') {
   const child = spawn('sleep', ['600'], { stdio: 'ignore' })
   fs.writeFileSync(pids, process.pid + ' ' + child.pid)
@@ -63,7 +72,15 @@ if (mode === 'hang') {
   fs.writeSync(fd, tarred, 0, tarred.length, 0)
   fs.closeSync(fd)
   if (mode === 'duplicate') say(policy)
-  say('UML_JOB_KERNEL_EXIT:0')
+  // The guest's side puts a FIFO where its output disk was: the supervisor reads the disk it made, never this path.
+  if (mode === 'fifo') { fs.rmSync(path.join(dir, 'output.img')); spawnSync('mkfifo', [path.join(dir, 'output.img')]) }
+  // A descendant left behind in the launchers' group, deaf to TERM, when the leader exits on its own.
+  if (mode === 'orphan') {
+    const left = spawn('sh', ['-c', 'trap "" TERM; sleep 600'], { stdio: 'ignore' })
+    left.unref()
+    fs.writeFileSync(pids, process.pid + ' ' + left.pid)
+  }
+  say('UML_JOB_KERNEL_EXIT:0\\u0007\\u001b[2J')
 }
 `
 
@@ -254,6 +271,57 @@ describe('the supervisor in UML mode (SDD-01)', { skip: !hasTar && 'needs tar' }
     assert.deepEqual(seen.uploads, [])
     assert.deepEqual(seen.settles, [])
     await gone(pids)
+  })
+
+  it('reads the output disk it made even when the guest put a FIFO at its path: delivered, never waiting', async () => {
+    const { outcome } = await run({ format: 'pdf' }, 'fifo')
+    assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
+    assert.deepEqual(
+      seen.uploads.map((u) => u.bytes.toString()),
+      ['%PDF-1.7 stand-in'],
+    )
+  })
+
+  it('kills what the guest left in its group once the leader exits, before the job directory is removed', async () => {
+    const { outcome, pids, log } = await run({ format: 'pdf' }, 'orphan')
+    assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
+    const [, left] = readFileSync(pids, 'utf8').split(' ').map(Number)
+    if (process.platform === 'linux') assert.equal(running(left), false, 'gone when the run ends, not later')
+    assert.deepEqual(readdirSync(work), [])
+    assert.ok(
+      log.some((l) => l.includes('UML_JOB_KERNEL_EXIT:0??[2J')),
+      'a marked line is logged printable',
+    )
+  })
+
+  it('reads each stream’s lines apart: a record split around a line of the other stream still counts', async () => {
+    const { outcome, log } = await run({ format: 'pdf' }, 'split')
+    assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' }, log.join('\n'))
+  })
+
+  it('abandons a job whose launcher never starts, and refuses a claim whose time is out of bounds', async () => {
+    next = { format: 'pdf' }
+    seen = { uploads: [], settles: [], beats: 0 }
+    const log: string[] = []
+    const outcome = await runOnce({
+      apiUrl: base,
+      token: TOKEN,
+      workDir: work,
+      heartbeatMs: 100,
+      isolation: 'uml',
+      uml: { command: () => [join(scratch, 'no-such-launcher')] },
+      log: (line: string) => log.push(line),
+    })
+    assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'abandoned' })
+    assert.ok(
+      log.some((l) => /did not start/u.test(l)),
+      log.join('\n'),
+    )
+    assert.deepEqual(readdirSync(work), [])
+    for (const timeoutMs of [2 ** 31, 0, 1.5]) {
+      await assert.rejects(run({ format: 'pdf', timeoutMs }, 'ok'), /timeout that is not 1 to 600000 ms/u)
+    }
+    next = null
   })
 
   for (const [mode, why] of [

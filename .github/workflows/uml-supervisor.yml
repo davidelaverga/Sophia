@@ -1,6 +1,6 @@
 name: UML render host
 
-# SDD-01: the production render host for Render (renderers/web/pdf/uml/Dockerfile, its default `supervisor` target).
+# SDD-01: the production render host for Render (renderers/web/pdf/uml/Dockerfile, run with its supervisor command).
 # The real supervisor runs a PDF job, a capture job and a stopped job through the real launchers, the UML kernel built
 # from the hash-checked kernel.org archive, the unchanged kernels and the confined Chromium, against a loopback stand-in
 # of the renderer API (uml/supervisor-e2e.mjs, run from the deployed package). This is CI evidence on a GitHub host, not Render acceptance.

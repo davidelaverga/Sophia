@@ -2,7 +2,7 @@
 // archive; the guest, untrusted, writes the output archive, which the host takes only as the kernels' own files.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { closeSync, mkdirSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
@@ -211,24 +211,35 @@ describe('the UML job archives (uml-job.mjs)', () => {
     },
   )
 
-  it('takes the output disk only as a regular file of its own size, through no link, writing each file once', () => {
+  it('takes the output through the descriptor it made the disk with, whatever is at its path, each file once', () => {
     const dir = join(scratch, 'take')
     mkdirSync(dir)
-    const disk = join(dir, 'output.img')
-    outputDisk(disk, null)
-    assert.throws(() => outputDisk(disk, null), /EEXIST/u)
-    const bytes = output([{ name: 'receipt.json', data: Buffer.from('{}') }])
-    writeFileSync(disk, Buffer.concat([bytes, Buffer.alloc(OUTPUT_DISK_BYTES - bytes.length)]))
-    const into = join(dir, 'out')
-    mkdirSync(into)
-    takeOutput(disk, into)
-    assert.equal(readFileSync(join(into, 'receipt.json'), 'utf8'), '{}')
-    assert.throws(() => takeOutput(disk, into), /EEXIST/u, 'a file already taken is never replaced')
-    const link = join(dir, 'link.img')
-    symlinkSync(disk, link)
-    assert.throws(() => takeOutput(link, join(dir, 'out')), /ELOOP/u)
-    const short = join(dir, 'short.img')
-    writeFileSync(short, bytes)
-    assert.throws(() => takeOutput(short, into), /not the one written/u)
+    const at = join(dir, 'output.img')
+    const disk = outputDisk(at, null)
+    try {
+      assert.throws(() => outputDisk(at, null), /EEXIST/u)
+      const bytes = output([{ name: 'receipt.json', data: Buffer.from('{}') }])
+      // The guest's side writes its disk by path, then puts a FIFO where it was: an open of that path would wait for
+      // a writer forever; the descriptor reads the disk as written.
+      writeFileSync(at, Buffer.concat([bytes, Buffer.alloc(OUTPUT_DISK_BYTES - bytes.length)]), { flag: 'r+' })
+      rmSync(at)
+      if (hasTar) assert.equal(spawnSync('mkfifo', [at]).status, 0)
+      const into = join(dir, 'out')
+      mkdirSync(into)
+      takeOutput(disk, into)
+      assert.equal(readFileSync(join(into, 'receipt.json'), 'utf8'), '{}')
+      assert.throws(() => takeOutput(disk, into), /EEXIST/u, 'a file already taken is never replaced')
+    } finally {
+      closeSync(disk)
+    }
+    // A disk whose size was changed through its path is not the one written.
+    const other = join(dir, 'short.img')
+    const short = outputDisk(other, null)
+    try {
+      truncateSync(other, 1024)
+      assert.throws(() => takeOutput(short, join(dir, 'out')), /not the one written/u)
+    } finally {
+      closeSync(short)
+    }
   })
 })

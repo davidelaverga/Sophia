@@ -232,40 +232,41 @@ export function readOutput(disk) {
 }
 
 /**
- * Read the output disk the guest wrote, through no link, as a regular file of exactly its size, and write its files
- * once into `outputDir`.
- * @param {string} disk
+ * Read the output disk the guest wrote through the descriptor outputDisk returned, never its path (which the guest's
+ * side owns and may have replaced with a FIFO, a link or another file): a regular file of exactly its size, read
+ * whole, and its files written once into `outputDir`. The caller closes the descriptor.
+ * @param {number} disk
  * @param {string} outputDir
  */
 export function takeOutput(disk, outputDir) {
-  const fd = fs.openSync(disk, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
-  try {
-    const st = fs.fstatSync(fd)
-    if (!st.isFile() || st.size !== OUTPUT_DISK_BYTES) throw new OutputError('the output disk is not the one written')
-    const bytes = Buffer.alloc(OUTPUT_DISK_BYTES)
-    let read = 0
-    while (read < bytes.length) {
-      const n = fs.readSync(fd, bytes, read, bytes.length - read, read)
-      if (n === 0) break
-      read += n
-    }
-    for (const file of readOutput(bytes)) fs.writeFileSync(path.join(outputDir, file.name), file.data, { flag: 'wx' })
-  } finally {
-    fs.closeSync(fd)
+  const st = fs.fstatSync(disk)
+  if (!st.isFile() || st.size !== OUTPUT_DISK_BYTES) throw new OutputError('the output disk is not the one written')
+  const bytes = Buffer.alloc(OUTPUT_DISK_BYTES)
+  let read = 0
+  while (read < bytes.length) {
+    const n = fs.readSync(disk, bytes, read, bytes.length - read, read)
+    if (n === 0) break
+    read += n
   }
+  if (read !== bytes.length) throw new OutputError('the output disk is not the one written')
+  for (const file of readOutput(bytes)) fs.writeFileSync(path.join(outputDir, file.name), file.data, { flag: 'wx' })
 }
 
 /**
- * A fresh output disk of exactly OUTPUT_DISK_BYTES, all zeros, writable only by its owner.
+ * A fresh output disk of exactly OUTPUT_DISK_BYTES, all zeros, writable only by its owner. Returns its descriptor, open
+ * for reading and writing (close-on-exec, so no child inherits it), which takeOutput reads the guest's output from.
  * @param {string} file
  * @param {{ uid: number, gid: number } | null} owner
+ * @returns {number}
  */
 export function outputDisk(file, owner) {
-  const fd = fs.openSync(file, 'wx', 0o600)
+  const fd = fs.openSync(file, 'wx+', 0o600)
   try {
     fs.ftruncateSync(fd, OUTPUT_DISK_BYTES)
     if (owner) fs.fchownSync(fd, owner.uid, owner.gid)
-  } finally {
+  } catch (error) {
     fs.closeSync(fd)
+    throw error
   }
+  return fd
 }

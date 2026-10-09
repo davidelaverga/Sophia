@@ -8,15 +8,18 @@
 //   reaches the kernel or the browser;
 // - sends heartbeats while it runs: a Hold or a Stop (or a lost lease) kills the kernel, and nothing is uploaded;
 // - uploads the PDF once if the kernel succeeded, then settles with the kernel's receipt;
-// - removes the job directory, whatever happened.
+// - once the kernel's leader exits, kills what is left of its process group and waits until none of it (and, in UML
+//   mode, no process of the render uid) is alive before it removes the job directory; a job whose processes outlive
+//   that wait taints the host (HostTainted): its directory is kept and the supervisor stops claiming.
 // SDD-01: a claim names the formats this host renders (`pdf`, and `png` for the capture kernel, capture-html.mjs); a
 // capture job runs that kernel instead and uploads each PNG its receipt names, checked against the receipt, before it
 // settles. A runner that names no formats is a PDF runner and is never handed a capture.
 // SDD-01, Render: with SOPHIA_RENDER_ISOLATION=uml the kernel runs, unchanged, inside a User-mode Linux guest
 // (renderers/web/pdf/uml) behind the host launchers (render uid, fresh user/network/PID namespaces, no new privileges,
 // Landlock, seccomp): one read-only input disk carries the job, one output disk of a fixed size carries its output
-// back (uml-job.mjs), read only as regular files with the kernels' own names, within bounds. Killing the launcher's
-// process group ends the guest; a guest past its job's time plus UML_MARGIN_MS is killed and its job abandoned.
+// back (uml-job.mjs), read through the descriptor this process created it with, only as regular files with the
+// kernels' own names, within bounds. Killing the launcher's process group ends the guest; a guest past its job's time
+// plus UML_MARGIN_MS is killed and its job abandoned.
 // Usage: supervisor.mjs, with SOPHIA_API_URL, SOPHIA_RENDER_RUNNER_TOKEN_FILE (or SOPHIA_RENDER_RUNNER_TOKEN),
 // SOPHIA_RENDER_WORK (a directory), and for the kernel SOPHIA_RENDER_UID (when root), SOPHIA_CHROMIUM_PATH or
 // PLAYWRIGHT_BROWSERS_PATH (or Playwright's default cache in HOME); or SOPHIA_RENDER_ISOLATION=uml, with the guest's
@@ -42,6 +45,15 @@ const CAPTURE_NAME = /^[a-z0-9][a-z0-9.-]{0,150}\.png$/
 /** What the kernel inherits besides the browser's path: the render user and nothing else (never the capability). */
 const KERNEL_ENV = ['SOPHIA_RENDER_UID', 'SOPHIA_RENDER_GID']
 const KILL_GRACE_MS = 10_000
+/** How long a job's processes may take to be gone once its leader exited (each round killed again), and its pipes. */
+const GONE_MS = 15_000
+const CLOSE_MS = 2_000
+/** A claim's longest time: the API sets 120 s; anything past this (or not a whole positive number) is malformed. */
+const MAX_TIMEOUT_MS = 600_000
+/** The render uid the UML launchers run as (namespace-launch.py maps exactly it). */
+const RENDER_UID = 10001
+/** How many of the guest's marked lines (`UML_`) are logged, each printable and at most 300 characters. */
+const UML_LOG_LINES = 400
 /** A UML guest's time past its job's: its boot, the archive written back and its power-off. */
 export const UML_MARGIN_MS = 90_000
 /** What the launchers and the guest may print before the job is refused: their records, boot and kernel logs. */
@@ -61,7 +73,18 @@ const GUEST = { dir: '/work/job', sourceRoot: '/work/job/src', outputDir: '/work
  *   files: { path: string, role: 'entry' | 'asset', sha256: string, byteLength: number }[], format: 'pdf' | 'png',
  *   targets: string[], sections: string[] | null }} RenderJob
  * @typedef {{ claimed: false } | { claimed: true, jobId: string, outcome: string }} RunOutcome
+ * @typedef {{ cancelled: boolean, timedOut: boolean, lingering: boolean, failed: string | null }} RunEnd how a
+ *   kernel's run ended: stopped, past its time, with processes that outlived the wait, or never started
  */
+
+/** A job's processes outlived it: its directory is kept, and this host claims nothing more until it restarts. */
+export class HostTainted extends Error {
+  /** @param {string} message */
+  constructor(message) {
+    super(message)
+    this.name = 'HostTainted'
+  }
+}
 
 /** Why a call to the API failed; `status` is the HTTP status. */
 export class ApiError extends Error {
@@ -159,6 +182,19 @@ function jobFileOf(f) {
 }
 
 /**
+ * A claim's time: 120 s when it names none, else a whole number of 1 to MAX_TIMEOUT_MS ms, or the claim is malformed.
+ * @param {object} job
+ */
+function timeoutOf(job) {
+  /** @type {unknown} */
+  const timeout = Reflect.get(job, 'timeoutMs')
+  if (timeout === undefined) return 120_000
+  if (typeof timeout === 'number' && Number.isSafeInteger(timeout) && timeout > 0 && timeout <= MAX_TIMEOUT_MS)
+    return timeout
+  throw new Error(`the API answered the claim with a timeout that is not 1 to ${MAX_TIMEOUT_MS} ms`)
+}
+
+/**
  * The claimed job in the API's reply (RenderClaim), or null when there is none.
  * @param {unknown} reply
  * @returns {RenderJob | null}
@@ -173,8 +209,6 @@ function jobOf(reply) {
   if (typeof job !== 'object') throw new Error('the API answered the claim with a malformed job')
   /** @type {unknown} */
   const files = Reflect.get(job, 'files')
-  /** @type {unknown} */
-  const timeout = Reflect.get(job, 'timeoutMs')
   if (!Array.isArray(files)) throw new Error('the API answered the claim with a malformed job')
   const format = textOf(job, 'format') || 'pdf'
   if (format !== 'pdf' && format !== 'png')
@@ -184,7 +218,7 @@ function jobOf(reply) {
     leaseToken: textOf(job, 'leaseToken'),
     language: textOf(job, 'language'),
     sourceManifestHash: textOf(job, 'sourceManifestHash'),
-    timeoutMs: typeof timeout === 'number' ? timeout : 120_000,
+    timeoutMs: timeoutOf(job),
     files: files.map((/** @type {unknown} */ f) => jobFileOf(f)),
     format,
     targets: textsOf(Reflect.get(job, 'targets')) ?? [],
@@ -252,7 +286,7 @@ function kernelJob(job, where) {
  * @param {RenderJob} job
  * @param {string} jobFile
  * @param {string} browser the headless shell, resolved by this process
- * @returns {Promise<{ cancelled: boolean, timedOut: boolean }>}
+ * @returns {Promise<RunEnd>}
  */
 function runKernel(cfg, job, jobFile, browser) {
   const source = cfg.env ?? process.env
@@ -265,7 +299,7 @@ function runKernel(cfg, job, jobFile, browser) {
     stdio: ['ignore', 'ignore', 'pipe'],
   })
   child.stderr.on('data', (/** @type {Buffer} */ d) => cfg.log?.(`[kernel ${job.jobId}] ${d.toString().trim()}`))
-  return supervised(cfg, job, child, null).done
+  return supervised(cfg, job, child, null, null).done
 }
 
 /**
@@ -282,24 +316,99 @@ function signalGroup(group, signal) {
 }
 
 /**
+ * The processes alive now (zombies left out), from /proc: each one's process group and real uid; null where there is
+ * no /proc to read.
+ * @returns {{ pgrp: number, uid: number, pid: number }[] | null}
+ */
+function liveProcesses() {
+  let names
+  try {
+    names = fs.readdirSync('/proc')
+  } catch {
+    return null
+  }
+  /** @type {{ pgrp: number, uid: number, pid: number }[]} */
+  const live = []
+  for (const name of names) {
+    if (!/^\d+$/u.test(name)) continue
+    try {
+      const stat = fs.readFileSync(`/proc/${name}/stat`, 'utf8')
+      const [state, , pgrp] = stat.slice(stat.lastIndexOf(')') + 2).split(' ')
+      if (state === 'Z' || state === 'X') continue
+      const uid = /^Uid:\s+(\d+)/mu.exec(fs.readFileSync(`/proc/${name}/status`, 'utf8'))?.[1]
+      live.push({ pid: Number(name), pgrp: Number(pgrp), uid: Number(uid ?? -1) })
+    } catch {
+      // gone while it was read
+    }
+  }
+  return live
+}
+
+/**
+ * Kill what is left of a process group whose leader exited, and (when `uid` is set) every process of that uid, until
+ * none is alive or GONE_MS passes. Zombies are not alive: this process may be PID 1 and never reap them.
+ * @param {number} pgid
+ * @param {number | null} uid
+ * @returns {Promise<boolean>} whether they are all gone
+ */
+async function reap(pgid, uid) {
+  const until = Date.now() + GONE_MS
+  for (;;) {
+    const live = liveProcesses()
+    const left = live
+      ? live.filter((p) => p.pgrp === pgid || (uid !== null && p.uid === uid))
+      : groupAlive(pgid)
+        ? [{ pid: -pgid }]
+        : []
+    if (left.length === 0) return true
+    if (Date.now() > until) return false
+    for (const target of [-pgid, ...left.map((p) => p.pid).filter((pid) => pid > 0 && pid !== process.pid)]) {
+      try {
+        process.kill(target, 'SIGKILL')
+      } catch {
+        // gone already, or not this process's to kill: counted again next round
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+}
+
+/**
+ * Whether any process of a group is still there (where there is no /proc; a zombie counts).
+ * @param {number} pgid
+ */
+function groupAlive(pgid) {
+  try {
+    process.kill(-pgid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Supervise a process group the supervisor started: heartbeats while it runs; a Hold, a Stop, a lost lease or (when
- * `wallMs` is set) its time running out kills the group, TERM then KILL. Resolves when it exits.
+ * `wallMs` is set) its time running out kills the group, TERM then KILL. Once its leader exits, what is left of the
+ * group (and, with `uid`, every process of that uid) is killed and waited for, then its pipes for at most CLOSE_MS;
+ * a leader that never starts ends it too. Resolves with how it ended.
  * @param {SupervisorConfig} cfg
  * @param {RenderJob} job
  * @param {import('node:child_process').ChildProcess} child the group's leader
  * @param {number | null} wallMs
- * @returns {{ stop: () => void, done: Promise<{ cancelled: boolean, timedOut: boolean }> }}
+ * @param {number | null} uid
+ * @returns {{ stop: () => void, done: Promise<RunEnd> }}
  */
-function supervised(cfg, job, child, wallMs) {
+function supervised(cfg, job, child, wallMs, uid) {
   let cancelled = false
   let timedOut = false
   let stopped = false
+  const running = () => child.exitCode === null && child.signalCode === null
   const kill = () => {
-    if (stopped || child.pid === undefined || child.exitCode !== null) return
+    if (stopped || child.pid === undefined || !running()) return
     stopped = true
     const group = -child.pid
     signalGroup(group, 'SIGTERM')
-    setTimeout(() => child.exitCode === null && signalGroup(group, 'SIGKILL'), KILL_GRACE_MS).unref()
+    setTimeout(() => running() && signalGroup(group, 'SIGKILL'), KILL_GRACE_MS).unref()
   }
   const stop = () => {
     if (!stopped) cancelled = true
@@ -322,12 +431,28 @@ function supervised(cfg, job, child, wallMs) {
           if (!stopped) timedOut = true
           kill()
         }, wallMs)
-  /** @type {Promise<{ cancelled: boolean, timedOut: boolean }>} */
-  const done = new Promise((/** @type {(v: { cancelled: boolean, timedOut: boolean }) => void} */ resolve) => {
-    child.on('exit', () => {
+  const closed = new Promise((resolve) => {
+    child.once('close', resolve)
+  })
+  /** @type {Promise<RunEnd>} */
+  const done = new Promise((resolve) => {
+    const end = () => {
       clearInterval(timer)
       clearTimeout(wall)
-      resolve({ cancelled, timedOut })
+    }
+    child.once('error', (error) => {
+      if (child.pid !== undefined) return
+      end()
+      resolve({ cancelled, timedOut, lingering: false, failed: `the kernel did not start: ${error.message}` })
+    })
+    child.once('exit', () => {
+      end()
+      const pgid = child.pid
+      if (pgid === undefined) return
+      void reap(pgid, uid).then(async (gone) => {
+        await Promise.race([closed, new Promise((r) => setTimeout(r, CLOSE_MS).unref())])
+        resolve({ cancelled, timedOut, lingering: !gone, failed: null })
+      })
     })
   })
   return { stop: kill, done }
@@ -369,19 +494,15 @@ function launcherRecords(cfg, job, child, stop) {
   /** @type {{ adverse: object | null, policy: object | null, refused: string | null }} */
   const seen = { adverse: null, policy: null, refused: null }
   let bytes = 0
-  let pending = ''
+  let logged = 0
   /** @param {string} line */
   const take = (line) => {
-    if (line.startsWith('UML_')) cfg.log?.(`[uml ${job.jobId}] ${line.slice(0, 300)}`)
-    if (!line.startsWith('{') || !line.includes('"UML_HOST_')) return
-    /** @type {unknown} */
-    let record
-    try {
-      record = /** @type {unknown} */ (JSON.parse(line))
-    } catch {
-      return
+    if (line.startsWith('UML_') && logged < UML_LOG_LINES) {
+      logged += 1
+      cfg.log?.(`[uml ${job.jobId}] ${line.slice(0, 300).replaceAll(/[^\x20-\x7e]/gu, '?')}`)
     }
-    if (typeof record !== 'object' || record === null) return
+    const record = recordOf(line)
+    if (!record) return
     const event = fieldOf(record, 'event')
     const key =
       event === 'UML_HOST_ADVERSE_CONTROLS' ? 'adverse' : event === 'UML_HOST_POLICY_APPLIED' ? 'policy' : null
@@ -389,23 +510,43 @@ function launcherRecords(cfg, job, child, stop) {
     if (seen[key]) seen.refused = `${String(event)} was reported twice`
     else seen[key] = record
   }
-  /** @param {Buffer} chunk */
-  const read = (chunk) => {
-    bytes += chunk.length
-    if (bytes > UML_LOG_BYTES) {
-      seen.refused ??= `the guest printed more than ${UML_LOG_BYTES} bytes`
-      stop()
-      return
+  /** A reader of one stream, with its own partial line: the two streams' lines never mix. */
+  const reader = () => {
+    let pending = ''
+    /** @param {Buffer} chunk */
+    return (chunk) => {
+      bytes += chunk.length
+      if (bytes > UML_LOG_BYTES) {
+        seen.refused ??= `the guest printed more than ${UML_LOG_BYTES} bytes`
+        stop()
+        return
+      }
+      pending += chunk.toString('utf8')
+      const lines = pending.split('\n')
+      pending = lines.pop() ?? ''
+      if (pending.length > 64 * 1024) pending = ''
+      for (const line of lines) take(line.trim())
     }
-    pending += chunk.toString('utf8')
-    const lines = pending.split('\n')
-    pending = lines.pop() ?? ''
-    if (pending.length > 64 * 1024) pending = ''
-    for (const line of lines) take(line.trim())
   }
-  child.stdout?.on('data', read)
-  child.stderr?.on('data', read)
+  child.stdout?.on('data', reader())
+  child.stderr?.on('data', reader())
   return seen
+}
+
+/**
+ * A launcher's record on one line (a JSON object naming a `UML_HOST_` event), or null.
+ * @param {string} line
+ * @returns {object | null}
+ */
+function recordOf(line) {
+  if (!line.startsWith('{') || !line.includes('"UML_HOST_')) return null
+  try {
+    /** @type {unknown} */
+    const record = JSON.parse(line)
+    return typeof record === 'object' && record !== null ? record : null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -454,13 +595,27 @@ function adverseShown(adverse) {
 const fieldOf = (o, key) => /** @type {unknown} */ (Reflect.get(o, key))
 
 /**
+ * Refuse a guest's run whose output may not be taken: past its time, refused by its records, or without the launchers'
+ * policy shown applied.
+ * @param {RunEnd} result
+ * @param {ReturnType<typeof launcherRecords>} seen
+ */
+function refuseGuest(result, seen) {
+  if (result.timedOut) throw new Error(`the UML guest ran past its job's time and was killed`)
+  if (seen.refused) throw new Error(`the UML guest's output is refused: ${seen.refused}`)
+  if (!policyApplied(seen)) throw new Error('the UML launchers did not report their host policy applied')
+}
+
+/**
  * Run one job's kernel inside the UML guest: its input disk written, its output disk made, the launchers started as
  * their own process group under the same heartbeats and Stop as a native kernel, and a wall time of the job's own plus
- * the margin. The output is taken only when the launchers reported their policy applied.
+ * the margin. The output is taken only when the launchers reported their policy applied, and only through the
+ * descriptor this process made the output disk with: whatever the guest's side does to the path (a FIFO, a link,
+ * another file) changes nothing read.
  * @param {SupervisorConfig} cfg
  * @param {RenderJob} job
  * @param {{ dir: string, sourceRoot: string, outputDir: string }} where
- * @returns {Promise<{ cancelled: boolean, timedOut: boolean }>}
+ * @returns {Promise<RunEnd>}
  */
 async function runUml(cfg, job, where) {
   const dir = path.join(where.dir, 'uml')
@@ -474,24 +629,27 @@ async function runUml(cfg, job, where) {
     job.files.map((f) => f.path),
   )
   fs.writeFileSync(path.join(dir, 'input.tar'), archive, { flag: 'wx', mode: 0o644 })
-  outputDisk(path.join(dir, 'output.img'), owner)
-  if (owner) fs.chownSync(dir, owner.uid, owner.gid)
-  const [command, ...args] = umlCommand(cfg, dir)
-  if (!command) throw new Error('no UML launcher')
-  const child = spawn(command, args, {
-    env: { PATH: '/usr/bin:/bin' },
-    detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  const run = supervised(cfg, job, child, job.timeoutMs + (cfg.uml?.marginMs ?? UML_MARGIN_MS))
-  const seen = launcherRecords(cfg, job, child, run.stop)
-  const result = await run.done
-  if (result.cancelled) return result
-  if (result.timedOut) throw new Error(`the UML guest ran past its job's time and was killed`)
-  if (seen.refused) throw new Error(`the UML guest's output is refused: ${seen.refused}`)
-  if (!policyApplied(seen)) throw new Error('the UML launchers did not report their host policy applied')
-  takeOutput(path.join(dir, 'output.img'), where.outputDir)
-  return result
+  const disk = outputDisk(path.join(dir, 'output.img'), owner)
+  try {
+    if (owner) fs.chownSync(dir, owner.uid, owner.gid)
+    const [command, ...args] = umlCommand(cfg, dir)
+    if (!command) throw new Error('no UML launcher')
+    const child = spawn(command, args, {
+      env: { PATH: '/usr/bin:/bin' },
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    const wallMs = job.timeoutMs + (cfg.uml?.marginMs ?? UML_MARGIN_MS)
+    const run = supervised(cfg, job, child, wallMs, owner ? RENDER_UID : null)
+    const seen = launcherRecords(cfg, job, child, run.stop)
+    const result = await run.done
+    if (result.failed || result.lingering || result.cancelled) return result
+    refuseGuest(result, seen)
+    takeOutput(disk, where.outputDir)
+    return result
+  } finally {
+    fs.closeSync(disk)
+  }
 }
 
 /**
@@ -586,6 +744,7 @@ function umlReady(cfg) {
   if (process.getuid?.() !== 0)
     throw new Error('a UML host runs its supervisor as root, to start the guest as uid 10001')
   for (const name of UML_ARTIFACTS) immutableArtifact(path.join(cfg.uml?.root ?? '/opt/uml', name))
+  fs.accessSync('/usr/bin/python3', fs.constants.X_OK)
   if ((fs.statSync(cfg.workDir).mode & 0o001) === 0) {
     throw new Error(`the render user cannot reach ${cfg.workDir}: give it search permission for others (o+x)`)
   }
@@ -602,6 +761,21 @@ function immutableArtifact(file) {
 }
 
 /**
+ * How a kernel's run ended, as runOnce acts on it: true when it was cancelled, false when its output may be delivered;
+ * it throws where the output is not delivered, HostTainted where the run's processes outlived it.
+ * @param {RunEnd} run
+ * @param {RenderJob} job
+ * @param {string} dir
+ */
+function cancelledRun(run, job, dir) {
+  if (run.lingering) throw new HostTainted(`render ${job.jobId}: its processes outlived it; ${dir} is kept`)
+  if (run.failed) throw new Error(run.failed)
+  if (run.cancelled) return true
+  if (run.timedOut) throw new Error('the kernel ran past its time and was killed')
+  return false
+}
+
+/**
  * Claim one job and see it through. Never throws for the job's own failure.
  * @param {SupervisorConfig} cfg
  * @returns {Promise<RunOutcome>}
@@ -611,6 +785,7 @@ export async function runOnce(cfg) {
   const job = jobOf(await (await api(cfg, '/v1/renderer/claim', { json: { formats: FORMATS } })).json())
   if (!job) return { claimed: false }
   const dir = fs.mkdtempSync(path.join(cfg.workDir, 'job-'))
+  let tainted = false
   try {
     // The render user reads the package and owns its scratch inside this directory; the outputs stay this process's.
     fs.chmodSync(dir, 0o755)
@@ -628,14 +803,18 @@ export async function runOnce(cfg) {
       await cfg.beforeRender?.(job)
       run = await runKernel(cfg, job, jobFile, browser)
     }
-    if (run.cancelled) return { claimed: true, jobId: job.jobId, outcome: 'cancelled' }
-    if (run.timedOut) throw new Error('the kernel ran past its time and was killed')
+    if (cancelledRun(run, job, dir)) return { claimed: true, jobId: job.jobId, outcome: 'cancelled' }
     return { claimed: true, jobId: job.jobId, outcome: await deliver(cfg, job, where.outputDir) }
   } catch (error) {
+    if (error instanceof HostTainted) {
+      tainted = true
+      throw error
+    }
     cfg.log?.(`render ${job.jobId} not delivered: ${error instanceof Error ? error.message : String(error)}`)
     return { claimed: true, jobId: job.jobId, outcome: 'abandoned' }
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
+    // Never a recursive delete under a directory a live process of the job could still change.
+    if (!tainted) fs.rmSync(dir, { recursive: true, force: true })
   }
 }
 
@@ -650,6 +829,7 @@ export async function supervise(cfg, signal) {
     try {
       idle = !(await runOnce(cfg)).claimed
     } catch (error) {
+      if (error instanceof HostTainted) throw error
       cfg.log?.(`claim failed: ${error instanceof Error ? error.message : String(error)}`)
       idle = true
     }

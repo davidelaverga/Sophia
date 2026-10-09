@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
-# The UML render host for Render (SDD-01): the supervisor (default target) or the qualification fixture
-# (--target fixture). Build from repository root; ordinary Chromium confinement files are unchanged.
+# The UML render host for Render (SDD-01) and its qualification fixture: one image, idle unless its command says
+# otherwise. Build from repository root; ordinary Chromium confinement files are unchanged.
 ARG NODE_IMAGE=node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 FROM ${NODE_IMAGE} AS deploy
 WORKDIR /src
@@ -24,12 +24,14 @@ RUN curl --fail --location --output linux.tar.xz https://cdn.kernel.org/pub/linu
  && patch --fuzz=0 -p1 < /build/kernel-memory.patch \
  && python3 /build/check-memory-backing.py arch/um/os-Linux/mem.c \
  && scripts/config --disable DEBUG_INFO --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT --enable DEBUG_INFO_NONE --disable DEBUG_INFO_BTF --disable MODULES --disable MODULE_SIG --set-str SYSTEM_TRUSTED_KEYS '' --set-str SYSTEM_REVOCATION_KEYS '' \
+ && scripts/config --disable HOSTFS --disable MCONSOLE --disable UML_NET --disable VIRTIO_UML --disable PORT_CHAN --disable PTY_CHAN --disable TTY_CHAN --disable XTERM_CHAN \
  && case "$UML_KERNEL_OPTIMIZATION" in \
       performance) scripts/config --disable CC_OPTIMIZE_FOR_SIZE --enable CC_OPTIMIZE_FOR_PERFORMANCE ;; \
       size) scripts/config --disable CC_OPTIMIZE_FOR_PERFORMANCE --enable CC_OPTIMIZE_FOR_SIZE ;; \
       *) echo 'unsupported UML kernel optimization' >&2; exit 1 ;; \
     esac \
  && make ARCH=um SUBARCH=x86_64 CROSS_COMPILE=x86_64-linux-gnu- olddefconfig \
+ && if grep -E '^CONFIG_(HOSTFS|MCONSOLE|UML_NET[A-Z_]*|VIRTIO_UML|PORT_CHAN|PTY_CHAN|TTY_CHAN|XTERM_CHAN|MODULES)=' .config; then echo 'the guest kernel keeps a host-facing option' >&2; exit 1; fi \
  && case "$UML_KERNEL_OPTIMIZATION" in \
       performance) grep -qx 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y' .config ;; \
       size) grep -qx 'CONFIG_CC_OPTIMIZE_FOR_SIZE=y' .config ;; \
@@ -50,6 +52,10 @@ COPY --from=kernel /build/abi-probe /build/linux.uml /opt/uml/
 RUN sh /opt/uml/make-guest.sh && python3 /opt/uml/make-initrd.py /opt/uml /opt/uml/initrd.gz \
  && chmod 0555 /opt/uml/linux.uml /opt/uml/abi-probe && chmod 0444 /opt/uml/guest.raw /opt/uml/initrd.gz
 
+# The guest kernel reaches the host only through its three disks and its console (con0 on the launchers' pipes): no
+# hostfs, no mconsole, no network transports, no virtio sockets and no port, pty, tty or xterm channels (the build
+# above fails if one is left), beside the host launchers' Landlock and seccomp, which refuse sockets, mounts, modules
+# and io_uring to the guest's host processes.
 FROM ${NODE_IMAGE} AS host
 RUN apt-get update && apt-get install -y --no-install-recommends python3 \
  && rm -rf /var/lib/apt/lists/* \
@@ -57,22 +63,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 \
  && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin render \
  && mkdir -p /work && chmod 0755 /work
 COPY --from=guest /opt/uml /opt/uml
-USER root
-
-# The qualification fixture (build with --target fixture). Start idle. A Render/container restart never starts another
-# fixture batch. The operator invokes host-qa.py once through the approved Shell session.
-FROM host AS fixture
-CMD ["node", "-e", "console.log(JSON.stringify({event:'uml_worker_idle',qualification:false}));setInterval(()=>{},60000)"]
-
-# The render host (SDD-01; the default target). The unchanged supervisor holds the runner capability, talks only to the
-# Sophia API and runs each job's kernel inside the guest above, through the launchers in job mode (supervisor.mjs
-# runUml). Its secrets come from the host at run time: SOPHIA_API_URL and SOPHIA_RENDER_RUNNER_TOKEN_FILE (a file only
-# root can read; the launchers show it refused before the guest starts).
-FROM host AS supervisor
+# The render supervisor (SDD-01): it holds the runner capability, talks only to the Sophia API and runs each job's
+# unchanged kernel inside the guest, through the launchers in job mode (supervisor.mjs runUml). Its secrets come from
+# the host at run time: SOPHIA_API_URL and SOPHIA_RENDER_RUNNER_TOKEN_FILE (a file only root can read; the launchers
+# show it refused before the guest starts).
 COPY --from=deploy /out /opt/sophia-renderer
-ENV NODE_ENV=production \
-  SOPHIA_RENDER_ISOLATION=uml \
+ENV SOPHIA_RENDER_ISOLATION=uml \
   SOPHIA_UML_ROOT=/opt/uml \
   SOPHIA_RENDER_WORK=/work
-WORKDIR /opt/sophia-renderer
-CMD ["node", "supervisor.mjs"]
+USER root
+# Idle unless the service's command says otherwise, so a restart or a deploy of a service that sets none starts
+# nothing: the render host sets its command to `node /opt/sophia-renderer/supervisor.mjs`; the qualification
+# fixture invokes host-qa.py once through the approved Shell session.
+CMD ["node", "-e", "console.log(JSON.stringify({event:'uml_worker_idle',qualification:false}));setInterval(()=>{},60000)"]

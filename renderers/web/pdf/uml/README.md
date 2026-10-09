@@ -2,7 +2,9 @@
 
 ## Production render host (SDD-01)
 
-The Dockerfile's default target, `supervisor`, is the render host: the unchanged
+The Dockerfile builds one image, idle unless its command says otherwise (a restart
+or a deploy of a service that sets none starts nothing). With the command
+`node /opt/sophia-renderer/supervisor.mjs` it is the render host: the unchanged
 supervisor in UML mode (`SOPHIA_RENDER_ISOLATION=uml`, see the renderer README),
 with the guest below. Each claimed job runs in a fresh guest started by the
 launchers in job mode (`landlock-launch.py … job <refused paths>`): the job comes
@@ -12,9 +14,13 @@ same; job mode adds only the two disks and `sophia_job=1`, and requires at least
 one refused path (the runner capability's file and the supervisor's environment).
 
 ```sh
-docker build --platform linux/amd64 -f renderers/web/pdf/uml/Dockerfile .             # render host
-docker build --platform linux/amd64 --target fixture -f renderers/web/pdf/uml/Dockerfile .  # fixture
+docker build --platform linux/amd64 -f renderers/web/pdf/uml/Dockerfile .
 ```
+
+The guest kernel is built without hostfs, mconsole, network transports, virtio
+sockets and the port, pty, tty and xterm channels; the build fails if `.config`
+keeps any of them, or modules. It reaches the host through its three disks and
+its console (`con0` on the launchers' pipes) only.
 
 CI (`.github/workflows/uml-supervisor.yml`) builds the render host and runs
 `supervisor-e2e.mjs` in it: a PDF job, a capture job at both targets and a job
