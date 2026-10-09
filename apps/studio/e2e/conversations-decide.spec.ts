@@ -200,6 +200,68 @@ test('decide · a message proposed as a decision: its words in, sent as a constr
   await expect(marco.getByRole('button', { name: 'Propose as decision' })).toBeFocused()
 })
 
+/** Marco's message in «Short or long briefs?», proposed as «Briefs stay on one page». */
+async function proposeMarco(page: Page) {
+  await page
+    .getByRole('region', { name: 'All conversations' })
+    .getByRole('button', { name: /Short or long briefs/ })
+    .click()
+  const marco = open(page).locator('.conv-messages > li').filter({ hasText: 'Anything longer, nobody reads.' })
+  await marco.hover()
+  await marco.getByRole('button', { name: 'Propose as decision' }).click()
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  return marco
+}
+
+test('decide · a proposal decided since is no longer said to be in Still open', async ({ page }) => {
+  await enter(page)
+  const marco = await proposeMarco(page)
+  await expect(marco.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  await stillOpen(page)
+    .getByRole('listitem')
+    .filter({ hasText: 'Briefs stay on one page' })
+    .getByRole('button', { name: 'Accept' })
+    .click()
+  await expect(context(page).getByRole('status')).toHaveText('Accepted: Briefs stay on one page')
+  await expect(marco.getByRole('status')).toHaveText('Proposed · no longer in Still open')
+})
+
+test('decide · proposed while the brief can’t be read again: it says so, and Still open once it is read', async ({
+  page,
+}) => {
+  await enter(page, `${PAGE}&propose=slow`)
+  const marco = await proposeMarco(page)
+  // Recorded, its answer on its way (3 s): the brief's read again fails meanwhile.
+  await expect.poll(() => writes(page, '/mission/proposals')).toHaveLength(1)
+  await page.evaluate(() => window.fixture?.failMission(true))
+  await expect(marco.getByRole('status')).toHaveText('Proposed · Still open couldn’t be read again')
+  await page.evaluate(() => window.fixture?.failMission(false))
+  await context(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(marco.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+})
+
+test('decide · proposed, then away while it lands: back, it says it waits in Still open', async ({ page }) => {
+  await enter(page, `${PAGE}&propose=slow`)
+  await proposeMarco(page)
+  await expect.poll(() => writes(page, '/mission/proposals')).toHaveLength(1)
+  // Away while its answer comes back (3 s): no pane shows the brief, which is read again all the same.
+  const views = page.getByRole('navigation', { name: 'Project views' })
+  await views.getByRole('link', { name: 'Goals' }).click()
+  await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
+  await page.waitForTimeout(3500)
+  // Back with the brief's reads held: what shows is what was read while away, nothing read on coming back.
+  await page.evaluate(() => window.fixture?.holdMission(true))
+  await views.getByRole('link', { name: 'Conversations' }).click()
+  await page
+    .getByRole('region', { name: 'All conversations' })
+    .getByRole('button', { name: /Short or long briefs/ })
+    .click()
+  const marco = open(page).locator('.conv-messages > li').filter({ hasText: 'Anything longer, nobody reads.' })
+  await expect(marco.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  await page.evaluate(() => window.fixture?.holdMission(false))
+})
+
 test('decide · with no reply, Cancel keeps the proposal’s words and key: reopened, Propose sends the same one, never a second', async ({
   page,
 }) => {

@@ -7,7 +7,6 @@
 // as the feed moves: a later read that fails keeps what was read, and says it may be out of date.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { getMission } from '../../api/mission.ts'
 import type { ConversationSummary } from '../../api/conversations.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -16,7 +15,7 @@ import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { acceptedOf, coverageWords, pendingOf, questionWords } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import {
-  contextKey,
+  contextQuery,
   decidableHere,
   pressesWait,
   type DecideArgs,
@@ -43,11 +42,7 @@ interface Props {
 
 export function ProjectContext(props: Props) {
   const { projectId, identity, cursor, conversation, opened, onClose, notice, erase } = props
-  const read = useQuery({
-    queryKey: contextKey(projectId, identity),
-    queryFn: () => getMission(identity.token, projectId),
-    retry: 1,
-  })
+  const read = useQuery(contextQuery(projectId, identity))
   useReadAgain(cursor, read.refetch)
   const ctx = read.data
   const frame = (body: ReactNode) => (
