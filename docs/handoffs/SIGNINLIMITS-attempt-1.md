@@ -11,7 +11,7 @@ the design note and this handoff.
 Runtime unit: the Studio (`apps/studio`); no API change.
 Existing authority: Luis's instruction in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no CI change.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-chain`, branch `fix/signin-limits` from `main` (`8ca6d706`), 2026-10-08
-Ending commit/tree: `8b8148bc31d4fb7745b0059c3c33cbff820708b1` (tree `cbf43f0e2894e5d0feb45e79bfe3e20b4fae96b6`). The commit after it adds only this handoff.
+Ending commit/tree: `38d61910c9cc234a40d81871287fe020c8f7d8eb` (tree `024729d4da9f2ab82ab7971b9b5afed1ebdb0d3e`), after main merged in (with #186, the send-again checks without the light). The commit after it adds only this handoff.
 
 ## Outcome
 
@@ -46,4 +46,6 @@ Ending commit/tree: `8b8148bc31d4fb7745b0059c3c33cbff820708b1` (tree `cbf43f0e28
   skip; `SLOW_NOTE` speaks of our API waking, roughly true for Auth.
 - Still without a limit near sign-in (the review's notes, a later PR): the passkey picker (`PasskeySignIn.tsx`), the
   provider buttons (`ProviderButtons.tsx`), and the unlock checks in `reauth.ts`.
+- CI's first run failed on the send-again check fixed by #186 (main then lacked it). Main merged in; not run again
+  locally (a heavy app open, so the guard starts no browser): CI runs it.
 - Next: merge on green CI with no Codex P1.
