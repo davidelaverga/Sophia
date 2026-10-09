@@ -4,12 +4,14 @@
 // never spreads or jumps. Esc closes the form and gives the focus back to its press. A proposal on its way, or sent
 // with no reply, is held by the view (talk-store.ts), its key and words with it: closing the form, opening another
 // conversation or leaving for another view and coming back finds the same one, sent again under its key, never twice.
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { getMission } from '../../api/mission.ts'
 import { Icon, Tip } from '@sophia/ui'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { refusalWords, statementFrom, useAlreadyOpen, useProposeSend } from './decide.ts'
+import { alreadyOpen, contextKey, refusalWords, statementFrom, useAlreadyOpen, useProposeSend } from './decide.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 import { useKept, withEntry } from './talk-store.ts'
 
@@ -37,12 +39,15 @@ function useHeldProposal(args: ProposeArgs | null) {
   const waiting = useAlreadyOpen(projectId, identity)
   const held = kept.proposals[id] ?? null
   const marked = (on: boolean) => change((was) => ({ ...was, proposed: withEntry(was.proposed, id, on) }))
+  const sentWith = (statement: string) =>
+    change((was) => ({ ...was, proposedWords: withEntry(was.proposedWords, id, statement) }))
   const write = useHeldWrite<string, unknown>(
     held,
     (next: Held<string> | null) => change((was) => ({ ...was, proposals: withEntry(was.proposals, id, next) })),
     async (key, statement) => {
       // A fresh one whose words already wait (its first reply lost, the page reloaded since): it is there, never sent twice.
       const receipt = held === null && (await waiting(statement)) ? true : await send(key, statement)
+      sentWith(statement)
       marked(true)
       return receipt
     },
@@ -52,7 +57,26 @@ function useHeldProposal(args: ProposeArgs | null) {
       say: (err) => refusalWords(err, 'propose'),
     },
   )
-  return { ...write, sent: held?.ask ?? null, done: kept.proposed[id] === true, marked }
+  return {
+    ...write,
+    sent: held?.ask ?? null,
+    done: kept.proposed[id] === true,
+    open: useStillOpen(projectId, identity, kept.proposedWords[id]),
+    marked,
+  }
+}
+
+/**
+ * Whether a recorded proposal's words still wait in Still open, as the context this view already read says (never a
+ * read of its own): accepted, declined or withdrawn since, its receipt no longer says where it is.
+ */
+function useStillOpen(projectId: string, identity: Identity | null, words: string | undefined): boolean {
+  const brief = useQuery({
+    queryKey: contextKey(projectId, identity ?? { name: '', token: '' }),
+    queryFn: () => getMission(identity?.token ?? '', projectId),
+    enabled: false,
+  })
+  return words !== undefined && brief.data !== undefined && alreadyOpen(brief.data.pending, words)
 }
 
 type Proposal = ReturnType<typeof useHeldProposal>
@@ -89,20 +113,28 @@ export function useProposeHere(args: ProposeArgs | null): { press: ReactNode; fo
   // Recorded, here or on a part since gone: the form is put away and the press says so.
   const shown = words !== null && !proposal.done
   return {
-    press: shown ? null : <ProposePress press={press} done={proposal.done} onOpen={open} />,
+    press: shown ? null : <ProposePress press={press} done={proposal.done} open={proposal.open} onOpen={open} />,
     form: shown ? (
       <ProposeForm words={proposal.sent ?? words} onWords={setWords} proposal={proposal} onClose={away} onDone={away} />
     ) : null,
   }
 }
 
-/** The small press at the message's corner, and once proposed, what it says. */
-function ProposePress(props: { press: RefObject<HTMLButtonElement | null>; done: boolean; onOpen: () => void }) {
+/**
+ * The small press at the message's corner, and once proposed, what it says: where it is while it waits in Still open,
+ * and only that it was proposed once it no longer does (accepted, declined or withdrawn).
+ */
+function ProposePress(props: {
+  press: RefObject<HTMLButtonElement | null>
+  done: boolean
+  open: boolean
+  onOpen: () => void
+}) {
   return (
     <span className="conv-propose">
       {props.done && (
         <span className="conv-proposed" role="status">
-          Proposed · it’s in Still open
+          {props.open ? 'Proposed · it’s in Still open' : 'Proposed'}
         </span>
       )}
       <button
