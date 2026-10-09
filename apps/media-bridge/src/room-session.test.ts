@@ -241,6 +241,8 @@ class FakeService implements MediaService {
   reservations: MediaQualificationReserve[] = []
   ordinals = 0
   refuse: MediaQualificationReservation['stop'] | 'error' = null
+  /** When set, `refuse` applies to reservations of this kind only. */
+  refuseKind: MediaQualificationReserve['kind'] | null = null
   /** While set, each reservation waits for the test to answer it (the API is slow). */
   holdReservations = false
   private readonly waiting: Array<{ kind: string; answer: () => void }> = []
@@ -266,8 +268,9 @@ class FakeService implements MediaService {
     if (this.holdReservations)
       await new Promise<void>((resolve) => this.waiting.push({ kind: r.kind, answer: resolve }))
     this.reservations.push(r)
-    if (this.refuse === 'error') throw new ServiceError(503, 'POST /v1/media/qualification-reserve: 503')
-    if (this.refuse) return { ok: false, ordinal: null, stop: this.refuse, ended: true }
+    const refused = this.refuseKind === null || this.refuseKind === r.kind ? this.refuse : null
+    if (refused === 'error') throw new ServiceError(503, 'POST /v1/media/qualification-reserve: 503')
+    if (refused) return { ok: false, ordinal: null, stop: refused, ended: true }
     if (r.kind === 'connection') this.ordinals += 1
     const ordinal = r.kind === 'connection' ? this.ordinals : (r.ordinal ?? null)
     return { ok: true, ordinal, stop: null, ended: false }
@@ -4682,6 +4685,9 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     room.events.audio(LUIS, new Int16Array(1600).fill(2000), 16000, 1) // held: its reservation is in flight
     await flush()
     live.events.toolCalls([{ id: 'call-b2', name: 'project_status', args: {} }]) // a late call of the last turn
+    // Its generation nobody reserved is charged (unasked): the call runs once the API counted it.
+    await until('the call’s generation charged', () => service.waitingKinds().includes('unasked'))
+    service.answerFirst('unasked')
     const generations = () => service.waitingKinds().filter((k) => k === 'generation').length
     await until('the tool response reserved', () => generations() === 2) // the held chunk's, then the response's
     service.answerLast('generation') // the API answers the tool response's reservation first
@@ -4892,6 +4898,116 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
       [LUIS],
       'then the typed turn ends, once, to its sender',
     )
+    await session.close()
+  })
+
+  /**
+   * Luis's words went to the provider under their generation, then the connection was replaced mid-turn: his turn
+   * stands (A14), and nothing is reserved on the new connection, so what the provider sends there (the call it repeats)
+   * is a generation nobody reserved, as it is for a restarted bridge whose session-local counters start empty.
+   */
+  async function resumed() {
+    const opened = await ready({ qualification: grant() })
+    opened.room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    await flush()
+    opened.live.events.goAway('1s')
+    clock += 1000
+    opened.session.tick()
+    await until('the new connection opened', () => lives.length === 2)
+    const next = lives.at(-1)
+    assert.ok(next && next !== opened.live)
+    next.events.setupComplete()
+    await flush()
+    return { ...opened, next }
+  }
+
+  it('a call of a generation nobody reserved runs only once the API counted that generation (Codex r4232975798)', async () => {
+    voiceEvidence = true
+    const { session, next } = await resumed()
+    service.holdReservations = true
+    next.events.toolCalls([{ id: 'call-u', name: 'project_status', args: {} }])
+    await flush()
+    await flush()
+    assert.deepEqual(
+      service.waitingKinds(),
+      ['unasked', 'spend'],
+      'its generation is being charged, and its payload paid (the new connection has no allowance yet)',
+    )
+    service.answerFirst('spend')
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'paid, but nothing runs before the API counted its generation')
+    service.answerFirst('unasked')
+    await until('the handler ran', () => service.calls.length === 1)
+    assert.equal(service.calls[0]?.actorId, LUIS, 'as Luis’s, whose turn it is')
+    await until('its response reserved', () => service.waitingKinds().includes('generation'))
+    service.holdReservations = false
+    service.answerReservations()
+    await until('its response sent', () => next.responses.length === 1)
+    await session.close()
+  })
+
+  it('a call of a generation nobody reserved, refused by the API at its limit: no handler runs, and the session stops', async () => {
+    voiceEvidence = true
+    const { session, next } = await resumed()
+    // The exchange's durable turns are spent, whatever this session counted: its generation is refused (its payload's
+    // top-up, a charge only, still fits).
+    service.refuse = 'turns'
+    service.refuseKind = 'unasked'
+    service.holdReservations = true
+    next.events.toolCalls([{ id: 'call-x', name: 'control_work', args: { taskId: ENTRY, action: 'hold' } }])
+    await flush()
+    service.answerFirst('spend') // its payload is paid first
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'paid, but its generation is not counted yet: nothing runs')
+    service.answerFirst('unasked') // the API refuses it
+    await flush()
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'the refused generation’s call never ran: nothing admitted')
+    assert.equal(next.responses.length, 0)
+    assert.deepEqual(stops(), ['turns'])
+    await session.close()
+  })
+
+  it('calls of a generation nobody reserved run in the order they came, once it is counted', async () => {
+    voiceEvidence = true
+    const { session, next } = await resumed()
+    service.holdReservations = true
+    next.events.toolCalls([{ id: 'call-1', name: 'project_status', args: {} }])
+    next.events.toolCalls([{ id: 'call-2', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(service.waitingKinds().filter((k) => k === 'unasked').length, 1, 'one generation, charged once')
+    service.answerReservations()
+    await until('both ran', () => service.calls.length === 2)
+    assert.deepEqual(
+      service.calls.map((c) => c.callId),
+      ['call-1', 'call-2'],
+    )
+    service.holdReservations = false
+    service.answerReservations()
+    await session.close()
+  })
+
+  it('a call of a generation nobody reserved, whose connection is replaced while it is counted, never runs', async () => {
+    voiceEvidence = true
+    const { session, next } = await resumed()
+    service.holdReservations = true
+    next.events.toolCalls([{ id: 'call-old', name: 'project_status', args: {} }])
+    await flush()
+    next.events.goAway('1s') // that connection is replaced meanwhile
+    service.answerReservations() // its generation is counted, and its payload paid, only now
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'the old connection’s call is never run')
+    assert.ok(
+      logs.some(([event]) => event === 'tool.dropped'),
+      'dropped, and logged',
+    )
+    service.holdReservations = false
+    service.answerReservations()
     await session.close()
   })
 

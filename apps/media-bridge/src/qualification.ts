@@ -120,6 +120,11 @@ export class SessionQualification {
    * nobody reserved. A turn's end takes one.
    */
   readonly #granted = new Map<number, number>()
+  /**
+   * The charge of a generation nobody reserved (unasked) on a connection, while the API has not answered it: a function
+   * call of that generation runs only once it is counted there, and not at all if it is refused.
+   */
+  readonly #unaskedCharge = new Map<number, Promise<GuardStop | null>>()
   #stopped: GuardStop | null = null
   /** Frames dropped because the allowance did not cover them yet: never sent unpaid. */
   #framesDropped = 0
@@ -299,7 +304,9 @@ export class SessionQualification {
    * The provider's function calls arrived on this connection, before any handler runs. Their payload (each name and its
    * serialized arguments, `chars`) is billed output text: it is held to the per-turn cap (a generation whose calls pass
    * it is cut, and nothing runs) and paid from the allowance as Sophia's words are. Resolves once what they cost is
-   * durable on the API (a top-up its debt asked for included): null to run them, or why the session stops instead.
+   * durable on the API: the generation they belong to, when nobody reserved it (unasked, its charge whether these calls
+   * or earlier output started it), and a top-up their debt asked for. Null to run them, or why the session stops
+   * instead: a refusal runs none.
    */
   called(connection: number, calls: number, chars: number): Promise<GuardStop | null> {
     const tokens = chars / ASSUMED_RATES.charsPerToken
@@ -309,7 +316,9 @@ export class SessionQualification {
     this.#recorder.responded(calls)
     const owed = this.#owe(connection, tokens, 0)
     if (owed) return Promise.resolve(owed)
-    return this.#paidUp(connection)
+    const counted = this.#unaskedCharge.get(connection)
+    if (!counted) return this.#paidUp(connection)
+    return counted.then((refused) => refused ?? this.#paidUp(connection))
   }
 
   /**
@@ -509,12 +518,18 @@ export class SessionQualification {
     this.#granted.set(connection, (this.#granted.get(connection) ?? 0) + 1)
   }
 
-  /** A generation started that nobody reserved: it is spent, so it is charged; a refusal stops the session. */
+  /**
+   * A generation started that nobody reserved: it is spent, so it is charged; a refusal stops the session. Its output
+   * has arrived already and is counted as it comes; a function call of it waits for the charge (#unaskedCharge).
+   */
   #unasked(connection: number): void {
     this.#grant(connection)
-    void this.#charge(connection, true).then((stop) => {
+    const charged: Promise<GuardStop | null> = this.#charge(connection, true).then((stop) => {
+      if (this.#unaskedCharge.get(connection) === charged) this.#unaskedCharge.delete(connection)
       if (stop) this.#deps.stop(stop)
+      return stop
     })
+    this.#unaskedCharge.set(connection, charged)
   }
 
   #refused(answer: LedgerAnswer): GuardStop | null {

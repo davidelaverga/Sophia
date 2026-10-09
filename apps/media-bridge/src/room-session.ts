@@ -1374,10 +1374,20 @@ export class RoomSession {
       for (const call of calls) void this.runTool(call, connection, arrival)
       return
     }
+    this.callUnderGrant(q, calls, connection, arrival)
+  }
+
+  /**
+   * Under a grant, calls are measured and charged as they arrive, and run once what they cost is durable on the API:
+   * their payload, and their generation when nobody reserved it. A cut or a refusal runs none; the calls of a connection
+   * replaced meanwhile never run. They run in the order they came: what they wait for is their connection's (its
+   * generation's charge, its allowance's top-up), so a later message never waits for less than an earlier one.
+   */
+  private callUnderGrant(q: SessionQualification, calls: FunctionCall[], connection: number, arrival: Arrival): void {
     void q.called(connection, calls.length, payloadChars(calls)).then((stop) => {
       if (stop) return this.guardStop(stop)
       if (connection !== this.connection || this.closed) {
-        if (turn) turn.pendingTools -= calls.length
+        if (arrival.turn) arrival.turn.pendingTools -= calls.length
         return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, connection })
       }
       for (const call of calls) void this.runTool(call, connection, arrival)

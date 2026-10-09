@@ -2,7 +2,7 @@
 // the order of their answers is the test's.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { MediaQualificationReserve, VoiceQualification } from '@sophia/contracts'
+import type { MediaQualificationReservation, MediaQualificationReserve, VoiceQualification } from '@sophia/contracts'
 import { SessionQualification } from './qualification.ts'
 
 const LUIS = '11111111-1111-4111-8111-111111111111'
@@ -17,9 +17,16 @@ const GRANT: VoiceQualification = {
   maxUsageTokens: 200_000,
 }
 
-/** A session's bound whose generation reservations wait until the test answers them. */
+type Refusal = NonNullable<MediaQualificationReservation['stop']>
+
+/** A session's bound whose generation reservations wait until the test answers them (granted, or refused). */
 function bound() {
-  const waiting: Array<{ kind: MediaQualificationReserve['kind']; charge: number | undefined; answer: () => void }> = []
+  const waiting: Array<{
+    kind: MediaQualificationReserve['kind']
+    charge: number | undefined
+    answer: () => void
+    refuse: (why: Refusal) => void
+  }> = []
   const q = new SessionQualification({
     exchangeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     grant: GRANT,
@@ -34,8 +41,13 @@ function bound() {
     ended: () => undefined,
     stop: () => undefined,
     reserve: async (r) => {
-      if (r.kind !== 'connection')
-        await new Promise<void>((resolve) => waiting.push({ kind: r.kind, charge: r.charge, answer: resolve }))
+      const refused =
+        r.kind === 'connection'
+          ? null
+          : await new Promise<Refusal | null>((resolve) =>
+              waiting.push({ kind: r.kind, charge: r.charge, answer: () => resolve(null), refuse: resolve }),
+            )
+      if (refused) return { ok: false, ordinal: null, stop: refused, ended: true }
       return { ok: true, ordinal: r.kind === 'connection' ? 1 : (r.ordinal ?? null), stop: null, ended: false }
     },
     reserveRetryMs: [],
@@ -124,5 +136,46 @@ describe('the bound’s reservations, one by one (qualification.ts)', () => {
     )
     waiting[1]?.answer()
     assert.equal(await runs, null, 'then they run')
+  })
+
+  it('a function call of a generation nobody reserved runs only once the API counted that generation (Codex r4232975798)', async () => {
+    const { q, waiting } = bound()
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.input(1, LUIS, new Int16Array(1600).fill(2000), 0, 1), 'hold')
+    await settle()
+    waiting[0]?.answer()
+    assert.equal(await q.granted(1), null)
+    q.turnEnded(1, 'turn_complete') // its turn is over: what comes next, nobody asked for
+    const runs = q.called(1, 1, 30)
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'unasked'],
+      'the call started a generation: it is charged',
+    )
+    const sentinel = new Promise((resolve) => setImmediate(() => resolve('waiting')))
+    assert.equal(await Promise.race([runs.then(() => 'ran'), sentinel]), 'waiting', 'not before the API answered')
+    waiting[1]?.answer()
+    assert.equal(await runs, null, 'counted: it runs')
+  })
+
+  it('a function call waits for the charge of its generation that earlier output started; refused, it never runs', async () => {
+    const { q, waiting } = bound()
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.input(1, LUIS, new Int16Array(1600).fill(2000), 0, 1), 'hold')
+    await settle()
+    waiting[0]?.answer()
+    assert.equal(await q.granted(1), null)
+    q.turnEnded(1, 'turn_complete')
+    assert.equal(q.output(1, { samples: 2400 }), null, 'audio of a generation nobody asked for: it is charged')
+    const runs = q.called(1, 1, 30)
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'unasked'],
+      'one charge for the generation, not one more for its call',
+    )
+    waiting[1]?.refuse('usage')
+    assert.equal(await runs, 'usage', 'refused: its calls never run, and the session stops')
   })
 })

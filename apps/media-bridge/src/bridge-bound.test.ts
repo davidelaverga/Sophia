@@ -6,6 +6,7 @@
 import type {
   MediaAssignment,
   MediaEvidenceWrite,
+  MediaToolCall,
   MediaQualificationReservation,
   MediaQualificationReserve,
   VoiceQualification,
@@ -194,13 +195,18 @@ function harness(ledger: FakeLedger, { now = Date.now, meter, lifetime = 1 }: Op
   const roomEvents: RoomEvents[] = []
   const lives: Array<{ events: LiveEvents; audio: number; frames: number }> = []
   const logs: Array<[string, Record<string, unknown>]> = []
+  /** Each tool call's handler that ran (the API executed it), with the reservations the API had counted by then. */
+  const calls: Array<{ call: MediaToolCall; counted: string[] }> = []
   const service: MediaService = {
     assignments: () => Promise.reject(new Error('unused')),
     presence: () => Promise.resolve(),
     ackQuiesce: () => Promise.resolve(),
     holder: () => Promise.resolve(),
     announced: () => Promise.resolve(),
-    toolCall: () => Promise.reject(new Error('unused')),
+    toolCall: (call) => {
+      calls.push({ call, counted: ledger.asked.map((r) => r.kind) })
+      return Promise.resolve({ status: 'ok', output: {} })
+    },
     toolSurface: () => Promise.resolve({ names: [...DECLARED_NAMES] }),
     recordEvidence: (write) => {
       evidence.push(write)
@@ -255,7 +261,7 @@ function harness(ledger: FakeLedger, { now = Date.now, meter, lifetime = 1 }: Op
     reserveRetryMs: [0, 0],
   })
   const stops = () => logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why)
-  return { bridge, evidence, roomEvents, lives, stops }
+  return { bridge, evidence, roomEvents, lives, stops, calls }
 }
 
 /** The principal speaks and Sophia's turn completes: one generation on the live connection. */
@@ -451,5 +457,63 @@ describe('what a process sends is paid for on the API before it is sent (charge 
     assert.ok(meter.spent <= ledger.committed(E1))
     assert.ok(ledger.committed(E1) < 100_000)
     assert.deepEqual(stops, [], 'a refusal awaited by input is the caller’s to act on, as RoomSession does')
+  })
+})
+
+describe('a function call runs only once the exchange counted its generation, across bridge processes (Codex r4232975798)', () => {
+  /**
+   * A bridge process started again on E1 after the first spent two generations: its session-local counters start empty.
+   * Luis speaks (the exchange's third generation, asked for), the provider's connection is replaced mid-turn (his turn
+   * stands, A14), and the resumed connection sends a call nobody reserved there.
+   */
+  async function restartedCall(maxTurns: number) {
+    const ledger = new FakeLedger(grant({ maxTurns }))
+    const clock = { now: Date.now() }
+    const assigned = assignment(ledger.grant)
+    const first = harness(ledger, { now: () => clock.now })
+    await first.bridge.apply([assigned])
+    await settle()
+    first.lives[0]?.events.setupComplete()
+    await turn(first, 0)
+    await turn(first, 0)
+    await first.bridge.stop()
+    const h = harness(ledger, { now: () => clock.now, lifetime: 2 })
+    await h.bridge.apply([assigned])
+    await settle()
+    h.lives[0]?.events.setupComplete()
+    h.roomEvents.at(-1)?.audio(LUIS, chunk(), 16000, 1)
+    await settle()
+    assert.equal(h.lives[0]?.audio, 1, 'Luis’s words went under their generation')
+    h.lives[0]?.events.goAway('1s')
+    clock.now += 1000
+    h.bridge.session(E1)?.tick()
+    await settle()
+    h.lives[1]?.events.setupComplete()
+    await settle()
+    h.lives[1]?.events.toolCalls([{ id: 'call-r', name: 'project_status', args: {} }])
+    await settle()
+    return { ledger, h }
+  }
+
+  it('at the exchange’s turn limit: the API refuses its generation, no handler runs, and the session stops (turns)', async () => {
+    const { ledger, h } = await restartedCall(3)
+    assert.deepEqual(h.calls, [], 'nothing executed, nothing admitted')
+    assert.deepEqual(h.stops(), ['turns'])
+    assert.equal(ledger.exchanges.get(E1)?.ended, 'turns')
+    await h.bridge.stop()
+  })
+
+  it('within its limits: the call runs once, after the exchange counted its generation', async () => {
+    const { ledger, h } = await restartedCall(20)
+    assert.equal(h.calls.length, 1)
+    assert.equal(h.calls[0]?.call.actorId, LUIS)
+    assert.ok(h.calls[0]?.counted.includes('unasked'), 'the API had counted its generation before the handler ran')
+    assert.equal(
+      ledger.exchanges.get(E1)?.turns,
+      5,
+      'three asked by Luis’s words, the call’s own (unasked), and the one its response asks for',
+    )
+    assert.deepEqual(h.stops(), [])
+    await h.bridge.stop()
   })
 })
