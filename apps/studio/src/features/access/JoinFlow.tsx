@@ -7,9 +7,10 @@ import type { InvitationPreview, LobbyEntry } from '@sophia/contracts'
 import { acceptInvitation, getLobbyEntry, knockRoom, previewInvitation } from '../../api/access.ts'
 import { ApiError } from '../../api/client.ts'
 import { authMode, currentToken, guestAccessToken, sendInvitedSignIn, type AuthState } from '../../app/auth.ts'
+import { EMAIL_NOT_CONFIRMED, FIRST_EMAIL_NOT_CONFIRMED } from '../../app/auth-words.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import { devIdentities, type Identity } from '../../app/dev-identity.ts'
-import { Centered, CodeForm, HomeLink, SlowNote } from '../../app/SignIn.tsx'
+import { Centered, CodeForm, HomeLink, sendInTime, SlowNote } from '../../app/SignIn.tsx'
 import { askAgainIn, clock, countdown, freshJoinToken, readJoinToken, sessionLabel } from './access-view.ts'
 import { GuestRoom, VisitEnd } from './GuestRoom.tsx'
 import { useNow } from '../../app/use-now.ts'
@@ -501,18 +502,20 @@ function Accept({
 }
 
 /**
- * The invited person's sign-in code, sent on request. Each press answers: the button waits while the email goes,
- * a new code says it replaced the last one, and a refusal (asked again too soon) is said where it was asked.
+ * The invited person's sign-in code, sent on request. Each press answers: the button waits while the email goes (a long
+ * wait says so; past a write's 90 s it is not confirmed), a new code says it replaced the last one, and a refusal (asked
+ * again too soon) is said where it was asked.
  */
 function InvitedSignIn({ email }: { email: string }) {
   const [sent, setSent] = useState(0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const send = async () => {
+    if (sending) return
     setSending(true)
     setError(null)
     try {
-      await sendInvitedSignIn(email)
+      await sendInTime(sendInvitedSignIn(email), sent === 0 ? FIRST_EMAIL_NOT_CONFIRMED : EMAIL_NOT_CONFIRMED)
       setSent((n) => n + 1)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not send the code.')
@@ -528,9 +531,11 @@ function InvitedSignIn({ email }: { email: string }) {
   if (sent === 0) {
     return (
       <>
-        <button type="button" className="pill primary" disabled={sending} onClick={() => void send()}>
+        {/* While it goes it can't be pressed, and keeps the focus (aria-disabled), as long as the wait lasts. */}
+        <button type="button" className="pill primary" aria-disabled={sending || undefined} onClick={() => void send()}>
           {sending ? 'Sending…' : 'Email me a sign-in code'}
         </button>
+        {sending && <SlowNote />}
         {refused}
       </>
     )
@@ -539,10 +544,11 @@ function InvitedSignIn({ email }: { email: string }) {
     <>
       <p className="muted" role="status">
         {sent > 1 ? `We sent a new code to ${email}. Only the newest one works.` : `We sent a code to ${email}.`}{' '}
-        <button type="button" className="text-button" disabled={sending} onClick={() => void send()}>
+        <button type="button" className="text-button" aria-disabled={sending || undefined} onClick={() => void send()}>
           {sending ? 'Sending…' : 'Send it again'}
         </button>
       </p>
+      {sending && <SlowNote />}
       {refused}
       <CodeForm email={email} />
     </>
