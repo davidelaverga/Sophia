@@ -1,13 +1,14 @@
 # CON-01 binding map (G0)
 
-**Mission:** CON-01, saved project conversations ([pack](../../missions/2026-10-09-con01-conversations/README.md), [01 mission](../../missions/2026-10-09-con01-conversations/01_MISSION.md), [03 contract](../../missions/2026-10-09-con01-conversations/03_CONTRACT_AND_RETENTION.md), [04 runtime](../../missions/2026-10-09-con01-conversations/04_RUNTIME_AND_CONTEXT.md)). **Coordination:** [README](README.md). This file binds the pack's proposals to the code at the base: what exists and is reused, what is new and reserved, and what Davide decides. It is G0's deliverable and Codex's review object for the binding. A later change is recorded in §13 with its reason, in the commit that makes it.
+**Mission:** CON-01, saved project conversations ([pack](../../missions/2026-10-09-con01-conversations/README.md), [01 mission](../../missions/2026-10-09-con01-conversations/01_MISSION.md), [03 contract](../../missions/2026-10-09-con01-conversations/03_CONTRACT_AND_RETENTION.md), [04 runtime](../../missions/2026-10-09-con01-conversations/04_RUNTIME_AND_CONTEXT.md)). **Coordination:** [README](README.md). This file binds the pack's proposals to the code at the base: what exists and is reused, what is new and reserved, and what Davide decides. It is G0's deliverable and Codex's review object for the binding. A later change is recorded in §14 with its reason, in the commit that makes it.
 
-**State: proposed, revision 3.**
+**State: proposed, revision 4.**
 - Codex's review [CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493) of revision 1 (`b00d07f`) requested five corrections; revision 2 (`c703b2d`) made them.
 - Codex's recheck [CX-0003](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088757330) reviewed G1 at specification level and asked for two more G2 privacy corrections; revision 3 makes them (§8.3, §14).
+- Revision 4 binds the option C impact inventory ([G2_IMPACT_INVENTORY.md](G2_IMPACT_INVENTORY.md)) into §8.2.
 - Nothing in G2 is frozen until Codex rechecks it.
-- G1 (§4–§6) is implemented locally behind disabled switches.
-- G2 (§8) follows option C as the review's architectural direction. It still waits for the impact inventory (§8.2), its own review, and Davide's D-6.
+- G1 (§4–§6) is implemented locally behind disabled switches; Codex accepted its SQL correction at L1 within G1 scope ([CX-0007](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6089616601)).
+- G2 (§8) follows option C as the review's architectural direction. It still waits for the inventory's review, Davide's D-6 and B-1, and the shared-window acknowledgments.
 
 Status words: **built** (in this branch, with tests), **planned** (not built; named so nobody invents it), **owner** (Davide decides; this file only proposes).
 
@@ -52,7 +53,8 @@ Status words: **built** (in this branch, with tests), **planned** (not built; na
 | `apps/api/src/app.ts` | #190 | Registers `projectConversationRoutes` only when `SOPHIA_CONVERSATIONS=on`, and adds a `CONVERSATION_SCHEMA` readiness check that is required only when it is on (the `STORE_SCHEMA` pattern, `app.ts:164`). `REQUIRED_SCHEMA` is untouched | As above |
 | `packages/persistence/src/index.ts` | #190 | One export line | Trivial merge |
 | `apps/worker/src/runtime-dispatch.ts` | #190 | None planned. G2 dispatch is SQL. If that changes, it is announced first | — |
-| `capture_native_result`, `dispatch_runtime_outbox` (`CREATE OR REPLACE`, last at 0042) | none open (0046 replaces only `media_assignments`) | G2, only under §8.2 option B or C: replaced from 0042's body with one added branch, every other branch byte-identical, and a diff test against 0042's text | Announced in the issue before writing; one writer |
+| `dispatch_runtime_outbox`, `capture_native_result` (last at 0042), `native_delivery_ineligible` (0041), `runtime_hello` (0028), all `CREATE OR REPLACE` | none open (#190 at `46f22b9`: 0046 replaces only `media_assignments`, 0047 adds a table) | G2, under §8.2 option C: each replaced from its latest body with only the named insertions (a reply-first branch, a `g.id IS NULL` guard, `runtime_hello`'s `UNION ALL`), and a diff test against that text | Announced in the issue before writing; one writer |
+| A04's `RuntimeWorkBinding` (amended in A16), `packages/dsh-bundle/src/runtime-wire.generated.ts` and `runtime-wire-types.generated.ts` (from `packages/contracts/scripts/generate-runtime-wire.ts`), `packages/dsh-bundle/dist` | none open | G2: the binding becomes a `oneOf` of the goal binding (unchanged) or `{conversationReplyId}` (§8.2) | As the runtime row below |
 | `config/specialists.json` + schema enum, `packages/dsh-bundle` (`control-bridge.ts`, `role-registry.ts`), `cordis.patch.yml`, `config/runtime-unit.json`, both `specialists.generated.ts`, bundle lock and digests | none open (owner: Davide, LFE-00 map) | G2: one additive role, preset and route. The whole current roster is kept; `pnpm artifacts:record` runs once, on the combined candidate | A public declaration is not ownership. Before any shared runtime replacement or artifact generation, the other lanes' owners (SDD-01/#190; WBC-02) acknowledge, and the exact current-`main` window is named in #198 |
 | `apps/studio/src/app/route.ts`, `features/studio/ViewNav.tsx`, `ProjectShell.tsx` (Luis's shell) | Luis | Replace the `VISION` gate on the Conversations tab only with a conversations gate (§9). No visual change | Luis is asked in the issue before the edit |
 | `apps/studio/fixtures/*` (fixture pages) | Luis, #196 | The fixture pages keep answering under their URL switches, with A16 shapes | After #196 |
@@ -210,25 +212,40 @@ The wait is keyed by `ConversationReply.id`, not by time.
 | Readiness | `runtime_unavailable` (reported ready and seen within 90 s), `role_runtime` (advertised role and route) | — |
 | Accounting | The semantics of `reserve_research` / `end_research_reservation`: a lock before the check, keyed reservations, and settled, released or uncertain. CON-01 keeps its own grant row as the aggregate, with its own reservations (§8.4) | Any research, design or review grant, allowance or table |
 
-### 8.2 The execution container: option C, subject to the inventory (D-6)
+### 8.2 The execution container: option C, bound by the inventory (D-6)
 
 Today, every native session belongs to a `work_attempt`, which belongs to a `goal` (`work_attempts.goal_id NOT NULL`, `outbox.goal_id NOT NULL`, wire `RuntimeWorkBinding.goalId`). A goal hidden from the task board by a filter is ruled out (CX-0001, CX-0002). The options:
 
 - **A. A goal per reply, filtered out.** Rejected.
-- **B. A separate reply lane:** its own queue and a bridge poll. It touches no shared table, but it is a second delivery path in the bridge.
-- **C. An attempt owned by its reply request instead of a goal.** Codex prefers it as architectural direction (CX-0002). It is not yet Davide's D-6, and the runtime contract is not yet reviewed.
-  - `work_attempts.goal_id` becomes nullable, with a new `conversation_reply_id` and `CHECK(num_nonnulls(goal_id, conversation_reply_id) = 1)`. The same applies to `outbox.goal_id`. `commands.goal_id` is already nullable.
-  - Task readers join attempts to goals with an inner join and therefore never see a reply attempt: there is no goal to filter.
-  - One fresh native session per reply (`sophia-<attemptId>`), never reused.
+- **B. A separate reply lane:** its own queue and a bridge poll. It touches no shared table, but it duplicates the leases, journal, reconcile and epoch fencing the inventory shows are goal-independent ([inventory](G2_IMPACT_INVENTORY.md) §8).
+- **C. An attempt owned by its reply request instead of a goal.** Codex prefers it as architectural direction (CX-0002). It is not yet Davide's D-6.
 
-**Before any G2 code, a written impact inventory is reviewed** (CON-01-CC-0003 or later). It covers every reader, writer, constraint and wire field that assumes `goal_id`, `goal_revision`, `authority_epoch`, goal-owned context or `RuntimeWorkBinding.goalId`, at least:
-- **Dispatch:** `dispatch_runtime_outbox`, which locks the goal and calls `native_delivery_ineligible(o, g, c, b, rt)`. The reply branch comes **before** the goal-specific paths, with its own authorization and fences: the request is `running`, the conversation is open, the asker still writes, the recorded sources are still eligible (§8.3), and the grant is enabled and unexpired (§8.4).
-- **Cancellation and controls:** `settle_native_control` and `admit_goal_command`'s Hold/Stop. A reply attempt has no goal, so these cannot reach it. Its own cancel path is withdrawal, erasure, a source becoming ineligible, the grant switch, or asker removal, each writing a `stop` runtime command for a live session.
-- **Capture:** `capture_native_result` and the `*_turn_end` branches. The reply branch is matched on the attempt's `conversation_reply_id` before any job lookup.
-- **Leases and reconcile:** `claim_runtime_outbox` and `reconcile_runtime_outbox`, which read as goal-independent in 0012. Proved under the new lane, including uncertain dispatch and cleanup.
-- **The reply epoch:** `authority_epoch` on a reply attempt is the request's own, fixed at 1 and raised to fence by the cancel paths. How the bridge's restored wire validation accepts a `goalId: null` binding, only together with `conversationReplyId`.
-- **Every TypeScript reader of attempts, bindings and commands:** snapshot, native-tasks, mission-context work, coordination, design-progress, usage.
-- **Preservation checks for research, design, visual review, source review and the retired brief:** a body diff of each replaced function against 0042's text, every other branch byte-identical, plus behavioural tests. A role declaration or a setup flag alone does not qualify the assembled tools.
+**The impact inventory is written:** [G2_IMPACT_INVENTORY.md](G2_IMPACT_INVENTORY.md), for Codex's review before any G2 code. It covers every reader, writer, constraint and wire field that assumes `goal_id`, `goal_revision`, `authority_epoch`, goal-owned context or `RuntimeWorkBinding.goalId`, in SQL and TypeScript.
+
+**What it found:** every goal-reading SQL function **fails open** on a goal-less row. For example, `native_delivery_ineligible` (`0041:149`) compares `g.authority_epoch` and `g.status` inside `CASE WHEN`; with no goal both are NULL, nothing is true, and the row is delivered. So option C binds two rules together:
+1. **Reply first.** Every crossing a reply attempt takes gets an explicit reply branch, evaluated **before** any goal read, with the reply's own fences.
+2. **Fail closed elsewhere.** Every goal path a reply attempt must never take gets a guard at its top (`IF g.id IS NULL THEN` refuse, or deny the delivery). These guards are the only behavioural change to those functions.
+
+**The schema and wire, as bound:**
+- `work_attempts.goal_id` becomes nullable, with a new `conversation_reply_id` and `CHECK(num_nonnulls(goal_id, conversation_reply_id) = 1)`. The same applies to `outbox.goal_id`. `commands.goal_id` is already nullable.
+- `work_attempts.goal_revision` becomes nullable, with `CHECK((goal_id IS NULL) = (goal_revision IS NULL))`.
+- The `authority_epoch` columns stay NOT NULL. A reply attempt has **its own** epoch: 1 at admission, raised to 2 by `conversation_cancel`, which writes the `stop`. The bridge's existing stale-epoch rejection and capture's existing epoch rule then fence it.
+- **Wire:** A04's `RuntimeWorkBinding` (amended in A16) becomes a `oneOf`: `{goalId, goalRevision}` exactly as today, or `{conversationReplyId}`. There is no `goalId: null`. The bridge reads only `attemptId` and `authorityEpoch`, so its behaviour for goals is unchanged; the generated wire and `dsh-bundle/dist` are rebuilt, and the artifacts are recorded once on the combined candidate.
+- One fresh native session per reply (`sophia-<attemptId>`), never reused. Task readers join attempts to goals with an inner join and never see a reply attempt: there is no goal to filter.
+
+**The four functions replaced in 0049** (from their latest bodies, with the named insertions only):
+- **`dispatch_runtime_outbox`:** when `o.conversation_reply_id IS NOT NULL`, it runs `conversation_dispatch` and returns, before the goal lock. The reply's fences: the request is `pending` (first dispatch) or `running` (a lease retaken after reconcile), the conversation is open, the asker still writes, every recorded source satisfies the full predicate (§8.3), and the grant is enabled and unexpired (§8.4). After the goal lock, a `g.id IS NULL` guard denies.
+- **`native_delivery_ineligible`:** a first `WHEN g.id IS NULL` refuses. Reply eligibility is its own `conversation_delivery_ineligible`.
+- **`capture_native_result`:** the reply branch is matched on the attempt's `conversation_reply_id`, before any goal or job read; a `g.id IS NULL` guard follows it.
+- **`runtime_hello`:** today it inner-joins `goals` (`0028:95-102`), so a reply binding would never be restored after a reconnect. It becomes a `UNION ALL` of the goal bindings (byte-identical) and the reply bindings in `running`, `idle` or `stopping`, with the reply's epoch and `stopped` once cancelled or retired, else `active`.
+
+**Not edited, with the reason** ([inventory](G2_IMPACT_INVENTORY.md) §3): the `*_turn_end` functions and `design_input` (a reply has no job, so they cannot run); the `*_scope_of` functions (already fail closed without a job of their kind; a test asserts a reply's call to each is refused); `apply_runtime_receipt` (its goal part is a no-op for a reply); `settle_native_control` and `admit_goal_command` (keyed by goal; a reply is cancelled by withdrawal, erasure, a source out of the predicate, the grant switch or asker removal); the leases, reconcile, receipts and observations (goal-independent, proved under the new lane, A12 and A13); goal triggers and `native_task_view`.
+
+**Admission writes no job:** in the send's transaction, one attempt, binding, command and outbox row, and the request `pending`. Capture keys on the request.
+
+**Preservation evidence:** a test reads each replaced function's `pg_get_functiondef` and asserts it equals its source text (0042, 0041 or 0028) with only the named insertions. The existing pinned and behavioural suites stay as they are (`0037_amendment_preservation.sql`, the PUBLIC-execute check, `runtime.db.test.ts`, the full `pnpm test:db` and the integration tests); the bridge's goal-binding fixtures gain a reply-binding twin. A role declaration or a setup flag alone does not qualify the assembled tools.
+
+**Shared windows:** 0049, A04's binding, the generated runtime wire, `dsh-bundle/dist` and the runtime registry are shared files (§2). Each waits for the acknowledgment of #190's owner and the WBC-02/SDD-01 runtime owner, and a named `main` window ([inventory](G2_IMPACT_INVENTORY.md) §7).
 
 ### 8.3 Context, correlation and publication (CX-0002 correction 2)
 
@@ -263,7 +280,7 @@ Assembly records what it put in the prompt:
 - Dependency is never inferred from what is visible in the current `MissionContext`: it is the recorded union, so a source that has since left the mission context still fences every answer that read it, at any generation.
 - Reproducer, tested: R1 reads source S and produces summary P; S leaves the mission context; R2 reads P; S is then withdrawn, both while R2 runs and after R2 publishes. R2 is cancelled, or its answer suppressed. P is deleted. So is any later projection or answer whose set contains S.
 
-**Revalidation** happens before dispatch (when assembled) and again at publication. The request must still be `running`; the asker must still be an active writer; the conversation must be open with an unchanged `erasure_revision`; and **every recorded source must still satisfy the full source predicate** above, at its recorded revision.
+**Revalidation** happens before dispatch (when assembled) and again at publication. The request must still be `pending` or `running` at dispatch (§8.2), and `running` at publication; the asker must still be an active writer; the conversation must be open with an unchanged `erasure_revision`; and **every recorded source must still satisfy the full source predicate** above, at its recorded revision.
 - A privacy failure cancels the request (`source_withdrawn`, `source_out_of_scope`, `audience_changed`, `conversation_erased`, `asker_removed`). Privacy failures are: a withdrawn message, any source out of the predicate, a changed audience revision, or an erased conversation. The output is suppressed and never published, and its native copies are scrubbed and retired (§8.5).
 - An ordinary replacement, where the ledger moved but every recorded source is still eligible (a new decision accepted, a proposal declined), still publishes. The reply carries `contextChanged: true`, and the Studio says "Written before the project's decisions changed". It is never re-run automatically.
 
@@ -416,5 +433,6 @@ A21 is **not** closed as not-applicable (CX-0002). The existing linked-output re
 | When | Change | Why |
 |---|---|---|
 | 2026-10-09 | First version (G0), revision 1 at `b00d07f` | — |
+| 2026-10-09 | Revision 4, the option C impact inventory bound (§8.2): goal paths fail open on a goal-less row, so reply-first branches and fail-closed `g.id IS NULL` guards are required together; `goal_revision` nullable with its CHECK; a reply's own epoch; the wire binding a `oneOf` (no `goalId: null`); `runtime_hello` a `UNION ALL`; the four replaced functions named, the rest not edited with reasons; admission writes no job; dispatch accepts `pending` or `running` | CX-0002, CX-0003, CX-0007 |
 | 2026-10-09 | Revision 3, the two corrections of CX-0003: the full source predicate (project, `scope='project'`, eligible and ready, recorded `sha256` and `eligibility_revision`, unchanged audience revision) at assembly, dispatch and publication, with suppression on any transition out of it; and transitive dependencies through summaries, recorded as a union, never inferred from the current mission context (§8.3) | CX-0003 |
 | 2026-10-09 | Revision 2, the five corrections of CX-0002 (correction 1 was already in 0048; the text now says it): every target in each operation's semantic request (§4); `ProjectionCoverage` bound (§3.1); project-source eligibility recorded, revalidated and enforced after publication (§8.3); the operational copies and their retirement, with B-1 (§8.5); a grant with expiry and serialized aggregate accounting, the effort left to Davide (§8.4); option C with the inventory required before G2 (§8.2); the notice names the actual recipient (§5); A21 not closed as N/A (§10); acknowledgment before shared runtime writes, and no assumed live predecessor (§1, §2) | CX-0002 |

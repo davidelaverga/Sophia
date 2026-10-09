@@ -7,7 +7,7 @@ The mission's one record of where things stand. Source, local tests, independent
 | Coordination | [docs/coordination/CON-01](../coordination/CON-01/README.md), its [binding map](../coordination/CON-01/BINDING_MAP.md) |
 | Coordination issue | [#198](https://github.com/davidelaverga/Sophia/issues/198) |
 | Branch / PR | `claude/con01-project-conversations` / [#199](https://github.com/davidelaverga/Sophia/pull/199) (draft) |
-| Base | `main` `4f7470c3ab7c158315934a11c8c620da663f4898` (tree `7d1472e3e61c707e6611015203ddec35f7ff5ce2`) |
+| Base | `main` `4f7470c3ab7c158315934a11c8c620da663f4898` (tree `7d1472e3e61c707e6611015203ddec35f7ff5ce2`); `main` `71dbea3eb57f976c3b993285d45de917e59f204d` merged at `8f5cbea` |
 | Implementer / reviewer | Claude Code `session_01KUDtFK9gWthsXSrepcLQz3` / Codex `01a1224a-32b4-7222-a017-50a277572d95` |
 | Reservations | A16; migrations 0048–0050; runtime unit `sophia-runtime-con01-dev` (G2) ([binding map](../coordination/CON-01/BINDING_MAP.md) §1) |
 | Approvals in hand | **None.** No saved-text policy, cohort, grant, provider allowance, migration, deploy or paid call is approved |
@@ -16,10 +16,10 @@ The mission's one record of where things stand. Source, local tests, independent
 
 | Gate | State | Evidence |
 |---|---|---|
-| G0 binding and policy | Revision 1 at `b00d07f`: changes requested ([CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493)). Revision 2 makes the five corrections ([CC-0002](../coordination/CON-01/CON-01-CC-0002.md)); awaiting Codex's recheck and Davide's D-1 … D-6 and B-1 | [CC-0001](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088598535), CX-0002, CC-0002 |
-| G1 durable human conversations | Server at `a7cc081` (CC-0005: CX-0006's race fixed). The Studio is wired to A16 in the commit after it: the real local API, request correlation, honest asks, withdrawn messages. The full ordinary gate passed at `a7cc081` in a clean worktree. Codex's independent G1 rerun is pending | CC-0003, CC-0005, CC-0006 |
-| G2 read-only native reply | not started: option C preferred as direction; the impact inventory (§8.2) comes first; B-1 blocks activation | — |
-| G3 Studio experience | not started | — |
+| G0 binding and policy | Revision 1 at `b00d07f`: changes requested ([CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493)). Revision 2 made the five corrections; CX-0003 reviewed G1's binding at specification level. Revision 3 (`f4c2355`) made CX-0003's two G2 privacy corrections. Revision 4 binds the option C impact inventory into §8.2. Awaiting Codex's recheck of the G2 binding, and Davide's D-1 … D-6 and B-1 | [CC-0001](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088598535), CX-0002, CC-0002, CX-0003, CC-0004, CC-0007 |
+| G1 durable human conversations | Server at `a7cc081` (CC-0005: CX-0006's race fixed). The full ordinary gate passed at `a7cc081` in a clean worktree. **Codex accepted the CX-0006 correction at L1 within G1 scope** ([CX-0007](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6089616601): 29/29 PG and HTTP at `95ea512`, the five SQL files, zero model or operational rows). The Studio on A16 (`95ea512`) awaits Codex's browser review. Not deployment or product approval | CC-0003, CC-0005, CC-0006, CX-0007 |
+| G2 read-only native reply | No code. The option C impact inventory is written ([G2_IMPACT_INVENTORY.md](../coordination/CON-01/G2_IMPACT_INVENTORY.md)): goal paths fail open on a goal-less row, so reply-first branches and fail-closed guards are bound together (binding map §8.2, revision 4). Waits for Codex's review, Davide's D-6, the shared-window acknowledgments (#190's owner, the WBC-02/SDD-01 runtime owner). B-1 blocks activation | CC-0007 |
+| G3 Studio experience | Part at `839fb45`: the saved-text notice, Withdraw and Remove, coverage words, honest context help. Projections, quick answers and `contextChanged` need G2 | CC-0007 |
 | G4 combined candidate | not started | — |
 | G5 operations and in-app test (Codex) | not started; no approval | — |
 
@@ -63,6 +63,17 @@ Exit codes were written to a file by the shell, never read through a pipeline.
 | Other browser suites touching conversations or the nav: app-auth, knowledge-honest, knowledge-origins, project-connections, report, spaces-honest, type-scale | 114 passed, 1 failed under load (app-auth lens restore: a 5 s sign-in wait). Not reproduced: app-auth alone with `--repeat-each=3` gives 45/45 |
 | **Real local episode** (L1: real API with `SOPHIA_CONVERSATIONS=on`, PostgreSQL 16.15, Studio dev build with `VITE_SOPHIA_CONVERSATIONS=1`, `dev-db.ts` synthetic identities, project setting written by the operator function) | Davide starts «Onboarding direction» (POST 202) with Ask off. His asked message is recorded with its request `blocked`, said under it. Luis contributes. After Davide reloads, every message is read back from PostgreSQL ("You, luis@sophia.test"). Vera (viewer, 390 px) reads, with no composer and no New conversation. A second and third conversation keep separate histories. The composer says "Sophia doesn’t answer here yet" and offers no quick ask while `capability.ask` is unavailable |
 
+## G3 slice at `839fb45` (tree `fcf069e`)
+
+Run in this session with each exit code written by the shell, never through a pipeline.
+
+| Check | Exit | Result |
+|---|---|---|
+| `pnpm format:check`, `pnpm lint`, `pnpm typecheck` (whole repository) | 0 each | — |
+| Studio unit tests | 0 | 1012 tests, 1012 pass |
+| The 12 conversation browser suites, desktop and phone (the local Playwright config with this container's Chromium 141) | 0 | 115 passed |
+| **Real local episode** (L1: the real API with `SOPHIA_CONVERSATIONS=on`, PostgreSQL 16.15, the Studio dev build, `dev-db.ts` synthetic identities) | — | Davide is offered Withdraw on his own message and nothing on Luis's (he is not an admin), and withdraws. Luis (admin) removes Davide's other message. Vera (viewer) reads both as withdrawn and is offered no press. In PostgreSQL both rows have `body` and `author_name` NULL (`withdrawn_by` `author` and `admin`) |
+
 ## Acceptance (pack 07; every case starts `not_run`)
 
 | Id | Case | Gate | Status | Evidence |
@@ -70,7 +81,7 @@ Exit codes were written to a file by the shell, never read through a pipeline.
 | CON-01-T01 | Separate conversations | G2/G5 | not_run | |
 | CON-01-T02 | Correct authorship | G1/G5 | partial (L1 local: contributors are the writers of messages that are not withdrawn; Sophia part needs G2) | persistence db test |
 | CON-01-T03 | Retention boundary | G0/G5 | not_run (policy proposed, D-1) | |
-| CON-01-T04 | Current eligibility | G1/G5 | partial (L1 local: a withdrawn body leaves pages, contributors and the opening; request redacted; open replies cancelled; native and projection parts need G2/G3) | persistence and API db tests |
+| CON-01-T04 | Current eligibility | G1/G5 | partial (L1 local: a withdrawn body leaves pages, contributors and the opening; request redacted; open replies cancelled; in the Studio an author withdraws, an admin removes, a viewer reads both as withdrawn; native and projection parts need G2/G3) | persistence and API db tests; the G3 local episode |
 | CON-01-T05 | Account isolation | G1/G5 | not_run | |
 | CON01-A01 | Atomic start | G1 | passed (L1, local) | persistence db test: a failure injected after the conversation insert leaves nothing |
 | CON01-A02 | Lost create reply | G1/G5 | passed at G1 scope (L1 local; browser and app pending) | API db test: the connection dropped after the server answered; the retry returns the same records |
@@ -112,16 +123,16 @@ Exit codes were written to a file by the shell, never read through a pipeline.
 | CX-0002.2 | P1 | G2 | Fence project-source eligibility, also after publication | Bound (§8.3); not implemented |
 | CX-0002.3 | P1 | G2 | Runtime operational copies and purge | Bound (§8.5); B-1 open for Davide |
 | CX-0002.4 | P1 | G2 | Grant expiry and serialized aggregate; effort not approved | Bound (§8.4); not implemented |
-| CX-0002.5 | P2 | G3 | Projection coverage fields and states | Bound (§3.1); not implemented |
+| CX-0002.5 | P2 | G3 | Projection coverage fields and states | Bound (§3.1); A16 carries them; the Studio says them (`839fb45`); generation needs G2 |
+| CX-0006 | P1 | G1 | `conversation_locked` read membership before the project lock, so a revocation committed while waiting was missed | Fixed at `a7cc081` (membership read again once the project's row is held), with bounded SQL and HTTP race regressions; accepted at L1 within G1 scope (CX-0007) |
+| CX-0007 (CI) | — | all | #199's CI is red at `95ea512`: the SQL, PDF, Media and Paperclip jobs failed pulling images (Docker Hub rate limits) before any test ran | Recorded as infrastructure failures, **not** as passing tests; not waived; no reruns started |
+| G2-INV-1 | P1 | G2 | Goal-reading SQL fails open on a goal-less row (`native_delivery_ineligible`'s epoch and Hold/Stop fences pass on NULL) | Bound: reply-first branches with fail-closed `g.id IS NULL` guards (binding map §8.2, revision 4); not implemented |
 
 ## Next action
 
-Codex reviews the G1 intermediate ([CC-0003](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088984254)) and binding revision 3 (CX-0003's two G2 corrections).
+Codex reviews the packet in CC-0007: the G3 slice in the browser, including the real local API, and the option C impact inventory with binding revision 4 (§8.2).
 
-Claude continues in this order:
-1. wires the Studio to the real local API (G1);
-2. merges `main`;
-3. writes the option C impact inventory for review before any G2 code.
+Claude continues with G3 work that needs no G2 (the admin conversation erasure control if D-3 includes it; the draft and held-write and read-error cases A22 and A23; the 390, 1000 and 1440 px runs). No G2 code is written before Codex's review of the inventory and the shared-window acknowledgments.
 
 Still open:
 - Davide's D-1 … D-6 and B-1.
