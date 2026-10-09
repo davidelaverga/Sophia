@@ -331,8 +331,12 @@ describe(
     })
 
     it('a Stop kills the launchers’ whole process group: nothing is uploaded or settled', async () => {
+      // Stopped once the guest has started its descendant and said so (its pids), whatever the machine's load: a Stop
+      // sent at a set time could kill it before, leaving no group to check.
+      const started = join(scratch, 'hang.pids')
+      rmSync(started, { force: true })
       let beats = 0
-      beat = () => (++beats >= 2 ? 'stop' : 'continue')
+      beat = () => (existsSync(started) && ++beats >= 2 ? 'stop' : 'continue')
       try {
         const { outcome, pids } = await run({ format: 'pdf' }, 'hang')
         assert.equal(outcome.claimed && outcome.outcome, 'cancelled')
@@ -345,7 +349,8 @@ describe(
     })
 
     it('a guest past its job’s time plus the margin is killed and its job abandoned, nothing uploaded', async () => {
-      const { outcome, pids, log } = await run({ format: 'pdf', timeoutMs: 200 }, 'hang', { marginMs: 300 })
+      // A margin a loaded machine's guest starts within: its group is checked only once it started its descendant.
+      const { outcome, pids, log } = await run({ format: 'pdf', timeoutMs: 200 }, 'hang', { marginMs: 3000 })
       assert.equal(outcome.claimed && outcome.outcome, 'abandoned')
       assert.ok(
         log.some((l) => /ran past its job's time/u.test(l)),

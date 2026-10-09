@@ -666,20 +666,14 @@ describe('one Paperclip-managed source review', () => {
     const w = await world()
     await accepted(w)
     const lost = await deliver(w, () => true)
-    assert.deepEqual(
-      lost.outcomes.map((o) => o.outcome),
-      ['unknown'],
-    )
+    assert.deepEqual(await outcomesOf(w, lost), [['commission', 'unknown']])
     assert.equal(w.paperclip.issues.size, 1, 'the effect happened; its reply did not arrive')
     assert.equal((await itemOf(w)).waiting_on[0]?.state, 'unknown')
     await asOwner((o) =>
       o.query(`UPDATE sophia.coordination_outbox SET available_at=now() WHERE project_id=$1`, [w.projectId]),
     )
     const reconciled = await deliver(w)
-    assert.deepEqual(
-      reconciled.outcomes.map((o) => [o.op, o.outcome]),
-      [['commission', 'delivered']],
-    )
+    assert.deepEqual(await outcomesOf(w, reconciled), [['commission', 'delivered']])
     assert.equal(w.paperclip.issues.size, 1)
     const issue = issueOf(w)
     assert.equal(
