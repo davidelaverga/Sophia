@@ -167,7 +167,7 @@ describe('a proposal whose outcome is unknown is kept beyond its form (Codex on 
   })
 })
 
-/** Signed in by a token that names no subject (a dev identity's): the viewer is the name. */
+/** Signed in by a token with no subject it can read (a fixture identity's): the viewer is the name. */
 const signedIn = (name: string): AuthState => ({ status: 'signed_in', identity: { name, role: 'member', token: 't' } })
 const luis: ProposalAt = { ...at, viewer: 'luis@sophia.test', goal: 'goal-2' }
 
@@ -260,7 +260,7 @@ describe('a proposal is its account’s, never its email’s (Codex’s automati
       proposalViewer({ name: 'davide.new@sophia.test', token: tokenOf(DAVIDE, 'davide.new@sophia.test') }),
       DAVIDE,
     )
-    // A dev identity (dev-identity.ts) whose token names no subject, or one that cannot be read: its name, every time.
+    // A token with no subject (a fixture identity's), or one that cannot be read: the name, every time.
     assert.equal(proposalViewer({ name: 'davide', token: 'dev-token' }), 'davide')
     assert.equal(proposalViewer({ name: 'davide', token: 'a.not-base64!.c' }), 'davide')
   })

@@ -206,8 +206,8 @@ export const proposals = new Proposals()
 
 /**
  * Whose a proposal is: the account signed in (accountOf), its token's subject, which a change of its email keeps; its
- * name only where the token carries none (a dev identity's), as the device's drafts and padlock are kept. Every part
- * that keeps, finds or forgets one names its viewer so: the form, the board's reconciliation and who is in.
+ * name only where the token has no subject it can read (a fixture identity's), as the drafts and padlock are kept.
+ * Every part that keeps, finds or forgets one names its viewer so: the form, the board's reconciliation and who is in.
  */
 export const proposalViewer = (identity: { name: string; token: string }): string => accountOf(identity)
 

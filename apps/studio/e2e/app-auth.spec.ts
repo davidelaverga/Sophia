@@ -94,7 +94,11 @@ interface Watch {
 declare global {
   interface Window {
     appWatch?: Watch
-    appFixture?: { proposals: readonly { key: string; body: unknown }[]; unexpected: readonly string[] }
+    appFixture?: {
+      proposals: readonly { key: string; body: unknown }[]
+      asked: readonly string[]
+      unexpected: readonly string[]
+    }
   }
 }
 
@@ -183,18 +187,44 @@ async function anotherTab(
   await other.close()
 }
 
-/** Who the app says is in: the address its account menu heads with. */
+/**
+ * Who the app says is in: the address its account menu heads with. Each read is bounded: an identity that changes while
+ * the menu is open closes it, and the poll that asks reads again.
+ */
 async function signedInAs(page: Page) {
-  await account(page).click()
   const head = page.locator('.menu-head')
-  const said = (await head.textContent()) ?? ''
-  await page.keyboard.press('Escape')
-  await expect(head).toHaveCount(0)
-  return said
+  try {
+    await account(page).click({ timeout: 1000 })
+    return (await head.textContent({ timeout: 1000 })) ?? ''
+  } catch {
+    return ''
+  } finally {
+    if (await head.count()) await page.keyboard.press('Escape')
+  }
 }
 
 /** Each proposal the fixture's service was sent (`work=lost`), with its key and its body. */
 const sentTo = (page: Page) => page.evaluate(() => window.appFixture?.proposals ?? [])
+/** The API requests the app made (`work=lost`), as `METHOD /path by <subject>`, and those it did not expect. */
+const askedOf = (page: Page) => page.evaluate(() => window.appFixture?.asked ?? [])
+const unexpectedOf = (page: Page) => page.evaluate(() => window.appFixture?.unexpected)
+
+/** Davide on Tasks (`work=lost`), with a proposal sent and its reply lost: K1, kept, its form still open. */
+async function lostOnTasks(context: BrowserContext) {
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/work?work=lost`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await form.getByLabel('Purpose (optional)').fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  const [first] = await sentTo(page)
+  if (!first) throw new Error('the fixture was sent no proposal')
+  return { page, form, first }
+}
 
 test('codex · 6e9e2a9b · a page load keeps the viewer’s proposals: finding out who is in, signed in, and a reload', async ({
   context,
@@ -244,21 +274,11 @@ test('codex · 06bf6229 · the viewer’s account under a new address keeps its 
   context,
 }) => {
   await serve(context)
-  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
-  await page.goto(`${APP}/p/${WORK_PROJECT}/work?work=lost`)
-  await page.getByRole('button', { name: 'Review sources' }).first().click()
-  const form = page.getByRole('form', { name: 'Review sources' })
+  const { page, form, first } = await lostOnTasks(context)
   const purpose = form.getByLabel('Purpose (optional)')
-  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
-  await purpose.fill('Check the budgets agree')
-  await form.getByRole('button', { name: 'Propose review' }).click()
-  await expect(form.getByRole('alert')).toHaveText(
-    'No reply from Sophia. Propose again to check; it is the same proposal.',
-  )
-  const [first] = await sentTo(page)
-  expect(first?.body).toMatchObject({ goalId: WORK_GOAL, purpose: 'Check the budgets agree', allowanceUsd: 0.5 })
+  expect(first.body).toMatchObject({ goalId: WORK_GOAL, purpose: 'Check the budgets agree', allowanceUsd: 0.5 })
   const k1 = keyOf(DAVIDE, WORK_PROJECT, WORK_GOAL)
-  const keptAsSent = () => ({ [k1]: { key: first?.key, request: first?.body }, [OTHER_PART]: {} })
+  const keptAsSent = () => ({ [k1]: { key: first.key, request: first.body }, [OTHER_PART]: {} })
   const parsed = async () =>
     Object.fromEntries(Object.entries(await tabHolds(page)).map(([k, v]) => [k, JSON.parse(v) as unknown]))
   expect(await parsed()).toEqual(keptAsSent())
@@ -268,6 +288,7 @@ test('codex · 06bf6229 · the viewer’s account under a new address keeps its 
   await anotherTab(context, session(RENAMED), 'USER_UPDATED')
   await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
   expect(await parsed()).toEqual(keptAsSent())
+  expect(await unexpectedOf(page)).toEqual([])
   await page.reload()
   await expect(account(page)).toBeVisible()
   expect(await signedInAs(page)).toBe(RENAMED.email)
@@ -289,8 +310,49 @@ test('codex · 06bf6229 · the viewer’s account under a new address keeps its 
   expect(sent[1]).toEqual(first)
   // Answered: nothing is kept.
   await expect.poll(() => tabHolds(page)).toEqual(only(OTHER_PART))
-  // Every read the app made was the fixture's to answer.
-  expect(await page.evaluate(() => window.appFixture?.unexpected)).toEqual([])
+  // Every request the app made, before the reload and after it, was the fixture's to answer.
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('codex · 1581b4f0 · another account at the same address finds nothing of the viewer’s open proposal: its form, its reads, its key', async ({
+  context,
+}) => {
+  await serve(context)
+  const { page, first } = await lostOnTasks(context)
+  const asked = askedOf(page)
+  const board = `GET /api/v1/projects/${WORK_PROJECT}/plans`
+  expect(await asked).toContain(`${board} by ${DAVIDE.id}`)
+  expect(await unexpectedOf(page)).toEqual([])
+
+  // Another account, at Davide's address (another subject), comes in from another tab while his form is open.
+  await anotherTab(context, session(SAME_ADDRESS))
+  await expect.poll(() => tabHolds(page)).toEqual(only(OTHER_PART))
+  // Nothing of Davide's stays on the screen: not the form he left open with K1 frozen, nor a way to send it again.
+  await expect(page.getByRole('button', { name: 'Propose again' })).toHaveCount(0)
+  await expect(page.getByRole('form', { name: 'Review sources' })).toHaveCount(0)
+  // Nor what was read for him: the board, and what Sophia offers the viewer (kept fresh for 30 s, under the address
+  // both accounts share), are read afresh under the new account's token.
+  await expect.poll(() => askedOf(page)).toContain(`${board} by ${SAME_ADDRESS.id}`)
+  await expect.poll(() => askedOf(page)).toContain(`${board}/source-review by ${SAME_ADDRESS.id}`)
+
+  // The new account's own proposal is its own: a fresh form, a new key, sent under its token and kept under it.
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  await expect(form.getByRole('alert')).toHaveCount(0)
+  await expect(form.getByLabel('Purpose (optional)')).toHaveValue('')
+  await form.getByRole('checkbox', { name: 'Launch brief v3' }).check()
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Proposed.' })).toBeVisible()
+  const sent = await sentTo(page)
+  expect(sent).toHaveLength(2)
+  expect(sent[1]?.key).not.toBe(first.key)
+  const proposals = (await askedOf(page)).filter((a) => a.startsWith('POST ') && a.includes('/plans/source-review'))
+  expect(proposals).toEqual([
+    `POST /api/v1/projects/${WORK_PROJECT}/plans/source-review by ${DAVIDE.id}`,
+    `POST /api/v1/projects/${WORK_PROJECT}/plans/source-review by ${SAME_ADDRESS.id}`,
+  ])
+  await expect.poll(() => tabHolds(page)).toEqual(only(OTHER_PART))
+  expect(await unexpectedOf(page)).toEqual([])
 })
 
 test('codex · 6e9e2a9b · signing out forgets every proposal at once, before the Auth service answers', async ({

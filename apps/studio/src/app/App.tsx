@@ -65,8 +65,10 @@ function forgetUnderWay() {
 export function App() {
   const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
-  // Cached server state belongs to one identity: whenever it changes or goes, also from another tab, none of it stays.
-  const signedInAs = state.status === 'signed_in' ? state.identity.name : null
+  // Cached server state belongs to one account (accountOf: its token's subject, which an email change keeps): whenever
+  // another comes in or it goes, also from another tab, none of it stays. Another account at the same address is
+  // another account (Codex's review of 1581b4f0).
+  const signedInAs = state.status === 'signed_in' ? accountOf(state.identity) : null
   useEffect(
     () => () => {
       queryClient.clear()
@@ -90,7 +92,7 @@ export function App() {
     forgetUnderWay()
     chooseDev(identity)
     // The same identity again is no change App's effect would see: it is in, as it was.
-    setSignedIn(identity?.name ?? null)
+    setSignedIn(identity ? accountOf(identity) : null)
   }
   // Signing out leaves nothing personal on this device: the cache, every message being written to Sophia, what was
   // under way in a project's conversations (talk-store.ts) and any review proposal still unanswered.
@@ -126,7 +128,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <OpeningPrepares identity={state.identity} />
       <SignedIn
-        key={state.identity.name}
+        key={accountOf(state.identity)}
         identity={state.identity}
         notice={state.notice}
         routing={routing}
@@ -301,7 +303,7 @@ function ProjectShells(props: ShellsProps) {
         <div key={id} hidden={id !== onScreen}>
           <ShortcutScope.Provider value={id === onScreen}>
             <ProjectShell
-              key={`${identity.name}:${id}`}
+              key={`${accountOf(identity)}:${id}`}
               projectId={id}
               view={id === route.projectId ? route.view : 'studio'}
               identity={identity}
