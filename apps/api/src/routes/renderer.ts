@@ -18,7 +18,7 @@ import {
   rendererSettle,
   withService,
 } from '@sophia/persistence'
-import { objectPath, storedKey, type ByteStore } from '../byte-store.ts'
+import { ByteStoreError, objectPath, storedKey, WriteClaimError, type ByteStore } from '../byte-store.ts'
 import { sha256Hex } from '../s3-sign.ts'
 
 /** Exact routes that take a render runner capability instead of a member token. */
@@ -116,6 +116,21 @@ async function fileBytes(
   return bytes
 }
 
+/**
+ * Why an upload was not stored, in the runner's terms: a key written before (409; never one a fresh slot names), the
+ * database that keeps the write claims (nothing was sent to the store), or the store itself.
+ * @param err what the byte store's put threw
+ */
+function storeFailure(err: unknown): DomainError {
+  if (err instanceof WriteClaimError) {
+    return new DomainError('unavailable', 'The database did not answer the write claim', { cause: err })
+  }
+  if (err instanceof ByteStoreError && err.status === 409) {
+    return new DomainError('invalid_state', 'This output was already written', { cause: err })
+  }
+  return new DomainError('unavailable', 'The report store did not answer', { cause: err })
+}
+
 /** Store an uploaded PDF once under a new source of the job's project, then record it as the job's output. */
 async function storeOutput(deps: Deps, req: FastifyRequest<{ Params: { jobId: string }; Body: unknown }>) {
   const bytes = req.body
@@ -129,7 +144,7 @@ async function storeOutput(deps: Deps, req: FastifyRequest<{ Params: { jobId: st
   try {
     await deps.store.put(objectPath(slot.projectId, slot.sourceId), bytes, 'application/pdf')
   } catch (err) {
-    throw new DomainError('unavailable', 'The report store did not answer', { cause: err })
+    throw storeFailure(err)
   }
   const output = { sourceId: slot.sourceId, sha256: sha256Hex(bytes), byteLength: bytes.byteLength }
   return withService(deps.pool, (c) => rendererRecordOutput(c, token, req.params.jobId, lease, output))
@@ -152,7 +167,7 @@ async function storeCapture(
   try {
     await deps.store.put(objectPath(slot.projectId, slot.sourceId), bytes, 'image/png')
   } catch (err) {
-    throw new DomainError('unavailable', 'The report store did not answer', { cause: err })
+    throw storeFailure(err)
   }
   const capture = { name, sourceId: slot.sourceId, sha256: sha256Hex(bytes), byteLength: bytes.byteLength }
   return withService(deps.pool, (c) => rendererRecordCapture(c, token, jobId, lease, capture))

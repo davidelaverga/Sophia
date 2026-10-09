@@ -56,8 +56,12 @@ const ready = async (api = app): Promise<unknown[]> => {
   return [res.statusCode, res.json()]
 }
 
+/** The migrations applied by a test, so each test can run alone (`--test-name-pattern`). */
+const applied = new Set<string>()
+
 /** Apply one migration as written, as the owner. */
 async function migrate(file: string) {
+  applied.add(file)
   const owner = new pg.Client({ connectionString: db.ownerUrl })
   await owner.connect()
   try {
@@ -78,6 +82,7 @@ describe('readiness across 0043', () => {
 
   it('with a byte store, is not ready until 0044 lets every write claim its key; without one, needs no 0044', async () => {
     assert.ok(!readdirSync(dir).includes(WRITE_ONCE))
+    if (!applied.has(DELIVERY)) await migrate(DELIVERY)
     assert.deepEqual(await ready(stored), [503, { ready: false, reason: 'schema' }], 'a store, no 0044')
     assert.deepEqual(await ready(), [200, { ready: true }], 'no store, no 0044')
     await migrate(WRITE_ONCE)

@@ -46,18 +46,28 @@ const memory = memoryByteStore()
 const written: string[] = []
 /** While set, puts wait until this many have arrived, then all go on (two uploads held at once). */
 let barrier: { want: number; held: (() => void)[] } | null = null
+/** For each key written, whether its claim was already committed, seen from another connection, when its bytes came. */
+const claimedFirst = new Map<string, boolean>()
+/** While set, the next put refuses its key as the S3 adapter's HEAD does when it finds an object there. */
+let refuseNext = false
 /**
  * The in-memory store, except that a put replaces whatever is at its key and never refuses, as Supabase Storage's S3
  * PutObject does (it upserts and ignores If-None-Match: upstream 307c5e31, SDD-01-CX-0015).
  */
 const store: ByteStore & { objects: Map<string, Uint8Array> } = {
   ...memory,
-  put(path, bytes) {
+  async put(path, bytes) {
+    const seen = await owner.query(`SELECT 1 FROM sophia.object_writes WHERE storage_key = $1`, [path])
+    claimedFirst.set(path, seen.rowCount === 1)
+    if (refuseNext) {
+      refuseNext = false
+      throw new ByteStoreError(409, `store put: ${path} exists`)
+    }
     written.push(path)
     memory.objects.set(path, bytes)
     const held = barrier
-    if (!held) return Promise.resolve()
-    return new Promise<void>((resolve) => {
+    if (!held) return
+    await new Promise<void>((resolve) => {
       held.held.push(resolve)
       if (held.held.length >= held.want) for (const go of held.held.splice(0)) go()
     })
@@ -257,6 +267,26 @@ describe('render runner endpoints (A11, 0030)', () => {
     assert.deepEqual([beat.status, (beat.json as { state: string }).state], [200, 'continue'])
   })
 
+  it('says why an upload was not stored: the write claim not made (nothing sent), or a key the store refuses', async () => {
+    const put = () => call(`/v1/renderer/jobs/${jobId}/output`, { method: 'PUT', lease, pdf: PDF })
+    const from = written.length
+    await owner.query(`REVOKE EXECUTE ON FUNCTION sophia.claim_object_write(text,text,bigint) FROM sophia_api`)
+    try {
+      const unclaimed = await put()
+      assert.deepEqual(
+        [unclaimed.status, (unclaimed.json as { code: string; message: string }).message],
+        [503, 'The database did not answer the write claim'],
+      )
+    } finally {
+      await owner.query(`GRANT EXECUTE ON FUNCTION sophia.claim_object_write(text,text,bigint) TO sophia_api`)
+    }
+    assert.equal(written.length, from, 'nothing was sent to the store')
+    refuseNext = true
+    const refused = await put()
+    assert.deepEqual([refused.status, (refused.json as { code: string; message: string }).code], [409, 'invalid_state'])
+    assert.equal(written.length, from)
+  })
+
   it('stores one PDF as the job output, refusing anything else and a second upload', async () => {
     const put = (pdf: Buffer) => call(`/v1/renderer/jobs/${jobId}/output`, { method: 'PUT', lease, pdf })
     assert.equal((await put(Buffer.from('<html>not a pdf</html>'))).status, 422)
@@ -296,6 +326,7 @@ describe('render runner endpoints (A11, 0030)', () => {
       keys.toSorted(),
       'each upload claimed its key before writing',
     )
+    for (const key of keys) assert.equal(claimedFirst.get(key), true, 'its claim committed before its bytes were sent')
     assert.equal((await put(PDF)).status, 409, 'once')
     assert.equal(new Set(written).size, written.length, 'no key was ever written twice')
   })
@@ -312,6 +343,7 @@ describe('render runner endpoints (A11, 0030)', () => {
     await assert.rejects(once.put(key, PDF, 'application/pdf'), conflict, 'the same bytes again: once means once')
     assert.deepEqual(store.objects.get(key), PDF, 'the first bytes, unchanged')
     assert.deepEqual(written.slice(from), [key], 'only the first write reached the store')
+    assert.equal(claimedFirst.get(key), true, 'the claim committed before the bytes were sent')
     // Eight writes of different bytes to one fresh key at once, over eight connections: one is written, seven are
     // refused before the store, and what is stored is the one written, with its claim.
     const racers = createPool(db.apiUrl, { max: 8 })

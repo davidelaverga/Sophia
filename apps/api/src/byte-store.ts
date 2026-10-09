@@ -39,6 +39,15 @@ export class ByteStoreError extends Error {
   }
 }
 
+/** A write's claim could not be made (the database did not answer): nothing was sent to the store. */
+export class WriteClaimError extends ByteStoreError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(503, message)
+    this.name = 'WriteClaimError'
+    if (options && 'cause' in options) this.cause = options.cause
+  }
+}
+
 export interface S3StorageConfig {
   /** The S3 endpoint, path-style: for Supabase, https://<ref>.supabase.co/storage/v1/s3. */
   endpoint: string
@@ -156,15 +165,19 @@ export type WriteClaim = (path: string, sha256: string, byteLength: number) => P
 /**
  * The store, written once per key whatever the store itself does with a second write: each put first claims its key
  * (committed before any byte is sent) and is refused with 409 for a key already claimed, the same bytes included. A
- * claim that cannot be made (the database did not answer) refuses the write: nothing reaches the store unclaimed.
+ * claim that cannot be made refuses the write with WriteClaimError: nothing reaches the store unclaimed.
  * Reads are the store's own.
  */
 export function writeOnce(store: ByteStore, claim: WriteClaim): ByteStore {
   return {
     async put(path, bytes, mime) {
-      if (!(await claim(path, sha256Hex(bytes), bytes.byteLength))) {
-        throw new ByteStoreError(409, `store put: ${path} was already written`)
+      let claimed: boolean
+      try {
+        claimed = await claim(path, sha256Hex(bytes), bytes.byteLength)
+      } catch (error) {
+        throw new WriteClaimError(`store claim: ${path}: the database did not answer`, { cause: error })
       }
+      if (!claimed) throw new ByteStoreError(409, `store put: ${path} was already written`)
       await store.put(path, bytes, mime)
     },
     signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
