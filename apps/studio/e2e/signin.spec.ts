@@ -95,6 +95,11 @@ test('signin · send again waits Auth’s 60 s, sends once, says only the newest
   await sendHeld(page, 'luis@sophia.test')
   await expect(again(page)).toHaveText('Send again in 60 s')
   await expect(again(page)).toHaveAttribute('aria-disabled', 'true')
+  // Waiting, it looks as a press that can't be pressed: no pointer, dimmed.
+  expect(await again(page).evaluate((b) => [getComputedStyle(b).cursor, getComputedStyle(b).opacity])).toEqual([
+    'default',
+    '0.45',
+  ])
   await again(page).click({ force: true }) // pressed while it waits: nothing is sent
   await page.clock.fastForward(60_000)
   await page.clock.runFor(1000)
@@ -190,6 +195,11 @@ test('signin · a code that never answers ends, says so, and can be pressed agai
   const press = page.getByRole('button', { name: /^(Sign in with code|Checking…)$/ })
   await press.click()
   await expect(press).toHaveText('Checking…')
+  // The waiting primary is an outline, not a dimmed fill (the Studio's primary, waiting).
+  expect(await press.evaluate((b) => [getComputedStyle(b).backgroundColor, getComputedStyle(b).opacity])).toEqual([
+    'rgba(0, 0, 0, 0)',
+    '1',
+  ])
   await page.clock.fastForward(30_000)
   await expect(longWait(page)).toBeVisible()
   await page.clock.fastForward(60_000)

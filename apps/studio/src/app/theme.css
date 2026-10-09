@@ -238,8 +238,10 @@ button {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+/* A press that waits keeps the focus (aria-disabled) and looks as one that can't be pressed, never as a live one. */
 button:disabled,
-.pill[aria-disabled='true'] {
+.pill[aria-disabled='true'],
+.text-button[aria-disabled='true'] {
   cursor: default;
   opacity: 0.45;
 }
@@ -281,7 +283,8 @@ button:disabled,
   background: #fff;
 }
 /* A primary action that can't run yet (no name, nothing typed, a wait) waits as an outline, not a greyed-out block. */
-.pill.primary:disabled {
+.pill.primary:disabled,
+.pill.primary[aria-disabled='true'] {
   opacity: 1;
   border-color: var(--line-2);
   background: transparent;
