@@ -11,10 +11,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
-import { HostTainted, runOnce, supervise } from '../supervisor.mjs'
+import { ApiTimeout, HostTainted, runOnce, supervise } from '../supervisor.mjs'
 
 const sha = (b: Buffer | string): string => createHash('sha256').update(b).digest('hex')
-const hasTar = process.platform !== 'win32' && spawnSync('tar', ['--version']).status === 0
+// The UML host is Linux: the stand-in guest writes its output with GNU tar, as the guest's busybox writes ustar (macOS's
+// bsdtar adds AppleDouble entries, which the reader rightly refuses), and the process checks read /proc.
+const onLinux =
+  process.platform === 'linux' && /GNU tar/u.test(spawnSync('tar', ['--version'], { encoding: 'utf8' }).stdout ?? '')
 const hasPython = process.platform === 'linux' && spawnSync('python3', ['--version']).status === 0
 const TOKEN = 'runner-capability'
 const HTML = Buffer.from('<!doctype html><title>t</title><p>Città.</p><img src="img/chart.png">')
@@ -160,273 +163,321 @@ function running(pid: number | undefined): boolean {
   }
 }
 
-describe('the supervisor in UML mode (SDD-01)', { skip: !hasTar && 'needs tar' }, () => {
-  const scratch = mkdtempSync(join(tmpdir(), 'sophia-supervisor-uml-'))
-  const guest = join(scratch, 'guest.mjs')
-  const work = join(scratch, 'work')
-  let base = ''
-  let server: ReturnType<typeof createServer>
-  let next: Job | null = null
-  let beat: () => string = keepGoing
-  let seen: Seen = { uploads: [], settles: [], beats: 0 }
+describe(
+  'the supervisor in UML mode (SDD-01)',
+  { skip: !onLinux && 'the UML host is Linux, with GNU tar and /proc' },
+  () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'sophia-supervisor-uml-'))
+    const guest = join(scratch, 'guest.mjs')
+    const work = join(scratch, 'work')
+    let base = ''
+    let server: ReturnType<typeof createServer>
+    let next: Job | null = null
+    let beat: () => string = keepGoing
+    let seen: Seen = { uploads: [], settles: [], beats: 0 }
+    /** Routes the stand-in API answers with headers and part of a body, and never finishes. */
+    let silent = new Set<string>()
 
-  before(async () => {
-    writeFileSync(guest, GUEST)
-    spawnSync('mkdir', ['-p', '-m', '0755', work])
-    /** The stand-in API's reply to one request. */
-    const reply = (req: IncomingMessage, body: Buffer): Reply => {
-      const url = new URL(req.url ?? '/', 'http://x')
-      if (req.headers.authorization !== `Bearer ${TOKEN}`) return { status: 401, value: { error: 'no' } }
-      if (url.pathname === '/v1/renderer/claim') {
-        const job = next
-        next = null
-        return job ? claimed(job) : { status: 200, value: { job: null } }
+    before(async () => {
+      writeFileSync(guest, GUEST)
+      spawnSync('mkdir', ['-p', '-m', '0755', work])
+      /** The stand-in API's reply to one request. */
+      const reply = (req: IncomingMessage, body: Buffer): Reply => {
+        const url = new URL(req.url ?? '/', 'http://x')
+        if (req.headers.authorization !== `Bearer ${TOKEN}`) return { status: 401, value: { error: 'no' } }
+        if (url.pathname === '/v1/renderer/claim') {
+          const job = next
+          next = null
+          return job ? claimed(job) : { status: 200, value: { job: null } }
+        }
+        if (url.pathname === '/v1/renderer/jobs/job-1/file') {
+          const bytes = url.searchParams.get('path') === 'report.html' ? HTML : PNG
+          return { status: 200, value: bytes, type: 'application/octet-stream' }
+        }
+        if (url.pathname === '/v1/renderer/jobs/job-1/heartbeat') {
+          seen.beats += 1
+          return { status: 200, value: { state: beat() } }
+        }
+        if (req.method === 'PUT') {
+          seen.uploads.push({ route: url.pathname, bytes: body })
+          return { status: 200, value: {} }
+        }
+        if (url.pathname === '/v1/renderer/jobs/job-1/settle') {
+          seen.settles.push(JSON.parse(body.toString('utf8')) as unknown)
+          return { status: 200, value: { state: 'settled' } }
+        }
+        return { status: 404, value: { error: url.pathname } }
       }
-      if (url.pathname === '/v1/renderer/jobs/job-1/file') {
-        const bytes = url.searchParams.get('path') === 'report.html' ? HTML : PNG
-        return { status: 200, value: bytes, type: 'application/octet-stream' }
-      }
-      if (url.pathname === '/v1/renderer/jobs/job-1/heartbeat') {
-        seen.beats += 1
-        return { status: 200, value: { state: beat() } }
-      }
-      if (req.method === 'PUT') {
-        seen.uploads.push({ route: url.pathname, bytes: body })
-        return { status: 200, value: {} }
-      }
-      if (url.pathname === '/v1/renderer/jobs/job-1/settle') {
-        seen.settles.push(JSON.parse(body.toString('utf8')) as unknown)
-        return { status: 200, value: { state: 'settled' } }
-      }
-      return { status: 404, value: { error: url.pathname } }
-    }
-    server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      const chunks: Buffer[] = []
-      req.on('data', (c: Buffer) => chunks.push(c))
-      req.on('end', () => {
-        const { status, value, type } = reply(req, Buffer.concat(chunks))
-        res.writeHead(status, { 'content-type': type ?? 'application/json' })
-        res.end(Buffer.isBuffer(value) ? value : JSON.stringify(value))
+      server = createServer((req: IncomingMessage, res: ServerResponse) => {
+        const chunks: Buffer[] = []
+        req.on('data', (c: Buffer) => chunks.push(c))
+        req.on('end', () => {
+          const route = new URL(req.url ?? '/', 'http://x').pathname
+          if (silent.has(route)) {
+            res.writeHead(200, { 'content-type': 'application/json' })
+            res.write('{')
+            return
+          }
+          const { status, value, type } = reply(req, Buffer.concat(chunks))
+          res.writeHead(status, { 'content-type': type ?? 'application/json' })
+          res.end(Buffer.isBuffer(value) ? value : JSON.stringify(value))
+        })
       })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const address = server.address()
+      base = `http://127.0.0.1:${String(typeof address === 'object' && address ? address.port : 0)}`
     })
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-    const address = server.address()
-    base = `http://127.0.0.1:${String(typeof address === 'object' && address ? address.port : 0)}`
-  })
-  after(async () => {
-    await new Promise((resolve) => server.close(resolve))
-    rmSync(scratch, { recursive: true, force: true })
-  })
-
-  const run = async (job: Job, mode: string, extra: { marginMs?: number } = {}) => {
-    next = job
-    seen = { uploads: [], settles: [], beats: 0 }
-    const pids = join(scratch, `${mode}.pids`)
-    const log: string[] = []
-    const outcome = await runOnce({
-      apiUrl: base,
-      token: TOKEN,
-      workDir: work,
-      heartbeatMs: 100,
-      isolation: 'uml',
-      uml: { command: (dir: string) => [process.execPath, guest, mode, dir, pids], ...extra },
-      log: (line: string) => log.push(line),
+    after(async () => {
+      server.closeAllConnections()
+      await new Promise((resolve) => server.close(resolve))
+      rmSync(scratch, { recursive: true, force: true })
     })
-    return { outcome, log, pids }
-  }
-  const gone = async (pids: string) => {
-    const [a, b] = readFileSync(pids, 'utf8').split(' ').map(Number)
-    for (let i = 0; i < 60 && [a, b].some(running); i += 1) await new Promise((r) => setTimeout(r, 50))
-    if (process.platform === 'linux') assert.ok(![a, b].some(running), 'the guest and its descendant are gone')
-  }
 
-  it('renders a PDF job in the guest: the job on its input disk, the output taken back and delivered', async () => {
-    const { outcome } = await run({ format: 'pdf' }, 'ok')
-    assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
-    assert.deepEqual(
-      seen.uploads.map((u) => [u.route, u.bytes.toString()]),
-      [['/v1/renderer/jobs/job-1/output', '%PDF-1.7 stand-in']],
-    )
-    const settle = seen.settles[0] as { leaseToken: string; receipt: { seen: Record<string, unknown> } }
-    assert.equal(settle.leaseToken, 'lease-1')
-    const { job, kernel, listing, entry } = settle.receipt.seen as {
-      job: Record<string, unknown>
-      kernel: string
-      listing: string[]
-      entry: string
-    }
-    assert.equal(kernel, 'pdf')
-    assert.equal(entry, HTML.toString())
-    assert.deepEqual(job, {
-      jobId: 'job-1',
-      sourceRoot: '/work/job/src',
-      entry: { path: 'report.html', sha256: sha(HTML) },
-      language: 'it',
-      outputDir: '/work/job/out',
-      scratchDir: '/work/job',
-      timeoutMs: 120_000,
-      assets: [{ path: 'img/chart.png', sha256: sha(PNG) }],
-    })
-    assert.deepEqual(listing, ['kernel', 'job.json', 'src/', 'src/report.html', 'src/img/', 'src/img/chart.png'])
-    assert.deepEqual(readdirSync(work), [], 'the job directory is removed')
-  })
-
-  it('runs a capture job the same way and uploads each capture its receipt names', async () => {
-    const { outcome } = await run({ format: 'png' }, 'ok')
-    assert.equal(outcome.claimed && outcome.outcome, 'settled')
-    assert.deepEqual(
-      seen.uploads.map((u) => [u.route, u.bytes.toString()]),
-      [['/v1/renderer/jobs/job-1/captures/w390-light-overview-1.png', 'stand-in capture']],
-    )
-  })
-
-  it('a Stop kills the launchers’ whole process group: nothing is uploaded or settled', async () => {
-    let beats = 0
-    beat = () => (++beats >= 2 ? 'stop' : 'continue')
-    try {
-      const { outcome, pids } = await run({ format: 'pdf' }, 'hang')
-      assert.equal(outcome.claimed && outcome.outcome, 'cancelled')
-      assert.deepEqual(seen.uploads, [])
-      assert.deepEqual(seen.settles, [])
-      await gone(pids)
-    } finally {
-      beat = keepGoing
-    }
-  })
-
-  it('a guest past its job’s time plus the margin is killed and its job abandoned, nothing uploaded', async () => {
-    const { outcome, pids, log } = await run({ format: 'pdf', timeoutMs: 200 }, 'hang', { marginMs: 300 })
-    assert.equal(outcome.claimed && outcome.outcome, 'abandoned')
-    assert.ok(
-      log.some((l) => /ran past its job's time/u.test(l)),
-      log.join('\n'),
-    )
-    assert.deepEqual(seen.uploads, [])
-    assert.deepEqual(seen.settles, [])
-    await gone(pids)
-  })
-
-  it('reads the output disk it made even when the guest put a FIFO at its path: delivered, never waiting', async () => {
-    const { outcome } = await run({ format: 'pdf' }, 'fifo')
-    assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
-    assert.deepEqual(
-      seen.uploads.map((u) => u.bytes.toString()),
-      ['%PDF-1.7 stand-in'],
-    )
-  })
-
-  it('kills what the guest left in its group once the leader exits, before the job directory is removed', async () => {
-    const { outcome, pids, log } = await run({ format: 'pdf' }, 'orphan')
-    assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
-    const [, left] = readFileSync(pids, 'utf8').split(' ').map(Number)
-    if (process.platform === 'linux') assert.equal(running(left), false, 'gone when the run ends, not later')
-    assert.deepEqual(readdirSync(work), [])
-    assert.ok(
-      log.some((l) => l.includes('UML_JOB_KERNEL_EXIT:0??[2J')),
-      'a marked line is logged printable',
-    )
-  })
-
-  it(
-    'waits for a descendant whose main thread exited while another runs: gone when the run ends',
-    { skip: !hasPython && 'needs python3 on Linux' },
-    async () => {
-      const { outcome, pids } = await run({ format: 'pdf' }, 'zombie')
-      assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
-      const [, left] = readFileSync(pids, 'utf8').split(' ').map(Number)
-      assert.equal(alive(left), false, 'its other thread was killed too, before the run ended')
-    },
-  )
-
-  it('a job whose processes outlive the reap taints the host: its directory kept, nothing delivered, no more claims', async () => {
-    const existing = new Set(readdirSync(work))
-    const pidFiles = [join(scratch, 'tainted-1.pids'), join(scratch, 'tainted-2.pids')]
-    const cfg = (pids: string) => ({
-      apiUrl: base,
-      token: TOKEN,
-      workDir: work,
-      heartbeatMs: 100,
-      isolation: 'uml' as const,
-      // The reap's wait already over at its first look: the descendant the guest leaves is still there.
-      uml: { command: (dir: string) => [process.execPath, guest, 'orphan', dir, pids], goneMs: -1 },
-      log: () => undefined,
-    })
-    try {
-      next = { format: 'pdf' }
+    const run = async (job: Job, mode: string, extra: { marginMs?: number } = {}, apiMs?: number) => {
+      next = job
       seen = { uploads: [], settles: [], beats: 0 }
-      await assert.rejects(runOnce(cfg(pidFiles[0] ?? '')), HostTainted)
-      const kept = readdirSync(work).filter((d) => !existing.has(d))
-      assert.equal(kept.length, 1, 'the job directory is kept for the restart')
-      assert.deepEqual(seen.uploads, [])
-      assert.deepEqual(seen.settles, [])
-      // The loop stops claiming: it ends with the taint rather than taking the next job.
-      next = { format: 'pdf' }
-      await assert.rejects(supervise(cfg(pidFiles[1] ?? ''), new AbortController().signal), HostTainted)
-      assert.equal(next, null, 'that one job was claimed, and no other')
-    } finally {
-      next = null
-      // What the reap left: the guest's whole group, the descendant's own child included.
-      for (const file of pidFiles) killGroup(file)
-      for (const d of readdirSync(work)) if (!existing.has(d)) rmSync(join(work, d), { recursive: true, force: true })
+      const pids = join(scratch, `${mode}.pids`)
+      const log: string[] = []
+      const outcome = await runOnce({
+        apiUrl: base,
+        token: TOKEN,
+        workDir: work,
+        heartbeatMs: 100,
+        isolation: 'uml',
+        uml: { command: (dir: string) => [process.execPath, guest, mode, dir, pids], ...extra },
+        log: (line: string) => log.push(line),
+        ...(apiMs === undefined ? {} : { apiMs }),
+      })
+      return { outcome, log, pids }
     }
-  })
+    const gone = async (pids: string) => {
+      const [a, b] = readFileSync(pids, 'utf8').split(' ').map(Number)
+      for (let i = 0; i < 60 && [a, b].some(running); i += 1) await new Promise((r) => setTimeout(r, 50))
+      if (process.platform === 'linux') assert.ok(![a, b].some(running), 'the guest and its descendant are gone')
+    }
 
-  it('reads each stream’s lines apart: a record split around a line of the other stream still counts', async () => {
-    const { outcome, log } = await run({ format: 'pdf' }, 'split')
-    assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' }, log.join('\n'))
-  })
-
-  it('abandons a job whose launcher never starts, and refuses a claim whose time is out of bounds', async () => {
-    next = { format: 'pdf' }
-    seen = { uploads: [], settles: [], beats: 0 }
-    const log: string[] = []
-    const outcome = await runOnce({
-      apiUrl: base,
-      token: TOKEN,
-      workDir: work,
-      heartbeatMs: 100,
-      isolation: 'uml',
-      uml: { command: () => [join(scratch, 'no-such-launcher')] },
-      log: (line: string) => log.push(line),
+    it('renders a PDF job in the guest: the job on its input disk, the output taken back and delivered', async () => {
+      const { outcome } = await run({ format: 'pdf' }, 'ok')
+      assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
+      assert.deepEqual(
+        seen.uploads.map((u) => [u.route, u.bytes.toString()]),
+        [['/v1/renderer/jobs/job-1/output', '%PDF-1.7 stand-in']],
+      )
+      const settle = seen.settles[0] as { leaseToken: string; receipt: { seen: Record<string, unknown> } }
+      assert.equal(settle.leaseToken, 'lease-1')
+      const { job, kernel, listing, entry } = settle.receipt.seen as {
+        job: Record<string, unknown>
+        kernel: string
+        listing: string[]
+        entry: string
+      }
+      assert.equal(kernel, 'pdf')
+      assert.equal(entry, HTML.toString())
+      assert.deepEqual(job, {
+        jobId: 'job-1',
+        sourceRoot: '/work/job/src',
+        entry: { path: 'report.html', sha256: sha(HTML) },
+        language: 'it',
+        outputDir: '/work/job/out',
+        scratchDir: '/work/job',
+        timeoutMs: 120_000,
+        assets: [{ path: 'img/chart.png', sha256: sha(PNG) }],
+      })
+      assert.deepEqual(listing, ['kernel', 'job.json', 'src/', 'src/report.html', 'src/img/', 'src/img/chart.png'])
+      assert.deepEqual(readdirSync(work), [], 'the job directory is removed')
     })
-    assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'abandoned' })
-    assert.ok(
-      log.some((l) => /did not start/u.test(l)),
-      log.join('\n'),
-    )
-    assert.deepEqual(readdirSync(work), [])
-    for (const timeoutMs of [2 ** 31, 0, 1.5]) {
-      await assert.rejects(run({ format: 'pdf', timeoutMs }, 'ok'), /timeout that is not 1 to 600000 ms/u)
-    }
-    next = null
-  })
 
-  for (const [mode, why] of [
-    ['norecords', /did not report their host policy applied/u],
-    ['weak', /did not report their host policy applied/u],
-    ['duplicate', /reported twice/u],
-    ['link', /"2" entry/u],
-  ] as const) {
-    it(`refuses the guest's output (${mode}): nothing is uploaded or settled`, async () => {
-      const { outcome, log } = await run({ format: 'pdf' }, mode)
+    it('runs a capture job the same way and uploads each capture its receipt names', async () => {
+      const { outcome } = await run({ format: 'png' }, 'ok')
+      assert.equal(outcome.claimed && outcome.outcome, 'settled')
+      assert.deepEqual(
+        seen.uploads.map((u) => [u.route, u.bytes.toString()]),
+        [['/v1/renderer/jobs/job-1/captures/w390-light-overview-1.png', 'stand-in capture']],
+      )
+    })
+
+    it('a Stop kills the launchers’ whole process group: nothing is uploaded or settled', async () => {
+      let beats = 0
+      beat = () => (++beats >= 2 ? 'stop' : 'continue')
+      try {
+        const { outcome, pids } = await run({ format: 'pdf' }, 'hang')
+        assert.equal(outcome.claimed && outcome.outcome, 'cancelled')
+        assert.deepEqual(seen.uploads, [])
+        assert.deepEqual(seen.settles, [])
+        await gone(pids)
+      } finally {
+        beat = keepGoing
+      }
+    })
+
+    it('a guest past its job’s time plus the margin is killed and its job abandoned, nothing uploaded', async () => {
+      const { outcome, pids, log } = await run({ format: 'pdf', timeoutMs: 200 }, 'hang', { marginMs: 300 })
       assert.equal(outcome.claimed && outcome.outcome, 'abandoned')
       assert.ok(
-        log.some((l) => why.test(l)),
+        log.some((l) => /ran past its job's time/u.test(l)),
         log.join('\n'),
       )
       assert.deepEqual(seen.uploads, [])
       assert.deepEqual(seen.settles, [])
+      await gone(pids)
     })
-  }
 
-  it('takes no job on a host without its launchers: as root, root-owned immutable artifacts; else, root', async () => {
-    next = { format: 'pdf' }
-    const root = mkdtempSync(join(scratch, 'artifacts-'))
-    await assert.rejects(
-      runOnce({ apiUrl: base, token: TOKEN, workDir: work, isolation: 'uml', uml: { root } }),
-      process.getuid?.() === 0 ? /no UML artifact/u : /runs its supervisor as root/u,
+    it('reads the output disk it made even when the guest put a FIFO at its path: delivered, never waiting', async () => {
+      const { outcome } = await run({ format: 'pdf' }, 'fifo')
+      assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
+      assert.deepEqual(
+        seen.uploads.map((u) => u.bytes.toString()),
+        ['%PDF-1.7 stand-in'],
+      )
+    })
+
+    it('kills what the guest left in its group once the leader exits, before the job directory is removed', async () => {
+      const { outcome, pids, log } = await run({ format: 'pdf' }, 'orphan')
+      assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
+      const [, left] = readFileSync(pids, 'utf8').split(' ').map(Number)
+      if (process.platform === 'linux') assert.equal(running(left), false, 'gone when the run ends, not later')
+      assert.deepEqual(readdirSync(work), [])
+      assert.ok(
+        log.some((l) => l.includes('UML_JOB_KERNEL_EXIT:0??[2J')),
+        'a marked line is logged printable',
+      )
+    })
+
+    it(
+      'waits for a descendant whose main thread exited while another runs: gone when the run ends',
+      { skip: !hasPython && 'needs python3 on Linux' },
+      async () => {
+        const { outcome, pids } = await run({ format: 'pdf' }, 'zombie')
+        assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
+        const [, left] = readFileSync(pids, 'utf8').split(' ').map(Number)
+        assert.equal(alive(left), false, 'its other thread was killed too, before the run ended')
+      },
     )
-    assert.deepEqual(next, { format: 'pdf' }, 'nothing was claimed')
-    next = null
-  })
-})
+
+    it('a job whose processes outlive the reap taints the host: its directory kept, nothing delivered, no more claims', async () => {
+      const existing = new Set(readdirSync(work))
+      const pidFiles = [join(scratch, 'tainted-1.pids'), join(scratch, 'tainted-2.pids')]
+      const cfg = (pids: string) => ({
+        apiUrl: base,
+        token: TOKEN,
+        workDir: work,
+        heartbeatMs: 100,
+        isolation: 'uml' as const,
+        // The reap's wait already over at its first look: the descendant the guest leaves is still there.
+        uml: { command: (dir: string) => [process.execPath, guest, 'orphan', dir, pids], goneMs: -1 },
+        log: () => undefined,
+      })
+      try {
+        next = { format: 'pdf' }
+        seen = { uploads: [], settles: [], beats: 0 }
+        await assert.rejects(runOnce(cfg(pidFiles[0] ?? '')), HostTainted)
+        const kept = readdirSync(work).filter((d) => !existing.has(d))
+        assert.equal(kept.length, 1, 'the job directory is kept for the restart')
+        assert.deepEqual(seen.uploads, [])
+        assert.deepEqual(seen.settles, [])
+        // The loop stops claiming: it ends with the taint rather than taking the next job.
+        next = { format: 'pdf' }
+        await assert.rejects(supervise(cfg(pidFiles[1] ?? ''), new AbortController().signal), HostTainted)
+        assert.equal(next, null, 'that one job was claimed, and no other')
+      } finally {
+        next = null
+        // What the reap left: the guest's whole group, the descendant's own child included.
+        for (const file of pidFiles) killGroup(file)
+        for (const d of readdirSync(work)) if (!existing.has(d)) rmSync(join(work, d), { recursive: true, force: true })
+      }
+    })
+
+    it('an API that never finishes its answer: a claim gives up in its time, a heartbeat stops the job', async () => {
+      silent = new Set(['/v1/renderer/claim'])
+      try {
+        next = { format: 'pdf' }
+        const started = Date.now()
+        await assert.rejects(run({ format: 'pdf' }, 'ok', {}, 300), ApiTimeout)
+        assert.ok(Date.now() - started < 5000, 'within its time, not forever')
+        silent = new Set(['/v1/renderer/jobs/job-1/heartbeat'])
+        const { outcome, pids } = await run({ format: 'pdf' }, 'hang', {}, 300)
+        assert.equal(outcome.claimed && outcome.outcome, 'cancelled', 'a heartbeat with no answer stops the job')
+        assert.deepEqual(seen.uploads, [])
+        assert.deepEqual(seen.settles, [])
+        await gone(pids)
+      } finally {
+        silent = new Set()
+        next = null
+      }
+    })
+
+    it('an upload whose answer never finishes is left unknown: the job abandoned, nothing settled', async () => {
+      silent = new Set(['/v1/renderer/jobs/job-1/output'])
+      try {
+        const { outcome, log } = await run({ format: 'pdf' }, 'ok', {}, 300)
+        assert.equal(outcome.claimed && outcome.outcome, 'abandoned')
+        assert.ok(
+          log.some((l) => /the PDF's upload got no whole answer: its outcome is unknown/u.test(l)),
+          log.join('\n'),
+        )
+        assert.deepEqual(seen.settles, [], 'never settled on a guess')
+      } finally {
+        silent = new Set()
+      }
+    })
+
+    it('reads each stream’s lines apart: a record split around a line of the other stream still counts', async () => {
+      const { outcome, log } = await run({ format: 'pdf' }, 'split')
+      assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' }, log.join('\n'))
+    })
+
+    it('abandons a job whose launcher never starts, and refuses a claim whose time is out of bounds', async () => {
+      next = { format: 'pdf' }
+      seen = { uploads: [], settles: [], beats: 0 }
+      const log: string[] = []
+      const outcome = await runOnce({
+        apiUrl: base,
+        token: TOKEN,
+        workDir: work,
+        heartbeatMs: 100,
+        isolation: 'uml',
+        uml: { command: () => [join(scratch, 'no-such-launcher')] },
+        log: (line: string) => log.push(line),
+      })
+      assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'abandoned' })
+      assert.ok(
+        log.some((l) => /did not start/u.test(l)),
+        log.join('\n'),
+      )
+      assert.deepEqual(readdirSync(work), [])
+      for (const timeoutMs of [2 ** 31, 0, 1.5]) {
+        await assert.rejects(run({ format: 'pdf', timeoutMs }, 'ok'), /timeout that is not 1 to 600000 ms/u)
+      }
+      next = null
+    })
+
+    for (const [mode, why] of [
+      ['norecords', /did not report their host policy applied/u],
+      ['weak', /did not report their host policy applied/u],
+      ['duplicate', /reported twice/u],
+      ['link', /"2" entry/u],
+    ] as const) {
+      it(`refuses the guest's output (${mode}): nothing is uploaded or settled`, async () => {
+        const { outcome, log } = await run({ format: 'pdf' }, mode)
+        assert.equal(outcome.claimed && outcome.outcome, 'abandoned')
+        assert.ok(
+          log.some((l) => why.test(l)),
+          log.join('\n'),
+        )
+        assert.deepEqual(seen.uploads, [])
+        assert.deepEqual(seen.settles, [])
+      })
+    }
+
+    it('takes no job on a host without its launchers: as root, root-owned immutable artifacts; else, root', async () => {
+      next = { format: 'pdf' }
+      const root = mkdtempSync(join(scratch, 'artifacts-'))
+      await assert.rejects(
+        runOnce({ apiUrl: base, token: TOKEN, workDir: work, isolation: 'uml', uml: { root } }),
+        process.getuid?.() === 0 ? /no UML artifact/u : /runs its supervisor as root/u,
+      )
+      assert.deepEqual(next, { format: 'pdf' }, 'nothing was claimed')
+      next = null
+    })
+  },
+)

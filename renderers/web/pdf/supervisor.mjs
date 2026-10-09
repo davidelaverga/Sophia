@@ -45,6 +45,11 @@ const CAPTURE_NAME = /^[a-z0-9][a-z0-9.-]{0,150}\.png$/
 /** What the kernel inherits besides the browser's path: the render user and nothing else (never the capability). */
 const KERNEL_ENV = ['SOPHIA_RENDER_UID', 'SOPHIA_RENDER_GID']
 const KILL_GRACE_MS = 10_000
+/**
+ * How long one call to the API may take, its whole body read included: a call past it is an ApiTimeout, its outcome
+ * unknown, never taken for a refusal or an answer.
+ */
+const API_MS = { claim: 30_000, heartbeat: 15_000, file: 60_000, upload: 120_000, settle: 30_000 }
 /** How long a job's processes may take to be gone once its leader exited (each round killed again), and its pipes. */
 const GONE_MS = 15_000
 const CLOSE_MS = 2_000
@@ -69,7 +74,8 @@ const GUEST = { dir: '/work/job', sourceRoot: '/work/job/src', outputDir: '/work
  *   only
  * @typedef {{ apiUrl: string, token: string, workDir: string, env?: NodeJS.ProcessEnv, heartbeatMs?: number,
  *   pollMs?: number, beforeRender?: (job: RenderJob) => Promise<void>, log?: (line: string) => void,
- *   isolation?: 'native' | 'uml', uml?: UmlConfig, tokenFile?: string }} SupervisorConfig
+ *   isolation?: 'native' | 'uml', uml?: UmlConfig, tokenFile?: string, apiMs?: number }} SupervisorConfig `apiMs`
+ *   replaces every API_MS in tests only
  * @typedef {{ jobId: string, leaseToken: string, language: string, sourceManifestHash: string, timeoutMs: number,
  *   files: { path: string, role: 'entry' | 'asset', sha256: string, byteLength: number }[], format: 'pdf' | 'png',
  *   targets: string[], sections: string[] | null }} RenderJob
@@ -87,6 +93,15 @@ export class HostTainted extends Error {
   }
 }
 
+/** A call to the API that got no whole answer within its time: whether it took effect is unknown. */
+export class ApiTimeout extends Error {
+  /** @param {string} message */
+  constructor(message) {
+    super(message)
+    this.name = 'ApiTimeout'
+  }
+}
+
 /** Why a call to the API failed; `status` is the HTTP status. */
 export class ApiError extends Error {
   /**
@@ -101,12 +116,18 @@ export class ApiError extends Error {
 }
 
 /**
- * One call to the API with the runner's capability.
+ * One call to the API, as the runner, its answer read whole by `read` within its kind's time (API_MS, or cfg.apiMs):
+ * the request, the headers and the body alike. A refusal is an ApiError with its status; no whole answer in time is an
+ * ApiTimeout, which says nothing of whether the call took effect.
+ * @template T
  * @param {SupervisorConfig} cfg
  * @param {string} route
- * @param {{ method?: string, lease?: string, json?: unknown, bytes?: { type: string, data: Buffer } }} [init]
+ * @param {{ kind: keyof typeof API_MS, method?: string, lease?: string, json?: unknown,
+ *   bytes?: { type: string, data: Uint8Array } }} init
+ * @param {(res: Response) => Promise<T>} read
+ * @returns {Promise<T>}
  */
-async function api(cfg, route, init = {}) {
+async function api(cfg, route, init, read) {
   /** @type {Record<string, string>} */
   const headers = { authorization: `Bearer ${cfg.token}` }
   if (init.lease) headers['x-sophia-render-lease'] = init.lease
@@ -119,13 +140,36 @@ async function api(cfg, route, init = {}) {
     headers['content-type'] = 'application/json'
     body = JSON.stringify(init.json)
   }
-  const res = await fetch(new URL(route, cfg.apiUrl), {
-    method: init.method ?? 'POST',
-    headers,
-    ...(body === undefined ? {} : { body }),
-  })
-  if (!res.ok) throw new ApiError(res.status, `${route}: ${res.status} ${(await res.text()).slice(0, 200)}`)
-  return res
+  const ms = cfg.apiMs ?? API_MS[init.kind]
+  const signal = AbortSignal.timeout(ms)
+  try {
+    const res = await fetch(new URL(route, cfg.apiUrl), {
+      method: init.method ?? 'POST',
+      headers,
+      signal,
+      ...(body === undefined ? {} : { body }),
+    })
+    if (!res.ok) throw new ApiError(res.status, `${route}: ${res.status} ${(await res.text()).slice(0, 200)}`)
+    return await read(res)
+  } catch (error) {
+    if (signal.aborted) throw new ApiTimeout(`${route}: no whole answer within ${ms} ms`)
+    throw error
+  }
+}
+
+/** An answer's JSON, unchecked. @param {Response} res */
+const asJson = async (res) => {
+  /** @type {unknown} */
+  const value = await res.json()
+  return value
+}
+
+/** An answer's bytes. @param {Response} res */
+const asBytes = async (res) => Buffer.from(await res.arrayBuffer())
+
+/** An answer read to its end and not kept. @param {Response} res */
+const asNothing = async (res) => {
+  await res.arrayBuffer()
 }
 
 /**
@@ -243,11 +287,8 @@ const textsOf = (value) =>
  */
 async function fetchPackage(cfg, job, sourceRoot) {
   for (const file of job.files) {
-    const res = await api(cfg, `/v1/renderer/jobs/${job.jobId}/file?path=${encodeURIComponent(file.path)}`, {
-      method: 'GET',
-      lease: job.leaseToken,
-    })
-    const bytes = Buffer.from(await res.arrayBuffer())
+    const route = `/v1/renderer/jobs/${job.jobId}/file?path=${encodeURIComponent(file.path)}`
+    const bytes = await api(cfg, route, { kind: 'file', method: 'GET', lease: job.leaseToken }, asBytes)
     if (bytes.byteLength !== file.byteLength || sha256Hex(bytes) !== file.sha256) {
       throw new Error(`the package file ${file.path} does not match its record`)
     }
@@ -401,8 +442,9 @@ function groupAlive(pgid) {
 function heartbeats(cfg, job, stop) {
   const beat = async () => {
     try {
-      const res = await api(cfg, `/v1/renderer/jobs/${job.jobId}/heartbeat`, { json: { leaseToken: job.leaseToken } })
-      if (stateOf(await res.json()) !== 'continue') stop()
+      const route = `/v1/renderer/jobs/${job.jobId}/heartbeat`
+      const reply = await api(cfg, route, { kind: 'heartbeat', json: { leaseToken: job.leaseToken } }, asJson)
+      if (stateOf(reply) !== 'continue') stop()
     } catch {
       stop()
     }
@@ -728,6 +770,30 @@ function capturesOf(receipt) {
 }
 
 /**
+ * An upload's call: a PUT under the job's lease, read whole within API_MS.upload.
+ * @param {RenderJob} job
+ * @param {{ type: string, data: Uint8Array }} bytes
+ */
+const put = (job, bytes) =>
+  /** @type {const} */ ({ kind: 'upload', read: 'none', method: 'PUT', lease: job.leaseToken, bytes })
+
+/**
+ * An upload that got no whole answer: whether the API stored and recorded it is unknown, so the job is not delivered
+ * and nothing is settled; the lease decides what happens to it next, never this host's guess.
+ * @param {Promise<unknown>} call
+ * @param {string} what
+ */
+async function uploaded(call, what) {
+  try {
+    await call
+  } catch (error) {
+    if (error instanceof ApiTimeout)
+      throw new Error(`${what}'s upload got no whole answer: its outcome is unknown`, { cause: error })
+    throw error
+  }
+}
+
+/**
  * Upload what the kernel produced, each file checked against its receipt: the PDF, or every capture.
  * @param {SupervisorConfig} cfg
  * @param {RenderJob} job
@@ -740,14 +806,15 @@ async function upload(cfg, job, outputDir, receipt, outputSha256) {
     const pdf = fs.readFileSync(path.join(outputDir, 'report.pdf'))
     if (sha256Hex(pdf) !== outputSha256) throw new Error('the PDF does not match its receipt')
     const bytes = { type: 'application/pdf', data: pdf }
-    await api(cfg, `/v1/renderer/jobs/${job.jobId}/output`, { method: 'PUT', lease: job.leaseToken, bytes })
+    await uploaded(api(cfg, `/v1/renderer/jobs/${job.jobId}/output`, put(job, bytes), asNothing), 'the PDF')
     return
   }
   for (const capture of capturesOf(receipt)) {
     const png = fs.readFileSync(path.join(outputDir, capture.name))
     if (sha256Hex(png) !== capture.sha256) throw new Error(`the capture ${capture.name} does not match its receipt`)
     const route = `/v1/renderer/jobs/${job.jobId}/captures/${capture.name}`
-    await api(cfg, route, { method: 'PUT', lease: job.leaseToken, bytes: { type: 'image/png', data: png } })
+    const data = { type: 'image/png', data: png }
+    await uploaded(api(cfg, route, put(job, data), asNothing), `the capture ${capture.name}`)
   }
 }
 
@@ -765,8 +832,9 @@ async function deliver(cfg, job, outputDir) {
   const facts = receiptFacts(receipt)
   if (facts.status === 'succeeded') await upload(cfg, job, outputDir, receipt, facts.outputSha256)
   else cfg.log?.(`render ${job.jobId} ${String(facts.status)}: ${facts.errorCode || 'no error code'}`)
-  const res = await api(cfg, `/v1/renderer/jobs/${job.jobId}/settle`, { json: { leaseToken: job.leaseToken, receipt } })
-  return stateOf(await res.json())
+  const route = `/v1/renderer/jobs/${job.jobId}/settle`
+  const reply = await api(cfg, route, { kind: 'settle', json: { leaseToken: job.leaseToken, receipt } }, asJson)
+  return stateOf(reply)
 }
 
 /**
@@ -844,7 +912,7 @@ function cancelledRun(run, job, dir) {
  */
 export async function runOnce(cfg) {
   const browser = hostReady(cfg)
-  const job = jobOf(await (await api(cfg, '/v1/renderer/claim', { json: { formats: FORMATS } })).json())
+  const job = jobOf(await api(cfg, '/v1/renderer/claim', { kind: 'claim', json: { formats: FORMATS } }, asJson))
   if (!job) return { claimed: false }
   const dir = fs.mkdtempSync(path.join(cfg.workDir, 'job-'))
   let tainted = false
