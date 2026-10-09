@@ -31,4 +31,4 @@ export {
   sourceUnchanged,
   verifySource,
 } from './source-manifest.mjs'
-export { ApiError, FORMATS, runOnce, supervise } from './supervisor.mjs'
+export { ApiError, ApiTimeout, FORMATS, runOnce, supervise } from './supervisor.mjs'

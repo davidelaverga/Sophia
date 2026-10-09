@@ -3,9 +3,16 @@ import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, ty
 import type pg from 'pg'
 import { componentSchemas, type Error as ApiError } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { checkRoleSafety, RUNTIME_COMMANDS_CHANNEL, runtimeTokenHash, type RuntimeCaller } from '@sophia/persistence'
+import {
+  checkRoleSafety,
+  claimObjectWrite,
+  RUNTIME_COMMANDS_CHANNEL,
+  runtimeTokenHash,
+  withService,
+  type RuntimeCaller,
+} from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
-import type { ByteStore } from './byte-store.ts'
+import { writeOnce, type ByteStore } from './byte-store.ts'
 import { CompanionRunner, companionFailure, type Companion } from './companion.ts'
 import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
@@ -13,6 +20,7 @@ import type { InviteConfig } from './invite-token.ts'
 import type { Mailer } from './mail.ts'
 import { accessRoutes, GUEST_ROUTES, PUBLIC_ACCESS_ROUTES } from './routes/access.ts'
 import { commandRoutes } from './routes/commands.ts'
+import { COORDINATION_ROUTES, coordinationRoutes, REVIEW_RUNTIME_ROUTES } from './routes/coordination/index.ts'
 import { conversationRoutes } from './routes/conversations.ts'
 import { exchangeRoutes } from './routes/exchanges.ts'
 import { knowledgeRoutes } from './routes/knowledge.ts'
@@ -41,6 +49,8 @@ declare module 'fastify' {
     runtimeCaller: RuntimeCaller | null
     /** On a RENDERER_ROUTES request only: the render runner capability's hash (A11, 0030). */
     rendererToken: Buffer | null
+    /** On a COORDINATION_ROUTES request only: the Paperclip adapter's capability hash (A13, 0042). */
+    coordinationToken: Buffer | null
   }
 }
 
@@ -75,7 +85,10 @@ export interface AppDeps {
 
 /**
  * Functions the API requires in the database; /ready fails if any is missing, so an instance on a database that a
- * migration hasn't reached takes no traffic. The personal space (0021) lists every function its routes call.
+ * migration hasn't reached takes no traffic. The personal space (0021) lists every function its routes call. 0043
+ * (#117) is required by the two functions the capture routes call, the only ones this API calls that main's doesn't:
+ * the migration is one transaction, and its other changes replace functions under their own signatures. The previous
+ * API requires nothing of 0043 and stays ready on either database (Codex on #107; readiness.db.test.ts).
  */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
@@ -133,7 +146,33 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.forget_personal_note(text,uuid)') IS NOT NULL
   AND to_regprocedure('sophia.carry_personal_note(text,uuid,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.take_back_personal_release(text,uuid)') IS NOT NULL
-  AND to_regprocedure('sophia.erase_personal_space(text,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.erase_personal_space(text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.propose_source_review(uuid,text,jsonb,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.source_review_proposal(uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.answer_work_decision(uuid,uuid,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.work_command(uuid,uuid,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.read_work_result(uuid,uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.coordination_permit(bytea,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.runtime_source_review_submit(bytea,text,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.runtime_capture_issue(bytea,text,text,jsonb,text)') IS NOT NULL
+  AND to_regprocedure('sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)') IS NOT NULL AS ok`
+
+/**
+ * What an API with a byte store also requires: the claim every write makes first (0044, writeOnce). An API without
+ * one, and the previous API, require nothing of 0044, so it is not needed before the store is configured.
+ */
+export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(text,text,bigint)') IS NOT NULL AS ok`
+
+/**
+ * The byte store the routes are given: written once per key, by a claim the database keeps (0044). The operator's
+ * write-once probe (storage-probe.ts) composes the API's store with this same function.
+ */
+export const writeOnceStore = (pool: pg.Pool, store: ByteStore | null | undefined): ByteStore | null =>
+  store
+    ? writeOnce(store, (path, sha256, byteLength) =>
+        withService(pool, (c) => claimObjectWrite(c, path, sha256, byteLength)),
+      )
+    : null
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({
@@ -161,7 +200,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerCors(app, deps.corsOrigins ?? [])
   registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
   app.setErrorHandler(handleError)
-  registerHealth(app, deps.pool)
+  registerHealth(app, deps.pool, Boolean(deps.byteStore))
+  const store = writeOnceStore(deps.pool, deps.byteStore)
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   projectionRoutes(app, { pool: deps.pool })
@@ -170,14 +210,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
-  designRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
+  designRoutes(app, { pool: deps.pool, store })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit })
   accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
-  sourceRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
-  rendererRoutes(app, { pool: deps.pool, store: deps.byteStore ?? null })
+  sourceRoutes(app, { pool: deps.pool, store })
+  rendererRoutes(app, { pool: deps.pool, store })
   knowledgeRoutes(app, { pool: deps.pool })
+  coordinationRoutes(app, { pool: deps.pool })
   eventRoutes(app, { pool: deps.pool, hub, heartbeatMs: deps.eventPollMs ?? 10_000 })
   const companion = deps.companion
     ? new CompanionRunner(deps.pool, deps.companion, (err) =>
@@ -223,6 +264,16 @@ function rendererTokenOf(req: FastifyRequest): Buffer {
   return runtimeTokenHash(token)
 }
 
+/** The Paperclip adapter's capability, hashed; the database checks it against its company (0042). */
+function coordinationTokenOf(req: FastifyRequest): Buffer {
+  const token = /^Bearer ([A-Za-z0-9._~+/=-]{32,512})$/.exec(req.headers.authorization ?? '')?.[1]
+  if (!token) throw new DomainError('coordination_capability_required', 'Integration credential required')
+  return runtimeTokenHash(token)
+}
+
+/** The runtime capability's routes: the bridge's own, the research operations and the source reviewer's. */
+const CAPABILITY_RUNTIME_ROUTES: ReadonlySet<string> = new Set([...RUNTIME_ROUTES, ...REVIEW_RUNTIME_ROUTES])
+
 function requireMediaCapability(req: FastifyRequest, expected: Buffer | null): void {
   const token = /^Bearer ([A-Za-z0-9._~+/=-]{32,512})$/.exec(req.headers.authorization ?? '')?.[1]
   if (!token || !expected || !timingSafeEqual(runtimeTokenHash(token), expected)) {
@@ -236,10 +287,11 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
   app.decorateRequest('actorAnonymous', false)
   app.decorateRequest('runtimeCaller', null)
   app.decorateRequest('rendererToken', null)
+  app.decorateRequest('coordinationToken', null)
   app.addHook('onRequest', async (req) => {
     const route = req.routeOptions.url ?? ''
     if (PUBLIC_ROUTES.has(route)) return
-    if (RUNTIME_ROUTES.has(route)) {
+    if (CAPABILITY_RUNTIME_ROUTES.has(route)) {
       req.runtimeCaller = runtimeCallerOf(req)
       return
     }
@@ -249,6 +301,10 @@ function registerAuthentication(app: FastifyInstance, verifyActor: VerifyActor, 
     }
     if (RENDERER_ROUTES.has(route)) {
       req.rendererToken = rendererTokenOf(req)
+      return
+    }
+    if (COORDINATION_ROUTES.has(route)) {
+      req.coordinationToken = coordinationTokenOf(req)
       return
     }
     try {
@@ -290,13 +346,14 @@ function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply
   return sendError(req, reply, 503, { code: 'unavailable', message: 'Unavailable', retry: 'safe_read' })
 }
 
-function registerHealth(app: FastifyInstance, pool: pg.Pool): void {
+function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean): void {
   app.get('/health', () => ({ ok: true }))
   app.get('/ready', async (_req, reply) => {
     try {
       await checkRoleSafety(pool)
       const { rows } = await pool.query<{ ok: boolean }>(REQUIRED_SCHEMA)
-      if (!rows[0]?.ok) return await reply.status(503).send({ ready: false, reason: 'schema' })
+      const store = stores ? (await pool.query<{ ok: boolean }>(STORE_SCHEMA)).rows[0]?.ok : true
+      if (!rows[0]?.ok || !store) return await reply.status(503).send({ ready: false, reason: 'schema' })
       return { ready: true }
     } catch {
       return reply.status(503).send({ ready: false, reason: 'database' })

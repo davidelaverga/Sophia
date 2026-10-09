@@ -839,6 +839,38 @@ async function savedText(download: Download): Promise<string> {
 
 const frame = (page: Page) => pane(page).locator('iframe.report-html-frame')
 
+/** The research card on the work page, its state's tag and its line. */
+const workCard = (page: Page) => page.locator('.work-card').first()
+
+test('Finished research · while its detail is read, the card says Completed, never Researching; then its report', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?place=work&hold=task')
+  const card = workCard(page)
+  await expect(card.locator('.tag')).toHaveText('Completed')
+  await expect(card.locator('.goal-outcome')).toHaveText('Reading its report…')
+  await expect(card).not.toContainText('Researching')
+  await expect(card).not.toContainText('arrives here')
+  await page.evaluate(() => window.fixture?.releaseTask())
+  await expect(card.locator('.tag')).toHaveText('Report ready')
+  await expect(page.getByRole('button', { name: 'Open fixture-report-v1.md, Markdown' })).toBeVisible()
+})
+
+test('Finished research · a detail that cannot be read says so in the reply’s words; the card stays Completed', async ({
+  page,
+}) => {
+  await enter(page, '/room.html?place=work&fail=task')
+  const card = workCard(page)
+  await expect(card.locator('.tag')).toHaveText('Completed')
+  // The read is tried again before it is said failed (the query's own retries); never "Researching" meanwhile.
+  await expect(card.locator('.goal-outcome')).toHaveText('Its report could not be read here: Sophia is unavailable.', {
+    timeout: 20_000,
+  })
+  await expect(card).not.toContainText('Researching')
+  await expect(card.locator('.report-tile')).toHaveCount(0)
+  expect((await fixture(page)).served.filter((s) => s.startsWith('task:')).length).toBeGreaterThan(1)
+})
+
 test('HTML · a Markdown-only task offers no HTML row: nothing is printed from its Markdown (SDD-01)', async ({
   page,
 }) => {

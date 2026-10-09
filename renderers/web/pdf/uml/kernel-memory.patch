@@ -1,0 +1,48 @@
+--- a/arch/um/os-Linux/mem.c
++++ b/arch/um/os-Linux/mem.c
+@@ -199,15 +199,36 @@
+ 
+ int __init create_mem_file(unsigned long long len)
+ {
+-	int err, fd;
+-
+-	fd = create_tmp_file(len);
+-
+-	err = os_set_exec_close(fd);
+-	if (err < 0) {
+-		errno = -err;
+-		perror("exec_close");
+-	}
++	int fd;
++	void *probe;
++
++	/* Anonymous guest RAM avoids host filesystem writeback throttling. */
++	fd = memfd_create("uml-physical-memory", MFD_CLOEXEC | MFD_ALLOW_SEALING);
++	if (fd < 0) {
++		perror("UML RAM memfd_create");
++		exit(1);
++	}
++	if (ftruncate64(fd, len) < 0) {
++		perror("UML RAM size");
++		close(fd);
++		exit(1);
++	}
++	/* Keep this backing store at its declared size, with writable contents. */
++	if (fcntl(fd, F_ADD_SEALS, F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL) < 0) {
++		perror("UML RAM seals");
++		close(fd);
++		exit(1);
++	}
++	/* Respect the host's executable-memory policy; never use a fallback. */
++	probe = mmap(NULL, UM_KERN_PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC,
++		     MAP_SHARED, fd, 0);
++	if (probe == MAP_FAILED) {
++		perror("UML RAM executable mapping");
++		close(fd);
++		exit(1);
++	}
++	munmap(probe, UM_KERN_PAGE_SIZE);
++	os_info("UML_RAM_BACKING memfd bytes=%llu fixed_size=1 cloexec=1\n", len);
+ 	return fd;
+ }
+ 

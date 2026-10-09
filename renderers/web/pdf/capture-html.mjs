@@ -16,10 +16,32 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { channel } from 'node:diagnostics_channel'
 import { fileURLToPath } from 'node:url'
-import { pageScript } from './capture-page.mjs'
+import {
+  conditionsScript,
+  MAX_LINES,
+  MAX_LOOK_MS,
+  MAX_MEASURED,
+  MAX_POINTS,
+  pageScript,
+  orderScript,
+} from './capture-page.mjs'
 import { launchConfined, playwrightVersion } from './confine.mjs'
+import {
+  generatedAt,
+  layoutAt,
+  layoutChanges,
+  meetingsOf,
+  placementStep,
+  shapeOf,
+  STYLES,
+  structureScript,
+  withinTime,
+} from './placement.mjs'
 import { ManifestError, sha256Hex, sourceUnchanged, verifySource } from './source-manifest.mjs'
+
+const WIDTH_TRACE = channel('sophia.renderer.width-sweep')
 
 export const CAPTURE_RECEIPT_SCHEMA = 'sophia.html-capture-receipt.v1'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -28,6 +50,7 @@ export const CAPTURE_KERNEL_FILES = [
   'capture-html.mjs',
   'capture-page.mjs',
   'confine.mjs',
+  'placement.mjs',
   'source-manifest.mjs',
   'bin/confine-chromium',
 ]
@@ -59,6 +82,30 @@ export const CAPTURE_LIMITS = Object.freeze({
   pageHeight: 48_000,
   imageBytes: 8 * 1024 * 1024,
   totalBytes: 64 * 1024 * 1024,
+})
+/**
+ * The most one target's measure may weigh in the receipt, as PostgreSQL writes it (jsonbBytes): two targets, the
+ * captures and the checks then stay within RECEIPT_BYTES, so a page with many labels, texts or sections fails its
+ * checks in a receipt the service takes, never in one it refuses after the work is done and runs again (#117).
+ */
+export const MEASURE_BYTES = 360 * 1024
+/** The most a receipt may weigh, as PostgreSQL writes it: under the 1 MiB a capture receipt may hold (0038). */
+export const RECEIPT_BYTES = 1_000_000
+/**
+ * The window widths the width sweep measures between, its window height, the most width breakpoints a page's
+ * stylesheets may set, and how long the sweep may take (#117, CX-0039). Between two breakpoints the page's media
+ * conditions hold or fail alike, so the rules its captures show at 390 and 1280px are not the only ones a reader can
+ * meet: the sweep measures, without capturing, both ends of every band the breakpoints make, from a narrow phone to a
+ * wide screen. A breakpoint past these widths, more breakpoints, a condition it cannot read, or a band end it has no
+ * time left to measure fails the sweep, never a band left out.
+ */
+export const SWEEP = Object.freeze({
+  minWidth: 320,
+  maxWidth: 2560,
+  height: 800,
+  heights: Object.freeze([320, 640, 1080, 2160]),
+  maxBreakpoints: 8,
+  maxMs: 60_000,
 })
 /** A stretch of the page outside every section shorter than this is not captured on its own. */
 const MARGIN_MIN_PX = 24
@@ -179,19 +226,27 @@ export function tilesOf(top, height, step) {
 }
 
 /**
- * The stretches of the page outside every section, at least MARGIN_MIN_PX tall.
+ * The stretches of the page outside every section: each at least MARGIN_MIN_PX tall, or shorter but holding text the
+ * page shows (a one-line footer), which a full-size capture must show too (#117).
  * @param {{ y: number, height: number }[]} sections
  * @param {number} pageHeight
+ * @param {{ y: number, height: number }[]} [texts] the boxes of the text the page shows
  */
-export function marginsOf(sections, pageHeight) {
+export function marginsOf(sections, pageHeight, texts = []) {
   /** @type {{ y: number, height: number }[]} */
   const out = []
+  const holdsText = (/** @type {number} */ top, /** @type {number} */ bottom) =>
+    texts.some((t) => Math.min(bottom, t.y + t.height) - Math.max(top, t.y) > 2)
+  const keep = (/** @type {number} */ top, /** @type {number} */ bottom) => {
+    if (bottom - top >= MARGIN_MIN_PX || (bottom > top && holdsText(top, bottom)))
+      out.push({ y: top, height: bottom - top })
+  }
   let at = 0
   for (const s of sections.toSorted((a, b) => a.y - b.y)) {
-    if (s.y - at >= MARGIN_MIN_PX) out.push({ y: at, height: s.y - at })
+    keep(at, s.y)
     at = Math.max(at, s.y + s.height)
   }
-  if (pageHeight - at >= MARGIN_MIN_PX) out.push({ y: at, height: pageHeight - at })
+  keep(at, pageHeight)
   return out
 }
 
@@ -301,7 +356,7 @@ async function captureTarget(shot, target, page) {
     )
       captured.push(s.id)
   }
-  const margins = shot.job.sections ? [] : marginsOf(page.sections, depth)
+  const margins = shot.job.sections ? [] : marginsOf(page.sections, depth, shownBoxes(page))
   let marginsCaptured = 0
   for (const [i, m] of margins.entries()) {
     if (
@@ -330,21 +385,45 @@ async function captureTarget(shot, target, page) {
 }
 
 /**
- * The checks one target's measures and coverage carry. An unknown contrast is unknown, never passed.
+ * The checks one target's measures and coverage carry. An unknown contrast is unknown, never passed; labels or texts
+ * left unmeasured past the receipt's bound, or whose lines the cover check's bounds did not reach, fail
+ * blocks_visible, and so do research tables whose cells the page draws under other headers or off their rows, blocks
+ * whose text it draws out of its order, and a window that cannot scroll down the page. A text whose opacity groups are
+ * past what the measure composites is failed for contrast, not unknown (capture-page.mjs isLow).
  * @param {Target} target
  * @param {import('./capture-page.mjs').PageMeasure} page
  * @param {Coverage} coverage
+ * @param {{ unmeasured?: number, unsampled?: number, misplaced?: string[], reordered?: string[],
+ *   unscrollable?: boolean }} [missed] how many labels, texts and runs the measure left out, how many texts the cover
+ *   check did not reach, the research tables whose cells are drawn elsewhere (capture-page.mjs misplacedTables), the
+ *   blocks whose text is drawn out of its order (reorderedBlocks), and whether the window cannot scroll down the page
+ *   (windowScrolls)
  * @returns {Check[]}
  */
-function targetChecks(target, page, coverage) {
-  const unseen = page.blocks.filter((b) => b.issues.some((i) => i !== 'low_contrast' && i !== 'scrolls'))
-  const low = page.blocks.filter((b) => b.issues.includes('low_contrast'))
-  const unknown = page.blocks.filter((b) => b.contrast.ratio === null)
+export function targetChecks(target, page, coverage, missed = {}) {
+  const escaped = outsideScope(page, coverage.requested)
+  // A shown label (one a tooltip, an accessible name or an ID reference rests on), and every other text outside the
+  // blocks, is held to what a block is, at every target (#117). Text a target hides is text its capture does not show:
+  // kept for print, for another width, or for assistive technology, or shown at one width and hidden at another so
+  // that pieces seen apart compose a claim nowhere reviewed; and, held tighter than a block, text a scrolling container
+  // does not show where the page starts (textHiddenHere). Text outside the blocks that a target hides is not read for
+  // contrast there.
+  const unseen = [
+    ...new Set([
+      ...page.blocks.filter(hiddenHere),
+      ...[...page.shown, ...page.framing].filter(textHiddenHere),
+      ...escaped,
+    ]),
+  ]
+  const read = [...page.blocks, ...page.shown, ...page.framing.filter((m) => !textHiddenHere(m))]
+  const low = read.filter((b) => b.issues.includes('low_contrast'))
+  const unknown = read.filter((b) => b.contrast.ratio === null)
   const ids = (/** @type {{ id: string }[]} */ list) =>
     list
       .slice(0, MAX_LISTED)
       .map((b) => b.id)
       .join(', ')
+  const hidden = [ids(unseen), ...unmeasuredParts(missed)].filter(Boolean)
   return [
     check(
       'layout_overflow',
@@ -354,8 +433,8 @@ function targetChecks(target, page, coverage) {
     ),
     check(
       'blocks_visible',
-      unseen.length === 0 ? 'passed' : 'failed',
-      unseen.length === 0 ? null : ids(unseen),
+      hidden.length === 0 ? 'passed' : 'failed',
+      hidden.length === 0 ? null : hidden.join('; '),
       target.id,
     ),
     check(
@@ -367,10 +446,125 @@ function targetChecks(target, page, coverage) {
     check(
       'captures_complete',
       coverage.truncated ? 'failed' : 'passed',
-      coverage.missing.length > 0 ? `uncaptured: ${coverage.missing.join(', ')}` : null,
+      coverage.missing.length > 0 ? `uncaptured: ${listed(coverage.missing)}` : null,
       target.id,
     ),
   ]
+}
+
+/**
+ * Names, at most MAX_LISTED of them, and how many more there are.
+ * @param {string[]} names
+ */
+function listed(names) {
+  const more = names.length - MAX_LISTED
+  return `${names.slice(0, MAX_LISTED).join(', ')}${more > 0 ? ` and ${more} more` : ''}`
+}
+
+/**
+ * How many bytes PostgreSQL writes a value's JSON in: jsonb's text puts a space after every `:` and `,`, counted over
+ * the compact JSON (strings included), so never less.
+ * @param {unknown} value
+ */
+export function jsonbBytes(value) {
+  const json = JSON.stringify(value)
+  return Buffer.byteLength(json) + (json.match(/[:,]/gu)?.length ?? 0)
+}
+
+/**
+ * A target's measure within MEASURE_BYTES: texts outside the blocks, then labels, then sections, then blocks, are left
+ * out from the end until it fits. Every text, label or block left out is counted unmeasured, which fails the target's
+ * blocks_visible, and a block left out fails the gate, which needs each one measured (0039). A section left out stays
+ * in the coverage, which names every one the captures miss.
+ * @param {import('./capture-page.mjs').PageMeasure} measured
+ * @param {number} unmeasured
+ * @returns {{ measured: import('./capture-page.mjs').PageMeasure, unmeasured: number }}
+ */
+export function fitMeasure(measured, unmeasured) {
+  let over = jsonbBytes(measured) - MEASURE_BYTES
+  if (over <= 0) return { measured, unmeasured }
+  const kept = {
+    framing: [...measured.framing],
+    shown: [...measured.shown],
+    sections: [...measured.sections],
+    blocks: [...measured.blocks],
+  }
+  let left = 0
+  for (const key of /** @type {const} */ (['framing', 'shown', 'sections', 'blocks'])) {
+    /** @type {unknown[]} */
+    const items = kept[key]
+    while (over > 0 && items.length > 0) {
+      over -= jsonbBytes(items.pop()) + 2
+      if (key !== 'sections') left += 1
+    }
+  }
+  return { measured: { ...measured, ...kept }, unmeasured: unmeasured + left }
+}
+
+/**
+ * What a target's measure left out, as blocks_visible names it: labels, texts and runs past the receipt's bound, and texts
+ * whose lines the cover check's bounds (of points, of lines a text, and of time) did not reach, that lie past what a
+ * scroll of the window shows, or that are not set along the page's lines, which it cannot look along (#117).
+ * @param {number} unmeasured
+ * @param {number} unsampled
+ */
+function unreached(unmeasured, unsampled) {
+  return [
+    unmeasured > 0
+      ? `${unmeasured} labels, texts, runs or blocks left out of the measure (at most ${MAX_MEASURED} of each kind, within ${MEASURE_BYTES / 1024} KiB a target)`
+      : '',
+    unsampled > 0
+      ? `${unsampled} texts the cover check did not reach: past its bounds (${MAX_POINTS} points, under ${MAX_LINES} lines a text, ${MAX_LOOK_MS / 1000} s), off the window, or not set along the page's lines (vertical, turned or mirrored)`
+      : '',
+  ]
+}
+
+/**
+ * What else blocks_visible names at a target: what the measure left out or did not reach (unreached), the research
+ * tables whose cells are drawn elsewhere (movedCells), the blocks whose text is drawn out of its order (outOfOrder), and
+ * a window that cannot scroll down the page (unscrolled).
+ * @param {{ unmeasured?: number, unsampled?: number, misplaced?: string[], reordered?: string[],
+ *   unscrollable?: boolean }} missed
+ */
+function unmeasuredParts(missed) {
+  return [
+    ...unreached(missed.unmeasured ?? 0, missed.unsampled ?? 0),
+    movedCells(missed.misplaced ?? []),
+    outOfOrder(missed.reordered ?? []),
+    unscrolled(missed.unscrollable ?? false),
+  ]
+}
+
+/**
+ * A window that cannot scroll down the page, as blocks_visible names it: a reader sees no more of the page than the
+ * window's height, while a capture shows it whole (#117).
+ * @param {boolean} unscrollable
+ */
+function unscrolled(unscrollable) {
+  return unscrollable ? 'the window cannot scroll down the page: its overflow is hidden on the root or the body' : ''
+}
+
+/**
+ * The research tables whose cells the page draws under other headers than their markup gives them, or off their rows,
+ * as blocks_visible names them: a value drawn under another header reads as that header's (#117).
+ * @param {string[]} misplaced
+ */
+function movedCells(misplaced) {
+  return misplaced.length > 0
+    ? `tables whose cells are drawn under other headers or off their rows: ${listed(misplaced)}`
+    : ''
+}
+
+/**
+ * The blocks whose text the page draws out of the order its markup gives it, with two of its words run into one, or
+ * raised or lowered off its line, as blocks_visible names them: "Not free" drawn "free Not", "Now here." drawn
+ * "Nowhere.", or "102" drawn 10², says another thing (#117).
+ * @param {string[]} reordered
+ */
+function outOfOrder(reordered) {
+  return reordered.length > 0
+    ? `blocks whose text is drawn out of its order or with its words run together or off its line: ${listed(reordered)}`
+    : ''
 }
 
 /**
@@ -413,52 +607,562 @@ async function loadAt(page, target, url, timeoutMs) {
 /**
  * Whether the page script's answer has the shape the kernel relies on (the script is this package's own code).
  * @param {unknown} value
- * @returns {value is import('./capture-page.mjs').PageMeasure}
+ * @returns {value is import('./capture-page.mjs').PageAnswer}
  */
 function isMeasure(value) {
   return (
     typeof value === 'object' &&
     value !== null &&
-    ['width', 'height', 'overflowPx'].every((k) => typeof Reflect.get(value, k) === 'number') &&
-    ['blocks', 'sections', 'overflowing'].every((k) => Array.isArray(Reflect.get(value, k)))
+    ['width', 'height', 'overflowPx', 'unmeasured'].every((k) => typeof Reflect.get(value, k) === 'number') &&
+    ['blocks', 'sections', 'overflowing', 'misplaced', 'reordered'].every((k) =>
+      Array.isArray(Reflect.get(value, k)),
+    ) &&
+    typeof Reflect.get(value, 'unscrollable') === 'boolean'
   )
 }
 
 /**
- * The page's measure at the current target.
- * @param {import('playwright-core').Page} page
+ * The direction of the job's language (`Intl.Locale`'s text info: right to left for Hebrew, Arabic, Persian or Urdu, or
+ * a language written in such a script), in which a block, a paragraph or an isolate holding no letter is set
+ * (capture-page.mjs misdirected, #117): the page cannot change it. Left to right where it cannot be read.
+ * @param {string} language a BCP 47 tag
+ * @returns {'ltr' | 'rtl'}
  */
-async function measure(page) {
+export function baseDirection(language) {
+  try {
+    const locale = new Intl.Locale(language)
+    /** @type {unknown} */
+    const read = Reflect.get(locale, 'getTextInfo')
+    /** @type {unknown} */
+    const info = typeof read === 'function' ? Reflect.apply(read, locale, []) : null
+    return typeof info === 'object' && info !== null && Reflect.get(info, 'direction') === 'rtl' ? 'rtl' : 'ltr'
+  } catch {
+    return 'ltr'
+  }
+}
+
+/**
+ * The page's measure at the current target, or band end, within a look budget. Where the page's generated boxes lie is
+ * read first through the protocol, within the same budget, for the measure to read the paint beneath a text by
+ * (placement.mjs generatedAt, #117); unread, the paint beneath any text whose element or an element around it draws
+ * one is unread, and that text's contrast unknown. A text with no letter is held to the direction of the job's language
+ * (baseDirection).
+ * @param {import('playwright-core').Page} page
+ * @param {Shot} shot
+ * @param {number} [maxLookMs]
+ */
+async function measure(page, shot, maxLookMs = MAX_LOOK_MS) {
+  const until = Date.now() + maxLookMs
+  const generated = await generatedAt(shot.cdp, until)
+  const left = Math.max(0, until - Date.now())
+  const base = baseDirection(shot.job.language)
   /** @type {unknown} */
-  const value = await page.evaluate(pageScript({ maxListed: MAX_LISTED }))
+  const value = await page.evaluate(pageScript({ maxListed: MAX_LISTED, maxLookMs: left, base, generated }))
   if (!isMeasure(value)) throw new CaptureFailure('measure_failed', 'the page could not be measured')
   return value
+}
+
+/**
+ * What is drawn over a text where only the DevTools protocol can tell: the text's element draws generated content that
+ * could reach it, and a pseudo-element hit-tests as that element (capture-page.mjs coverOf). The protocol names the
+ * pseudo-element when one is on top at a point, whatever its pointer-events, and the text is then covered (#117). Each
+ * point is hit-tested on the page as it opens, the window scrolled to it and back to the top, within a budget of
+ * points and of time; the points, and whether the page's budget ran out, are then dropped from the measure, which
+ * counts the texts it did not reach.
+ * @param {Shot} shot
+ * @param {import('playwright-core').Page} page
+ * @param {Omit<import('./capture-page.mjs').PageAnswer, 'unmeasured' | 'misplaced' | 'reordered' | 'unscrollable'>} answer
+ * @param {number} [deadline] Date.now() by which to stop, at most MAX_LOOK_MS from now (a sweep's own, when less)
+ * @returns {Promise<{ measured: import('./capture-page.mjs').PageMeasure, unsampled: number }>}
+ */
+async function generatedCover(shot, page, answer, deadline = Date.now() + MAX_LOOK_MS) {
+  const all = [...answer.blocks, ...answer.shown, ...answer.framing]
+  const probed = all.filter((m) => m.probes.length > 0)
+  if (probed.length > 0) {
+    await shot.cdp.send('DOM.enable')
+    /** @type {View} */
+    const view = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY, w: innerWidth, h: innerHeight }))
+    const look = { plain: new Set(), until: Math.min(Date.now() + MAX_LOOK_MS, deadline) }
+    let left = MAX_PROBES
+    for (const m of probed) {
+      if (m.probes.length > left || Date.now() > look.until) {
+        m.unsampled = true
+        continue
+      }
+      left -= m.probes.length
+      const verdict = await pseudoOnTop(shot, page, m.probes, view, look)
+      if (verdict === 'covered') m.issues.push('covered')
+      if (verdict === 'unreached') m.unsampled = true
+    }
+    await page.evaluate(() => window.scrollTo({ left: 0, top: 0, behavior: 'instant' }))
+  }
+  const measured = {
+    ...answer,
+    blocks: withoutProbe(answer.blocks),
+    shown: withoutProbe(answer.shown),
+    framing: withoutProbe(answer.framing),
+  }
+  return { measured, unsampled: all.filter((m) => m.unsampled).length }
+}
+
+/** @typedef {{ x: number, y: number, w: number, h: number }} View the window's scroll and size */
+
+/**
+ * The most points the DevTools protocol hit-tests on one page, at one target, within the cover check's time: a text
+ * whose points do not fit in what is left of them is not reached, and its target fails as unmeasured (#117).
+ */
+const MAX_PROBES = 20_000
+
+/**
+ * Whether a pseudo-element is the topmost thing at any of a text's points, by the protocol's hit test. It hit-tests
+ * only what the viewport shows, and takes page coordinates: the points the viewport shows are hit-tested together,
+ * and the window scrolls to the next one it does not; a point no scroll brings into view leaves the text 'unreached'
+ * (the target then fails as unmeasured), as does the check's time running out. Nodes already known to be no
+ * pseudo-element are not described again.
+ * @param {Shot} shot
+ * @param {import('playwright-core').Page} page
+ * @param {{ x: number, y: number }[]} points in page coordinates
+ * @param {View} view updated as the window scrolls
+ * @param {{ plain: Set<number>, until: number }} look the nodes known to be no pseudo-element, and the time (Date.now)
+ *   the check must stop by
+ * @returns {Promise<'clear' | 'covered' | 'unreached'>}
+ */
+async function pseudoOnTop(shot, page, points, view, look) {
+  const seen = (/** @type {{ x: number, y: number }} */ p) =>
+    p.x >= view.x && p.x < view.x + view.w && p.y >= view.y && p.y < view.y + view.h
+  let rest = points
+  while (rest.length > 0) {
+    if (Date.now() > look.until) return 'unreached'
+    const shown = rest.filter(seen)
+    if (shown.length === 0) {
+      Object.assign(view, await scrollTo(page, rest[0] ?? { x: 0, y: 0 }))
+      if (!rest.some(seen)) return 'unreached'
+      continue
+    }
+    rest = rest.filter((p) => !seen(p))
+    const hits = await Promise.all(
+      shown.map((p) => shot.cdp.send('DOM.getNodeForLocation', { ...p, ignorePointerEventsNone: true })),
+    )
+    const fresh = [...new Set(hits.map((h) => h.backendNodeId))].filter((id) => !look.plain.has(id))
+    const nodes = await Promise.all(fresh.map((id) => shot.cdp.send('DOM.describeNode', { backendNodeId: id })))
+    if (nodes.some(({ node }) => node.pseudoType)) return 'covered'
+    for (const id of fresh) look.plain.add(id)
+  }
+  return 'clear'
+}
+
+/**
+ * Scroll the window so a point is in the middle of the viewport, as far as the page allows.
+ * @param {import('playwright-core').Page} page
+ * @param {{ x: number, y: number }} point in page coordinates
+ * @returns {Promise<View>}
+ */
+function scrollTo(page, point) {
+  return page.evaluate(({ x, y }) => {
+    window.scrollTo({ left: x - innerWidth / 2, top: y - innerHeight / 2, behavior: 'instant' })
+    return { x: window.scrollX, y: window.scrollY, w: innerWidth, h: innerHeight }
+  }, point)
+}
+
+/**
+ * Measures as the receipt holds them: the probe points and the budget flag are the kernel's own.
+ * @param {import('./capture-page.mjs').ProbedMeasure[]} list
+ * @returns {import('./capture-page.mjs').BlockMeasure[]}
+ */
+function withoutProbe(list) {
+  return list.map(({ probes: _probes, unsampled: _unsampled, ...m }) => m)
+}
+
+/**
+ * The widths at which a media condition can change, in CSS pixels, or null when it tests anything but a screen's width
+ * in pixels: the profile holds a page to those (css.ts), and the sweep reads no other.
+ * @param {string} condition as the browser serializes it
+ * @returns {number[] | null}
+ */
+export function breakpointsOf(condition) {
+  const rest = condition
+    .toLowerCase()
+    .replaceAll(/-?\d+(?:\.\d+)?px/gu, ' ')
+    .replaceAll(/\b(?:only|screen|all|and|or|not|min-width|max-width|width)\b/gu, ' ')
+    .replaceAll(/[\s():<>=,]/gu, '')
+  if (rest !== '') return null
+  return [...condition.matchAll(/(-?\d+(?:\.\d+)?)px/giu)].map((m) => Number(m[1]))
+}
+
+/**
+ * The widths the sweep measures: both ends of every band of window widths in which the page's media conditions hold
+ * or fail alike. A breakpoint v is crossed between v−1 and v, or v and v+1 (min-, max-, < or >), so every band's ends
+ * are among those widths and the sweep's own ends; the conditions are read at each, and widths that agree in a row are
+ * one band.
+ * @param {number[]} breakpoints
+ * @param {(width: number) => Promise<string>} stateAt which conditions hold at a width
+ * @returns {Promise<number[]>}
+ */
+export async function bandEnds(breakpoints, stateAt) {
+  /** @type {Set<number>} */
+  const widths = new Set([SWEEP.minWidth, SWEEP.maxWidth])
+  for (const v of breakpoints)
+    for (const w of [Math.floor(v) - 1, Math.floor(v), Math.floor(v) + 1])
+      if (w >= SWEEP.minWidth && w <= SWEEP.maxWidth) widths.add(w)
+  const sorted = [...widths].toSorted((a, b) => a - b)
+  /** @type {number[]} */
+  const ends = []
+  let state = ''
+  for (const [i, width] of sorted.entries()) {
+    const now = await stateAt(width)
+    if (i > 0 && now === state) continue
+    const before = sorted[i - 1]
+    if (before !== undefined) ends.push(before)
+    ends.push(width)
+    state = now
+  }
+  ends.push(SWEEP.maxWidth)
+  return [...new Set(ends)].toSorted((a, b) => a - b)
+}
+
+/**
+ * Why a page's media conditions keep the sweep from measuring its bands, or null when it can: a condition it cannot
+ * read, a breakpoint past the widths it measures, or more breakpoints than it measures.
+ * @param {{ conditions: string[], unreadable: string[] }} media
+ * @returns {{ issue: string } | { breakpoints: number[] }}
+ */
+export function sweepPlan(media) {
+  const points = media.conditions.map((c) => ({ c, at: breakpointsOf(c) }))
+  const unread = [...media.unreadable, ...points.filter((p) => p.at === null).map((p) => p.c)]
+  if (unread.length > 0) return { issue: `width conditions the sweep cannot read: ${listed(unread)}` }
+  const breakpoints = [...new Set(points.flatMap((p) => p.at ?? []))]
+  const outside = breakpoints.filter((v) => v < SWEEP.minWidth || v > SWEEP.maxWidth)
+  if (outside.length > 0)
+    return {
+      issue: `breakpoints past the ${SWEEP.minWidth}–${SWEEP.maxWidth}px the sweep measures: ${outside.join(', ')}px`,
+    }
+  if (breakpoints.length > SWEEP.maxBreakpoints)
+    return {
+      issue: `${breakpoints.length} width breakpoints, more than the ${SWEEP.maxBreakpoints} the sweep measures`,
+    }
+  return { breakpoints }
+}
+
+/**
+ * What a measure at a band end shows wrong, or null: a block or a text outside the blocks hidden, cut, covered, set
+ * beside other text or off the page, or in low contrast, horizontal overflow, text the measure did not reach, a research
+ * table whose cells are drawn under other headers or off their rows, a block whose text is drawn out of its order, a
+ * window that cannot scroll down the page, or
+ * (when the job names its sections) text of one drawn outside it (outsideScope). A contrast it cannot read is a
+ * limitation, as at a target.
+ * @param {import('./capture-page.mjs').PageMeasure} page
+ * @param {number} missed labels, texts and runs left out, and texts the cover check did not reach
+ * @param {string[] | null} requested the sections the job names, or null for every one (outsideScope)
+ * @param {{ misplaced: string[], reordered: string[], unscrollable: boolean }} drawn the research tables whose cells
+ *   are drawn elsewhere, the blocks whose text is drawn out of its order, and whether the window cannot scroll down the
+ *   page (capture-page.mjs misplacedTables, reorderedBlocks, windowScrolls)
+ * @returns {string | null}
+ */
+function bandIssue(page, missed, requested, drawn) {
+  const unseen = [
+    ...new Set([
+      ...page.blocks.filter((m) => hiddenHere(m) || m.issues.includes('low_contrast')),
+      // A text outside the blocks is held to what a block is at a band end as at a target, its contrast included (#117).
+      ...[...page.shown, ...page.framing].filter((m) => textHiddenHere(m) || m.issues.includes('low_contrast')),
+      ...outsideScope(page, requested),
+    ]),
+  ]
+  const parts = [
+    unseen.length > 0 ? listed(unseen.map((m) => m.id)) : '',
+    page.overflowPx > 0 ? `${page.overflowPx}px past the width` : '',
+    missed > 0 ? `${missed} texts not measured` : '',
+    movedCells(drawn.misplaced),
+    outOfOrder(drawn.reordered),
+    unscrolled(drawn.unscrollable),
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(', ') : null
+}
+
+/**
+ * Measure each band end, as at a target, and read and compare its placements (placement.mjs), within the sweep's time:
+ * each band end's placements, the last's included, fail when read or compared past it (placementStep). What is wrong
+ * goes to `wrong`.
+ * @param {import('playwright-core').Page} page
+ * @param {Shot} shot
+ * @param {{ ends: number[], conditions: string[], until: number, sweepMs: number,
+ *   probe: import('./placement.mjs').Probe }} sweep
+ * @param {string[]} wrong
+ */
+async function measureEnds(page, shot, sweep, wrong) {
+  /** @type {import('./placement.mjs').BandEnd | null} */
+  let before = null
+  for (const [i, width] of sweep.ends.entries()) {
+    const left = sweep.until - Date.now()
+    if (left <= 0) {
+      wrong.push(`${sweep.ends.length - i} band ends not measured within ${sweep.sweepMs / 1000} s`)
+      return
+    }
+    await page.setViewportSize({ width, height: SWEEP.height })
+    // The probe sets the band end's width through the protocol, as it set every width of the bands, before the page is
+    // measured there: Playwright keeps the width it last set as its own, and does not set it again (crPage.js).
+    const [lie] = await sweep.probe([width])
+    const { unmeasured, misplaced, reordered, unscrollable, ...answer } = await measure(page, shot, left)
+    const { measured, unsampled } = await generatedCover(shot, page, answer, sweep.until)
+    const drawn = { misplaced, reordered, unscrollable }
+    const issue = bandIssue(measured, unmeasured + unsampled, shot.job.sections ?? null, drawn)
+    if (issue) wrong.push(`at ${width}px: ${issue}`)
+    /** @type {{ state: string }} */
+    const { state } = await page.evaluate(structureScript(sweep.conditions))
+    // Two band ends are one band's when the page's conditions, its containers' lines and how its texts lie match.
+    const here = { width, state: `${state}|${!lie || 'issue' in lie ? String(lie?.issue) : lie.state}` }
+    const step = await placementStep(() => layoutAt(shot.cdp), here, before, sweep.until)
+    if (step.issue) wrong.push(step.issue)
+    before = step.end
+    const tall = await heightIssue(shot.cdp, width, sweep.until)
+    if (tall) wrong.push(tall)
+  }
+}
+
+/**
+ * Whether the page is laid out otherwise at a band end's width in a window of any of SWEEP.heights than of the sweep's
+ * own (placement.mjs shapeOf), and at which: a static page sizes and places nothing by the window's height, and one that
+ * does shows a reader at another height what no capture shows (#117), as `height: 100%` down from the root, `vh` or a
+ * box placed against the window's bottom do. Width percentages, and a page whose boxes and lines stay put, pass. The
+ * heights are read in one batch, which sets the sweep's own height again last, within the sweep's time: unread by then,
+ * the band end fails. Only those heights are read, not every height between them.
+ * @param {import('playwright-core').CDPSession} cdp
+ * @param {number} width
+ * @param {number} until
+ * @returns {Promise<string | null>}
+ */
+async function heightIssue(cdp, width, until) {
+  const read = [SWEEP.height, ...SWEEP.heights].map((height) =>
+    Promise.all([
+      cdp.send('Emulation.setDeviceMetricsOverride', metricsAt(width, height)),
+      cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: [] }),
+    ]).then(([, snapshot]) => shapeOf(snapshot)),
+  )
+  const back = cdp.send('Emulation.setDeviceMetricsOverride', metricsAt(width, SWEEP.height))
+  const got = await withinTime(Promise.all([Promise.all(read), back]), until)
+  if ('late' in got) return `at ${width}px: window heights not compared within the sweep's time`
+  const [own, ...others] = got.value[0]
+  if (own === null || others.includes(null)) return `at ${width}px: window heights not compared`
+  const otherwise = SWEEP.heights.filter((_, k) => others[k] !== own)
+  return otherwise.length > 0
+    ? `at ${width}px: laid out otherwise in a window ${otherwise.join(', ')}px high than ${SWEEP.height}px`
+    : null
+}
+
+/**
+ * The width sweep (SWEEP): the page measured, without capturing, at both ends of every band its media conditions
+ * make, and of every band a change of what lies on a text inside one makes (layoutChanges), as at a target. Its check
+ * fails on what any band end shows wrong, on placed boxes and texts that may meet between a band's ends, and on any
+ * band end it could not measure.
+ * @param {import('playwright-core').Page} page
+ * @param {Shot} shot
+ * @param {number} sweepMs
+ * @returns {Promise<Check>}
+ */
+async function sweepWidths(page, shot, sweepMs) {
+  const until = Date.now() + sweepMs
+  const trace = (/** @type {string} */ phase) => {
+    if (WIDTH_TRACE.hasSubscribers) WIDTH_TRACE.publish({ phase, remainingMs: until - Date.now(), budgetMs: sweepMs })
+  }
+  trace('sweep-start')
+  /** @type {{ conditions: string[], unreadable: string[] }} */
+  const media = await page.evaluate(conditionsScript())
+  trace('media-read')
+  const plan = sweepPlan(media)
+  if ('issue' in plan) return check('widths_visible', 'failed', plan.issue)
+  const holding = `(${JSON.stringify(media.conditions)}).map((q) => matchMedia(q).matches).join()`
+  const bands = await bandEnds(plan.breakpoints, async (width) => {
+    await page.setViewportSize({ width, height: SWEEP.height })
+    return String(await page.evaluate(holding))
+  })
+  trace('bands-read')
+  const probe = probeOf(shot.cdp, baseDirection(shot.job.language))
+  const { ends, issue } = await layoutChanges(probe, bands, until)
+  trace('layout-read')
+  /** @type {string[]} */
+  const wrong = issue ? [issue] : []
+  await measureEnds(page, shot, { ends, conditions: media.conditions, until, sweepMs, probe }, wrong)
+  trace('sweep-end')
+  return wrong.length > 0
+    ? check('widths_visible', 'failed', wrong.join('; ').slice(0, 2000))
+    : check('widths_visible', 'passed', `measured at ${ends.join(', ')}px`.slice(0, 2000))
+}
+
+/**
+ * The device metrics Playwright's setViewportSize sets for a width, at the sweep's height unless another is given, in
+ * the kernel's context (no device emulation, scale 1; crPage.js _updateViewport): the sweep's probes, and its reads at
+ * other heights (heightIssue), set them through the protocol directly.
+ * @param {number} width
+ * @param {number} [height]
+ */
+function metricsAt(width, height = SWEEP.height) {
+  /** @type {{ angle: number, type: 'landscapePrimary' }} */
+  const screenOrientation = { angle: 0, type: 'landscapePrimary' }
+  return {
+    mobile: false,
+    width,
+    height,
+    screenWidth: width,
+    screenHeight: height,
+    deviceScaleFactor: 1,
+    screenOrientation,
+  }
+}
+
+/**
+ * How the texts lie at each of some window widths (placement.mjs Probe): for each width, its device metrics, the
+ * window's width, the research tables whose cells are drawn elsewhere and the blocks whose text is drawn out of its order
+ * (capture-page.mjs orderScript), and the layout (meetingsOf), sent together, so the browser works through a batch without waiting on the kernel; it reads the
+ * commands of one session in order. A width the window did not take is not read.
+ * @param {import('playwright-core').CDPSession} cdp
+ * @param {'ltr' | 'rtl'} base the direction of the job's language (baseDirection)
+ * @returns {import('./placement.mjs').Probe}
+ */
+export function probeOf(cdp, base) {
+  const order = orderScript(base, true)
+  const compileStarted = performance.now()
+  // Keep the identical, trusted expression as a function in this session. Sending
+  // and parsing its full source for every width needlessly slows the bounded
+  // sweep on the UML worker. The function holds no cached layout or page data:
+  // each call reads the current viewport and DOM again.
+  const reader = cdp
+    .send('Runtime.evaluate', {
+      expression: order,
+      returnByValue: false,
+      objectGroup: 'sophia-width-reader',
+    })
+    .then((reply) => {
+      if (WIDTH_TRACE.hasSubscribers)
+        WIDTH_TRACE.publish({ phase: 'reader-compiled', elapsedMs: performance.now() - compileStarted })
+      return reply
+    })
+  return async (widths) => {
+    const compiled = await reader
+    if (compiled.exceptionDetails || compiled.result.type !== 'function' || !compiled.result.objectId)
+      return widths.map(() => ({ issue: 'the width order reader could not be compiled' }))
+    const objectId = compiled.result.objectId
+    const sent = widths.map((width) =>
+      Promise.all([
+        // These widths are read, never photographed. Override the actual layout
+        // metrics without resizing the compositor's visible surface each time.
+        // The band-end measurements and captures still set the visible size.
+        cdp.send('Emulation.setDeviceMetricsOverride', { ...metricsAt(width), dontSetVisibleSize: true }),
+        cdp.send('Runtime.callFunctionOn', {
+          objectId,
+          functionDeclaration: 'function () { return this() }',
+          returnByValue: true,
+        }),
+        cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLES }),
+      ]),
+    )
+    return (await Promise.all(sent)).map(([, read, snapshot], k) => {
+      /** @type {unknown} */
+      const value = read.result.value
+      /** @type {unknown[]} */
+      const answer = Array.isArray(value) ? value : []
+      const [inner, moved, reordered] = answer
+      if (read.exceptionDetails || inner !== widths[k])
+        return { issue: `the window was not ${String(widths[k])}px wide` }
+      const lie = meetingsOf(snapshot)
+      return 'issue' in lie ? lie : { state: `${lie.state}|${String(moved)}|${String(reordered)}` }
+    })
+  }
 }
 
 /**
  * Measure and capture every target of the job.
  * @param {import('playwright-core').Page} page
  * @param {Shot} shot
- * @param {{ url: string, timeoutMs: number }} entry
+ * @param {{ url: string, timeoutMs: number, sweepMs: number }} entry
  */
 async function captureAll(page, shot, entry) {
   for (const id of shot.job.targets) {
     const target = CAPTURE_TARGETS[id]
     if (!target) throw new CaptureFailure('invalid_target', id)
     await loadAt(page, target, entry.url, entry.timeoutMs)
-    const measured = await measure(page)
+    const { unmeasured, misplaced, reordered, unscrollable, ...answer } = await measure(page, shot)
+    const { measured, unsampled } = await generatedCover(shot, page, answer)
     if (shot.receipt.fonts.length === 0) shot.receipt.fonts = await fontsUsed(shot.cdp)
     const coverage = await captureTarget(shot, target, measured)
+    const fit = fitMeasure(measured, unmeasured)
     shot.receipt.targets.push({
       id,
       width: target.width,
       height: target.height,
       scheme: target.scheme,
-      page: measured,
+      page: fit.measured,
       coverage,
     })
-    shot.receipt.checks.push(...targetChecks(target, measured, coverage))
+    shot.receipt.checks.push(
+      ...targetChecks(target, measured, coverage, {
+        unmeasured: fit.unmeasured,
+        unsampled,
+        misplaced,
+        reordered,
+        unscrollable,
+      }),
+    )
   }
+  shot.receipt.checks.push(await sweepWidths(page, shot, entry.sweepMs))
+}
+
+/**
+ * What a capture that names its sections would not show at full size: in an edit that may change those sections only,
+ * a block, label or text of one of them drawn outside that section's box, where no tile of it reaches. Without this, a
+ * heading placed with `position: absolute` past its section was seen only in the scaled-down overview (#117).
+ * @param {import('./capture-page.mjs').PageMeasure} page
+ * @param {string[] | null} requested the sections the job names, or null for every one
+ */
+function outsideScope(page, requested) {
+  if (!requested) return []
+  const boxes = new Map(page.sections.map((s) => [s.id, s]))
+  return [...page.blocks, ...page.shown, ...page.framing].filter((m) => {
+    const section = m.section !== null && requested.includes(m.section) ? boxes.get(m.section) : undefined
+    return section !== undefined && (m.box.width > 0 || m.box.height > 0) && !within(m.box, section)
+  })
+}
+
+/**
+ * Whether one box lies inside another, give or take a pixel.
+ * @param {{ x: number, y: number, width: number, height: number }} inner
+ * @param {{ x: number, y: number, width: number, height: number }} outer
+ */
+function within(inner, outer) {
+  return (
+    inner.x >= outer.x - 1 &&
+    inner.y >= outer.y - 1 &&
+    inner.x + inner.width <= outer.x + outer.width + 1 &&
+    inner.y + inner.height <= outer.y + outer.height + 1
+  )
+}
+
+/**
+ * Whether a measured block is not shown at this target: hidden, cut, covered or off the page. Low contrast still shows
+ * it, and so does a scrolling container: the reader scrolls to it, and its text is the research's.
+ * @param {import('./capture-page.mjs').BlockMeasure} m
+ */
+function hiddenHere(m) {
+  return m.issues.some((i) => i !== 'low_contrast' && i !== 'scrolls')
+}
+
+/**
+ * Where the text a target shows sits: its blocks, and the texts outside them, that it does not hide (marginsOf).
+ * @param {import('./capture-page.mjs').PageMeasure} page
+ */
+function shownBoxes(page) {
+  return [
+    ...page.blocks.filter((m) => !hiddenHere(m)),
+    ...[...page.shown, ...page.framing].filter((m) => !textHiddenHere(m)),
+  ].map((m) => m.box)
+}
+
+/**
+ * Whether a measured text outside the blocks (a shown label, a heading, a caption…) is not shown at this target. Held
+ * tighter than a block: one a scrolling container does not show where the page starts is in no capture, so no one
+ * reviewed it (#117).
+ * @param {import('./capture-page.mjs').BlockMeasure} m
+ */
+function textHiddenHere(m) {
+  return m.issues.some((i) => i !== 'low_contrast')
 }
 
 /**
@@ -476,7 +1180,10 @@ async function shutDown(browser) {
   }
 }
 
-/** @typedef {{ job: CaptureJob, signal: AbortSignal, receipt: CaptureReceipt, env: NodeJS.ProcessEnv | undefined }} Run */
+/**
+ * @typedef {{ job: CaptureJob, signal: AbortSignal, receipt: CaptureReceipt, env: NodeJS.ProcessEnv | undefined,
+ *   sweepMs: number }} Run
+ */
 
 /**
  * The browser's first page with the request policy, after the sandbox self-test.
@@ -523,9 +1230,15 @@ async function inConfinedBrowser(run, source) {
       receipt: run.receipt,
       budget: { captures: CAPTURE_LIMITS.captures, bytes: CAPTURE_LIMITS.totalBytes },
     }
-    await captureAll(page, shot, { url: source.entry.url, timeoutMs: run.job.timeoutMs ?? DEFAULT_TIMEOUT_MS })
+    await captureAll(page, shot, {
+      url: source.entry.url,
+      timeoutMs: run.job.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      sweepMs: run.sweepMs,
+    })
     run.signal.throwIfAborted()
     finalChecks(run.receipt, source)
+    if (jsonbBytes(run.receipt) > RECEIPT_BYTES)
+      throw new CaptureFailure('receipt_too_large', "the page's measures and coverage do not fit a receipt")
   } finally {
     run.signal.removeEventListener('abort', onAbort)
     if (browser) await shutDown(browser)
@@ -605,7 +1318,8 @@ function settleError(receipt, error, how) {
  * Capture one page. Never throws for a job's own failure: the receipt says what happened, and a failed or cancelled
  * capture keeps no image.
  * @param {CaptureJob} job
- * @param {{ signal?: AbortSignal, env?: NodeJS.ProcessEnv }} [opts]
+ * @param {{ signal?: AbortSignal, env?: NodeJS.ProcessEnv, sweepMs?: number }} [opts] `sweepMs`: the width sweep's
+ *   time, SWEEP.maxMs unless a test gives less
  * @returns {Promise<CaptureReceipt>}
  */
 export async function captureHtml(job, opts = {}) {
@@ -613,7 +1327,7 @@ export async function captureHtml(job, opts = {}) {
   const receipt = newReceipt(job)
   const timeout = AbortSignal.timeout(job.timeoutMs ?? DEFAULT_TIMEOUT_MS)
   const signal = opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout
-  const run = { job, signal, receipt, env: opts.env }
+  const run = { job, signal, receipt, env: opts.env, sweepMs: Math.min(opts.sweepMs ?? SWEEP.maxMs, SWEEP.maxMs) }
   try {
     const source = verified(run)
     signal.throwIfAborted()
@@ -624,6 +1338,8 @@ export async function captureHtml(job, opts = {}) {
     settleError(receipt, error, { cancelled, timedOut: timeout.aborted && !cancelled })
     for (const c of receipt.captures) fs.rmSync(path.join(job.outputDir, c.name), { force: true })
     receipt.captures = []
+    // A failed receipt still settles: what would not fit is not kept.
+    if (jsonbBytes(receipt) > RECEIPT_BYTES) receipt.targets = []
   }
   receipt.elapsedMs = Date.now() - started
   return receipt

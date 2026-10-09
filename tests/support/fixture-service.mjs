@@ -9,7 +9,10 @@
  */
 
 import { createServer } from 'node:http'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+
+/** The receipt of the fixture's review page (WBC-02, Codex on #107): a review cites a source with it. */
+export const REVIEW_RECEIPT = 'fedcba9876543210fedcba9876543210'
 
 export async function startFixtureService({ token = randomUUID(), runtimeUnitId, bindings = [] } = {}) {
   const outbox = [] // { seq, command }
@@ -20,7 +23,7 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   const waiters = new Set()
   let seq = 0
   let polls = 0
-  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false, refuseReceipts: false, research: {}, design: {} }
+  const state = { bindings: [...bindings], refuseReady: false, refuseObservations: false, refuseReceipts: false, research: {}, design: {}, review: {} }
   // The runtime research operations (SMC-M03 S4, A11): every call recorded; each answered by a test's handler, or by
   // a well-formed default (an empty task, a reservation, its settlement, a capture, a draft).
   const research = []
@@ -48,18 +51,38 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
   // PNG (a 3x2 one, so its dimensions survive dsh's normalization recognisably).
   const design = []
   const CAPTURE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAFUlEQVR4nGP4z8DAAMH//4PohoYGAEfPB3vT+rJCAAAAAElFTkSuQmCC'
+  const CAPTURE_SHA256 = createHash('sha256').update(Buffer.from(CAPTURE_PNG, 'base64')).digest('hex')
   const designDefaults = {
     'design/record': (body) => ({ entries: (body.expectedEntries ?? 0) + body.entries.length, replayed: false }),
     'design/reserve': researchDefaults.reserve,
     'design/settle': researchDefaults.settle,
     'design/capture': (body) => ({
       renderJobId: body.renderJobId ?? uuid(6100),
+      deliveryId: uuid(6200 + design.length),
       captures: body.names.map((name) => ({ name, target: 'w390-light', kind: 'overview', section: null, tile: 1, tiles: 1, width: 3, height: 2, scale: 0.5,
-        sha256: 'd'.repeat(64), bytes: 78, mime: 'image/png', data: CAPTURE_PNG })),
+        sha256: CAPTURE_SHA256, bytes: 78, mime: 'image/png', data: CAPTURE_PNG })),
     }),
+    'design/delivered': (body) => ({ deliveryId: body.deliveryId, renderJobId: uuid(6100), state: 'delivered', captures: body.attachments.map((a) => a.name) }),
     'review/submit': (body) => ({ outcome: 'recorded', verdict: body.result?.verdict ?? 'blocked', candidateId: uuid(6000) }),
   }
   designDefaults['review/capture'] = designDefaults['design/capture']
+  designDefaults['review/delivered'] = designDefaults['design/delivered']
+  // The source reviewer's operations (WBC-02, A13), recorded and answered the same way: a one-source task, a page of
+  // fixture text with its receipt (REVIEW_RECEIPT), a reservation and its settlement, and a published review.
+  const review = []
+  const reviewDefaults = {
+    context: (body) => body.sourceId === undefined
+      ? { workId: uuid(7000), goal: { id: uuid(7001), revision: 1, title: 'Fixture goal', outcome: 'A fixture outcome', criteriaRef: 'criteria:fixture', criteria: [{ id: 'c1', description: 'The dates agree', required: true }] },
+          purpose: null, sources: [{ ref: 'S1', sourceId: uuid(7002), sha256: 'a'.repeat(64), mime: 'text/markdown', byteLength: 26, readable: true }],
+          limits: { maxSources: 3, maxInputBytes: 32768, maxModelRequests: 8, maxReportBytes: 16384, web: false, shell: false, connectors: false },
+          allowance: { capUsd: 0.5, committedUsd: 0, modelCallsLeft: 8 } }
+      : { sourceId: body.sourceId, offset: 0, nextOffset: null, totalChars: 26, truncated: false, text: 'The launch is on 3 March.', receipt: REVIEW_RECEIPT },
+    reserve: (body) => ({ reservationId: uuid(8000 + ++researchSeq), state: 'reserved', kind: body.kind, purpose: body.purpose ?? 'call', amountUsd: body.amountUsd, target: null }),
+    settle: (body) => ({ reservationId: body.reservationId, state: body.outcome, settledUsd: body.costUsd ?? null }),
+    submit: (body) => body.result
+      ? { outcome: 'published', resultId: uuid(9000), sourceId: uuid(9001), sha256: 'd'.repeat(64), verdict: body.result.verdict, replayed: false }
+      : { outcome: 'blocked', sourceId: uuid(9002), reason: body.blocker.reason },
+  }
 
   const notify = () => { for (const wake of waiters) wake(); waiters.clear() }
 
@@ -120,6 +143,13 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
       const answer = handler(json)
       return answer && answer.status ? reply(answer.status, answer.body) : reply(200, answer)
     }
+    const reviewOp = req.method === 'POST' && /^\/v1\/runtime\/source-review\/(context|reserve|settle|submit)$/.exec(url.pathname)?.[1]
+    if (reviewOp) {
+      review.push({ op: reviewOp, body: json })
+      notify()
+      const answer = (state.review[reviewOp] ?? reviewDefaults[reviewOp])(json)
+      return answer && answer.status ? reply(answer.status, answer.body) : reply(200, answer)
+    }
     if (req.method === 'POST' && url.pathname === '/v1/runtime/ready') {
       if (state.refuseReady) return reply(503, { error: 'fixture refuses the ready report' })
       readiness.push(json)
@@ -166,6 +196,10 @@ export async function startFixtureService({ token = randomUUID(), runtimeUnitId,
     onDesign: (op, handler) => { state.design[op] = handler ?? undefined },
     /** The PNG every default capture carries, base64. */
     capturePng: CAPTURE_PNG,
+    /** Every source-review operation the runtime called, in order: `{ op, body }`. */
+    review,
+    /** Answer one source-review operation with `handler(body)`, as onResearch. */
+    onReview: (op, handler) => { state.review[op] = handler ?? undefined },
     setBindings: (next) => { state.bindings = [...next] },
     /** Make `POST ready` fail (adverse tests). */
     refuseReady: (value = true) => { state.refuseReady = value },

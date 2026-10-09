@@ -292,7 +292,7 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
       run((k, at) => takeBackPersonalRelease(token, k, at, releaseId), true, key),
     erase: () => eraseSpace(client, identity, () => setErasures((n) => n + 1)),
     /** The account these writes are under is still signed in here (signed-in.ts): not after leaving, or another. */
-    here: () => stillSignedIn(identity.name),
+    here: () => stillSignedIn(accountOf(identity)),
   }
 }
 

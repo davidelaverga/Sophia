@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
-import { blockedBy, isStale, shownConnection, STALE_RETRY_MS, staleRetry } from './project-door.ts'
+import { blockedBy, isStale, readsServedBoard, shownConnection, STALE_RETRY_MS, staleRetry } from './project-door.ts'
 
 const refused = (status: number) => new ApiError(status, `http_${status}`, 'refused', 'never')
 const outage = new ApiError(503, 'http_503', 'Service Unavailable', 'never')
@@ -62,5 +62,20 @@ describe('asking again', () => {
     assert.equal(staleRetry(refused(403), true), false)
     assert.equal(staleRetry(null, true), false)
     assert.equal(staleRetry(outage, false), false)
+  })
+})
+
+describe('the work board Sophia serves', () => {
+  it('is read only while Tasks is in view', () => {
+    assert.equal(readsServedBoard('work', null, false), true)
+    for (const view of ['studio', 'goals', 'knowledge', 'updates', 'resources'] as const) {
+      assert.equal(readsServedBoard(view, null, false), false, view)
+    }
+  })
+
+  it('is not read behind a closed door, or where the page brings its own plans', () => {
+    assert.equal(readsServedBoard('work', 'denied', false), false)
+    assert.equal(readsServedBoard('work', 'unreachable', false), false)
+    assert.equal(readsServedBoard('work', null, true), false)
   })
 })

@@ -1,0 +1,61 @@
+name: UML render host
+
+# SDD-01: the production render host for Render (renderers/web/pdf/uml/Dockerfile, run with its supervisor command).
+# The real supervisor runs a PDF job, a capture job and a stopped job through the real launchers, the UML kernel built
+# from the hash-checked kernel.org archive, the unchanged kernels and the confined Chromium, against a loopback stand-in
+# of the renderer API (uml/supervisor-e2e.mjs, run from the deployed package). This is CI evidence on a GitHub host, not Render acceptance.
+on:
+  pull_request:
+    paths: ['renderers/web/pdf/**', '.github/workflows/uml-supervisor.yml', 'scripts/render-ssh-check.sh']
+  push:
+    branches: [scm-01/workboard-source-review]
+    paths: ['renderers/web/pdf/**', '.github/workflows/uml-supervisor.yml', 'scripts/render-ssh-check.sh']
+
+permissions:
+  contents: read
+
+jobs:
+  supervisor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify driver, settlement and owned affinity controls
+        run: python3 -m unittest discover -s renderers/web/pdf/uml -p 'test_*.py'
+      - name: Build the render host image
+        run: docker build --platform linux/amd64 -f renderers/web/pdf/uml/Dockerfile -t sophia-uml-supervisor .
+      # Render's SSH into the render host (WBC-02-CC-0010 §2.2), checked inside the image as it starts: its user root,
+      # not locked, with HOME /root and ~/.ssh at 0700. The render host has no persistent disk.
+      - name: Render's SSH preconditions
+        run: |
+          timeout 90 docker run --rm --network none --read-only \
+            --volume "$PWD/scripts/render-ssh-check.sh:/opt/check/render-ssh-check.sh:ro" \
+            --entrypoint /bin/sh sophia-uml-supervisor /opt/check/render-ssh-check.sh
+      # The existing renderer CI requires this same runner-only namespace setting. The browser sandbox, host Landlock
+      # and inherited seccomp remain active.
+      - name: Allow the launchers' unprivileged namespaces
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      # The container is restricted as the fixture's is: one CPU, 2 GiB, no network but loopback, only the
+      # capabilities the supervisor's root needs to give the job directory to the launchers' uid, no new privileges.
+      - name: Run the supervisor end to end (PDF, capture, Stop)
+        run: |
+          status=0
+          timeout --kill-after=5s 900s docker run --rm --cpus=1 --memory=2g \
+            --cap-drop=ALL --cap-add=CHOWN --cap-add=DAC_OVERRIDE --cap-add=FOWNER \
+            --cap-add=SETUID --cap-add=SETGID --cap-add=SYS_CHROOT \
+            --security-opt=no-new-privileges --security-opt=seccomp=unconfined \
+            --network=none sophia-uml-supervisor node /opt/sophia-renderer/uml/supervisor-e2e.mjs > uml-supervisor-e2e.log 2>&1 || status=$?
+          grep -E 'UML_E2E|"supervisor_log"' uml-supervisor-e2e.log || true
+          printf 'UML_E2E_EXIT %s\n' "$status"
+          test "$status" = 0 && grep -q '"event":"UML_E2E_DONE","ok":true' uml-supervisor-e2e.log
+      - name: Preserve the end-to-end log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: uml-supervisor-${{ github.sha }}
+          path: uml-supervisor-e2e.log
+          retention-days: 7
+          if-no-files-found: ignore

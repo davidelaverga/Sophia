@@ -1,0 +1,26 @@
+{
+  "name": "@sophia/paperclip-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "First-party Paperclip plugin sophia.coordination (WBC-02): Sophia's signed commissions become core issues; Sophia's controls are mirrored onto them.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./memory-host": "./src/memory-host.ts"
+  },
+  "paperclipPlugin": {
+    "manifest": "./dist/manifest.js",
+    "worker": "./dist/worker.js"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@sophia/coordination": "workspace:*"
+  },
+  "devDependencies": {
+    "@sophia/test-support": "workspace:*",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.0"
+  }
+}

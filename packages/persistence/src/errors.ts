@@ -31,6 +31,8 @@ const LIMITS: readonly string[] = [
   'The work record is full',
   // 0041: a report's page is designed (and edited) at most sixteen times.
   'Design edit limit reached',
+  // 0042: a source review makes at most eight model calls.
+  'Review model request limit reached',
 ]
 
 /** SQLSTATEs raised by the sophia.* functions (db/migrations), most specific rule first. */
@@ -43,6 +45,13 @@ const RULES: readonly Rule[] = [
     code: 'runtime_capability_required',
     publicMessage: 'Render runner capability not recognized',
   },
+  // The Paperclip adapter's credential (0042): unknown is refused like an unknown runtime, without saying more.
+  {
+    sqlstate: '28000',
+    when: (m) => m.startsWith('Integration credential'),
+    code: 'coordination_capability_required',
+    publicMessage: 'Integration credential not recognized',
+  },
   { sqlstate: '28000', code: 'runtime_capability_required', publicMessage: 'Runtime capability not recognized' },
   {
     sqlstate: '42501',
@@ -51,6 +60,8 @@ const RULES: readonly Rule[] = [
       m.startsWith('Receipt names') ||
       m.startsWith('Observation names') ||
       m.startsWith('Research operation names') ||
+      m.startsWith('Review operation names') ||
+      m.startsWith('Integration ') ||
       m.startsWith('Design operation names') ||
       m.startsWith('A media-bridge call') ||
       m.startsWith('The speaker is not bound') ||
@@ -66,6 +77,8 @@ const RULES: readonly Rule[] = [
   // 0032: a rendition needs a render runner that is asking for work.
   { sqlstate: '55000', when: (m) => m.startsWith('No PDF renderer'), code: 'native_capability_unavailable' },
   { sqlstate: '55000', when: (m) => m === 'Research gate closed', code: 'research_gate_closed' },
+  // WBC-02 (0042): the pilot gate says why it is closed; nothing about a project the caller cannot read.
+  { sqlstate: '55000', when: (m) => m.startsWith('Source review is not enabled'), code: 'coordination_closed' },
   { sqlstate: '55000', when: (m) => LIMITS.some((p) => m.startsWith(p)), code: 'research_limit_reached' },
   // The mission ledger (0018): the note policy's refusals say what would allow the write, so their words are kept.
   {

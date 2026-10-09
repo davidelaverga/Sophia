@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@sophia/contracts": "workspace:*",
+    "@sophia/coordination": "workspace:*",
     "@sophia/design": "workspace:*",
     "@sophia/domain": "workspace:*",
     "@sophia/persistence": "workspace:*",
@@ -24,6 +25,8 @@
   },
   "devDependencies": {
     "@sophia/media-bridge": "workspace:*",
+    "@sophia/paperclip-adapters": "workspace:*",
+    "@sophia/paperclip-plugin": "workspace:*",
     "@sophia/test-support": "workspace:*",
     "@sophia/worker": "workspace:*",
     "@types/pg": "8.23.1"

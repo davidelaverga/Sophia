@@ -43,13 +43,15 @@ import { PDF_PROMPT, RESEARCH_PROMPT } from './research-prompt.js'
 import { FINALIZE_NOTICE, FINALIZE_TOOL_NAMES, researchTools, type ResearchSources } from './research-tools.js'
 import { loadDesignAssets, type AssetsOutcome, type LoadedAssets } from './design-assets.js'
 import { designTools, type ImageStore } from './design-tools.js'
+import { REVIEW_PROMPT } from './review-prompt.js'
+import { boundedAccounts, reviewAccounts, reviewTools } from './review-tools.js'
 import { DESIGN_ROLES, roleOf } from './role-registry.js'
 import type { DesignRole, RolePreset } from './role-registry.js'
 import { foldLog, Journal, strongestFence } from './session-events.js'
 import type { CommandEntry, DeliveryTarget, ExecutionIdentity, FenceState, StashedMessage } from './session-events.js'
 import { ServiceTransport, TransportError } from './transport.js'
 import type { HelloReply, Observation, ServiceBinding, UnrecoveredBinding } from './transport.js'
-import type { RuntimeCommandBatch } from './runtime-wire-types.generated.js'
+import type { ResearchReserveRequest, RuntimeCommandBatch } from './runtime-wire-types.generated.js'
 
 /** One model route: the provider route, the model and the reasoning effort (null: the model's default). */
 export type RouteSpec = ExecutionIdentity['route']
@@ -155,6 +157,8 @@ export class ControlBridge {
   private cursor = 0
   /** The research tools, built once; registered in each research agent's own scope. */
   private readonly researchToolset: ToolDefinition[] | null
+  /** The source reviewer's tools (WBC-02), built once; registered in each review agent's own scope. */
+  private readonly reviewToolset: ToolDefinition[] | null
   /** The design and review tools (SDD-01), built once; each design agent gets only those its role names. */
   private readonly designToolset: ToolDefinition[] | null
   /** Each design role's verified bundle assets, loaded once. */
@@ -197,6 +201,10 @@ export class ControlBridge {
           },
           log: settings.log,
         })
+      : null
+    // A review needs no provider of its own: it reads and publishes through the service only.
+    this.reviewToolset = this.transport
+      ? reviewTools({ client: this.transport, sessionOf: (exec) => this.toolSession(exec.agent), log: settings.log })
       : null
   }
 
@@ -468,27 +476,37 @@ export class ControlBridge {
     const overrun = (reservationId: string, reservedUsd: number, costUsd: number) =>
       this.journal.append(attempt.sessionId, 'sophia/spend-overrun', { ...who, reservationId, reservedUsd, costUsd })
     const finalize = () => this.enterFinalize(attempt, options.sessionId)
+    // A source review (WBC-02) meters through its own operations, under its work's allowance and its eight-request
+    // cap, and has no finalize step: a refused reservation refuses the call, and the model is told why. Each of its
+    // reservations and settlements waits a bounded time and is sent again under the same id; a cancelled call sends
+    // no reservation and cuts one in flight, and its settlement is still sent (Codex on #107).
+    const review = attempt.role?.taskKind === 'source_review'
+    const reviewing = review ? reviewAccounts(transport) : null
+    const accounts = reviewing
+      ? { reserve: (body: ResearchReserveRequest) => reviewing.reserve(body, options.signal), settle: reviewing.settle, what: 'review' }
+      : { reserve: transport.researchReserve.bind(transport), settle: transport.researchSettle.bind(transport), what: 'research' }
     return (async function* () {
       let reservationId: string
       const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
       // No abort signal: a reservation the service made must come back to be settled, never be orphaned by a cancel.
+      // A review's waits for its deadline only, and is sent again under the same callId.
       const reserve = (purpose: 'call' | 'partial_result') =>
-        transport.researchReserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose })
+        accounts.reserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose })
       try {
         if (attempt.finalizing) reservationId = (await reserve('partial_result')).reservationId
         else {
           try {
             reservationId = (await reserve('call')).reservationId
           } catch (error) {
-            // Only the service's refusal of an ordinary call enters the finalize step; it checks the step again.
-            if (!(error instanceof TransportError && error.code === 'research_limit_reached')) throw error
+            // Only the service's refusal of an ordinary research call enters the finalize step; it checks the step again.
+            if (review || !(error instanceof TransportError && error.code === 'research_limit_reached')) throw error
             finalize()
             reservationId = (await reserve('partial_result')).reservationId
           }
         }
       } catch (error) {
         const why = error instanceof TransportError && error.code ? error.code : (error as Error).message
-        yield* refused(`this research's allowance could not reserve the model call (${why})`)
+        yield* refused(`this ${accounts.what}'s allowance could not reserve the model call (${why})`)
         return
       }
       let usage: TokenUsage | null = null
@@ -501,7 +519,7 @@ export class ControlBridge {
         const costUsd = usage ? costOfUsage(usage, prices) : null
         if (costUsd !== null && costUsd > amountUsd) overrun(reservationId, amountUsd, costUsd)
         try {
-          await transport.researchSettle({
+          await accounts.settle({
             ...ids,
             reservationId,
             outcome: usage ? 'settled' : 'uncertain',
@@ -517,7 +535,10 @@ export class ControlBridge {
   /**
    * One model call of a designer or a reviewer (SDD-01), metered against the research lineage's allowance through the
    * design operations: reserved before it leaves, settled from its usage. A design has no finalize step: a spent
-   * allowance refuses the call, and the design ends on the service's limits.
+   * allowance refuses the call, and the design ends on the service's limits. Each reservation and settlement waits a
+   * bounded time and is sent again under the same callId or reservationId; a cancelled call sends no reservation and
+   * cuts one in flight, an unknown or refused one refuses the call, and its settlement is still sent, within its own
+   * bound, after a Hold or Stop (Davide on #107, as a source review's).
    */
   private meteredDesign(attempt: AttemptState, options: GenerateOptions, route: RouteConfig, prices: RoutePrices, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk> {
     const transport = this.transport!
@@ -527,12 +548,16 @@ export class ControlBridge {
       this.journal.append(attempt.sessionId, 'sophia/spend-refused', { attemptId: attempt.attemptId, sessionId: String(options.sessionId), reason })
       return refuse(reason)
     }
+    const accounts = boundedAccounts({
+      reserve: (body, signal) => transport.designReserve(body, signal),
+      settle: (body, signal) => transport.designSettle(body, signal),
+    })
     return (async function* () {
       const amountUsd = estimateCallUsd(options, prices, route.maxTokens)
       let reservationId: string
       try {
-        // No abort signal, as for research: a reservation the service made must come back to be settled.
-        reservationId = (await transport.designReserve({ ...ids, callId: `llm-${randomUUID()}`, kind: 'model', provider: route.provider, amountUsd, purpose: 'call' })).reservationId
+        const body = { ...ids, callId: `llm-${randomUUID()}`, kind: 'model' as const, provider: route.provider, amountUsd, purpose: 'call' as const }
+        reservationId = (await accounts.reserve(body, options.signal)).reservationId
       } catch (error) {
         const why = error instanceof TransportError && error.code ? error.code : (error as Error).message
         yield* refused(`this design's allowance could not reserve the model call (${why})`)
@@ -547,7 +572,7 @@ export class ControlBridge {
       } finally {
         const costUsd = usage ? costOfUsage(usage, prices) : null
         try {
-          await transport.designSettle({
+          await accounts.settle({
             ...ids,
             reservationId,
             outcome: usage ? 'settled' : 'uncertain',
@@ -580,19 +605,29 @@ export class ControlBridge {
       const deny = visible.filter((name) => !role.nativeTools.has(name))
       if (deny.length > 0) agentCtx.tools.restrict({ deny })
       // The research tools exist only in a research agent's own scope (SMC-M03 S4), and only those its role names,
-      // with the research section of its system prompt.
-      const tools = (this.researchToolset ?? []).filter((tool) => role.nativeTools.has(tool.name))
-      for (const tool of tools) agentCtx.tools.register(tool)
-      if (tools.length > 0) {
-        const prompts = (agentCtx as unknown as { systemPrompt?: PromptSections }).systemPrompt
-        if (!prompts) throw new ProtocolError('this runtime unit has no system prompt service for the research section')
-        prompts.section({ name: 'sophia-research', order: RESEARCH_PROMPT.order, text: RESEARCH_PROMPT.text, interpolate: false })
-        if (role.nativeTools.has('research_render_pdf')) {
-          prompts.section({ name: 'sophia-research-pdf', order: PDF_PROMPT.order, text: PDF_PROMPT.text, interpolate: false })
-        }
-      }
+      // with the research section of its system prompt; the review tools likewise only in a source reviewer's
+      // (WBC-02), with the reviewer's instruction.
+      const research = (this.researchToolset ?? []).filter((tool) => role.nativeTools.has(tool.name))
+      const review = (this.reviewToolset ?? []).filter((tool) => role.nativeTools.has(tool.name))
+      for (const tool of [...research, ...review]) agentCtx.tools.register(tool)
+      if (research.length > 0) this.installSection(agentCtx, role, 'research')
+      if (review.length > 0) this.installSection(agentCtx, role, 'review')
       const design = DESIGN_ROLES.get(role.id)
       if (design) this.installDesign(agentCtx, role, design)
+    }
+  }
+
+  /** The research section (with its PDF part when the role renders) or the source reviewer's instruction (WBC-02). */
+  private installSection(agentCtx: Parameters<AgentSetup>[0], role: RolePreset, kind: 'research' | 'review'): void {
+    const prompts = (agentCtx as unknown as { systemPrompt?: PromptSections }).systemPrompt
+    if (!prompts) throw new ProtocolError(`this runtime unit has no system prompt service for the ${kind} section`)
+    if (kind === 'review') {
+      prompts.section({ name: 'sophia-source-review', order: REVIEW_PROMPT.order, text: REVIEW_PROMPT.text, interpolate: false })
+      return
+    }
+    prompts.section({ name: 'sophia-research', order: RESEARCH_PROMPT.order, text: RESEARCH_PROMPT.text, interpolate: false })
+    if (role.nativeTools.has('research_render_pdf')) {
+      prompts.section({ name: 'sophia-research-pdf', order: PDF_PROMPT.order, text: PDF_PROMPT.text, interpolate: false })
     }
   }
 

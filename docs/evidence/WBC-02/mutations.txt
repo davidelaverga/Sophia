@@ -1,0 +1,51 @@
+# WBC-02 mutation checks (linux-x64, 2026-10-05; the plugin set re-run on each control repair)
+# Each line reverts one guard, runs the check meant to catch it, and restores the file.
+# 'FAILS as it should' = a check caught the reverted guard.
+
+M01 a replayed envelope is refused (plugin nonce): FAILS as it should
+M02 a resend finds the issue its key holds (plugin, INT-05): FAILS as it should
+M03 the body is the one the envelope signed (digest): FAILS as it should
+M04 a pre-aborted run asks Sophia nothing (adapter, INT-07): FAILS as it should
+M05 a cancelled run waits for the Hold to settle (adapter): FAILS as it should
+M05b an unsettled Hold is never said held (adapter): FAILS as it should
+M06 a second run attaches, never a second attempt (SQL, INT-06): FAILS as it should
+M07 usage is reported by one run only (SQL, INT-17): FAILS as it should
+M08 a finding cites only a source the review read (SQL): FAILS as it should
+M09 a withdrawn input withdraws the result (SQL, INT-13): FAILS as it should
+M10 a result is shown only if its bytes hash to its version (Studio, INT-16): FAILS as it should
+M11 a command naming no assignment never leaves (Studio): FAILS as it should
+M12 the served board is read only while Tasks is in view (Studio): FAILS as it should
+M13 a cancel Sophia did not answer is asked again under the same run (adapter, WBC-02-CX-0002): FAILS as it should
+M14 a cancel never answered is said an unconfirmed Hold, never released (adapter, WBC-02-CX-0002): FAILS as it should
+M15 a control recorded but not applied is applied by its resend, never answered already (plugin, WBC-02-CX-0002) (re-run on the CX-0013, CX-0017 and CX-0020 code): FAILS as it should
+M16 a resend reconciles an earlier wakeup ask before asking again, never blindly (plugin, WBC-02-CX-0004): FAILS as it should
+M17 a run of the issue since the first ask confirms the wakeup: no second ask (plugin, WBC-02-CX-0004): FAILS as it should
+M18 an ask that may still be in flight is waited for (503), not repeated (plugin, WBC-02-CX-0004): FAILS as it should
+M19 concurrent resends of a stale ask: one claims it, the host is asked once (plugin, WBC-02-CX-0004): FAILS as it should
+M20 an older pending control never undoes a later one that took effect (plugin) (re-run on the CX-0013, CX-0017 and CX-0020 code): FAILS as it should
+M21 a delivery key resent with another operation is refused (plugin) (re-run on the CX-0013, CX-0017 and CX-0020 code): FAILS as it should
+M22 the plugin's SQL keeps to the pin's ctx.db rules (a write through query is refused, as by the host) (plugin, WBC-02-CX-0004): FAILS as it should
+M23 a run that ended on Sophia's definite answer (held, a review blocked, a denied permit) completes, so the pinned host does not leave the reviewer in error (adapter, WBC-02-CX-0007; caught by execute.test.ts and by scripts/paperclip-host-probe.mjs on the pin's heartbeat): FAILS as it should
+M24 a wakeup the host did not queue ({queued: false}) is not delivered: 503 wake_not_queued (plugin, WBC-02-CX-0007) (re-run on the CX-0013, CX-0017 and CX-0020 code): FAILS as it should
+M25 a write that lands after a later control is undone by the settlement: the later status stands (plugin, WBC-02-CX-0008; rewritten for the settlement of WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M26 one delivery at a time changes an issue: a resend while the original holds the effect lease is told to ask again (plugin, WBC-02-CX-0008; rewritten against the current lease) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M27 the built plugin installs through the pin's own loader (scripts/paperclip-host-probe.mjs, pluginLoader.installPlugin); with the previous migration, whose comments held quote characters, it fails with the host's own error (WBC-02-CX-0010): FAILS as it should
+M28 an effect that failed is settled before its error is answered (plugin, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M29 no delivery is answered done while a write of its commission is unsettled (plugin, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M30 a resend answered from its record (already) settles open writes first (plugin, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M31 a write ends when the host answers, an error included, so a durable write that then failed is settled at once (plugin, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M32 a call the host never answered is never ended by its error: it stays open (plugin, WBC-02-CX-0013, CX-0017) (re-run on the CX-0020 code): FAILS as it should
+M33 a settlement leaves alone a status no open write made, the host own (plugin, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M34 the settle job settles what no delivery settled (plugin, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M35 a write is begun only while the delivery still holds the lease (plugin, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M36 the status a settlement restores is the one of the latest control received (plugin, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M37 the binding tells an update the worker stopped waiting for (the pin RPC timeout, -32003) from the host error answer (plugin bind.test.ts, WBC-02-CX-0013) (re-run on the CX-0017 and CX-0020 code): FAILS as it should
+M38 time alone never finishes a write the host never answered (plugin, WBC-02-CX-0017): FAILS as it should
+M39 a write the operator fenced is finished and settled (plugin, WBC-02-CX-0017, CX-0020, CX-0024): FAILS as it should
+M40 a host process that cannot be read names nothing (plugin bind.ts, WBC-02-CX-0017, CX-0020): FAILS as it should
+M41 the host process is named by its pid and start time, so a restart on a reused pid is told apart (plugin bind.ts, WBC-02-CX-0017): FAILS as it should
+M42 a recorded host identity finishes no write: the plugin never fences one itself (plugin, WBC-02-CX-0020, CX-0024): FAILS as it should
+M43 the operator fence refuses while a session of the previous instance remains (deploy/paperclip/fence-previous-instance.sql on PostgreSQL, WBC-02-CX-0024): FAILS as it should
+M44 ending the previous sessions rolls back what they had not committed (deploy/paperclip/fence-previous-instance.sql on PostgreSQL, with a killed client whose statement waits on a lock, WBC-02-CX-0024): FAILS as it should
+M45 a run asks again for its permit while Sophia does not answer (adapter, the reachability of WBC-02-CX-0015): FAILS as it should
+M46 a permit Sophia refused is never asked again (adapter, the reachability of WBC-02-CX-0015): FAILS as it should

@@ -23,6 +23,8 @@ export interface EnvelopeInput {
   readonly offset?: number
   readonly nextOffset?: number | null
   readonly limitations?: readonly string[]
+  /** The receipt only this page carries (a source review's page): the submit presents it to cite the source. */
+  readonly receipt?: string
   readonly text: string
 }
 
@@ -44,6 +46,7 @@ export function envelope(input: EnvelopeInput): string {
     ...(input.coverage ? [`coverage="${input.coverage}"`] : []),
     ...(input.offset === undefined ? [] : [`offset="${input.offset}"`]),
     ...(input.nextOffset === undefined ? [] : [`next_offset="${input.nextOffset ?? 'none'}"`]),
+    ...(input.receipt ? [`receipt="${attribute(input.receipt)}"`] : []),
   ]
   const meta = [
     ...(input.url ? [`url: ${attribute(input.url)}`] : []),

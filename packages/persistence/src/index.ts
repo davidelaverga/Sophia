@@ -104,6 +104,7 @@ export {
 } from './artifacts.ts'
 export {
   enqueueRenderJob,
+  claimObjectWrite,
   rendererCaptureSlot,
   rendererClaim,
   rendererFile,
@@ -206,9 +207,34 @@ export {
   type CompanionContext,
 } from './personal.ts'
 export { listProjects, PROJECT_LIST_BOUNDS, type ProjectListing } from './project-list.ts'
+export {
+  admitWorkCommand,
+  answerWorkDecision,
+  claimCoordinationOutbox,
+  coordinationCancel,
+  coordinationObserve,
+  coordinationPermit,
+  coordinationStart,
+  expireCoordinationLeases,
+  proposeSourceReview,
+  readBoardFacts,
+  readWorkResult,
+  recordCoordinationDelivery,
+  runtimeSourceReviewContext,
+  runtimeSourceReviewReserve,
+  runtimeSourceReviewSettle,
+  runtimeSourceReviewSubmit,
+  sourceReviewAvailability,
+  sourceReviewProposal,
+  workOperationReceipt,
+  type CoordinationDelivery,
+  type DeliveryOutcome,
+} from './coordination.ts'
 export { readHtmlPages, type HtmlPage } from './design-progress.ts'
 export {
   designCaptureRefs,
+  designDelivered,
+  issueDesignDelivery,
   freezeDesignPackage,
   htmlDesignReady,
   requestDesignEdit,
@@ -224,6 +250,7 @@ export {
   runtimeReviewContext,
   runtimeReviewSubmit,
   type DesignCaptureLocation,
+  type DesignDelivery,
   type DesignCaptureRefs,
   type DesignRoles,
 } from './design.ts'

@@ -15,6 +15,7 @@
  *   POST {base}/v1/runtime/research/{context,reserve,settle,capture,draft,submit,render,render-result}  (SMC-M03, A11)
  *   POST {base}/v1/runtime/design/{context,record,source,patch,render,render-result,capture,reserve,settle,submit}  (SDD-01, A12)
  *   POST {base}/v1/runtime/review/{context,capture,submit}  (SDD-01, A12)
+ *   POST {base}/v1/runtime/source-review/{context,reserve,settle,submit}  (WBC-02, A13)
  *
  * Every reply is validated against the contract before the bridge reads it,
  * and every body is validated before it is sent: a reply that breaks the
@@ -33,6 +34,8 @@ import { wire } from './runtime-wire.generated.js'
 import type { WireValidator } from './runtime-wire.generated.js'
 import type {
   DesignCaptureReply,
+  DesignDeliveryAck,
+  DesignDeliveryReceipt,
   DesignCaptureRequest,
   DesignContextReply,
   DesignContextRequest,
@@ -64,6 +67,10 @@ import type {
   ReviewContextReply,
   ReviewSubmission,
   ReviewSubmitRequest,
+  SourceReviewContextReply,
+  SourceReviewContextRequest,
+  SourceReviewSubmission,
+  SourceReviewSubmitRequest,
   RuntimeCommandBatch,
   RuntimeHello,
   RuntimeHelloReply,
@@ -225,6 +232,7 @@ export class ServiceTransport {
     checked('render result request', wire.ResearchRenderResultRequest, body)
     return checked('render', wire.ResearchRender, await this.request('POST', '/v1/runtime/research/render-result', body, signal))
   }
+
   // The design and review tools' operations (SDD-01, A12): each request and reply checked against the contract.
 
   async designContext(body: DesignContextRequest, signal?: AbortSignal): Promise<DesignContextReply> {
@@ -263,20 +271,36 @@ export class ServiceTransport {
     return checked('captures', wire.DesignCaptureReply, await this.request('POST', `/v1/runtime/${role}/capture`, body, signal))
   }
 
-  /** A model call of the designer or the reviewer, reserved against the research lineage's allowance. */
-  async designReserve(body: ResearchReserveRequest): Promise<ResearchReservation> {
+  /**
+   * The model was handed each capture of a delivery, unchanged, as a stored image: they count as seen for a submission
+   * that names the delivery. The design tools send it only for a look whose receipt a submit named, and send the same
+   * body again until it is answered; the service answers a replay the same and counts nothing twice.
+   */
+  async designDelivered(role: 'design' | 'review', body: DesignDeliveryAck, signal?: AbortSignal): Promise<DesignDeliveryReceipt> {
+    checked('delivery acknowledgement', wire.DesignDeliveryAck, body)
+    return checked('delivery', wire.DesignDeliveryReceipt, await this.request('POST', `/v1/runtime/${role}/delivered`, body, signal))
+  }
+
+  /**
+   * A model call of the designer or the reviewer, reserved against the research lineage's allowance. `signal` ends the
+   * wait for an answer, as sourceReviewReserve's: the bridge sends the same reservation (same callId) again (Davide on
+   * #107).
+   */
+  async designReserve(body: ResearchReserveRequest, signal?: AbortSignal): Promise<ResearchReservation> {
     checked('reservation request', wire.ResearchReserveRequest, body)
-    return checked('reservation', wire.ResearchReservation, await this.request('POST', '/v1/runtime/design/reserve', body))
+    return checked('reservation', wire.ResearchReservation, await this.request('POST', '/v1/runtime/design/reserve', body, signal))
   }
 
-  async designSettle(body: ResearchSettleRequest): Promise<ResearchSettlement> {
+  /** `signal` ends the wait for an answer: the same settlement (same reservationId) is sent again. */
+  async designSettle(body: ResearchSettleRequest, signal?: AbortSignal): Promise<ResearchSettlement> {
     checked('settlement request', wire.ResearchSettleRequest, body)
-    return checked('settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/design/settle', body))
+    return checked('settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/design/settle', body, signal))
   }
 
-  async designSubmit(body: DesignSubmitRequest): Promise<DesignSubmission> {
+  /** `signal` bounds the wait for an answer; the design tools then send the same call (same key) again, never a new one. */
+  async designSubmit(body: DesignSubmitRequest, signal?: AbortSignal): Promise<DesignSubmission> {
     checked('design submit request', wire.DesignSubmitRequest, body)
-    return checked('design submission', wire.DesignSubmission, await this.request('POST', '/v1/runtime/design/submit', body))
+    return checked('design submission', wire.DesignSubmission, await this.request('POST', '/v1/runtime/design/submit', body, signal))
   }
 
   async reviewContext(body: DesignContextRequest, signal?: AbortSignal): Promise<ReviewContextReply> {
@@ -284,9 +308,41 @@ export class ServiceTransport {
     return checked('review context', wire.ReviewContextReply, await this.request('POST', '/v1/runtime/review/context', body, signal))
   }
 
-  async reviewSubmit(body: ReviewSubmitRequest): Promise<ReviewSubmission> {
+  /** `signal` bounds the wait for an answer, as designSubmit's. */
+  async reviewSubmit(body: ReviewSubmitRequest, signal?: AbortSignal): Promise<ReviewSubmission> {
     checked('review submit request', wire.ReviewSubmitRequest, body)
-    return checked('review submission', wire.ReviewSubmission, await this.request('POST', '/v1/runtime/review/submit', body))
+    return checked('review submission', wire.ReviewSubmission, await this.request('POST', '/v1/runtime/review/submit', body, signal))
   }
 
+  // The source reviewer's operations (WBC-02, A13): the same checks; its model calls reserve and settle through the
+  // shared research accounting under the review's own allowance.
+
+  async sourceReviewContext(body: SourceReviewContextRequest, signal?: AbortSignal): Promise<SourceReviewContextReply> {
+    checked('review context request', wire.SourceReviewContextRequest, body)
+    return checked('review context', wire.SourceReviewContextReply, await this.request('POST', '/v1/runtime/source-review/context', body, signal))
+  }
+
+  /**
+   * `signal` ends the wait for an answer (its deadline): the bridge then sends the same reservation (same callId) again,
+   * and the service answers it with the reservation it made (Codex on #107).
+   */
+  async sourceReviewReserve(body: ResearchReserveRequest, signal?: AbortSignal): Promise<ResearchReservation> {
+    checked('review reservation request', wire.ResearchReserveRequest, body)
+    return checked('review reservation', wire.ResearchReservation, await this.request('POST', '/v1/runtime/source-review/reserve', body, signal))
+  }
+
+  /** `signal` ends the wait for an answer, as sourceReviewReserve's: the same settlement (same reservationId) is sent again. */
+  async sourceReviewSettle(body: ResearchSettleRequest, signal?: AbortSignal): Promise<ResearchSettlement> {
+    checked('review settlement request', wire.ResearchSettleRequest, body)
+    return checked('review settlement', wire.ResearchSettlement, await this.request('POST', '/v1/runtime/source-review/settle', body, signal))
+  }
+
+  /**
+   * `signal` ends the wait for an answer (its deadline, or a Hold or Stop of the review): the review tools then send the
+   * same call (same callId) again while the review is active, and the service answers what it recorded (Codex on #107).
+   */
+  async sourceReviewSubmit(body: SourceReviewSubmitRequest, signal?: AbortSignal): Promise<SourceReviewSubmission> {
+    checked('review submit request', wire.SourceReviewSubmitRequest, body)
+    return checked('review submission', wire.SourceReviewSubmission, await this.request('POST', '/v1/runtime/source-review/submit', body, signal))
+  }
 }

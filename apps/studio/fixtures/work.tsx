@@ -57,6 +57,7 @@ import { newMeeting } from './meeting-data.ts'
 import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { actions as requests, NOW, observations, resources as owned, tightClaude } from './resources-data.ts'
+import { SOURCE_REVIEW } from './source-review-data.ts'
 import { inCase } from './work-cases.ts'
 import {
   CASES,
@@ -67,6 +68,7 @@ import {
   moreGoals,
   moreViews,
   people,
+  plan,
   secondGoal,
   secondView,
   unplannedGoal,
@@ -124,6 +126,14 @@ declare global {
       reconnect?: () => void
       /** Each goal command sent (Request review, Hold, Stop), with its key (LFE-07.2). */
       goalCommands?: readonly { kind: string; key: string }[]
+      /** Each answer to the served board's admission decision (`admits=`). */
+      admissions?: readonly unknown[]
+      /** Each source review proposed (`proposed=lost|unreadable`), with its key and its body. */
+      proposals?: readonly { key: string; body: unknown }[]
+      /** Each read of a proposal by its key, as answered: `recorded <key>` or `not_found <key>`. */
+      proposalReads?: readonly string[]
+      /** `proposed=held`: the first proposal's answer, held until now, arrives; resolved once the page has read it. */
+      releaseProposal?: () => Promise<void>
       replay?: (operationId: string) => void
       /** A newer receipt for an operation saying less of its delivery (Codex F-014). */
       weaken?: (operationId: string) => void
@@ -156,6 +166,147 @@ const query = new URLSearchParams(window.location.search)
 /** `two=1`: a second goal with its own plan; `goals=6`: four more, to see the goals' rail scroll. */
 const six = query.get('goals') === '6'
 const two = six || query.get('two') === '1'
+/** `served=1`: Tasks reads the board Sophia serves, as the Studio does without the page's plans, the pilot enabled. */
+const served = query.get('served') === '1'
+/** `cap=<usd>`: the project's cap for one review, in place of the pilot's half a dollar (a sub-cent one, Codex on #107). */
+const cap = query.get('cap')
+/**
+ * `proposed=lost|unreadable`: the first proposal's reply is lost, or a success that cannot be read; the next is answered.
+ * `proposed=held`: the first is recorded and its answer waits for `workFixture.releaseProposal`; the second's reply is
+ * lost; the next is answered. `workFixture.proposals` lists each sent, across a reload of the tab too (the service
+ * remembers what it was sent).
+ */
+const proposing = query.get('proposed')
+const SENT_KEY = 'fixture.work.proposals'
+const sentBefore = (): { key: string; body: unknown }[] => {
+  try {
+    const kept: unknown = JSON.parse(sessionStorage.getItem(SENT_KEY) ?? '[]')
+    if (!Array.isArray(kept)) return []
+    return kept.flatMap((p: unknown) =>
+      typeof p === 'object' && p !== null && typeof Reflect.get(p, 'key') === 'string'
+        ? [{ key: String(Reflect.get(p, 'key')), body: Reflect.get(p, 'body') as unknown }]
+        : [],
+    )
+  } catch {
+    return []
+  }
+}
+const proposals:
+  | {
+      lose: number
+      how: 'lost' | 'unreadable' | 'held'
+      sent: { key: string; body: unknown }[]
+      held: ((read: () => void) => void)[]
+      reads: string[]
+    }
+  | undefined =
+  proposing === 'lost' || proposing === 'unreadable' || proposing === 'held'
+    ? { lose: 1, how: proposing, sent: sentBefore(), held: [], reads: [] }
+    : undefined
+if (proposals) addEventListener('pagehide', () => sessionStorage.setItem(SENT_KEY, JSON.stringify(proposals.sent)))
+
+/**
+ * `admits=1|other|luis|replacement` (with `served=1&proposed=lost`): once the first proposal is recorded, the board
+ * Sophia serves shows a labelled synthetic admission decision for it: Davide's on the first goal (`1`), Davide's on the
+ * second goal (`other`, with `two=1`), Luis's on the first goal (`luis`), or Davide's on the first goal's proposed
+ * replacement, beside the plan in force (`replacement`). The page's viewer is then Davide, by a synthetic,
+ * unsigned token whose subject the Studio reads (tokenSubject). Answered, the decision is recorded; each answer is in
+ * `workFixture.admissions`.
+ */
+const admits = query.get('admits')
+const ADMISSION_KEY = 'fixture.work.admission'
+/** The decision as the service holds it, across a reload of the tab too: answered once, it stays answered. */
+const admission: { state: 'proposed' | 'accepted'; answers: unknown[] } = (() => {
+  try {
+    const kept: unknown = JSON.parse(sessionStorage.getItem(ADMISSION_KEY) ?? 'null')
+    const given: unknown = typeof kept === 'object' && kept !== null ? Reflect.get(kept, 'answers') : null
+    return Array.isArray(given) && given.length > 0
+      ? { state: 'accepted' as const, answers: given }
+      : { state: 'proposed' as const, answers: [] }
+  } catch {
+    return { state: 'proposed' as const, answers: [] }
+  }
+})()
+if (admits) addEventListener('pagehide', () => sessionStorage.setItem(ADMISSION_KEY, JSON.stringify(admission)))
+const base64url = (value: object) =>
+  btoa(JSON.stringify(value)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_')
+const DAVIDE_TOKEN = `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url({ sub: 'davide', fixture: 'synthetic, unsigned' })}.`
+const viewing = admits ? { ...identity, token: DAVIDE_TOKEN } : identity
+
+/** A goal's plan only proposed, with the admission decision `deciderId` answers. */
+function admittedOn(view: GoalView, planId: string, deciderId: string): GoalView {
+  const decided = admission.state === 'accepted'
+  return {
+    ...view,
+    decisions: [
+      {
+        decision_id: 'admit-1',
+        revision: 1,
+        work_id: 'review-1',
+        plan_id: planId,
+        plan_revision: 1,
+        candidate_version_ref: null,
+        question: 'Start the source review?',
+        decider_id: deciderId,
+        choices: [
+          { key: 'start', label: 'Start the review' },
+          { key: 'decline', label: 'Not now' },
+        ],
+        expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+        state: decided ? 'accepted' : 'proposed',
+        selected_choice: decided ? 'start' : null,
+        choice_receipt_id: decided ? 'receipt-admit-1' : null,
+        plan_reaction: 'not_needed',
+      },
+    ],
+  }
+}
+
+/** The goals of the board Sophia serves, as `admits=` asks: none until the first proposal is recorded. */
+function servedGoals(): GoalView[] {
+  if (!admits || !proposals || proposals.sent.length === 0) return []
+  if (admits === 'other') return [admittedOn(secondView, 'plan-2', 'davide')]
+  const proposedPlan = {
+    ...plan,
+    plan_id: 'plan-review-1',
+    revision: 1,
+    state: 'proposed' as const,
+    decision_ref: null,
+  }
+  const first: GoalView = {
+    goal_id: goal.id,
+    current_plan: admits === 'replacement' ? plan : null,
+    proposed_plans: [proposedPlan],
+    next_checkpoint: null,
+    items: [],
+    decisions: [],
+  }
+  return [admittedOn(first, 'plan-review-1', admits === 'luis' ? 'luis' : 'davide')]
+}
+
+/** Davide's answer to the admission decision: recorded, as the service's receipt says. */
+function answerAdmission(decisionId: string, answer: unknown) {
+  admission.answers.push({ decisionId, answer })
+  admission.state = 'accepted'
+  const operation = typeof answer === 'object' && answer !== null ? String(Reflect.get(answer, 'operation_id')) : ''
+  return {
+    schema_version: 'sophia.work.receipt.v1',
+    operation_id: operation,
+    receipt_id: 'receipt-admit-1',
+    project_id: PROJECT,
+    work_id: 'review-1',
+    assignment_id: null,
+    assignment_generation: null,
+    kind: 'decision',
+    revision: 2,
+    observed_at: new Date().toISOString(),
+    admission: 'recorded',
+    delivery: 'not_applicable',
+    effect: 'choice_recorded',
+    rejection: null,
+    evidence_refs: ['fixture-admission'],
+  }
+}
 /** The goal's commands reach the lead's side once the page has made it (Tasks, below). */
 let onGoalCommand: ((command: GoalCommand, key: string) => void) | null = null
 installFixtureApi({
@@ -179,6 +330,9 @@ installFixtureApi({
   textHeld: false,
   textTampered: false,
   work: false,
+  ...(served && { review: cap === null ? SOURCE_REVIEW : { ...SOURCE_REVIEW, maxAllowanceUsd: Number(cap) } }),
+  ...(proposals && { proposals }),
+  ...(admits && { servedGoals, onAnswer: answerAdmission }),
   // A12: a call left from here has a meeting that left nothing (MeetingRecap's empty recap).
   meeting: newMeeting(
     () => ({
@@ -194,7 +348,16 @@ installFixtureApi({
     () => true,
   ),
 })
-window.workFixture = { unexpected, answered: answers, commands, receipts, questions }
+window.workFixture = {
+  unexpected,
+  answered: answers,
+  commands,
+  receipts,
+  questions,
+  ...(proposals && { proposals: proposals.sent, proposalReads: proposals.reads }),
+  ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
+  ...(admits && { admissions: admission.answers }),
+}
 const nothing = () => undefined
 
 /** `review=…`: how the lead answers Request review (work-review.ts). */
@@ -706,16 +869,21 @@ function Tasks() {
   const [onCommand] = useState(() => serve((command, effect) => update(settled(command, effect, looking.current))))
   const { review, lead, again } = useLead(first, viewer)
   useEffect(() => {
-    window.workFixture = controls(
-      update,
-      (v) => {
-        setViewer(v)
-        setFirst(opening(v))
-      },
-      { arrive: () => setArrived(true), connect: setConnected, port: setPorted, read: setCoverage },
-      viewer,
-      { commands: lead.commands, again },
-    )
+    window.workFixture = {
+      ...controls(
+        update,
+        (v) => {
+          setViewer(v)
+          setFirst(opening(v))
+        },
+        { arrive: () => setArrived(true), connect: setConnected, port: setPorted, read: setCoverage },
+        viewer,
+        { commands: lead.commands, again },
+      ),
+      ...(proposals && { proposals: proposals.sent, proposalReads: proposals.reads }),
+      ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
+      ...(admits && { admissions: admission.answers }),
+    }
   }, [update, viewer, lead, again])
   const board = viewOf(first, arrived, now, coverage)
   const read = readBoardView(board)
@@ -736,13 +904,14 @@ function Tasks() {
         Simulated — no lead, tool, host or conversation read · viewing as {people[viewer].name}
         {scenario ? ` · ${scenario}` : ''}
       </p>
-      <Shell plans={plans} viewer={viewer} now={now} onCommand={ported ? onCommand : undefined} />
+      <Shell plans={served ? undefined : plans} viewer={viewer} now={now} onCommand={ported ? onCommand : undefined} />
     </>
   )
 }
 
 interface ShellProps {
-  plans: Readonly<Record<string, ReturnType<typeof slot>>>
+  /** Absent (`served=1`): Tasks reads the board Sophia serves. */
+  plans: Readonly<Record<string, ReturnType<typeof slot>>> | undefined
   viewer: Viewer
   now: Date
   onCommand: SendCommand | undefined
@@ -758,14 +927,14 @@ function Shell({ plans, viewer, now, onCommand }: ShellProps) {
     <ProjectShell
       projectId={PROJECT}
       view={view}
-      identity={identity}
+      identity={viewing}
       account={null}
       // Conversations' reads aren't faked on this page (room.html's are): its tab stays where it is.
       onShow={(next) => next !== 'conversations' && setView(next)}
       onLeave={nothing}
       onWork={nothing}
       onSignOut={nothing}
-      plans={plans}
+      {...(plans && { plans })}
       resources={
         <ResourcePanel
           resources={withActivity(owned)}

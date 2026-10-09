@@ -1,0 +1,379 @@
+// Private trusted fixture. Calls the unchanged confinement module and its live judge.
+import fs from 'node:fs'
+import crypto from 'node:crypto'
+import net from 'node:net'
+import { channel } from 'node:diagnostics_channel'
+import { probeHost } from '../host-probe.mjs'
+import { launchConfined } from '../confine.mjs'
+import { captureHtml } from '../capture-html.mjs'
+import { orderScript } from '../capture-page.mjs'
+import { meetingsOf, STYLES, withinTime } from '../placement.mjs'
+// Only trusted fixture code subscribes. Collect bounded numeric timing records
+// in memory; flush after the original capture returns, outside its sweep budget.
+// No DOM, source text, paths, screenshots or capability values enter this trace.
+const widthTrace = channel('sophia.renderer.width-sweep')
+/** @type {unknown[]} */
+const widthTimings = []
+let droppedWidthTimings = 0
+const collectWidthTiming = (/** @type {unknown} */ message) => {
+  if (widthTimings.length < 256) widthTimings.push(message)
+  else droppedWidthTimings += 1
+}
+widthTrace.subscribe(collectWidthTiming)
+const flushWidthTimings = (/** @type {string} */ capture) => {
+  console.log(
+    JSON.stringify({
+      event: 'UML_WIDTH_SWEEP_TRACE',
+      qualification: false,
+      diagnosticOnly: true,
+      capture,
+      measurements: widthTimings.splice(0),
+      dropped: droppedWidthTimings,
+    }),
+  )
+  droppedWidthTimings = 0
+}
+const input = '/tmp/uml-fixture.html'
+fs.writeFileSync(
+  input,
+  '<!doctype html><html lang="en"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\';style-src \'unsafe-inline\'"><style>body{background:#fff;color:#111;font:18px/1.6 serif}section{margin:24px}</style><h1>Confined renderer test</h1><section>' +
+    'Città, señal, naïve façade. Trusted fixture text. '.repeat(160) +
+    '</section></html>',
+  { mode: 0o644 },
+)
+const work = fs.mkdtempSync('/tmp/uml-browser-')
+const started = performance.now()
+/** @type {Awaited<ReturnType<typeof launchConfined>> | null} */
+let browser = null
+/** @type {{event:string,qualification:boolean,sourceBase:string,fixtureOnly:boolean,
+ * localDiagnosticLaunchTimeoutMs:number,releaseLaunchBudgetMs:number,launchMs?:number,
+ * releaseLaunchBudgetPass?:boolean,before?:import('../confine.mjs').SandboxVerdict,
+ * after?:import('../confine.mjs').SandboxVerdict,captures?:Array<{height:number,bytes:number,sha256:string,ms:number}>,
+ * pdf?:{bytes:number,header:string,sha256:string},functionalPass?:boolean,error?:string,totalMs?:number}} */
+const result = {
+  event: 'UML_FULL_DIAGNOSTIC',
+  qualification: false,
+  sourceBase: '872ba5a86a605a564063cd14ba59ef9aac9d4061',
+  fixtureOnly: true,
+  localDiagnosticLaunchTimeoutMs: 30000,
+  releaseLaunchBudgetMs: 30000,
+}
+try {
+  browser = await launchConfined({ workDir: work, timeoutMs: 30000 })
+  result.launchMs = performance.now() - started
+  result.releaseLaunchBudgetPass = result.launchMs <= 30000
+  const page = await browser.context.newPage()
+  await page.setViewportSize({ width: 1024, height: 768 })
+  await page.goto(`file://${input}`, { waitUntil: 'load', timeout: 30000 })
+  result.before = browser.selfTest()
+  if (!result.before.active) throw new Error(result.before.reasons.join('; '))
+  const cdp = await browser.context.newCDPSession(page)
+  result.captures = []
+  for (const height of [768, 1600]) {
+    const time = performance.now()
+    const shot = /** @type {unknown} */ (
+      await cdp.send('Page.captureScreenshot', {
+        format: 'png',
+        clip: { x: 0, y: 0, width: 1024, height, scale: 1 },
+        captureBeyondViewport: true,
+        fromSurface: true,
+      })
+    )
+    if (typeof shot !== 'object' || shot === null) throw new Error('invalid screenshot response')
+    const data = /** @type {unknown} */ (Reflect.get(shot, 'data'))
+    if (typeof data !== 'string') throw new Error('invalid screenshot payload')
+    const bytes = Buffer.from(data, 'base64')
+    if (!bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw new Error('invalid PNG')
+    result.captures.push({
+      height,
+      bytes: bytes.length,
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+      ms: performance.now() - time,
+    })
+    console.log(JSON.stringify({ event: 'UML_IMAGE', height, data }))
+  }
+  const pdf = await page.pdf({ format: 'A4', printBackground: true })
+  result.pdf = {
+    bytes: pdf.length,
+    header: pdf.subarray(0, 5).toString(),
+    sha256: crypto.createHash('sha256').update(pdf).digest('hex'),
+  }
+  if (result.pdf.header !== '%PDF-') throw new Error('invalid PDF')
+  result.after = browser.selfTest()
+  if (!result.after.active) throw new Error(result.after.reasons.join('; '))
+  result.functionalPass = true
+} catch (error) {
+  result.error = error instanceof Error ? error.message : String(error)
+  result.functionalPass = false
+} finally {
+  if (browser) {
+    const ownedBrowser = browser
+    const timer = setTimeout(() => ownedBrowser.kill(), 5000)
+    try {
+      await browser.close()
+    } catch {
+      browser.kill()
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  fs.rmSync(work, { recursive: true, force: true })
+}
+result.totalMs = performance.now() - started
+console.log(JSON.stringify(result))
+console.log('UML_FULL_DIAGNOSTIC_COMPLETE')
+// Exercise the original production entry points and wrapper probes unchanged.
+// The positive endpoint and token are synthetic and exist only in this guest.
+fs.mkdirSync('/run/uml-private', { mode: 0o700 })
+fs.writeFileSync('/run/uml-private/token', 'synthetic-not-a-capability', { mode: 0o600 })
+fs.writeFileSync('/run/uml-private/sentinel', 'synthetic-not-a-secret', { mode: 0o600 })
+const server = net.createServer((socket) => socket.end())
+await new Promise((resolve, reject) => {
+  server.once('error', reject)
+  server.listen(4321, '127.0.0.1', () => resolve(undefined))
+})
+/** @type {Awaited<ReturnType<typeof probeHost>> | undefined} */
+let suite
+try {
+  suite = await probeHost({
+    secrets: ['/run/uml-private/sentinel'],
+    env: {
+      ...process.env,
+      SOPHIA_API_URL: 'http://127.0.0.1:4321',
+      SOPHIA_RENDER_RUNNER_TOKEN_FILE: '/run/uml-private/token',
+    },
+  })
+  flushWidthTimings('original-suite')
+  console.log(
+    JSON.stringify({
+      event: 'UML_ORIGINAL_KERNEL_SUITE',
+      qualification: false,
+      syntheticApiPositive: true,
+      releaseLaunchBudgetMs: 30000,
+      widthSweepBudgetMs: 60000,
+      checks: suite,
+      passed: suite.every((check) => check.ok),
+    }),
+  )
+} finally {
+  await new Promise((resolve) => server.close(() => resolve(undefined)))
+  fs.rmSync('/run/uml-private', { recursive: true, force: true })
+}
+// Preserve the original suite's failure. Its summary omits a check's detailed
+// reason, so a failed capture gets one bounded diagnostic receipt with the same
+// source fixture, targets, original kernel and normal deadlines.
+if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
+  const source = fs.mkdtempSync('/tmp/uml-width-source-')
+  const output = fs.mkdtempSync('/tmp/uml-width-output-')
+  const fixture = `<!doctype html><html lang="it"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>Probe</title>
+<style>body{margin:0;font:18px/1.5 Georgia,serif;color:#222;background:#fafafa} section{padding:1rem 2rem;max-width:60rem;margin:auto}</style>
+</head><body><main><h1>Verifica dell'host di cattura</h1>
+<section data-section="s1"><p data-block="b1">${'Città, señal, naïve façade: àèéìòù. '.repeat(8)}</p></section>
+<section data-section="s2"><ul><li data-block="b2">Uno.</li><li data-block="b3">Due.</li></ul></section></main></body></html>
+`
+  try {
+    fs.chmodSync(source, 0o755)
+    fs.chmodSync(output, 0o777)
+    fs.writeFileSync(`${source}/index.html`, fixture, { mode: 0o644 })
+    const sha256 = crypto.createHash('sha256').update(fixture).digest('hex')
+    const receipt = await captureHtml(
+      {
+        sourceRoot: source,
+        outputDir: output,
+        entry: { path: 'index.html', sha256 },
+        language: 'it',
+        targets: ['w390-light', 'w1280-light'],
+      },
+      { env: process.env },
+    )
+    flushWidthTimings('failure-detail')
+    console.log(
+      JSON.stringify({
+        event: 'UML_CAPTURE_FAILURE_DETAIL',
+        qualification: false,
+        diagnosticOnly: true,
+        fixtureSha256: sha256,
+        status: receipt.status,
+        error: receipt.error,
+        checks: receipt.checks,
+        sandbox: receipt.sandbox,
+        captureCount: receipt.captures.length,
+      }),
+    )
+    await timeWidthProbe(source)
+  } finally {
+    fs.rmSync(source, { recursive: true, force: true })
+    fs.rmSync(output, { recursive: true, force: true })
+  }
+}
+widthTrace.unsubscribe(collectWidthTiming)
+process.exitCode = result.functionalPass && result.releaseLaunchBudgetPass && suite.every((check) => check.ok) ? 0 : 1
+
+/** @param {string} source trusted fixture source */
+async function timeWidthProbe(source) {
+  // Diagnostic only: compare repeated evaluation with a compiled copy of the
+  // identical order expression. Every sampled width still gets the same full
+  // snapshot and order/width validation. This never changes the suite verdict.
+  const probeWork = fs.mkdtempSync('/tmp/uml-width-timing-')
+  const timedBrowser = await launchConfined({ workDir: probeWork, timeoutMs: 30000 })
+  try {
+    if (!timedBrowser.selfTest().active) throw new Error('timing browser sandbox inactive')
+    const page = await timedBrowser.context.newPage()
+    await page.goto(`file://${source}/index.html`, { waitUntil: 'load', timeout: 30000 })
+    const cdp = await timedBrowser.context.newCDPSession(page)
+    await cdp.send('Runtime.enable')
+    const expression = orderScript('ltr')
+    const compiled = await cdp.send('Runtime.evaluate', {
+      expression: `(() => ${expression})`,
+      returnByValue: false,
+    })
+    if (!compiled.result.objectId || compiled.exceptionDetails) throw new Error('order compilation failed')
+    const objectId = compiled.result.objectId
+    const widths = Array.from({ length: 32 }, (_, k) => 320 + k)
+    const until = Date.now() + 60000
+    await profileWidthComponents(cdp, objectId, until)
+    /** @type {string[] | null} */
+    let baseline = null
+    for (const mode of ['evaluate-sample-1', 'evaluate-sample-2', 'compiled-sample-1', 'compiled-sample-2']) {
+      if (Date.now() >= until) throw new Error('timing diagnostic exceeded 60 seconds')
+      const began = performance.now()
+      const answers = await timedWidthBatch(cdp, widths, { mode, objectId, expression, until })
+      const ms = performance.now() - began
+      if (Date.now() >= until) throw new Error('timing diagnostic exceeded 60 seconds')
+      baseline ??= answers
+      console.log(
+        JSON.stringify({
+          event: 'UML_WIDTH_TIMING',
+          qualification: false,
+          diagnosticOnly: true,
+          prewarmed: true,
+          visibleSurfaceResized: true,
+          mode,
+          widths: widths.length,
+          ms,
+          projected2241Ms: (ms / widths.length) * 2241,
+          identicalAnswers: JSON.stringify(answers) === JSON.stringify(baseline),
+          sandboxActive: timedBrowser.selfTest().active,
+        }),
+      )
+    }
+  } finally {
+    const timer = setTimeout(() => timedBrowser.kill(), 5000)
+    try {
+      await timedBrowser.close()
+    } catch {
+      timedBrowser.kill()
+    } finally {
+      clearTimeout(timer)
+      fs.rmSync(probeWork, { recursive: true, force: true })
+    }
+  }
+}
+
+/**
+ * Attribute one small sequential sample without changing the production batch.
+ * Browser-side order time excludes the CDP transport; the other times include it.
+ * Every sample reads and validates the original order and full snapshot again.
+ * @param {import('playwright-core').CDPSession} cdp
+ * @param {string} objectId
+ * @param {number} until
+ */
+async function profileWidthComponents(cdp, objectId, until) {
+  const sample = async () => {
+    const totals = { viewportMs: 0, orderMs: 0, browserOrderMs: 0, snapshotMs: 0, comparisonMs: 0, snapshotBytes: 0 }
+    const cpu = process.cpuUsage()
+    for (let width = 320; width < 352; width += 1) {
+      let began = performance.now()
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        mobile: false,
+        width,
+        height: 800,
+        screenWidth: width,
+        screenHeight: 800,
+        deviceScaleFactor: 1,
+        screenOrientation: { angle: 0, type: 'landscapePrimary' },
+      })
+      totals.viewportMs += performance.now() - began
+      began = performance.now()
+      const read = await cdp.send('Runtime.callFunctionOn', {
+        objectId,
+        functionDeclaration:
+          'function () { const at = performance.now(); const value = this(); return { value, ms: performance.now() - at } }',
+        returnByValue: true,
+      })
+      totals.orderMs += performance.now() - began
+      /** @type {unknown} */
+      const answer = read.result.value
+      if (read.exceptionDetails || !answer || typeof answer !== 'object') throw new Error('component order unreadable')
+      /** @type {unknown} */
+      const value = Reflect.get(answer, 'value')
+      /** @type {unknown} */
+      const ms = Reflect.get(answer, 'ms')
+      if (!Array.isArray(value) || value[0] !== width) throw new Error(`component profile width ${width} not read`)
+      if (typeof ms !== 'number' || !Number.isFinite(ms)) throw new Error('component time unreadable')
+      totals.browserOrderMs += ms
+      began = performance.now()
+      const snapshot = await cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLES })
+      totals.snapshotMs += performance.now() - began
+      began = performance.now()
+      const lie = meetingsOf(snapshot)
+      totals.comparisonMs += performance.now() - began
+      if ('issue' in lie) throw new Error(lie.issue)
+      totals.snapshotBytes += Buffer.byteLength(JSON.stringify(snapshot))
+    }
+    return { ...totals, nodeCpuMicros: process.cpuUsage(cpu) }
+  }
+  const got = await withinTime(sample(), until)
+  if ('late' in got) throw new Error('component profile exceeded diagnostic time')
+  console.log(
+    JSON.stringify({
+      event: 'UML_WIDTH_COMPONENTS',
+      qualification: false,
+      diagnosticOnly: true,
+      sequentialSample: true,
+      widths: 32,
+      ...got.value,
+    }),
+  )
+}
+
+/**
+ * @param {import('playwright-core').CDPSession} cdp
+ * @param {number[]} widths
+ * @param {{ mode: string, objectId: string, expression: string, until: number }} options
+ */
+async function timedWidthBatch(cdp, widths, { mode, objectId, expression, until }) {
+  const sent = widths.map((width) =>
+    Promise.all([
+      cdp.send('Emulation.setDeviceMetricsOverride', {
+        mobile: false,
+        width,
+        height: 900,
+        screenWidth: width,
+        screenHeight: 900,
+        deviceScaleFactor: 1,
+        screenOrientation: { angle: 0, type: 'landscapePrimary' },
+      }),
+      mode.startsWith('compiled')
+        ? cdp.send('Runtime.callFunctionOn', {
+            objectId,
+            functionDeclaration: 'function () { return this() }',
+            returnByValue: true,
+          })
+        : cdp.send('Runtime.evaluate', { expression, returnByValue: true }),
+      cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLES }),
+    ]),
+  )
+  const got = await withinTime(Promise.all(sent), until)
+  if ('late' in got) throw new Error('timing diagnostic exceeded 60 seconds')
+  const answers = got.value.map(([, read, snapshot], k) => {
+    const value = /** @type {unknown} */ (read.result.value)
+    if (read.exceptionDetails || !Array.isArray(value) || value[0] !== widths[k])
+      throw new Error(`timing width ${String(widths[k])} not read`)
+    const lie = meetingsOf(snapshot)
+    if ('issue' in lie) throw new Error(lie.issue)
+    return `${lie.state}|${String(value[1])}|${String(value[2])}`
+  })
+  return answers
+}
