@@ -121,11 +121,15 @@ export const messageBy = (
 /** How close in time two messages by the same author are to read as one run (docs/plans/conversation-thread.md). */
 const RUN_MS = 5 * 60_000
 
-type Said = { author: 'member' | 'sophia'; actorId: string | null; at: string }
+type Said = { author: 'member' | 'sophia'; actorId: string | null; at: string; withdrawn?: { at: string } | null }
 
-/** Whether `m` goes on from `before`: the same author (Sophia, or the same person) within five minutes. */
+/**
+ * Whether `m` goes on from `before`: the same author (Sophia, or the same person) within five minutes. A withdrawn
+ * message names nobody, so it neither speaks for a run nor is spoken for by one: each side keeps its own byline.
+ */
 export function continuesRun(before: Said | undefined, m: Said): boolean {
   if (!before || before.author !== m.author || before.actorId !== m.actorId) return false
+  if (before.withdrawn || m.withdrawn) return false
   // Two members known by no id may be two people: never one run.
   if (m.author === 'member' && m.actorId === null) return false
   const gap = Date.parse(m.at) - Date.parse(before.at)

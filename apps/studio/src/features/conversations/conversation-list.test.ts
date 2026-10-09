@@ -318,6 +318,17 @@ describe('withMessage', () => {
 const said = (author: 'member' | 'sophia', actorId: string | null, at: string) => ({ author, actorId, at })
 
 describe('continuesRun: a message that goes on from the one before it', () => {
+  it('never runs through a withdrawn message: its byline names nobody, and the next one names its writer', () => {
+    const gone = {
+      ...said('member', 'luis', '2026-10-06T09:00:00.000Z'),
+      withdrawn: { at: '2026-10-06T10:00:00.000Z' },
+    }
+    const next = said('member', 'luis', '2026-10-06T09:01:00.000Z')
+    assert.equal(continuesRun(gone, next), false)
+    assert.equal(continuesRun(next, { ...gone, at: '2026-10-06T09:02:00.000Z' }), false)
+    assert.equal(continuesRun(said('member', 'luis', '2026-10-06T08:59:00.000Z'), next), true)
+  })
+
   it('goes on: the same person within five minutes', () => {
     assert.equal(
       continuesRun(said('member', 'a', '2026-10-06T09:00:00Z'), said('member', 'a', '2026-10-06T09:04:59Z')),

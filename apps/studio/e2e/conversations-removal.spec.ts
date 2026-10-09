@@ -123,3 +123,19 @@ test('removal · a list holding only the newest conversations says so; a whole o
   await expect(rows(page)).toHaveCount(3)
   await expect(list(page)).not.toContainText('Only the newest')
 })
+
+test('removal · a withdrawn message never heads a run: the one after it says who wrote it', async ({ page }) => {
+  await opened(page)
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Agreed, tomorrow at ten.')
+  await open(page).getByRole('button', { name: 'Send' }).click()
+  const sent = messages(page).filter({ hasText: 'Agreed, tomorrow at ten.' })
+  // A minute after your last message: it goes on from it, its byline said once above.
+  await expect(sent).toHaveAttribute('data-run', 'on')
+  const before = messages(page).filter({ hasText: 'Let’s look at it together tomorrow.' })
+  await before.hover()
+  await before.getByRole('button', { name: 'Withdraw message' }).click()
+  await page.getByRole('group', { name: 'Withdraw this message' }).getByRole('button', { name: 'Withdraw' }).click()
+  await expect(messages(page).filter({ hasText: 'This message was withdrawn.' })).toHaveCount(1)
+  await expect(sent).not.toHaveAttribute('data-run', 'on')
+})
