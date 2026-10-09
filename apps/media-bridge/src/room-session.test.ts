@@ -299,6 +299,8 @@ async function until(what: string, done: () => boolean, ms = 2000): Promise<void
 const pcm16k = (n = 1600) => new Int16Array(n).fill(100)
 /** 100 ms of the holder saying something. */
 const voice16k = (n = 1600) => new Int16Array(n).fill(2000)
+/** 100 ms of the holder's speech whose samples carry a mark, so the order sent shows. */
+const marked16k = (mark: number) => new Int16Array(1600).fill(mark)
 const speech = (frames = 2) => pcmToBase64(new Int16Array(OUTPUT_FRAME * frames).fill(300))
 const OUT = 'audio/pcm;rate=24000'
 /** `frames` 20 ms frames of Sophia's speech; frame k carries the value first + k + 1, so order and gaps show. */
@@ -4559,6 +4561,142 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     assert.equal(service.calls.length, 1, 'the call itself ran')
     assert.equal(live.responses.length, 0, 'its answer would start a generation the API refused')
     assert.deepEqual(stops(), ['usage'])
+    await session.close()
+  })
+
+  /** The holder speaks until a chunk asks for a top-up of the allowance, which the API holds; returns the next mark. */
+  async function untilTopUp(room: FakeRoom, identity = LUIS, from = 1001): Promise<number> {
+    let mark = from
+    for (; !service.waitingKinds().includes('spend') && mark < from + 2000; mark += 1) {
+      room.events.audio(identity, marked16k(mark), 16000, 1)
+      await flush()
+    }
+    return mark
+  }
+
+  it('input past its allowance waits behind a top-up, then goes on in the order spoken; the top-up counts no turn', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    const sent: number[] = []
+    const link: LiveLink = live
+    link.sendAudio = (chunk) => {
+      live.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    room.events.audio(LUIS, marked16k(1000), 16000, 1) // its generation, granted with the turn's allowance
+    await flush()
+    service.holdReservations = true
+    const next = await untilTopUp(room) // `next - 1` asked for the top-up, and waits for it
+    assert.equal(sent.at(-1), next - 2, 'the allowance paid for every chunk sent')
+    for (let mark = next; mark < next + 3; mark += 1) room.events.audio(LUIS, marked16k(mark), 16000, 1)
+    await flush()
+    assert.equal(sent.at(-1), next - 2, 'nothing past the allowance is sent before the top-up is granted')
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.deepEqual(sent.slice(-4), [next - 1, next, next + 1, next + 2], 'then all of it, in the order spoken')
+    assert.deepEqual(kinds(), ['connection', 'generation', 'spend'], 'a charge, no generation')
+    const topUp = service.reservations.at(-1)
+    assert.equal(topUp?.ordinal, 1, 'charged to the connection it pays for')
+    assert.ok((topUp?.charge ?? 0) > 3990 && (topUp?.charge ?? 0) <= 4000, 'the allowance filled up again')
+    assert.deepEqual(stops(), [])
+    await session.close()
+  })
+
+  it('a frame the allowance does not cover asks for a top-up and is dropped; one while it is in flight is dropped too', async () => {
+    voiceEvidence = true
+    const looking = { participantIdentity: LUIS, source: 'camera' as const }
+    const { session, room, live } = await ready({ qualification: grant(), looking })
+    const img = { rgba: new Uint8Array(16).fill(1), width: 2, height: 2 }
+    const show = async () => {
+      clock += 1000
+      room.events.frame(LUIS, 'camera', img, clock)
+      session.tick()
+      await flush()
+    }
+    service.holdReservations = true
+    await show()
+    assert.equal(live.frames, 0, 'nothing is paid for yet: dropped')
+    assert.deepEqual(service.waitingKinds(), ['spend'])
+    await show()
+    assert.equal(live.frames, 0, 'its top-up still in flight: dropped, never sent unpaid')
+    assert.deepEqual(service.waitingKinds(), ['spend'], 'one top-up at a time')
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.frame_dropped').map(([, d]) => d.dropped),
+      [1, 2],
+      'each drop counted',
+    )
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await show()
+    assert.equal(live.frames, 1, 'granted: the next frame is sent')
+    assert.deepEqual(kinds(), ['connection', 'spend'])
+    await session.close()
+  })
+
+  it('a top-up the API refuses stops the session: held input is never sent, and a frame’s refusal stops it too', async () => {
+    voiceEvidence = true
+    const one = await ready({ qualification: grant() })
+    one.room.events.audio(LUIS, marked16k(1000), 16000, 1)
+    await flush()
+    service.holdReservations = true
+    await untilTopUp(one.room)
+    const sent = one.live.audio
+    service.refuse = 'usage'
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.equal(one.live.audio, sent, 'refused: nothing it would have paid for was sent')
+    assert.deepEqual(stops(), ['usage'])
+    assert.equal(one.live.closed, true)
+    await one.session.close()
+
+    logs = []
+    service.refuse = null
+    const looking = { participantIdentity: LUIS, source: 'camera' as const }
+    const two = await ready({ qualification: grant(), looking })
+    service.refuse = 'usage'
+    clock += 1000
+    two.room.events.frame(LUIS, 'camera', { rgba: new Uint8Array(16).fill(1), width: 2, height: 2 }, clock)
+    two.session.tick()
+    await flush()
+    await flush()
+    assert.deepEqual(stops(), ['usage'], 'no input waited for it: the refusal stops the session all the same')
+    assert.equal(two.live.frames, 0)
+    assert.equal(two.live.closed, true)
+    await two.session.close()
+  })
+
+  it('a handoff while input waits behind a top-up: the new holder’s chunks go on in their order, the old holder’s are dropped', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    const sent: number[] = []
+    const link: LiveLink = live
+    link.sendAudio = (chunk) => {
+      live.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    room.events.audio(LUIS, marked16k(1000), 16000, 1)
+    await flush()
+    service.holdReservations = true
+    const next = await untilTopUp(room) // Luis's chunk `next - 1` waits for the top-up
+    room.events.audio(LUIS, marked16k(next), 16000, 1) // and his next behind it
+    await flush()
+    const before = sent.length
+    session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    for (const mark of [7001, 7002, 7003]) room.events.audio(DAVIDE, marked16k(mark), 16000, 1)
+    await flush()
+    assert.equal(sent.length, before, 'Davide’s chunks wait behind the same top-up')
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.deepEqual(sent.slice(before), [7001, 7002, 7003], 'his, in his order; Luis’s from before the handoff, none')
     await session.close()
   })
 

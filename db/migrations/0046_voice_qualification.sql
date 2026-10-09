@@ -9,12 +9,13 @@
 --   held with the next turn's worst case reserved: an exchange ends once what it may have cost so far, plus the last
 --   prompt's size (the context the next turn bills again) and one turn's output cap, would reach the budget.
 -- * The bound is the exchange's, held here, never a session's: before the bridge opens a provider connection or lets a
---   generation start, it reserves it (media_voice_reserve). Connections and generations are durable counters only a
---   reservation adds to, and each connection keeps what was charged to it (each generation at its worst case) and what
---   the provider reported of it; the exchange may have cost the sum, connection by connection, of the greater of the
---   two. A session that replaces a lost one, or a restarted bridge, starts from the exchange's true counts. A
---   reservation that does not fit ends the exchange, as the guard would, and so does a bridge's own stop (its
---   session_closed receipt says guard). A receipt names only a connection that was reserved.
+--   generation start, it reserves it, and before it sends input it pays for it (media_voice_reserve). Connections and
+--   generations are durable counters only a reservation adds to, and each connection keeps what was charged to it (each
+--   generation at its worst case, and the input paid ahead) and what the provider reported of it; the exchange may
+--   have cost the sum, connection by connection, of the greater of the two. A session that replaces a lost one, or a
+--   restarted bridge, starts from the exchange's true counts. A reservation that does not fit ends the exchange, as
+--   the guard would, and so does a bridge's own stop (its session_closed receipt says guard). A receipt names only a
+--   connection that was reserved.
 -- * The guard ends an exchange under a grant, as End would (ended_by stays null), at its deadline, when the grant is
 --   revoked or expires, past its connection or turn limit, or at its budget, and records why. The API runs it on every
 --   bridge presence report and assignment poll, so it acts whether or not the Lab is still there, and every receipt and
@@ -281,24 +282,29 @@ END $$;
 --   this charge would pass the budget; otherwise the turn is counted and the charge kept on that connection.
 -- * 'unasked', when a generation nobody asked for has started (its output arrived): it is already spent, so it is
 --   counted and charged whatever the limits, and the exchange ends if they are now reached.
--- The charge is the bridge's worst case for the generation (the context again and its output twice) plus what it sent
--- and was transcribed since its last charge. A generation fits while it leaves the turns within the grant's and, charged,
--- the exchange's next turn could still not pass the budget (voice_budget_reached, the guard's own rule): so the guard
--- never cuts one it granted. A reservation that does not fit ends the exchange as the guard would; so does a limit the
--- guard would end it at. An exchange already ended is refused (40001). A 'stop' is the bridge's own stop (its bound, or
--- the deadline), whoever holds the floor: it reserves nothing, records nothing, and ends the exchange (reason bridge),
--- once; an exchange already ended answers it the same.
+-- * 'spend', before the bridge sends input (audio, a frame) its connection's prepaid allowance does not cover, or as a
+--   transcription's cost passes it: a top-up of that allowance on a reserved connection. It is a charge only: it counts
+--   no turn and opens no ordinal, and it fits as a generation's charge does, by the budget alone. So what the bridge
+--   sends is paid for here before it is sent, and a crash loses only allowance already paid, never unpaid spend.
+-- The charge is the bridge's worst case for a generation (the context again and its output twice), with the text it
+-- sends and, for the generation input asks for, what fills the connection's input allowance; or a top-up's amount. A
+-- generation fits while it leaves the turns within the grant's and, charged, the exchange's next turn could still not
+-- pass the budget (voice_budget_reached, the guard's own rule): so the guard never cuts one it granted; a top-up fits by
+-- the same budget rule. A reservation that does not fit ends the exchange as the guard would; so does a limit the
+-- guard would end it at. An exchange already ended is refused (40001), whatever the kind but a stop. A 'stop' is the
+-- bridge's own stop (its bound, or the deadline), whoever holds the floor: it reserves nothing, records nothing, and
+-- ends the exchange (reason bridge), once; an exchange already ended answers it the same.
 CREATE FUNCTION sophia.media_voice_reserve(p_exchange uuid, p_grant uuid, p_kind text, p_ordinal integer, p_charge bigint)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE e sophia.room_exchanges; g sophia.voice_qualification_grants; q sophia.voice_qualification_exchanges; why text;
  p uuid;
 BEGIN
  PERFORM sophia.require_service();
- IF p_kind IS NULL OR p_kind NOT IN ('connection','generation','unasked','stop') THEN
+ IF p_kind IS NULL OR p_kind NOT IN ('connection','generation','unasked','spend','stop') THEN
   RAISE EXCEPTION 'Not a reservation' USING ERRCODE='22023'; END IF;
- IF p_kind IN ('generation','unasked') AND (p_ordinal IS NULL OR p_ordinal NOT BETWEEN 1 AND 64 OR p_charge IS NULL
+ IF p_kind IN ('generation','unasked','spend') AND (p_ordinal IS NULL OR p_ordinal NOT BETWEEN 1 AND 64 OR p_charge IS NULL
    OR p_charge NOT BETWEEN 0 AND 5000000) THEN
-  RAISE EXCEPTION 'A generation names its connection and a charge of 0 to 5,000,000' USING ERRCODE='22023'; END IF;
+  RAISE EXCEPTION 'A charge names its connection and is 0 to 5,000,000' USING ERRCODE='22023'; END IF;
  -- Lock order (0003): the project, then its exchange, as control_exchange takes them; ending the exchange emits the
  -- project's event under both.
  SELECT project_id INTO p FROM sophia.room_exchanges WHERE id=p_exchange;
@@ -329,7 +335,7 @@ BEGIN
   why:=coalesce(sophia.voice_limit_reached(g, e.opened_at, e.id), CASE
    WHEN p_kind='connection' AND q.connections_opened+1>g.max_provider_connections THEN 'connections'
    WHEN p_kind='generation' AND q.turns+1>g.max_turns THEN 'turns'
-   WHEN p_kind='generation' AND sophia.voice_budget_reached(g, sophia.voice_committed(e.id)+p_charge,
+   WHEN p_kind IN ('generation','spend') AND sophia.voice_budget_reached(g, sophia.voice_committed(e.id)+p_charge,
     sophia.voice_last_prompt(e.id)) THEN 'usage'
    ELSE NULL END);
   IF why IS NULL AND p_kind='connection' THEN
@@ -337,7 +343,10 @@ BEGIN
    INSERT INTO sophia.voice_qualification_connections(exchange_id,ordinal) VALUES(e.id,q.connections_opened+1);
    RETURN jsonb_build_object('ok',true,'ordinal',q.connections_opened+1,'stop',NULL,'ended',false);
   ELSIF why IS NULL THEN
-   UPDATE sophia.voice_qualification_exchanges SET turns=q.turns+1 WHERE exchange_id=e.id;
+   -- A top-up counts no turn: only a generation does.
+   IF p_kind='generation' THEN
+    UPDATE sophia.voice_qualification_exchanges SET turns=q.turns+1 WHERE exchange_id=e.id;
+   END IF;
    UPDATE sophia.voice_qualification_connections SET charged=charged+p_charge WHERE exchange_id=e.id AND ordinal=p_ordinal;
   END IF;
  END IF;

@@ -3,7 +3,8 @@
 // replaces a lost one, or a restarted bridge, reserves against the exchange's true counts. Before the bridge opens a
 // provider connection it reserves one, and gets the connection's durable ordinal, which its receipts name; before it
 // sends what can start a generation it reserves the generation, charged at its worst case; a generation that started
-// unasked is charged as its output arrives. A reservation that does not fit ends the exchange on the API.
+// unasked is charged as its output arrives; before it sends input its allowance does not cover, it tops the allowance
+// up (spend). A reservation that does not fit ends the exchange on the API.
 //
 // Fails closed: an answer refused (4xx) or still missing after a bounded number of attempts, each with its own time
 // limit, is a refusal ('unconfirmed'), and the session stops. A lost answer is asked again, which may count the same
@@ -48,6 +49,14 @@ export class QualificationLedger {
   /** A generation on a reserved connection: before it is asked for, or (unasked) once its output arrived. */
   generation(ordinal: number, charge: number, unasked = false): Promise<LedgerAnswer> {
     return this.#reserve({ kind: unasked ? 'unasked' : 'generation', ordinal, charge })
+  }
+
+  /**
+   * A top-up of a reserved connection's input allowance, before what it pays for is sent: a charge only, counting no
+   * generation. Refused as a generation would be when, charged, the exchange's next turn could reach the budget.
+   */
+  spend(ordinal: number, charge: number): Promise<LedgerAnswer> {
+    return this.#reserve({ kind: 'spend', ordinal, charge })
   }
 
   /**

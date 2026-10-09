@@ -1077,6 +1077,11 @@ describe('the exchange’s durable bound through the API (A15, 0046)', () => {
     assert.deepEqual([granted.status, granted.json], [200, { ok: true, ordinal: 1, stop: null, ended: false }])
     const generation = await reserve({ exchangeId, grantId, kind: 'generation', ordinal: 1, charge: 27_000 })
     assert.deepEqual(generation.json, { ok: true, ordinal: 1, stop: null, ended: false })
+    // A top-up of the connection's input allowance: a charge only, no generation (Codex P1 on PR #190).
+    const topUp = await reserve({ exchangeId, grantId, kind: 'spend', ordinal: 1, charge: 4000 })
+    assert.deepEqual([topUp.status, topUp.json], [200, { ok: true, ordinal: 1, stop: null, ended: false }])
+    const nameless = await reserve({ exchangeId, grantId, kind: 'spend', charge: 4000 })
+    assert.deepEqual([nameless.status, nameless.json.code], [422, 'invalid_request'], 'a top-up names its connection')
     assert.equal((await reserve({ exchangeId: randomUUID(), grantId, kind: 'connection' })).json.code, 'not_found')
     assert.equal((await reserve({ exchangeId, grantId: randomUUID(), kind: 'connection' })).status, 403)
     for (const charge of [-1, 5_000_001]) {
@@ -1105,7 +1110,9 @@ describe('the exchange’s durable bound through the API (A15, 0046)', () => {
       [read.json.state, read.json.grant.endedReason, read.json.grant.connectionsOpened, read.json.grant.turns],
       ['ended', 'connections', 1, 1],
     )
-    assert.equal(read.json.grant.committedTokens, 27_000)
+    assert.equal(read.json.grant.committedTokens, 31_000, 'the generation and the top-up')
+    const endedTopUp = await reserve({ exchangeId, grantId, kind: 'spend', ordinal: 1, charge: 1 })
+    assert.deepEqual([endedTopUp.status, endedTopUp.json.code], [409, 'invalid_state'], 'nor a top-up')
   })
 
   /** The real MediaBridge on the real API; LiveKit and Gemini Live are LABELLED FAKES. */

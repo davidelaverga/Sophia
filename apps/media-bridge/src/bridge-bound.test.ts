@@ -1,7 +1,8 @@
 // The grant's bound is the exchange's, not a bridge session's (A15, 0046): the real MediaBridge, with LABELLED FAKES for
 // LiveKit and Gemini Live, against a FAKE of the API's durable reservations (FakeLedger, the rules media_voice_reserve
 // holds; voice-qualification.db.test.ts runs the same against the real API and PostgreSQL). A lost room replaced on the
-// same exchange, or a bridge process started again, reserves against what the exchange already spent.
+// same exchange, or a bridge process started again, reserves against what the exchange already spent; and what a process
+// sent was paid for on the API before it was sent, so one that dies leaves no spend unpaid (Codex P1 on PR #190).
 import type {
   MediaAssignment,
   MediaEvidenceWrite,
@@ -14,6 +15,8 @@ import { describe, it } from 'node:test'
 import { MediaBridge } from './bridge.ts'
 import { loadMissionGuide } from './guide.ts'
 import type { LiveEvents, LiveLink } from './live-session.ts'
+import { SessionQualification } from './qualification.ts'
+import { ASSUMED_RATES } from './qualification-reserve.ts'
 import type { RoomEvents, RoomLink } from './rtc.ts'
 import { type MediaService, ServiceError } from './service.ts'
 import { DECLARED_NAMES } from './tools.ts'
@@ -31,7 +34,7 @@ const grant = (over: Partial<VoiceQualification> = {}): VoiceQualification => ({
   maxUsageTokens: 200_000,
   ...over,
 })
-const assignment = (qualification: VoiceQualification): MediaAssignment => ({
+const assignment = (qualification: VoiceQualification, over: Partial<MediaAssignment> = {}): MediaAssignment => ({
   exchangeId: E1,
   projectId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   roomId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
@@ -51,6 +54,7 @@ const assignment = (qualification: VoiceQualification): MediaAssignment => ({
   ledgerRevision: 1,
   eligibilityRevision: 1,
   qualification,
+  ...over,
 })
 
 const settle = async () => {
@@ -60,20 +64,34 @@ const chunk = () => new Int16Array(1600).fill(2000)
 
 type Stop = NonNullable<MediaQualificationReservation['stop']>
 
+interface Durable {
+  connections: number
+  /** Generations counted (reserved, or started unasked): a top-up counts none. */
+  turns: number
+  /** What the exchange may have cost: every charge (no usage is reported here). */
+  charged: number
+  ended: Stop | null
+}
+
 /**
  * A FAKE of the API's durable bound for one grant: connections and generations counted per exchange, each generation
- * charged, a reservation that does not fit refused and the exchange ended; an ended exchange is refused (409). No
- * prompt size is reported here, so the budget's rule sees none.
+ * and each top-up of a connection's input allowance (spend) charged, a reservation that does not fit refused and the
+ * exchange ended; an ended exchange is refused (409). No prompt size is reported here, so the budget's rule sees none.
  */
 class FakeLedger {
   readonly grant: VoiceQualification
   readonly asked: MediaQualificationReserve[] = []
   /** Exchanges a bridge's own stop ended (reason bridge). */
   readonly stopped = new Set<string>()
-  readonly exchanges = new Map<string, { connections: number; turns: number; charged: number; ended: Stop | null }>()
+  readonly exchanges = new Map<string, Durable>()
 
   constructor(qualification: VoiceQualification) {
     this.grant = qualification
+  }
+
+  /** What the exchange may have cost, as the API holds it now. */
+  committed(exchangeId: string): number {
+    return this.exchanges.get(exchangeId)?.charged ?? 0
   }
 
   reserve = async (r: MediaQualificationReserve): Promise<MediaQualificationReservation> => {
@@ -92,8 +110,9 @@ class FakeLedger {
       return { ok: false, ordinal: null, stop, ended: true }
     }
     if (r.kind === 'connection') x.connections += 1
-    else {
-      x.turns += 1
+    // An unasked generation was counted and charged as it was asked (#stop).
+    else if (r.kind !== 'unasked') {
+      if (r.kind === 'generation') x.turns += 1
       x.charged += r.charge ?? 0
     }
     return {
@@ -104,29 +123,76 @@ class FakeLedger {
     }
   }
 
-  /** media_voice_reserve's rules (0046): past the turns or connections, or the next turn could reach the budget. */
-  #stop(x: { connections: number; turns: number; charged: number }, r: MediaQualificationReserve): Stop | null {
+  /**
+   * media_voice_reserve's rules (0046): what the guard would end the exchange at (voice_limit_reached: past the turns or
+   * connections, or the next turn could reach the budget), then the reservation's own: a connection past the grant's,
+   * a generation past its turns, or a generation or a top-up whose charge would let the next turn reach the budget.
+   */
+  #stop(x: Durable, r: MediaQualificationReserve): Stop | null {
     const g = this.grant
     const charge = r.charge ?? 0
     const reached = (committed: number) => committed + g.maxOutputTokensPerTurn >= g.maxUsageTokens
     if (r.kind === 'unasked') {
       x.turns += 1
       x.charged += charge
-      if (x.turns > g.maxTurns) return 'turns'
-      return reached(x.charged) ? 'usage' : null
     }
+    if (x.connections > g.maxProviderConnections) return 'connections'
     if (x.turns > g.maxTurns) return 'turns'
+    if (reached(x.charged)) return 'usage'
     if (r.kind === 'connection') return x.connections + 1 > g.maxProviderConnections ? 'connections' : null
-    if (x.turns + 1 > g.maxTurns) return 'turns'
-    return reached(x.charged + charge) ? 'usage' : null
+    if (r.kind === 'generation' && x.turns + 1 > g.maxTurns) return 'turns'
+    return r.kind !== 'unasked' && reached(x.charged + charge) ? 'usage' : null
   }
 }
 
+/** One generation's worst case under grant(): the context again and its output twice (25,000 + 2 × 1000). */
+const GENERATION = ASSUMED_RATES.context + 2 * 1000
+/** A 100 ms chunk of 16 kHz audio and a video frame, at the assumed rates. */
+const CHUNK_TOKENS = 0.1 * ASSUMED_RATES.audioInPerSecond
+const FRAME_TOKENS = ASSUMED_RATES.perFrame
+
+/**
+ * What every process sent the provider for E1, at the assumed rates: each generation the API counted at its worst case,
+ * and each chunk and frame as it was sent. At each send it checks the invariant charge ahead promises: what was sent
+ * never exceeds what the API had committed at that instant.
+ */
+class Meter {
+  readonly ledger: FakeLedger
+  chunks = 0
+  frames = 0
+  readonly unpaid: string[] = []
+
+  constructor(ledger: FakeLedger) {
+    this.ledger = ledger
+  }
+
+  get spent(): number {
+    const turns = this.ledger.exchanges.get(E1)?.turns ?? 0
+    return turns * GENERATION + this.chunks * CHUNK_TOKENS + this.frames * FRAME_TOKENS
+  }
+
+  sent(what: 'chunk' | 'frame', lifetime: number): void {
+    if (what === 'chunk') this.chunks += 1
+    else this.frames += 1
+    const committed = this.ledger.committed(E1)
+    if (this.spent > committed)
+      this.unpaid.push(
+        `lifetime ${String(lifetime)}: a ${what} sent with ${this.spent.toFixed(1)} spent, ${committed} committed`,
+      )
+  }
+}
+
+interface Options {
+  now?: () => number
+  meter?: Meter
+  lifetime?: number
+}
+
 /** One bridge process: LiveKit and Gemini Live are labelled fakes; the API is the ledger, and keeps the receipts. */
-function harness(ledger: FakeLedger) {
+function harness(ledger: FakeLedger, { now = Date.now, meter, lifetime = 1 }: Options = {}) {
   const evidence: MediaEvidenceWrite[] = []
   const roomEvents: RoomEvents[] = []
-  const lives: Array<{ events: LiveEvents; audio: number }> = []
+  const lives: Array<{ events: LiveEvents; audio: number; frames: number }> = []
   const logs: Array<[string, Record<string, unknown>]> = []
   const service: MediaService = {
     assignments: () => Promise.reject(new Error('unused')),
@@ -159,12 +225,18 @@ function harness(ledger: FakeLedger) {
     },
     connectLive: async (_options, events) => {
       await Promise.resolve()
-      const entry = { events, audio: 0 }
+      const entry = { events, audio: 0, frames: 0 }
       lives.push(entry)
       const live: LiveLink = {
-        sendAudio: () => void (entry.audio += 1),
+        sendAudio: () => {
+          entry.audio += 1
+          meter?.sent('chunk', lifetime)
+        },
         sendAudioStreamEnd: () => undefined,
-        sendFrame: () => undefined,
+        sendFrame: () => {
+          entry.frames += 1
+          meter?.sent('frame', lifetime)
+        },
         sendToolResponses: () => undefined,
         sendNotice: () => undefined,
         close: () => undefined,
@@ -175,7 +247,7 @@ function harness(ledger: FakeLedger) {
     model: 'fake',
     guide: loadMissionGuide(DECLARED_NAMES),
     bridgeInstanceId: 'bound',
-    now: Date.now,
+    now,
     log: (event, detail) => logs.push([event, detail ?? {}]),
     every: () => () => undefined,
     voiceEvidence: true,
@@ -274,5 +346,110 @@ describe('the grant’s bound is the exchange’s, across sessions and bridge pr
     assert.deepEqual(h.stops(), ['usage'])
     assert.equal(ledger.exchanges.get(E1)?.ended, 'usage')
     await h.bridge.stop()
+  })
+})
+
+describe('what a process sends is paid for on the API before it is sent (charge ahead; Codex P1 on PR #190)', () => {
+  const img = { rgba: new Uint8Array(16).fill(1), width: 2, height: 2 }
+  const looking = { participantIdentity: LUIS, source: 'camera' as const }
+  /** Root's control: a budget of 100,000, two connections, and in each lifetime 200 s of speech and 200 frames. */
+  const control = () => new FakeLedger(grant({ maxUsageTokens: 100_000, maxProviderConnections: 2 }))
+
+  /** The principal speaks for `seconds` in one generation that never ends, with a camera frame each second. */
+  async function longTurn(h: ReturnType<typeof harness>, clock: { now: number }, seconds: number): Promise<void> {
+    for (let second = 0; second < seconds; second += 1) {
+      for (let i = 0; i < 10; i += 1) h.roomEvents.at(-1)?.audio(LUIS, chunk(), 16000, 1)
+      await settle()
+      clock.now += 1000
+      h.roomEvents.at(-1)?.frame(LUIS, 'camera', img, clock.now)
+      h.bridge.session(E1)?.tick()
+      await settle()
+    }
+  }
+
+  it('a bridge process that dies after a long turn’s input and frames left nothing unpaid; its restart gets what is left', async () => {
+    const ledger = control()
+    const meter = new Meter(ledger)
+    const clock = { now: Date.now() }
+    const assigned = assignment(ledger.grant, { allowVision: true, looking })
+    const processes: Array<ReturnType<typeof harness>> = []
+    try {
+      for (const lifetime of [1, 2]) {
+        const h = harness(ledger, { now: () => clock.now, meter, lifetime })
+        processes.push(h)
+        await h.bridge.apply([assigned])
+        await settle()
+        h.lives[0]?.events.setupComplete()
+        await longTurn(h, clock, 200)
+        // The process dies here: nothing of it is closed, flushed or told to the API.
+      }
+      assert.deepEqual(meter.unpaid.slice(0, 1), [], 'nothing was sent before the API had committed it')
+      assert.ok(meter.spent <= ledger.committed(E1), 'across both lifetimes, everything sent was paid for')
+      assert.ok(ledger.committed(E1) < 100_000, 'and the API never committed past the budget')
+      assert.equal(ledger.exchanges.get(E1)?.ended, 'usage', 'the restart’s generation did not fit: the exchange ended')
+      assert.equal(processes[1]?.lives[0]?.audio, 0, 'the restarted process sent nothing it could not pay for')
+    } finally {
+      for (const h of processes) await h.bridge.stop()
+    }
+  })
+
+  /** The real SessionQualification of one process, against the shared durable fake. */
+  function bound(ledger: FakeLedger, stops: string[]): SessionQualification {
+    return new SessionQualification({
+      exchangeId: E1,
+      grant: ledger.grant,
+      model: 'fake-model',
+      instructionSha256: 'ef'.repeat(32),
+      bridgeCommit: null,
+      record: () => Promise.resolve({ ended: false, reason: null }),
+      nextSeq: () => 1,
+      retryMs: [],
+      now: Date.now,
+      attribution: () => ({ actorId: LUIS, inputEpoch: 1 }),
+      ended: () => undefined,
+      stop: (why) => void stops.push(why),
+      reserve: (r) => ledger.reserve(r),
+      reserveRetryMs: [],
+      reserveTimeoutMs: 1000,
+      log: () => undefined,
+    })
+  }
+
+  /** One chunk, as RoomSession sends it: held while a reservation is in flight, sent once it is granted. */
+  async function sendChunk(q: SessionQualification, meter: Meter, lifetime: number): Promise<boolean> {
+    const speech = chunk()
+    let verdict = q.input(1, LUIS, speech, 0, 1)
+    while (verdict === 'hold') {
+      if (await q.granted(1)) return false
+      verdict = q.input(1, LUIS, speech, 0, 1)
+    }
+    if (verdict) return false
+    meter.sent('chunk', lifetime)
+    return true
+  }
+
+  /** Ten chunks and a frame each second, in one generation; false once the bound stopped the session. */
+  async function speakAndShow(q: SessionQualification, meter: Meter, lifetime: number): Promise<void> {
+    for (let second = 0; second < 200; second += 1) {
+      for (let i = 0; i < 10; i += 1) if (!(await sendChunk(q, meter, lifetime))) return
+      const frame = q.frame(1)
+      if (frame === null) meter.sent('frame', lifetime)
+      else if (frame !== 'drop') return
+    }
+  }
+
+  it('the real SessionQualification, made again with each process on a shared durable fake: each lifetime paid first', async () => {
+    const ledger = control()
+    const meter = new Meter(ledger)
+    const stops: string[] = []
+    for (const lifetime of [1, 2]) {
+      const q = bound(ledger, stops)
+      if ((await q.connecting(1, false)) === null) await speakAndShow(q, meter, lifetime)
+      // The process dies here, and its SessionQualification with it.
+    }
+    assert.deepEqual(meter.unpaid.slice(0, 1), [], 'nothing was sent before the API had committed it')
+    assert.ok(meter.spent <= ledger.committed(E1))
+    assert.ok(ledger.committed(E1) < 100_000)
+    assert.deepEqual(stops, [], 'a refusal awaited by input is the caller’s to act on, as RoomSession does')
   })
 })

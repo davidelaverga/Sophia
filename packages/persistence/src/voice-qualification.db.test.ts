@@ -548,6 +548,107 @@ describe('the exchange’s durable bound (0046, media_voice_reserve)', () => {
   })
 })
 
+describe('a top-up of a connection’s input allowance (0046, media_voice_reserve spend; Codex P1 on PR #190)', () => {
+  it('is a charge only: it counts no turn and opens no ordinal, and is kept on its connection', async () => {
+    const { projectId } = await project()
+    // Its one turn: a top-up during the last generation allowed is not a generation, so it is not refused for turns.
+    const g = await grant(projectId, P, { turns: 1, budget: 100_000, outputPerTurn: 2000 })
+    const x = await open(projectId)
+    await reserve(x, g, 'connection')
+    assert.equal((await reserve(x, g, 'generation', 1, 27_000)).ok, true)
+    assert.deepEqual(await reserve(x, g, 'spend', 1, 4000), { ok: true, ordinal: 1, stop: null, ended: false })
+    assert.deepEqual(await reserve(x, g, 'spend', 1, 4000), { ok: true, ordinal: 1, stop: null, ended: false })
+    assert.deepEqual(await countsOf(x), { connections: 1, turns: 1 }, 'no turn counted, no connection opened')
+    assert.equal(await committedOf(x), 35_000, 'charged to what the exchange may have cost')
+    const charged = await owner((c) =>
+      c.query<{ ordinal: number; charged: string }>(
+        `SELECT ordinal, charged FROM sophia.voice_qualification_connections WHERE exchange_id=$1`,
+        [x],
+      ),
+    )
+    assert.deepEqual(charged.rows, [{ ordinal: 1, charged: '35000' }])
+    assert.equal(await withService(pool, (c) => voiceQualificationGuard(c)), 0, 'the guard leaves it running')
+    assert.equal((await stateOf(x)).state, 'open')
+  })
+
+  it('fits by the generation’s budget rule, at the boundary from both sides; refused, it ends the exchange and says why', async () => {
+    const { projectId } = await project()
+    // Budget 100,000, output cap 2,000, no prompt reported: 27,000 + 70,999 + 2,000 = 99,999 fits; one more reaches it.
+    const g = await grant(projectId, P, { budget: 100_000, outputPerTurn: 2000 })
+    const x = await open(projectId)
+    await reserve(x, g, 'connection')
+    await reserve(x, g, 'generation', 1, 27_000)
+    assert.equal((await reserve(x, g, 'spend', 1, 70_999)).ok, true)
+    assert.deepEqual(await reserve(x, g, 'spend', 1, 1), { ok: false, ordinal: null, stop: 'usage', ended: true })
+    assert.equal(await committedOf(x), 97_999, 'a refused top-up is not kept')
+    assert.deepEqual(await countsOf(x), { connections: 1, turns: 1 })
+    assert.deepEqual(await stateOf(x), { state: 'ended', reason: 'usage' })
+    const guard = await owner((c) =>
+      c.query<{ source: string; reason: string }>(
+        `SELECT source, receipt->>'reason' AS reason FROM sophia.voice_qualification_evidence WHERE exchange_id=$1 AND kind='guard'`,
+        [x],
+      ),
+    )
+    assert.deepEqual(guard.rows, [{ source: 'service', reason: 'usage' }], 'the guard’s receipt records why')
+    const events = await owner((c) =>
+      c.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM sophia.project_events WHERE project_id=$1 AND summary_code='room.exchange_qualification_limit'`,
+        [projectId],
+      ),
+    )
+    assert.equal(events.rows[0]!.n, 1, 'and the event that wakes the bridge’s poll')
+    assert.equal(
+      await codeOf(reserve(x, g, 'spend', 1, 1)),
+      'invalid_state',
+      'an ended exchange: 40001, as for the others',
+    )
+    assert.deepEqual(await reserve(x, g, 'stop'), { ok: true, ordinal: null, stop: null, ended: true })
+
+    // The last prompt reported is the context the next turn bills again: the same rule as a generation's.
+    const two = await project()
+    const g2 = await grant(two.projectId, P, { budget: 100_000, outputPerTurn: 2000 })
+    const x2 = await open(two.projectId)
+    await reserve(x2, g2, 'connection')
+    await reserve(x2, g2, 'generation', 1, 27_000)
+    await record(x2, g2, 1, 'provider', provider(10_000, 30_000))
+    assert.equal((await reserve(x2, g2, 'spend', 1, 40_999)).ok, true, '27,000 + 40,999 + 30,000 + 2,000 = 99,999')
+    assert.equal((await reserve(x2, g2, 'spend', 1, 1)).stop, 'usage')
+  })
+
+  it('refuses what it cannot bind, as the other kinds do; a member is never the bridge', async () => {
+    const { projectId } = await project()
+    const g = await grant(projectId)
+    const x = await open(projectId)
+    assert.equal(await codeOf(reserve(x, g, 'spend', 1, 10)), 'invalid_request', 'no connection 1 yet')
+    await reserve(x, g, 'connection')
+    assert.equal(await codeOf(reserve(x, randomUUID(), 'spend', 1, 10)), 'forbidden', 'another grant')
+    assert.equal(await codeOf(reserve(randomUUID(), g, 'spend', 1, 10)), 'not_found')
+    assert.equal(await codeOf(reserve(x, g, 'spend', 2, 10)), 'invalid_request', 'an unreserved connection')
+    assert.equal(await codeOf(reserve(x, g, 'spend', 1)), 'invalid_request', 'a top-up names its charge')
+    assert.equal(await codeOf(reserve(x, g, 'spend', undefined, 10)), 'invalid_request', 'and its connection')
+    for (const charge of [-1, 5_000_001]) {
+      assert.equal(await codeOf(reserve(x, g, 'spend', 1, charge)), 'invalid_request', `charge ${String(charge)}`)
+    }
+    const member = await withActor(pool, P, 'write', (c) =>
+      c.query(`SELECT sophia.media_voice_reserve($1,$2,'spend',1,10)`, [x, g]).then(
+        () => 'resolved',
+        (err: unknown) => (err as { code?: string }).code,
+      ),
+    )
+    assert.equal(member, '42501', 'a member is never the bridge')
+    // The API's login reaches the charges only through the function: row security and no grant keep it off the rows.
+    const direct = await withService(pool, (c) =>
+      c.query(`UPDATE sophia.voice_qualification_connections SET charged=charged+1 WHERE exchange_id=$1`, [x]).then(
+        () => 'resolved',
+        (err: unknown) => (err as { code?: string }).code,
+      ),
+    )
+    assert.equal(direct, '42501')
+    assert.equal(await committedOf(x), 0, 'nothing was charged by any of them')
+    assert.equal((await stateOf(x)).state, 'open', 'a refusal that binds nothing ends nothing')
+  })
+})
+
 describe('bridge receipts (0046)', () => {
   it('are bound to the exchange’s grant and run, once per sequence number', async () => {
     const { projectId } = await project()

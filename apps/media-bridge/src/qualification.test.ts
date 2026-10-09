@@ -67,4 +67,34 @@ describe('the bound’s reservations, one by one (qualification.ts)', () => {
     assert.equal(await q.granted(1), null)
     assert.equal(q.input(1, LUIS, chunk, 0, 1), null, 'its own granted: it goes on')
   })
+
+  it('transcription is paid with the audio it follows: within it nothing more is asked; past it, a debt is topped up', async () => {
+    const { q, waiting } = bound()
+    assert.equal(await q.connecting(1, false), null)
+    const chunk = new Int16Array(1600).fill(2000)
+    assert.equal(q.input(1, LUIS, chunk, 0, 1), 'hold')
+    await settle()
+    waiting[0]?.answer()
+    assert.equal(await q.granted(1), null)
+    // The turn's allowance (4,000) at 4.2 a chunk (3.2 of audio, 1 of its transcription): 952 chunks, 1.6 left.
+    for (let i = 0; i < 952; i += 1) assert.equal(q.input(1, LUIS, chunk, 0, 1), null, `chunk ${String(i + 1)}`)
+    assert.equal(q.heard(1, 30, false), null)
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation'],
+      '10 tokens transcribed, within the 952 their 95.2 s of audio prepaid: no top-up',
+    )
+    assert.equal(q.heard(1, 3000, true), null) // 1,000 tokens: 942 prepaid, 58 past the 1.6 left: a debt
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'spend'],
+      'the debt is topped up at once',
+    )
+    assert.equal(q.input(1, LUIS, chunk, 0, 1), 'hold', 'and input waits until it is paid')
+    waiting[1]?.answer()
+    assert.equal(await q.granted(1), null)
+    assert.equal(q.input(1, LUIS, chunk, 0, 1), null)
+  })
 })

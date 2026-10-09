@@ -36,10 +36,13 @@ export async function voiceQualificationGuard(c: pg.PoolClient): Promise<number>
 export interface QualificationReserve {
   exchangeId: string
   grantId: string
-  kind: 'connection' | 'generation' | 'unasked' | 'stop'
-  /** The connection a generation runs on: a durable ordinal a 'connection' reservation returned. */
+  kind: 'connection' | 'generation' | 'unasked' | 'spend' | 'stop'
+  /** The connection a generation or a top-up is charged to: a durable ordinal a 'connection' reservation returned. */
   ordinal?: number
-  /** A generation's worst case, with what was sent and transcribed since the connection's last charge. */
+  /**
+   * A generation's worst case, with the text it sends and, for one input asked for, what fills its connection's input
+   * allowance; or a top-up of that allowance ('spend', a charge only: it counts no turn).
+   */
   charge?: number
 }
 
@@ -52,8 +55,9 @@ export interface QualificationReservation {
 }
 
 /**
- * Reserve a provider connection or a generation against the exchange's durable bound, under the exchange's lock. A
- * reservation that does not fit ends the exchange. Call inside withService.
+ * Reserve a provider connection, a generation or a top-up of a connection's input allowance against the exchange's
+ * durable bound, under the project's and the exchange's locks. A reservation that does not fit ends the exchange. Call
+ * inside withService.
  */
 export async function reserveQualification(
   c: pg.PoolClient,

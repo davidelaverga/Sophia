@@ -1119,8 +1119,9 @@ export class RoomSession {
 
   /**
    * Whether this chunk of the holder's audio may go to the provider now: always, without a grant. Under one, the first
-   * after a turn ended waits ('hold') while its generation is reserved, and every chunk after it waits behind it, until
-   * that reservation (never another's) is granted; a refusal stops the session.
+   * after a turn ended waits ('hold') while its generation is reserved, and so does one its connection's allowance does
+   * not cover while the allowance is topped up; every chunk after it waits behind it, until that reservation (never
+   * another's) is granted; a refusal stops the session.
    */
   private gate(identity: string, chunk: Int16Array, dropped: number): 'send' | 'hold' | 'stop' {
     const q = this.qualification
@@ -1556,7 +1557,7 @@ export class RoomSession {
    * can be found for are not shown.
    */
   private inputWords(text: string, finished: boolean): void {
-    if (this.qualification && !this.within(this.qualification.heard(charsOf(text), finished))) return
+    if (this.qualification && !this.within(this.qualification.heard(this.connection, charsOf(text), finished))) return
     if (text.trim()) this.wordsHeard()
     const input = this.state.input(this.deps.now())
     const who = this.state.attribution()
@@ -1912,8 +1913,14 @@ export class RoomSession {
     const frame = this.sampler.take(now, this.state.assignment.observationEpoch)
     if (!frame || !looking || !this.live) return
     if (!this.state.mayForwardFrame(looking.participantIdentity, looking.source, frame.observationEpoch)) return
-    if (this.qualification && !this.within(this.qualification.frame())) return
+    if (this.qualification && !this.paidFrame(this.qualification)) return
     this.live.sendFrame(toJpeg(frame))
+  }
+
+  /** Under a grant, whether this frame was paid for: one the allowance does not cover yet is dropped (and counted). */
+  private paidFrame(qualification: SessionQualification): boolean {
+    const verdict = qualification.frame(this.connection)
+    return verdict !== 'drop' && this.within(verdict)
   }
 
   /**

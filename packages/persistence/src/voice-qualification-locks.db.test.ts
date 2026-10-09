@@ -55,8 +55,14 @@ async function run(sql: string, params: unknown[], actor: string | null = null):
   }
 }
 
-/** A project with a grant whose exchanges may last 60 s, and an exchange opened 61 s ago: due at the deadline. */
-async function dueExchange(due = true): Promise<{ projectId: string; exchangeId: string; grantId: string }> {
+/**
+ * A project with a grant whose exchanges may last 60 s, and an exchange opened 61 s ago: due at the deadline. With
+ * `connection`, a provider connection (ordinal 1) was reserved while it was not due yet, so a top-up may name it.
+ */
+async function dueExchange(
+  due = true,
+  connection = false,
+): Promise<{ projectId: string; exchangeId: string; grantId: string }> {
   const seeded = await seedProject(db.ownerUrl, { admin: A, editors: [P] })
   const grantId = await owner(async (c) => {
     const { rows } = await c.query<{ id: string }>(
@@ -70,6 +76,7 @@ async function dueExchange(due = true): Promise<{ projectId: string; exchangeId:
   const { exchangeId } = await withActor(pool, P, 'write', (c) =>
     startExchange(c, snap.room.id, randomUUID(), { expectedRoomRevision: snap.room.revision, allowVision: false }),
   )
+  if (connection) assert.equal(await reserve({ exchangeId, grantId }), 'ok')
   if (due)
     await owner(async (c) => {
       await c.query(
@@ -99,6 +106,9 @@ const write = (x: { exchangeId: string; grantId: string }, seq = 1) =>
   ])
 const reserve = (x: { exchangeId: string; grantId: string }) =>
   run(`SELECT sophia.media_voice_reserve($1,$2,'connection',NULL,NULL)`, [x.exchangeId, x.grantId])
+/** A top-up of connection 1's input allowance (spend). */
+const spend = (x: { exchangeId: string; grantId: string }) =>
+  run(`SELECT sophia.media_voice_reserve($1,$2,'spend',1,4000)`, [x.exchangeId, x.grantId])
 const guard = () => run(`SELECT sophia.voice_qualification_guard()`, [])
 const stopSpeaking = (x: { exchangeId: string }) =>
   run(`SELECT sophia.control_exchange($1,'stop_speaking',NULL)`, [x.exchangeId], P)
@@ -193,12 +203,17 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
     for (const x of all) assert.equal(await endedWhy(x), 'ended:deadline')
   })
 
-  it('a member’s control racing a receipt, a reservation or the guard that ends the exchange: no deadlock', async () => {
+  it('a member’s control racing a receipt, a reservation, a top-up or the guard that ends the exchange: no deadlock', async () => {
     const outcomes: string[] = []
     const all: string[] = []
     for (let trial = 0; trial < TRIALS; trial += 1) {
-      const [a, b, c] = [await dueExchange(), await dueExchange(), await dueExchange()]
-      all.push(a.exchangeId, b.exchangeId, c.exchangeId)
+      const [a, b, c, d] = [
+        await dueExchange(),
+        await dueExchange(),
+        await dueExchange(),
+        await dueExchange(true, true),
+      ]
+      all.push(a.exchangeId, b.exchangeId, c.exchangeId, d.exchangeId)
       const results = await Promise.all([
         stopSpeaking(a),
         write(a),
@@ -206,6 +221,9 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
         reserve(b),
         stopSpeaking(c),
         guard(),
+        stopSpeaking(d),
+        spend(d),
+        write(d, 2),
       ])
       // Stop Speaking on an exchange the race already ended is refused as such (40001): that is not a deadlock.
       outcomes.push(...results.filter((r) => r !== '40001'))
@@ -238,6 +256,31 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
       }
       assert.equal(await guard(), 'ok')
       assert.equal(await endedWhy(x.exchangeId), 'ended:deadline', `ended once the ${lock} was free`)
+    }
+  })
+
+  it('a top-up is taken under the project’s and the exchange’s locks: it waits for either one another holds', async () => {
+    for (const lock of ['project', 'exchange'] as const) {
+      const x = await dueExchange(false, true)
+      const release = await holding(
+        lock === 'exchange'
+          ? `SELECT 1 FROM sophia.room_exchanges WHERE id=$1 FOR UPDATE`
+          : `SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE`,
+        [lock === 'exchange' ? x.exchangeId : x.projectId],
+      )
+      let held = true
+      try {
+        const topUp = await started(`SELECT sophia.media_voice_reserve($1,$2,'spend',1,4000)`, [
+          x.exchangeId,
+          x.grantId,
+        ])
+        assert.equal(await untilBlocked(topUp), 'waiting', `the top-up waits for the held ${lock}`)
+        await release()
+        held = false
+        assert.equal(await topUp.done, 'ok', `granted once the ${lock} is free`)
+      } finally {
+        if (held) await release()
+      }
     }
   })
 
@@ -302,13 +345,21 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
       assert.deepEqual(await callsOf(x.exchangeId), [])
     })
 
-    it('a recording racing End, Stop Speaking, a receipt, a reservation and the guard: no deadlock in 20 trials', async () => {
+    it('a recording racing End, Stop Speaking, a receipt, a reservation, a top-up and the guard: no deadlock in 20 trials', async () => {
       const outcomes: string[] = []
       for (let trial = 0; trial < TRIALS; trial += 1) {
-        const x = await dueExchange()
+        const x = await dueExchange(true, true)
         const recorded = await record(x, `live:${x.exchangeId}:1:race-${String(trial)}`)
         const ending = await end(x)
-        const results = await Promise.all([recorded.done, ending.done, stopSpeaking(x), write(x), reserve(x), guard()])
+        const results = await Promise.all([
+          recorded.done,
+          ending.done,
+          stopSpeaking(x),
+          write(x),
+          reserve(x),
+          spend(x),
+          guard(),
+        ])
         // A recording, a reservation or Stop Speaking after the exchange ended is refused as such (40001).
         outcomes.push(...results.filter((r) => r !== '40001'))
       }
