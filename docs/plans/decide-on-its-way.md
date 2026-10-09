@@ -20,19 +20,28 @@
 
 - While a decision goes, the status says «Accepting…» or «Declining…», with the long wait's line after six seconds
   (`useSlow`, `SLOW_NOTE`). Decline waits drawn as a waiting press, as Accept does.
-- The presses wait while a decision goes, while its outcome is unknown, and once answered until the brief read again no
-  longer lists it (`pressesWait`, pure).
-- The status line takes the focus whatever the answer: done, refused or not confirmed.
-- A 409 whose proposal still waits in the brief read again says «It can’t be decided as it is: the brief changed since.
-  This is the brief as it is now.» (`decideRefusal`, pure). One that left says «Someone decided it first», as before.
+- Answered, or refused as stale, a decision settles once the brief has been read again (`useDecide` awaits it, as a
+  proposal already does), so what it says agrees with what shows. With no reply it doesn't wait for that read.
+- The presses wait while a decision goes, while its outcome is unknown, and once answered while the brief still lists
+  it: a read again that failed keeps them waiting, with «This may be out of date. Try again» as the way on
+  (`pressesWait`, pure).
+- The status line takes the focus whatever the answer, if the focus is still in Still open or was lost with its press:
+  never from where the person went meanwhile (the composer, another conversation).
+- A 409 is worded from the brief read again (`decideRefusal`, pure): still waiting, «It can’t be decided as it is: the
+  brief changed since. This is the brief as it is now.»; gone, «Someone decided it first», as before; the read failed,
+  «It wasn’t decided here: the brief changed since.», true either way.
+- A replacement refused this way still waits, unchanged and not stale (only a new direction moves the mission's
+  revision): it can be declined, and an Accept is refused again with the same words. Telling it apart before the press
+  (its `supersedesDecisionId` no longer accepted) is a later step.
 
 ## Checks (written first)
 
 - `decide.test.ts`: `pressesWait` for each state, and once answered, by whether the brief still lists it;
-  `decideRefusal` by whether the proposal still waits.
+  `decideRefusal` by whether the read came back and the proposal still waits.
 - `conversations-decide.spec.ts`, with the fixture's `decide=slow` (the answer 3 s late) and `decide=replaced` (a 409,
-  the proposal still waiting, now stale):
-  - «Accepting…» while it goes, both presses waiting, Decline drawn so;
-  - answered with the brief's read held: the presses wait, a press sends nothing, until the read lands;
-  - refused while it still waits: the changed brief's words, and the focus on them; refused as decided first: the focus
-    on its words too.
+  the proposal still waiting, unchanged):
+  - decided first, with the brief's read held: «Accepting…» until it lands, then «Someone decided it first», focused;
+  - refused while it still waits: the changed brief's words, focused, and the proposal still there to decline;
+  - «Accepting…» while it goes, both presses waiting, Decline drawn so; the composer focused meanwhile keeps the focus;
+  - answered with the read held: «Accepting…» and waiting presses until it lands; answered with the read failing: the
+    presses wait until «Try again» reads it without the proposal.

@@ -111,10 +111,24 @@ describe('a decision on its way (Still open)', () => {
   it('refused while it still waits: the brief changed, not decided by someone', () => {
     const stale = new ApiError(409, 'stale_revision', 'stale', 'never')
     assert.equal(
-      decideRefusal(stale, true),
+      decideRefusal(stale, { fresh: true, stillWaiting: true }),
       'It can’t be decided as it is: the brief changed since. This is the brief as it is now.',
     )
-    assert.equal(decideRefusal(stale, false), 'Someone decided it first. This is the brief as it is now.')
-    assert.equal(decideRefusal(new ApiError(403, 'forbidden', 'x', 'never'), true), 'You can’t decide this here.')
+    assert.equal(
+      decideRefusal(stale, { fresh: true, stillWaiting: false }),
+      'Someone decided it first. This is the brief as it is now.',
+    )
+    const forbidden = new ApiError(403, 'forbidden', 'x', 'never')
+    assert.equal(decideRefusal(forbidden, { fresh: true, stillWaiting: true }), 'You can’t decide this here.')
+  })
+
+  it('refused with the brief not read again: words true either way, none saying it shows the brief as it is', () => {
+    const stale = new ApiError(409, 'stale_revision', 'stale', 'never')
+    for (const stillWaiting of [true, false]) {
+      assert.equal(
+        decideRefusal(stale, { fresh: false, stillWaiting }),
+        'It wasn’t decided here: the brief changed since.',
+      )
+    }
   })
 })

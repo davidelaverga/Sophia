@@ -2,7 +2,8 @@
 // (202, waiting, of the kind asked), and one decided at the revision read (accepted to the top of the decisions, or
 // declined and gone). The same Idempotency-Key replays its receipt. `decide=stale`: someone else accepted the first one
 // decided, just before (409): it has left what waits. `decide=replaced`: the first one decided is refused (409) as
-// another replacing the same decision was accepted first: it still waits, now stale. `decide=slow`: the first decision's
+// another replacing the same decision was accepted first: it still waits, unchanged, as the API leaves it (only a new
+// direction moves the mission's revision, which is what marks a proposal stale). `decide=slow`: the first decision's
 // answer takes 3 s on its way back. Every word is synthetic.
 import type { MissionDecision } from '@sophia/contracts'
 import { membership, PROJECT } from './data.ts'
@@ -82,8 +83,7 @@ function decided(brief: Brief, id: string, init: RequestInit | undefined): Respo
   if (!d || (body.decision !== 'accept' && body.decision !== 'reject')) return null
   if (replacedOnce) {
     replacedOnce = false
-    // What it would replace was replaced first: it still waits, undecided, and can't be accepted as it is.
-    brief.pending[at] = { ...d, stale: true }
+    // What it would replace was replaced first: it still waits, undecided and unchanged.
     return json({ code: 'stale_revision', message: 'Replaced first', requestId: 'fixture', retry: 'never' }, 409)
   }
   if (staleOnce || body.expectedRevision !== d.revision) {

@@ -59,7 +59,11 @@ test('decide · «Decline» takes it out of Still open, and nothing is accepted'
 
 test('decide · someone decided first: the context says so and shows the brief as it is now', async ({ page }) => {
   await enter(page, `${PAGE}&decide=stale`)
+  // Its words wait for the brief read again: never «the brief changed» from the brief as it was.
+  await page.evaluate(() => window.fixture?.holdMission(true))
   await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
+  await expect(context(page).getByRole('status')).toHaveText('Accepting…')
+  await page.evaluate(() => window.fixture?.holdMission(false))
   await expect(context(page).getByRole('status')).toHaveText(
     'Someone decided it first. This is the brief as it is now.',
   )
@@ -72,14 +76,15 @@ test('decide · someone decided first: the context says so and shows the brief a
 
 test('decide · refused while it still waits: it says the brief changed, not that someone decided', async ({ page }) => {
   await enter(page, `${PAGE}&decide=replaced`)
-  await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
+  const accept = stillOpen(page).getByRole('button', { name: 'Accept' })
+  await accept.click()
   await expect(context(page).getByRole('status')).toHaveText(
     'It can’t be decided as it is: the brief changed since. This is the brief as it is now.',
   )
   await expect(context(page).getByRole('status')).toBeFocused()
-  // Still waiting, undecided, and said as one that can't be accepted as it is.
+  // Still waiting, undecided, as the API leaves it: it can still be declined.
   await expect(stillOpen(page)).toContainText('Map first, list second')
-  await expect(stillOpen(page)).toContainText('The direction changed since: it can’t be accepted as it is.')
+  await expect(accept).not.toHaveAttribute('aria-disabled')
 })
 
 test('decide · while a decision goes it says «Accepting…», and both presses wait, drawn so', async ({ page }) => {
@@ -93,21 +98,44 @@ test('decide · while a decision goes it says «Accepting…», and both presses
     expect(await press.evaluate((b) => getComputedStyle(b).opacity)).toBe('0.45')
   }
   await decline.click({ force: true }) // waiting: nothing more is sent
+  // Gone to write meanwhile: the answer takes no focus from there.
+  const composer = open(page).getByRole('textbox', { name: 'Continue this question with the team' })
+  await composer.focus()
   await expect(context(page).getByRole('status')).toHaveText('Accepted: Map first, list second')
+  await expect(composer).toBeFocused()
   expect(await writes(page, '/decision')).toEqual([{ decision: 'accept', expectedRevision: 1 }])
 })
 
-test('decide · answered, its presses wait until the brief read again no longer lists it', async ({ page }) => {
+test('decide · answered, it is said once the brief is read again; meanwhile its presses wait', async ({ page }) => {
   await enter(page)
   await page.evaluate(() => window.fixture?.holdMission(true))
   const accept = stillOpen(page).getByRole('button', { name: 'Accept' })
   await accept.click()
+  await expect.poll(() => writes(page, '/decision')).toHaveLength(1)
+  await expect(context(page).getByRole('status')).toHaveText('Accepting…')
+  await expect(accept).toHaveAttribute('aria-disabled', 'true')
+  await accept.click({ force: true }) // a press sends nothing
+  await page.evaluate(() => window.fixture?.holdMission(false))
   await expect(context(page).getByRole('status')).toHaveText('Accepted: Map first, list second')
-  // The brief isn't read again yet: still listed, but its presses wait, and a press sends nothing.
+  await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
+  expect(await writes(page, '/decision')).toHaveLength(1)
+})
+
+test('decide · answered but the brief can’t be read again: its presses wait until a read no longer lists it', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failMission(true))
+  const accept = stillOpen(page).getByRole('button', { name: 'Accept' })
+  await accept.click()
+  await expect(context(page).getByRole('status')).toHaveText('Accepted: Map first, list second')
+  // Still listed as the last read had it, said as possibly out of date; its presses wait, and send nothing.
+  await expect(context(page).getByText('This may be out of date.')).toBeVisible()
   await expect(accept).toHaveAttribute('aria-disabled', 'true')
   await accept.click({ force: true })
   expect(await writes(page, '/decision')).toHaveLength(1)
-  await page.evaluate(() => window.fixture?.holdMission(false))
+  await page.evaluate(() => window.fixture?.failMission(false))
+  await context(page).getByRole('button', { name: 'Try again' }).click()
   await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
 })
 
