@@ -1,0 +1,10 @@
+{
+  "candidate": "82f812d01c946ad5ef306111bf241e138db67558",
+  "level": "L0 pure store only; no runtime/provider claim",
+  "scenario": "feed settlement calls withoutConversation while held erasure is still sending",
+  "heldErasureRemoved": true,
+  "erasedMarked": true,
+  "lateUnknownDoesNotRevive": true,
+  "oldDraftRemoved": true,
+  "otherDraftPreserved": true
+}

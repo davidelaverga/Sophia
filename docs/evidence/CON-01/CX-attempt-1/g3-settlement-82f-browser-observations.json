@@ -1,0 +1,88 @@
+{
+  "candidate": "82f812d01c946ad5ef306111bf241e138db67558",
+  "tree": "9a33dcaa54d1a2c699eed1df171e4555c6669146",
+  "level": "L1 actual local Studio/API/PostgreSQL17.6, synthetic identities/content, no fixtures/native/provider",
+  "source": "Direct CUA DOM observations recorded by reviewer; no internal React/cache/network evaluation",
+  "observations": [
+    {
+      "at": "2026-10-09T23:28:59.680Z",
+      "scenario": "200 legitimate arrivals cap target from list after unreached erase",
+      "screen": "list",
+      "erasedNotice": false,
+      "targetListed": false,
+      "displayedDraftBelongsToOtherConversation": ""
+    },
+    {
+      "at": "2026-10-09T23:29:08.173Z",
+      "scenario": "legitimate activity returns still-open target; select it",
+      "screen": "thread",
+      "draft": "SYNTHETIC-CAP-DRAFT-MUST-SURVIVE",
+      "erasedNotice": false,
+      "reopenedErasureConfirmation": "Not confirmed: Erase sends it again; it won\u2019t be erased twice."
+    },
+    {
+      "at": "2026-10-09T23:29:52.644Z",
+      "scenario": "real A08 accepted, mission GET503",
+      "proposalReceipt": "Proposed \u00b7 Still open couldn\u2019t be read again",
+      "acceptAriaDisabled": "true",
+      "contextWarning": "This may be out of date. Try again"
+    },
+    {
+      "at": "2026-10-09T23:30:02.836Z",
+      "scenario": "restore mission GET, press Try again",
+      "proposalReceipt": "Proposed \u00b7 no longer in Still open",
+      "acceptedConstraintVisible": true,
+      "stillOpenEmpty": true
+    },
+    {
+      "at": "2026-10-09T23:30:18.918Z",
+      "scenario": "real same-key erasure, success body delayed3000ms then withheld; select other thread before response",
+      "heading": "Synthetic cap arrival 199",
+      "screen": "thread",
+      "focus": "TEXTAREA",
+      "draft": "SYNTHETIC-LATE-LOST-HTTP-DRAFT",
+      "erasedNotice": false
+    },
+    {
+      "at": "2026-10-09T23:30:31.231Z",
+      "scenario": "after late unknown HTTP answer",
+      "heading": "Synthetic cap arrival 199",
+      "screen": "thread",
+      "focus": "TEXTAREA",
+      "draft": "SYNTHETIC-LATE-LOST-HTTP-DRAFT",
+      "erasedNotice": false,
+      "targetPresent": false,
+      "acceptedConstraintVisible": true
+    },
+    {
+      "at": "2026-10-09T23:31:04.995Z",
+      "scenario": "phone390x844 erases arrival198 with HTTP delayed3000ms, feed normal",
+      "screen": "list",
+      "focus": "BUTTON",
+      "focusTextStarts": "Synthetic cap arrival 199",
+      "erasedNotice": true,
+      "contextOpen": false,
+      "overflow": false
+    },
+    {
+      "at": "2026-10-09T23:31:18.940Z",
+      "scenario": "activate surviving already-selected row on phone",
+      "screen": "thread",
+      "focus": "BODY",
+      "draft": "SYNTHETIC-LATE-LOST-HTTP-DRAFT",
+      "erasedNotice": false,
+      "overflow": false
+    },
+    {
+      "at": "2026-10-09T23:32:01.307Z",
+      "scenario": "All conversations then keyboard Enter on already-selected surviving row",
+      "screen": "thread",
+      "focus": "BODY",
+      "draft": "SYNTHETIC-LATE-LOST-HTTP-DRAFT"
+    }
+  ],
+  "browserCleanup": {
+    "closedTab": "19",
+    "viewportReset": true
+  }
+}

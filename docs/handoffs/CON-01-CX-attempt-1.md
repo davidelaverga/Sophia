@@ -1,5 +1,15 @@
 # CON-01 independent reviewer/operator handoff — attempt 1
 
+## Current authoritative checkpoint — CX-0019
+
+Exact82f812d0/tree9a33dcaa integrates main3e6d57b1. Actual local Studio/API/PG recheck passes CX18 cap falsifier, same-key erasure once, late lost HTTP preserving other thread/focus/draft and main203 A08 accept→failed reread→recovery.28 focused units/typecheck pass. New bounded P2: on phone, activating already-selected surviving row opens thread with focus BODY; author correction requested. [CX-0019](../coordination/CON-01/CX-0019.md) and updated36-case ledger own current verdicts. No feature fix authored by reviewer.
+
+Published partial source_ready/affected bounded locally_verified; A24 changes_requested, G2 unimplemented/unqualified, latest full concrete author447 scoped browser FAILED1129/1131 and not pnpm check.82f CI queued/fresh automatic review requested6091013945. Combined reviewed/authorized/deployed/app_verified/owner_accepted=false. PR19090a7 refreshed, combined-runtime acknowledgment/window still open.
+
+OP-0001-r1 draft_not_authorized; owner cohort/project/two subjects, route/credential reference/payer/cap/expiry, policy/host-copy decisions/executable approval missing. No new hosted serving tuple, operation or provider use; calls/spend/uncertainty0. All ten owned stacks cleaned, newest exit0/API+Studio stopped/disposable DB dropped/PG stopped+cluster removed/tab19 closed/viewport reset. No owned pending effect; other missions untouched. Release rollback preserving governed data still needs qualification.
+
+Next bounded action: immutable author phone-focus correction independently rechecked, then G2 implementation/composition/exact gates. Davide decides final product acceptance; no unattended monitoring or broader completion.
+
 ## Current authoritative checkpoint — CX-0018, P1 release hold
 
 This supersedes earlier readiness summaries below. On exact0f2f3798/tree dca8624 actual local app, erasure never reached API (one controlled pre-upstream503), then200 legitimate new conversations capped target out of list. UI falsely announced erased and discarded unsent draft while PostgreSQL target remained open/readable with zero erasure requests. Actual activity brought it back with draft lost. [CX-0018](../coordination/CON-01/CX-0018.md) contains exact records/reproducer/cleanup; prior positive same-key/navigation branches remain bounded passes only.

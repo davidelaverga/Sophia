@@ -1,0 +1,18 @@
+{
+  "candidate": "82f812d01c946ad5ef306111bf241e138db67558",
+  "level": "L0 pure cache shape only; no fabricated native/app answer",
+  "scenario": "201+ actual writer possibility; list is capped200, retained editor withdraws while list reread fails and omitted writer still contributes; dependent Sophia answer not loaded",
+  "contributorsAfter": 199,
+  "othersBefore": true,
+  "othersAfter": true,
+  "sophiaAfter": false,
+  "remains": {
+    "writer": "editor",
+    "writerStays": false,
+    "sophiaStays": false
+  },
+  "expected": {
+    "othersAfter": true,
+    "sophiaAfter": false
+  }
+}

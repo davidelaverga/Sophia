@@ -1,0 +1,64 @@
+{
+  "candidate": "82f812d01c946ad5ef306111bf241e138db67558",
+  "tree": "9a33dcaa54d1a2c699eed1df171e4555c6669146",
+  "observedAt": "2026-10-09T23:31:12.390Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "8ab53c45-cfaf-45b9-8432-85b3c58678e0",
+  "messages": [
+    {
+      "title": "Synthetic cap arrival 199",
+      "id": "e9d14c2b-ef29-4d22-b054-cb7f0878efd4",
+      "conversation_id": "35c7ff8d-7129-46aa-95e1-51e4a092dc4b",
+      "actor_id": "7246b09f-ace9-49db-b326-38b6b1c6c0e4",
+      "seq": "1",
+      "body": "Synthetic cap arrival 199",
+      "withdrawn_at": null
+    }
+  ],
+  "replies": [],
+  "decisions": [
+    {
+      "id": "24bbf7b4-107d-4d21-a4ca-c8eb0f521116",
+      "kind": "constraint",
+      "state": "accepted",
+      "revision": "2",
+      "body": "Proposed constraint: Synthetic accepted constraint remains separate from chat"
+    }
+  ],
+  "requests": [
+    {
+      "actor_id": "7246b09f-ace9-49db-b326-38b6b1c6c0e4",
+      "idempotency_key": "2238ae14-511a-40f1-aa23-867b6a98a365",
+      "operation": "erase",
+      "semantic_request": {
+        "operation": "erase",
+        "conversationId": "6e5eca9c-b21a-44b4-84af-8673b3bd9481"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "7246b09f-ace9-49db-b326-38b6b1c6c0e4",
+      "idempotency_key": "d939534d-049b-4f89-8a60-72636b84c0ef",
+      "operation": "erase",
+      "semantic_request": {
+        "operation": "erase",
+        "conversationId": "0916b3c4-0732-49a3-8cc2-c25f609b64a2"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "originalMessageCount": 202,
+  "originalRequestCount": 204,
+  "normalization": "Unrelated synthetic arrival messages/start requests omitted; original counts retained. Complete restricted audit retained outside Git."
+}

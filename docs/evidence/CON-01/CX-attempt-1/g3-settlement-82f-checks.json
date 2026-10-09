@@ -1,0 +1,21 @@
+{
+  "candidate": "82f812d01c946ad5ef306111bf241e138db67558",
+  "source": "Reviewer direct exec tool results, not an author raw-log claim",
+  "frozenInstallExit": 0,
+  "focusedUnits": {
+    "command": "node --test apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/decide.test.ts apps/studio/src/features/conversations/held-decision.test.ts",
+    "tests": 28,
+    "passed": 28,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "studioTypecheck": {
+    "command": "pnpm --filter @sophia/studio typecheck",
+    "exit": 0
+  },
+  "diffCheckExit": 0,
+  "backendApiContractMigrationChangesSince7660": [],
+  "proposeHereAndDecideDiffFromMain203": [],
+  "fullPnpmCheck": false
+}
