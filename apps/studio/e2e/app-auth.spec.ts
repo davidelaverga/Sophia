@@ -98,7 +98,7 @@ declare global {
       proposals: readonly { key: string; body: unknown }[]
       asked: readonly string[]
       unexpected: readonly string[]
-      hold: (by: string, path: string) => void
+      hold: (by: string, path: string, method?: string) => void
       release: () => void
     }
     /** "Review sources" buttons the page added since the check began counting them. */
@@ -424,4 +424,220 @@ test('codex · 6e9e2a9b · a sign-out in another tab forgets every proposal here
   await anotherTab(context, null)
   await expect(page.locator('input[type="email"]')).toBeVisible()
   await expect.poll(() => tabHolds(page)).toEqual(only(OTHER_PART))
+})
+
+// --- Browser-account stores: viewer state and personal flags key by the account (token subject), not the email. ---
+
+const personalFlagOf = (subject: string, flag: string) => `sophia.personal.${flag}.v1.${subject}`
+const viewerKeyOf = (subject: string, project: string) => `sophia.viewer.v1.${subject}.${project}`
+
+/** Press Enter from Home (body focused) to navigate to the last-visited place. */
+async function enterFromHome(page: Page) {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+  })
+  await page.keyboard.press('Enter')
+}
+
+test('browser-account · navigating to Work stores the flag under the subject, and Enter restores it after an email change', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  // Navigate to Work via shortcut: Places writes `last = work` under the subject.
+  await page.keyboard.press('w')
+  await expect(page.locator('div.places[data-place="work"]')).toBeVisible()
+  const flagKey = personalFlagOf(DAVIDE.id, 'last')
+  await expect.poll(() => page.evaluate((k) => localStorage.getItem(k), flagKey)).toBe('work')
+  // No entry was written under the email (the old bug's key).
+  const emailFlagKey = personalFlagOf(DAVIDE.email, 'last')
+  expect(await page.evaluate((k) => localStorage.getItem(k), emailFlagKey)).toBeNull()
+  // Go Home, then Enter: the app reads the subject flag and goes to Work.
+  await page.keyboard.press('h')
+  await expect(page.locator('div.places[data-place="home"]')).toBeVisible()
+  await enterFromHome(page)
+  await expect(page.locator('div.places[data-place="work"]')).toBeVisible()
+  // Davide changes address from another tab: USER_UPDATED, same subject.
+  await page.keyboard.press('h')
+  await expect(page.locator('div.places[data-place="home"]')).toBeVisible()
+  await anotherTab(context, session(RENAMED), 'USER_UPDATED')
+  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  // Enter still goes to Work: same subject, same stored flag.
+  await enterFromHome(page)
+  await expect(page.locator('div.places[data-place="work"]')).toBeVisible()
+})
+
+test('browser-account · another subject at the same address enters Personal, not the first subject stored Work', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  // Seed: Davide's subject flag says Work; a conflicting legacy email flag also says Work.
+  const davideFlagKey = personalFlagOf(DAVIDE.id, 'last')
+  const emailFlagKey = personalFlagOf(DAVIDE.email, 'last')
+  await page.evaluate(
+    ([sk, ek]) => {
+      localStorage.setItem(sk, 'work')
+      localStorage.setItem(ek, 'work')
+    },
+    [davideFlagKey, emailFlagKey] as const,
+  )
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  // Another account at the same address comes in: a different subject.
+  await anotherTab(context, session(SAME_ADDRESS))
+  await expect.poll(() => signedInAs(page)).toBe(SAME_ADDRESS.email)
+  // Enter from Home: the new account has no flag of its own, so it goes to Personal (default),
+  // not Work (which would mean it read Davide's subject flag or the legacy email flag).
+  await enterFromHome(page)
+  await expect(page.locator('.places[data-place="personal"]')).toBeVisible()
+  // Davide's flag is untouched.
+  expect(await page.evaluate((k) => localStorage.getItem(k), davideFlagKey)).toBe('work')
+})
+
+test('browser-account · a legacy email-keyed flag is not read: Enter goes to Personal, not the legacy Work', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  // A legacy entry keyed by the email says Work; no entry under the subject.
+  const legacyFlagKey = personalFlagOf(DAVIDE.email, 'last')
+  await page.evaluate((k) => localStorage.setItem(k, 'work'), legacyFlagKey)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  // Enter from Home: the subject has no flag, so the app goes to Personal (default).
+  // If the app read the legacy email key, it would go to Work — that is the old bug.
+  await enterFromHome(page)
+  await expect(page.locator('.places[data-place="personal"]')).toBeVisible()
+  // The legacy entry is still on the device, undisturbed but never read.
+  expect(await page.evaluate((k) => localStorage.getItem(k), legacyFlagKey)).toBe('work')
+})
+
+test('browser-account · viewer-state lens restores under same subject after email change, resets for another subject', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  // Seed: Davide's viewer state has lens=explore for the project.
+  const davideViewerKey = viewerKeyOf(DAVIDE.id, WORK_PROJECT)
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [
+    davideViewerKey,
+    JSON.stringify({ lens: 'explore', drafts: {} }),
+  ] as const)
+  // Navigate to the project's studio: the lens should restore from the seeded state.
+  await page.goto(`${APP}/p/${WORK_PROJECT}/studio?work=lost`)
+  await expect(account(page)).toBeVisible()
+  await expect(page.locator('#lens-explore[aria-selected="true"]')).toBeVisible()
+  // Davide changes address: same subject, the lens stays.
+  await anotherTab(context, session(RENAMED), 'USER_UPDATED')
+  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  await expect(page.locator('#lens-explore[aria-selected="true"]')).toBeVisible()
+  // Another subject at the same address: no seeded viewer state, so the default lens (converse) shows.
+  await anotherTab(context, session(SAME_ADDRESS))
+  await expect.poll(() => signedInAs(page)).toBe(SAME_ADDRESS.email)
+  await expect(page.locator('#lens-converse[aria-selected="true"]')).toBeVisible()
+  // Davide's stored viewer state is untouched.
+  expect(await page.evaluate((k) => localStorage.getItem(k), davideViewerKey)).toContain('"explore"')
+})
+
+test('browser-account · pending Start survives USER_UPDATED: started conversation appears without reload', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/conversations?work=lost`)
+  const list = page.locator('section[aria-label="All conversations"]')
+  await expect(list).toBeVisible()
+  // The seeded list has 3 conversations.
+  await expect(list.locator('.conv-row')).toHaveCount(3)
+  // Hold POST only on the start endpoint (same path as the GET list read; holding both would race).
+  const startPath = `/api/v1/projects/${WORK_PROJECT}/conversations`
+  await page.evaluate(([by, path]) => window.appFixture?.hold(by, path, 'POST'), [DAVIDE.id, startPath] as const)
+  // Open the new conversation form, turn off Ask Sophia (no feed-publishing answer), and start one.
+  await page.getByRole('button', { name: 'New conversation' }).click()
+  const form = page.getByRole('form', { name: 'New conversation' })
+  await form.getByLabel('Ask Sophia').uncheck()
+  await form.getByLabel('Question').fill('Which numbers need checking?')
+  await form.getByRole('button', { name: 'Start' }).click()
+  await expect(form.getByRole('button', { name: 'Starting…' })).toBeVisible()
+  // Verify the held POST was actually reached before changing the identity.
+  await expect.poll(() => askedOf(page)).toContain(`POST ${startPath} by ${DAVIDE.id}`)
+  // While the start is in flight, Davide changes email from another tab.
+  await anotherTab(context, session(RENAMED), 'USER_UPDATED')
+  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  // Barrier: the rendered list still shows the original 3 conversations (on da769 the changed-email key
+  // triggers a refetch that settles here; on the fix the cached data is already in place).
+  await expect(list.locator('.conv-row')).toHaveCount(3)
+  // Release the held POST: the callback must write to the stable-account cache key, so the started
+  // conversation appears in the list without feed event or reload.
+  await page.evaluate(() => window.appFixture?.release())
+  await expect(list.locator('.conv-row').filter({ hasText: 'Which numbers need checking?' })).toBeVisible()
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('browser-account · pending Send survives USER_UPDATED: sent message appears without reload', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/p/${WORK_PROJECT}/conversations?work=lost`)
+  const list = page.locator('section[aria-label="All conversations"]')
+  await expect(list).toBeVisible()
+  // Open the first conversation (reading): its newest page has 6 messages.
+  const READING = '00000000-0000-4000-8000-0000000000c1'
+  await list.locator('.conv-row').first().click()
+  await expect(page.locator('.conv-open')).toBeVisible()
+  const MESSAGE_COUNT = 6
+  await expect(page.locator('.conv-msg')).toHaveCount(MESSAGE_COUNT)
+  // Turn off Ask Sophia so no feed-publishing answer is scheduled.
+  await page.getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  // Hold POST only on the send endpoint (GET messages uses the same path prefix; holding both would race).
+  const sendPath = `/api/v1/conversations/${READING}/messages`
+  await page.evaluate(([by, path]) => window.appFixture?.hold(by, path, 'POST'), [DAVIDE.id, sendPath] as const)
+  // Type and send a message.
+  const field = page.getByLabel('Continue this question with the team')
+  await field.fill('Check the March figures')
+  await page.keyboard.press('Enter')
+  // Verify the held POST was actually reached before changing the identity.
+  await expect.poll(() => askedOf(page)).toContain(`POST ${sendPath} by ${DAVIDE.id}`)
+  // While the send is in flight, Davide changes email from another tab.
+  await anotherTab(context, session(RENAMED), 'USER_UPDATED')
+  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  // Barrier: the rendered transcript still shows the original messages (on da769 the changed-email key
+  // triggers a refetch that settles here; on the fix the cached data is already in place).
+  await expect(page.locator('.conv-msg')).toHaveCount(MESSAGE_COUNT)
+  // Release the held POST: the callback must write to the stable-account cache key, so the sent message
+  // appears in the thread without feed event or reload.
+  await page.evaluate(() => window.appFixture?.release())
+  await expect(page.locator('.conv-msg').filter({ hasText: 'Check the March figures' })).toBeVisible()
+  expect(await unexpectedOf(page)).toEqual([])
+})
+
+test('browser-account · blocked storage does not break navigation or account transitions', async ({ context }) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE, { [OTHER_PART]: '{}' })
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  // Block getItem/setItem for Sophia per-account prefixes only; the Supabase session stays readable.
+  await page.evaluate(() => {
+    const real = { getItem: localStorage.getItem.bind(localStorage), setItem: localStorage.setItem.bind(localStorage) }
+    localStorage.getItem = (key: string) => {
+      if (key.startsWith('sophia.personal.') || key.startsWith('sophia.viewer.'))
+        throw new DOMException('blocked', 'SecurityError')
+      return real.getItem(key)
+    }
+    localStorage.setItem = (key: string, value: string) => {
+      if (key.startsWith('sophia.personal.') || key.startsWith('sophia.viewer.'))
+        throw new DOMException('blocked', 'SecurityError')
+      real.setItem(key, value)
+    }
+  })
+  // Navigation still works: the flag is not stored (storage is blocked), but the app does not crash.
+  await page.keyboard.press('w')
+  await expect(page.locator('.places[data-place="work"]')).toBeVisible()
+  // Another account coming in still works.
+  await anotherTab(context, session(SAME_ADDRESS))
+  await expect.poll(() => signedInAs(page)).toBe(SAME_ADDRESS.email)
 })

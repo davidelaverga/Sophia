@@ -6,6 +6,7 @@
 // conversation or leaving for another view and coming back finds the same one, sent again under its key, never twice.
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { refusalWords, statementFrom, useAlreadyOpen, useProposeSend } from './decide.ts'
@@ -31,7 +32,7 @@ const NOBODY = { projectId: '', identity: null, messageId: '' }
  */
 function useHeldProposal(args: ProposeArgs | null) {
   const { projectId, identity, messageId: id } = args ?? NOBODY
-  const { kept, change } = useKept(projectId, identity?.name ?? '')
+  const { kept, change } = useKept(projectId, identity ? accountOf(identity) : '')
   const send = useProposeSend(projectId, identity)
   const waiting = useAlreadyOpen(projectId, identity)
   const held = kept.proposals[id] ?? null

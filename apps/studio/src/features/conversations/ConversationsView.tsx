@@ -14,6 +14,7 @@ import {
   type ConversationSummary,
   type MessageAsk,
 } from '../../api/vision.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
 import { Waiting } from '../../app/Waiting.tsx'
@@ -48,7 +49,7 @@ const readerOf = (membership: Membership | undefined) => ({
 /** The project's conversations, newest activity first, read again as the feed moves. */
 function useList(projectId: string, identity: Identity, cursor: string | undefined) {
   const list = useQuery({
-    queryKey: listKey(projectId, identity.name),
+    queryKey: listKey(projectId, accountOf(identity)),
     queryFn: ({ signal }) => listConversations(identity.token, projectId, signal),
     select: sorted,
     retry: 1,
@@ -68,7 +69,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     ask(to.conversationId)
     panes.show()
   })
-  const talk = useTalk(projectId, identity.name)
+  const talk = useTalk(projectId, accountOf(identity))
   const start = useStart(projectId, identity, talk, (id) => {
     choose(id)
     panes.show()
@@ -85,7 +86,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     >
       <ListPane
         projectId={projectId}
-        reader={identity.name}
+        reader={accountOf(identity)}
         read={list}
         all={all}
         openId={shown?.id}
@@ -385,11 +386,11 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
     setStarting(shown)
   }
   const started = ({ conversation, message }: ConversationStarted, ask: ConversationAsk) => {
-    const key = listKey(projectId, identity.name)
+    const key = listKey(projectId, accountOf(identity))
     queryClient.setQueryData<{ conversations: readonly ConversationSummary[] }>(key, (was) => ({
       conversations: [conversation, ...(was?.conversations ?? []).filter((c) => c.id !== conversation.id)],
     }))
-    queryClient.setQueryData(messagesKey(conversation.id, identity.name), {
+    queryClient.setQueryData(messagesKey(conversation.id, accountOf(identity)), {
       pages: [{ messages: [message], before: null }],
       pageParams: [null],
     })
