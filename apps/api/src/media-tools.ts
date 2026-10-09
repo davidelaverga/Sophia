@@ -15,6 +15,7 @@ import { DomainError } from '@sophia/domain'
 import {
   admitGoalCommand,
   canCommand,
+  liveCallAdmits,
   readSnapshot,
   readTaskStandings,
   recordLiveCall,
@@ -134,6 +135,7 @@ async function admitControl(c: pg.PoolClient, ctx: ToolContext, req: ControlRequ
         'voice',
       )
     : null
+  if (ctx.liveCall) await liveCallAdmits(c, ctx.projectId, ctx.key)
   const receipt = await admitGoalCommand(c, ctx.projectId, ctx.key, {
     kind: req.action,
     goalId: goal.id,
@@ -263,8 +265,8 @@ function declaredBy(call: MediaToolCall): boolean {
 
 /**
  * Execute one call for its bound speaker. Unbound attribution is a question back, never an action. With voice
- * qualification on (A15), the call's exchange is recorded under its command's key as it is bound: the canonical join from
- * the task it creates to the exchange (NativeTask.exchangeId).
+ * qualification on (A15), the call is recorded as it is bound, and the command it admits is linked to it in the same
+ * transaction (liveCallAdmits): the canonical join from the task it creates to the exchange (NativeTask.exchangeId).
  */
 export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice = false): Promise<MediaToolResult> {
   if (!declaredBy(call)) {
@@ -292,6 +294,7 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice 
     key,
     call,
     args: call.args,
+    liveCall: voice,
   }
   return TOOL_HANDLERS[call.name](ctx)
 }

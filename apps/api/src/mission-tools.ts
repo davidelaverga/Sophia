@@ -43,6 +43,8 @@ export interface ToolContext {
   call: MediaToolCall
   /** The call's arguments, as the model sent them: data to check, never trusted. */
   args: Record<string, unknown>
+  /** The call was recorded (voice qualification on, A15): the command it admits is linked to it (liveCallAdmits). */
+  liveCall?: boolean
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/

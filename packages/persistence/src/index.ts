@@ -135,6 +135,8 @@ export {
   type PresenceReport,
 } from './exchange.ts'
 export {
+  liveCallAdmits,
+  readExchangeCalls,
   readLivePresence,
   readQualificationEvidence,
   readTaskExchanges,
@@ -142,6 +144,7 @@ export {
   recordQualificationEvidence,
   roomQualification,
   voiceQualificationGuard,
+  type ExchangeCalls,
   type LivePresence,
   type QualificationEvidenceAck,
   type QualificationEvidenceWrite,

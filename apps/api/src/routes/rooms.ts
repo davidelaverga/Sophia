@@ -4,6 +4,7 @@ import type { FloorRequest, RoomTokenRequest } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
 import {
   authorizeRoomJoin,
+  readExchangeCalls,
   readLivePresence,
   readQualificationEvidence,
   roomQualification,
@@ -69,6 +70,7 @@ export function roomRoutes(app: FastifyInstance, { pool, livekit, voice }: Deps)
   if (voice) {
     evidenceReadRoute(app, pool)
     livePresenceRoute(app, pool)
+    exchangeCallsRoute(app, pool)
   }
 
   app.post<{ Params: { roomId: string }; Headers: { 'idempotency-key': string }; Body: FloorRequest }>(
@@ -119,5 +121,28 @@ function livePresenceRoute(app: FastifyInstance, pool: pg.Pool): void {
     '/api/v1/rooms/:roomId/live-presence',
     { schema: { params: roomParams, response: { 200: { $ref: 'RoomLivePresence#' } } } },
     async (req) => withActor(pool, req.actorId, 'read', (c) => readLivePresence(c, req.params.roomId)),
+  )
+}
+
+/**
+ * A member reads their own voice tool calls in an exchange, in the order they were recorded, each with its tool, the
+ * command it admitted and the task that command created (A15). Another member's calls are never listed; an exchange
+ * outside the caller's projects is not found.
+ */
+function exchangeCallsRoute(app: FastifyInstance, pool: pg.Pool): void {
+  app.get<{ Params: { exchangeId: string } }>(
+    '/api/v1/exchanges/:exchangeId/calls',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { exchangeId: { type: 'string', format: 'uuid' } },
+          required: ['exchangeId'],
+        },
+        response: { 200: { $ref: 'ExchangeCalls#' } },
+      },
+    },
+    async (req) => withActor(pool, req.actorId, 'read', (c) => readExchangeCalls(c, req.params.exchangeId)),
   )
 }

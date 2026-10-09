@@ -18,8 +18,10 @@
 --   chains over PCM the bridge forwards or plays: the API's schemas refuse any free text. Nothing is kept of a
 --   transcript, a caption or typed words.
 -- * The canonical exchange of a voice-created task: the service records the exchange each bound voice tool call ran in
---   (live_tool_calls), and a member reads each task's exchange from it (native_task_exchanges). A member's own key
---   joins nothing.
+--   (live_tool_calls), and the command the call admitted is linked to it in the transaction that inserts it, never by
+--   its key. A member reads each task's exchange from it (native_task_exchanges), and their own calls in an exchange,
+--   in order, each with its tool, the command it admitted and the task it created (exchange_calls). A member's own
+--   command, under any key, links to no call.
 -- * A member reads the room as the bridge last saw it (room_live_presence): only whether they are in it, the counts,
 --   the bridge's voice and the report's age; nobody else's identity.
 -- * media_assignments (0022) is replaced with the same signature: an assignment under an active grant also names it
@@ -287,17 +289,22 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
   AND sophia.is_member(r.project_id) $$;
 
 -- The exchange a voice tool call ran in, recorded by the service once it bound the call to its speaker
--- (media_tool_speaker): the canonical join from a native task (its command's actor and idempotency key) to the exchange
--- that asked for it. Only the service writes it, so a member's own key, whatever it looks like (a Studio key may read
--- live:...), joins to nothing.
+-- (media_tool_speaker), with the tool it named; and the command the call admitted, set only by the transaction that
+-- inserted that command while the API admitted it for this call (live_call_admits, below). That command is the
+-- canonical join from a native task to the exchange that asked for it. A key never joins by itself: a member's own
+-- command under the very key of a recorded call, or under any key that reads live:..., is not the call's.
 CREATE TABLE sophia.live_tool_calls (
  project_id uuid NOT NULL REFERENCES sophia.projects(id),
  actor_id uuid NOT NULL,
  idempotency_key text NOT NULL CHECK(idempotency_key ~ '^live:[0-9a-f-]{36}:[0-9]{1,16}:[A-Za-z0-9._:-]{1,120}$'),
  exchange_id uuid NOT NULL REFERENCES sophia.room_exchanges(id),
  input_epoch bigint NOT NULL CHECK(input_epoch>0),
+ tool text NOT NULL CHECK(tool ~ '^[a-z][a-z_]{0,63}$'),
  recorded_at timestamptz NOT NULL DEFAULT now(),
- PRIMARY KEY(project_id,actor_id,idempotency_key)
+ seq bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
+ command_id uuid,
+ PRIMARY KEY(project_id,actor_id,idempotency_key), UNIQUE(project_id,command_id),
+ FOREIGN KEY(project_id,command_id) REFERENCES sophia.commands(project_id,id)
 );
 ALTER TABLE sophia.live_tool_calls ENABLE ROW LEVEL SECURITY;
 CREATE POLICY members_read ON sophia.live_tool_calls FOR SELECT TO sophia_api USING(sophia.is_member(project_id));
@@ -306,7 +313,7 @@ GRANT SELECT ON sophia.live_tool_calls TO sophia_api;
 -- Record a bound voice tool call's exchange, under the key the API gives its command (live:<exchange>:<generation>:
 -- <call>). The service checks again what media_tool_speaker bound: the exchange has not ended and the actor held the
 -- input epoch the call names. The same call again is a no-op, and a key naming another exchange is refused.
-CREATE FUNCTION sophia.media_record_live_call(p_exchange uuid, p_input_epoch bigint, p_actor uuid, p_key text)
+CREATE FUNCTION sophia.media_record_live_call(p_exchange uuid, p_input_epoch bigint, p_actor uuid, p_key text, p_tool text)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE e sophia.room_exchanges;
 BEGIN
@@ -316,19 +323,69 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM sophia.exchange_inputs i WHERE i.exchange_id=e.id AND i.input_epoch=p_input_epoch AND i.actor_id=p_actor) THEN
   RAISE EXCEPTION 'The speaker is not bound to that input epoch' USING ERRCODE='42501'; END IF;
  IF p_key NOT LIKE 'live:'||e.id::text||':%' THEN RAISE EXCEPTION 'The key names another exchange' USING ERRCODE='22023'; END IF;
- INSERT INTO sophia.live_tool_calls(project_id,actor_id,idempotency_key,exchange_id,input_epoch)
- VALUES(e.project_id,p_actor,p_key,e.id,p_input_epoch) ON CONFLICT DO NOTHING;
+ INSERT INTO sophia.live_tool_calls(project_id,actor_id,idempotency_key,exchange_id,input_epoch,tool)
+ VALUES(e.project_id,p_actor,p_key,e.id,p_input_epoch,p_tool) ON CONFLICT DO NOTHING;
 END $$;
 
--- The exchange each of a project's tasks was created in by a voice tool call, for a member: the task's command, by its
--- actor and key, joined to the call the service recorded. A task no such call created is not listed. Read only by an
--- API with voice qualification on, so native_task_view (0022) is unchanged and an API with it off needs none of 0046.
+-- The API admits a recorded call's command in the transaction that calls this first, for the call's speaker and key;
+-- the trigger below then links that command to the call as it is inserted. The marker is the transaction's own
+-- (set_config(..., true)) and names one recorded call of the speaker's: the API sets it only on a voice tool call's
+-- path, never on a member's request, so a command a member sends, under any key, links to nothing.
+CREATE FUNCTION sophia.live_call_admits(p_project uuid, p_key text) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE a uuid:=sophia.actor_id();
+BEGIN
+ IF a IS NULL OR NOT EXISTS(SELECT 1 FROM sophia.live_tool_calls WHERE project_id=p_project AND actor_id=a AND idempotency_key=p_key) THEN
+  RAISE EXCEPTION 'No such voice call' USING ERRCODE='42501'; END IF;
+ PERFORM set_config('sophia.live_call',p_key,true);
+END $$;
+
+-- Link a command to the recorded call it was admitted for: only one this transaction inserts, under the marker's key,
+-- by the call's own speaker. A retried call admits nothing new (its first command is answered), so it links nothing
+-- new, and a call whose command came from anywhere else keeps none.
+CREATE FUNCTION sophia.live_call_command() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ IF NEW.idempotency_key=current_setting('sophia.live_call',true) THEN
+  UPDATE sophia.live_tool_calls SET command_id=NEW.id
+   WHERE project_id=NEW.project_id AND actor_id=NEW.actor_id AND idempotency_key=NEW.idempotency_key AND command_id IS NULL;
+ END IF;
+ RETURN NULL;
+END $$;
+CREATE TRIGGER live_call_command AFTER INSERT ON sophia.commands
+ FOR EACH ROW WHEN (NEW.idempotency_key LIKE 'live:%') EXECUTE FUNCTION sophia.live_call_command();
+
+-- The exchange each of a project's tasks was created in by a voice tool call, for a member: the call that admitted the
+-- task's command. A task no such call created is not listed. Read only by an API with voice qualification on, so
+-- native_task_view (0022) is unchanged and an API with it off needs none of 0046.
 CREATE FUNCTION sophia.native_task_exchanges(p_project uuid, p_tasks uuid[])
 RETURNS TABLE(task_id uuid, exchange_id uuid) LANGUAGE sql STABLE SECURITY INVOKER SET search_path=pg_catalog,sophia AS $$
  SELECT j.id, lt.exchange_id
- FROM sophia.jobs j JOIN sophia.commands c ON c.project_id=j.project_id AND c.id=j.command_id
- JOIN sophia.live_tool_calls lt ON lt.project_id=c.project_id AND lt.actor_id=c.actor_id AND lt.idempotency_key=c.idempotency_key
+ FROM sophia.jobs j JOIN sophia.live_tool_calls lt ON lt.project_id=j.project_id AND lt.command_id=j.command_id
  WHERE j.project_id=p_project AND j.id=ANY(p_tasks) AND sophia.is_member(p_project) $$;
+
+-- A member's own voice tool calls in an exchange, in the order the service recorded them (seq), each with the tool it
+-- named, the command it admitted (its kind, goal, the authority epoch it took, its state) and the task that command
+-- created, or none: a call that admitted nothing (a read, a refusal: a Hold on work that is not active admits no
+-- command). Another member's calls, and another exchange's, are never listed; a retried call is the one entry it was.
+CREATE FUNCTION sophia.exchange_calls(p_exchange uuid) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE a uuid:=sophia.actor_id(); e sophia.room_exchanges;
+BEGIN
+ IF a IS NULL THEN RAISE EXCEPTION 'A member reads this' USING ERRCODE='42501'; END IF;
+ SELECT * INTO e FROM sophia.room_exchanges WHERE id=p_exchange;
+ IF e.id IS NULL OR NOT sophia.is_member(e.project_id) THEN RAISE EXCEPTION 'Exchange not found' USING ERRCODE='22023'; END IF;
+ RETURN jsonb_build_object('exchangeId',e.id,'calls',(SELECT coalesce(jsonb_agg(jsonb_build_object(
+   'seq',lt.seq,'recordedAt',lt.recorded_at,'inputEpoch',lt.input_epoch,'tool',lt.tool,
+   'command',CASE WHEN c.id IS NULL THEN NULL ELSE jsonb_build_object('commandId',c.id,'kind',c.kind,'goalId',c.goal_id,
+     'authorityEpoch',c.authority_epoch,'goalRevision',c.goal_revision,'state',c.state,'createdAt',c.created_at) END,
+   'taskId',(SELECT j.id FROM sophia.jobs j WHERE j.project_id=c.project_id AND j.command_id=c.id AND j.parent_job_id IS NULL
+     ORDER BY j.created_at LIMIT 1))
+   ORDER BY lt.seq),'[]')
+  FROM sophia.live_tool_calls lt
+  LEFT JOIN sophia.commands c ON c.project_id=lt.project_id AND c.id=lt.command_id
+  WHERE lt.exchange_id=e.id AND lt.actor_id=a));
+END $$;
 
 -- The room as the bridge last saw it, for a member: whether the caller is in it, how many are and how many of them are
 -- guests, the bridge's voice and when it reported (fresh within 15 s: it reports every 5 s while it is in the room).
@@ -355,11 +412,12 @@ REVOKE ALL ON FUNCTION sophia.voice_grant_of(uuid,timestamptz), sophia.voice_dea
  sophia.voice_qualification_revoke(uuid,uuid,text), sophia.voice_qualification_guard(),
  sophia.voice_assignment_qualification(uuid,timestamptz), sophia.media_record_evidence(uuid,uuid,integer,text,jsonb),
  sophia.voice_qualification_evidence_read(uuid), sophia.voice_room_qualification(uuid),
- sophia.media_record_live_call(uuid,bigint,uuid,text), sophia.room_live_presence(uuid),
- sophia.native_task_exchanges(uuid,uuid[]) FROM PUBLIC;
+ sophia.media_record_live_call(uuid,bigint,uuid,text,text), sophia.room_live_presence(uuid),
+ sophia.native_task_exchanges(uuid,uuid[]), sophia.exchange_calls(uuid), sophia.live_call_admits(uuid,text),
+ sophia.live_call_command() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.voice_qualification_guard(), sophia.media_record_evidence(uuid,uuid,integer,text,jsonb),
  sophia.voice_qualification_evidence_read(uuid), sophia.voice_room_qualification(uuid),
- sophia.media_record_live_call(uuid,bigint,uuid,text), sophia.room_live_presence(uuid),
- sophia.native_task_exchanges(uuid,uuid[]) TO sophia_api;
+ sophia.media_record_live_call(uuid,bigint,uuid,text,text), sophia.room_live_presence(uuid),
+ sophia.native_task_exchanges(uuid,uuid[]), sophia.exchange_calls(uuid), sophia.live_call_admits(uuid,text) TO sophia_api;
 
 COMMIT;

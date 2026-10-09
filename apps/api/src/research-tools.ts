@@ -15,6 +15,7 @@ import {
   admitResearchTask,
   canCommand,
   htmlDesignReady,
+  liveCallAdmits,
   pdfRendererReady,
   readTaskStandings,
   requestResearchRendition,
@@ -196,6 +197,7 @@ async function admit(
   if (!specialist) throw new DomainError('invalid_request', 'No research specialist writes these formats')
   return withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
     if (await amendsTooLong(c, ctx.projectId, request)) return null
+    if (ctx.liveCall) await liveCallAdmits(c, ctx.projectId, ctx.key)
     const result = await admitResearchTask(c, ctx.projectId, {
       key: ctx.key,
       exchangeId: ctx.call.exchangeId,

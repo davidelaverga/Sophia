@@ -11,6 +11,7 @@ import type { MediaEvidenceWrite } from '@sophia/contracts'
 import {
   admitNativeTask,
   createPool,
+  liveCallAdmits,
   readSnapshot,
   startExchange,
   submitContribution,
@@ -74,7 +75,7 @@ const token = (sub: string) =>
 async function call(
   method: 'GET' | 'POST',
   url: string,
-  init: { actor?: string; media?: boolean; body?: unknown; api?: FastifyInstance } = {},
+  init: { actor?: string; media?: boolean; body?: unknown; api?: FastifyInstance; key?: string } = {},
 ) {
   const res = await (init.api ?? app).inject({
     method,
@@ -82,7 +83,7 @@ async function call(
     headers: {
       ...(init.actor ? { authorization: `Bearer ${await token(init.actor)}` } : {}),
       ...(init.media ? { authorization: `Bearer ${MEDIA_TOKEN}` } : {}),
-      ...(method === 'POST' && !init.media ? { 'idempotency-key': randomUUID() } : {}),
+      ...(method === 'POST' && !init.media ? { 'idempotency-key': init.key ?? randomUUID() } : {}),
     },
     ...(init.body === undefined ? {} : { payload: init.body as Record<string, unknown> }),
   })
@@ -394,8 +395,11 @@ describe('voice qualification through the API (A15, 0046)', () => {
 })
 
 describe('the exchange of a voice-created task, and the room as the bridge last saw it (A15, 0046)', () => {
-  /** A brief admitted by `actor` under `key`: what a voice tool call's command is, under the key the API gives it. */
-  async function brief(projectId: string, actor: string, key: string): Promise<string> {
+  /**
+   * A brief admitted by `actor` under `key`. `forCall`: admitted as the API admits a recorded voice call's command
+   * (liveCallAdmits first, in the same transaction); otherwise as a member's own request under that key.
+   */
+  async function brief(projectId: string, actor: string, key: string, forCall = false): Promise<string> {
     const said = await withActor(pool, actor, 'write', (c) =>
       submitContribution(c, projectId, randomUUID(), {
         source: null,
@@ -408,14 +412,15 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     const { rows } = await owner((c) =>
       c.query<{ r: string }>(`SELECT mission_revision AS r FROM sophia.projects WHERE id=$1`, [projectId]),
     )
-    const receipt = await withActor(pool, actor, 'write', (c) =>
-      admitNativeTask(c, projectId, key, {
+    const receipt = await withActor(pool, actor, 'write', async (c) => {
+      if (forCall) await liveCallAdmits(c, projectId, key)
+      return admitNativeTask(c, projectId, key, {
         kind: 'draft_brief',
         instruction: 'Draft the brief.',
         contributionIds: [said.contributionId],
         expectedMissionRevision: Number(rows[0]?.r),
-      }),
-    )
+      })
+    })
     return receipt.taskId
   }
 
@@ -439,7 +444,7 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
   const recorded = async (key: string) =>
     (await owner((c) => c.query(`SELECT 1 FROM sophia.live_tool_calls WHERE idempotency_key=$1`, [key]))).rowCount
 
-  it('names the exchange its voice tool call ran in; a look-alike key, another actor or the API off names none', async () => {
+  it('names the exchange its voice tool call ran in; a member’s own command under any key, another actor or the API off names none', async () => {
     const { projectId } = await project()
     await registerRuntime(db.ownerUrl, { projectId, admin: A })
     const exchangeId = await open(projectId)
@@ -448,12 +453,24 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     assert.notEqual(bound.json.status, 'clarify', 'the call was bound to its speaker')
     const key = `live:${exchangeId}:1:call-1`
     assert.equal(await recorded(key), 1, 'the service recorded the call as it bound it')
-    const voiced = await brief(projectId, P, key)
+    const voiced = await brief(projectId, P, key, true)
+    assert.equal((await toolCall(exchangeId, P, 'call-5')).status, 200)
+    const sameKey = await brief(projectId, P, `live:${exchangeId}:1:call-5`)
     const lookAlike = await brief(projectId, E, `live:${exchangeId}:1:call-2`)
     const otherActor = await brief(projectId, E, key)
     const studio = await brief(projectId, P, randomUUID())
+    await assert.rejects(
+      brief(projectId, E, key, true),
+      { code: 'forbidden' },
+      'nobody admits for another speaker’s call',
+    )
     const seen = await exchangesOf(projectId, E)
     assert.equal(seen.get(voiced), exchangeId, 'the task its call created names the exchange')
+    assert.equal(
+      seen.get(sameKey),
+      undefined,
+      'the speaker’s own request under the very key of a recorded call that admitted nothing names none',
+    )
     assert.equal(seen.get(lookAlike), undefined, 'a member’s own key that reads live:… names none')
     assert.equal(seen.get(otherActor), undefined, 'another actor’s command under the same key names none')
     assert.equal(seen.get(studio), undefined)
@@ -470,6 +487,217 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     const outsider = randomUUID()
     const theirs = await call('GET', `/api/v1/projects/${projectId}/snapshot`, { actor: outsider })
     assert.equal(theirs.status, 403, 'a non-member reads no task at all')
+  })
+
+  /** A member's view of one recorded call (A15 ExchangeCalls). */
+  interface Listed {
+    seq: number
+    tool: string
+    inputEpoch: number
+    command: { commandId: string; kind: string; goalId: string; authorityEpoch: number; state: string } | null
+    taskId: string | null
+  }
+
+  /**
+   * P's voice calls in one exchange on one task's goal: a steer, a Hold on running work, a Hold on work already held, a
+   * replay of the first Hold and a read; then P's own request under the read's key, and P's call in another exchange
+   * that created a task there.
+   */
+  async function controlledExchange() {
+    const { projectId } = await project()
+    await registerRuntime(db.ownerUrl, { projectId, admin: A })
+    const exchangeId = await open(projectId)
+    const task = await brief(projectId, E, randomUUID())
+    const goal = async () => {
+      const snap = await withActor(pool, P, 'read', (c) => readSnapshot(c, projectId))
+      const found = snap?.goals.find((x) => x.id === snap.work.find((t) => t.id === task)?.goalId)
+      assert.ok(found)
+      return found
+    }
+    const goalId = (await goal()).id
+    const voice = (callId: string, name: string, args: Record<string, unknown> = {}) =>
+      call('POST', '/v1/media/tool-calls', {
+        media: true,
+        body: { exchangeId, connectionGeneration: 1, callId, name, args, inputEpoch: 1, actorId: P, guide: 'v1.2' },
+      })
+    const steer = await voice('steer-1', 'control_work', {
+      taskId: task,
+      action: 'steer',
+      brief: 'Lead with the cost.',
+    })
+    assert.equal(steer.json.status, 'ok', JSON.stringify(steer.json))
+    // The work started: only running work takes a Hold.
+    await owner((c) => c.query(`UPDATE sophia.goals SET status='running' WHERE id=$1`, [goalId]))
+    const hold = await voice('hold-1', 'control_work', { taskId: task, action: 'hold' })
+    assert.equal(hold.json.status, 'ok', JSON.stringify(hold.json))
+    assert.equal((await goal()).status, 'holding')
+    const again = await voice('hold-2', 'control_work', { taskId: task, action: 'hold' })
+    assert.equal(again.json.status, 'refused', 'a Hold on work already held is refused')
+    const replay = await voice('hold-1', 'control_work', { taskId: task, action: 'hold' })
+    assert.equal(
+      replay.json.output.commandId,
+      hold.json.output.commandId,
+      'a replay is answered with its first command',
+    )
+    assert.equal((await voice('status-1', 'project_status')).json.status, 'ok')
+    // The speaker's own request, under the very key of a call that admitted nothing, is admitted as theirs alone.
+    const g = await goal()
+    const forged = await call('POST', `/api/v1/projects/${projectId}/commands`, {
+      actor: P,
+      key: `live:${exchangeId}:1:status-1`,
+      body: {
+        kind: 'stop',
+        goalId,
+        expectedGoalRevision: g.revision,
+        expectedAuthorityEpoch: g.authorityEpoch,
+        bodySourceId: null,
+      },
+    })
+    assert.equal(forged.status, 202, JSON.stringify(forged.json))
+    const other = await project()
+    await registerRuntime(db.ownerUrl, { projectId: other.projectId, admin: A })
+    const otherExchange = await open(other.projectId)
+    assert.equal((await toolCall(otherExchange, P, 'y-1')).json.status, 'ok')
+    const otherTask = await brief(other.projectId, P, `live:${otherExchange}:1:y-1`, true)
+    return {
+      exchangeId,
+      goalId,
+      epoch: (await goal()).authorityEpoch,
+      holdId: String(hold.json.output.commandId),
+      forgedId: String(forged.json.commandId),
+      otherExchange,
+      otherTask,
+    }
+  }
+
+  const callsOf = (actor: string, exchange: string, api = app) =>
+    call('GET', `/api/v1/exchanges/${exchange}/calls`, { actor, api })
+
+  it('lists a member’s own calls in an exchange, each with only the command it admitted: a refusal, a replay, a read or a member’s own command certifies nothing', async () => {
+    const x = await controlledExchange()
+    const mine = await callsOf(P, x.exchangeId)
+    assert.equal(mine.status, 200, JSON.stringify(mine.json))
+    assert.equal(mine.json.exchangeId, x.exchangeId)
+    const list = mine.json.calls as Listed[]
+    assert.deepEqual(
+      list.map((c) => [c.tool, c.command ? [c.command.kind, c.command.goalId] : null, c.taskId, c.inputEpoch]),
+      [
+        ['control_work', ['steer', x.goalId], null, 1],
+        ['control_work', ['hold', x.goalId], null, 1],
+        ['control_work', null, null, 1],
+        ['project_status', null, null, 1],
+      ],
+      'in the order recorded: the steer, the Hold, the refused Hold, the read; the replay is the Hold’s one entry, and the speaker’s own command under the read’s key is not the read’s',
+    )
+    const [steer, hold] = list
+    assert.ok(steer?.command && hold?.command)
+    assert.ok(
+      list.every((c, i) => i === 0 || c.seq > Number(list[i - 1]?.seq)),
+      'seq increases in the order listed',
+    )
+    assert.equal(hold.command.commandId, x.holdId, 'the Hold’s entry is its own command')
+    assert.equal(
+      hold.command.authorityEpoch,
+      x.epoch - 1,
+      'the epoch the Hold took (the request after it took the next)',
+    )
+    assert.ok(hold.command.authorityEpoch > steer.command.authorityEpoch)
+    const text = JSON.stringify(mine.json)
+    assert.ok(!text.includes(x.otherTask), 'a task the same principal’s call created elsewhere is not listed')
+    assert.ok(!text.includes(x.forgedId), 'nor is the speaker’s own command')
+  })
+
+  it('lists another exchange’s calls only there; another member, an outsider or the API off reads none', async () => {
+    const x = await controlledExchange()
+    const theirs = await callsOf(P, x.otherExchange)
+    assert.deepEqual(
+      (theirs.json.calls as Listed[]).map((c) => c.taskId),
+      [x.otherTask],
+      'the other exchange lists its own call, with the task it created',
+    )
+    assert.deepEqual(
+      (await callsOf(E, x.exchangeId)).json,
+      { exchangeId: x.exchangeId, calls: [] },
+      'another member sees none of the speaker’s calls',
+    )
+    assert.deepEqual(
+      (await callsOf(E, x.otherExchange)).json.calls,
+      [],
+      'nor in the other project, where E is a member too',
+    )
+    const outsider = await callsOf(randomUUID(), x.exchangeId)
+    assert.deepEqual([outsider.status, outsider.json.code], [422, 'not_found'], 'a non-member finds no exchange')
+    const unknown = await callsOf(P, randomUUID())
+    assert.deepEqual([unknown.status, unknown.json.code], [422, 'not_found'])
+    assert.equal((await callsOf(P, x.exchangeId, off)).status, 404, 'the API off serves no such route')
+  })
+
+  it('start_research by voice: its task names the exchange, and only the call that created it lists that task', async () => {
+    const { projectId } = await project()
+    await owner((c) =>
+      c.query(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [projectId]),
+    )
+    const rt = await registerRuntime(db.ownerUrl, { projectId, admin: A })
+    const headers = {
+      authorization: `Bearer ${rt.token}`,
+      'x-sophia-runtime-unit': rt.runtimeUnitId,
+      'x-sophia-bridge-instance': randomUUID(),
+      'x-sophia-bridge-protocol': '1',
+    }
+    const roles = [{ id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }]
+    const hello = await app.inject({
+      method: 'POST',
+      url: '/v1/runtime/hello',
+      headers,
+      payload: { bundle: 'test', protocolVersion: 1, dshVersion: 'x', roles },
+    })
+    assert.equal(hello.statusCode, 200, hello.body)
+    const ready = await app.inject({
+      method: 'POST',
+      url: '/v1/runtime/ready',
+      headers,
+      payload: { state: 'ready', reason: null, unrecovered: [] },
+    })
+    assert.equal(ready.statusCode, 204, ready.body)
+    const exchangeId = await open(projectId)
+    const research = (callId: string) =>
+      call('POST', '/v1/media/tool-calls', {
+        media: true,
+        body: {
+          exchangeId,
+          connectionGeneration: 1,
+          callId,
+          name: 'start_research',
+          args: { question: 'Which sandboxes do PDF rendering services use?' },
+          inputEpoch: 1,
+          actorId: P,
+          guide: 'v1.2',
+        },
+      })
+    const first = await research('r-1')
+    assert.equal(first.json.status, 'admitted', JSON.stringify(first.json))
+    const taskId = String(first.json.output.taskId)
+    const repeat = await research('r-2')
+    assert.deepEqual(
+      [repeat.json.status, repeat.json.output.existingTaskId],
+      ['ok', taskId],
+      'the same question again is answered with the task under way',
+    )
+    assert.equal((await research('r-1')).json.output.taskId, taskId, 'a replay is answered with its first task')
+    const list = (await call('GET', `/api/v1/exchanges/${exchangeId}/calls`, { actor: P })).json.calls as Array<{
+      tool: string
+      command: { kind: string } | null
+      taskId: string | null
+    }>
+    assert.deepEqual(
+      list.map((x) => [x.tool, x.command?.kind ?? null, x.taskId]),
+      [
+        ['start_research', 'native_task', taskId],
+        ['start_research', null, null],
+      ],
+      'the repeat created nothing, so it certifies no creation; the replay is the first call’s one entry',
+    )
+    assert.equal((await exchangesOf(projectId, E)).get(taskId), exchangeId, 'a member reads the task’s exchange')
   })
 
   it('answers a member only whether they are in the room, the counts and the report’s age; nobody else’s identity', async () => {

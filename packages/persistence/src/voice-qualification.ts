@@ -64,19 +64,56 @@ export async function roomQualification(
 }
 
 /**
- * The exchange a bound voice tool call ran in, under the key its command is admitted with (live:<exchange>:...): the
- * canonical join from a native task to the exchange that asked for it. Call inside withService, after toolSpeaker.
+ * The exchange a bound voice tool call ran in, and the tool it named, under the key its command is admitted with
+ * (live:<exchange>:...). Call inside withService, after toolSpeaker.
  */
 export async function recordLiveCall(
   c: pg.PoolClient,
-  call: { exchangeId: string; inputEpoch: number; actorId: string; key: string },
+  call: { exchangeId: string; inputEpoch: number; actorId: string; key: string; name: string },
 ): Promise<void> {
-  await c.query(`SELECT sophia.media_record_live_call($1,$2,$3,$4)`, [
+  await c.query(`SELECT sophia.media_record_live_call($1,$2,$3,$4,$5)`, [
     call.exchangeId,
     call.inputEpoch,
     call.actorId,
     call.key,
+    call.name,
   ])
+}
+
+/**
+ * The command this transaction admits under `key` is the recorded voice call's (0046 live_call_admits): it is linked to
+ * the call as it is inserted, the canonical join from its task to the exchange. Call inside the speaker's own
+ * withActor(..., 'write'), before the admission, only on a voice tool call's path with voice qualification on.
+ */
+export async function liveCallAdmits(c: pg.PoolClient, projectId: string, key: string): Promise<void> {
+  await c.query(`SELECT sophia.live_call_admits($1,$2)`, [projectId, key])
+}
+
+/** A member's own voice tool calls in an exchange, in the order they were recorded (A15 ExchangeCalls). */
+export interface ExchangeCalls {
+  exchangeId: string
+  calls: Array<{
+    seq: number
+    recordedAt: string
+    inputEpoch: number
+    tool: string
+    command: {
+      commandId: string
+      kind: string
+      goalId: string | null
+      authorityEpoch: number | null
+      goalRevision: number | null
+      state: string
+      createdAt: string
+    } | null
+    taskId: string | null
+  }>
+}
+
+/** Call inside withActor(..., 'read'). An exchange outside the caller's projects is not found. */
+export async function readExchangeCalls(c: pg.PoolClient, exchangeId: string): Promise<ExchangeCalls> {
+  const { rows } = await c.query<{ x: ExchangeCalls }>(`SELECT sophia.exchange_calls($1) AS x`, [exchangeId])
+  return onlyRow(rows, 'exchange_calls').x
 }
 
 /** The room as the bridge last saw it, for a member: only whether they are in it, the counts and the report's age. */

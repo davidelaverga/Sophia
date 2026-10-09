@@ -104,12 +104,28 @@ A missing identity is typed unavailable by the Lab, never guessed.
 
 `projectId` → `room.id` (the LiveKit room) → `exchangeId` and `inputEpoch` → the native task the exchange's voice tool call created (`NativeTask.exchangeId`) → its output (`artifactId`, `resultSourceId`) → the artifact version → its downloaded bytes' SHA-256.
 
-**`NativeTask.exchangeId` is canonical.** The service records the exchange each voice tool call ran in, under the key the API gives its command (`live:<exchangeId>:<generation>:<callId>`). It records it only after it has bound the call to its speaker (`media_tool_speaker`), and checks it again: the exchange has not ended, and the actor held the call's input epoch (0046, `live_tool_calls`). A task names an exchange only when its command's actor and key match such a record:
-- A member's own key never sets it, even one that reads `live:…`.
-- Another actor's command under the same key does not get it.
+**`NativeTask.exchangeId` is canonical.** The service records each voice tool call as it binds the call to its speaker (`media_tool_speaker`), with the tool it named, under the key the API gives its command (`live:<exchangeId>:<generation>:<callId>`). It checks again that the exchange has not ended and that the actor held the call's input epoch (0046, `live_tool_calls`). The command the call admits is linked to it by the transaction that inserts that command: the API marks the transaction for that one recorded call of the speaker's (`live_call_admits`) before it admits, and a trigger links only a command inserted under the mark. The key never joins by itself:
+- A member's own command never links, under any key, even the very key of a recorded call that admitted nothing.
+- Nobody can mark another speaker's call.
+- A retried call admits nothing new, so it links nothing new.
 - A task created while the API's voice qualification was off does not get it.
 
 The snapshot and the task detail carry it only with voice qualification on.
+
+**The calls that made each step.** `GET /api/v1/exchanges/{exchangeId}/calls` answers a member with their own voice tool calls in that exchange, in the order the service recorded them (`seq`). Each entry has the tool it named, its input epoch, the command it admitted (kind, goal, the authority epoch it took, its state) and the task that command created. The command is `null` for a call that admitted nothing:
+- a read, or a clarification;
+- a refusal: a Hold on work that is not running (already held, or held before the step) admits no command;
+- a repeat that the work answered with what was already under way (`existingTaskId`).
+
+A replayed call stays the one entry it was. Another member's calls and another exchange's calls are never listed. An exchange outside the caller's projects is 422 `not_found`.
+
+How the Lab certifies a voice step from it:
+1. Read the calls before the step's write-ahead, and keep the highest `seq`.
+2. After the step, take only calls with a higher `seq`.
+3. Certify only if exactly one of them has a command of the expected kind on the expected goal (`steer`, `hold`, `resume` and `stop` on the task's goal; `native_task` for create, with its `taskId`).
+4. Check the effect: the command's state, the goal's status in the snapshot, and an authority epoch higher than the previous control step's.
+
+Anything else is not a pass: no new call, a call with no command, another kind or goal, more than one candidate, or a `seq` at or below the baseline. Neither is a task or command found elsewhere, whether in another exchange or from the principal's own request.
 
 **The room as the bridge last saw it.** `GET /api/v1/rooms/{roomId}/live-presence` answers a member:
 - whether they themselves are in the room (`selfPresent`);
@@ -119,7 +135,9 @@ The snapshot and the task detail carry it only with voice qualification on.
 
 It answers nobody else's identity. `observed: false` (no report) or `fresh: false` (older than 15 s; the bridge reports every 5 s while it is in the room) proves nothing either way. A room outside the caller's projects is 422 `not_found`. The route exists only with voice qualification on.
 
-All of these are read by the principal through the member API (snapshot, native tasks, artifacts, live presence, evidence).
+Presence counts only when it is the principal's own: `fresh: true` and `selfPresent: true` on their own read. Counts, another member's read or a stale report prove nothing.
+
+All of these are read by the principal through the member API (snapshot, native tasks, the exchange's calls, artifacts, live presence, evidence).
 
 **Status codes the Lab must expect** (this API's convention for every member read):
 - an object that is missing, or not the caller's, is 422 with `{code: 'not_found'}`;
