@@ -76,7 +76,12 @@ async function held(page: Page, query = '') {
 const again = (page: Page) => page.getByRole('button', { name: /^Send again/ })
 const againSaid = (page: Page) => page.locator('.send-again [role="status"]')
 
+/**
+ * Sent with the clock held, for the send-again checks. Sophia's light is put away first (a box with no size asks for no
+ * frames): none of them reads it, and each second they run frame by frame under it cost seconds on CI.
+ */
 async function sendHeld(page: Page, address: string) {
+  await page.addStyleTag({ content: '.light { display: none }' })
   await email(page).fill(address)
   await page.getByRole('button', { name: 'Email me a link' }).click()
   await page.clock.runFor(400)

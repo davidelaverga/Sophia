@@ -6,7 +6,7 @@
 // (MissionContext, the same read as the room's mission panel), the same for every conversation. One query, read again
 // as the feed moves: a later read that fails keeps what was read, and says it may be out of date.
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { getMission } from '../../api/mission.ts'
 import type { ConversationSummary } from '../../api/vision.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
@@ -139,27 +139,55 @@ function ThisConversation({ conversation: c }: { conversation: ConversationSumma
 
 /** The accepted decisions, newest first, and what is proposed and not decided, kept apart. */
 function Decisions({ ctx, projectId, identity }: { ctx: MissionContext; projectId: string; identity: Identity }) {
-  const acceptedId = useId()
-  const { shown, more } = acceptedOf(ctx.constraints)
+  // «and 2 more» opens its own list (C9), until folded again by the same press.
+  const [every, setEvery] = useState(false)
+  const { shown } = acceptedOf(ctx.constraints, every)
+  const { more } = acceptedOf(ctx.constraints)
   return (
     <>
-      <section aria-labelledby={acceptedId}>
-        <h4 id={acceptedId} className="eyebrow">
-          Accepted decisions
-        </h4>
-        {shown.length === 0 ? (
-          <p className="conv-note">None accepted yet.</p>
-        ) : (
-          <ul className="conv-decisions">
-            {shown.map((d) => (
-              <li key={d.id}>{d.statement}</li>
-            ))}
-          </ul>
-        )}
-        {more > 0 && <p className="conv-note">{`and ${String(more)} more`}</p>}
-      </section>
+      <Accepted shown={shown} more={more} every={every} onEvery={setEvery} />
       <StillOpen ctx={ctx} projectId={projectId} identity={identity} />
     </>
+  )
+}
+
+/** The accepted decisions, newest first: three, or all once «and 2 more» is pressed. */
+function Accepted(props: {
+  shown: readonly MissionDecision[]
+  /** How many the folded list leaves out. */
+  more: number
+  every: boolean
+  onEvery: (every: boolean) => void
+}) {
+  const id = useId()
+  return (
+    <section aria-labelledby={id}>
+      <h4 id={id} className="eyebrow">
+        Accepted decisions
+      </h4>
+      {props.shown.length === 0 ? (
+        <p className="conv-note">None accepted yet.</p>
+      ) : (
+        <ul className="conv-decisions">
+          {props.shown.map((d) => (
+            <li key={d.id}>{d.statement}</li>
+          ))}
+        </ul>
+      )}
+      {props.more > 0 && <More every={props.every} more={props.more} onEvery={props.onEvery} />}
+    </section>
+  )
+}
+
+/**
+ * «and 2 more», a press that shows its list whole; open, the same press says «Show fewer» and folds it again, so the
+ * focus stays where it was pressed and `aria-expanded` changes on it.
+ */
+function More({ every, more, onEvery }: { every: boolean; more: number; onEvery: (every: boolean) => void }) {
+  return (
+    <button type="button" className="text-button conv-more" aria-expanded={every} onClick={() => onEvery(!every)}>
+      {every ? 'Show fewer' : `and ${String(more)} more`}
+    </button>
   )
 }
 
@@ -172,12 +200,14 @@ const answeredWords = (args: DecideArgs, statement: string) =>
  * and «Try again» sends that same decision under its key, never another. Answered, the focus goes to what it says.
  */
 function StillOpen({ ctx, projectId, identity }: { ctx: MissionContext; projectId: string; identity: Identity }) {
+  const [every, setEvery] = useState(false)
   const openId = useId()
   const decide = useDecide(projectId, identity)
   const [asked, setAsked] = useState<{ args: DecideArgs; statement: string } | null>(null)
   const [said, setSaid] = useState('')
   const status = useRef<HTMLParagraphElement>(null)
-  const open = pendingOf(ctx.pending)
+  const open = pendingOf(ctx.pending, every)
+  const { more } = pendingOf(ctx.pending)
   const busy = decide.state.status === 'sending' || decide.state.status === 'unknown'
   const answered = (receipt: unknown, words: string) => {
     if (!receipt) return
@@ -210,23 +240,37 @@ function StillOpen({ ctx, projectId, identity }: { ctx: MissionContext; projectI
               </li>
             ))}
           </ul>
-          {open.more > 0 && <p className="conv-note">{`and ${String(open.more)} more`}</p>}
+          {more > 0 && <More every={every} more={more} onEvery={setEvery} />}
           <p className="conv-note">Proposed, not decided.</p>
         </>
       )}
-      <p ref={status} className="conv-note" role="status" tabIndex={-1}>
-        {decide.state.status === 'rejected' && refusalWords(decide.state.error, 'decide')}
-        {decide.state.status === 'unknown' && asked && (
-          <>
-            {`Not confirmed: ${answeredWords(asked.args, asked.statement)}. `}
-            <button type="button" className="text-button" onClick={retry}>
-              Try again
-            </button>
-          </>
-        )}
-        {decide.state.status === 'done' && said}
-      </p>
+      <DecideSaid status={status} state={decide.state} asked={asked} said={said} onRetry={retry} />
     </section>
+  )
+}
+
+/** What the last decision says: refused, not confirmed (with «Try again»), or answered; where the focus goes after. */
+function DecideSaid(props: {
+  status: RefObject<HTMLParagraphElement | null>
+  state: ReturnType<typeof useDecide>['state']
+  asked: { args: DecideArgs; statement: string } | null
+  said: string
+  onRetry: () => void
+}) {
+  const { state, asked } = props
+  return (
+    <p ref={props.status} className="conv-note" role="status" tabIndex={-1}>
+      {state.status === 'rejected' && refusalWords(state.error, 'decide')}
+      {state.status === 'unknown' && asked && (
+        <>
+          {`Not confirmed: ${answeredWords(asked.args, asked.statement)}. `}
+          <button type="button" className="text-button" onClick={props.onRetry}>
+            Try again
+          </button>
+        </>
+      )}
+      {state.status === 'done' && props.said}
+    </p>
   )
 }
 

@@ -55,17 +55,27 @@ export const SHOWN_DECISIONS = 3
 const decidedWhen = (d: MissionDecision) => Date.parse(d.decidedAt ?? d.createdAt)
 
 /** The brief's accepted decisions, newest first: the first three, and how many more. */
-export function acceptedOf(constraints: readonly MissionDecision[]): { shown: MissionDecision[]; more: number } {
+export function acceptedOf(
+  constraints: readonly MissionDecision[],
+  every = false,
+): { shown: MissionDecision[]; more: number } {
   const accepted = constraints.filter((d) => d.state === 'accepted').toSorted((a, b) => decidedWhen(b) - decidedWhen(a))
-  return firstOf(accepted)
+  return firstOf(accepted, every)
 }
 
-/** What is proposed and not decided, newest first: the first three, and how many more. */
-export const pendingOf = (pending: readonly MissionDecision[]): { shown: MissionDecision[]; more: number } =>
-  firstOf(pending.toSorted((a, b) => decidedWhen(b) - decidedWhen(a)))
+/** What is proposed and not decided, newest first: the first three (or all), and how many more. */
+export const pendingOf = (
+  pending: readonly MissionDecision[],
+  every = false,
+): { shown: MissionDecision[]; more: number } =>
+  firstOf(
+    pending.toSorted((a, b) => decidedWhen(b) - decidedWhen(a)),
+    every,
+  )
 
-/** The first three, and how many more. */
-function firstOf(all: MissionDecision[]) {
+/** The first three, and how many more; or all of them, when all are asked for (C9: «and 2 more» opens). */
+function firstOf(all: MissionDecision[], every: boolean) {
+  if (every) return { shown: all, more: 0 }
   return { shown: all.slice(0, SHOWN_DECISIONS), more: Math.max(0, all.length - SHOWN_DECISIONS) }
 }
 
