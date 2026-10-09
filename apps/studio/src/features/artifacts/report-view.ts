@@ -95,8 +95,8 @@ type Asked = ResearchProgress['outputs'][number]
 const isFinished = (task: Pick<NativeTask, 'phase' | 'state'>) =>
   task.state === 'succeeded' || task.phase === 'result_ready'
 
-/** Words for the one line a detail that could not be read gives: the reply's own, ending in a full stop. */
-const sentence = (message: string) => message.trim().replace(/\.?$/, '.')
+/** Words for the one line a detail that could not be read gives: the reply's own, ending as a sentence ends. */
+const sentence = (message: string) => message.trim().replace(/([^.!?…])$/u, '$1.')
 
 /**
  * A finished task whose report is not in hand: its report being read, the reply that refused or broke the read in
@@ -109,7 +109,8 @@ function finished(read: DetailRead): StateWords {
   if (read.status === 'failed') {
     return { ...words, tone: 'amber', note: `Its report could not be read here: ${sentence(read.message)}` }
   }
-  return { ...words, note: 'No published report is linked to this task.' }
+  // Not the teal of a report in hand: there is none to open.
+  return { ...words, tone: 'muted', note: 'No published report is linked to this task.' }
 }
 
 /** A task with no report in hand: replaced, held, stopped, ended without one, finished, starting or at work. */

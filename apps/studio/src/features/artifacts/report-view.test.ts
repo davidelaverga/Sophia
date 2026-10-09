@@ -84,7 +84,7 @@ describe('a research card in words', () => {
     const unlinked = researchState(done, [], ['markdown'])
     assert.deepEqual(
       [unlinked.state, unlinked.label, unlinked.tone, unlinked.note],
-      ['completed', 'Completed', 'teal', 'No published report is linked to this task.'],
+      ['completed', 'Completed', 'muted', 'No published report is linked to this task.'],
     )
     const reading = researchState(done, [], ['markdown', 'pdf'], {}, { status: 'reading' })
     assert.deepEqual([reading.state, reading.label, reading.note], ['completed', 'Completed', 'Reading its report…'])
@@ -93,6 +93,12 @@ describe('a research card in words', () => {
       [unread.state, unread.label, unread.tone, unread.note],
       ['completed', 'Completed', 'amber', 'Its report could not be read here: Sophia is unavailable.'],
       'the reply’s own words',
+    )
+    const asked = researchState(done, [], ['markdown'], {}, { status: 'failed', message: 'Is Sophia there?' })
+    assert.equal(
+      asked.note,
+      'Its report could not be read here: Is Sophia there?',
+      'a reply that ends as a sentence ends',
     )
     for (const words of [unlinked, reading, unread]) {
       assert.equal(/Researching|arrives here|missing/u.test(JSON.stringify(words)), false, JSON.stringify(words))
