@@ -168,6 +168,16 @@ describe('acceptedOf', () => {
     assert.equal(more, 2)
   })
 
+  it('all of them, newest first, when all are asked for (C9)', () => {
+    const all = ['1', '2', '3', '4', '5'].map((n) => decision(n, `2026-10-0${n}T09:00:00.000Z`))
+    const { shown, more } = acceptedOf(all, true)
+    assert.deepEqual(
+      shown.map((d) => d.id),
+      ['5', '4', '3', '2', '1'],
+    )
+    assert.equal(more, 0)
+  })
+
   it('never shows what wasn’t accepted', () => {
     const { shown, more } = acceptedOf([decision('a', null, 'proposed'), decision('b', '2026-10-02T00:00:00.000Z')])
     assert.deepEqual(
