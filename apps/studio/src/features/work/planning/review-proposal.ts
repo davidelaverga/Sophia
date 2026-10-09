@@ -7,6 +7,7 @@
 // the request are kept, and another viewer's, project's or goal's proposal never meets this one.
 import type { SourceReviewProposalRequest } from '@sophia/contracts'
 import { ApiError } from '../../../api/client.ts'
+import type { AuthState } from '../../../app/auth.ts'
 
 /** Whose proposal, where: the viewer (their identity's stable name), the project and the goal. */
 export interface ProposalAt {
@@ -152,17 +153,36 @@ export class Proposals {
     }
   }
 
-  /** Every viewer's, at a sign-out or a change of who is in: nothing of theirs stays on the device. */
-  forgetAll(): void {
-    this.#memory.clear()
+  /**
+   * Only `viewer`'s stay, and nobody's where `viewer` is null: another viewer coming in forgets everyone else's, a
+   * sign-out every viewer's. Nothing else in the tab goes.
+   */
+  onlyOf(viewer: string | null): void {
+    const others = (key: string) => key.startsWith(PREFIX) && viewerOf(key) !== viewer
+    for (const key of this.#memory.keys()) if (others(key)) this.#memory.delete(key)
     try {
       const storage = this.#storage()
       if (!storage) return
       const keys = Array.from({ length: storage.length }, (_, i) => storage.key(i))
-      for (const key of keys) if (key?.startsWith(PREFIX)) storage.removeItem(key)
+      for (const key of keys) if (key !== null && others(key)) storage.removeItem(key)
     } catch {
       // Storage refused: nothing was kept there.
     }
+  }
+
+  /** Every viewer's, at a sign-out or a change of who is in: nothing of theirs stays on the device. */
+  forgetAll(): void {
+    this.onlyOf(null)
+  }
+}
+
+/** Whose a kept proposal is, by its key: anything under the prefix that names nobody is nobody's, and goes. */
+function viewerOf(key: string): string | undefined {
+  try {
+    const scope: unknown = JSON.parse(key.slice(PREFIX.length))
+    return Array.isArray(scope) && typeof scope[0] === 'string' ? scope[0] : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -171,3 +191,19 @@ export const proposals = new Proposals()
 
 /** Signing out, or another viewer coming in: no proposal of anyone's stays (App.tsx, beside talk-store's). */
 export const forgetProposals = () => proposals.forgetAll()
+
+/**
+ * Whose proposals the device keeps, as the app knows who is in (App.tsx): the viewer signed in's; nobody's once it
+ * knows nobody is (signed out, here or in another tab, a session that ended); not yet decided while it is still finding
+ * out (loading, a sign-in link's question), so the start of every page load forgets nothing. Forgetting in the cleanup
+ * of an effect on who is in did: it ran as each load went from loading to signed in (Codex's re-review of 6e9e2a9b).
+ */
+export function proposalsKeptFor(state: AuthState): string | null | undefined {
+  if (state.status === 'signed_in') return state.identity.name
+  return state.status === 'signed_out' ? null : undefined
+}
+
+/** Only the proposals of `who` stay (proposalsKeptFor); while who is in is not yet known, every one does. */
+export function proposalsOnlyOf(who: string | null | undefined, kept = proposals): void {
+  if (who !== undefined) kept.onlyOf(who)
+}

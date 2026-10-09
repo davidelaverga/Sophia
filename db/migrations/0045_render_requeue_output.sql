@@ -16,6 +16,7 @@
 BEGIN;
 
 CREATE OR REPLACE FUNCTION sophia.render_sweep() RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE v_projects uuid[]; v_jobs uuid[];
 BEGIN
  UPDATE sophia.jobs j SET state='cancelled', lease_until=NULL,
   reason=CASE WHEN g.status IN ('stopping','stopped') THEN 'stopped: the work was stopped' ELSE 'cancelled: the research task ended without it' END
@@ -28,19 +29,22 @@ BEGIN
   WHERE j.kind='render' AND j.state IN ('pending','running') AND r.project_id=j.project_id AND r.job_id=j.id AND r.kind='rendition'
    AND v.project_id=r.project_id AND v.id=r.base_version_id AND a.project_id=v.project_id AND a.id=v.artifact_id
    AND a.stable_version_id IS DISTINCT FROM v.id;
+ -- The jobs queued again are taken first; what their lost leases recorded is forgotten in the statements after, each
+ -- reading afresh: a capture or output that a transaction this one waited on for the job's row recorded is seen and
+ -- goes too (one statement reads as it began, so it would miss it, the lease still queued again).
  WITH lost AS (
   UPDATE sophia.jobs j SET lease_until=NULL,
    state=CASE WHEN r.claims<3 THEN 'pending' ELSE 'failed' END,
    reason=CASE WHEN r.claims<3 THEN j.reason ELSE 'renderer_lost: the render runner stopped answering' END
    FROM sophia.render_jobs r WHERE j.kind='render' AND j.state='running' AND j.lease_until<now()
     AND r.project_id=j.project_id AND r.job_id=j.id
-   RETURNING j.project_id, j.id, j.state),
- forgotten AS (
-  DELETE FROM sophia.render_job_outputs o USING lost
-   WHERE o.project_id=lost.project_id AND o.job_id=lost.id AND lost.state='pending'
-   RETURNING o.job_id)
- UPDATE sophia.render_jobs r SET output_source_id=NULL FROM lost
-  WHERE r.project_id=lost.project_id AND r.job_id=lost.id AND lost.state='pending' AND r.receipt IS NULL;
+   RETURNING j.project_id, j.id, j.state)
+ SELECT coalesce(array_agg(lost.project_id),'{}'), coalesce(array_agg(lost.id),'{}') INTO v_projects, v_jobs
+  FROM lost WHERE lost.state='pending';
+ DELETE FROM sophia.render_job_outputs o USING unnest(v_projects,v_jobs) AS q(project_id,job_id)
+  WHERE o.project_id=q.project_id AND o.job_id=q.job_id;
+ UPDATE sophia.render_jobs r SET output_source_id=NULL FROM unnest(v_projects,v_jobs) AS q(project_id,job_id)
+  WHERE r.project_id=q.project_id AND r.job_id=q.job_id AND r.receipt IS NULL;
 END $$;
 
 COMMIT;

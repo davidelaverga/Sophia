@@ -12,6 +12,7 @@
     "src/**/*.tsx",
     "vite.config.ts",
     "vite.fixtures.config.ts",
+    "vite.app.config.ts",
     "playwright.config.ts",
     "fixtures/**/*.ts",
     "fixtures/**/*.tsx",

@@ -10,7 +10,7 @@ import { ProjectShell, type ProjectCall } from '../features/studio/ProjectShell.
 import { AccountMenu } from './AccountMenu.tsx'
 import { accountOf } from './auth-callback.ts'
 import { forgetKept } from '../features/conversations/talk-store.ts'
-import { forgetProposals } from '../features/work/planning/review-proposal.ts'
+import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/work/planning/review-proposal.ts'
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
@@ -46,6 +46,16 @@ function useDraftsOnlyOfWhoIsIn(state: AuthState) {
   }, [who])
 }
 
+/**
+ * The device keeps only the unanswered review proposals of the viewer signed in (review-proposal.ts): once the app knows
+ * who that is, anyone else's go, and all go once it knows nobody is; while it is still finding out, as every page load
+ * starts, none go. Decided as who is in changes, never in an effect's cleanup, which also runs as a load signs in.
+ */
+function useProposalsOnlyOfWhoIsIn(state: AuthState) {
+  const who = proposalsKeptFor(state)
+  useEffect(() => proposalsOnlyOf(who), [who])
+}
+
 /** What a person had under way on this device: a project's conversations (talk-store.ts) and unanswered proposals. */
 function forgetUnderWay() {
   forgetKept()
@@ -61,10 +71,11 @@ export function App() {
     () => () => {
       queryClient.clear()
       // And what was under way in a project's conversations: another tab signing out, a session that ended.
-      forgetUnderWay()
+      forgetKept()
     },
     [signedInAs],
   )
+  useProposalsOnlyOfWhoIsIn(state)
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
   useDraftsOnlyOfWhoIsIn(state)

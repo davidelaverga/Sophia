@@ -408,6 +408,16 @@ async function owner<T>(fn: (c: pg.Client) => Promise<T>): Promise<T> {
   }
 }
 
+/** Until the backend `pid` waits for a lock another holds: a barrier on observed state, never a timed wait. */
+async function untilBlocked(pid: number) {
+  for (let looked = 0; ; looked += 1) {
+    const blocked = await owner((c) => c.query(`SELECT cardinality(pg_blocking_pids($1))::int AS n`, [pid]))
+    if (Number(blocked.rows[0].n) > 0) return
+    assert.ok(looked < 500, `backend ${String(pid)} waiting on a lock`)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
 describe('HTML at admission (SDD-01, 0040)', () => {
   it('is refused, and nothing admitted, without a designer or a capture renderer; recorded on the task with both', async () => {
     const without = await world([MD_ROLE])
@@ -1142,6 +1152,62 @@ describe('a capture render queued again after its lease ran out (0045)', () => {
     const shots = await settleCapture(again, d.pkg, d.sections, { html: d.html })
     assert.equal(shots.settled.state, 'succeeded', JSON.stringify(shots.settled))
     assert.equal(shots.names.includes(stray), false)
+  })
+
+  it('also forgets a capture its lost lease recorded while the sweep waited for the job (Codex’s re-review of 6e9e2a9b)', async () => {
+    const { w, at } = await designing()
+    const d = await drafted(w, at, { capture: false })
+    const job = await claimCapture()
+    const jobId = String(job.jobId)
+    const expired = await owner((c) =>
+      c.query(`UPDATE sophia.jobs SET lease_until=now()-interval '1 second' WHERE project_id=$1 AND id=$2`, [
+        w.projectId,
+        jobId,
+      ]),
+    )
+    assert.equal(expired.rowCount, 1)
+    // The lost lease's recording, still under way: renderer_record_capture holds the job's row (render_leased) and has
+    // added its capture, uncommitted, as the sweep starts; the sweep waits for the row, then the recording commits.
+    const recording = new pg.Client({ connectionString: db.ownerUrl })
+    const sweeping = new pg.Client({ connectionString: db.ownerUrl })
+    await Promise.all([recording.connect(), sweeping.connect()])
+    try {
+      await recording.query('BEGIN')
+      const name = `${String((job.targets as string[])[0])}.overview.9.png`
+      const recorded = await recording.query(`SELECT sophia.renderer_record_capture($1,$2,$3,$4,$5,$6,$7) AS r`, [
+        createHash('sha256').update(RUNNER).digest(),
+        jobId,
+        job.leaseToken,
+        name,
+        randomUUID(),
+        sha(PNG),
+        PNG.byteLength,
+      ])
+      assert.equal(recorded.rows[0].r.name, name)
+      const pid = Number((await sweeping.query('SELECT pg_backend_pid() AS pid')).rows[0].pid)
+      const swept = sweeping.query('SELECT sophia.render_sweep()')
+      await untilBlocked(pid)
+      await recording.query('COMMIT')
+      await swept
+    } finally {
+      await Promise.all([recording.end(), sweeping.end()])
+    }
+    const left = await owner((c) =>
+      c.query(
+        `SELECT j.state, (SELECT count(*)::int FROM sophia.render_job_outputs o WHERE o.project_id=j.project_id
+           AND o.job_id=j.id) AS captures FROM sophia.jobs j WHERE j.project_id=$1 AND j.id=$2`,
+        [w.projectId, jobId],
+      ),
+    )
+    assert.deepEqual(
+      left.rows[0],
+      { state: 'pending', captures: 0 },
+      'queued again with none of its lost lease’s captures',
+    )
+    const again = await claimCapture()
+    assert.equal(again.jobId, job.jobId)
+    const shots = await settleCapture(again, d.pkg, d.sections, { html: d.html })
+    assert.equal(shots.settled.state, 'succeeded', JSON.stringify(shots.settled))
   })
 })
 
