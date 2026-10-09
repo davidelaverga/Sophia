@@ -39,7 +39,11 @@ test('the goal reads in two lines: its title and actions, then where its plan go
   await expect(goal.locator('.goal-outcome')).toHaveCount(0) // behind the fold
   await goal.getByRole('button', { name: 'Outcome · 2 criteria' }).click()
   await expect(goal.locator('.goal-outcome')).toHaveText(/first try/)
-  await expect(goal.locator('.criteria li')).toHaveCount(2)
+  // The exception is said, not the rule: a required criterion has no mark, an optional one says so.
+  await expect(goal.locator('.criteria li')).toHaveText([
+    'A failed render is retried, then reported',
+    'The report pane shows the export’s state · optional',
+  ])
   await expect(page.locator('.view-head .count')).toHaveCount(0) // it counted goals; a plan counts its tasks
 })
 
