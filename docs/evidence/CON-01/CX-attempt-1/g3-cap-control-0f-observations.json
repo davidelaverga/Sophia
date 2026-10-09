@@ -1,0 +1,57 @@
+{
+  "candidate": "0f2f3798dcb876937c3fb1403d9ad89be1c1e241",
+  "tree": "dca8624f3c7d7294eb0210fd97da9e210aa0055e",
+  "level": "L1 actual local browser/API/PostgreSQL, synthetic identities/content, one controlled pre-upstream503 fault",
+  "severity": "P1",
+  "expected": "Unknown erasure is not settled from capped list omission; preserve local draft/key until real proof",
+  "observed": {
+    "at": "2026-10-09T23:11:05.091Z",
+    "listCount": 200,
+    "more": true,
+    "targetListed": false,
+    "targetState": "open",
+    "notice": "The conversation was erased.",
+    "draftAfter": "",
+    "screen": "list"
+  },
+  "return": {
+    "at": "2026-10-09T23:11:20.239Z",
+    "action": "actual legitimate human message bumps target activity then browser selects target",
+    "state": "open",
+    "savedWordsReadable": true,
+    "draftAfter": ""
+  },
+  "database": {
+    "messages": 202,
+    "targetMessages": 2,
+    "erasureRequests": 0,
+    "jobs": 0,
+    "workAttempts": 0,
+    "executionBindings": 0,
+    "commands": 0,
+    "usage": 0,
+    "replyRequests": 0
+  },
+  "cleanup": {
+    "exit": 0,
+    "apiStudioStopped": true,
+    "databaseDropped": true,
+    "postgresStopped": true,
+    "clusterRemoved": true,
+    "ownedTabClosed": true
+  },
+  "providerCalls": 0,
+  "spend": 0,
+  "uncertainSpend": 0,
+  "hostedEffects": 0,
+  "newerFormalAutomaticReview": {
+    "id": 5476227058,
+    "commit": "5c3866ad963e57fdbd3bb987280e7773e9e87b00",
+    "at": "2026-10-09T23:11:00Z",
+    "findings": [
+      "r4235299406 P1 capped-list erasure",
+      "r4235299415 P2 stale mission receipt"
+    ]
+  },
+  "qualification": "Actual app episode names0f only; relevant useErased code unchanged through5c, automatic review independently names5c. A08 failed-reread branch still source/bot finding until actual recheck."
+}

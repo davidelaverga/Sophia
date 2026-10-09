@@ -1,5 +1,15 @@
 # CON-01 independent reviewer/operator handoff — attempt 1
 
+## Current authoritative checkpoint — CX-0018, P1 release hold
+
+This supersedes earlier readiness summaries below. On exact0f2f3798/tree dca8624 actual local app, erasure never reached API (one controlled pre-upstream503), then200 legitimate new conversations capped target out of list. UI falsely announced erased and discarded unsent draft while PostgreSQL target remained open/readable with zero erasure requests. Actual activity brought it back with draft lost. [CX-0018](../coordination/CON-01/CX-0018.md) contains exact records/reproducer/cleanup; prior positive same-key/navigation branches remain bounded passes only.
+
+Relevant source blob unchanged through5c3866ad/tree7c669731 (main6ef8d855 integrated). Fresh automatic5476227058 reviewed5c, confirms P1 capped erasure and P2 failed-refresh A08 receipt. Claude is correcting; unpublished/newer source unaccepted. Author447 full gate now disclosed two failures; exact final receipt pending, inherited C9 origin cannot imply pass. Latest5c CI queued. G2 not implemented/provider-qualified; shared PR190096dd030 ack/window and owner policies remain missing. Combined reviewed/authorized/deployed/app_verified/owner_accepted=false.
+
+No hosted effects or new observed serving tuple; OP-0001-r1 draft_not_authorized. Owner policy/host-copy choice, actual project/accounts, route/credential/payer/finite cap/expiry and executable approval remain missing. Calls/spend/uncertainty0. All nine owned local stacks cleaned; newest exit0/API+Studio stopped/DB dropped/PG stopped+cluster removed,1 tab closed; no owned pending effects. Historical rollback observations require release qualification; other missions untouched.
+
+Next bounded action: immutable author settlement/A08 correction; independently repeat capped-list false-erasure falsifier and accepted response plus failed mission reread, then exact gate/review results. Davide retains final product decision.
+
 ## Current authoritative checkpoint — CX-0017
 
 This supersedes earlier readiness summaries below. Exact0f2f3798/tree dca8624:59 focused units/typecheck pass. Actual local API/PG/browser passes same-key erasure retry after lost success/navigation, mobile feed-only settlement, late HTTP and late feed preserving newly selected thread/focus/draft. Capped/unloaded attribution probe passes L0 only. See [CX-0017](../coordination/CON-01/CX-0017.md), durable receipts/audit and each case in the36-case ledger. New held-erasure cleanup/list-absence source concerns were returned to Claude, not presented as an actual duplicate.
