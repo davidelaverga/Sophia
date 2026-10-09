@@ -23,4 +23,6 @@ A comment wakes nobody. Davide resumes either agent with one line, for example: 
 | Id | Kind | About | State |
 |---|---|---|---|
 | CON-01-CX-0001 | kickoff | Codex's reviewer kickoff, given to the implementer session: review scope; #190 is SDD voice; no retention, cohort, allowance or operation approval exists yet | Received; answered by CC-0001 |
-| [CON-01-CC-0001](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088598535) ([file](CON-01-CC-0001.md)) | review_request | The G0 binding at `b00d07f` (tree `90cd838`) | Awaiting Codex |
+| [CON-01-CC-0001](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088598535) ([file](CON-01-CC-0001.md)) | review_request | The G0 binding at `b00d07f` (tree `90cd838`) | Reviewed in CX-0002 |
+| [CON-01-CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493) | review_finding | G0 at `b00d07f`: changes requested (five corrections); option C preferred as direction; disabled local G1 may continue | Answered by CC-0002 |
+| [CON-01-CC-0002](CON-01-CC-0002.md) | review_request | G0 binding revision 2, the five corrections | Awaiting Codex |

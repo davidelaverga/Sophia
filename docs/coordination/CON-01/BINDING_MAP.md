@@ -2,7 +2,9 @@
 
 **Mission:** CON-01, saved project conversations ([pack](../../missions/2026-10-09-con01-conversations/README.md), [01 mission](../../missions/2026-10-09-con01-conversations/01_MISSION.md), [03 contract](../../missions/2026-10-09-con01-conversations/03_CONTRACT_AND_RETENTION.md), [04 runtime](../../missions/2026-10-09-con01-conversations/04_RUNTIME_AND_CONTEXT.md)). **Coordination:** [README](README.md). This file binds the pack's proposals to the code at the base: what exists and is reused, what is new and reserved, and what Davide decides. It is G0's deliverable and Codex's review object for the binding. A later change is recorded in §13 with its reason, in the commit that makes it.
 
-**State: proposed.** Nothing here is frozen until Codex's G0 review. G1 (§4–§6) is settled enough to implement against, behind a disabled-by-default switch. G2 (§8) is a proposal with one open structural choice (§8.2). It is not implemented until that choice is reviewed.
+**State: proposed, revision 2.** Codex's G0 review [CON-01-CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493) of revision 1 (`b00d07f`) requested changes. This revision makes them (§14). Nothing here is frozen until Codex rechecks it.
+- G1 (§4–§6) is implemented locally behind disabled switches.
+- G2 (§8) follows option C as the review's architectural direction. It still waits for the impact inventory (§8.2), its own review, and Davide's D-6.
 
 Status words: **built** (in this branch, with tests), **planned** (not built; named so nobody invents it), **owner** (Davide decides; this file only proposes).
 
@@ -35,7 +37,7 @@ Status words: **built** (in this branch, with tests), **planned** (not built; na
 | Migrations | **0048** `0048_project_conversations.sql` (G1: conversations, messages, reply requests, policy, withdrawal and erasure). **0049** `0049_conversation_replies.sql` (G2: reply execution, dispatch and capture, grant and allowance). **0050** for G3 projections if they don't fit 0049 | #190 holds 0046–0047. The runner applies pending files in name order and refuses missing applied files (`migrate.ts:124`). If CON-01 lands first, 0046–0047 still sort before 0048 on a fresh database. A database already at 0048 would apply 0046–0047 after it, so neither lane may depend on the other's objects. Neither does today: 0046 replaces only `media_assignments` |
 | Events | Type `conversation.updated`, entity type `conversation`. Summary codes: `conversation.started`, `.message_recorded`, `.message_withdrawn`, `.erased`, `.reply_changed`. No body text in an event | The feed refreshes on any non-cursor frame (`feed-loop.ts:43`). The fixture's plan already names `conversation.updated` |
 | Policy id | `conversation-text-v1` (§5) | Distinct from mission note policy, `personal`, and `source-review-v1` |
-| Runtime unit (G2) | `sophia-runtime-con01-dev`, `previous_unit: sophia-runtime-wbc02-dev` | A role, its preset, its route and its prompt section change the bundle |
+| Runtime unit (G2) | `sophia-runtime-con01-dev`. Its `previous_unit` is whatever `main` records at the integration window. `sophia-runtime-wbc02-dev` is `main`'s today, but it is not assumed to be the live predecessor: Codex observed six running bindings on `sophia-runtime-m03-dev` (CX-0002) | A role, its preset, its route and its prompt section change the bundle |
 | Role / task kind / route (G2) | `sophia-conversation-v1`, `conversation_reply`, `conversation-luna-v1` (**owner** for the route, payer and caps, §8.4) | No existing role fits: `sophia-brief-v1` is the retired brief's |
 | New source paths | `packages/persistence/src/conversations.ts`; `apps/api/src/routes/project-conversations.ts` (a new file, so #190's edits to `routes/conversations.ts` never conflict); `apps/api/src/conversations.db.test.ts`; `packages/persistence/src/conversations.db.test.ts`; `db/tests/00NN_conversations.sql`; `apps/studio/src/api/conversations.ts` (the four calls moved out of `vision.ts`); `docs/coordination/CON-01/`, `docs/progress/CON-01.md`, `docs/handoffs/CON-01-attempt-*.md` | Feature modules stay branch-local |
 
@@ -48,7 +50,7 @@ Status words: **built** (in this branch, with tests), **planned** (not built; na
 | `packages/persistence/src/index.ts` | #190 | One export line | Trivial merge |
 | `apps/worker/src/runtime-dispatch.ts` | #190 | None planned. G2 dispatch is SQL. If that changes, it is announced first | — |
 | `capture_native_result`, `dispatch_runtime_outbox` (`CREATE OR REPLACE`, last at 0042) | none open (0046 replaces only `media_assignments`) | G2, only under §8.2 option B or C: replaced from 0042's body with one added branch, every other branch byte-identical, and a diff test against 0042's text | Announced in the issue before writing; one writer |
-| `config/specialists.json` + schema enum, `packages/dsh-bundle` (`control-bridge.ts`, `role-registry.ts`), `cordis.patch.yml`, `config/runtime-unit.json`, both `specialists.generated.ts`, bundle lock and digests | none open (owner: Davide, LFE-00 map) | G2: one additive role, preset and route. The whole current roster is kept; `pnpm artifacts:record` runs once, on the combined candidate | Single writer window, announced |
+| `config/specialists.json` + schema enum, `packages/dsh-bundle` (`control-bridge.ts`, `role-registry.ts`), `cordis.patch.yml`, `config/runtime-unit.json`, both `specialists.generated.ts`, bundle lock and digests | none open (owner: Davide, LFE-00 map) | G2: one additive role, preset and route. The whole current roster is kept; `pnpm artifacts:record` runs once, on the combined candidate | A public declaration is not ownership. Before any shared runtime replacement or artifact generation, the other lanes' owners (SDD-01/#190; WBC-02) acknowledge, and the exact current-`main` window is named in #198 |
 | `apps/studio/src/app/route.ts`, `features/studio/ViewNav.tsx`, `ProjectShell.tsx` (Luis's shell) | Luis | Replace the `VISION` gate on the Conversations tab only with a conversations gate (§9). No visual change | Luis is asked in the issue before the edit |
 | `apps/studio/fixtures/*` (fixture pages) | Luis, #196 | The fixture pages keep answering under their URL switches, with A16 shapes | After #196 |
 | `docs/DESTINATION_MAP.md`, `docs/README.md`, `docs/missions/README.md` | #190 (DESTINATION_MAP rows) | Rows added | Trivial merge |
@@ -60,7 +62,7 @@ The four operations keep their paths and meanings (pack 03 §1). A16 adds fields
 | UI proposal (vision.ts) | A16 (this mission) | Notes |
 |---|---|---|
 | `GET /api/v1/projects/{projectId}/conversations` → `{ conversations }` | → `ConversationList { conversations, more, policy, capability }`, newest activity first, at most 200 | `policy` and `capability` are new (§5, §9). `more` says when the list was capped |
-| `ConversationSummary` `id, title, summary, lastAt, contributors, sophia, openQuestions, output, lastMessage?` | Same fields, plus `revision`, `summaryCoverage` and `questionsCoverage` (`ProjectionCoverage`) | `contributors`: writers of messages that are not withdrawn, never readers. `sophia`: a published reply exists. `lastMessage.text`: the opening, ≤140 code points, from a message that is not withdrawn. `output`: always `null` in this slice (§10) |
+| `ConversationSummary` `id, title, summary, lastAt, contributors, sophia, openQuestions, output, lastMessage?` | Same fields, plus `revision`, `summaryCoverage` and `questionsCoverage` (`ProjectionCoverage`, §3.1) | `contributors`: writers of messages that are not withdrawn, never readers. `sophia`: a published reply exists. `lastMessage.text`: the opening, ≤140 code points, from a message that is not withdrawn. `output`: `null` for every conversation this slice creates (§10) |
 | `GET /api/v1/conversations/{id}/messages?before=` → `{ messages, before }` | → `ConversationMessagePage { conversationId, messages, before }`, at most 50, oldest first | `before` is opaque and bound to its conversation (§4) |
 | `ConversationMessage` `id, author, actorId, name, text, at` | Same, plus `seq`; `text` becomes `string \| null` (null once withdrawn), and `withdrawn: { at } \| null`; a member's message gets `ask: ConversationReply \| null`; Sophia's gets `replyTo: { messageId, replyId }` | Correlation is on the records (§7), not on time |
 | `POST /api/v1/projects/{projectId}/conversations` `{ title, text, askSophia }` → `{ conversation, message }` | Same body → 202 `ConversationStarted { conversation, message, sophia, reply }` | `sophia: 'asked' \| 'not_asked'`; `reply` is the request when asked |
@@ -69,6 +71,34 @@ The four operations keep their paths and meanings (pack 03 §1). A16 adds fields
 | — | `POST /api/v1/conversations/{id}/erasure` (Idempotency-Key, admins) → 202 | Erases a whole conversation, title included (§6). **owner** D-3 |
 
 Limits (exact, as the API's Ajv counts code points, `ucs2length.ts`, and as SQL `length()` counts characters in UTF-8): title 1–120, text 1–4000 after trimming, page 50, list 200, an opening of 140 (line breaks kept; the Studio shows it on one line). Unknown body properties are refused (Fastify's `removeAdditional: false`), so a client cannot send an actor, author, name, project or reply target.
+
+### 3.1 `ProjectionCoverage` (bound before A16 is generated)
+
+Each of a conversation's two projections, the summary and the recorded open questions, carries its own coverage.
+
+**Fields:**
+- `state`: one of `not_assessed`, `current`, `stale`, `unavailable` (meanings below).
+- `complete`: boolean. True when the generation read every eligible message from the first through `throughSeq`. False when its window was truncated: **partial**.
+- `fromSeq`, `throughSeq`: the range of messages the generation read. Null when `not_assessed`.
+- `newer`: eligible messages after `throughSeq`.
+- `generatedAt`: when it was generated.
+- `replyId`: the reply whose answer produced it, which is its generation identity.
+- `eligibilityRevision` and `ledgerRevision`: the project context it read.
+
+**States:**
+
+| State | Meaning | Words in the Studio |
+|---|---|---|
+| `not_assessed` | No projection exists: none was ever produced, or the last one was removed for privacy. `summary` is null, and `openQuestions` is 0 | "Not assessed yet" / "No recorded questions yet", never "No open questions" or "Everything resolved" |
+| `current` | It read through the newest eligible message, at the project's current `ledgerRevision` | "Covers messages 1–N" (with "of the newest M" when `complete` is false) |
+| `stale` | Still eligible, but `newer > 0` or the ledger moved since | "Covers messages 1–N; K newer since" |
+| `unavailable` | The last generation attempt failed or was blocked. The previous eligible projection, if any, stays with its own range; otherwise this reads like `not_assessed` with the failure said | "Couldn't update: shows messages 1–N" |
+
+**Removal for privacy.** A projection whose range includes a withdrawn message, or whose recorded project sources include one that became ineligible (§8.3), is **deleted** in that transaction. It goes to `not_assessed`, never `stale`.
+
+**What triggers a generation.** Only an explicit ask: "Sum it up" (summary) or "What's still open?" (questions), through a reply that is already paid for. A list read, an open, a human-only message, a feed event or a tab switch never generates one (A17). New messages only make the state `stale` at read time.
+
+**Race (A18).** A completion writes its projection only if its `throughSeq` is greater than the stored one's, and only if every message and source it read is still eligible at that moment. An older or invalidated completion writes nothing.
 
 ## 4. Records, authorization, idempotency and ordering (G1, migration 0048)
 
@@ -88,7 +118,16 @@ Limits (exact, as the API's Ajv counts code points, `ucs2length.ts`, and as SQL 
 
 An outsider, a removed member or a guest gets `forbidden`, with no record fetched first. "Guest" is an invitation kind (0010), not a project role. A route for a conversation id first resolves its project under RLS, so an id a reader cannot see answers exactly as a missing one does.
 
-**Idempotency** (CX-0001's namespace). The key namespace is (project, actor, key). The stored semantic request is `{operation, conversationId (send, withdraw, erase), titleSha256, textSha256, askSophia}`, with SHA-256 of the trimmed text and never the text.
+**Idempotency** (CX-0001's namespace). The key namespace is (project, actor, key). The stored semantic request names the operation and every target and content digest, with SHA-256 of the trimmed text and never the text (CX-0002 correction 1):
+
+| Operation | Semantic request |
+|---|---|
+| start | `{operation:'start', titleSha256, textSha256, askSophia}` |
+| send | `{operation:'send', conversationId, textSha256, askSophia}` |
+| withdraw | `{operation:'withdraw', conversationId, messageId}` |
+| erase | `{operation:'erase', conversationId}` |
+
+The key and the actor are the row's own key: the same key under another actor or project is another row, never a replay. The tests cover, under one key: a changed target (withdraw M1, then M2), a changed operation, a changed text or ask, another actor and another project.
 - **Order inside each writer:** lock the project row, then check current authorization, then look up a prior request. So a revoked member's replay is refused before any receipt is read.
 - An equal request returns the stored receipt. The receipt holds ids only; the route re-reads the records under the actor, so a withdrawn message comes back withdrawn.
 - A changed request under the same key gets `idempotency_conflict` (409).
@@ -122,7 +161,7 @@ This is pack 03 §3, bound to this code. It is a product and technical policy pr
   - Text sent to the model provider for a reply (G2) is under the route's provider terms.
   - A reply's runtime session journal on the runtime host keeps its prompt until host cleanup (§8.5).
   - A reply already delivered to a browser cannot be made unseen.
-- **Notice (proposed copy):** shown above the composer before a person's first message in the project, and reachable afterwards from the conversation's context disclosure. *"Messages here are saved for this project and can be read by its members. Asking Sophia sends the conversation to the project's approved model. Live room audio is not saved here."* The final words follow the policy as accepted; they do not promise zero provider retention or absolute deletion.
+- **Notice (proposed copy):** shown above the composer before a person's first message in the project, and reachable afterwards from the conversation's context disclosure. *"Messages here are saved for this project and can be read by its members. Asking Sophia sends this conversation's recent messages and the project's accepted decisions to [the provider and model of the route Davide designates], under that provider's terms. Live room audio is not saved here."* Before activation, the bracket is replaced by the actual recipient, and the bounded runtime and provider retention limits are stated or linked (§8.5). The final words follow the policy as accepted; they do not promise zero provider retention or absolute deletion.
 - **Activation:** no project saves text until `conversation_settings` names the accepted policy with an `approval_ref` (Davide's decision reference). With the API switch off, nothing is served at all.
 
 ## 6. Withdrawal, erasure and what depends on them (G1)
@@ -141,7 +180,11 @@ What remains is a tombstone: id, seq, author kind, actor id and time, with no na
 
 **Out of this crossing's reach, and said so:**
 - **Mission decisions.** A decision accepted through A08 from a conversation's words (C7) is the mission's own record, under its own policy. Withdrawing the message does not reverse it. The conversation keeps no link to it today, so nothing dangles.
-- **Native copies (G2).** The reply's create payload in `runtime_commands`, its `native_observations` and its result are scrubbed by the G2 withdrawal hook (§8.5).
+- **Native copies (G2).** They are bound in §8.5: scrubbed in the database in the withdrawal's transaction, and purged from the runtime host by the retirement procedure.
+
+**The other direction (G2):** a project source withdrawn through A08 suppresses the conversation answers, projections and native copies that read it (§8.3).
+
+The G1 hooks are three internal functions that G2 and G3 replace with additions, never by editing 0048: `conversation_withdrawn_from`, `conversation_redact` and `conversation_ask`.
 
 ## 7. Reply correlation in the Studio (G3, with G1's records)
 
@@ -162,61 +205,118 @@ The wait is keyed by `ConversationReply.id`, not by time.
 | Dispatch | `claim_runtime_outbox` leases and `dispatch_runtime_outbox` (one added branch, §8.2) | The retired brief's admission (`admit_native_task`, 410 stays), its `draft_brief` job kind and its role `sophia-brief-v1` |
 | Result | `native_observations` and the turn end, with a capture branch that publishes into `conversation_messages` (§8.3) | `put_text_source` for the answer: not a project source, so no Knowledge or research reader can find it |
 | Readiness | `runtime_unavailable` (reported ready and seen within 90 s), `role_runtime` (advertised role and route) | — |
-| Accounting | `reserve_research` / `end_research_reservation` serialization and states (settled, released, uncertain), and the source-review precedent: its own grant, plus an allowance row with its own policy (§8.4) | Any research or design allowance |
+| Accounting | The semantics of `reserve_research` / `end_research_reservation`: a lock before the check, keyed reservations, and settled, released or uncertain. CON-01 keeps its own grant row as the aggregate, with its own reservations (§8.4) | Any research, design or review grant, allowance or table |
 
-### 8.2 The execution container: open choice (Codex and Davide)
+### 8.2 The execution container: option C, subject to the inventory (D-6)
 
-Today, every native session belongs to a `work_attempt`, which belongs to a `goal` (`work_attempts.goal_id NOT NULL`, `outbox.goal_id NOT NULL`, wire `RuntimeWorkBinding.goalId`). CX-0001 rules out a goal hidden from the task board by a filter, and so does this file. Three options:
+Today, every native session belongs to a `work_attempt`, which belongs to a `goal` (`work_attempts.goal_id NOT NULL`, `outbox.goal_id NOT NULL`, wire `RuntimeWorkBinding.goalId`). A goal hidden from the task board by a filter is ruled out (CX-0001, CX-0002). The options:
 
 - **A. A goal per reply, filtered out.** Rejected.
-- **B. A separate reply lane:** `conversation_reply_runs` plus its own runtime command queue and a bridge poll for it. It touches no shared table, but it is a second delivery path in the bridge, close to a parallel scheduler.
-- **C (recommended). An attempt owned by a reply request instead of a goal.**
+- **B. A separate reply lane:** its own queue and a bridge poll. It touches no shared table, but it is a second delivery path in the bridge.
+- **C. An attempt owned by its reply request instead of a goal.** Codex prefers it as architectural direction (CX-0002). It is not yet Davide's D-6, and the runtime contract is not yet reviewed.
   - `work_attempts.goal_id` becomes nullable, with a new `conversation_reply_id` and `CHECK(num_nonnulls(goal_id, conversation_reply_id) = 1)`. The same applies to `outbox.goal_id`. `commands.goal_id` is already nullable.
-  - Every task reader joins attempts to goals with an inner join, so it never sees a reply attempt: there is no goal to filter.
-  - Controls (Hold, Stop, steer) are goal-scoped and cannot reach a reply attempt. A reply is cancelled by withdrawal, conversation erasure or the reply switch (§11), each through its own fenced function.
-  - The wire binding gains an optional `conversationReplyId` and allows `goalId: null` only together with it: a reviewed runtime-wire change. The bridge already keys sessions, queues and fencing on `attemptId` (`control-bridge.ts:666`).
-  - One fresh native session per reply (`sophia-<attemptId>`), never reused, so no withdrawn text survives in a later reply's native history.
+  - Task readers join attempts to goals with an inner join and therefore never see a reply attempt: there is no goal to filter.
+  - One fresh native session per reply (`sophia-<attemptId>`), never reused.
 
-  C costs a reviewed change to three shared tables and the two `CREATE OR REPLACE` functions. Its gain: one delivery path, and nothing hidden.
+**Before any G2 code, a written impact inventory is reviewed** (CON-01-CC-0003 or later). It covers every reader, writer, constraint and wire field that assumes `goal_id`, `goal_revision`, `authority_epoch`, goal-owned context or `RuntimeWorkBinding.goalId`, at least:
+- **Dispatch:** `dispatch_runtime_outbox`, which locks the goal and calls `native_delivery_ineligible(o, g, c, b, rt)`. The reply branch comes **before** the goal-specific paths, with its own authorization and fences: the request is `running`, the conversation is open, the asker still writes, the recorded sources are still eligible (§8.3), and the grant is enabled and unexpired (§8.4).
+- **Cancellation and controls:** `settle_native_control` and `admit_goal_command`'s Hold/Stop. A reply attempt has no goal, so these cannot reach it. Its own cancel path is withdrawal, erasure, a source becoming ineligible, the grant switch, or asker removal, each writing a `stop` runtime command for a live session.
+- **Capture:** `capture_native_result` and the `*_turn_end` branches. The reply branch is matched on the attempt's `conversation_reply_id` before any job lookup.
+- **Leases and reconcile:** `claim_runtime_outbox` and `reconcile_runtime_outbox`, which read as goal-independent in 0012. Proved under the new lane, including uncertain dispatch and cleanup.
+- **The reply epoch:** `authority_epoch` on a reply attempt is the request's own, fixed at 1 and raised to fence by the cancel paths. How the bridge's restored wire validation accepts a `goalId: null` binding, only together with `conversationReplyId`.
+- **Every TypeScript reader of attempts, bindings and commands:** snapshot, native-tasks, mission-context work, coordination, design-progress, usage.
+- **Preservation checks for research, design, visual review, source review and the retired brief:** a body diff of each replaced function against 0042's text, every other branch byte-identical, plus behavioural tests. A role declaration or a setup flag alone does not qualify the assembled tools.
 
-### 8.3 Context, correlation and publication (either option)
+### 8.3 Context, correlation and publication (CX-0002 correction 2)
 
-- **Admission** (with the message, in the send's transaction) records the request: who asked, the message, `cutoff_seq` (the asking message's seq) and the project's `eligibility_revision` / `ledger_revision`. It writes the execution rows only if the project's grant allows a reply (§8.4) and a runtime advertising `sophia-conversation-v1` and its route is ready. Otherwise the request is `blocked` with its reason (`no_grant`, `runtime_unavailable`, `replies_disabled`), and nothing else is written. There is no hidden retry.
-- **Assembly at dispatch** (`conversation_reply_statement`) reads, at that moment and under the project:
-  - this conversation's messages up to `cutoff_seq` that are not withdrawn: the newest 40, plus the current summary with its coverage when older messages exist. Truncation is said in the prompt and recorded on the request;
-  - the current `MissionContext` facts: accepted mission and constraints with their decided time, and pending proposals marked as not decided;
-  - the request's own text, attributed;
-  - the prompt section (pack 04, the exact paragraph), installed as a hashed bundle asset.
-  
-  Nothing from another conversation, Personal or the room is read. Assembly records the `erasure_revision` it read and the attempt's `context_hash`.
-- **Publication** happens at capture, in one transaction, only if all of these hold:
-  - the request is still `running`;
-  - the asker is still an active writer;
-  - the conversation is `open`;
-  - its `erasure_revision` equals the assembled one;
-  - the final assistant message is complete (`turn/end` `completed`).
-  
-  Then capture inserts one Sophia message (`reply_id` = the request, `replyTo` its message), sets the request to `answered` with `answer_id`, and emits `.reply_changed`.
-  - Otherwise the request ends `cancelled` (`source_withdrawn`, `asker_removed`, `conversation_erased`) or `failed` (`turn_error`, `max_tokens`, `blocked`), and nothing is published.
-  - If the mission's `ledger_revision` moved meanwhile, the reply is published with `contextChanged: true`. The Studio says "Written before the project's decisions changed" (pack 04: never as an unqualified statement of a replaced decision). It is never re-run automatically.
-- **Exactly once.** One request has one attempt and one outbox row. Restart, reconnect and replay read state; they never admit. An uncertain dispatch stays `outcome_unknown` until `reconcile_runtime_outbox` decides, against the same allowance (A12, A13). Asking again is a new message and a new request.
+**Admission** happens with the message, in the send's transaction.
+- It records the request: who asked, the message, `cutoff_seq` (the asking message's seq), and the project's `eligibility_revision`, `audience_revision` and `ledger_revision`.
+- It writes the execution rows only if the project's grant allows a reply (§8.4) and a ready runtime advertises `sophia-conversation-v1` and its route.
+- Otherwise the request is `blocked` with its reason (`no_grant`, `grant_expired`, `runtime_unavailable`, `replies_disabled`). Nothing else is written, and there is no hidden retry.
 
-### 8.4 Role, route and spend (owner D-4)
+**Assembly** happens at dispatch (`conversation_reply_statement`), reading at that moment and under the project:
+- this conversation's messages up to `cutoff_seq` that are not withdrawn: the newest 40, plus the current eligible summary with its coverage when older messages exist. Truncation is said in the prompt and recorded;
+- the current `MissionContext` facts: the accepted mission and constraints with their decided time, and pending proposals marked as not decided;
+- the request's own text, attributed;
+- the prompt section (pack 04, the exact paragraph), installed as a hashed bundle asset.
 
-- **Role** `sophia-conversation-v1`, family `conversation`, task kind `conversation_reply`, outputs `["text"]`:
-  - `native_tools: []`; `workflow`, `peer` and `raw_host_shell` false; no skills; no references; no image input.
-  - It mounts no tools, and inherited framework tools are hidden by `setupFor` (`control-bridge.ts:599-618`), as for `sophia-brief-v1`. The effective tool list is captured from a live create in the integration test and recorded.
-  - It cannot create work, accept a decision, edit a source, use an account or reach another attempt (D3, A16, A19).
-- **Route** `conversation-luna-v1` (proposed): the approved development model (openai `gpt-6-luna`, Davide 2026-09-24), effort medium, an output cap of 4,000 tokens, priced in `runtime-unit.json` so every call is metered, and the payer is the route's credential. **Not the default route** (unmetered) and **not** a research or review route.
-- **Grant.** A per-project `conversation_grants` row (`state`, `reply_cap_usd`, `total_cap_usd`, `approval_ref`) set by an operator function. No row means `blocked` / `no_grant`.
-- **Allowance.** One allowance per reply request (policy `conversation-reply-v1`, `max_searches = max_reads = 0`, at most 2 model calls). Reserved before the call, settled from reported usage, and uncertain until reconciled. A fresh session, a retry or a deploy never resets it.
-- **Owner D-4:** the route itself, the payer, the per-reply cap (proposed $0.10) and the total for the test project (proposed $5), the approval reference and the expiry.
+Nothing from another conversation, Personal or the room is read. Assembly records what it put in the prompt:
+- **`conversation_reply_sources`:** the bounded identities of every project source whose text was included, as `source_objects` ids (the mission frame, each constraint and pending decision's source);
+- the conversation messages read (`fromSeq`..`cutoff_seq`) and the `erasure_revision`;
+- the project's `eligibility_revision` at assembly;
+- the attempt's `context_hash`.
 
-### 8.5 Native copies and erasure
+**Revalidation** happens before dispatch (when assembled) and again at publication. The request must still be `running`; the asker must still be an active writer; the conversation must be open with an unchanged `erasure_revision`; and **every recorded source must still be eligible** (`source_objects.eligible AND state='ready'`).
+- A privacy failure (a withdrawn message, an ineligible source, an erased conversation) cancels the request (`source_withdrawn`, `conversation_erased`, `asker_removed`). Its output is suppressed and never published, and its native copies are scrubbed and retired (§8.5).
+- An ordinary replacement, where the ledger moved but every recorded source is still eligible (a new decision accepted, a proposal declined), still publishes. The reply carries `contextChanged: true`, and the Studio says "Written before the project's decisions changed". It is never re-run automatically.
 
-A reply's prompt exists in `runtime_commands.body.payload.text`, in `native_observations` (assistant text) and in the runtime host's session journal.
-- The G2 withdrawal hook scrubs the first two for every reply whose `cutoff_seq` covers the withdrawn seq. Immutability triggers on those tables are checked before 0049 is written.
-- The host journal is outside the database. Its retention is the runtime host's and is disclosed (§5), not claimed erased.
+**Publication** happens at capture, in one transaction. It requires every condition above plus a complete final assistant message (`turn/end` `completed`). It inserts one Sophia message (`reply_id` = the request; `replyTo` = its message), sets the request to `answered` with `answer_id`, and emits `.reply_changed`. Otherwise the request ends `cancelled` with the privacy reason, or `failed` (`turn_error`, `max_tokens`, `blocked`), and nothing is published. Partial streamed text is never published (A26).
+
+**After publication**, an AFTER UPDATE trigger on `source_objects` fires when a source turns ineligible: A08 withdrawal through `mission_erase_source`, research revocation, a design source. For every conversation request whose `conversation_reply_sources` names that source:
+- an open request is cancelled `source_withdrawn`;
+- a published answer is suppressed (`withdrawn_by = 'source'`);
+- projections generated from it are deleted;
+- its native copies are scrubbed and retired.
+
+The trigger is additive: no mission, research or design function is replaced. This race (withdrawal while the model runs) and the post-publication case are tested apart from the conversation-message race.
+
+**Exactly once.** One request has one attempt and one outbox row. Restart, reconnect and replay read state; they never admit. An uncertain dispatch stays `outcome_unknown` until `reconcile_runtime_outbox` decides, against the same grant accounting (A12, A13). Asking again is a new message and a new request.
+
+### 8.4 Role, route and spend (CX-0002 correction 4; owner D-4)
+
+**Role** `sophia-conversation-v1`: family `conversation`, task kind `conversation_reply`, outputs `["text"]`.
+- `native_tools: []`; `workflow`, `peer` and `raw_host_shell` false; no skills, references or image input.
+- Inherited framework tools are hidden by `setupFor` (`control-bridge.ts:599-618`). The effective tool list is captured from a live create in the integration test and recorded.
+- It cannot create work, accept a decision, edit a source, use an account or reach another attempt (D3, A16, A19).
+
+**Route.** None is selected by this file. The candidate is a named, priced route on the approved development model (openai `gpt-6-luna`, Davide 2026-09-24), so every call is metered, with an output cap of 4,000 tokens. **Its reasoning effort is Davide's decision:** the current development route is `high`, and nothing here approves `medium`. It is not the unmetered default route, and not a research or review route. The payer is the route's credential, named by reference in the batch.
+
+**Grant (`conversation_grants`, one row per project, set by an operator function no login may call):**
+- `state` (`enabled` / `disabled`), `route_id`, `payer_ref` (a secret-store reference, never a value), `reply_cap_usd`, `total_cap_usd`, `approval_ref` and **`expires_at`** (required, finite).
+- The aggregate counters `reserved_usd`, `spent_usd` and `uncertain_usd` live on the grant row itself, plus a `revision`.
+
+No row, a disabled grant or one past `expires_at` means a new ask is `blocked` (`no_grant`, `grant_disabled`, `grant_expired`). A model call already reserved before expiry is settled, and no new call is reserved after it.
+
+**Reservation** (`conversation_reservations`; the `reserve_research` semantics without its tables):
+- **Serialized** by the grant row's `FOR UPDATE`. Two asks competing for the last of the total are decided under that lock: one reserves, the other is refused (`limit_reached`), and the reply fails visibly.
+- **Checks:** reply total + amount ≤ `reply_cap_usd`, and `spent + reserved + uncertain + amount ≤ total_cap_usd`. At most 2 model calls per reply.
+- **Ending:** `settled` (from reported usage; an overrun is recorded at its cost), `released` (the call never left), or `uncertain` (the outcome is unknown).
+- **Uncertain** usage stays counted in `uncertain_usd` against the total until an operator reconciles it. A restart, a fresh session, a retry or a deploy never releases or resets it.
+
+The bridge's `metered()` gains a `conversation_reply` account with its own runtime routes (`/v1/runtime/conversation/reserve`, `/settle`), scoped to the attempt's request. These are runtime-capability routes, as research's and review's are.
+
+**Owner D-4:** the route and its effort, the payer reference, the per-reply cap (proposed $0.10), the total for the test project (proposed $5), the approval reference and `expires_at`.
+
+### 8.5 Operational copies and their erasure (CX-0002 correction 3)
+
+Every copy of a reply's prompt or answer:
+
+| Copy | Where | Erasure |
+|---|---|---|
+| The answer | `conversation_messages` | Withdrawal and suppression (§6, §8.3) |
+| The create payload (the prompt) | `runtime_commands.body.payload.text` | Scrubbed in the withdrawal or suppression transaction to a fixed marker with its length, unless an immutability trigger forbids it (checked before 0049; if one does, the copy is not written there at all: the prompt is fetched by the bridge through a scoped runtime read instead, the research-context pattern) |
+| Assistant text and events | `native_observations` | The same transaction deletes the reply attempt's observations' text, keeping only the ids and sequences fencing needs |
+| The prompt, in the command journal | Bridge journal file per session (`journalDir`, in the project's harness home; `control-bridge.ts:970-980` writes `content`) | **Retirement** (below) |
+| History events, user and assistant messages | dsh session log for `sophia-<attemptId>` (harness home) | **Retirement** (below) |
+| Messages a Resume held | Stash entries in the journal (`sophia/stash`, `control-bridge.ts:921-925`) | **Retirement** (below); a reply session takes no Resume or steer, so it never holds any |
+| Logs | API, worker and bridge logs | Already body-free: companion and diagnostic failures log name and code only (`companionFailure`, `diagnostics/sanitize.ts`). G2 adds a test that no conversation text reaches a log line |
+
+**Retirement** is the purge procedure, written in G2:
+- **When:** a reply's settlement (answered, failed or cancelled), and any later suppression of a settled reply, writes a `retire` runtime command for its attempt. That is a new runtime command kind: a reviewed change to the `runtime_commands.kind` check and the wire.
+- **What the bridge does:**
+  1. disposes the agent;
+  2. deletes the session's dsh session log through dsh's supported path;
+  3. rewrites the session's journal to a tombstone of command ids, stages, sequences and the epoch, with no content;
+  4. answers `checked`.
+- **After a crash:** a retired attempt is never resumed (the service refuses `resume` for it). On every bridge start, the hello's reconcile list names attempts that are retired-pending, and the bridge purges them again before reporting ready.
+- **Bound:** retirement is dispatched within one outbox cycle of settlement. It completes when a ready runtime next polls. If the runtime is down, the purge stays pending and is reported as pending: the withdrawal's answer says the runtime copy goes when the runtime next runs, never that it is gone.
+
+**Blocked activation item B-1 (Davide).** dsh `0.2.0-rc.2` (`@deepseek-ai/dsh-session`) exposes no supported deletion of a persisted session. Its store's `delete` removes a session from memory only. Unless G2 finds a supported path at the pin, deleting the session log means removing a file whose layout dsh does not document. **Asks are not activated while B-1 is open.** The options are named for Davide:
+- accept file removal at the pinned layout, guarded by a check that fails closed if the layout differs;
+- run each reply in a throwaway harness home deleted whole at retirement;
+- or accept a disclosed, bounded retention of the runtime host's session logs as a named exception.
+
+Backups and provider retention are disclosed separately (§5). Operational storage is never treated as a backup exception.
 
 ## 9. Studio binding (G3)
 
@@ -225,11 +325,14 @@ A reply's prompt exists in `runtime_commands.body.payload.text`, in `native_obse
   - The list's `capability` decides the rest at run time: Start and the composer only when `capability.write`; Ask Sophia's default and a blocked notice from `capability.ask`.
   - `capability` comes from a read before anything is written, so no client calls a write the server would not serve. A switched-off API answers the list with 404, and the view says "Conversations aren't available here yet", never "No conversations".
 - **Kept as they are:** the panes, focus and scroll rules, held writes with one key per intent, per-conversation drafts, the read errors (each pane fails separately), the A08 Accept / Decline / Propose controls, and the mobile single screen.
-- **Added:** the saved-text notice (§5), "Withdraw" on one's own message and an admin's "Remove", coverage words ("Not assessed", "No recorded questions yet", "Covers messages 1–N; newer since"), a reply's terminal states in words, and `contextChanged`.
+- **Added:** the saved-text notice (§5), "Withdraw" on one's own message and an admin's "Remove", coverage words (§3.1), a reply's terminal states in words, and `contextChanged`.
+- **Advisory capabilities.** The list's `capability` decides only what is offered. Every write rechecks authorization, policy, settings and the grant in its own transaction, and a refusal is said as one (CX-0002).
 
 ## 10. Output references
 
-No CON-01 path writes a conversation–output association, and new artifacts are out of scope. `output` is therefore always `null` in A16, and the db test asserts it. The Studio's existing rendering of a non-null output (`OpenConversation.tsx:246-269`) is kept for a later association. CON01-A21's positive arm is recorded as **not applicable, with reason**, unless Codex or Davide names an existing association source to bind.
+No CON-01 path writes a conversation–output association, and new artifacts are out of scope. So `output` is `null` for every conversation this slice creates, and the db test asserts it (A21's negative arm, L1). No association is invented to make a positive test pass.
+
+A21 is **not** closed as not-applicable (CX-0002). The existing linked-output rendering and navigation, a non-null `output` opening its exact version in the document viewer (`OpenConversation.tsx:246-269`), stays as it is and is tested through the existing fixture. That evidence is labelled L0. L2 proof needs an actual governed association, which no current source provides.
 
 ## 11. Rollout, rollback and reader compatibility
 
@@ -254,15 +357,22 @@ No CON-01 path writes a conversation–output association, and new artifacts are
 | `apps/api/src/conversations.db.test.ts` | the same crossings through the real routes and Ajv, including 404 with the switch off and the readiness split |
 | `db/tests/00NN_conversations.sql` | RLS: a direct `SELECT` as `sophia_api` under another actor sees nothing; no write grant on any table |
 
+**G1 idempotency targets (CX-0002 correction 1):** under one key, withdraw M1 then M2 is refused as changed. So are a changed operation, text or ask; another actor's or another project's use of the same key is its own write.
+
 **G2:** a stub-provider integration through the real API, worker, bridge and dsh (`tests/support/mock-llm.mjs`, labelled L1), covering:
 - two conversations' assembled prompts contain only their own messages (T01);
 - the effective tool list is empty (A16, A19);
 - a hostile request text stays text;
-- a late result after a withdrawal is refused (T04, A18, A25);
-- runtime unavailable or no grant is `blocked` (A10);
+- a late result after a conversation message's withdrawal is refused (T04, A18, A25);
+- **a project source withdrawn through A08 while the model runs** cancels without publishing, and **after publication** suppresses the answer, its projection and its native copies (CX-0002 correction 2);
+- retirement purges the journal content and session log, including after a bridge restart, and a retired attempt is never resumed (correction 3);
+- runtime unavailable, no grant, or an expired grant is `blocked` (A10);
+- **two asks competing for the last of the grant's total**: one reserves, the other is refused; uncertain usage stays counted across a restart (correction 4);
 - a restart and an uncertain dispatch (A12, A13);
 - two pending asks and an unrelated message (A09);
-- a long transcript stays within its window (A28).
+- a long transcript stays within its window (A28);
+- no conversation text in any log line;
+- the preservation diff and behavioural checks of §8.2.
 
 **G3:** the existing browser suites against fixtures with A16 shapes, plus a real-API browser run (the local stack, `scripts/dev-stack.ts`), at 390, 1000 and 1440 px.
 
@@ -273,13 +383,15 @@ No CON-01 path writes a conversation–output association, and new artifacts are
 | D-1 | Saved-text policy `conversation-text-v1` (§5) and its notice | Accept as written, for the test project first |
 | D-2 | Replies that read a withdrawn message | Suppress them too (§6 step 2) |
 | D-3 | Admin conversation erasure in this slice | Include (§3, §6). It is small, and a title is saved text too |
-| D-4 | Reply route, payer, caps, approval and expiry (§8.4) | `conversation-luna-v1`, $0.10 per reply, $5 total on the test project, with a date-bound approval |
+| D-4 | Reply route and its **reasoning effort** (the current development route is `high`; nothing here approves another), payer reference, caps, approval and `expires_at` (§8.4) | A priced named route on the approved development model; $0.10 per reply and $5 total on the test project; an expiry date. The effort is yours to name |
 | D-5 | The Conversations tab's gate (§9), with Luis | A dedicated build flag; `VISION` unchanged |
-| D-6 | Execution container (§8.2), with Codex | Option C |
+| D-6 | Execution container (§8.2) | Option C. Codex prefers it as direction (CX-0002), subject to the impact inventory |
+| B-1 | Runtime host copies (§8.5): no supported dsh deletion of a persisted session at the pin | Choose: file removal at the pinned layout with a fail-closed check; a throwaway harness home per reply; or a disclosed bounded exception. Asks are not activated while open |
 | Q-1 | Moderation by editors (pack 03 §3 says editors/admins) | Admins only: every writer is an editor here, so editor moderation would let any writer erase anyone |
 
 ## 14. Changes to this file
 
 | When | Change | Why |
 |---|---|---|
-| 2026-10-09 | First version (G0) | — |
+| 2026-10-09 | First version (G0), revision 1 at `b00d07f` | — |
+| 2026-10-09 | Revision 2, the five corrections of CX-0002 (correction 1 was already in 0048; the text now says it): every target in each operation's semantic request (§4); `ProjectionCoverage` bound (§3.1); project-source eligibility recorded, revalidated and enforced after publication (§8.3); the operational copies and their retirement, with B-1 (§8.5); a grant with expiry and serialized aggregate accounting, the effort left to Davide (§8.4); option C with the inventory required before G2 (§8.2); the notice names the actual recipient (§5); A21 not closed as N/A (§10); acknowledgment before shared runtime writes, and no assumed live predecessor (§1, §2) | CX-0002 |

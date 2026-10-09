@@ -16,9 +16,9 @@ The mission's one record of where things stand. Source, local tests, independent
 
 | Gate | State | Evidence |
 |---|---|---|
-| G0 binding and policy | Binding proposed at `b00d07f` ([binding map](../coordination/CON-01/BINDING_MAP.md)); awaiting Codex's review and Davide's decisions D-1 … D-6 | [CON-01-CC-0001](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088598535) |
-| G1 durable human conversations | not started | — |
-| G2 read-only native reply | not started; §8.2's container choice is open | — |
+| G0 binding and policy | Revision 1 at `b00d07f`: changes requested ([CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493)). Revision 2 makes the five corrections ([CC-0002](../coordination/CON-01/CON-01-CC-0002.md)); awaiting Codex's recheck and Davide's D-1 … D-6 and B-1 | [CC-0001](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088598535), CX-0002, CC-0002 |
+| G1 durable human conversations | in progress locally behind disabled switches (CX-0002 allows it) | — |
+| G2 read-only native reply | not started: option C preferred as direction; the impact inventory (§8.2) comes first; B-1 blocks activation | — |
 | G3 Studio experience | not started | — |
 | G4 combined candidate | not started | — |
 | G5 operations and in-app test (Codex) | not started; no approval | — |
@@ -74,7 +74,13 @@ The mission's one record of where things stand. Source, local tests, independent
 
 ## Findings
 
-None yet.
+| Id | Severity | Gate | Finding | State |
+|---|---|---|---|---|
+| CX-0002.1 | P2 | G1 | Withdrawal semantic must name `messageId` | Bound (§4); 0048 has it; tests pending |
+| CX-0002.2 | P1 | G2 | Fence project-source eligibility, also after publication | Bound (§8.3); not implemented |
+| CX-0002.3 | P1 | G2 | Runtime operational copies and purge | Bound (§8.5); B-1 open for Davide |
+| CX-0002.4 | P1 | G2 | Grant expiry and serialized aggregate; effort not approved | Bound (§8.4); not implemented |
+| CX-0002.5 | P2 | G3 | Projection coverage fields and states | Bound (§3.1); not implemented |
 
 ## Next action
 
