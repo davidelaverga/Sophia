@@ -467,7 +467,9 @@ function useTalk(projectId: string, name: string) {
  * again (a phone's one screen, the context put away), and the list says it was erased until another is opened. The
  * focus, armed as Erase is pressed, waits for the conversation to leave the list (its reply, or the feed first), then
  * for the list to be in sight (on a phone it shows only then), and lands on the row open now, unless the person moved
- * it elsewhere meanwhile (focusLater; CX-0015).
+ * it elsewhere meanwhile (focusLater; CX-0015). Its reply only does the bookkeeping: it lets go of what was kept, and
+ * says it was erased only if the person is still where the erase left them; a reply that comes after they opened
+ * another conversation never moves them, their focus or their draft.
  */
 function useErased(
   talk: ReturnType<typeof useTalk>,
@@ -476,6 +478,8 @@ function useErased(
 ) {
   const [said, setSaid] = useState(false)
   const landing = useRef<{ id: string; land: (el: HTMLElement | null) => void } | null>(null)
+  // Erased here, and the view not taken elsewhere since: its reply may say so.
+  const saying = useRef<string | null>(null)
   // It left the list: now the list is to show, and the focus to land once it does.
   const [due, setDue] = useState(false)
   const { toList, view, screen, context } = panes
@@ -498,14 +502,21 @@ function useErased(
   }, [due, screen, context, view])
   return {
     said,
-    clear: () => setSaid(false),
+    // Another conversation opened (or one started): the erase leaves them where they are now.
+    clear: () => {
+      landing.current = null
+      saying.current = null
+      setSaid(false)
+    },
     arm: (id: string, land: (el: HTMLElement | null) => void) => {
       landing.current = { id, land }
+      saying.current = id
     },
     on: (id: string) => {
       talk.change((k) => withoutConversation(k, id))
+      if (saying.current !== id) return
+      saying.current = null
       setSaid(true)
-      toList()
     },
   }
 }

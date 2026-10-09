@@ -183,3 +183,28 @@ test('removal · a writer whose only message is removed is named nowhere, whatev
   await expect(who).toContainText('Lucía')
   await expect(rows(page).nth(1)).not.toContainText('Marco')
 })
+
+for (const width of ['desktop', '@phone'] as const) {
+  test(`removal · ${width}: an erasure's late reply leaves where you went since, your focus and your draft`, async ({
+    page,
+  }) => {
+    await page.goto(`${PAGE}&erase=feedFirst`)
+    if (width === '@phone') await rows(page).first().click()
+    await expect(messages(page)).toHaveCount(6)
+    const toggle = open(page).getByRole('button', { name: 'Context' })
+    if (await toggle.isVisible()) await toggle.click()
+    await erase(page).click()
+    await page.getByRole('group', { name: 'Erase this conversation' }).getByRole('button', { name: 'Erase' }).click()
+    // The feed shows it gone first (0.5 s); then you open the conversation still there and write, before its reply.
+    await expect(rows(page).first()).toBeFocused({ timeout: 1500 })
+    await rows(page).first().click()
+    await field(page).fill('Draft after the erasure.')
+    expect(await written(page, 'reply')).toEqual([])
+    await expect.poll(() => written(page, 'reply'), { timeout: 5000 }).toEqual(['reply:erasure'])
+    await page.waitForTimeout(300)
+    await expect(field(page)).toBeVisible()
+    await expect(field(page)).toBeFocused()
+    await expect(field(page)).toHaveValue('Draft after the erasure.')
+    await expect(list(page)).not.toContainText('The conversation was erased.')
+  })
+}
