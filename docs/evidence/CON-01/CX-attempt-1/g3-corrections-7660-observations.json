@@ -1,0 +1,65 @@
+{
+  "candidate": "7660c7344e65986cee642323ca59164e82021c94",
+  "tree": "1a2f9da568e737d57c51c2296d3894f9e901ab97",
+  "level": "L1 actual local browser/API/PostgreSQL with synthetic accounts; L0 cache probe separately labeled",
+  "crossings": [
+    {
+      "name": "original mobile feed-first erase",
+      "verdict": "passed_L1",
+      "viewport": [
+        390,
+        844
+      ],
+      "at": "2026-10-09T22:46:59.707Z",
+      "elapsedMs": 276,
+      "observation": "Surviving row BUTTON focused; list390x752, Context closed before actual HTTP response held3000ms; focus remains after receipt22:47:13Z"
+    },
+    {
+      "name": "late erase HTTP after navigation",
+      "verdict": "failed_L1_P2",
+      "beforeAt": "2026-10-09T22:47:35.326Z",
+      "elapsedMs": 601,
+      "before": "Opened surviving row and filled SYNTHETIC-DRAFT-AFTER-ERASE-7660, TEXTAREA focused and thread visible before original erase HTTP3000ms",
+      "afterAt": "2026-10-09T22:48:02.350Z",
+      "after": "Old HTTP completion moves to list; composer0x0, focusBODY; draft still stored"
+    },
+    {
+      "name": "201 writers/readers participation",
+      "verdict": "passed_L1",
+      "at": "2026-10-09T22:49:09Z",
+      "observation": "Real201-writer API returns200 contributors, validator passes, known actual editor201st retained, actual UI Mine true; and others plus You shown"
+    },
+    {
+      "name": "withdraw last contribution with failed rereads",
+      "verdict": "passed_L1_human_arm",
+      "at": "2026-10-09T22:50:26.707Z",
+      "observation": "Body and editor derivative clear synchronously; Mine empty; header only admin; failed list/message reads exhaust without resurfacing. Accepted A08 constraint remains visible/current.",
+      "recheck": "Observed CUA checkpoint after failed retries, before final DB audit2026-10-09T22:54:41.222Z"
+    },
+    {
+      "name": "A08 accepted decision receipt",
+      "verdict": "observation_needs_qualification",
+      "observation": "Before withdrawal, panel Accepted/Nothing waits and DB revision2 accepted while message still said Proposed / in Still open. Reported to implementer; origin/current correction unqualified."
+    }
+  ],
+  "cleanup": {
+    "wrapperExit": 0,
+    "postgresStopped": true,
+    "clusterRemoved": true,
+    "databaseDropped": true,
+    "apiStopped": true,
+    "studioStopped": true,
+    "ownedTabsClosed": 2,
+    "viewportReset": true
+  },
+  "provider": {
+    "calls": 0,
+    "spend": 0,
+    "uncertainSpend": 0
+  },
+  "limitations": [
+    "No runtime/worker/provider launched; no hosted app acceptance",
+    "No screenshot file saved; CUA images cannot be cited as a filesystem artifact",
+    "Initial secondary contributor invocation from journal cwd failed resolving pg before writes; corrected candidate cwd run succeeded"
+  ]
+}

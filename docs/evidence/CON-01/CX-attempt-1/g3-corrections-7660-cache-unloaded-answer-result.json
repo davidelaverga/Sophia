@@ -1,0 +1,12 @@
+{
+  "candidate": "7660c7344e65986cee642323ca59164e82021c94",
+  "level": "L0 pure cache shapes, no provider/native/app-answer claim",
+  "scenario": "dependent Sophia answer exists in refreshed list but was never loaded after its message-page read failed; withdrawal succeeds, subsequent list read fails",
+  "remains": {
+    "writer": "editor",
+    "writerStays": false,
+    "sophiaStays": null
+  },
+  "sophiaAfter": true,
+  "expected": "conservatively suppress unknown/unloaded Sophia attribution after withdrawal"
+}

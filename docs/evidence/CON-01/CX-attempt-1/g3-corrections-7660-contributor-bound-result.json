@@ -1,0 +1,14 @@
+{
+  "candidate": "7660c7344e65986cee642323ca59164e82021c94",
+  "at": "2026-10-09T22:46:27.042Z",
+  "projectId": "ded93aad-4d76-4e7d-813f-fa296acbad15",
+  "conversationId": "89b874d3-f995-4dd4-82f3-1878d9e6adad",
+  "controlContributors": 200,
+  "controlValidated": true,
+  "afterContributors": 200,
+  "lastReaderContributors": 200,
+  "lastWriterIncluded": true,
+  "lastWriterAtLastPosition": true,
+  "earlierWriterStillIncluded": true,
+  "afterValidationFailure": null
+}

@@ -1,0 +1,138 @@
+{
+  "candidate": "7660c7344e65986cee642323ca59164e82021c94",
+  "tree": "1a2f9da568e737d57c51c2296d3894f9e901ab97",
+  "observedAt": "2026-10-09T22:54:41.222Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "14b4dde4-6026-484b-a29e-a8ad72827016",
+  "messages": [
+    {
+      "title": "Surviving conversation 7660",
+      "id": "30ca91c1-1de4-47aa-ac42-92abacc77567",
+      "conversation_id": "6167c8ff-726e-498c-8a9e-0d3186ea91d4",
+      "actor_id": "2d850d17-4547-4b1b-aab7-8815f102517a",
+      "seq": "1",
+      "body": "Surviving conversation 7660",
+      "withdrawn_at": null
+    },
+    {
+      "title": "Surviving conversation 7660",
+      "id": "70083331-f238-4e11-91da-beab1d41a016",
+      "conversation_id": "6167c8ff-726e-498c-8a9e-0d3186ea91d4",
+      "actor_id": "5a369c70-af72-496d-b98a-5bb5bcbb5ed2",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-09T22:50:26.493Z"
+    },
+    {
+      "title": null,
+      "id": "a9af2b84-0d65-44bb-986a-48784428a261",
+      "conversation_id": "ebeb8d38-77d1-4a41-a9a8-5c0a4afbc587",
+      "actor_id": "2d850d17-4547-4b1b-aab7-8815f102517a",
+      "seq": "1",
+      "body": null,
+      "withdrawn_at": "2026-10-09T22:46:59.498Z"
+    },
+    {
+      "title": null,
+      "id": "f396ca7e-20e3-4cb7-86ca-09e95e8cbda8",
+      "conversation_id": "dc230d6b-4867-4e36-abc5-d0cbd0532454",
+      "actor_id": "2d850d17-4547-4b1b-aab7-8815f102517a",
+      "seq": "1",
+      "body": null,
+      "withdrawn_at": "2026-10-09T22:47:34.794Z"
+    }
+  ],
+  "replies": [],
+  "decisions": [
+    {
+      "id": "169aa33a-a452-4e6c-b85b-03ca583203c2",
+      "kind": "constraint",
+      "state": "accepted",
+      "revision": "2",
+      "body": "Proposed constraint: Synthetic A08 constraint stays separate from withdrawn chat"
+    }
+  ],
+  "requests": [
+    {
+      "actor_id": "2d850d17-4547-4b1b-aab7-8815f102517a",
+      "idempotency_key": "da6140ae-2b16-4bcc-b1c1-eabd24bc49ed",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "328a04a842be511c76ee52db6cb968863a2ee317b0fb8d4c2de872244b5cfc0a",
+        "titleSha256": "328a04a842be511c76ee52db6cb968863a2ee317b0fb8d4c2de872244b5cfc0a"
+      },
+      "message_id": "30ca91c1-1de4-47aa-ac42-92abacc77567"
+    },
+    {
+      "actor_id": "2d850d17-4547-4b1b-aab7-8815f102517a",
+      "idempotency_key": "49639b5c-fd98-424a-bbde-c7df69171307",
+      "operation": "start",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "a9af2b84-0d65-44bb-986a-48784428a261"
+    },
+    {
+      "actor_id": "2d850d17-4547-4b1b-aab7-8815f102517a",
+      "idempotency_key": "40574b17-ed50-46f9-967b-f3f196c910df",
+      "operation": "erase",
+      "semantic_request": {
+        "operation": "erase",
+        "conversationId": "ebeb8d38-77d1-4a41-a9a8-5c0a4afbc587"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "2d850d17-4547-4b1b-aab7-8815f102517a",
+      "idempotency_key": "ac2de7de-63a6-40b6-bcf7-e78c0904cb63",
+      "operation": "start",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "f396ca7e-20e3-4cb7-86ca-09e95e8cbda8"
+    },
+    {
+      "actor_id": "2d850d17-4547-4b1b-aab7-8815f102517a",
+      "idempotency_key": "7c7574a1-2b11-4fda-ae8b-d036f761e6b1",
+      "operation": "erase",
+      "semantic_request": {
+        "operation": "erase",
+        "conversationId": "dc230d6b-4867-4e36-abc5-d0cbd0532454"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "5a369c70-af72-496d-b98a-5bb5bcbb5ed2",
+      "idempotency_key": "d1ae12dd-f24e-4b55-8fe7-46ee75af3acd",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "70083331-f238-4e11-91da-beab1d41a016"
+    },
+    {
+      "actor_id": "5a369c70-af72-496d-b98a-5bb5bcbb5ed2",
+      "idempotency_key": "a24e1a24-fbe6-42ab-986b-5db9f7839ce7",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "70083331-f238-4e11-91da-beab1d41a016",
+        "operation": "withdraw",
+        "conversationId": "6167c8ff-726e-498c-8a9e-0d3186ea91d4"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 3,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

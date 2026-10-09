@@ -1,0 +1,55 @@
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+▶ A16 over HTTP
+  ✔ switched off, no route exists; switched on, every answer matches the contract (85.782167ms)
+  ✔ a body naming an actor, a name, an author, a project or a reply target is refused (CON01-A06) (12.704334ms)
+  ✔ a reply lost after the write committed: the retry under its key returns the same records (CON01-A02, A03) (18.793917ms)
+  ✔ who may: viewer writes refused, outsiders read nothing, and the codes say so (CON01-A05) (6.3385ms)
+  ✔ withdrawal and erasure over HTTP, and the replay of a withdrawn text refused (CON-01-T04) (17.185959ms)
+  ✔ another conversation's cursor is refused before anything is read (CON01-A07) (77.690167ms)
+  ✔ a member removed while their withdrawal waits for the project's row is refused, and the text stays (CON-01-CX-0006) (38.131667ms)
+  ✔ /ready needs 0048's functions only while conversations are served (12.850625ms)
+✔ A16 over HTTP (1421.543625ms)
+▶ the project setting (the cohort and rollback switch)
+  ✔ with no setting, the list is empty and says nothing may be written; a start is refused (38.047167ms)
+  ✔ read-only keeps reads, withdrawal and a replay; refuses new text (27.556958ms)
+✔ the project setting (the cohort and rollback switch) (418.908417ms)
+▶ starting and continuing
+  ✔ a start is a conversation and its first message, with the writer and the name the token carried (58.398334ms)
+  ✔ a failure after the conversation row leaves no conversation, message, request or event (CON01-A01) (17.992583ms)
+  ✔ asking Sophia records a reply request, blocked and saying why, and still starts no work (CON01-A10) (44.273208ms)
+✔ starting and continuing (120.906958ms)
+▶ one intent, one write (CON01-A02, A03, A04)
+  ✔ a retry under the key returns the same conversation and message, and writes nothing more (12.509458ms)
+  ✔ anything changed under an old key is refused: title, text, ask, target, operation (13.425ms)
+  ✔ a key is the actor's and the project's own: another actor or project under it writes its own (18.422458ms)
+✔ one intent, one write (CON01-A02, A03, A04) (44.603833ms)
+▶ who reads and writes (CON01-A05)
+  ✔ a viewer reads and cannot write; an outsider reads nothing, by project, id or cursor (42.368875ms)
+  ✔ a member removed since cannot read, write or replay what they wrote (15.547041ms)
+✔ who reads and writes (CON01-A05) (58.0525ms)
+▶ order and pages (CON01-A07)
+  ✔ concurrent messages each take their own place; pages have no gap or repeat (93.578208ms)
+  ✔ a conversation with more writers than A16 names lists 200, the reader among them, in order (PR #199 review) (179.110916ms)
+  ✔ another conversation's cursor, or a made-up one, is refused (40.17925ms)
+✔ order and pages (CON01-A07) (313.008875ms)
+▶ withdrawal and erasure (CON-01-T04)
+  ✔ an author withdraws their own: its text and name go from every read, and its request can't replay (20.069709ms)
+  ✔ an author made a viewer since still withdraws their own; an admin withdraws any (13.300666ms)
+  ✔ an open reply request whose history reaches the withdrawn text is cancelled (12.6265ms)
+  ✔ an admin erases a conversation: it leaves every read and its keys cannot replay (16.243708ms)
+✔ withdrawal and erasure (CON-01-T04) (62.420167ms)
+▶ a member removed while their write waits for the project's row (CON-01-CX-0006)
+  ✔ cannot withdraw: membership is read again once the row is held, and the text stays (13.467208ms)
+  ✔ cannot send either, and a member made a viewer meanwhile still withdraws their own (40.492792ms)
+✔ a member removed while their write waits for the project's row (CON-01-CX-0006) (54.101667ms)
+ℹ tests 27
+ℹ suites 8
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8912.862417

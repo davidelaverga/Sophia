@@ -1,5 +1,15 @@
 # CON-01 independent reviewer/operator handoff — attempt 1
 
+## Current authoritative checkpoint — CX-0016
+
+This section supersedes earlier readiness/candidate summaries below; their observations remain historical. Exact independent candidate7660c734/tree1a2f9da:27 published PG/API tests and57 focused units pass; actual201-writer participation, human contributor privacy under failed reads, original mobile erase focus and separate accepted A08 write pass within L1. New late erase HTTP navigation fails; unread Sophia attribution gap reproduced L0 only. See [CX-0016](../coordination/CON-01/CX-0016.md) and the 36-case ledger.
+
+Author4575dadda/tree7768383c corrects these in source, not yet independently qualified. Full author gate only runs447e7ae; no full gate7660/later. Latest main6ef8d855 and PR190096dd030 need exact integration/ownership refresh. G2 remains a proposal without runtime/provider evidence. Readiness: source_ready for published G1/G3; locally_verified only the bounded7660 crossings; combined reviewed=false, authorized=false, deployed=false, app_verified=false, owner_accepted=false.
+
+Operation requestOP-0001-r1 remains draft_not_authorized with missing actual cohort/two accounts, route/credential/payer/cap/expiry, owner retention/host-copy decisions and executable approval. No hosted tuple was newly observed; historical service IDs below are not freshness claims. Actual calls/spend/uncertainty0; no hosted effect. All seven owned local stacks cleaned, newest exit0/DB dropped/PG stopped/cluster removed; two local tabs closed/viewport reset. Governed production data and other missions untouched. Rollback availability remains historical and needs release qualification.
+
+Next bounded action: independently recheck the immutable author erasure/capped-privacy corrections, then exact current-main diff and gates. Davide decides final product acceptance; other missions remain open.
+
 ## WORKFLOW_END_TO_END_TRAILER
 
 Initiating user behavior: Davide assigned Codex independent review from G0, authorized preparation/discovery, requested exact approved deployment and real signed-in testing of saved project conversations. No actual end-user conversation was submitted by this attempt.

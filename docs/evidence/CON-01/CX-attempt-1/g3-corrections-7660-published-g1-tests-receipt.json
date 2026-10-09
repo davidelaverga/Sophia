@@ -1,0 +1,13 @@
+{
+  "candidate": "7660c7344e65986cee642323ca59164e82021c94",
+  "at": "2026-10-09T22:45:45.971234+00:00",
+  "command": [
+    "node",
+    "--test",
+    "--test-concurrency=1",
+    "--test-timeout=90000",
+    "packages/persistence/src/conversations.db.test.ts",
+    "apps/api/src/conversations.db.test.ts"
+  ],
+  "exit": 0
+}
