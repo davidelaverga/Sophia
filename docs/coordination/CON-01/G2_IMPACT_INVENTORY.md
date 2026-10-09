@@ -59,7 +59,7 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 
    **No job row** (jobs are task records; capture keys on the request). Otherwise it records `blocked` with its reason, and writes nothing else.
 2. **Dispatch** (`conversation_dispatch`, which calls the assembly `conversation_reply_statement` of the binding map §8.3):
-   1. reply eligibility: the request is `pending` (first dispatch) or `running` (a lease retaken after reconcile), the asker still writes, the conversation is `open`, every source still satisfies the full source predicate ([binding map](BINDING_MAP.md) §8.3), and the grant is enabled and unexpired;
+   1. reply eligibility: the request is `pending` (only a `delivered` receipt makes it `running`; a lease retaken after reconcile re-dispatches only a row with no runtime command, whose request is still `pending`), the asker still writes, the conversation is `open`, every source still satisfies the full source predicate ([binding map](BINDING_MAP.md) §8.3), and the grant is enabled and unexpired;
    2. assembly, plus `conversation_reply_sources`;
    3. a payload `{role:'sophia-conversation-v1', route, text}`;
    4. a binding `{conversationReplyId}`.
