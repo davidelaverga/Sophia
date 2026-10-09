@@ -140,6 +140,9 @@ GRANT SELECT ON sophia.conversation_settings, sophia.conversations, sophia.conve
 
 -- The conversation a request names, with the caller a member of its project; otherwise "not found", whether it does
 -- not exist or the caller may not see it (the two answer alike). Locks its project's row first, then its own.
+-- Membership is read again once the project's row is held (CON-01-CX-0006): a revocation that committed while this
+-- call waited for the row is seen, so a member removed meanwhile neither writes nor withdraws. The first read only
+-- keeps a caller who is no member from holding a project's row at all.
 CREATE FUNCTION sophia.conversation_locked(p_conversation uuid) RETURNS sophia.conversations LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE c sophia.conversations; p uuid;
@@ -147,6 +150,7 @@ BEGIN
  SELECT project_id INTO p FROM sophia.conversations WHERE id=p_conversation;
  IF p IS NULL OR NOT sophia.is_member(p) THEN RAISE EXCEPTION 'Conversation not found' USING ERRCODE='22023'; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=p FOR UPDATE;
+ IF NOT sophia.is_member(p) THEN RAISE EXCEPTION 'Conversation not found' USING ERRCODE='22023'; END IF;
  SELECT * INTO c FROM sophia.conversations WHERE project_id=p AND id=p_conversation FOR UPDATE;
  RETURN c;
 END $$;

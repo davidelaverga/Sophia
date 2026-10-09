@@ -2,6 +2,7 @@
 // non-owner sophia_api login with a transaction-local actor, as the API does; the migration owner only seeds, switches
 // a project's setting (the operator's function) and inspects.
 import { randomUUID } from 'node:crypto'
+import { setTimeout as delay } from 'node:timers/promises'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
@@ -436,5 +437,88 @@ describe('withdrawal and erasure (CON-01-T04)', () => {
       [r.conversationId],
     )
     assert.deepEqual(row, { title: null, texts: '0' })
+  })
+})
+
+/** A call that waits on a lock, seen by the server itself, within `ms`: the ordering is proved, never slept for. */
+async function waitsOnLock(observer: pg.Client, call: string, ms = 3000): Promise<void> {
+  const until = Date.now() + ms
+  while (Date.now() < until) {
+    const { rows } = await observer.query(
+      `SELECT pid FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE $1`,
+      [`%${call}%`],
+    )
+    if (rows.length > 0) return
+    await delay(20)
+  }
+  throw new Error(`${call} never waited on the project's row`)
+}
+
+/** A promise that settles within `ms`, or fails the test. */
+const within = <T>(p: Promise<T>, ms = 3000): Promise<T> =>
+  Promise.race([p, delay(ms).then(() => Promise.reject(new Error(`still waiting after ${String(ms)} ms`)))])
+
+describe("a member removed while their write waits for the project's row (CON-01-CX-0006)", () => {
+  it('cannot withdraw: membership is read again once the row is held, and the text stays', async () => {
+    const p = await project()
+    const r = await start(F, p, { text: 'Synthetic body to preserve' })
+    const revoker = new pg.Client({ connectionString: db.ownerUrl })
+    const observer = new pg.Client({ connectionString: db.ownerUrl })
+    await revoker.connect()
+    await observer.connect()
+    try {
+      await revoker.query('BEGIN')
+      await revoker.query('SELECT 1 FROM sophia.projects WHERE id = $1 FOR UPDATE', [p])
+      await revoker.query('UPDATE sophia.project_members SET active = false WHERE project_id = $1 AND actor_id = $2', [
+        p,
+        F,
+      ])
+      const withdrawal = codeOf(withdraw(F, r.conversationId, r.messageId))
+      await waitsOnLock(observer, 'withdraw_conversation_message')
+      await revoker.query('COMMIT')
+      assert.equal(await within(withdrawal), 'not_found')
+    } finally {
+      await revoker.end()
+      await observer.end()
+    }
+    const [row] = await owner<{ body: string | null }>('SELECT body FROM sophia.conversation_messages WHERE id = $1', [
+      r.messageId,
+    ])
+    assert.equal(row?.body, 'Synthetic body to preserve')
+  })
+
+  it('cannot send either, and a member made a viewer meanwhile still withdraws their own', async () => {
+    const p = await project()
+    const r = await start(F, p)
+    const revoker = new pg.Client({ connectionString: db.ownerUrl })
+    const observer = new pg.Client({ connectionString: db.ownerUrl })
+    await revoker.connect()
+    await observer.connect()
+    try {
+      await revoker.query('BEGIN')
+      await revoker.query('SELECT 1 FROM sophia.projects WHERE id = $1 FOR UPDATE', [p])
+      await revoker.query('UPDATE sophia.project_members SET active = false WHERE project_id = $1 AND actor_id = $2', [
+        p,
+        F,
+      ])
+      const sending = codeOf(send(F, r.conversationId, 'After my removal'))
+      await waitsOnLock(observer, 'send_conversation_message')
+      await revoker.query('COMMIT')
+      assert.equal(await within(sending), 'not_found')
+      await owner(
+        `UPDATE sophia.project_members SET active = true, role = 'viewer' WHERE project_id = $1 AND actor_id = $2`,
+        [p, F],
+      )
+      await revoker.query('BEGIN')
+      await revoker.query('SELECT 1 FROM sophia.projects WHERE id = $1 FOR UPDATE', [p])
+      const withdrawal = codeOf(withdraw(F, r.conversationId, r.messageId))
+      await waitsOnLock(observer, 'withdraw_conversation_message')
+      await revoker.query('COMMIT')
+      assert.equal(await within(withdrawal), 'resolved')
+    } finally {
+      await revoker.end()
+      await observer.end()
+    }
+    assert.equal((await page(V, r.conversationId)).messages.length, 1)
   })
 })

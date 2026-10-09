@@ -23,10 +23,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "actorId",
-          "name"
-        ]
+        "required": ["actorId", "name"]
       }
     },
     {
@@ -38,10 +35,7 @@
         "properties": {
           "author": {
             "type": "string",
-            "enum": [
-              "member",
-              "sophia"
-            ]
+            "enum": ["member", "sophia"]
           },
           "actorId": {
             "anyOf": [
@@ -74,13 +68,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "author",
-          "actorId",
-          "name",
-          "text",
-          "at"
-        ],
+        "required": ["author", "actorId", "name", "text", "at"],
         "description": "A conversation's newest message that is not withdrawn: who, when and how it opens."
       }
     },
@@ -93,12 +81,7 @@
         "properties": {
           "state": {
             "type": "string",
-            "enum": [
-              "not_assessed",
-              "current",
-              "stale",
-              "unavailable"
-            ],
+            "enum": ["not_assessed", "current", "stale", "unavailable"],
             "description": "not_assessed: none exists (never produced, or removed for privacy). current: it read through the newest eligible message at the project's current ledger revision. stale: still eligible, with newer messages or a moved ledger since. unavailable: the last attempt failed; an earlier eligible projection, if any, stays with its own range."
           },
           "complete": {
@@ -220,12 +203,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "artifactId",
-          "versionId",
-          "versionNumber",
-          "title"
-        ]
+        "required": ["artifactId", "versionId", "versionNumber", "title"]
       }
     },
     {
@@ -341,15 +319,7 @@
           },
           "state": {
             "type": "string",
-            "enum": [
-              "pending",
-              "running",
-              "answered",
-              "failed",
-              "cancelled",
-              "blocked",
-              "outcome_unknown"
-            ]
+            "enum": ["pending", "running", "answered", "failed", "cancelled", "blocked", "outcome_unknown"]
           },
           "reason": {
             "anyOf": [
@@ -389,15 +359,7 @@
             ]
           }
         },
-        "required": [
-          "id",
-          "messageId",
-          "state",
-          "reason",
-          "answerId",
-          "askedAt",
-          "settledAt"
-        ],
+        "required": ["id", "messageId", "state", "reason", "answerId", "askedAt", "settledAt"],
         "description": "Sophia asked about one member's message: its own state and, answered, the message that answers it. Only this request's answer settles it."
       }
     },
@@ -419,10 +381,7 @@
           },
           "author": {
             "type": "string",
-            "enum": [
-              "member",
-              "sophia"
-            ]
+            "enum": ["member", "sophia"]
           },
           "actorId": {
             "anyOf": [
@@ -470,9 +429,7 @@
                     "format": "date-time"
                   }
                 },
-                "required": [
-                  "at"
-                ]
+                "required": ["at"]
               },
               {
                 "type": "null"
@@ -504,10 +461,7 @@
                     "format": "uuid"
                   }
                 },
-                "required": [
-                  "messageId",
-                  "replyId"
-                ]
+                "required": ["messageId", "replyId"]
               },
               {
                 "type": "null"
@@ -515,18 +469,7 @@
             ]
           }
         },
-        "required": [
-          "id",
-          "seq",
-          "author",
-          "actorId",
-          "name",
-          "text",
-          "at",
-          "withdrawn",
-          "ask",
-          "replyTo"
-        ],
+        "required": ["id", "seq", "author", "actorId", "name", "text", "at", "withdrawn", "ask", "replyTo"],
         "description": "A message, a member's or Sophia's, in the conversation's own order (seq). Withdrawn, it keeps its place and author kind and nothing of its text or name. A member's message that asked Sophia carries its request (ask); Sophia's names the request it answers (replyTo)."
       }
     },
@@ -539,32 +482,21 @@
         "properties": {
           "id": {
             "type": "string",
-            "enum": [
-              "conversation-text-v1"
-            ]
+            "enum": ["conversation-text-v1"]
           },
           "notice": {
             "type": "string"
           },
           "retention": {
             "type": "string",
-            "enum": [
-              "until_withdrawn_or_erased"
-            ]
+            "enum": ["until_withdrawn_or_erased"]
           },
           "audience": {
             "type": "string",
-            "enum": [
-              "project_members"
-            ]
+            "enum": ["project_members"]
           }
         },
-        "required": [
-          "id",
-          "notice",
-          "retention",
-          "audience"
-        ],
+        "required": ["id", "notice", "retention", "audience"],
         "description": "The saved-text policy the project's conversations are under, with the notice shown before a first message."
       }
     },
@@ -577,11 +509,7 @@
         "properties": {
           "state": {
             "type": "string",
-            "enum": [
-              "off",
-              "enabled",
-              "read_only"
-            ]
+            "enum": ["off", "enabled", "read_only"]
           },
           "write": {
             "type": "boolean"
@@ -591,10 +519,7 @@
           },
           "ask": {
             "type": "string",
-            "enum": [
-              "available",
-              "unavailable"
-            ]
+            "enum": ["available", "unavailable"]
           },
           "askReason": {
             "anyOf": [
@@ -608,13 +533,7 @@
             ]
           }
         },
-        "required": [
-          "state",
-          "write",
-          "moderate",
-          "ask",
-          "askReason"
-        ],
+        "required": ["state", "write", "moderate", "ask", "askReason"],
         "description": "What the reader may do here now. Advisory: every write is checked again when made."
       }
     },
@@ -654,13 +573,7 @@
             "$ref": "#/components/schemas/ConversationCapability"
           }
         },
-        "required": [
-          "projectId",
-          "conversations",
-          "more",
-          "policy",
-          "capability"
-        ]
+        "required": ["projectId", "conversations", "more", "policy", "capability"]
       }
     },
     {
@@ -694,11 +607,7 @@
             ]
           }
         },
-        "required": [
-          "conversationId",
-          "messages",
-          "before"
-        ]
+        "required": ["conversationId", "messages", "before"]
       }
     },
     {
@@ -722,11 +631,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "title",
-          "text",
-          "askSophia"
-        ]
+        "required": ["title", "text", "askSophia"]
       }
     },
     {
@@ -745,10 +650,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "text",
-          "askSophia"
-        ]
+        "required": ["text", "askSophia"]
       }
     },
     {
@@ -766,10 +668,7 @@
           },
           "sophia": {
             "type": "string",
-            "enum": [
-              "asked",
-              "not_asked"
-            ]
+            "enum": ["asked", "not_asked"]
           },
           "reply": {
             "anyOf": [
@@ -782,12 +681,7 @@
             ]
           }
         },
-        "required": [
-          "conversation",
-          "message",
-          "sophia",
-          "reply"
-        ]
+        "required": ["conversation", "message", "sophia", "reply"]
       }
     },
     {
@@ -802,10 +696,7 @@
           },
           "sophia": {
             "type": "string",
-            "enum": [
-              "asked",
-              "not_asked"
-            ]
+            "enum": ["asked", "not_asked"]
           },
           "reply": {
             "anyOf": [
@@ -818,11 +709,7 @@
             ]
           }
         },
-        "required": [
-          "message",
-          "sophia",
-          "reply"
-        ]
+        "required": ["message", "sophia", "reply"]
       }
     },
     {
@@ -840,10 +727,7 @@
             "$ref": "#/components/schemas/ConversationMessage"
           }
         },
-        "required": [
-          "conversationId",
-          "message"
-        ]
+        "required": ["conversationId", "message"]
       }
     },
     {
@@ -859,15 +743,10 @@
           },
           "erased": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "enum": [true]
           }
         },
-        "required": [
-          "conversationId",
-          "erased"
-        ]
+        "required": ["conversationId", "erased"]
       }
     },
     {
@@ -877,9 +756,7 @@
         "get": {
           "operationId": "listConversations",
           "summary": "The project's conversations, newest activity first (at most 200), with the saved-text policy and what the reader may do. Members read, viewers included; nobody else. Erased conversations are not listed. Without the project's setting the list is empty and nothing may be written.",
-          "tags": [
-            "conversations"
-          ],
+          "tags": ["conversations"],
           "security": [
             {
               "supabaseBearer": []
@@ -947,9 +824,7 @@
         "post": {
           "operationId": "startConversation",
           "summary": "Start a conversation with its first message, Sophia asked or not, in one write: both, or neither. Writers (admins and editors) only, in a project whose conversations are on. Once per Idempotency-Key: a retry returns the same conversation and message.",
-          "tags": [
-            "conversations"
-          ],
+          "tags": ["conversations"],
           "security": [
             {
               "supabaseBearer": []
@@ -1053,9 +928,7 @@
         "get": {
           "operationId": "getConversationMessages",
           "summary": "A page of a conversation's messages in its order, oldest first: the newest 50, or those before `before`. A cursor from another conversation is refused.",
-          "tags": [
-            "conversations"
-          ],
+          "tags": ["conversations"],
           "security": [
             {
               "supabaseBearer": []
@@ -1133,9 +1006,7 @@
         "post": {
           "operationId": "sendConversationMessage",
           "summary": "A message in a conversation, Sophia asked or not. Writers only, in a project whose conversations are on. Once per Idempotency-Key. Asking Sophia records a reply request with the message; it says its own state, and only her answer to it settles it.",
-          "tags": [
-            "conversations"
-          ],
+          "tags": ["conversations"],
           "security": [
             {
               "supabaseBearer": []
@@ -1239,9 +1110,7 @@
         "post": {
           "operationId": "withdrawConversationMessage",
           "summary": "Withdraw a message: its author their own (whatever their role now), an admin any. Its text and name go; so do Sophia's answers whose context reached it, and open requests that would read it are cancelled. Works while conversations are read-only. Once per Idempotency-Key.",
-          "tags": [
-            "conversations"
-          ],
+          "tags": ["conversations"],
           "security": [
             {
               "supabaseBearer": []
@@ -1344,9 +1213,7 @@
         "post": {
           "operationId": "eraseConversation",
           "summary": "Erase a whole conversation (admins): every text in it and its title. It leaves every list and read. Once per Idempotency-Key.",
-          "tags": [
-            "conversations"
-          ],
+          "tags": ["conversations"],
           "security": [
             {
               "supabaseBearer": []

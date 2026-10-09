@@ -3,6 +3,7 @@
 // asking Sophia records a reply request that says it is blocked.
 import { randomUUID } from 'node:crypto'
 import { request as httpRequest } from 'node:http'
+import { setTimeout as delay } from 'node:timers/promises'
 import type { AddressInfo } from 'node:net'
 import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
@@ -262,6 +263,56 @@ describe('A16 over HTTP', () => {
     )
     assert.equal(cross.status, 422)
     assert.equal(cross.json.code, 'invalid_request')
+  })
+
+  it("a member removed while their withdrawal waits for the project's row is refused, and the text stays (CON-01-CX-0006)", async () => {
+    const member = randomUUID()
+    await owner(`INSERT INTO sophia.project_members(project_id, actor_id, role) VALUES ($1, $2, 'editor')`, [
+      projectId,
+      member,
+    ])
+    const s = parseConversationStarted(
+      (await start({ title: 'Race', text: 'Synthetic body to preserve', askSophia: false }, randomUUID(), member)).json,
+    )
+    const revoker = new pg.Client({ connectionString: db.ownerUrl })
+    const observer = new pg.Client({ connectionString: db.ownerUrl })
+    await revoker.connect()
+    await observer.connect()
+    try {
+      await revoker.query('BEGIN')
+      await revoker.query('SELECT 1 FROM sophia.projects WHERE id = $1 FOR UPDATE', [projectId])
+      await revoker.query('UPDATE sophia.project_members SET active = false WHERE project_id = $1 AND actor_id = $2', [
+        projectId,
+        member,
+      ])
+      const withdrawal = call(`/api/v1/conversations/${s.conversation.id}/messages/${s.message.id}/withdrawal`, {
+        as: member,
+        key: randomUUID(),
+        post: true,
+      })
+      // The ordering is seen by the server itself (the call waits on the project's row), within a bound; never slept for.
+      const until = Date.now() + 3000
+      let waiting = false
+      while (!waiting && Date.now() < until) {
+        const { rows } = await observer.query(
+          `SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE '%withdraw_conversation_message%'`,
+        )
+        waiting = rows.length > 0
+        if (!waiting) await delay(20)
+      }
+      assert.ok(waiting, 'the withdrawal waited on the project row')
+      await revoker.query('COMMIT')
+      const r = await Promise.race([withdrawal, delay(3000).then(() => Promise.reject(new Error('no answer in 3 s')))])
+      assert.equal(r.status, 422)
+      assert.equal(r.json.code, 'not_found')
+    } finally {
+      await revoker.end()
+      await observer.end()
+    }
+    const [row] = await owner<{ body: string | null }>('SELECT body FROM sophia.conversation_messages WHERE id = $1', [
+      s.message.id,
+    ])
+    assert.equal(row?.body, 'Synthetic body to preserve')
   })
 
   it("/ready needs 0048's functions only while conversations are served", async () => {
