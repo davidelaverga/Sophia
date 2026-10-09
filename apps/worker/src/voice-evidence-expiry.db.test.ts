@@ -4,7 +4,7 @@
 // run, or no traffic, receipts and their digest chains stayed stored past the 24 h promised. Nothing here builds the
 // API or runs the guard: the worker's own pass, on its own login, is the only actor. The same pass deletes the claimed
 // keys of voice tool calls an hour after their exchange ended (0047, live_call_keys_expire; prodrev-r3 F3 on PR #190).
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { copyFileSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -29,6 +29,8 @@ const MIGRATIONS = fileURLToPath(new URL('../../../db/migrations', import.meta.u
 const A = randomUUID() // admin
 const P = randomUUID() // the synthetic principal, an editor
 const RUN = 'ab'.repeat(32)
+/** The digest the API claims a call with no arguments under (canonical JSON '{}'). */
+const NO_ARGS = createHash('sha256').update('{}').digest('hex')
 
 let db: TestDatabase
 let api: pg.Pool
@@ -195,7 +197,7 @@ describe('a voice tool call’s key is deleted an hour after its exchange ended,
     )
     const key = `live:${exchangeId}:1:k-1`
     await withService(api, (c) =>
-      claimLiveCall(c, { exchangeId, inputEpoch: 1, actorId: P, key, name: 'project_status' }),
+      claimLiveCall(c, { exchangeId, inputEpoch: 1, actorId: P, key, name: 'project_status', argsSha256: NO_ARGS }),
     )
     return { exchangeId, key }
   }
@@ -248,6 +250,7 @@ describe('a voice tool call’s key is deleted an hour after its exchange ended,
         actorId: P,
         key: old.key,
         name: 'project_status',
+        argsSha256: NO_ARGS,
       })
       await c.query(`SELECT sophia.media_tool_speaker($1,1,$2)`, [old.exchangeId, P])
       await c.query('COMMIT')

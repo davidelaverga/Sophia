@@ -2,7 +2,7 @@
 // exchange and checks only that one; the guard skips a row another transaction holds and ends it on a later run; all of
 // them lock a project before its exchange (0003), as control_exchange does. The calls are raw SQL on the sophia_api
 // login, so a deadlock (40P01) shows as itself.
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
@@ -16,12 +16,18 @@ const TRIALS = 20
 
 let db: TestDatabase
 let pool: pg.Pool
+/** The clients a transaction holds open across statements (opened, started) and has not given back yet. */
+const checkedOut = new Set<pg.PoolClient>()
 
 before(async () => {
   db = await createTestDatabase()
   pool = createPool(db.apiUrl, { max: 10 })
 })
 after(async () => {
+  // pool.end() waits for every client checked out: one a failed test never gave back would hold it forever. Such a
+  // client is destroyed instead, which ends its backend and rolls its transaction back.
+  for (const c of checkedOut) c.release(true)
+  checkedOut.clear()
   await pool.end()
   await db.drop()
 })
@@ -111,9 +117,20 @@ const spend = (x: { exchangeId: string; grantId: string }) =>
   run(`SELECT sophia.media_voice_reserve($1,$2,'spend',1,4000)`, [x.exchangeId, x.grantId])
 const guard = () => run(`SELECT sophia.voice_qualification_guard()`, [])
 const E = randomUUID() // another member, a peer of the principal's
-/** The API's claim of a bound tool call's key (0047), for a speaker, an epoch and a tool. */
-const claim = (x: { exchangeId: string }, actor: string, key: string, tool = 'project_status', epoch = 1) =>
-  run(`SELECT sophia.media_claim_live_call($1,$2,$3,$4,$5)`, [x.exchangeId, epoch, actor, key, tool])
+/** The digest of a call's arguments as the API claims it (0047): SHA-256 over their canonical JSON. */
+const argsSha256 = (canonical: string) => createHash('sha256').update(canonical).digest('hex')
+/** A call with no arguments ('{}'). */
+const NO_ARGS = argsSha256('{}')
+/**
+ * The API's claim of a bound tool call's key (0047), for a speaker, and an epoch, a tool and its arguments' digest
+ * (by default 1, project_status and no arguments).
+ */
+const claim = (
+  x: { exchangeId: string },
+  actor: string,
+  key: string,
+  { tool = 'project_status', epoch = 1, args = NO_ARGS }: { tool?: string; epoch?: number; args?: string } = {},
+) => run(`SELECT sophia.media_claim_live_call($1,$2,$3,$4,$5,$6)`, [x.exchangeId, epoch, actor, key, tool, args])
 const stopSpeaking = (x: { exchangeId: string }) =>
   run(`SELECT sophia.control_exchange($1,'stop_speaking',NULL)`, [x.exchangeId], P)
 
@@ -143,6 +160,7 @@ async function holding(sql: string, params: unknown[]): Promise<() => Promise<vo
 /** A statement in its own transaction, started now: its backend at once, its outcome ('ok' or SQLSTATE) when it ends. */
 async function started(sql: string, params: unknown[], actor: string | null = null) {
   const c = await pool.connect()
+  checkedOut.add(c)
   await c.query('BEGIN')
   if (actor) await c.query(`SELECT set_config('sophia.actor_id', $1, true)`, [actor])
   await c.query(`SET LOCAL lock_timeout = '10s'`)
@@ -162,7 +180,7 @@ async function started(sql: string, params: unknown[], actor: string | null = nu
     )
     .finally(() => {
       settled = true
-      c.release()
+      if (checkedOut.delete(c)) c.release()
     })
   return { pid, done, settled: () => settled }
 }
@@ -212,6 +230,7 @@ async function peerExchange(granted: boolean): Promise<{ projectId: string; exch
 /** An open transaction on the API's login, as the service, and its backend. */
 async function opened(): Promise<{ c: pg.PoolClient; pid: number }> {
   const c = await pool.connect()
+  checkedOut.add(c)
   await c.query('BEGIN')
   await c.query(`SET LOCAL lock_timeout = '10s'`)
   const pid = Number((await c.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid)
@@ -233,8 +252,9 @@ function sent(t: { c: pg.PoolClient; pid: number }, sql: string, params: unknown
   return { pid: t.pid, done, settled: () => settled }
 }
 
-/** Commit what went on, roll back what did not, and give the connection back. */
+/** Commit what went on, roll back what did not, and give the connection back; once, whoever calls it first. */
 async function finish(t: { c: pg.PoolClient }, outcome: string): Promise<void> {
+  if (!checkedOut.delete(t.c)) return
   await t.c.query(outcome === 'ok' ? 'COMMIT' : 'ROLLBACK').catch(() => undefined)
   t.c.release()
 }
@@ -370,17 +390,25 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
   })
 
   describe('a bound tool call’s key is one call, whoever speaks (0047; root’s ruling on PR #190)', () => {
-    it('the same call again is a no-op; another speaker, epoch or tool under the key is refused; a member never claims', async () => {
+    it('the same call again is a no-op; another speaker, epoch, tool or arguments under the key is refused; a member never claims', async () => {
       const x = await dueExchange(false)
       const key = `live:${x.exchangeId}:1:c-1`
       assert.equal(await claim(x, P, key), 'ok')
       assert.equal(await claim(x, P, key), 'ok', 'the bridge’s retry of a lost answer')
       assert.equal(await claim(x, E, key), '23505', 'another speaker')
-      assert.equal(await claim(x, P, key, 'project_status', 2), '23505', 'another epoch')
-      assert.equal(await claim(x, P, key, 'control_work'), '23505', 'another tool')
+      assert.equal(await claim(x, P, key, { epoch: 2 }), '23505', 'another epoch')
+      assert.equal(await claim(x, P, key, { tool: 'control_work' }), '23505', 'another tool')
+      // Codex P1 r4233409532: the same speaker, epoch and tool with other arguments is another call, not a retry.
+      const other = argsSha256('{"verbose":true}')
+      assert.equal(await claim(x, P, key, { args: other }), '23505', 'other arguments')
+      const held = `live:${x.exchangeId}:1:c-4`
+      assert.equal(await claim(x, P, held, { args: other }), 'ok', 'a call with arguments')
+      assert.equal(await claim(x, P, held, { args: other }), 'ok', 'its retry, the same digest')
+      assert.equal(await claim(x, P, held), '23505', 'the same id with no arguments')
+      assert.equal(await claim(x, P, `live:${x.exchangeId}:1:c-5`, { args: 'x' }), '23514', 'no digest')
       assert.equal(
         await run(
-          `SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status')`,
+          `SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status','${NO_ARGS}')`,
           [x.exchangeId, P, `live:x:1:c-2`],
           P,
         ),
@@ -389,12 +417,31 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
       )
       assert.equal(await claim(x, P, `live:${randomUUID()}:1:c-3`), '22023', 'a key naming another exchange')
       const { rows } = await owner((c) =>
-        c.query<{ actor: string; epoch: string; tool: string }>(
-          `SELECT actor_id AS actor, input_epoch AS epoch, tool FROM sophia.live_call_keys WHERE exchange_id=$1`,
+        c.query<{ key: string; actor: string; epoch: string; tool: string; args: string }>(
+          `SELECT idempotency_key AS key, actor_id AS actor, input_epoch AS epoch, tool, args_sha256 AS args
+             FROM sophia.live_call_keys WHERE exchange_id=$1 ORDER BY idempotency_key`,
           [x.exchangeId],
         ),
       )
-      assert.deepEqual(rows, [{ actor: P, epoch: '1', tool: 'project_status' }], 'one claim, as first made')
+      assert.deepEqual(
+        rows,
+        [
+          { key, actor: P, epoch: '1', tool: 'project_status', args: NO_ARGS },
+          { key: held, actor: P, epoch: '1', tool: 'project_status', args: other },
+        ],
+        'one claim per key, as first made: its digest, never its arguments',
+      )
+      const columns = await owner((c) =>
+        c.query<{ name: string }>(
+          `SELECT column_name AS name FROM information_schema.columns
+            WHERE table_schema='sophia' AND table_name='live_call_keys' ORDER BY ordinal_position`,
+        ),
+      )
+      assert.deepEqual(
+        columns.rows.map((r) => r.name),
+        ['idempotency_key', 'exchange_id', 'actor_id', 'input_epoch', 'tool', 'args_sha256'],
+        'no column holds the arguments',
+      )
       assert.equal(await run(`SELECT count(*) FROM sophia.live_call_keys`, []), '42501', 'the API’s login reads none')
     })
 
@@ -406,12 +453,15 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
         await c.connect()
         try {
           await c.query('BEGIN')
-          await c.query(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status')`, [x.exchangeId, P, key])
-          const second = await started(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status')`, [
+          await c.query(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status','${NO_ARGS}')`, [
             x.exchangeId,
-            E,
+            P,
             key,
           ])
+          const second = await started(
+            `SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status','${NO_ARGS}')`,
+            [x.exchangeId, E, key],
+          )
           assert.equal(await untilBlocked(second), 'waiting', 'the second claim waits on the first')
           await c.query(first === 'commit' ? 'COMMIT' : 'ROLLBACK')
           assert.equal(await second.done, first === 'commit' ? '23505' : 'ok', `the first ${first}s`)
@@ -425,7 +475,7 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
       const x = await peerExchange(true)
       const t = await opened()
       try {
-        await t.c.query(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status')`, [
+        await t.c.query(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status','${NO_ARGS}')`, [
           x.exchangeId,
           P,
           `live:${x.exchangeId}:1:open`,
@@ -466,24 +516,30 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
         exchanges.push(x.exchangeId)
         const a = await opened()
         const b = await opened()
-        const keyA = `live:${x.exchangeId}:1:a`
-        const keyB = `live:${x.exchangeId}:1:b`
-        const claimSql = `SELECT sophia.media_claim_live_call($1,$2,$3,$4,'project_status')`
-        const bindSql = `SELECT sophia.media_tool_speaker($1,$2,$3)`
-        const recordSql = `SELECT sophia.media_record_live_call($1,$2,$3,$4,'project_status')`
-        await a.c.query(claimSql, [x.exchangeId, 1, P, keyA])
-        await b.c.query(claimSql, [x.exchangeId, k.epoch, k.peer, keyB])
-        await a.c.query(bindSql, [x.exchangeId, 1, P])
-        await b.c.query(bindSql, [x.exchangeId, k.epoch, k.peer])
-        const first = sent(a, recordSql, [x.exchangeId, 1, P, keyA])
-        const firstWaited = await untilBlocked(first)
-        const second = sent(b, recordSql, [x.exchangeId, k.epoch, k.peer, keyB])
-        const secondWaited = await untilBlocked(second)
-        const one = await first.done
-        await finish(a, one)
-        const two = await second.done
-        await finish(b, two)
-        seen[k.name] = { first: [firstWaited, one], second: [secondWaited, two] }
+        try {
+          const keyA = `live:${x.exchangeId}:1:a`
+          const keyB = `live:${x.exchangeId}:1:b`
+          const claimSql = `SELECT sophia.media_claim_live_call($1,$2,$3,$4,'project_status','${NO_ARGS}')`
+          const bindSql = `SELECT sophia.media_tool_speaker($1,$2,$3)`
+          const recordSql = `SELECT sophia.media_record_live_call($1,$2,$3,$4,'project_status')`
+          await a.c.query(claimSql, [x.exchangeId, 1, P, keyA])
+          await b.c.query(claimSql, [x.exchangeId, k.epoch, k.peer, keyB])
+          await a.c.query(bindSql, [x.exchangeId, 1, P])
+          await b.c.query(bindSql, [x.exchangeId, k.epoch, k.peer])
+          const first = sent(a, recordSql, [x.exchangeId, 1, P, keyA])
+          const firstWaited = await untilBlocked(first)
+          const second = sent(b, recordSql, [x.exchangeId, k.epoch, k.peer, keyB])
+          const secondWaited = await untilBlocked(second)
+          const one = await first.done
+          await finish(a, one)
+          const two = await second.done
+          await finish(b, two)
+          seen[k.name] = { first: [firstWaited, one], second: [secondWaited, two] }
+        } finally {
+          // A statement that threw first leaves both transactions open: rolled back and given back, so none is leaked.
+          await finish(a, 'rollback')
+          await finish(b, 'rollback')
+        }
       }
       assert.deepEqual(
         seen,
@@ -544,7 +600,11 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
       const t = await opened()
       let outcome = 'ok'
       try {
-        await t.c.query(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status')`, [x.exchangeId, P, key])
+        await t.c.query(`SELECT sophia.media_claim_live_call($1,1,$2,$3,'project_status','${NO_ARGS}')`, [
+          x.exchangeId,
+          P,
+          key,
+        ])
         await t.c.query(`SELECT sophia.media_tool_speaker($1,1,$2)`, [x.exchangeId, P])
         await t.c.query(`SELECT sophia.media_record_live_call($1,1,$2,$3,'project_status')`, [x.exchangeId, P, key])
       } catch (err: unknown) {

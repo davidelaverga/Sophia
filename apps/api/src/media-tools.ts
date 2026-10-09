@@ -9,8 +9,10 @@
 // explained from where the task stands now, and a steer on work that ended is refused before anything is admitted
 // (CX-0026); a write whose commit is lost is unknown for every guide, never a refusal, and a retried control is
 // answered as the one already admitted.
+import { createHash } from 'node:crypto'
 import type pg from 'pg'
 import type { MediaToolCall, MediaToolResult, Receipt } from '@sophia/contracts'
+import { canonicalJson } from '@sophia/coordination'
 import { DomainError } from '@sophia/domain'
 import {
   admitGoalCommand,
@@ -53,7 +55,7 @@ const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v
 
 const clarify = (question: string): MediaToolResult => ({ status: 'clarify', output: { ask: question } })
 
-/** A call key another call holds (another speaker, epoch or operation under a reused call id): nothing runs. */
+/** A call key another call holds (another speaker, epoch, operation or arguments under a reused id): nothing runs. */
 const reusedCall: MediaToolResult = {
   status: 'refused',
   output: {
@@ -61,6 +63,14 @@ const reusedCall: MediaToolResult = {
     reason: 'That call was already made as another operation; nothing was done. Ask again.',
   },
 }
+
+/**
+ * The digest a call's key is claimed with (0047): SHA-256 over the arguments' canonical JSON (keys sorted at every
+ * depth, no whitespace). The same arguments in another key order are the same call; other arguments under a reused
+ * call id are another call (Codex P1 r4233409532), never a retry. Only the digest leaves the API, never the arguments.
+ */
+export const callArgsSha256 = (args: unknown): string =>
+  createHash('sha256').update(canonicalJson(args), 'utf8').digest('hex')
 
 /**
  * control_work's refusals in the speaker's words; anything unexpected is an error the model must not paper over. A
@@ -280,10 +290,10 @@ function declaredBy(call: MediaToolCall): boolean {
  * the command it admits is linked to it in the same transaction (liveCallAdmits), the canonical join from the task it
  * creates to the exchange (NativeTask.exchangeId); and once it is answered, after that admission committed, it is
  * marked so with the answer's status. A mark that fails leaves the call unanswered, which proves nothing. Every call,
- * voice qualification on or off, first claims its key for its speaker, epoch and operation (0047): one call per key,
- * whoever speaks. A key another call holds (a provider call id reused by another speaker, under another epoch or for
- * another operation) is refused before anything runs, so no second write is admitted under it; the same call again
- * (the bridge's retry of a lost answer) goes on as before.
+ * voice qualification on or off, first claims its key for its speaker, epoch, operation and arguments' digest (0047,
+ * callArgsSha256): one call per key, whoever speaks. A key another call holds (a provider call id reused by another
+ * speaker, under another epoch, for another operation or with other arguments) is refused before anything runs, so no
+ * second write is admitted under it; the same call again (the bridge's retry of a lost answer) goes on as before.
  */
 export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice = false): Promise<MediaToolResult> {
   if (!declaredBy(call)) {
@@ -299,7 +309,7 @@ export async function executeToolCall(pool: pg.Pool, call: MediaToolCall, voice 
     speaker = await withService(pool, async (c) => {
       // Before any lock: the claim locks only its key's row (0047 has no foreign key), never the project or the
       // exchange, so it adds no lock order to the recording's project lock below.
-      await claimLiveCall(c, { ...call, key })
+      await claimLiveCall(c, { ...call, key, argsSha256: callArgsSha256(call.args) })
       const bound = await toolSpeaker(c, call.exchangeId, call.inputEpoch, call.actorId)
       return { ...bound, recorded: voice && (await recordLiveCall(c, { ...call, key })) }
     })

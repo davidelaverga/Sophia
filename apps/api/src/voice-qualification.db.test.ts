@@ -32,7 +32,13 @@ import {
   withActor,
   withService,
 } from '@sophia/persistence'
-import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
+import {
+  createTestDatabase,
+  registerRuntime,
+  seedProject,
+  type RegisteredRuntime,
+  type TestDatabase,
+} from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
 
@@ -749,7 +755,7 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
   async function twoSpeakers(mode: 'on' | 'off') {
     const api = mode === 'on' ? app : off
     const { projectId } = await project()
-    await registerRuntime(db.ownerUrl, { projectId, admin: A })
+    const runtime = await registerRuntime(db.ownerUrl, { projectId, admin: A })
     const exchangeId = mode === 'on' ? await granted(projectId) : await open(projectId)
     await owner((c) =>
       c.query(`INSERT INTO sophia.exchange_inputs(project_id,exchange_id,input_epoch,actor_id) VALUES($1,$2,2,$3)`, [
@@ -813,6 +819,8 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
         ]),
       )
     return {
+      api,
+      runtime,
       projectId,
       exchangeId,
       task,
@@ -825,6 +833,37 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
       bindTo,
       hold: { taskId: task, action: 'hold' },
     }
+  }
+
+  /**
+   * Research may start in the project: its research grant is enabled, and its runtime said hello with the research
+   * specialist and is ready.
+   */
+  async function researchReady(projectId: string, rt: RegisteredRuntime, api = app): Promise<void> {
+    await owner((c) =>
+      c.query(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [projectId]),
+    )
+    const headers = {
+      authorization: `Bearer ${rt.token}`,
+      'x-sophia-runtime-unit': rt.runtimeUnitId,
+      'x-sophia-bridge-instance': randomUUID(),
+      'x-sophia-bridge-protocol': '1',
+    }
+    const roles = [{ id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }]
+    const hello = await api.inject({
+      method: 'POST',
+      url: '/v1/runtime/hello',
+      headers,
+      payload: { bundle: 'test', protocolVersion: 1, dshVersion: 'x', roles },
+    })
+    assert.equal(hello.statusCode, 200, hello.body)
+    const ready = await api.inject({
+      method: 'POST',
+      url: '/v1/runtime/ready',
+      headers,
+      payload: { state: 'ready', reason: null, unrecovered: [] },
+    })
+    assert.equal(ready.statusCode, 204, ready.body)
   }
 
   /** Deadlocks PostgreSQL has counted in this database so far, once its statistics have been flushed (about 1 s). */
@@ -840,6 +879,94 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
 
   for (const mode of ['on', 'off'] as const) {
     describe(`a call key is one call whoever speaks, voice qualification ${mode} (root’s ruling, 0047)`, () => {
+      /** Each call P listed in the exchange (voice qualification on): its tool, its command's kind and its answer. */
+      const listedBy = async (exchangeId: string) =>
+        ((await callsOf(P, exchangeId)).json.calls as Listed[]).map((c) => [c.tool, c.command?.kind ?? null, c.outcome])
+
+      it('the same tool under a reused call id with other arguments is another call: refused before it runs, after a clarify or an ok (Codex P1 r4233409532)', async () => {
+        const x = await twoSpeakers(mode)
+        // Root's sequence: control_work with no arguments is a question back; then a Hold under the same id.
+        assert.equal((await x.voice(P, 1, 'a-1', 'control_work')).json.status, 'clarify')
+        assert.deepEqual(
+          answerOf(await x.voice(P, 1, 'a-1', 'control_work', x.hold)),
+          conflict,
+          'a Hold after a clarify',
+        )
+        assert.equal((await x.goalOf()).status, 'running', 'no Hold ran under the key')
+        assert.equal(await x.commandsUnder('a-1'), 0)
+        // After an ok: a Hold on the brief's work, then the same id for a Hold on other work.
+        const other = await brief(x.projectId, A, randomUUID())
+        const otherGoal = (await x.goalOf(other)).id
+        await owner((c) => c.query(`UPDATE sophia.goals SET status='running' WHERE id=$1`, [otherGoal]))
+        const hold = await x.voice(P, 1, 'a-2', 'control_work', x.hold)
+        assert.equal(hold.json.status, 'ok', JSON.stringify(hold.json))
+        const otherHold = { taskId: other, action: 'hold' }
+        assert.deepEqual(answerOf(await x.voice(P, 1, 'a-2', 'control_work', otherHold)), conflict, 'after an ok')
+        assert.equal((await x.goalOf(other)).status, 'running', 'the other work was never held')
+        assert.deepEqual(await x.commandsBy('a-2'), [[P, 'hold']], 'the first Hold only')
+        if (mode === 'on')
+          assert.deepEqual(
+            await listedBy(x.exchangeId),
+            [
+              ['control_work', null, 'clarify'],
+              ['control_work', 'hold', 'ok'],
+            ],
+            'the clarify carries no command, and the Hold is its own call’s, once',
+          )
+      })
+
+      it('start_research under the id of one that had no question is another call: nothing starts (Codex P1 r4233409532)', async () => {
+        const x = await twoSpeakers(mode)
+        await researchReady(x.projectId, x.runtime, x.api)
+        const question = { question: 'Which sandboxes do PDF rendering services use?' }
+        assert.equal((await x.voice(P, 1, 's-1', 'start_research')).json.status, 'clarify')
+        assert.deepEqual(answerOf(await x.voice(P, 1, 's-1', 'start_research', question)), conflict)
+        assert.equal(await x.commandsUnder('s-1'), 0, 'no research was admitted under the key')
+        // The question under its own id starts it, and its retry is answered with that task.
+        const first = await x.voice(P, 1, 's-2', 'start_research', question)
+        assert.equal(first.json.status, 'admitted', JSON.stringify(first.json))
+        const retry = await x.voice(P, 1, 's-2', 'start_research', question)
+        assert.deepEqual([retry.json.status, retry.json.output.taskId], ['admitted', first.json.output.taskId])
+        assert.equal(await x.commandsUnder('s-2'), 1)
+        if (mode === 'on')
+          assert.deepEqual(await listedBy(x.exchangeId), [
+            ['start_research', null, 'clarify'],
+            ['start_research', 'native_task', 'admitted'],
+          ])
+      })
+
+      it('the same arguments again go on as before, after a clarify and after an ok: at most one command (Codex P1 r4233409532)', async () => {
+        const x = await twoSpeakers(mode)
+        const unclear = { taskId: x.task }
+        assert.equal((await x.voice(P, 1, 'i-1', 'control_work', unclear)).json.status, 'clarify')
+        assert.equal((await x.voice(P, 1, 'i-1', 'control_work', unclear)).json.status, 'clarify', 'its retry')
+        assert.equal(await x.commandsUnder('i-1'), 0)
+        const hold = await x.voice(P, 1, 'i-2', 'control_work', x.hold)
+        assert.equal(hold.json.status, 'ok', JSON.stringify(hold.json))
+        const retry = await x.voice(P, 1, 'i-2', 'control_work', x.hold)
+        assert.deepEqual([retry.json.status, retry.json.output.commandId], ['ok', hold.json.output.commandId])
+        assert.equal(await x.commandsUnder('i-2'), 1)
+        if (mode === 'on')
+          assert.deepEqual(await listedBy(x.exchangeId), [
+            ['control_work', null, 'clarify'],
+            ['control_work', 'hold', 'ok'],
+          ])
+      })
+
+      it('the same arguments in another key order, at any depth, are the same call; an array in another order is not (Codex P1 r4233409532)', async () => {
+        const x = await twoSpeakers(mode)
+        const args = { taskId: x.task, action: 'hold', detail: { b: 1, a: [1, { d: 2, c: 3 }] } }
+        const hold = await x.voice(P, 1, 'o-1', 'control_work', args)
+        assert.equal(hold.json.status, 'ok', JSON.stringify(hold.json))
+        const reordered = { detail: { a: [1, { c: 3, d: 2 }], b: 1 }, action: 'hold', taskId: x.task }
+        const retry = await x.voice(P, 1, 'o-1', 'control_work', reordered)
+        assert.deepEqual([retry.json.status, retry.json.output.commandId], ['ok', hold.json.output.commandId])
+        const swapped = { taskId: x.task, action: 'hold', detail: { b: 1, a: [{ d: 2, c: 3 }, 1] } }
+        assert.deepEqual(answerOf(await x.voice(P, 1, 'o-1', 'control_work', swapped)), conflict)
+        assert.equal(await x.commandsUnder('o-1'), 1)
+        if (mode === 'on') assert.deepEqual(await listedBy(x.exchangeId), [['control_work', 'hold', 'ok']])
+      })
+
       it('the principal first: a peer’s call under the key, or the principal’s for another tool, is refused before it runs', async () => {
         const x = await twoSpeakers(mode)
         assert.equal((await x.voice(P, 1, 'c-1', 'project_status')).json.status, 'ok')
@@ -1115,31 +1242,7 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
 
   it('start_research by voice: its task names the exchange, and only the call that created it lists that task', async () => {
     const { projectId } = await project()
-    await owner((c) =>
-      c.query(`SELECT sophia.set_research_grant($1, 'enabled', 5, 40, 'web-pilot-v1', 'approval:test')`, [projectId]),
-    )
-    const rt = await registerRuntime(db.ownerUrl, { projectId, admin: A })
-    const headers = {
-      authorization: `Bearer ${rt.token}`,
-      'x-sophia-runtime-unit': rt.runtimeUnitId,
-      'x-sophia-bridge-instance': randomUUID(),
-      'x-sophia-bridge-protocol': '1',
-    }
-    const roles = [{ id: 'sophia-research-md-v1', route: 'research-sol-medium-v1', presetDigest: 'sha256:md' }]
-    const hello = await app.inject({
-      method: 'POST',
-      url: '/v1/runtime/hello',
-      headers,
-      payload: { bundle: 'test', protocolVersion: 1, dshVersion: 'x', roles },
-    })
-    assert.equal(hello.statusCode, 200, hello.body)
-    const ready = await app.inject({
-      method: 'POST',
-      url: '/v1/runtime/ready',
-      headers,
-      payload: { state: 'ready', reason: null, unrecovered: [] },
-    })
-    assert.equal(ready.statusCode, 204, ready.body)
+    await researchReady(projectId, await registerRuntime(db.ownerUrl, { projectId, admin: A }))
     const exchangeId = await granted(projectId)
     const research = (callId: string) =>
       call('POST', '/v1/media/tool-calls', {

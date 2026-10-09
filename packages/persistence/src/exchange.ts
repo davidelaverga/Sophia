@@ -174,21 +174,23 @@ export async function holderEvent(
 }
 
 /**
- * Claim a bound tool call's key (live:<exchange>:<generation>:<call>) for its speaker, input epoch and tool, before
- * anything runs for it (0047): one call per key, whoever speaks. The same call again (the bridge's retry of a lost
- * answer) is a no-op; another speaker, epoch or tool under the key raises idempotency_conflict. Call inside withService,
+ * Claim a bound tool call's key (live:<exchange>:<generation>:<call>) for its speaker, input epoch, tool and arguments,
+ * before anything runs for it (0047): one call per key, whoever speaks. `argsSha256` is the digest of the arguments'
+ * canonical JSON (64 lowercase hex), never the arguments. The same call again (the bridge's retry of a lost answer) is a
+ * no-op; another speaker, epoch, tool or arguments under the key raises idempotency_conflict. Call inside withService,
  * in the transaction that binds the call (toolSpeaker), before it takes any lock.
  */
 export async function claimLiveCall(
   c: pg.PoolClient,
-  call: { exchangeId: string; inputEpoch: number; actorId: string; key: string; name: string },
+  call: { exchangeId: string; inputEpoch: number; actorId: string; key: string; name: string; argsSha256: string },
 ): Promise<void> {
-  await c.query(`SELECT sophia.media_claim_live_call($1,$2,$3,$4,$5)`, [
+  await c.query(`SELECT sophia.media_claim_live_call($1,$2,$3,$4,$5,$6)`, [
     call.exchangeId,
     call.inputEpoch,
     call.actorId,
     call.key,
     call.name,
+    call.argsSha256,
   ])
 }
 
