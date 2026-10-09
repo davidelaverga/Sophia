@@ -19,7 +19,7 @@
 ## What changes
 
 - While a decision goes, the status says «Accepting…» or «Declining…», with the long wait's line after six seconds
-  (`useSlow`, `SLOW_NOTE`). Decline waits drawn as a waiting press, as Accept does.
+  (`useSlow`, `SLOW_NOTE`). Decline waits drawn as a waiting press, as Accept does (the Studio's rule for a waiting text button, #187).
 - Answered, or refused as stale, a decision settles once the brief has been read again (`useDecide` awaits it, as a
   proposal already does), so what it says agrees with what shows. With no reply it doesn't wait for that read.
 - The presses wait while a decision goes, while its outcome is unknown, and once answered while the brief still lists

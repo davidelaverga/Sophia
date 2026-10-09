@@ -732,11 +732,6 @@
   font-size: var(--type-small);
   text-decoration: none;
 }
-/* Waiting while a decision goes (aria-disabled, so the focus stays): drawn as Accept is. */
-.conv-decide .text-button[aria-disabled='true'] {
-  cursor: default;
-  opacity: 0.45;
-}
 
 /* «Propose as decision» (C7): a small press at the message's own top corner, over the thread, never in its flow. Under the
    pointer or the focus on a wide screen; on the message pressed on a phone. Its form, when open, is in the flow. */
