@@ -2,6 +2,7 @@
 // autofill list, and a quiet text link opens its picker where autofill isn't offered.
 import { useEffect, useRef, useState } from 'react'
 import { passkeyAutofillAvailable, passkeysOffered, signInWithPasskey } from './auth.ts'
+import { pickInTime, TOO_LONG } from './passkey-pick.ts'
 
 /** Renew the autofill offer before its challenge expires (Supabase Auth: 5 minutes by default). */
 export const AUTOFILL_RENEW_MS = 4 * 60_000
@@ -31,7 +32,8 @@ function roundSignal(stop: AbortSignal): { signal: AbortSignal; renewed: () => b
  * browser refuses another ("A request is already pending"). So they take turns. Opening the picker ends the
  * offer and waits until the browser has let it go; the offer resumes when the picker closes. The offer is
  * silent: nobody asked for it, so a failure says nothing, and "Use a passkey" remains the way that explains
- * itself. It is renewed before its challenge expires, so a passkey picked late still signs in the first time.
+ * itself. It is renewed before its challenge expires, so a passkey picked late still signs in the first time. The
+ * picker's wait ends (passkey-pick.ts): the offer letting go and Auth's requests have no end of their own.
  */
 export function usePasskeySignIn(onError: (message: string) => void) {
   const [picking, setPicking] = useState(false)
@@ -45,7 +47,7 @@ export function usePasskeySignIn(onError: (message: string) => void) {
       if (!(await passkeyAutofillAvailable())) return
       while (!stopped()) {
         const round = roundSignal(stop.signal)
-        const outcome = await signInWithPasskey({ signal: round.signal }).finally(round.done)
+        const outcome = await signInWithPasskey({ signal: round.signal, autofill: true }).finally(round.done)
         if (outcome === 'signed_in' || stopped()) return
         if (outcome === 'dismissed' && !round.renewed()) return
       }
@@ -59,8 +61,9 @@ export function usePasskeySignIn(onError: (message: string) => void) {
     current?.stop.abort()
     setPicking(true)
     try {
-      await current?.settled
-      if ((await signInWithPasskey()) === 'expired') onError('That took too long. Try the passkey again.')
+      // Once the offer has let go; ended, its prompt closed, past a challenge's life and a write's time.
+      const outcome = await pickInTime(current?.settled ?? Promise.resolve(), (signal) => signInWithPasskey({ signal }))
+      if (outcome === 'expired' || outcome === 'late') onError(TOO_LONG)
     } catch (err: unknown) {
       onError(err instanceof Error ? err.message : 'That passkey didn’t work here.')
     } finally {
