@@ -4523,6 +4523,31 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     await session.close()
   })
 
+  it('a handoff while input waits for its reservation: the new holder’s held chunks go on, only the old holder’s are dropped', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(1), OUT)
+    live.events.turnComplete()
+    await flush()
+    service.holdReservations = true
+    room.events.audio(LUIS, voice16k(), 16000, 1) // Luis's next words wait for their reservation
+    await flush()
+    const before = live.audio
+    session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    room.events.audio(DAVIDE, voice16k(), 16000, 1) // Davide's first words wait on the same reservation
+    await flush()
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.equal(live.audio, before + 1, 'Davide’s chunk went on; Luis’s, from before the handoff, did not')
+    await session.close()
+  })
+
   it('a tool response waits for its generation’s reservation; refused, it is never sent', async () => {
     voiceEvidence = true
     const { session, room, live } = await ready({ qualification: grant() })

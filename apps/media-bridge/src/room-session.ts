@@ -538,7 +538,8 @@ export class RoomSession {
    */
   private readonly declined: boolean
   /** Under a grant: the holder's chunks waiting for their generation's reservation, and reservations under way. */
-  private readonly held: Int16Array[] = []
+  /** Input waiting for its generation's reservation, each chunk with its speaker. */
+  private readonly held: Array<{ identity: string; chunk: Int16Array }> = []
   private typedReserving = false
   private noticeReserving = false
 
@@ -1124,8 +1125,8 @@ export class RoomSession {
   private gate(identity: string, chunk: Int16Array, dropped: number): 'send' | 'hold' | 'stop' {
     const q = this.qualification
     if (!q) return 'send'
-    // Behind chunks still waiting for their own reservation: in order, never ahead of them.
-    if (this.held.length > 0) return 'hold'
+    // Behind the speaker's chunks still waiting for their reservation: in order, never ahead of them.
+    if (this.held.some((h) => h.identity === identity)) return 'hold'
     const verdict = q.input(this.connection, identity, chunk, dropped, this.state.assignment.inputEpoch)
     if (verdict === null) return 'send'
     if (verdict === 'hold') return 'hold'
@@ -1135,18 +1136,19 @@ export class RoomSession {
 
   /**
    * Keep a chunk while its generation is being reserved (at most HELD_CHUNKS, the oldest dropped first). Once granted,
-   * what is held goes on, in order, if it still may; the first chunk held asks to be told.
+   * what its speaker has held goes on, in order, if they still may; their first chunk held asks to be told. Another
+   * speaker's chunks (the floor moved meanwhile) are theirs to release, never dropped with these.
    */
   private hold(identity: string, chunk: Int16Array): void {
-    const first = this.held.length === 0
-    this.held.push(chunk)
+    const first = !this.held.some((h) => h.identity === identity)
+    this.held.push({ identity, chunk })
     if (this.held.length > HELD_CHUNKS) this.held.shift()
     const q = this.qualification
     if (!first || !q) return
     const connection = this.connection
     void q.granted(connection).then((stop) => {
       if (stop) return this.guardStop(stop)
-      const held = this.held.splice(0)
+      const held = this.takeHeld(identity)
       const live = this.live
       if (connection !== this.connection || !live || !this.state.mayForwardAudio(identity, this.deps.now())) return
       for (const next of held) {
@@ -1156,6 +1158,14 @@ export class RoomSession {
         else this.hold(identity, next)
       }
     })
+  }
+
+  /** This speaker's held chunks, in order, taken out; anyone else's stay. */
+  private takeHeld(identity: string): Int16Array[] {
+    const mine = this.held.filter((h) => h.identity === identity).map((h) => h.chunk)
+    const rest = this.held.filter((h) => h.identity !== identity)
+    this.held.splice(0, this.held.length, ...rest)
+    return mine
   }
 
   /** Nothing of the old input reaches Google afterwards: what the chunker has, and what waits for a reservation. */
