@@ -61,7 +61,7 @@ export function usePasskeySignIn(onError: (message: string) => void) {
     current?.stop.abort()
     setPicking(true)
     try {
-      // Once the offer has let go; ended, its prompt closed, past a challenge's life and a write's time.
+      // Once the offer has let go; the whole wait ends, closing the prompt, past a challenge's life and a write's time.
       const outcome = await pickInTime(current?.settled ?? Promise.resolve(), (signal) => signInWithPasskey({ signal }))
       if (outcome === 'expired' || outcome === 'late') onError(TOO_LONG)
     } catch (err: unknown) {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { PasskeyOutcome } from './auth.ts'
-import { PICK_LIMIT_MS, pickInTime } from './passkey-pick.ts'
+import { PICK_LIMIT_MS, pickInTime, RELEASE_MS } from './passkey-pick.ts'
 
 /** What a promise holds once every pending callback has run: its value if it has settled, else 'still waiting'. */
 const now = <T>(p: Promise<T>) =>
@@ -10,8 +10,14 @@ const now = <T>(p: Promise<T>) =>
 const never = <T>() => new Promise<T>(() => undefined)
 
 describe('the passkey picker’s wait', () => {
-  it('lasts a challenge’s five minutes and a write’s 90 s', () => {
-    assert.equal(PICK_LIMIT_MS, 5 * 60_000 + 90_000)
+  it('ends as late at its limit even when the passkey answers just after', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const waited = pickInTime(
+      Promise.resolve(),
+      () => new Promise((done) => setTimeout(() => done('signed_in'), PICK_LIMIT_MS + 1)),
+    )
+    t.mock.timers.tick(PICK_LIMIT_MS)
+    assert.equal(await now(waited), 'late')
   })
 
   it('gives the picker’s outcome when it answers in time', async () => {
@@ -26,7 +32,8 @@ describe('the passkey picker’s wait', () => {
       prompt = signal
       return never<PasskeyOutcome>()
     })
-    t.mock.timers.tick(PICK_LIMIT_MS - 1)
+    // A challenge's five minutes and a write's 90 s: the person in the prompt is not cut short before.
+    t.mock.timers.tick(5 * 60_000 + 90_000 - 1)
     assert.equal(await now(waited), 'still waiting')
     assert.equal(prompt?.aborted, false)
     t.mock.timers.tick(1)
@@ -48,7 +55,7 @@ describe('the passkey picker’s wait', () => {
     assert.equal(asked, 1)
   })
 
-  it('starts no picker when the offer lets go after the limit: nobody waits for it', async (t) => {
+  it('ends as late when the offer hasn’t let go in a read’s 30 s, and starts no picker when it does after', async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] })
     const { promise: released, resolve: release } = Promise.withResolvers<void>()
     let asked = 0
@@ -56,7 +63,9 @@ describe('the passkey picker’s wait', () => {
       asked += 1
       return Promise.resolve('signed_in')
     })
-    t.mock.timers.tick(PICK_LIMIT_MS)
+    t.mock.timers.tick(RELEASE_MS - 1)
+    assert.equal(await now(waited), 'still waiting')
+    t.mock.timers.tick(1)
     assert.equal(await now(waited), 'late')
     release()
     await now(new Promise<void>((done) => setImmediate(done)))
