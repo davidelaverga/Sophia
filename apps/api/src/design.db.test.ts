@@ -1210,7 +1210,7 @@ describe('a capture render queued again after its lease ran out (0045)', () => {
     assert.equal(shots.settled.state, 'succeeded', JSON.stringify(shots.settled))
   })
 
-  it('takes no render job’s row it need not change: a Stop holding one neither waits for it nor makes it wait', async () => {
+  it('takes no render job’s row it need not change: a transaction holding one (as a Stop’s trigger does) never makes it wait', async () => {
     const { w, at } = await designing()
     await drafted(w, at, { capture: false })
     const job = await claimCapture()
@@ -1221,8 +1221,10 @@ describe('a capture render queued again after its lease ran out (0045)', () => {
         jobId,
       ]),
     )
-    // A Stop's deferred trigger (research_rendition_stopped, 0032) locks a render job's row before its job: held here,
-    // over a job whose lost lease recorded no output (a capture's never does), so the sweep has nothing there to change.
+    // A Stop's deferred trigger (research_rendition_stopped, 0032) locks a rendition's render job row before its job.
+    // The same lock is held here over a capture job's row, whose lost lease recorded no output (a capture's never
+    // does): the sweep has nothing there to change, so it never waits for it. This shows the sweep's footprint, not the
+    // Stop itself.
     const stopping = new pg.Client({ connectionString: db.ownerUrl })
     await stopping.connect()
     try {

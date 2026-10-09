@@ -128,6 +128,33 @@ describe('a proposal whose outcome is unknown is kept beyond its form (Codex on 
     assert.equal(refused.pending(at), null, 'the page’s memory too, where storage is refused')
   })
 
+  it('an answer that arrives late ends only the proposal sent under its key (Codex on 0e5b5862, P3-2)', () => {
+    const newer: Asked = {
+      key: '0a9b8c7d-6e5f-4a3b-9c2d-1e0f2a3b4c5d',
+      request: { ...asked.request, sourceIds: ['s-3'] },
+    }
+    for (const [storage, where] of [
+      [tab().storage, 'in the tab'],
+      [refusing, 'in the page’s memory, where storage is refused'],
+    ] as const) {
+      const page = new Proposals(storage)
+      page.keep(at, newer)
+      page.forget(at, asked.key)
+      assert.deepEqual(page.pending(at), newer, `the newer one stays, ${where}`)
+      page.forget(at, newer.key)
+      assert.equal(page.pending(at), null, `its own answer ends it, ${where}`)
+    }
+    // After a reload, the tab alone holds it: a late answer under another key still leaves it.
+    const t = tab()
+    new Proposals(t.storage).keep(at, newer)
+    const reloaded = new Proposals(t.storage)
+    reloaded.forget(at, asked.key)
+    assert.deepEqual(new Proposals(t.storage).pending(at), newer)
+    // The board showing the goal's proposal recorded names no key: whatever is kept for it goes.
+    reloaded.forget(at)
+    assert.equal(new Proposals(t.storage).pending(at), null)
+  })
+
   it('Sophia’s answer ends it, on this page and in the tab', () => {
     const t = tab()
     const page = new Proposals(t.storage)

@@ -130,6 +130,8 @@ declare global {
       admissions?: readonly unknown[]
       /** Each source review proposed (`proposed=lost|unreadable`), with its key and its body. */
       proposals?: readonly { key: string; body: unknown }[]
+      /** `proposed=held`: the first proposal's answer, held until now, arrives; resolved once the page has read it. */
+      releaseProposal?: () => Promise<void>
       replay?: (operationId: string) => void
       /** A newer receipt for an operation saying less of its delivery (Codex F-014). */
       weaken?: (operationId: string) => void
@@ -168,7 +170,9 @@ const served = query.get('served') === '1'
 const cap = query.get('cap')
 /**
  * `proposed=lost|unreadable`: the first proposal's reply is lost, or a success that cannot be read; the next is answered.
- * `workFixture.proposals` lists each sent, across a reload of the tab too (the service remembers what it was sent).
+ * `proposed=held`: the first is recorded and its answer waits for `workFixture.releaseProposal`; the second's reply is
+ * lost; the next is answered. `workFixture.proposals` lists each sent, across a reload of the tab too (the service
+ * remembers what it was sent).
  */
 const proposing = query.get('proposed')
 const SENT_KEY = 'fixture.work.proposals'
@@ -185,8 +189,17 @@ const sentBefore = (): { key: string; body: unknown }[] => {
     return []
   }
 }
-const proposals: { lose: number; how: 'lost' | 'unreadable'; sent: { key: string; body: unknown }[] } | undefined =
-  proposing === 'lost' || proposing === 'unreadable' ? { lose: 1, how: proposing, sent: sentBefore() } : undefined
+const proposals:
+  | {
+      lose: number
+      how: 'lost' | 'unreadable' | 'held'
+      sent: { key: string; body: unknown }[]
+      held: ((read: () => void) => void)[]
+    }
+  | undefined =
+  proposing === 'lost' || proposing === 'unreadable' || proposing === 'held'
+    ? { lose: 1, how: proposing, sent: sentBefore(), held: [] }
+    : undefined
 if (proposals) addEventListener('pagehide', () => sessionStorage.setItem(SENT_KEY, JSON.stringify(proposals.sent)))
 
 /**
@@ -197,7 +210,20 @@ if (proposals) addEventListener('pagehide', () => sessionStorage.setItem(SENT_KE
  * `workFixture.admissions`.
  */
 const admits = query.get('admits')
-const admission: { state: 'proposed' | 'accepted'; answers: unknown[] } = { state: 'proposed', answers: [] }
+const ADMISSION_KEY = 'fixture.work.admission'
+/** The decision as the service holds it, across a reload of the tab too: answered once, it stays answered. */
+const admission: { state: 'proposed' | 'accepted'; answers: unknown[] } = (() => {
+  try {
+    const kept: unknown = JSON.parse(sessionStorage.getItem(ADMISSION_KEY) ?? 'null')
+    const given: unknown = typeof kept === 'object' && kept !== null ? Reflect.get(kept, 'answers') : null
+    return Array.isArray(given) && given.length > 0
+      ? { state: 'accepted' as const, answers: given }
+      : { state: 'proposed' as const, answers: [] }
+  } catch {
+    return { state: 'proposed' as const, answers: [] }
+  }
+})()
+if (admits) addEventListener('pagehide', () => sessionStorage.setItem(ADMISSION_KEY, JSON.stringify(admission)))
 const base64url = (value: object) =>
   btoa(JSON.stringify(value)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_')
 const DAVIDE_TOKEN = `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url({ sub: 'davide', fixture: 'synthetic, unsigned' })}.`
@@ -325,6 +351,7 @@ window.workFixture = {
   receipts,
   questions,
   ...(proposals && { proposals: proposals.sent }),
+  ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
   ...(admits && { admissions: admission.answers }),
 }
 const nothing = () => undefined
@@ -850,6 +877,7 @@ function Tasks() {
         { commands: lead.commands, again },
       ),
       ...(proposals && { proposals: proposals.sent }),
+      ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
       ...(admits && { admissions: admission.answers }),
     }
   }, [update, viewer, lead, again])

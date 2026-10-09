@@ -133,11 +133,17 @@ interface Project {
   /** What Sophia offers for a source review (WBC-02); absent, the pilot is not enabled. */
   review?: SourceReviewAvailability
   /**
-   * Each source review proposed, with its key and its body (`proposed=lost|unreadable`): the first `lose` replies are
-   * lost (the request having arrived) or a success whose body cannot be read; the next is answered. Absent, a proposal is
-   * unexpected.
+   * Each source review proposed, with its key and its body (`proposed=lost|unreadable|held`): the first `lose` replies
+   * are lost (the request having arrived) or a success whose body cannot be read; the next is answered. `held`: the first
+   * is recorded and its answer waits in `held` until the page lets it go, the second's reply is lost, the next answered.
+   * Absent, a proposal is unexpected.
    */
-  proposals?: { lose: number; how: 'lost' | 'unreadable'; sent: { key: string; body: unknown }[] }
+  proposals?: {
+    lose: number
+    how: 'lost' | 'unreadable' | 'held'
+    sent: { key: string; body: unknown }[]
+    held?: ((read: () => void) => void)[]
+  }
   /** The goals of the board Sophia serves, as the page holds them now (`admits=`); absent, none. */
   servedGoals?: () => WorkBoardView['goals']
   /** A decision on the served board answered (`admits=`): its receipt; absent, an answer is unexpected. */
@@ -1130,33 +1136,55 @@ const proposalId = (n: number) => `00000000-0000-4000-8000-0000000072${String(n)
 
 /**
  * A source review proposed: recorded; while `lose` lasts, its reply is lost (a connection cut) or a 200 whose body
- * cannot be read; then answered.
+ * cannot be read; then answered. `held`: the first one's answer waits for the page, the second's is lost.
  */
 function proposed(p: NonNullable<Project['proposals']>, init: RequestInit | undefined): Promise<Response> {
   const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
   p.sent.push({ key: new Headers(init?.headers).get('idempotency-key') ?? '', body })
+  if (p.how === 'held' && p.sent.length === 1) {
+    // Recorded; its answer is on its way until the page lets it go.
+    return new Promise((reply) => p.held?.push((read) => reply(readThen(proposalAnswered(), read))))
+  }
+  if (p.how === 'held' && p.sent.length === 2) return Promise.reject(new TypeError('Failed to fetch'))
   if (p.sent.length <= p.lose && p.how === 'lost') return Promise.reject(new TypeError('Failed to fetch'))
   if (p.sent.length <= p.lose) return Promise.resolve(new Response('{"plan":', { status: 200 }))
-  return Promise.resolve(
-    new Response(
-      JSON.stringify({
-        projectId: proposalId(0),
-        planId: proposalId(1),
-        planRevision: 1,
-        decisionId: proposalId(2),
-        decisionRevision: 1,
-        workId: proposalId(3),
-        goalId: proposalId(4),
-        goalRevision: 1,
-        criteriaRef: 'goal:criteria:1',
-        manifestSourceId: proposalId(5),
-        allowanceUsd: 0.5,
-        limits: SOURCE_REVIEW.limits,
-        route: SOURCE_REVIEW.route,
-        cursor: '2',
-      }),
-      { status: 201, headers: { 'content-type': 'application/json' } },
-    ),
+  return Promise.resolve(proposalAnswered())
+}
+
+/**
+ * A reply that says when the page has read it: once its body is parsed and what the page does with it has run (the
+ * microtasks after the parse), so a check waits on the page, never on a clock.
+ */
+function readThen(res: Response, read: () => void): Response {
+  const parse = res.json.bind(res)
+  res.json = async () => {
+    const value: unknown = await parse()
+    setTimeout(read, 0)
+    return value
+  }
+  return res
+}
+
+/** Sophia's answer to a proposal: recorded, with its plan, decision and work. */
+function proposalAnswered(): Response {
+  return new Response(
+    JSON.stringify({
+      projectId: proposalId(0),
+      planId: proposalId(1),
+      planRevision: 1,
+      decisionId: proposalId(2),
+      decisionRevision: 1,
+      workId: proposalId(3),
+      goalId: proposalId(4),
+      goalRevision: 1,
+      criteriaRef: 'goal:criteria:1',
+      manifestSourceId: proposalId(5),
+      allowanceUsd: 0.5,
+      limits: SOURCE_REVIEW.limits,
+      route: SOURCE_REVIEW.route,
+      cursor: '2',
+    }),
+    { status: 201, headers: { 'content-type': 'application/json' } },
   )
 }
 

@@ -88,6 +88,12 @@ function isAsked(value: unknown, at: ProposalAt): value is Asked {
   )
 }
 
+/** The proposal kept under `raw`, if it is this goal's. */
+function readKept(raw: string | null | undefined, at: ProposalAt): Asked | null {
+  const kept: unknown = raw ? JSON.parse(raw) : null
+  return isAsked(kept, at) ? kept : null
+}
+
 /** What keeping needs of a storage. */
 type Kept = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>
 
@@ -122,9 +128,8 @@ export class Proposals {
   pending(at: ProposalAt): Asked | null {
     const key = proposalKey(at)
     try {
-      const raw = this.#storage()?.getItem(key)
-      const kept: unknown = raw ? JSON.parse(raw) : null
-      if (isAsked(kept, at)) return kept
+      const kept = readKept(this.#storage()?.getItem(key), at)
+      if (kept) return kept
     } catch {
       // Unreadable: this page's memory, if it holds one.
     }
@@ -142,12 +147,19 @@ export class Proposals {
     }
   }
 
-  /** Sophia answered it (proposed, or refused for good): nothing is kept. */
-  forget(at: ProposalAt): void {
+  /**
+   * Nothing is kept: Sophia answered it (proposed, or refused for good), or the board shows it recorded. Given the key it
+   * was sent under (`sent`), only that proposal goes: an answer that arrives late, after a newer proposal for the same
+   * goal was kept, never ends the newer one, which would leave its outcome unknown and its key lost (Codex's review of
+   * 0e5b5862, P3-2).
+   */
+  forget(at: ProposalAt, sent?: string): void {
     const key = proposalKey(at)
-    this.#memory.delete(key)
+    const ours = (kept: Asked | null | undefined) => sent === undefined || kept?.key === sent
+    if (ours(this.#memory.get(key))) this.#memory.delete(key)
     try {
-      this.#storage()?.removeItem(key)
+      const storage = this.#storage()
+      if (storage && ours(readKept(storage.getItem(key), at))) storage.removeItem(key)
     } catch {
       // Storage refused: nothing was kept there.
     }

@@ -41,7 +41,7 @@ interface FormProps extends Props {
  * The proposal, sent once per press. After no reply, a press sends the same key and the same request again; only
  * Sophia's answer ends it. It is kept before it is sent (review-proposal.ts), per viewer, project and goal, so closing
  * the form, leaving Tasks and reloading the page all find it again, and an answer that arrives after this form has
- * gone still ends it.
+ * gone still ends it, and only it: a newer proposal kept since for the goal stays (forget, by the key sent).
  */
 function useProposal({ projectId, identity, goal, onProposed }: Props) {
   const at = { viewer: identity.name, project: projectId, goal: goal.id }
@@ -59,12 +59,12 @@ function useProposal({ projectId, identity, goal, onProposed }: Props) {
     setSent({ state: 'sending', ...asked })
     try {
       await proposeReview(identity.token, projectId, asked.key, asked.request)
-      proposals.forget(at)
+      proposals.forget(at, asked.key)
       setSent({ state: 'proposed' })
       onProposed()
     } catch (err: unknown) {
       const outcome = outcomeOf(err, asked)
-      if (outcome.state === 'refused') proposals.forget(at)
+      if (outcome.state === 'refused') proposals.forget(at, asked.key)
       setSent(outcome)
     }
   }

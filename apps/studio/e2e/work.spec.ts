@@ -3280,6 +3280,70 @@ test('@phone · codex · 2c018256 · on a phone too, a lost proposal answered on
   await lostThenDecided(page)
 })
 
+/**
+ * Codex's review of 0e5b5862 (P3-2): the answer to an earlier proposal arriving late, after the board showed it recorded
+ * and its decision was answered, while a newer proposal for the same goal waits with its reply lost. The late answer ends
+ * only its own proposal: the newer one stays kept, under its key and as it was sent, and a reload proposes it again,
+ * never a third.
+ */
+async function lateAnswerAfterNewer(page: Page) {
+  await page.goto(`${PAGE}?served=1&proposed=held&admits=1`)
+  const form = page.getByRole('form', { name: 'Review sources' })
+  const purpose = form.getByLabel('Purpose (optional)')
+  // The first: recorded, its answer held on the way.
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await purpose.fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('button', { name: 'Proposing…' })).toBeVisible()
+  expect(await keptProposals(page)).toHaveLength(1)
+  // The board, read again, shows it recorded and waiting on the viewer's decision: the kept one is let go.
+  await views(page).getByRole('link', { name: 'Resources', exact: true }).click()
+  await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  const choice = page.getByRole('group', { name: 'Your choice' })
+  await expect(choice).toBeVisible()
+  await expect.poll(() => keptProposals(page)).toEqual([])
+  await choice.getByRole('button', { name: 'Start the review' }).click()
+  // The newer one, from a fresh form: its reply lost.
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(purpose).toHaveValue('')
+  await form.getByRole('checkbox', { name: 'Launch brief v3' }).check()
+  await purpose.fill('A second look at the brief')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  const [, newer] = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  // The first one's answer arrives now, and the page reads it.
+  await page.evaluate(() => window.workFixture?.releaseProposal?.())
+  expect(await keptProposals(page)).toHaveLength(1)
+  await page.reload()
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.',
+  )
+  await expect(purpose).toHaveValue('A second look at the brief')
+  await expect(form.getByRole('checkbox', { name: 'Launch brief v3' })).toBeChecked()
+  await form.getByRole('button', { name: 'Propose again' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Proposed.' })).toBeVisible()
+  const sent = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  expect(sent).toHaveLength(3)
+  expect(sent[2]).toEqual(newer)
+  expect(sent[1]).not.toEqual(sent[0])
+}
+
+test('codex · 0e5b5862 · a late answer to an earlier proposal ends only its own: the newer one is kept as sent', async ({
+  page,
+}) => {
+  await lateAnswerAfterNewer(page)
+})
+
+test('@phone · codex · 0e5b5862 · on a phone too, a late answer to an earlier proposal leaves the newer one kept', async ({
+  page,
+}) => {
+  await lateAnswerAfterNewer(page)
+})
+
 for (const [admits, whose] of [
   ['other', 'another goal’s decision'],
   ['luis', 'another viewer’s decision'],
