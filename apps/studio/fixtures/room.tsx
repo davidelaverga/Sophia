@@ -882,6 +882,11 @@ function sendAsked(which: string | null): Send | null {
   return sends.find((s) => s === which) ?? null
 }
 
+/** How an erasure goes (`erase=`): its feed first, its first try never reaching the API, its reply lost, or at once. */
+function eraseAsked(which: string | null): 'feedFirst' | 'unreached' | 'lost' | null {
+  return which === 'feedFirst' || which === 'unreached' || which === 'lost' ? which : null
+}
+
 /** How a withdrawal's reply and the feed come (`withdraw=`): both late, the feed first, or at once. */
 function withdrawAsked(which: string | null): 'slow' | 'feedFirst' | 'thenFail' | null {
   return which === 'slow' || which === 'feedFirst' || which === 'thenFail' ? which : null
@@ -902,7 +907,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,
       withdraw: withdrawAsked(query.get('withdraw')),
-      erase: query.get('erase') === 'feedFirst' ? ('feedFirst' as const) : null,
+      erase: eraseAsked(query.get('erase')),
       receipts: new Map<string, { body: string; receipt: unknown }>(),
     },
     missionPlus: conversationMission(),

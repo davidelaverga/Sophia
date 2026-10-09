@@ -20,6 +20,9 @@ export interface Erase {
   identity: Identity
   arm: (conversationId: string, land: (el: HTMLElement | null) => void) => void
   onErased: (conversationId: string) => void
+  /** The erasure on its way, or sent with no reply, as the view keeps it for each conversation (talk-store.ts). */
+  held: (conversationId: string) => Held<string> | null
+  onHeld: (conversationId: string, next: Held<string> | null) => void
 }
 
 /** What a refused erasure says. */
@@ -36,13 +39,12 @@ export const listWithout = (list: ConversationList | undefined, conversationId: 
 /** One conversation's erasure: its press (at the foot of «This conversation») and, pressed, its confirmation. */
 export function useEraseHere(erase: Erase | null, conversationId: string): { press: ReactNode; form: ReactNode } {
   const [asking, setAsking] = useState(false)
-  const [held, setHeld] = useState<Held<string> | null>(null)
   const [refused, setRefused] = useState<string | null>(null)
   const press = useRef<HTMLButtonElement>(null)
   const queryClient = useQueryClient()
   const write = useHeldWrite<string, ConversationErasure>(
-    held,
-    setHeld,
+    erase?.held(conversationId) ?? null,
+    (next) => erase?.onHeld(conversationId, next),
     (key, id) => eraseConversation(erase?.identity.token ?? '', id, key),
     { words: refused, onWords: setRefused, say: eraseRefusal },
   )

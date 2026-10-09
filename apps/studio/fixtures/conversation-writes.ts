@@ -33,8 +33,13 @@ export interface TalkWrites {
   withdraw: 'slow' | 'feedFirst' | 'thenFail' | null
   /** The list's reads fail. */
   failList: boolean
-  /** An erasure's feed 0.5 s on and its reply 2.5 s on (`erase=feedFirst`), or both at once. */
-  erase: 'feedFirst' | null
+  /**
+   * An erasure's feed 0.5 s on and its reply 2.5 s on (`erase=feedFirst`); the first one never reaching the API
+   * (`erase=unreached`); one that lands with the feed moving but its reply lost (`erase=lost`); or both at once.
+   */
+  erase: 'feedFirst' | 'unreached' | 'lost' | null
+  /** An erasure has already failed to reach the API (`erase=unreached` lets one through after it). */
+  eraseMissed?: boolean
   /** This conversation's messages fail to read (`messages=fail`, or after a `send=thenFail` write). */
   failMessagesOf: string | null
   /** Each write's receipt by its key, with the words it was sent with: the same key replays it, only with them. */
@@ -319,6 +324,12 @@ export function conversationErased(talk: TalkWrites, path: string, init: Request
   const key = new Headers(init?.headers).get('idempotency-key')
   if (!key) return null
   const what = `erase:${conversationId}`
+  // Each try, by its key: the same intent goes again under the same key, whatever the page did meanwhile.
+  ctx.record(`erase-key:${key}`)
+  if (talk.erase === 'unreached' && !talk.eraseMissed) {
+    talk.eraseMissed = true
+    return Promise.reject(new TypeError('Failed to fetch'))
+  }
   const replayed = talk.receipts.get(key)
   if (replayed) return replayed.body === what ? json(replayed.receipt, 202) : null
   if (!ctx.admin) return refused('Only an admin erases a conversation')
@@ -330,7 +341,17 @@ export function conversationErased(talk: TalkWrites, path: string, init: Request
   const receipt = { conversationId, erased: true }
   talk.receipts.set(key, { body: what, receipt })
   ctx.record(`conversation-erase:${conversationId.slice(-2)}`)
-  if (talk.erase !== 'feedFirst') {
+  return erasureReplied(talk.erase, receipt, ctx)
+}
+
+/** How an erasure that landed is answered: the feed and its reply at once, the feed first, or its reply lost. */
+function erasureReplied(order: TalkWrites['erase'], receipt: unknown, ctx: Context) {
+  if (order === 'lost') {
+    // It landed, and the feed says so; its reply never comes.
+    ctx.moved()
+    return Promise.reject(new TypeError('Failed to fetch'))
+  }
+  if (order !== 'feedFirst') {
     ctx.moved()
     return json(receipt, 202)
   }

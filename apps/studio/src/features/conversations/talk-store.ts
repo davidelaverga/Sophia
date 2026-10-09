@@ -28,6 +28,11 @@ export interface Kept {
   decision: Held<DecisionAsk> | null
   /** The words of a refusal that answered Still open's decision, until its next press. */
   decisionRefusal: string | null
+  /**
+   * A conversation's erasure on its way, or sent with no reply (its key), by conversation: kept here, not by the part
+   * that pressed it, so opening another conversation and coming back sends it again under the same key, never anew.
+   */
+  erasures: Readonly<Record<string, Held<string> | null>>
 }
 
 /**
@@ -57,6 +62,7 @@ const EMPTY: Kept = {
   proposed: {},
   decision: null,
   decisionRefusal: null,
+  erasures: {},
 }
 
 const kept = new Map<string, Kept>()

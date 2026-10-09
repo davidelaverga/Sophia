@@ -208,3 +208,36 @@ for (const width of ['desktop', '@phone'] as const) {
     await expect(list(page)).not.toContainText('The conversation was erased.')
   })
 }
+
+test('removal · an erasure with no reply is sent again under its key, after another conversation was opened', async ({
+  page,
+}) => {
+  await opened(page, '&erase=unreached')
+  await erase(page).click()
+  const confirm = page.getByRole('group', { name: 'Erase this conversation' })
+  await confirm.getByRole('button', { name: 'Erase' }).click()
+  await expect(confirm).toContainText('Not confirmed')
+  // Away to another conversation and back: the intent waits with the view, not with the part that pressed it.
+  await rows(page).nth(1).click()
+  await expect(messages(page)).toHaveCount(2)
+  await rows(page).first().click()
+  await expect(messages(page)).toHaveCount(6)
+  const toggle = open(page).getByRole('button', { name: 'Context' })
+  if (await toggle.isVisible()) await toggle.click()
+  await erase(page).click()
+  await expect(confirm).toContainText('Not confirmed')
+  await confirm.getByRole('button', { name: 'Erase' }).click()
+  await expect(list(page)).not.toContainText(FIRST)
+  const keys = await written(page, 'erase-key')
+  expect(keys).toHaveLength(2)
+  expect(keys[1]).toBe(keys[0])
+})
+
+test('removal · an erasure whose reply is lost is said when the feed shows it gone', async ({ page }) => {
+  await opened(page, '&erase=lost')
+  await erase(page).click()
+  await page.getByRole('group', { name: 'Erase this conversation' }).getByRole('button', { name: 'Erase' }).click()
+  await expect(list(page)).not.toContainText(FIRST)
+  await expect(list(page).getByRole('status').filter({ hasText: 'The conversation was erased.' })).toBeVisible()
+  await expect(rows(page).first()).toBeFocused()
+})

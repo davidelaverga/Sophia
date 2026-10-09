@@ -28,6 +28,7 @@ import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
 import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
+import type { Erase } from './EraseHere.tsx'
 import { NO_WORDS, START, useKept, withEntry, withoutConversation } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { useArrival } from '../studio/project-go.tsx'
@@ -155,7 +156,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         {...{ projectId, identity, cursor }}
         conversation={shown}
         notice={notice}
-        erase={reader.moderate ? { projectId, identity, arm: erased.arm, onErased: erased.on } : null}
+        erase={reader.moderate ? eraseOf(projectId, identity, erased, talk) : null}
         opened={panes.context}
         onClose={panes.closeContext}
       />
@@ -462,14 +463,31 @@ function useTalk(projectId: string, name: string) {
   return { of, kept, change }
 }
 
+/** Where an admin erases here: the view keeps each conversation's erasure intent, and settles it (useErased). */
+function eraseOf(
+  projectId: string,
+  identity: Identity,
+  erased: ReturnType<typeof useErased>,
+  talk: ReturnType<typeof useTalk>,
+): Erase {
+  return {
+    projectId,
+    identity,
+    arm: erased.arm,
+    onErased: erased.on,
+    held: (id) => talk.kept.erasures[id] ?? null,
+    onHeld: (id, next) => talk.change((k) => ({ ...k, erasures: withEntry(k.erasures, id, next) })),
+  }
+}
+
 /**
  * A conversation erased here: what the view kept for it goes (its draft, its message held, its wait), the list shows
  * again (a phone's one screen, the context put away), and the list says it was erased until another is opened. The
  * focus, armed as Erase is pressed, waits for the conversation to leave the list (its reply, or the feed first), then
  * for the list to be in sight (on a phone it shows only then), and lands on the row open now, unless the person moved
- * it elsewhere meanwhile (focusLater; CX-0015). Its reply only does the bookkeeping: it lets go of what was kept, and
- * says it was erased only if the person is still where the erase left them; a reply that comes after they opened
- * another conversation never moves them, their focus or their draft.
+ * it elsewhere meanwhile (focusLater; CX-0015). It is settled by whichever shows it first, the feed or its reply:
+ * what was kept for it goes, and the list says it was erased if the person is still where the erase left them. A reply
+ * (or a feed) that comes after they opened another conversation never moves them, their focus or their draft.
  */
 function useErased(
   talk: ReturnType<typeof useTalk>,
@@ -483,12 +501,24 @@ function useErased(
   // It left the list: now the list is to show, and the focus to land once it does.
   const [due, setDue] = useState(false)
   const { toList, view, screen, context } = panes
+  const { change } = talk
+  // Settled, by the feed or by its reply, whichever first: what was kept for it goes, and it is said, once.
+  const settle = useCallback(
+    (id: string) => {
+      change((k) => withoutConversation(k, id))
+      if (saying.current !== id) return
+      saying.current = null
+      setSaid(true)
+    },
+    [change],
+  )
   useEffect(() => {
     const at = landing.current
     if (!at || due || all.some((c) => c.id === at.id)) return
     toList()
     setDue(true)
-  }, [all, due, toList])
+    settle(at.id)
+  }, [all, due, toList, settle])
   useEffect(() => {
     const at = landing.current
     if (!due || !at || screen !== 'list' || context) return
@@ -512,12 +542,7 @@ function useErased(
       landing.current = { id, land }
       saying.current = id
     },
-    on: (id: string) => {
-      talk.change((k) => withoutConversation(k, id))
-      if (saying.current !== id) return
-      saying.current = null
-      setSaid(true)
-    },
+    on: settle,
   }
 }
 

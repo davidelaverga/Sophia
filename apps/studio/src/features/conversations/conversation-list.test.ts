@@ -494,6 +494,24 @@ describe('listWithdrawn: the list says nothing the withdrawal took (PR #199 revi
     assert.equal(stays?.conversations[0]?.contributors.length, 2)
   })
 
+  it('a list that named as many as A16 lets it still says there are others once a named writer is taken out', () => {
+    // 201 wrote there; the list names 200, you among them. Your only message withdrawn, the reads after it failing:
+    const named = Array.from({ length: 199 }, (_, i) => ({ actorId: `w${String(i)}`, name: `W${String(i)}` }))
+    const capped = listOf({ contributors: [...named, { actorId: ME, name: 'Me' }] })
+    const after = listWithdrawn(capped, 'c1', { writer: ME, writerStays: false, sophiaStays: true })
+    const row = after?.conversations[0]
+    assert.equal(row?.contributors.length, 199)
+    assert.ok(row)
+    assert.match(contributorsLine(row, ME), /W198 and others/)
+    // Taken out again, it still says so; a list that never reached the cap stays exact.
+    const again = listWithdrawn(after, 'c1', { writer: 'w0', writerStays: false, sophiaStays: true })?.conversations[0]
+    assert.ok(again)
+    assert.match(contributorsLine(again, ME), /and others/)
+    const small = listWithdrawn(listOf(), 'c1', { writer: ME, writerStays: false, sophiaStays: true })?.conversations[0]
+    assert.ok(small)
+    assert.doesNotMatch(contributorsLine(small, ME), /others/)
+  })
+
   it('keeps Sophia only where an answer of hers is still to be seen', () => {
     assert.equal(listWithdrawn(listOf(), 'c1', { ...nothingElse, sophiaStays: false })?.conversations[0]?.sophia, false)
     assert.equal(listWithdrawn(listOf(), 'c1', nothingElse)?.conversations[0]?.sophia, true)

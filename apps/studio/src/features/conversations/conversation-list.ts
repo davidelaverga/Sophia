@@ -24,9 +24,21 @@ export const messagesKey = (conversationId: string, name: string) =>
 /** The most writers a conversation's summary names (A16's `contributors` `maxItems`): at that many, there may be more. */
 export const NAMED_AT_MOST = 200
 
-export function contributorsLine(c: Pick<ConversationSummary, 'contributors' | 'sophia'>, me: string): string {
+/**
+ * What this view knows beyond a summary as read: that writers it doesn't name may exist. Set only here, when a
+ * withdrawal takes a writer out of a list that named as many as A16 lets it (`listWithdrawn`); the next read answers
+ * for itself.
+ */
+export interface Unnamed {
+  othersUnnamed?: true
+}
+
+export function contributorsLine(
+  c: Pick<ConversationSummary, 'contributors' | 'sophia'> & Unnamed,
+  me: string,
+): string {
   const named = c.contributors.map((p) => (p.actorId === me ? 'You' : p.name)).join(', ')
-  const people = c.contributors.length >= NAMED_AT_MOST ? `${named} and others` : named
+  const people = c.contributors.length >= NAMED_AT_MOST || c.othersUnnamed ? `${named} and others` : named
   if (!people) return c.sophia ? 'Sophia' : 'Nobody has written yet'
   return c.sophia ? `${people} · Sophia` : people
 }
@@ -277,7 +289,8 @@ export function remainsAfter(after: ReadPages<ConversationMessage> | undefined, 
  * says what remains.
  */
 export function listWithdrawn(list: ConversationList | undefined, conversationId: string, remains: Remains) {
-  const left = (c: ConversationSummary): ConversationSummary => ({
+  // A list that named as many as it may can't say the rest: one taken out of it never makes it look whole.
+  const left = (c: ConversationSummary & Unnamed): ConversationSummary & Unnamed => ({
     ...c,
     lastMessage: null,
     summary: null,
@@ -287,6 +300,7 @@ export function listWithdrawn(list: ConversationList | undefined, conversationId
         ? c.contributors
         : c.contributors.filter((p) => p.actorId !== remains.writer),
     sophia: c.sophia && remains.sophiaStays,
+    ...(c.contributors.length >= NAMED_AT_MOST || c.othersUnnamed ? { othersUnnamed: true as const } : {}),
   })
   return list && { ...list, conversations: list.conversations.map((c) => (c.id === conversationId ? left(c) : c)) }
 }
