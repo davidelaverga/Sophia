@@ -141,7 +141,10 @@ const SHOWN_KEPT = 20
 const BACKFILL_MS = 3000
 /** Caption ends kept while the room link is down, to send once it is back. */
 const CAPTION_ENDS_KEPT = 20
-/** The holder's chunks kept while their generation is reserved (under a grant): five seconds, the oldest dropped first. */
+/**
+ * The holder's chunks kept while their generation is reserved (under a grant): five seconds, the oldest dropped first,
+ * and counted as dropped (Codex r4234936797).
+ */
 const HELD_CHUNKS = 50
 /** How long closing waits for the announcements it still owes the API (best effort; the API keeps listing the rest). */
 const CLOSE_FLUSH_MS = 3000
@@ -588,7 +591,11 @@ export class RoomSession {
    * Input waiting for a reservation (its generation's, or a top-up), each chunk with its speaker and the provider
    * connection it waits on: only that connection's grant lets it go on.
    */
-  private readonly held: Array<{ identity: string; connection: number; chunk: Int16Array }> = []
+  /**
+   * Chunks waiting for their connection's reservation, each with the samples dropped before it that its window has not
+   * counted yet: the chunker's backlog drops pending when it was held, and the chunks evicted ahead of it.
+   */
+  private readonly held: Array<{ identity: string; connection: number; chunk: Int16Array; dropped: number }> = []
   private typedReserving = false
   private noticeReserving = false
 
@@ -1195,10 +1202,12 @@ export class RoomSession {
     }
     let dropped = this.chunker.dropped - droppedBefore
     for (let chunk = this.chunker.take(); chunk; chunk = this.chunker.take()) {
-      const gate = this.gate(identity, chunk, dropped)
+      const pending = dropped
+      const gate = this.gate(identity, chunk, pending)
       if (gate === 'stop') return
       dropped = 0
-      if (gate === 'hold') this.hold(identity, chunk)
+      // A chunk held keeps the drop pending before it: it is counted when the chunk goes (Codex r4234936797).
+      if (gate === 'hold') this.hold(identity, chunk, pending)
       else this.forward(live, chunk)
     }
   }
@@ -1228,16 +1237,17 @@ export class RoomSession {
   }
 
   /**
-   * Keep a chunk while its generation is being reserved (at most HELD_CHUNKS, the oldest dropped first). Once granted,
-   * what its speaker has held on that connection goes on, in order, if they still may; their first chunk held asks to
-   * be told. Another speaker's chunks (the floor moved meanwhile), and a later connection's (a reconnection while the
-   * old reservation was in flight), are theirs to release, never taken or dropped with these.
+   * Keep a chunk while its generation is being reserved (at most HELD_CHUNKS, the oldest dropped first and counted:
+   * evictOldest), with the drop pending before it. Once granted, what its speaker has held on that connection goes on,
+   * in order, if they still may, each with its drop counted as it goes; their first chunk held asks to be told. Another
+   * speaker's chunks (the floor moved meanwhile), and a later connection's (a reconnection while the old reservation was
+   * in flight), are theirs to release, never taken or dropped with these.
    */
-  private hold(identity: string, chunk: Int16Array): void {
+  private hold(identity: string, chunk: Int16Array, dropped: number): void {
     const connection = this.connection
     const first = !this.isHolding(identity, connection)
-    this.held.push({ identity, connection, chunk })
-    if (this.held.length > HELD_CHUNKS) this.held.shift()
+    this.held.push({ identity, connection, chunk, dropped })
+    if (this.held.length > HELD_CHUNKS) this.evictOldest()
     const q = this.qualification
     if (!first || !q) return
     void q.granted(connection).then((stop) => {
@@ -1246,12 +1256,26 @@ export class RoomSession {
       const live = this.live
       if (connection !== this.connection || !live || !this.state.mayForwardAudio(identity, this.deps.now())) return
       for (const next of held) {
-        const gate = this.gate(identity, next, 0)
+        const gate = this.gate(identity, next.chunk, next.dropped)
         if (gate === 'stop') return
-        if (gate === 'send') this.forward(live, next)
-        else this.hold(identity, next)
+        if (gate === 'send') this.forward(live, next.chunk)
+        else this.hold(identity, next.chunk, next.dropped)
       }
     })
+  }
+
+  /**
+   * The oldest chunk held goes, never sent (Codex r4234936797): its samples, and the drop it carried, pass to the next
+   * chunk its speaker holds on that connection, so the gap is counted once, on the first chunk after it that reaches the
+   * provider (input_window.droppedSamples). The one just held is always such a chunk when the oldest is the same
+   * speaker's on the same connection; another speaker's or an older connection's held chunks never reach the provider,
+   * nor any window of theirs, so nothing is carried for them.
+   */
+  private evictOldest(): void {
+    const evicted = this.held.shift()
+    if (!evicted) return
+    const next = this.held.find((h) => h.identity === evicted.identity && h.connection === evicted.connection)
+    if (next) next.dropped += evicted.chunk.length + evicted.dropped
   }
 
   /** Whether this speaker has chunks waiting on this connection's reservation. */
@@ -1260,9 +1284,9 @@ export class RoomSession {
   }
 
   /** This speaker's chunks held on this connection, in order, taken out; anyone else's, and other connections', stay. */
-  private takeHeld(identity: string, connection: number): Int16Array[] {
+  private takeHeld(identity: string, connection: number): Array<{ chunk: Int16Array; dropped: number }> {
     const mine = (h: { identity: string; connection: number }) => h.identity === identity && h.connection === connection
-    const taken = this.held.filter(mine).map((h) => h.chunk)
+    const taken = this.held.filter(mine).map(({ chunk, dropped }) => ({ chunk, dropped }))
     const rest = this.held.filter((h) => !mine(h))
     this.held.splice(0, this.held.length, ...rest)
     return taken

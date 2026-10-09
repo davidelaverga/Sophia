@@ -5443,3 +5443,79 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     await session.close()
   })
 })
+
+/** One 100 ms chunk of 16 kHz audio, its samples all `value`. */
+const chunkOf = (value: number) => new Int16Array(1600).fill(value)
+/** `n` chunks' worth in one frame, chunk k's samples all `first + k`: the chunker keeps its 5, and drops the rest. */
+function burst(n: number, first: number): Int16Array {
+  const frame = new Int16Array(n * 1600)
+  for (let k = 0; k < n; k += 1) frame.fill(first + k, k * 1600, (k + 1) * 1600)
+  return frame
+}
+
+describe('room session: audio dropped while its reservation waits is counted (Codex r4234936797)', () => {
+  /** room-session.ts HELD_CHUNKS (not imported, so the test also runs against a source without it): 5 s of chunks. */
+  const HELD = 50
+
+  /**
+   * The holder's audio while its generation's reservation is held (the API slow, as when its first attempt times out
+   * and the retry waits): `frames` in order, then the grant; the chunks the provider got (by their first sample) and
+   * the input window's receipt once the turn completes.
+   */
+  async function heldThenGranted(frames: Int16Array[]) {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    const sent: number[] = []
+    const link: LiveLink = live
+    link.sendAudio = (chunk) => {
+      live.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    service.holdReservations = true
+    for (const frame of frames) room.events.audio(LUIS, frame, 16000, 1)
+    await flush()
+    assert.equal(live.audio, 0, 'nothing reaches the provider before the API granted the generation')
+    service.holdReservations = false
+    service.answerReservations()
+    await until('the held audio went on', () => live.audio > 0)
+    await flush()
+    live.events.audio(speech(1), OUT)
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    const window = fields(service.evidence.find((w) => w.receipt.kind === 'input_window'))
+    return { sent, window: pick(window, 'chunkCount', 'sampleCount', 'droppedSamples') }
+  }
+
+  it('root’s sequence: held past the queue, the last HELD_CHUNKS go, and the evicted samples are counted as dropped', async () => {
+    const n = HELD + 7
+    const { sent, window } = await heldThenGranted(Array.from({ length: n }, (_, i) => chunkOf(1000 + i)))
+    assert.deepEqual(
+      sent,
+      Array.from({ length: HELD }, (_, i) => 1007 + i),
+      'the last 50, in order',
+    )
+    assert.deepEqual(window, { chunkCount: HELD, sampleCount: HELD * 1600, droppedSamples: (n - HELD) * 1600 })
+  })
+
+  it('a drop pending before the hold is counted once the queue is released, with what was evicted after it', async () => {
+    // 7 chunks in one frame: the chunker drops 2 (3,200 samples), pending on the first chunk held. Then 48 more: 53
+    // held, so the 3 oldest are evicted, the first carrying the pending drop.
+    const singles = Array.from({ length: 48 }, (_, i) => chunkOf(3000 + i))
+    const { sent, window } = await heldThenGranted([burst(7, 2000), ...singles])
+    assert.deepEqual(sent, [2005, 2006, ...singles.map((_, i) => 3000 + i)])
+    assert.deepEqual(window, { chunkCount: HELD, sampleCount: HELD * 1600, droppedSamples: 3200 + 3 * 1600 })
+  })
+
+  it('a drop pending before a short hold is counted once', async () => {
+    const { sent, window } = await heldThenGranted([burst(7, 2000)])
+    assert.deepEqual(sent, [2002, 2003, 2004, 2005, 2006])
+    assert.deepEqual(window, { chunkCount: 5, sampleCount: 5 * 1600, droppedSamples: 3200 })
+  })
+
+  it('a hold shorter than the queue drops nothing and records 0 (control)', async () => {
+    const { sent, window } = await heldThenGranted([chunkOf(1), chunkOf(2), chunkOf(3)])
+    assert.deepEqual(sent, [1, 2, 3])
+    assert.deepEqual(window, { chunkCount: 3, sampleCount: 4800, droppedSamples: 0 })
+  })
+})
