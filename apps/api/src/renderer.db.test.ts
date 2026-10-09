@@ -26,7 +26,14 @@ import {
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
 import { createActorVerifier } from './auth.ts'
-import { ByteStoreError, memoryByteStore, objectPath, writeOnce, type ByteStore } from './byte-store.ts'
+import {
+  ByteStoreError,
+  memoryByteStore,
+  objectPath,
+  writeOnce,
+  WriteClaimError,
+  type ByteStore,
+} from './byte-store.ts'
 
 const A = randomUUID()
 const E = randomUUID()
@@ -275,7 +282,7 @@ describe('render runner endpoints (A11, 0030)', () => {
       const unclaimed = await put()
       assert.deepEqual(
         [unclaimed.status, (unclaimed.json as { code: string; message: string }).message],
-        [503, 'The database did not answer the write claim'],
+        [503, 'The write claim was not made'],
       )
     } finally {
       await owner.query(`GRANT EXECUTE ON FUNCTION sophia.claim_object_write(text,text,bigint) TO sophia_api`)
@@ -295,9 +302,18 @@ describe('render runner endpoints (A11, 0030)', () => {
     const other = Buffer.from('%PDF-1.4\n%another rendering, longer\n%%EOF\n')
     const from = written.length
     barrier = { want: 2, held: [] }
-    const both = await Promise.all([put(PDF), put(other)]).finally(() => {
+    // Raced: an upload refused before the store would hold the other at the barrier for good.
+    const LOST = Symbol('the sentinel')
+    let sentinel: NodeJS.Timeout | undefined
+    const both = await Promise.race([
+      Promise.all([put(PDF), put(other)]),
+      new Promise<typeof LOST>((resolve) => (sentinel = setTimeout(() => resolve(LOST), 20_000))),
+    ]).finally(() => {
+      clearTimeout(sentinel)
+      for (const go of barrier?.held.splice(0) ?? []) go()
       barrier = null
     })
+    if (both === LOST) assert.fail('both uploads reach the store and are answered before the sentinel')
     assert.deepEqual(
       both.map((r) => r.status).toSorted((x, y) => x - y),
       [200, 409],
@@ -370,7 +386,10 @@ describe('render runner endpoints (A11, 0030)', () => {
     // A claim that cannot be made refuses the write: nothing reaches the store unclaimed.
     const lost = objectPath(projectId, randomUUID())
     const down = writeOnce(store, () => Promise.reject(new Error('the database did not answer')))
-    await assert.rejects(down.put(lost, PDF, 'application/pdf'), /did not answer/u)
+    await assert.rejects(
+      down.put(lost, PDF, 'application/pdf'),
+      (e: unknown) => e instanceof WriteClaimError && /the claim was not made/u.test(e.message),
+    )
     assert.equal(store.objects.has(lost), false)
   })
 

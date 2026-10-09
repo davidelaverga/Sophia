@@ -123,7 +123,7 @@ async function fileBytes(
  */
 function storeFailure(err: unknown): DomainError {
   if (err instanceof WriteClaimError) {
-    return new DomainError('unavailable', 'The database did not answer the write claim', { cause: err })
+    return new DomainError('unavailable', 'The write claim was not made', { cause: err })
   }
   if (err instanceof ByteStoreError && err.status === 409) {
     return new DomainError('invalid_state', 'This output was already written', { cause: err })

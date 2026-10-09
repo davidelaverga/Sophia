@@ -5,14 +5,15 @@
 // - one key written, then written again with other bytes and with the same bytes: both refused, the first bytes kept;
 // - one fresh key written by eight writers at once, over eight connections: one written, seven refused;
 // - every request to the provider counted, by method and key: one PUT per key, whatever the provider does with a second.
-// Finite: 11 claims, at most 7 provider requests, 2 objects of under 100 bytes, never deleted (a claim is never
+// Finite: 11 claims, at most 7 provider requests, 2 objects of about 100 bytes, never deleted (a claim is never
 // released). With `--run <uuid>` it is one-shot: both keys derive from the operator's run id, so a start that runs it
 // again under the same id (the API's start command restarted) finds its first key claimed and writes nothing (exit 2).
 // It ends within PROBE_MS, its preconditions' queries included, so the API's start follows it. It prints JSON lines:
 // the first names the physical namespace it writes in (endpoint, region, bucket) and its keys; none names a credential
 // or a signed URL. Exit: 0 every guarantee held;
 // 1 one did not; 2 a precondition is missing (nothing written); 3 an outcome is uncertain (stopped at once, never
-// retried: the key printed is claimed and can never be written again; HEAD it to see what the provider holds).
+// retried: its keys, named by its first line, are claimed and can never be written again; what the provider holds there
+// is read from the dashboard's Storage view, never with a copy of the API's key).
 import { randomUUID } from 'node:crypto'
 import type pg from 'pg'
 import { checkRoleSafety, createPool } from '@sophia/persistence'
@@ -44,8 +45,14 @@ export interface ProviderCall {
  * @param calls where each request is recorded
  * @param fetchImpl the fetch underneath (tests give a stand-in provider)
  */
-export function countingFetch(calls: ProviderCall[], fetchImpl: typeof fetch = fetch): typeof fetch {
+export function countingFetch(
+  calls: ProviderCall[],
+  fetchImpl: typeof fetch = fetch,
+  stopped: () => boolean = () => false,
+): typeof fetch {
   return async (input, init) => {
+    // Past the probe's deadline nothing more is sent: its last line counted every request.
+    if (stopped()) throw new Error("past the probe's deadline: not sent")
     const url = new URL(input instanceof Request ? input.url : String(input))
     const key = url.pathname.split('/').slice(-2).map(decodeURIComponent).join('/')
     const call: ProviderCall = { method: init?.method ?? 'GET', key, status: 'no_answer' }
@@ -70,8 +77,15 @@ class Stop extends Error {
 
 const refused = (error: unknown) => error instanceof ByteStoreError && error.status === 409
 
-/** The two keys of a one-shot run: its id, and one derived from it. */
-export function runKeys(run: string): [string, string] {
+/** Two keys no probe has used. */
+const freshKeys = (): [string, string] => [
+  objectPath(PROBE_PROJECT, randomUUID()),
+  objectPath(PROBE_PROJECT, randomUUID()),
+]
+
+/** The two keys of a one-shot run: its id, and one derived from it. A UUID in capitals (macOS uuidgen's) is the same id. */
+export function runKeys(id: string): [string, string] {
+  const run = id.toLowerCase()
   if (!UUID.test(run)) throw new Stop(2, 'a run id is a UUID')
   const h = sha256Hex(new TextEncoder().encode(`${run}:racing`))
   const racing = `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`
@@ -210,10 +224,7 @@ async function race(p: Probe, key: string) {
  * The probe itself, over the API's composed stores: the sequential key, then the racing key.
  * @returns the exit code
  */
-export async function probeWriteOnce(
-  p: Probe,
-  keys: readonly [string, string] = [objectPath(PROBE_PROJECT, randomUUID()), objectPath(PROBE_PROJECT, randomUUID())],
-): Promise<number> {
+export async function probeWriteOnce(p: Probe, keys: readonly [string, string] = freshKeys()): Promise<number> {
   p.log({ event: 'STORAGE_PROBE_START', ...(p.namespace ? { namespace: p.namespace } : {}), keys })
   try {
     await sequential(p, keys[0])
@@ -271,23 +282,22 @@ export async function runStorageProbe(
     return 2
   }
   const calls: ProviderCall[] = []
-  const fetchImpl = countingFetch(calls, options.fetchImpl)
+  const fetchImpl = countingFetch(calls, options.fetchImpl, () => over)
   const pool = createPool(url, { max: 2 })
   const racers = createPool(url, { max: RACERS })
   const probeMs = options.probeMs ?? PROBE_MS
-  let timer: NodeJS.Timeout | undefined
-  const deadline = new Promise<number>((resolve) => {
-    timer = setTimeout(() => {
-      log({
-        event: 'STORAGE_PROBE_DONE',
-        ok: false,
-        exit: 3,
-        reason: `past ${String(probeMs)} ms`,
-        providerRequests: calls.length,
-      })
-      over = true
-      resolve(3)
-    }, probeMs)
+  // Known once the preconditions hold, so the deadline's line names them too.
+  let keys: readonly [string, string] | undefined
+  const deadline = deadlineAfter(probeMs, () => {
+    log({
+      event: 'STORAGE_PROBE_DONE',
+      ok: false,
+      exit: 3,
+      reason: `past ${String(probeMs)} ms`,
+      keys,
+      providerRequests: calls.length,
+    })
+    over = true
   })
   const probe = async () => {
     try {
@@ -299,7 +309,7 @@ export async function runStorageProbe(
       // Preconditions that answered only after the deadline write nothing: the deadline's exit stands.
       if (over) return 3
       const oneShot = options.runId !== undefined
-      const keys = oneShot ? runKeys(options.runId ?? '') : undefined
+      keys = oneShot ? runKeys(options.runId ?? '') : freshKeys()
       const namespace = namespaceOf(env)
       return await probeWriteOnce({ store, racing, calls, fetchImpl, log, oneShot, namespace }, keys)
     } catch (error) {
@@ -309,11 +319,23 @@ export async function runStorageProbe(
     }
   }
   try {
-    return await Promise.race([probe(), deadline])
+    return await Promise.race([probe(), deadline.done])
   } finally {
-    clearTimeout(timer)
+    deadline.cancel()
     await closeWithin([pool, racers])
   }
+}
+
+/** Exit 3 once `ms` have passed, after `report` has written the deadline's line. */
+function deadlineAfter(ms: number, report: () => void): { done: Promise<number>; cancel: () => void } {
+  let timer: NodeJS.Timeout | undefined
+  const done = new Promise<number>((resolve) => {
+    timer = setTimeout(() => {
+      report()
+      resolve(3)
+    }, ms)
+  })
+  return { done, cancel: () => clearTimeout(timer) }
 }
 
 /** Close the pools, waiting no longer than ENDING_MS: a connection the database never answered can't hold the probe. */

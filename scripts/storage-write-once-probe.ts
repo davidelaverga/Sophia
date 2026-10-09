@@ -15,8 +15,15 @@
 // What it checks and why: apps/api/src/storage-probe.ts.
 import { runStorageProbe } from '../apps/api/src/storage-probe.ts'
 
-const at = process.argv.indexOf('--run')
-const runId = at === -1 ? undefined : (process.argv[at + 1] ?? '')
+// Nothing or exactly `--run <uuid>`: anything else (`--run=<uuid>` included) is refused, never read as no run id, which
+// would write fresh keys at every start.
+const args = process.argv.slice(2)
+const runId = args.length === 2 && args[0] === '--run' ? args[1] : undefined
+if (args.length > 0 && runId === undefined) {
+  const reason = 'usage: storage-write-once-probe.ts [--run <uuid>]'
+  console.log(JSON.stringify({ event: 'STORAGE_PROBE_DONE', ok: false, exit: 2, reason }))
+  process.exit(2)
+}
 // Exit now, with the probe's code: a connection the database never answered must not keep the process, and the API's
 // start after it, waiting.
 process.exit(await runStorageProbe(process.env, runId === undefined ? {} : { runId }))

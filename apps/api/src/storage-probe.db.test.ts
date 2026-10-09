@@ -4,6 +4,7 @@
 // store not written once, stops at once on an unknown write without trying it again, and writes nothing without its
 // preconditions. Run from the API's start command, it ends within its deadline whatever the database does.
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { copyFileSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { createServer, type AddressInfo, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -151,6 +152,7 @@ describe('the write-once probe (storage-probe.ts)', () => {
     const first: object[] = []
     assert.equal(await runStorageProbe(env, { fetchImpl: stand.fetchImpl, log: (r) => first.push(r), runId }), 0)
     const [sequentialKey, racingKey] = runKeys(runId)
+    assert.deepEqual(runKeys(runId.toUpperCase()), [sequentialKey, racingKey], 'the same id in capitals')
     assert.deepEqual(
       [...stand.objects.keys()].toSorted(),
       [
@@ -164,6 +166,10 @@ describe('the write-once probe (storage-probe.ts)', () => {
     assert.equal(await runStorageProbe(env, { fetchImpl: stand.fetchImpl, log: (r) => again.push(r), runId }), 2)
     assert.match(String(done(again).reason), /run id was used before: nothing written/u)
     assert.equal(stand.state.puts, 2, 'no PUT the second time')
+    const capitals: object[] = []
+    const upper = { fetchImpl: stand.fetchImpl, log: (r: object) => capitals.push(r), runId: runId.toUpperCase() }
+    assert.equal(await runStorageProbe(env, upper), 2, 'the same id in capitals is the same run')
+    assert.equal(stand.state.puts, 2)
     assert.equal(
       await runStorageProbe(env, { fetchImpl: stand.fetchImpl, log: () => undefined, runId: 'not-a-uuid' }),
       2,
@@ -198,6 +204,48 @@ describe('the write-once probe (storage-probe.ts)', () => {
       clearTimeout(sentinel)
       for (const socket of sockets) socket.destroy()
       await new Promise((resolve) => silent.close(resolve))
+    }
+  })
+
+  it('past its deadline sends nothing more, and its last line names its keys', async () => {
+    // A provider whose first answer comes only after the deadline: the store would then go on to its PUT.
+    const stand = provider()
+    const sent: string[] = []
+    const late: typeof fetch = async (input, init) => {
+      sent.push(init?.method ?? 'GET')
+      await new Promise((resolve) => setTimeout(resolve, 600))
+      return stand.fetchImpl(input, init)
+    }
+    const runId = randomUUID()
+    const log: object[] = []
+    const LOST = Symbol('the sentinel')
+    let sentinel: NodeJS.Timeout | undefined
+    const ended = await Promise.race([
+      runStorageProbe(
+        { SOPHIA_API_DATABASE_URL: db.apiUrl, ...SETTINGS },
+        { fetchImpl: late, log: (r) => log.push(r), runId, probeMs: 300 },
+      ),
+      new Promise<typeof LOST>((resolve) => (sentinel = setTimeout(() => resolve(LOST), 10_000))),
+    ]).finally(() => clearTimeout(sentinel))
+    assert.equal(ended, 3, 'uncertain, before the sentinel')
+    const last = done(log)
+    assert.match(String(last.reason), /past 300 ms/u)
+    assert.deepEqual(last.keys, runKeys(runId), 'the keys the operator looks for')
+    assert.equal(last.providerRequests, 1)
+    // Once the late answer is in, the store's next request is refused before it is sent.
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    assert.deepEqual(sent, ['HEAD'], 'nothing sent after the deadline')
+    assert.equal(stand.state.puts, 0)
+    assert.equal(log.at(-1), last, 'the deadline’s line is the last')
+  })
+
+  it('the operator’s command takes nothing or exactly `--run <uuid>`: anything else writes nothing', () => {
+    const script = fileURLToPath(new URL('../../../scripts/storage-write-once-probe.ts', import.meta.url))
+    const env = { ...process.env, SOPHIA_API_DATABASE_URL: db.apiUrl, ...SETTINGS }
+    for (const args of [[`--run=${randomUUID()}`], ['--run'], ['--rnu', randomUUID()], ['--run', randomUUID(), 'x']]) {
+      const run = spawnSync(process.execPath, [script, ...args], { env, encoding: 'utf8', timeout: 30_000 })
+      assert.equal(run.status, 2, `${args.join(' ')}: ${run.stdout}${run.stderr}`)
+      assert.match(run.stdout, /usage: storage-write-once-probe\.ts \[--run <uuid>\]/u)
     }
   })
 

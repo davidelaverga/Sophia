@@ -39,7 +39,7 @@ export class ByteStoreError extends Error {
   }
 }
 
-/** A write's claim could not be made (the database did not answer): nothing was sent to the store. */
+/** A write's claim was not made (the database refused it or did not answer): nothing was sent to the store. */
 export class WriteClaimError extends ByteStoreError {
   constructor(message: string, options?: { cause?: unknown }) {
     super(503, message)
@@ -175,7 +175,7 @@ export function writeOnce(store: ByteStore, claim: WriteClaim): ByteStore {
       try {
         claimed = await claim(path, sha256Hex(bytes), bytes.byteLength)
       } catch (error) {
-        throw new WriteClaimError(`store claim: ${path}: the database did not answer`, { cause: error })
+        throw new WriteClaimError(`store claim: ${path}: the claim was not made`, { cause: error })
       }
       if (!claimed) throw new ByteStoreError(409, `store put: ${path} was already written`)
       await store.put(path, bytes, mime)

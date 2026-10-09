@@ -396,7 +396,14 @@ describe(
         assert.deepEqual(seen.settles, [])
         // The loop stops claiming: it ends with the taint rather than taking the next job.
         next = { format: 'pdf' }
-        await assert.rejects(supervise(cfg(pidFiles[1] ?? ''), new AbortController().signal), HostTainted)
+        const loop = new AbortController()
+        try {
+          // Raced: a loop that went on claiming would never settle.
+          const ended = await within(supervise(cfg(pidFiles[1] ?? ''), loop.signal), 10_000)
+          assert.ok(ended instanceof HostTainted, `the loop ends with the taint, not ${String(ended)}`)
+        } finally {
+          loop.abort()
+        }
         assert.equal(next, null, 'that one job was claimed, and no other')
       } finally {
         next = null
