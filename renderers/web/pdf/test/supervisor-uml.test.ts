@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -130,6 +130,25 @@ function claimed(job: Job): Reply {
         sections: null,
       },
     },
+  }
+}
+
+/** What the sentinel settles to: the work raced against it had not settled in its time. */
+const LOST = Symbol('the work had not settled in its time')
+
+/**
+ * What `work` settles to (its value, or what it rejected with), or LOST if it has not settled within `ms`. A test that
+ * awaits this and asserts LOST lost fails, never hangs, when the work would wait for good (CONTRIBUTING.md).
+ */
+async function within(work: Promise<unknown>, ms: number): Promise<unknown> {
+  let timer: NodeJS.Timeout | undefined
+  const sentinel = new Promise<typeof LOST>((resolve) => {
+    timer = setTimeout(() => resolve(LOST), ms)
+  })
+  try {
+    return await Promise.race([work.catch((error: unknown) => error), sentinel])
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -387,29 +406,52 @@ describe(
       }
     })
 
-    it('an API that never finishes its answer: a claim gives up in its time, a heartbeat stops the job', async () => {
+    // A run that is still waiting, after its sentinel won: end the silent answers and the guest it started, then let it
+    // settle, within a bound too, so a failed check leaves nothing behind.
+    const release = async (pending: Promise<unknown>, pids: string | null) => {
+      server.closeAllConnections()
+      if (pids && existsSync(pids)) killGroup(pids)
+      await within(pending, 10_000)
+    }
+
+    it('a claim whose answer never finishes gives up within its time', async () => {
       silent = new Set(['/v1/renderer/claim'])
+      const pending = run({ format: 'pdf' }, 'ok', {}, 300)
+      const settled = await within(pending, 5000)
       try {
-        next = { format: 'pdf' }
-        const started = Date.now()
-        await assert.rejects(run({ format: 'pdf' }, 'ok', {}, 300), ApiTimeout)
-        assert.ok(Date.now() - started < 5000, 'within its time, not forever')
-        silent = new Set(['/v1/renderer/jobs/job-1/heartbeat'])
-        const { outcome, pids } = await run({ format: 'pdf' }, 'hang', {}, 300)
-        assert.equal(outcome.claimed && outcome.outcome, 'cancelled', 'a heartbeat with no answer stops the job')
-        assert.deepEqual(seen.uploads, [])
-        assert.deepEqual(seen.settles, [])
-        await gone(pids)
+        assert.notEqual(settled, LOST, 'the claim gave up within its time')
+        assert.ok(settled instanceof ApiTimeout, String(settled))
       } finally {
+        if (settled === LOST) await release(pending, null)
         silent = new Set()
         next = null
       }
     })
 
+    it('a heartbeat whose answer never finishes stops the job: nothing uploaded or settled', async () => {
+      silent = new Set(['/v1/renderer/jobs/job-1/heartbeat'])
+      const pending = run({ format: 'pdf' }, 'hang', {}, 300)
+      const settled = await within(pending, 5000)
+      try {
+        assert.notEqual(settled, LOST, 'the job ended within its time')
+        const { outcome, pids } = settled as Awaited<typeof pending>
+        assert.equal(outcome.claimed && outcome.outcome, 'cancelled', 'a heartbeat with no answer stops the job')
+        assert.deepEqual(seen.uploads, [])
+        assert.deepEqual(seen.settles, [])
+        await gone(pids)
+      } finally {
+        if (settled === LOST) await release(pending, join(scratch, 'hang.pids'))
+        silent = new Set()
+      }
+    })
+
     it('an upload whose answer never finishes is left unknown: the job abandoned, nothing settled', async () => {
       silent = new Set(['/v1/renderer/jobs/job-1/output'])
+      const pending = run({ format: 'pdf' }, 'ok', {}, 300)
+      const settled = await within(pending, 5000)
       try {
-        const { outcome, log } = await run({ format: 'pdf' }, 'ok', {}, 300)
+        assert.notEqual(settled, LOST, 'the job ended within its time')
+        const { outcome, log } = settled as Awaited<typeof pending>
         assert.equal(outcome.claimed && outcome.outcome, 'abandoned')
         assert.ok(
           log.some((l) => /the PDF's upload got no whole answer: its outcome is unknown/u.test(l)),
@@ -417,6 +459,7 @@ describe(
         )
         assert.deepEqual(seen.settles, [], 'never settled on a guess')
       } finally {
+        if (settled === LOST) await release(pending, null)
         silent = new Set()
       }
     })
