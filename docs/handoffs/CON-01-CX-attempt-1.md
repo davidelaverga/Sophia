@@ -1,0 +1,87 @@
+# CON-01 independent reviewer/operator handoff — attempt 1
+
+## WORKFLOW_END_TO_END_TRAILER
+
+Initiating user behavior: Davide assigned Codex independent review from G0, authorized preparation/discovery, requested exact approved deployment and real signed-in testing of saved project conversations. No actual end-user conversation was submitted by this attempt.
+
+Authoritative identity: repository `davidelaverga/Sophia`; reviewer session `01a1224a-32b4-7222-a017-50a277572d95`; Claude session `session_01KUDtFK9gWthsXSrepcLQz3`; shared issue [#198](https://github.com/davidelaverga/Sophia/issues/198); draft [PR199](https://github.com/davidelaverga/Sophia/pull/199). No live CON-01 project/conversation/message/request was allocated.
+
+Crossings actually exercised: real local PostgreSQL and existing API tests under synthetic identities; fixture browser only; read-only hosted database metadata and authenticated Render/Vercel dashboards; actual Studio reached but at sign-in. No ordinary test-account authenticated CON-01 crossing, model call or deployment was exercised.
+
+Durable result: independent baseline inspection, material G0 findings posted before schema/runtime freeze, revision-2 binding rechecked, operation draft and 36-case ledger prepared. No hosted records or controls changed. Native host/payer/retention/cohort and paid authorization remain unbound.
+
+Verdict: **partial review; live/app acceptance blocked**. Next falsifier: immutable G1 candidate independently admits one authorized human-only start, refuses an unauthorized read/write/replay, and changes zero operational/model rows. That is the next local crossing, not an authorization to activate hosted retention.
+
+## Recovered identity and candidate
+
+- Original `Sophia-Agent` cwd is a non-Git August Python snapshot. The actual repository was recovered at `/Users/davidelaverga/Documents/Codex/2026-08-19/pl/Sophia-browser-account`, branch `fix/studio-browser-account-stores`, head `2144bb0231b4d684eb19091161579cb490528920`; left untouched.
+- Review worktree `/Users/davidelaverga/Documents/Codex/2026-10-09/sophia-con01-review`, branch `codex/con01-review-attempt-1`, original base main `4f7470c3ab7c158315934a11c8c620da663f4898`, tree `7d1472e3e61c707e6611015203ddec35f7ff5ce2`. Codex changes review/evidence/runbook files only.
+- Claude branch `claude/con01-project-conversations`. G0 original `b00d07f4de292c9f8981b0360ffd9a0eb48b181e`, tree `90cd8387c195302a6b0703f41994bcd6bd203c15`; reference-only `eda98dbda098a379e99e53f66b556c6389880c69`; revision 2 `c703b2df259bf414e28eeb48d5c5e8b39f330cf8`, tree `e4fd211f3904298779b021148cc7cc232081cadd`. G1 SQL/routes exist only in Claude's unpublished local work at this checkpoint, and are not qualified here.
+- Main advanced to `5489bd2ab9c78253554ba1811312b692a62c9c3d`, tree `d0027632e403ab2b9522e7476965a02e56e3c4ab` (#196 demo-board fixtures). Review branch retains its pinned base. Current-main fixture integration remains required before G3/G4.
+- PR190 is SDD-01 G7 source/default-off, not v3 installation. Last refreshed head `f2a6d8183aa96e685cf761ca0c93565f1243bc6e`; A15 and 0046–0047 remain that lane's. WBC/SDD PR107 already merged. No competing installation or old production batch was run.
+- CON-01 proposed IDs: A16, 0048–0050, `conversation-text-v1`, `sophia-conversation-v1`, `sophia-runtime-con01-dev`. They are not deployed objects; shared runtime owner acknowledgment and current-main integration window remain required.
+
+## Readiness facts
+
+| Fact | Verdict | Evidence |
+|---|---|---|
+| source_ready | No feature candidate yet | Published heads reviewed here are documentation only |
+| locally_verified | Baseline only | 74 focused tests, 52 real PostgreSQL tests, 3 destination-map tests; fixture browser |
+| reviewed | Partial | G0 G1 specification direction reviewed; G2 privacy details/inventory and B-1 remain open |
+| authorized | No | OP-0001-r1 is a draft with required nulls; no approval reference |
+| deployed | No CON-01 deploy | Existing mixed service tuple observed read-only |
+| app_verified | No | Real Studio presents sign-in; two accounts/provider path unavailable |
+| owner_accepted | No | Davide's policy, route/spend and final product decision remain open |
+
+## Feedback and remaining findings
+
+[CX-0001](../coordination/CON-01/CON-01-CX-0001.md) records actual source/UI bindings and independently reproduced baseline timestamp settlement (F1) and coverage ambiguity (F2). Both still require implementing candidate tests.
+
+[CX-0002](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088652493) reviewed b00d07f: withdrawal target, project-source privacy fence, operational native copies, finite grant and coverage binding. Claude returned c703b2d; all five are addressed in the specification or explicitly blocked, not implementation-verified.
+
+[CX-0003](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6088757330) rechecked c703b2d. Remaining G2 corrections are full project-scope/audience eligibility and transitive provenance when a summary is reused in a later prompt. Native persisted-session cleanup B-1 remains an activation blocker. Option C is architectural direction subject to impact inventory and owner D-6. This attempt did not author any feature correction.
+
+## Commands/actions and evidence
+
+At reviewer base `4f7470c`, Node 24.21.0 and pnpm 11.7.0:
+
+| Actual command/action | Result and limitation |
+|---|---|
+| Pack validator; independent Git blob comparison against supplied ZIP | Validator: 36 cases, 28 checksum entries, 26 links, three references, zero errors. All 29 installed pack files byte-identical at b00d07f |
+| `pnpm install --frozen-lockfile`; `pnpm toolchain:check`; `pnpm contracts:check` | Passed; no backend system-Python tests used |
+| `node --test apps/studio/src/features/conversations/*.test.ts apps/studio/src/app/auth-callback.test.ts apps/api/src/auth.test.ts` | 74 passed, zero failures/skips; baseline F1 still independently reproduces |
+| Owned PG17.6 cluster; `node --test --test-concurrency=1 --test-timeout=90000 packages/persistence/src/mission.db.test.ts apps/api/src/mission.db.test.ts apps/api/src/runtime.db.test.ts` | 52 passed, zero failures/skips. Existing A08/runtime baseline only. Server stopped in `finally` |
+| `node --test tests/unit/destination-map.test.mjs`; `git diff --check` | 3 passed; whitespace check passed |
+| Vite fixtures on isolated port 5299, browser at 1440/1000/390 | Three panes 300/840/300; tablet Context focus/Escape; phone list-first, no horizontal overflow, reachable Send. Fixture evidence only |
+| Actual Studio browser, Render/Vercel read-only dashboard | Sign-in, existing serving deployment IDs; no application write/login selection |
+| Read-only PostgreSQL metadata using existing credential-store reference | PG17.6, schema through0036, no checksum drift, six m03 `running` bindings; not proof of actual live work or ordinary app authorization |
+| GitHub issue comments and direct CON-01 Claude messages | Material independent findings delivered before G2 freeze; no unrelated task messaged |
+
+Restricted evidence: `/Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/{baseline-postgres.py,baseline-postgres.log,baseline-postgres-receipt.json,live-readonly.mjs,live-readonly.json}`. Baseline install/unit/contracts logs also exist under `/tmp/con01-*`. No credential values or real private transcript are copied into the repository.
+
+The [36-case independent ledger](../coordination/CON-01/acceptance.independent.json) retains every required case with `not_run` and precise missing evidence; baseline observations are separate. No case is waived by attractive fixture output or source-only declarations. A21 positive output evidence remains open unless an actual eligible association is available; no association was fabricated.
+
+## Operation request, live tuple and limits
+
+[CON-01-OP-0001-r1](../coordination/CON-01/CON-01-OP-0001-r1.json) is **draft_not_authorized**. Candidate, exact artifact/schema hashes, ordered executable commands, policy approval, cohort, selected provider route/credential/payer, finite caps, expiry, recovery identity and owner approval are null/unbound. The user was asked for the designation facts; no answer is assumed. Do not request approval of this incomplete draft as though it were executable.
+
+[LIVE_PREFLIGHT](../coordination/CON-01/LIVE_PREFLIGHT.md) records the exact fresh dashboard observations:
+
+- API `srv-daqrn08473hc73flhi8g` / `dep-db0h6jad0e5s73bkine0` / source `1e912b7ec83e55694de33d9ced1e4c8d915db4d6`.
+- Runtime `srv-darvmse0tbcc73d8kh3g` / `dep-db02hcou01pc738k4atg` / source `6ec64f36aae1fe60dfd4d54a21f861901ba7d630`.
+- Worker `srv-darv7snpn0mc73e6c240` / `dep-dasrio7pn0mc739nnetg` / source `0391bc66b8dc47f4268b6f785e11de182ff5d7e0`.
+- Media bridge `srv-darvcigu01pc73e24o4g` / `dep-db0h7rc9v7es73bed57g` / source `1e912b7ec83e55694de33d9ced1e4c8d915db4d6`.
+- Studio production `dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1`, Ready/manual upload; source SHA unproven.
+- Database observed at `2026-10-09T20:17:14.172Z`, migrations0001–0036. Runtime installed profile/config/artifact digests, actual process roster and full serving tuple remain unproven.
+
+Actual mission provider use: **zero calls, $0 spend, $0 uncertain provider spend**. No CON-01 allowance exists; this is not a remaining approved balance. No hosted write/migration/deploy/grant/retention activation/stop/purge or destructive fault injection occurred. Read-only API health checks may wake a free service but do not invoke the model. No new paid resources were provisioned.
+
+Privacy limits: synthetic local fixtures only; live metadata only; actual project text never collected. Saved-text/admin/derived-suppression policy and native host cleanup decision remain owner proposals. Provider/backup limitations require actual references before activation.
+
+## Cleanup, rollback and next action
+
+Owned PostgreSQL process stopped and its disposable cluster removed after `pg_ctl status` confirmed it stopped; the restricted receipt records cleanup. No other mission's cluster was touched. The fixture Vite process exited 0 on interrupt; all four reviewer-created browser tabs were closed and the viewport override reset. Review worktree and restricted evidence are retained for recovery. No CON-01 live pending write/reply/permission/control exists. Historical six m03 bindings remain untouched and require the other operator's reconciliation before any cutover.
+
+No hosted rollback is needed because no hosted effect occurred. Historical service versions/Render rollback buttons are available observations, not proof of compatibility with future conversation data. Before release, rehearse disabling new grants/writes while retaining governed reads/erase/control, journal/allowance lineage and additive data. Never restore an old runtime that resurrects prompts or drops privacy enforcement.
+
+**One next bounded action:** Claude publishes the first G1 implementation/test commit and the corrected G2 binding/inventory on issue #198; Codex independently runs the real PostgreSQL/API success/negative crossing and human-only counters against that immutable candidate. The live operation remains blocked until Davide supplies the missing designation/policy/spend facts and approves the completed exact batch. No automatic monitoring or promise of unattended future work is created. Other missions and the broader product remain open.

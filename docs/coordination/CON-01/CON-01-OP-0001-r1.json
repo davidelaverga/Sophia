@@ -1,0 +1,197 @@
+{
+  "schema": "sophia.part2.operation-request.v1",
+  "template": false,
+  "status": "draft_not_authorized",
+  "mission_id": "CON-01",
+  "request_id": "CON-01-OP-0001",
+  "revision": 1,
+  "approval_ref": null,
+  "approved_by": null,
+  "expires_at": null,
+  "repository": "davidelaverga/Sophia",
+  "candidate_sha": null,
+  "base_sha": "4f7470c3ab7c158315934a11c8c620da663f4898",
+  "artifacts": [],
+  "targets": [
+    {
+      "kind": "database",
+      "reference": "Supabase project ikigawvpaxnvdjzzzhws",
+      "identity_verified_for_effect": false,
+      "credential_ref": "~/.config/sophia/smc-m01-owner-db-url (discovered; read-only metadata used; writes not authorized)"
+    },
+    {
+      "kind": "API",
+      "reference": "Render srv-daqrn08473hc73flhi8g",
+      "url": "https://sophia-next-api.onrender.com",
+      "credential_ref": null
+    },
+    {
+      "kind": "runtime",
+      "reference": "Render srv-darvmse0tbcc73d8kh3g",
+      "credential_ref": null
+    },
+    {
+      "kind": "Studio",
+      "reference": "Vercel sophia-30911edf/sophia-studio",
+      "url": "https://sophia-studio.vercel.app",
+      "credential_ref": null
+    },
+    {
+      "kind": "worker",
+      "reference": "Render srv-darv7snpn0mc73e6c240",
+      "credential_ref": null,
+      "effect": "Only if exact reviewed compatibility map requires and batch approves"
+    }
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "action": "Revalidate exact current combined source, serving services, migration hashes and live/uncertain work. Read-only preflight.",
+      "command": null
+    },
+    {
+      "order": 2,
+      "action": "Apply only the reviewed additive pending migration set, including compatible WBC/SDD dependencies; do not assume CON-01 migrations alone suffice.",
+      "command": null
+    },
+    {
+      "order": 3,
+      "action": "Deploy compatible API/readers while conversation cohort and inference remain disabled. Verify serving build and schema identity.",
+      "command": null
+    },
+    {
+      "order": 4,
+      "action": "Deploy exact combined native artifact only under its no-live-work/drain and restore conditions. Verify assembled roster, route, effective tools and unit.",
+      "command": null
+    },
+    {
+      "order": 5,
+      "action": "Enable accepted text policy/settings only for designated test project; upload qualified Studio with dedicated Conversations flag, VISION off.",
+      "command": null
+    },
+    {
+      "order": 6,
+      "action": "Install expiring provider grant for designated cohort only after actual readiness and allowance accounting checks.",
+      "command": null
+    },
+    {
+      "order": 7,
+      "action": "Run pack 08 actual-app episode with two authorized accounts, synthetic data and independent governed-record observation; isolate lost-response simulation to the approved client.",
+      "command": null
+    },
+    {
+      "order": 8,
+      "action": "Reconcile every ask/reservation, perform approved cleanup, retain governed data/read/erase access and verify collateral smoke.",
+      "command": null
+    }
+  ],
+  "migrations": [],
+  "environment_names": [
+    "SOPHIA_CONVERSATIONS",
+    "VITE_SOPHIA_CONVERSATIONS",
+    "VITE_SOPHIA_VISION (must remain off)"
+  ],
+  "preconditions": [
+    "Exact source/artifact/target identity verified",
+    "Current work and outstanding effects reconciled",
+    "Compatible recovery and limits accepted",
+    "G0 changes resolved and exact G1-G4 candidate independently reviewed",
+    "Actual owner policy, cohort, credentials, payer, cap and expiry bound",
+    "Other mission operator acknowledges current live work and exclusive cutover window",
+    "Additive migration and read/erase rollback rehearsed on disposable PostgreSQL",
+    "Signed-in ordinary-role browser path available; no fixtures",
+    "Every command/wrapper and ordered effect finalized before approval"
+  ],
+  "allowance": {
+    "currency": null,
+    "maximum_new_spend": null,
+    "remaining_authorized_spend": null,
+    "providers": [],
+    "new_payer_allowed": false
+  },
+  "recovery": {
+    "method": "Disable new reply admissions, then new text writes for the cohort; reconcile/fence outstanding attempts. Retain qualified readers, withdrawal/erasure controls and all governed data. Exact compatible artifact still unbound.",
+    "compatible_source_sha": null,
+    "schema_compatibility": "Additive data retained; no table drop or old-code-only restore; must rehearse against implementing candidate",
+    "preserve_state_refs": [
+      "conversation/message/request IDs",
+      "privacy tombstones and eligibility fences",
+      "current native journal and unresolved receipt lineage",
+      "cumulative allowance/reservation accounting"
+    ]
+  },
+  "tests": [
+    "Pack 08 steps 1-10; all 36 cases in acceptance.independent.json",
+    "Destructive restart/late-publication race in local/staging unless its exact live effect is separately approved",
+    "A30 requires signed-in real browser, actual durable records and real provider answer"
+  ],
+  "non_effects": [
+    "No provider credential sharing",
+    "No unapproved plan/provider/payer change",
+    "No automatic human acceptance",
+    "No unrelated v3 installation or replay of historical production batches",
+    "No global VISION, no new provider/payer fallback",
+    "No shared-service fault injection, broad cohort, account creation or privilege change",
+    "No automatic monitoring or future-session promise"
+  ],
+  "coordination_issue": "https://github.com/davidelaverga/Sophia/issues/198",
+  "operator_session": "01a1224a-32b4-7222-a017-50a277572d95",
+  "candidate_tree": null,
+  "review_objects": [
+    {
+      "sha": "b00d07f4de292c9f8981b0360ffd9a0eb48b181e",
+      "tree": "90cd8387c195302a6b0703f41994bcd6bd203c15",
+      "scope": "G0 only; changes requested; not deployable",
+      "review_ref": "CON-01-CX-0002.md"
+    },
+    {
+      "sha": "c703b2df259bf414e28eeb48d5c5e8b39f330cf8",
+      "tree": "e4fd211f3904298779b021148cc7cc232081cadd",
+      "scope": "G0 revision2 only; G1 specification reviewed, G2 provisional/B-1 blocked; not deployable",
+      "review_ref": "CON-01-CX-0003.md"
+    }
+  ],
+  "migration_proposals": [
+    "0048_project_conversations.sql",
+    "0049_conversation_replies.sql",
+    "0050 (if needed; exact name unbound)"
+  ],
+  "cohort": {
+    "project_id": null,
+    "accounts": [],
+    "roles": [],
+    "denied_project_id": null
+  },
+  "saved_text_policy": {
+    "id": "conversation-text-v1 (proposal)",
+    "approval_ref": null,
+    "effective_lifecycle": null,
+    "runtime_cleanup_bound": null,
+    "backup_limits": null,
+    "provider_limits": null
+  },
+  "provider": {
+    "route": null,
+    "provider": null,
+    "model": null,
+    "effort": null,
+    "credential_ref": null,
+    "payer": null,
+    "per_reply_cap": null,
+    "max_calls": null,
+    "expiry": null
+  },
+  "unbound": [
+    "Deployable candidate and source/tree/artifact hashes",
+    "Exact pending migration set/order/hashes",
+    "Actual current runtime unit/config/restore identity",
+    "Compatible previous source and rollback rehearsal",
+    "Project and two actual account subjects/roles",
+    "Policy and operational-copy cleanup decision",
+    "Selected provider route and credentials by reference",
+    "Payer, finite total/per-reply caps and expiry",
+    "Ordered exact commands and target owner acknowledgment",
+    "Davide approval reference, scope and expiry"
+  ],
+  "observed_live_tuple_ref": "LIVE_PREFLIGHT.md"
+}
