@@ -11,7 +11,7 @@ the design note and this handoff.
 Runtime unit: the Studio (`apps/studio`); no API change.
 Existing authority: Luis's instruction in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no CI change.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-chain`, branch `fix/signin-limits` from `main` (`8ca6d706`), 2026-10-08
-Ending commit/tree: `ef91de18bd13dd961c6b1c75761b2ccf8a6b2486` (tree `41b738656f0a2f8cd7b545670b1f0dfaaafb70f0`), after the waiting press's look (Codex P1 on #187), after main merged in (with #186, the send-again checks without the light). The commit after it adds only this handoff.
+Ending commit/tree: `d41b8101ac4adc64314ef22a2ef07a2b7f0cfc34` (tree `a64ec9ad36172f5f1d22fed580b2737b2a75aaf9`), after the waiting primary under the pointer (CI), after the waiting press's look (Codex P1 on #187), after main merged in (with #186, the send-again checks without the light). The commit after it adds only this handoff.
 
 ## Outcome
 
