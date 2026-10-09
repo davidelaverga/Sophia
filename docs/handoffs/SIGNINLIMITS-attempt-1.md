@@ -11,7 +11,7 @@ the design note and this handoff.
 Runtime unit: the Studio (`apps/studio`); no API change.
 Existing authority: Luis's instruction in this session (quoted in «Goal and attempt»); merge on green CI with no Codex P1; no CI change.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-chain`, branch `fix/signin-limits` from `main` (`8ca6d706`), 2026-10-08
-Ending commit/tree: `38d61910c9cc234a40d81871287fe020c8f7d8eb` (tree `024729d4da9f2ab82ab7971b9b5afed1ebdb0d3e`), after main merged in (with #186, the send-again checks without the light). The commit after it adds only this handoff.
+Ending commit/tree: `ef91de18bd13dd961c6b1c75761b2ccf8a6b2486` (tree `41b738656f0a2f8cd7b545670b1f0dfaaafb70f0`), after the waiting press's look (Codex P1 on #187), after main merged in (with #186, the send-again checks without the light). The commit after it adds only this handoff.
 
 ## Outcome
 
@@ -48,4 +48,9 @@ Ending commit/tree: `38d61910c9cc234a40d81871287fe020c8f7d8eb` (tree `024729d4da
   provider buttons (`ProviderButtons.tsx`), and the unlock checks in `reauth.ts`.
 - CI's first run failed on the send-again check fixed by #186 (main then lacked it). Main merged in; not run again
   locally (a heavy app open, so the guard starts no browser): CI runs it.
+- Codex's P1 on #187: the invited «Email me a sign-in code», waiting aria-disabled, looked like a dimmed fill, not
+  the waiting primary's outline; and its P2: «Send it again» looked live. `theme.css` now gives `aria-disabled` the
+  look `disabled` had (`.pill.primary` as an outline, `.text-button` dimmed, no pointer). That reaches every waiting
+  text button in the Studio (14 more); asserted on the sign-in fixture, not run locally (a heavy app open): CI runs
+  the whole suite.
 - Next: merge on green CI with no Codex P1.
