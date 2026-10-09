@@ -587,6 +587,27 @@ describe('what a withdrawal reached of a task: withdrawnSourceIds (A15, 0046)', 
   })
 })
 
+describe('the edit a voice call asked for names its call (A15, 0046)', () => {
+  it('a voice edit is the call’s task; a member’s own edit, even under a recorded call’s key, links to nothing', async () => {
+    const w = await world()
+    const first = await designing(w, 'How do hosts confine a browser?', [])
+    const page = await publishPage(w, first.at)
+    const read = await voice(w, 'project_status', {}) // a recorded call that admitted nothing
+    assert.equal(read.status, 'ok')
+    const readKey = `live:${w.exchangeId}:1:v-${String(callN)}`
+    const mine = await call(`/api/v1/projects/${w.projectId}/html-edits`, {
+      bearer: await token(E),
+      body: { versionId: page.versionId, sections: ['s2'], instruction: 'Tighten it.' },
+      headers: { 'idempotency-key': readKey },
+    })
+    assert.equal(mine.status, 202, JSON.stringify(mine.json))
+    const ownTask = await detail(w, String(mine.json.taskId))
+    assert.ok(!('exchangeId' in ownTask.task), 'a member’s own edit names no exchange')
+    const calls = await callsOf(w)
+    assert.deepEqual(calls.at(-1), ['project_status', null, null, 'ok'], 'and the call it borrowed the key of has none')
+  })
+})
+
 /** As the owner: a task's job state and reason. */
 async function jobOf(taskId: string): Promise<{ state: string; reason: string | null }> {
   const { rows } = await owner((c) => c.query(`SELECT state, reason FROM sophia.jobs WHERE id=$1`, [taskId]))
@@ -748,7 +769,7 @@ describe('the G7 episode’s lifecycle, as the Lab relies on it (A15, 0046)', ()
       sameGoal: true,
       researchTaskId: true,
       actor: true,
-      editExchange: false,
+      editExchange: true,
       withdrawnSourceIds: [],
       goal: { status: 'running', live: ['design:running'] },
     })
@@ -854,6 +875,7 @@ describe('the G7 episode’s lifecycle, as the Lab relies on it (A15, 0046)', ()
     observe(t, '6 stopped (running)', stoppedRunning)
 
     const names = new Map([
+      [editTask, 'edit'],
       [first.researchTask, 'first'],
       [pendingTask, 'pending'],
       [runningTask, 'running'],
@@ -891,14 +913,14 @@ describe('the G7 episode’s lifecycle, as the Lab relies on it (A15, 0046)', ()
       job: { state: 'cancelled', reason: 'stopped' },
       goal: { status: 'stopped', live: [] },
     })
-    // The calls certify each step: a create names its task; a Stop that ended live work admitted a stop command, the
-    // one after the withdrawal admitted none. The edit's call names no command or task (see the plan: a gap).
+    // The calls certify each step: a create (research, or the edit) names its task; a Stop that ended live work admitted
+    // a stop command, the one after the withdrawal admitted none.
     assert.deepEqual(calls, [
       ['start_research', 'native_task', 'first', 'admitted'],
       ['control_work', 'hold', null, 'ok'],
       ['control_work', 'resume', null, 'ok'],
       ['revise_html_page', null, null, 'refused'],
-      ['revise_html_page', null, null, 'admitted'],
+      ['revise_html_page', 'native_task', 'edit', 'admitted'],
       ['revise_html_page', null, null, 'refused'],
       ['control_work', null, null, 'refused'],
       ['start_research', 'native_task', 'pending', 'admitted'],
@@ -908,8 +930,8 @@ describe('the G7 episode’s lifecycle, as the Lab relies on it (A15, 0046)', ()
     ])
     assert.deepEqual(
       exchanges.map((x) => (x === w.exchangeId ? 'this exchange' : x)),
-      ['this exchange', 'this exchange', 'this exchange', null, null],
-      'the research tasks name the exchange; the first design and the edit name none',
+      ['this exchange', 'this exchange', 'this exchange', null, 'this exchange'],
+      'the research tasks and the edit name the exchange; the first design, made by the publication, none',
     )
   })
 })

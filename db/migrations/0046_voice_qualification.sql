@@ -521,6 +521,22 @@ END $$;
 CREATE TRIGGER live_call_command AFTER INSERT ON sophia.commands
  FOR EACH ROW WHEN (NEW.idempotency_key LIKE 'live:%') EXECUTE FUNCTION sophia.live_call_command();
 
+-- A scoped edit of a published page asked for by a voice call (revise_html_page): its command is keyed by its task
+-- (design_attempt, 0040), not by the call, so the edit links its call to that command when its design task is
+-- inserted under the call's key and the transaction's mark, as a command under the call's key does above.
+CREATE FUNCTION sophia.live_call_design_edit() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+BEGIN
+ IF NEW.request_key=current_setting('sophia.live_call',true) THEN
+  UPDATE sophia.live_tool_calls lt SET command_id=j.command_id FROM sophia.jobs j
+   WHERE j.project_id=NEW.project_id AND j.id=NEW.job_id AND lt.project_id=NEW.project_id AND lt.actor_id=NEW.actor_id
+    AND lt.idempotency_key=NEW.request_key AND lt.command_id IS NULL;
+ END IF;
+ RETURN NULL;
+END $$;
+CREATE TRIGGER live_call_design_edit AFTER INSERT ON sophia.design_tasks
+ FOR EACH ROW WHEN (NEW.request_key LIKE 'live:%') EXECUTE FUNCTION sophia.live_call_design_edit();
+
 -- The exchange each of a project's tasks was created in by a voice tool call, for a member: the call that admitted the
 -- task's command. A task no such call created is not listed. Read only by an API with voice qualification on, so
 -- native_task_view (0022) is unchanged and an API with it off needs none of 0046.
@@ -607,7 +623,7 @@ REVOKE ALL ON FUNCTION sophia.voice_grant_of(uuid,timestamptz), sophia.voice_dea
  sophia.voice_qualification_evidence_read(uuid), sophia.voice_room_qualification(uuid),
  sophia.media_record_live_call(uuid,bigint,uuid,text,text), sophia.room_live_presence(uuid),
  sophia.native_task_exchanges(uuid,uuid[]), sophia.exchange_calls(uuid,timestamptz), sophia.live_call_admits(uuid,text),
- sophia.live_call_command(), sophia.media_answer_live_call(uuid,uuid,text,text),
+ sophia.live_call_command(), sophia.live_call_design_edit(), sophia.media_answer_live_call(uuid,uuid,text,text),
  sophia.task_withdrawn_sources(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.voice_qualification_guard(), sophia.media_record_evidence(uuid,uuid,integer,text,jsonb),
  sophia.media_voice_reserve(uuid,uuid,text,integer,bigint),
