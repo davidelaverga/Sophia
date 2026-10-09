@@ -17,7 +17,14 @@ import { anchorOf } from './markdown.ts'
 import { lasted } from '../../app/time-words.ts'
 
 export type ResearchState =
-  'starting' | 'researching' | 'ready' | 'partial' | 'not_produced' | 'replaced' | 'held' | 'stopped'
+  'starting' | 'researching' | 'ready' | 'partial' | 'completed' | 'not_produced' | 'replaced' | 'held' | 'stopped'
+
+/**
+ * Whether the card has its task's detail (its outputs and progress) in hand: still being read, not readable (the
+ * reply's own words), or read. Only a detail read shows outputs; where it is not in hand, the task's own record still
+ * says where the task is, so a finished task never reads as at work.
+ */
+export type DetailRead = { status: 'reading' } | { status: 'failed'; message: string } | { status: 'read' }
 
 export interface StateWords {
   state: ResearchState
@@ -84,8 +91,29 @@ function delivered(formats: ReadonlySet<string>, asked: readonly Asked[], pdf: P
 
 type Asked = ResearchProgress['outputs'][number]
 
-/** A task with no report yet: replaced, held, stopped, ended without one, starting or at work. */
-function undelivered(task: Pick<NativeTask, 'phase' | 'state' | 'reason'>): StateWords {
+/** A finished task: what its record says (succeeded, its result ready), whatever its detail says or lacks. */
+const isFinished = (task: Pick<NativeTask, 'phase' | 'state'>) =>
+  task.state === 'succeeded' || task.phase === 'result_ready'
+
+/** Words for the one line a detail that could not be read gives: the reply's own, ending in a full stop. */
+const sentence = (message: string) => message.trim().replace(/\.?$/, '.')
+
+/**
+ * A finished task whose report is not in hand: its report being read, the reply that refused or broke the read in
+ * its own words, or, read, that no published version of it is linked. Never "Researching", and never the promise that
+ * a report is on its way (as hosted cards of finished research once said while their detail was not in hand).
+ */
+function finished(read: DetailRead): StateWords {
+  const words = { state: 'completed', label: 'Completed', tone: 'teal' } as const
+  if (read.status === 'reading') return { ...words, note: 'Reading its report…' }
+  if (read.status === 'failed') {
+    return { ...words, tone: 'amber', note: `Its report could not be read here: ${sentence(read.message)}` }
+  }
+  return { ...words, note: 'No published report is linked to this task.' }
+}
+
+/** A task with no report in hand: replaced, held, stopped, ended without one, finished, starting or at work. */
+function undelivered(task: Pick<NativeTask, 'phase' | 'state' | 'reason'>, read: DetailRead): StateWords {
   if (task.reason?.startsWith('revoked:')) {
     const note = 'A source it read was withdrawn, so it stopped; the task continues without it.'
     return { state: 'replaced', label: 'Replaced', tone: 'muted', note }
@@ -100,30 +128,33 @@ function undelivered(task: Pick<NativeTask, 'phase' | 'state' | 'reason'>): Stat
   if (ENDED_BADLY.has(task.state) || ENDED_BADLY.has(task.phase)) {
     return { state: 'not_produced', label: 'Not produced', tone: 'rose', note: notProducedNote(task.reason) }
   }
+  if (isFinished(task)) return finished(read)
   if (STARTING.has(task.phase)) {
     return { state: 'starting', label: 'Starting', tone: 'lav', note: 'Waiting for the research runtime.' }
   }
-  return {
-    state: 'researching',
-    label: 'Researching',
-    tone: 'lav',
-    note: 'You can keep talking; the report arrives here.',
-  }
+  const note =
+    read.status === 'failed'
+      ? `Its progress could not be read here: ${sentence(read.message)}`
+      : 'You can keep talking; the report arrives here.'
+  return { state: 'researching', label: 'Researching', tone: 'lav', note }
 }
 
 /**
  * A research card's state: what the task's phase and its delivered outputs say. A Markdown report with the PDF asked
  * for and not delivered is "partly delivered", with that reason (or that it is rendering again), never a fallback; so is
  * one whose HTML page could not be designed. An HTML page still being designed leaves the report ready, and says so.
+ * Outputs come only from a detail read: without them a finished task is "Completed", reading or unread (DetailRead),
+ * and a task at work whose detail cannot be read says that its progress could not be.
  */
 export function researchState(
   task: Pick<NativeTask, 'phase' | 'state' | 'reason'>,
   outputs: readonly Pick<Output, 'format'>[],
   asked: readonly Asked[],
   pdf: PdfNews = {},
+  read: DetailRead = { status: 'read' },
 ): StateWords {
   const formats = new Set<string>(outputs.map((o) => o.format))
-  return formats.has('markdown') ? delivered(formats, asked, pdf) : undelivered(task)
+  return formats.has('markdown') ? delivered(formats, asked, pdf) : undelivered(task, read)
 }
 
 type Design = NonNullable<NativeTaskDetail['design']>

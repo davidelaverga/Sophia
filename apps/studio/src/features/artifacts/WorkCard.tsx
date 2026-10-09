@@ -24,6 +24,7 @@ import {
   reportFilename,
   researchState,
   spendText,
+  type DetailRead,
   type StateWords,
 } from './report-view.ts'
 import { useTransientStatus } from './useTransientStatus.ts'
@@ -51,10 +52,17 @@ const pollEvery = (task: NativeTask, detail: NativeTaskDetail | undefined): numb
   return detail?.research?.pdfRendering ? 5_000 : false
 }
 
+/** Whether the detail is in hand: still being read, not readable (the reply's own words), or read. */
+const detailRead = (q: { isPending: boolean; error: Error | null }): DetailRead => {
+  if (q.error) return { status: 'failed', message: q.error.message }
+  return q.isPending ? { status: 'reading' } : { status: 'read' }
+}
+
 /**
  * The task's detail (question, spend, outputs), read again while it runs or its PDF renders, and whenever its phase
- * or result changes; its state in words; and the delivered version the footer describes (a rendition publishes a
- * new one).
+ * or result changes; its state in words, which say whether that detail is still being read or could not be; and the
+ * delivered version the footer describes (a rendition publishes a new one). Outputs read before a read again failed
+ * stay shown.
  */
 function useResearch({ task, projectId, identity }: Props) {
   const detail = useQuery({
@@ -85,7 +93,7 @@ function useResearch({ task, projectId, identity }: Props) {
     research,
     outputs,
     versions,
-    words: researchState(task, outputs, research?.outputs ?? ['markdown'], research ?? {}),
+    words: researchState(task, outputs, research?.outputs ?? ['markdown'], research ?? {}, detailRead(detail)),
     current: versions?.find((v) => v.id === latest),
   }
 }
