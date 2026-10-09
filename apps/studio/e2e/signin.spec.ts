@@ -196,10 +196,10 @@ test('signin · a code that never answers ends, says so, and can be pressed agai
   await press.click()
   await expect(press).toHaveText('Checking…')
   // The waiting primary is an outline, not a dimmed fill (the Studio's primary, waiting).
-  expect(await press.evaluate((b) => [getComputedStyle(b).backgroundColor, getComputedStyle(b).opacity])).toEqual([
-    'rgba(0, 0, 0, 0)',
-    '1',
-  ])
+  // Polled: the fill fades out over the press's own transition.
+  await expect
+    .poll(() => press.evaluate((b) => [getComputedStyle(b).backgroundColor, getComputedStyle(b).opacity]))
+    .toEqual(['rgba(0, 0, 0, 0)', '1'])
   await page.clock.fastForward(30_000)
   await expect(longWait(page)).toBeVisible()
   await page.clock.fastForward(60_000)
