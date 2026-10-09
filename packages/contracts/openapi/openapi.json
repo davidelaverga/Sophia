@@ -29093,7 +29093,7 @@
             "items": {
               "$ref": "#/components/schemas/ConversationMember"
             },
-            "description": "Members who wrote here (messages not withdrawn), in order of their first message; never everyone who can read."
+            "description": "Members who wrote here (messages not withdrawn), in order of their first message; never everyone who can read. At most 200: the first to write, except that the reader, whenever they wrote here, is always among them (in the last place kept when they first wrote later). 200 names means there may be more."
           },
           "sophia": {
             "type": "boolean",

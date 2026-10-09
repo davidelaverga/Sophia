@@ -97,14 +97,22 @@ interface SummaryRow {
   last_at_message: Date | null
 }
 
+/** How many contributors a summary names: A16's `ConversationSummary.contributors` `maxItems`. */
+const CONTRIBUTORS_NAMED = 200
+
 // Contributors: members whose messages are not withdrawn, in the order they first wrote, named as their newest message
-// carries it. Sophia: an answer of hers that is not withdrawn. The opening: the newest message not withdrawn.
+// carries it. At most CONTRIBUTORS_NAMED, so a summary never says more than A16 lets it: the first of them to write,
+// except that the reader, whenever they wrote here, is always among them (in the last place kept, when they first wrote
+// later), so «Mine» and «You» stay true for them. A writer beyond them is named on every message they wrote. Sophia: an
+// answer of hers that is not withdrawn. The opening: the newest message not withdrawn.
 const SUMMARIES = `SELECT c.id, c.title, c.revision, c.last_at,
     (SELECT coalesce(jsonb_agg(jsonb_build_object('actorId', x.actor_id, 'name', x.name) ORDER BY x.first_seq), '[]')
        FROM (SELECT m.actor_id, min(m.seq) AS first_seq, (array_agg(m.author_name ORDER BY m.seq DESC))[1] AS name
                FROM sophia.conversation_messages m
               WHERE m.conversation_id = c.id AND m.author = 'member' AND m.withdrawn_at IS NULL
-              GROUP BY m.actor_id) x) AS contributors,
+              GROUP BY m.actor_id
+              ORDER BY (m.actor_id = sophia.actor_id()) DESC, min(m.seq)
+              LIMIT ${CONTRIBUTORS_NAMED}) x) AS contributors,
     EXISTS (SELECT 1 FROM sophia.conversation_messages s
              WHERE s.conversation_id = c.id AND s.author = 'sophia' AND s.withdrawn_at IS NULL) AS sophia,
     l.author AS last_author, l.actor_id AS last_actor, l.author_name AS last_name,

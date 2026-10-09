@@ -17,7 +17,7 @@ import {
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { focusLater } from '../personal/focus.ts'
-import { LISTS, listWithdrawn, messagesKey, withWithdrawn, type ReadPages } from './conversation-list.ts'
+import { LISTS, listWithdrawn, messagesKey, remainsAfter, withWithdrawn, type ReadPages } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 
 export interface WithdrawArgs {
@@ -64,10 +64,14 @@ export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; 
     const message = await write.run(args.messageId)
     if (!message) return
     const pages = messagesKey(args.conversationId, accountOf(args.identity))
-    // What it said, and what was said from it, leaves the screen now: not only once (and if) it is read again.
-    queryClient.setQueryData<ReadPages<ConversationMessage>>(pages, (read) => withWithdrawn(read, message))
+    // What it said, what was said from it, and who it says wrote there leave the screen now: not only once (and if)
+    // it is read again.
+    const before = queryClient.getQueryData<ReadPages<ConversationMessage>>(pages)
+    const after = withWithdrawn(before, message)
+    queryClient.setQueryData<ReadPages<ConversationMessage>>(pages, () => after)
+    const remains = remainsAfter(before, after, message)
     queryClient.setQueriesData<ConversationList>({ queryKey: LISTS }, (list) =>
-      listWithdrawn(list, args.conversationId),
+      listWithdrawn(list, args.conversationId, remains),
     )
     void queryClient.invalidateQueries({ queryKey: pages })
     void queryClient.invalidateQueries({ queryKey: LISTS })

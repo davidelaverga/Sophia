@@ -21,8 +21,12 @@ export const messagesKey = (conversationId: string, name: string) =>
   ['conversations', 'messages', conversationId, name] as const
 
 /** Who wrote there, mine as «You», then Sophia when she answered: «Lucía, You · Sophia». */
+/** The most writers a conversation's summary names (A16's `contributors` `maxItems`): at that many, there may be more. */
+export const NAMED_AT_MOST = 200
+
 export function contributorsLine(c: Pick<ConversationSummary, 'contributors' | 'sophia'>, me: string): string {
-  const people = c.contributors.map((p) => (p.actorId === me ? 'You' : p.name)).join(', ')
+  const named = c.contributors.map((p) => (p.actorId === me ? 'You' : p.name)).join(', ')
+  const people = c.contributors.length >= NAMED_AT_MOST ? `${named} and others` : named
   if (!people) return c.sophia ? 'Sophia' : 'Nobody has written yet'
   return c.sophia ? `${people} · Sophia` : people
 }
@@ -241,18 +245,55 @@ const NOT_ASSESSED: ProjectionCoverage = {
 }
 
 /**
- * A list as a withdrawal leaves it, at once and before it is read again: that conversation's last message and summary,
- * which may say the words withdrawn, go (the next read says what remains).
+ * Who still has words in a conversation's pages as read, once a withdrawal took its message (and Sophia's answers that
+ * read it): whether its writer still does, and, where it took an answer of hers, whether Sophia still does (null: it
+ * took none, so her part is as it was). Only the pages read count: a writer or an answer seen nowhere in them is taken
+ * as gone until the conversation is read again, never kept on a guess.
  */
-export function listWithdrawn(list: ConversationList | undefined, conversationId: string) {
-  return (
-    list && {
-      ...list,
-      conversations: list.conversations.map((c) =>
-        c.id === conversationId ? { ...c, lastMessage: null, summary: null, summaryCoverage: NOT_ASSESSED } : c,
-      ),
-    }
-  )
+export interface Remains {
+  writer: string | null
+  writerStays: boolean
+  sophiaStays: boolean | null
+}
+
+/** A message that still says something here. */
+const shown = (m: ConversationMessage) => !m.withdrawn && m.text !== null
+
+export function remainsAfter(
+  before: ReadPages<ConversationMessage> | undefined,
+  after: ReadPages<ConversationMessage> | undefined,
+  gone: ConversationMessage,
+): Remains {
+  const hers = (read: ReadPages<ConversationMessage> | undefined) =>
+    (read?.pages ?? []).flatMap((p) => p.messages).filter((m) => m.author === 'sophia' && shown(m)).length
+  const now = (after?.pages ?? []).flatMap((p) => p.messages)
+  const writer = gone.author === 'member' ? gone.actorId : null
+  return {
+    writer,
+    writerStays: now.some((m) => shown(m) && m.author === 'member' && m.actorId === writer),
+    sophiaStays: hers(after) < hers(before) ? hers(after) > 0 : null,
+  }
+}
+
+/**
+ * A list as a withdrawal leaves it, at once and before it is read again: that conversation's last message and summary,
+ * which may say the words withdrawn, go; so does its writer among those who wrote there, unless the pages read show
+ * words of theirs still there, and Sophia's part where the withdrawal took her answers (`remainsAfter`). The next read
+ * says what remains.
+ */
+export function listWithdrawn(list: ConversationList | undefined, conversationId: string, remains: Remains) {
+  const left = (c: ConversationSummary): ConversationSummary => ({
+    ...c,
+    lastMessage: null,
+    summary: null,
+    summaryCoverage: NOT_ASSESSED,
+    contributors:
+      remains.writer === null || remains.writerStays
+        ? c.contributors
+        : c.contributors.filter((p) => p.actorId !== remains.writer),
+    sophia: remains.sophiaStays === null ? c.sophia : c.sophia && remains.sophiaStays,
+  })
+  return list && { ...list, conversations: list.conversations.map((c) => (c.id === conversationId ? left(c) : c)) }
 }
 
 /**

@@ -21,6 +21,7 @@ import {
   replyOf,
   replyOpen,
   listWithdrawn,
+  remainsAfter,
   withWithdrawn,
 } from './conversation-list.ts'
 
@@ -55,6 +56,12 @@ const conversation = (over: Partial<ConversationSummary> = {}): ConversationSumm
 })
 
 describe('contributorsLine', () => {
+  it('says there may be others once it names as many as A16 lets it (PR #199 review)', () => {
+    const many = Array.from({ length: 200 }, (_, i) => ({ actorId: `a${String(i)}`, name: `N${String(i)}` }))
+    assert.match(contributorsLine(conversation({ contributors: many }), 'a199'), /N198, You and others$/)
+    assert.doesNotMatch(contributorsLine(conversation({ contributors: many.slice(0, 199) }), ME), /others/)
+  })
+
   it('names who wrote there, mine as You, and Sophia only where she answered', () => {
     const c = conversation({
       contributors: [
@@ -450,28 +457,69 @@ describe('withWithdrawn: what a withdrawal takes off the screen at once (PR #199
 })
 
 describe('listWithdrawn: the list says nothing the withdrawal took (PR #199 review)', () => {
+  const last = { author: 'member' as const, actorId: ME, name: 'Me', text: 'words 3', at: '2026-10-06T09:00:00.000Z' }
+  const people = [
+    { actorId: ME, name: 'Me' },
+    { actorId: 'lucia', name: 'Lucía' },
+  ]
+  const listOf = (over: Partial<ConversationSummary> = {}) => ({
+    projectId: 'p',
+    conversations: [
+      conversation({ lastMessage: last, summary: 'Said: words 3', contributors: people, sophia: true, ...over }),
+      conversation({ id: 'c2', lastMessage: last, contributors: people }),
+    ],
+    more: false,
+    policy: null,
+    capability: { state: 'enabled' as const, write: true, moderate: false, ask: 'available' as const, askReason: null },
+  })
+  const nothingElse = { writer: null, writerStays: false, sophiaStays: null }
+
   it('drops that conversation’s last message and summary, and leaves the others', () => {
-    const last = { author: 'member' as const, actorId: ME, name: 'Me', text: 'words 3', at: '2026-10-06T09:00:00.000Z' }
-    const list = {
-      projectId: 'p',
-      conversations: [
-        conversation({ lastMessage: last, summary: 'Said: words 3' }),
-        conversation({ id: 'c2', lastMessage: last }),
-      ],
-      more: false,
-      policy: null,
-      capability: {
-        state: 'enabled' as const,
-        write: true,
-        moderate: false,
-        ask: 'available' as const,
-        askReason: null,
-      },
-    }
-    const after = listWithdrawn(list, 'c1')
+    const list = listOf()
+    const after = listWithdrawn(list, 'c1', nothingElse)
     assert.equal(after?.conversations[0]?.lastMessage, null)
     assert.equal(after?.conversations[0]?.summary, null)
     assert.equal(after?.conversations[0]?.summaryCoverage.state, 'not_assessed')
     assert.deepEqual(after?.conversations[1], list.conversations[1])
+  })
+
+  it('drops its writer among those who wrote there, unless words of theirs are still read there', () => {
+    const gone = listWithdrawn(listOf(), 'c1', { writer: ME, writerStays: false, sophiaStays: null })
+    assert.deepEqual(
+      gone?.conversations[0]?.contributors.map((p) => p.actorId),
+      ['lucia'],
+    )
+    const stays = listWithdrawn(listOf(), 'c1', { writer: ME, writerStays: true, sophiaStays: null })
+    assert.equal(stays?.conversations[0]?.contributors.length, 2)
+  })
+
+  it('drops Sophia only where the withdrawal took her answers and none is left', () => {
+    assert.equal(listWithdrawn(listOf(), 'c1', { ...nothingElse, sophiaStays: false })?.conversations[0]?.sophia, false)
+    assert.equal(listWithdrawn(listOf(), 'c1', { ...nothingElse, sophiaStays: true })?.conversations[0]?.sophia, true)
+    assert.equal(listWithdrawn(listOf(), 'c1', nothingElse)?.conversations[0]?.sophia, true)
+  })
+})
+
+/** One page of messages, as read. */
+const page = (messages: ConversationMessage[]) => ({ pages: [{ messages, before: null }], pageParams: [null] })
+
+describe('remainsAfter: who still has words there, as read (PR #199 review)', () => {
+  const gone = msg(3, { text: null, name: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
+
+  it('says the writer is gone when no other words of theirs are read, and stays when some are', () => {
+    const before = page([msg(2, { actorId: 'lucia', name: 'Lucía' }), msg(3)])
+    const r = remainsAfter(before, withWithdrawn(before, gone), gone)
+    assert.deepEqual(r, { writer: ME, writerStays: false, sophiaStays: null })
+    const more = page([msg(1), msg(3)])
+    assert.equal(remainsAfter(more, withWithdrawn(more, gone), gone).writerStays, true)
+  })
+
+  it('says whether Sophia still has words there only when the withdrawal took an answer of hers', () => {
+    const only = page([msg(3), answer(4, 3)])
+    assert.equal(remainsAfter(only, withWithdrawn(only, gone), gone).sophiaStays, false)
+    const earlier = page([msg(1), answer(2, 1), msg(3), answer(4, 3)])
+    assert.equal(remainsAfter(earlier, withWithdrawn(earlier, gone), gone).sophiaStays, true)
+    const none = page([answer(2, 1), msg(3)])
+    assert.equal(remainsAfter(none, withWithdrawn(none, gone), gone).sophiaStays, null)
   })
 })

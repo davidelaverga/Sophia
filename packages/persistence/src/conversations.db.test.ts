@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { DomainError } from '@sophia/domain'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
+import { parseConversationList } from '@sophia/contracts/validate'
 import {
   createPool,
   eraseConversation,
@@ -336,6 +337,30 @@ describe('order and pages (CON01-A07)', () => {
       seen,
       Array.from({ length: 125 }, (_, i) => i + 1),
     )
+  })
+
+  it('a conversation with more writers than A16 names lists 200, the reader among them, in order (PR #199 review)', async () => {
+    const p = await project()
+    const r = await start(E, p)
+    const more = Array.from({ length: 200 }, () => randomUUID())
+    await owner(
+      `INSERT INTO sophia.project_members(project_id, actor_id, role) SELECT $1, unnest($2::uuid[]), 'editor'`,
+      [p, more],
+    )
+    for (const [i, actor] of more.entries()) await send(actor, r.conversationId, `Writer ${i}`)
+    const namedFor = async (reader: string) => {
+      const read = await list(reader, p)
+      // The whole answer as the Studio checks it: the generated A16 contract.
+      assert.doesNotThrow(() => parseConversationList(read))
+      return read.conversations.find((c) => c.id === r.conversationId)?.contributors.map((x) => x.actorId)
+    }
+    // Someone who didn't write there: the first 200 to write.
+    assert.deepEqual(await namedFor(A), [E, ...more.slice(0, 199)])
+    // The 201st to write is still named to themselves (in the last place kept), so «Mine» holds for them.
+    const last = more[199] ?? ''
+    assert.deepEqual(await namedFor(last), [E, ...more.slice(0, 198), last])
+    // One among the first 200: the first 200, unchanged.
+    assert.deepEqual(await namedFor(E), [E, ...more.slice(0, 199)])
   })
 
   it("another conversation's cursor, or a made-up one, is refused", async () => {

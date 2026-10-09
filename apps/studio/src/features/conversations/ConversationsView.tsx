@@ -302,10 +302,10 @@ function usePanes() {
       if (thread) thread.scrollTop = thread.scrollHeight
     })
   }
-  const toList = () => {
+  const toList = useCallback(() => {
     setContext(false)
     setScreen('list')
-  }
+  }, [])
   const back = () => {
     toList()
     // After the list shows again: the row of the conversation left, else the filter (that row may be filtered out).
@@ -464,9 +464,10 @@ function useTalk(projectId: string, name: string) {
 
 /**
  * A conversation erased here: what the view kept for it goes (its draft, its message held, its wait), the list shows
- * again (a phone's one screen), and the list says it was erased until another is opened. The focus, armed as Erase is
- * pressed (the feed may take the conversation away before the reply comes), lands on the row now open once the list
- * no longer holds it, unless the person moved it elsewhere meanwhile (focusLater).
+ * again (a phone's one screen, the context put away), and the list says it was erased until another is opened. The
+ * focus, armed as Erase is pressed, waits for the conversation to leave the list (its reply, or the feed first), then
+ * for the list to be in sight (on a phone it shows only then), and lands on the row open now, unless the person moved
+ * it elsewhere meanwhile (focusLater; CX-0015).
  */
 function useErased(
   talk: ReturnType<typeof useTalk>,
@@ -475,17 +476,26 @@ function useErased(
 ) {
   const [said, setSaid] = useState(false)
   const landing = useRef<{ id: string; land: (el: HTMLElement | null) => void } | null>(null)
+  // It left the list: now the list is to show, and the focus to land once it does.
+  const [due, setDue] = useState(false)
+  const { toList, view, screen, context } = panes
   useEffect(() => {
     const at = landing.current
-    if (!at || all.some((c) => c.id === at.id)) return
+    if (!at || due || all.some((c) => c.id === at.id)) return
+    toList()
+    setDue(true)
+  }, [all, due, toList])
+  useEffect(() => {
+    const at = landing.current
+    if (!due || !at || screen !== 'list' || context) return
     landing.current = null
-    const view = panes.view.current
+    setDue(false)
     at.land(
-      view?.querySelector<HTMLElement>('.conv-row[aria-pressed="true"]') ??
-        view?.querySelector<HTMLElement>('.conv-filter, .conv-start') ??
+      view.current?.querySelector<HTMLElement>('.conv-row[aria-pressed="true"]') ??
+        view.current?.querySelector<HTMLElement>('.conv-filter, .conv-start') ??
         null,
     )
-  }, [all, said, panes.view])
+  }, [due, screen, context, view])
   return {
     said,
     clear: () => setSaid(false),
@@ -495,7 +505,7 @@ function useErased(
     on: (id: string) => {
       talk.change((k) => withoutConversation(k, id))
       setSaid(true)
-      panes.toList()
+      toList()
     },
   }
 }

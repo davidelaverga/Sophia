@@ -33,6 +33,8 @@ export interface TalkWrites {
   withdraw: 'slow' | 'feedFirst' | 'thenFail' | null
   /** The list's reads fail. */
   failList: boolean
+  /** An erasure's feed 0.5 s on and its reply 2.5 s on (`erase=feedFirst`), or both at once. */
+  erase: 'feedFirst' | null
   /** This conversation's messages fail to read (`messages=fail`, or after a `send=thenFail` write). */
   failMessagesOf: string | null
   /** Each write's receipt by its key, with the words it was sent with: the same key replays it, only with them. */
@@ -328,6 +330,14 @@ export function conversationErased(talk: TalkWrites, path: string, init: Request
   const receipt = { conversationId, erased: true }
   talk.receipts.set(key, { body: what, receipt })
   ctx.record(`conversation-erase:${conversationId.slice(-2)}`)
-  ctx.moved()
-  return json(receipt, 202)
+  if (talk.erase !== 'feedFirst') {
+    ctx.moved()
+    return json(receipt, 202)
+  }
+  // The feed shows it gone first; its reply comes later.
+  setTimeout(ctx.moved, 500)
+  return later(2500, () => {
+    ctx.record('reply:erasure')
+    return json(receipt, 202)
+  })
 }

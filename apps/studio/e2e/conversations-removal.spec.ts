@@ -139,3 +139,47 @@ test('removal · a withdrawn message never heads a run: the one after it says wh
   await expect(messages(page).filter({ hasText: 'This message was withdrawn.' })).toHaveCount(1)
   await expect(sent).not.toHaveAttribute('data-run', 'on')
 })
+
+for (const width of ['desktop', '@phone'] as const) {
+  test(`removal · ${width}: when the feed takes the erased conversation before its reply, the focus lands on the list in sight (CX-0015)`, async ({
+    page,
+  }) => {
+    await page.goto(`${PAGE}&erase=feedFirst`)
+    if (width === '@phone') {
+      // One screen at a time: the conversation, then its context over it.
+      await rows(page).first().click()
+      await expect(open(page)).toBeVisible()
+    }
+    await expect(messages(page)).toHaveCount(6)
+    const toggle = open(page).getByRole('button', { name: 'Context' })
+    if (await toggle.isVisible()) await toggle.click()
+    await erase(page).click()
+    await page.getByRole('group', { name: 'Erase this conversation' }).getByRole('button', { name: 'Erase' }).click()
+    // The feed shows it gone 0.5 s on; its reply comes 2.5 s on.
+    await expect(rows(page).first()).toBeVisible({ timeout: 2000 })
+    await expect(rows(page).first()).toBeFocused({ timeout: 1500 })
+    expect(await written(page, 'reply')).toEqual([])
+    await expect.poll(() => written(page, 'reply'), { timeout: 5000 }).toEqual(['reply:erasure'])
+    await expect(rows(page).first()).toBeFocused()
+    await expect(list(page)).toContainText('The conversation was erased.')
+    await expect(list(page)).not.toContainText(FIRST)
+  })
+}
+
+test('removal · a writer whose only message is removed is named nowhere, whatever the reads after it do', async ({
+  page,
+}) => {
+  await opened(page, '&withdraw=thenFail')
+  await rows(page).nth(1).click()
+  await expect(messages(page)).toHaveCount(2)
+  const who = open(page).locator('.conv-head .conv-who')
+  await expect(who).toContainText('Marco')
+  const his = messages(page).filter({ hasText: 'One page. Anything longer, nobody reads.' })
+  await his.hover()
+  await his.getByRole('button', { name: 'Remove message' }).click()
+  await page.getByRole('group', { name: 'Remove this message' }).getByRole('button', { name: 'Remove' }).click()
+  await expect(messages(page).first()).toContainText('This message was withdrawn.')
+  await expect(who).not.toContainText('Marco')
+  await expect(who).toContainText('Lucía')
+  await expect(rows(page).nth(1)).not.toContainText('Marco')
+})

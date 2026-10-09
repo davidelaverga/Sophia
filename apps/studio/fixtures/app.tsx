@@ -120,6 +120,7 @@ if (sessionStorage.getItem(WORK_KEY) === 'lost') {
       start: null,
       answerMs: 900,
       withdraw: null,
+      erase: null,
       receipts: new Map(),
     },
     missionPlus: conversationMission(),
