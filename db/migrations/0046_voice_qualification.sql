@@ -468,11 +468,17 @@ GRANT SELECT ON sophia.live_tool_calls TO sophia_api;
 -- only one of the grant's principal, in an exchange opened under that grant, is. The same call again is a no-op.
 CREATE FUNCTION sophia.media_record_live_call(p_exchange uuid, p_input_epoch bigint, p_actor uuid, p_key text, p_tool text)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE e sophia.room_exchanges; g sophia.voice_qualification_grants;
+DECLARE e sophia.room_exchanges; g sophia.voice_qualification_grants; p uuid;
 BEGIN
  PERFORM sophia.require_service();
- SELECT * INTO e FROM sophia.room_exchanges WHERE id=p_exchange;
- IF e.id IS NULL OR e.state='ended' THEN RAISE EXCEPTION 'The exchange has ended' USING ERRCODE='40001'; END IF;
+ -- End is a durable boundary for the calls: the recording takes the project's lock, as control_exchange does (0003:
+ -- the project, then its exchange), and the exchange's row, before it reads the exchange's state, and holds both to its
+ -- commit. An End waits for a recording that passed its checks; a recording after an End is refused.
+ SELECT project_id INTO p FROM sophia.room_exchanges WHERE id=p_exchange;
+ IF p IS NULL THEN RAISE EXCEPTION 'The exchange has ended' USING ERRCODE='40001'; END IF;
+ PERFORM 1 FROM sophia.projects WHERE id=p FOR UPDATE;
+ SELECT * INTO e FROM sophia.room_exchanges WHERE id=p_exchange FOR SHARE;
+ IF e.state='ended' THEN RAISE EXCEPTION 'The exchange has ended' USING ERRCODE='40001'; END IF;
  IF NOT EXISTS(SELECT 1 FROM sophia.exchange_inputs i WHERE i.exchange_id=e.id AND i.input_epoch=p_input_epoch AND i.actor_id=p_actor) THEN
   RAISE EXCEPTION 'The speaker is not bound to that input epoch' USING ERRCODE='42501'; END IF;
  IF p_key NOT LIKE 'live:'||e.id::text||':%' THEN RAISE EXCEPTION 'The key names another exchange' USING ERRCODE='22023'; END IF;
@@ -484,7 +490,8 @@ BEGIN
 END $$;
 
 -- The API answered a recorded call, after anything it admitted for it committed: the answer's status, once. A call the
--- API never answered (it stopped on the way) stays unanswered, and proves nothing.
+-- API never answered (it stopped on the way) stays unanswered, and proves nothing. It reads no exchange state and takes
+-- no lock of the exchange: a call recorded before an End is still answered after it.
 CREATE FUNCTION sophia.media_answer_live_call(p_exchange uuid, p_actor uuid, p_key text, p_outcome text)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 BEGIN

@@ -56,7 +56,7 @@ async function run(sql: string, params: unknown[], actor: string | null = null):
 }
 
 /** A project with a grant whose exchanges may last 60 s, and an exchange opened 61 s ago: due at the deadline. */
-async function dueExchange(): Promise<{ projectId: string; exchangeId: string; grantId: string }> {
+async function dueExchange(due = true): Promise<{ projectId: string; exchangeId: string; grantId: string }> {
   const seeded = await seedProject(db.ownerUrl, { admin: A, editors: [P] })
   const grantId = await owner(async (c) => {
     const { rows } = await c.query<{ id: string }>(
@@ -70,14 +70,15 @@ async function dueExchange(): Promise<{ projectId: string; exchangeId: string; g
   const { exchangeId } = await withActor(pool, P, 'write', (c) =>
     startExchange(c, snap.room.id, randomUUID(), { expectedRoomRevision: snap.room.revision, allowVision: false }),
   )
-  await owner(async (c) => {
-    await c.query(
-      `UPDATE sophia.voice_qualification_grants SET created_at=created_at-interval '61 s',
+  if (due)
+    await owner(async (c) => {
+      await c.query(
+        `UPDATE sophia.voice_qualification_grants SET created_at=created_at-interval '61 s',
         expires_at=expires_at-interval '61 s' WHERE id=$1`,
-      [grantId],
-    )
-    await c.query(`UPDATE sophia.room_exchanges SET opened_at=opened_at-interval '61 s' WHERE id=$1`, [exchangeId])
-  })
+        [grantId],
+      )
+      await c.query(`UPDATE sophia.room_exchanges SET opened_at=opened_at-interval '61 s' WHERE id=$1`, [exchangeId])
+    })
   return { projectId: seeded.projectId, exchangeId, grantId }
 }
 
@@ -123,6 +124,54 @@ async function holding(sql: string, params: unknown[]): Promise<() => Promise<vo
     await c.query('COMMIT')
     await c.end()
   }
+}
+
+/** A statement in its own transaction, started now: its backend at once, its outcome ('ok' or SQLSTATE) when it ends. */
+async function started(sql: string, params: unknown[], actor: string | null = null) {
+  const c = await pool.connect()
+  await c.query('BEGIN')
+  if (actor) await c.query(`SELECT set_config('sophia.actor_id', $1, true)`, [actor])
+  await c.query(`SET LOCAL lock_timeout = '10s'`)
+  const pid = Number((await c.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]?.pid)
+  let settled = false
+  const done = c
+    .query(sql, params)
+    .then(
+      async () => {
+        await c.query('COMMIT')
+        return 'ok'
+      },
+      async (err: unknown) => {
+        await c.query('ROLLBACK').catch(() => undefined)
+        return (err as { code?: string }).code ?? 'error'
+      },
+    )
+    .finally(() => {
+      settled = true
+      c.release()
+    })
+  return { pid, done, settled: () => settled }
+}
+
+/** Until the statement either ended or waits for a lock (pg_stat_activity), whichever comes first. */
+async function untilBlocked(s: { pid: number; settled: () => boolean }): Promise<'done' | 'waiting'> {
+  for (let looked = 0; looked < 500; looked += 1) {
+    if (s.settled()) return 'done'
+    const { rows } = await owner((c) =>
+      c.query<{ w: string | null }>(`SELECT wait_event_type AS w FROM pg_stat_activity WHERE pid=$1`, [s.pid]),
+    )
+    if (rows[0]?.w === 'Lock') return 'waiting'
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error(`backend ${String(s.pid)} neither ended nor waited`)
+}
+
+/** The principal's own recorded calls in an exchange, as they read them. */
+async function callsOf(exchangeId: string): Promise<unknown[]> {
+  const { rows } = await withActor(pool, P, 'read', (c) =>
+    c.query<{ r: { calls: unknown[] } }>(`SELECT sophia.exchange_calls($1) AS r`, [exchangeId]),
+  )
+  return rows[0]?.r.calls ?? []
 }
 
 describe('voice qualification under concurrency: no deadlock, and every due exchange still ends (0046)', () => {
@@ -180,9 +229,9 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
         [lock === 'exchange' ? x.exchangeId : x.projectId],
       )
       try {
-        const started = Date.now()
+        const since = Date.now()
         assert.equal(await guard(), 'ok', `the guard did not wait on the held ${lock}`)
-        assert.ok(Date.now() - started < 4000, `the guard did not wait on the held ${lock}`)
+        assert.ok(Date.now() - since < 4000, `the guard did not wait on the held ${lock}`)
         assert.equal(await endedWhy(x.exchangeId), 'open:null', 'skipped while held')
       } finally {
         await release()
@@ -212,5 +261,76 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
     assert.equal(await endedWhy(due.exchangeId), 'open:null', 'another exchange’s receipt did not end it')
     assert.equal(await write(due), 'ok')
     assert.equal(await endedWhy(due.exchangeId), 'ended:deadline', 'its own receipt did, under its lock')
+  })
+
+  describe('an End and a voice call being recorded serialize (C5): End is a durable boundary for the calls', () => {
+    const record = (x: { exchangeId: string }, key: string) =>
+      started(`SELECT sophia.media_record_live_call($1,1,$2,$3,'control_work')`, [x.exchangeId, P, key])
+    const end = (x: { exchangeId: string }) =>
+      started(`SELECT sophia.control_exchange($1,'end',NULL)`, [x.exchangeId], P)
+
+    it('a recording that passed its checks first: End waits for it, and the call is listed, not yet answered', async () => {
+      const x = await dueExchange(false)
+      // Root's schedule: the owner's SHARE lock on live_tool_calls holds the recording at its insert.
+      const gate = await holding(`LOCK TABLE sophia.live_tool_calls IN SHARE MODE`, [])
+      let release = gate
+      try {
+        const recording = await record(x, `live:${x.exchangeId}:1:c-1`)
+        assert.equal(await untilBlocked(recording), 'waiting', 'the recording is in flight, held at its insert')
+        const ending = await end(x)
+        assert.equal(await untilBlocked(ending), 'waiting', 'End waits behind the recording')
+        assert.equal(await endedWhy(x.exchangeId), 'open:null')
+        assert.deepEqual(await callsOf(x.exchangeId), [], 'nothing committed yet')
+        await gate()
+        release = () => Promise.resolve()
+        assert.deepEqual([await recording.done, await ending.done], ['ok', 'ok'])
+      } finally {
+        await release()
+      }
+      const calls = (await callsOf(x.exchangeId)) as Array<{ tool: string; answeredAt: string | null }>
+      assert.deepEqual(
+        calls.map((c) => [c.tool, c.answeredAt]),
+        [['control_work', null]],
+      )
+      assert.equal((await endedWhy(x.exchangeId)).split(':')[0], 'ended')
+    })
+
+    it('End committed first: a recording after it is refused (40001), and nothing is listed', async () => {
+      const x = await dueExchange(false)
+      assert.equal(await (await end(x)).done, 'ok')
+      assert.equal(await (await record(x, `live:${x.exchangeId}:1:c-1`)).done, '40001')
+      assert.deepEqual(await callsOf(x.exchangeId), [])
+    })
+
+    it('a recording racing End, Stop Speaking, a receipt, a reservation and the guard: no deadlock in 20 trials', async () => {
+      const outcomes: string[] = []
+      for (let trial = 0; trial < TRIALS; trial += 1) {
+        const x = await dueExchange()
+        const recorded = await record(x, `live:${x.exchangeId}:1:race-${String(trial)}`)
+        const ending = await end(x)
+        const results = await Promise.all([recorded.done, ending.done, stopSpeaking(x), write(x), reserve(x), guard()])
+        // A recording, a reservation or Stop Speaking after the exchange ended is refused as such (40001).
+        outcomes.push(...results.filter((r) => r !== '40001'))
+      }
+      assert.deepEqual(
+        outcomes.filter((o) => o !== 'ok'),
+        [],
+        'no deadlock (40P01) and no wait past the lock timeout (55P03)',
+      )
+    })
+
+    it('a call recorded before End is still answered after it', async () => {
+      const x = await dueExchange(false)
+      const key = `live:${x.exchangeId}:1:c-1`
+      assert.equal(await (await record(x, key)).done, 'ok')
+      assert.equal(await (await end(x)).done, 'ok')
+      const answer = await started(`SELECT sophia.media_answer_live_call($1,$2,$3,'ok')`, [x.exchangeId, P, key])
+      assert.equal(await answer.done, 'ok')
+      const calls = (await callsOf(x.exchangeId)) as Array<{ outcome: string | null; answeredAt: string | null }>
+      assert.deepEqual(
+        calls.map((c) => [c.outcome, c.answeredAt !== null]),
+        [['ok', true]],
+      )
+    })
   })
 })

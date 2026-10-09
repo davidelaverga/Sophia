@@ -185,7 +185,13 @@ The command is `null` for a call that admitted nothing:
 - a refusal: a Hold on work that is not running (already held, or held before the step) admits no command;
 - a repeat that the work answered with what was already under way (`existingTaskId`).
 
-It is also `null` for a call not answered yet (`answeredAt: null`), since whatever it admits may not have committed. A replayed call stays the one entry it was. Another member's calls and another exchange's calls are never listed. An exchange outside the caller's projects is 422 `not_found`, and an id that is not a lowercase canonical UUID is 422 `invalid_request`.
+It is also `null` for a call not answered yet (`answeredAt: null`), since whatever it admits may not have committed.
+
+**End is a durable boundary for the calls.** The service records a call under the exchange's project lock and its row lock (the project, then the exchange, as End takes them), reading the exchange's state under them and holding both until it commits. An End and a recording therefore serialize:
+- A recording that passed its checks first makes End wait. The call is listed after End, unanswered until the API answers it.
+- A recording after End is refused (40001) and nothing is listed.
+
+So once End has committed, no call can still appear. The API's answer (`media_answer_live_call`) only marks a recorded call answered: it reads no state and takes no lock of the exchange, so a call recorded before End is still answered after it. A replayed call stays the one entry it was. Another member's calls and another exchange's calls are never listed. An exchange outside the caller's projects is 422 `not_found`, and an id that is not a lowercase canonical UUID is 422 `invalid_request`.
 
 With `?after=<readAt>` from an earlier read, only calls whose recording began after that read are listed. A call already on its way at that read is never listed, whether or not it had committed. `seq` alone cannot say that: it is assigned when a row is inserted, not when it commits.
 
