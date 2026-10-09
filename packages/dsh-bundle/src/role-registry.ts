@@ -54,6 +54,8 @@ export interface RolePreset {
   readonly nativeTools: ReadonlySet<string>
   readonly goalContinuation: boolean
   readonly rawHostShell: false
+  /** A specialist's task kind (the registry's task_kind): which service operations meter its model calls. */
+  readonly taskKind?: 'research' | 'source_review'
 }
 
 const READ_WORKSPACE = ['read', 'glob', 'grep', 'read_image']
@@ -74,7 +76,7 @@ export const ROLE_PRESETS: Readonly<Record<RoleId, RolePreset>> = {
   'sophia-review-v1': preset('sophia-review-v1', false, [...READ_WORKSPACE]),
   'sophia-brief-v1': preset('sophia-brief-v1', false, []),
   // Specialists never continue through native goals: Sophia's episode owns their continuation.
-  ...(Object.fromEntries(SPECIALISTS.map((s) => [s.id, preset(s.id, false, s.nativeTools)])) as Record<SpecialistId, RolePreset>),
+  ...(Object.fromEntries(SPECIALISTS.map((s) => [s.id, { ...preset(s.id, false, s.nativeTools), taskKind: s.taskKind }])) as Record<SpecialistId, RolePreset>),
 }
 
 /**

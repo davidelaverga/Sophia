@@ -1,0 +1,16 @@
+{
+  "name": "@sophia/paperclip-adapters",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "External Paperclip adapters (WBC-02): sophia_dsh runs a Sophia-commissioned issue through Sophia's own dsh runtime under Sophia's effect permit.",
+  "exports": {
+    "./sophia-dsh": "./src/sophia-dsh/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@sophia/contracts": "workspace:*"
+  }
+}

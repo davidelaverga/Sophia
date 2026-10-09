@@ -22,6 +22,8 @@ import {
 } from '@sophia/design'
 import type {
   DesignCaptureRequest,
+  DesignDeliveryAck,
+  DesignDeliveryReceipt,
   DesignEditReceipt,
   DesignEditRequest,
   DesignContextReply,
@@ -345,6 +347,33 @@ export const designCaptureRefs = (
   request: DesignCaptureRequest,
 ) =>
   operation<DesignCaptureRefs>(c, role === 'design' ? 'runtime_design_capture' : 'runtime_review_capture', who, request)
+
+const jobKind = (role: 'design' | 'review') => (role === 'design' ? 'design' : 'design_review')
+
+/** A delivery: the captures the API handed over once their bytes matched their records (SDD-01-CX-0019). */
+export interface DesignDelivery {
+  readonly deliveryId: string
+  readonly renderJobId: string
+}
+
+/** After every capture's bytes were checked: the delivery they are, issued under the work's authority, checked again. */
+export const issueDesignDelivery = (
+  c: pg.PoolClient,
+  who: RuntimeCaller,
+  role: 'design' | 'review',
+  request: DesignCaptureRequest & {
+    readonly renderJobId: string
+    readonly captures: readonly { name: string; sha256: string }[]
+  },
+) => operation<DesignDelivery>(c, 'runtime_capture_issue', who, request, jobKind(role))
+
+/** The runtime saved each capture of a delivery, unchanged, for its model: from now on they count as seen. */
+export const designDelivered = (
+  c: pg.PoolClient,
+  who: RuntimeCaller,
+  role: 'design' | 'review',
+  request: DesignDeliveryAck,
+) => operation<DesignDeliveryReceipt>(c, 'runtime_capture_delivered', who, request, jobKind(role))
 
 // --- the rest of the runtime operations ------------------------------------------------------------------------------------
 

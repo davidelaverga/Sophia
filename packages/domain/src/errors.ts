@@ -25,6 +25,8 @@ export type ErrorCode =
   | 'native_task_retired'
   | 'research_gate_closed'
   | 'research_limit_reached'
+  | 'coordination_capability_required'
+  | 'coordination_closed'
   | 'html_unavailable'
 
 export type Retry = ApiError['retry']
@@ -64,6 +66,10 @@ const DISPOSITION: Record<ErrorCode, { status: number; retry: Retry }> = {
   research_gate_closed: { status: 403, retry: 'never' },
   // A research call would pass its allowance, the grant's total or the source policy's limit (SMC-M03).
   research_limit_reached: { status: 409, retry: 'never' },
+  // A /v1/coordination/* call without a recognized Paperclip adapter credential (A13). Never a member identity.
+  coordination_capability_required: { status: 401, retry: 'reauthorize' },
+  // Source review is not enabled for the project (no coordination grant, a closed one, or no spend authority, WBC-02).
+  coordination_closed: { status: 403, retry: 'never' },
   // HTML was asked for while no designer or capture renderer is ready: nothing is admitted; Markdown is offered (SDD-01).
   html_unavailable: { status: 503, retry: 'never' },
 }

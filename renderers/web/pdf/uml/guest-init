@@ -1,0 +1,33 @@
+#!/bin/busybox sh
+set -eu
+export PATH=/bin
+/bin/busybox --install -s /bin
+mount -t proc proc /proc
+# The render supervisor's job mode (landlock-launch.py job) names sophia_job=1; the fixture does not.
+next=/run/guest-run
+if grep -qw sophia_job=1 /proc/cmdline; then next=/run/guest-job; fi
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mkdir -p /target
+mount -t ext4 -o ro,noload /dev/ubda /target
+mount -t proc proc /target/proc
+mount -t sysfs sysfs /target/sys
+mount -t devtmpfs devtmpfs /target/dev
+mount -t tmpfs tmpfs /target/tmp
+mount -t tmpfs tmpfs /target/run
+mount -t tmpfs tmpfs /target/work
+cp /bin/busybox /target/run/busybox
+cp /guest-run /target/run/guest-run
+cp /guest-job /target/run/guest-job
+mkdir -p /target/run/uml
+cp /diagnostic.mjs /target/run/uml/diagnostic.mjs
+ln -s /opt/renderer/confine.mjs /target/run/confine.mjs
+ln -s /opt/renderer/host-probe.mjs /target/run/host-probe.mjs
+ln -s /opt/renderer/capture-html.mjs /target/run/capture-html.mjs
+ln -s /opt/renderer/capture-page.mjs /target/run/capture-page.mjs
+ln -s /opt/renderer/placement.mjs /target/run/placement.mjs
+cp /abi-probe /target/run/abi-probe
+umount /sys
+umount /proc
+umount /dev
+exec switch_root /target /run/busybox sh "$next"

@@ -6,10 +6,13 @@
  * hello advertises both roles on the image-input route; each agent is offered exactly its role's tools (the reviewer
  * no design_* tool, neither any research, workspace or host tool) and has its prompt sections and skills, in order, in
  * its system prompt; every model call is reserved and settled through the design operations; and a capture the
- * designer or the reviewer inspects reaches the model provider as an image, with the renderer's pixels.
+ * designer or the reviewer inspects reaches the model provider as an image, with the renderer's pixels and the
+ * inspection's receipt in the same request. Only a submit naming that receipt acknowledges the delivery, sent again
+ * unchanged when its answer is lost (SDD-01-CX-0033, CX-0035, CX-0036).
  */
 
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
@@ -22,6 +25,11 @@ const model = { start: startMockResponses, overlay: (baseURL) => researchRouteOv
 const skills = JSON.parse(readFileSync(join(REPO_ROOT, 'packages', 'dsh-bundle', 'skills', 'manifest.json'), 'utf8'))
 const specialists = JSON.parse(readFileSync(join(REPO_ROOT, 'config', 'specialists.json'), 'utf8'))
 const CAPTURE = 'w390-light.overview.1.png'
+const REVISION = '00000000-0000-4000-8000-000000006300'
+const RENDER = '00000000-0000-4000-8000-000000006100'
+const RECEIPT = /Receipt of this inspection: (seen-[A-Za-z0-9_-]{22})\./
+/** The receipt the model received in this request, as only an inspection's result carries it. */
+const receiptIn = (body) => RECEIPT.exec(JSON.stringify(body.input))?.[1] ?? 'no-receipt-received'
 
 const { world, cleanup } = suite('sophia-design-tools', { model })
 after(cleanup)
@@ -62,10 +70,22 @@ test('the designer is offered its tools and skills, pays through the design mete
   const advertised = Object.fromEntries(hello.roles.map((r) => [r.id, r.route]))
   assert.deepEqual([advertised['sophia-html-designer-v1'], advertised['sophia-visual-review-v1']], ['research-sol-medium-v1', 'research-sol-medium-v1'])
 
+  // The first acknowledgement is recorded and its answer lost (a gateway error); the same one is answered next.
+  const requestsAt = []
+  w.service.onDesign('design/delivered', () => {
+    w.service.onDesign('design/delivered')
+    requestsAt.push(w.llm.requests.length)
+    return { status: 502, body: { error: 'bad gateway' } }
+  })
+  w.service.onDesign('design/submit', () => {
+    requestsAt.push(w.llm.requests.length)
+    return { outcome: 'reviewing' }
+  })
   w.llm.script(
     { toolCall: { name: 'design_record_work', arguments: { expectedEntries: 0, entries: [{ kind: 'contract', body: 'Reader: the team. Medium: one HTML page.' }] } } },
     { toolCall: { name: 'design_inspect_render', arguments: { names: [CAPTURE] } } },
-    { text: 'Inspected.' },
+    { toolCall: { name: 'design_submit_candidate', arguments: (body) => ({ revisionId: REVISION, renderJobId: RENDER, seen: [receiptIn(body)] }) } },
+    { text: 'Submitted.' },
   )
   w.send(w.cmd('create', { text: 'Design the HTML report.', role: 'sophia-html-designer-v1', route: 'research-sol-medium-v1' }))
   await w.service.waitFor(() => w.turnEnds().length >= 1, 60000, 'the design turn')
@@ -73,11 +93,25 @@ test('the designer is offered its tools and skills, pays through the design mete
 
   const session = `sophia-${w.attemptId}`
   for (const { body } of w.service.design) assert.deepEqual([body.attemptId, body.nativeSessionId], [w.attemptId, session], 'every operation names its own session')
-  assert.deepEqual(w.service.design.filter((o) => !/reserve|settle/.test(o.op)).map((o) => o.op), ['design/record', 'design/capture'])
+  assert.deepEqual(w.service.design.filter((o) => !/reserve|settle/.test(o.op)).map((o) => o.op), ['design/record', 'design/capture', 'design/delivered', 'design/delivered', 'design/submit'])
+  // SDD-01-CX-0019 F1: seen only once dsh's own attachment store kept the capture unchanged, named by its bytes' hash.
+  const capture = w.service.design.find((o) => o.op === 'design/capture')
+  const [delivered, again] = w.service.design.filter((o) => o.op === 'design/delivered').map((o) => o.body)
+  const sha = createHash('sha256').update(Buffer.from(w.service.capturePng, 'base64')).digest('hex')
+  assert.deepEqual(delivered.attachments, [{ name: CAPTURE, attachmentId: `sha256:${sha}` }])
+  assert.ok(delivered.deliveryId && capture, 'the delivery the capture call was issued')
+  // SDD-01-CX-0035: the receipt reached the provider with the image, in the request after the inspection and not before;
+  // the submit that named it came after, and only then was the delivery acknowledged, the same body twice.
+  assert.equal(receiptIn(w.llm.requests[1].body), 'no-receipt-received')
+  assert.match(receiptIn(w.llm.requests[2].body), /^seen-/)
+  assert.deepEqual(again, delivered, 'the same acknowledgement')
+  assert.deepEqual(requestsAt, [3, 3], 'acknowledged and submitted only after the request that carried the image')
+  const submitted = w.service.design.find((o) => o.op === 'design/submit').body
+  assert.deepEqual(submitted.candidate.seen, [delivered.deliveryId], 'the submission names the delivery it rests on')
   assert.equal(w.service.research.length, 0, 'nothing went through the research operations')
 
   const designer = roleOf('sophia-html-designer-v1')
-  assert.equal(w.llm.requests.length, 3)
+  assert.equal(w.llm.requests.length, 4)
   for (const request of w.llm.requests) {
     assert.deepEqual(toolsOffered(request), designer.native_tools.toSorted(), 'exactly the designer\'s tools')
     const prompt = system(request)
@@ -88,7 +122,7 @@ test('the designer is offered its tools and skills, pays through the design mete
   }
 
   const meter = w.service.design.filter((o) => o.op === 'design/reserve' || o.op === 'design/settle')
-  assert.deepEqual(meter.map((o) => o.op), ['design/reserve', 'design/settle', 'design/reserve', 'design/settle', 'design/reserve', 'design/settle'])
+  assert.deepEqual(meter.map((o) => o.op), Array(4).fill(['design/reserve', 'design/settle']).flat())
   for (const { body } of meter.filter((o) => o.op === 'design/reserve')) assert.deepEqual([body.kind, body.purpose], ['model', 'call'])
 
   // The capture's pixels reach the provider as an image in the call after the inspection, and not before.
@@ -108,7 +142,7 @@ test('the reviewer is offered no design tool, inspects through the review operat
     { toolCall: { name: 'review_inspect_render', arguments: { names: [CAPTURE] } } },
     // SDD-01-RF-0002: the precedent its procedure names is in its scope and reaches the model as an image.
     { toolCall: { name: 'review_read_reference', arguments: { id: 'web/precedents/page-04' } } },
-    { toolCall: { name: 'review_submit_result', arguments: { verdict: 'pass', summary: 'Nothing blocking remains.' } } },
+    { toolCall: { name: 'review_submit_result', arguments: (body) => ({ verdict: 'pass', summary: 'Nothing blocking remains.', seen: [receiptIn(body)] }) } },
     { text: 'Reviewed.' },
   )
   w.send(w.cmd('create', { text: 'Review the candidate.', role: 'sophia-visual-review-v1', route: 'research-sol-medium-v1' }))
@@ -117,7 +151,7 @@ test('the reviewer is offered no design tool, inspects through the review operat
   for (const request of w.llm.requests) assert.deepEqual(toolsOffered(request), reviewer.native_tools.toSorted(), 'exactly the reviewer\'s tools')
   assert.match(JSON.stringify(w.llm.requests[1].body.input), /not permitted for role sophia-visual-review-v1|unknown tool|not available/i, 'the design tool was refused')
   const ops = w.service.design.filter((o) => !/reserve|settle/.test(o.op)).map((o) => o.op)
-  assert.deepEqual(ops, ['review/capture', 'review/submit'], 'no design operation, no source written')
+  assert.deepEqual(ops, ['review/capture', 'review/delivered', 'review/submit'], 'no design operation, no source written')
   const seen = imagesIn(w.llm.requests[2])
   assert.deepEqual(seen.map((i) => i.bytes.toString('base64')), [w.service.capturePng], 'the reviewer saw the capture')
   const precedent = imagesIn(w.llm.requests[3]).at(-1)
@@ -129,4 +163,10 @@ test('the reviewer is offered no design tool, inspects through the review operat
   assert.match(system(w.llm.requests[0]), /Visual critique against AI patterns: the independent reviewer/)
   const submitted = w.service.design.find((o) => o.op === 'review/submit').body
   assert.deepEqual([submitted.result.verdict, submitted.result.findings], ['pass', []])
+  // The pass named the receipt its model received with the capture; that, and only that, acknowledged the delivery.
+  assert.match(receiptIn(w.llm.requests[2].body), /^seen-/)
+  const sha = createHash('sha256').update(Buffer.from(w.service.capturePng, 'base64')).digest('hex')
+  const acked = w.service.design.filter((o) => o.op === 'review/delivered').map((o) => o.body)
+  assert.deepEqual(acked.map((a) => a.attachments), [[{ name: CAPTURE, attachmentId: `sha256:${sha}` }]])
+  assert.deepEqual(submitted.result.seen, [acked[0].deliveryId], 'the pass names the delivery it rests on')
 })

@@ -1,0 +1,1 @@
+{ "extends": "../tsconfig.json", "include": ["diagnostic.mjs", "supervisor-e2e.mjs"] }

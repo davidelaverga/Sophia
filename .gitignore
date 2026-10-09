@@ -15,3 +15,5 @@ dist/
 # Playwright's run outputs (apps/studio/e2e): results and traces of a local run.
 /apps/studio/test-results/
 /apps/studio/playwright-report/
+# Python bytecode from running the UML launchers' unit tests locally.
+__pycache__/

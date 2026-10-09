@@ -11,6 +11,8 @@ import type {
   MissionContext,
   Receipt,
   Snapshot,
+  SourceReviewAvailability,
+  WorkBoardView,
 } from '@sophia/contracts'
 import {
   EXCHANGE,
@@ -62,6 +64,7 @@ import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
 import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
+import { SOURCE_REVIEW } from './source-review-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
@@ -127,6 +130,26 @@ interface Project {
   work: boolean
   /** The project's goals (the work fixture's one, LFE-07). */
   goals?: Snapshot['goals']
+  /** What Sophia offers for a source review (WBC-02); absent, the pilot is not enabled. */
+  review?: SourceReviewAvailability
+  /**
+   * Each source review proposed, with its key and its body (`proposed=lost|unreadable|held`): the first `lose` replies
+   * are lost (the request having arrived) or a success whose body cannot be read; the next is answered. `held`: the first
+   * is recorded and its answer waits in `held` until the page lets it go, the second's reply is lost, the next answered.
+   * Absent, a proposal is unexpected.
+   */
+  proposals?: {
+    lose: number
+    how: 'lost' | 'unreadable' | 'held'
+    sent: { key: string; body: unknown }[]
+    held?: ((read: () => void) => void)[]
+    /** Each read of a proposal by its key, as answered: `recorded <key>` or `not_found <key>`. */
+    reads?: string[]
+  }
+  /** The goals of the board Sophia serves, as the page holds them now (`admits=`); absent, none. */
+  servedGoals?: () => WorkBoardView['goals']
+  /** A decision on the served board answered (`admits=`): its receipt; absent, an answer is unexpected. */
+  onAnswer?: (decisionId: string, answer: unknown) => unknown
   /** A goal's command (Request review, Hold, Stop), with its idempotency key; absent, a command is unexpected. */
   onCommand?: (command: GoalCommand, key: string) => void
   /** The floor and Sophia's presence as the page asked for them (data.ts, room-people checks). */
@@ -627,8 +650,20 @@ function meetingClosed(project: Project, init: RequestInit | undefined): Promise
   return new Response(JSON.stringify(receipt), { status: 202, headers: { 'content-type': 'application/json' } })
 }
 
+/** A decision on the served board answered (`admits=`): the page's receipt for it; null for any other write. */
+function answered(project: Project, method: string, path: string, init: RequestInit | undefined): Response | null {
+  const decision = new RegExp(`^/api/v1/projects/${PROJECT}/decisions/([^/]+)/answer$`).exec(path)?.[1]
+  if (method !== 'POST' || !decision || !project.onAnswer) return null
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  return json(project.onAnswer(decodeURIComponent(decision), body))
+}
+
 /** What the page writes: the room's focus (PUT), else what it posts. */
 function written(project: Project, method: string, path: string, init: RequestInit | undefined) {
+  if (method === 'POST' && path === `/api/v1/projects/${PROJECT}/plans/source-review` && project.proposals)
+    return proposed(project.proposals, init)
+  const receipt = answered(project, method, path, init)
+  if (receipt) return receipt
   if (method === 'PUT' && path === `/api/v1/projects/${PROJECT}/seen`) return seenPut(project, init)
   if (method === 'PUT') return path === `/api/v1/rooms/${ROOM}/focus` ? focusPut(project, init) : null
   return posted(project, path, init)
@@ -722,7 +757,7 @@ function answerReport(project: Project, method: string, url: URL, init: RequestI
   }
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${TASK}`) return taskRead(project)
   if (path === `/api/v1/projects/${PROJECT}/native-tasks/${DESIGN_TASK}`) return designRead(project)
-  return null
+  return workRead(project, path)
 }
 
 /** A report's versions (the fixture report's, or the older one's, which Knowledge's cover reads) and its sources. */
@@ -757,6 +792,74 @@ function shelvedRead(path: string): Response | null {
 function designRead(project: Project): Response | null {
   if (!project.designing && !project.designed) return null
   return json(designingTask(project.designed ? 'published' : 'designing'))
+}
+
+/**
+ * Tasks' reads from the board Sophia serves (WBC-02), answered as the API answers a project with no plan yet: the goals
+ * show alone. The source-review pilot is not enabled unless the page offers it (`review`): then each goal offers
+ * Review sources.
+ */
+function workRead(project: Project, path: string) {
+  if (path === `/api/v1/projects/${PROJECT}/plans`) {
+    const board: WorkBoardView = {
+      schema_version: 'sophia.work.board.v1',
+      project_id: PROJECT,
+      snapshot_cursor: String(project.revision),
+      observed_at: new Date().toISOString(),
+      coverage: 'complete',
+      goals: project.servedGoals?.() ?? [],
+    }
+    return json(board)
+  }
+  if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) return json(project.review ?? REVIEW_NOT_ENABLED)
+  const key = PROPOSAL_READ.exec(path)?.[1]
+  if (key !== undefined && project.proposals) return proposalRead(project.proposals, decodeURIComponent(key))
+  return null
+}
+
+const PROPOSAL_READ = new RegExp(`^/api/v1/projects/${PROJECT}/plans/source-review/proposals/([^/]+)$`)
+
+/**
+ * The viewer's own proposal under its key, as the service recorded it: every one sent arrived and was recorded (a lost
+ * reply is lost on its way back), so any key it was sent under is found; any other is not.
+ */
+function proposalRead(p: NonNullable<Project['proposals']>, key: string): Response {
+  const recorded = p.sent.some((s) => s.key === key)
+  p.reads?.push(`${recorded ? 'recorded' : 'not_found'} ${key}`)
+  if (!recorded) {
+    return new Response(
+      JSON.stringify({ code: 'not_found', message: 'Proposal not found', requestId: proposalId(9), retry: 'never' }),
+      { status: 422, headers: { 'content-type': 'application/json' } },
+    )
+  }
+  return new Response(proposalAnswered().body, { status: 200, headers: { 'content-type': 'application/json' } })
+}
+
+const REVIEW_NOT_ENABLED: SourceReviewAvailability = {
+  enabled: false,
+  reason: 'Source review is not enabled for this project.',
+  runtimeReady: false,
+  maxAllowanceUsd: null,
+  limits: {
+    maxSources: 3,
+    maxInputBytes: 32768,
+    maxModelRequests: 8,
+    maxReportBytes: 16384,
+    web: false,
+    shell: false,
+    connectors: false,
+  },
+  route: {
+    role: 'sophia-source-review-v1',
+    id: 'source-review-luna-high-v1',
+    provider: 'openai-review',
+    model: 'gpt-6-luna',
+    reasoningEffort: 'high',
+    maxTokens: 16000,
+    prices: { input: 0.1, cacheRead: 0.01, cacheWrite: 0.125, output: 0.5 },
+    priceUnit: 'usd_per_million_tokens',
+  },
+  sources: [],
 }
 
 /** An edit of the report's description on Knowledge, answered as the API answers it. */
@@ -1049,6 +1152,62 @@ function versionsRead(project: Project): Response {
   }
   served.push(`versions:${String(project.reportVersions)}`)
   return json(versions(project.reportVersions, project.reportTitle, project.pilot, project.designed))
+}
+
+const proposalId = (n: number) => `00000000-0000-4000-8000-0000000072${String(n).padStart(2, '0')}`
+
+/**
+ * A source review proposed: recorded; while `lose` lasts, its reply is lost (a connection cut) or a 200 whose body
+ * cannot be read; then answered. `held`: the first one's answer waits for the page, the second's is lost.
+ */
+function proposed(p: NonNullable<Project['proposals']>, init: RequestInit | undefined): Promise<Response> {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  p.sent.push({ key: new Headers(init?.headers).get('idempotency-key') ?? '', body })
+  if (p.how === 'held' && p.sent.length === 1) {
+    // Recorded; its answer is on its way until the page lets it go.
+    return new Promise((reply) => p.held?.push((read) => reply(readThen(proposalAnswered(), read))))
+  }
+  if (p.how === 'held' && p.sent.length === 2) return Promise.reject(new TypeError('Failed to fetch'))
+  if (p.sent.length <= p.lose && p.how === 'lost') return Promise.reject(new TypeError('Failed to fetch'))
+  if (p.sent.length <= p.lose) return Promise.resolve(new Response('{"plan":', { status: 200 }))
+  return Promise.resolve(proposalAnswered())
+}
+
+/**
+ * A reply that says when the page has read it: once its body is parsed and what the page does with it has run (the
+ * microtasks after the parse), so a check waits on the page, never on a clock.
+ */
+function readThen(res: Response, read: () => void): Response {
+  const parse = res.json.bind(res)
+  res.json = async () => {
+    const value: unknown = await parse()
+    setTimeout(read, 0)
+    return value
+  }
+  return res
+}
+
+/** Sophia's answer to a proposal: recorded, with its plan, decision and work. */
+function proposalAnswered(): Response {
+  return new Response(
+    JSON.stringify({
+      projectId: proposalId(0),
+      planId: proposalId(1),
+      planRevision: 1,
+      decisionId: proposalId(2),
+      decisionRevision: 1,
+      workId: proposalId(3),
+      goalId: proposalId(4),
+      goalRevision: 1,
+      criteriaRef: 'goal:criteria:1',
+      manifestSourceId: proposalId(5),
+      allowanceUsd: 0.5,
+      limits: SOURCE_REVIEW.limits,
+      route: SOURCE_REVIEW.route,
+      cursor: '2',
+    }),
+    { status: 201, headers: { 'content-type': 'application/json' } },
+  )
 }
 
 /** Reads of sources the page holds, each waiting to be let through (`window.fixture.releaseSources`). */

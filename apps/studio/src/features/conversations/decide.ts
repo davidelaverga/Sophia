@@ -7,6 +7,7 @@ import { ApiError } from '../../api/client.ts'
 import type { AdmissionState } from '../../api/useAdmission.ts'
 import { decideMissionChange, getMission, proposeMissionChange } from '../../api/mission.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { missionKey } from '../mission/mission-view.ts'
 import { plainOf } from './sophia-text.ts'
@@ -118,7 +119,7 @@ export function useAlreadyOpen(projectId: string, identity: Identity | null) {
     if (!identity) return false
     const brief = await client
       .fetchQuery({
-        queryKey: [...missionKey(projectId), identity.name, 'conversations'],
+        queryKey: [...missionKey(projectId), accountOf(identity), 'conversations'],
         queryFn: () => getMission(identity.token, projectId),
         staleTime: 0,
       })

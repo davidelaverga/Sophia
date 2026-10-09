@@ -2,7 +2,9 @@
 // reader's own parser (`@sophia/report`): every paragraph, list item, table, code block and quoted paragraph is a block
 // with its text, the sources it cites and the links it carries; each stored limitation is one more. Headings may be
 // reworded, so a heading is a block only when it cites a source. A block's id (`b1`…) is its place in reading order,
-// the same for the same Markdown and limitations.
+// the same for the same Markdown and limitations. An ordered list's top-level item begins its text with its number, as
+// the reader's report shows it (`orderedText`): ordinary text the design keeps, never a number the page generates
+// (#117, CX-0039).
 
 import { parseMarkdown, safeHref, type Block, type Inline } from '@sophia/report/markdown'
 import { normalizeText } from './dom.ts'
@@ -16,6 +18,12 @@ export interface ContentBlock {
   readonly text: string
   /** A table's cells in reading order (head first), each comparable text; empty for other kinds. */
   readonly cells: readonly string[]
+  /**
+   * A table's shape: how many of its cells each row holds, the head row first (`[2, 2]` for `Plan | Price` over
+   * `Basic | $10`); empty for other kinds. A design keeps the rows, not only the cells' order: one row of four cells
+   * laid out as two shows the same and is announced with no header over its values (#117).
+   */
+  readonly rows: readonly number[]
   /** Source ids the block cites, sorted. */
   readonly citations: readonly string[]
   /** http, https and mailto links the block carries, sorted. */
@@ -71,6 +79,23 @@ function readInline(inline: readonly Inline[], run: Run): void {
   }
 }
 
+/**
+ * An ordered list's items, their numbers frozen into their text as the reader's report numbers them: the list's start,
+ * then one more for each item at its top level ("3. Delta"); a nested item takes none, as the report draws it a bullet.
+ * The number is part of the item's text, so a design that drops, changes or renumbers it alters the block (#117,
+ * CX-0039); a list the report leaves unordered keeps its items' text as written.
+ */
+function orderedText(list: Extract<Block, { kind: 'list' }>): Run[] {
+  let place = 0
+  return list.items.map((item) => {
+    const run = runOf(item.children)
+    if (!list.ordered || item.depth > 0) return run
+    const number = list.start + place
+    place += 1
+    return { ...run, text: `${String(number)}. ${run.text}` }
+  })
+}
+
 function runOf(inline: readonly Inline[]): Run {
   const run: Run = { text: '', citations: new Set(), links: new Set() }
   readInline(inline, run)
@@ -80,12 +105,13 @@ function runOf(inline: readonly Inline[]): Run {
 class Builder {
   readonly blocks: ContentBlock[] = []
 
-  add(kind: ContentKind, run: Run, cells: readonly string[] = []): void {
+  add(kind: ContentKind, run: Run, cells: readonly string[] = [], rows: readonly number[] = []): void {
     this.blocks.push({
       id: `b${this.blocks.length + 1}`,
       kind,
       text: comparable(run.text),
       cells,
+      rows,
       citations: [...run.citations].toSorted(),
       links: [...run.links].toSorted(),
     })
@@ -105,21 +131,21 @@ class Builder {
       case 'paragraph':
         return this.add(inQuote ? 'quote' : 'paragraph', runOf(b.children))
       case 'list':
-        for (const item of b.items) this.add('item', runOf(item.children))
+        for (const run of orderedText(b)) this.add('item', run)
         return
       case 'quote':
         return this.read(b.blocks, true)
       case 'code':
         return this.add('code', { text: b.text, citations: new Set(), links: new Set() })
       case 'table':
-        return this.addTable([b.head, ...b.rows].flat())
+        return this.addTable([b.head, ...b.rows])
       case 'rule':
         return
     }
   }
 
-  private addTable(cells: readonly (readonly Inline[])[]): void {
-    const runs = cells.map((c) => runOf(c))
+  private addTable(rows: readonly (readonly (readonly Inline[])[])[]): void {
+    const runs = rows.flat().map((c) => runOf(c))
     const merged: Run = { text: runs.map((r) => r.text).join(' '), citations: new Set(), links: new Set() }
     for (const r of runs) {
       for (const c of r.citations) merged.citations.add(c)
@@ -129,6 +155,7 @@ class Builder {
       'table',
       merged,
       runs.map((r) => comparable(r.text)),
+      rows.map((r) => r.length),
     )
   }
 }

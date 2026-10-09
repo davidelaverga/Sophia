@@ -1,6 +1,7 @@
 // Whether the project can be shown, from how its snapshot answers. Pure, so the rules are unit-tested; the shell
 // only renders the result.
 import { ApiError } from '../../api/client.ts'
+import type { View } from '../../app/route.ts'
 import type { Connection } from './feed-loop.ts'
 
 /** Why the project cannot be shown: session ended (401), not a member (403), or it never loaded. */
@@ -37,4 +38,12 @@ export function shownConnection(connection: Connection, blocked: Blocked | null,
 export const STALE_RETRY_MS = 5000
 export function staleRetry(error: Error | null, loaded: boolean): number | false {
   return isStale(error, loaded) ? STALE_RETRY_MS : false
+}
+
+/**
+ * Whether Tasks reads the work board Sophia serves (WBC-02): only while Tasks is in view and the project can be shown,
+ * and never where the page brings its own plans (a fixture). No other view shows the board, so none reads it.
+ */
+export function readsServedBoard(view: View, blocked: Blocked | null, ownPlans: boolean): boolean {
+  return view === 'work' && !blocked && !ownPlans
 }

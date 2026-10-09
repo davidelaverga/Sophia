@@ -1,0 +1,30 @@
+#!/run/busybox sh
+# One render job inside the guest (SDD-01). The job comes from the read-only input disk (/dev/ubdb, a ustar archive the
+# supervisor wrote: the kernel's name, its job file and the package); the unchanged kernel CLI renders it through the
+# unchanged confine.mjs and bin/confine-chromium (the render user, fresh namespaces and /proc, Chromium's sandbox, the
+# self-test); its output directory goes back on the output disk (/dev/ubdc, fixed size) as one archive, which the
+# supervisor reads only as the kernels' own files, within bounds. The guest then powers off. Nothing here holds a
+# capability, a network interface or another job. The guest root has no shell tools of its own: busybox serves them.
+set -u
+B=/run/busybox
+echo 2 > /proc/sys/kernel/io_uring_disabled
+echo UML_GUEST_MODULE_LOADING_DISABLED_AT_BUILD
+/run/abi-probe || { echo UML_JOB_REFUSED:seccomp_abi; $B poweroff -f; }
+$B mkdir -p /work/job
+$B tar -xf /dev/ubdb -C /work/job || { echo UML_JOB_REFUSED:input; $B poweroff -f; }
+kind=$($B cat /work/job/kernel)
+case "$kind" in
+  pdf) kernel=/opt/renderer/render-html.mjs ;;
+  png) kernel=/opt/renderer/capture-html.mjs ;;
+  *) echo UML_JOB_REFUSED:kernel; $B poweroff -f ;;
+esac
+$B mkdir -m 0700 /work/job/out
+$B chmod 0755 /work/job
+$B chmod -R a+rX /work/job/src
+/usr/bin/env -i PATH=/opt/node/bin:/usr/bin:/bin HOME=/work/job LANG=C.UTF-8 SOPHIA_RENDER_UID=10001 \
+  SOPHIA_RENDER_GID=10001 PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers /opt/node/bin/node "$kernel" --job /work/job/job.json
+code=$?
+if (cd /work/job/out && $B tar -cf /dev/ubdc .); then echo UML_JOB_OUTPUT_WRITTEN; else echo UML_JOB_OUTPUT_FAILED; fi
+$B sync
+echo UML_JOB_KERNEL_EXIT:$code
+$B poweroff -f

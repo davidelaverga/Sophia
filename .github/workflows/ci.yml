@@ -30,7 +30,9 @@ jobs:
   renderer:
     name: Confined PDF renderer on a real Chromium
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # On 2026-10-07 the browser's install took 7.6 and 10.0 minutes and the kernels 5.2: 15 cut off kernels still
+    # passing.
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16

@@ -78,6 +78,72 @@ describe('a research card in words', () => {
     assert.equal(researchState(done, [{ format: 'markdown' }, { format: 'pdf' }], ['markdown', 'pdf']).state, 'ready')
   })
 
+  it('says a finished task is completed, its detail read, being read or unreadable; never at work', () => {
+    const done = { phase: 'result_ready', state: 'succeeded', reason: null } as const
+    // The hosted cards: finished research whose detail is not in hand said "Researching" for days.
+    const unlinked = researchState(done, [], ['markdown'])
+    assert.deepEqual(
+      [unlinked.state, unlinked.label, unlinked.tone, unlinked.note],
+      ['completed', 'Completed', 'muted', 'No published report is linked to this task.'],
+    )
+    const reading = researchState(done, [], ['markdown', 'pdf'], {}, { status: 'reading' })
+    assert.deepEqual([reading.state, reading.label, reading.note], ['completed', 'Completed', 'Reading its report…'])
+    const unread = researchState(done, [], ['markdown'], {}, { status: 'failed', message: 'Sophia is unavailable' })
+    assert.deepEqual(
+      [unread.state, unread.label, unread.tone, unread.note],
+      ['completed', 'Completed', 'amber', 'Its report could not be read here: Sophia is unavailable.'],
+      'the reply’s own words',
+    )
+    const asked = researchState(done, [], ['markdown'], {}, { status: 'failed', message: 'Is Sophia there?' })
+    assert.equal(
+      asked.note,
+      'Its report could not be read here: Is Sophia there?',
+      'a reply that ends as a sentence ends',
+    )
+    for (const words of [unlinked, reading, unread]) {
+      assert.equal(/Researching|arrives here|missing/u.test(JSON.stringify(words)), false, JSON.stringify(words))
+    }
+    // Either half of the record says finished.
+    assert.equal(researchState({ ...done, phase: 'running' }, [], ['markdown']).state, 'completed')
+    assert.equal(researchState({ ...done, state: 'running' }, [], ['markdown']).state, 'completed')
+    // Outputs in hand are shown whatever the read again says: the report stays delivered, partly or wholly.
+    const failed = { status: 'failed', message: 'Sophia is unavailable' } as const
+    assert.equal(researchState(done, [{ format: 'markdown' }], ['markdown'], {}, failed).state, 'ready')
+    assert.equal(researchState(done, [{ format: 'markdown' }], ['markdown', 'pdf'], {}, failed).state, 'partial')
+  })
+
+  it('keeps a task at work at work while its detail is read, and says when its progress cannot be', () => {
+    assert.deepEqual([researchState(running, [], ['markdown'], {}, { status: 'reading' }).label], ['Researching'])
+    const lost = researchState(
+      running,
+      [],
+      ['markdown'],
+      {},
+      {
+        status: 'failed',
+        message: 'That didn’t go through (HTTP 500). Try again.',
+      },
+    )
+    assert.deepEqual(
+      [lost.state, lost.note],
+      ['researching', 'Its progress could not be read here: That didn’t go through (HTTP 500). Try again.'],
+    )
+    // A record that ended keeps its own words, whatever the read.
+    const failed = { status: 'failed', message: 'x' } as const
+    const stopped = { phase: 'stopped', state: 'cancelled', reason: null } as const
+    assert.equal(researchState(stopped, [], ['markdown'], {}, failed).label, 'Stopped')
+    assert.equal(researchState({ ...running, phase: 'held' }, [], ['markdown'], {}, failed).label, 'Held')
+    const blocked = { phase: 'failed', state: 'failed', reason: 'blocked: Every source is behind a login.' } as const
+    assert.equal(
+      researchState(blocked, [], ['markdown'], {}, { status: 'reading' }).note,
+      'Not produced: Every source is behind a login.',
+    )
+    assert.equal(
+      researchState({ ...running, phase: 'queued', state: 'pending' }, [], ['markdown'], {}, failed).state,
+      'starting',
+    )
+  })
+
   it('answers Try PDF again in words: queued, the checks a version fails, or why it was refused', () => {
     assert.equal(
       renditionWords({ state: 'queued', renderJobId: 'j' }),

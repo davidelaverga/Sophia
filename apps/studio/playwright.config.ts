@@ -19,9 +19,17 @@ export default defineConfig({
       use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 },
     },
   ],
-  webServer: {
-    command: 'pnpm exec vite --config vite.fixtures.config.ts',
-    url: `${fixtures}/room.html`,
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      command: 'pnpm exec vite --config vite.fixtures.config.ts',
+      url: `${fixtures}/room.html`,
+      reuseExistingServer: !process.env.CI,
+    },
+    // The Studio app itself, signed in by a synthetic Auth service (vite.app.config.ts, e2e/app-auth.spec.ts).
+    {
+      command: 'pnpm exec vite --config vite.app.config.ts',
+      url: 'http://127.0.0.1:5198/app.html',
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 })

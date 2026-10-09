@@ -3064,3 +3064,386 @@ test('codex · F-049 · a task waiting twice on one kind and reference is refuse
   ])
   expect(keyWarnings).toEqual([])
 })
+
+// ---- WBC-02 (Codex on #107, r4206591778): Review sources keeps a selection within what a review reads. ----
+
+test('codex · #107 · sources over a review’s limit together are said so and propose nothing; within it, they may', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?served=1`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  const pick = (label: string) => form.getByRole('checkbox', { name: label })
+  const propose = form.getByRole('button', { name: 'Propose review' })
+  const over = form.getByRole('status').filter({ hasText: 'a review reads at most' })
+  // Two report versions, each within the limit, hold more than it together.
+  await pick('Launch brief v3').check()
+  await pick('Risk register v5').check()
+  await expect(over).toHaveText(
+    'These sources hold 35.2 KiB of text; a review reads at most 32 KiB. Choose fewer or shorter sources.',
+  )
+  await expect(propose).toBeDisabled()
+  // Enter in a field sends nothing either: a proposal would be a request this page doesn't answer (afterEach).
+  await form.getByLabel('Purpose (optional)').press('Enter')
+  await expect(form.getByRole('alert')).toHaveCount(0)
+  // One deselected, another chosen: exactly at the limit, it may be proposed.
+  await pick('Risk register v5').uncheck()
+  await pick('Press plan v2').check()
+  await expect(over).toHaveCount(0)
+  await expect(propose).toBeEnabled()
+  // A third, of one byte: over by one, said as more than the limit.
+  await pick('Budget note v1').check()
+  await expect(over).toContainText('These sources hold 32.1 KiB of text')
+  await expect(propose).toBeDisabled()
+  // Deselected again: back within it.
+  await pick('Budget note v1').uncheck()
+  await expect(over).toHaveCount(0)
+  await expect(propose).toBeEnabled()
+})
+
+/**
+ * A proposal whose outcome is unknown (`proposed=lost`: no reply; `unreadable`: a 200 whose body cannot be read): kept
+ * as sent, across closing the form, and proposed again so.
+ */
+async function lostProposal(page: Page, how: 'lost' | 'unreadable') {
+  await page.goto(`${PAGE}?served=1&proposed=${how}`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  const purpose = form.getByLabel('Purpose (optional)')
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await purpose.fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    `${how === 'lost' ? 'No reply from Sophia.' : 'Sophia’s reply was unclear.'} Propose again to check; it is the same proposal.`,
+  )
+  // Kept as it was sent until Sophia answers: nothing in it can be changed, so no other body goes under its key.
+  await expect(form.getByRole('checkbox', { name: 'Launch brief v3' })).toBeDisabled()
+  await expect(form.getByRole('checkbox', { name: 'Press plan v2' })).toBeChecked()
+  await expect(purpose).toHaveJSProperty('readOnly', true)
+  await expect(form.getByLabel('Allowance, USD (at most 0.5)')).toHaveJSProperty('readOnly', true)
+  // Closed and opened again, it is the same proposal still.
+  await form.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(purpose).toHaveValue('Check the budgets agree')
+  await expect(purpose).toHaveJSProperty('readOnly', true)
+  await form.getByRole('button', { name: 'Propose again' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Proposed.' })).toBeVisible()
+  const sent = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(sent[0])
+  expect(sent[0]?.body).toMatchObject({ purpose: 'Check the budgets agree', allowanceUsd: 0.5 })
+  // Answered, a new form starts afresh.
+  await page.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByLabel('Purpose (optional)')).toHaveValue('')
+  await expect(form.getByRole('checkbox', { name: 'Launch brief v3' })).toBeEnabled()
+}
+
+test('codex · #107 · a proposal whose reply was lost is proposed again as it was sent, under its key, never edited', async ({
+  page,
+}) => {
+  await lostProposal(page, 'lost')
+})
+
+test('@phone · codex · #107 · on a phone too, a proposal whose reply was lost is proposed again as it was sent', async ({
+  page,
+}) => {
+  await lostProposal(page, 'lost')
+})
+
+test('codex · #107 · a proposal answered with a body that cannot be read is kept as sent, as one never answered', async ({
+  page,
+}) => {
+  await lostProposal(page, 'unreadable')
+})
+
+test('@phone · codex · #107 · on a phone too, a proposal answered unreadably is kept as sent and proposed again', async ({
+  page,
+}) => {
+  await lostProposal(page, 'unreadable')
+})
+
+/**
+ * A proposal whose reply was lost, found again after leaving Tasks for another view or after reloading the page (Codex's
+ * automatic review of 1acb1efa, P2): the same key and the same request, never a second proposal; once Sophia answers,
+ * nothing is kept.
+ */
+async function lostThenBack(page: Page, away: 'view' | 'reload') {
+  await page.goto(`${PAGE}?served=1&proposed=lost`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  const purpose = form.getByLabel('Purpose (optional)')
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await purpose.fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  if (away === 'view') {
+    await views(page).getByRole('link', { name: 'Resources', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Review sources' })).toHaveCount(0)
+    await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  } else {
+    await page.reload()
+  }
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.',
+  )
+  await expect(purpose).toHaveValue('Check the budgets agree')
+  await expect(purpose).toHaveJSProperty('readOnly', true)
+  await expect(form.getByRole('checkbox', { name: 'Press plan v2' })).toBeChecked()
+  await expect(form.getByRole('checkbox', { name: 'Launch brief v3' })).toBeDisabled()
+  await form.getByRole('button', { name: 'Propose again' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Proposed.' })).toBeVisible()
+  const sent = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  expect(sent).toHaveLength(2)
+  expect(sent[1]).toEqual(sent[0])
+  expect(sent[0]?.body).toMatchObject({ purpose: 'Check the budgets agree', allowanceUsd: 0.5 })
+  // Answered: nothing is kept, so the page opened again starts afresh.
+  await page.reload()
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByLabel('Purpose (optional)')).toHaveValue('')
+  await expect(form.getByRole('alert')).toHaveCount(0)
+}
+
+test('codex · 1acb1efa · a proposal whose reply was lost is the same one after leaving Tasks and coming back', async ({
+  page,
+}) => {
+  await lostThenBack(page, 'view')
+})
+
+test('codex · 1acb1efa · a proposal whose reply was lost is the same one after the page reloads', async ({ page }) => {
+  await lostThenBack(page, 'reload')
+})
+
+test('@phone · codex · 1acb1efa · on a phone too, a lost proposal is the same one after leaving Tasks', async ({
+  page,
+}) => {
+  await lostThenBack(page, 'view')
+})
+
+test('@phone · codex · 1acb1efa · on a phone too, a lost proposal is the same one after a reload', async ({ page }) => {
+  await lostThenBack(page, 'reload')
+})
+
+/** The proposals the tab keeps unanswered (review-proposal.ts). */
+const keptProposals = (page: Page) =>
+  page.evaluate(() => Object.keys(sessionStorage).filter((k) => k.startsWith('sophia.review.proposal.v1:')))
+
+/** A proposal sent with its reply lost, then the page read again (a reload): the board Sophia serves, as it is now. */
+async function lostThenReloaded(page: Page, admits: '1' | 'other' | 'luis' | 'replacement') {
+  await page.goto(`${PAGE}?served=1&proposed=lost&admits=${admits}${admits === 'other' ? '&two=1' : ''}`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  const form = page.getByRole('form', { name: 'Review sources' })
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await form.getByLabel('Purpose (optional)').fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  expect(await keptProposals(page)).toHaveLength(1)
+  await page.reload()
+  return form
+}
+
+/**
+ * Codex's review of 2c018256 (P2-2): a proposal whose reply was lost, found recorded on the board Sophia serves, its
+ * admission decision waiting on the viewer. The decision takes Review sources' place and the kept proposal is let go;
+ * answered, Review sources starts afresh, never on the old request, and the old one is never sent again.
+ */
+async function lostThenDecided(page: Page) {
+  const form = await lostThenReloaded(page, '1')
+  const choice = page.getByRole('group', { name: 'Your choice' })
+  await expect(choice).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Review sources' })).toHaveCount(0)
+  await expect.poll(() => keptProposals(page)).toEqual([])
+  await choice.getByRole('button', { name: 'Start the review' }).click()
+  await expect(page.getByRole('button', { name: 'Review sources' })).toBeVisible()
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByLabel('Purpose (optional)')).toHaveValue('')
+  await expect(form.getByRole('alert')).toHaveCount(0)
+  await expect(form.getByRole('button', { name: 'Propose review' })).toBeVisible()
+  expect(await page.evaluate(() => window.workFixture?.admissions ?? [])).toHaveLength(1)
+  expect(await page.evaluate(() => window.workFixture?.proposals ?? [])).toHaveLength(1)
+}
+
+test('codex · 2c018256 · a lost proposal found waiting on its decision is let go; answered, the form starts afresh', async ({
+  page,
+}) => {
+  await lostThenDecided(page)
+})
+
+test('@phone · codex · 2c018256 · on a phone too, a lost proposal answered on the board leaves the form afresh', async ({
+  page,
+}) => {
+  await lostThenDecided(page)
+})
+
+/**
+ * Codex's review of 0e5b5862 (P3-2): the answer to an earlier proposal arriving late, after the board showed it recorded
+ * and its decision was answered, while a newer proposal for the same goal waits with its reply lost. The late answer ends
+ * only its own proposal: the newer one stays kept, under its key and as it was sent, and a reload proposes it again,
+ * never a third.
+ */
+async function lateAnswerAfterNewer(page: Page) {
+  await page.goto(`${PAGE}?served=1&proposed=held&admits=1`)
+  const form = page.getByRole('form', { name: 'Review sources' })
+  const purpose = form.getByLabel('Purpose (optional)')
+  // The first: recorded, its answer held on the way.
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await purpose.fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('button', { name: 'Proposing…' })).toBeVisible()
+  expect(await keptProposals(page)).toHaveLength(1)
+  // The board, read again, shows it recorded and waiting on the viewer's decision: the kept one is let go.
+  await views(page).getByRole('link', { name: 'Resources', exact: true }).click()
+  await views(page).getByRole('link', { name: 'Tasks', exact: true }).click()
+  const choice = page.getByRole('group', { name: 'Your choice' })
+  await expect(choice).toBeVisible()
+  await expect.poll(() => keptProposals(page)).toEqual([])
+  await choice.getByRole('button', { name: 'Start the review' }).click()
+  // The newer one, from a fresh form: its reply lost.
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(purpose).toHaveValue('')
+  await form.getByRole('checkbox', { name: 'Launch brief v3' }).check()
+  await purpose.fill('A second look at the brief')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  const [, newer] = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  // The first one's answer arrives now, and the page reads it.
+  await page.evaluate(() => window.workFixture?.releaseProposal?.())
+  expect(await keptProposals(page)).toHaveLength(1)
+  await page.reload()
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.',
+  )
+  await expect(purpose).toHaveValue('A second look at the brief')
+  await expect(form.getByRole('checkbox', { name: 'Launch brief v3' })).toBeChecked()
+  await form.getByRole('button', { name: 'Propose again' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Proposed.' })).toBeVisible()
+  const sent = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  expect(sent).toHaveLength(3)
+  expect(sent[2]).toEqual(newer)
+  expect(sent[1]).not.toEqual(sent[0])
+}
+
+test('codex · 0e5b5862 · a late answer to an earlier proposal ends only its own: the newer one is kept as sent', async ({
+  page,
+}) => {
+  await lateAnswerAfterNewer(page)
+})
+
+test('@phone · codex · 0e5b5862 · on a phone too, a late answer to an earlier proposal leaves the newer one kept', async ({
+  page,
+}) => {
+  await lateAnswerAfterNewer(page)
+})
+
+for (const [admits, whose] of [
+  ['other', 'another goal’s decision'],
+  ['luis', 'another viewer’s decision'],
+] as const) {
+  test(`codex · 2c018256 · ${whose} lets nothing go: the lost proposal is kept as sent`, async ({ page }) => {
+    const form = await lostThenReloaded(page, admits)
+    await page.getByRole('button', { name: 'Review sources' }).first().click()
+    await expect(form.getByRole('alert')).toHaveText(
+      'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.',
+    )
+    await expect(form.getByLabel('Purpose (optional)')).toHaveValue('Check the budgets agree')
+    expect(await keptProposals(page)).toHaveLength(1)
+  })
+}
+
+/**
+ * Codex's automatic review of a06db118 (P2): a proposal whose reply was lost, recorded as the goal's proposed replacement
+ * beside the plan in force. That decision is the board's, beside the plan, so nothing at the pilot's entry let the kept
+ * proposal go: the form stayed frozen on it, and no other could be composed until the visible one was proposed again.
+ */
+async function lostAsReplacement(page: Page) {
+  const form = await lostThenReloaded(page, 'replacement')
+  await expect(page.getByText('Start the source review?').first()).toBeVisible()
+  // Sophia says the kept proposal is recorded: it is let go, by its key, and never sent again.
+  const [k1] = await page.evaluate(() => window.workFixture?.proposals ?? [])
+  await expect.poll(() => page.evaluate(() => window.workFixture?.proposalReads ?? [])).toContain(`recorded ${k1?.key}`)
+  await expect.poll(() => keptProposals(page)).toEqual([])
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByRole('alert')).toHaveCount(0)
+  await expect(form.getByLabel('Purpose (optional)')).toHaveValue('')
+  await expect(form.getByRole('button', { name: 'Propose review' })).toBeVisible()
+  expect(await page.evaluate(() => window.workFixture?.proposals ?? [])).toHaveLength(1)
+}
+
+test('codex · a06db118 · a kept proposal Sophia never recorded stays kept, though the board shows another of the viewer’s', async ({
+  page,
+}) => {
+  const form = page.getByRole('form', { name: 'Review sources' })
+  await page.goto(`${PAGE}?served=1&proposed=lost&admits=replacement`)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+  await form.getByLabel('Purpose (optional)').fill('Check the budgets agree')
+  await form.getByRole('button', { name: 'Propose review' }).click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'No reply from Sophia. Propose again to check; it is the same proposal.',
+  )
+  // The tab keeps another proposal for the goal instead, under a key Sophia never had: as one lost on its way would be.
+  const NEVER = '6f1c7d3e-0b5a-4c2e-9d8f-0000000000ee'
+  await page.evaluate((never) => {
+    for (const k of Object.keys(sessionStorage).filter((x) => x.startsWith('sophia.review.proposal.v1:'))) {
+      const kept: unknown = JSON.parse(sessionStorage.getItem(k) ?? 'null')
+      if (typeof kept === 'object' && kept !== null) sessionStorage.setItem(k, JSON.stringify({ ...kept, key: never }))
+    }
+  }, NEVER)
+  await page.reload()
+  await expect(page.getByText('Start the source review?').first()).toBeVisible()
+  // Sophia is asked, says it holds none under that key, and the kept proposal stays as it was, frozen.
+  await expect.poll(() => page.evaluate(() => window.workFixture?.proposalReads ?? [])).toContain(`not_found ${NEVER}`)
+  expect(await keptProposals(page)).toHaveLength(1)
+  await page.getByRole('button', { name: 'Review sources' }).first().click()
+  await expect(form.getByRole('alert')).toHaveText(
+    'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.',
+  )
+  await expect(form.getByLabel('Purpose (optional)')).toHaveValue('Check the budgets agree')
+  expect(await page.evaluate(() => window.workFixture?.proposals ?? [])).toHaveLength(1)
+})
+
+test('codex · a06db118 · a lost proposal recorded as the goal’s replacement plan is let go: the form starts afresh', async ({
+  page,
+}) => {
+  await lostAsReplacement(page)
+})
+
+test('@phone · codex · a06db118 · on a phone too, a lost proposal recorded as a replacement plan is let go', async ({
+  page,
+}) => {
+  await lostAsReplacement(page)
+})
+
+test('codex · #107 · a cap below a cent, or between cents, starts the allowance there and the form may be sent', async ({
+  page,
+}) => {
+  for (const cap of ['0.005', '0.015']) {
+    await page.goto(`${PAGE}?served=1&cap=${cap}`)
+    await page.getByRole('button', { name: 'Review sources' }).first().click()
+    const form = page.getByRole('form', { name: 'Review sources' })
+    const allowance = form.getByLabel(`Allowance, USD (at most ${cap})`)
+    const propose = form.getByRole('button', { name: 'Propose review' })
+    await form.getByRole('checkbox', { name: 'Press plan v2' }).check()
+    await expect(allowance).toHaveValue(cap)
+    await expect(propose).toBeEnabled()
+    // The browser's own validation takes it too, so Propose review is not a button that sends nothing.
+    expect(await form.evaluate((f) => f instanceof HTMLFormElement && f.checkValidity())).toBe(true)
+    // Finer than Sophia keeps: the field and the form agree that it may not be sent.
+    await allowance.fill('0.0000015')
+    await expect(propose).toBeDisabled()
+    await expect(allowance).toHaveAttribute('aria-invalid', 'true')
+    expect(await form.evaluate((f) => f instanceof HTMLFormElement && f.checkValidity())).toBe(false)
+    await allowance.fill('0.000001')
+    await expect(propose).toBeEnabled()
+    expect(await form.evaluate((f) => f instanceof HTMLFormElement && f.checkValidity())).toBe(true)
+  }
+})

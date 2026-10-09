@@ -4,6 +4,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import type { Snapshot } from '@sophia/contracts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { getRoomFocus, type RoomFocus } from '../../api/vision.ts'
 import { VISION } from '../../app/vision.ts'
@@ -221,7 +222,7 @@ export function useStagePresent(snapshot: Snapshot | undefined, room: Room, cont
   const { projectId, identity, me, names, spoken } = context
   const shown = shownOf(snapshot?.sharedFocus, snapshot?.artifacts, me)
   // Whose call, of which project: another person in this tab, or a project opened again, starts afresh.
-  const followed = useFollowing(shown, `${projectId} ${identity.name} ${String(room.call)}`)
+  const followed = useFollowing(shown, `${projectId} ${accountOf(identity)} ${String(room.call)}`)
   const { following, stopped, focused, follow, unfollow } = followed
   const screen = room.feeds.some((f) => f.source === 'screen')
   const target = targetOf(snapshot, projectId, identity)

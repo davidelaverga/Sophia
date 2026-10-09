@@ -38,10 +38,12 @@ import { useKnownNames } from './useKnownNames.ts'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
 import { Connections } from '../connections/Connections.tsx'
 import { ConversationsView } from '../conversations/ConversationsView.tsx'
-import { blockedBy, isStale, shownConnection, type Blocked } from './project-door.ts'
+import { blockedBy, isStale, readsServedBoard, shownConnection, type Blocked } from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
+import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
+import type { Feed } from '../../projectors/projection.ts'
 import { Mark } from '../../app/Mark.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
@@ -251,6 +253,32 @@ function CallKeptInReach({
   return <CallInReach.Provider value={call}>{children}</CallInReach.Provider>
 }
 
+/** Tasks' plans: the page's own (a fixture), else the work board Sophia serves for the project, and its pilot entry (WBC-02). */
+function useTasksWork(
+  props: Props,
+  feed: Feed | null,
+  membership: Membership | undefined,
+  blocked: Blocked | null,
+): ServedWork {
+  const { projectId, identity } = props
+  const served = useServedWork({
+    projectId,
+    identity,
+    feed,
+    canAct: canInvite(membership),
+    enabled: readsServedBoard(props.view, blocked, !!props.plans),
+  })
+  return { plans: props.plans ?? served.plans, entry: served.entry }
+}
+
+/** What the door lets through: whether a snapshot ever loaded, why the project is closed, and what may be acted on. */
+function doorOf(snapshot: ReturnType<typeof useProjectFeed>['snapshot']) {
+  const loaded = snapshot.data !== undefined
+  const blocked = blockedBy(snapshot.error, loaded)
+  // Behind a closed door the project's last snapshot may still be in the cache: nothing acts on it (Invite, I).
+  return { loaded, blocked, shown: blocked ? undefined : snapshot.data }
+}
+
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
@@ -259,10 +287,8 @@ export function ProjectShell(props: Props) {
   const [inviting, setInviting] = useState(false)
   const [searching, setSearching] = useState(false)
   const search = () => setSearching(true)
-  const loaded = snapshot.data !== undefined
-  const blocked = blockedBy(snapshot.error, loaded)
-  // Behind a closed door the project's last snapshot may still be in the cache: nothing acts on it (Invite, I).
-  const shown = blocked ? undefined : snapshot.data
+  const { loaded, blocked, shown } = doorOf(snapshot)
+  const work = useTasksWork(props, feed, membership, blocked)
   const invite = () => setInviting(true)
   useBeyondTheView(props, snapshot.data, room, blocked)
   useProjectKeys({ onLeave, onWork, invite, search }, inviting, !!shown && canInvite(membership), !!shown)
@@ -304,7 +330,7 @@ export function ProjectShell(props: Props) {
             onInvite={invite}
             background={!!props.background}
             resources={props.resources}
-            plans={props.plans}
+            {...work}
             search={{ open: searching, onClose: () => setSearching(false) }}
           />
         )}
@@ -407,6 +433,8 @@ interface BodyProps {
   background: boolean
   resources: React.ReactNode
   plans: Readonly<Record<string, GoalPlan>> | undefined
+  /** The source-review pilot's entry under each goal in Tasks (WBC-02), where Sophia offers it. */
+  entry?: ServedWork['entry']
   /** The project's search (A13): open from the head's Search, or `/`. */
   search: { open: boolean; onClose: () => void }
 }
@@ -552,22 +580,9 @@ function pageClass(work: boolean, plans: BodyProps['plans'], panes = false): str
  * views still to come say so.
  */
 function PageBody(props: BodyProps) {
-  const { view, projectId, identity, membership, snapshot, onShow, onInvite, plans } = props
+  const { view, projectId, identity, membership, snapshot, onShow } = props
   if (view === 'knowledge') return <Knowledge {...{ projectId, identity, membership, snapshot }} />
-  if (view === 'goals' || view === 'work') {
-    return (
-      <GoalList
-        snapshot={snapshot}
-        projectId={projectId}
-        identity={identity}
-        controls={view === 'work'}
-        canAct={canInvite(membership)}
-        plans={view === 'work' ? plans : undefined}
-        onOpenStudio={() => onShow('studio')}
-        onInvite={onInvite}
-      />
-    )
-  }
+  if (view === 'goals' || view === 'work') return <Goals {...props} />
   if (view === 'conversations' && VISION) {
     return <ConversationsView {...{ projectId, identity, membership }} cursor={snapshot?.cursor} />
   }
@@ -576,6 +591,25 @@ function PageBody(props: BodyProps) {
     return <UpdatesView {...{ projectId, identity, snapshot, membership, inCall }} />
   }
   return view === 'studio' ? null : <PendingView view={view} onShow={onShow} />
+}
+
+/** Goals and Work list the goals; Work, with each goal's plan and the source-review pilot's entry (WBC-02). */
+function Goals(props: BodyProps) {
+  const { view, projectId, identity, membership, snapshot, onShow, onInvite, plans, entry } = props
+  const work = view === 'work'
+  return (
+    <GoalList
+      snapshot={snapshot}
+      projectId={projectId}
+      identity={identity}
+      controls={work}
+      canAct={canInvite(membership)}
+      plans={work ? plans : undefined}
+      entry={work ? entry : undefined}
+      onOpenStudio={() => onShow('studio')}
+      onInvite={onInvite}
+    />
+  )
 }
 
 /**

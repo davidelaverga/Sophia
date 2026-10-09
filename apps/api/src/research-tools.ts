@@ -56,10 +56,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const isUuid = (v: unknown): v is string => typeof v === 'string' && UUID.test(v)
 const isText = (v: unknown, max: number): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= max
 
+/**
+ * The registry's research specialists: a source reviewer (WBC-02) also writes Markdown and never does research; the
+ * design roles (SDD-01) write HTML or a review.
+ */
+export const RESEARCH_SPECIALISTS = SPECIALISTS.filter((s) => s.taskKind === 'research')
+
 /** The registry's research specialist for these formats: the one whose outputs are exactly them. */
 export function specialistFor(outputs: readonly string[]): { role: string; route: string } | null {
   const wanted = [...new Set(outputs)].toSorted().join(',')
-  const match = SPECIALISTS.find((s) => s.family === 'research' && [...s.outputs].toSorted().join(',') === wanted)
+  const match = RESEARCH_SPECIALISTS.find((s) => [...s.outputs].toSorted().join(',') === wanted)
   return match ? { role: match.id, route: match.route } : null
 }
 

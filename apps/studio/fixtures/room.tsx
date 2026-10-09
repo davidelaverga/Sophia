@@ -370,7 +370,8 @@ const project = {
   // The demo's research is on its second version, as its report (both published by default).
   taskRevision: RESEARCH_REVISION,
   taskHeld: query.get('hold') === 'task',
-  taskFails: false,
+  // `fail=task`: every read of the research task is refused (503), as the hosted cards' detail went unread.
+  taskFails: query.get('fail') === 'task',
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
   researchFinished: false,
   textTampered: query.get('tamper') === 'text',

@@ -35,9 +35,10 @@ test('a research attempt reads its task, writes a draft and pays for each model 
       ['sophia-html-designer-v1', 'research-sol-medium-v1'],
       ['sophia-research-md-v1', 'research-sol-medium-v1'],
       ['sophia-research-pdf-v1', 'research-sol-medium-v1'],
+      ['sophia-source-review-v1', 'source-review-luna-high-v1'],
       ['sophia-visual-review-v1', 'research-sol-medium-v1'],
     ],
-    'the hello advertises the research and design roles and their route',
+    'the hello advertises the research and design roles on their route, and the source reviewer on its own (WBC-02)',
   )
   for (const role of hello.roles) assert.match(role.presetDigest, /^sha256:[0-9a-f]{64}$/)
 

@@ -23,23 +23,26 @@ const noLiveKit: Plugin = {
 }
 
 /**
- * The opening's page (fixtures/opening.tsx): the Studio's own index.html, its opening as it ships, with the app's part
- * played by the fixture instead of src/main.tsx.
+ * A page that is the Studio's own index.html, as it ships, with the app's part played by `entry` (a fixture) instead of
+ * src/main.tsx.
  */
-const openingPage: Plugin = {
-  name: 'sophia-fixture-opening',
+export const studioPageAs = (path: string, entry: string): Plugin => ({
+  name: `sophia-fixture-studio-page${path}`,
   configureServer: (server) => {
     server.middlewares.use((req, res, next) => {
-      if (!req.url?.startsWith('/opening.html')) return next()
+      if (!req.url?.startsWith(path)) return next()
       const page = readFileSync(studioPage, 'utf8')
       if (!page.includes('/src/main.tsx')) throw new Error('index.html no longer loads /src/main.tsx')
-      void server.transformIndexHtml(req.url, page.replace('/src/main.tsx', '/opening.tsx')).then((html) => {
+      void server.transformIndexHtml(req.url, page.replace('/src/main.tsx', entry)).then((html) => {
         res.setHeader('content-type', 'text/html')
         res.end(html)
       }, next)
     })
   },
-}
+})
+
+/** The opening's page (fixtures/opening.tsx). */
+const openingPage = studioPageAs('/opening.html', '/opening.tsx')
 
 // The fixture pages (fixtures/) for the browser checks (e2e/), served on their own port. They are never part of the
 // Studio's build: `vite build` reads index.html only, with its own config. Paths are this file's own, so any working

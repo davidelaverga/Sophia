@@ -42,6 +42,9 @@ importers:
       '@sophia/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@sophia/coordination':
+        specifier: workspace:*
+        version: link:../../packages/coordination
       '@sophia/design':
         specifier: workspace:*
         version: link:../../packages/design
@@ -70,6 +73,12 @@ importers:
       '@sophia/media-bridge':
         specifier: workspace:*
         version: link:../media-bridge
+      '@sophia/paperclip-adapters':
+        specifier: workspace:*
+        version: link:../../packages/paperclip-adapters
+      '@sophia/paperclip-plugin':
+        specifier: workspace:*
+        version: link:../../packages/paperclip-plugin
       '@sophia/test-support':
         specifier: workspace:*
         version: link:../../packages/test-support
@@ -156,6 +165,9 @@ importers:
       '@sophia/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@sophia/coordination':
+        specifier: workspace:*
+        version: link:../../packages/coordination
       '@types/react':
         specifier: 19.3.0
         version: 19.3.0
@@ -171,6 +183,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@sophia/coordination':
+        specifier: workspace:*
+        version: link:../../packages/coordination
       '@sophia/persistence':
         specifier: workspace:*
         version: link:../../packages/persistence
@@ -199,6 +214,12 @@ importers:
       ajv-formats:
         specifier: 3.0.1
         version: 3.0.1(ajv@8.20.0)
+
+  packages/coordination:
+    dependencies:
+      '@sophia/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   packages/design:
     dependencies:
@@ -259,11 +280,36 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  packages/paperclip-adapters:
+    dependencies:
+      '@sophia/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
+  packages/paperclip-plugin:
+    dependencies:
+      '@sophia/coordination':
+        specifier: workspace:*
+        version: link:../coordination
+    devDependencies:
+      '@sophia/test-support':
+        specifier: workspace:*
+        version: link:../test-support
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
+
   packages/persistence:
     dependencies:
       '@sophia/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@sophia/coordination':
+        specifier: workspace:*
+        version: link:../coordination
       '@sophia/design':
         specifier: workspace:*
         version: link:../design
