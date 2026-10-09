@@ -9,7 +9,7 @@ import {
   submitContribution,
   withActor,
 } from '@sophia/persistence'
-import { withExchanges } from '../voice-joins.ts'
+import { withVoiceJoins } from '../voice-joins.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 const taskParams = {
@@ -72,10 +72,8 @@ export function conversationRoutes(app: FastifyInstance, { pool, voice }: { pool
     async (req) =>
       withActor(pool, req.actorId, 'read', async (c) => {
         const detail = await readNativeTask(c, req.params.projectId, req.params.taskId)
-        if (!voice) return detail
-        // Voice qualification on (A15): a voice-created task names its exchange.
-        const [task] = await withExchanges(c, req.params.projectId, [detail.task])
-        return task ? { ...detail, task } : detail
+        // Voice qualification on (A15): a voice-created task names its exchange, and what a withdrawal reached of it.
+        return voice ? withVoiceJoins(c, req.params.projectId, detail) : detail
       }),
   )
 

@@ -17,8 +17,9 @@
 --   session_closed receipt says guard). A receipt names only a connection that was reserved.
 -- * The guard ends an exchange under a grant, as End would (ended_by stays null), at its deadline, when the grant is
 --   revoked or expires, past its connection or turn limit, or at its budget, and records why. The API runs it on every
---   bridge presence report, assignment poll and evidence write, so it acts whether or not the Lab is still there; the
---   event wakes the bridge's poll, and the bridge closes the session and its provider connection.
+--   bridge presence report and assignment poll, so it acts whether or not the Lab is still there, and every receipt and
+--   reservation checks the same limits for its own exchange; the event wakes the bridge's poll, and the bridge closes
+--   the session and its provider connection.
 -- * The bridge's receipts (input windows, input turns, the provider's lifecycle, replies, the session's close) are
 --   kept 24 hours, readable only by the grant's principal. They carry counts, booleans, ids, timings and SHA-256
 --   chains over PCM the bridge forwards or plays: the API's schemas refuse any free text. Nothing is kept of a
@@ -28,6 +29,9 @@
 --   linked to it in the transaction that inserts it, never by its key; then marks the call answered. A member reads each task's exchange from it (native_task_exchanges), and their own calls in an exchange,
 --   in order, each with its tool, the command it admitted and the task it created (exchange_calls). A member's own
 --   command, under any key, links to no call.
+-- * What a withdrawal reached of a task, for a member (task_withdrawn_sources): the sources a research, design or review
+--   task's attempt drew on that are withdrawn now. Computed live from the very closure a withdrawal revokes work by, so
+--   the Lab joins its own withdrawn note to the work it ended.
 -- * A member reads the room as the bridge last saw it (room_live_presence): only whether they are in it, the counts,
 --   the bridge's voice and the report's age; nobody else's identity.
 -- * media_assignments (0022) is replaced with the same signature: an assignment under an active grant also names it
@@ -561,6 +565,26 @@ BEGIN
   'emptySince',p.empty_since);
 END $$;
 
+-- The sources a research, design or review task drew on that are withdrawn now, for a member, in order: its attempt's
+-- consumed closure (attempt_consumed_sources, 0033: the task's manifest and everything it drew on, transitively; for a
+-- design or an edit, the report version it lays out and so the research that wrote it, its inputs, a mission note's
+-- version among them), the very set a withdrawal revokes work by (research_revoke_source, 0028; design_revoke_source,
+-- 0041), less every source in it that is still an eligible, ready project source. Computed live, never stored: a task
+-- that ended before the withdrawal lists it as well. Null for any other kind of task; a task the caller cannot see is
+-- not found. Read only by an API with voice qualification on.
+CREATE FUNCTION sophia.task_withdrawn_sources(p_project uuid, p_task uuid) RETURNS uuid[]
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE j sophia.jobs;
+BEGIN
+ IF sophia.actor_id() IS NULL OR NOT sophia.is_member(p_project) THEN RAISE EXCEPTION 'Task not found' USING ERRCODE='22023'; END IF;
+ SELECT * INTO j FROM sophia.jobs WHERE project_id=p_project AND id=p_task AND parent_job_id IS NULL AND sophia.is_task_kind(kind);
+ IF j.id IS NULL THEN RAISE EXCEPTION 'Task not found' USING ERRCODE='22023'; END IF;
+ IF j.kind NOT IN ('research','design','design_review') THEN RETURN NULL; END IF;
+ RETURN ARRAY(SELECT DISTINCT x FROM sophia.attempt_consumed_sources(p_project,j.attempt_id) x
+  WHERE NOT EXISTS(SELECT 1 FROM sophia.source_objects s WHERE s.project_id=p_project AND s.id=x
+   AND s.eligible AND s.scope='project' AND s.state='ready') ORDER BY x);
+END $$;
+
 REVOKE ALL ON FUNCTION sophia.voice_grant_of(uuid,timestamptz), sophia.voice_deadline(sophia.voice_qualification_grants,timestamptz),
  sophia.voice_budget_reached(sophia.voice_qualification_grants,bigint,bigint), sophia.voice_committed(uuid),
  sophia.voice_last_prompt(uuid), sophia.voice_limit_reached(sophia.voice_qualification_grants,timestamptz,uuid),
@@ -572,12 +596,13 @@ REVOKE ALL ON FUNCTION sophia.voice_grant_of(uuid,timestamptz), sophia.voice_dea
  sophia.voice_qualification_evidence_read(uuid), sophia.voice_room_qualification(uuid),
  sophia.media_record_live_call(uuid,bigint,uuid,text,text), sophia.room_live_presence(uuid),
  sophia.native_task_exchanges(uuid,uuid[]), sophia.exchange_calls(uuid,timestamptz), sophia.live_call_admits(uuid,text),
- sophia.live_call_command(), sophia.media_answer_live_call(uuid,uuid,text,text) FROM PUBLIC;
+ sophia.live_call_command(), sophia.media_answer_live_call(uuid,uuid,text,text),
+ sophia.task_withdrawn_sources(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.voice_qualification_guard(), sophia.media_record_evidence(uuid,uuid,integer,text,jsonb),
  sophia.media_voice_reserve(uuid,uuid,text,integer,bigint),
  sophia.voice_qualification_evidence_read(uuid), sophia.voice_room_qualification(uuid),
  sophia.media_record_live_call(uuid,bigint,uuid,text,text), sophia.room_live_presence(uuid),
  sophia.native_task_exchanges(uuid,uuid[]), sophia.exchange_calls(uuid,timestamptz), sophia.live_call_admits(uuid,text),
- sophia.media_answer_live_call(uuid,uuid,text,text) TO sophia_api;
+ sophia.media_answer_live_call(uuid,uuid,text,text), sophia.task_withdrawn_sources(uuid,uuid) TO sophia_api;
 
 COMMIT;

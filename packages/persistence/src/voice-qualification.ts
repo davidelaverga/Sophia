@@ -211,3 +211,20 @@ export async function readTaskExchanges(
   )
   return new Map(rows.map((r) => [r.task_id, r.exchange_id]))
 }
+
+/**
+ * The sources a research, design or review task drew on that are withdrawn now (0046, task_withdrawn_sources): its
+ * attempt's consumed closure, computed live. Null for any other kind of task; a task the caller cannot see is not found.
+ * Call inside withActor(..., 'read'), only with voice qualification on.
+ */
+export async function readWithdrawnSources(
+  c: pg.PoolClient,
+  projectId: string,
+  taskId: string,
+): Promise<string[] | null> {
+  const { rows } = await c.query<{ ids: string[] | null }>(`SELECT sophia.task_withdrawn_sources($1, $2) AS ids`, [
+    projectId,
+    taskId,
+  ])
+  return onlyRow(rows, 'task_withdrawn_sources').ids
+}

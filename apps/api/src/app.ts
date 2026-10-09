@@ -187,7 +187,8 @@ export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_
   AND to_regprocedure('sophia.media_answer_live_call(uuid,uuid,text,text)') IS NOT NULL
   AND to_regprocedure('sophia.exchange_calls(uuid,timestamptz)') IS NOT NULL
   AND to_regprocedure('sophia.room_live_presence(uuid)') IS NOT NULL
-  AND to_regprocedure('sophia.native_task_exchanges(uuid,uuid[])') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.native_task_exchanges(uuid,uuid[])') IS NOT NULL
+  AND to_regprocedure('sophia.task_withdrawn_sources(uuid,uuid)') IS NOT NULL AS ok`
 
 /**
  * The byte store the routes are given: written once per key, by a claim the database keeps (0044). The operator's

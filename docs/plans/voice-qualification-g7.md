@@ -219,6 +219,43 @@ It answers nobody else's identity. `observed: false` (no report) or `fresh: fals
 
 Presence counts only when it is the principal's own: `fresh: true` and `selfPresent: true` on their own read. Counts, another member's read or a stale report prove nothing.
 
+**What a withdrawal reached.** With voice qualification on, the detail of a research, design or review task (`GET /api/v1/projects/{projectId}/native-tasks/{taskId}`) carries `withdrawnSourceIds`: the sources its attempt drew on that are withdrawn now, in order (`task_withdrawn_sources`, 0046). It is omitted for any other kind of task and with voice qualification off, and it is not on the snapshot. A task outside the caller's projects is 422 `not_found`.
+- The set is the attempt's consumed closure (`attempt_consumed_sources`, 0033), the very closure a withdrawal revokes work by (`research_revoke_source`, 0028; `design_revoke_source`, 0041), less every source in it that is still an eligible, ready project source. For a research task it is its manifest: question, inputs, base, and what they drew on. For a design or an edit it is the report version it lays out, and through it the research that wrote it, with that research's inputs.
+- A mission note's version is a source. `record_note` writes the note's text as a source (`put_text_source`), and the member's own receipt (`POST /api/v1/projects/{projectId}/mission/entries`, operation `record_note`) names it as `sourceId`, which is the entry's `source_id`. `start_research` with `inputSourceIds: [sourceId]` makes it an input of the research manifest (`source_dependencies`), so the closure of the research, and of every design of its report, holds it. A correction is a new version that depends on the old one. Forgetting the note (`withdraw_note`, preview then withdrawal) erases every version in its reach (`mission_erase_source`: not eligible, state deleted), and its receipt names the note's `sourceId`. The voice tool `record_mission_note` answers the model only the entry's id, never a `sourceId`.
+- It is computed live, never stored. A task that had ended before the withdrawal lists the source as well: it proves what the task drew on, not what ended it. The Lab matches its note's `sourceId` against it, and also reads that the task was live just before the withdrawal and failed with the revocation's reason after it.
+- What a withdrawal ends: only work still under way. A research task pending or running is revoked and rebuilt without the source; a design, an edit or a review under way fails with the reason `revoked: a source the report drew on was withdrawn` (its attempt `revoked`) and its session is stopped. A published design, the report's published versions, and a research task that already finished are untouched. A task already Stopped (cancelled) is not ended again: after Stop there is nothing left to end.
+
+**The G7 episode's lifecycle, as the product runs it** (observed on real PostgreSQL through the API's routes, `apps/api/src/voice-episode.db.test.ts`, no provider; states verbatim):
+1. The principal records note N through their own route: receipt `record_note`, `sourceId` S.
+2. `start_research` by voice (guide v1.3, `outputs: ['markdown','html']`, `inputSourceIds: [S]`): the call lists `native_task` with the research task R, answered `admitted`; R names the exchange. Once R's report publishes (version 1), R reads `result_ready` with `research.html: {state: 'designing', designTaskId: D}`. D is the first design: `design.state: 'designing'`, mode `create`, `design.researchTaskId: R`, phase `running`, and the goal is `running` with only the design under way. D names no exchange: it was created by the publication, and it is joined through R.
+3. Hold by voice on D (R's goal): the call lists `hold`, answered `ok`; the goal is `holding`, then `held` once the runtime has checked the native stops, which go to both the design's session and the research's. D reads phase `held`, still `designing`. Resume: the call lists `resume`, answered `ok`; the goal is `running` at once, and D reads phase `running` once the resumes are delivered, again to both sessions.
+4. There is no edit while the first design is live: `revise_html_page` is refused with `not_started:no_html_page` ("That report has no designed HTML page to revise."), because the page exists only once D publishes. D publishes the page as version 2 (`self_review_only` without a reviewer): D is `published` and the goal is `completed`, with nothing under way.
+5. The edit, by voice (`revise_html_page` on R, sections `['s2']`): answered `admitted` with its task X, a design in mode `edit`, `designing`, phase `running`, on the same goal, which is `running` again. X has `design.researchTaskId: R`, and its actor is the principal. There is one design of a page at a time: another edit is refused with `not_started:invalid_state` ("A design of this page is already under way"). So the first design and an edit are never live together. At the withdrawal, the live design the episode can have is either D (but then the page never publishes, and Create shows no page) or X after D published. The episode uses X.
+6. N forgotten while X is live: the receipt is `withdraw_note`, with `sourceId` S. X reads phase `failed`, reason `revoked: a source the report drew on was withdrawn`, `design.state: 'failed'`, `withdrawnSourceIds: [S]` (the attempt is `revoked`). R stays `result_ready`, D stays `published`, and the goal is `completed` at once, with nothing under way. One native stop for X's session follows; checking it changes nothing more.
+7. Stop by voice on X after that is refused: `not_applied:ended_without_report` ("Not applied. This work ended without a result; the report is still at version 1. Nothing was changed and nothing is waiting."). Underneath, the goal is `completed`: the principal's own Stop through `POST /api/v1/projects/{projectId}/commands` is 409 `invalid_state`, "Goal already terminal or stopping". The call lists no command (answered `refused`), and X and the goal are unchanged.
+8. The Stop sub-episode, a second research by voice on a new question, so a new goal:
+   - Pending: phase `queued`, goal `ready`. Stop by voice is listed as `stop`, answered `ok`; the goal is `stopping`, then `stopped`. The job is `cancelled`, reason `stopped`, phase `stopped`, and no native stop was needed, since no session was started.
+   - Running (its create delivered): phase `running`, goal `running`. Stop is listed as `stop`, answered `ok`; the goal is `stopping`, then, once its one native stop is checked, `stopped`. The job is `cancelled`, reason `stopped`.
+
+   Each of these research tasks names the exchange, and each Stop is its own call with its own command.
+
+**The G7 order the product supports**, then:
+1. note;
+2. Create with HTML, drawing on it, with Hold and Resume while its design runs;
+3. the page published;
+4. an edit by voice;
+5. the note forgotten, which ends the edit;
+6. Stop on a separate, voice-created research while it is pending or running.
+
+A Stop on the withdrawn goal is refused and certifies nothing.
+
+What proves each effect:
+- **The withdrawal.** X read before (phase `running`, `design.state: 'designing'`) and after (phase `failed`, exactly the revocation's reason, `withdrawnSourceIds` holding the note's `sourceId`), together with the `withdraw_note` receipt. No call admitted a stop between the two reads.
+- **Stop.** Its call's `stop` command on the sub-episode's goal, then the goal `stopped` and the task's phase `stopped` (job `cancelled`, reason `stopped`).
+- **Telling them apart.** An end by Stop is phase `stopped` with reason `stopped`; an end by withdrawal is phase `failed` with the revocation's reason. A Stop on work that had already ended admits no command.
+
+**Gap.** The edit's own voice call lists no command and no task, and X names no exchange: its command is keyed `design:<task>`, not the call's `live:` key. X is joined to the run only through R (`design.researchTaskId`), by its actor and its goal. The edit's call is not yet a canonical join.
+
 All of these are read by the principal through the member API (snapshot, native tasks, the exchange's calls, artifacts, live presence, evidence).
 
 **Status codes the Lab must expect** (this API's convention for every member read):

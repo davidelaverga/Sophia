@@ -6,9 +6,10 @@
     "Pack 03 G7 drives a synthetic in-app voice episode from the Voice Lab. The browser sends Opus over WebRTC to LiveKit and the media bridge talks to the provider on the server, so the Lab needs product-authored receipts for the legs only the product sees (docs/plans/voice-qualification-g7.md, sophia.voice-qualification.v1).",
     "Off by default, three times over: migration 0046's grant is the migration owner's alone; the API serves none of this unless SOPHIA_VOICE_QUALIFICATION=on (off, it passes no grant on, runs no guard and needs nothing of 0046 to be ready); and the bridge records nothing unless SOPHIA_VOICE_EVIDENCE=on and its assignment names a grant (qualification, omitted otherwise). A room token names the grant only for its principal while it is active.",
     "No speech is retained: every receipt schema allows only numbers, booleans, enumerated words, ids, hex digests and times; no free text. Receipts are kept 24 hours and only the grant's principal reads them; anyone else finds nothing (not_found, 422, as the API's other reads).",
-    "The guard (0046) runs on every evidence write, presence report and assignment poll, so an exchange under a grant ends at its deadline or limit whether or not the Lab is still there.",
+    "The guard (0046) runs on every presence report and assignment poll, and every evidence write and reservation checks the same limits for its own exchange, so an exchange under a grant ends at its deadline or limit whether or not the Lab is still there.",
     "Joins the Lab needs to prove a run's outcome and its cleanup, all only with voice qualification on: a native task names the exchange whose voice tool call created it (exchangeId); a member reads their own voice tool calls in an exchange, in order, each with the command it admitted and the task that command created (getExchangeCalls), so a step is proven by the call that made it, never by a key, a time window or another call; and a member reads the room as the bridge last saw it, only whether they are in it and the counts (getRoomLivePresence). A call's command is linked to it by the transaction that inserted that command for the call, never by its key, so a member's own command, under any key, links to no call.",
-    "The bound is the exchange's, held by the service, never a bridge session's: before the bridge opens a provider connection under a grant or lets a generation start, it reserves it (POST /v1/media/qualification-reserve), and the service counts connections and generations durably, with what each connection was charged and reported. A session that replaces a lost one, or a restarted bridge, starts from the exchange's true counts. A reservation that does not fit ends the exchange, as does the bridge's own stop (a session_closed receipt that says guard: reason bridge). A receipt names only a connection that was reserved."
+    "The bound is the exchange's, held by the service, never a bridge session's: before the bridge opens a provider connection under a grant or lets a generation start, it reserves it (POST /v1/media/qualification-reserve), and the service counts connections and generations durably, with what each connection was charged and reported. A session that replaces a lost one, or a restarted bridge, starts from the exchange's true counts. A reservation that does not fit ends the exchange, as does the bridge's own stop (a session_closed receipt that says guard: reason bridge). A receipt names only a connection that was reserved.",
+    "What a withdrawal reached, only with voice qualification on: a research, design or review task's detail lists the sources its attempt drew on that are withdrawn now (withdrawnSourceIds), from the very closure a withdrawal revokes work by, computed live. The Lab matches a forgotten mission note's sourceId (its record_note receipt's) against it. A task that had already ended lists it too, so the Lab also reads that the task was live just before its withdrawal."
   ],
   "patch": [
     {
@@ -1296,6 +1297,18 @@
         "type": "string",
         "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
         "description": "The exchange whose voice tool call created the task: the call the service recorded when it bound the call to its speaker, to which the task's command was linked by the transaction that inserted it for that call (0046, live_tool_calls). The canonical join from a voice step to its task, and through it to the task's output. Omitted for any other task, and for one created while the API's voice qualification was off. A member's own command, under any idempotency key, never sets it."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NativeTaskDetail/properties/withdrawnSourceIds",
+      "value": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "description": "The sources this research, design or review task drew on that are withdrawn now, in order: its attempt's consumed closure (its manifest and everything that drew on, transitively; for a design or an edit, the report version it lays out and so the research that wrote it and that research's inputs, a mission note's version among them), the closure a withdrawal revokes work by, less what is still an eligible, ready project source (0046, task_withdrawn_sources). Computed live, never stored: a task that ended before a withdrawal lists it as well, so it proves what the task drew on, not what ended it. Omitted for any other kind of task, and by an API with voice qualification off."
       }
     },
     {

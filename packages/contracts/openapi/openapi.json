@@ -16629,6 +16629,14 @@
           },
           "design": {
             "$ref": "#/components/schemas/DesignProgress"
+          },
+          "withdrawnSourceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "description": "The sources this research, design or review task drew on that are withdrawn now, in order: its attempt's consumed closure (its manifest and everything that drew on, transitively; for a design or an edit, the report version it lays out and so the research that wrote it and that research's inputs, a mission note's version among them), the closure a withdrawal revokes work by, less what is still an eligible, ready project source (0046, task_withdrawn_sources). Computed live, never stored: a task that ended before a withdrawal lists it as well, so it proves what the task drew on, not what ended it. Omitted for any other kind of task, and by an API with voice qualification off."
           }
         },
         "required": [
