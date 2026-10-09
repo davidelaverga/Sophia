@@ -121,7 +121,7 @@ const stateOf = async (exchangeId: string) =>
 
 const receipt = (grantId: string, kind: QualificationReceiptKind, extra: Record<string, unknown> = {}) => ({
   kind,
-  schema: `sophia.bridge.${kind}.v1`,
+  schema: 'sophia.bridge.voice_qualification.v1',
   grantId,
   runBindingSha256: RUN,
   atMs: 1,

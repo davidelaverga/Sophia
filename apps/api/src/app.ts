@@ -81,6 +81,15 @@ export interface AppDeps {
    * agent later. Without one, a personal message is refused (503) before anything is kept.
    */
   companion?: Companion | null
+  /** The deployed commit (RENDER_GIT_COMMIT, 40 hex), served by /health so a probe can name what it reached; else null. */
+  commit?: string | null
+  /**
+   * Voice qualification evidence (A15, migration 0046), off by default. On, the API runs 0046's guard on every bridge
+   * presence report and assignment poll, takes the bridge's receipts, answers the principal's read and names the grant
+   * on its principal's room token, and is ready only with 0046. Off, none of that: an assignment's grant is not passed
+   * on, so a bridge never records.
+   */
+  voiceQualification?: boolean
 }
 
 /**
@@ -164,6 +173,15 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
 export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(text,text,bigint)') IS NOT NULL AS ok`
 
 /**
+ * What an API with voice qualification on (A15) calls of 0046: its guard, the bridge's receipts, the principal's read and
+ * the room token's grant. An API with it off, the default, and the previous API, require nothing of 0046.
+ */
+export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_guard()') IS NOT NULL
+  AND to_regprocedure('sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.voice_qualification_evidence_read(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.voice_room_qualification(uuid)') IS NOT NULL AS ok`
+
+/**
  * The byte store the routes are given: written once per key, by a claim the database keeps (0044). The operator's
  * write-once probe (storage-probe.ts) composes the API's store with this same function.
  */
@@ -200,7 +218,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerCors(app, deps.corsOrigins ?? [])
   registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
   app.setErrorHandler(handleError)
-  registerHealth(app, deps.pool, Boolean(deps.byteStore))
+  const voice = deps.voiceQualification === true
+  registerHealth(app, deps.pool, { stores: Boolean(deps.byteStore), voice, commit: deps.commit ?? null })
   const store = writeOnceStore(deps.pool, deps.byteStore)
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
@@ -211,9 +230,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
   designRoutes(app, { pool: deps.pool, store })
-  roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
+  roomRoutes(app, { pool: deps.pool, livekit: deps.livekit, voice })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
-  mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit })
+  mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit, voice })
   accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
   sourceRoutes(app, { pool: deps.pool, store })
   rendererRoutes(app, { pool: deps.pool, store })
@@ -346,14 +365,19 @@ function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply
   return sendError(req, reply, 503, { code: 'unavailable', message: 'Unavailable', retry: 'safe_read' })
 }
 
-function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean): void {
-  app.get('/health', () => ({ ok: true }))
+function registerHealth(
+  app: FastifyInstance,
+  pool: pg.Pool,
+  { stores, voice, commit }: { stores: boolean; voice: boolean; commit: string | null },
+): void {
+  app.get('/health', () => ({ ok: true, commit }))
   app.get('/ready', async (_req, reply) => {
     try {
       await checkRoleSafety(pool)
       const { rows } = await pool.query<{ ok: boolean }>(REQUIRED_SCHEMA)
       const store = stores ? (await pool.query<{ ok: boolean }>(STORE_SCHEMA)).rows[0]?.ok : true
-      if (!rows[0]?.ok || !store) return await reply.status(503).send({ ready: false, reason: 'schema' })
+      const voiced = voice ? (await pool.query<{ ok: boolean }>(VOICE_SCHEMA)).rows[0]?.ok : true
+      if (!rows[0]?.ok || !store || !voiced) return await reply.status(503).send({ ready: false, reason: 'schema' })
       return { ready: true }
     } catch {
       return reply.status(503).send({ ready: false, reason: 'database' })

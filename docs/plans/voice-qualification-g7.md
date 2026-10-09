@@ -1,10 +1,11 @@
 # Voice qualification evidence for the Studio G7 episode: `sophia.voice-qualification.v1`
 
-**Status:** source only. It is off by default, and nothing here enables it. Enabling it needs:
-- an operator grant through the migration owner;
+**Status:** source only. It is off by default, and nothing here enables it. Enabling it needs all three:
+- an operator grant through the migration owner (migration 0046);
+- `SOPHIA_VOICE_QUALIFICATION=on` on the API. Off, its default, the API passes no grant on to the bridge, runs no guard, serves neither route below, names no grant on a room token, and needs nothing of 0046 to be ready;
 - `SOPHIA_VOICE_EVIDENCE=on` on the media bridge.
 
-Both belong to the owner's batch, never to this change.
+All three belong to the owner's batch, never to this change. The contract is amendment A15; where this page and migration 0046 differ, 0046 holds.
 
 **Why it exists.** Pack 03 G7 asks for a synthetic in-app voice episode: Create (HTML asked for by voice), a steer, leaving and returning, Hold, Resume and Stop. It is driven by the Voice Lab, which feeds synthetic audio into the Studio's own microphone path.
 
@@ -34,7 +35,9 @@ The legacy Lab proved input from a browser Gemini WebSocket, and this product ha
 | `approval_ref` | the owner's approval it rests on. |
 | `max_exchange_seconds` (60–1800) | the hard length of an exchange opened under the grant. |
 | `max_provider_connections` (1–10) | the provider connections a session may open, the first one included; past it, the exchange ends. |
-| `max_usage_tokens` (1,000–2,000,000) | the provider tokens reported (`usageMetadata.totalTokenCount`, cumulative per provider session, summed across sessions); past it, the exchange ends. |
+| `max_turns` (1–200) | the provider generations, whatever started them; at it, the exchange ends. |
+| `max_output_tokens_per_turn` (64–8,192) | one generation's output cap; the bridge sets it as the session's `maxOutputTokens` and cuts a generation that passes it. |
+| `max_usage_tokens` (1,000–5,000,000) | the provider tokens reported (`usageMetadata.totalTokenCount`, cumulative per provider session, summed across sessions). The exchange ends once what was reported, plus the last prompt's size (the context the next generation bills again) and one generation's output cap, would reach it. |
 | `expires_at` | the grant's end: at most 2 h after it is made. |
 | `revoked_at`, `revoke_reason` | `sophia.voice_qualification_revoke(project, grant, reason)`, owner only. |
 
@@ -44,9 +47,10 @@ The legacy Lab proved input from a browser Gemini WebSocket, and this product ha
 - `now ≥ least(expires_at, opened_at + max_exchange_seconds)` (`deadline`, or `expired`);
 - the grant is revoked (`revoked`);
 - connections reported exceed `max_provider_connections` (`connections`);
-- tokens reported reach `max_usage_tokens` (`usage`).
+- generations reported reach `max_turns` (`turns`);
+- the next generation could pass `max_usage_tokens` (`usage`, the rule above).
 
-It writes a `guard` receipt with the reason. Ending the exchange removes it from the bridge's assignments: the bridge's long poll wakes on the event, and its session closes, including the Gemini connection. **If the Lab dies, the exchange still ends at its deadline.** The bridge also stops forwarding input at the deadline itself (defence in depth).
+It writes a `guard` receipt (service, seq 0) with the reason. The guard runs only in an API with voice qualification on. Ending the exchange removes it from the bridge's assignments: the bridge's long poll wakes on the event, and its session closes, including the Gemini connection. **If the Lab dies, the exchange still ends at its deadline.** The bridge also stops forwarding input at the deadline itself (defence in depth).
 
 **The binding.** Every receipt carries `grantId` and `runBindingSha256`. The Lab checks the hash equals its own run's binding: a receipt from another run, grant or project is a mismatch, and the harness fails.
 
@@ -57,13 +61,13 @@ It writes a `guard` receipt with the reason. Ending the exchange removes it from
 - the assignment carries `qualification`;
 - the floor holder is the grant's `principalActorId`.
 
-**Sending.** Each receipt has a per-exchange sequence `seq`, and a resend with the same `seq` and body is idempotent. Sending never blocks audio: a failed send is retried, then dropped and counted.
+**Sending.** Each receipt has a per-exchange sequence `seq` (1–99,999, in the write, not the receipt), and a resend with the same `seq` and body is idempotent; another body under the same `seq` is refused (409 `idempotency_conflict`). Every receipt carries `kind`, `schema: 'sophia.bridge.voice_qualification.v1'`, `grantId`, `runBindingSha256` and `atMs`; A15's schemas refuse any other field. Sending never blocks audio: a failed send is retried, then dropped and counted.
 
 | Kind | When | Fields (beyond grantId, runBindingSha256, seq, atMs) |
 |---|---|---|
 | `input_window` | from the first 16 kHz chunk forwarded to the provider for the principal, until the turn completes, is interrupted, hands off, pauses or closes | windowSeq, inputEpoch, providerSession, connection, startedAtMs, endedAtMs, endReason, chunkCount, sampleCount, nonzeroSampleCount, audibleChunkCount, rms, peak, droppedSamples, sampleRate=16000, pcmDigestAlgorithm=`sha-256-chain-v1`, pcmSha256Chain, rawAudioExcluded=true |
 | `input_turn` | the provider's turn for that window ends | windowSeq, turnOrdinal, inputTranscriptionObserved (boolean), transcriptChars (**a count only**), finished, attributedToHolder, modelResponded, toolCallCount, outcome (`answered`, `no_user_turn_observed`, `interrupted`, `connection_lost`) |
-| `provider` | setup, ready, recovering, unavailable, closed; usage updates | phase, providerSession, connection, resumed, model, instructionSha256, bridgeCommit (or null), usageTokens (or null) |
+| `provider` | setup, ready, recovering, unavailable, closed; usage updates | phase, providerSession, connection, resumed, model, instructionSha256, bridgeCommit (or null), connectionsOpened, turns, usageTokens (or null), lastPromptTokens (or null). The guard holds the last four to the grant. |
 | `output_reply` | a reply ends | replyOrdinal, turnOrdinal, providerSession, connection, receivedAtMs, firstPlayedAtMs, endedAtMs, terminal (`played`, `stopped`, `interrupted`, `recovered`, `closed`), samplesReceived, framesPlayed, nonSilentFramesPlayed, rms, peak, durationMs, playedDigestAlgorithm=`sha-256-chain-v1`, playedSha256Chain (over the 20 ms frames handed to the room track) |
 | `session_closed` | the session closes | providerClosed, windows, turns, replies, toolCalls, typedMessages, transcriptRetained=false, reason (`ended`, `lost`, `guard`) |
 | `guard` | written by the API when the guard ends an exchange | reason (`deadline`, `expired`, `revoked`, `connections`, `usage`) |
@@ -72,7 +76,7 @@ It writes a `guard` receipt with the reason. Ending the exchange removes it from
 
 On this transport the chain covers **the PCM the bridge forwarded or played**. It is **never** comparable to the Lab's source WAV or the browser's frames: the Opus path is lossy, and the input is resampled. The Lab reconciles input by ordinal and envelope only (`pcm_reconciliation: envelope_only`), and must not compare chains for equality.
 
-**Reading them.** `GET /api/v1/exchanges/{exchangeId}/qualification-evidence` is answered only to the grant's principal, with their own JWT. It returns the grants covering the exchange (limits, deadline, how it ended) and the receipts in `seq` order. Anyone else gets 404.
+**Reading them.** `GET /api/v1/exchanges/{exchangeId}/qualification-evidence` is answered only to the grant's principal, with their own JWT. It returns the one grant covering the exchange (its limits and deadline, what was reported against them, why the guard ended it) and the receipts kept, bridge receipts in `seq` order then the service's guard receipt. Anyone else, or an exchange under no grant, gets 422 `not_found`, as the API's other reads do. An API with voice qualification off does not serve the route.
 
 ## Studio receipts (page only, never stored)
 
@@ -90,7 +94,7 @@ On this transport the chain covers **the PCM the bridge forwarded or played**. I
 
 | Component | Where | Source |
 |---|---|---|
-| API | `GET /health` → `{ok, commit}` | `RENDER_GIT_COMMIT` (40 hex), or null |
+| API | `GET /health` → `{ok, commit}` | `RENDER_GIT_COMMIT` (40 hex), or null; served whether or not voice qualification is on |
 | Bridge | `provider` receipts' `bridgeCommit` | same |
 | Studio | `<meta name="sophia-build" content="<commit>">`, only when the build sets `VITE_SOPHIA_COMMIT` | — |
 

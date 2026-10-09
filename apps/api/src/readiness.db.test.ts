@@ -2,7 +2,8 @@
 // no traffic. On a database migrated through 0042 only, the capture routes of 0043 (#117) would fail on undefined
 // functions: not ready. Once 0043 is applied, ready. The previous API requires nothing of 0043, so during a rolling
 // deployment it stays ready on either database. An API given a byte store also requires 0044's write claim
-// (writeOnce): not ready without it, and an API without a store requires nothing of 0044.
+// (writeOnce): not ready without it, and an API without a store requires nothing of 0044. An API with voice
+// qualification on (A15) requires 0046's functions; off, its default, it requires nothing of 0046.
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -20,12 +21,15 @@ import { memoryByteStore } from './byte-store.ts'
 const MIGRATIONS = fileURLToPath(new URL('../../../db/migrations', import.meta.url))
 const DELIVERY = '0043_design_delivery.sql'
 const WRITE_ONCE = '0044_object_write_once.sql'
+const REQUEUE = '0045_render_requeue_output.sql'
+const VOICE = '0046_voice_qualification.sql'
 
 let dir: string
 let db: TestDatabase
 let pool: pg.Pool
 let app: FastifyInstance
 let stored: FastifyInstance
+let voiced: FastifyInstance
 
 before(async () => {
   // The migrations before 0043, exactly as written.
@@ -41,11 +45,13 @@ before(async () => {
   })
   app = buildApp({ pool, verifyActor })
   stored = buildApp({ pool, verifyActor, byteStore: memoryByteStore() })
+  voiced = buildApp({ pool, verifyActor, voiceQualification: true })
 })
 
 after(async () => {
   await app.close()
   await stored.close()
+  await voiced.close()
   await pool.end()
   await db.drop()
   rmSync(dir, { recursive: true, force: true })
@@ -88,5 +94,14 @@ describe('readiness across 0043', () => {
     await migrate(WRITE_ONCE)
     assert.deepEqual(await ready(stored), [200, { ready: true }], 'a store, with 0044')
     assert.deepEqual(await ready(), [200, { ready: true }], 'no store, with 0044')
+  })
+
+  it('with voice qualification on, is not ready until 0046; off, its default, needs none of 0046', async () => {
+    for (const file of [DELIVERY, WRITE_ONCE, REQUEUE]) if (!applied.has(file)) await migrate(file)
+    assert.deepEqual(await ready(voiced), [503, { ready: false, reason: 'schema' }], 'voice on, no 0046')
+    assert.deepEqual(await ready(), [200, { ready: true }], 'voice off, no 0046')
+    await migrate(VOICE)
+    assert.deepEqual(await ready(voiced), [200, { ready: true }], 'voice on, with 0046')
+    assert.deepEqual(await ready(), [200, { ready: true }], 'voice off, with 0046')
   })
 })

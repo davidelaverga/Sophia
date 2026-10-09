@@ -1,0 +1,1083 @@
+{
+  "id": "A15",
+  "goal": "SDD-01-G7",
+  "title": "Voice qualification evidence: the bridge's receipts, the principal's read, and the grant on the assignment and room token",
+  "why": [
+    "Pack 03 G7 drives a synthetic in-app voice episode from the Voice Lab. The browser sends Opus over WebRTC to LiveKit and the media bridge talks to the provider on the server, so the Lab needs product-authored receipts for the legs only the product sees (docs/plans/voice-qualification-g7.md, sophia.voice-qualification.v1).",
+    "Off by default, three times over: migration 0046's grant is the migration owner's alone; the API serves none of this unless SOPHIA_VOICE_QUALIFICATION=on (off, it passes no grant on, runs no guard and needs nothing of 0046 to be ready); and the bridge records nothing unless SOPHIA_VOICE_EVIDENCE=on and its assignment names a grant (qualification, omitted otherwise). A room token names the grant only for its principal while it is active.",
+    "No speech is retained: every receipt schema allows only numbers, booleans, enumerated words, ids, hex digests and times; no free text. Receipts are kept 24 hours and only the grant's principal reads them; anyone else finds nothing (not_found, 422, as the API's other reads).",
+    "The guard (0046) runs on every evidence write, presence report and assignment poll, so an exchange under a grant ends at its deadline or limit whether or not the Lab is still there."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/VoiceQualification",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The operator grant an exchange is under (sophia.voice-qualification.v1, migration 0046), while it is active: the bridge records receipts only then, and only while principalActorId holds the floor. Omitted for every other exchange.",
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "runBindingSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "principalActorId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "maxProviderConnections": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "maxTurns": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "maxOutputTokensPerTurn": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 8192
+          },
+          "maxUsageTokens": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 5000000
+          }
+        },
+        "required": [
+          "grantId",
+          "runBindingSha256",
+          "principalActorId",
+          "deadline",
+          "maxProviderConnections",
+          "maxTurns",
+          "maxOutputTokensPerTurn",
+          "maxUsageTokens"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RoomQualification",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Present only for the grant's principal while the grant is active: the Studio then emits its page receipts (sophia:voice-qualification) to that page alone. Never stored.",
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "runBindingSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": ["grantId", "runBindingSha256"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/VoiceInputWindowReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "From the first 16 kHz chunk the bridge forwarded to the provider for the principal until the turn completes, is interrupted, hands off, pauses or closes. pcmSha256Chain covers the PCM forwarded (sha-256-chain-v1); it is never comparable to the Lab's source audio.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "input_window"
+          },
+          "schema": {
+            "type": "string",
+            "const": "sophia.bridge.voice_qualification.v1"
+          },
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "runBindingSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "windowSeq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "inputEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "providerSession": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "connection": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "startedAtMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "endedAtMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "endReason": {
+            "type": "string",
+            "enum": ["turn_complete", "interrupted", "handoff", "paused", "closed"]
+          },
+          "chunkCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "sampleCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "nonzeroSampleCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "audibleChunkCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "rms": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "peak": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "droppedSamples": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "sampleRate": {
+            "type": "integer",
+            "const": 16000
+          },
+          "pcmDigestAlgorithm": {
+            "type": "string",
+            "const": "sha-256-chain-v1"
+          },
+          "pcmSha256Chain": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "rawAudioExcluded": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "kind",
+          "schema",
+          "grantId",
+          "runBindingSha256",
+          "atMs",
+          "windowSeq",
+          "inputEpoch",
+          "providerSession",
+          "connection",
+          "startedAtMs",
+          "endedAtMs",
+          "endReason",
+          "chunkCount",
+          "sampleCount",
+          "nonzeroSampleCount",
+          "audibleChunkCount",
+          "rms",
+          "peak",
+          "droppedSamples",
+          "sampleRate",
+          "pcmDigestAlgorithm",
+          "pcmSha256Chain",
+          "rawAudioExcluded"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/VoiceInputTurnReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The provider's turn for an input window ended. transcriptChars is a count only: no transcript is kept.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "input_turn"
+          },
+          "schema": {
+            "type": "string",
+            "const": "sophia.bridge.voice_qualification.v1"
+          },
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "runBindingSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "windowSeq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "turnOrdinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "inputTranscriptionObserved": {
+            "type": "boolean"
+          },
+          "transcriptChars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "finished": {
+            "type": "boolean"
+          },
+          "attributedToHolder": {
+            "type": "boolean"
+          },
+          "modelResponded": {
+            "type": "boolean"
+          },
+          "toolCallCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["answered", "no_user_turn_observed", "interrupted", "connection_lost"]
+          }
+        },
+        "required": [
+          "kind",
+          "schema",
+          "grantId",
+          "runBindingSha256",
+          "atMs",
+          "windowSeq",
+          "turnOrdinal",
+          "inputTranscriptionObserved",
+          "transcriptChars",
+          "finished",
+          "attributedToHolder",
+          "modelResponded",
+          "toolCallCount",
+          "outcome"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/VoiceProviderReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The provider session's lifecycle and usage. connectionsOpened, turns, usageTokens and lastPromptTokens are what the guard holds to the grant's limits.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "provider"
+          },
+          "schema": {
+            "type": "string",
+            "const": "sophia.bridge.voice_qualification.v1"
+          },
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "runBindingSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "phase": {
+            "type": "string",
+            "enum": ["setup", "ready", "recovering", "unavailable", "closed", "usage"]
+          },
+          "providerSession": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "connection": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "resumed": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+          },
+          "instructionSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bridgeCommit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "connectionsOpened": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "turns": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "usageTokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastPromptTokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "schema",
+          "grantId",
+          "runBindingSha256",
+          "atMs",
+          "phase",
+          "providerSession",
+          "connection",
+          "resumed",
+          "model",
+          "instructionSha256",
+          "bridgeCommit",
+          "connectionsOpened",
+          "turns",
+          "usageTokens",
+          "lastPromptTokens"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/VoiceOutputReplyReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A reply the bridge played to the room ended. playedSha256Chain covers the 20 ms frames handed to the room track (sha-256-chain-v1).",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "output_reply"
+          },
+          "schema": {
+            "type": "string",
+            "const": "sophia.bridge.voice_qualification.v1"
+          },
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "runBindingSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "replyOrdinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "turnOrdinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "providerSession": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "connection": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "receivedAtMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "firstPlayedAtMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endedAtMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "terminal": {
+            "type": "string",
+            "enum": ["played", "stopped", "interrupted", "recovered", "closed"]
+          },
+          "samplesReceived": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "framesPlayed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "nonSilentFramesPlayed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "rms": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "peak": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "playedDigestAlgorithm": {
+            "type": "string",
+            "const": "sha-256-chain-v1"
+          },
+          "playedSha256Chain": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "kind",
+          "schema",
+          "grantId",
+          "runBindingSha256",
+          "atMs",
+          "replyOrdinal",
+          "turnOrdinal",
+          "providerSession",
+          "connection",
+          "receivedAtMs",
+          "firstPlayedAtMs",
+          "endedAtMs",
+          "terminal",
+          "samplesReceived",
+          "framesPlayed",
+          "nonSilentFramesPlayed",
+          "rms",
+          "peak",
+          "durationMs",
+          "playedDigestAlgorithm",
+          "playedSha256Chain"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/VoiceSessionClosedReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The bridge's session for the exchange closed. transcriptRetained is always false.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "session_closed"
+          },
+          "schema": {
+            "type": "string",
+            "const": "sophia.bridge.voice_qualification.v1"
+          },
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "runBindingSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "providerClosed": {
+            "type": "boolean"
+          },
+          "windows": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "turns": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "replies": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "toolCalls": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "typedMessages": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "transcriptRetained": {
+            "type": "boolean",
+            "const": false
+          },
+          "reason": {
+            "type": "string",
+            "enum": ["ended", "lost", "guard"]
+          }
+        },
+        "required": [
+          "kind",
+          "schema",
+          "grantId",
+          "runBindingSha256",
+          "atMs",
+          "providerClosed",
+          "windows",
+          "turns",
+          "replies",
+          "toolCalls",
+          "typedMessages",
+          "transcriptRetained",
+          "reason"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaEvidenceWrite",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One bridge receipt for an exchange under a grant, by its per-exchange sequence number: the same receipt again is a no-op, another under the same number is refused (409 idempotency_conflict). Only numbers, booleans, enumerated words, ids, digests and times: no free text.",
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 99999
+          },
+          "receipt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VoiceInputWindowReceipt"
+              },
+              {
+                "$ref": "#/components/schemas/VoiceInputTurnReceipt"
+              },
+              {
+                "$ref": "#/components/schemas/VoiceProviderReceipt"
+              },
+              {
+                "$ref": "#/components/schemas/VoiceOutputReplyReceipt"
+              },
+              {
+                "$ref": "#/components/schemas/VoiceSessionClosedReceipt"
+              }
+            ]
+          }
+        },
+        "required": ["exchangeId", "grantId", "seq", "receipt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaEvidenceAck",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Whether the exchange has ended, and why the guard ended it (null when it did not).",
+        "properties": {
+          "ended": {
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["ended", "reason"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/VoiceGuardReceipt",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Written by the service when its guard ended the exchange (seq 0).",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "guard"
+          },
+          "schema": {
+            "type": "string",
+            "const": "sophia.service.guard.v1"
+          },
+          "grantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "runBindingSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "reason": {
+            "type": "string",
+            "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage"]
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["kind", "schema", "grantId", "runBindingSha256", "reason", "atMs"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/QualificationEvidence",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "What the grant's principal may read of an exchange its grant covers: the grant's limits and what was reported against them, and the receipts kept (24 hours) in order. Anyone else finds nothing.",
+        "properties": {
+          "exchangeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["open", "paused", "ended"]
+          },
+          "grant": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "grantId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "runBindingSha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "deadline": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "revokedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maxExchangeSeconds": {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 1800
+              },
+              "maxProviderConnections": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              },
+              "maxTurns": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200
+              },
+              "maxOutputTokensPerTurn": {
+                "type": "integer",
+                "minimum": 64,
+                "maximum": 8192
+              },
+              "maxUsageTokens": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 5000000
+              },
+              "connectionsOpened": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              },
+              "turns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              },
+              "usageTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "lastPromptTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "endedReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["deadline", "expired", "revoked", "connections", "turns", "usage"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "grantId",
+              "runBindingSha256",
+              "deadline",
+              "expiresAt",
+              "revokedAt",
+              "maxExchangeSeconds",
+              "maxProviderConnections",
+              "maxTurns",
+              "maxOutputTokensPerTurn",
+              "maxUsageTokens",
+              "connectionsOpened",
+              "turns",
+              "usageTokens",
+              "lastPromptTokens",
+              "endedReason"
+            ]
+          },
+          "receipts": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "enum": ["bridge", "service"]
+                },
+                "seq": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 99999
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["input_window", "input_turn", "provider", "output_reply", "session_closed", "guard"]
+                },
+                "receivedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "receipt": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/VoiceInputWindowReceipt"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VoiceInputTurnReceipt"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VoiceProviderReceipt"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VoiceOutputReplyReceipt"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VoiceSessionClosedReceipt"
+                    },
+                    {
+                      "$ref": "#/components/schemas/VoiceGuardReceipt"
+                    }
+                  ]
+                }
+              },
+              "required": ["source", "seq", "kind", "receivedAt", "receipt"]
+            }
+          }
+        },
+        "required": ["exchangeId", "state", "grant", "receipts"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MediaAssignment/properties/qualification",
+      "value": {
+        "$ref": "#/components/schemas/VoiceQualification"
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RoomToken/properties/qualification",
+      "value": {
+        "$ref": "#/components/schemas/RoomQualification"
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1media~1evidence",
+      "value": {
+        "post": {
+          "operationId": "mediaEvidence",
+          "summary": "The bridge's receipt for an exchange under a voice qualification grant. Served only by an API with voice qualification on (SOPHIA_VOICE_QUALIFICATION=on); the bridge sends receipts only with SOPHIA_VOICE_EVIDENCE=on and an assignment that names the grant. The guard runs in the same transaction and may end the exchange.",
+          "tags": ["media"],
+          "security": [
+            {
+              "mediaBridgeCapability": []
+            }
+          ],
+          "parameters": [],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaEvidenceWrite"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Recorded, or the same receipt again",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MediaEvidenceAck"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "No or unknown media-bridge capability"
+            },
+            "403": {
+              "description": "The exchange is not under this grant",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Another receipt holds this sequence number (idempotency_conflict)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or the receipt is not bound to this grant and run",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable"
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "SDD-01-G7"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1exchanges~1{exchangeId}~1qualification-evidence",
+      "value": {
+        "get": {
+          "operationId": "getQualificationEvidence",
+          "summary": "The grant's principal reads what was recorded of an exchange its voice qualification grant covers: the grant's limits, what was reported against them, why the guard ended it, and the receipts kept. Served only by an API with voice qualification on. Read-only; anyone else, or an exchange under no grant, is not found.",
+          "tags": ["rooms"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "exchangeId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The evidence",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/QualificationEvidence"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "422": {
+              "description": "Not the grant's principal, or no grant covers the exchange (not_found)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "SDD-01-G7"
+        }
+      }
+    }
+  ]
+}

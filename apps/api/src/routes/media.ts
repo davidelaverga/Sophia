@@ -8,6 +8,7 @@ import type pg from 'pg'
 import type {
   MediaAnnounced,
   MediaAssignment,
+  MediaEvidenceWrite,
   MediaHolderEvent,
   MediaPresenceReport,
   MediaQuiesceAck,
@@ -19,7 +20,9 @@ import {
   holderEvent,
   mediaAssignments,
   recordAnnounced,
+  recordQualificationEvidence,
   reportPresence,
+  voiceQualificationGuard,
   withService,
 } from '@sophia/persistence'
 import { issueBridgeToken, type LiveKitConfig } from '../livekit.ts'
@@ -35,12 +38,15 @@ export const MEDIA_ROUTES: ReadonlySet<string> = new Set([
   '/v1/media/announced',
   '/v1/media/tool-calls',
   '/v1/media/tool-surface',
+  '/v1/media/evidence',
 ])
 
 interface Deps {
   pool: pg.Pool
   hub: NotificationHub
   livekit: LiveKitConfig | undefined
+  /** Voice qualification evidence (A15, 0046), off by default: see AppDeps.voiceQualification. */
+  voice: boolean
 }
 
 const pollQuery = {
@@ -59,8 +65,13 @@ function closedSignal(req: FastifyRequest): AbortSignal {
   return controller.signal
 }
 
-async function currentAssignments(pool: pg.Pool) {
-  const list = await withService(pool, (c) => mediaAssignments(c))
+async function currentAssignments(pool: pg.Pool, voice: boolean) {
+  const list = await withService(pool, async (c) => {
+    if (!voice) return (await mediaAssignments(c)).map(({ qualification: _, ...rest }) => rest)
+    // A voice qualification grant's guard (0046) first: an exchange past its grant's deadline or limits is not assigned.
+    await voiceQualificationGuard(c)
+    return mediaAssignments(c)
+  })
   return { list, version: createHash('sha256').update(JSON.stringify(list)).digest('hex') }
 }
 
@@ -90,7 +101,7 @@ const TOOL_SURFACE_ROUTE = {
   },
 }
 
-export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit }: Deps): void {
+export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit, voice }: Deps): void {
   app.get<{ Querystring: { after?: string; waitMs: string } }>(
     '/v1/media/assignments',
     { schema: { querystring: pollQuery, response: { 200: { $ref: 'MediaAssignmentBatch#' } } } },
@@ -99,10 +110,10 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit }: Deps):
       // Listening starts before the read, so a change committed after the read still wakes the wait at once.
       const waiter = await hub.arm(null)
       try {
-        let current = await currentAssignments(pool)
+        let current = await currentAssignments(pool, voice)
         if (req.query.after === current.version && waitMs > 0) {
           await waiter.wait(waitMs, closedSignal(req))
-          current = await currentAssignments(pool)
+          current = await currentAssignments(pool, voice)
         }
         return { assignments: await withTokens(livekit, current.list), version: current.version }
       } finally {
@@ -111,14 +122,8 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit }: Deps):
     },
   )
 
-  app.post<{ Body: MediaPresenceReport }>(
-    '/v1/media/presence',
-    { schema: { body: { $ref: 'MediaPresenceReport#' } } },
-    async (req, reply) => {
-      await withService(pool, (c) => reportPresence(c, req.body))
-      return reply.status(204).send()
-    },
-  )
+  presenceRoute(app, pool, voice)
+  if (voice) evidenceRoute(app, pool)
 
   app.post<{ Body: MediaQuiesceAck }>(
     '/v1/media/quiesce-acks',
@@ -157,5 +162,38 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit }: Deps):
     '/v1/media/tool-calls',
     { schema: { body: { $ref: 'MediaToolCall#' }, response: { 200: { $ref: 'MediaToolResult#' } } } },
     async (req) => executeToolCall(pool, req.body),
+  )
+}
+
+/**
+ * A receipt for an exchange under a voice qualification grant (A15, 0046): the database binds it to the grant and its
+ * run, keeps it once per sequence number and runs the guard in the same transaction.
+ */
+function evidenceRoute(app: FastifyInstance, pool: pg.Pool): void {
+  app.post<{ Body: MediaEvidenceWrite }>(
+    '/v1/media/evidence',
+    { schema: { body: { $ref: 'MediaEvidenceWrite#' }, response: { 200: { $ref: 'MediaEvidenceAck#' } } } },
+    async (req) => {
+      const { exchangeId, grantId, seq, receipt } = req.body
+      return withService(pool, (c) =>
+        recordQualificationEvidence(c, { exchangeId, grantId, seq, kind: receipt.kind, receipt: { ...receipt } }),
+      )
+    },
+  )
+}
+
+/** The bridge's presence in a room (each 5 s), with a voice qualification grant's guard in the same transaction. */
+function presenceRoute(app: FastifyInstance, pool: pg.Pool, voice: boolean): void {
+  app.post<{ Body: MediaPresenceReport }>(
+    '/v1/media/presence',
+    { schema: { body: { $ref: 'MediaPresenceReport#' } } },
+    async (req, reply) => {
+      await withService(pool, async (c) => {
+        await reportPresence(c, req.body)
+        // Every presence report (each 5 s) holds an exchange under a grant to its deadline, whether or not the Lab is there.
+        if (voice) await voiceQualificationGuard(c)
+      })
+      return reply.status(204).send()
+    },
   )
 }
