@@ -24,8 +24,6 @@ export interface Kept {
   proposalRefusals: Readonly<Record<string, string | null>>
   /** A message whose proposal was recorded, until its form is opened again: whatever part is on screen says so. */
   proposed: Readonly<Record<string, boolean>>
-  /** The words a message's recorded proposal was sent with: its receipt says Still open only while they wait there. */
-  proposedWords: Readonly<Record<string, string>>
   /** Still open's decision on its way, or sent with no reply (its key and intent): one at a time, never sent twice. */
   decision: Held<DecisionAsk> | null
   /** The words of a refusal that answered Still open's decision, until its next press. */
@@ -62,7 +60,6 @@ const EMPTY: Kept = {
   proposals: {},
   proposalRefusals: {},
   proposed: {},
-  proposedWords: {},
   decision: null,
   decisionRefusal: null,
   erasures: {},
