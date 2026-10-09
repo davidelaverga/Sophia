@@ -503,6 +503,25 @@ describe('the exchange’s durable bound (0046, media_voice_reserve)', () => {
     assert.equal(await codeOf(reserve(x, g, 'connection')), 'invalid_state')
   })
 
+  it('the bridge’s own stop, sent as a stop: ends the exchange (bridge), records nothing, and answers the same again', async () => {
+    const { projectId } = await project()
+    const g = await grant(projectId)
+    const x = await open(projectId)
+    await reserve(x, g, 'connection')
+    const stopped = { ok: true, ordinal: null, stop: null, ended: true }
+    assert.deepEqual(await reserve(x, g, 'stop'), stopped)
+    assert.deepEqual(await stateOf(x), { state: 'ended', reason: 'bridge' })
+    assert.deepEqual(await reserve(x, g, 'stop'), stopped, 'once: an ended exchange answers it the same')
+    const rows = await owner((c) =>
+      c.query<{ source: string; kind: string }>(
+        `SELECT source, kind FROM sophia.voice_qualification_evidence WHERE exchange_id=$1 ORDER BY seq`,
+        [x],
+      ),
+    )
+    assert.deepEqual(rows.rows, [{ source: 'service', kind: 'guard' }], 'only the guard’s own receipt')
+    assert.equal(await codeOf(reserve(x, randomUUID(), 'stop')), 'forbidden', 'another grant stops nothing')
+  })
+
   it('refuses what it cannot bind: another grant, an unknown exchange, an unreserved connection, a charge out of bounds', async () => {
     const { projectId } = await project()
     const g = await grant(projectId)

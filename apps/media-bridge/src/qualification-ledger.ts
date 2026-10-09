@@ -50,6 +50,14 @@ export class QualificationLedger {
     return this.#reserve({ kind: unasked ? 'unasked' : 'generation', ordinal, charge })
   }
 
+  /**
+   * The bridge stopped the session itself (its bound or the deadline): the API ends the exchange, whoever holds the
+   * floor and whatever was recorded. Asked again while its answer is lost; an exchange already ended answers it too.
+   */
+  async stop(): Promise<boolean> {
+    return (await this.#reserve({ kind: 'stop' })).ok
+  }
+
   async #reserve(request: Omit<MediaQualificationReserve, 'exchangeId' | 'grantId'>): Promise<LedgerAnswer> {
     const { exchangeId, grantId, retryMs, timeoutMs } = this.#deps
     for (let attempt = 0; ; attempt += 1) {

@@ -30,11 +30,13 @@ export async function voiceQualificationGuard(c: pg.PoolClient): Promise<number>
   return onlyRow(rows, 'voice_qualification_guard').ended
 }
 
-/** What the bridge reserves before it spends on an exchange under a grant (0046, media_voice_reserve). */
+/**
+ * What the bridge reserves before it spends on an exchange under a grant, or its own stop (0046, media_voice_reserve).
+ */
 export interface QualificationReserve {
   exchangeId: string
   grantId: string
-  kind: 'connection' | 'generation' | 'unasked'
+  kind: 'connection' | 'generation' | 'unasked' | 'stop'
   /** The connection a generation runs on: a durable ordinal a 'connection' reservation returned. */
   ordinal?: number
   /** A generation's worst case, with what was sent and transcribed since the connection's last charge. */

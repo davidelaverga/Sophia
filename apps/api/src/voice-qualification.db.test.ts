@@ -1094,6 +1094,12 @@ describe('the exchange’s durable bound through the API (A15, 0046)', () => {
     assert.deepEqual(refused.json, { ok: false, ordinal: null, stop: 'connections', ended: true })
     const ended = await reserve({ exchangeId, grantId, kind: 'connection' })
     assert.deepEqual([ended.status, ended.json.code], [409, 'invalid_state'], 'an ended exchange reserves nothing')
+    const stop = await reserve({ exchangeId, grantId, kind: 'stop' })
+    assert.deepEqual(
+      [stop.status, stop.json],
+      [200, { ok: true, ordinal: null, stop: null, ended: true }],
+      'the bridge’s own stop: answered the same on an ended exchange',
+    )
     const read = await call('GET', `/api/v1/exchanges/${exchangeId}/qualification-evidence`, { actor: P })
     assert.deepEqual(
       [read.json.state, read.json.grant.endedReason, read.json.grant.connectionsOpened, read.json.grant.turns],

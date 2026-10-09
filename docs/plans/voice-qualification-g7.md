@@ -52,7 +52,8 @@ The legacy Lab proved input from a browser Gemini WebSocket, and this product ha
 **The durable bound (server-side).** The bound is the exchange's, held by the API, never a bridge session's: a session that replaces a lost one, or a restarted bridge, starts from the exchange's true counts. Under a grant, the bridge reserves before it spends, through `POST /v1/media/qualification-reserve` (`sophia.media_voice_reserve`, under the exchange's row lock):
 - `connection`, before it opens a provider connection: refused past `max_provider_connections`; otherwise the connection's durable ordinal, which its receipts name;
 - `generation`, before it sends what can start one, on a reserved connection, with a charge: refused past `max_turns`, or when, charged, the exchange's next turn could pass `max_usage_tokens` (the guard's own rule below). So the guard never cuts a generation it granted;
-- `unasked`, when a generation nobody asked for started (its output arrived): it is already spent, so it is counted and charged whatever the limits, and the exchange ends if they are now reached.
+- `unasked`, when a generation nobody asked for started (its output arrived while no generation was paid for, a reservation still in flight included): it is already spent, so it is counted and charged whatever the limits, and the exchange ends if they are now reached;
+- `stop`, when the bridge's own bound (or the deadline) stopped the session: it reserves and records nothing, is sent whoever holds the floor, and ends the exchange (`bridge`), once; an exchange already ended answers it the same.
 
 The charge is the bridge's worst case for the generation (the context again and its output twice) plus what it sent and was transcribed since its last charge. Connections and generations (`turns`) are durable counters only a reservation adds to; each connection keeps what was charged to it and what the provider reported of it. A reservation that does not fit ends the exchange as the guard would, with its reason, and so does a limit the guard would end it at. An exchange that has ended reserves nothing (409). A receipt names only a reserved connection (otherwise 422).
 
@@ -108,7 +109,8 @@ An input window opens only for the principal's own forwarded audio; the provider
 When the bound says stop (`usage`, `turns`, `connections`, `output`, `deadline`, a guard reason from the API, or `unconfirmed`):
 - the bridge sends nothing more to the provider and closes it for good;
 - it stops what is playing, and reports Sophia unavailable with the reason;
-- it records the provider's close and `session_closed` (`guard`), which ends the exchange on the API (`bridge`) if a refusal had not already.
+- it tells the API (`stop`), which ends the exchange (`bridge`) if a refusal had not already, whoever holds the floor and whether or not anything was recorded;
+- while the principal holds the floor, it records the provider's close and `session_closed` (`guard`), which ends the exchange the same way.
 
 Nothing of this runs without a grant: an exchange under none waits on no reservation. The bound is conservative: a tool response's reserve and its continuation's each count, and a reservation whose answer was lost and is asked again may count twice; either only ends an exchange earlier.
 

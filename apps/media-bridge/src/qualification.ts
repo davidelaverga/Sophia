@@ -313,6 +313,16 @@ export class SessionQualification {
   }
 
   /**
+   * The bound stopped the session: the API is told, so the exchange ends there too, whether or not anything was
+   * recorded (a receipt is recorded only while the principal holds the floor).
+   */
+  stopped(): void {
+    void this.#ledger.stop().then((ended) => {
+      if (!ended) this.#deps.log('qualification.stop_unconfirmed', { exchangeId: this.#deps.exchangeId })
+    })
+  }
+
+  /**
    * Waits (at most `ms`) for the receipts still queued, as a close waits for its announcements; what is left then is
    * dropped and counted.
    */

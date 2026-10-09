@@ -1332,6 +1332,7 @@ export class RoomSession {
     this.endTurn(true)
     this.fail(`Sophia stopped: this conversation reached its qualification limit (${why})`)
     this.qualification?.closed('guard')
+    this.qualification?.stopped()
   }
 
   private async connect(): Promise<void> {

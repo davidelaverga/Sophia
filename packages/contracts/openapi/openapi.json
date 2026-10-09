@@ -29362,7 +29362,7 @@
       "MediaQualificationReserve": {
         "type": "object",
         "additionalProperties": false,
-        "description": "The bridge's durable reservation for an exchange under a grant, before it spends: a provider connection before it opens one; a generation before it sends what can start one (input after a turn ended, a tool response, a notice, a typed message), on a reserved connection; or a generation that started unasked (its output arrived), which is counted and charged whatever the limits. charge is the generation's worst case (the context again and its output twice) plus what was sent and transcribed since the connection's last charge.",
+        "description": "The bridge's durable reservation for an exchange under a grant, before it spends: a provider connection before it opens one; a generation before it sends what can start one (input after a turn ended, a tool response, a notice, a typed message), on a reserved connection; or a generation that started unasked (its output arrived), which is counted and charged whatever the limits. charge is the generation's worst case (the context again and its output twice) plus what was sent and transcribed since the connection's last charge. Or the bridge's own stop (stop: its bound or the deadline stopped the session, whoever holds the floor): it reserves and records nothing, and the exchange ends (reason bridge), once; an exchange already ended answers it the same (ok, ended).",
         "properties": {
           "exchangeId": {
             "type": "string",
@@ -29377,7 +29377,8 @@
             "enum": [
               "connection",
               "generation",
-              "unasked"
+              "unasked",
+              "stop"
             ]
           },
           "ordinal": {

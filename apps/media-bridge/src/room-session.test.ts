@@ -4344,7 +4344,12 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     const session = newSession({ qualification: grant() }, [member(LUIS)])
     await session.start()
     await until('given up', () => stops().length > 0)
-    assert.deepEqual(kinds(), ['connection', 'connection', 'connection'], 'once, then twice again')
+    assert.deepEqual(
+      kinds().filter((k) => k !== 'stop'),
+      ['connection', 'connection', 'connection'],
+      'once, then twice again',
+    )
+    assert.ok(kinds().includes('stop'), 'and the API is told of the stop (it fails closed the same)')
     assert.equal(lives.length, 0)
     assert.deepEqual(stops(), ['unconfirmed'])
     await session.close()
@@ -4394,7 +4399,7 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     const played = room.played.length
     live.events.audio(speech(2), OUT)
     await flush()
-    assert.deepEqual(kinds(), ['connection', 'unasked', 'unasked'])
+    assert.deepEqual(kinds(), ['connection', 'unasked', 'unasked', 'stop'])
     assert.deepEqual(stops(), ['turns'])
     live.events.audio(speech(2), OUT)
     await flush()
@@ -4456,6 +4461,20 @@ describe('room session: the exchange’s durable bound, reserved on the API befo
     live.events.turnComplete()
     await flush()
     assert.deepEqual(kinds().toSorted(), ['connection', 'generation', 'generation', 'unasked'], 'charged once each')
+    await session.close()
+  })
+
+  it('the bridge’s own stop reaches the API whoever holds the floor, though nothing was recorded', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ inputActorId: DAVIDE, qualification: grant() })
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    for (let i = 0; i < 40 && stops().length === 0; i += 1) live.events.audio(speech(50), OUT) // past the turn's cap
+    await flush()
+    await flush()
+    assert.deepEqual(stops(), ['output'])
+    assert.deepEqual(service.evidence, [], 'Davide held the floor: nothing recorded')
+    assert.deepEqual(kinds(), ['connection', 'generation', 'stop'], 'the stop told to the API all the same')
     await session.close()
   })
 

@@ -285,16 +285,18 @@ END $$;
 -- and was transcribed since its last charge. A generation fits while it leaves the turns within the grant's and, charged,
 -- the exchange's next turn could still not pass the budget (voice_budget_reached, the guard's own rule): so the guard
 -- never cuts one it granted. A reservation that does not fit ends the exchange as the guard would; so does a limit the
--- guard would end it at. An exchange already ended is refused (40001).
+-- guard would end it at. An exchange already ended is refused (40001). A 'stop' is the bridge's own stop (its bound, or
+-- the deadline), whoever holds the floor: it reserves nothing, records nothing, and ends the exchange (reason bridge),
+-- once; an exchange already ended answers it the same.
 CREATE FUNCTION sophia.media_voice_reserve(p_exchange uuid, p_grant uuid, p_kind text, p_ordinal integer, p_charge bigint)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE e sophia.room_exchanges; g sophia.voice_qualification_grants; q sophia.voice_qualification_exchanges; why text;
  p uuid;
 BEGIN
  PERFORM sophia.require_service();
- IF p_kind IS NULL OR p_kind NOT IN ('connection','generation','unasked') THEN
+ IF p_kind IS NULL OR p_kind NOT IN ('connection','generation','unasked','stop') THEN
   RAISE EXCEPTION 'Not a reservation' USING ERRCODE='22023'; END IF;
- IF p_kind<>'connection' AND (p_ordinal IS NULL OR p_ordinal NOT BETWEEN 1 AND 64 OR p_charge IS NULL
+ IF p_kind IN ('generation','unasked') AND (p_ordinal IS NULL OR p_ordinal NOT BETWEEN 1 AND 64 OR p_charge IS NULL
    OR p_charge NOT BETWEEN 0 AND 5000000) THEN
   RAISE EXCEPTION 'A generation names its connection and a charge of 0 to 5,000,000' USING ERRCODE='22023'; END IF;
  -- Lock order (0003): the project, then its exchange, as control_exchange takes them; ending the exchange emits the
@@ -305,6 +307,10 @@ BEGIN
  SELECT * INTO e FROM sophia.room_exchanges WHERE id=p_exchange FOR UPDATE;
  g:=sophia.voice_grant_of(e.project_id, e.opened_at);
  IF g.id IS NULL OR g.id<>p_grant THEN RAISE EXCEPTION 'The exchange is not under this grant' USING ERRCODE='42501'; END IF;
+ IF p_kind='stop' THEN
+  PERFORM sophia.voice_end_exchange(e.id, g, 'bridge');
+  RETURN jsonb_build_object('ok',true,'ordinal',NULL,'stop',NULL,'ended',true);
+ END IF;
  IF e.state='ended' THEN RAISE EXCEPTION 'The exchange has ended' USING ERRCODE='40001'; END IF;
  -- The exchange's row lock above makes a reservation atomic: the counters are read and moved under it.
  SELECT * INTO q FROM sophia.voice_qualification_exchanges WHERE exchange_id=e.id;

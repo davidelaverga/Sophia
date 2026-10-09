@@ -68,6 +68,8 @@ type Stop = NonNullable<MediaQualificationReservation['stop']>
 class FakeLedger {
   readonly grant: VoiceQualification
   readonly asked: MediaQualificationReserve[] = []
+  /** Exchanges a bridge's own stop ended (reason bridge). */
+  readonly stopped = new Set<string>()
   readonly exchanges = new Map<string, { connections: number; turns: number; charged: number; ended: Stop | null }>()
 
   constructor(qualification: VoiceQualification) {
@@ -79,6 +81,10 @@ class FakeLedger {
     this.asked.push(r)
     const x = this.exchanges.get(r.exchangeId) ?? { connections: 0, turns: 0, charged: 0, ended: null }
     this.exchanges.set(r.exchangeId, x)
+    if (r.kind === 'stop') {
+      this.stopped.add(r.exchangeId)
+      return { ok: true, ordinal: null, stop: null, ended: true }
+    }
     if (x.ended) throw new ServiceError(409, 'POST /v1/media/qualification-reserve: 409 invalid_state')
     const stop = this.#stop(x, r)
     if (stop) {
