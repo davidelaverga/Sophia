@@ -41,6 +41,10 @@ function sentBefore(): { key: string; body: unknown }[] {
   }
 }
 
+// This page's browser recognises no speech on the device, as the other fixture pages give theirs a labelled one: the
+// headless shell CI runs has none, and asked (Home's dictation, signed in) it ends the page's renderer.
+Reflect.set(globalThis, 'SpeechRecognition', undefined)
+
 if (new URLSearchParams(window.location.search).get('work') === 'lost') sessionStorage.setItem(WORK_KEY, 'lost')
 if (sessionStorage.getItem(WORK_KEY) === 'lost') {
   const proposals = { lose: 1, how: 'lost' as const, sent: sentBefore(), held: [] }
