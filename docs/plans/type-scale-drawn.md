@@ -11,9 +11,11 @@
 
 ## What changes
 
-- Each view names what must be on screen before its sizes are read: one text per read that fills it (the room's
-  words; Knowledge's first report; Updates' decided line; Conversations' thread and its context). Nothing waits on the
-  network. What the check measures, and its scale, don't change.
+- Each view names what must be on screen before its sizes are read: the bar's Invite (the membership's read), and a
+  part for each read that fills the view, the last of a chain included: the room's words; Knowledge's first report and
+  its first drawn cover (covers read their version three steps after the list); Updates' decided line and a meeting;
+  Conversations' context and a message only its thread shows (each row shows its last message, so that one would be
+  met by the list). Nothing waits on the network. What the check measures, and its scale, don't change.
 - `ink.spec.ts` has the same wait over more pages; it is left for its own change, named in the handoff.
 
 ## Checks
