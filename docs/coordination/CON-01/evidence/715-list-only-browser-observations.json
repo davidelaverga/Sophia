@@ -1,0 +1,30 @@
+{
+  "candidate": "715d2b1a1c677c46a9b168c30475c32d0a5f00bc",
+  "tree": "6053d6b5cf754d6709c8d1cab3168d6555155d74",
+  "level": "Actual CUA DOM, real local API/PG synthetic; no mounted-memory inspection",
+  "beforeLateReceipt": {
+    "at": "2026-10-10T01:29:34.034Z",
+    "listPreview": "SYNTHETIC earlier eligible context",
+    "field": "SYNTHETIC LIST ONLY WITHDRAWN LATE SEND"
+  },
+  "afterLateReceipt": {
+    "at": "2026-10-10T01:29:53.474Z",
+    "listPreview": "SYNTHETIC LIST ONLY WITHDRAWN LATE SEND",
+    "field": "",
+    "listLabel": "This may be out of date."
+  },
+  "afterMessageOnlyRecovery": {
+    "at": "2026-10-10T01:31:22.363Z",
+    "thread": "This message was withdrawn.",
+    "listPreview": "SYNTHETIC LIST ONLY WITHDRAWN LATE SEND"
+  },
+  "fullRecovery": {
+    "at": "2026-10-10T01:31:45.780Z",
+    "listPreview": "SYNTHETIC earlier eligible context",
+    "withdrawnWordsAnywhere": false,
+    "thread": "This message was withdrawn.",
+    "attemptedListRetry": "no matching Try again because feed/read recovery had already removed it; no click/reload effect"
+  },
+  "tab30Closed": true,
+  "screenshot": "Observed inline, no saved path asserted"
+}

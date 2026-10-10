@@ -1,0 +1,12 @@
+{
+  "candidate": "f12786aa9451371842f0e0f083924a12443ad633",
+  "tree": "08aa2829bd1e2eb0cab3bbdf031cfb883e0d7588",
+  "at": "2026-10-10T01:34:18.233Z",
+  "level": "L0 actual production withMessage,lastSaid,withLastMessage composed as current Composer; no mounted f127 browser execution",
+  "currentListRevision": 6,
+  "currentEligibleRowSeq": 1,
+  "stalePageNewestSeq": 2,
+  "previewBefore": "SYNTHETIC earlier eligible context",
+  "previewAfter": "SYNTHETIC LIST ONLY WITHDRAWN LATE SEND",
+  "withdrawnPreviewRestored": true
+}

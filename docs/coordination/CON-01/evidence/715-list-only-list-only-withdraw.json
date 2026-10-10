@@ -1,0 +1,70 @@
+{
+  "at": "2026-10-10T01:28:48.451Z",
+  "action": "withdraw",
+  "projectId": "449ce002-33ed-4b4f-8467-d6820422541d",
+  "conversationId": "180cc38e-54e1-4395-a480-a01241d018fc",
+  "messageId": "9e78c5b3-a79e-441c-8735-927875b0f66a",
+  "target": {
+    "id": "180cc38e-54e1-4395-a480-a01241d018fc",
+    "title": "List-only withdrawal target",
+    "revision": 6,
+    "summary": null,
+    "summaryCoverage": {
+      "state": "not_assessed",
+      "complete": false,
+      "fromSeq": null,
+      "throughSeq": null,
+      "newer": 0,
+      "generatedAt": null,
+      "replyId": null,
+      "eligibilityRevision": null,
+      "ledgerRevision": null
+    },
+    "lastAt": "2026-10-10T01:28:38.521Z",
+    "contributors": [
+      {
+        "actorId": "e2607296-f0a3-4b6e-8a81-7cbd412b5ee2",
+        "name": "e2607296@synthetic.example.test"
+      }
+    ],
+    "sophia": false,
+    "openQuestions": 0,
+    "questionsCoverage": {
+      "state": "not_assessed",
+      "complete": false,
+      "fromSeq": null,
+      "throughSeq": null,
+      "newer": 0,
+      "generatedAt": null,
+      "replyId": null,
+      "eligibilityRevision": null,
+      "ledgerRevision": null
+    },
+    "output": null,
+    "lastMessage": {
+      "author": "member",
+      "actorId": "e2607296-f0a3-4b6e-8a81-7cbd412b5ee2",
+      "name": "e2607296@synthetic.example.test",
+      "text": "SYNTHETIC earlier eligible context",
+      "at": "2026-10-10T01:28:15.087Z"
+    }
+  },
+  "withdrawal": {
+    "messageId": "9e78c5b3-a79e-441c-8735-927875b0f66a",
+    "conversationId": "180cc38e-54e1-4395-a480-a01241d018fc"
+  },
+  "messages": [
+    {
+      "id": "283a15fe-672b-4685-8644-2d55ffd75a4f",
+      "seq": "1",
+      "body": "SYNTHETIC earlier eligible context",
+      "withdrawn_at": null
+    },
+    {
+      "id": "9e78c5b3-a79e-441c-8735-927875b0f66a",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T01:28:48.447Z"
+    }
+  ]
+}
