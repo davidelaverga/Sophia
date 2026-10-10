@@ -27,6 +27,8 @@ export interface TalkWrites {
   start: 'lost' | 'slow' | null
   /** How long Sophia takes to answer (`answer=slow`: 10 s; else 0.9 s). */
   answerMs: number
+  /** `answer=unknown`: no answer comes; the request ends `outcome_unknown` instead (an uncertain run: nothing published). */
+  answerUnknown?: boolean
   /**
    * A withdrawal's reply and the feed: both 1.5 s on (`withdraw=slow`), the feed first (`feedFirst`), at once, or at
    * once and then every read of the conversation and the list failing (`thenFail`).
@@ -245,6 +247,11 @@ function answerLater(talk: TalkWrites, id: string, asking: FixtureMessage, ctx: 
     const all = talk.messages[id]
     if (!conversation || !all) return
     const at = next(talk.list)
+    if (talk.answerUnknown) {
+      asking.ask = { ...request, state: 'outcome_unknown', settledAt: at }
+      ctx.moved()
+      return
+    }
     const text = answerFor(asking.text ?? '', all)
     const answer: FixtureMessage = {
       id: freshId(),
