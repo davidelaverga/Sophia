@@ -43,6 +43,7 @@ import {
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { keepWithdrawnPurged } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
 import './conversations.css'
@@ -86,6 +87,11 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
     retry: 1,
   })
   useReadAgain(cursor, list.refetch)
+  // What a thread read here learns withdrawn leaves the list reads as cached, for as long as the cache lives.
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    keepWithdrawnPurged(queryClient.getQueryCache())
+  }, [queryClient])
   // Read, and not being read again: what it holds is the list as it is now.
   return {
     list,

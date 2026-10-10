@@ -163,6 +163,12 @@ interface Fixture {
   failMessageReads: (conversationId: string | null) => void
   /** Another admin, elsewhere, withdraws the newest message with these words; the feed moves. */
   withdrawElsewhere: (conversationId: string, text: string) => void
+  /** The same, the feed held up: it doesn't move, so only a read made for another reason learns it. */
+  withdrawQuietly: (conversationId: string, text: string) => void
+  /** From now on the list's reads wait, each to answer as the list was when asked (A18). */
+  holdListReads: () => void
+  /** The list's reads held are answered, each as it was when asked; the ones after answer at once. */
+  releaseListReads: () => void
   /** The next message is stamped with its conversation's last time (two messages in one millisecond). */
   sameTimeNext: () => void
   /** The list says (or stops saying) that it holds the newest only (`more`); the feed moves. */
@@ -640,6 +646,17 @@ window.fixture = {
   withdrawElsewhere: (conversationId, text) => {
     if (project.conversations && withdrawnElsewhere(project.conversations, conversationId, text)) publish(project)
   },
+  withdrawQuietly: (conversationId, text) => {
+    if (project.conversations) withdrawnElsewhere(project.conversations, conversationId, text)
+  },
+  holdListReads: () => {
+    if (project.conversations) project.conversations.heldList ??= []
+  },
+  releaseListReads: () => {
+    const held = project.conversations?.heldList ?? []
+    if (project.conversations) project.conversations.heldList = null
+    for (const answer of held) answer()
+  },
   sameTimeNext: () => {
     if (project.conversations) project.conversations.sameTimeNext = true
   },
@@ -964,6 +981,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       lastShown: DEMO || query.get('last') === '1',
       more: query.get('more') === '1',
       cappedOut: null as string | null,
+      heldList: null as (() => void)[] | null,
       sameTimeNext: false,
       failMessagesOf: (failMessages ? CONVERSATION.briefs : null) as string | null,
       send: sendAsked(query.get('send')),

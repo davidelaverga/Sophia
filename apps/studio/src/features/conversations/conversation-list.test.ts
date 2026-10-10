@@ -10,7 +10,7 @@ import {
   firstWords,
   gistOf,
   withLastMessage,
-  listTombstoned,
+  rowsKnown,
   lastSaid,
   pendingOf,
   byActivity,
@@ -29,6 +29,12 @@ import {
 } from './conversation-list.ts'
 
 const ME = 'me'
+
+/** Only conversation a's thread held, as read here. */
+const heldForA = (held: ReturnType<typeof page>) => (id: string) => (id === 'a' ? held : undefined)
+
+/** 01:0m on 7 October: Codex's minutes. */
+const minute = (m: number) => `2026-10-07T01:0${String(m)}:00.000Z`
 
 const notAssessed = {
   state: 'not_assessed',
@@ -232,58 +238,83 @@ describe('a receipt against a row that says its order: messageSeq decides (CC-00
     const later = { at: '2026-10-07T10:05:00.000Z', text: 'Unplaced, later.' }
     assert.equal(take(row(undefined, said(1)), later)?.lastMessage?.text, 'Unplaced, later.')
   })
+
+  it('a row without messageSeq, receipts 3 then 2: the opening put there bounds it, and lastAt is left as read (Codex)', () => {
+    // Codex's L0 at 7969d40: {lastAt 01:00, no opening}; seq 3 at 01:03, then seq 2 at 01:02 took the row back to 2.
+    const bare = conversation({ id: 'a', lastAt: minute(0), revision: 6, lastMessage: null })
+    const step = (r: typeof bare, seq: number | undefined, m: number) =>
+      withLastMessage([r], 'a', {
+        author: 'member',
+        actorId: ME,
+        name: 'You',
+        text: `Seq ${String(seq ?? m)}.`,
+        at: minute(m),
+        ...(seq === undefined ? {} : { seq }),
+      })[0] ?? r
+    const after3 = step(bare, 3, 3)
+    assert.equal(after3.lastMessage?.text, 'Seq 3.')
+    assert.equal(after3.lastAt, minute(0))
+    assert.equal(after3.revision, 6)
+    assert.equal(after3.messageSeq, undefined)
+    assert.equal(step(after3, 2, 2).lastMessage?.text, 'Seq 3.')
+    // Unplaced receipts too; and one at the opening's own time keeps the row (it may lag, never go back).
+    assert.equal(step(step(bare, undefined, 3), undefined, 2).lastMessage?.text, 'Seq 3.')
+    assert.equal(step(after3, 4, 3).lastMessage?.text, 'Seq 3.')
+    // The ordered control: messageSeq 1 moves to 3 and keeps 3.
+    const ordered = step(step({ ...bare, messageSeq: 1 }, 3, 3), 2, 2)
+    assert.equal(ordered.lastMessage?.text, 'Seq 3.')
+    assert.equal(ordered.messageSeq, 3)
+  })
 })
 
-describe('listTombstoned by place, within its conversation (CC-0023)', () => {
+describe('rowsKnown by place, within its conversation (CC-0023)', () => {
   const at = '2026-10-07T10:00:00.000Z'
   const says = (seq: number, text: string) => ({ author: 'member' as const, actorId: ME, name: 'You', text, at, seq })
-  const lists = (lastMessage: ReturnType<typeof says>) =>
-    ({
-      projectId: 'p',
-      conversations: [conversation({ id: 'a', lastMessage }), conversation({ id: 'b', lastMessage })],
-      more: false,
-      policy: {
-        id: 'conversation-text-v1',
-        notice: '',
-        retention: 'until_withdrawn_or_erased',
-        audience: 'project_members',
-      },
-      capability: { state: 'enabled', write: true, moderate: false, ask: 'available', askReason: null },
-    }) as unknown as Parameters<typeof listTombstoned>[0]
+  const rows = (lastMessage: ReturnType<typeof says>) => [
+    conversation({ id: 'a', lastMessage }),
+    conversation({ id: 'b', lastMessage }),
+  ]
   const thread = () =>
     page([
       message('m2', { seq: 2, at, actorId: ME, author: 'member', text: null, withdrawn: { at } }),
       message('m3', { seq: 3, at, actorId: ME, author: 'member', text: 'Seq 3, still said.' }),
     ])
+  /** Only conversation a's thread is held. */
+  const heldOf = (id: string) => (id === 'a' ? thread() : undefined)
 
-  it('the row says place 2, held withdrawn: it says none; the other conversation’s row is untouched', () => {
-    const after = listTombstoned(lists(says(2, 'Seq 2.')), 'a', thread())
-    assert.equal(after?.conversations[0]?.lastMessage, null)
-    assert.equal(after?.conversations[1]?.lastMessage?.seq, 2)
+  it('the row says place 2, held withdrawn: it says none; another conversation’s row, saying its own 2, is untouched', () => {
+    const after = rowsKnown(rows(says(2, 'Seq 2.')), heldOf)
+    assert.equal(after[0]?.lastMessage, null)
+    assert.equal(after[1]?.lastMessage?.seq, 2)
   })
 
-  it('the row says place 3 (same writer and millisecond as the withdrawn 2): it stays', () => {
-    const list = lists(says(3, 'Seq 3, still said.'))
-    assert.equal(listTombstoned(list, 'a', thread()), list)
+  it('the row says place 3 (same writer and millisecond as the withdrawn 2): the same rows', () => {
+    const list = rows(says(3, 'Seq 3, still said.'))
+    assert.equal(rowsKnown(list, heldOf), list)
+  })
+
+  it('a list answer from before the withdrawal, shown after the thread’s read: none still (Codex at 7969d40)', () => {
+    // The thread's read came first and the row was cleared; then a list read that set out before the withdrawal
+    // answered with its words. Whatever answer is shown, the thread held says what is so.
+    const cleared = rowsKnown(rows(says(2, 'Seq 2.')), heldOf)
+    assert.equal(cleared[0]?.lastMessage, null)
+    const stale = rows(says(2, 'SYNTHETIC LATE LIST GET WITHDRAWN'))
+    assert.equal(rowsKnown(stale, heldOf)[0]?.lastMessage, null)
+    // No thread held for it: the list as it says it (a current list read never says a withdrawn place).
+    assert.equal(
+      rowsKnown(stale, () => undefined),
+      stale,
+    )
   })
 })
 
-describe('listTombstoned: a row saying a message the thread holds withdrawn says none (Codex, CX-0027)', () => {
+describe('rowsKnown, a row without its place: matched by writer, actor and time (Codex, CX-0027)', () => {
   const at = '2026-10-07T10:00:00.000Z'
   const says = { author: 'member' as const, actorId: ME, name: 'You', text: 'Seq 2, withdrawn since.', at }
-  const lists = (lastMessage: typeof says | null) =>
-    ({
-      projectId: 'p',
-      conversations: [conversation({ id: 'a', lastMessage }), conversation({ id: 'b', lastMessage: says })],
-      more: false,
-      policy: {
-        id: 'conversation-text-v1',
-        notice: '',
-        retention: 'until_withdrawn_or_erased',
-        audience: 'project_members',
-      },
-      capability: { state: 'enabled', write: true, moderate: false, ask: 'available', askReason: null },
-    }) as unknown as Parameters<typeof listTombstoned>[0]
+  const rows = (lastMessage: typeof says | null) => [
+    conversation({ id: 'a', lastMessage }),
+    conversation({ id: 'b', lastMessage: says }),
+  ]
   const thread = (withdrawn: boolean) =>
     page([
       message('m1', { seq: 1 }),
@@ -298,26 +329,26 @@ describe('listTombstoned: a row saying a message the thread holds withdrawn says
     ])
 
   it('the row’s words are the withdrawn message’s (its writer, actor and time): they go, that row only', () => {
-    const after = listTombstoned(lists(says), 'a', thread(true))
-    assert.equal(after?.conversations[0]?.lastMessage, null)
-    assert.equal(after?.conversations[1]?.lastMessage?.text, says.text)
+    const after = rowsKnown(rows(says), heldForA(thread(true)))
+    assert.equal(after[0]?.lastMessage, null)
+    assert.equal(after[1]?.lastMessage?.text, says.text)
   })
 
   it('m2 withdrawn and m3 said in the same millisecond by the same writer, the row m3’s: it stays (Codex’s control)', () => {
-    const list = lists({ ...says, text: 'Seq 3, still said.' })
+    const list = rows({ ...says, text: 'Seq 3, still said.' })
     const both = page([
       message('m2', { seq: 2, at, actorId: ME, author: 'member', text: null, withdrawn: { at } }),
       message('m3', { seq: 3, at, actorId: ME, author: 'member', text: 'Seq 3, still said.' }),
     ])
-    assert.equal(listTombstoned(list, 'a', both), list)
+    assert.equal(rowsKnown(list, heldForA(both)), list)
   })
 
-  it('nothing withdrawn here, another message’s words, or no list: as it was', () => {
-    const list = lists(says)
-    assert.equal(listTombstoned(list, 'a', thread(false)), list)
-    const other = lists({ ...says, at: '2026-10-07T09:55:00.000Z', text: 'Seq 1.' })
-    assert.equal(listTombstoned(other, 'a', thread(true)), other)
-    assert.equal(listTombstoned(undefined, 'a', thread(true)), undefined)
+  it('nothing withdrawn here, another message’s words, or no rows: as they were', () => {
+    const list = rows(says)
+    assert.equal(rowsKnown(list, heldForA(thread(false))), list)
+    const other = rows({ ...says, at: '2026-10-07T09:55:00.000Z', text: 'Seq 1.' })
+    assert.equal(rowsKnown(other, heldForA(thread(true))), other)
+    assert.deepEqual(rowsKnown([], heldForA(thread(true))), [])
   })
 })
 

@@ -522,6 +522,66 @@ test('removal · withdrawn elsewhere while the list’s reads fail: the thread�
   await expect(list(page)).not.toContainText(WORDS)
 })
 
+/** Sends these words in the first conversation, Sophia not asked, and waits for its row to say them. */
+async function sendSaid(page: Page, words: string) {
+  await page.goto(`${PAGE}&last=1`)
+  await expect(messages(page)).toHaveCount(6)
+  const ask = open(page)
+    .locator('.conv-compose')
+    .getByRole('checkbox', { name: /Ask Sophia/ })
+  if (await ask.isChecked()) await ask.uncheck()
+  await field(page).fill(words)
+  await open(page).getByRole('button', { name: 'Send' }).click()
+  await expect(list(page)).toContainText(words)
+}
+
+test('removal · a list read under way across a withdrawal elsewhere, answering after the thread’s: its words stay off the row', async ({
+  page,
+}) => {
+  // Codex at 7969d40 (the actual app): the list's answer, as it was before the withdrawal, came after the thread's
+  // read had taken the words off the row, and said them again.
+  const WORDS = 'SYNTHETIC-LATE-LIST-GET-WITHDRAWN'
+  await sendSaid(page, WORDS)
+  // From now the list's reads wait; one sets out (the feed moves) and holds the words.
+  await page.evaluate(() => window.fixture?.holdListReads())
+  const before = (await written(page, 'conversations')).length
+  await page.evaluate(() => window.fixture?.listMore(false))
+  await expect.poll(async () => (await written(page, 'conversations')).length).toBeGreaterThan(before)
+  // Withdrawn elsewhere, the feed held up: the thread learns it when read again (another one opened, then this one).
+  await page.evaluate(([c, w]) => window.fixture?.withdrawQuietly(c, w), [C1, WORDS] as const)
+  await rows(page).nth(1).click()
+  await rows(page).filter({ hasText: FIRST }).click()
+  await expect(messages(page).getByText('This message was withdrawn.')).toHaveCount(1)
+  await expect(list(page)).not.toContainText(WORDS)
+  // The list's read from before answers now, with the words.
+  await page.evaluate(() => window.fixture?.releaseListReads())
+  await page.waitForTimeout(500)
+  await expect(list(page)).not.toContainText(WORDS)
+  await expect(page.getByText(WORDS)).toHaveCount(0)
+})
+
+test('removal · the thread read again while the list’s reads still fail: the list still says it may be out of date', async ({
+  page,
+}) => {
+  // Codex at 7969d40 (the actual app): the thread's Try again, the list's read still failing, took the list's notice
+  // away (its read was marked answered by what the thread wrote into it).
+  const WORDS = 'SYNTHETIC-LIST-STILL-FAILING'
+  await sendSaid(page, WORDS)
+  await page.evaluate((c) => window.fixture?.failConversationReads(c), C1)
+  await page.evaluate(() => window.fixture?.listMore(false))
+  await expect(list(page).getByText('This may be out of date.')).toBeVisible()
+  await expect(open(page).getByText('This may be out of date.')).toBeVisible()
+  // Withdrawn elsewhere meanwhile; the thread's reads answer again, the list's still fail.
+  await page.evaluate(([c, w]) => window.fixture?.withdrawQuietly(c, w), [C1, WORDS] as const)
+  await page.evaluate(() => window.fixture?.failMessageReads(null))
+  await open(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(messages(page).getByText('This message was withdrawn.')).toHaveCount(1)
+  await expect(open(page).getByText('This may be out of date.')).toHaveCount(0)
+  await page.waitForTimeout(500)
+  await expect(list(page).getByText('This may be out of date.')).toBeVisible()
+  await expect(list(page)).not.toContainText(WORDS)
+})
+
 /** Sends a message timed in the same millisecond as the conversation's last, every list read failing meanwhile. */
 async function sendSameMillisecond(page: Page, words: string, query: string) {
   await page.goto(`${PAGE}&last=1${query}`)

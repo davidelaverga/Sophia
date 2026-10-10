@@ -343,41 +343,47 @@ export function gistOf(c: ConversationSummary, me: string): string | null {
  *   cleared preview or an equal place is no permission. On equal times this still orders (two messages in one
  *   millisecond).
  * - Otherwise (an API from before them): only if the row's last activity (`lastAt`, which 0048 stamps with the
- *   message's own time and a withdrawal leaves) is earlier. Equal times keep the row: it lags until the list is read
- *   again (a bounded loss), and never goes back.
+ *   message's own time and a withdrawal leaves) is earlier, and so is the opening it says. As read, that opening is
+ *   never later than `lastAt`; one this view put there since is its receipt's, and it bounds the next (Codex at
+ *   7969d40: receipts 3 then 2 took the row back to 2), while `lastAt` stays as the list read said it. Equal times keep
+ *   the row: it lags until the list is read again (a bounded loss), and never goes back.
  * The watermark is an order this view observed, never proof that a message is still eligible: a current list read, or
  * the thread's tombstone (listTombstoned), says that.
  */
 function takes(c: ConversationSummary, m: { at: string; seq?: number }): boolean {
   if (c.messageSeq !== undefined && m.seq !== undefined) return c.messageSeq < m.seq
-  return Date.parse(c.lastAt) < Date.parse(m.at)
+  const at = Date.parse(m.at)
+  return Date.parse(c.lastAt) < at && (c.lastMessage === null || Date.parse(c.lastMessage.at) < at)
 }
+
+/** A conversation's thread as this view holds it read: its pages, newest first. */
+export type ThreadHeld = { pages: readonly { messages: readonly ConversationMessage[] }[] } | undefined
 
 /**
- * The list as the thread, read here, leaves it: a row whose last message the thread holds withdrawn says none, at once,
- * whether or not the list is read again (Codex, CX-0027: a list read may fail after a late receipt put those words
- * there). Within this conversation only. Exact where the row says its message's place (`seq`): the thread holds that
- * place withdrawn. Otherwise (an older API) it is matched by writer, actor and time, and kept when a message the thread
- * holds with words matches it too, words and all (Codex's control: m2 withdrawn, m3 said in the same millisecond, the
- * row m3's); one the thread doesn't hold is let go. A preview gone until the list is read again is honest, one that
- * keeps withdrawn words is not.
+ * The rows as the threads this view holds read leave them, applied where the list is shown (Codex: CX-0027; at
+ * 7969d40, a list read that set out before a withdrawal and answered after the thread's read said the withdrawn words
+ * again). A row whose last message its own thread is held with withdrawn says none, whichever answer the row comes from
+ * and in whichever order the two arrived. Nothing is written back into the list read, so its own state (read, or
+ * failing and out of date) stays as it was.
+ * - Exact where the row says its message's place (`seq`): its thread holds that place withdrawn.
+ * - Otherwise (an older API) it is matched by writer, actor and time, and kept when a message the thread holds with
+ *   words matches it too, words and all (Codex's control: m2 withdrawn, m3 said in the same millisecond, the row m3's).
+ * A preview gone until the list is read again is honest; one that keeps withdrawn words is not. The same rows when
+ * nothing is taken.
  */
-export function listTombstoned(
-  list: ConversationList | undefined,
-  conversationId: string,
-  read: { pages: readonly { messages: readonly ConversationMessage[] }[] } | undefined,
-): ConversationList | undefined {
-  const held = (read?.pages ?? []).flatMap((p) => p.messages)
-  if (!list || !held.some((m) => m.withdrawn)) return list
-  const says = list.conversations.find((c) => c.id === conversationId)?.lastMessage
-  if (!says || !saysWithdrawn(says, held)) return list
-  return {
-    ...list,
-    conversations: list.conversations.map((c) => (c.id === conversationId ? { ...c, lastMessage: null } : c)),
-  }
+export function rowsKnown<T extends ConversationSummary>(
+  rows: readonly T[],
+  heldOf: (conversationId: string) => ThreadHeld,
+): readonly T[] {
+  const known = rows.map((c) => {
+    const held = (heldOf(c.id)?.pages ?? []).flatMap((p) => p.messages)
+    if (!c.lastMessage || !held.some((m) => m.withdrawn) || !saysWithdrawn(c.lastMessage, held)) return c
+    return { ...c, lastMessage: null }
+  })
+  return known.some((c, i) => c !== rows[i]) ? known : rows
 }
 
-/** Whether the row's last message is one these pages hold withdrawn (by its place, else as listTombstoned says). */
+/** Whether the row's last message is one these pages hold withdrawn (by its place, else as rowsKnown says). */
 function saysWithdrawn(
   says: NonNullable<ConversationSummary['lastMessage']>,
   held: readonly ConversationMessage[],

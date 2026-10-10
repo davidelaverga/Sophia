@@ -466,9 +466,19 @@ Both are whole numbers from 0 (or 1 for `seq`) to 2^53 − 1. They are read from
 How the Studio uses them (Codex's invariants, each with a unit test in `conversation-list.test.ts`):
 1. **A local receipt that is accepted** moves the cached row's `messageSeq` to the receipt's `seq`, as well as setting `lastMessage.seq`. It makes up no `revision`, `lastAt` or coverage.
 2. **A receipt is put on the row only when the row's `messageSeq` is below the receipt's `seq`**, even when `lastMessage` is null. Neither an equal place nor a cleared preview gives permission. When only one side says an order, the row's `lastAt` decides, and equal times keep the row.
-3. **The exact tombstone cleanup** (`listTombstoned`) touches only that conversation's row, in the list the current account reads for the current project (`listKey(projectId, account)`). Places are never compared across conversations.
+3. **The exact tombstone cleanup** touches only that conversation's row, in the current account's list reads. Places are never compared across conversations or accounts. Since CON-01-CC-0025 it is a purge of the cache itself, not only of the screen (`withdrawn-purge.ts`, below).
 4. **Covered shapes:** only one side ordered; an empty conversation (`messageSeq` 0, no opening); unsafe, fractional and negative bounds; receipts 3 then 2; m2 withdrawn and m3 said in the same millisecond.
 5. **The local watermark is a lower bound on observed order, not proof that a message is still eligible.** The current successful list read, and the thread's own tombstone, win over it.
+
+**Withdrawn words in cached list reads (CON-01-CC-0025; Codex's CX-0028 at `7969d40`, pack 03 §5).**
+- A cache-level listener (`keepWithdrawnPurged`), installed once per QueryClient, runs on every `updated` event of a conversation list or thread read. It removes a row's opening from the cached list read when the same account's thread read for that conversation holds that message withdrawn.
+- It replaces only the list read's data (`Query.setState`): its status, error, `dataUpdatedAt` and update counts stay. So a failing list read still says «This may be out of date».
+- A list answer that set out before the withdrawal and lands after the thread's read is purged as it lands. So is a list read put back by a reverting cancel.
+- **Proof preconditions, not guarantees.** The purge rests on the thread read as cached:
+  - A thread read leaves the cache only after 5 minutes unread (the default `gcTime`), with its conversation's erasure (its row goes too), or with the whole cache (any identity change or sign-out clears it, `App.tsx`).
+  - A list read is given up after `READ_TIMEOUT_MS` (30 s), and aborted once nothing observes it.
+  - A list read that sets out after the thread read is gone sets out after the withdrawal, and the API never says withdrawn words.
+- **Not claimed:** that the words are gone from every copy. This covers this Studio's query cache only, not the browser's HTTP cache, the network stack, memory not yet collected, the API's or a provider's copies.
 
 **Reader before API.** A reader built from A16 before these fields rejects a row or opening that says them, because both schemas have `additionalProperties: false`. So the Studio ships with or before the API that says them, and rolling back the Studio means rolling back that API with it. A new Studio reads an older API: neither field is said, and it falls back to `lastAt`.
 

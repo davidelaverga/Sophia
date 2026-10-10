@@ -227,6 +227,8 @@ export interface Conversations extends TalkWrites {
   more?: boolean
   /** One pushed past what the list holds by newer activity, never erased: left out, the list saying `more` (`capPast`). */
   cappedOut?: string | null
+  /** While set, the list's reads wait for these, each to answer as the list was when asked (`holdListReads`). */
+  heldList?: (() => void)[] | null
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -496,7 +498,10 @@ function conversationsRead(talk: Conversations, role: Membership['role']) {
     more: talk.more === true || Boolean(talk.cappedOut),
   }
   const listed = talk.cappedOut ? talk.list.filter((c) => c.id !== talk.cappedOut) : talk.list
-  return json(wireList(listed, talk.messages, opts))
+  const asRead = json(wireList(listed, talk.messages, opts))
+  // Held: it answers later as it was read now, a read under way across what happens meanwhile (Codex at 7969d40).
+  const held = talk.heldList
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(asRead))) : asRead
 }
 
 /** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
