@@ -1,5 +1,7 @@
 # Current checkpoint — CX-0077
 
+Latest exact-session checkpoint: correction remains unpublished; author first403 frame-test after passes, but full focused set failed authorized-absence read count4 versus max3. Targeted correction/base diagnostic running, no waiver or new independent pass. PR head still127b; next70 scripts-only/unlaunched.
+
 [Independent first-refusal failure](../coordination/CON-01/CX-0077.md), [structured evidence](../coordination/CON-01/CX-0077.evidence.json). Exact127b4334/tree7409fed4, main0ccc344d076ba433543b6a72b052fd0c6c065eca. Actual local episode69 confirms automatedP2r4239161783: real scoped40320:56:11.611, cached3bodies/authors/rows/composer/draft/controls remain20:56:23.376 while retry held before upstream. Terminal403 fences; passive-effect extra paint not measured/two heldGETs observed. Claude message379 has exact reproducer/smallest correction request, author preparing separate immutable correction. No reviewer feature patch.
 
 Unknown own-erasure preforward503 retains exact draft and original key through refusal/restoration; UIretry same f6ed37ba... actual202, exactlyone DBerasure. FinalSQL4human/3NULL/5requests/0replies, bootstrapgoal1/all operational+usage0,20reads/200 ceiling not reached.70608terminal0/DBdropped/PGstoppedclusterremoved; independentPIDs16326/16335/16336absent/ports49485–86closed/tab92closed; all69ownedappstacks clean. Failed empty setup cleaned/recovered existing ownedPG17; no install/shared change.
