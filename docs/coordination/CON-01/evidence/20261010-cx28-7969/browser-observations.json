@@ -1,0 +1,68 @@
+{
+  "candidate": "7969d40aa9ba776816bf8199a76e971980b51f69",
+  "tree": "1642c0e3e6f2245454aa8681b681ca8e3626b394",
+  "level": "L1 actual local Studio/API/PostgreSQL; synthetic accounts; no fixtures/provider/native/runtime",
+  "source": "Reviewer manual transcription of actual timed CUA DOM/AX observations, not an exported screenshot, browser-memory observation or automated assertion",
+  "observations": [
+    {
+      "at": "2026-10-10T02:01:57.441Z",
+      "case": "Original CX27 late Send/message-only recovery",
+      "observed": "Earlier eligible list preview; thread withdrawal tombstone; no withdrawn target words. Both stale-warning/retry controls absent although list GET remained blocked503 and had not recovered."
+    },
+    {
+      "at": "2026-10-10T02:03:43.755Z",
+      "case": "First manual delayed-list timing attempt",
+      "observed": "No withdrawn words after cleanup. Message read02:03:31.681 occurred AFTER old list finish02:03:26.943, so intended race ordering was not achieved; not evidence of a pass for the target ordering."
+    },
+    {
+      "at": "2026-10-10T02:05:45.499Z",
+      "case": "Controlled delayed-list crossing before old response delivery",
+      "observed": "Thread has two withdrawal tombstones; list preview cleared; no SYNTHETIC LATE LIST GET WITHDRAWN RETRY words."
+    },
+    {
+      "at": "2026-10-10T02:05:59.427Z",
+      "case": "Controlled delayed-list crossing after old response delivery",
+      "observed": "List preview again contains SYNTHETIC LATE LIST GET WITHDRAWN RETRY; thread still has two withdrawal tombstones. Screenshot/AX also observed inline; no screenshot file exported."
+    },
+    {
+      "at": "2026-10-10T02:07:46.925Z",
+      "case": "Immediate recovery observation after removing all fault markers",
+      "observed": "Withdrawn preview still present/reconnecting; recovery not yet observed at this time."
+    },
+    {
+      "at": "2026-10-10T02:10:59.669Z",
+      "case": "Actual app recovery observation after Knowledge\u2192Conversations",
+      "observed": "List shows SYNTHETIC list read earlier context; thread retains two withdrawal tombstones; withdrawn seq3 words absent. Real reads also recovered02:07:51 while in Knowledge; first subsequent observed Conversation DOM is02:10:59. No claim navigation was uniquely required."
+    }
+  ],
+  "cleanup": {
+    "stackSession": 29854,
+    "exit": 0,
+    "apiStopped": true,
+    "studioStopped": true,
+    "databaseDropped": true,
+    "postgresStopped": true,
+    "clusterRemoved": true,
+    "pidsAbsent": [
+      21776,
+      21799,
+      21807,
+      21808
+    ],
+    "portsClosed": [
+      58502,
+      58503,
+      58504
+    ],
+    "faultMarkersRemaining": [],
+    "tab32Closed": true,
+    "viewportOverride": false
+  },
+  "resourceUse": {
+    "providerCalls": 0,
+    "nativeCalls": 0,
+    "paidSpend": 0,
+    "uncertainPaidOutcome": false,
+    "hostedEffects": 0
+  }
+}

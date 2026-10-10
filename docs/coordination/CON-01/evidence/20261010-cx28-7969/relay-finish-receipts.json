@@ -1,0 +1,55 @@
+[
+  {
+    "at": "2026-10-10T02:00:54.933Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/df60b24b-fb56-45cc-9536-16310c610079/messages",
+    "idempotencyKey": "c786d31f-080b-4e71-8399-12726c4608a3",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T02:02:41.515Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/6edd52c7-b907-44e1-8c85-f8263aad39eb/messages",
+    "idempotencyKey": "c97f4a5f-7087-4fda-ad18-8109c5fe8151",
+    "actualApiStatus": 202,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T02:03:26.943Z",
+    "kind": null,
+    "path": "/api/v1/projects/995697dc-33b2-4bfc-8c07-aba737b69153/conversations",
+    "actualApiStatus": 200,
+    "delayed": true,
+    "delayMs": 20000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T02:05:13.486Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/6edd52c7-b907-44e1-8c85-f8263aad39eb/messages",
+    "idempotencyKey": "59020528-dcc5-4b14-b325-011e3c52fd65",
+    "actualApiStatus": 202,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T02:05:54.823Z",
+    "kind": null,
+    "path": "/api/v1/projects/995697dc-33b2-4bfc-8c07-aba737b69153/conversations",
+    "actualApiStatus": 200,
+    "delayed": true,
+    "delayMs": 20000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  }
+]

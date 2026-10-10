@@ -1,0 +1,60 @@
+{
+  "candidate": "7969d40aa9ba776816bf8199a76e971980b51f69",
+  "level": "L0 actual production helper; no mounted fallback app claim",
+  "fallback": {
+    "after3": {
+      "id": "c",
+      "lastAt": "2026-10-10T01:00:00.000Z",
+      "lastMessage": {
+        "author": "member",
+        "actorId": "actor",
+        "name": "Synthetic",
+        "text": "Synthetic seq3",
+        "at": "2026-10-10T01:03:00.000Z",
+        "seq": 3
+      }
+    },
+    "after2": {
+      "id": "c",
+      "lastAt": "2026-10-10T01:00:00.000Z",
+      "lastMessage": {
+        "author": "member",
+        "actorId": "actor",
+        "name": "Synthetic",
+        "text": "Synthetic seq2",
+        "at": "2026-10-10T01:02:00.000Z",
+        "seq": 2
+      }
+    },
+    "regressed": true
+  },
+  "orderedControl": {
+    "after3": {
+      "id": "c",
+      "lastAt": "2026-10-10T01:00:00.000Z",
+      "lastMessage": {
+        "author": "member",
+        "actorId": "actor",
+        "name": "Synthetic",
+        "text": "Synthetic seq3",
+        "at": "2026-10-10T01:03:00.000Z",
+        "seq": 3
+      },
+      "messageSeq": 3
+    },
+    "after2": {
+      "id": "c",
+      "lastAt": "2026-10-10T01:00:00.000Z",
+      "lastMessage": {
+        "author": "member",
+        "actorId": "actor",
+        "name": "Synthetic",
+        "text": "Synthetic seq3",
+        "at": "2026-10-10T01:03:00.000Z",
+        "seq": 3
+      },
+      "messageSeq": 3
+    },
+    "retains3": true
+  }
+}

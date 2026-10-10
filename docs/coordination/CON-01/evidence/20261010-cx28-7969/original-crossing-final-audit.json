@@ -1,0 +1,80 @@
+{
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "at": "2026-10-10T02:07:43.430Z",
+  "action": "read",
+  "projectId": "995697dc-33b2-4bfc-8c07-aba737b69153",
+  "conversationId": "df60b24b-fb56-45cc-9536-16310c610079",
+  "messageId": "92a884b6-bdc5-46ff-a513-65618b9ab8a1",
+  "target": {
+    "id": "df60b24b-fb56-45cc-9536-16310c610079",
+    "title": "List-only withdrawal target",
+    "revision": 6,
+    "summary": null,
+    "summaryCoverage": {
+      "state": "not_assessed",
+      "complete": false,
+      "fromSeq": null,
+      "throughSeq": null,
+      "newer": 0,
+      "generatedAt": null,
+      "replyId": null,
+      "eligibilityRevision": null,
+      "ledgerRevision": null
+    },
+    "lastAt": "2026-10-10T01:59:54.916Z",
+    "messageSeq": 2,
+    "contributors": [
+      {
+        "actorId": "4f4ff2a0-bc68-49a0-a820-c769fcf73952",
+        "name": "4f4ff2a0@synthetic.example.test"
+      }
+    ],
+    "sophia": false,
+    "openQuestions": 0,
+    "questionsCoverage": {
+      "state": "not_assessed",
+      "complete": false,
+      "fromSeq": null,
+      "throughSeq": null,
+      "newer": 0,
+      "generatedAt": null,
+      "replyId": null,
+      "eligibilityRevision": null,
+      "ledgerRevision": null
+    },
+    "output": null,
+    "lastMessage": {
+      "author": "member",
+      "actorId": "4f4ff2a0-bc68-49a0-a820-c769fcf73952",
+      "name": "4f4ff2a0@synthetic.example.test",
+      "text": "SYNTHETIC earlier eligible context",
+      "at": "2026-10-10T01:59:40.094Z",
+      "seq": 1
+    }
+  },
+  "withdrawal": null,
+  "messages": [
+    {
+      "id": "bbf58145-ddd0-4f4d-b96b-ff4fcbeab374",
+      "seq": "1",
+      "body": "SYNTHETIC earlier eligible context",
+      "withdrawn_at": null
+    },
+    {
+      "id": "92a884b6-bdc5-46ff-a513-65618b9ab8a1",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T02:00:02.626Z"
+    }
+  ]
+}
