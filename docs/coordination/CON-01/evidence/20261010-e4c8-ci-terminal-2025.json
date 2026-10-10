@@ -1,0 +1,47 @@
+{
+  "observedAt": "2026-10-10T20:25:54Z",
+  "candidate": "e4c8cf8d67b9ff60d854cc6ede17ef178234d5da",
+  "tree": "53c4a423a7ea1007b9072c54ab7204c7acceefd2",
+  "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "origin": "GitHub CLI actual run metadata and complete failed browser sections; no local browser rerun",
+  "push": {
+    "run": 38080021388,
+    "status": "completed",
+    "conclusion": "success",
+    "browserJob": 114294848026,
+    "browserCompletedAt": "2026-10-10T20:16:17Z"
+  },
+  "pullRequest": {
+    "run": 38080024705,
+    "status": "completed",
+    "conclusion": "failure",
+    "browserJob": 114294857894,
+    "browserCompletedAt": "2026-10-10T20:22:27Z",
+    "command": "pnpm --filter @sophia/studio test:browser",
+    "counts": {
+      "passed": 1207,
+      "failed": 2,
+      "skipped": 1
+    },
+    "failures": [
+      {
+        "path": "apps/studio/e2e/app-auth.spec.ts",
+        "testLine": 265,
+        "assertionLine": 271,
+        "test": "another account at the viewer old address is another account: it keeps none of theirs",
+        "observed": "Account button not found after app.html navigation; toBeVisible 5000ms timeout before isolation assertions"
+      },
+      {
+        "path": "apps/studio/e2e/app-auth.spec.ts",
+        "testLine": 518,
+        "assertionLine": 531,
+        "test": "viewer-state lens restores under same subject after email change, resets for another subject",
+        "observed": "Account button not found after project Studio navigation; toBeVisible 5000ms timeout before lens/isolation assertions"
+      }
+    ]
+  },
+  "cause": "unproven; does not establish a privacy assertion failure or a harmless flake; prior PR190 Account failure surface does not establish same cause",
+  "verdict": "unwaived G4 hold; passing push does not waive failed PR run; no acceptance upgrade",
+  "coordination": "exact guarded Claude session_01KUDtFK9gWthsXSrepcLQz3 message373 queued20:26UTC while author active; no immediate send/interrupt",
+  "effects": "read-only CI metadata/log retrieval and authorized mission feedback only; no rerun/cancel/deploy/provider effect"
+}
