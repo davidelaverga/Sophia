@@ -19,8 +19,9 @@
 
 ## Checks (written first)
 
-- `e2e/ink-states.spec.ts`: the four states, each measured (desktop; the inks don't change with the width). Before the
-  change, each failed on its words; after, each passes.
+- `e2e/ink-states.spec.ts`: the four states, each measured (desktop; the inks don't change with the width). An act's
+  steps are measured on a clock the check moves (`page.clock`): recorded, the rest still to come, whatever the
+  runner's pace. Before the change, each failed on its words; after, each passes.
 - `ink`, `resources`, `work`, `room-work`: unchanged, pass.
 - Mutants, with a control that passes: each of the four back in the faintest ink fails its own check.
 
