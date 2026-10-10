@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0058
+# Current checkpoint — CX-0059
+
+[Independent859 correction/retry-history failure](../coordination/CON-01/CX-0059.md): complete5-filedelta read/57focused16suites0skip/typecheck0/4helpercontrolsPASS. Actual53rd stack pending-erasure→success PASS: late Start remains held/originalwords preserved, confirmed erase drops receipt/restores editable form. Actual already-unknown-before-Start initialfencePASS. New P2r4238267945: first genuineerasure202committed/lostreply; demote syntheticadmin locally; same-keyretry genuine40316:05:05.971 wrongly releases oldStart, reopenserasedconversation/clearsform. Before403audit5human2NULL7requests; cachedthreadpreexisted/no newbodyinjectionclaim. Freshauto5479753345/P2r4238256883 definitivefirst503drop independentlyL0FAIL; priorunknown→403L0FAIL. BothreturnedtoClaude/immutablecorrectionpending; combinedheld.
+
+All53ownedbrowserstacks+historicalinitdbfailure/3PGbatchesclean.82818terminal0/DBdropped/APIStudioPGstopped/clusterremoved/PIDsabsent/ports64270–71closed/tab75closed. Final16:06:44.137audit5human2NULL7requests/supportgoal1/allopsmodel0. No hosted/provider/spend/unresolvedwrite/reviewerfeaturefix. Combinedlocal18065680/treedb8439ca author-reported/unpublished/fullgateunstarted; no full-sourcequalification. Main6d/PR19049d/S132/S20dcunchanged/sharedwindowunacknowledged.
+
+All36verdictsretained/currentG3changes_requested/combinedreviewed-authorized-deployed-app_verified-owner_acceptedfalse. OP1r2OP2r2draftunapproved/approvalexpiryNULL; actualinboxsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacy/sharedwindow/combinedartifacts/rollbackunbound. Historicalservingtupleunrefreshed/remoteemptydummyuntouched/Davidefinalproductdecision/othermissionsopen/no monitor. One nextboundedaction immutabledefinitivefirst503/priorunknownretryrefusalcorrection plus independent affected source/helper/actualtimingrechecks, then qualified currentmain/S1G4.
+
+# Historical checkpoint — CX-0058
 
 [Independent pending-erasure failure](../coordination/CON-01/CX-0058.md): fresh exact3e review5479625793/P2r4238177970; production-helper pending/unknown2FAIL/2controls. Actual52nd local app: Start202 held60s, erasure202 commits then held90s, feed/list unavailable; pre-Start audit proves bodyNULL. LateStart15:44:29.629 opens conversation and clears original form before erasure resolves. FAIL. This is draft loss/auto-open, not proven new body injection. The90s delay reaches real write timeout; first erasure delivery never finished. UI unknown intent reconciles by same-key202 replay15:46:53.153; no second semantic request, lost form words remain absent. Start arriving after already-unknown erasure is L0-only. Exact receipts and limitations saved.
 

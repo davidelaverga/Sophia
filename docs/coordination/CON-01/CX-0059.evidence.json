@@ -1,0 +1,331 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0059",
+  "candidate": "85926e6cbc5452fabcb54f972f58d91c0819c246",
+  "tree": "4174b2c6c92e4f480b2dc4b139f3c1b3bdcf2c43",
+  "scope": "L1 actual local Studio/API/PostgreSQL17.6; synthetic development identities; no fixtures/native/provider/hosted acceptance",
+  "projectId": "c322aa0c-017a-442f-bd92-c15a88a36af0",
+  "automaticReview": {
+    "request": 6099415508,
+    "id": 5479753345,
+    "at": "2026-10-10T16:03:29Z",
+    "finding": 4238256883,
+    "severity": "P2",
+    "verdict": "independently reproduced in L0; no mounted definitive503 test"
+  },
+  "independentFinding": {
+    "id": 4238267945,
+    "severity": "P2",
+    "verdict": "actual unknown committed erasure then same-key403 wrongly releases Start"
+  },
+  "focused": {
+    "tests": 57,
+    "suites": 16,
+    "pass": 57,
+    "fail": 0,
+    "skip": 0,
+    "typecheckExit": 0
+  },
+  "helperControls": {
+    "candidate": "85926e6cbc5452fabcb54f972f58d91c0819c246",
+    "scope": "L0 production helpers; not mounted API/UI",
+    "passed": 4,
+    "cases": [
+      {
+        "case": "pending success discard",
+        "pass": true
+      },
+      {
+        "case": "unknown success discard",
+        "pass": true
+      },
+      {
+        "case": "definitive refusal releases once",
+        "pass": true
+      },
+      {
+        "case": "generation switch no release",
+        "pass": true
+      }
+    ]
+  },
+  "helperFailures": {
+    "candidate": "85926e6cbc5452fabcb54f972f58d91c0819c246",
+    "scope": "L0 actual production held-write/releasing/released/landed/talk-store, synthetic ApiError",
+    "cases": [
+      {
+        "mode": "definitive503",
+        "expectedPuts": 1,
+        "observedPuts": 0,
+        "heldBack": false,
+        "erasureHeld": false,
+        "fields": "Synthetic saved",
+        "pass": false
+      },
+      {
+        "mode": "priorUnknownThen403",
+        "expectedPuts": 0,
+        "observedPuts": 1,
+        "heldBack": false,
+        "erasureHeld": false,
+        "fields": "",
+        "pass": false
+      }
+    ]
+  },
+  "bufferedResponses": [
+    {
+      "at": "2026-10-10T16:00:07.400Z",
+      "kind": "start",
+      "path": "/api/v1/projects/c322aa0c-017a-442f-bd92-c15a88a36af0/conversations",
+      "actualApiStatus": 202,
+      "delayed": true,
+      "delayMs": 60000,
+      "substituted": false,
+      "evidence": "Complete upstream body buffered before delay; content omitted"
+    },
+    {
+      "at": "2026-10-10T16:00:22.555Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/0339b531-bd3f-4a31-8ffd-2e36735d17d5/erasure",
+      "actualApiStatus": 202,
+      "delayed": true,
+      "delayMs": 60000,
+      "substituted": false,
+      "evidence": "Complete upstream body buffered before delay; content omitted"
+    },
+    {
+      "at": "2026-10-10T16:02:25.626Z",
+      "kind": "start",
+      "path": "/api/v1/projects/c322aa0c-017a-442f-bd92-c15a88a36af0/conversations",
+      "actualApiStatus": 202,
+      "delayed": true,
+      "delayMs": 60000,
+      "substituted": false,
+      "evidence": "Complete upstream body buffered before delay; content omitted"
+    },
+    {
+      "at": "2026-10-10T16:02:37.361Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/5966956e-4d6c-4a6b-8feb-96926bf3d93a/erasure",
+      "actualApiStatus": 202,
+      "delayed": false,
+      "delayMs": 0,
+      "substituted": true,
+      "evidence": "Complete upstream body buffered before delay; content omitted"
+    },
+    {
+      "at": "2026-10-10T16:04:05.966Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/5966956e-4d6c-4a6b-8feb-96926bf3d93a/erasure",
+      "actualApiStatus": 403,
+      "delayed": true,
+      "delayMs": 60000,
+      "substituted": false,
+      "evidence": "Complete upstream body buffered before delay; content omitted"
+    }
+  ],
+  "writes": [
+    {
+      "at": "2026-10-10T16:00:07.400Z",
+      "kind": "start",
+      "path": "/api/v1/projects/c322aa0c-017a-442f-bd92-c15a88a36af0/conversations",
+      "idempotencyKey": "a00d3e92-36a2-4177-918c-f789b0b4f63e",
+      "actualApiStatus": 202,
+      "bodyWithheld": false
+    },
+    {
+      "at": "2026-10-10T16:00:22.555Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/0339b531-bd3f-4a31-8ffd-2e36735d17d5/erasure",
+      "idempotencyKey": "9ccd4292-41ec-4530-95b8-c9a8719eebcf",
+      "actualApiStatus": 202,
+      "bodyWithheld": false
+    },
+    {
+      "at": "2026-10-10T16:02:25.626Z",
+      "kind": "start",
+      "path": "/api/v1/projects/c322aa0c-017a-442f-bd92-c15a88a36af0/conversations",
+      "idempotencyKey": "d06a58ee-86f3-4304-b9c4-2b5149cf2757",
+      "actualApiStatus": 202,
+      "bodyWithheld": false
+    },
+    {
+      "at": "2026-10-10T16:02:37.360Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/5966956e-4d6c-4a6b-8feb-96926bf3d93a/erasure",
+      "idempotencyKey": "3b284338-2f7d-4c6e-9c37-9bc6cbd6fa21",
+      "actualApiStatus": 202,
+      "bodyWithheld": true
+    },
+    {
+      "at": "2026-10-10T16:04:05.966Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/5966956e-4d6c-4a6b-8feb-96926bf3d93a/erasure",
+      "idempotencyKey": "3b284338-2f7d-4c6e-9c37-9bc6cbd6fa21",
+      "actualApiStatus": 403,
+      "bodyWithheld": false
+    }
+  ],
+  "deliveryReceipts": [
+    {
+      "at": "2026-10-10T16:01:07.402Z",
+      "kind": "start",
+      "path": "/api/v1/projects/c322aa0c-017a-442f-bd92-c15a88a36af0/conversations",
+      "idempotencyKey": "a00d3e92-36a2-4177-918c-f789b0b4f63e",
+      "actualApiStatus": 202,
+      "delayed": true,
+      "delayMs": 60000,
+      "substituted": false,
+      "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+    },
+    {
+      "at": "2026-10-10T16:01:22.558Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/0339b531-bd3f-4a31-8ffd-2e36735d17d5/erasure",
+      "idempotencyKey": "9ccd4292-41ec-4530-95b8-c9a8719eebcf",
+      "actualApiStatus": 202,
+      "delayed": true,
+      "delayMs": 60000,
+      "substituted": false,
+      "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+    },
+    {
+      "at": "2026-10-10T16:02:37.361Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/5966956e-4d6c-4a6b-8feb-96926bf3d93a/erasure",
+      "idempotencyKey": "3b284338-2f7d-4c6e-9c37-9bc6cbd6fa21",
+      "actualApiStatus": 202,
+      "delayed": false,
+      "delayMs": 0,
+      "substituted": true,
+      "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+    },
+    {
+      "at": "2026-10-10T16:03:25.610Z",
+      "kind": "start",
+      "path": "/api/v1/projects/c322aa0c-017a-442f-bd92-c15a88a36af0/conversations",
+      "idempotencyKey": "d06a58ee-86f3-4304-b9c4-2b5149cf2757",
+      "actualApiStatus": 202,
+      "delayed": true,
+      "delayMs": 60000,
+      "substituted": false,
+      "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+    },
+    {
+      "at": "2026-10-10T16:05:05.971Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/5966956e-4d6c-4a6b-8feb-96926bf3d93a/erasure",
+      "idempotencyKey": "3b284338-2f7d-4c6e-9c37-9bc6cbd6fa21",
+      "actualApiStatus": 403,
+      "delayed": true,
+      "delayMs": 60000,
+      "substituted": false,
+      "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+    }
+  ],
+  "demotion": {
+    "at": "2026-10-10T16:03:44.327Z",
+    "scope": "Owned disposable project only; actual owner SQL; no hosted effect",
+    "changed": 1,
+    "role": "editor"
+  },
+  "actualVerdicts": [
+    {
+      "case": "late Start during pending erasure",
+      "verdict": "PASS bounded",
+      "observationAt": "2026-10-10T16:01:20.586Z",
+      "details": "Start delivered16:01:07.402, erase delivered16:01:22.558; form stays original/fenced and does not open; settled erase drops held receipt and restores editable original fields"
+    },
+    {
+      "case": "late Start after unknown erasure",
+      "verdict": "PASS bounded",
+      "details": "Real202 erased, response body lost; UI Not confirmed before Start; late Start remains held"
+    },
+    {
+      "case": "same-key refusal after prior unknown commit",
+      "verdict": "FAIL P2",
+      "details": "Actual admin erasure committed/lost202; owner local SQL demotes synthetic admin to editor. Same-key retry403 at16:05:05.971 wrongly releases old Start, opens erased conversation and clears form. Cached thread existed already; no new-body injection claimed."
+    },
+    {
+      "case": "read recovery",
+      "verdict": "PASS bounded",
+      "details": "Restoring exact local feed/list/message fault markers removes erased row automatically; lost form remains blank."
+    }
+  ],
+  "audit": {
+    "at": "2026-10-10T16:06:44.137Z",
+    "humanMessages": 5,
+    "nullBodies": 2,
+    "semanticRequests": 7,
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    }
+  },
+  "cleanup": {
+    "stack": {
+      "candidate": "85926e6cbc5452fabcb54f972f58d91c0819c246",
+      "tree": "4174b2c6c92e4f480b2dc4b139f3c1b3bdcf2c43",
+      "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+      "apiPort": 64270,
+      "studioPort": 64271,
+      "pid": 79079,
+      "exit": 0,
+      "postgresStopped": true,
+      "clusterRemoved": true
+    },
+    "children": {
+      "projectId": "c322aa0c-017a-442f-bd92-c15a88a36af0",
+      "apiStopped": true,
+      "studioStopped": true,
+      "databaseDropped": true
+    },
+    "independent": {
+      "at": "2026-10-10T16:07:05.924559+00:00",
+      "pids": {
+        "pid": "absent",
+        "apiPid": "absent",
+        "studioPid": "absent"
+      },
+      "ports": {
+        "apiPort": {
+          "port": "64270",
+          "closed": true
+        },
+        "studioPort": {
+          "port": "64271",
+          "closed": true
+        }
+      }
+    },
+    "tab": 75,
+    "tabClosed": true,
+    "allSuccessfulOwnedBrowserStacksClean": 53,
+    "dedicatedPgBatchesClean": 3,
+    "historicalInitdbOnlyFailureClean": true
+  },
+  "limits": {
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainSpend": 0,
+    "hostedEffects": 0,
+    "unresolvedOwnedLocalWrite": false,
+    "sourceFrozen": true,
+    "reviewerFeatureFix": false
+  },
+  "operations": {
+    "OP0001r2": "draft_not_authorized",
+    "OP0002r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null
+  },
+  "next": "Immutable correction for first definitive503 and prior-uncertain retry refusal; independent source/helper/actual timing rechecks, then qualified combined current-main/S1 G4."
+}
