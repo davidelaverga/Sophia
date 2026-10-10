@@ -284,7 +284,7 @@ export interface Remains {
 /** A message that still says something here. */
 const shown = (m: ConversationMessage) => !m.withdrawn && m.text !== null
 
-export function remainsAfter(after: ReadPages<ConversationMessage> | undefined, gone: ConversationMessage): Remains {
+export function remainsAfter(after: ThreadHeld, gone: ConversationMessage): Remains {
   const now = (after?.pages ?? []).flatMap((p) => p.messages)
   const writer = gone.author === 'member' ? gone.actorId : null
   return {
@@ -301,10 +301,19 @@ export function remainsAfter(after: ReadPages<ConversationMessage> | undefined, 
  * says what remains.
  */
 export function listWithdrawn(list: ConversationList | undefined, conversationId: string, remains: Remains) {
+  const left = (c: ConversationSummary & Unnamed) => ({ ...rowWithdrawn(c, remains), lastMessage: null })
+  return list && { ...list, conversations: list.conversations.map((c) => (c.id === conversationId ? left(c) : c)) }
+}
+
+/**
+ * A row as a withdrawal leaves its summary, its writers and Sophia's part (listWithdrawn's, its opening aside): the
+ * summary, which may say the words withdrawn, goes; the writer goes from those who wrote there unless the pages read
+ * show words of theirs still there; Sophia's part goes unless they show an answer of hers still there.
+ */
+export function rowWithdrawn<T extends ConversationSummary & Unnamed>(c: T, remains: Remains): T {
   // A list that named as many as it may can't say the rest: one taken out of it never makes it look whole.
-  const left = (c: ConversationSummary & Unnamed): ConversationSummary & Unnamed => ({
+  return {
     ...c,
-    lastMessage: null,
     summary: null,
     summaryCoverage: NOT_ASSESSED,
     contributors:
@@ -313,8 +322,7 @@ export function listWithdrawn(list: ConversationList | undefined, conversationId
         : c.contributors.filter((p) => p.actorId !== remains.writer),
     sophia: c.sophia && remains.sophiaStays,
     ...(c.contributors.length >= NAMED_AT_MOST || c.othersUnnamed ? { othersUnnamed: true as const } : {}),
-  })
-  return list && { ...list, conversations: list.conversations.map((c) => (c.id === conversationId ? left(c) : c)) }
+  }
 }
 
 /**
@@ -360,28 +368,52 @@ function takes(c: ConversationSummary, m: { at: string; seq?: number }): boolean
 export type ThreadHeld = { pages: readonly { messages: readonly ConversationMessage[] }[] } | undefined
 
 /**
- * The rows as the threads this view holds read leave them, applied where the list is shown (Codex: CX-0027; at
- * 7969d40, a list read that set out before a withdrawal and answered after the thread's read said the withdrawn words
- * again). A row whose last message its own thread is held with withdrawn says none, whichever answer the row comes from
- * and in whichever order the two arrived. Nothing is written back into the list read, so its own state (read, or
- * failing and out of date) stays as it was.
- * - Exact where the row says its message's place (`seq`): its thread holds that place withdrawn.
- * - Otherwise (an older API) it is matched by writer, actor and time, and kept when a message the thread holds with
- *   words matches it too, words and all (Codex's control: m2 withdrawn, m3 said in the same millisecond, the row m3's).
- * A preview gone until the list is read again is honest; one that keeps withdrawn words is not. The same rows when
- * nothing is taken.
+ * The rows as the threads this view holds read leave them (Codex: CX-0027, CX-0028; PR #199 r4235976251, r4236040713),
+ * applied to the list reads as cached (withdrawn-purge.ts), whichever answer a row comes from and in whichever order
+ * the two arrived.
+ * - Its opening, whatever the list read: none where its own thread holds that message withdrawn. Exact where the row
+ *   says the message's place (`seq`); otherwise (an older API) matched by writer, actor and time, and kept when a
+ *   message the thread holds with words matches it too, words and all (Codex's control: m2 withdrawn, m3 said in the
+ *   same millisecond, the row m3's).
+ * - Its summary, writers and Sophia's part (rowWithdrawn), only for a withdrawal the list read may not have known:
+ *   one this view first saw after that read set out (`seenSince`), and no older than the row's last activity. A
+ *   withdrawal older than a message the row knows of was known to the read that knew that message, so a list read
+ *   that knew it keeps what it says (a writer whose words are on pages not read here, a summary).
+ * A preview, a writer or Sophia's part gone until the list is read again is honest; one a withdrawal took, shown again,
+ * is not. The same rows when nothing is taken.
  */
-export function rowsKnown<T extends ConversationSummary>(
+export function rowsKnown<T extends ConversationSummary & Unnamed>(
   rows: readonly T[],
   heldOf: (conversationId: string) => ThreadHeld,
+  seenSince: (conversationId: string, m: ConversationMessage) => boolean = () => false,
 ): readonly T[] {
-  const known = rows.map((c) => {
-    const held = (heldOf(c.id)?.pages ?? []).flatMap((p) => p.messages)
-    if (!c.lastMessage || !held.some((m) => m.withdrawn) || !saysWithdrawn(c.lastMessage, held)) return c
-    return { ...c, lastMessage: null }
-  })
+  const known = rows.map((c) => rowKnown(c, heldOf(c.id), (m) => seenSince(c.id, m)))
   return known.some((c, i) => c !== rows[i]) ? known : rows
 }
+
+/** One row as its thread leaves it (rowsKnown); the same row when nothing is taken. */
+function rowKnown<T extends ConversationSummary & Unnamed>(
+  c: T,
+  thread: ThreadHeld,
+  seenSince: (m: ConversationMessage) => boolean,
+): T {
+  const held = (thread?.pages ?? []).flatMap((p) => p.messages)
+  if (!held.some((m) => m.withdrawn)) return c
+  let row = c.lastMessage && saysWithdrawn(c.lastMessage, held) ? { ...c, lastMessage: null } : c
+  const since = (m: ConversationMessage) =>
+    m.withdrawn !== null && seenSince(m) && Date.parse(m.withdrawn.at) >= Date.parse(c.lastAt)
+  for (const m of held.filter(since)) row = rowWithdrawn(row, remainsAfter(thread, m))
+  return sameRow(row, c) ? c : row
+}
+
+/** Whether rowKnown took nothing (it only takes: an opening, a summary, a writer, Sophia's part). */
+const sameRow = (row: ConversationSummary & Unnamed, c: ConversationSummary & Unnamed) =>
+  row.lastMessage === c.lastMessage &&
+  row.summary === c.summary &&
+  JSON.stringify(row.summaryCoverage) === JSON.stringify(c.summaryCoverage) &&
+  row.sophia === c.sophia &&
+  row.contributors.length === c.contributors.length &&
+  row.othersUnnamed === c.othersUnnamed
 
 /** Whether the row's last message is one these pages hold withdrawn (by its place, else as rowsKnown says). */
 function saysWithdrawn(

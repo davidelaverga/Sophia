@@ -474,6 +474,13 @@ How the Studio uses them (Codex's invariants, each with a unit test in `conversa
 - A cache-level listener (`keepWithdrawnPurged`), installed once per QueryClient, runs on every `updated` event of a conversation list or thread read. It removes a row's opening from the cached list read when the same account's thread read for that conversation holds that message withdrawn.
 - It replaces only the list read's data (`Query.setState`): its status, error, `dataUpdatedAt` and update counts stay. So a failing list read still says «This may be out of date».
 - A list answer that set out before the withdrawal and lands after the thread's read is purged as it lands. So is a list read put back by a reverting cancel.
+- **Who wrote there and Sophia's part (CON-01-CC-0026, PR #199 r4236040713).** The API lists only writers with a message not withdrawn, and says `sophia` only for an answer not withdrawn. So a list read that predates a withdrawal still names the withdrawn writer.
+  - For such a withdrawal, the purge applies what a withdrawal here does (`rowWithdrawn`, the same as `listWithdrawn` except the opening): the summary goes; the writer goes unless the pages read still show words of theirs; Sophia's part goes unless they show an answer of hers.
+  - It applies only to a withdrawal the list read may not have known, both conditions together:
+    1. This view first saw the withdrawal after that read set out. Both are stamped from one counter, never a clock: `listReadSetsOut` in the list's query function, and the first sight in the thread read.
+    2. The withdrawal is no older than the row's `lastAt` (one database clock). A withdrawal older than a message the row knows of was known to that read.
+  - A list read that set out after this view saw the withdrawal is left as the API says it. That keeps a writer whose words are on pages not read here, and a summary.
+  - **Residual, bounded:** a list read in flight when this view first sees a withdrawal on its first read of that thread is treated as possibly older. Its row loses, until the list is read again, a writer whose only remaining words are on pages not read, and its summary.
 - **Proof preconditions, not guarantees.** The purge rests on the thread read as cached:
   - A thread read leaves the cache only after 5 minutes unread (the default `gcTime`), with its conversation's erasure (its row goes too), or with the whole cache (any identity change or sign-out clears it, `App.tsx`).
   - A list read is given up after `READ_TIMEOUT_MS` (30 s), and aborted once nothing observes it.

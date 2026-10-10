@@ -43,7 +43,7 @@ import {
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { keepWithdrawnPurged } from './withdrawn-purge.ts'
+import { keepWithdrawnPurged, listReadSetsOut } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
 import './conversations.css'
@@ -82,7 +82,11 @@ const readerOf = (membership: Membership | undefined, write: boolean | undefined
 function useList(projectId: string, identity: Identity, cursor: string | undefined) {
   const list = useQuery({
     queryKey: listKey(projectId, accountOf(identity)),
-    queryFn: ({ signal }) => listConversations(identity.token, projectId, signal),
+    // Where in this view's order the read set out: a withdrawal seen after it may be one it didn't know.
+    queryFn: ({ signal }) => {
+      const readFrom = listReadSetsOut()
+      return listConversations(identity.token, projectId, signal).then((answer) => ({ ...answer, readFrom }))
+    },
     select: sorted,
     retry: 1,
   })

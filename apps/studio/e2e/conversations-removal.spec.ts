@@ -558,6 +558,8 @@ test('removal · a list read under way across a withdrawal elsewhere, answering 
   await page.waitForTimeout(500)
   await expect(list(page)).not.toContainText(WORDS)
   await expect(page.getByText(WORDS)).toHaveCount(0)
+  // What the pages read still show stays: you wrote other words there, and Sophia answered (r4236040713's positive).
+  await expect(rows(page).filter({ hasText: FIRST })).toContainText('Lucía, You · Sophia')
 })
 
 test('removal · the thread read again while the list’s reads still fail: the list still says it may be out of date', async ({

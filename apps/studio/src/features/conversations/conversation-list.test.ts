@@ -308,6 +308,55 @@ describe('rowsKnown by place, within its conversation (CC-0023)', () => {
   })
 })
 
+describe('rowsKnown: who wrote there and Sophia’s part, for a withdrawal its list read may not have known (r4236040713)', () => {
+  const at = '2026-10-07T10:00:00.000Z'
+  const later = { at: '2026-10-07T10:01:00.000Z' }
+  const rowA = (lastMessage: ConversationSummary['lastMessage'], over: Partial<ConversationSummary> = {}) =>
+    conversation({
+      id: 'a',
+      lastAt: at,
+      contributors: [
+        { actorId: ME, name: 'You' },
+        { actorId: 'bo', name: 'Bo' },
+      ],
+      sophia: true,
+      lastMessage,
+      ...over,
+    })
+  // Bo's only message (place 4) and Sophia's answer to it (place 5), both withdrawn; your place 3 said.
+  const held = () =>
+    page([
+      message('m3', { seq: 3, at, actorId: ME, author: 'member', text: 'Seq 3.' }),
+      message('m4', { seq: 4, at, actorId: 'bo', author: 'member', text: null, withdrawn: later }),
+      message('m5', { seq: 5, at, actorId: null, author: 'sophia', text: null, withdrawn: later }),
+    ])
+  const sophiaSays = { author: 'sophia' as const, actorId: null, name: 'Sophia', text: 'Five.', at, seq: 5 }
+
+  it('seen after the list read set out: Bo and Sophia’s part go with the opening; you stay', () => {
+    const [a] = rowsKnown([rowA(sophiaSays)], heldForA(held()), () => true)
+    assert.deepEqual(
+      a?.contributors.map((p) => p.actorId),
+      [ME],
+    )
+    assert.equal(a?.sophia, false)
+    assert.equal(a?.lastMessage, null)
+  })
+
+  it('seen before it set out, or older than a message the row knows of: the rows as the list read says them', () => {
+    const says3 = { author: 'member' as const, actorId: ME, name: 'You', text: 'Seq 3.', at, seq: 3 }
+    const current = [rowA(says3)]
+    assert.equal(
+      rowsKnown(current, heldForA(held()), () => false),
+      current,
+    )
+    const knew = [rowA(says3, { lastAt: '2026-10-07T10:02:00.000Z' })]
+    assert.equal(
+      rowsKnown(knew, heldForA(held()), () => true),
+      knew,
+    )
+  })
+})
+
 describe('rowsKnown, a row without its place: matched by writer, actor and time (Codex, CX-0027)', () => {
   const at = '2026-10-07T10:00:00.000Z'
   const says = { author: 'member' as const, actorId: ME, name: 'You', text: 'Seq 2, withdrawn since.', at }
