@@ -1,0 +1,79 @@
+Browser tab: 88, Title: "CON01 independent synthetic browser project · Sophia", URL: "http://127.0.0.1:58129/p/7d4649e1-4c3f-4bcc-916b-e6e9d971ce45/conversations".
+0 AXWebArea CON01 independent synthetic browser project · Sophia, URL: 127.0.0.1:58129/p/7d4649e1-4c3f-4bcc-916b-e6e9d971ce45/conversations
+	3 container root
+		4 container
+			5 button Home
+			6 button Work
+			7 heading CON01 independent synthetic browser project, Value: 1
+				8 text CON01 independent synthetic browser project
+			9 container Project views
+				10 link Description: Studio, Value: 127.0.0.1:58129/p/7d4649e1-4c3f-4bcc-916b-e6e9d971ce45/studio
+				11 link Description: Conversations, Value: 127.0.0.1:58129/p/7d4649e1-4c3f-4bcc-916b-e6e9d971ce45/conversations
+				12 link Description: Goals, Value: 127.0.0.1:58129/p/7d4649e1-4c3f-4bcc-916b-e6e9d971ce45/goals
+				13 link Description: Tasks, Value: 127.0.0.1:58129/p/7d4649e1-4c3f-4bcc-916b-e6e9d971ce45/work
+				14 link Description: Knowledge, Value: 127.0.0.1:58129/p/7d4649e1-4c3f-4bcc-916b-e6e9d971ce45/knowledge
+				15 link Description: Updates, Value: 127.0.0.1:58129/p/7d4649e1-4c3f-4bcc-916b-e6e9d971ce45/updates
+				16 link Description: Resources, Value: 127.0.0.1:58129/p/7d4649e1-4c3f-4bcc-916b-e6e9d971ce45/resources
+			17 container Reconnecting
+				18 text RECONNECTING
+			19 button Invite
+			20 pop up button (collapsed) Description: Account, Secondary Actions: Expand
+		21 container Conversations
+			22 container All conversations
+				23 heading Conversations, Value: 2, ID: conversations-title
+					24 text Conversations
+				25 checkbox Description: New conversation, Value: 0
+				88 text Only the newest 200 conversations are listed here, and the one you started here: other older ones can’t be opened from this list yet.
+				26 search text field (settable) Description: Filter conversations, Value: retained coverage
+				27 container Show only
+					28 checkbox Open, Value: 1
+					29 checkbox Mine, Value: 0
+					923 text No conversation matches.
+				924 text One more may match: it’s known here by its title only.
+				925 container
+					926 text No conversation matches.
+					927 button Clear
+			890 container Open conversation
+				891 container
+					892 heading SYNTHETIC retained coverage question, Value: 3
+						905 text SYNTHETIC retained coverage question
+					906 text Contributors: Who wrote here isn’t known yet
+				907 container Messages
+					908 content list
+						909 container
+							910 text You
+							911 text · 
+							912 text Oct 10, 20:59
+							913 text SYNTHETIC human only retained context
+							914 button Propose as decision
+							915 button (collapsed) Description: Withdraw message, Secondary Actions: Expand
+				897 container Continue this conversation
+					898 text entry area (settable) Continue this question with the team
+					916 container
+						917 checkbox (settable, integer) Description: Ask Sophia, Value: 1
+						918 text Ask Sophia
+					919 button (disabled) Send
+					920 text Sophia doesn’t answer here yet Enter sends · Shift+Enter, a new line
+			66 container Description: Project context, ID: conv-context
+				900 container This conversation
+					901 heading This conversation, Value: 4
+						921 text This conversation
+					922 text Its summary and open questions aren’t known here yet.
+					902 button (collapsed) Erase this conversation, Secondary Actions: Expand
+				73 heading Project context, Value: 3
+					74 text Project context
+				75 text No mission accepted yet.
+				76 container Accepted decisions
+					77 heading Accepted decisions, Value: 4
+						78 text Accepted decisions
+					79 text None accepted yet.
+				80 container Still open
+					81 heading Still open, Value: 4
+						82 text Still open
+					83 text Nothing waits for a decision.
+				84 button (collapsed) How conversation context works, Secondary Actions: Expand
+					85 text How conversation context works
+		86 container Project room
+			87 button Join the room
+
+The focused UI element is 28 checkbox Open, Value: 1

@@ -1,0 +1,19 @@
+{
+  "candidate": "2f87eb36a38ec0ac018ea5c07d6e1df334c05134",
+  "tree": "c0defbe4445c60bb7dfb2504e1ab1737624caa23",
+  "actualEpisode": 65,
+  "level": "L1 actual local Studio/API/PostgreSQL17.6 synthetic development identities, no fixtures/native/provider",
+  "deferredStartCurrentRead": "PASS bounded actual202delayed60s/real403erasebeforeStart/actualTryagainlist200andtargetGET200",
+  "retainedRowCoverage": "PASS bounded newest200plusoneexplicit/correct201shown",
+  "partialContext": "PASS bounded summaryandquestionsunknown",
+  "partialOpenMine": "PASS bounded excludesunjudgedrow/explicitOneMoreMayMatch",
+  "knownMineControl": "PASS bounded two known title-word matches/2of201/no unknownnote",
+  "return": "PASS bounded rowreachableandreopenedunsentdraft; automaticselectionresetstonewestCAP200",
+  "allOwnedStacksClean": 65,
+  "hostedEffects": 0,
+  "providerCalls": 0,
+  "paidSpend": 0,
+  "acceptanceStatusesChanged": false,
+  "combinedG4": "unqualified",
+  "liveBatchAuthorized": false
+}

@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0070
+# Current checkpoint — CX-0071
+
+[Actual2f87 cap/partialconsumer/coverage check](../coordination/CON-01/CX-0071.md), samefrozen2f87/treec0defbe4 as CX70 privacy/restoration PASS. Actual65th local app with humanStart202/60sresponse/realErase403beforeStart/201newer synthetic setup/currentlist200+target200: retainedrow reachable, coverage newest200plusone truthful, summary/questionsunknown, Open/Mine explicitunjudgednote, knownMine2wordmatches control PASS. Tasksreturn selectsnewest/typedfilterresets; manualretainedrowreopen preserves exactunsentdraft. No providerprojection/nativeanswerproof.
+
+All65stacks clean/99405terminal0/DBdropped/APIStudioPGstoppedclusterremoved/tab88closed/PIDsabsent/ports58128–29closed. Final205human0NULL205requests/0replies/supportgoal1/allopsusage0. No hosted/provider/spend/reviewerfeaturefix. All36verdicts retained/wholeG3G4G2hosted unqualified. OP1r2/OP2r2 drafts/approvalexpiryNULL; inboxsubjects/route/allowance/privacy/sharedownerwindow/artifacts/rollback unbound. Author2f87fullstatic/contracts0/1199Studio/163fixture/PG19+9terminalread; currentmain0ccc confirmed. Author isolatedcombinedebe8bb78unpublished/unreviewed; no merge/window/livegrant. Davide finaldecision/othermissionsopen.
+
+Next bounded action: immutable current-main/S1 combinedsource/tree/artifact/fullgate receipt, exactdiff/independent affected checks and currentautomaticreview before G4/merge/operationrequest.
+
+# Historical checkpoint — CX-0070
 
 [Independent actual2f87 restoration correction](../coordination/CON-01/CX-0070.md): complete5filedelta/CC70read/243focused61suitesPASS0skip/StudioTSC0. Actual64th real local Studio/API/PG: revoked-cache fence/list403/navigation PASS; nonowner/nonBYPASSRLS denied actor+authorizedviewer3 PASS. Restore original membership/list200 with existingC1 → actualC1body opens, three real upstream200responses over30.422s/noceilingcontainment PASS. Ordinary externalC1erase/list503/real422 fence, freshlist→survivingC2three/Tasksreturn noresurrection PASS bounded. WholeG3/current-mainS1combinedG4/native/provider/hosted acceptance unqualified.
 
