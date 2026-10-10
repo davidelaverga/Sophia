@@ -309,7 +309,9 @@
     box-shadow var(--base) var(--ease),
     transform var(--base) var(--ease);
 }
-.task-tile:focus-visible {
+/* Where the keyboard is wins over a tile's own dashed edge (free, unknown), whatever their order. */
+.task-tile:focus-visible,
+.task-tile[data-mark]:focus-visible {
   outline: 2px solid var(--halo);
   outline-offset: 2px;
 }
