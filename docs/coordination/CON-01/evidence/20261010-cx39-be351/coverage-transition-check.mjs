@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+const root=process.env.CON01_CANDIDATE_ROOT;
+const h=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/conversation-list.ts')));
+const req=createRequire(resolve(root,'apps/studio/package.json')),{QueryClient}=req('@tanstack/react-query');
+const at='2026-10-10T11:00:00Z';
+const coverage={state:'stale',complete:false,fromSeq:2,throughSeq:5,newer:1,generatedAt:at,replyId:'r5',eligibilityRevision:1,ledgerRevision:1};
+const row={id:'c',title:'Synthetic',revision:1,summary:'Synthetic eligible projection',summaryCoverage:coverage,lastAt:at,messageSeq:6,contributors:[{actorId:'A',name:'Synthetic A'}],sophia:false,openQuestions:2,questionsCoverage:coverage,output:null,lastMessage:null};
+const msg=seq=>({id:'m'+seq,seq,author:'member',actorId:'A',name:'Synthetic A',text:'Synthetic '+seq,at,withdrawn:null,ask:null,replyTo:null});
+const gone={...msg(6),text:null,name:null,withdrawn:{at}};
+const held=messages=>({pages:[{messages,before:null}],pageParams:[null]});
+const after=messages=>h.remainsAfter(held([...messages,gone]),gone);
+const changed=h.rowWithdrawn(row,after([msg(5)]));
+const passed=[],failed=[];
+const check=(name,f)=>{try{f();passed.push(name)}catch(e){failed.push({name,error:e.message})}};
+const uncertain=c=>{const words=h.coverageWords(c);assert.match(words,/messages 2–5/);assert.match(words,/newest/);assert.match(words,/out of date/i);assert.doesNotMatch(words,/\d+ newer since|newer messages since|decisions have changed/);assert.notEqual(c.state,'current')};
+check('Sole newer withdrawal retains partial summary and count with neutral uncertain-since wording',()=>{assert.equal(changed.summary,row.summary);assert.equal(changed.openQuestions,2);uncertain(changed.summaryCoverage);uncertain(changed.questionsCoverage)});
+check('Uncertain since remains honest after a later adjacent accepted send',()=>{const r=h.withLastMessage([changed],'c',msg(7))[0];const words=h.coverageWords(r.summaryCoverage);assert.match(words,/out of date|newer messages since/i);assert.doesNotMatch(words,/\d+ newer since/);assert.notEqual(r.summaryCoverage.state,'current');assert.equal(r.summary,row.summary);assert.equal(r.openQuestions,2)});
+check('Gap in cached eligible pages cannot turn unknown since into a numeric count',()=>{const r=h.rowWithdrawn({...row,messageSeq:10},after([msg(2)]));assert.equal(r.summary,row.summary);uncertain(r.summaryCoverage)});
+check('Known surviving newer message uses uncounted newer wording and preserves projection',()=>{const r=h.rowWithdrawn({...row,messageSeq:7,summaryCoverage:{...coverage,newer:2}},after([msg(5),msg(7)]));assert.equal(r.summary,row.summary);assert.match(h.coverageWords(r.summaryCoverage),/newer messages since/);assert.doesNotMatch(h.coverageWords(r.summaryCoverage),/\d+ newer since/)});
+check('Each range independent: overlap removed while prior summary remains',()=>{const r=h.rowWithdrawn({...row,questionsCoverage:{...coverage,throughSeq:6}},after([msg(5)]));assert.equal(r.summary,row.summary);assert.equal(r.openQuestions,0);assert.equal(r.questionsCoverage.state,'not_assessed')});
+check('Known decision-only stale state not promoted or mislabeled newer',()=>{const r=h.rowWithdrawn({...row,summaryCoverage:{...coverage,newer:0}},after([msg(5)]));assert.equal(r.summaryCoverage.state,'stale');assert.match(h.coverageWords(r.summaryCoverage),/decisions have changed/)});
+check('Repeated withdrawal is idempotent for retained projection and count',()=>{const r=h.rowWithdrawn(changed,after([msg(5)]));assert.equal(r.summary,row.summary);assert.equal(r.openQuestions,2);uncertain(r.summaryCoverage)});
+const qc=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});
+try{
+ const key=h.listKey('p','A');qc.setQueryData(key,{conversations:[changed]});
+ const authoritative={...row,summaryCoverage:{...coverage,state:'current',newer:0},questionsCoverage:{...coverage,state:'current',newer:0}};
+ await qc.fetchQuery({queryKey:key,queryFn:async()=>({conversations:[authoritative]})});
+ check('Successful real QueryClient authoritative reread removes view-local uncertainty',()=>{const r=qc.getQueryData(key).conversations[0];assert.equal(h.coverageWords(r.summaryCoverage),'Covers messages 2–5, the newest then.');assert.equal(r.summary,row.summary)});
+}finally{qc.clear()}
+console.log(JSON.stringify({candidate:process.env.CON01_CANDIDATE_SHA,level:'L0 production helpers/actual QueryClient with synthetic assessed inputs',passed:passed.length,failed:failed.length,passedCases:passed,failedCases:failed},null,2));process.exitCode=failed.length?1:0;

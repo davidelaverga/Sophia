@@ -1,0 +1,49 @@
+{
+  "candidate": "be351e25c6e8b1b5ab469e536c8320d5ce6e5fdd",
+  "tree": "cdb378219b84b0d2e198b2f43ccab470d203563a",
+  "review": "Complete six-file c4e to be351 delta read; no reviewer feature edit",
+  "finding": 4237494296,
+  "resolution": "qualified at bounded L0 actual-helper/QueryClient scope",
+  "focused": {
+    "passed": 112,
+    "suites": 37,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "studioTypecheck": {
+    "command": "pnpm --filter @sophia/studio typecheck",
+    "session": 49236,
+    "exit": 0
+  },
+  "probes": {
+    "missingWriter": 7,
+    "readerCache": 6,
+    "withdrawal": 10,
+    "coverageTransition": 8,
+    "receiptRegression": 9,
+    "failed": 0,
+    "allExit": 0
+  },
+  "commands": [
+    "CON01_CANDIDATE_ROOT=<owned exact be351 worktree> CON01_CANDIDATE_SHA=be351e25c6e8b1b5ab469e536c8320d5ce6e5fdd node <journal>/cx38/{missing-writer-check,reader-cache-check}.mjs",
+    "CON01_CANDIDATE_ROOT=<owned exact be351 worktree> CON01_CANDIDATE_SHA=be351e25c6e8b1b5ab469e536c8320d5ce6e5fdd node <journal>/cx36/{withdrawal-check,coverage-transition-check,receipt-regression-check}.mjs",
+    "node --test apps/studio/src/features/conversations/{conversation-list,withdrawn-purge,talk-store,revalidation,list-data}.test.ts"
+  ],
+  "limits": "L0 actual production helpers/QueryClient with synthetic records/account subjects; no new mounted timing/authentication/native/provider/hosted proof",
+  "freshReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097225451",
+  "effects": "No new stack/hosted/account/email/project/invite/schema/config/deploy/cohort/native/provider/spend/uncertain paid effect",
+  "hashes": {
+    "be351-coverage-transition-check-result.json": "df364b46bb884d661d21093c34feb6a2a2d9b0ccdf599125e5d9b350319cfc07",
+    "be351-focused.log": "fa7815df474f44f5fc8fc344df81114939b7c4f35f90cfd1d063a405d52e550b",
+    "be351-missing-writer-result.json": "b961d481c807858fbea272d74448abed65c6c5339c13b740d98f5cea0e58515d",
+    "be351-reader-cache-result.json": "091b5c1f58d60f21ed2ccb49505e97e4de87a1f19705526ceda90cf2e315f8e5",
+    "be351-receipt-regression-check-result.json": "c9c6fffa96a0029de2605692c2ebb970e671adafdfe91be5b48b13226210c6ff",
+    "be351-withdrawal-check-result.json": "e4b84ac7b001f8d3546c58ca4557342f4be630400ef12595ccc00a0d7609d73a",
+    "coverage-transition-check.mjs": "841750b38b945856221950c458440f8d06723f12905994a920492042d3fb1cee",
+    "missing-writer-check.mjs": "dc85ae3548ad5ac65f764f8b77537247bad20984be475179cac4eabef9d1e517",
+    "reader-cache-check.mjs": "8ce09b3ab740546333255db519558cb5e7f5cd0709b4a8f42f510f871238eb9b",
+    "receipt-regression-check.mjs": "9c3672f4b71646d7988d4fc33527ef538783b0bfd00fb0ac3f162c955bf96860",
+    "withdrawal-check.mjs": "b2471f518b835cad0731f5fa460e2ddb375668001806f5cef4221d12a9b558b1"
+  }
+}

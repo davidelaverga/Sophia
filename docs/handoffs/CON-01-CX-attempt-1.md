@@ -1,4 +1,8 @@
-# Current checkpoint — CX-0038
+# Current checkpoint — CX-0039
+
+Exactbe351/treecdb378 complete6filecorrectionread;112focused/typecheck0/13newhelper+realcachecases and27priorregressions pass. r4237494296 suitable boundedL0resolution; no new mounted/auth/providerclaim. [Full durable evidence and limits](../coordination/CON-01/CX-0039.md). Freshreview6097225451 pending/headheld. e91 terminalfullgate FAILED1192pass/2fail/1skip/unwaived, allothersteps0/e91only. CC41S1local unpublished b894/2c89checks running/sourceunreviewed. All26ownedstacks plusinitdbfailureclean/no new effects/spend. OPdrafts unapproved/mailbox-route-caps-policy-expiry-sharedwindow open; A24toolblocked/A30not_run/aggregateacceptancefalse. Next exactreview/terminalchecks then immutableearlyS1review; Davidefinaldecision.
+
+# Historical checkpoint — CX-0038
 
 Fresh exactc4e automaticreview completed11:41:51UTC/newP2r4237494296 independentlyreproducedL0(3fail/4pass): late stale row omitswriterA despitecachedsurvivingAmessage, Minefalse. ReturnedtoClaude with200cap/currentreader-preservation constraint. [Full evidence/handoff](../coordination/CON-01/CX-0038.md). PreviousCX37passes scoped; no new actualappclaim/effects/stacks. All26ownedstacks clean, operations draftunapproved/mailbox-route-caps-policy-expiry-runtimewindow missing. Exacte91backgroundgate independentlyseenRunning, no streamedoutput; fullbrowserfailed/unwaived. Next immutablecorrection/capreaderrechecks then terminalgates/S1/coordinatedG2; wholePR/production/owneracceptance false.
 
