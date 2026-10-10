@@ -164,9 +164,9 @@ function TooMuch({ bytes, over, limit }: { bytes: number; over: boolean; limit: 
 function Bounds({ availability }: { availability: SourceReviewAvailability }) {
   return (
     <p className="view-note">
-      Sophia's source reviewer reads only these sources, makes at most {availability.limits.maxModelRequests} model
+      Sophia’s source reviewer reads only these sources, makes at most {availability.limits.maxModelRequests} model
       requests, and never searches the web. A finished review accepts nothing.
-      {!availability.runtimeReady && ' No runtime carries the reviewer right now; the review starts when one does.'}
+      {!availability.runtimeReady && ' Sophia can’t take the review right now; it starts as soon as she can.'}
     </p>
   )
 }

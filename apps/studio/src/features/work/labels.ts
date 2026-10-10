@@ -77,7 +77,7 @@ export const SUMMARY: Record<string, string> = {
   'room.lobby_deny': 'Guest declined',
   'room.lobby_block': 'Guest blocked',
   'room.lobby_unblock': 'Guest unblocked',
-  'native_task.waiting': 'Brief waiting for Sophia’s runtime',
+  'native_task.waiting': 'Brief waiting for Sophia',
   'native_task.research': 'Research requested',
   'room.lobby_removal_pending': 'Taking a guest out of the call: not confirmed yet',
   'room.lobby_removal_removed': 'Guest taken out of the call',

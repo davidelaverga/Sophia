@@ -1,21 +1,22 @@
 // What the conversation shows, derived from the snapshot's discussion and native tasks. Pure, so the rules are
-// unit-tested; React only renders the result. A task's words say what is observed, never more: admitted is not
-// running, and a drafted brief is a candidate, not an accepted plan. New briefs are retired (SMC-M01); the briefs that
+// unit-tested; React only renders the result. A task's words say what is observed, never more: queued is not
+// running, and a drafted brief is a candidate, not an accepted plan. They say what Sophia does, never what runs her
+// (docs/plans/copy-no-jargon.md). New briefs are retired (SMC-M01); the briefs that
 // exist keep their phases, their text and their controls.
 import type { NativeTask } from '@sophia/contracts'
 import type { Tone } from '@sophia/ui'
 
 export const TASK_PHASE: Record<NativeTask['phase'], { label: string; tone: Tone; note: string }> = {
-  queued: { label: 'Admitted', tone: 'lav', note: 'Waiting for Sophia’s runtime to pick it up.' },
-  dispatched: { label: 'Sent', tone: 'lav', note: 'Sent to the runtime; not confirmed running yet.' },
-  running: { label: 'Drafting', tone: 'teal', note: 'The runtime is drafting. You can keep talking.' },
+  queued: { label: 'Queued', tone: 'lav', note: 'Waiting for Sophia to start it.' },
+  dispatched: { label: 'Sent', tone: 'lav', note: 'Sent to Sophia; not confirmed started yet.' },
+  running: { label: 'Drafting', tone: 'teal', note: 'Sophia is drafting. You can keep talking.' },
   result_ready: { label: 'Brief ready', tone: 'teal', note: 'A candidate brief for the team to review.' },
-  holding: { label: 'Holding', tone: 'amber', note: 'Pausing; waiting for the runtime to confirm.' },
+  holding: { label: 'Holding', tone: 'amber', note: 'Pausing; waiting for Sophia to confirm.' },
   held: { label: 'Held', tone: 'amber', note: 'Paused. Resume to continue.' },
-  stopping: { label: 'Stopping', tone: 'rose', note: 'Stopping; waiting for the runtime to confirm.' },
+  stopping: { label: 'Stopping', tone: 'rose', note: 'Stopping; waiting for Sophia to confirm.' },
   stopped: { label: 'Stopped', tone: 'muted', note: 'Stopped for good. Nothing it produces afterwards is published.' },
   denied: { label: 'Not started', tone: 'rose', note: 'It could no longer run when it was dispatched.' },
-  failed: { label: 'Failed', tone: 'rose', note: 'The runtime could not finish it.' },
+  failed: { label: 'Failed', tone: 'rose', note: 'Sophia could not finish it.' },
   outcome_unknown: {
     label: 'Unconfirmed',
     tone: 'amber',
@@ -34,7 +35,7 @@ export const TASK_KIND: Record<NativeTask['kind'], string> = {
 
 /** Where research reads differently from a brief; every other phase says the same for both. */
 const RESEARCH_PHASE: Partial<Record<NativeTask['phase'], Pick<PhaseWords, 'label' | 'note'>>> = {
-  running: { label: 'Researching', note: 'The runtime is researching. You can keep talking.' },
+  running: { label: 'Researching', note: 'Sophia is researching. You can keep talking.' },
   result_ready: { label: 'Report ready', note: 'A report for the team to read.' },
 }
 
@@ -51,12 +52,12 @@ export function taskPhase(task: Pick<NativeTask, 'kind' | 'phase'>): PhaseWords 
   return task.kind === 'design' ? { ...base, ...DESIGN_PHASE[task.phase] } : base
 }
 
-/** The heading over the runtime's tasks: briefs, research, or both. */
+/** The heading over Sophia's tasks: briefs, research, or both. */
 export function workHeading(work: readonly Pick<NativeTask, 'kind'>[]): string {
   const kinds = new Set(work.map((t) => t.kind))
-  if (kinds.size === 1 && kinds.has('draft_brief')) return 'Briefs from Sophia’s runtime'
-  if (kinds.size === 1 && kinds.has('research')) return 'Research from Sophia’s runtime'
-  return 'Work from Sophia’s runtime'
+  if (kinds.size === 1 && kinds.has('draft_brief')) return 'Briefs from Sophia'
+  if (kinds.size === 1 && kinds.has('research')) return 'Research from Sophia'
+  return 'Work from Sophia'
 }
 
 /** Who said it: "You", a name the room knows, or a neutral word (the snapshot carries actor ids only). */

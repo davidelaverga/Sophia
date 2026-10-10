@@ -243,7 +243,7 @@ function ViewerNote({ snapshot }: { snapshot: Snapshot | undefined }) {
   return <p className="view-note">You’re a viewer. Editors and admins can pause, stop or ask for a review.</p>
 }
 
-/** Briefs and research from the runtime (A05, A11); their Hold and Stop are the goal controls above. */
+/** Briefs and research from Sophia (A05, A11); their Hold and Stop are the goal controls above. */
 function NativeTasks({
   snapshot,
   projectId,

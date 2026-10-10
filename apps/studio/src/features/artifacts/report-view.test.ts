@@ -54,7 +54,8 @@ describe('a research card in words', () => {
 
   it('names each state, and a missing PDF is partly delivered, never a fallback', () => {
     assert.equal(researchState(running, [], ['markdown']).label, 'Researching')
-    assert.equal(researchState({ ...running, phase: 'queued', state: 'pending' }, [], ['markdown']).state, 'starting')
+    const queued = researchState({ ...running, phase: 'queued', state: 'pending' }, [], ['markdown'])
+    assert.deepEqual([queued.state, queued.note], ['starting', 'Waiting for Sophia to start the research.'])
     assert.equal(researchState({ ...running, phase: 'held' }, [], ['markdown']).label, 'Held')
     assert.equal(researchState({ ...running, phase: 'stopped', state: 'cancelled' }, [], ['markdown']).label, 'Stopped')
     const done = { phase: 'result_ready', state: 'succeeded', reason: null } as const
