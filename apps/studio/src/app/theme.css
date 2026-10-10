@@ -65,7 +65,7 @@ body {
   min-height: 100dvh;
   background: var(--void);
   color: var(--text);
-  font: 400 13.5px/1.5 var(--sans);
+  font: 400 var(--type-body) / 1.5 var(--sans);
   letter-spacing: -0.003em;
   font-kerning: normal;
   -webkit-font-smoothing: antialiased;

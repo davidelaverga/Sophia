@@ -92,7 +92,7 @@
 }
 .places .chip-pop p {
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.5;
 }
 .places .chip-pop .row {
@@ -303,7 +303,7 @@
   cursor: pointer;
 }
 .places .hw-n {
-  font: 500 11px/1 var(--mono);
+  font: 500 10.5px/1 var(--mono);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   transition: color var(--base) var(--ease);
@@ -400,7 +400,7 @@
     height: auto;
     clip-path: none;
     margin-right: 6px;
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--halo-text);
   }
 }
@@ -426,7 +426,7 @@
 }
 .places .hw-more .hw-t {
   color: var(--text-3);
-  font-size: 13.5px;
+  font-size: 13px;
 }
 .places .hw-row.placeholder {
   height: 54px;
@@ -514,7 +514,7 @@
   color: var(--text-3);
 }
 .places .hw-say kbd {
-  font: 500 11px var(--mono);
+  font: 500 10.5px var(--mono);
   color: var(--text-3);
 }
 /* A key only where there are keys: a touch screen has none to press. */
@@ -555,7 +555,7 @@
   border: 1px solid rgba(241, 220, 199, 0.4);
   background: var(--plane);
   color: var(--warm);
-  font-size: 9.5px;
+  font-size: 9.5px; /* an initial: a glyph sized to its circle, not text on the scale */
   font-weight: 600;
 }
 .places .pdot + .pdot {
@@ -786,7 +786,7 @@
 /* Hers is the reading voice, a size above yours. */
 .places .msg.sophia .body {
   color: var(--text);
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.55;
   letter-spacing: -0.008em;
 }
@@ -853,7 +853,7 @@
   position: absolute;
   bottom: 6px;
   color: var(--text-sec);
-  font: 11px var(--mono);
+  font: 10.5px var(--mono);
   opacity: 0;
   transition: opacity var(--fast);
   white-space: nowrap;
@@ -988,7 +988,7 @@
   font-size: 13px;
 }
 .places .c3-daybar .popover .muted {
-  font-size: 11px;
+  font-size: 10.5px;
 }
 .places .c3-day {
   display: flex;
@@ -1105,7 +1105,7 @@
 /* The session about to start, said as Home says it: amber, quiet, mono. */
 .places .c3-way-note {
   color: color-mix(in srgb, #e8c48d 85%, transparent);
-  font: 11px/1 var(--mono);
+  font: 10.5px/1 var(--mono);
 }
 .places .c3-starters button:focus-visible {
   outline-offset: -2px;
@@ -1314,7 +1314,7 @@
   gap: 6px;
   margin-top: 3px;
   color: var(--halo-text);
-  font-size: 11px;
+  font-size: 10.5px;
 }
 .places .c2-t .by::before {
   content: '';
@@ -1332,7 +1332,7 @@
 }
 .places .c2-to small {
   color: var(--text-sec);
-  font-size: 11px;
+  font-size: 10.5px;
 }
 .places .c2-to-head {
   display: flex;
@@ -1427,7 +1427,7 @@
   writing-mode: vertical-rl;
   padding: 8px 3px;
   background: var(--void);
-  font: 500 10px/1 var(--mono);
+  font: 500 10.5px/1 var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-sec);
@@ -1451,7 +1451,7 @@
   border-radius: var(--r-1);
   background: var(--warm);
   color: #1a1512;
-  font: 600 10px/1.3 var(--sans);
+  font: 600 10.5px/1.3 var(--sans);
 }
 .places .c3-edge.pulse .c2-lock {
   animation: ps-pulse 1.2s var(--ease);
@@ -1495,7 +1495,7 @@
   align-items: center;
   gap: 6px;
   color: var(--text-sec);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .places .c3-proj > .pill {
   grid-row: 1 / span 2;
@@ -1584,7 +1584,7 @@
 }
 .places .fact span {
   color: var(--text-sec);
-  font-size: 11px;
+  font-size: 10.5px;
 }
 .places .danger-zone {
   display: grid;
@@ -1596,7 +1596,7 @@
 }
 .places .danger-zone p {
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .places .unlock-ways {
   display: grid;
@@ -1652,7 +1652,7 @@
     border-radius: var(--r-1);
     background: var(--warm);
     color: #1a1512;
-    font: 600 10px/1.3 var(--sans);
+    font: 600 10.5px/1.3 var(--sans);
   }
   .places .c3-notes {
     left: calc(-1 * var(--gutter));
@@ -1726,7 +1726,7 @@
     grid-area: m;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 12.5px;
+    font-size: 12px;
   }
   .places .hw-go {
     grid-area: go;
@@ -1867,7 +1867,7 @@
    opacity makes it a layer of its own), so it lets the pointer through to Correct and Forget beneath it. */
 .places .c3-mem-at {
   color: var(--text-sec);
-  font: 11px/1 var(--mono);
+  font: 10.5px/1 var(--mono);
   pointer-events: none;
 }
 .places .c3-mem-acts {
@@ -1931,7 +1931,7 @@
   gap: 6px 16px;
   margin-top: 10px;
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
-  font: 11px/1.4 var(--mono);
+  font: 10.5px/1.4 var(--mono);
 }
 .places .c3-week-acts {
   display: flex;
@@ -2063,7 +2063,7 @@
 .places .ps-composer .c3-count {
   margin-left: auto;
   color: var(--text-sec);
-  font: 11px var(--mono);
+  font: 10.5px var(--mono);
   font-variant-numeric: tabular-nums;
 }
 .places .ps-composer .c3-count.full {
@@ -2143,7 +2143,7 @@
 .places .c3-find-count {
   min-width: 64px;
   color: var(--text-sec);
-  font: 11px var(--mono);
+  font: 10.5px var(--mono);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -2237,7 +2237,7 @@
 .places .c3-pack-none,
 .places .c3-pack-said {
   color: var(--text-sec);
-  font-size: 11px;
+  font-size: 10.5px;
 }
 .places .c3-pack-receive {
   display: grid;
