@@ -35,9 +35,10 @@
   Their feature CSS loses the sizes it set and keeps only its look (a round mic, a borderless square, the first ink).
 - `e2e/control-heights.spec.ts`: on each of the thirteen pages, once drawn, every visible single-line press is
   24, 28, 32 or 36 px: one with words on one line, or a square with no words (an icon press). A row, a tile or a
-  cover is as wide as the list or card it is in, and an edge's word stands on end: neither is a press on the scale,
-  told apart by its width in its place and by its words, never by its height (Codex on #220: a cutoff at 48 px would have let a press grown to 48
-  pass); a page measures one at least. `button-class.test.ts`: the classes of each kind and size, the modifier only off the kind's own size, the
+  cover is named in the spec (home's rows, a conversation's row and what it made, a meeting's row, a report's cover,
+  a resource's tile), and an edge's word stands on end: neither is a press on the scale, and nothing is told apart by
+  its size (Codex on #220, twice: a cutoff at 48 px would have let a press grown to 48 pass, and a press as wide as
+  its parent dropped the sort's button in its shrink-wrapped field); a page measures one at least. `button-class.test.ts`: the classes of each kind and size, the modifier only off the kind's own size, the
   text kind one height, every height on the scale.
 
 ## States

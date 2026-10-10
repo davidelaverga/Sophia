@@ -1,15 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
 import { DRAWN, drawn } from './drawn.ts'
 
-// A field stands on two heights (docs/plans/field-scale.md): on each fixture page, once drawn, every visible input or
-// select a person can see is 36 px tall, or 44 as a hero field, its group (`.field`) counted as the field when it has
-// one. And a toolbar's controls share a line: a search beside a segmented is as tall as it. Measured on a desktop.
+// A field stands on two heights (docs/plans/field-scale.md): on each fixture page that has one, once drawn, every
+// visible input or select a person can see is 36 px tall, or 44 as a hero field, its group (`.field`) counted as the
+// field when it has one. And a toolbar's controls share a line: a search beside a segmented is as tall as it. Measured
+// on a desktop. The personal space writes in a textarea line and the room's fields are in its sheets (the Invite's
+// below, Search's in sheet-frame.spec.ts): neither page has a field to measure, so neither is listed.
 
 const PAGES = [
   ['sign-in', '/signin.html', DRAWN.signin],
   ['the door', '/join.html?demo=1', DRAWN.join],
-  ['personal', '/personal.html?demo=1', DRAWN.personal],
-  ['the room', '/room.html?demo=1', DRAWN.room],
   ['Conversations', '/room.html?demo=1&conversations=1&place=conversations', DRAWN.conversations],
   ['Tasks', '/room.html?demo=1&place=work', DRAWN.tasks],
   ['Knowledge', '/room.html?demo=1&place=knowledge', DRAWN.knowledge],
