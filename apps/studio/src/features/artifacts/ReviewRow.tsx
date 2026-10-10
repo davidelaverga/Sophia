@@ -62,7 +62,7 @@ type WriteState = ReturnType<typeof useReviews>['write']['state']
 
 /** The row's words: a press that didn't go through says so; else the latest review. */
 function rowWords(state: WriteState, fallback: string): string {
-  if (state.status === 'unknown') return 'Not sent. Try again.'
+  if (state.status === 'unknown') return 'Not confirmed. Try again.'
   if (state.status === 'rejected') return state.error instanceof ApiError ? state.error.message : fallback
   return fallback
 }

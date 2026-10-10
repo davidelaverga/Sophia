@@ -5,13 +5,10 @@ import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
-// What a person reads never names the people who build the Studio (docs/plans/copy-no-team-names.md): a placeholder
-// once listed «Davide’s Codex and Claude, Luis’s Claude» to every customer. Read from the strings in the code the Studio
-// builds, as TypeScript parses them: never its comments (they are for us); tests and test data aside.
+// What a person reads, read from the strings in the code the Studio builds, as TypeScript parses them: never its
+// comments (they are for us); tests and test data aside. Each check is a microcopy pattern's: the team's names
+// (docs/plans/copy-no-team-names.md), an outcome nobody knows (docs/plans/copy-not-confirmed.md).
 const src = fileURLToPath(new URL('../', import.meta.url))
-
-/** The people who build the Studio, by the names the code has used for them. */
-const TEAM = /\b(Davide|Luis)\b/
 
 /** Every source file the Studio builds from: tests and test data excluded. */
 function production(dir: string): string[] {
@@ -45,13 +42,37 @@ function said(path: string): string[] {
   return out
 }
 
+/** Every string the Studio says that `wrong` finds, each with its file. */
+function saidWrong(wrong: (words: string) => boolean): string[] {
+  return production(src).flatMap((path) =>
+    said(path)
+      .filter(wrong)
+      .map((words) => `${relative(src, path).split(sep).join('/')}: ${words.trim().slice(0, 80)}`),
+  )
+}
+
+/** The people who build the Studio, by the names the code has used for them. */
+const TEAM = /\b(Davide|Luis)\b/
+
+/**
+ * The ways an outcome nobody knows was once put that aren't «Not confirmed», then the next step: as a failure («Not
+ * sent. Try again.» where no reply came), or «unconfirmed» in a sentence («Delivery unconfirmed», «Reply unconfirmed»,
+ * «Your choice is unconfirmed»), or «Not confirmed it was kept». A state's one-word label («unconfirmed») stays.
+ */
+const ELSEWISE = [/^Not sent\. Try again\.$/, /\s.*\bunconfirmed\b|\bunconfirmed\b.*\s/i, /\bNot confirmed it was\b/]
+
 describe('what a person reads', () => {
   it('names nobody who builds the Studio', () => {
-    const naming = production(src).flatMap((path) =>
-      said(path)
-        .filter((words) => TEAM.test(words))
-        .map((words) => `${relative(src, path).split(sep).join('/')}: ${words.trim().slice(0, 80)}`),
+    assert.deepEqual(
+      saidWrong((words) => TEAM.test(words)),
+      [],
     )
-    assert.deepEqual(naming, [])
+  })
+
+  it('says an outcome nobody knows one way: «Not confirmed», then the next step', () => {
+    assert.deepEqual(
+      saidWrong((words) => ELSEWISE.some((way) => way.test(words.trim()))),
+      [],
+    )
   })
 })
