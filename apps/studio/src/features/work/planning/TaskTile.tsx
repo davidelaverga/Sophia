@@ -3,7 +3,7 @@
 // moves, and its foot: what its current attempt last reported, or what the task hangs on. The ring is the report's
 // age and nothing more: an old report during a long, healthy tool call is old, not stuck. The connection is said
 // apart, only when it isn't online. It is a button: pressing it opens the task's sheet.
-import { Tip } from '@sophia/ui'
+import { Card, Tip } from '@sophia/ui'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { followPointer } from '../../resources/motion.ts'
 import { ToolLogo } from '../../resources/ToolLogo.tsx'
@@ -142,8 +142,9 @@ export function TaskTile({ row, index, flags, plan, viewerId, now, onLight, onOp
   const short = shortOf(row)
   return (
     <li>
-      <button
-        type="button"
+      <Card
+        as="button"
+        kind="tile"
         className="task-tile"
         data-mark={status.mark}
         data-tool={toolOf(doer)}
@@ -172,7 +173,7 @@ export function TaskTile({ row, index, flags, plan, viewerId, now, onLight, onOp
           <Foot activity={activity} hangs={hangsOn(row, plan)} waiting={status.mark === 'waiting'} now={now} />
           {short && <Short words={short} />}
         </span>
-      </button>
+      </Card>
     </li>
   )
 }
