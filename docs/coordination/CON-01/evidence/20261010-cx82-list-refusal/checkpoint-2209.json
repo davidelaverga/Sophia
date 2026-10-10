@@ -1,0 +1,57 @@
+{
+  "observedAt": "2026-10-10T22:08:53Z",
+  "candidate": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+  "tree": "2718e6dd93748b520cf218a39674bfba7ac7ed3d",
+  "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "sharedFindingComment": 6102690271,
+  "authorGateComment": 6102698114,
+  "authorGateEvidence": "Exact full shared comment read; author receipts, not independent execution",
+  "gate": {
+    "pid": 11251,
+    "startedAt": "2026-10-10T21:44:21Z",
+    "pnpmCheck": {
+      "exit": 0,
+      "at": "2026-10-10T22:01:09Z",
+      "clean": true
+    },
+    "integrationWithPG": {
+      "exit": 0,
+      "at": "2026-10-10T22:05:59Z"
+    },
+    "current": "db-all",
+    "currentPids": [
+      28090,
+      28091,
+      30410
+    ],
+    "lastLogWrite": "2026-10-10T22:08:09Z",
+    "pending": [
+      "test:sql",
+      "e2e-focused",
+      "e2e-all-studio",
+      "final cleanliness"
+    ],
+    "fullTerminal": false
+  },
+  "PR190": {
+    "head": "d90d2dc28878215120a69adcde962dce099bbc81",
+    "draft": true,
+    "open": true,
+    "all13StatusChecks": "GitHub SUCCESS independently read; raw logs not newly qualified by CON reviewer; separate mission remains open"
+  },
+  "PR226": {
+    "head": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+    "authChecks": "both SUCCESS",
+    "image": "IN_PROGRESS",
+    "remaining": "queued at observation; no rerun"
+  },
+  "correction": "Author uncommitted/unpublished on a1dd; source checks and1212units reported; browser fail-before/after held until existing gate frees fixture port",
+  "preparedEpisode75": {
+    "launched": false,
+    "candidate": null,
+    "tree": null,
+    "guard": "Reject unbound/mismatched/dirty source before PG creation; Python syntax compile passes",
+    "limits": "8min/600s outer/200reads armedbeforelaunch; local disposable only"
+  },
+  "effects": "No new app stack/provider/native/hosted/live effect; all74priorstacks clean"
+}

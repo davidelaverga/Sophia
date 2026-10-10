@@ -8,6 +8,8 @@ OP1r2/OP2r2draft_not_authorized/approvalexpiryNULL; latestlive tuple inLIVE_PREF
 
 Next boundedaction: immutableauthorlist403fencecorrection and independentaffectedactualfirst403/transient503/recovery/draft-intent/oldsuccess-order/cleanup beforecombinedG4; finalizedliveinputsapprovalstillrequired.
 
+22:09 addendum: issue1986102690271 published/evidence91c03b4b; exactauthor6102698114 reports pnpmcheck0/PGintegration0, db-all active, SQL/browser/fullterminal pending. Correction uncommitted/unpublished; browserfail-before/after waits for existinggate fixtureport. Episode75 scripts-only guarded/unlaunched/candidateNULL. Main0ccc/2263b1a unchanged; PR190d90 all13GitHubchecksSUCCESS, rawlogs/semanticmissionqualification notnewlyclaimed. SeeCX82checkpointreceipt. No readiness/live-effect change.
+
 # Historical checkpoint — CX-0081
 
 [Combined exact source/app review](../coordination/CON-01/CX-0081.md), [structured receipts](../coordination/CON-01/CX-0081.evidence.json). Exact3b1a7ea6/tree2718e6dd/main0ccc, draftPR226reviewonly; PR199a1ddunchanged. IndependentStudioTSC0/206units54suitesPASS0skip/contracts0/artifactsreproduce. Actual local episode73 realApp/API/PG: human-only actual202lostreceipt->originaldcfe27b6keyretry202/exactlyoneSQLmessage; explicitA08proposal+accept/currentcontextinotherthread; desktopthreepanes/mobile390x844context/back/exactdraft; viewerno adminstate/writecontrols; outsideractual403/no cache; own syntheticwithdrawal+ownedAPIrestart/reload durable PASS. No native/hosted acceptance.
