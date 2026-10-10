@@ -10,16 +10,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import type { ApiError } from '../../api/client.ts'
-import {
-  withdrawConversationMessage,
-  type ConversationList,
-  type ConversationMessage,
-} from '../../api/conversations.ts'
+import { withdrawConversationMessage, type ConversationMessage } from '../../api/conversations.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { focusLater } from '../personal/focus.ts'
 import { LISTS, listWithdrawn, messagesKey, remainsAfter, withWithdrawn, type ReadPages } from './conversation-list.ts'
 import { useHeldWrite } from './held-write.ts'
+import { setListsData } from './list-data.ts'
 import { useKept, withoutMessage, withWithdrawal } from './talk-store.ts'
 
 export interface WithdrawArgs {
@@ -75,9 +72,8 @@ export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; 
     const after = withWithdrawn(before, message)
     queryClient.setQueryData<ReadPages<ConversationMessage>>(pages, () => after)
     const remains = remainsAfter(after, message)
-    queryClient.setQueriesData<ConversationList>({ queryKey: LISTS }, (list) =>
-      listWithdrawn(list, args.conversationId, remains),
-    )
+    // Its data only: a list whose reads are failing still says so (PR #199 r4237298620).
+    setListsData(queryClient, LISTS, (list) => listWithdrawn(list, args.conversationId, remains) ?? list)
     void queryClient.invalidateQueries({ queryKey: pages })
     void queryClient.invalidateQueries({ queryKey: LISTS })
     setAsking(false)

@@ -8,12 +8,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useLayoutEffect, useRef } from 'react'
 import type { ApiError } from '../../api/client.ts'
-import {
-  sendConversationMessage,
-  type ConversationSummary,
-  type MessageAsk,
-  type MessageSent,
-} from '../../api/conversations.ts'
+import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/conversations.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
@@ -28,6 +23,7 @@ import {
   type ReadPages,
 } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
+import { setListsData } from './list-data.ts'
 
 interface Props {
   conversationId: string
@@ -96,10 +92,11 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     // here, the row says nothing from this receipt (Codex, CX-0022), and the list's own read says what is so.
     const last = lastSaid(now)
     if (last?.id === sent.message.id) {
-      queryClient.setQueriesData<{ conversations: readonly ConversationSummary[] }>(
-        { queryKey: LISTS },
-        (read) => read && { ...read, conversations: withLastMessage(read.conversations, conversationId, last) },
-      )
+      // Its data only: a list whose reads are failing still says so (PR #199 r4237298620).
+      setListsData(queryClient, LISTS, (read) => ({
+        ...read,
+        conversations: withLastMessage(read.conversations, conversationId, last),
+      }))
     }
     void queryClient.invalidateQueries({ queryKey: LISTS })
     onSent(sent)

@@ -437,14 +437,19 @@ function saysWithdrawn(
 /**
  * The list as a confirmed message leaves it: that conversation's last message is the message, where the list says last
  * messages at all (A18 proposed), only where the row may take it (`takes`); its watermark moves up to the message's
- * place with it (so an older receipt after it never passes). Nothing else of the row is made up: not its revision,
- * its last activity or its coverage. The rest, and a list that doesn't say them, as they were.
+ * place with it (so an older receipt after it never passes). With it, as the API would say them after this message:
+ * - its writer is among those who wrote there (PR #199 r4237298623): added in the last place kept when the row names as
+ *   many as it may (`NAMED_AT_MOST`), the rest then unnamed, as the API keeps a reader who wrote;
+ * - a summary or question projection with a range is one message behind: `newer` one more, and `current` becomes
+ *   `stale` (PR #199 r4237298622); one not assessed stays so.
+ * Nothing else of the row is made up: not its revision, its last activity or a projection's words or count. The rest,
+ * and a list that doesn't say them, as they were.
  */
-export function withLastMessage(
-  list: readonly ConversationSummary[],
+export function withLastMessage<T extends ConversationSummary & Unnamed>(
+  list: readonly T[],
   conversationId: string,
   m: Pick<ConversationMessage, 'author' | 'actorId' | 'name' | 'text' | 'at'> & { seq?: number },
-): readonly ConversationSummary[] {
+): readonly T[] {
   const text = m.text
   if (text === null) return list
   return list.map((c) => {
@@ -454,6 +459,9 @@ export function withLastMessage(
     return {
       ...c,
       ...watermark,
+      ...withWriter(c, m),
+      summaryCoverage: oneBehind(c.summaryCoverage),
+      questionsCoverage: oneBehind(c.questionsCoverage),
       lastMessage: {
         author: m.author,
         actorId: m.actorId,
@@ -465,3 +473,21 @@ export function withLastMessage(
     }
   })
 }
+
+/** The row's writers with a member's confirmed message: they are among them, the last kept place theirs when full. */
+function withWriter(
+  c: ConversationSummary & Unnamed,
+  m: Pick<ConversationMessage, 'author' | 'actorId' | 'name'>,
+): Pick<ConversationSummary & Unnamed, 'contributors' | 'othersUnnamed'> {
+  const writer = m.author === 'member' ? m.actorId : null
+  if (writer === null || c.contributors.some((p) => p.actorId === writer)) return { contributors: c.contributors }
+  const them = { actorId: writer, name: m.name ?? 'A member' }
+  if (c.contributors.length < NAMED_AT_MOST) return { contributors: [...c.contributors, them] }
+  return { contributors: [...c.contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
+}
+
+/** A projection with a range, one eligible message behind; one not assessed, as it is. */
+const oneBehind = (coverage: ProjectionCoverage): ProjectionCoverage =>
+  coverage.throughSeq === null
+    ? coverage
+    : { ...coverage, state: coverage.state === 'current' ? 'stale' : coverage.state, newer: coverage.newer + 1 }

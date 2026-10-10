@@ -125,6 +125,23 @@ describe('a gone message’s part (PR #199 r4235397318, r4235397321)', () => {
     assert.deepEqual(now.proposals.m2, held('p2'))
   })
 
+  it('a proposal whose home is not yet known goes with the erasure that names its message as read (r4237298613)', () => {
+    // Pressed just before the erasure settled: its proposal kept, its home not yet written.
+    keptWith({ proposals: { m3: held('p3'), m2: held('p2') }, homes: { m2: 'c2' }, decision: DECISION })
+    changeKept(PLACE, (k) => withoutConversation(k, 'c1', ['m3']))
+    // Its answer comes late, and writes it back: left out.
+    changeKept(PLACE, (k) => ({ ...k, proposals: { ...k.proposals, m3: held('p3') } }))
+    changeKept(PLACE, (k) => ({ ...k, proposed: { ...k.proposed, m3: { id: 'd3', statement: 'late' } } }))
+    const now = keptAt(PLACE)
+    assert.ok(now)
+    assert.equal(now.proposals.m3, undefined)
+    assert.equal(now.proposed.m3, undefined)
+    assert.equal(now.gone.m3, true)
+    // Another conversation's proposal, and the decision, stay.
+    assert.deepEqual(now.proposals.m2, held('p2'))
+    assert.deepEqual(now.decision, DECISION)
+  })
+
   it('a message withdrawn here takes its own part only', () => {
     const after = withoutMessage(keptWith(parts()), 'm1')
     assert.deepEqual(Object.keys(after.proposals), ['m2'])

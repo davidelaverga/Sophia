@@ -584,6 +584,32 @@ test('removal · the thread read again while the list’s reads still fail: the 
   await expect(list(page)).not.toContainText(WORDS)
 })
 
+test('removal · a message confirmed while the list’s reads fail: its row says it, and the list still says it may be out of date', async ({
+  page,
+}) => {
+  // PR #199 r4237298620: the send's receipt was written into the list as an answered read, and the list's notice went.
+  const WORDS = 'SYNTHETIC-SENT-WHILE-THE-LIST-FAILS'
+  await page.goto(`${PAGE}&last=1`)
+  await expect(messages(page)).toHaveCount(6)
+  const ask = open(page)
+    .locator('.conv-compose')
+    .getByRole('checkbox', { name: /Ask Sophia/ })
+  if (await ask.isChecked()) await ask.uncheck()
+  // The list's read fails (the feed moves); then the next one waits, so its own answer can't say anything meanwhile.
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate(() => window.fixture?.listMore(false))
+  await expect(list(page).getByText('This may be out of date.')).toBeVisible()
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  await page.evaluate(() => window.fixture?.holdListReads())
+  await field(page).fill(WORDS)
+  await open(page).getByRole('button', { name: 'Send' }).click()
+  await expect(messages(page).filter({ hasText: WORDS })).toHaveCount(1)
+  await expect(list(page)).toContainText(WORDS)
+  await page.waitForTimeout(500)
+  await expect(list(page).getByText('This may be out of date.')).toBeVisible()
+  await page.evaluate(() => window.fixture?.releaseListReads())
+})
+
 /** Sends a message timed in the same millisecond as the conversation's last, every list read failing meanwhile. */
 async function sendSameMillisecond(page: Page, words: string, query: string) {
   await page.goto(`${PAGE}&last=1${query}`)

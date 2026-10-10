@@ -11,7 +11,8 @@ import { eraseConversation, type ConversationErasure, type ConversationList } fr
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { focusLater } from '../personal/focus.ts'
-import { LISTS, listKey, messagesKey } from './conversation-list.ts'
+import { LISTS, listKey } from './conversation-list.ts'
+import { setListsData } from './list-data.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 
 /** Where an admin may erase: the project, who reads, where the focus lands, and what the view does once it is erased. */
@@ -58,11 +59,14 @@ export function useEraseHere(erase: Erase | null, conversationId: string): { pre
     const erased = await write.run(conversationId)
     if (!erased) return
     const account = accountOf(erase.identity)
-    queryClient.setQueryData<ConversationList>(listKey(erase.projectId, account), (list) =>
-      listWithout(list, erased.conversationId),
+    // Its data only: a list whose reads are failing still says so (PR #199 r4237298620).
+    setListsData(
+      queryClient,
+      listKey(erase.projectId, account),
+      (list) => listWithout(list, erased.conversationId) ?? list,
     )
-    queryClient.removeQueries({ queryKey: messagesKey(erased.conversationId, account) })
     void queryClient.invalidateQueries({ queryKey: LISTS })
+    // Settles it (ConversationsView): what is kept for it goes, its messages as read with it, the cached thread last.
     erase.onErased(erased.conversationId)
   }
   return {

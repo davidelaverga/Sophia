@@ -202,8 +202,10 @@ export const withoutMessage = (k: Kept, messageId: string): Kept => withGone(k, 
  * messages' proposals and withdrawals (never brought back: `retired`), and its erasure, settled (never brought back:
  * withErasure). Another conversation's part, and Still open's decision, stay.
  */
-export function withoutConversation(k: Kept, id: string): Kept {
-  const messages = Object.keys(k.homes).filter((m) => k.homes[m] === id)
+export function withoutConversation(k: Kept, id: string, read: readonly string[] = []): Kept {
+  // Its messages: those with a home here, and those its thread was read with (PR #199 r4237298613: a proposal pressed
+  // just before the erasure settled may not have its home yet). Gone, so a late answer for one keeps nothing either.
+  const messages = [...new Set([...Object.keys(k.homes).filter((m) => k.homes[m] === id), ...read])]
   return withGone(
     {
       ...k,

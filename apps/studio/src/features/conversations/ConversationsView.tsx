@@ -23,7 +23,7 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
 import { Waiting } from '../../app/Waiting.tsx'
-import { byActivity, listKey, messagesKey } from './conversation-list.ts'
+import { byActivity, listKey, messagesKey, type ThreadHeld } from './conversation-list.ts'
 import { Rows } from './ConversationRows.tsx'
 import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
@@ -546,7 +546,10 @@ function useErased(
   // read with it, and it is said, once.
   const settle = useCallback(
     (id: string) => {
-      change((k) => withoutConversation(k, id))
+      // The messages its thread was read with go too, before that read goes (PR #199 r4237298613).
+      const thread = queryClient.getQueryData<ThreadHeld>(messagesKey(id, account))
+      const ids = (thread?.pages ?? []).flatMap((p) => p.messages.map((m) => m.id))
+      change((k) => withoutConversation(k, id, ids))
       queryClient.removeQueries({ queryKey: messagesKey(id, account) })
       if (saying.current !== id) return
       saying.current = null

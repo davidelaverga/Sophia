@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import type { MissionDecision } from '@sophia/contracts'
 import type { ConversationMessage, ConversationReply, ConversationSummary } from '../../api/conversations.ts'
 import {
+  NAMED_AT_MOST,
   acceptedOf,
   continuesRun,
   initialOf,
@@ -26,6 +27,7 @@ import {
   remainsAfter,
   withWithdrawn,
   type ReadPages,
+  type Unnamed,
 } from './conversation-list.ts'
 
 const ME = 'me'
@@ -713,6 +715,76 @@ describe('withWithdrawn: what a withdrawal takes off the screen at once (PR #199
 
   it('leaves a conversation not read yet as it is', () => {
     assert.equal(withWithdrawn(undefined, gone), undefined)
+  })
+})
+
+describe('a confirmed message, as the API would say its row after it (r4237298623, r4237298622)', () => {
+  const at = '2026-10-07T10:00:00.000Z'
+  const later = '2026-10-07T10:05:00.000Z'
+  const range = (state: 'current' | 'stale', newer: number) =>
+    ({
+      state,
+      complete: true,
+      fromSeq: 1,
+      throughSeq: 2,
+      newer,
+      generatedAt: at,
+      replyId: null,
+      eligibilityRevision: 1,
+      ledgerRevision: 1,
+    }) as const
+  const row = (over: Partial<ConversationSummary> = {}): ConversationSummary & Unnamed =>
+    conversation({
+      id: 'a',
+      lastAt: at,
+      messageSeq: 2,
+      contributors: [{ actorId: 'lucia', name: 'Lucía' }],
+      lastMessage: { author: 'member', actorId: 'lucia', name: 'Lucía', text: 'Two.', at, seq: 2 },
+      ...over,
+    })
+  const mine = { author: 'member' as const, actorId: ME, name: 'You', text: 'Three.', at: later, seq: 3 }
+
+  it('your first message here: you are among those who wrote there, so «Mine» and the notice know it', () => {
+    const [a] = withLastMessage([row()], 'a', mine)
+    assert.deepEqual(
+      a?.contributors.map((p) => p.actorId),
+      ['lucia', ME],
+    )
+    assert.equal(a?.othersUnnamed, undefined)
+    // Already among them: as they were.
+    const [b] = withLastMessage([row({ contributors: [{ actorId: ME, name: 'You' }] })], 'a', mine)
+    assert.deepEqual(
+      b?.contributors.map((p) => p.actorId),
+      [ME],
+    )
+  })
+
+  it('a row naming as many as it may: you take the last place kept, and the rest are unnamed', () => {
+    const full = Array.from({ length: NAMED_AT_MOST }, (_, i) => ({ actorId: `p${String(i)}`, name: `P${String(i)}` }))
+    const [a] = withLastMessage([row({ contributors: full })], 'a', mine)
+    assert.equal(a?.contributors.length, NAMED_AT_MOST)
+    assert.equal(a?.contributors.at(-1)?.actorId, ME)
+    assert.equal(a?.othersUnnamed, true)
+  })
+
+  it('a projection with a range is one message behind: current becomes stale, newer one more; none assessed stays so', () => {
+    const [a] = withLastMessage(
+      [row({ summaryCoverage: range('current', 0), questionsCoverage: range('stale', 1) })],
+      'a',
+      mine,
+    )
+    assert.equal(a?.summaryCoverage.state, 'stale')
+    assert.equal(a?.summaryCoverage.newer, 1)
+    assert.equal(a?.questionsCoverage.state, 'stale')
+    assert.equal(a?.questionsCoverage.newer, 2)
+    const [b] = withLastMessage([row()], 'a', mine)
+    assert.equal(b?.summaryCoverage.state, 'not_assessed')
+    assert.equal(b?.questionsCoverage.newer, 0)
+  })
+
+  it('a row the receipt may not take (read since): writers and projections as the list said them', () => {
+    const since = row({ messageSeq: 3, summaryCoverage: range('current', 0) })
+    assert.equal(withLastMessage([since], 'a', mine)[0], since)
   })
 })
 
