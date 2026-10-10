@@ -19,19 +19,22 @@
 - One way, the house's own: «Not confirmed», then what the person can do or may find. «Not confirmed. Try again.»;
   «Not confirmed: “…”» for a message to the room (as a project's conversation already says it), with Try again;
   «Not confirmed: your message may have arrived. Nothing is sent again on its own.» (one constant,
-  `DELIVERY_NOT_CONFIRMED`, for typing to Sophia in the room and the chat's foot); «Not confirmed: her reply may not come. Nothing is sent again on its own.»; «Not
-  confirmed: check the brief before trying again.»; «Not confirmed: it may already be kept.»; «Not confirmed: it may
-  already be out of the brief.»
+  `DELIVERY_NOT_CONFIRMED`, for typing to Sophia in the room and the chat's foot); «Not confirmed: her reply may not
+  come. Nothing is sent again on its own.»; «Not confirmed: check the brief before trying again.»; «Not confirmed: it
+  may already be kept.»; «Not confirmed: it may already be out of the brief.»
 - A refusal stays a refusal where it is told apart: the API's own words, «Not sent.» if it gave none, and «Not sent:
   it’s back in the field» where the words are handed back. (`ContinuityChoice` doesn't tell a refusal apart from no
   reply, and says «Not confirmed» for both, as it said «unconfirmed» before.)
 - Out of this change: the media bridge's own words for typing to Sophia (`apps/media-bridge/src/room-session.ts`:
-  «Delivery is unconfirmed…», «Reply unconfirmed…», sent as a `refused` packet). The Studio shows a packet's text as
-  it comes, so in a live room the bridge's words may replace the Studio's once its 60 s pass. Changing them, and
-  whether an unknown outcome should travel as `refused`, is the bridge's (and its contract's) own change, for Davide.
+  «Delivery is unconfirmed…», «Tool reply delivery is unconfirmed…», «Reply unconfirmed…», each sent as a `refused`
+  packet). The Studio shows a packet's text as it comes: the first two arrive as soon as the bridge's send fails, so a
+  turn goes from sending to refused in the bridge's words; the third comes after the bridge's 60 s, and may replace
+  the Studio's own «Not confirmed» once its 60 s have passed. Changing them, and whether an unknown outcome should
+  travel as `refused`, is the bridge's (and its contract's) own change, for Davide.
 - Other unknown outcomes said in other words stay for now: «Sophia didn’t answer.» (`AdmissionNote`, for invitations
-  and the calendar: pattern D, Sophia as the server), «Sent, and not confirmed yet…» (`explore/direction.ts`, a fixture
-  view), and a bare «Not confirmed.» whose next step is its button (`MeetingRecap`, `ShowEveryone`).
+  and the calendar; `RetryPdf`, `WorkControls`, beside a «Not confirmed» tag: pattern D, Sophia as the server),
+  «Sent, and not confirmed yet…» (`explore/direction.ts`, a fixture view), and a bare «Not confirmed.» whose next
+  step is its button (`MeetingRecap`, `ShowEveryone`).
 - A state's one-word label («unconfirmed», «Unconfirmed» on a chip) is no sentence and stays.
 - The check that reads what the Studio says (pattern 3's, `no-team-names.test.ts`) becomes `what-is-read.test.ts`,
   with this pattern's beside it: one reader of the strings, as TypeScript parses them, for both. A module shared by

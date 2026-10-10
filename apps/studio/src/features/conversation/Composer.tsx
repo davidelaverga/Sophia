@@ -295,7 +295,7 @@ function sendingTo(
 }
 
 interface FootLineProps {
-  /** The room's message, when it didn't simply go: not sent (with Try again, that same message), or refused. */
+  /** The room's message, when it didn't simply go: not confirmed (with Try again, that same message), or refused. */
   words: string | null
   unknown: boolean
   onRetry: () => void
