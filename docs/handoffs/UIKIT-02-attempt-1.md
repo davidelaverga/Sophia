@@ -5,8 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/kit-input` from `ui/kit-button` at `c36c1d6f`
 (stacked on PR #220; it retargets to `main` when #220 merges)
-Ending commit/tree and changed files: see the PR's commit; 17 files (5 new: `Field.tsx`, `Search.tsx`,
-`field-class.ts`, `field-class.test.ts`, `e2e/field-scale.spec.ts`, `docs/plans/field-scale.md`).
+Ending commit/tree and changed files: `da2eb1b7` (tree `1a454b14111b`): 19 files, 7 new (`Field.tsx`, `Search.tsx`,
+`field-class.ts`, `field-class.test.ts`, `e2e/field-scale.spec.ts`, `docs/plans/field-scale.md`, this handoff). The
+commit after it merges `ui/kit-button`'s second commit (Conversations' icon presses) and corrects these numbers.
 
 ## Outcome
 
