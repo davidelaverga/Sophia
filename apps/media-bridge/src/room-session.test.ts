@@ -15,6 +15,8 @@ import {
   type VoiceQualification,
 } from '@sophia/contracts'
 import assert from 'node:assert/strict'
+import http from 'node:http'
+import net from 'node:net'
 import { beforeEach, describe, it } from 'node:test'
 import { inspect } from 'node:util'
 import { OUTPUT_FRAME, pcmToBase64 } from './audio.ts'
@@ -26,6 +28,8 @@ import {
   HOLDER_ARRIVAL_MS,
   HOLDER_GRACE_MS,
   HOLDER_RETRY_MS,
+  POST_ATTEMPT_MS,
+  QUIESCE_RETRY_MS,
   PRESENCE_EVERY_MS,
   TYPED_REPLY_MS,
   escapeMarkers,
@@ -33,7 +37,7 @@ import {
   type Handover,
 } from './room-session.ts'
 import type { LookTarget, RoomEvents, RoomLink, RoomPerson } from './rtc.ts'
-import { type MediaService, ServiceError } from './service.ts'
+import { httpMediaService, type MediaService, ServiceError } from './service.ts'
 import { DECLARED_NAMES, TOOL_SETS } from './tools.ts'
 
 const LUIS = '11111111-1111-4111-8111-111111111111'
@@ -335,6 +339,8 @@ let liveCaptions: boolean | undefined
 let voiceEvidence: boolean | undefined
 /** Each reservation attempt's time limit, when a test bounds it (the close's settling is bounded by it). */
 let reserveTimeoutMs: number | undefined
+/** One attempt's bound for the quiesce acknowledgement, holder events and announcement records, when a test sets it. */
+let postAttemptMs: number | undefined
 
 /** What a replacement session is given: the handover, one still on its way, or nothing. */
 type Handed = Handover | Promise<Handover> | null
@@ -374,6 +380,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handov
       ...(liveCaptions === undefined ? {} : { liveCaptions }),
       ...(voiceEvidence === undefined ? {} : { voiceEvidence, evidenceRetryMs: [0, 0], reserveRetryMs: [0, 0] }),
       ...(reserveTimeoutMs === undefined ? {} : { reserveTimeoutMs }),
+      ...(postAttemptMs === undefined ? {} : { postAttemptMs }),
     },
     handover,
   )
@@ -411,6 +418,7 @@ beforeEach(() => {
   liveCaptions = undefined
   voiceEvidence = undefined
   reserveTimeoutMs = undefined
+  postAttemptMs = undefined
 })
 
 describe('room session: who Google hears (cases A10, A11)', () => {
@@ -6017,5 +6025,224 @@ describe('room session: audio that stops the session is recorded as received onl
     await session.close()
     const r = await receipts()
     assert.equal(r.reply, undefined)
+  })
+})
+
+/** What a local peer saw of one request: when it came, when the bridge closed its socket (or null), and its body. */
+interface Seen {
+  at: number
+  closedAt: number | null
+  body: string
+}
+
+/**
+ * A LABELLED local peer for the media routes (item 7): `silent` accepts each connection half-open and never answers
+ * (net, allowHalfOpen); `drip` answers 200 with its headers, then a byte every 100 ms, never ending the body; `answer`
+ * answers 204. Each request is noted, with when its socket closed.
+ */
+async function peer(shape: 'silent' | 'drip' | 'answer') {
+  const seen: Seen[] = []
+  const sockets = new Set<net.Socket>()
+  /** The bridge closed the socket: its end (a half-open peer never closes its own side) or the socket's close. */
+  const note = (socket: net.Socket) => {
+    const entry: Seen = { at: Date.now(), closedAt: null, body: '' }
+    sockets.add(socket)
+    const closed = () => (entry.closedAt ??= Date.now())
+    socket.on('end', closed)
+    socket.on('close', closed)
+    return entry
+  }
+  let server: net.Server
+  if (shape === 'silent') {
+    server = net.createServer({ allowHalfOpen: true }, (socket) => {
+      const entry = note(socket)
+      // A request is what arrives: undici may open a connection it then closes with nothing sent on it.
+      socket.on('data', (chunk) => {
+        if (entry.body === '') seen.push(entry)
+        entry.body += chunk.toString()
+      })
+      socket.resume()
+    })
+  } else {
+    server = http.createServer((req, res) => {
+      const entry = note(req.socket)
+      seen.push(entry)
+      req.on('data', (chunk: Buffer) => (entry.body += chunk.toString()))
+      req.on('end', () => {
+        if (shape === 'answer') {
+          res.writeHead(204).end()
+        } else {
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.write('{')
+          const drip = setInterval(() => res.write(' '), 100)
+          req.socket.on('close', () => clearInterval(drip))
+        }
+      })
+    })
+  }
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as net.AddressInfo
+  const media = httpMediaService(`http://127.0.0.1:${String(port)}`, 'synthetic-capability')
+  return {
+    media,
+    seen,
+    /** The request bodies (the JSON a silent peer read after the headers). */
+    bodies: () => seen.map((s) => s.body.slice(s.body.indexOf('{'))),
+    close: () => {
+      for (const socket of sockets) socket.destroy()
+      return new Promise<void>((resolve) => server.close(() => resolve()))
+    },
+  }
+}
+
+describe('room session: the quiesce acknowledgement, holder events and announcement records are bounded per attempt (item 7)', () => {
+  const BOUND = 200
+  /** Real time for the bound to cut an attempt, with timer slack. */
+  const cut = () => new Promise((resolve) => setTimeout(resolve, BOUND + 300))
+  /** The first request was cut at its bound: its socket closed within it, with slack. */
+  const cutAtBound = (s: Seen | undefined) =>
+    s !== undefined && s.closedAt !== null && s.closedAt - s.at >= BOUND - 20 && s.closedAt - s.at < BOUND + 1000
+
+  for (const shape of ['silent', 'drip'] as const) {
+    it(`holder (${shape} peer): the event is cut at its bound, its socket closed, and sent again, the same event, after HOLDER_RETRY_MS`, async () => {
+      postAttemptMs = BOUND
+      const p = await peer(shape)
+      try {
+        service.holder = p.media.holder
+        const { session, room } = await ready()
+        room.join([member(DAVIDE)])
+        await until('the left event sent', () => p.seen.length === 1)
+        await cut()
+        assert.ok(cutAtBound(p.seen[0]), JSON.stringify(p.seen[0]))
+        clock += HOLDER_RETRY_MS - 1
+        session.tick()
+        await flush()
+        assert.equal(p.seen.length, 1, 'not before its wait')
+        clock += 1
+        session.tick()
+        await until('sent again', () => p.seen.length === 2)
+        const [first, again] = p.bodies()
+        assert.equal(again, first, 'the same event: exchange, actor, epoch and kind')
+        assert.equal(JSON.parse(first ?? '{}').event, 'left')
+        await session.close()
+      } finally {
+        await p.close()
+      }
+    })
+
+    it(`ackQuiesce (${shape} peer): the acknowledgement is cut at its bound and sent again on the tick, the same request, with nothing else happening`, async () => {
+      postAttemptMs = BOUND
+      const p = await peer(shape)
+      try {
+        service.ackQuiesce = p.media.ackQuiesce
+        const { session } = await ready()
+        session.update(assignment({ state: 'paused', pauseReason: 'guest', quiesceRequestId: REQUEST }))
+        await until('the acknowledgement sent', () => p.seen.length === 1)
+        await cut()
+        assert.ok(cutAtBound(p.seen[0]), JSON.stringify(p.seen[0]))
+        clock += QUIESCE_RETRY_MS - 1
+        session.tick()
+        await flush()
+        assert.equal(p.seen.length, 1, 'not before its wait')
+        clock += 1
+        session.tick()
+        await until('sent again', () => p.seen.length === 2)
+        const [first, again] = p.bodies()
+        assert.equal(again, first)
+        assert.equal(JSON.parse(first ?? '{}').requestId, REQUEST)
+        await session.close()
+      } finally {
+        await p.close()
+      }
+    })
+
+    it(`announced (${shape} peer): the record is cut at its bound and sent again, the same record, after its retry wait`, async () => {
+      postAttemptMs = BOUND
+      const p = await peer(shape)
+      try {
+        service.announced = p.media.announced
+        const { session, room } = await ready({ results: [{ taskId: TASK, resultRevision: 1, kind: 'research' }] })
+        room.events.textMode?.(LUIS, true)
+        room.events.textMode?.(DAVIDE, true)
+        session.tick()
+        await until('the record sent', () => p.seen.length === 1)
+        await cut()
+        assert.ok(cutAtBound(p.seen[0]), JSON.stringify(p.seen[0]))
+        for (let i = 0; i < 5 && p.seen.length === 1; i += 1) {
+          clock += 1000
+          session.tick()
+          await flush()
+        }
+        await until('sent again', () => p.seen.length === 2)
+        const [first, again] = p.bodies()
+        assert.equal(again, first, 'the same exchange, job and revision, the same delivery')
+        await session.close()
+      } finally {
+        await p.close()
+      }
+    })
+  }
+
+  it('ackQuiesce: a request no longer asked for is not sent again (control)', async () => {
+    postAttemptMs = BOUND
+    const p = await peer('silent')
+    try {
+      service.ackQuiesce = p.media.ackQuiesce
+      const { session } = await ready()
+      session.update(assignment({ state: 'paused', pauseReason: 'guest', quiesceRequestId: REQUEST }))
+      await until('the acknowledgement sent', () => p.seen.length === 1)
+      await cut()
+      session.update(assignment({ state: 'open', quiesceRequestId: null, roomRevision: 2 }))
+      clock += QUIESCE_RETRY_MS * 3
+      session.tick()
+      await flush()
+      assert.equal(p.seen.length, 1)
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+
+  it('an attempt answered in time is not aborted afterwards: its timer is cleared (control)', async () => {
+    postAttemptMs = BOUND
+    const p = await peer('answer')
+    const signals: Array<AbortSignal | undefined> = []
+    try {
+      service.holder = (e: Parameters<MediaService['holder']>[0], signal?: AbortSignal) => {
+        signals.push(signal)
+        return p.media.holder(e, signal)
+      }
+      const { session, room } = await ready()
+      room.join([member(DAVIDE)])
+      await until('answered', () => p.seen.length === 1)
+      await cut()
+      assert.equal(signals.length, 1)
+      assert.equal(signals[0]?.aborted, false, 'never aborted once answered')
+      clock += HOLDER_RETRY_MS * 3
+      session.tick()
+      await flush()
+      assert.equal(p.seen.length, 1, 'answered: not sent again')
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+
+  it('the default bound is 3 s, inside the presence cadence: a silent peer is cut at it, not at undici’s 300 s', async () => {
+    assert.equal(POST_ATTEMPT_MS, 3000)
+    assert.ok(POST_ATTEMPT_MS < PRESENCE_EVERY_MS)
+    const p = await peer('silent')
+    try {
+      service.holder = p.media.holder
+      const { session, room } = await ready()
+      room.join([member(DAVIDE)])
+      await until('the left event sent', () => p.seen.length === 1)
+      await until('cut at its bound', () => p.seen[0]?.closedAt !== null, 5000)
+      const ms = (p.seen[0]?.closedAt ?? 0) - (p.seen[0]?.at ?? 0)
+      assert.ok(ms >= POST_ATTEMPT_MS - 20 && ms < POST_ATTEMPT_MS + 1000, `cut after ${String(ms)} ms`)
+      await session.close()
+    } finally {
+      await p.close()
+    }
   })
 })

@@ -54,6 +54,7 @@ import {
   ReplyAudio,
   type ReplyEnd,
 } from './audio.ts'
+import { withinAttempt } from './attempt.ts'
 import { Captions } from './captions.ts'
 import { EVIDENCE_RETRY_MS } from './evidence-sender.ts'
 import { RESERVE_RETRY_MS, RESERVE_TIMEOUT_MS } from './qualification-ledger.ts'
@@ -86,6 +87,11 @@ export interface SessionDeps {
   lost?: (exchangeId: string) => void
   /** Waits before a tool call whose reply was lost is sent again, with the same identity; tests shorten them. */
   toolRetryMs?: readonly number[]
+  /**
+   * One attempt's bound for the quiesce acknowledgement, a holder event and an announcement's record
+   * (POST_ATTEMPT_MS); tests shorten it.
+   */
+  postAttemptMs?: number
   /** Live captions for the members present (CX-0023); false sends none (SOPHIA_LIVE_CAPTIONS=off). On by default. */
   liveCaptions?: boolean
   /**
@@ -123,6 +129,16 @@ export const HOLDER_GRACE_MS = 5000
 export const HOLDER_ARRIVAL_MS = 5000
 /** A holder event the API did not take is sent again after this wait. */
 export const HOLDER_RETRY_MS = 2000
+/**
+ * How long one attempt of the quiesce acknowledgement, a holder event or an announcement's record may take, its body's
+ * read included (item 7 of the PR #190 review: these posts had no bound but undici's own 300 s). Past it the request is
+ * cancelled, its socket closed, and it is sent again with the same identity after its own wait (QUIESCE_RETRY_MS,
+ * HOLDER_RETRY_MS, RECEIPT_RETRY_MS). Each is idempotent on the API (0013 media_ack_quiesce, ON CONFLICT DO NOTHING;
+ * media_holder_event, compare-and-set on actor and epoch; 0035 media_record_announced, a union upsert).
+ */
+export const POST_ATTEMPT_MS = 3000
+/** A quiesce acknowledgement the API did not take is sent again after this wait, on the tick, while still asked for. */
+export const QUIESCE_RETRY_MS = 2000
 /** How long after the last frame handed to the AudioSource the room still hears Sophia (its 200 ms queue). */
 const PLAYING_TAIL_MS = 250
 const RECONNECT_DELAYS_MS = [250, 1000, 2000, 4000, 8000]
@@ -506,6 +522,8 @@ export class RoomSession {
   private reporting = false
   private published = ''
   private readonly acked = new Set<string>()
+  /** When a quiesce acknowledgement the API did not take is sent again (on the tick), or null. */
+  private ackRetryAt: number | null = null
   /** Results sent to Google as a notice: while one waits to be heard, and once it was heard. */
   private readonly announced = new Set<string>()
   /**
@@ -1383,8 +1401,11 @@ export class RoomSession {
       inputClosed: true,
       outputCleared: true,
     } as const
-    this.deps.service.ackQuiesce(ack).catch((err: unknown) => {
+    this.bounded((signal) => this.deps.service.ackQuiesce(ack, signal)).catch((err: unknown) => {
+      // Sent again, the same request, after QUIESCE_RETRY_MS on the tick while the assignment still names it (or at
+      // once when the room's presence is known again).
       this.acked.delete(requestId)
+      this.ackRetryAt = this.deps.now() + QUIESCE_RETRY_MS
       this.deps.log('quiesce.ack_failed', { requestId, error: message(err) })
     })
   }
@@ -1427,10 +1448,15 @@ export class RoomSession {
     }
   }
 
+  /** One attempt of a post to the API, within POST_ATTEMPT_MS (attempt.ts): cancelled past it, its socket closed. */
+  private bounded<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    return withinAttempt(this.deps.postAttemptMs ?? POST_ATTEMPT_MS, run)
+  }
+
   /** Report the absence to the API; one it did not take is sent again after HOLDER_RETRY_MS. */
   private holderEvent(absence: HolderAbsence, event: 'left' | 'gone'): void {
     const body = { exchangeId: this.exchangeId, actorId: absence.actorId, inputEpoch: absence.inputEpoch, event }
-    this.deps.service.holder(body).catch((err: unknown) => {
+    this.bounded((signal) => this.deps.service.holder(body, signal)).catch((err: unknown) => {
       if (event === 'left') absence.leftReported = false
       else absence.goneReported = false
       absence.retryAt = this.deps.now() + HOLDER_RETRY_MS
@@ -2102,6 +2128,10 @@ export class RoomSession {
     this.applyPause()
     this.sendFrame(now)
     this.checkHolder()
+    if (this.ackRetryAt !== null && now >= this.ackRetryAt) {
+      this.ackRetryAt = null
+      this.ackQuiesce()
+    }
     if (this.joinRetryAt !== null && now >= this.joinRetryAt) {
       this.joinRetryAt = null
       void this.join()
@@ -2396,7 +2426,7 @@ export class RoomSession {
   }
 
   private sendReceipt(key: string, receipt: Receipt): Promise<void> {
-    const sending = this.deps.service.announced(receipt.event).then(
+    const sending = this.bounded((signal) => this.deps.service.announced(receipt.event, signal)).then(
       () => {
         // A newer record of the same result may have replaced this one meanwhile: it is still to be sent.
         if (this.receipts.get(key) === receipt) this.receipts.delete(key)

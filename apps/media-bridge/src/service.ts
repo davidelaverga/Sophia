@@ -29,10 +29,14 @@ export interface MediaService {
   /** Long-polls: returns at once when `after` is stale, else when assignments change or `waitMs` passes. */
   assignments: (after: string | null, waitMs: number, signal: AbortSignal) => Promise<MediaAssignmentBatch>
   presence: (report: MediaPresenceReport) => Promise<void>
-  ackQuiesce: (ack: MediaQuiesceAck) => Promise<void>
-  holder: (event: MediaHolderEvent) => Promise<void>
-  announced: (event: MediaAnnounced) => Promise<void>
-  toolCall: (call: MediaToolCall) => Promise<MediaToolResult>
+  /**
+   * The quiesce acknowledgement, a holder event, an announcement's record and a tool call. `signal` ends the attempt,
+   * its body's read included (attempt.ts, withinAttempt).
+   */
+  ackQuiesce: (ack: MediaQuiesceAck, signal?: AbortSignal) => Promise<void>
+  holder: (event: MediaHolderEvent, signal?: AbortSignal) => Promise<void>
+  announced: (event: MediaAnnounced, signal?: AbortSignal) => Promise<void>
+  toolCall: (call: MediaToolCall, signal?: AbortSignal) => Promise<MediaToolResult>
   /** The operations the API executes for a guide version (A08, A11): the guide activates only when they equal the
    *  declared tools. */
   toolSurface: (guide: GuideVersion) => Promise<MediaToolSurface>
@@ -92,10 +96,10 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
       )
     },
     presence: async (report) => void (await post('/v1/media/presence', report)),
-    ackQuiesce: async (ack) => void (await post('/v1/media/quiesce-acks', ack)),
-    holder: async (event) => void (await post('/v1/media/holder', event)),
-    announced: async (event) => void (await post('/v1/media/announced', event)),
-    toolCall: async (call) => parseMediaToolResult(await post('/v1/media/tool-calls', call)),
+    ackQuiesce: async (ack, signal) => void (await post('/v1/media/quiesce-acks', ack, signal)),
+    holder: async (event, signal) => void (await post('/v1/media/holder', event, signal)),
+    announced: async (event, signal) => void (await post('/v1/media/announced', event, signal)),
+    toolCall: async (call, signal) => parseMediaToolResult(await post('/v1/media/tool-calls', call, signal)),
     toolSurface: async (guide) =>
       parseMediaToolSurface(await send(`/v1/media/tool-surface?guide=${guide}`, { method: 'GET' })),
     recordEvidence: async (write, signal) => parseMediaEvidenceAck(await post('/v1/media/evidence', write, signal)),
