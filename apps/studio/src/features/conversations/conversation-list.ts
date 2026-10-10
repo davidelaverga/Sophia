@@ -41,6 +41,12 @@ export interface Unnamed {
    * the list read named them, so their places are no less theirs for it (`firstsFor`; CX-0043).
    */
   removedHere?: readonly string[]
+  /**
+   * A row this view put by a start's title only (list-data `titleOnly`: its receipt not current where the feed stands,
+   * or held back and landed): who wrote there, when it last moved and what it holds aren't known here, and it says
+   * nothing of them, never «Nobody has written yet» (Codex at bfc2635c).
+   */
+  partial?: true
 }
 
 /**
@@ -59,6 +65,7 @@ export function contributorsLine(
   c: Pick<ConversationSummary, 'contributors' | 'sophia'> & Unnamed,
   me: string,
 ): string {
+  if (c.partial) return 'Who wrote here isn’t known yet'
   const named = c.contributors.map((p) => (p.actorId === me ? 'You' : p.name)).join(', ')
   const people = c.contributors.length >= NAMED_AT_MOST || c.othersUnnamed ? `${named} and others` : named
   if (!people) return c.sophia ? 'Sophia' : 'Nobody has written yet'

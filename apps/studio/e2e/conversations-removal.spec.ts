@@ -383,6 +383,23 @@ test('removal · erased elsewhere while the list holds the newest only: read dir
   await expect(messages(page)).toHaveCount(2)
 })
 
+test('removal · erased elsewhere while open, the list’s reads failing: its own read’s not found takes it away at once', async ({
+  page,
+}) => {
+  // PR #199 r4238633930: a read of the conversation itself answering not found is as sure as a whole list without it;
+  // what it read before (the cache keeps it across a failed read) is never shown again, whatever the list's reads do.
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await expect(open(page).getByRole('heading', { name: FIRST })).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate((c) => window.fixture?.eraseElsewhere(c), C1)
+  await expect.poll(async () => (await served(page)).includes('messages-gone:c1')).toBe(true)
+  await expect.poll(async () => (await kept(page))?.erased[C1]).toBe(true)
+  await expect(list(page)).not.toContainText(FIRST)
+  await expect(open(page).getByRole('heading', { name: FIRST })).toHaveCount(0)
+  await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
+})
+
 test('removal · older, then erased elsewhere with the list unchanged: read again on its own clock, its part goes then', async ({
   page,
 }) => {

@@ -3,9 +3,26 @@ import { describe, it } from 'node:test'
 import { QueryClient } from '@tanstack/react-query'
 import { ApiError } from '../../api/client.ts'
 import type { ConversationList, ConversationStarted, ConversationSummary } from '../../api/conversations.ts'
-import { LISTS, coverageWords, listKey, listWithdrawn, messagesKey, withLastMessage } from './conversation-list.ts'
+import {
+  LISTS,
+  contributorsLine,
+  coverageWords,
+  listKey,
+  listWithdrawn,
+  messagesKey,
+  withLastMessage,
+} from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
-import { landed, putStarted, releasable, replyWait, setListsData, shownList, startHeld } from './list-data.ts'
+import {
+  landed,
+  newestRead,
+  putStarted,
+  releasable,
+  replyWait,
+  setListsData,
+  shownList,
+  startHeld,
+} from './list-data.ts'
 import {
   NO_WORDS,
   changeKept,
@@ -269,6 +286,10 @@ describe('a start’s receipt and the list read: a newer row kept, a stale recei
     assert.equal(rowB(client)?.lastMessage, null)
     assert.deepEqual(rowB(client)?.contributors, [])
     assert.equal(rowB(client)?.title, 'Started')
+    // Said to be partial: who wrote there isn't known, never «Nobody has written yet» (Codex at bfc2635c).
+    const row = rowB(client)
+    assert.equal(row && 'partial' in row ? row.partial : undefined, true)
+    assert.equal(row && contributorsLine(row, 'ana'), 'Who wrote here isn’t known yet')
   })
 
   it('not listed yet, the receipt current where the page’s feed stands: listed with its words (control)', () => {
@@ -277,6 +298,9 @@ describe('a start’s receipt and the list read: a newer row kept, a stale recei
     putStarted(client, 'p', 'ana', receipt(), '6')
     assert.deepEqual(rowB(client)?.lastMessage, opening)
     assert.deepEqual(rowB(client)?.contributors, [{ actorId: 'ana', name: 'You' }])
+    const row = rowB(client)
+    assert.equal(row && 'partial' in row, false)
+    assert.equal(row && contributorsLine(row, 'ana'), 'You')
   })
 })
 
@@ -375,6 +399,11 @@ describe('a start’s receipt while an erasure of it pressed here is unanswered:
       ['a', 'b'],
     )
     assert.deepEqual([shown[1]?.title, shown[1]?.lastMessage, shown[1]?.contributors], ['Started', null, []])
+    // Said to be partial, and not counted among the newest the list holds (Codex at bfc2635c).
+    const row = shown[1]
+    assert.equal(row && 'partial' in row ? row.partial : undefined, true)
+    assert.equal(row && contributorsLine(row, 'ana'), 'Who wrote here isn’t known yet')
+    assert.equal(newestRead({ all: read, more: true }), 1)
     assert.equal(client.getQueryCache().find({ queryKey: messagesKey('b', 'ana'), exact: true }), undefined)
     assert.equal(typeof keptAt(PLACE)?.asked.b?.after, 'number')
   }
@@ -724,6 +753,9 @@ describe('a start’s receipt while an erasure of it pressed here is unanswered:
       shownList(read, kept, true).map((c) => c.id),
       ['a', 'b'],
     )
+    // «Only the newest N» counts the read alone, never the row shown after it (Codex at bfc2635c); a whole one, none.
+    assert.equal(newestRead({ all: read, more: true }), 1)
+    assert.equal(newestRead({ all: read, more: false }), null)
     // A whole list without it: not shown, and named gone (useSeen settles it; `reached` goes with it).
     assert.deepEqual(
       shownList(read, kept, false).map((c) => c.id),

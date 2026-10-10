@@ -218,13 +218,24 @@ describe('a start’s receipt: stamped where it is current, written only where t
   })
 })
 
-/** A thread read of one page, with what its newest page notes. */
-const page = (extra: object) => ({ pages: [{ messages: [], before: null, ...extra }], pageParams: [null] })
+/** A thread read of pages, newest first, each with its messages' ids and what its read noted. */
+const pagesOf = (...pages: { ids: string[]; extra: object }[]) => ({
+  pages: pages.map((p) => ({ messages: p.ids.map((id) => ({ id })), before: null, ...p.extra })),
+  pageParams: pages.map(() => null),
+})
 
-describe('where a thread read set out in this view’s order (PR #199 r4238594445)', () => {
-  it('its newest page notes it; a read written here, or none, counts as before all', () => {
-    assert.equal(readFromOf(page({ readFrom: 12 })), 12)
-    assert.equal(readFromOf(page({ readAt: '6' })), 0)
-    assert.equal(readFromOf(undefined), 0)
+describe('where the read of the page holding a message set out, in this view’s order (PR #199 r4238594445, r4238633935)', () => {
+  it('each page notes its own: an older page read since is fresher than a newest page cached from before', () => {
+    const held = pagesOf({ ids: ['m9'], extra: { readFrom: 5, readAt: '6' } }, { ids: ['b1'], extra: { readFrom: 9 } })
+    assert.equal(readFromOf(held as unknown as ThreadHeld, 'b1'), 9)
+    assert.equal(readFromOf(held as unknown as ThreadHeld, 'm9'), 5)
+  })
+
+  it('a page not noted (written here), a message no page holds, or no read: as if read before all', () => {
+    const held = pagesOf({ ids: ['b1'], extra: { readAt: '6' } })
+    assert.equal(readFromOf(held as unknown as ThreadHeld, 'b1'), 0)
+    assert.equal(readFromOf(held as unknown as ThreadHeld, 'b2'), 0)
+    assert.equal(readFromOf(held as unknown as ThreadHeld, null), 0)
+    assert.equal(readFromOf(undefined, 'b1'), 0)
   })
 })

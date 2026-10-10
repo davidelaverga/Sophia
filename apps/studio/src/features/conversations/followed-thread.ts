@@ -24,12 +24,13 @@ export function readAtOf(held: ThreadHeld): string | undefined {
 }
 
 /**
- * Where in this view's order the thread read held set out, as its newest page notes it (`readFrom`, withdrawn-purge
- * `orderNow`); 0 where not noted (a read written here, or made before it was noted), as if it set out before all.
+ * Where in this view's order the read of the page holding this message set out (`readFrom`, withdrawn-purge
+ * `orderNow`; each page notes its own: an older one read later is fresher than the newest; PR #199 r4238633935); 0
+ * where not noted (a page written here, read before it was noted, or none holding it), as if it set out before all.
  */
-export function readFromOf(held: ThreadHeld): number {
-  const newest = held?.pages[0]
-  return newest && 'readFrom' in newest && typeof newest.readFrom === 'number' ? newest.readFrom : 0
+export function readFromOf(held: ThreadHeld, messageId: string | null): number {
+  const page = held?.pages.find((p) => p.messages.some((m) => m.id === messageId))
+  return page && 'readFrom' in page && typeof page.readFrom === 'number' ? page.readFrom : 0
 }
 
 /** A feed position as a number, where it is one. */

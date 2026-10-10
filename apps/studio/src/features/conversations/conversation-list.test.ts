@@ -109,6 +109,14 @@ describe('contributorsLine', () => {
     assert.equal(contributorsLine(conversation({ sophia: true }), ME), 'Sophia')
     assert.equal(contributorsLine(conversation(), ME), 'Nobody has written yet')
   })
+
+  it('a row by its title only says who wrote there isn’t known, never nobody (Codex at bfc2635c)', () => {
+    assert.equal(contributorsLine({ ...conversation(), partial: true }, ME), 'Who wrote here isn’t known yet')
+    assert.equal(
+      contributorsLine({ ...conversation({ sophia: true }), partial: true }, ME),
+      'Who wrote here isn’t known yet',
+    )
+  })
 })
 
 describe('openWords', () => {

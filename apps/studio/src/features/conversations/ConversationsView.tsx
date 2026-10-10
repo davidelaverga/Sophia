@@ -29,7 +29,7 @@ import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
 import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
-import type { Erase } from './EraseHere.tsx'
+import { listWithout, type Erase } from './EraseHere.tsx'
 import {
   goneFrom,
   keepsFor,
@@ -44,7 +44,7 @@ import {
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { landed, putStarted, releasable, shownList, startHeld } from './list-data.ts'
+import { landed, newestRead, putStarted, releasable, setListsData, shownList, startHeld } from './list-data.ts'
 import { keepWithdrawnPurged, listReadSetsOut, orderNow, type ListRead } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
@@ -183,7 +183,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         openId={shown?.id}
         me={me}
         missing={missing}
-        more={reader.more}
+        more={newestRead(reader)}
         erased={erased.said}
         capability={capability}
         start={writer ? start : null}
@@ -196,7 +196,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
           panes.show()
         }}
       />
-      <Middle shown={shown} {...{ projectId, identity, cursor, reader, talk, start, panes }} />
+      <Middle shown={shown} {...{ projectId, identity, cursor, reader, talk, start, panes }} settle={erased.on} />
       <ProjectContext
         {...{ projectId, identity, cursor }}
         conversation={shown}
@@ -220,8 +220,9 @@ function Middle(props: {
   talk: ReturnType<typeof useTalk>
   start: ReturnType<typeof useStart>
   panes: ReturnType<typeof usePanes>
+  settle: (id: string) => void
 }) {
-  const { shown, projectId, identity, cursor, reader, talk, start, panes } = props
+  const { shown, projectId, identity, cursor, reader, talk, start, panes, settle } = props
   if (start.starting) {
     return <NewConversation projectId={projectId} identity={identity} notice={reader.firstNotice} {...start.form} />
   }
@@ -234,7 +235,7 @@ function Middle(props: {
       notice={reader.firstNotice}
       me={reader.me}
       writer={reader.writer}
-      {...{ projectId, identity, cursor, talk, start, panes }}
+      {...{ projectId, identity, cursor, talk, start, panes, settle }}
     />
   )
 }
@@ -250,8 +251,11 @@ function ListPane(props: {
   me: string
   /** One asked for from elsewhere that the list, read again, doesn't hold. */
   missing: boolean
-  /** The list holds the newest only: older conversations exist that it doesn't list (A16's `more`). */
-  more: boolean
+  /**
+   * The list holds the newest only (A16's `more`), this many as read (a start landed here and shown with them is not
+   * one of them: list-data `shownList`): older conversations exist that it doesn't list. Null: it holds them all.
+   */
+  more: number | null
   /** The one open was just erased here (the newest is open now). */
   erased: boolean
   /** What the reader may do here now, as the list says it (advisory: each write is checked again). */
@@ -273,14 +277,14 @@ function ListPane(props: {
       <ListState read={props.read} count={all.length} capability={props.capability} />
       {props.missing && (
         <p className="conv-note" role="status">
-          {props.more
+          {props.more !== null
             ? 'The conversation asked for isn’t among those listed here (it may be older): the newest is open.'
             : 'The conversation asked for isn’t here: the newest is open.'}
         </p>
       )}
-      {props.more && (
+      {props.more !== null && (
         <p className="conv-note">
-          Only the newest {all.length} conversations are listed here: older ones can’t be opened from this list yet.
+          Only the newest {props.more} conversations are listed here: older ones can’t be opened from this list yet.
         </p>
       )}
       {props.erased && (
@@ -435,8 +439,16 @@ function Open(props: {
   talk: ReturnType<typeof useTalk>
   start: ReturnType<typeof useStart>
   panes: ReturnType<typeof usePanes>
+  settle: (id: string) => void
 }) {
   const { conversation: c, talk, start, panes } = props
+  const queryClient = useQueryClient()
+  // Its own read answered not found: out of this reader's list reads, and let go as one erased (useErased's settle).
+  const gone = () => {
+    const key = listKey(props.projectId, accountOf(props.identity))
+    setListsData(queryClient, key, (list) => listWithout(list, c.id) ?? list)
+    props.settle(c.id)
+  }
   return (
     <OpenConversation
       key={c.id}
@@ -454,6 +466,7 @@ function Open(props: {
       onArrived={start.clearArrived}
       onBack={panes.back}
       context={{ open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
+      onGone={gone}
     />
   )
 }

@@ -47,9 +47,15 @@ function startedIn(list: ConversationList, row: ConversationStarted['conversatio
 
 /**
  * A start's row as one not current where the feed stands: its title only, with no opening and no writer, whatever was
- * withdrawn since. A16 changes a title only by erasing it, so while the conversation stands its title is current.
+ * withdrawn since, and said to be partial (`partial`: what isn't known here is said to be unknown, never none). A16
+ * changes a title only by erasing it, so while the conversation stands its title is current.
  */
-const titleOnly = (row: ConversationStarted['conversation']) => ({ ...row, lastMessage: null, contributors: [] })
+const titleOnly = (row: ConversationStarted['conversation']) => ({
+  ...row,
+  lastMessage: null,
+  contributors: [],
+  partial: true as const,
+})
 
 /**
  * The list as shown: as read, and, where the read lists the newest only (`more`), each start that landed here after
@@ -61,6 +67,13 @@ export function shownList(all: readonly ConversationSummary[], k: Kept, more: bo
   const extra = more ? Object.values(k.reached).filter((row) => !all.some((c) => c.id === row.id)) : []
   return extra.length === 0 ? all : [...all, ...extra]
 }
+
+/**
+ * How many a list of the newest only (`more`) holds as read: a start `shownList` shows after them is not among the
+ * newest, so «Only the newest N» counts the read alone (Codex at bfc2635c). Null: the list as read is whole.
+ */
+export const newestRead = (read: { all: readonly unknown[]; more: boolean }): number | null =>
+  read.more ? read.all.length : null
 
 /**
  * A start that landed: at the top of the list read and its first message read, at once (then read again). The receipt

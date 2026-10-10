@@ -8,6 +8,7 @@
 // what is written: a message sent comes into sight, and one read at its end stays at its end.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { ApiError } from '../../api/client.ts'
 import {
   getConversationMessages,
   type ConversationMessage,
@@ -78,6 +79,8 @@ interface Props {
   onArrived: () => void
   /** Back to the list (a phone shows one at a time). */
   onBack: () => void
+  /** Its own read answered not found (erased, or not this reader's any more): the view lets it go (r4238633930). */
+  onGone: () => void
   /** The context as a panel (under 1180 px): whether it is open, its press, and that press's element for the focus. */
   context: { open: boolean; toggle: () => void; ref: RefObject<HTMLButtonElement | null> }
 }
@@ -109,7 +112,7 @@ function useAwaiting(asked: Asked | null) {
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const awaiting = useAwaiting(props.asked)
-  const read = useTranscript(c.id, identity, props.cursor)
+  const read = useTranscript(c.id, identity, props.cursor, props.onGone)
   const head = useRef<HTMLHeadingElement>(null)
   const follow = useFollow()
   useEffect(() => {
@@ -295,7 +298,7 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
  * before that no view followed as the feed moved is let go as it opens, before it is shown (followed-thread.ts); each
  * read notes where the feed stood as it set out, on its newest page.
  */
-function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined) {
+function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined, onGone: () => void) {
   const queryClient = useQueryClient()
   const key = messagesKey(conversationId, accountOf(identity))
   // Once, as it opens (a part per conversation), before the read below is first shown.
@@ -308,10 +311,11 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
     queryKey: key,
     queryFn: ({ pageParam, signal }) => {
       const readAt = at.current
-      // Where in this view's order the newest page's read set out: a wait noted before it is judged by it (replyWait).
+      // Where in this view's order each page's read set out: a wait noted before it is judged by the page holding its
+      // ask (replyWait, readFromOf; PR #199 r4238633935).
       const readFrom = orderNow()
       return getConversationMessages(identity.token, conversationId, pageParam, signal).then((page) =>
-        pageParam === null ? { ...page, readFrom, ...(readAt === undefined ? {} : { readAt }) } : page,
+        pageParam === null && readAt !== undefined ? { ...page, readFrom, readAt } : { ...page, readFrom },
       )
     },
     initialPageParam: null as string | null,
@@ -319,6 +323,13 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
     retry: 1,
   })
   useReadAgain(cursor, read.refetch)
+  // Its own read answering not found says it is gone as surely as a whole list without it: the view lets it go now, and
+  // what it read before (the cache keeps that across a failed read) is never shown again (PR #199 r4238633930). Any
+  // other failure proves nothing: what was read stays, said possibly out of date.
+  const gone = read.error instanceof ApiError && read.error.code === 'not_found'
+  useEffect(() => {
+    if (gone) onGone()
+  }, [gone, onGone])
   return read
 }
 
@@ -338,7 +349,7 @@ function Messages(props: {
   const { read, me, onAnswered, onGrown } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
   const messages = read.data?.pages.toReversed().flatMap((p) => p.messages) ?? []
-  const waiting = useReplyWait(messages, props.awaiting, readFromOf(read.data), onAnswered)
+  const waiting = useReplyWait(messages, props.awaiting, readFromOf(read.data, props.awaiting.messageId), onAnswered)
   // Grown at its end (a message, or the wait): an earlier page read above leaves where the reader is.
   const newest = messages.at(-1)?.id
   useEffect(() => onGrown(), [newest, waiting, onGrown])
